@@ -37,13 +37,13 @@ verb ends the criterion, and the criterion states no condition:
     `wrapper.py` returns zero when `pytest` passes    -> conditional
     `pytest` passes locally and the parser rejects    -> carries a requirement
 
-Everything after the second line is a behavioral contract on the code under
-review, which a diff reviewer can and must check. Each escaped an earlier draft
-a different way: scanning for a command and a result verb independently
-anywhere in the bullet; truncating a conditional at its subordinator, which
-left "`wrapper.py` returns zero" reading as run evidence about the script under
-test; and letting `Pattern.match` succeed on a prefix, so a bullet that also
-carried a real requirement was classified away with the requirement inside it.
+Every line below the first states something about the code under review, which
+a diff reviewer can and must check. Each escaped an earlier draft a different
+way: scanning for a command and a result verb independently anywhere in the
+bullet; truncating a conditional at its subordinator, which left "`wrapper.py`
+returns zero" reading as run evidence about the script under test; and letting
+`Pattern.match` succeed on a prefix, so a bullet that also carried a real
+requirement was classified away with the requirement inside it.
 
 Each of the three checks rejects on its own, which costs under-firing: a real
 claim written with a leading adverbial ("after the rename, `pytest` passes")
@@ -54,9 +54,9 @@ declaration names it. Over-firing is not safe: it would silently drop a real
 criterion from the gate.
 
 Criterion text reaches the reviewer only after `_normalize` strips control
-characters and collapses newlines and `_sanitize` drops leading markdown
-structure and truncates.
-That bounds the shape of the injected block; it does not make the text
+characters and collapses newlines, and `_sanitize` drops leading markdown
+structure and truncates. That bounds the shape of the injected block; it does
+not make the text
 trustworthy, and it does not need to, because
 `build_ai_review_context.py` already hands the reviewer the same PR body
 verbatim.
