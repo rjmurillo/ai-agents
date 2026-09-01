@@ -170,15 +170,28 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py
 **Locating the importer across harnesses**
 
 Claude-Mem is an optional dependency, and its Copilot CLI integration is
-MCP-only: upstream `MCP_IDE_INSTALLERS` in
-`src/services/integrations/McpIntegrations.ts` maps `copilot-cli` to an MCP
-installer that writes `~/.github/copilot/mcp.json`. Copilot support therefore
-exists, but it supplies no bulk-importer script path, which is what this command
-needs. The bulk importer resolves its path from configuration before any
-harness default.
+MCP-only. Copilot support exists, but it supplies no bulk-importer script path,
+which is what this command needs.
+
+External source, pinned: `github.com/thedotmack/claude-mem` at commit
+`8f085b4f8861122201a5524be71d696a49a812a3` (2026-08-31),
+`src/services/integrations/McpIntegrations.ts` line 242:
+
+```typescript
+  'copilot-cli': installMcpIntegration(COPILOT_CLI_CONFIG),
+```
+
+`COPILOT_CLI_CONFIG` in the same file (lines 116 to 122) writes
+`~/.github/copilot/mcp.json`. At that revision `scripts/import-memories.ts`
+exists but nothing routes Copilot to it. This is an external claim about another
+project, so it can go stale without anything here changing: re-verify at a newer
+revision before relying on it.
+
+The bulk importer resolves its path from configuration before any harness
+default.
 
 Canonical source: `.claude-mem/scripts/import_claude_mem_memories.py`. The
-resolution order is `resolve_importer` at lines 143 to 156, quoted verbatim:
+resolution order is `resolve_importer` at lines 159 to 172, quoted verbatim:
 
 ```python
     if explicit is not None:
@@ -229,7 +242,7 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py \
 ```
 
 The exit code is decided by `is_configured`, not by the absence itself. From
-`main` in the same file, lines 234 to 249, quoted verbatim:
+`main` in the same file, lines 250 to 265, quoted verbatim:
 
 ```python
     importer = resolution.path
@@ -251,7 +264,7 @@ The exit code is decided by `is_configured`, not by the absence itself. From
 ```
 
 `is_configured` is true only for the argument and environment sources, per the
-tuple at line 50 and the property at lines 73 to 76 of the same file. Both are
+tuple at line 66 and the property at lines 89 to 92 of the same file. Both are
 needed: the property alone does not say which sources count as configured.
 
 ```python

@@ -5,23 +5,39 @@ Idempotent import of all JSON memory files from the memories directory.
 Automatically prevents duplicates using composite keys.
 
 The Claude-Mem plugin is an optional dependency. Upstream ships a Copilot CLI
-integration, but it is MCP-only: ``MCP_IDE_INSTALLERS`` in
-``src/services/integrations/McpIntegrations.ts`` maps ``copilot-cli`` to an MCP
-installer writing ``~/.github/copilot/mcp.json``, and supplies no bulk-importer
-script this module could call. There is therefore a Claude Code default path and
-no Copilot equivalent of it, so the importer path is resolved in this order:
+integration, but it is MCP-only and supplies no bulk-importer script this module
+could call, so there is a Claude Code default path and no Copilot equivalent
+of it.
+
+Verified against github.com/thedotmack/claude-mem at commit
+8f085b4f8861122201a5524be71d696a49a812a3 (2026-08-31),
+``src/services/integrations/McpIntegrations.ts:242``::
+
+    'copilot-cli': installMcpIntegration(COPILOT_CLI_CONFIG),
+
+whose ``COPILOT_CLI_CONFIG`` (same file, lines 116 to 122) writes
+``~/.github/copilot/mcp.json``. At that revision ``scripts/import-memories.ts``
+exists but nothing routes Copilot to it. Re-verify before relying on this: a
+later upstream release could add a Copilot importer path, and this comment
+would not know.
+
+The importer path is resolved in this order:
 
   1. ``--importer PATH`` on the command line
   2. the ``CLAUDE_MEM_IMPORTER`` environment variable
   3. the Claude Code plugin default under ``~/.claude/plugins/``
 
-When none of the three resolves, the plugin is not installed and the import is
-skipped with exit 0. When a path IS configured (1 or 2) but is missing or the
-importer fails, that is a real failure and exits 1.
+The exit code turns on whether anything was CONFIGURED, not on whether a path
+resolved. When nothing is configured (no argument, no environment value, and no
+default found on disk), the plugin is not installed and the import is skipped
+with exit 0. When something IS configured but unusable, that is a real failure
+and exits 1. That includes a blank ``--importer``, which resolves to no path yet
+still counts as configured, so "no path resolved" alone does not mean skip. See
+``ImporterResolution.is_configured``.
 
 EXIT CODES:
-  0  - Success, or the optional plugin is not installed (skipped)
-  1  - A configured importer is missing, or one or more imports failed
+  0  - Success, or nothing configured and no plugin installed (skipped)
+  1  - A configured importer is missing or unusable, or an import failed
 
 See: ADR-035 Exit Code Standardization
 """

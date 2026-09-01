@@ -50,8 +50,9 @@
 seam and the split exit-code contract -> wrote tests -> hit an `AttributeError`
 at collection because the standard-library dataclasses module resolves a class's
 module through `sys.modules` and the test loader never registered the module ->
-fixed the loader -> ran negative controls -> `ruff check` and `ruff format`
-scoped to the changed Python files -> committed -> `pre_pr.py` (all validations
+fixed the loader -> ran negative controls -> `ruff check` scoped to the changed
+Python files, and also ran the formatter, which `.claude/rules/python.md` forbids
+(see Failures) -> committed -> `pre_pr.py` (all validations
 passed) -> pushed under the branch push lock -> opened PR #5459 -> cold
 self-review found the `is_configured` escape and fixed it -> Validate PR flagged
 a false-positive file claim in the PR body, reworded -> Copilot review returned
@@ -192,13 +193,13 @@ layer.
 |----------|----------|--------|-----------|
 | Read the target script and its existing test before implementing from the issue body | Issue described defect 1 only; defects 2 and 3 (exit-code conflation, `assert result in (0, 1)`) were visible only in the source | 9 | 90% |
 | Isolate each contract direction with its own single-branch negative control | Control A failed exactly 1 test, control B exactly 2; the whole-change revert failed 14 but mostly on `TypeError`, proving nothing | 9 | 85% |
-| Baseline `ruff format --check` before running the formatter | All four `.claude-mem/scripts/*.py` fail it on `main`; a blanket format would have buried the fix in unrelated churn | 7 | 80% |
 | Verify the relayed review finding against the review's own `commit_id` | Finding 1 was reported against `d1435721d`; the fix already existed in `196dd523e`, so the action was to add the missing regression test, not to re-fix working code | 8 | 85% |
 
 ### Failures (Tag: harmful)
 
 | Strategy | Error Type | Root Cause | Prevention | Atomicity |
 |----------|------------|------------|------------|-----------|
+| Ran the Python formatter on changed files, and cited its check mode as a baseline gate, repeatedly and across many commits, review replies, and the PR body | Repo-rule violation, shipped throughout the PR | `.claude/rules/python.md` says "Never run `ruff format` or cite `ruff format --check` as a gate. No gate runs it; main does not conform," with `tests/validation/test_ruff_format_not_enforced.py` holding the evidence. I never read the Python rule file; I inferred a formatting convention from the tooling being installed | Read the language rule file before running any language tooling not named by the task, and treat "the tool exists in the venv" as no evidence that the repo sanctions it | 92% |
 | Decided the exit code from `path.exists()` alone, leaving `is_configured` asserted only by tests | Latent contract defect, reached commit `176e68873` | The exit-1 behavior rested on an unstated invariant inside `resolve_importer` (a default is returned only when it exists) instead of the stated contract | Branch on the classification the resolver already computed; never re-derive a decision the caller stored | 90% |
 | Loaded modules via `spec_from_file_location` without registering them in `sys.modules` | Collection error, caught before commit | Pre-existing test-loader helper; the omission is invisible until a module under test uses a dataclass | Register the module in `sys.modules` in the loader helper | 85% |
 | Wrote "`dataclasses.py`" in the PR body while explaining stdlib behavior | CI red on Validate PR | The gate treats any backtick-quoted `*.py` token in `## Changes` as a claimed changed file | Name stdlib modules without the `.py` extension in PR prose | 75% |
@@ -374,6 +375,11 @@ persisting them belongs in a campaign-level change that owns the index.
 - Write stdlib module names without a file extension in PR prose, since the
   Validate PR gate reads any backtick-quoted `*.py` token in `## Changes` as a
   claimed changed file.
+- Read `.claude/rules/<language>.md` before running any language tooling the
+  task did not name. I ran the Python formatter for five rounds because it was
+  installed and I assumed formatting was house style. The rule file forbids it
+  in one bolded line. A tool being available is not evidence the repo wants it
+  run, and an unread rule file is the cheapest possible thing to have checked.
 
 ### Delta Triage
 
@@ -408,7 +414,7 @@ without an owner.
 | Item | Reason |
 |------|--------|
 | Splitting `MEMORY-MANAGEMENT.md` | Advisory, pre-existing on `main`, and out of scope for a bug fix |
-| Formatting the other three `.claude-mem/scripts/*.py` files | Unrelated churn; they fail `ruff format --check` on `main` |
+| Formatting the other `.claude-mem/scripts/*.py` files | Not a gate and not sanctioned: `.claude/rules/python.md` forbids running the formatter or citing its check mode. The right answer was never "format them too", it was "do not run it at all", which I only learned in review |
 | A Copilot CLI default importer path | No Claude-Mem Copilot plugin exists to point at |
 
 ### ROTI Assessment
