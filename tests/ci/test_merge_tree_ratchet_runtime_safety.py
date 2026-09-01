@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,6 +19,37 @@ from tests.ci.test_merge_tree_ratchet_check import (
     _git,
     _make_repo_with_baselines,
 )
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+@pytest.mark.usefixtures("_zero_non_target_aggregate_counts")
+def test_every_ratchet_reports_a_verdict_before_the_outer_cap_fires(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Issue #5441: an exhausted deadline still ends with a verdict per ratchet.
+
+    ``_evaluate_registered_ratchets`` checks the deadline before each
+    ratchet's turn, not once for the whole loop, so an already-expired
+    deadline (simulating the outer Lefthook timeout closing in) must still
+    print a clear FAIL for every registered ratchet rather than silently
+    skipping the rest or letting the caller be killed with no diagnostic.
+    """
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+
+    with (
+        patch("scripts.ci.ruff_count_ratchet.current_count") as ruff_counter,
+        patch("scripts.ci.taste_count_ratchet.current_count") as taste_counter,
+        patch("scripts.ci.type_ignore_count_ratchet.current_count") as ignore_counter,
+    ):
+        rc = _m._evaluate_merged_tree(repo, "HEAD", deadline=time.monotonic() - 1)
+
+    assert rc == _m.EXIT_EXTERNAL
+    error = capsys.readouterr().err
+    for ratchet in _m.RATCHETS:
+        assert f"{ratchet.label}: FAIL. Not run: aggregate timeout exhausted." in error
+    ruff_counter.assert_not_called()
+    taste_counter.assert_not_called()
+    ignore_counter.assert_not_called()
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")

@@ -66,6 +66,52 @@ def test_memory_index_counter_reads_synthetic_merged_tree_not_worktree(
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 def test_cli_exit_counter_receives_materialized_merged_tree(tmp_path: Path) -> None:
+    """A genuinely diverged branch still counts against a materialized copy.
+
+    ``main`` commits ``diverged-only.txt`` after the branch point, so
+    ``is_fast_forward_clean`` (issue #5441) is False here and the check must
+    still fall back to materialize-and-recount: this is the scenario that
+    protects issue #4398 (a branch behind a base ref that lowered a
+    baseline), and it must never silently read the live working tree.
+    """
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    _git(repo, "checkout", "-b", "pr-branch")
+    (repo / "branch.py").write_text("branch = True\n", encoding="utf-8")
+    _commit_all(repo, "branch change")
+    _git(repo, "checkout", "main")
+    (repo / "diverged-only.txt").write_text("main moved on\n", encoding="utf-8")
+    _commit_all(repo, "main diverges")
+    _git(repo, "checkout", "pr-branch")
+
+    with (
+        patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+        patch("scripts.ci.memory_index_count_ratchet.current_count", return_value=0),
+        patch.object(
+            _cli_exit,
+            "current_count",
+            wraps=_cli_exit.current_count,
+        ) as cli_counter,
+    ):
+        rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
+
+    assert rc == _m.EXIT_OK
+    cli_counter.assert_called_once()
+    assert cli_counter.call_args.args[0] != repo
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_fast_forward_clean_reuses_working_tree_without_materializing(
+    tmp_path: Path,
+) -> None:
+    """A clean fast-forward branch counts straight off repo_root (issue #5441).
+
+    This is the dedup this issue asks for: when the merge is provably a
+    no-op, materializing a scratch copy just to recount a value repo_root
+    already holds is wasted work, so the counter must run against repo_root
+    directly instead.
+    """
     repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
     with (
         patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
@@ -82,7 +128,7 @@ def test_cli_exit_counter_receives_materialized_merged_tree(tmp_path: Path) -> N
 
     assert rc == _m.EXIT_OK
     cli_counter.assert_called_once()
-    assert cli_counter.call_args.args[0] != repo
+    assert cli_counter.call_args.args[0] == repo
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
