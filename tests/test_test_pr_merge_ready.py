@@ -1488,3 +1488,60 @@ class TestTierInMergeReadinessOutput:
             result = check_merge_readiness("o", "r", 42)
         assert "Tier" in result
         assert result["Tier"] in _mod._TIER_ORDER
+
+
+def _failing_bot_pr() -> dict:
+    """`_OPEN_PR` with one failing required check, so a tier arm is reachable."""
+    pr = json.loads(json.dumps(_OPEN_PR))
+    node = pr["repository"]["pullRequest"]
+    node["mergeStateStatus"] = "UNSTABLE"
+    rollup = node["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+    rollup["state"] = "FAILURE"
+    rollup["contexts"]["nodes"][0]["conclusion"] = "FAILURE"
+    return pr
+
+
+class TestIsBotFlagReachesTierT5:
+    """`--is-bot` must change the tier, not merely arrive.
+
+    `test_pr_autofix_bot_tier_forwarding.py` proves `/pr-autofix` puts the flag
+    on the producer's argv, against a fake producer that records argv and
+    prints whatever tier the case asked for. That is the whole forwarding
+    contract on the command side and none of it on this side: a producer that
+    accepted `--is-bot` and dropped it before `classify_tier` would leave every
+    one of those cases green while issue #5208 stayed open, because no test in
+    either suite runs argv through to an emitted tier.
+
+    `TestClassifyTier.test_bot_with_failures_is_t5` calls `classify_tier`
+    directly with `is_bot=True`, which skips the two wirings that can break:
+    `build_parser`'s `--is-bot` into `args.is_bot`, and `main`'s `args.is_bot`
+    into `check_merge_readiness(is_bot=...)` into `classify_tier`. These run the
+    real `main` over the real code path while isolating exactly three external
+    boundaries: authentication, repository resolution, and `gh_graphql`.
+    """
+
+    def _tier(self, argv: list[str], capsys) -> str:
+        with patch("test_pr_merge_ready.assert_gh_authenticated"), patch(
+            "test_pr_merge_ready.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch("test_pr_merge_ready.gh_graphql", return_value=_failing_bot_pr()):
+            rc = main(argv)
+        assert rc == 1, "a PR with a failing required check is not merge-ready"
+        return json.loads(capsys.readouterr().out)["Tier"]
+
+    def test_the_is_bot_flag_produces_tier_t5(self, capsys):
+        tier = self._tier(["--pull-request", "42", "--is-bot"], capsys)
+        assert tier == "T5", (
+            "the forwarded flag did not reach classify_tier, so /pr-autofix "
+            f"sending --is-bot still cannot produce T5; got {tier}"
+        )
+
+    def test_without_the_flag_the_same_pr_is_not_t5(self, capsys):
+        """Negative control. Without it, a hardcoded T5 would pass the case above.
+
+        T2 is the arm this PR takes without the flag: a failing required check
+        and no unresolved threads. That is exactly the misclassification issue
+        #5208 reports, so this case also pins the defect's shape.
+        """
+        tier = self._tier(["--pull-request", "42"], capsys)
+        assert tier == "T2", f"expected the pre-fix misclassification, got {tier}"
