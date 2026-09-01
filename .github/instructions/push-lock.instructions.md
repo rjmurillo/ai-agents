@@ -61,8 +61,9 @@ flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push origin "$BR"
 
 A `ps` census or a retrospective that records what the old schemes looked like
 is evidence, not a recipe, and must not be rewritten to match this rule. Mark
-such a fenced block with the token `push-lock-historical` on a line inside the
-fence so `scripts/validation/check_push_lock_paths.py` skips it. The checker
+such a fenced block, or such a paragraph of prose, with the token
+`push-lock-historical` on a line inside it so
+`scripts/validation/check_push_lock_paths.py` skips it. The checker
 scans prescriptive surfaces only and leaves `.agents/retrospective/`,
 `.agents/audits/`, and `.agents/archive/` alone.
 
@@ -113,7 +114,7 @@ uv run python scripts/validation/check_push_lock_paths.py
 Exits 0 and prints the examined file count when every prescription agrees.
 Exits 1 and names file, line, and offending path otherwise.
 
-The unit is the fenced block, not the line. A recipe reaches its lock four
+The unit is the block, not the line. A recipe reaches its lock four
 ways and only the first keeps `flock` and the path on one line: inline,
 through a variable (`LOCK=...` then `flock "$LOCK"`), through a file
 descriptor (`exec 9>...` then `flock -n 9`), and across a `\` continuation.
@@ -122,6 +123,13 @@ Every lock a block opens must be canonical, read from its `.lock` tokens, its
 catches a lock written without the `.lock` suffix, and what keeps a dead scheme
 visible when it shares a fence with the canonical recipe. The inventory comes
 from the index, so a staged but uncommitted file is checked.
+
+A recipe does not become canonical by losing its fence, so unfenced prose is
+read the same way, one Markdown paragraph at a time: a blank line bounds the
+unit, so a variable set in one paragraph never resolves a `flock` in another.
+The one asymmetry is that only a fence is reported for naming no canonical
+path at all, because prose discusses `flock` without prescribing anything
+(issue #4635).
 
 ## References
 
