@@ -80,6 +80,26 @@ def test_a_file_pytest_cannot_import_is_reported_as_external(tmp_path: Path) -> 
     assert _run(tmp_path) == 3
 
 
+def test_a_non_utf8_source_is_reported_as_external(tmp_path: Path) -> None:
+    """A valid PEP 263-encoded module must not crash the declaration check.
+
+    Copilot review round 12 (PR #5344): pytest imports a module using its own
+    declared source encoding, so a file collects fine here with a
+    ``# -*- coding: latin-1 -*-`` declaration and a genuinely latin-1 byte.
+    ``build_report`` unconditionally re-reads every examined file as UTF-8 to
+    classify its declaration, which previously raised an unhandled
+    ``UnicodeDecodeError`` instead of the documented external-error exit.
+    """
+    tests = _make_repo(tmp_path)
+    (tests / "test_latin1.py").write_bytes(
+        b"# -*- coding: latin-1 -*-\n"
+        b'NAME = "R\xe9sum\xe9"\n\n'
+        b"def test_x():\n    assert NAME\n"
+    )
+
+    assert _run(tmp_path) == 3
+
+
 @pytest.mark.parametrize(
     ("payload", "expected"),
     [

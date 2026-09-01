@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- the guard, its config reader, its exemption
+# parser, and its skip-module trust check are one gate with one contract;
+# splitting them would let the pieces drift out of sync with what
+# tests/validation/test_check_zero_collection_tests.py exercises as a unit.
 """Fail when a file pytest walks into contributes no tests.
 
 A file that matches ``python_files`` inside ``testpaths`` is walked on every CI
@@ -416,7 +420,12 @@ def build_report(repo_root: Path) -> Report:
     stale: list[str] = []
     declared: list[str] = []
     for relative in collection.candidates:
-        text = (repo_root / relative).read_text(encoding="utf-8")
+        try:
+            text = (repo_root / relative).read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise CollectionError(
+                f"cannot read {relative} as UTF-8 to check its declaration: {exc}"
+            ) from exc
         declaration = declaration_kind(text)
         if relative in collection.collected:
             if declaration == "permanent":
