@@ -10,8 +10,8 @@
 ## What shipped
 
 Two commits on `claude/fix-5366-spec-coverage-nonexecutable` carried the
-initial implementation. Five review rounds then reshaped the classifier's
-precision boundary before merge; those are rows 4 through 14 of the
+initial implementation. Six review rounds then reshaped the classifier's
+precision boundary before merge; those are rows 4 through 15 of the
 Remediation table below, and they define the shipped behavior as much as these
 two do:
 
@@ -99,7 +99,7 @@ validation.
 
 ## Evidence
 
-Final state, re-run after the fifth review round. Earlier rounds' numbers are
+Final state, re-run after the sixth review round. Earlier rounds' numbers are
 kept below them so the progression stays readable, marked as intermediate.
 
 - `uv run --frozen python -m pytest tests/ci/test_spec_nonexecutable_criteria.py
@@ -140,6 +140,11 @@ keeping the tests:
   stayed green. Separately, the workflow wiring control now rejects
   `echo scripts/ci/spec_prepare_context.py`, so a path substring no longer
   counts as executing the builder.
+- Round 6 (shared declaration semantics): the declaration now says it is a
+  hint, not an override, and names the behavioral-contract exception the
+  completeness prompt already carried. The existing prepare-context integration
+  test now asserts both phrases, so an unconditional "treat each one as N/A"
+  regression fails where both consumers read the shared context.
 
 Intermediate figures, superseded: the first push recorded 299 passed / 11
 skipped and 38 detector cases, before `tests/commands/test_spec_ontology.py`
@@ -163,8 +168,9 @@ joined the command and before the review rounds added cases.
 | 12 | Elide the middle of an over-long criterion, so the declaration entry keeps both the command and the result it was classified on | PR #5451 | Shipped (review round 4) |
 | 13 | Reject a would-be backtick fence opener with a backtick-free remainder scan, so a long non-fence line is refused in linear time | PR #5451 | Shipped (review round 5) |
 | 14 | Pin the workflow wiring to the exact `python3 scripts/ci/spec_prepare_context.py` invocation, so a path substring cannot impersonate a live call site | PR #5451 | Shipped (review round 5) |
+| 15 | Make the shared Non-Executable Criteria declaration a hint, not an override, so completeness and traceability both preserve behavioral contracts in scope | PR #5451 | Shipped (review round 6) |
 
-No tracking issue is open against this work. Items 4 through 14 came from five
+No tracking issue is open against this work. Items 4 through 15 came from six
 review rounds on PR #5451 (Devin and Copilot, independently, on the same
 seams) and shipped in the same PR rather than as follow-ups.
 

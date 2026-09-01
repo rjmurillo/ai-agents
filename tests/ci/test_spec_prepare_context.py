@@ -91,6 +91,9 @@ class TestRun:
         assert "## Non-Executable Criteria Declaration" in out
         assert "- `uv run python scripts/validation/pre_pr.py` passes" in out
         assert "N/A" in out
+        assert "historical run evidence" in out
+        assert "hint, not an override" in out
+        assert "behavioral contract" in out
 
     def test_omits_nonexecutable_block_for_verifiable_criteria(self, tmp_path: Path) -> None:
         """Negative control: an ordinary criterion must stay inside the gate."""
