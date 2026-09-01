@@ -7,6 +7,28 @@
 - **Task Type**: Bug fix (CI reliability), single issue
 - **Outcome**: Success, one commit plus this retrospective
 
+## Failure Mode Classification
+
+**Primary**: FM-9 (Confident-Incorrectness Recurrence,
+`.agents/governance/FAILURE-MODES.md` lines 284-311).
+
+PR #5103's sweep reported the repository's `always()`-gated aggregators as
+fixed after modeling "depends on upstream work" as one shape (a job that
+reads `needs.<job>.result`). `check-blocking-issues` depends on upstream work
+through a second shape (a downloaded artifact the upstream job never
+produced when cancelled) that the classifier's regex could not see. The
+sweep's audit table even flagged the job by name and still reported it
+unfixed without anyone treating that flag as a live defect, which is FM-9's
+shape exactly: a validator shipped confidence ("the five result-reading
+aggregators are now guarded") from a partial signal (one dependency shape),
+and the gap surfaced only when issue #5104 reproduced it live, one round of
+correction after the flag was already on record. The fix in this PR does not
+just patch the instance; per FM-9's Enforcement Pattern, it widens the
+classifier itself (`depends_on_upstream_output`) so the artifact-consuming
+shape is part of the checked contract going forward, and the PR's
+measured-blast-radius table stands in for the "quote the canonical source"
+step, since the source here is the workflow YAML shape rather than a schema.
+
 ## What shipped
 
 `.github/workflows/codeql-analysis.yml::check-blocking-issues` ran under
