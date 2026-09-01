@@ -1,4 +1,10 @@
-"""Tests for .claude-mem/scripts/ memory export/import scripts."""
+"""Tests for the .claude-mem/scripts/ memory EXPORT scripts.
+
+Importer resolution and exit codes live in
+tests/claude_mem/test_importer_resolution.py. This module must not load the
+importer: both modules register into sys.modules under the same key, so a load
+here would overwrite the one the importer tests rely on.
+"""
 
 from __future__ import annotations
 
@@ -30,7 +36,6 @@ def _load(name: str, filename: str):
 _export_direct = _load("export_claude_mem_direct", "export_claude_mem_direct.py")
 _export_memories = _load("export_claude_mem_memories", "export_claude_mem_memories.py")
 _export_backup = _load("export_claude_mem_full_backup", "export_claude_mem_full_backup.py")
-_import_mem = _load("import_claude_mem_memories", "import_claude_mem_memories.py")
 
 
 class TestExportDirectValidateOutputPath:

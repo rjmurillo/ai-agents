@@ -5,9 +5,12 @@ Idempotent import of all JSON memory files from the memories directory.
 Automatically prevents duplicates using composite keys.
 
 The Claude-Mem plugin is an optional dependency. Upstream ships a Copilot CLI
-integration, but it is MCP-only and supplies no bulk-importer script this module
-could call, so there is a Claude Code default path and no Copilot equivalent
-of it.
+integration, but it is MCP-only: it installs an MCP server entry and no importer
+path. The bulk-importer script itself does exist upstream, and is the very
+script this module invokes, so the gap is not a missing script. The gap is that
+nothing in the Copilot integration installs it or points at an installed copy,
+so this module has a Claude Code default path to fall back on and no Copilot
+equivalent of that default.
 
 Verified against github.com/thedotmack/claude-mem at commit
 8f085b4f8861122201a5524be71d696a49a812a3 (2026-08-31),
@@ -115,9 +118,16 @@ def expand_home(raw: str, home: Path) -> Path:
     Stricter/looser/different than canonical: ``Path.expanduser`` reads the real
     ``HOME`` or ``USERPROFILE`` and the password database, which defeats the
     injected ``home`` this module resolves against and forces tests to mutate
-    global state. This expands only the current user's ``~``; a ``~otheruser``
-    prefix is left literal, so it fails the later existence check with the
-    literal path shown rather than silently resolving against a stranger's home.
+    global state. This expands only the current user's ``~``.
+
+    A ``~otheruser`` prefix is NOT expanded. It is returned unchanged, which
+    makes it a RELATIVE path beginning with a literal ``~otheruser`` segment, so
+    it never resolves against a stranger's home. The caller's later existence
+    check then runs against whatever that relative path resolves to under the
+    process working directory. That normally does not exist and the caller
+    reports the literal path, but failure is not guaranteed: a directory
+    literally named ``~otheruser`` in the working directory would satisfy the
+    check and be executed. Do not rely on this branch as a rejection.
 
     The suffix is stripped of further leading separators before joining. Without
     that, ``~//importer.ts`` leaves ``/importer.ts``, and ``Path.__truediv__``

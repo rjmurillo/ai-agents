@@ -170,8 +170,11 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py
 **Locating the importer across harnesses**
 
 Claude-Mem is an optional dependency, and its Copilot CLI integration is
-MCP-only. Copilot support exists, but it supplies no bulk-importer script path,
-which is what this command needs.
+MCP-only: it installs an MCP server entry and no importer path. The
+bulk-importer script itself does exist upstream, and is the very script this
+command invokes, so the gap is not a missing script. The gap is that nothing in
+the Copilot integration installs it or points at an installed copy, so there is
+a Claude Code default path to fall back on and no Copilot equivalent of it.
 
 External source, pinned: `github.com/thedotmack/claude-mem` at commit
 `8f085b4f8861122201a5524be71d696a49a812a3` (2026-08-31),
@@ -191,7 +194,7 @@ The bulk importer resolves its path from configuration before any harness
 default.
 
 Canonical source: `.claude-mem/scripts/import_claude_mem_memories.py`. The
-resolution order is `resolve_importer` at lines 165 to 178, quoted verbatim:
+resolution order is `resolve_importer` at lines 175 to 188, quoted verbatim:
 
 ```python
     if explicit is not None:
@@ -227,9 +230,16 @@ legitimately begin or end with a space, and trimming the value that resolves
 would execute a different file or report a real importer missing.
 
 A leading `~` is expanded by `expand_home` against the resolved home rather than
-by `Path.expanduser`, so the expansion does not depend on the process `HOME`. A
-`~otheruser` prefix is left literal and fails the existence check with the
-literal path shown.
+by `Path.expanduser`, so the expansion does not depend on the process `HOME`.
+
+A `~otheruser` prefix is not expanded. It is returned unchanged, which makes it
+a relative path beginning with a literal `~otheruser` segment, so it never
+resolves against a stranger's home. The existence check then runs against
+whatever that relative path resolves to under the process working directory.
+That normally does not exist and the error reports the literal path, but failure
+is not guaranteed: a directory literally named `~otheruser` in the working
+directory would satisfy the check and be executed. This branch is a
+non-expansion, not a rejection, and must not be relied on as one.
 
 ```bash
 # Point at an importer installed outside the Claude Code plugin root
@@ -242,7 +252,7 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py \
 ```
 
 The exit code is decided by `is_configured`, not by the absence itself. From
-`main` in the same file, lines 256 to 271, quoted verbatim:
+`main` in the same file, lines 266 to 281, quoted verbatim:
 
 ```python
     importer = resolution.path
@@ -264,7 +274,7 @@ The exit code is decided by `is_configured`, not by the absence itself. From
 ```
 
 `is_configured` is true only for the argument and environment sources, per the
-tuple at line 66 and the property at lines 89 to 98 of the same file. Both are
+tuple at line 69 and the property at lines 92 to 101 of the same file. Both are
 needed: the property alone does not say which sources count as configured.
 
 ```python
