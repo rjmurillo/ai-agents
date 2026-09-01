@@ -189,7 +189,7 @@ class TestResolveImporter:
 
         resolution = _import_mem.resolve_importer("~/importer.ts", {}, tmp_path)
 
-        assert resolution.path == Path(tmp_path / "importer.ts")
+        assert resolution.path == tmp_path / "importer.ts"
 
     def test_reports_unset_when_plugin_absent(self, tmp_path: Path) -> None:
         resolution = _import_mem.resolve_importer(None, {}, tmp_path / "empty-home")
