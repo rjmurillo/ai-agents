@@ -63,12 +63,18 @@ class TestAggregateRatchetWiring:
         assert job.get("glob") is None
 
     def test_merge_tree_ratchet_job_is_wired_as_its_own_job(self) -> None:
-        """Issue #5441: split from count-ratchets so both run in parallel."""
+        """Issue #5441: split from count-ratchets so both run in parallel.
+
+        No ``--base-ref`` here (review finding, same issue): the script
+        resolves its own default dynamically instead of a hardcoded
+        ``origin/main``, which measured a branch stacked on a non-main base
+        against the wrong target.
+        """
         job = _job("merge-tree-ratchet")
         assert job is not None
         run = str(job.get("run"))
         assert "scripts/ci/merge_tree_ratchet_check.py" in run
-        assert "--base-ref origin/main" in run
+        assert "--base-ref" not in run
         assert "--extra dev" in run
 
     def test_registry_retains_taste_and_type_ignore_ratchets(self) -> None:
@@ -77,7 +83,7 @@ class TestAggregateRatchetWiring:
         ``checks_ratchet.RATCHETS`` used to run them a second time in the same
         aggregate that also fed them to the merge-tree check; they now live
         only in ``merge_tree_ratchet_registry.py``, so
-        ``validate_shared_ratchets`` measures each exactly once.
+        ``checks_ratchet.validate_count_ratchets`` measures each exactly once.
         """
         labels = {ratchet.label for ratchet in SHARED_RATCHETS}
         assert "taste count ratchet" in labels

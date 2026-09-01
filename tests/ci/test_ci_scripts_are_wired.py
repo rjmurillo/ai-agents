@@ -76,6 +76,18 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "no main() and no shebang; tests/ci/test_merge_tree_materialization.py "
         "drives it directly."
     ),
+    "merge_tree_ratchet_baseline_direction.py": (
+        "Library holding the one-directional baseline guard for "
+        "merge_tree_ratchet_check.py, which pr-validation.yml invokes. It has "
+        "no main() and no shebang; tests/ci/test_merge_tree_ratchet_baseline_"
+        "direction.py drives it directly (issue #5441)."
+    ),
+    "merge_tree_ratchet_preparation.py": (
+        "Library holding base-ref resolution and merge-tree construction for "
+        "merge_tree_ratchet_check.py, which pr-validation.yml invokes. It has "
+        "no main() and no shebang; tests/ci/test_merge_tree_ratchet_"
+        "preparation.py drives it directly (issue #5441)."
+    ),
     "merge_tree_ratchet_registry.py": (
         "Library holding the single ownership registry of ratchets that "
         "merge_tree_ratchet_check.py evaluates, and pr-validation.yml invokes "

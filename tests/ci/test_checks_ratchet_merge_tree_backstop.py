@@ -51,11 +51,22 @@ class TestMergeTreeBackstopDelegation:
     def test_each_shared_counter_runs_exactly_once_per_invocation(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The required regression guard for issue #5441's fix.
+        """The happy-path regression guard for issue #5441's fix.
 
         A clean fast-forward branch (``base_ref == HEAD``) is the common case
         the issue's own reproduction hit. Each of the five merge-tree-backed
         counters must be measured exactly once for it, not twice.
+
+        This mocks ``current_count`` in-process, so it cannot see a
+        re-registration of one of these five scripts in ``checks_ratchet.
+        RATCHETS``: a re-added entry dispatches through ``uv run --frozen`` as
+        a separate interpreter (``build_command``), which this mock never
+        touches, and the stub script written by ``_stub_standalone_ratchets``
+        would exit 0 either way. ``test_no_ratchet_is_registered_in_both_
+        tables`` in ``test_lefthook_ratchet_wiring.py`` is the guard against
+        that specific mutation: it asserts the two script sets stay disjoint
+        without running anything, so it catches what this test cannot
+        (issue #5441 review).
         """
         repo = _repo(tmp_path)
         _stub_standalone_ratchets(repo)
@@ -145,3 +156,28 @@ class TestMergeTreeBackstopDelegation:
             passed = checks_ratchet.validate_count_ratchets(repo)
 
         assert passed is False
+
+    def test_merge_tree_backstop_gets_its_own_deadline_not_the_60s_aggregate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Issue #5441 review (major finding): 60s < the ~64s materialize worst case.
+
+        ``_AGGREGATE_TIMEOUT_SECONDS`` (60s) bounds only the two RATCHETS
+        entries. Handing that same 60s down as the merge-tree backstop's own
+        deadline caps a path measured at ~64s worst case under a tighter
+        budget than its own worst case, a guaranteed failure rather than
+        headroom. ``_evaluate_merge_tree_backstop`` must be called with no
+        ``deadline`` override, so it falls back to its own internal 90s
+        default instead.
+        """
+        repo = _repo(tmp_path)
+        _stub_standalone_ratchets(repo)
+        monkeypatch.setattr(checks_ratchet, "_resolve_default_base_ref", lambda _root: "HEAD")
+
+        with patch.object(
+            checks_ratchet, "_evaluate_merge_tree_backstop", return_value=0
+        ) as backstop:
+            checks_ratchet.validate_count_ratchets(repo)
+
+        backstop.assert_called_once()
+        assert "deadline" not in backstop.call_args.kwargs

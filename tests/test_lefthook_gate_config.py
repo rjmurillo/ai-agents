@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from scripts.validation.checks_ratchet import RATCHETS as PRE_PUSH_RATCHETS
+from scripts.ci.merge_tree_ratchet_registry import RATCHETS as MERGE_TREE_RATCHETS
 
 LEFTHOOK_PATH = Path(__file__).parent.parent / "lefthook.yml"
 MEMORY_WORKFLOW_PATH = (
@@ -62,18 +62,28 @@ class TestMemoryTierGateEnforcement:
         )
 
     def test_memory_tier_count_is_enforced_by_a_ratchet(self) -> None:
-        ratchets = {ratchet.job_name: ratchet for ratchet in PRE_PUSH_RATCHETS}
-        entry = ratchets["memory-index-count-ratchet"]
-        assert entry.script == "scripts/ci/memory_index_count_ratchet.py"
-        assert entry.uses_base_ref is True
+        """Issue #5441 moved this ratchet out of checks_ratchet.RATCHETS.
+
+        It now lives in merge_tree_ratchet_registry.py, evaluated by
+        scripts/ci/merge_tree_ratchet_check.py. Every entry there gets
+        base-ref enforcement through the one-directional guard in
+        merge_tree_ratchet_baseline_direction.raised_baseline, unconditionally
+        (issue #5441 review), so the guarantee this test protects still
+        holds: it is just no longer expressed as a per-entry boolean flag.
+        """
+        ratchets = {ratchet.label: ratchet for ratchet in MERGE_TREE_RATCHETS}
+        entry = ratchets["memory-index count ratchet"]
+        assert entry.counter_module.__name__ == "scripts.ci.memory_index_count_ratchet"
 
     def test_count_ratchets_job_has_no_glob_filter(self) -> None:
         job = self._find_job("count-ratchets")
         assert "glob" not in job
 
     def test_cli_exit_contract_ratchet_watches_baseline_only_changes(self) -> None:
-        ratchets = {ratchet.job_name: ratchet for ratchet in PRE_PUSH_RATCHETS}
-        assert ratchets["cli-exit-contract-ratchet"].uses_base_ref is True
+        """Same repoint as above: moved to the merge-tree-backed registry."""
+        ratchets = {ratchet.label: ratchet for ratchet in MERGE_TREE_RATCHETS}
+        entry = ratchets["cli exit contract ratchet"]
+        assert entry.counter_module.__name__ == "scripts.ci.cli_exit_contract_ratchet"
 
     def test_memory_index_job_has_ci_flag(self) -> None:
         job = self._find_job("memory-index")
