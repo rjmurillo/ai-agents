@@ -128,6 +128,69 @@ reference rows and asserts the misroute returns, and a per-row test asserts ever
 row still wins for its own representative path. Without those two, the suite
 would have been pinning a property it was not actually testing.
 
+## Second failure, same session: the imagined child contract
+
+Round one of review caught a defect in the fix that is a textbook FM-9,
+Confident-Incorrectness Recurrence. The section above rules FM-9 out for the
+original defect and notes it was "a live risk in the fix". It landed anyway, in
+a place I did not check.
+
+`run_rule_activation` parsed the child evaluator's stdout as JSON, because the
+three sibling runners in the same file do exactly that. I never ran the child.
+The real contract, at `scripts/eval/eval-rule-activation.py:2450-2452`, is:
+
+```python
+    if args.output:
+        Path(args.output).write_text(json.dumps(all_results, indent=2), encoding="utf-8")
+        print(f"\nWrote results: {args.output}")
+```
+
+JSON goes to `--output` only. stdout gets a human table. Every real rule
+evaluation would have failed to parse and returned `EXIT_EXTERNAL`, which is the
+same failure shape as the bug this PR set out to fix, reintroduced one layer
+down.
+
+The mock hid it. `_stub_child` returned `{"verdict": "PASS"}` on stdout, so nine
+tests agreed with the imagination instead of the CLI. This is the
+"self-referential test" anti-pattern in `.claude/rules/canonical-source-mirror.md`:
+the test asserted the shape I assumed rather than the shape the artifact
+produces.
+
+Measured after the fix, by running the real CLI:
+
+```text
+$ eval-rule-activation.py --scenarios tests/evals/rule-scenarios/code-quality.json \
+    --dry-run --output /tmp/rr.json
+exit=0
+stdout: [DRY-RUN] code-quality: 4 scenarios x 3 mechanisms x 4 ... = 48 calls
+/tmp/rr.json: No such file or directory
+```
+
+Two facts that only running it produces: stdout is not JSON, and `--dry-run`
+returns before the `--output` write, so a dry run yields no results file at all.
+Both are now pinned by tests that invoke the real child rather than a mock.
+
+The generalizable lesson is narrower than "read the source". It is: **when you
+copy a call pattern from a sibling, you have inherited that sibling's contract
+assumption, not verified your own.** Three runners parsing stdout is evidence
+about those three children, not about a fourth.
+
+## Remediation actions
+
+| # | Action | Status | Owner or issue |
+|---|---|---|---|
+| 1 | Replace broad prefix matching with the ordered `ROUTING_RULES` table | Done, this PR | PR #5460 |
+| 2 | Give every category a runner or an explicit `not_evaluated` reason, pinned by a test that fails if a category has neither | Done, this PR | PR #5460 |
+| 3 | Make `--dry-run` invoke no evaluator and parse no model output | Done, this PR | PR #5460 |
+| 4 | Read the rule evaluator's results from `--output`, not stdout, and pin the contract with tests that run the real child CLI | Done, this PR | PR #5460 |
+| 5 | Filter the routing plan by `--scope` so the dry-run plan matches `_run_evals` | Done, this PR | PR #5460 |
+| 6 | Reconcile the published plan against actual results so a scored rule is not reported unscored | Done, this PR | PR #5460 |
+| 7 | Fail loudly on a malformed scenario file instead of reporting `not_evaluated`, matching the canonical coverage checker | Done, this PR | PR #5460 |
+| 8 | Replace the always-skipping end-to-end test with one that builds an isolated fixture repository | Done, this PR | PR #5460 |
+| 9 | Three-state evidence in the activation coverage checker's own output, so baseline exemption is never read as efficacy | Not done, deliberately out of scope | Issue #4882, acceptance criterion 7 |
+| 10 | Shape `routing_plan` for the always-on reduction work to consume | Not done, needs that work's requirements first | Issue #4871 |
+| 11 | The three `nosemgrep` comments in this file sit two lines above their `subprocess.run`, so they attach to nothing; decide whether to repair or delete them repo-wide | Not done, collides with the staged-suppression gate | Flagged to a maintainer on PR #5460 |
+
 ## What I would tell the next person
 
 Two things.
