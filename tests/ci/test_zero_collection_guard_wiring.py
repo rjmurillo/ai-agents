@@ -126,7 +126,11 @@ def _find_python_script_invocation(
         return None
 
     tokens = tokenized[0]
-    if any(token in _SHELL_CONTROL_TOKENS for token in tokens):
+    if any(
+        token in _SHELL_CONTROL_TOKENS
+        or token.startswith(tuple(_SHELL_CONTROL_TOKENS))
+        for token in tokens
+    ):
         return None
     if len(tokens) >= 2 and _is_python_invocation(tokens[0]) and tokens[1] == script_path:
         return tokens
@@ -208,6 +212,8 @@ def test_invokes_guard_script_accepts_python_and_python3(run_value: str) -> None
     "run_value",
     [
         f"uv run --frozen python {GUARD_SCRIPT} || true",
+        f"uv run --frozen python {GUARD_SCRIPT} ||true",
+        f"uv run --frozen python {GUARD_SCRIPT} ;true",
         f"uv run --frozen python {GUARD_SCRIPT}\ntrue",
     ],
 )
@@ -290,13 +296,16 @@ def test_the_required_pytest_context_checks_the_guard_result() -> None:
         assert "zero-collection-guard" in job["needs"], (
             f"{job_name} must depend on zero-collection-guard"
         )
-        # !cancelled() (or another status function) is required: without one,
-        # GitHub's default implicit success()-over-needs gate would silently
-        # skip this aggregator on a guard failure instead of failing it,
-        # leaving the required context missing rather than red.
-        assert any(
-            function in job["if"] for function in ("cancelled()", "always()", "failure()")
-        ), f"{job_name}'s if must not rely on the implicit success()-over-needs gate"
+        assert "!cancelled()" in job["if"], (
+            f"{job_name} must use !cancelled() so a guard failure stays red "
+            "instead of skipping the required context"
+        )
+        assert "always()" not in job["if"], (
+            f"{job_name} must not use always(); it would evaluate on green and red runs alike"
+        )
+        assert "failure()" not in job["if"], (
+            f"{job_name} must not use failure(); it would skip the aggregator on green runs"
+        )
         matching = [
             _find_python_script_invocation(step.get("run", ""), REQUIRE_JOB_RESULTS_SCRIPT)
             for step in job["steps"]
