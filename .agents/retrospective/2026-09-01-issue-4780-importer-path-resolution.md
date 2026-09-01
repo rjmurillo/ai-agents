@@ -19,7 +19,7 @@
   skill cluster by PR #5135 on 2026-08-18, two weeks before this session and
   after the issue was filed on 2026-08-09. The live publication surface is
   `.agents/governance/MEMORY-MANAGEMENT.md`, which carries the command
-  unqualified by harness at lines 167, 487, and 520. The defect is unchanged by
+  unqualified by harness at lines 167, 491, and 524. The defect is unchanged by
   the correction: a Copilot CLI session reports a failure for an optional
   dependency that is simply not installed.
 - Respond: read the script before trusting the issue's framing, then read the
