@@ -111,13 +111,40 @@ def command_unit(command: str) -> str:
 
 
 def read_plugin_name(root: Path) -> str | None:
-    """Read a plugin root's declared ``name``; None when absent or malformed."""
-    try:
-        data = json.loads((root / PLUGIN_MANIFEST_REL).read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, ValueError):
+    """Read a plugin root's declared ``name``; None when absent or malformed.
+
+    Goes through the same bounded reader as every other manifest. This one is
+    read for every directory the scan visits, so an unbounded read here would
+    be the cheapest denial-of-service surface in the hook: a single oversized
+    `plugin.json` anywhere under the scanned trees would be loaded in full.
+    """
+    data, _ = _read_json_object(root / PLUGIN_MANIFEST_REL)
+    if data is None:
         return None
-    name = data.get("name") if isinstance(data, dict) else None
+    name = data.get("name")
     return name if isinstance(name, str) and name else None
+
+
+def _matcher_text(entry: dict[str, object]) -> str | None:
+    """Normalize a registration's ``matcher``, or None when its type is wrong.
+
+    Mirrors `scripts/validation/hook_contracts.py::parse_copilot_hooks`, which
+    rejects the same shapes rather than coercing them:
+
+        matcher = registration.get("matcher")
+        if matcher is not None and not isinstance(matcher, str):
+            ... "has a matcher of type ..., expected string or null"
+
+    An earlier `entry.get("matcher") or ""` collapsed every falsy value to the
+    same normalized matcher as an absent one, so an install carrying a garbage
+    matcher compared equal to a source that has no matcher at all.
+    """
+    matcher = entry.get("matcher")
+    if matcher is None:
+        return ""
+    if not isinstance(matcher, str):
+        return None
+    return matcher
 
 
 def _is_named(value: object) -> bool:
@@ -224,7 +251,9 @@ def _group_units(event: str, group: object, groups: object) -> set[tuple[str, st
     commands = group.get("hooks")
     if not isinstance(commands, list):
         return None
-    matcher = str(group.get("matcher") or "")
+    matcher = _matcher_text(group)
+    if matcher is None:
+        return None
     found: set[tuple[str, str, str]] = set()
     for entry in commands:
         if not isinstance(entry, dict):
@@ -295,8 +324,10 @@ def copilot_registrations(hooks: object) -> set[tuple[str, str, str]] | None:
                 command = entry.get("powershell")
             if not isinstance(command, str):
                 return None
-            matcher = entry.get("matcher") or ""
-            found.add((str(event), str(matcher), command_unit(command)))
+            matcher = _matcher_text(entry)
+            if matcher is None:
+                return None
+            found.add((str(event), matcher, command_unit(command)))
             if len(found) > MAX_REGISTRATIONS:
                 return None
     return found

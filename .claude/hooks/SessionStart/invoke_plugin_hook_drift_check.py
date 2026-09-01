@@ -55,6 +55,7 @@ import sys
 from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import islice
 from pathlib import Path
 
 # --- Standard hook boilerplate: resolve lib directory ---
@@ -114,10 +115,16 @@ except ImportError:
 
 HOOK_NAME = "plugin-hook-drift-check"
 
+# Ceiling on entries taken from any one directory. `sorted(iterdir())` would
+# otherwise materialize and sort a whole directory before the visit budget is
+# consulted, so one enormous directory could exhaust memory or burn the shim's
+# time budget before any bound applied.
+MAX_ENTRIES_PER_DIR = 2000
+
 # Ceilings on what is rendered into session context. The model caps how much of
 # a manifest is read and parsed; these cap how much of the result is printed,
 # so one install carrying hundreds of registrations cannot crowd out the rest
-# of the session's context. Both cuts are stated in the message.
+# of the session's context. Every cut is stated in the message.
 MAX_LINES_PER_DIRECTION = 20
 MAX_REPORTED_INSTALLS = 10
 
@@ -172,6 +179,29 @@ def plugin_surfaces(home: Path) -> tuple[PluginSurface, ...]:
     )
 
 
+def _bounded_children(directory: Path, budget: ScanBudget) -> list[Path]:
+    """List one directory's entries, stopping at ``MAX_ENTRIES_PER_DIR``.
+
+    `sorted(directory.iterdir())` materializes and sorts every entry before the
+    directory budget is consulted, so a single directory with an enormous entry
+    count could exhaust memory or burn the shim's time budget before any bound
+    applied. Entries are taken lazily up to the ceiling instead, and hitting it
+    marks the scan truncated: the entries past the cutoff were never examined,
+    so this walk is no longer a statement about the whole tree.
+
+    Sorting is preserved for the entries that are taken, so the walk order
+    stays deterministic.
+    """
+    try:
+        taken = list(islice(directory.iterdir(), MAX_ENTRIES_PER_DIR + 1))
+    except OSError:
+        return []
+    if len(taken) > MAX_ENTRIES_PER_DIR:
+        budget.truncated = True
+        taken = taken[:MAX_ENTRIES_PER_DIR]
+    return sorted(taken)
+
+
 def find_installed_roots(
     search_root: Path, plugin_name: str, budget: ScanBudget | None = None
 ) -> list[Path]:
@@ -202,11 +232,7 @@ def find_installed_roots(
             continue
         if depth >= MAX_SCAN_DEPTH:
             continue
-        try:
-            children = sorted(current.iterdir())
-        except OSError:
-            continue
-        for child in children:
+        for child in _bounded_children(current, budget):
             if child.name in PRUNED_DIR_NAMES or child.is_symlink() or not child.is_dir():
                 continue
             queue.append((child, depth + 1))

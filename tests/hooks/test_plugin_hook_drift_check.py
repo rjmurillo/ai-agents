@@ -428,3 +428,59 @@ def test_check_installed_plugins_leaves_incomplete_empty_when_both_surfaces_read
 
     assert outcome.incomplete == []
     assert outcome.notes == []
+
+
+# --- One directory cannot exhaust the scan before the budget applies --------
+
+
+def test_bounded_children_flags_a_directory_over_the_entry_ceiling(tmp_path, monkeypatch) -> None:
+    # sorted(iterdir()) materialized and sorted a whole directory before the
+    # visit budget was consulted, so one enormous directory could exhaust
+    # memory or burn the shim's time budget before any bound applied.
+    monkeypatch.setattr(drift, "MAX_ENTRIES_PER_DIR", 3)
+    for index in range(6):
+        (tmp_path / f"entry{index}").mkdir()
+    budget = drift.ScanBudget()
+
+    children = drift._bounded_children(tmp_path, budget)
+
+    assert len(children) == 3
+    assert budget.truncated is True
+
+
+def test_bounded_children_does_not_flag_a_directory_under_the_ceiling(tmp_path) -> None:
+    # Negative control: an ordinary directory is listed whole and not flagged.
+    for index in range(3):
+        (tmp_path / f"entry{index}").mkdir()
+    budget = drift.ScanBudget()
+
+    children = drift._bounded_children(tmp_path, budget)
+
+    assert len(children) == 3
+    assert budget.truncated is False
+    assert children == sorted(children)
+
+
+def test_bounded_children_returns_empty_for_an_unreadable_directory(tmp_path) -> None:
+    budget = drift.ScanBudget()
+
+    assert drift._bounded_children(tmp_path / "absent", budget) == []
+
+
+def test_check_installed_plugins_reports_an_oversized_directory_as_incomplete(
+    tmp_path, monkeypatch
+) -> None:
+    # The cutoff has to reach the reader: entries past it were never examined,
+    # so the walk is no longer a statement about the whole tree.
+    project_dir = _make_checkout(tmp_path / "repo", {})
+    home = tmp_path / "home"
+    plugins = home / ".claude" / "plugins"
+    plugins.mkdir(parents=True)
+    for index in range(6):
+        (plugins / f"entry{index}").mkdir()
+    monkeypatch.setattr(drift, "MAX_ENTRIES_PER_DIR", 2)
+
+    outcome = drift.check_installed_plugins(project_dir, home)
+
+    assert len(outcome.incomplete) == 1
+    assert "Claude Code" in outcome.incomplete[0]
