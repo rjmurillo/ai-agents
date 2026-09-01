@@ -117,6 +117,21 @@ def test_an_assignment_sharing_the_flock_line_still_resolves() -> None:
     assert [path for _line, path in checker.scan_text(text)] == ["/tmp/bad.lock"]
 
 
+def test_an_assignment_after_the_flock_on_one_line_does_not_resolve_backwards() -> None:
+    """Ordering is by position, not by line, so a shared line is not a loophole.
+
+    Comparing line numbers alone let `flock "$LOCK" ; LOCK=...` resolve forward
+    to an assignment that runs after the call, the same defect the multi-line
+    case had, one granularity down. The lock is written without the `.lock`
+    suffix so no bare token can satisfy the assertion by accident: the variable
+    is the only route to a path here, it no longer resolves, and the fence is
+    reported for naming no canonical path rather than reading the wrong one.
+    """
+    text = _fence('flock "$LOCK" git push ; LOCK=/tmp/aiagents-push')
+
+    assert checker.scan_text(text) == [(2, "")]
+
+
 def test_a_lock_path_outside_the_canonical_directory_is_rejected() -> None:
     findings = checker.scan_text('flock "$HOME/locks/push-lock-x.lock" git push')
 
@@ -413,9 +428,7 @@ def test_the_shipped_corpus_has_no_violation() -> None:
     """The gate must be green against the whole tree before it can block a push."""
     repo_root = Path(__file__).resolve().parents[2]
 
-    violations, examined = checker.check_paths(
-        repo_root, checker.tracked_markdown(repo_root)
-    )
+    violations, examined = checker.check_paths(repo_root, checker.tracked_markdown(repo_root))
 
     assert violations == []
     assert examined > 0

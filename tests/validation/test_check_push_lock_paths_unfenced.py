@@ -199,5 +199,3 @@ def test_an_unfenced_violation_reaches_the_command_line(
     # no longer pin that the report attributes the line to the file.
     # citation-freshness: ignore -- the fixture this test wrote into tmp_path
     assert "docs/push.md:1" in capsys.readouterr().err
-
-

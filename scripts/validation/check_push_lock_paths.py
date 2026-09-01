@@ -50,9 +50,7 @@ _FLOCK = re.compile(r"\bflock\b")
 # one character before the suffix, so prose that writes the bare extension is
 # not mistaken for a path.
 _LOCK_PATH = re.compile(r"[A-Za-z0-9_./$~{}@%+-]+\.lock\b")
-_CANONICAL_PATH = re.compile(
-    r"^(?:\$HOME|\$\{HOME\})/src/scratch/locks/push-lock-[^/]*\.lock$"
-)
+_CANONICAL_PATH = re.compile(r"^(?:\$HOME|\$\{HOME\})/src/scratch/locks/push-lock-[^/]*\.lock$")
 _FENCE = re.compile(r"^\s*(?:```|~~~)")
 # `exec 9>/path` opens the lock without ever naming it to `flock`.
 _EXEC_REDIRECT = re.compile(r"\bexec\s+\d*>+\s*([^\s;|&<>'\"]+)")
@@ -98,15 +96,20 @@ def _historical_line_numbers(lines: Sequence[str]) -> set[int]:
     return skipped
 
 
-def _flock_argument(line: str) -> str | None:
-    """Return the token ``flock`` is given as its lock, ignoring options and fds."""
+def _flock_argument(line: str) -> tuple[int, str] | None:
+    """Return (column, token) that ``flock`` is given, ignoring options and fds.
+
+    The column travels with the token so a use can be ordered against an
+    assignment that shares its line.
+    """
     match = _FLOCK.search(line)
     if match is None:
         return None
-    for token in line[match.end() :].split():
-        if token.startswith("-") or token.isdigit():
+    for token in re.finditer(r"\S+", line[match.end() :]):
+        text = token.group(0)
+        if text.startswith("-") or text.isdigit():
             continue
-        return token.strip("\"'")
+        return (match.end() + token.start(), text.strip("\"'"))
     return None
 
 
@@ -115,54 +118,63 @@ def _is_path_like(token: str) -> bool:
     return "/" in token or token.endswith(".lock")
 
 
-def _assignments(block: Sequence[str], start: int) -> list[tuple[int, str, str]]:
-    """Return (line number, variable, value) for every assignment, in source order.
+def _assignments(block: Sequence[str], start: int) -> list[tuple[int, int, str, str]]:
+    """Return (line, column, variable, value) for each assignment, in source order.
 
     Order is kept rather than collapsed into a name-to-value map because a
     block can set the same variable more than once and only the setting that
     precedes a given ``flock`` describes the lock that call actually opens.
     """
-    found: list[tuple[int, str, str]] = []
+    found: list[tuple[int, int, str, str]] = []
     for offset, line in enumerate(block):
-        for name, value in _ASSIGNMENT.findall(line):
-            found.append((start + offset + 1, name, value.strip("\"'")))
+        for match in _ASSIGNMENT.finditer(line):
+            name, value = match.group(1), match.group(2)
+            found.append((start + offset + 1, match.start(), name, value.strip("\"'")))
     return found
 
 
 def _value_in_effect(
-    assignments: Sequence[tuple[int, str, str]], variable: str, use_line: int
+    assignments: Sequence[tuple[int, int, str, str]],
+    variable: str,
+    use: tuple[int, int],
 ) -> tuple[int, str] | None:
-    """Return the assignment to ``variable`` that is live at ``use_line``.
+    """Return the assignment to ``variable`` live at the ``(line, column)`` use.
 
     Shell rebinds a name in source order, so ``flock "$LOCK"`` opens whatever
-    ``LOCK`` was set to *above* it, and a later reassignment cannot reach
+    ``LOCK`` was set to *before* it, and a later reassignment cannot reach
     backwards to change that. Taking the block's final value instead read the
     wrong recipe in both directions: a bad path rebound to the canonical one
     afterwards reported clean, and the canonical path rebound to a bad one
     afterwards reported a violation the ``flock`` never opened.
 
-    ``<=`` rather than ``<`` because the assignment and the use share a line in
-    the sanctioned one-liner ``LOCK=/tmp/a.lock ; flock "$LOCK" git push``.
+    Position, not line, because a line holds a whole recipe often enough to
+    matter: ``LOCK=/tmp/a.lock ; flock "$LOCK"`` must resolve, and its mirror
+    ``flock "$LOCK" ; LOCK=/tmp/a.lock`` must not, the same defect one
+    granularity down.
     """
     live: tuple[int, str] | None = None
-    for number, name, value in assignments:
-        if name == variable and number <= use_line:
+    for number, column, name, value in assignments:
+        if name == variable and (number, column) < use:
             live = (number, value)
     return live
 
 
-def _candidate_tokens(block: Sequence[str], start: int) -> list[tuple[int, str]]:
-    """Return every token in the block that could name a lock file."""
-    candidates: list[tuple[int, str]] = []
+def _candidate_tokens(block: Sequence[str], start: int) -> list[tuple[int, int, str]]:
+    """Return (line, column, token) for everything that could name a lock file."""
+    candidates: list[tuple[int, int, str]] = []
     for offset, line in enumerate(block):
         number = start + offset + 1
         assignment_only = _ASSIGNMENT.search(line) is not None and _FLOCK.search(line) is None
         if not assignment_only:
-            candidates.extend((number, match.group(0)) for match in _LOCK_PATH.finditer(line))
-        candidates.extend((number, match.group(1)) for match in _EXEC_REDIRECT.finditer(line))
+            candidates.extend(
+                (number, match.start(), match.group(0)) for match in _LOCK_PATH.finditer(line)
+            )
+        candidates.extend(
+            (number, match.start(1), match.group(1)) for match in _EXEC_REDIRECT.finditer(line)
+        )
         argument = _flock_argument(line)
         if argument is not None:
-            candidates.append((number, argument))
+            candidates.append((number, argument[0], argument[1]))
     return candidates
 
 
@@ -180,14 +192,15 @@ def _lock_targets(block: Sequence[str], start: int) -> list[tuple[int, str]]:
     Reading only ``.lock`` tokens misses a lock file written without the
     suffix, so the ``flock`` argument and the ``exec`` redirect target count as
     targets whatever they are named. A bare variable resolves to the assignment
-    live at that line and reports there, which is where a reader fixes it.
+    live at its own position and reports at that assignment, which is where a
+    reader fixes it.
     """
     assignments = _assignments(block, start)
     targets: list[tuple[int, str]] = []
-    for number, token in _candidate_tokens(block, start):
+    for number, column, token in _candidate_tokens(block, start):
         variable = _BARE_VARIABLE.match(token)
         if variable is not None:
-            live = _value_in_effect(assignments, variable.group(1), number)
+            live = _value_in_effect(assignments, variable.group(1), (number, column))
             number, token = live if live is not None else (number, "")
         if _is_path_like(token) and (number, token) not in targets:
             targets.append((number, token))
@@ -222,9 +235,7 @@ def _scan_block(lines: Sequence[str], start: int, end: int) -> list[tuple[int, s
     return findings
 
 
-def _prose_runs(
-    lines: Sequence[str], skipped: set[int], fenced: set[int]
-) -> list[tuple[int, int]]:
+def _prose_runs(lines: Sequence[str], skipped: set[int], fenced: set[int]) -> list[tuple[int, int]]:
     """Return (start, end) indices for each run of unfenced prose, end exclusive.
 
     A run is a maximal group of consecutive lines that are neither fenced nor
