@@ -36,22 +36,35 @@ def _load(name: str, filename: str):
 _import_mem = _load("import_claude_mem_memories", "import_claude_mem_memories.py")
 
 
+# Pinned independently of the implementation. Deriving this by calling
+# claude_default_importer() would make the fixture and the assertions share one
+# derivation, so a default that moved to the wrong location would move both
+# together and every test below would stay green.
+_CLAUDE_DEFAULT_SUFFIX = Path(".claude/plugins/marketplaces/thedotmack/scripts/import-memories.ts")
+
+
 def _make_claude_default(home: Path) -> Path:
     """Create the Claude Code plugin importer under a fake home."""
-    importer = _import_mem.claude_default_importer(home)
+    importer = home / _CLAUDE_DEFAULT_SUFFIX
     importer.parent.mkdir(parents=True, exist_ok=True)
     importer.write_text("// stub importer", encoding="utf-8")
     return importer
 
 
+class TestClaudeDefaultImporter:
+    def test_default_location_matches_the_pinned_marketplace_path(self, tmp_path: Path) -> None:
+        """Anchor the derivation every default-path test depends on."""
+        assert _import_mem.claude_default_importer(tmp_path) == tmp_path / _CLAUDE_DEFAULT_SUFFIX
+
+
 class TestResolveImporter:
     def test_uses_claude_plugin_default_when_nothing_configured(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
-        expected = _make_claude_default(home)
+        _make_claude_default(home)
 
         resolution = _import_mem.resolve_importer(None, {}, home)
 
-        assert resolution.path == expected
+        assert resolution.path == home / _CLAUDE_DEFAULT_SUFFIX
         assert resolution.is_configured is False
 
     def test_explicit_argument_outranks_environment_and_default(self, tmp_path: Path) -> None:
@@ -382,6 +395,33 @@ class TestImportMemoriesMain:
         result = _import_mem.main(["--importer", str(importer)], env={}, home=tmp_path)
 
         assert result == 0
+
+    def test_creates_the_memories_dir_when_it_is_absent(self, tmp_path: Path, monkeypatch) -> None:
+        """The absent-directory branch, which the empty-directory case never reaches."""
+        importer = tmp_path / "importer.ts"
+        importer.write_text("// stub importer", encoding="utf-8")
+        memories = tmp_path / "memories"
+        monkeypatch.setattr(_import_mem, "_MEMORIES_DIR", memories)
+        assert not memories.exists()
+
+        result = _import_mem.main(["--importer", str(importer)], env={}, home=tmp_path)
+
+        assert result == 0
+        assert memories.is_dir()
+
+    def test_creates_nested_memories_dir_when_parents_are_absent(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """parents=True is load-bearing: the parent may not exist either."""
+        importer = tmp_path / "importer.ts"
+        importer.write_text("// stub importer", encoding="utf-8")
+        memories = tmp_path / "absent-parent" / "memories"
+        monkeypatch.setattr(_import_mem, "_MEMORIES_DIR", memories)
+
+        result = _import_mem.main(["--importer", str(importer)], env={}, home=tmp_path)
+
+        assert result == 0
+        assert memories.is_dir()
 
     @pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
     def test_exits_1_when_explicit_argument_is_blank(self, blank: str, tmp_path: Path) -> None:
