@@ -213,12 +213,30 @@ def test_check_installed_plugins_detects_a_stale_copilot_install(tmp_path) -> No
 # --- Dispatch membership: what a Claude registration actually enforces ------
 
 
-def test_dispatch_membership_returns_shim_basenames() -> None:
+def test_dispatch_membership_includes_event_and_mode_with_each_shim() -> None:
     groups = _group(f"PreToolUse/{RETIRED_GUARD}", "PreToolUse/invoke_other.py")["pretooluse-task"]
 
     members = model.dispatch_membership({"pretooluse-task": groups}, "pretooluse-task")
 
-    assert members == (RETIRED_GUARD, "invoke_other.py")
+    assert members == (
+        f"PreToolUse/block/{RETIRED_GUARD}",
+        "PreToolUse/block/invoke_other.py",
+    )
+
+
+def test_dispatch_membership_distinguishes_a_group_that_changed_event_or_mode() -> None:
+    # The dispatcher acts on event and mode, so a group moved from
+    # PreToolUse/block to SessionStart/observe no longer enforces the same
+    # policy even though every shim name is unchanged. Comparing basenames
+    # alone called those two installs identical.
+    same_shims = f"PreToolUse/{RETIRED_GUARD}"
+    before = _group(same_shims)
+    after = _group(same_shims, event="SessionStart")
+    after["pretooluse-task"]["mode"] = "observe"
+
+    assert model.dispatch_membership(before, "pretooluse-task") != model.dispatch_membership(
+        after, "pretooluse-task"
+    )
 
 
 @pytest.mark.parametrize(
@@ -231,6 +249,9 @@ def test_dispatch_membership_returns_shim_basenames() -> None:
         {"pretooluse-task": {"shims": ["PreToolUse/x.py"]}},
         {"pretooluse-task": {"shims": [{"file": 7}]}},
         {"pretooluse-task": {"shims": [{}]}},
+        {"pretooluse-task": {"event": "PreToolUse", "mode": "block", "shims": []}},
+        {"pretooluse-task": {"mode": "block", "shims": [{"file": "a.py"}]}},
+        {"pretooluse-task": {"event": "PreToolUse", "shims": [{"file": "a.py"}]}},
     ],
 )
 def test_dispatch_membership_returns_none_when_it_cannot_resolve(groups) -> None:
@@ -248,7 +269,7 @@ def test_registrations_expands_a_dispatch_group_to_its_shims() -> None:
     assert len(found) == 1
     event, matcher, unit = next(iter(found))
     assert (event, matcher) == ("PreToolUse", "Task")
-    assert unit == f"pretooluse-task: {RETIRED_GUARD}"
+    assert unit == f"pretooluse-task: PreToolUse/block/{RETIRED_GUARD}"
 
 
 def test_registrations_returns_none_for_an_unresolvable_dispatch_group() -> None:
@@ -432,3 +453,66 @@ def test_read_registrations_reports_malformed_hooks_mapping(tmp_path) -> None:
 
     assert found is None
     assert "malformed 'hooks' mapping" in (error or "")
+
+
+# --- Resource ceilings: an unbounded manifest cannot stall session start ----
+
+
+def test_read_registrations_refuses_a_manifest_over_the_byte_ceiling(tmp_path) -> None:
+    # A same-named plugin root under the scanned trees is attacker-placeable.
+    # Reading it without a ceiling is a denial-of-service surface at startup.
+    manifest = tmp_path / "hooks.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    filler = "x" * (model.MAX_MANIFEST_BYTES + 1024)
+    manifest.write_text(json.dumps({"hooks": {}, "pad": filler}), encoding="utf-8")
+
+    found, error = model.read_registrations(manifest)
+
+    assert found is None
+    assert "exceeds" in (error or "")
+    assert "not compared" in (error or "")
+
+
+def test_read_registrations_accepts_a_manifest_under_the_byte_ceiling(tmp_path) -> None:
+    # Negative control: the ceiling must not reject ordinary manifests.
+    manifest = tmp_path / "hooks.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(json.dumps({"hooks": {}, "pad": "x" * 1024}), encoding="utf-8")
+
+    found, error = model.read_registrations(manifest)
+
+    assert error is None
+    assert found == set()
+
+
+def test_registrations_refuses_more_than_the_registration_ceiling() -> None:
+    # Parsing partially would manufacture drift in both directions against a
+    # source that is fine, so the whole manifest is reported as not compared.
+    hooks = {
+        f"Event{index}": [{"matcher": "", "hooks": [{"command": f"guard{index}.py"}]}]
+        for index in range(model.MAX_REGISTRATIONS + 5)
+    }
+
+    assert model.registrations(hooks) is None
+
+
+def test_copilot_registrations_refuses_more_than_the_registration_ceiling() -> None:
+    hooks = {
+        f"event{index}": [{"type": "command", "bash": f"guard{index}.py"}]
+        for index in range(model.MAX_REGISTRATIONS + 5)
+    }
+
+    assert model.copilot_registrations(hooks) is None
+
+
+def test_registrations_accepts_a_manifest_under_the_registration_ceiling() -> None:
+    # Negative control for the two ceilings above.
+    hooks = {
+        f"Event{index}": [{"matcher": "", "hooks": [{"command": f"guard{index}.py"}]}]
+        for index in range(10)
+    }
+
+    found = model.registrations(hooks)
+
+    assert found is not None
+    assert len(found) == 10

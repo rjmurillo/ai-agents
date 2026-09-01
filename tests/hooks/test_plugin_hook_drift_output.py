@@ -251,3 +251,66 @@ def test_hook_exits_zero_and_warns_when_the_check_raises(tmp_path) -> None:
     assert proc.returncode == 0
     assert b"scan exploded" in proc.stderr
     assert b"[WARNING]" in proc.stderr
+
+
+# --- Inconclusive reasons and rendered-output ceilings ----------------------
+
+
+def test_incomplete_heading_does_not_blame_the_scan_bound_for_an_unreadable_source() -> None:
+    # `incomplete` mixes truncated walks with surfaces never searched at all.
+    # Naming the directory bound in the heading sent a reader whose source
+    # manifest is broken off to raise a limit that had nothing to do with it.
+    message = drift.format_message([], [], ["Claude Code: not searched (source hooks unreadable)"])
+
+    assert "not conclusive" in message
+    assert "directory scan bound" not in message
+    assert "not searched (source hooks unreadable)" in message
+
+
+def test_incomplete_entry_still_names_the_scan_bound_when_that_was_the_cause() -> None:
+    message = drift.format_message(
+        [], [], ["Claude Code: /home/u/.claude/plugins (stopped at the 4000-directory scan bound)"]
+    )
+
+    assert "not conclusive" in message
+    assert "4000-directory scan bound" in message
+
+
+def test_format_message_caps_the_lines_rendered_for_one_install() -> None:
+    # One install carrying hundreds of registrations must not crowd the rest of
+    # the session context off the top of the message.
+    extras = tuple(f"PreToolUse (matcher 'Task'): guard{index}.py" for index in range(60))
+    report = _report(only_in_install=extras)
+
+    message = drift.format_message([report], [])
+
+    assert "output capped" in message
+    assert message.count("**only in this install**") == drift.MAX_LINES_PER_DIRECTION
+    assert "guard59.py" not in message
+
+
+def test_format_message_does_not_cap_an_ordinary_report() -> None:
+    # Negative control: the ceiling must not truncate a normal result.
+    extras = tuple(f"PreToolUse (matcher 'Task'): guard{index}.py" for index in range(3))
+    report = _report(only_in_install=extras)
+
+    message = drift.format_message([report], [])
+
+    assert "output capped" not in message
+    assert "guard2.py" in message
+
+
+def test_format_message_caps_the_number_of_drifted_installs_rendered() -> None:
+    reports = [
+        _report(
+            install_path=Path(f"/home/u/.claude/plugins/copy{index}"),
+            only_in_install=("PreToolUse (matcher 'Task'): retired.py",),
+        )
+        for index in range(drift.MAX_REPORTED_INSTALLS + 4)
+    ]
+
+    message = drift.format_message(reports, [])
+
+    assert "more drifted install(s) not shown (output capped)" in message
+    assert "/home/u/.claude/plugins/copy0" in message
+    assert f"/home/u/.claude/plugins/copy{drift.MAX_REPORTED_INSTALLS + 3}" not in message

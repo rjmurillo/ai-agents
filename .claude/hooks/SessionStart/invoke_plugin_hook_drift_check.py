@@ -116,6 +116,13 @@ MAX_SCAN_DEPTH = 5
 MAX_SCAN_DIRS = 4000
 PRUNED_DIR_NAMES = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv"})
 
+# Ceilings on what is rendered into session context. The model caps how much of
+# a manifest is read and parsed; these cap how much of the result is printed,
+# so one install carrying hundreds of registrations cannot crowd out the rest
+# of the session's context. Both cuts are stated in the message.
+MAX_LINES_PER_DIRECTION = 20
+MAX_REPORTED_INSTALLS = 10
+
 
 @dataclass(frozen=True, slots=True)
 class PluginSurface:
@@ -319,8 +326,26 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
                     compare_install(surface.label, install_path, source, surface.schema)
                 )
             if budget.truncated:
-                outcome.incomplete.append(f"{surface.label}: {search_root} (scan bound reached)")
+                outcome.incomplete.append(
+                    f"{surface.label}: {search_root} "
+                    f"(stopped at the {MAX_SCAN_DIRS}-directory scan bound)"
+                )
     return outcome
+
+
+def _capped(lines: Sequence[str], label: str, prefix: str) -> list[str]:
+    """Render at most ``MAX_LINES_PER_DIRECTION`` entries, saying what was cut.
+
+    Individual labels are already length-capped, but their count is not, and a
+    manifest under the scanned trees can carry as many registrations as its
+    author likes. Without a count ceiling one install could push everything
+    else in the session's context off the top of the message.
+    """
+    shown = [f"  - {prefix}: {line}" for line in lines[:MAX_LINES_PER_DIRECTION]]
+    hidden = len(lines) - len(shown)
+    if hidden > 0:
+        shown.append(f"  - ...and {hidden} more {label} not shown (output capped)")
+    return shown
 
 
 def _format_report(report: InstallReport) -> str:
@@ -330,10 +355,8 @@ def _format_report(report: InstallReport) -> str:
     lines = [f"- `{path}` ({report.surface})"]
     if report.error:
         lines.append(f"  - unreadable: {sanitize_label(report.error, MAX_PATH_CHARS)}")
-    for line in report.only_in_install:
-        lines.append(f"  - **only in this install**: {line}")
-    for line in report.only_in_source:
-        lines.append(f"  - missing from this install: {line}")
+    lines.extend(_capped(report.only_in_install, "extra", "**only in this install**"))
+    lines.extend(_capped(report.only_in_source, "missing", "missing from this install"))
     return "\n".join(lines)
 
 
@@ -381,14 +404,21 @@ def _drift_kinds(reports: Sequence[InstallReport]) -> tuple[str, ...]:
 
 
 def _incomplete_block(incomplete: Sequence[str]) -> str:
-    """Cap what the rest of the message is allowed to claim, or add nothing."""
+    """Cap what the rest of the message is allowed to claim, or add nothing.
+
+    The heading stays cause-neutral. `incomplete` mixes walks that hit the
+    directory bound with surfaces never searched at all because their source
+    manifest could not be read, and naming the scan bound up front would send a
+    reader whose source manifest is broken off to raise a limit that had
+    nothing to do with it. Each entry carries its own reason instead.
+    """
     if not incomplete:
         return ""
-    roots = "".join(f"\n- incomplete scan: {entry}" for entry in incomplete)
+    reasons = "".join(f"\n- not compared: {entry}" for entry in incomplete)
     return (
-        "\n\n**This result is not conclusive.** A search stopped at its "
-        f"{MAX_SCAN_DIRS}-directory bound before the tree was exhausted, so an "
-        f"installed copy past that bound was never compared.{roots}"
+        "\n\n**This result is not conclusive.** Part of this check did not run, "
+        "so an installed copy may exist that was never compared. Each entry "
+        f"below names its own reason.{reasons}"
     )
 
 
@@ -420,7 +450,13 @@ def format_message(
         )
 
     summary, guidance = _DRIFT_SUMMARY.get(_drift_kinds(drifted), _MIXED_SUMMARY)
-    body = "\n".join(_format_report(report) for report in drifted)
+    rendered = drifted[:MAX_REPORTED_INSTALLS]
+    body = "\n".join(_format_report(report) for report in rendered)
+    if len(drifted) > len(rendered):
+        body += (
+            f"\n- ...and {len(drifted) - len(rendered)} more drifted install(s) "
+            "not shown (output capped)"
+        )
     return (
         header
         + f"**{len(drifted)} of {len(reports)} installed copy/copies {summary}.** "

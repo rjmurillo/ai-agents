@@ -49,6 +49,18 @@ DISPATCH_MANIFEST_REL = Path("hooks") / "dispatch_groups.json"
 # name that is not what the manifest said.
 MAX_LABEL_CHARS = 80
 MAX_PATH_CHARS = 200
+
+# Resource ceilings. A same-named plugin root under the scanned trees is
+# attacker-influenceable, and this runs at session start, so an unbounded
+# manifest is a denial-of-service surface (CWE-400): reading it can exhaust
+# memory, and rendering it can flood the session context until startup times
+# out. Both the bytes read and the number of registrations parsed are capped,
+# and a manifest over either ceiling is reported as not compared rather than
+# parsed partially, because a partial parse would manufacture drift in both
+# directions against a source that is fine.
+MAX_MANIFEST_BYTES = 512 * 1024
+MAX_REGISTRATIONS = 500
+
 _UNSAFE_LABEL_CHARS = re.compile(r"[^A-Za-z0-9._/@:+= -]")
 _SAFE_TOKEN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 _SCRIPT_IN_COMMAND = re.compile(r"[A-Za-z0-9._/\\-]+\.(?:py|sh|ps1)")
@@ -99,7 +111,31 @@ def read_plugin_name(root: Path) -> str | None:
 
 
 def dispatch_membership(groups: object, group_id: str) -> tuple[str, ...] | None:
-    """Shim files a dispatch group runs, or None when it cannot be resolved.
+    """What a dispatch group enforces, or None when it cannot be resolved.
+
+    Each entry is ``"<event>/<mode>/<shim basename>"``. Event and mode belong in
+    the comparison because the dispatcher acts on them: a group that moved from
+    `PreToolUse`/`gate` to `SessionStart`/`observe` no longer enforces the same
+    policy even when every shim name is unchanged, and comparing basenames
+    alone would call those two installs identical.
+
+    Mirrors the contract `.claude/lib/claude_hook_dispatch.py::validate_group`
+    enforces at lines 132 to 150, which reads in part:
+
+        if not isinstance(event, str) or not event:
+            raise TypeError("group event must be a non-empty string")
+        ...
+        if not shims:
+            raise ValueError("group shims must not be empty")
+
+    so an empty ``shims`` list is rejected here too rather than accepted as a
+    group that enforces nothing.
+
+    Stricter/looser/different than canonical: this does not re-check mode
+    against `_MODE_BY_EVENT`, nor the shim path-traversal rules. Those are the
+    dispatcher's job at run time, and duplicating the table here would make
+    this hook fail whenever that table changed. This only needs the fields to
+    be present and comparable.
 
     None is deliberately not "the group is empty". An install whose manifest
     this hook cannot resolve enforces an unknown set, and the caller must say
@@ -110,9 +146,16 @@ def dispatch_membership(groups: object, group_id: str) -> tuple[str, ...] | None
     group = groups.get(group_id)
     if not isinstance(group, dict):
         return None
-    shims = group.get("shims")
-    if not isinstance(shims, list):
+    event = group.get("event")
+    mode = group.get("mode")
+    if not isinstance(event, str) or not event:
         return None
+    if not isinstance(mode, str) or not mode:
+        return None
+    shims = group.get("shims")
+    if not isinstance(shims, list) or not shims:
+        return None
+    prefix = f"{sanitize_label(event, 40)}/{sanitize_label(mode, 40)}"
     files: list[str] = []
     for shim in shims:
         if not isinstance(shim, dict):
@@ -120,7 +163,8 @@ def dispatch_membership(groups: object, group_id: str) -> tuple[str, ...] | None
         name = shim.get("file")
         if not isinstance(name, str) or not name:
             return None
-        files.append(PurePosixPath(name.replace("\\", "/")).name)
+        basename = PurePosixPath(name.replace("\\", "/")).name
+        files.append(f"{prefix}/{sanitize_label(basename)}")
     return tuple(sorted(files))
 
 
@@ -183,6 +227,8 @@ def registrations(hooks: object, groups: object = None) -> set[tuple[str, str, s
                 if units is None:
                     return None
                 found |= units
+                if len(found) > MAX_REGISTRATIONS:
+                    return None
     return found
 
 
@@ -217,16 +263,34 @@ def copilot_registrations(hooks: object) -> set[tuple[str, str, str]] | None:
                 return None
             matcher = entry.get("matcher") or ""
             found.add((str(event), str(matcher), command_unit(command)))
+            if len(found) > MAX_REGISTRATIONS:
+                return None
     return found
 
 
 def _read_json_object(path: Path) -> tuple[dict[str, object] | None, str | None]:
-    """Parse one JSON object file into ``(data, error)``; never both."""
+    """Parse one bounded JSON object file into ``(data, error)``; never both.
+
+    Reads at most ``MAX_MANIFEST_BYTES + 1`` bytes and refuses anything larger,
+    so a hostile or merely enormous manifest under the scanned trees cannot
+    exhaust memory at session start. The read is capped rather than checked
+    with `stat` first, because a size check and a separate full read can
+    disagree about a file someone else is writing.
+    """
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        with path.open("rb") as handle:
+            raw = handle.read(MAX_MANIFEST_BYTES + 1)
     except FileNotFoundError:
         return None, f"no hook manifest at {path}"
-    except (OSError, UnicodeError, ValueError) as exc:
+    except OSError as exc:
+        return None, f"unreadable hook manifest {path}: {type(exc).__name__}: {exc}"
+    if len(raw) > MAX_MANIFEST_BYTES:
+        return None, (
+            f"hook manifest {path} exceeds the {MAX_MANIFEST_BYTES}-byte ceiling; not compared"
+        )
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, ValueError) as exc:
         return None, f"unreadable hook manifest {path}: {type(exc).__name__}: {exc}"
     if not isinstance(data, dict):
         return None, f"hook manifest {path} is not a JSON object"
@@ -259,8 +323,8 @@ def read_registrations(
 
     if found is None:
         return None, (
-            f"hook manifest {manifest} has a malformed 'hooks' mapping "
-            "or an unresolvable dispatch group"
+            f"hook manifest {manifest} has a malformed 'hooks' mapping, "
+            f"an unresolvable dispatch group, or more than {MAX_REGISTRATIONS} registrations"
         )
     return found, None
 
