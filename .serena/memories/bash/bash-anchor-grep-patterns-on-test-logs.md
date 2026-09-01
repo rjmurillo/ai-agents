@@ -156,6 +156,9 @@ so the extra schemes bought nothing and hid the race. The path above is now the
 only sanctioned one: `.claude/rules/push-lock.md` states it and
 `scripts/validation/check_push_lock_paths.py` fails a tracked prescription that
 names anything else (issue #4366).
+<!-- push-lock-historical: the two dead scheme names above are the 2026-08-02
+census, evidence of what was live, not a recipe to copy. -->
+
 
 The lock file currently lives under `/tmp`. The requirement is that every agent
 names it identically, since `flock` excludes only processes that agree on the
