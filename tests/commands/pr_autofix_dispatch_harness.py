@@ -170,17 +170,14 @@ import os
 import sys
 from pathlib import Path
 
-# Records one line per call. The bare fact of a call cannot prove the author
-# read happened before tiering and the auto-merge read happened after it.
-# Written before the early exit below so an unreadable case still counts.
+# Records one line per call. It proves call order, and it is written before the
+# early exit below so an unreadable case still counts.
 context_log = Path(os.environ["CONTEXT_LOG"])
 context_log.open("a", encoding="utf-8").write(
     json.dumps(sys.argv[1:]) + "\\n"
 )
 argv = sys.argv[1:]
-field = None
-if "--field" in argv:
-    field = argv[argv.index("--field") + 1]
+field = argv[argv.index("--field") + 1] if "--field" in argv else None
 
 if field == "auto_merge_method":
     method = os.environ["FAKE_AUTO_MERGE"]
@@ -188,7 +185,10 @@ if field == "auto_merge_method":
         raise SystemExit(1)
     if method == "ARMED_AFTER_AUTHOR":
         method = "SQUASH"
-    payload = None if method == "null" else method
+    if method.startswith("RAW:"):
+        payload = json.loads(method[4:])
+    else:
+        payload = None if method == "null" else method
     print(json.dumps({"Success": True, "Data": {"auto_merge_method": payload}}))
     raise SystemExit(0)
 

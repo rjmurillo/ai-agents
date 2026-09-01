@@ -128,6 +128,19 @@ def test_unreadable_auto_merge_state_skips_instead_of_guessing(tmp_path: Path, d
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_schema_invalid_auto_merge_state_skips_instead_of_laundering_false(
+    tmp_path: Path, doc: str
+) -> None:
+    run = run_dispatch(tmp_path, doc, tier="T3", auto_merge="RAW:false")
+
+    assert "Cannot read auto-merge state" in run.stdout
+    assert run.cleaned_up
+    assert not run.disarmed, "a schema-invalid auto-merge value was treated as unarmed"
+    assert not run.reached_end
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
 def test_a_skipped_mutation_is_not_reported_as_a_failure(tmp_path: Path, doc: str) -> None:
     run = run_dispatch(
         tmp_path,
