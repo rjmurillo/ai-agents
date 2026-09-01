@@ -1082,6 +1082,21 @@ def _strict_owned_children(path: Path) -> list[Path]:
         ) from exc
 
 
+def _queue_strict_owned_path(
+    pending: list[Path], path: Path
+) -> Path | None:
+    """Queue child directories and return child files for strict snapshots."""
+    metadata = _strict_owned_stat(path)
+    if metadata is None:
+        return None
+    if stat.S_ISDIR(metadata.st_mode):
+        pending.append(path)
+        return None
+    if stat.S_ISREG(metadata.st_mode) and not path.is_symlink():
+        return path
+    return None
+
+
 def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
     """Yield owned files while surfacing strict metadata and scan failures."""
     root_metadata = _strict_owned_stat(root)
@@ -1098,15 +1113,9 @@ def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
     while pending:
         current = pending.pop()
         for child in _strict_owned_children(current):
-            child_metadata = _strict_owned_stat(child)
-            if child_metadata is None:
-                continue
-            if stat.S_ISREG(child_metadata.st_mode):
-                if not child.is_symlink():
-                    yield child
-                continue
-            if stat.S_ISDIR(child_metadata.st_mode):
-                pending.append(child)
+            child_file = _queue_strict_owned_path(pending, child)
+            if child_file is not None:
+                yield child_file
 
 
 def _snapshot_owned_prefixes(
