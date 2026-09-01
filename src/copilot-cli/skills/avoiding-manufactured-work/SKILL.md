@@ -1,7 +1,7 @@
 ---
 name: avoiding-manufactured-work
 version: 1.0.0
-description: Detect and stop manufactured work after a deliverable appears done. Use when a worker has produced a plan, issue, PR, backlog item, research artifact, or follow-up task and you need to verify it was demanded by a real user, acceptance criterion, or blocked decision instead of reward-seeking activity.
+description: Form the task-completion contract before non-trivial execution, and detect and stop manufactured work after a deliverable appears done. Use before starting non-trivial work to derive the bounded contract and precedence order, and after a worker has produced a plan, issue, PR, backlog item, research artifact, or follow-up task to verify it was demanded by a real user, acceptance criterion, or blocked decision instead of reward-seeking activity.
 license: MIT
 ---
 
@@ -41,7 +41,7 @@ Next action: <smallest action, or none>
 
 ## Task Completion Contract
 
-`.claude/rules/builder-ethos.md` section 4 owns the terminal predicate and references this section for the contract, precedence, disposition mapping, and reactivation detail. Use it to decide whether a task is still active.
+The builder-ethos rule's Completion Is a Terminal State section owns the terminal predicate and references this section for the contract, precedence, disposition mapping, and reactivation detail. Use it to decide whether a task is still active.
 
 ### Forming the contract
 
@@ -59,11 +59,13 @@ Routine low-risk work does not require user confirmation of obvious inferred cri
 
 ```text
 system / host requirements
-    > explicit current user request
     > mandatory safety and repository policy
+    > explicit current user request
     > frozen task contract
     > optional improvements and preferences
 ```
+
+<!-- Deviates from issue #5404's literal precedence text: mandatory policy must outrank a raw user request per security review (PR #5433 threads). -->
 
 "Boil the lake" applies inside the frozen task contract and its direct correctness blast radius. Work is not included merely because it fits in one session.
 
