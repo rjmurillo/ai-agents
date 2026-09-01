@@ -285,12 +285,21 @@ def find_mutating_github_grants(tools: list[str]) -> list[str]:
     unexamined, since none of them ever match it: a mutating platform entry
     such as ``github/push_files`` would pass this guard while this test
     stayed green (issue #5356 review).
+
+    A bare whole-server grant, ``mcp__github`` with no ``__<tool>`` suffix,
+    is also flagged unconditionally: ``MCP_TOOL_NAME`` and the parseability
+    tests accept that form, and it grants every tool the server exposes,
+    mutators included, so it is never something a per-tool allowlist can
+    cover (issue #5356 review).
     """
     readonly_lower = {name.casefold() for name in READONLY_GITHUB_TOOLS}
     offenders = []
     for tool in tools:
         stripped = tool.strip()
         lowered = stripped.casefold()
+        if lowered == "mcp__github":
+            offenders.append(stripped)
+            continue
         if lowered.startswith(_MCP_GITHUB_PREFIX):
             canonical = lowered
         elif lowered.startswith(_PLATFORM_GITHUB_PREFIX):
@@ -761,6 +770,11 @@ class TestRemoteMutationControls:
 
     def test_read_only_github_tools_accepted(self) -> None:
         assert find_mutating_github_grants(list(REQUIRED_PINNED_DIFF_CLAUDE)) == []
+
+    def test_bare_whole_server_grant_detected(self) -> None:
+        """`mcp__github` with no `__<tool>` suffix grants every server tool,
+        mutators included, so a per-tool allowlist can never clear it."""
+        assert find_mutating_github_grants(["Read", "mcp__github"]) == ["mcp__github"]
 
     def test_mutating_platform_github_tool_detected(self) -> None:
         """The naming form platform surfaces use, not just Claude's MCP form."""
