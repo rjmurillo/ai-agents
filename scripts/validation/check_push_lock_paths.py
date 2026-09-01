@@ -33,6 +33,12 @@ import sys
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.shell_text import split_statements, strip_hash_comments  # noqa: E402
+
 CANONICAL_TEMPLATE = '"$HOME/src/scratch/locks/push-lock-<slug>.lock"'
 HISTORICAL_MARKER = "push-lock-historical"
 
@@ -96,16 +102,35 @@ def _historical_line_numbers(lines: Sequence[str]) -> set[int]:
     return skipped
 
 
-def _flock_argument(line: str) -> tuple[int, str] | None:
+def _statements(block: Sequence[str], start: int) -> list[tuple[int, int, str]]:
+    """Return (line, column, text) for every shell statement in the block.
+
+    The one list every reader below consumes. Scanning raw lines with a regex
+    each, as this module used to, gave each reader a different idea of what the
+    line contained: only the first ``flock`` on a line was ever inspected, a
+    ``.lock`` literal was collected from a statement the ``flock`` never ran,
+    and an argument with the next statement's ``;`` attached to it stopped
+    looking like a variable. One statement list fixes all three at the source
+    instead of teaching three regexes about separators.
+    """
+    statements: list[tuple[int, int, str]] = []
+    for offset, line in enumerate(block):
+        number = start + offset + 1
+        statements.extend((number, column, text) for column, text in split_statements(line))
+    return statements
+
+
+def _flock_argument(statement: str) -> tuple[int, str] | None:
     """Return (column, token) that ``flock`` is given, ignoring options and fds.
 
-    The column travels with the token so a use can be ordered against an
-    assignment that shares its line.
+    Takes one statement, not a line, so the token ends where the statement
+    does. The column is relative to the statement and the caller adds the
+    statement's own offset, keeping every position comparable within a line.
     """
-    match = _FLOCK.search(line)
+    match = _FLOCK.search(statement)
     if match is None:
         return None
-    for token in re.finditer(r"\S+", line[match.end() :]):
+    for token in re.finditer(r"\S+", statement[match.end() :]):
         text = token.group(0)
         if text.startswith("-") or text.isdigit():
             continue
@@ -124,12 +149,32 @@ def _assignments(block: Sequence[str], start: int) -> list[tuple[int, int, str, 
     Order is kept rather than collapsed into a name-to-value map because a
     block can set the same variable more than once and only the setting that
     precedes a given ``flock`` describes the lock that call actually opens.
+
+    Comments are stripped first, because a commented-out assignment binds
+    nothing at runtime and reading it as live is a way to launder a bad recipe
+    past this gate:
+
+        LOCK=/tmp/bad.lock
+        # LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock"
+        flock "$LOCK" git push
+
+    The live value is ``/tmp/bad.lock``; taking the comment as the later
+    binding made the block read as canonical. The half-finished edit that
+    comments out one line and leaves it above the call is the accidental
+    version of the same thing.
+
+    Only assignment collection strips comments. ``_candidate_tokens`` keeps
+    reading them, so a dead scheme parked in a comment stays visible: that
+    direction over-reports, and over-reporting is what the historical marker
+    is for.
     """
     found: list[tuple[int, int, str, str]] = []
     for offset, line in enumerate(block):
-        for match in _ASSIGNMENT.finditer(line):
-            name, value = match.group(1), match.group(2)
-            found.append((start + offset + 1, match.start(), name, value.strip("\"'")))
+        number = start + offset + 1
+        for column, text in split_statements(strip_hash_comments(line)):
+            for match in _ASSIGNMENT.finditer(text):
+                name, value = match.group(1), match.group(2)
+                found.append((number, column + match.start(), name, value.strip("\"'")))
     return found
 
 
@@ -160,21 +205,30 @@ def _value_in_effect(
 
 
 def _candidate_tokens(block: Sequence[str], start: int) -> list[tuple[int, int, str]]:
-    """Return (line, column, token) for everything that could name a lock file."""
+    """Return (line, column, token) for everything that could name a lock file.
+
+    The statement, not the line, decides what counts. A bare ``.lock`` literal
+    is read only from a statement that is not purely an assignment, so
+    ``LOCK=$CANONICAL ; flock "$LOCK" ; LOCK=/tmp/bad.lock`` no longer reports
+    the trailing rebind as a lock the ``flock`` opened. It did not open it: the
+    resolver already said so, and the raw literal scan used to contradict the
+    resolver from the same line.
+    """
     candidates: list[tuple[int, int, str]] = []
-    for offset, line in enumerate(block):
-        number = start + offset + 1
-        assignment_only = _ASSIGNMENT.search(line) is not None and _FLOCK.search(line) is None
+    for number, column, text in _statements(block, start):
+        assignment_only = _ASSIGNMENT.search(text) is not None and _FLOCK.search(text) is None
         if not assignment_only:
             candidates.extend(
-                (number, match.start(), match.group(0)) for match in _LOCK_PATH.finditer(line)
+                (number, column + match.start(), match.group(0))
+                for match in _LOCK_PATH.finditer(text)
             )
         candidates.extend(
-            (number, match.start(1), match.group(1)) for match in _EXEC_REDIRECT.finditer(line)
+            (number, column + match.start(1), match.group(1))
+            for match in _EXEC_REDIRECT.finditer(text)
         )
-        argument = _flock_argument(line)
+        argument = _flock_argument(text)
         if argument is not None:
-            candidates.append((number, argument[0], argument[1]))
+            candidates.append((number, column + argument[0], argument[1]))
     return candidates
 
 
@@ -223,11 +277,22 @@ def _scan_block(lines: Sequence[str], start: int, end: int) -> list[tuple[int, s
     Every target, not merely the first: a block that contrasts the canonical
     recipe with a dead scheme names two, and stopping at the canonical one hid
     the dead one, which is the exact evidence shape issue #4366 recorded.
+
+    The no-targets fallback alone was not enough for the same reason. It fires
+    only when the block names *nothing*, so a fence holding the canonical
+    recipe on one line and ``flock "$OTHER"`` on the next had a non-empty
+    target list and swallowed the second call. That is the coexistence shape
+    this block scan exists to catch, so unresolvable variables are collected
+    per call site and the fallback is what remains for a block that names
+    nothing at all.
     """
     block = lines[start:end]
     targets = _lock_targets(block, start)
     findings = _non_canonical(targets)
-    if not targets:
+    findings.extend(
+        finding for finding in _unresolved_flock_variables(block, start) if finding not in findings
+    )
+    if not targets and not findings:
         flock_lines = [
             start + offset + 1 for offset, line in enumerate(block) if _FLOCK.search(line)
         ]
@@ -275,29 +340,30 @@ def _unresolved_flock_variables(block: Sequence[str], start: int) -> list[tuple[
         flock "$LOCK" git push          # nothing in the block assigns LOCK
         LOCK=$SOME_EXTERNAL_ENV ; flock "$LOCK"   # resolves to another name
 
-    A fence already surfaces both through ``_scan_block``'s no-targets
-    fallback. Unfenced runs suppress that fallback so prose about ``flock``
-    does not fire, and this restores the case the suppression was never meant
-    to cover.
+    Both units call this, per call site. ``_scan_block``'s no-targets fallback
+    does not cover it, because that fallback fires only when the block names
+    nothing at all: a fence holding the canonical recipe on one line and
+    ``flock "$OTHER"`` on the next has a non-empty target list and used to
+    swallow the second call. Unfenced runs suppress the fallback entirely so
+    prose about ``flock`` stays quiet, which left the same hole there.
 
     Reported with an empty path, the same shape a fence uses, because the point
     is that no path could be determined. It reports at the ``flock`` line
-    rather than at the assignment, because the call is what is unverifiable.
-    Measured over 3518 tracked Markdown files before landing: zero gain a
-    finding.
+    rather than at the assignment, because the call is what cannot be verified.
+    Measured over 3518 tracked Markdown files before landing: none of them gain
+    a finding.
     """
     assignments = _assignments(block, start)
     unresolved: list[tuple[int, str]] = []
-    for offset, line in enumerate(block):
-        argument = _flock_argument(line)
+    for number, column, text in _statements(block, start):
+        argument = _flock_argument(text)
         if argument is None:
             continue
-        column, token = argument
+        argument_column, token = argument
         variable = _BARE_VARIABLE.match(token)
         if variable is None:
             continue
-        number = start + offset + 1
-        live = _value_in_effect(assignments, variable.group(1), (number, column))
+        live = _value_in_effect(assignments, variable.group(1), (number, column + argument_column))
         if live is None or not _is_path_like(live[1]):
             unresolved.append((number, ""))
     return unresolved

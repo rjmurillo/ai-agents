@@ -68,6 +68,7 @@ from scripts.validation.portability_common import (
 from scripts.validation.portability_common import (
     resolve_root as _common_resolve_root,
 )
+from scripts.validation.shell_text import strip_hash_comments
 
 # Upstream-only runtime path prefixes. A skill script that references these as
 # runtime paths assumes the upstream checkout layout and breaks in a vendored
@@ -169,30 +170,8 @@ def _span_contains(spans: set[tuple[int, int, int, int]], token: tokenize.TokenI
 
 
 def _strip_hash_comments(text: str) -> str:
-    stripped: list[str] = []
-    for line in text.splitlines():
-        in_single = False
-        in_double = False
-        escaped = False
-        cut_at = len(line)
-        for index, char in enumerate(line):
-            if escaped:
-                escaped = False
-                continue
-            if char in {"\\", "`"}:
-                escaped = True
-                continue
-            if char == "'" and not in_double:
-                in_single = not in_single
-                continue
-            if char == '"' and not in_single:
-                in_double = not in_double
-                continue
-            if char == "#" and not in_single and not in_double:
-                cut_at = index
-                break
-        stripped.append(line[:cut_at])
-    return "\n".join(stripped)
+    """Delegate to the shared parser so the push-lock gate cannot drift from it."""
+    return strip_hash_comments(text)
 
 
 def _is_skippable_string_token(token: tokenize.TokenInfo) -> bool:
