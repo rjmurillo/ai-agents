@@ -1,0 +1,37 @@
+---
+qaVerdict: PASS
+qaSessionLog: .agents/sessions/2026-08-15-session-14710-b0d6e4079-process-issue-4939-adr-044-version.json
+qaCommit: c1dcea5a51e92268663aba1f528079528009377d
+---
+
+# QA Report, issue 4939
+
+**Branch**: fix/4939-adr044-version-pin-conflict
+**Worktree**: external worktree `issue-4939-2`
+
+## Scope
+
+ADR-094 supersession policy, ADR-044 lifecycle update, contributor guidance, and the Copilot CLI regression runbook.
+
+## Validation
+
+- Validator tests: `uv run pytest tests/test_check_copilot_version_pin.py -q` passed 15 tests.
+- Repository pin: `uv run python scripts/validation/check_copilot_version_pin.py` returned `COPILOT_VERSION pin OK: 1.0.63`.
+- ADR numbering: `python3 scripts/validation/check_adr_uniqueness.py` passed and reported 095 as the next free number.
+- Markdown: `npx markdownlint-cli2 CONTRIBUTING.md` passed with zero errors.
+- Diff integrity: `git diff --check` passed.
+- Stale guidance search: no live contributor or runbook instruction still recommends `0.0.397`.
+- ADR review: Round 1 blocked 5 to 1. Round 2 accepted 6 to 0 after ADR-094 replaced the in-place amendment.
+- Full gate: `uv run python scripts/validation/pre_pr.py` passed all 51 validations.
+
+## Result
+
+PASS
+
+## Landing refresh (2026-08-15, session continuation)
+
+- Merged origin/main into the branch (clean, no conflicts).
+- Review fix: version-drift warning now points at the runbook memory path, keeping ADR-094 as the policy citation.
+- Review fix: episode 14710 milestone e011 recorded one second before commit e012 in the session source; causal chain corrected to e010 -> e011 -> e012 -> e013 -> e014. Episode validation: zero violations.
+- Targeted tests at qaCommit: tests/test_check_copilot_version_pin.py plus tests/ci: 2519 passed, 11 skipped. ruff clean on the edited script.
+- Regression test added for the drift-warning branch (tests/ci/test_ai_review_action_setup.py): 9 passed at qaCommit; episode metrics are branch-span counts maintained by the extract-session-episodes pre-commit hook (they include the origin/main merge, so they exceed this PR's authored diff of 5 files; the hook is authoritative and overwrites hand edits).

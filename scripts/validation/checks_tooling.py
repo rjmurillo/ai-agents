@@ -484,7 +484,10 @@ def validate_agent_drift(repo_root: Path) -> bool:
 
     Runs two comparisons (Issue #2267): vendored src/claude vs
     src/vs-code-agents (blocking), and .claude/agents vs .github/agents
-    (advisory only, large pre-existing diffs). Only vendored drift blocks.
+    (content drift advisory only, large pre-existing diffs; a MISSING H2
+    section always blocks in both comparisons -- Issue #4852). This caller
+    does not pass ``--fail-on-install-drift``, so install-copy CONTENT drift
+    stays advisory here; a new missing section still fails.
     """
     python_script = repo_root / "build" / "scripts" / "detect_agent_drift.py"
     if not python_script.exists():

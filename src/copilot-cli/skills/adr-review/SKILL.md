@@ -4,7 +4,6 @@ version: 1.1.0
 description: Multi-agent debate orchestration for Architecture Decision Records. Automatically triggers on ADR create/edit/delete. Coordinates architect, critic, independent-thinker, security, analyst, and high-level-advisor agents in structured debate rounds until consensus. Use when you say "review this ADR", when an ADR is created/edited/deleted, or when reviewing, accepting, or updating a decision file under .agents/architecture/, docs/architecture/, docs/decisions/, docs/adr/, or architecture/decisions/, including intent like "review this decision record" or "check this rationale for future maintainers". Do NOT use to author a new ADR (use adr-generator).
 license: MIT
 metadata:
-  subagent_model: claude-opus-4-6
   domains: [architecture, governance, multi-agent, consensus]
   type: orchestrator
   inputs: [adr-file-path, change-type]
@@ -16,7 +15,6 @@ metadata:
       - "docs/architecture/ADR-*.md"
       - "docs/decisions/ADR-*.md"
       - "architecture/decisions/ADR-*.md"
-      - ".agents/SESSION-PROTOCOL.md"
     events: [create, update, delete]
     auto_invoke: true
 ---
@@ -62,7 +60,6 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 | `ADR-*.md` | `docs/architecture/` | create, update, delete |
 | `ADR-*.md` | `docs/decisions/` | create, update, delete |
 | `ADR-*.md` | `architecture/decisions/` | create, update, delete |
-| `SESSION-PROTOCOL.md` | `.agents/` | create, update, delete |
 
 **Detection**: from the skill directory, run `python3 scripts/detect_adr_changes.py --base-path <repo-root>`. From repo root, run `.claude/skills/adr-review/scripts/detect_adr_changes.py` for the Claude skill tree or `src/copilot-cli/skills/adr-review/scripts/detect_adr_changes.py` for the Copilot CLI mirror.
 
@@ -72,7 +69,6 @@ Multi-agent debate pattern for rigorous ADR validation. Orchestrates 6 specializ
 
 - Architect creates or updates an ADR
 - ANY agent modifies `.agents/architecture/ADR-*.md`, `docs/adr/ADR-*.md`, `docs/architecture/ADR-*.md`, `docs/decisions/ADR-*.md`, or `architecture/decisions/ADR-*.md`
-- ANY agent modifies `.agents/SESSION-PROTOCOL.md`
 
 **User-Initiated Triggers** (manual):
 

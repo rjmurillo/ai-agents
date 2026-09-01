@@ -1509,15 +1509,106 @@ class TestSequentialEventLinks:
         assert exc_info.value.exit_code == 2
 
     def test_timestamp_dominates_lifecycle_rank(self):
-        # A commit with a later timestamp must not be reordered before an earlier
-        # milestone; lifecycle rank only breaks ties within one timestamp.
+        # A milestone with a *real* (non-midnight) timestamp earlier than a
+        # commit creates a causal edge.  The midnight case is tested separately
+        # (test_untimestamped_milestone_incomparable_to_commit) per issue #4847.
         early = self._evt("e001", "milestone", "early")
+        early["timestamp"] = "2026-07-19T08:00:00+00:00"  # real timestamp
         late = self._evt("e002", "commit", "late")
         late["timestamp"] = "2026-07-19T09:00:00+00:00"  # after the milestone
         events = [early, late]
         extract_session_episode._link_sequential_events(events)
         assert events[0]["caused_by"] == [] and events[0]["leads_to"] == ["e002"]
         assert events[1]["caused_by"] == ["e001"] and events[1]["leads_to"] == []
+
+    def test_untimestamped_milestone_incomparable_to_commit(self):
+        """Issue #4847: midnight-fallback milestone has no edge to a commit."""
+        milestone = self._evt("e001", "milestone", "merged main")
+        # e001 has default midnight timestamp from _evt helper
+        commit = self._evt("e002", "commit", "Commit: 51a03ff77")
+        commit["timestamp"] = "2026-07-19T14:30:00+00:00"
+        events = [milestone, commit]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
+    def test_untimestamped_milestone_incomparable_reversed_order(self):
+        """Issue #4847: symmetric - commit before milestone in list."""
+        commit = self._evt("e001", "commit", "Commit: abc1234")
+        commit["timestamp"] = "2026-07-19T14:30:00+00:00"
+        milestone = self._evt("e002", "milestone", "did review")
+        # e002 has midnight fallback
+        events = [commit, milestone]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
+    def test_real_timestamped_milestone_still_creates_edge(self):
+        """Non-midnight milestone retains causal edge to later commit."""
+        milestone = self._evt("e001", "milestone", "filed issue")
+        milestone["timestamp"] = "2026-07-19T08:15:00+00:00"
+        commit = self._evt("e002", "commit", "Commit: def5678")
+        commit["timestamp"] = "2026-07-19T09:00:00+00:00"
+        events = [milestone, commit]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["leads_to"] == ["e002"]
+        assert events[1]["caused_by"] == ["e001"]
+
+    def test_error_at_midnight_still_post_commit(self):
+        """Error/test types at midnight retain post-commit ordering."""
+        commit = self._evt("e001", "commit", "Commit: aaa1111")
+        # commit also at midnight (same timestamp)
+        error = self._evt("e002", "error", "build failed")
+        # error also at midnight
+        events = [commit, error]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["leads_to"] == ["e002"]
+        assert events[1]["caused_by"] == ["e001"]
+
+    def test_handoff_at_midnight_incomparable_to_commit(self):
+        """Handoff type is midnight-incomparable like milestone."""
+        handoff = self._evt("e001", "handoff", "handed off")
+        commit = self._evt("e002", "commit", "Commit: bbb2222")
+        commit["timestamp"] = "2026-07-19T10:00:00+00:00"
+        events = [handoff, commit]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
+    @pytest.mark.parametrize("event_type", ["handoff", "tool_call"])
+    def test_nonmilestone_midnight_type_incomparable_to_commit(self, event_type):
+        """Each _MIDNIGHT_INCOMPARABLE_TYPES member is guarded, not only milestone."""
+        other = self._evt("e001", event_type, "pre-commit work")
+        commit = self._evt("e002", "commit", "Commit: ccc3333")
+        commit["timestamp"] = "2026-07-19T10:00:00+00:00"
+        events = [other, commit]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
+    @pytest.mark.parametrize("event_type", ["handoff", "tool_call"])
+    def test_nonmilestone_midnight_type_incomparable_reversed_order(self, event_type):
+        """Symmetric direction for the non-milestone incomparable types."""
+        commit = self._evt("e001", "commit", "Commit: ddd4444")
+        commit["timestamp"] = "2026-07-19T10:00:00+00:00"
+        other = self._evt("e002", event_type, "post-commit work")
+        events = [commit, other]
+        extract_session_episode._link_sequential_events(events)
+        assert events[0]["caused_by"] == [] and events[0]["leads_to"] == []
+        assert events[1]["caused_by"] == [] and events[1]["leads_to"] == []
+
+    def test_midnight_in_nonzero_offset_normalizes_to_comparable(self):
+        """Midnight in non-UTC offset normalizes to non-midnight UTC; edge kept."""
+        milestone = self._evt("e001", "milestone", "work")
+        # 00:00:00+05:00 normalizes to 19:00:00 UTC previous day - NOT midnight
+        milestone["timestamp"] = "2026-07-19T00:00:00+05:00"
+        commit = self._evt("e002", "commit", "Commit: ccc3333")
+        commit["timestamp"] = "2026-07-19T20:00:00+00:00"
+        events = [milestone, commit]
+        extract_session_episode._link_sequential_events(events)
+        # 19:00 UTC < 20:00 UTC, so edge exists (real ordering)
+        assert events[0]["leads_to"] == ["e002"]
+        assert events[1]["caused_by"] == ["e001"]
 
     def test_offset_timestamps_are_ordered_by_utc_time(self):
         actual_later = self._evt("e001", "milestone", "later")
@@ -3258,6 +3349,140 @@ class TestSourceSessionStamping:
         merged = extract_session_episode.merge_preserving(new, existing, session_id=self.SESSION_A)
         contents = [e["content"] for e in merged["events"]]
         assert "legacy unstamped event" in contents
+
+
+class TestDedupeEventsCollapsesAbbreviatedCommits:
+    """_dedupe_events must dedupe commit events abbreviation-aware, not by
+    exact (type, content) string equality.
+
+    _collect_shas/_already_seen already guarantee this within one fresh
+    extraction. _dedupe_events is the other place a full SHA and its own
+    abbreviation can meet: once across a --preserve boundary, where an
+    earlier run recorded one spelling and a later run's fresh extraction
+    independently produces the other. Issue #5069 (copilot-pull-request-
+    reviewer on PR #5178): episode-2026-08-20-session-99923-...json recorded
+    "Commit: bad269d8199e4265fc2a6269439e0ace1ffab5b7" from one run and
+    "Commit: bad269d" from a later --preserve run over the same session log;
+    exact-string dedup let both survive as separate events and inflated
+    metrics.commits by one.
+    """
+
+    FULL = "bad269d8199e4265fc2a6269439e0ace1ffab5b7"
+    SHORT = "bad269d"
+
+    @staticmethod
+    def _commit_event(
+        sha: str, event_id: str = "e001", timestamp: str = "2026-01-08T01:00:00+00:00"
+    ) -> dict:
+        return {
+            "id": event_id,
+            "timestamp": timestamp,
+            "type": "commit",
+            "content": f"Commit: {sha}",
+            "caused_by": [],
+            "leads_to": [],
+        }
+
+    def test_a_full_sha_already_recorded_absorbs_a_freshly_extracted_abbreviation(self) -> None:
+        """The common --preserve shape: existing has the full SHA, new re-derives the short one."""
+        existing = [self._commit_event(self.FULL, timestamp="2026-01-08T01:00:00+00:00")]
+        new = [self._commit_event(self.SHORT, timestamp="2026-01-08T01:00:00+00:00")]
+        result = extract_session_episode._dedupe_events(existing, new, None, session_id="")
+        commit_events = [e for e in result if e["type"] == "commit"]
+        assert len(commit_events) == 1, (
+            f"expected one commit event for one commit, got {len(commit_events)}: "
+            f"{[e['content'] for e in commit_events]}"
+        )
+        assert commit_events[0]["content"] == f"Commit: {self.FULL}", (
+            "the first spelling seen (the existing full SHA) must be the one kept, "
+            f"got {commit_events[0]['content']!r}"
+        )
+
+    def test_an_abbreviation_already_recorded_absorbs_a_freshly_extracted_full_sha(self) -> None:
+        """The reverse shape: existing has the short form, new produces the full one."""
+        existing = [self._commit_event(self.SHORT, timestamp="2026-01-08T01:00:00+00:00")]
+        new = [self._commit_event(self.FULL, timestamp="2026-01-08T01:00:00+00:00")]
+        result = extract_session_episode._dedupe_events(existing, new, None, session_id="")
+        commit_events = [e for e in result if e["type"] == "commit"]
+        assert len(commit_events) == 1, (
+            f"expected one commit event for one commit, got {len(commit_events)}: "
+            f"{[e['content'] for e in commit_events]}"
+        )
+        assert commit_events[0]["content"] == f"Commit: {self.SHORT}", (
+            "the first spelling seen (the existing short SHA) must be the one kept, "
+            f"got {commit_events[0]['content']!r}"
+        )
+
+    def test_the_retained_event_is_upgraded_from_a_synthesized_midnight(self) -> None:
+        """The abbreviation-matched dedup branch must still upgrade a
+        synthesized-midnight timestamp to a real one, not just merge content
+        (Copilot on PR #5178: both sibling tests above give the existing and
+        incoming events the identical timestamp, so removing the
+        ``_maybe_update_event_timestamp`` call inside the abbreviation-match
+        branch leaves all four dedup tests green; the upgrade path was
+        exercised by nothing).
+
+        Uses a synthetic SHA absent from this repository (confirmed via
+        ``git cat-file -t``, exit 128) rather than the class's ``FULL``
+        constant, which git-verifiably IS a real commit here
+        (``git log -1 --format=%cI bad269d8199e...`` resolves to
+        2026-08-20T01:29:42+00:00): ``_preserved_timestamp`` tries a real git
+        lookup before falling back to the entry's stored ``timestamp``, so a
+        resolvable SHA would make both events' timestamps resolve to the same
+        real git time regardless of what the fixture sets, masking the exact
+        gap this test exists to close.
+        """
+        fake_full = "1234567890abcdef1234567890abcdef12345678"
+        fake_short = "1234567"
+        midnight = "2026-01-08T00:00:00+00:00"
+        real = "2026-01-08T03:15:00+00:00"
+        existing = [self._commit_event(fake_full, timestamp=midnight)]
+        new = [self._commit_event(fake_short, timestamp=real)]
+        result = extract_session_episode._dedupe_events(existing, new, midnight, session_id="")
+        commit_events = [e for e in result if e["type"] == "commit"]
+        assert len(commit_events) == 1, (
+            f"expected one commit event for one commit, got {len(commit_events)}: "
+            f"{[e['content'] for e in commit_events]}"
+        )
+        assert commit_events[0]["timestamp"] == real, (
+            "the retained event's synthesized-midnight timestamp was not "
+            f"upgraded to the incoming duplicate's real timestamp {real!r}, "
+            f"got {commit_events[0]['timestamp']!r}"
+        )
+
+    def test_two_genuinely_different_commits_both_survive(self) -> None:
+        """Negative control: dedup must not collapse two distinct commits."""
+        other = "cafef00dcafef00dcafef00dcafef00dcafef00d"
+        existing = [self._commit_event(self.FULL)]
+        new = [self._commit_event(other)]
+        result = extract_session_episode._dedupe_events(existing, new, None, session_id="")
+        commit_events = [e for e in result if e["type"] == "commit"]
+        assert len(commit_events) == 2, (
+            "two distinct commits were collapsed into one: "
+            f"{[e['content'] for e in commit_events]}"
+        )
+
+    def test_commit_content_that_does_not_match_the_sha_format_falls_back_to_exact_key(
+        self,
+    ) -> None:
+        """Edge: non-standard commit content (e.g. a squash note) still dedupes by exact match."""
+        existing = [
+            {
+                "id": "e001",
+                "timestamp": "2026-01-08T01:00:00+00:00",
+                "type": "commit",
+                "content": "Commit: (squashed into a later commit)",
+                "caused_by": [],
+                "leads_to": [],
+            }
+        ]
+        new = [dict(existing[0])]
+        result = extract_session_episode._dedupe_events(existing, new, None, session_id="")
+        commit_events = [e for e in result if e["type"] == "commit"]
+        assert len(commit_events) == 1, (
+            "identical non-SHA commit content must still collapse to one event via "
+            f"the exact-key fallback, got {len(commit_events)}"
+        )
 
 
 class TestSourceSessionEndToEnd:

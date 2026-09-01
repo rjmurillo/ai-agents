@@ -16,6 +16,8 @@ from typing import Any
 
 import yaml
 
+from scripts.ci import run_pytest_selected
+
 _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pytest.yml"
 
 _MAIN_STEP = "Run pytest"
@@ -34,7 +36,6 @@ _ROOT_BULK_IGNORES = {
 }
 _NESTED_BULK_IGNORES = {
     "tests/skills/github/test_wait_for_unresolved_zero.py",
-    "tests/skills/session-end/test_rework_warning.py",
 }
 
 # Any argv spelling that starts workers or picks a distribution mode.
@@ -63,6 +64,16 @@ def _partition(name: str) -> dict[str, Any]:
         if entry["partition"] == name:
             return entry
     raise AssertionError(f"partition {name!r} not found in matrix")
+
+
+def _partition_args(name: str) -> list[str]:
+    """Partition pytest args, now owned by the Python runner rather than the matrix.
+
+    Issue #5050 moved the per-partition argument lists out of the workflow matrix
+    and into ``scripts/ci/run_pytest_selected.py`` so the full-vs-subset decision
+    stays in testable Python (ADR-006). These contract tests follow them there.
+    """
+    return run_pytest_selected._PARTITION_FULL_ARGS[name]
 
 
 class TestMatrixStructure:
@@ -108,32 +119,31 @@ class TestMatrixStructure:
         for entry in _matrix():
             assert "coverage_file" in entry, f"{entry['partition']} missing coverage_file"
             assert "junit_file" in entry, f"{entry['partition']} missing junit_file"
-            assert "pytest_args" in entry, f"{entry['partition']} missing pytest_args"
         assert len({entry["coverage_file"] for entry in _matrix()}) == 5
         assert len({entry["junit_file"] for entry in _matrix()}) == 5
 
+    def test_every_partition_has_runner_args(self) -> None:
+        matrix_partitions = {entry["partition"] for entry in _matrix()}
+        assert matrix_partitions == set(run_pytest_selected._PARTITION_FULL_ARGS)
+
     def test_root_bulk_ignores_nested_and_owned_files(self) -> None:
-        args = _partition("bulk")["pytest_args"]
+        args = _partition_args("bulk")
         ignored = {
-            token.removeprefix("--ignore=")
-            for token in args.split()
-            if token.startswith("--ignore=")
+            token.removeprefix("--ignore=") for token in args if token.startswith("--ignore=")
         }
         assert ignored == _ROOT_BULK_IGNORES
-        assert "--ignore-glob='tests/*/*'" in args.split()
-        assert args.split()[-1] == "tests/"
+        assert "--ignore-glob=tests/*/*" in args
+        assert args[-1] == "tests/"
         assert "-m" not in args, "CI must not drop integration-marked tests"
 
     def test_nested_bulk_covers_every_non_mutation_test_directory(self) -> None:
-        args = _partition("bulk-nested")["pytest_args"]
+        args = _partition_args("bulk-nested")
         ignored = {
-            token.removeprefix("--ignore=")
-            for token in args.split()
-            if token.startswith("--ignore=")
+            token.removeprefix("--ignore=") for token in args if token.startswith("--ignore=")
         }
         selected = {
             token
-            for token in args.split()
+            for token in args
             if token.startswith("tests/") and not token.startswith("--ignore=")
         }
         expected = {
@@ -145,56 +155,52 @@ class TestMatrixStructure:
         assert selected == expected
 
     def test_mutation_runs_only_tests_mutation(self) -> None:
-        args = _partition("mutation")["pytest_args"]
-        assert args.split() == ["-n", "auto", "--dist", "loadfile", "tests/mutation"]
+        args = _partition_args("mutation")
+        assert args == ["-n", "auto", "--dist", "loadfile", "tests/mutation"]
 
     def test_safe_push_runs_process_sensitive_files(self) -> None:
-        args = _partition("safe-push")["pytest_args"]
-        assert args.split() == [
+        args = _partition_args("safe-push")
+        assert args == [
             "tests/test_safe_push_pr_branch.py",
             "tests/test_mutation_workspace_signals.py",
         ]
 
     def test_pr_autofix_runs_only_its_file(self) -> None:
-        args = _partition("pr-autofix")["pytest_args"]
-        assert args.strip() == "tests/test_pr_autofix_late_live_state_gate.py"
+        args = _partition_args("pr-autofix")
+        assert args == ["tests/test_pr_autofix_late_live_state_gate.py"]
 
 
 class TestXdistParallelism:
     """Bulk partitions and mutation use xdist; sensitive files stay serial."""
 
     def test_bulk_uses_xdist(self) -> None:
-        args = _partition("bulk")["pytest_args"]
-        assert "-n auto" in args
-        assert "--dist loadfile" in args
+        args = _partition_args("bulk")
+        assert args[:4] == ["-n", "auto", "--dist", "loadfile"]
 
     def test_nested_bulk_uses_xdist(self) -> None:
-        args = _partition("bulk-nested")["pytest_args"]
-        assert "-n auto" in args
-        assert "--dist loadfile" in args
+        args = _partition_args("bulk-nested")
+        assert args[:4] == ["-n", "auto", "--dist", "loadfile"]
 
     def test_mutation_uses_xdist(self) -> None:
-        args = _partition("mutation")["pytest_args"]
-        assert "-n auto" in args
-        assert "--dist loadfile" in args
+        args = _partition_args("mutation")
+        assert args[:4] == ["-n", "auto", "--dist", "loadfile"]
 
     def test_safe_push_stays_serial(self) -> None:
-        args = _partition("safe-push")["pytest_args"]
-        assert _PARALLEL_TOKEN.search(args) is None
+        args = _partition_args("safe-push")
+        assert "-n" not in args
+        assert "--dist" not in args
 
     def test_pr_autofix_stays_serial(self) -> None:
-        args = _partition("pr-autofix")["pytest_args"]
-        assert _PARALLEL_TOKEN.search(args) is None
+        args = _partition_args("pr-autofix")
+        assert "-n" not in args
+        assert "--dist" not in args
 
     def test_no_hard_coded_worker_count(self) -> None:
-        for entry in _matrix():
-            args = entry["pytest_args"]
+        for partition, args in run_pytest_selected._PARTITION_FULL_ARGS.items():
             if "-n" in args:
-                tokens = args.split()
-                idx = tokens.index("-n")
-                val = tokens[idx + 1]
+                val = args[args.index("-n") + 1]
                 assert not val.lstrip("+-").isdigit(), (
-                    f"partition {entry['partition']} hard-codes worker count {val!r}"
+                    f"partition {partition} hard-codes worker count {val!r}"
                 )
 
     def test_windows_path_contract_job_stays_serial(self) -> None:
@@ -207,11 +213,19 @@ class TestXdistParallelism:
 class TestRunPytestStep:
     """The shared Run pytest step uses matrix data."""
 
-    def test_run_step_uses_matrix_pytest_args(self) -> None:
+    def test_run_step_invokes_the_selection_runner(self) -> None:
         steps = _job_steps("test")
         run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
         run = run_step["run"]
-        assert "${{ matrix.pytest_args }}" in run
+        assert "scripts/ci/run_pytest_selected.py" in run
+        assert "--partition ${{ matrix.partition }}" in run
+
+    def test_run_step_passes_selection_base(self) -> None:
+        steps = _job_steps("test")
+        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
+        base = run_step.get("env", {}).get("PYTEST_SELECT_BASE", "")
+        assert "github.event.pull_request.base.sha" in base
+        assert "github.event.before" in base
 
     def test_run_step_uses_matrix_coverage_file(self) -> None:
         steps = _job_steps("test")
@@ -332,8 +346,17 @@ class TestAggregateJob:
         assert _job("test-result")["name"] == "Run Python Tests"
 
     def test_aggregate_runs_when_path_detection_fails(self) -> None:
+        """The gate must survive a failed dependency but not a cancelled run.
+
+        `!cancelled()` replaced `always()` for #5097: both run when a
+        dependency failed or was skipped, but `always()` also ran during
+        cancellation and published a red required check for a superseded run.
+        `tests/workflows/test_aggregator_cancellation_guard.py` carries the
+        full contract.
+        """
         condition = _job("test-result")["if"]
-        assert "always()" in condition
+        assert "!cancelled()" in condition
+        assert "always()" not in condition
         assert "needs.check-paths.result != 'success'" in condition
         assert "needs.check-paths.outputs.python-changed == 'true'" in condition
 

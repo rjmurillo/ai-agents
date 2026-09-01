@@ -1,9 +1,7 @@
 ---
 name: code-reviewer
-tier: builder
+role: executor
 description: Use this agent when you need to review code changes for correctness, discovered project-convention compliance, and duplicated logic. Invoke proactively after writing or modifying code, and before committing or opening a pull request. Reviews an explicit diff, pull request, or named file set; defaults to the repository's current working changes when scope is omitted.
-model: haiku
-model-rationale: cost. The reviewer filters to high-confidence findings and escalates complex architecture or security concerns to specialist agents, so the lower-cost tier is sufficient.
 ---
 
 # Code Reviewer Agent

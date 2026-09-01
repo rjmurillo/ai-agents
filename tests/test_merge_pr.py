@@ -221,6 +221,30 @@ class TestMain:
         assert output["Data"]["action"] == "auto-merge-enabled"
         assert output["Data"]["state"] == "PENDING"
 
+    def test_invalid_pr_state_json_exits_3(self, capsys):
+        with patch(
+            "merge_pr.assert_gh_authenticated",
+        ), patch(
+            "merge_pr.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch(
+            "merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED,
+        ), patch(
+            "subprocess.run",
+            return_value=_completed(stdout="not json", rc=0),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50", "--output-format", "json"])
+
+        assert exc.value.code == 3
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Success"] is False
+        assert envelope["Error"]["Code"] == 3
+        assert envelope["Error"]["Type"] == "ApiError"
+        assert envelope["Error"]["Message"] == (
+            "PR #50 state response was not valid JSON"
+        )
+
     def test_not_mergeable_exits_6(self):
         state_json = json.dumps({
             "state": "OPEN", "mergeable": "CONFLICTING",
@@ -461,7 +485,7 @@ class TestGetAllowedMergeMethods:
             result = get_allowed_merge_methods("o/r")
         assert result["allow_rebase_merge"] is False
 
-    def test_raises_on_api_failure(self):
+    def test_raises_on_api_failure_without_stderr_noise(self, capsys):
         with patch(
             "subprocess.run",
             return_value=_completed(rc=1, stderr="error"),
@@ -469,6 +493,7 @@ class TestGetAllowedMergeMethods:
             with pytest.raises(RuntimeError) as exc:
                 get_allowed_merge_methods("o/r")
             assert "Failed to query repository settings" in str(exc.value)
+        assert capsys.readouterr().err == ""
 
     def test_raises_on_invalid_json(self):
         with patch(
@@ -535,10 +560,10 @@ class TestValidateStrategy:
         assert "Metadata" in envelope
         assert envelope["Metadata"]["Script"] == "merge_pr.py"
 
-    def test_strategy_rejected_in_main(self):
+    def test_missing_strategy_rejected_when_repo_allows_none(self):
         settings = {
             "allow_merge_commit": False,
-            "allow_squash_merge": True,
+            "allow_squash_merge": False,
             "allow_rebase_merge": False,
         }
         with patch(
@@ -550,7 +575,7 @@ class TestValidateStrategy:
             "merge_pr.get_allowed_merge_methods", return_value=settings,
         ):
             with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "50", "--strategy", "merge"])
+                main(["--pull-request", "50"])
             assert exc.value.code == 1
 
     def test_rebase_strategy_rejected(self):
@@ -688,12 +713,12 @@ class TestDefaultStrategyIntegration:
         merge_cmd = merge_calls[-1]
         assert "--squash" in merge_cmd
 
-    def test_explicit_disallowed_strategy_emits_envelope(self, capsys):
-        """Explicit --strategy merge on squash-only repo → JSON envelope."""
-        squash_only = {
-            "allow_merge_commit": False,
-            "allow_squash_merge": True,
-            "allow_rebase_merge": False,
+    def test_explicit_strategy_skips_settings_discovery(self):
+        pr_data = {
+            "state": "OPEN",
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN",
+            "headRefName": "feature",
         }
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -701,16 +726,18 @@ class TestDefaultStrategyIntegration:
             "merge_pr.resolve_repo_params",
             return_value=RepoInfo(owner="rjmurillo", repo="ai-agents"),
         ), patch(
-            "merge_pr.get_allowed_merge_methods", return_value=squash_only,
+            "merge_pr.get_allowed_merge_methods",
+        ) as settings, patch(
+            "merge_pr._fetch_pr_state", return_value=pr_data,
+        ), patch(
+            "subprocess.run", return_value=_completed(),
+        ), patch(
+            "merge_pr.write_skill_output",
         ):
-            with pytest.raises(SystemExit) as exc:
-                main(["--pull-request", "2444", "--strategy", "merge",
-                      "--output-format", "json"])
-            assert exc.value.code == 1
-        envelope = json.loads(capsys.readouterr().out)
-        assert envelope["Success"] is False
-        assert envelope["Error"]["Code"] == 1
-        assert envelope["Error"]["Type"] == "InvalidParams"
+            rc = main(["--pull-request", "2444", "--strategy", "merge"])
+
+        assert rc == 0
+        settings.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

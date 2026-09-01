@@ -1,3 +1,14 @@
+---
+id: ADR-043
+status: accepted
+date: 2026-01-21
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-043: Scoped Tool Execution
 
 ## Status

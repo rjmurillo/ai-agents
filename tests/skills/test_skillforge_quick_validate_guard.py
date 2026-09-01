@@ -25,8 +25,8 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _SCRIPTS = [
-    _REPO_ROOT / ".claude" / "skills" / "SkillForge" / "scripts" / "quick_validate.py",
-    _REPO_ROOT / "src" / "copilot-cli" / "skills" / "SkillForge" / "scripts" / "quick_validate.py",
+    _REPO_ROOT / ".claude" / "skills" / "skillforge" / "scripts" / "quick_validate.py",
+    _REPO_ROOT / "src" / "copilot-cli" / "skills" / "skillforge" / "scripts" / "quick_validate.py",
 ]
 
 _TRAVERSAL_MARKER = "Path traversal detected"

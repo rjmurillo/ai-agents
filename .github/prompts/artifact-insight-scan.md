@@ -84,7 +84,7 @@ If an item appears similar to common patterns, note it:
 FINDING:
 TYPE: TODO
 TITLE: feat(validation): add schema validation for session JSON files
-BODY: Session logs currently lack schema validation. Invalid JSON can cause silent failures in downstream tools. Add JSON schema and validation step to session-init skill.
+BODY: Session logs currently lack schema validation. Invalid JSON can cause silent failures in downstream tools. Add JSON schema and validation step to scripts/validate_session_json.py.
 PRIORITY: P2
 LABELS: enhancement, area-workflows
 SOURCE: .agents/sessions/2026-02-20-session-42.json:15

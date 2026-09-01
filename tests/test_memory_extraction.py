@@ -64,6 +64,11 @@ class TestExtractErrorPattern:
         assert result["pattern"] == "no errors here"
 
     @pytest.mark.unit
+    def test_flattens_multiline_fallback(self):
+        result = extract_error_pattern("tool", "Exit code 1\nplain failing output")
+        assert result["pattern"] == "Exit code 1 plain failing output"
+
+    @pytest.mark.unit
     def test_truncates_long_pattern(self):
         long_error = "error: " + "x" * 500
         result = extract_error_pattern("tool", long_error)

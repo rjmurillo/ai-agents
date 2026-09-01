@@ -15,6 +15,12 @@ implemented: false
 
 Accepted (approved by @rjmurillo on 2026-07-11, PR #3028).
 
+Amended 2026-08-12. The Decision stands. The Context's cost model is narrowed
+and one cost it never stated is added. Read
+[Amendment 2026-08-12](#amendment-2026-08-12) before citing the Context or
+rule 3. Measurements and probe transcripts live in
+`.agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md`.
+
 ## Date
 
 2026-07-11
@@ -167,7 +173,7 @@ the rule splits by unit kind, because only agents can be measured:
 ### Alternatives Considered
 
 | Alternative | Pros | Cons | Why Not Chosen |
-|-------------|------|------|----------------|
+| ------------- | ------ | ------ | ---------------- |
 | Keep all pins, fix only spelling drift | Smallest change | Leaves 108 guesses and the retirement class in place | Does not solve pins that no evidence justifies |
 | Strip all pins now, re-pin later | Immediately uniform | Discards correct pins; re-pinning is the same churn reversed; pre-empts measurement | Owner rejected bulk-stripping without evidence |
 | Ban versioned ids entirely; allow only no-line or rolling alias; sweeps only for rare exceptions (the pure-simpler alternative) | No eval machinery, no stale artifacts, no migration spend; kills all three drift costs | Discards the owner's measured-keep goal and the harness built for it (#2901) | Partially adopted: this IS the rule for skills and commands; agents keep the evidence path per owner direction |
@@ -211,7 +217,7 @@ frontmatter string.
 ## Impact on Dependent Components
 
 | Component | Dependency Type | Required Update | Risk |
-|-----------|----------------|-----------------|------|
+| ----------- | ---------------- | ----------------- | ------ |
 | `scripts/validation/check_model_pins.py` (new) | Direct | Scanner, manifest and rationale validation, draining baseline | Medium |
 | `.agents/governance/model-pin-evidence.json` (new) | Direct | Manifest schema and initial (empty) content | Low |
 | Copilot agent generator config | Direct | Stop injecting `model: claude-opus-4.6`; inherit unless justified | Medium |
@@ -251,6 +257,98 @@ Suggested sequence, each its own PR:
   path-traversal artifact path is rejected; baseline known-pin passes, new pin
   fails, baseline that grows fails the burn-down rule; warn mode reports but
   exits zero, enforce mode exits nonzero.
+
+## Amendment 2026-08-12
+
+Measured on GitHub Copilot CLI 1.0.79, each probe with a negative control.
+Method, transcripts, and the full result table:
+`.agents/analysis/2026-08-12-adr-080-copilot-model-resolution.md`.
+
+**1. A versioned pin beats an explicitly selected model. This cost is not in the
+Context and it is the strongest argument for point 5.** A worker agent pinned
+`claude-opus-4.6`, delegated to from a session launched `--model claude-opus-5`,
+resolves to 4.6. Deleting the line makes it inherit. So a generated agent
+carrying a versioned pin discards the operator's model selection on every
+delegation.
+
+**2. Severity inverts, which breaks the obvious test design.** On Copilot CLI an
+*unresolvable* value warns and falls back to the session default, so it behaves
+like the desired end state; a *resolvable* older id is honored and is the
+defect. `claude-opus-4.5` and `Claude Opus 4.6 (anthropic)` were directly
+probed and fall back. `sonnet`, `opus`, and `haiku` are bare aliases that are
+not valid Copilot model ids, so they are expected to fall back by the same
+mechanism, but this was not independently measured with runtime probes.
+`claude-opus-4.6`, `claude-sonnet-4.6`, and `Claude Opus 4.6 (copilot)` are
+accepted. Probing only invalid ids yields the opposite conclusion.
+
+**3. The Retirement CI-break class is narrowed, not falsified.** On this surface
+and version, the retired `claude-opus-4.5` warns and exits 0 rather than
+breaking. That was measured on Copilot CLI only; Claude Code, VS Code, and any
+future CLI that hard-errors were not tested, and a break did happen in #2839 on
+the `ai-review` selection path. Treat the class as unconfirmed here, not
+disproved everywhere.
+
+**4. Rule 1's bare-alias state does not survive translation on every path, so
+rule 3's cost exception has a live gap, and the fix for one path reopens
+finding 1.** Bare aliases are not valid Copilot model ids. For **generated
+plugin agents**, `templates/platforms/copilot-cli.yaml` `model_tiers`
+(consumed by `build/generate_agents_common.py:222-227`) resolves a template's
+`model_tier` to a versioned id (for example `model_tier: sonnet` becomes
+`model: claude-sonnet-4.6`) before it ships, so the bare alias never reaches
+Copilot unresolved. That is not the same as harmless: the resolved value is a
+versioned id, and finding 1 measured that a versioned pin overrides an
+operator's explicitly selected session model on delegation. The same override
+was not independently probed for a `model_tier`-resolved id specifically; it is
+inferred from finding 1's mechanism, not separately reproduced. Whether that
+override is acceptable for generated agents, and how it interacts with rule
+3's cost exception, is undecided here and remains an open gap. For
+**repository-level agents** (`.github/agents/`), bare aliases such as
+`model: sonnet` in `quality-auditor.agent.md` reached Copilot unresolved and
+fell back; this was the state observed during the 2026-08-12 probe. It has
+since been resolved for this specific instance: `fix(agents): remove rejected
+model pins from .github/agents and gate the tree (#5040)` (2026-08-15)
+removed the `model: sonnet` line, and `.github/agents/quality-auditor.agent.md`
+now carries no `model:` field. A repository-wide search finds no other bare
+`sonnet`, `opus`, or `haiku` model value under `.github/agents`, so this
+specific class of drift is closed there. For **skills** there is no such translation, and
+`src/copilot-cli/skills` ships 8 raw aliases today (7 `haiku`, 1 `opus`). Those
+are precisely the units rule 3's cost exception exists for, and their
+cheap-tier intent is silently discarded in favour of the session default,
+which is the inverse of the exception's purpose. Fixing the skill copier, or
+removing those pins, is migration work this ADR does not currently name.
+
+**5. Point 5's citation is stale and its scope is short by two files.**
+`templates/platforms/copilot-cli.yaml:95` is `outputDir`; the `model:` line was
+98. Two further configs the ADR never mentions, `templates/platforms/vscode.yaml`
+and `templates/platforms/visual-studio.yaml`, both write `src/vs-code-agents`
+and both carried `model: "Claude Opus 4.6 (copilot)"`. Stripping only the
+Copilot config would have left 30 pins reachable.
+
+### Corrections to this amendment's own first draft
+
+Recorded because the errors are instructive, and two reviewers caught them.
+
+- The first draft probed `claude-opus-9-9-retired`, a string that never existed,
+  and called the retirement class "falsified". A never-registered id and a
+  retired one are different resolver inputs. Re-probed with `claude-opus-4.5`.
+- It cited `.github/agents/quality-auditor.agent.md:4` (`model: sonnet`) as a
+  rule 1 policy defect. It is hand-copy drift: source is `sonnet`, the template
+  is `model_tier: sonnet`, and the generated Copilot agent is correctly
+  `claude-sonnet-4.6`. Only the hand-maintained copy failed to resolve.
+- It claimed every versioned pin in the corpus is non-compliant and removal is
+  "mandated". The source tree holds **zero** versioned pins; the de-versioning
+  migration already ran. The 46 baseline entries are bare aliases, grandfathered
+  by rule 6 with a burn-down obligation, not pins awaiting mandated removal.
+- It asserted display-name values fall back. `Claude Opus 4.6 (copilot)` is
+  accepted; only the `(anthropic)` spelling falls back.
+
+### Stale statements this amendment does not fix
+
+`implemented: false` in the frontmatter, and the "(new)" labels on
+`check_model_pins.py` and the manifest in the Impact table, all predate their
+implementation. `check_model_pins.py` ships and runs `--mode enforce` at
+`.github/workflows/pr-validation.yml:418`. Left for a separate change so this
+amendment stays a rationale correction.
 
 ## Related Decisions
 

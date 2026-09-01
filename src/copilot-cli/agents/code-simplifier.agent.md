@@ -7,8 +7,7 @@ tools:
   - edit
   - search
   - shell
-model: claude-sonnet-4.6
-tier: integration
+role: support
 ---
 
 # Code Simplifier Agent

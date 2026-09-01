@@ -26,9 +26,17 @@ Exit codes follow ADR-035:
 
 Decomposition (issue #2223): the individual validations live in sibling
 ``checks_*`` modules grouped by area, and this file is the thin runner plus a
-facade that re-exports every validator. The runner calls the same validators in
-the same order with the same exit semantics; the imports below keep
-``from scripts.validation.pre_pr import X`` working for callers and tests.
+facade that re-exports the validators callers and tests import by name. The
+runner calls the same validators in the same order with the same exit
+semantics; the imports below keep ``from scripts.validation.pre_pr import X``
+working for callers and tests.
+
+The facade is not exhaustive. Measured on this tree, 15 validators that
+``pre_pr_sequence`` imports have no re-export here (``validate_traceability``,
+``validate_count_ratchets``, ``validate_mypy_changed_files`` and 12 others),
+so ``from scripts.validation.pre_pr import X`` fails for them. That gap
+predates this file's ADR work and is tracked in issue #5272; do not read the
+imports below as a promise of full coverage.
 """
 
 from __future__ import annotations
@@ -48,6 +56,22 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 # Shared infrastructure (subprocess wrapper, SKIP signal, base-ref helpers).
 from active_plan_closeout import validate_active_plan_closeout
+
+# (issue #5197). Both are re-exported here so
+# ``from scripts.validation.pre_pr import validate_adr_lifecycle`` and the
+# matching ``validate_adr_links`` import both resolve; the ordered row that
+# RUNS each belongs in ``pre_pr_sequence._SEQUENCE``, which is where the
+# sequence moved in issue #3073. ``check_adr_links`` was wired into that
+# sequence in this PR without the re-export, breaking the second import until
+# this line was added (Copilot, PR #5209).
+#
+# This claim covers these two validators only. It is not evidence the facade
+# re-exports every validator: 15 others that ``pre_pr_sequence`` imports are
+# still missing from it, a pre-existing gap tracked in issue #5272 (see the
+# module docstring above).
+from check_adr_lifecycle import validate_adr_lifecycle
+from check_adr_links import validate_adr_links
+from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
@@ -78,6 +102,7 @@ from checks_dash import (
 )
 from checks_plugin import (
     _is_linked_worktree,
+    validate_colocated_skill_tests,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
     validate_install_parity,

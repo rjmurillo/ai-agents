@@ -339,7 +339,7 @@ except Exception as e:
 #### Session Start Pattern
 
 ```bash
-# Per SESSION-PROTOCOL.md - search relevant context
+# At session start - search relevant context
 context=$(python3 .claude/skills/memory/scripts/search_memory.py \
     --query "[session objectives]" \
     --max-results 10)

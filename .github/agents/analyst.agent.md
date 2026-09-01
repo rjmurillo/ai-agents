@@ -23,8 +23,7 @@ tools:
   - serena/list_memories
   - serena/read_memory
   - serena/initial_instructions
-model: claude-opus-4.6
-tier: integration
+role: support
 ---
 
 # Analyst Agent

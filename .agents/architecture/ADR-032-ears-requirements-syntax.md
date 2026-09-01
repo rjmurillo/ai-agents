@@ -1,3 +1,14 @@
+---
+id: ADR-032
+status: accepted
+date: 2025-12-30
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-032: EARS Requirements Syntax Standard
 
 ## Status
@@ -118,7 +129,7 @@ EARS was developed by Alistair Mavin et al. at Rolls-Royce and has been validate
 
 **Exit criteria**: EARS patterns prove insufficient OR overhead exceeds benefit.
 
-**Rollback path**: Revert to natural language requirements. No migration required—delete template and write informal prose. Lock-in level: **None** (EARS is a syntax convention, not infrastructure).
+**Rollback path**: Revert to natural language requirements. No migration required: delete the template and write informal prose. Lock-in level: **None** (EARS is a syntax convention, not infrastructure).
 
 ## Implementation Notes
 
@@ -174,9 +185,9 @@ EARS does NOT apply to:
 
 ## Related Decisions
 
-- [ADR-005: PowerShell-Only Scripting Standard](ADR-005-powershell-only.md) - Referenced as example constraint requirement
+- [ADR-005: PowerShell-Only Scripting Standard](ADR-005-powershell-only-scripting.md) - Referenced as example constraint requirement
 - [ADR-010: Quality Gates with Evaluator-Optimizer](ADR-010-quality-gates-evaluator-optimizer.md) - Critic agent integration
-- [ADR-017: Tiered Memory Index Architecture](ADR-017-memory-index-architecture.md) - Requirements link to memory system
+- [ADR-017: Tiered Memory Index Architecture](ADR-017-tiered-memory-index-architecture.md) - Requirements link to memory system
 
 ## References
 

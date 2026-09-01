@@ -1,0 +1,220 @@
+{
+  "id": "episode-2026-08-15-session-4917-serena-worktree-scope",
+  "session": "2026-08-15-session-4917-serena-worktree-scope",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix copilot matcher union and update ADR metrics for serena worktree scope guard",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T09:24:16+00:00",
+      "type": "commit",
+      "content": "Commit: cd273f463bf4670bb4864a718e43f76e3c6312d5",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T10:11:13+00:00",
+      "type": "commit",
+      "content": "Commit: 0d3ee6bd8624ae8d6a66c2eb238701074bd3dc7e",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T10:31:42+00:00",
+      "type": "commit",
+      "content": "Commit: fc0b5aeb04123e50ff7712aad3f25e58e84fab68",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T11:32:30+00:00",
+      "type": "commit",
+      "content": "Commit: 158c2cea54fd263c7ec2933c31e7bd8b892d29a4",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "fix",
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "adr-review",
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T11:33:05+00:00",
+      "type": "commit",
+      "content": "Commit: 777d057a1fe619855a248abd359a5b3c819f5a41",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T12:51:27+00:00",
+      "type": "commit",
+      "content": "Commit: c526ee7912de66449b5a9f0ceee4a0036bc6c065",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T12:52:17+00:00",
+      "type": "commit",
+      "content": "Commit: 81aa2d15e462f3eda37ef534b84bc823cf5db342",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T13:48:01+00:00",
+      "type": "commit",
+      "content": "Commit: 47466b7d1d834143a77a3bd10c6f4f581e71b2c5",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T14:33:08+00:00",
+      "type": "commit",
+      "content": "Commit: 8a4d3fbdbe4f5d5b739dc753531042e4ec5032a5",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T15:01:22+00:00",
+      "type": "commit",
+      "content": "Commit: 0b758a43372c30e33b87fc86577e6e67493fce08",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T15:35:53+00:00",
+      "type": "commit",
+      "content": "Commit: ffdbb011c82491b18ae25f122f7c0497a925bb1f",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "test",
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "revert",
+      "caused_by": [],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-18T11:23:44+00:00",
+      "type": "commit",
+      "content": "Commit: 173a13381bb640d1be2c1cea33abdae378007b6c",
+      "caused_by": [
+        "e005",
+        "e006",
+        "e013",
+        "e014",
+        "e015"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4917-serena-worktree-scope"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 12,
+    "files_changed": 32
+  },
+  "lessons": []
+}

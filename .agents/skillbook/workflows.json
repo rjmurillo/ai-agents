@@ -41,12 +41,12 @@
     },
     {
       "id": "wf-session-lifecycle",
-      "name": "Protocol-compliant session lifecycle",
+      "name": "Session continuity lifecycle",
       "trigger": "the start of any agent work session",
       "steps": [
-        {"order": 1, "action": "Create the session log with session-init"},
+        {"order": 1, "action": "Update the per-issue handoff and Serena memory for continuity"},
         {"order": 2, "action": "Execute tasks with per-task commits"},
-        {"order": 3, "action": "Run scoped validation and close out with session-end"}
+        {"order": 3, "action": "Validate any existing session log with validate_session_json.py"}
       ],
       "source": "authored",
       "confidence": 0.5,

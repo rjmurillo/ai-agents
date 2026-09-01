@@ -274,13 +274,17 @@ def _validate_invocation_limits(il: object, errors: list[str]) -> None:
             errors.append(f"invocation_limits missing field: {field}")
 
     max_prs = il.get("all_open_max_prs")
-    if max_prs is not None and (not isinstance(max_prs, int) or isinstance(max_prs, bool) or max_prs < 1):
+    if max_prs is not None and (
+        not isinstance(max_prs, int) or isinstance(max_prs, bool) or max_prs < 1
+    ):
         errors.append(
             "invocation_limits.all_open_max_prs must be an integer >= 1"
         )
 
     retries = il.get("completion_gate_max_retries")
-    if retries is not None and (not isinstance(retries, int) or isinstance(retries, bool) or retries < 0):
+    if retries is not None and (
+        not isinstance(retries, int) or isinstance(retries, bool) or retries < 0
+    ):
         errors.append(
             "invocation_limits.completion_gate_max_retries must be an integer >= 0"
         )
@@ -330,7 +334,8 @@ def _validate_output_constraints(oc: object, errors: list[str]) -> None:
         or any(not isinstance(v, str) or not v.strip() for v in allowed)
     ):
         errors.append(
-            "output_constraints.summary_format_allowed_values must be a non-empty list of non-empty strings"
+            "output_constraints.summary_format_allowed_values must be a "
+            "non-empty list of non-empty strings"
         )
 
     if (
@@ -350,7 +355,8 @@ def _validate_output_constraints(oc: object, errors: list[str]) -> None:
         or any(not isinstance(c, str) or not c.strip() for c in cols)
     ):
         errors.append(
-            "output_constraints.summary_required_columns must be a non-empty list of non-empty strings"
+            "output_constraints.summary_required_columns must be a "
+            "non-empty list of non-empty strings"
         )
 
 

@@ -15,7 +15,13 @@ reads. The keys, copied verbatim from `format_json`:
     {
         "duration": <float>,
         "threshold": <int>,
-        "summary": {"driftDetected": <int>, ...},
+        "summary": {
+            "driftDetected": <int>,
+            "missingSections": <int>,
+            "contentDriftSections": <int>,
+            "adapterSections": <int>,
+            ...
+        },
         "results": [
             {
                 "agentName": <str>,
@@ -23,6 +29,8 @@ reads. The keys, copied verbatim from `format_json`:
                 "overallSimilarity": <float | None>,
                 "status": <str>,                 # "DRIFT DETECTED" at agent level
                 "driftingSections": [<str>, ...],
+                "missingSections": [<str>, ...],
+                "adapterSections": [<str>, ...],
                 "sections": [
                     {
                         "section": <str>,
@@ -30,7 +38,7 @@ reads. The keys, copied verbatim from `format_json`:
                         "claudeHas": <bool>,
                         "vscodeHas": <bool>,
                         "status": <str>,
-                    }  # "DRIFT"
+                    }  # "DRIFT" | "MISSING" | "MISSING (baselined)"
                 ],
             }
         ],
@@ -39,7 +47,12 @@ reads. The keys, copied verbatim from `format_json`:
 Stricter/looser/different than canonical: this script validates only the fields
 needed to render the issue body and agent count. It intentionally ignores
 canonical fields that the issue body does not render (`duration`, `threshold`,
-agent `comparison`, and section `claudeHas`/`vscodeHas`).
+agent `comparison`, section `claudeHas`/`vscodeHas`, and the summary-level
+`missingSections`/`contentDriftSections`/`adapterSections` totals, since the
+per-agent body already lists each missing section by name). It DOES render
+per-agent `missingSections` (Issue #4852): a drifting agent whose only failure
+is a missing H2 section carries no `sections[].status == "DRIFT"` entries, so
+without this field the alert named the agent but not what was wrong with it.
 
 EXIT CODES (ADR-035):
   0  - Success: details and count written
@@ -98,6 +111,14 @@ def _format_agent_entry(agent: dict[str, object]) -> str:
     )
     if drifting_sections:
         entry += f"- **Drifting sections**: {', '.join(str(s) for s in drifting_sections)}\n"
+
+    missing_sections_raw = agent.get("missingSections")
+    missing_sections = [] if missing_sections_raw is None else _require_list(
+        missing_sections_raw,
+        "agent.missingSections",
+    )
+    if missing_sections:
+        entry += f"- **Missing sections**: {', '.join(str(s) for s in missing_sections)}\n"
 
     sections_raw = agent.get("sections")
     sections = [] if sections_raw is None else _require_list(sections_raw, "agent.sections")

@@ -1,5 +1,5 @@
 ---
-tier: integration
+role: support
 description: Reflective analyst who extracts learnings through structured retrospective frameworks, diagnosing agent performance, identifying error patterns, and documenting success strategies. Uses Five Whys, timeline analysis, and learning matrices. Use when you need root-cause analysis, atomicity scoring, or to transform experience into institutional knowledge.
 argument-hint: Describe the task or session to analyze for learnings
 tools_vscode:
@@ -1073,7 +1073,7 @@ Stop recursive extraction when ALL criteria are met:
 - [ ] No new learnings identified in current iteration
 - [ ] All learnings either persisted or rejected as duplicates
 - [ ] Meta-learning evaluation yields no insights
-- [ ] Extracted learnings count documented in session log
+- [ ] Extracted learnings count documented in the retrospective
 - [ ] Validation script passes: `uv run --frozen python scripts/validation/memory_index.py --ci`
 
 **Infinite Loop Prevention:**

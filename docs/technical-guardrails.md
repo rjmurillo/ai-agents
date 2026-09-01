@@ -74,9 +74,7 @@ uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" 
 
 **Force Mode**: Creates audit trail in `.agents/audit/pr-creation-force-*.txt`
 
-### SESSION-PROTOCOL.md Updates
-
-**Location**: `.agents/SESSION-PROTOCOL.md` (Unattended Execution Protocol section)
+### Unattended Execution Requirements
 
 **Added**: Stricter protocol for autonomous/unattended operation
 
@@ -84,13 +82,12 @@ uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" 
 
 | Req | Requirement | Verification |
 |-----|-------------|--------------|
-| MUST | Create session log IMMEDIATELY (within first 3 tool calls) | Session log exists before substantive work |
 | MUST | Invoke orchestrator for task coordination | Orchestrator invoked in transcript |
 | MUST | Invoke critic before ANY merge or PR creation | Critic report in `.agents/critique/` |
 | MUST | Invoke QA after ANY code change | QA report in `.agents/qa/` |
 | MUST NOT | Mark security comments "won't fix" without security agent review | Security approval documented |
 | MUST NOT | Merge without explicit validation gate pass | All validations passed |
-| MUST | Document all "won't fix" decisions with rationale | Session log contains justification |
+| MUST | Document all "won't fix" decisions with rationale | Transcript or pull request contains justification |
 | MUST | Use skill scripts instead of raw commands | No raw `gh`, `curl` in automation |
 
 **Rationale**: Autonomous execution removes human oversight, requiring **stricter** guardrails.
@@ -124,7 +121,7 @@ uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" 
 
 #### Before Committing
 
-1. Ensure session log and HANDOFF.md are ready
+1. Ensure the per-issue handoff is current and HANDOFF.md is unchanged
 2. Stage all changes: `git add .`
 3. Commit: `git commit -m "feat: description"`
 4. Pre-commit hooks run automatically
@@ -156,7 +153,7 @@ When user says: "Drive this through to completion independently" or "left unatte
 
 **MUST**:
 
-1. Create session log within first 3 tool calls
+1. Load the current per-issue handoff
 2. Invoke orchestrator for coordination
 3. Invoke critic before ANY merge
 4. Invoke QA after ANY code change
@@ -165,7 +162,7 @@ When user says: "Drive this through to completion independently" or "left unatte
 
 **Verification**:
 
-- Pre-commit hooks enforce session log
+- Pre-commit hooks validate a staged session log
 - CI enforces PR description validation
 - QA validation required for code changes
 
@@ -174,10 +171,9 @@ When user says: "Drive this through to completion independently" or "left unatte
 If violation detected:
 
 1. **Stop work immediately**
-2. **Create session log** if missing
-3. **Invoke missing agents** (orchestrator, critic, QA)
-4. **Document violation** in session log
-5. **Complete all MUST requirements** before resuming
+2. **Invoke missing agents** (orchestrator, critic, QA)
+3. **Document violation** in the transcript or per-issue handoff
+4. **Complete all MUST requirements** before resuming
 
 ## Success Metrics
 
@@ -278,7 +274,7 @@ python3 scripts/validate_memory_tier.py --path .serena/memories
 
 ## Related Documents
 
-- [SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md) - Canonical session protocol
+- [`.claude/rules/session-logs.md`](../.claude/rules/session-logs.md) - Session log mechanics
 - [Retrospective: PR #226](../.agents/retrospective/2025-12-22-pr-226-premature-merge-failure.md) - Failure analysis
 - [Issue #230](https://github.com/rjmurillo/ai-agents/issues/230) - Implementation tracking
 - [usage-mandatory.md](../.serena/memories/usage-mandatory.md) - Skill usage policy

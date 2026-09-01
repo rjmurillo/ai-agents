@@ -60,6 +60,35 @@ review, ref-assembly updates, changelog, breaking-change policy) and route
 public-API work through those gates: land an API proposal and maintainer
 review before writing the implementation.
 
+**Issue already has an in-flight blocking PR.** Check for one before routing an
+`autoplan <issue-url>` request into a fresh implementation. If an open PR
+already carries a closing keyword for the issue, do not treat "avoid
+duplicating that work" and "resolve the issue" as the same goal; they diverge
+whenever the PR bundles the requested scope with unrelated scope that has not
+cleared review. Do not infer that divergence from an advisory scope- or
+size-related label alone (a `needs-split`-style tag): such a label is
+routinely assigned purely from commit count or file count, unrelated to
+whether the PR's content is actually separable, and a long, cohesive PR can
+carry it too. Before trusting one, check what actually assigns it in the
+target repository (its CI workflow or label-automation config), not what its
+name suggests. Forking a PR on the label's presence alone risks creating a
+duplicate implementation instead of extracting anything, so treat any such
+label only as a prompt to open the diff and review state, never as evidence
+on its own. Confirm from the actual diff and review comments that the
+issue's scope sits in its own reviewed, extractable commits before acting;
+when it does, extract that slice into its own minimal, mergeable PR rather
+than filing a follow-up issue and reporting the parent issue as handled
+while it stays open with no merged artifact. (Learned from the
+`rjmurillo/ai-agents` repository's issue #5198, 2026-08-25, where
+`needs-split` is assigned purely from commit count and proves nothing about
+scope; an earlier version of this rule hardcoded that repository's label
+semantics and pointed plugin consumers at a test file that does not ship
+with this skill. Also from the same issue: two independently-extracted
+slices of the same blocking PR can race each other and one PR merging first
+does not retroactively make the other's extraction wrong, only redundant
+for the scope both cover; check what the winner actually shipped before
+re-deriving or discarding the loser's independent findings.)
+
 ### Phase 1: Classify
 
 Answer two questions before you route. The Phase 0 recon reads come first;
@@ -90,7 +119,6 @@ evidence (failing tests, widening diff), not on speculation.
 | PR, issue, label, milestone ops | Skill: github |
 | Respond to PR review threads | Skill: pr-comment-responder |
 | Merge conflicts | Agent: merge-resolver |
-| Session-protocol CI failure | Skill: session-log-fixer |
 | Push, ship, "open a PR" | /ship (or /push-pr for push-only) |
 | "what do we know about X" | Skill: memory-search |
 | Research an unfamiliar topic | Skill: context-gather, then research-and-incorporate |
@@ -100,17 +128,16 @@ evidence (failing tests, widening diff), not on speculation.
 | Code quality, health check | Skill: quality-grades (repo-wide) or review (pre-merge) |
 | "Did I touch security-critical files?" | Skill: security-detection |
 | Review a diff or snippet for vulnerabilities | Skill: security-review; injection scan via security-scan |
-| Save progress, checkpoint | Skill: session-end |
 | Correction received, lesson learned | Skill: reflect |
 | Document a decision | Skill: adr-generator |
-| New skill wanted | Skill: SkillForge |
+| New skill wanted | Skill: skillforge |
 | Multi-step, cross-cutting, or no row matches | `agent_type: "project-toolkit:orchestrator"` |
 
 The user naming a skill or command bypasses this table entirely. User
 Sovereignty wins over any row.
 
 **Router boundary (ADR-078).** Autoplan is the outer front-door router at the
-skill tier. It classifies any request that names no skill and routes it to one
+skill layer. It classifies any request that names no skill and routes it to one
 destination: a skill, a lifecycle command, or an agent chain. When a request is
 multi-domain or multi-agent execution, autoplan hands off to `orchestrator`
 (last row above). Orchestrator is one of the destinations autoplan routes to,
@@ -131,8 +158,8 @@ Apply these without asking. Log each application for the final gate.
 4. **Bias to action.** Internal and reversible: act. Flag what you assumed in
    the final gate instead of pausing mid-run.
 5. **Mirrors and gates.** Honor repo obligations without prompting: sync
-   generated mirrors, write the session log, keep
-   commits atomic.
+   generated mirrors, update the per-issue handoff when needed, and keep commits
+   atomic. Session log creation is discontinued.
 
 Classify every decision the run surfaces; never promote silently.
 

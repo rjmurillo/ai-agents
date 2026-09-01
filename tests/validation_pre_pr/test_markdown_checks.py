@@ -52,12 +52,31 @@ class TestValidateMarkdownLint:
             cwd=tmp_path,
         )
 
+    def test_excludes_session_scratch_from_markdown_lint_command(self, tmp_path: Path) -> None:
+        from scripts.validation.pre_pr import validate_markdown_lint
 
-    def test_skip_autofix_runs_check_only(
-        self,
-        tmp_path: Path,
-        monkeypatch: Any
-    ) -> None:
+        (tmp_path / "README.md").write_text("# Readme\n", encoding="utf-8")
+        changed = [
+            "README.md",
+            "worktrees/sub/notes.md",
+            ".agent-scratch/sub/notes.md",
+            ".scratch/sub/notes.md",
+        ]
+        with patch(
+            "checks_changed_paths._changed_paths_since_base",
+            return_value=changed,
+        ):
+            with patch("checks_tooling.shutil.which", return_value="npx"):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (0, "Linting: 1 file\n", "")
+                    assert validate_markdown_lint(tmp_path) is True
+
+        mock_run.assert_called_once_with(
+            ["npx", "markdownlint-cli2@0.23.1", "--fix", "--", "README.md"],
+            cwd=tmp_path,
+        )
+
+    def test_skip_autofix_runs_check_only(self, tmp_path: Path, monkeypatch: Any) -> None:
         from scripts.validation.pre_pr import validate_markdown_lint
 
         monkeypatch.setenv("SKIP_AUTOFIX", "1")
@@ -253,8 +272,10 @@ class TestValidateDashProhibition:
     def test_returns_true_for_clean_branch(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "README.md\n", ""),  # git diff
@@ -269,8 +290,10 @@ class TestValidateDashProhibition:
         # rather than the working tree. Mock the two subprocess calls
         # in order: (1) git diff returns the file list, (2) git show
         # returns the file content as if from HEAD.
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "doc.md\n", ""),  # git diff
@@ -281,8 +304,10 @@ class TestValidateDashProhibition:
     def test_returns_false_on_en_dash(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "range.md\n", ""),
@@ -296,8 +321,10 @@ class TestValidateDashProhibition:
         vendored = tmp_path / "node_modules" / "pkg" / "README.md"
         vendored.parent.mkdir(parents=True)
         vendored.write_text(f"upstream prose with {chr(0x2014)} dash\n", encoding="utf-8")
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "node_modules/pkg/README.md\n", "")
             assert validate_dash_prohibition(tmp_path) is True
@@ -308,18 +335,43 @@ class TestValidateDashProhibition:
         fixture = tmp_path / "tests" / "hooks" / "fixtures" / "dash_violations.md"
         fixture.parent.mkdir(parents=True)
         fixture.write_text(f"intentional {chr(0x2014)}\n", encoding="utf-8")
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "tests/hooks/fixtures/dash_violations.md\n", "")
             assert validate_dash_prohibition(tmp_path) is True
+
+    def test_skips_worktree_scratch_paths(self, tmp_path: Path) -> None:
+        """issue #4892: sibling-session scratch trees must not enter the scan."""
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        for prefix in ("worktrees", ".agent-scratch", ".scratch"):
+            scratch = tmp_path / prefix / "sub" / "notes.md"
+            scratch.parent.mkdir(parents=True)
+            scratch.write_text(f"scratch prose with {chr(0x2014)} dash\n", encoding="utf-8")
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
+            mock_ref.return_value = "origin/main"
+            mock_run.return_value = (
+                0,
+                "worktrees/sub/notes.md\n.agent-scratch/sub/notes.md\n.scratch/sub/notes.md\n",
+                "",
+            )
+            assert validate_dash_prohibition(tmp_path) is True
+        mock_run.assert_called_once()
 
     def test_includes_github_instructions_tree(self, tmp_path: Path) -> None:
         """REQ-006-AC4: .github/instructions/ is NOT excluded."""
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, ".github/instructions/universal.instructions.md\n", ""),
@@ -331,8 +383,10 @@ class TestValidateDashProhibition:
         """Fail open on git subprocess failure (do not block on infra issues)."""
         from scripts.validation.pre_pr import validate_dash_prohibition
 
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (128, "", "fatal: bad revision")
             assert validate_dash_prohibition(tmp_path) is True
@@ -348,8 +402,10 @@ class TestValidateDashProhibition:
 
         # Working tree clean, but HEAD content (mocked) has em-dash:
         # the function MUST flag it.
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "doc.md\n", ""),

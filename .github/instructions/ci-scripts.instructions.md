@@ -1,8 +1,16 @@
 ---
-applyTo: scripts/validation/**,scripts/**,.github/workflows/**,.github/actions/**,build/**,.claude/skills/**/scripts/**,.claude/skills/**/tests/**,src/copilot-cli/skills/**/scripts/**,src/copilot-cli/skills/**/tests/**
+applyTo: scripts/validation/**,scripts/**,.github/workflows/**,.github/actions/**,build/**,.claude/skills/**/scripts/**,.claude/skills/**/tests/**,src/copilot-cli/skills/**/scripts/**,src/copilot-cli/skills/**/tests/**,.claude/commands/**,.github/scripts/**,tests/**
 ---
 
 # CI and Validation Script Rules
+
+<!-- vendor-portability: this rule's whole subject is this repository's own CI
+     and validation tooling, so its body names upstream-only paths throughout,
+     under scripts/validation, scripts/ci, scripts/utils, .agents/architecture,
+     .agents/sessions, and build (both the bare build/ directory mentioned
+     generally and the specific build/audit/GENERATION-AUDIT.md report), plus
+     AGENTS.md, tests, lefthook.yml, and .github (workflows, actions,
+     scripts), none of which exist in a consumer's install (issue #5214) -->
 
 Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate every PR. A broken change here blocks the entire repository (see Issue #1711).
 
@@ -23,6 +31,12 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 13. **A PR introducing a gate MUST demonstrate the gate passing against the full corpus before merge**. A unit test over fixtures proves the checker's logic; it proves nothing about whether the existing corpus satisfies the gate. Those are separate claims and only the second determines whether main goes red. The PR body or a PR comment MUST quote the output of the gate's own command run against the full corpus on the PR branch. A gate that ships with known outstanding violations blocks every subsequent push by every contributor and must not merge. Measured cost: two violations in a single episode file blocked the entire repository for a multi-hour window after PR #4219 merged, driving three hook-bypass attempts, each of which is a policy violation under ADR-086:95-98 (Issue #4262).
 
 14. **Merge `origin/main` and re-measure before hunting a tripped count ratchet**. The count ratchets under `scripts/ci/` compare the branch's whole tree against a baseline integer that main lowers whenever main adds an exemption or clears violations. A branch behind main therefore reports an increase indistinguishable from a self-inflicted regression, and the failure text names the branch as the party that raised the baseline. Measured on PR #4055: pre-push reported `taste count ratchet: BASELINE RAISED. 601 -> 602` and `ruff count ratchet: 326 -> 329`, and `git merge origin/main` alone returned both to `601` and `326` with no source edit, because commit `aea3a49cd9` had added `# taste-lint: ignore file-size` to `tests/validation/test_check_vendor_portability.py` while the branch still carried the pre-exemption copy of that same file. PR #4109 failed `test_the_shipped_baseline_matches_the_tracked_tree` with `baseline is 602 but current tree has 603` and passed after the same merge, again with no source edit. The merge is the first diagnostic step, not the last resort. Re-fetch immediately before measuring, and treat a `main` ref fetched earlier in the same session as already stale: this repository merges several times an hour, so a long operation is enough to fall behind. Measured in one session: four branches were rebased onto a `main` fetched fifteen minutes earlier, all four then reported `602 > 601`, and the count that looked like a shared regression in main was a suppression that had landed in `c02f61ddd2` during the rebase. Re-fetching and rebasing again returned all four to `601` with no source edit. The distinguishing check is `git rev-parse main` against the remote, not a re-run of the ratchet, which reports the same number either way. A baseline MUST NOT be raised to clear a count the branch did not introduce.
+
+   Since issue #5065 that leg no longer blocks on the shape by itself, for a ratchet with a merge-tree backstop. `_base_ref_verdict` in the shared `count_ratchet.py` reads the fork point with `git merge-base` and now reports seven states, not two. Recorded equal to the fork point means `main` moved the number underneath the branch: `BEHIND BASE (not blocking)`, and the count leg still runs. Higher blocks with `BASELINE ABOVE BASE`, committed or merely dirty. Lower, the cleanup shape where the branch lowered the scalar and `main` lowered it further, blocks with `BASELINE LOWERED BEHIND BASE` naming all three numbers; it never tells that author to restore a value the branch never held.
+
+   The remaining three are the ways the comparison fails to happen, and they are separate states because they share no remedy. Only `FORK POINT UNREADABLE` is about reachability, so only it names a shallow clone or an unrelated history and sends you to `git fetch`; it exits 3. A fork point git named without trouble that tracks no baseline file gets `FORK POINT RECORDS NO BASELINE` and exits 2, the baseline having been added after the branch was cut; a fetch does nothing there and the remedy is a merge. One that tracks the file but records a value that will not parse gets `FORK POINT BASELINE UNREADABLE` and exits 3. All three block, because a read that answers nothing must not read as "this branch changed nothing". Collapsing them is the defect to avoid: a single `None` return made the reachability message answer for all three, so two of the three told the reader their history was unrelated to `main` and sent them to a fetch that could not terminate their loop.
+
+   The waiver trades this comparison for a gate on the merged tree, so only a ratchet that has one may take it. Each module declares `MERGE_TREE_BACKED` and passes it to `count_ratchet.run`, which defaults it to False, and `test_merge_tree_backing_declarations.py` pins every declaration against the `RATCHETS` tuple in `merge_tree_ratchet_registry.py`. Five of the six are registered; `subprocess_encoding_count_ratchet.py` is not, so there the comparison is the whole stale-branch guard and a behind-base branch blocks under `BEHIND BASE` with no qualifier. The merge remains the remedy for every one of those lines and the first diagnostic step for a count-leg failure, but a `BEHIND BASE (not blocking)` line is not itself a failure. What the merged result would measure is `merge_tree_ratchet_check.py`, which evaluates the merged tree against the lower of the base's baseline and the one the branch would install.
 15. **Diff violations on `(file, rule)` identity, never on the rendered message**. A taste message embeds the measurement it is reporting (`File exceeds 500 lines (566 lines)`), so a text diff of two trees' violation lists reports nearly every violation as both removed and added once any file's length changes. Diffing `(file, rule)` tuples collapsed one such comparison from 16-versus-15 noise to the true signal of exactly one added violation.
 16. **Size a pre-push job's timeout for a loaded machine, not an idle one.** A script's standalone wall clock does not predict its wall clock as a lefthook job. Historical observation, 2026-08-02, on `worktree-gc-report` against a checkout holding 288 registered worktrees with 0 removal candidates: 6.83s and 11.47s standalone, against 92.87s, 94.45s, 99.48s and 101.33s across four consecutive real pushes. Those figures record one machine on one date. They establish that a gap existed and repeated within that session; they say nothing about its size on any other machine, checkout, or date, so do not carry the ratio forward as a planning number. The job wiring is a fact you can check now in `lefthook.yml`: `worktree-gc-report` carries a 2m cap inside a `parallel: true` pre-push group of 24 jobs that also holds `python-tests` and `workflow-local-run` at 30m caps. Concurrent resource contention is a plausible mechanism for the gap, not an established cause: no CPU, disk, or git-lock telemetry was collected during those pushes and no run isolated the job from the group, so the causal claim is unverified and no single resource may be reasoned from. What follows regardless of mechanism is the practice: measure a candidate cap during a real push, not a standalone run, because a cap sized on an idle run is a cap a real push can exceed, at which point a job that only reports is deciding whether code can ship.
 17. **Read `lefthook.yml` for a group's scheduling. Do not infer it from the run summary.** In four consecutive pushes recorded on 2026-08-02, the summary reported a group's duration as the sum of its jobs' durations, matching to the hundredth (1017.69, 950.28, 930.85, 926.49) while the longest single job sat well below it (818.73, 765.34, 738.28, 733.33). Those numbers are a dated observation from one session, not a measurement to re-derive. That arithmetic reads as proof of serial execution and is not: the group in question declares `parallel: true`, which `lefthook.yml` states outright and which you can check at any time. A summary that reports a sum reports it regardless of scheduling, so the identity carries no information about scheduling. Timeout and contention reasoning that rests on the summary's arithmetic instead of the config will be backwards.
@@ -42,7 +56,23 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 
 1. **Thin workflows**. Workflow YAML SHOULD delegate to a testable module (ADR-006). No inline multi-step logic.
 2. **Logging structure**. If another script, workflow step, or test parses a script's stdout, that script SHOULD emit JSON or `key=value` lines for the parsed fields, and the parser test SHOULD consume a real sample from that output shape. Human-only logs are exempt.
-3. **Use skills when available**. SHOULD prefer `.claude/skills/<name>` over inline `gh`, `git`, or shell commands.
+3. **Use skills when available**. SHOULD prefer an installed skill over inline `gh`, `git`, or shell commands when one exists for the task.
+4. **Treat a repair to a silent failure as a silent-failure candidate.** The three MUST items on converting failure signals and detected violations into a non-zero exit, and on distinguishing a run that did nothing from one that succeeded, govern the original defect; this governs the fix. The tests written for the
+   original exercise the original's inputs, and a repair usually changes which
+   **values** the code can see rather than which branches it has, so every existing
+   case keeps passing while the new value goes unexercised. After fixing one,
+   enumerate the values the repaired expression can now receive and find the one the
+   old code never saw. Measured across one defect in PR #5176, where four successive
+   repairs each introduced a different silent failure and three were caught by a
+   reviewer rather than by the suite being written for that class: redirecting stderr
+   to quieten a producer also hid its parse errors; a default operator chosen without
+   checking what it fires on triggered on `false` as well as `null`, collapsing a
+   legitimate negative into unreadable; a coercion added to fix that did not check
+   its input type, so the string `"true"` became boolean `true` and malformed
+   evidence satisfied the guard built to reject it, invisible to five passing tests;
+   and a new guard shipped without the comment skip its siblings had, so documenting
+   the defect would have failed the gate. The third is the shape to fear: converting
+   instead of validating fails open on the path the guard exists to protect.
 
 ## MUST NOT
 
@@ -106,9 +136,10 @@ bytes over its ceiling.
 - `.agents/architecture/ADR-042-python-migration-strategy.md`. Python-first
 - `scripts/validation/pre_pr.py`. Canonical pre-PR runner
 - `scripts/validation/check_skill_resolver_anchoring.py`. Enforces the anchoring requirement for `SKILL.md` resolvers
-- `.claude/skills/validation-authority/`. Validator-authority skill
+- The `validation-authority` skill. Validator-authority guidance
 - Issue #1711. validator change that blocked all PRs
 - Issue #3402. worktree identity and stale helper resolution
 - Issue #3408. a linked worktree's imported session log wedging `check_branch_context`
 - Issue #4262. gate merged red against its own corpus and blocked all pushes
 - PR #4784. required-check rename landed after the ruleset required it, deadlocking every PR for five hours
+- Issue #5214. undeclared upstream-only paths shipped in the `src/copilot-cli/instructions/` mirror of this rule

@@ -119,7 +119,7 @@ jobs:
 
       - name: Set up uv
         if: steps.should-run.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
       - name: Validate script reachability
         if: steps.should-run.outputs.skip != 'true'
@@ -156,6 +156,17 @@ jobs:
         run: |
           echo "Running build_all.py --check..."
           uv run python build/scripts/build_all.py --check
+
+      - name: Review-axes drift check (REQ-008-03)
+        if: steps.should-run.outputs.skip != 'true'
+        # Rehomed from the retired ai-pr-quality-gate.yml. The canonical
+        # review-axis prompts under .github/prompts/pr-quality-gate-*.md and the
+        # generated copies under .claude/skills/review/references/ outlive that
+        # workflow: the local /review skill reads them. This job is what keeps
+        # the two in parity, so it moves here rather than being deleted with the
+        # gate. This workflow's paths filter already covers build/scripts/**,
+        # .github/prompts/**, and .claude/**.
+        run: uv run python build/scripts/run_drift_check_ci.py
 
       - name: Validate platform template schema (REQ-003-002)
         if: steps.should-run.outputs.skip != 'true'

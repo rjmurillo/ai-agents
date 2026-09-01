@@ -1,0 +1,343 @@
+"""Tests for the prose-self-check Layer 1 and Layer 2 detectors.
+
+Covers what the scanner finds in text: the banned-word list parsed from the
+voice rule, the high and low severity tiers, what counts as code and is
+skipped, the structural shapes, and the tokenizer. The CLI contract lives in
+test_prose_lint_cli.py.
+"""
+
+from __future__ import annotations
+
+import io
+import sys
+from pathlib import Path
+
+import pytest
+
+TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
+if TESTS_SKILLS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_SKILLS_DIR)
+
+from claude_skills_import import import_skill_script
+
+mod = import_skill_script(".claude/skills/prose-self-check/scripts/prose_lint.py")
+lint_prose = mod.lint_prose
+parse_banned_words = mod.parse_banned_words
+discover_rules_file = mod.discover_rules_file
+main = mod.main
+scan_prose = mod.scan_prose
+HIGH = mod.HIGH
+INFO = mod.INFO
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+VOICE_RULE = PROJECT_ROOT / ".claude" / "rules" / "voice.md"
+
+BANNED = {"delve", "robust", "comprehensive", "nuanced", "significant", "landscape"}
+
+
+def kinds(text: str, banned: set[str] | None = None) -> list[str]:
+    return [f.kind for f in lint_prose(text, BANNED if banned is None else banned)]
+
+
+class TestParseBannedWords:
+    """The list is read from the rule, never embedded in the script."""
+
+    def test_reads_the_real_voice_rule(self) -> None:
+        words = parse_banned_words(VOICE_RULE.read_text(encoding="utf-8"))
+        assert {"delve", "robust", "tapestry", "significant"} <= words
+
+    def test_stops_at_the_next_heading(self) -> None:
+        text = "## Banned Vocabulary\n\n`delve`, `robust`.\n\n## Next\n\n`keepme`\n"
+        assert parse_banned_words(text) == {"delve", "robust"}
+
+    def test_ignores_multi_word_and_path_tokens(self) -> None:
+        text = "## Banned Vocabulary\n\n`delve`, `some phrase`, `scripts/x.py`, `--flag`.\n"
+        assert parse_banned_words(text) == {"delve"}
+
+    def test_missing_section_yields_empty_set(self) -> None:
+        assert parse_banned_words("# Voice\n\nNo list here.\n") == set()
+
+    def test_script_does_not_embed_the_word_list(self) -> None:
+        source = Path(mod.__file__).read_text(encoding="utf-8")
+        assert "tapestry" not in source
+        assert "multifaceted" not in source
+
+
+class TestLexicalLayer:
+    """Layer 1: dashes and banned vocabulary."""
+
+    def test_em_dash_is_high_severity(self) -> None:
+        findings = lint_prose("A sentence — with a dash.\n", BANNED)
+        assert [(f.kind, f.severity) for f in findings] == [("em_dash", HIGH)]
+
+    def test_en_dash_is_high_severity(self) -> None:
+        findings = lint_prose("Range 1 – 2.\n", BANNED)
+        assert [(f.kind, f.severity) for f in findings] == [("en_dash", HIGH)]
+
+    def test_hyphen_is_not_a_dash_finding(self) -> None:
+        assert kinds("A well-known trade-off.\n") == []
+
+    def test_banned_word_is_high_severity(self) -> None:
+        findings = lint_prose("A robust design.\n", BANNED)
+        assert [(f.kind, f.severity) for f in findings] == [("banned_word", HIGH)]
+
+    def test_low_signal_word_is_info_only(self) -> None:
+        findings = lint_prose("A comprehensive and nuanced plan.\n", BANNED)
+        assert {f.severity for f in findings} == {INFO}
+        assert {f.kind for f in findings} == {"banned_word_low_signal"}
+
+    def test_match_is_case_insensitive_but_reports_original(self) -> None:
+        findings = lint_prose("Robust things.\n", BANNED)
+        assert findings[0].match == "Robust"
+
+    def test_substring_of_a_longer_word_is_not_matched(self) -> None:
+        assert kinds("The delveson build is fine.\n") == []
+
+    def test_position_is_one_indexed(self) -> None:
+        findings = lint_prose("ab robust\n", BANNED)
+        assert (findings[0].line, findings[0].column) == (1, 4)
+
+
+class TestCodeIsSkipped:
+    """Prose rules do not apply to code."""
+
+    def test_fenced_block_is_skipped(self) -> None:
+        assert kinds("```python\n# robust — code\n```\n") == []
+
+    def test_inline_code_span_is_skipped(self) -> None:
+        assert kinds("The `robust` flag is set.\n") == []
+
+    def test_tilde_fence_is_skipped(self) -> None:
+        assert kinds("~~~\nrobust\n~~~\n") == []
+
+    def test_prose_after_a_closed_fence_is_checked(self) -> None:
+        assert kinds("```\nrobust\n```\n\nA robust claim.\n") == ["banned_word"]
+
+    def test_marker_indented_four_spaces_is_not_a_fence(self) -> None:
+        # CommonMark: four spaces past the containing block makes it an
+        # indented code block, so the backticks are literal. Treating it as a
+        # fence started masking and hid the prose after it.
+        assert kinds("Text.\n\n    ```\n\nA robust design.\n") == ["banned_word"]
+
+    def test_marker_indented_three_spaces_is_still_a_fence(self) -> None:
+        assert kinds("Text.\n\n   ```\nA robust design.\n") == ["unterminated_fence"]
+
+    def test_shorter_fence_does_not_close_a_longer_one(self) -> None:
+        assert kinds("````\n```\nrobust\n```\n````\n") == []
+
+    def test_utf8_bom_does_not_hide_a_first_line_fence(self, tmp_path: Path) -> None:
+        # A surviving U+FEFF defeats the fence anchor and inverts open/close,
+        # so identical content flipped from clean to four false findings.
+        body = "```\nrobust significant landscape\n```\n\nOrdinary prose here.\n"
+        with_bom = tmp_path / "bom.md"
+        with_bom.write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8"))
+        without = tmp_path / "plain.md"
+        without.write_text(body, encoding="utf-8")
+        assert main([str(without), "--rules", str(VOICE_RULE)]) == 0
+        assert main([str(with_bom), "--rules", str(VOICE_RULE)]) == 0
+
+    def test_bom_is_stripped_from_stdin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # sys.stdin.read() does not honor utf-8-sig.
+        monkeypatch.setattr("sys.stdin", io.StringIO("\ufeff```\nrobust\n```\n"))
+        assert main(["-", "--rules", str(VOICE_RULE)]) == 0
+
+    def test_stray_backticks_do_not_swallow_the_prose_between_them(self) -> None:
+        # Two lone backticks paragraphs apart used to pair and blank
+        # everything between, so a run missed real tells and exited 0.
+        text = "Use a ` here.\n\nA robust design.\n\nAnd a ` there.\n"
+        assert kinds(text) == ["banned_word"]
+
+    def test_inline_span_wrapped_across_a_line_break_is_skipped(self) -> None:
+        # A document that documents these tells wraps its examples.
+        text = "Openers: `Honestly,` / `In today's\nlandscape`. Delete them.\n"
+        assert kinds(text) == []
+
+    def test_fence_marker_backticks_do_not_pair_with_an_inline_span(self) -> None:
+        text = "```\ncode\n```\n\nA robust claim.\n"
+        assert kinds(text) == ["banned_word"]
+
+
+class TestStructuralLayer:
+    """Layer 2: the sentence shapes readers actually cite."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "This is not a bug, it's a feature.\n",
+            "It is not just slow, it is wrong.\n",
+            "Refactoring isn't about speed, it's about risk.\n",
+            "The fix is not cosmetic, but rather structural.\n",
+        ],
+    )
+    def test_contrast_framing_is_flagged(self, text: str) -> None:
+        assert "contrast_framing" in kinds(text)
+
+    def test_plain_negation_is_not_contrast_framing(self) -> None:
+        assert kinds("This is not a bug. The loader drops the message.\n") == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Want me to also add a dashboard?\n",
+            "I could also wire up the gate.\n",
+            "Let me know if you'd like a follow-up.\n",
+            "Would you like me to open an issue?\n",
+        ],
+    )
+    def test_trailing_offer_is_flagged(self, text: str) -> None:
+        assert kinds(text) == ["trailing_offer"]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Honestly, the queue drains.\n",
+            "Look, the loader is wrong.\n",
+            "It's worth noting that the gate is red.\n",
+            "In today's landscape, retries matter.\n",
+        ],
+    )
+    def test_signposting_opener_is_flagged(self, text: str) -> None:
+        assert "signposting" in kinds(text)
+
+    def test_signposting_mid_sentence_is_not_flagged(self) -> None:
+        # Capitalized so the line-start anchor is the only thing that can
+        # reject it; the lowercase form passes even with the anchor deleted.
+        assert kinds("We should Look, then decide.\n") == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "This is not a bug,\nit's a feature.\n",
+            "Refactoring isn't about speed,\nit's about risk.\n",
+        ],
+    )
+    def test_tell_that_straddles_a_hard_wrap_is_caught(self, text: str) -> None:
+        assert "contrast_framing" in kinds(text)
+
+    def test_match_does_not_cross_a_paragraph_break(self) -> None:
+        assert kinds("A thing is not here,\n\nit's elsewhere.\n") == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "The failure is not a flake, it's a real bug.\n",
+            "The queue is not slow, it's unbounded.\n",
+        ],
+    )
+    def test_noun_phrase_subject_is_caught(self, text: str) -> None:
+        # Anchoring on it/this/that missed every sentence with a real subject.
+        assert "contrast_framing" in kinds(text)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Claim is inaccurate (7 lines, not 5), but immaterial.\n",
+            "| `v` | Not recognized | Keep it, but Claude ignores |\n",
+        ],
+    )
+    def test_ordinary_not_but_is_not_contrast_framing(self, text: str) -> None:
+        assert kinds(text) == []
+
+    def test_but_rather_is_still_contrast_framing(self) -> None:
+        assert kinds("It is not cosmetic, but rather structural.\n") == ["contrast_framing"]
+
+    def test_model_identity_phrase_is_flagged(self) -> None:
+        assert kinds("As an AI language model, I cannot.\n") == ["model_identity"]
+
+    def test_signposting_on_a_later_line_reports_that_line(self) -> None:
+        # The pattern consumes the preceding newline, so the reported offset
+        # must be advanced past it or every hit lands one line early.
+        findings = lint_prose("Intro line.\nHonestly, the queue drains.\n", BANNED)
+        assert [(f.line, f.column, f.kind) for f in findings] == [(2, 1, "signposting")]
+
+    def test_findings_are_sorted_by_position(self) -> None:
+        text = "Honestly, a robust plan.\nThis is not a bug, it's a feature.\n"
+        findings = lint_prose(text, BANNED)
+        assert [(f.line, f.column) for f in findings] == sorted(
+            (f.line, f.column) for f in findings
+        )
+
+
+class TestTokenizer:
+    """A banned word keeps its identity through possessives and compounds."""
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("the landscape's shape", "landscape's"),
+            ("a landscape-level view", "landscape-level"),
+            ("a robust design", "robust"),
+        ],
+    )
+    def test_banned_word_forms_are_matched(self, text: str, expected: str) -> None:
+        assert [f.match for f in lint_prose(text, BANNED)] == [expected]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "see https://x.com/robust for more",
+            "    </existing_landscape>",
+            "the field is called robust_mode",
+        ],
+    )
+    def test_non_prose_context_is_skipped(self, text: str) -> None:
+        assert lint_prose(text, BANNED) == []
+
+    def test_low_signal_compound_stays_info(self) -> None:
+        assert [f.severity for f in lint_prose("a comprehensive-ish plan", BANNED)] == [INFO]
+
+
+class TestListNestedFences:
+    """A fence marker's indent is measured from its list item, not column zero.
+
+    The positive cases use tilde fences on purpose. When a backtick fence goes
+    unrecognized its own marker backticks stay in the text, and the inline-code
+    masker then pairs the opener's third backtick with the closer's first and
+    blanks the body anyway. That accident hides the defect from the public API
+    for backtick fences, so a backtick-based assertion here would pass against
+    the broken measurement and prove nothing. A tilde fence carries no
+    backticks, so its body is genuinely exposed.
+    """
+
+    def test_four_spaces_deep_inside_a_nested_item_is_a_fence(self) -> None:
+        text = "- item\n  - nested:\n\n    ~~~\n    robust significant\n    ~~~\n\nDone.\n"
+        assert kinds(text) == []
+
+    def test_a_blank_line_does_not_close_the_containing_item(self) -> None:
+        assert kinds("- item\n\n    ~~~\n    robust\n    ~~~\n\nDone.\n") == []
+
+    def test_an_ordered_marker_opens_a_container(self) -> None:
+        assert kinds("1. step\n\n      ~~~\n      robust\n      ~~~\n\nDone.\n") == []
+
+    def test_top_level_four_space_marker_is_still_indented_code(self) -> None:
+        assert kinds("Text.\n\n    ~~~\n\nA robust design.\n") == ["banned_word"]
+
+    def test_four_spaces_past_the_container_is_indented_code(self) -> None:
+        # The item's content column is 2, so a marker at 6 is four past it.
+        assert kinds("- item\n\n      ~~~\n\nA robust design.\n") == ["banned_word"]
+
+    def test_a_dedent_closes_the_container(self) -> None:
+        text = "- item\n\nBack at top level.\n\n    ~~~\n\nA robust design.\n"
+        assert kinds(text) == ["banned_word"]
+
+    def test_repository_example_masks_its_list_nested_block(self) -> None:
+        # docs/codeql-rollout-checklist.md carries a four-space-indented fence
+        # under a nested list item. This asserts the masking directly because
+        # the block is backtick-fenced, and the accident described in the class
+        # docstring makes the public path blind to the difference here.
+        example = PROJECT_ROOT / "docs" / "codeql-rollout-checklist.md"
+        source = example.read_text(encoding="utf-8")
+        opener = next(
+            (
+                index
+                for index, line in enumerate(source.splitlines())
+                if line.startswith("    ```") and not line.startswith("     ")
+            ),
+            None,
+        )
+        assert opener is not None, f"no four-space-indented fence in {example}"
+        masked, unterminated = mod._blank_fenced_blocks(source)
+        assert unterminated is None
+        assert masked[opener : opener + 3] == ["", "", ""]
+
+

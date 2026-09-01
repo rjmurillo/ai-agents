@@ -1,3 +1,14 @@
+---
+id: ADR-019
+status: accepted
+date: 2025-12-23
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-019: Script Organization and Usage Patterns
 
 ## Status

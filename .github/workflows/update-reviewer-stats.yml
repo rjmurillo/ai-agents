@@ -1,7 +1,8 @@
 # Update Reviewer Signal Stats
 #
 # Automated daily workflow to gather PR review comment statistics and update
-# the pr-comment-responder-skills Serena memory with accurate signal quality data.
+# the pr-review/pr-comment-responder-skills Serena memory with accurate signal
+# quality data.
 #
 # This workflow:
 # - Runs daily at 06:00 UTC (scheduled)
@@ -44,7 +45,17 @@ jobs:
           fetch-depth: 0
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
+      # Issue #4607 / ADR-026 Decision 5: report which account BOT_PAT
+      # resolves to before the first API call so a mis-issued secret is
+      # visible in the run log. Non-blocking until the secret is rotated.
+      - name: Report BOT_PAT identity
+        env:
+          IDENTITY_TOKEN: ${{ secrets.BOT_PAT }}
+          EXPECTED_BOT_ID: '250269933'
+          EXPECTED_BOT_LOGIN: 'rjmurillo-bot'
+        run: python3 scripts/ci/check_bot_identity.py
 
       - name: Run statistics aggregation
         env:
@@ -61,7 +72,7 @@ jobs:
         run: |
           gh auth setup-git
           python3 scripts/ci/commit_and_push.py \
-            --path .serena/memories/pr-comment-responder-skills.md \
+            --path .serena/memories/pr-review/pr-comment-responder-skills.md \
             --user-name "rjmurillo-bot" \
             --user-email "rjmurillo-bot@users.noreply.github.com" \
             --message "chore(stats): update reviewer signal statistics" \

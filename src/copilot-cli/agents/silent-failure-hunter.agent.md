@@ -18,8 +18,7 @@ tools:
   - perplexity/*
   - cloudmcp-manager/*
   - serena/*
-model: claude-opus-4.6
-tier: builder
+role: executor
 ---
 
 # Silent Failure Hunter Agent

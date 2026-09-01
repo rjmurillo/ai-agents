@@ -5,7 +5,7 @@ license: MIT
 description: How a hunch becomes an accepted result in this repo. Covers the
   evidence bar, hypothesis-predicts-numbers discipline, and the idea lifecycle
   from contradiction log through probe, eval baseline, ADR debate, calibrated
-  gate, and guard-maturity monitoring. Use when you say `how do I prove this
+  gate, and post-ship monitoring. Use when you say `how do I prove this
   idea`, `run the idea lifecycle`, `what is the evidence bar`. Do NOT use for
   the open research programs (use ai-agents-research-frontier) or probe recipe
   depth (use ai-agents-empirical-probe-toolkit).
@@ -14,10 +14,9 @@ description: How a hunch becomes an accepted result in this repo. Covers the
 # AI Agents Research Methodology
 
 <!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
-This repo runs on verification-based governance. SESSION-PROTOCOL.md states it
-verbatim: "Labels like 'MANDATORY' or 'NON-NEGOTIABLE' are insufficient. Each
-requirement MUST have a verification mechanism." (.agents/SESSION-PROTOCOL.md:36-37).
-The same standard applies to ideas. An idea is not accepted because it sounds
+This repo runs on verification-based governance: labels like "MANDATORY" or
+"NON-NEGOTIABLE" are insufficient, every requirement needs a verification
+mechanism. The same standard applies to ideas. An idea is not accepted because it sounds
 right, because a model agreed with it, or because a retro asserted it. It is
 accepted when it survives the lifecycle below and leaves an inspectable
 artifact at every stage.
@@ -53,7 +52,7 @@ invent a new review ritual; route into these:
 
 | Claim type | Adversarial mechanism | How to invoke |
 |---|---|---|
-| Architectural decision (ADR) | `adr-review` 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) until consensus, 10 rounds max | Auto-fires on any `ADR-*.md` or `SESSION-PROTOCOL.md` create/edit (AGENTS.md "ADR Review"); or `/adr-review path` |
+| Architectural decision (ADR) | `adr-review` 6-agent debate (architect, critic, independent-thinker, security, analyst, high-level-advisor) until consensus, 10 rounds max | Auto-fires on any `ADR-*.md` create/edit (AGENTS.md "ADR Review"); or `/adr-review path` |
 | A single decision's reasoning | `decision-critic` skill | Say `Poke holes in this decision` or `Validate my thinking on ...` |
 | Contrarian read of a plan | `independent-thinker` or `critic` agent (`.claude/agents/`) | Task tool with that subagent_type |
 | Strategic build/buy/defer | `buy-vs-build-framework` (Quick tier: 1-2 hours) | Required gate for new capabilities, see Phase 3 |
@@ -167,16 +166,16 @@ pre-push guard that was never executed on the branch that shipped it.
 
 ### Phase 6: Monitor
 
-Enforcement decays. Push guards emit `EVENT=` telemetry lines (stderr, via
-`.claude/hooks/PreToolUse/push_guard_base.py`); the `guard-maturity` skill
-aggregates them into tiers (Budding, Growing, Mature, Proficient, Inert,
-Harmful) that tell you whether the gate earns its keep. An Inert gate is a
-candidate for the same prune rule as an unbaselined idea. Honest caveat as of
-2026-07-03: the telemetry feed is not persisted anywhere the aggregator reads
-(`.agents/telemetry/` does not exist; see `ai-agents-diagnostics-toolkit`), so
-tier output is a smoke test and monitoring evidence must be gathered manually
-until the feed is wired. Measurement tooling and interpretation live in
-`ai-agents-diagnostics-toolkit`.
+Enforcement decays. The push guards used to emit `EVENT=` telemetry lines
+(stderr, via `push_guard_base.py`) that a maturity-tier skill aggregated into
+tiers (Budding, Growing, Mature, Proficient, Inert, Harmful) to tell you
+whether a gate earned its keep. That emitter, every guard built on it, and the
+classifier skill itself were deleted under ADR-084 (issue #5154): there is no
+producer and no consumer today. The underlying principle still applies to
+whatever gate you add next: an Inert gate is a candidate for the same prune
+rule as an unbaselined idea. If you build a new detector, ship its own
+telemetry and monitoring alongside it; measurement tooling for the surviving
+instruments lives in `ai-agents-diagnostics-toolkit`.
 
 ### Phase 7: Adopt, or Retire With a Record
 
@@ -200,7 +199,7 @@ is a future duplicate proposal.
 | 3. Baseline | Buy-vs-build Quick verdict + written prediction + eval numbers | Go verdict; baseline exists (13wk prune clock starts) | `buy-vs-build-framework` output; user for spend |
 | 4. ADR | `ADR-*.md` + debate log | `adr-review` consensus (max 10 rounds) + human approval | 6-agent debate + user |
 | 5. Ship | Gate/skill + calibration table + tests | `ai-agents-change-control` ladder (pre_pr.py, CI, plugin version-field gate if plugin tree) | CI gates + review |
-| 6. Monitor | `EVENT=` telemetry, `guard-maturity` tier | Tier not Inert/Harmful | Periodic guard-maturity report |
+| 6. Monitor | Detector-specific telemetry and tier report | Tier not Inert/Harmful | Periodic report from whatever the detector ships |
 | 7. Adopt/retire | Retro or rejection record | n/a (terminal) | Documented either way |
 
 ## Where Good Ideas Historically Came From
@@ -265,7 +264,6 @@ volatile facts:
 
 | Fact | Source | Re-verify |
 |---|---|---|
-| Verification-based enforcement wording | `.agents/SESSION-PROTOCOL.md:30-37` | `sed -n '30,40p' .agents/SESSION-PROTOCOL.md` |
 | #1989 false premise, calibration rule, M4 numbers | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:20,72-73,149-157` | `grep -n "calibrat" .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
 | #2230 rejection record | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` | `grep -n 2230 .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
 | adr-review auto-fire + 6-agent debate | AGENTS.md "ADR Review"; `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
@@ -274,10 +272,10 @@ volatile facts:
 | Contradiction log format | `.claude/rules/search-before-building.md` | `grep -n "decision-" .claude/rules/search-before-building.md` |
 | ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
 | Retro corpus size | `.agents/retrospective/` | `python3 -c "import pathlib;print(sum(1 for p in pathlib.Path('.agents/retrospective').glob('*.md') if p.name != 'INDEX.md'))"` |
-| guard-maturity tiers | `.claude/skills/guard-maturity/SKILL.md` | `grep -n "Budding" .claude/skills/guard-maturity/SKILL.md` |
 
-Uncertainty flag: the `EVENT=` telemetry consumer pipeline beyond the
-`guard-maturity` skill is not fully mapped (noted in
-`ai-agents-research-frontier`). The emitter path was verified 2026-07-03:
-`.claude/hooks/PreToolUse/push_guard_base.py` (mirrored under
-`src/copilot-cli/hooks/PreToolUse/`).
+Uncertainty flag: the `EVENT=` telemetry consumer pipeline was never fully
+mapped before it was retired (noted in `ai-agents-research-frontier`). The
+emitter, `push_guard_base.py`, was verified present 2026-07-03 (mirrored under
+`src/copilot-cli/hooks/PreToolUse/`) and was deleted from both trees under
+ADR-084 (issue #5154), along with the tier-classifier skill that consumed its
+output; nothing in this repo produces or reads that telemetry today.

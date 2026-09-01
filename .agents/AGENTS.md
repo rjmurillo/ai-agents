@@ -13,7 +13,6 @@ flowchart TD
     subgraph Sessions["Session Management"]
         SL[sessions/]
         HP[HANDOFF.md]
-        SP[SESSION-PROTOCOL.md]
     end
 
     subgraph Artifacts["Agent Outputs"]
@@ -55,9 +54,8 @@ flowchart TD
 
 | Directory/File | Purpose | Automated Actor |
 |----------------|---------|-----------------|
-| `sessions/` | Session logs (YYYY-MM-DD-session-NN.md) | All agents |
+| `sessions/` | Historical JSON logs (creation discontinued) and per-issue handoffs | Per-issue handoffs: all agents |
 | `HANDOFF.md` | Cross-session context bridge | All agents (on session end) |
-| `SESSION-PROTOCOL.md` | RFC 2119 protocol requirements | Validation scripts |
 | `AGENT-SYSTEM.md` | System documentation | Architect/Orchestrator |
 
 ### Agent Output Directories
@@ -86,26 +84,25 @@ flowchart TD
 
 ## Automated Actors
 
-### Session Protocol Validator
+### Session Log Validator
 
-**Role**: Enforces RFC 2119 session protocol compliance
+**Role**: Validates a session log when one is staged; creation is discontinued
+(`.claude/rules/session-logs.md` MUST 1)
 
 | Attribute | Value |
 |-----------|-------|
-| **Script** | `scripts/validate_session_json.py` |
-| **Trigger** | CI on `.agents/**` changes, manual |
-| **Input** | Session logs, HANDOFF.md |
+| **Script** | `scripts/validate_session_json.py`, wrapped by the `session-policy` pre-commit hook (`scripts/validation/git_hook_policy.py session`) |
+| **Trigger** | `session-policy` pre-commit hook (validate-if-present), manual |
+| **Input** | Staged session log, if any |
 | **Output** | Compliance report |
 
-**Validations**:
+**Validations** (run only when a session log is staged):
 
-| Check | RFC Level | Description |
-|-------|-----------|-------------|
-| Serena initialization | MUST | Evidence in session log |
-| HANDOFF.md read | MUST | Content referenced |
-| Session log created | MUST | File exists with naming |
-| HANDOFF.md updated | MUST | Modified before close |
-| Markdown lint | MUST | Clean lint |
+| Check | Behavior | Description |
+|-------|----------|-------------|
+| No log staged | Pass | Gate returns 0 (`check_sessions` passes with no session paths) |
+| Schema valid | Blocks commit | A malformed staged log fails `session-policy` |
+| `endingCommit` reachable | Warns | Unreachable recorded SHA warns; it does not block |
 
 ---
 
@@ -158,9 +155,7 @@ sequenceDiagram
     participant Validation as Validators
 
     Agent->>Handoff: Read context (session start)
-    Agent->>Session: Create session log
     Agent->>Output: Write artifacts (analysis, plans, etc.)
-    Agent->>Session: Update session log
     Agent->>Handoff: Update summary (session end)
 
     Validation->>Session: Validate protocol compliance
@@ -174,7 +169,7 @@ Source: `governance/naming-conventions.md`
 
 | Artifact Type | Pattern | Example |
 |---------------|---------|---------|
-| Session Log | `YYYY-MM-DD-session-NN-description.md` | `2025-12-18-session-24-docs.md` |
+| Session Log | `YYYY-MM-DD-session-NN-description.json` | `2025-12-18-session-24-docs.json` |
 | ADR | `ADR-NNN-kebab-title.md` | `ADR-001-database-selection.md` |
 | PRD | `PRD-feature-name.md` | `PRD-oauth-integration.md` |
 | Plan | `NNN-feature-plan.md` | `001-authentication-plan.md` |
@@ -215,7 +210,8 @@ Source: `skill-usage-mandatory` memory
 |--------|----------|---------|
 | Serena memories | `.serena/memories/` | Technical patterns, skills |
 | HANDOFF.md | `.agents/HANDOFF.md` | Session context |
-| Session logs | `.agents/sessions/` | Decision history |
+| Session logs (historical only) | `.agents/sessions/*.json` | Past decision history; creation discontinued |
+| Per-issue handoffs | `.agents/sessions/handoffs/` | Active cross-session continuity |
 | Skills | `.agents/skills/` | Learned strategies |
 
 **Agent Memory Protocol**:
@@ -236,7 +232,7 @@ Source: `skill-usage-mandatory` memory
 
 | Scenario | Behavior |
 |----------|----------|
-| Missing session log | Validation fails (MUST violation) |
+| Missing session log | No error; session log creation is discontinued |
 | HANDOFF.md not updated | Validation warning |
 | Naming convention violation | Consistency check fails |
 | Orphan artifact | Logged for manual review |
@@ -245,13 +241,11 @@ Source: `skill-usage-mandatory` memory
 
 | Check | Workflow | Trigger |
 |-------|----------|---------|
-| Session protocol | `ai-session-protocol.yml` | PR to `.agents/**` |
 | Planning consistency | `validate-planning-artifacts.yml` | PR to `.agents/planning/**` |
 | Spec validation | `ai-spec-validation.yml` | PR to `.agents/specs/**` |
 
 ## Related Documentation
 
-- [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md) - Canonical protocol reference
 - [AGENT-SYSTEM.md](AGENT-SYSTEM.md) - Full system documentation
 - [governance/naming-conventions.md](governance/naming-conventions.md) - Naming rules
 - [Root AGENTS.md](../AGENTS.md) - Agent usage instructions

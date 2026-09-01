@@ -10,8 +10,12 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
+import types
+import uuid
 import warnings
 from pathlib import Path
 
@@ -28,6 +32,23 @@ pytestmark = pytest.mark.windows_path
 
 BEFORE_SHA = "a" * 40
 AFTER_SHA = "c" * 40
+
+
+def _fake_request():
+    """Build a minimal stand-in for pytest.FixtureRequest with an empty stash.
+
+    `_guard_real_repo_head` now requires `request` (issue #5123 PR #5287
+    review: a defaulted `request` parameter never receives pytest's real
+    injected fixture, since pytest's fixture-argument scanner excludes any
+    parameter carrying a default). Driving the generator directly via
+    `__wrapped__()`, as this suite does, bypasses that injection entirely, so
+    every such call site must supply this explicitly. An empty stash reads as
+    `call_failed=False`, matching the behavior these call sites relied on
+    before `request` was required. Tests that specifically exercise the
+    `call_failed` stash wiring build their own request with a populated
+    stash keyed by that module's own `_CALL_FAILED_STASH_KEY` instance.
+    """
+    return types.SimpleNamespace(node=types.SimpleNamespace(stash={}))
 
 
 def _force_fast_path_fallback(module, monkeypatch) -> None:
@@ -330,7 +351,7 @@ def test_guard_fixture_fails_for_real_test_launched_head_movement(tmp_path, monk
     _init_git_repo(repo)
     monkeypatch.setattr(module, "PROJECT_ROOT", repo)
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)
     _commit_file(repo, "changed\n", "changed")
 
@@ -505,6 +526,127 @@ def test_check_head_change_warns_for_external_concurrent_commit(tmp_path, monkey
         module._check_head_change(BEFORE_SHA, AFTER_SHA, "pytest-head-guard:test", trace_path)
 
 
+def test_check_head_change_fails_loud_when_call_failed_and_commit_is_concurrent(
+    tmp_path, monkeypatch
+):
+    """Issue #5123: escalate to a distinct, greppable failure when the test's own
+    call phase already failed and the HEAD move is not attributable to it."""
+    module = _load_root_conftest()
+    _silence_subject(module, monkeypatch)
+    monkeypatch.setattr(module, "_reflog_contains_action", lambda _marker: False)
+    monkeypatch.setattr(module, "_trace_has_project_head_mutation", lambda _path: False)
+    trace_path = tmp_path / "git-trace.json"
+
+    with pytest.raises(pytest.fail.Exception, match="#5123") as excinfo:
+        module._check_head_change(
+            BEFORE_SHA,
+            AFTER_SHA,
+            "pytest-head-guard:test",
+            trace_path,
+            call_failed=True,
+        )
+
+    message = str(excinfo.value)
+    assert "may not be meaningful" in message
+    assert "concurrent external commit" in message
+
+
+def test_check_head_change_still_warns_when_call_failed_but_head_is_unchanged(monkeypatch):
+    """call_failed alone must not manufacture a failure when HEAD never moved."""
+    module = _load_root_conftest()
+    _silence_subject(module, monkeypatch)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        module._check_head_change("aaaaaaaa1111", "aaaaaaaa1111", call_failed=True)
+
+    assert caught == []
+
+
+def test_check_head_change_attributed_mutation_ignores_call_failed(monkeypatch):
+    """A real test-launched mutation stays #2316 regardless of call_failed; #5123
+    is reserved for HEAD movement the guard could not attribute to the test."""
+    module = _load_root_conftest()
+    monkeypatch.setattr(module, "_reflog_contains_action", lambda _marker: True)
+
+    with pytest.raises(pytest.fail.Exception, match="test-launched Git command") as excinfo:
+        module._check_head_change(
+            BEFORE_SHA, AFTER_SHA, "pytest-head-guard:test", None, call_failed=True
+        )
+
+    assert "#5123" not in str(excinfo.value)
+
+
+def test_pytest_runtest_makereport_stashes_call_phase_outcome():
+    module = _load_root_conftest()
+    node = types.SimpleNamespace(stash={})
+    call = types.SimpleNamespace(when="call")
+    report = types.SimpleNamespace(failed=True)
+
+    generator = module.pytest_runtest_makereport(node, call)
+    next(generator)
+    with pytest.raises(StopIteration) as excinfo:
+        generator.send(report)
+
+    assert excinfo.value.value is report
+    assert node.stash[module._CALL_FAILED_STASH_KEY] is True
+
+
+def test_pytest_runtest_makereport_ignores_setup_and_teardown_phases():
+    module = _load_root_conftest()
+    node = types.SimpleNamespace(stash={})
+    report = types.SimpleNamespace(failed=True)
+
+    for when in ("setup", "teardown"):
+        call = types.SimpleNamespace(when=when)
+        generator = module.pytest_runtest_makereport(node, call)
+        next(generator)
+        with pytest.raises(StopIteration):
+            generator.send(report)
+
+    assert module._CALL_FAILED_STASH_KEY not in node.stash
+
+
+def test_guard_fixture_escalates_when_stash_marks_call_failed(monkeypatch):
+    """Wiring test: the fixture reads the stash the hook writes, end to end
+    through `_guard_real_repo_head`, and escalates the #3109 warning to a
+    #5123 failure exactly when the stash says the call phase failed."""
+    module = _load_root_conftest()
+    _silence_subject(module, monkeypatch)
+    monkeypatch.setattr(module, "_reflog_contains_action", lambda _marker: False)
+    monkeypatch.setattr(module, "_trace_has_project_head_mutation", lambda _path: False)
+    heads = iter(["aaaaaaaa1111", "bbbbbbbb2222"])
+    monkeypatch.setattr(module, "_real_repo_head", lambda: next(heads))
+    node = types.SimpleNamespace(stash={module._CALL_FAILED_STASH_KEY: True})
+    request = types.SimpleNamespace(node=node)
+
+    generator = module._guard_real_repo_head.__wrapped__(request)
+    next(generator)
+
+    with pytest.raises(pytest.fail.Exception, match="#5123"):
+        next(generator)
+
+
+def test_guard_fixture_stays_a_warning_when_stash_has_no_entry(monkeypatch):
+    """Same wiring, opposite input: an empty stash (test passed, or no report
+    hook ran) must not manufacture the #5123 escalation."""
+    module = _load_root_conftest()
+    _silence_subject(module, monkeypatch)
+    monkeypatch.setattr(module, "_reflog_contains_action", lambda _marker: False)
+    monkeypatch.setattr(module, "_trace_has_project_head_mutation", lambda _path: False)
+    heads = iter(["aaaaaaaa1111", "bbbbbbbb2222"])
+    monkeypatch.setattr(module, "_real_repo_head", lambda: next(heads))
+    node = types.SimpleNamespace(stash={})
+    request = types.SimpleNamespace(node=node)
+
+    generator = module._guard_real_repo_head.__wrapped__(request)
+    next(generator)
+
+    with pytest.warns(UserWarning, match="#3109"):
+        with pytest.raises(StopIteration):
+            next(generator)
+
+
 @pytest.mark.parametrize(
     "break_trace",
     [
@@ -536,7 +678,7 @@ def test_guard_fixture_does_not_blame_test_for_external_commit(monkeypatch):
     heads = iter(["aaaaaaaa1111", "bbbbbbbb2222"])
     monkeypatch.setattr(module, "_real_repo_head", lambda: next(heads))
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)  # fixture setup: captures the per-test baseline
 
     with pytest.warns(UserWarning, match="#3109"):
@@ -550,7 +692,7 @@ def test_guard_fixture_fails_for_test_launched_mutation(monkeypatch):
     monkeypatch.setattr(module, "_real_repo_head", lambda: next(heads))
     monkeypatch.setattr(module, "_reflog_contains_action", lambda _marker: True)
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)
 
     with pytest.raises(pytest.fail.Exception, match="test-launched Git command"):
@@ -570,7 +712,7 @@ def test_guard_fixture_restores_existing_trace_settings(monkeypatch):
     for name, value in previous.items():
         monkeypatch.setenv(name, value)
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)
 
     for name, value in previous.items():
@@ -591,7 +733,7 @@ def test_guard_fixture_removes_new_trace_settings(monkeypatch):
     for name in module._TRACE_ENV_NAMES:
         monkeypatch.delenv(name, raising=False)
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)
 
     assert os.environ["GIT_REFLOG_ACTION"].startswith("pytest-head-guard:")
@@ -610,7 +752,7 @@ def test_guard_fixture_uses_shared_temp_directory_and_removes_trace_file(monkeyp
     heads = iter([BEFORE_SHA, BEFORE_SHA])
     monkeypatch.setattr(module, "_real_repo_head", lambda: next(heads))
 
-    generator = module._guard_real_repo_head.__wrapped__()
+    generator = module._guard_real_repo_head.__wrapped__(_fake_request())
     next(generator)
     trace_path = Path(os.environ["GIT_TRACE2_EVENT"])
 
@@ -621,3 +763,96 @@ def test_guard_fixture_uses_shared_temp_directory_and_removes_trace_file(monkeyp
     with pytest.raises(StopIteration):
         next(generator)
     assert not trace_path.exists()
+
+
+def test_real_pytest_run_escalates_when_a_concurrent_commit_fails_the_test():
+    """End-to-end proof through pytest's real fixture injection, not `__wrapped__()`.
+
+    Issue #5123 PR #5287 review: the first version of `_guard_real_repo_head`
+    declared `request: pytest.FixtureRequest | None = None`. Every other test
+    in this file drives the fixture generator directly via `__wrapped__()`,
+    which bypasses pytest's dependency-injection scanner entirely and cannot
+    observe that a defaulted `request` parameter never receives the real
+    injected fixture (`_pytest.compat.getfuncargnames` excludes any parameter
+    carrying a default). That defect shipped past every other test here,
+    because none of them exercise fixture resolution for real.
+
+    This test spawns a real nested pytest process against a throwaway repo
+    and a copy of the real root conftest.py, so `_guard_real_repo_head`
+    receives pytest's actual `request` fixture. The nested test deliberately
+    fails while an external (unattributed) commit lands in the same repo, the
+    exact issue #5123 scenario. Against the `request: ... = None` defect this
+    assertion fails: call_failed stays False forever, so the run shows only a
+    plain AssertionError and a `#3109` warning, never `#5123`.
+    """
+    repo_root = Path(__file__).resolve().parents[1]
+    real_conftest = (repo_root / "conftest.py").read_text(encoding="utf-8")
+    probe_dir = repo_root / ".pytest_tmp" / f"head-guard-e2e-{uuid.uuid4().hex}"
+    probe_dir.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        _init_git_repo(probe_dir)
+        (probe_dir / "conftest.py").write_text(real_conftest, encoding="utf-8")
+        (probe_dir / "test_probe.py").write_text(
+            "import os\n"
+            "import subprocess\n"
+            "\n"
+            "\n"
+            "# Matches conftest.py's own _git_env() blocklist (lines 48-52): the\n"
+            "# exact names that make a git subprocess untracked by the trace/reflog\n"
+            "# attribution machinery, not every GIT_-prefixed variable. A blanket\n"
+            "# GIT_* strip also removes this repo's tests/conftest.py session\n"
+            "# injection of commit.gpgsign=false (see test_conftest_git_signing.py),\n"
+            "# so on a host whose ambient global commit.gpgsign=true needs an\n"
+            "# unreachable signer, this 'external' commit would hang or fail instead\n"
+            "# of landing, and the probe would stop proving what it claims to prove\n"
+            "# (Bugbot review, PR #5287). Stripping only the four trace names is not\n"
+            "# enough: git sets GIT_INDEX_FILE (and can set GIT_DIR/GIT_WORK_TREE/\n"
+            "# GIT_COMMON_DIR) in a pre-commit/pre-push hook's own subprocess\n"
+            "# environment, confirmed empirically here, and this probe's nested\n"
+            "# pytest run inherits that environment when the outer suite itself\n"
+            "# runs as a lefthook job; leaving those four unstripped risks the\n"
+            "# 'external' commit writing into the real repo's index instead of the\n"
+            "# throwaway probe repo.\n"
+            "_BLOCKED = {\n"
+            "    'GIT_COMMON_DIR', 'GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE',\n"
+            "    'GIT_REFLOG_ACTION', 'GIT_TRACE2_EVENT', 'GIT_TRACE_SETUP', 'GIT_TRACE_REFS',\n"
+            "}\n"
+            "\n"
+            "\n"
+            "def test_fails_while_head_moves_externally():\n"
+            "    env = {k: v for k, v in os.environ.items() if k not in _BLOCKED}\n"
+            "    email = 'external@example.invalid'\n"
+            "    subprocess.run(\n"
+            "        ['git', '-c', 'user.name=external', '-c', f'user.email={email}',\n"
+            "         'commit', '--allow-empty', '--quiet', '-m', 'concurrent'],\n"
+            "        cwd=os.path.dirname(__file__), env=env, check=True, timeout=10,\n"
+            "    )\n"
+            "    assert False, 'deliberate call-phase failure for the #5123 escalation probe'\n",
+            encoding="utf-8",
+        )
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                str(probe_dir / "test_probe.py"),
+                "-p",
+                "no:cacheprovider",
+                f"--confcutdir={probe_dir}",
+                "-q",
+            ],
+            cwd=probe_dir,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        output = result.stdout + result.stderr
+
+        assert result.returncode != 0, output
+        assert "#5123" in output, output
+        assert "may not be meaningful" in output, output
+    finally:
+        shutil.rmtree(probe_dir, ignore_errors=True)

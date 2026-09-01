@@ -16,6 +16,26 @@ The install copies are hand-maintained: no generator writes them
 already enforces that they move together in a diff; this script adds the
 semantic-similarity check that parity enforcement omits.
 
+Issue #4852 asks the gate to cover "all six maintained/generated surfaces or
+document why a surface is not a runtime input." The six are src/claude,
+src/vs-code-agents, src/copilot-cli/agents, .claude/agents, .github/agents,
+and templates/agents/*.shared.md (per build/AGENTS.md, "Hand-Maintained Agent
+Copies"). Two of those six (src/copilot-cli/agents and templates/agents) are
+intentionally NOT drift-compared here: src/copilot-cli/agents and
+src/vs-code-agents are both generated from templates/agents/*.shared.md by
+``build/generate_agents.py``, whose ``--validate`` flag (see
+``_handle_validate`` in that script) already holds src/copilot-cli/agents to
+an exact string match (normalized only for line endings) against its
+template source, not a similarity threshold; a generator bug there fails
+that check outright rather than drifting silently. templates/agents itself
+is the shared source both generated trees derive from, so it has no
+independent counterpart to drift against. The two comparisons this script
+does run (vendored src/claude vs src/vs-code-agents, and the hand-maintained
+.claude/agents vs .github/agents) cover the pairs where two independently
+maintained or independently editable copies can diverge without any
+generator or validator catching it, which is exactly the failure mode #4852
+reported.
+
 Claude agents have unique content and are NOT generated from templates.
 This script detects when Claude agents diverge significantly from the
 shared content that VS Code/Copilot agents are generated from.
@@ -89,6 +109,31 @@ REQUIRED_AGENT_SECTIONS = {
     ),
 }
 
+# Sections that legitimately exist on only one platform side.
+# Key: (agent_name, section_name) -> (expected_side, rationale).
+# expected_side is "claude" or "vscode": the side the section is declared to
+# live on. A section listed here is reported as "declared adapter" and does
+# not fail ONLY when it is actually missing from the declared side (i.e. it is
+# present on the OTHER side and absent on `expected_side`). If the same
+# section name shows up missing in the opposite direction instead (present on
+# `expected_side`, absent from the other), that is undeclared drift and still
+# fails: the exception does not cover an inverted gap. See Issue #4852 review.
+_CLAUDE_TOOLS_RATIONALE = "Claude-specific runtime; no Copilot equivalent."
+
+PLATFORM_ONLY_SECTIONS: dict[tuple[str, str], tuple[str, str]] = {
+    # Claude Code Tools is Claude-specific runtime surface: declared present
+    # on the Claude side, absent on the VS Code/Copilot side.
+    ("implementer", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("architect", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("analyst", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("qa", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("critic", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("orchestrator", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("merge-resolver", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("security", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+    ("retrospective", "Claude Code Tools"): ("claude", _CLAUDE_TOOLS_RATIONALE),
+}
+
 # Shared-template install-copy comparison label.
 _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 
@@ -108,29 +153,129 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # silently hide regressions. The comparison label is part of the key so a
 # source-vendored baseline cannot hide install-copy drift.
 #
-# merge-resolver: src/claude/merge-resolver.md is the tier-hierarchy-enriched
-# prompt (PR #1426) with Core Mission / Key Responsibilities / Execution
+# merge-resolver: src/claude/merge-resolver.md is the enriched prompt
+# (PR #1426) with Core Mission / Key Responsibilities / Execution
 # Mindset / Handoff Protocol / Memory Protocol sections that the shared
 # template (templates/agents/merge-resolver.shared.md), and therefore the
 # generated VS Code copy, does not carry. Reconciling the two would rewrite an
 # agent prompt and change agent behavior (architect review, out of scope for a
-# baseline-green fix). Floor is set to the measured 20.9% so the existing
-# structure is accepted but any worsening still blocks.
+# baseline-green fix). Floor is set to the measured 20.7% so the existing
+# structure is accepted but any worsening still blocks. Re-measured for issue
+# #5074: the add/add rename-never-content-merge rule was added with identical
+# wording to both sides, which shifted the Jaccard section scores from the
+# prior 20.9% because the two shapes carry different surrounding prose.
+# Re-measured for issue #5130 after the tier hierarchy was removed from the
+# governance docs and ``tier:`` frontmatter became ``role:``: both comparisons
+# still measure 20.7%. The enrichment PR #1426 added is section structure, not
+# tier prose, and neither merge-resolver body ever carried the tier text, so
+# removing it moved nothing. The floors stay where they are.
 #
-# merge-resolver install copy (Issue #2715): the same tier-hierarchy enrichment
+# merge-resolver install copy (Issue #2715): the same enrichment
 # lives only in the Claude Code self-host copy (.claude/agents/merge-resolver.md);
 # the GitHub Copilot self-host copy (.github/agents/merge-resolver.agent.md)
 # carries the leaner generated prose. The other ten diverged install copies were
 # reconciled by resyncing .github from the generated src/copilot-cli output, but
 # merge-resolver cannot be: its richness is on the .claude side by design, so a
 # resync would delete substantive Claude-only instructions. Floor is the measured
-# 20.9% (identical to the vendored floor because both compare the same enriched
+# 20.7% (identical to the vendored floor because both compare the same enriched
 # .claude body against the same leaner template-derived body). Any worsening still
 # blocks.
 KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
-    ("merge-resolver", "src-claude vs src-vscode"): 20.9,
-    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.9,
+    ("merge-resolver", "src-claude vs src-vscode"): 20.7,
+    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.7,
 }
+
+# Pre-existing missing sections at the time section inventory was added
+# (Issue #4852). Each tuple is (agent_name, section_name, comparison_label).
+# A missing section in this set is reported as "MISSING (baselined)" and does
+# not block. Removing an entry here re-enables the gate for that section.
+# New missing sections NOT in this set will fail immediately.
+KNOWN_MISSING_SECTIONS: frozenset[tuple[str, str, str]] = frozenset({
+    ("analyst", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
+    ("analyst", "Degraded Mode Protocol", "src-claude vs src-vscode"),
+    ("architect", "ADR and Design Review Length Bounds", ".claude/agents vs .github/agents"),
+    ("architect", "Architecture Reasoning Protocol", ".claude/agents vs .github/agents"),
+    ("architect", "Ask Before vs Proceed With Default", ".claude/agents vs .github/agents"),
+    ("architect", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
+    ("architect", "Degraded Mode Protocol", "src-claude vs src-vscode"),
+    ("architect", "Legacy Modernization Patterns", ".claude/agents vs .github/agents"),
+    ("architect", "Legacy Modernization Patterns", "src-claude vs src-vscode"),
+    ("architect", "Reversibility Assessment", ".claude/agents vs .github/agents"),
+    ("architect", "Reversibility Assessment", "src-claude vs src-vscode"),
+    ("architect", "Strategic Architecture Principles", ".claude/agents vs .github/agents"),
+    ("architect", "Strategic Architecture Principles", "src-claude vs src-vscode"),
+    ("architect", "Strategic Knowledge Available", ".claude/agents vs .github/agents"),
+    ("architect", "Strategic Knowledge Available", "src-claude vs src-vscode"),
+    ("backlog-generator", "Claude Code Tools", ".claude/agents vs .github/agents"),
+    ("backlog-generator", "Claude Code Tools", "src-claude vs src-vscode"),
+    ("code-reviewer", "Claude Code Tools", ".claude/agents vs .github/agents"),
+    ("code-reviewer", "Claude Code Tools", "src-claude vs src-vscode"),
+    ("code-reviewer", "Tool Use", ".claude/agents vs .github/agents"),
+    ("code-reviewer", "Tool Use", "src-claude vs src-vscode"),
+    ("critic", "Degraded Mode Protocol", "src-claude vs src-vscode"),
+    ("devops", "12-Factor App Principles for CI/CD", ".claude/agents vs .github/agents"),
+    ("devops", "12-Factor App Principles for CI/CD", "src-claude vs src-vscode"),
+    ("devops", "Claude Code Tools", ".claude/agents vs .github/agents"),
+    ("devops", "Claude Code Tools", "src-claude vs src-vscode"),
+    ("devops", "Local CI Simulation", ".claude/agents vs .github/agents"),
+    ("devops", "Local CI Simulation", "src-claude vs src-vscode"),
+    ("devops", "Pipeline Metrics", ".claude/agents vs .github/agents"),
+    ("devops", "Pipeline Metrics", "src-claude vs src-vscode"),
+    ("devops", "Script Language Priority", ".claude/agents vs .github/agents"),
+    ("devops", "Script Language Priority", "src-claude vs src-vscode"),
+    ("high-level-advisor", "Claude Code Tools", ".claude/agents vs .github/agents"),
+    ("high-level-advisor", "Claude Code Tools", "src-claude vs src-vscode"),
+    ("implementer", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
+    ("implementer", "Degraded Mode Protocol", "src-claude vs src-vscode"),
+    ("independent-thinker", "Claude Code Tools", ".claude/agents vs .github/agents"),
+    ("independent-thinker", "Claude Code Tools", "src-claude vs src-vscode"),
+    ("independent-thinker", "Output Format", ".claude/agents vs .github/agents"),
+    ("independent-thinker", "Output Format", "src-claude vs src-vscode"),
+    ("independent-thinker", "Persona Traits", ".claude/agents vs .github/agents"),
+    ("independent-thinker", "Persona Traits", "src-claude vs src-vscode"),
+    ("independent-thinker", "Verification Protocol", ".claude/agents vs .github/agents"),
+    ("independent-thinker", "Verification Protocol", "src-claude vs src-vscode"),
+    ("independent-thinker", "When to Use", ".claude/agents vs .github/agents"),
+    ("independent-thinker", "When to Use", "src-claude vs src-vscode"),
+    ("merge-resolver", "Activation Profile", ".claude/agents vs .github/agents"),
+    ("merge-resolver", "Activation Profile", "src-claude vs src-vscode"),
+    ("merge-resolver", "Auto-Resolution Script", ".claude/agents vs .github/agents"),
+    ("merge-resolver", "Auto-Resolution Script", "src-claude vs src-vscode"),
+    ("merge-resolver", "Core Mission", ".claude/agents vs .github/agents"),
+    ("merge-resolver", "Core Mission", "src-claude vs src-vscode"),
+    ("merge-resolver", "Execution Mindset", ".claude/agents vs .github/agents"),
+    ("merge-resolver", "Execution Mindset", "src-claude vs src-vscode"),
+    ("merge-resolver", "Handoff Options", ".claude/agents vs .github/agents"),
+    ("merge-resolver", "Handoff Options", "src-claude vs src-vscode"),
+    ("merge-resolver", "Handoff Protocol", ".claude/agents vs .github/agents"),
+    ("merge-resolver", "Handoff Protocol", "src-claude vs src-vscode"),
+    ("merge-resolver", "Key Responsibilities", ".claude/agents vs .github/agents"),
+    ("merge-resolver", "Key Responsibilities", "src-claude vs src-vscode"),
+    ("merge-resolver", "Memory Protocol", ".claude/agents vs .github/agents"),
+    ("merge-resolver", "Memory Protocol", "src-claude vs src-vscode"),
+    ("pr-comment-responder", "Claude Code Tools", ".claude/agents vs .github/agents"),
+    ("pr-comment-responder", "Claude Code Tools", "src-claude vs src-vscode"),
+    ("pr-comment-responder", "GitHub Skill", ".claude/agents vs .github/agents"),
+    ("pr-comment-responder", "GitHub Skill", "src-claude vs src-vscode"),
+    ("pr-comment-responder", "GitHub Skill Integration", ".claude/agents vs .github/agents"),
+    ("pr-comment-responder", "GitHub Skill Integration", "src-claude vs src-vscode"),
+    ("qa", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
+    ("qa", "Degraded Mode Protocol", "src-claude vs src-vscode"),
+    ("qa", "Test Commands", ".claude/agents vs .github/agents"),
+    ("qa", "Test Commands", "src-claude vs src-vscode"),
+    ("retrospective", "Handoff Routing Recommendations", ".claude/agents vs .github/agents"),
+    ("retrospective", "Handoff Routing Recommendations", "src-claude vs src-vscode"),
+    ("retrospective", "Structured Handoff Output (MANDATORY)", ".claude/agents vs .github/agents"),
+    ("retrospective", "Structured Handoff Output (MANDATORY)", "src-claude vs src-vscode"),
+    ("task-decomposer", "Claude Code Tools", ".claude/agents vs .github/agents"),
+    ("task-decomposer", "Claude Code Tools", "src-claude vs src-vscode"),
+    ("task-decomposer", "Handoff Options", ".claude/agents vs .github/agents"),
+    ("task-decomposer", "Handoff Options", "src-claude vs src-vscode"),
+    ("task-decomposer", "Output Format", ".claude/agents vs .github/agents"),
+    ("task-decomposer", "Output Format", "src-claude vs src-vscode"),
+    ("task-decomposer", "Task List Template", ".claude/agents vs .github/agents"),
+    ("task-decomposer", "Task List Template", "src-claude vs src-vscode"),
+})
 
 # MCP syntax normalization patterns (compiled once)
 _MCP_PATTERNS = (
@@ -170,6 +315,8 @@ class AgentResult:
     status: str
     sections: list[SectionResult] = field(default_factory=list)
     drifting_sections: list[str] = field(default_factory=list)
+    missing_sections: list[str] = field(default_factory=list)
+    adapter_sections: list[str] = field(default_factory=list)
     comparison: str = "src-claude vs src-vscode"
 
 
@@ -181,13 +328,56 @@ def remove_yaml_frontmatter(content: str) -> str:
     return content
 
 
+# CommonMark fenced code block opener/closer: 0-3 leading spaces, then three
+# or more of the SAME fence character (backtick or tilde). A closing fence
+# must reuse the opening character and be at least as long as the opener, so
+# a 4-backtick outer fence tolerates a 3-backtick line as ordinary content
+# (see .github/agents/task-decomposer.agent.md for a real example) and a
+# tilde fence never closes on a backtick line or vice versa.
+_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+
+
 def get_markdown_sections(content: str) -> dict[str, str]:
-    """Extract sections from markdown content based on ## headers."""
+    """Extract sections from markdown content based on ## headers.
+
+    Headings inside fenced code blocks are ignored so that sample output
+    templates do not pollute the section inventory. Fence detection follows
+    CommonMark: backtick (```) and tilde (~~~) fences, up to 3 leading spaces
+    of indentation (list-nested fences), and a closing fence must match the
+    opening fence's character and be at least as long.
+    """
     sections: dict[str, str] = {}
     current_section = "preamble"
     current_lines: list[str] = []
+    fence_char: str | None = None
+    fence_len = 0
 
     for line in content.splitlines():
+        fence_match = _FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group(1)
+            char, length = marker[0], len(marker)
+            if fence_char is None:
+                # Opening a new fence.
+                fence_char = char
+                fence_len = length
+                current_lines.append(line)
+                continue
+            if char == fence_char and length >= fence_len:
+                # Closing the open fence: same character, at least as long.
+                fence_char = None
+                fence_len = 0
+                current_lines.append(line)
+                continue
+            # A different fence character, or a shorter same-character run,
+            # is ordinary content inside the still-open outer fence.
+            current_lines.append(line)
+            continue
+
+        if fence_char is not None:
+            current_lines.append(line)
+            continue
+
         header_match = re.match(r"^##\s+(.+)$", line)
         if header_match:
             if current_lines:
@@ -276,7 +466,13 @@ def compare_agent(
     threshold: int,
     comparison: str = "src-claude vs src-vscode",
 ) -> AgentResult:
-    """Compare two agent files and return drift analysis."""
+    """Compare two agent files and return drift analysis.
+
+    Two checks run:
+    1. Content similarity for sections in SECTIONS_TO_COMPARE (legacy).
+    2. Section inventory: any H2 section present on only one side fails
+       unless listed in PLATFORM_ONLY_SECTIONS with a rationale.
+    """
     claude_body = remove_yaml_frontmatter(claude_content)
     vscode_body = remove_yaml_frontmatter(vscode_content)
 
@@ -321,12 +517,66 @@ def compare_agent(
         total_similarity += similarity
         compared_count += 1
 
+    # --- Section inventory: detect unlisted sections present on one side only ---
+    # Exclude "preamble" (the content before the first heading).
+    claude_heading_set = set(claude_sections.keys()) - {"preamble"}
+    vscode_heading_set = set(vscode_sections.keys()) - {"preamble"}
+
+    missing_sections: list[str] = []
+    adapter_sections: list[str] = []
+
+    only_in_claude = claude_heading_set - vscode_heading_set
+    only_in_vscode = vscode_heading_set - claude_heading_set
+
+    baselined_missing: list[str] = []
+
+    for section in sorted(only_in_claude | only_in_vscode):
+        key = (agent_name, section)
+        baseline_key = (agent_name, section, comparison)
+        adapter_entry = PLATFORM_ONLY_SECTIONS.get(key)
+        actual_side = "claude" if section in only_in_claude else "vscode"
+        # The exception only covers the declared side. A section that is
+        # missing from its declared side but shows up unexplained on the
+        # OTHER side (an inverted gap) is not exempted by this entry.
+        if adapter_entry is not None and adapter_entry[0] == actual_side:
+            adapter_sections.append(section)
+        elif baseline_key in KNOWN_MISSING_SECTIONS:
+            baselined_missing.append(section)
+            section_results.append(
+                SectionResult(
+                    section=section,
+                    similarity=0.0,
+                    claude_has=section in claude_heading_set,
+                    vscode_has=section in vscode_heading_set,
+                    status="MISSING (baselined)",
+                )
+            )
+        else:
+            missing_sections.append(section)
+            section_results.append(
+                SectionResult(
+                    section=section,
+                    similarity=0.0,
+                    claude_has=section in claude_heading_set,
+                    vscode_has=section in vscode_heading_set,
+                    status="MISSING",
+                )
+            )
+
     overall = round(total_similarity / compared_count, 1) if compared_count > 0 else 100.0
     drifting = [r.section for r in section_results if r.status == "DRIFT"]
+    has_missing = len(missing_sections) > 0
     required_section_drift = any(section in required_sections for section in drifting)
+    # A missing section (not covered by KNOWN_MISSING_SECTIONS or
+    # PLATFORM_ONLY_SECTIONS above) always fails, even for an agent pair
+    # baselined in KNOWN_BASELINE_DRIFT. That baseline exists to accept a
+    # measured *content-similarity floor* for pre-existing structural
+    # divergence; it must not silently swallow a brand-new missing section,
+    # or the gate cannot catch new drift on a baselined pair (Issue #4852 AC:
+    # "Existing baselines cannot suppress a newly missing section").
     overall_status = (
         "DRIFT DETECTED"
-        if required_section_drift
+        if required_section_drift or has_missing
         else _classify_overall(agent_name, overall, threshold, comparison)
     )
 
@@ -336,6 +586,8 @@ def compare_agent(
         status=overall_status,
         sections=section_results,
         drifting_sections=drifting,
+        missing_sections=missing_sections,
+        adapter_sections=adapter_sections,
         comparison=comparison,
     )
 
@@ -369,7 +621,11 @@ def format_text(
             lines.append(f"{result.agent_name} [{result.comparison}]: {result.status}")
 
         for section in result.drifting_sections:
-            lines.append(f'  - Section "{section}" differs')
+            lines.append(f'  - Section "{section}" differs (content drift)')
+        for section in result.missing_sections:
+            lines.append(f'  - Section "{section}" missing on one side')
+        for section in result.adapter_sections:
+            lines.append(f'  - Section "{section}" (declared adapter)')
 
     baselined_count = sum(1 for r in results if r.status == "OK (baselined)")
 
@@ -382,6 +638,16 @@ def format_text(
         lines.append(f"  (of which baselined: {baselined_count})")
     lines.append(f"Drift detected: {drift_count}")
     lines.append(f"No counterpart: {no_counterpart_count}")
+
+    # Section-level counts
+    total_missing = sum(len(r.missing_sections) for r in results)
+    total_adapters = sum(len(r.adapter_sections) for r in results)
+    total_content_drift = sum(
+        1 for r in results for s in r.sections if s.status == "DRIFT"
+    )
+    lines.append(f"Missing sections: {total_missing}")
+    lines.append(f"Content drift sections: {total_content_drift}")
+    lines.append(f"Declared adapters: {total_adapters}")
     lines.append("")
 
     if drift_count > 0:
@@ -400,7 +666,19 @@ def format_json(
     ok_count: int,
     no_counterpart_count: int,
 ) -> str:
-    """Format results as JSON output."""
+    """Format results as JSON output.
+
+    Carries the same three separated counts as ``format_text``: missing
+    sections, content-drift sections, and declared adapters, both per-agent
+    (``missingSections``/``adapterSections`` lists) and totalled in
+    ``summary`` (``missingSections``/``contentDriftSections``/``adapterSections``).
+    Consumers of this JSON (``scripts/ci/parse_drift_results.py``) read these
+    fields to name a missing heading in the drift alert, not only content drift.
+    """
+    total_missing = sum(len(r.missing_sections) for r in results)
+    total_adapters = sum(len(r.adapter_sections) for r in results)
+    total_content_drift = sum(1 for r in results for s in r.sections if s.status == "DRIFT")
+
     output = {
         "duration": duration,
         "threshold": threshold,
@@ -409,6 +687,9 @@ def format_json(
             "ok": ok_count,
             "driftDetected": drift_count,
             "noCounterpart": no_counterpart_count,
+            "missingSections": total_missing,
+            "contentDriftSections": total_content_drift,
+            "adapterSections": total_adapters,
         },
         "results": [
             {
@@ -427,6 +708,8 @@ def format_json(
                     for s in r.sections
                 ],
                 "driftingSections": r.drifting_sections,
+                "missingSections": r.missing_sections,
+                "adapterSections": r.adapter_sections,
             }
             for r in results
         ],
@@ -451,17 +734,26 @@ def format_markdown(
     lines.append("")
     lines.append("## Summary")
     lines.append("")
+    total_missing = sum(len(r.missing_sections) for r in results)
+    total_adapters = sum(len(r.adapter_sections) for r in results)
+    total_content_drift = sum(1 for r in results for s in r.sections if s.status == "DRIFT")
+
     lines.append("| Metric | Count |")
     lines.append("|--------|-------|")
     lines.append(f"| Agents Compared | {len(results)} |")
     lines.append(f"| OK | {ok_count} |")
     lines.append(f"| Drift Detected | {drift_count} |")
     lines.append(f"| No Counterpart | {no_counterpart_count} |")
+    lines.append(f"| Missing Sections | {total_missing} |")
+    lines.append(f"| Content Drift Sections | {total_content_drift} |")
+    lines.append(f"| Declared Adapters | {total_adapters} |")
     lines.append("")
     lines.append("## Results")
     lines.append("")
-    lines.append("| Agent | Comparison | Status | Similarity | Drifting Sections |")
-    lines.append("|-------|------------|--------|------------|-------------------|")
+    lines.append(
+        "| Agent | Comparison | Status | Similarity | Drifting Sections | Missing Sections |"
+    )
+    lines.append("|-------|------------|--------|------------|-------------------|-------------------|")
 
     for result in sorted(results, key=lambda r: (r.comparison, r.agent_name)):
         if result.overall_similarity is not None:
@@ -469,9 +761,10 @@ def format_markdown(
         else:
             similarity = "N/A"
         drifting = ", ".join(result.drifting_sections) if result.drifting_sections else "-"
+        missing = ", ".join(result.missing_sections) if result.missing_sections else "-"
         lines.append(
             f"| {result.agent_name} | {result.comparison} | {result.status} "
-            f"| {similarity} | {drifting} |"
+            f"| {similarity} | {drifting} | {missing} |"
         )
 
     return "\n".join(lines)
@@ -734,10 +1027,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Exit non-zero when the .claude/agents vs .github/agents install "
-            "comparison finds drift. Default: install drift is advisory "
+            "comparison finds CONTENT drift (an existing shared section whose "
+            "text diverged). Default: install content drift is advisory "
             "(reported but does not change the exit code), because the two "
             "self-host copies have large pre-existing structural differences "
-            "(Issue #2267). The vendored src comparison always affects the exit "
+            "(Issue #2267). A MISSING section (an H2 present on only one "
+            "side) always fails the install comparison too, with or without "
+            "this flag. The vendored src comparison always affects the exit "
             "code."
         ),
     )
@@ -883,11 +1179,22 @@ def _exit_code(
 
     Vendored (src) drift blocks except for agents listed in
     ``_ADVISORY_VENDORED_DRIFT``. Install (.claude/agents vs .github/agents)
-    drift is advisory by default because the two self-host copies carry large
-    pre-existing structural differences (Issue #2267). Required agent sections
-    are always blocking, including in the install comparison;
-    ``--fail-on-install-drift`` promotes it to blocking once those are
-    reconciled.
+    CONTENT drift (an existing shared section whose text diverged) is
+    advisory by default, because the two self-host copies carry large
+    pre-existing structural differences (Issue #2267); ``--fail-on-install-drift``
+    promotes it to blocking once those are reconciled.
+
+    A MISSING section (an H2 present on only one side, not covered by
+    ``PLATFORM_ONLY_SECTIONS`` or ``KNOWN_MISSING_SECTIONS``) is always
+    blocking in both comparisons, install included, and does not need
+    ``--fail-on-install-drift``. Issue #4852's acceptance criterion is "a
+    missing H2 section fails by default"; it names no install-copy carve-out,
+    and the local pre-PR caller (``validate_agent_drift`` in
+    ``scripts/validation/checks_tooling.py``) never passes
+    ``--fail-on-install-drift``, so gating a new install-side missing section
+    behind that flag would make it invisible to the local gate that everyone
+    actually runs. Required agent sections are always blocking too, in both
+    comparisons.
     """
     blocking_drift = any(
         (
@@ -897,12 +1204,14 @@ def _exit_code(
                     REQUIRED_AGENT_SECTIONS.get(r.agent_name, frozenset())
                     & set(r.drifting_sections)
                 )
+                or bool(r.missing_sections)
                 or fail_on_install
                 or r.comparison != _INSTALL_COMPARISON_LABEL
             )
             and not (
                 r.comparison != _INSTALL_COMPARISON_LABEL
                 and r.agent_name in _ADVISORY_VENDORED_DRIFT
+                and not r.missing_sections
             )
         )
         or (

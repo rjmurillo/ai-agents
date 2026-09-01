@@ -1,3 +1,14 @@
+---
+id: ADR-008
+status: accepted
+date: 2026-08-19
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-008: Protocol Automation via Lifecycle Hooks
 
 ## Status
@@ -128,7 +139,7 @@ its row and gains a retirement note rather than disappearing.
 
 | Hook | File | Type | Status |
 |------|------|------|--------|
-| **SessionStart: Context Loader** | `SessionStart/invoke_context_loader.py` | SessionStart | Implemented |
+| **SessionStart: Context Loader** | `SessionStart/invoke_context_loader.py` | SessionStart | Implemented, narrowed by #5170 |
 | **PreCompact: Compact Checkpoint** | `PreCompact/invoke_compact_checkpoint.py` | PreCompact | Implemented, trimmed by #3273 |
 | **PreToolUse: False Completion Gate** | `PreToolUse/invoke_false_completion_gate.py` | PreToolUse | Retired by #3184 |
 | **PostToolUse: Plan State Sync** | `PostToolUse/invoke_plan_state_sync.py` | PostToolUse | Retired by #3184 |
@@ -161,14 +172,28 @@ today".
 implemented whose file is absent. Two prior purges left this section stale in
 silence; a third correction with no gate buys one clean read and nothing else.
 
+### Amendment 2026-08-19 (Issue #5168, PR #5170)
+
+The Context Loader hook narrowed: it no longer auto-injects `.agents/HANDOFF.md`
+into session context. That file had carried a "read-only, as of 2025-12-22"
+banner unchanged for eight months, listing pull requests long since resolved;
+ADR-014 already superseded it with per-issue handoffs and Serena memory, and
+the mandatory session-log protocol this hook originally served was itself
+retired as negative-ROI in PR #5135. Injecting the stale file cost roughly
+1,000 tokens per session for no compensating value. The hook still auto-injects
+the latest retrospective and the pending-retro-skeleton reminder; the
+criterion this ADR records ("SessionStart loads context") remains met, on a
+narrower path.
+
 ### Acceptance Criteria Mapping
 
-As accepted in 2026. Rows for retired hooks are kept because they record what
-the decision claimed at the time; the criterion is no longer met by a hook.
+As accepted 2025-12-20. Rows for retired hooks are kept because they record
+what the decision claimed at the time; the criterion is no longer met by a
+hook.
 
 | Criteria | Hook | Evidence | Still met by a hook |
 |----------|------|----------|---------------------|
-| SessionStart loads context | Context Loader | Auto-injects HANDOFF.md + latest retro | Yes |
+| SessionStart loads context | Context Loader | Auto-injects HANDOFF.md + latest retro | Partially, HANDOFF.md dropped by #5168/#5170 |
 | Hook execution logged | All hooks | Audit trail in `.agents/.hook-state/` | Yes, for the survivors |
 | Zero context reading failures | Context Loader | Eliminates manual context loading requirement | Yes |
 | PreToolUse blocks false completion | False Completion Gate | Blocks commit/PR without test evidence | No, retired by #3184 |

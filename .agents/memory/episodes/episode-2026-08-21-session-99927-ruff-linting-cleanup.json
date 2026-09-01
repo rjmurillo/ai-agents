@@ -1,0 +1,297 @@
+{
+  "id": "episode-2026-08-21-session-99927-ruff-linting-cleanup",
+  "session": "2026-08-21-session-99927-ruff-linting-cleanup",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Drive repo-wide ruff violations to zero and convert the existing whole-tree count ratchet into a zero gate so the clean state is enforced rather than documented.",
+  "decisions": [
+    {
+      "id": "d001",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "design",
+      "context": "",
+      "chosen": "Chose to lower scripts/ci/ruff_count_baseline.txt from 27 to 0 instead of adding a second guard mechanism.",
+      "rationale": "",
+      "outcome": "success",
+      "effects": []
+    }
+  ],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Ran uv run ruff check . repo-wide rather than only the eight violations quoted in the request.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Checked why SIM103 and E501 fired under packages/ when pyproject.toml waives both for packages/**/*.py.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Confirmed the three RUF100 findings were genuinely dead before deleting the directives.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reflowed two E501 lines in scripts/migrations/req003_inline_plugin_root_bootstrap.py, one inside a compiled regex and one inside the generated-code template NEW_TEMPLATE.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Wrapped two E501 lines in .agents/security/benchmarks/vulnerable_samples/cwe22_path_traversal.py.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Searched for existing ruff guard infrastructure before proposing a new one.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Chose to lower scripts/ci/ruff_count_baseline.txt from 27 to 0 instead of adding a second guard mechanism.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Hit a pre-commit block from branch-context-policy on the first commit.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Proved the zero baseline is enforcement rather than documentation by injecting an E501 and running the ratchet.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "pre_pr.py reported three failures on the first run: Generated Artifact Staleness, Mypy Changed Files, and Session End Validation.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Noted that a bare uv run mypy over the changed set is not the gate.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-21T16:50:26+00:00",
+      "type": "commit",
+      "content": "Commit: 611af7893f3fdb3c7b7ce00835d7f438dc8368be",
+      "caused_by": [],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reverted this branch's edits to the two security benchmark sample files.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-21T16:56:37+00:00",
+      "type": "commit",
+      "content": "Commit: 839eb53a44032f34a9a1b9076dcb276c4dca539e",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "python-tests failed the pre-push gate on tests/ci/test_validate_vendor_provenance.py::test_workflow_sets_up_uv, a workflow this branch never touched.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-21T17:10:49+00:00",
+      "type": "commit",
+      "content": "Commit: 8e88e13ba66770cf0a05f317c88226960723f424",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-21T17:50:20+00:00",
+      "type": "commit",
+      "content": "Commit: a7306bb6f8bd1f6ee1ff14819f92b0d9cff9a864",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-21T18:28:00+00:00",
+      "type": "commit",
+      "content": "Commit: ccd2c41c278c0108040a2a12d32ddec5d5f35de6",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified and fixed two Copilot review findings on PR #5227: the benchmark ruff waiver covered the whole .agents/security/benchmarks/**/*.py tree, but the noqa directives and long lines it exists to waive live only under vulnerable_samples/; and lefthook's python-lint-count-ratchet job triggered only on **/*.py, while ruff_count_ratchet.py's own _SCAN_GLOBS also cover *.pyi and *.ipynb, and a ruff config edit in pyproject.toml can move the count without touching any .py file.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-21T18:46:55+00:00",
+      "type": "commit",
+      "content": "Commit: bf81d95c5ac09deefc52ca16c82c5746482b638f",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Cursor Bugbot's autofix pushed a converse wiring test (_SCAN_GLOBS to lefthook glob), verified correct and synced locally. A follow-up Copilot review then found the bare 'pyproject.toml' entry added in the prior round still misses nested configs: packages/semantic-hooks/pyproject.toml declares its own [tool.ruff], so a push touching only that file could move the whole-tree count while both the lefthook job and pytest.yml's dorny/paths-filter (same bare 'pyproject.toml' entry) skip.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-21T19:51:21+00:00",
+      "type": "commit",
+      "content": "Commit: 281a94b941d70579ba37ae2afeb727fd642d7106",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A further Copilot review on commit 903513da3 found the pre-push glob still misses a lockfile-only Ruff upgrade: python-lint-count-ratchet runs ruff from the frozen uv environment, so a uv.lock-only change can move the whole-tree count without touching any .py, .pyi, .ipynb, or pyproject.toml file, while pytest.yml's CI path filter already lists uv.lock (line 90).",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-21T20:20:53+00:00",
+      "type": "commit",
+      "content": "Commit: 1965b262fe455d30f8274a9c13c5be4f9ed81600",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-21T00:00:00+00:00",
+      "type": "milestone",
+      "content": "A further Copilot review on commit 1d99431fd found both gates still miss the alternate Ruff config filenames ruff.toml and .ruff.toml: ruff resolves config from pyproject.toml, ruff.toml, or .ruff.toml per directory, and neither of the latter two matched any existing glob entry in lefthook.yml or pytest.yml.",
+      "caused_by": [],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-21T20:41:51+00:00",
+      "type": "commit",
+      "content": "Commit: feac6df2ccba6d44c3138511f92c81010d89ac5d",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-ruff-linting-cleanup"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 9,
+    "files_changed": 22
+  },
+  "lessons": []
+}

@@ -1,0 +1,92 @@
+{
+  "id": "episode-2026-08-15-session-15001-fix-4928-pwsh-flake",
+  "session": "2026-08-15-session-15001-fix-4928-pwsh-flake",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix issue #4928: PowerShell runtime contract test flakes under xdist",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Identified root cause",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4928-pwsh-flake"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Applied fix",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4928-pwsh-flake"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Verified stability",
+      "caused_by": [],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4928-pwsh-flake"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T08:55:26+00:00",
+      "type": "commit",
+      "content": "Commit: e94ffd1c20d5ca080df9b04d3d0a062c0fe48903",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4928-pwsh-flake"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T08:55:26+00:00",
+      "type": "commit",
+      "content": "Commit: e94ffd1c20",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-15-session-15001-fix-4928-pwsh-flake"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T10:02:31+00:00",
+      "type": "commit",
+      "content": "Commit: 62730bf58efe9544acc2df1c508fe839d16f1541",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-15001-fix-4928-pwsh-flake"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 1
+  },
+  "lessons": []
+}

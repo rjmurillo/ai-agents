@@ -23,7 +23,6 @@ Agents invoke skills internally. You do not call skills directly.
 | Category | Purpose |
 |----------|---------|
 | [GitHub Operations](#github-operations) | PR management, issue operations, URL handling |
-| [Session Management](#session-management) | Session lifecycle, validation, migration |
 | [Memory and Knowledge](#memory-and-knowledge) | Memory search, curation, exploration, enhancement |
 | [Security](#security) | Scanning, detection, threat modeling, CodeQL |
 | [Code Quality](#code-quality) | Style enforcement, taste lints, golden principles, code-qualities assessment, incoherence detection, codebase analysis |
@@ -49,24 +48,6 @@ PR review coordinator. Gathers comment context, acknowledges feedback, and track
 ### github-url-intercept
 
 Intercepts GitHub URLs in user input and routes them to the appropriate skill or `gh` CLI command instead of raw web fetches.
-
-## Session Management
-
-### session-init
-
-Creates protocol-compliant JSON session logs with verification gates. Run at the start of every session.
-
-### session-end
-
-Validates and completes session logs before commit. Auto-populates required fields and runs validation checks.
-
-### session-log-fixer
-
-Fixes session protocol validation failures in GitHub Actions. Diagnoses and repairs malformed session log JSON.
-
-### session
-
-Session management and protocol compliance. Provides session lifecycle operations and investigation-only QA skip eligibility checks per ADR-034. Absorbs the former session-qa-eligibility skill (Issue #1946).
 
 ## Memory and Knowledge
 

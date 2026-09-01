@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import subprocess
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -27,10 +27,17 @@ QA_EVIDENCE_PREFIXES = (
 
 @dataclass(frozen=True, slots=True)
 class QaBinding:
-    """Session and commit identity that QA evidence must match."""
+    """Session and commit identity that QA evidence must match.
+
+    ``inconsistency`` is not part of that identity. It carries a
+    human-readable note about how ``commit`` was selected, set only when the
+    session log's two commit fields disagreed and one had to win (ADR-102).
+    Callers surface it as a warning; nothing branches on it.
+    """
 
     session_log: str
     commit: str
+    inconsistency: str | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,30 +177,66 @@ def session_qa_binding(
     if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(
         comparison_head
     ):
+        # comparison.head wins when both fields resolve, and a disagreement is
+        # reported rather than rejected (ADR-102, issue #5217). This is not
+        # because the two fields naturally diverge: PR #4954 independently
+        # documented the endingCommit-follows-comparison.head hand-sync
+        # pattern, though that finding was never fixed by a commit, so it
+        # does not appear in a HEAD-scoped corpus walk (ADR-102 Measured
+        # Incidence: 44 edits, 32 commits, 36 agreeing, all either
+        # first-commit creations or unrelated field backfills). That's why
+        # the raise is replaced with a diagnostic rather than kept:
+        # comparison.head is the field QA rebinding advances past the
+        # session's own last authored commit
+        # (session-log.schema.json's commitHead field exists to preserve that
+        # ownership), while endingCommit advances on its own schedule, a
+        # follow-up commit re-pointed after a rebase (.claude/rules/
+        # session-logs.md MUST 2 and MUST 3).
+        #
+        # Both SHAs below have already passed _FULL_COMMIT_PATTERN, so the
+        # message cannot carry unvalidated session-log content.
+        inconsistency = None
         if resolved_ending is not None and comparison_head != resolved_ending:
-            raise ValueError(
-                "Session log comparison head and endingCommit resolve to "
-                "different commits"
+            inconsistency = (
+                "Session log comparison head and endingCommit are different "
+                f"full commit SHAs ({comparison_head} != {resolved_ending}); "
+                "binding QA evidence to comparison head"
             )
-        return QaBinding(session_log=session_log, commit=comparison_head)
+        return QaBinding(
+            session_log=session_log,
+            commit=comparison_head,
+            inconsistency=inconsistency,
+        )
     if resolved_ending is not None:
         return QaBinding(session_log=session_log, commit=resolved_ending)
 
     raise ValueError("Session log must resolve a full 40-character QA commit")
 
 
-def validate_qa_report(path: Path, expected: QaBinding) -> QaReport:
-    """Require a passing QA report bound to the expected session and commit."""
+def validate_qa_report(
+    path: Path, expected: QaBinding, *, head: str, repo_root: Path
+) -> QaReport:
+    """Require a passing QA report bound to the expected session, and not stale.
+
+    ``head`` is the commit to check staleness against (ADR-096). A real
+    (non-evidence-path) change between ``report.commit`` and ``head`` is a
+    hard failure. A commit range containing only paths under
+    ``QA_EVIDENCE_PREFIXES`` (a pure rebind, session-log touch-up, or other
+    bookkeeping commit) is not. ``head`` is required, not optional: an
+    earlier design let a caller supply no head and silently skip staleness
+    checking entirely (issue #5164 round-1 review), which this signature
+    makes impossible to construct.
+    """
     report = load_qa_report(path)
     if report.session_log != expected.session_log:
         raise ValueError(
             "QA report session log does not match current session: "
             f"{report.session_log} != {expected.session_log}"
         )
-    if report.commit != expected.commit:
+    changed = post_qa_code_changes(report.commit, head, repo_root=repo_root)
+    if changed:
         raise ValueError(
-            "QA report commit does not match current session commit: "
-            f"{report.commit} != {expected.commit}"
+            "QA report is stale; code changed after its commit: " + ", ".join(changed)
         )
     return report
 
@@ -222,6 +265,7 @@ def post_qa_code_changes(
         text=True,
         encoding="utf-8",
         errors="replace",
+        timeout=10,
     )
     if ancestor.returncode == 1:
         raise ValueError("QA commit is not an ancestor of validation head")
@@ -245,6 +289,7 @@ def post_qa_code_changes(
         text=True,
         encoding="utf-8",
         errors="replace",
+        timeout=10,
     )
     if changes.returncode != 0:
         raise ValueError("Could not inspect commits after QA")

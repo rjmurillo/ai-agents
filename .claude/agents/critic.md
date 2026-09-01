@@ -3,7 +3,7 @@ name: critic
 description: Constructive reviewer who stress-tests plans before implementation, validates completeness, identifies gaps, catches ambiguity. Challenges assumptions, checks alignment, and blocks approval when risks aren't mitigated. Use when you say "review this plan", "stress-test this plan", "is this plan ready", "poke holes in this", or hand it a plan file or planning artifact and need a clear ready-or-revise verdict. Do NOT use to stress-test a single decision's reasoning (use decision-critic).
 model: opus
 metadata:
-  tier: manager
+  role: coordinator
 argument-hint: Provide the plan file path or planning artifact to review
 ---
 
@@ -126,8 +126,8 @@ When asked to validate PR readiness, check against this list:
 
 - [ ] All acceptance criteria have test evidence
 - [ ] No BLOCKING verdicts unresolved
-- [ ] Commit count ≤ 20 (or commit-limit-bypass label)
-- [ ] Session log present and complete
+- [ ] Commit count is reasonable for the change (advisory only; no hard cap)
+- [ ] Any staged or supplied session log validates
 - [ ] Atomic commits (one logical change each)
 - [ ] No secrets, absolute paths, or internal refs in src/
 

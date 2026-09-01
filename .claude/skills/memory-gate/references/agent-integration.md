@@ -101,7 +101,7 @@ For direct MCP tool access:
 ```python
 # Serena (file-based, always available)
 mcp__serena__list_memories()
-mcp__serena__read_memory(memory_file_name="powershell-arrays")
+mcp__serena__read_memory(memory_file_name="powershell/powershell-array-handling")
 mcp__serena__write_memory(memory_file_name="new-pattern", content="...")
 
 # Forgetful (semantic search, requires service)
@@ -273,7 +273,7 @@ result=$(uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/s
 
 ### Session Start
 
-Per SESSION-PROTOCOL.md, agents MUST:
+At session start, agents SHOULD:
 
 ```python
 # 1. Read mandatory memory (BLOCKING)
@@ -288,7 +288,7 @@ get_episodes(since=datetime.now(UTC) - timedelta(days=7), max_results=5)
 
 ### Session End
 
-Per SESSION-PROTOCOL.md, agents MUST:
+At session end, agents SHOULD:
 
 ```bash
 # 1. Extract episode from session log

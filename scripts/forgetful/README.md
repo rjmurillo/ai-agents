@@ -1,6 +1,6 @@
 # Forgetful Database Export/Import Scripts
 
-PowerShell scripts for exporting and importing the Forgetful SQLite database to/from JSON format.
+Python scripts for exporting and importing the Forgetful SQLite database to/from JSON format.
 
 ## Purpose
 
@@ -45,7 +45,7 @@ True bidirectional sync would require:
 
 ## Scripts
 
-### Export-ForgetfulMemories.ps1
+### export_forgetful_memories.py
 
 Export Forgetful database to JSON format.
 
@@ -64,11 +64,11 @@ python3 scripts/forgetful/export_forgetful_memories.py --topic "memories-only" -
 
 **Parameters:**
 
-- `-OutputFile`: Path to output JSON file (default: `.forgetful/exports/YYYY-MM-DD-session-NNN-topic.json`)
-- `-SessionNumber`: Session number for default filename
-- `-Topic`: Topic for default filename
-- `-DatabasePath`: Path to Forgetful database (default: `~/.local/share/forgetful/forgetful.db`)
-- `-IncludeTables`: Comma-separated table list or 'all' (default: 'all')
+- `--output-file`: Path to output JSON file (default: `.forgetful/exports/YYYY-MM-DD-session-NNN-topic.json`)
+- `--session-number`: Session number for default filename
+- `--topic`: Topic for default filename
+- `--database-path`: Path to Forgetful database (default: `~/.local/share/forgetful/forgetful.db`)
+- `--include-tables`: Comma-separated table list or 'all' (default: 'all')
 
 **Output:**
 
@@ -80,7 +80,7 @@ python3 scripts/forgetful/export_forgetful_memories.py --topic "memories-only" -
 
 Export automatically runs security review script. Must pass before committing to git.
 
-### Import-ForgetfulMemories.ps1
+### import_forgetful_memories.py
 
 Import Forgetful database from JSON format with merge support.
 
@@ -105,17 +105,17 @@ python3 scripts/forgetful/import_forgetful_memories.py --force
 
 **Parameters:**
 
-- `-InputFiles`: Array of JSON file paths (default: all `.json` files in `.forgetful/exports/`)
-- `-DatabasePath`: Path to Forgetful database (default: `~/.local/share/forgetful/forgetful.db`)
-- `-MergeMode`: How to handle existing records:
-  - `Replace` (default): Update existing records with imported values (upsert)
-  - `Skip`: Skip existing records, only insert new ones
-  - `Fail`: Abort if any record already exists
-- `-Force`: Skip confirmation prompt
+- `--input-files`: JSON file paths (default: all `.json` files in `.forgetful/exports/`)
+- `--database-path`: Path to Forgetful database (default: `~/.local/share/forgetful/forgetful.db`)
+- `--merge-mode`: How to handle existing records:
+  - `replace` (default): Update existing records with imported values (upsert)
+  - `skip`: Skip existing records, only insert new ones
+  - `fail`: Abort if any record already exists
+- `--force`: Skip confirmation prompt
 
 **Idempotency:**
 
-Safe to run multiple times. Default mode (`Replace`) uses `INSERT OR REPLACE` for true upsert semantics:
+Safe to run multiple times. Default mode (`replace`) uses `INSERT OR REPLACE` for true upsert semantics:
 
 - New records are inserted
 - Existing records are updated with imported values
@@ -125,9 +125,9 @@ Safe to run multiple times. Default mode (`Replace`) uses `INSERT OR REPLACE` fo
 
 | Mode | SQL Operation | Behavior |
 |------|---------------|----------|
-| `Replace` | `INSERT OR REPLACE` | Upsert: insert new, update existing (default) |
-| `Skip` | `INSERT OR IGNORE` | Insert new only, skip duplicates |
-| `Fail` | `INSERT` | Abort on any duplicate |
+| `replace` | `INSERT OR REPLACE` | Upsert: insert new, update existing (default) |
+| `skip` | `INSERT OR IGNORE` | Insert new only, skip duplicates |
+| `fail` | `INSERT` | Abort on any duplicate |
 
 ## Workflow
 
@@ -201,7 +201,7 @@ Exit code 0 = clean, 1 = sensitive data found (blocks commit)
 
 ## Requirements
 
-- PowerShell 7.5.4+ (cross-platform)
+- Python 3.14+ (this repository's pinned interpreter, per `.python-version`)
 - SQLite3 command-line tool
 - Forgetful MCP server installed and database initialized
 
@@ -215,10 +215,10 @@ Exit code 0 = clean, 1 = sensitive data found (blocks commit)
 
 ### Session Protocol
 
-See `.agents/SESSION-PROTOCOL.md` for session start/end integration:
+See `templates/agents/implementer.shared.md` for session start/end integration:
 
-- **Phase 2.1 (Session Start)**: Import shared memories
-- **Phase 0.5 (Session End)**: Export session memories
+- **Session Start**: Import shared memories
+- **Session End**: Export session memories
 
 ### Team Collaboration
 
@@ -231,8 +231,8 @@ See `.agents/SESSION-PROTOCOL.md` for session start/end integration:
 
 - `.forgetful/exports/README.md` - Workflow documentation
 - `.claude-mem/scripts/` - Claude-Mem export/import (similar pattern)
-- `scripts/Review-MemoryExportSecurity.ps1` - Security scanner
-- ADR-005 - PowerShell-Only Scripting
+- `scripts/review_memory_export_security.py` - Security scanner
+- ADR-005 - PowerShell-Only Scripting (superseded by ADR-042, Python migration strategy)
 - ADR-007 - Memory-First Architecture
 
 ## Troubleshooting
@@ -280,6 +280,6 @@ Import completed with failures: N files failed
 **Solution:**
 
 1. Verify JSON file syntax is valid
-2. Check export was created with `Export-ForgetfulMemories.ps1`
+2. Check export was created with `export_forgetful_memories.py`
 3. Ensure database schema version matches export
 4. Check foreign key constraints are satisfied

@@ -27,6 +27,14 @@ updated: 2026-05-04
 > written. Nothing validates embedded count claims today: the scanner's own
 > count subsystem was also retired in PR #2853 (commit `9c88990b77`).
 
+> [!IMPORTANT]
+> **Retired artifacts, annotated 2026-08-18.** Issue #5154 deleted
+> `push_guard_base.py`, `invoke_markdownlint_guard.py`, and their tests when the
+> push-guard family was retired: markdown linting moved to Git hooks and
+> lefthook, off the per-tool-call path. Text below that creates, tests, or
+> registers those files is no longer actionable. It is kept as a record of the
+> plan as written.
+
 ## Objective
 
 Implement three Claude Code PreToolUse hooks that block `git push` on markdown style violations,
@@ -71,7 +79,7 @@ that this task list inherits, see `.agents/archive/plans/PLAN-1884-pr-iteration-
 |------|--------|-------------|
 | `.claude/hooks/PreToolUse/push_guard_base.py` | Create | Shared framework: lib bootstrap, changeset reading, dispatcher, output formatter |
 | `tests/hooks/__init__.py` | Create (if absent) | Python package marker |
-| `tests/hooks/test_push_guard_base.py` | Create | Unit tests: consumer repo skip, empty stdin, empty diff, exception fail-open, violation output format |
+| `tests/hooks/test_push_guard_base.py` | Create | Unit tests: consumer repo skip, empty stdin, empty diff, exception fail-open, violation output format | <!-- orphan-ref-ignore -->
 
 **Acceptance Criteria**
 
@@ -131,7 +139,7 @@ multi-segment limitation as `fnmatch`.
 | File | Action | Description |
 |------|--------|-------------|
 | `.claude/hooks/PreToolUse/invoke_markdownlint_guard.py` | Create | Hook: binary check, subprocess invocation, violation parsing |
-| `tests/hooks/test_markdownlint_guard.py` | Create | Unit tests: AC-1 through AC-3, AC-8 partial, timeout |
+| `tests/hooks/test_markdownlint_guard.py` | Create | Unit tests: AC-1 through AC-3, AC-8 partial, timeout | <!-- orphan-ref-ignore -->
 | `.claude/hooks/hooks.json` | Modify | Append markdownlint hook entry to `Bash(git push*)` block |
 
 **Acceptance Criteria**
@@ -279,7 +287,7 @@ Run with: `pytest tests/hooks/ -v`
 
 | Milestone | Files | Max files/commit (AGENTS.md limit: 5) |
 |-----------|-------|---------------------------------------|
-| M1 | `push_guard_base.py`, `tests/hooks/__init__.py`, `tests/hooks/test_push_guard_base.py` | 3 |
+| M1 | `push_guard_base.py`, `tests/hooks/__init__.py`, `tests/hooks/test_push_guard_base.py` | 3 | <!-- orphan-ref-ignore -->
 | M2 | `invoke_markdownlint_guard.py`, `test_markdownlint_guard.py`, `hooks.json` | 3 |
 | M3 | `invoke_manifest_count_guard.py`, `test_manifest_count_guard.py`, `hooks.json` | 3 |
 | M4 | `invoke_session_log_field_guard.py`, `test_session_log_field_guard.py`, `hooks.json` | 3 |

@@ -22,7 +22,6 @@
     "voice"
   ],
   "uncovered_skills": [
-    "SkillForge",
     "adr-generator",
     "adr-review",
     "agent-harness-reference",
@@ -69,7 +68,6 @@
     "github",
     "github-url-intercept",
     "golden-principles",
-    "guard-maturity",
     "memory",
     "memory-documentary",
     "memory-enhancement",
@@ -99,10 +97,7 @@
     "security-detection",
     "security-review",
     "serena-code-architecture",
-    "session",
-    "session-end",
-    "session-init",
-    "session-log-fixer",
+    "skillforge",
     "slashcommandcreator",
     "slo-designer",
     "software-engineering-library",

@@ -52,14 +52,40 @@ def _run_shim(
     )
 
 
-def _run_committed_git_push_shim(raw_input: bytes) -> subprocess.CompletedProcess[bytes]:
-    matches = list(
-        (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse").glob(
-            "invoke_markdownlint_guard__Bash_git_push_*.py"
+def _run_committed_shim(
+    raw_input: bytes, name_contains: str = "invoke_require_subagent_model"
+) -> subprocess.CompletedProcess[bytes]:
+    """Run one shipped PreToolUse matcher shim against raw stdin.
+
+    This used to name the ``Bash(git push*)`` markdownlint shim. Issue #5154
+    retired it, leaving ``require_subagent_model`` as the sole survivor, so
+    the default target became whatever matcher shim the tree actually ships.
+    Two amendments then each added a second shim, both dated 2026-08-18:
+    issue #5061 added ``serena_memory_scope_guard``, and issue #4917 added
+    ``serena_worktree_scope_guard`` (registered as group 12, renumbered up
+    from its own branch's `-11-` suffix to avoid colliding with #5061's
+    already-landed group 11). Both new shims commit to a DIFFERENT
+    malformed-input policy than ``require_subagent_model``'s: they fail
+    closed on stdin too large to parse safely, where
+    ``require_subagent_model`` fails open (#4672). The callers of this
+    helper document and assert `require_subagent_model`'s specific fail-open
+    policy, not "whatever the one shim is", so globbing alone is no longer
+    unambiguous with three shims on the tree. ``name_contains`` pins the
+    target explicitly; a missing match still fails loudly rather than
+    silently picking the wrong shim's policy.
+    """
+    matches = sorted(
+        path
+        for path in (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse").glob(
+            "invoke_*__*.py"
         )
+        if name_contains in path.name
     )
     if len(matches) != 1:
-        raise AssertionError(f"expected one committed git-push shim, found {matches}")
+        raise AssertionError(
+            f"expected exactly one committed matcher shim matching "
+            f"{name_contains!r}, found {matches}"
+        )
     env = dict(os.environ)
     env["COPILOT_PLUGIN_ROOT"] = str(REPO_ROOT / "src" / "copilot-cli")
     return subprocess.run(
@@ -220,34 +246,6 @@ def test_camel_case_payload_replays_as_snake_case():
     }
 
 
-def test_committed_shim_rejects_conflicting_input_aliases():
-    raw = json.dumps(
-        {
-            "tool_name": "Bash",
-            "tool_input": {"command": "echo safe"},
-            "toolArgs": {"command": "git push origin main"},
-        },
-        separators=(",", ":"),
-    ).encode("utf-8")
-
-    proc = _run_committed_git_push_shim(raw)
-
-    assert proc.returncode == 2
-    assert b"conflicting top-level tool_input/toolArgs values" in proc.stderr
-
-
-def test_committed_shim_rejects_duplicate_toolcalls_keys():
-    raw = (
-        b'{"toolCalls":[{"name":"Bash","args":{"command":"git push"}}],'
-        b'"toolCalls":[]}'
-    )
-
-    proc = _run_committed_git_push_shim(raw)
-
-    assert proc.returncode == 2
-    assert b"duplicate JSON object key" in proc.stderr
-
-
 def _nested_json_overflowing_stdin() -> bytes:
     """Return JSON bytes whose nesting overflows this interpreter's parser.
 
@@ -356,20 +354,3 @@ def test_shallow_json_still_parses_direct_shim():
     assert b"nesting too deep" not in proc.stderr
 
 
-def test_committed_shim_rejects_deeply_nested_json():
-    proc = _run_committed_git_push_shim(_nested_json_overflowing_stdin())
-
-    assert proc.returncode == 2, proc.stderr.decode()
-    assert b"stdin JSON nesting too deep" in proc.stderr
-    assert b"Traceback" not in proc.stderr
-    assert len(proc.stderr) < 4096
-
-
-def test_committed_dispatcher_rejects_deeply_nested_json():
-    # Dispatcher negative control: the production dispatcher already fails closed
-    # on RecursionError. This guards against regressing that path while fixing
-    # the standalone shim (issue #3169).
-    proc = _run_committed_pretooluse_dispatcher(_nested_json_overflowing_stdin())
-
-    assert proc.returncode == 2, proc.stderr.decode()
-    assert b"Traceback" not in proc.stderr

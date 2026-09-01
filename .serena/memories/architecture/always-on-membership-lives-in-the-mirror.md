@@ -15,18 +15,18 @@ generated tree. Parsing `.claude/rules/*.md` gives a wrong answer, wrong in both
 directions.
 
 There is also no single answer per tree by default, so always name the tree with
-the number. The two destination trees agree today, measured on this branch after the universal rule gained the same-checker item:
+the number. The two destination trees agree today, measured on this branch after `session-logs` dropped its optional-session-log mention from `knowledge-persistence`:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 7 rules, 70,233 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,233 bytes |
+| `.github/instructions` | Copilot in this repository | 7 rules, 70,471 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,471 bytes |
 
 Membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`,
 `knowledge-persistence`, `search-before-building`, `universal`, `voice`.
 
 Those bytes are whole generated files, frontmatter included. The same seven
-rules measure 70,349 bytes at `.claude/rules/`, 116 more, because the generator
+rules measure 70,587 bytes at `.claude/rules/`, 116 more, because the generator
 drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. Name the
 tree whenever you quote a figure; a gap of about that size is a basis mismatch,
 not staleness.
@@ -37,7 +37,7 @@ a rule whose scope was entirely internal, which made `governance`,
 install 7,532 bytes a turn on three rules pointing at `.agents/` paths the
 installing repository does not have. PR #4426 replaced that fallback with an
 explicit skip, so those rules are absent from the plugin tree rather than
-universalized in it. The plugin ships 23 instruction files against 27 in
+universalized in it. The plugin ships 23 instruction files against 28 in
 `.github/instructions`, and that gap is the fix, not drift.
 
 `tests/validation/test_always_on_corpus_claims.py` pins the two trees together

@@ -29,59 +29,59 @@
     "session": [
       {
         "prompt": "I am about to commit but staged only investigation artifacts. Can I skip QA?",
-        "expected": "Per ADR-034, yes. Use Test-InvestigationEligibility to validate staged files match the investigation allowlist (.agents/sessions/, .agents/analysis/, .serena/memories/). Mark verdict SKIPPED investigation-only with evidence."
+        "expected": "session skill was DELETED 2026-08-20 (Issue #5138), along with session-init, session-end, and session-log-fixer. Per ADR-034, run scripts/validation/test_investigation_eligibility.py to validate staged files match the investigation allowlist (.agents/sessions/, .agents/analysis/, .serena/memories/). Mark verdict SKIPPED investigation-only with evidence."
       },
       {
         "prompt": "What allowlist paths qualify a session for investigation-only QA exemption?",
-        "expected": ".agents/sessions/, .agents/analysis/, .agents/retrospective/, .serena/memories/, .agents/security/. Code or config staged disqualifies."
+        "expected": ".agents/sessions/, .agents/analysis/, .agents/retrospective/, .serena/memories/, .agents/security/. Code or config staged disqualifies. The canonical allowlist lives in scripts/modules/investigation_allowlist.py."
       },
       {
         "prompt": "List the session protocol gates that fire at session start, mid, pre-PR, and end.",
-        "expected": "Start: Serena init, HANDOFF.md, session log. Mid: commit count budget. Pre-PR: pre_pr.py, security scan. End: complete log, preserve HANDOFF, lint, commit, validate JSON."
+        "expected": "Start: Serena init, HANDOFF.md, branch check. Mid: commit count budget. Pre-PR: pre_pr.py and security scan. End: preserve HANDOFF, update per-issue handoff and Serena memory, lint, commit. Session logs are optional and validate only when staged or supplied. See templates/agents/implementer.shared.md."
       },
       {
         "prompt": "Do I create the session log at session start or end?",
-        "expected": "At start. Use session-init skill to create JSON under .agents/sessions/YYYY-MM-DD-session-NN.json. Update through session, validate at end with session-end."
+        "expected": "Neither by default, and no skill does this for you anymore (session-init and session-end were deleted 2026-08-20, Issue #5138). Session logs are optional; write one by hand against .agents/schemas/session-log.schema.json when you opt in, then validate it with scripts/validate_session_json.py."
       },
       {
-        "prompt": "What command runs Test-InvestigationEligibility for ADR-034 compliance?",
-        "expected": "session skill exposes Test-InvestigationEligibility. Run before commit when staged files appear to be docs/investigation. Returns eligibility verdict for the investigation-only QA skip."
+        "prompt": "What command runs the investigation eligibility check for ADR-034 compliance?",
+        "expected": "scripts/validation/test_investigation_eligibility.py (the session skill that used to expose this was deleted 2026-08-20, Issue #5138). Run before commit when staged files appear to be docs/investigation. Returns eligibility verdict for the investigation-only QA skip."
       },
       {
         "prompt": "Where do session protocol rules live in this repo?",
-        "expected": ".agents/SESSION-PROTOCOL.md is canonical. AGENTS.md > Session Protocol Gates summarizes. ADR-007 governs session log requirement."
+        "expected": ".agents/SESSION-PROTOCOL.md was deleted 2026-08-20 (Issue #5138). templates/agents/implementer.shared.md carries the session start/end checklist; .claude/rules/session-logs.md covers optional session-log mechanics; AGENTS.md summarizes active gates."
       }
     ],
     "session-qa-eligibility": [
       {
         "prompt": "Staged files include .agents/sessions/2026-05-09-session-01.json and one .py change. Investigation-only exempt?",
-        "expected": "Use the session skill (session-qa-eligibility was folded into session per Issue #1946). Answer: No. A staged .py disqualifies; investigation-only requires ALL staged files to be investigation artifacts."
+        "expected": "Run scripts/validation/test_investigation_eligibility.py (session-qa-eligibility was folded into the session skill in Issue #1946, and the session skill itself was deleted 2026-08-20, Issue #5138). Answer: No. A staged .py disqualifies; investigation-only requires ALL staged files to be investigation artifacts."
       },
       {
         "prompt": "Which skill checks the investigation-only QA skip now?",
-        "expected": "The session skill. The former session-qa-eligibility skill was folded into session (Issue #1946); Test-InvestigationEligibility and the ADR-034 allowlist now live in the session skill."
+        "expected": "No skill does. session-qa-eligibility was folded into session (Issue #1946), and session was deleted 2026-08-20 (Issue #5138). Test-InvestigationEligibility and the ADR-034 allowlist now live in scripts/validation/test_investigation_eligibility.py and scripts/modules/investigation_allowlist.py."
       },
       {
         "prompt": "I see references to a session-qa-eligibility skill. Does it still exist?",
-        "expected": "No. session-qa-eligibility was folded into the session skill (Issue #1946), not deleted outright. Route eligibility checks to the session skill, which owns the canonical ADR-034 allowlist."
+        "expected": "No. session-qa-eligibility was folded into the session skill (Issue #1946), and session was deleted outright 2026-08-20 (Issue #5138). Route eligibility checks to scripts/validation/test_investigation_eligibility.py, which owns the canonical ADR-034 allowlist."
       },
       {
         "prompt": "What evidence string does the investigation skip emit?",
-        "expected": "SKIPPED investigation-only, emitted via the session skill. The pre-commit hook recognizes this verbatim verdict and bypasses QA validation."
+        "expected": "SKIPPED investigation-only. Emitted by hand-written session-log evidence or by the transcript/PR record; no skill produces it anymore. The pre-commit hook recognizes this verbatim verdict and bypasses QA validation."
       }
     ],
     "session-migration": [
       {
         "prompt": "We have legacy markdown session logs. How do we migrate to JSON?",
-        "expected": "session-migration skill was SUNSET 2026-06-03 (M2, Issue #1946). New session logs are created as JSON directly by the session-init skill. Legacy .md logs under .agents/sessions/ still exist as archive content; do not modify them expecting auto-conversion, because the conversion path no longer exists."
+        "expected": "session-migration skill was SUNSET 2026-06-03 (M2, Issue #1946). New session logs are optional and written directly as JSON by hand against .agents/schemas/session-log.schema.json; the session-init skill that once created them was itself deleted 2026-08-20 (Issue #5138). Legacy .md logs under .agents/sessions/ still exist as archive content; do not modify them expecting auto-conversion, because the conversion path no longer exists."
       },
       {
         "prompt": "What is the JSON schema target for session logs?",
-        "expected": "Schema enforced by scripts/validate_session_json.py. Required fields include session id, date, branch, gates, evidence, end-of-session validation. session-init produces a compliant JSON log; the session-migration skill no longer exists."
+        "expected": "Schema enforced by scripts/validate_session_json.py, described in .agents/schemas/session-log.schema.json. Required fields include session id, date, branch, gates, evidence, end-of-session validation. Write a compliant JSON log by hand; no skill produces one (session-init was deleted 2026-08-20, Issue #5138)."
       },
       {
         "prompt": "Can I run the session-migration skill on a single legacy markdown file?",
-        "expected": "No. session-migration was deleted 2026-06-03 (Issue #1946). New markdown session logs are not produced anymore, and the legacy conversion path no longer exists. Create new logs as JSON with session-init."
+        "expected": "No. session-migration was deleted 2026-06-03 (Issue #1946). New markdown session logs are not produced anymore, and the legacy conversion path no longer exists. Session logs are now optional, hand-written JSON."
       },
       {
         "prompt": "Why was the session log format changed from markdown to JSON?",
@@ -89,37 +89,37 @@
       },
       {
         "prompt": "I found references to a session-migration skill. Does it still exist?",
-        "expected": "No. Directory .claude/skills/session-migration/ was deleted 2026-06-03 (M2 prune, Issue #1946). Update any legacy reference: session-init creates JSON logs; no markdown-to-JSON conversion step remains."
+        "expected": "No. Directory .claude/skills/session-migration/ was deleted 2026-06-03 (M2 prune, Issue #1946). Update any legacy reference: session logs are now optional, hand-written JSON validated by scripts/validate_session_json.py; no markdown-to-JSON conversion step remains."
       },
       {
         "prompt": "How do I convert old markdown session logs in .agents/sessions/ to JSON now?",
-        "expected": "You do not. Legacy .md session logs remain archive content that git already preserves, and the session-migration skill that converted them was deleted 2026-06-03 (Issue #1946). Create new logs as JSON with session-init; do not edit archived markdown logs expecting conversion."
+        "expected": "You do not. Legacy .md session logs remain archive content that git already preserves, and the session-migration skill that converted them was deleted 2026-06-03 (Issue #1946). Write new logs by hand as JSON against .agents/schemas/session-log.schema.json; do not edit archived markdown logs expecting conversion."
       }
     ],
     "session-log-fixer": [
       {
         "prompt": "GitHub Actions failed with verdict NON_COMPLIANT on Session Protocol Validation. How do I diagnose?",
-        "expected": "Use session-log-fixer skill. With deterministic validation, Job Summary lists exact MUST requirements that failed. No artifact downloads needed."
+        "expected": "The Session Protocol Validation workflow is retired, and session-log-fixer itself was deleted 2026-08-20 (Issue #5138). For an existing staged or supplied log, run scripts/validate_session_json.py locally and hand-fix whatever it reports against .agents/schemas/session-log.schema.json."
       },
       {
         "prompt": "Session Protocol Results job failed for session validation. What does the skill recommend?",
-        "expected": "Read the Job Summary from the failed run. Each missing requirement is named explicitly. Fix the session JSON locally, push, rerun."
+        "expected": "No skill exists for this anymore (session-log-fixer was deleted 2026-08-20, Issue #5138). Run scripts/validate_session_json.py against the existing log locally, repair its reported fields by hand, and revalidate."
       },
       {
         "prompt": "Session JSON missing 'end' evidence. Skill guidance?",
-        "expected": "Fixer guides adding end-of-session evidence: commit SHA, lint results, memory updates, validator pass. Use session-end skill to populate then commit."
+        "expected": "session-log-fixer was deleted 2026-08-20 (Issue #5138). For an existing optional log, fix it by hand: add only evidence supported by the transcript, handoff, repository state, or PR, then re-run scripts/validate_session_json.py. Never fabricate missing evidence."
       },
       {
         "prompt": "How does session-log-fixer differ from session-end?",
-        "expected": "session-end populates end-of-session evidence pre-commit. session-log-fixer triages and repairs CI failures after the fact when validation fails server-side."
+        "expected": "Neither exists anymore; both were deleted 2026-08-20 (Issue #5138). What they did now happens by hand: complete or repair the optional log directly against .agents/schemas/session-log.schema.json, then validate with scripts/validate_session_json.py. Neither creates a required gate artifact."
       },
       {
         "prompt": "Do I need to download the workflow artifact to fix session validation?",
-        "expected": "No. Deterministic validation surfaces failures directly in Job Summary. Read summary, edit JSON, push."
+        "expected": "No. The workflow and job summary are retired. Run scripts/validate_session_json.py locally against the existing optional log and fix it by hand; no session-log-fixer skill exists (deleted 2026-08-20, Issue #5138)."
       },
       {
         "prompt": "What error pattern does the fixer recognize?",
-        "expected": "MUST requirement(s) not met, NON_COMPLIANT verdict, Session Protocol Results job failure in Session Protocol Validation workflow."
+        "expected": "There is no fixer skill anymore (deleted 2026-08-20, Issue #5138). scripts/validate_session_json.py reports the same failure classes it always has: malformed JSON, schema mismatch, invalid branch or commit metadata, or unsupported evidence. Fix those by hand."
       }
     ],
     "memory": [
@@ -145,7 +145,7 @@
       },
       {
         "prompt": "What is the memory-first rule from ADR-007?",
-        "expected": "Query memory before reasoning. Pre-training is last resort. Read first, reason second. Evidence in session log."
+        "expected": "Query memory before reasoning. Pre-training is last resort. Read first, reason second. Record continuity in Serena memory and the per-issue handoff."
       }
     ],
     "memory-search": [

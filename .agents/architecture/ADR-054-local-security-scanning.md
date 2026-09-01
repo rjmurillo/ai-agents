@@ -1,3 +1,14 @@
+---
+id: ADR-054
+status: accepted
+date: 2026-07-20
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-054: Local Security Scanning
 
 **Status**: Accepted (amended 2026-05-02)

@@ -447,7 +447,7 @@ git push
 - GitHub CLI (`gh`) authenticated with appropriate permissions
 - Git configured with push access to feature branches
 - Multi-agent system configured (see `AGENTS.md`)
-- Session protocol compliance (see `.agents/SESSION-PROTOCOL.md`)
+- Session start/end compliance (see `templates/agents/implementer.shared.md`)
 - Access to create and assign issues
 - Access to create pull requests
 
@@ -455,4 +455,4 @@ git push
 
 - [Autonomous PR Monitor](./autonomous-pr-monitor.md) - Monitoring and fixing open PRs
 - [AGENTS.md](../AGENTS.md) - Agent system documentation
-- [SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md) - Session requirements
+- [`.claude/rules/session-logs.md`](../.claude/rules/session-logs.md) - Session log mechanics

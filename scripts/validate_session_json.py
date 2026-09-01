@@ -10,9 +10,9 @@ Two layers run, and they own different questions:
   complete, that its evidence is not an empty string, that a branch name and a
   commit SHA look like one. A JSON Schema cannot express those.
 
-Scope: this validates the one file it is handed. Both call sites
-(``git_hook_policy.validate_branch_sessions`` and the ai-session-protocol
-workflow) pass only session logs changed on the branch, so enabling schema
+Scope: this validates the one file it is handed. Its call site
+(``git_hook_policy.validate_branch_sessions``) passes only session logs changed
+on the branch, so enabling schema
 enforcement binds new and edited logs. Logs written before enforcement are not
 re-validated; editing one surfaces its violations, which is the intended signal.
 
@@ -33,7 +33,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -51,7 +51,6 @@ sys.path.insert(0, str(_CLAUDE_LIB_DIR))
 
 from paths import artifact_dir  # noqa: E402
 from qa_report import (  # noqa: E402
-    post_qa_code_changes,
     session_log_identity,
     session_qa_binding,
     validate_qa_report,
@@ -125,12 +124,13 @@ _BRANCH_EVIDENCE_ITEMS = ("branchVerified", "notOnMain", "verifyBranch")
 
 # Minimum required session start items (must exist in every session log).
 #
-# Kept in lockstep with every item ``new_session_log_json.py`` emits at
-# ``"level": "MUST"``. Four MUST items were absent from this set (issue #4405),
-# which made the gate strictly easier to satisfy by deleting a checklist item
-# than by completing it: a deleted key was silent, an incomplete key failed.
-# ``test_every_generator_must_item_is_required`` pins the two lists together so
-# this cannot drift again the next time an item is added to either side.
+# Four MUST items were once absent from this set (issue #4405), which made
+# the gate strictly easier to satisfy by deleting a checklist item than by
+# completing it: a deleted key was silent, an incomplete key failed. This is
+# the sole source of truth for the checklist shape now; the generator this
+# comment used to pin against (``new_session_log_json.py``) was deleted with
+# the session-init skill (issue #5138), so a session log's checklist is
+# written by hand and validated directly against this set.
 SESSION_START_REQUIRED_ITEMS = frozenset(
     {
         "serenaActivated",
@@ -159,14 +159,19 @@ SESSION_END_REQUIRED_ITEMS = frozenset(
     }
 )
 
-# .agents/SESSION-PROTOCOL.md defines these exact QA exemption values:
-# "SKIPPED: docs-only" and "SKIPPED: investigation-only".
-_QA_SKIP_EVIDENCE = frozenset(
-    {
-        "SKIPPED: docs-only",
-        "SKIPPED: investigation-only",
-    }
-)
+# Each QA exemption value owns one scope checker script (under
+# scripts/validation/) and one label used in error messages. Both are
+# verified the same way: run the checker over the recorded commit range,
+# fail closed on any checker error, and report violations by path. See
+# validate_qa_skip_scope.
+_QA_SKIP_CHECKERS = {
+    "SKIPPED: docs-only": ("test_docs_only_eligibility.py", "docs-only"),
+    "SKIPPED: investigation-only": (
+        "test_investigation_eligibility.py",
+        "investigation-only",
+    ),
+}
+_QA_SKIP_EVIDENCE = frozenset(_QA_SKIP_CHECKERS)
 
 # Evidence patterns that contradict a "complete: true" claim
 CONTRADICTION_PATTERNS = re.compile(
@@ -298,9 +303,9 @@ _MUST_NOT_VIOLATED_PREFIX = "MUST NOT violated: "
 # that matter most (issue #3747).
 _MISSING_LEVEL_PREFIX = "Missing level: "
 
-# SESSION-PROTOCOL.md line 20 already states that deviation from a MUST
-# "requires documented justification". Enforcing that sentence is what closes
-# the demotion bypass: an author can still declare a required item SHOULD when
+# A demotion from MUST to SHOULD requires documented justification.
+# Enforcing that rule is what closes the demotion bypass: an author can
+# still declare a required item SHOULD when
 # the harness genuinely cannot satisfy it, but the deviation has to be written
 # down and attributable. Measured over the corpus, all 257 existing demotions
 # already carry evidence, so this enforces current practice rather than
@@ -348,19 +353,22 @@ def validate_session_section(session: dict[str, Any], result: ValidationResult) 
     if isinstance(branch, str) and branch and not BRANCH_PATTERN.match(branch):
         result.warnings.append(f"Branch '{branch}' doesn't follow conventional naming")
 
-    # Validate session date is not in the future. A future date means the agent
-    # wrote tomorrow's date or a placeholder; the log will be invisible to
-    # branch-context-policy date filtering (issue #3717).
+    # The creator records its host-local date (issue #4779). UTC+14 is the
+    # furthest possible host offset, so reject dates later than the date there
+    # at this instant as physically impossible (issue #3717).
     session_date_str = session.get("date")
     if isinstance(session_date_str, str):
         try:
             session_date = date.fromisoformat(session_date_str)
-            today = datetime.now(tz=timezone.utc).date()
-            if session_date > today:
+            now_utc = datetime.now(tz=timezone.utc)
+            latest_host_date = (now_utc + timedelta(hours=14)).date()
+            if session_date > latest_host_date:
                 result.errors.append(
                     f"Session date '{session_date_str}' is in the future "
-                    f"(today is {today.isoformat()}); branch-context-policy "
-                    "will not pick up this log"
+                    f"(later than the latest possible host date "
+                    f"{latest_host_date.isoformat()} at {now_utc.isoformat()}); "
+                    "that date is physically impossible for a current host and "
+                    "looks like a placeholder or a wrong date"
                 )
         except ValueError:
             pass  # Schema already rejects non-date strings via its pattern
@@ -721,9 +729,8 @@ def validate_evidence_agrees_with_session(data: dict[str, Any], result: Validati
 
     if "nextSteps" not in data:
         result.warnings.append(
-            "nextSteps is missing; SESSION-PROTOCOL.md lists it as a required "
-            "top-level field. Record the follow-ups, or write [] to state there "
-            "are none"
+            "nextSteps is missing; it is a required top-level field. Record "
+            "the follow-ups, or write [] to state there are none"
         )
 
 
@@ -747,10 +754,9 @@ def _validate_required_item_level(
 
     Demotion stays legal, because a harness can genuinely lack a capability the
     protocol assumes: Serena is not reachable from Copilot CLI, and 61 logs say
-    so. What it may no longer be is silent. SESSION-PROTOCOL.md line 20 already
-    requires documented justification for deviating from a MUST, so an
-    incomplete demoted item without evidence is a protocol failure under the
-    rule as written.
+    so. What it may no longer be is silent. Deviating from a MUST requires
+    documented justification, so an incomplete demoted item without evidence
+    is a protocol failure under the rule as written.
     """
     if level is None:
         result.errors.append(
@@ -767,8 +773,7 @@ def _validate_required_item_level(
         result.errors.append(
             f"{_UNJUSTIFIED_DEMOTION_PREFIX}{section_name}.{item_name} is required "
             f"but declares level {level!r} while incomplete, with no evidence. "
-            "SESSION-PROTOCOL.md requires documented justification to deviate "
-            "from a MUST."
+            "Deviating from a MUST requires documented justification."
         )
 
 
@@ -960,28 +965,35 @@ def validate_qa_report_evidence(
             session_log=session_log,
             resolve_commit=_resolve_full_commit,
         )
-        report = validate_qa_report(resolved_report, binding)
+        # ADR-102: the session log's two commit fields are allowed to
+        # disagree. The equality this replaces would have forced a hand-sync
+        # repair for exactly this drift (PR #4954 documented the pattern,
+        # never fixed by a commit), not the "naturally independent" pattern
+        # an earlier draft assumed. Report the drift and carry on; warnings
+        # do not affect validity
+        # (scripts/validation/models.py). Appended before the report is
+        # validated so the observation survives an unrelated failure below.
+        if binding.inconsistency is not None:
+            result.warnings.append(binding.inconsistency)
+        # ADR-096: `head` is required for staleness checking. Prefer an
+        # explicitly resolved live-HEAD validation head, which catches
+        # staleness from commits after the session's own recorded end
+        # state; fall back to the session's own resolved commit
+        # (`binding.commit`) when no such value is available, rather than
+        # silently skipping the staleness check as the prior optional-
+        # `validation_head` design did. This block runs only on the
+        # fresh-validation path (`not existing_log and not creation_mode`,
+        # see the caller above); the fallback fires when live-HEAD
+        # resolution itself fails (a transient git error, or a checkout
+        # `_resolve_full_commit` cannot parse), not on `--existing-log`,
+        # which never reaches this function at all (round-2 correction,
+        # ADR-096 Decision: round-1 review characterized this as reachable
+        # on `--existing-log`, which the ADR's own gating one level up
+        # rules out).
+        head = validation_head if validation_head is not None else binding.commit
+        validate_qa_report(resolved_report, binding, head=head, repo_root=_PROJECT_ROOT)
     except ValueError as exc:
         result.errors.append(str(exc))
-        return
-
-    if validation_head is None:
-        return
-    try:
-        changed_after_qa = post_qa_code_changes(
-            report.commit,
-            validation_head,
-            repo_root=_PROJECT_ROOT,
-        )
-    except ValueError as exc:
-        result.errors.append(str(exc))
-    else:
-        if not changed_after_qa:
-            return
-        result.errors.append(
-            "QA report is stale; code changed after its commit: "
-            + ", ".join(changed_after_qa)
-        )
 
 
 def validate_protocol_compliance(
@@ -1005,8 +1017,8 @@ def validate_protocol_compliance(
 
 
 # Root fields promoted to schema-required by issue #3763, and the only ones an
-# already-committed log is excused from. SESSION-PROTOCOL.md has listed all six
-# root fields as required since it was written, and build_session_log emits all
+# already-committed log is excused from. All six root fields have been
+# required since the schema was written, and build_session_log emits all
 # six, but the schema named only two, so the schema was the one document
 # disagreeing with both. Renaming an old log still cannot conjure these four,
 # so they relax in record mode (issue #3385).
@@ -1215,19 +1227,13 @@ def _qa_skip_claim(data: object) -> tuple[str, object, object] | None:
     return evidence, starting_commit, data.get("endingCommit")
 
 
-def _investigation_scope_payload(
+def _scope_payload(
+    checker_name: str,
     starting_commit: str,
     ending_commit: str,
 ) -> tuple[dict[str, Any] | None, str | None]:
     """Run the owning eligibility checker for one recorded commit range."""
-    checker = (
-        _PROJECT_ROOT
-        / ".claude"
-        / "skills"
-        / "session"
-        / "scripts"
-        / "test_investigation_eligibility.py"
-    )
+    checker = _PROJECT_ROOT / "scripts" / "validation" / checker_name
     if not checker.is_file():
         return None, f"scope checker not found: {checker}"
 
@@ -1266,44 +1272,36 @@ def validate_qa_skip_scope(
     *,
     validation_head: str | None = None,
 ) -> None:
-    """Verify an investigation-only QA claim through the validation endpoint."""
+    """Verify a docs-only or investigation-only QA claim through its checker."""
     claim = _qa_skip_claim(data)
     if claim is None:
         return
     evidence, starting_commit, ending_commit = claim
-    if evidence == "SKIPPED: docs-only":
-        result.errors.append(
-            "QA docs-only scope cannot be verified automatically; "
-            "provide a QA report"
-        )
-        return
+    checker_name, label = _QA_SKIP_CHECKERS[evidence]
     if not isinstance(starting_commit, str) or not isinstance(ending_commit, str):
         result.errors.append(
-            "QA investigation-only scope cannot be verified: "
+            f"QA {label} scope cannot be verified: "
             "startingCommit and endingCommit are required"
         )
         return
 
-    payload, error = _investigation_scope_payload(
+    payload, error = _scope_payload(
+        checker_name,
         starting_commit,
         validation_head or ending_commit,
     )
     if error:
-        result.errors.append(f"QA investigation-only {error}")
+        result.errors.append(f"QA {label} {error}")
         return
     assert payload is not None
     error = payload.get("Error")
     if error:
-        result.errors.append(
-            f"QA investigation-only scope cannot be verified: {error}"
-        )
+        result.errors.append(f"QA {label} scope cannot be verified: {error}")
         return
     if not payload.get("Eligible", False):
         violations = payload.get("Violations", [])
         detail = ", ".join(str(path) for path in violations) or "unknown changed path"
-        result.errors.append(
-            f"QA investigation-only scope includes non-investigation files: {detail}"
-        )
+        result.errors.append(f"QA {label} scope includes disqualifying changes: {detail}")
 
 
 _FILENAME_NUMBER_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}-session-(\d+)(?:-|$)")
@@ -1336,7 +1334,7 @@ def validate_filename_number(
 ) -> None:
     """Check that ``session.number`` matches the number in the filename.
 
-    session-init derives the log filename from ``session.number`` and downstream
+    The log filename is derived from ``session.number`` and downstream
     tooling reads the number back out of the filename, so the two are one fact
     stored twice. Nothing enforced the agreement, which let an autofix bot seed a
     counter value that disagreed with the name it was written under (issue #3355).

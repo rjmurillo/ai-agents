@@ -51,7 +51,10 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import (
+    GhAuthStatus,
     assert_gh_authenticated,
+    classify_gh_failure_text,
+    is_auth_failure_text,
     resolve_repo_params,
 )
 from github_core.output import (
@@ -195,6 +198,14 @@ def _verify_empty_issue_result(fmt: str) -> None:
 
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip() or "no output"
+        status = classify_gh_failure_text(detail)
+        if status in (GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED):
+            _exit_with_error(
+                f"Could not verify empty issue list: GraphQL rate limit exhausted: {detail}",
+                3,
+                fmt,
+                "RateLimitError",
+            )
         _exit_with_error(
             f"Could not verify empty issue list: GraphQL probe failed: {detail}",
             3,
@@ -220,8 +231,24 @@ def _run_issue_list(list_args: list[str], fmt: str) -> list[object]:
         _exit_with_error("gh CLI not found on PATH.", 3, fmt, "ApiError")
 
     if result.returncode != 0:
+        detail = result.stderr or result.stdout
+        status = classify_gh_failure_text(detail)
+        if status in (GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED):
+            _exit_with_error(
+                f"GraphQL rate limit exhausted: {detail.strip()}",
+                3,
+                fmt,
+                "RateLimitError",
+            )
+        if is_auth_failure_text(detail):
+            _exit_with_error(
+                f"Authentication failure: {detail.strip()}",
+                4,
+                fmt,
+                "AuthError",
+            )
         _exit_with_error(
-            f"Failed to list issues: {result.stderr or result.stdout}",
+            f"Failed to list issues: {detail}",
             3,
             fmt,
             "ApiError",

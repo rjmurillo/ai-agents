@@ -2,8 +2,8 @@
 """Validate Serena memory file sizes.
 
 Thin entry point that delegates to the memory skill's validator.
-Keeps SESSION-PROTOCOL references at the repo level rather than
-reaching into skill internals.
+Keeps repo-level callers pointed at a stable repo-root path rather
+than reaching into skill internals.
 
 Exit codes per ADR-035:
   0 - All files pass validation

@@ -3,7 +3,7 @@ id: ADR-092
 status: accepted
 date: 2026-08-01
 decision-makers: [rjmurillo]
-supersedes: [ADR-079, ADR-091]
+supersedes: [ADR-091]
 superseded-by: null
 explainer: null
 implemented: true
@@ -13,7 +13,9 @@ implemented: true
 
 ## Status
 
-Accepted (2026-08-01). Requested by issue #4080. Supersedes ADR-079, which decided to keep a hand-set `version` in every packaged plugin manifest and to reject every automation that moved the bump.
+Accepted (2026-08-01). Requested by issue #4080. Supersedes ADR-091 directly and reverses ADR-079, which decided to keep a hand-set `version` in every packaged plugin manifest and to reject every automation that moved the bump.
+
+Supersession chain: ADR-079 (2026-07-08) to ADR-091 (2026-07-31) to ADR-092 (2026-08-01). The `supersedes` and `superseded-by` fields name immediate neighbors only, so this record's frontmatter lists ADR-091 alone and ADR-079 is retired transitively; ADR-091's own accepted Status records "Supersedes ADR-079 (Plugin Version Bump Stays at PR Time)." Why this record also reverses ADR-079's reasoning is set out under "Why ADR-079's objection does not apply" and "Why ADR-091 is superseded within hours of landing" below. Refs issue #5192.
 
 ## Date
 

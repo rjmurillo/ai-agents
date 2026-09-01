@@ -42,6 +42,7 @@ from scripts.ci.count_ratchet import (
     EXIT_REGRESSION,
     build_parser,
     chunk,
+    git_environment,
     run,
     tracked_files,
 )
@@ -51,11 +52,24 @@ __all__ = [
     "EXIT_EXTERNAL",
     "EXIT_OK",
     "EXIT_REGRESSION",
+    "MERGE_TREE_BACKED",
     "current_count",
     "main",
 ]
 
 _BASELINE_PATH = Path(__file__).with_name("ruff_count_baseline.txt")
+
+MERGE_TREE_BACKED = True
+"""This baseline is registered in ``merge_tree_ratchet_registry.py::RATCHETS``.
+
+Registration is what lets ``count_ratchet.run`` pass a branch that merely holds
+a number ``main`` lowered underneath it: the merged result is measured by
+``scripts/ci/merge_tree_ratchet_check.py`` instead. Pinned against the registry
+by ``tests/ci/test_merge_tree_backing_declarations.py``. The local
+``count-ratchets`` aggregate and CI merge-tree step both run without path
+filters, so registry membership is the complete backstop eligibility
+invariant.
+"""
 
 # Every extension ruff lints. Kept in lockstep with the workflow paths filter.
 _SCAN_GLOBS = ("*.py", "*.pyi", "*.ipynb")
@@ -137,6 +151,11 @@ def baseline_at_ref(repo_root: Path, ref: str, baseline: Path) -> int | None:
     exceeds the baseline, so raising the baseline in the same PR that adds the
     violations passes as an improvement. Comparing against the base branch is
     what makes the baseline monotonic rather than merely advisory.
+
+    Runs under ``git_environment()`` for the reason recorded there: an exported
+    ``GIT_DIR`` outranks ``-C <root>``, so a push from a linked worktree would
+    resolve ``ref`` in the pushing worktree rather than in ``repo_root``
+    (issue #4914).
     """
     try:
         rel = baseline.resolve().relative_to(repo_root.resolve()).as_posix()
@@ -151,6 +170,7 @@ def baseline_at_ref(repo_root: Path, ref: str, baseline: Path) -> int | None:
             errors="replace",
             encoding="utf-8",
             check=False,
+            env=git_environment(),
         )
     except (FileNotFoundError, OSError) as exc:
         sys.stderr.write(f"git could not be launched: {exc}\n")
@@ -187,6 +207,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "New ruff violations cannot merge; fix them or, if they are "
             "unavoidable, coordinate a baseline change (issue #2993)."
         ),
+        merge_tree_backed=MERGE_TREE_BACKED,
     )
 
 

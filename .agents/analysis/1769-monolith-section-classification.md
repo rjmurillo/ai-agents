@@ -34,10 +34,32 @@ are template/example content, are excluded):
 
 | Monolith | Top-level `##` sections | Lines |
 |----------|-------------------------|-------|
-| `AGENT-SYSTEM.md` | 13 | 1989 |
-| `AGENT-INSTRUCTIONS.md` | 18 | 824 |
-| `SESSION-PROTOCOL.md` | 16 | 1191 |
-| **Total** | **47** | **4004** |
+| `AGENT-SYSTEM.md` | 13 | 1908 |
+| `AGENT-INSTRUCTIONS.md` | 17 | 749 |
+| **Total** | **30** | **2657** |
+
+`SESSION-PROTOCOL.md` (10 sections, 324 lines) was one of the three
+always-loaded monoliths this audit covered; it was deleted 2026-08-20
+(Issue #5138), so its row and section table below are struck from the
+live count. Its classification table is kept for the historical record.
+
+`AGENT-INSTRUCTIONS.md`'s "Notes for Next Session" row below was a real
+top-level section in the pre-edit file, not a scanner defect: the retired
+session-log template nested a ` ```bash ` example inside its outer
+` ```markdown ` fence, and CommonMark does not support fence nesting. The
+first bare ` ``` ` line (closing the inner example) closed the OUTER fence
+too, so everything after it, including "## Notes for Next Session", parsed
+as ordinary document content rather than fenced example content. Verified
+against `markdown-it` (`4.2.0`): parsing the original nested structure
+produces a genuine `heading_open`/`heading_close` pair for "Notes for Next
+Session". `tests/test_monolith_section_classification.py`'s fence-aware
+scanner parsed this correctly per CommonMark; the template's fence
+structure was the defect, not the scanner. Discontinuing session log
+creation deleted that whole malformed template
+(`.claude/rules/session-logs.md` MUST 1), so the phantom heading is gone
+and the true count drops from 31 to 30. Its classification row is kept
+for the historical record, same as the SESSION-PROTOCOL.md convention
+above.
 
 ## Target Rule Files (Phase 2)
 
@@ -80,7 +102,7 @@ owner. The steering files and their scopes:
 |--------------|-------|----------------|---------------|
 | 1. Executive Summary | 33 | PATH-SCOPED-RULE | `agent-catalog.md` (`templates/agents/**,src/claude/**,.claude/agents/**`); compress to system-purpose preamble |
 | 2. Agent Catalog | 744 | PATH-SCOPED-RULE | `agent-catalog.md`; compress 20-agent prose to a table + per-agent key constraints (D7) |
-| 2.5 Agent Tier Hierarchy | 149 | PATH-SCOPED-RULE | `agent-catalog.md`; tier table + escalation rule |
+| 2.5 Agent Coordination | 58 | PATH-SCOPED-RULE | `agent-catalog.md`; role table + ADR-009 escalation rule. Was "2.5 Agent Tier Hierarchy" (149 lines); the tier hierarchy was removed in issue #5130 and the section now quotes ADR-009 verbatim |
 | 3. Workflow Patterns | 282 | PATH-SCOPED-RULE | `workflow-routing.md` (`templates/**,.agents/planning/**`); canonical workflow source is `src/claude/orchestrator.md`, keep pointer |
 | 4. Routing Heuristics | 37 | PATH-SCOPED-RULE | `workflow-routing.md` |
 | 5. Memory and Handoff System | 100 | PATH-SCOPED-RULE | `memory-handoff.md` (`.agents/**,.serena/**`) |
@@ -115,42 +137,44 @@ owner. The steering files and their scopes:
 | Related Documents | KEEP-IN-STEERING | Pointer list; stays as a pointer block in the slimmed monolith |
 | Lessons Learned | PATH-SCOPED-RULE | `memory-handoff.md`; feeds memory/retro, scope to `.agents/**` |
 
-## SESSION-PROTOCOL.md (16 sections, 1191 lines)
+## SESSION-PROTOCOL.md (10 sections, 324 lines): historical, file deleted 2026-08-20
 
 | `##` Section | Classification | Target / glob |
 |--------------|----------------|---------------|
 | RFC 2119 Key Words | ALWAYS-LOAD-RULE | `agent-boundaries.md`; requirement-keyword definitions bind every session |
 | Protocol Enforcement Model | PATH-SCOPED-RULE | `session-protocol.md` (`.agents/sessions/**`); trust vs verification model |
 | Session Start Protocol | PATH-SCOPED-RULE | `session-protocol.md` |
-| Session Start Checklist | PATH-SCOPED-RULE | `session-protocol.md` |
 | Session Mid Protocol | PATH-SCOPED-RULE | `session-protocol.md`; commit-count monitoring |
-| Tier-Based Coordination (BLOCKING for multi-agent sessions) | PATH-SCOPED-RULE | `workflow-routing.md`; multi-agent tier coordination per ADR-009 |
 | Session End Protocol | PATH-SCOPED-RULE | `session-protocol.md` |
-| Session End Checklist | PATH-SCOPED-RULE | `session-protocol.md` |
-| Session Log Template | PATH-SCOPED-RULE | `session-protocol.md`; JSON schema at `.agents/schemas/session-log.schema.json` |
 | Unattended Execution Protocol | PATH-SCOPED-RULE | `session-protocol.md`; autonomous-operation rules |
-| Violation Handling | PATH-SCOPED-RULE | `session-protocol.md` |
 | Validation Tooling | PATH-SCOPED-RULE | `session-protocol.md`; `scripts/validation/` + validator commands |
-| Cross-Reference: Other Documents | KEEP-IN-STEERING | Pointer block; stays in slimmed monolith |
-| Rationale for RFC 2119 | KEEP-IN-STEERING | Rationale prose; collapse into a pointer, not a rule directive |
+| Optional Appendix: JSON Session Log Template | PATH-SCOPED-RULE | `session-protocol.md`; optional JSON schema and validator usage |
 | ADR Cross-Reference | KEEP-IN-STEERING | Pointer to governing ADRs; stays in slimmed monolith |
 | Related Documents | KEEP-IN-STEERING | Pointer block; stays in slimmed monolith |
 
 ## Tallies
 
+Live count, `AGENT-SYSTEM.md` and `AGENT-INSTRUCTIONS.md` only
+(`SESSION-PROTOCOL.md` deleted 2026-08-20, Issue #5138); its 1
+ALWAYS-LOAD-RULE, 7 PATH-SCOPED-RULE, and 2 KEEP-IN-STEERING sections are
+struck from these counts. `AGENT-INSTRUCTIONS.md`'s "Notes for
+Next Session" heading (see note above the per-monolith table) is also
+struck: its 1 PATH-SCOPED-RULE section was a genuine heading in the
+pre-edit document, removed along with the malformed template that exposed
+it, so it is no longer present in the current document.
+
 | Classification | Count |
 |----------------|-------|
-| ALWAYS-LOAD-RULE | 4 |
-| PATH-SCOPED-RULE | 33 |
-| KEEP-IN-STEERING | 10 |
-| **Total sections** | **47** |
+| ALWAYS-LOAD-RULE | 3 |
+| PATH-SCOPED-RULE | 19 |
+| KEEP-IN-STEERING | 8 |
+| **Total sections** | **30** |
 
 ALWAYS-LOAD sections (the only content entering `agent-boundaries.md`):
 
 - AGENT-INSTRUCTIONS `Quick Start Checklist`
 - AGENT-INSTRUCTIONS `Critical Reminders`
 - AGENT-INSTRUCTIONS `Emergency Recovery`
-- SESSION-PROTOCOL `RFC 2119 Key Words`
 
 ## Notes and Caveats for Phase 2
 

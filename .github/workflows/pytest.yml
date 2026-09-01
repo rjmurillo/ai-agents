@@ -78,15 +78,21 @@ jobs:
               - '**/*.ps1'
               - '**/*.psm1'
               - '**/*.pyw'
-              # Canonical rules and both generated instruction trees are direct
-              # inputs to Python contract tests. Keep these roots explicit so
-              # unrelated Markdown, such as session logs, still skips pytest.
+              # Canonical rules and both generated instruction trees are
+              # direct inputs to Python contract tests. They were named here
+              # when the filter scoped Markdown to a curated set. It no longer
+              # does: the extension globs at the bottom of this list match all
+              # tracked Markdown, JSON and text, so session logs trigger pytest
+              # too. That is deliberate, and the reasoning is at those globs.
+              # These roots stay because they also carry non-Markdown files.
               - '.claude/rules/**'
               - '.github/instructions/**'
               - 'src/copilot-cli/instructions/**'
               - 'scripts/ci/ruff_count_baseline.txt'
               - 'scripts/ci/subprocess_encoding_count_baseline.txt'
-              - 'pyproject.toml'
+              - '**/pyproject.toml'
+              - '**/ruff.toml'
+              - '**/.ruff.toml'
               - 'uv.lock'
               - 'tests/conftest.py'
               - 'scripts/memory_enhancement/**'
@@ -104,10 +110,99 @@ jobs:
               - '.agents/memory/episodes/**'
               # Issue #4408: rules files are test inputs -- many Python tests read
               # them directly (e.g. test_validate_workflows.py, test_plugin_tree_no_unicode_dashes.py).
-              # A rules-only change must trigger the full suite.
-              - '.claude/rules/**'
-              - '.github/instructions/**'
-              - 'src/copilot-cli/instructions/**'
+              # A rules-only change must trigger the full suite. The same three
+              # roots are listed above for the same reason; one copy is enough.
+              # Issue #5315. Pre-push stopped executing the suite on a
+              # non-Python change (ADR-104) on the stated ground that CI
+              # executes it instead. These roots are read as test inputs by
+              # real tests and were absent from this filter, so a push touching
+              # only one of them ran no assertions locally AND skipped the
+              # matrix here: assertions did not run until the merge queue
+              # forced them. Each entry below is referenced by at least one
+              # test, which the colocated guard checks textually: it does not
+              # prove a runtime read, and a mention in a comment counts. The
+              # looseness is deliberate (a strict-path version produced a false
+              # negative on a package tree reached by import), and it means a
+              # passing guard is evidence of intent, not of dependency.
+              #   .claude/skills/**        tests/skills/**, e.g.
+              #                            security-review/test_skill_md.py
+              #   .serena/memories/**      tests/test_memory_verification.py
+              #   .agents/architecture/**  tests/build_scripts/test_hook_contract_knowledge.py
+              #   .agents/governance/**    tests/test_canonical_sources_registration.py
+              #   AGENTS.md, README.md     tests/test_knowledge_surface_consistency.py
+              #   .agents/AGENT-SYSTEM.md  tests/test_agent_role_metadata_migration.py
+              - '.claude/skills/**'
+              - 'src/copilot-cli/skills/**'
+              - '.serena/memories/**'
+              - '.agents/architecture/**'
+              - '.agents/governance/**'
+              - '.agents/AGENT-SYSTEM.md'
+              # Added in review on PR #5319, from two concrete misses a reviewer
+              # found by reading the tests rather than the filter:
+              #   .agents/critique/**  tests/build_scripts/test_hook_contract_knowledge.py
+              #                        opens ADR-084-debate-log.md directly
+              #   templates/agents/**  tests/test_pr_identity_gate.py reads
+              #                        analyst.shared.md directly
+              # The colocated test checks that every root here is referenced by
+              # a test. It cannot check the reverse, which is the direction that
+              # fails silently, and these two are what that gap looked like.
+              - '.agents/critique/**'
+              - 'templates/agents/**'
+              # Second batch, same method and same reviewer (PR #5319): found by
+              # reading tests for direct reads rather than by reading the filter.
+              #   .github/PULL_REQUEST_TEMPLATE.md
+              #       tests/external_signals/test_acceptance_criteria.py
+              #   .agents/schemas/**  tests/test_skill_output_schema.py
+              #   .claude/settings.json, .claude/hooks/**, src/copilot-cli/hooks/**
+              #       tests/build_scripts/test_hook_contract_knowledge.py
+              # None was matched by an extension glob: the filter carries no
+              # `**/*.json` or `**/*.md`, which is the point of the allowlist and
+              # also why a JSON or Markdown input has to be named to be seen.
+              - '.github/PULL_REQUEST_TEMPLATE.md'
+              - '.agents/schemas/**'
+              - '.claude/settings.json'
+              - '.claude/hooks/**'
+              - 'src/copilot-cli/hooks/**'
+              - 'AGENTS.md'
+              - 'README.md'
+              # Eighth root, third round, same method (PR #5319):
+              #   docs/installation.md  tests/test_knowledge_surface_consistency.py
+              - 'docs/installation.md'
+              # Fourth round, and the last hand-picked one. A reviewer asked for
+              # a reverse audit instead of a fifth batch, so one was run: parse
+              # every string literal in all 974 test modules, keep the ones that
+              # resolve to a real repository file, and check each against this
+              # filter. It found 120 direct test inputs the allowlist did not
+              # match, 92 Markdown, 14 JSON, 5 text, spread across every tree
+              # including `.agents/retrospective/**`, `.agents/sessions/**`, and
+              # `.agents/analysis/**`, which the comment at the top of this
+              # filter names as the Markdown it deliberately skips. Those trees
+              # are test inputs too, so the thing the allowlist was protecting
+              # was already close to empty.
+              #
+              # Three extension globs close all 120 and end the curation. The
+              # trade is deliberate: a docs-only or retro-only PR now runs the
+              # matrix it used to skip, so the failure direction flips from "a
+              # gate silently did not run" to "a run was wasted". Only the
+              # second one is visible to the person who caused it.
+              #
+              # The named roots above stay: they cover non-Markdown, non-JSON,
+              # non-text inputs inside those trees, and deleting them would make
+              # this change larger than the gap it closes.
+              - '**/*.md'
+              - '**/*.json'
+              - '**/*.txt'
+              # THIRD-PARTY-NOTICES.TXT is read by a test and picomatch is
+              # case-sensitive, so the lowercase glob above does not reach it.
+              - '**/*.TXT'
+              # The reverse audit's remainder: real test inputs with no
+              # extension to glob. `.gitkeep` marks a directory a test asserts
+              # exists; the other four are read for their contents.
+              - '.actrc'
+              - '.gitattributes'
+              - '.gitignore'
+              - '.python-version'
+              - '**/.gitkeep'
 
       - name: Determine if tests should run
         id: determine
@@ -150,52 +245,22 @@ jobs:
           - partition: bulk
             coverage_file: artifacts/.coverage.bulk
             junit_file: artifacts/pytest-results.xml
-            pytest_args: >-
-              -n auto --dist loadfile
-              --ignore-glob='tests/*/*'
-              --ignore=tests/test_ai_review.py
-              --ignore=tests/test_verdict.py
-              --ignore=tests/test_quality_gate.py
-              --ignore=tests/test_safe_push_pr_branch.py
-              --ignore=tests/test_mutation_workspace_signals.py
-              --ignore=tests/test_pr_autofix_late_live_state_gate.py
-              tests/
           - partition: bulk-nested
             coverage_file: artifacts/.coverage.bulk-nested
             junit_file: artifacts/pytest-results-bulk-nested.xml
-            pytest_args: >-
-              -n auto --dist loadfile
-              --ignore=tests/skills/github/test_wait_for_unresolved_zero.py
-              --ignore=tests/skills/session-end/test_rework_warning.py
-              tests/build_scripts tests/ci tests/claude tests/claude_mem
-              tests/commands tests/context-optimizer tests/e2e tests/eval
-              tests/evals tests/eval_scenarios tests/external_signals
-              tests/fixtures tests/forgetful tests/hooks tests/integration
-              tests/lib tests/llm_classification tests/maintenance tests/metrics
-              tests/quality_gate tests/skillbook tests/skills
-              tests/test_memory_sync tests/validation tests/validation_pre_pr
-              tests/workflows
           - partition: mutation
             coverage_file: artifacts/.coverage.mutation
             junit_file: artifacts/pytest-results-mutation.xml
-            pytest_args: >-
-              -n auto --dist loadfile
-              tests/mutation
           - partition: safe-push
             coverage_file: artifacts/.coverage.safe-push
             junit_file: artifacts/pytest-results-safe-push.xml
-            pytest_args: >-
-              tests/test_safe_push_pr_branch.py
-              tests/test_mutation_workspace_signals.py
           - partition: pr-autofix
             coverage_file: artifacts/.coverage.pr-autofix
             junit_file: artifacts/pytest-results-pr-autofix.xml
-            pytest_args: >-
-              tests/test_pr_autofix_late_live_state_gate.py
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -274,15 +339,25 @@ jobs:
         run: |
           # No --depth=1. The checkout above already used fetch-depth: 0, so a
           # depth-limited fetch saves nothing and writes .git/shallow, grafting
-          # the fetched tip parentless. This ratchet does need a merge base:
-          # count_ratchet.changed_files diffs `base_ref...HEAD` (three-dot) to
-          # sort branch-touched files first. That leg fails open, so a graft
-          # degrades the diagnostic instead of failing the step, which is the
-          # buried-violation problem the ordering exists to prevent, not a red
-          # check. The graft is written by whichever fetch runs first and a
-          # plain undepthed fetch does not clear it, only --unshallow does.
-          # In pr-validation.yml the same graft hits merge_tree_ratchet_check,
-          # which fails closed, and that is what cost a red required check.
+          # the fetched tip parentless. The graft is written by whichever fetch
+          # runs first and a plain undepthed fetch does not clear it; only
+          # --unshallow does.
+          #
+          # count_ratchet.py reads a merge base on two legs, and they fail in
+          # opposite directions. changed_files diffs `base_ref...HEAD`
+          # (three-dot) to sort branch-touched files first: that leg fails
+          # OPEN, so a graft degrades the diagnostic instead of failing the
+          # step, which is the buried-violation problem the ordering exists to
+          # prevent, not a red check. _base_ref_verdict reads `git merge-base`
+          # to decide whether THIS tree moved the baseline (issue #5065): that
+          # leg fails CLOSED. Under a graft it cannot name a fork point, the
+          # behind-base relief goes inert, and a legitimately-behind branch
+          # blocks again with a message that says the fork point is
+          # unreadable. So the no-shallow-fetch requirement here is
+          # load-bearing for the verdict, not only for the diagnostic, the
+          # same way it is at the merge-tree step in pr-validation.yml, where
+          # a graft hitting merge_tree_ratchet_check cost a red required
+          # check.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
@@ -300,6 +375,12 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
+          # No --depth=1: see the ruff count ratchet leg above. This ratchet
+          # is the one that needs it most. Its baseline is absent from
+          # scripts/ci/merge_tree_ratchet_registry.py, so it declares
+          # MERGE_TREE_BACKED = False and this --base-ref comparison is its
+          # only stale-branch guard; a graft turns that guard into a hard
+          # block rather than degrading it.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
 
@@ -308,6 +389,7 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
+          # No --depth=1: see the pull_request leg above.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
 
@@ -332,17 +414,24 @@ jobs:
       # Each matrix leg writes one statement-only coverage file. Bulk ignores
       # the two pin suites, mutation, and the two process-sensitive files
       # because those tests run in their own partition or pin step.
-      # `-n auto` uses every logical CPU exposed by the runner.
+      # `-n auto` uses every logical CPU exposed by the runner. On push and
+      # pull_request events the import graph narrows each partition to the
+      # affected tests (issue #5050); merge_group, any fail-safe verdict, and
+      # any partition with no affected test run the full partition, so coverage
+      # combine always receives non-empty data. The full-vs-subset decision and
+      # the partition argument lists live in the Python runner, not here, per
+      # ADR-006.
       - name: Run pytest
         id: run-pytest
         env:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
           COVERAGE_FILE: ${{ matrix.coverage_file }}
+          PYTEST_SELECT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: >-
-          uv run --frozen python scripts/ci/run_pytest_non_tmp.py
+          uv run --frozen python scripts/ci/run_pytest_selected.py
+          --partition ${{ matrix.partition }}
           --cov --cov-report=
           --junitxml=${{ matrix.junit_file }}
-          ${{ matrix.pytest_args }}
 
       # Issue #1963: verdict.py's 100% branch gate needs all three of
       # test_ai_review.py, test_verdict.py, and test_quality_gate.py
@@ -370,15 +459,14 @@ jobs:
         run: |
           pytest \
             tests/skills/github/test_wait_for_unresolved_zero.py \
-            tests/skills/session-end/test_rework_warning.py \
             --cov --cov-branch --cov-report=
 
-      # Isolated 100% branch gate for the two REQ-009 modules.
+      # Isolated 100% branch gate for the REQ-009 module.
       - name: "Enforce REQ-009 module coverage at 100% (PR #1989 user requirement)"
         if: steps.pin-req009-collect.outcome != 'skipped' && !cancelled()
         run: >-
           coverage report --data-file=artifacts/.coverage.pin-req009
-          --include=.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py,.claude/skills/session-end/scripts/rework_warning.py
+          --include=.claude/skills/github/scripts/pr/wait_for_unresolved_zero.py
           --fail-under=100
 
       - name: Upload test results
@@ -403,7 +491,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -455,8 +543,13 @@ jobs:
       - check-paths
       - test
       - coverage
+    # !cancelled() rather than always(): a superseded run leaves its
+    # dependencies 'cancelled', and always() would turn that into a red
+    # required check on the PR head (Issue #5097). !cancelled() still runs on
+    # failed and skipped dependencies, so the pass-through and the real
+    # failure signal both survive.
     if: >-
-      always() &&
+      !cancelled() &&
       (needs.check-paths.result != 'success' ||
       needs.check-paths.outputs.python-changed == 'true')
     runs-on: ubuntu-24.04-arm
@@ -493,7 +586,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -508,24 +601,27 @@ jobs:
 
       - name: Run pip-audit
         run: |
-          # Keep the audited environment on the first fixed pip release for
-          # PYSEC-2026-196. CI hit pip 26.1.1 after setup-code-env installed
-          # dependencies, and pip-audit reports the fixed version as 26.1.2.
+          # Keep the audited environment on a pip release pip-audit reports
+          # clean. This pin has moved once before: issue #2438 set it to
+          # 26.1.2 to escape PYSEC-2026-196, and 26.1.2 has since become the
+          # vulnerable version under PYSEC-2026-3721, whose fix is 26.2
+          # (issue #5222). Expect it to move again; the version below is the
+          # only place that decides which pip runs, so keep every mention of
+          # it in this block moving with it.
 
           # Ignored CVEs (re-evaluate when upstream releases a fix):
-          #   CVE-2026-4539: pygments 2.19.2, no fix available.
-          #   CVE-2026-3219: historical pip 26.0/26.0.1 finding for
-          #     concatenated tar/ZIP archives. The runner is upgraded to pip
-          #     26.1.2 below; keep this ignore only while pip-audit still
-          #     reports stale transitive runner metadata after that upgrade.
-          #   CVE-2026-6357: historical pip 26.0.x finding in the same
-          #     local-only class as CVE-2026-3219. Remove this ignore when
-          #     pip-audit no longer reports it after the pip 26.1.2 upgrade.
-          python -m pip install --upgrade "pip==26.1.2"
-          pip-audit \
-            --ignore-vuln CVE-2026-4539 \
-            --ignore-vuln CVE-2026-3219 \
-            --ignore-vuln CVE-2026-6357
+          #   CVE-2026-4539: pygments 2.19.2, no fix available. This project
+          #     pins 2.19.2, so a clean virtualenv (which resolves 2.21.0)
+          #     says nothing about it; retiring this belongs to issue #1778,
+          #     measured against the real tree.
+          #
+          # The two historical pip findings, CVE-2026-3219 and CVE-2026-6357,
+          # were ignored only while the runner still carried pre-26.1 pip
+          # metadata. Run 32500970183 upgraded to 26.2 and pip-audit reported
+          # a single ignored vulnerability, so those two ignores now suppress
+          # nothing and would hide the findings if they ever recurred.
+          python -m pip install --upgrade "pip==26.2"
+          pip-audit --ignore-vuln CVE-2026-4539
 
       # Issue #2808: `|| true` masked both bandit crashes and genuine findings,
       # turning this step green regardless. Gate on high severity AND high
@@ -545,7 +641,7 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd  # v4
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938  # v4
         with:
           sarif_file: bandit.sarif
           category: bandit
@@ -572,7 +668,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -598,7 +694,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -610,7 +706,7 @@ jobs:
           python-version: '3.14'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
 
@@ -629,7 +725,12 @@ jobs:
       - security
       - skip-tests
       - test-windows-pwsh
-    if: always() && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    # !cancelled() rather than always(): the alert script treats a 'cancelled'
+    # dependency as a failure, so a cancelled main run would file a bogus
+    # "Python Tests failed on main" issue (Issue #5097).
+    if: >-
+      !cancelled() && github.event_name == 'push' &&
+      github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 2
     permissions:

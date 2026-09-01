@@ -1,0 +1,215 @@
+{
+  "id": "episode-2026-08-15-session-5079",
+  "session": "2026-08-15-session-5079",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Add generated-artifact staleness gate to the pre-PR sequence (issue 5079)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reproduce the gap",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Scope the claim",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Honor the generator order",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Measure",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Fix the output bound",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Clear the type-ignore ratchet",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Review round 2 remediation",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-15T15:27:29+00:00",
+      "type": "commit",
+      "content": "Commit: b80917d8f",
+      "caused_by": [
+        "e001",
+        "e002",
+        "e003",
+        "e004",
+        "e005",
+        "e006",
+        "e007",
+        "e010",
+        "e013",
+        "e015"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-15T19:45:38+00:00",
+      "type": "commit",
+      "content": "Commit: 5f8fe6262d2af2530f023c823010f6684cafa621",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Reliability round 3",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-15T19:59:33+00:00",
+      "type": "commit",
+      "content": "Commit: f233933dd1ae6977f41b87fc3edfd705fd2bcb5b",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-15T20:01:23+00:00",
+      "type": "commit",
+      "content": "Commit: 0c1fc3b427c450917be26d3ef6e2606f3376ce08",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 4: budget containment",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-15T20:30:15+00:00",
+      "type": "commit",
+      "content": "Commit: 5b5986c2e19e4adbff231522cfa24f87ddbe03c3",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Round 5: outer-cap clamp, escalation coverage, evidence refresh",
+      "caused_by": [],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-15-session-5079"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-15T21:00:10+00:00",
+      "type": "commit",
+      "content": "Commit: ce88c21b80debe3e5d61d2d87ebb651a0fbef18a",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-5079"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 6,
+    "files_changed": 11
+  },
+  "lessons": []
+}

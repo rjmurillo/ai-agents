@@ -10,8 +10,7 @@ tools:
   - cloudmcp-manager/*
   - github.vscode-pull-request-github/*
   - serena/*
-model: Claude Opus 4.6 (copilot)
-tier: manager
+role: coordinator
 ---
 # PR Comment Responder Agent
 
@@ -45,8 +44,8 @@ Key requirements:
 
 ## Comment Map Status Vocabulary
 
-Every comment in `comments.md` carries exactly one status from this table. Gates and
-completion checks use only these values.
+Every comment in `comments.md` carries exactly one status from this table. This table is
+the only place the vocabulary is defined. Every gate derives its counts from it.
 
 | Status | Meaning | Terminal |
 |--------|---------|---------|
@@ -54,20 +53,77 @@ completion checks use only these values.
 | `[ACKNOWLEDGED]` | Reaction posted, fix not yet committed | No |
 | `[COMPLETE]` | Fix committed and pushed | Yes |
 | `[WONTFIX]` | Explicitly decided not to change | Yes |
+| `[DUPLICATE]` | Same point already resolved by another comment | Yes |
+| `[DEFERRED] Refs #<issue>` | Tracked in a filed issue, not fixed in this PR | Yes, only with the `Refs #<issue>` suffix |
 
 Comment map fields render as `**Status**: [NEW]`, so every status grep must match the
 bold field at line start. Dropping the `**` delimiters or the `^` anchor matches nothing
 and reports zero.
 
-Non-terminal statuses (`[NEW]`, `[ACKNOWLEDGED]`) count as pending. Gate 3 and Gate 5
-enumerate those two statuses. Phase 8.1 is the fail-closed backstop: it counts only the
-terminal statuses, so anything else, including a status outside this table, stays in the
-remaining count.
+`[DEFERRED]` is terminal only when the status line carries an inline `Refs #<issue>`
+reference, as in `**Status**: [DEFERRED] Refs #4054`. A bare `[DEFERRED]` names no
+tracking issue, so nobody can find the work later and the gate keeps it pending.
+
+The issue number matches `#[1-9][0-9]*`, never `#[0-9]+`. GitHub numbers issues and
+pull requests from 1, so `#0` can never resolve. Admitting it would let a guaranteed
+non-reference mark deferred work terminal, which is the same lost-work failure a bare
+`[DEFERRED]` causes. `**Status**: [DEFERRED] Refs #0` stays pending.
+
+The terminal pattern ends at `[[:space:]]*$`, so a status line counts as terminal only
+when it ends at the status token, or at the `Refs #<issue>` reference for `[DEFERRED]`.
+`**Status**: [COMPLETE]oops` and `**Status**: [DEFERRED] Refs #4054garbage` match no
+terminal alternative and stay pending. Without the end anchor a matching prefix was
+enough, so a malformed value passed the gate.
+
+Every gate proves the comment map exists before counting. `grep -Ec` on a missing file
+exits non-zero and prints nothing, `|| true` turns that into an empty string, and shell
+arithmetic reads an empty string as 0. An absent map would otherwise compute zero pending
+and clear every gate with no artifact to verify.
+
+Every gate also proves the map is complete before it trusts the subtraction. A map whose
+`**Status**:` fields were stripped counts zero total and zero terminal, so the difference
+is zero pending and the gate clears a map that describes nothing. Each gate compares
+`TOTAL` against `$TOTAL_COMMENTS`, the API count Phase 1 recorded, and blocks when the two
+disagree.
+
+No gate enumerates pending statuses. Every gate counts the terminal statuses and
+subtracts. A status outside this table therefore fails closed: it matches no terminal
+pattern, so it counts as pending and blocks.
+
+The Comment Index that Step 2.2 renders carries no status cell. Gate 3 rewrites
+the `**Status**:` detail line and nothing else, so an index column would keep
+whatever Step 2.2 rendered for the life of the artifact and disagree with the
+detail entry it summarizes. One representation, in the detail entry.
 
 ```bash
-ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
-WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
-REMAINING=$((TOTAL - ADDRESSED - WONTFIX))
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
 ```
 
 ## Prose Self-Check
@@ -156,7 +212,7 @@ Prioritize comments based on historical actionability rates (updated after each 
 
 **cursor[bot]** has demonstrated 100% actionability (9/9 comments) - every comment identified a real bug. Prioritize these comments for immediate attention.
 
-**Note**: Statistics are sourced from the `pr-comment-responder-skills` memory and should be updated after each PR review session.
+**Note**: Statistics are sourced from the `pr-review/pr-comment-responder-skills` memory and should be updated after each PR review session.
 
 ### Comment Triage Priority
 
@@ -251,24 +307,20 @@ Verify fix and assess regression test needs...
 
 These gates implement RFC 2119 MUST requirements. Proceeding without passing causes artifact drift.
 
-### Gate 0: Session Log Creation
+### Gate 0: Continuity
 
-**Before any work**: Create session log with protocol compliance checklist.
+Before work, read the current per-issue handoff when one exists. Session log
+creation is discontinued.
 
 ```bash
-# Create protocol session log with the session-init skill.
-PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-python3 "$PLUGIN_ROOT/skills/session-init/scripts/new_session_log.py" \
-  --session-number [session_number] \
-  --objective "Respond to PR review comments"
-
 # Create the PR comment run log consumed by later gates.
 PR_COMMENT_LOG=".agents/pr-comments/PR-[number]/session.log"
 mkdir -p "$(dirname "$PR_COMMENT_LOG")"
 : > "$PR_COMMENT_LOG"
 ```
 
-**Evidence required**: Protocol session log and PR comment run log both exist.
+**Evidence required**: PR comment run log exists. Transcript identifies any
+loaded handoff.
 
 ### Gate 1: Acknowledgment Verification
 
@@ -282,6 +334,20 @@ if [ ! -f "$PR_COMMENT_LOG" ]; then
   exit 1
 fi
 REACTIONS_ADDED=$(grep -c "reaction.*eyes" "$PR_COMMENT_LOG" || true)
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
 COMMENT_COUNT=$TOTAL_COMMENTS
 
 if [ "$REACTIONS_ADDED" -ne "$COMMENT_COUNT" ]; then
@@ -302,6 +368,20 @@ test -f ".agents/pr-comments/PR-[number]/comments.md" || exit 1
 test -f ".agents/pr-comments/PR-[number]/tasks.md" || exit 1
 
 # Verify comment count matches
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
 ARTIFACT_COUNT=$(grep -c "^| [0-9]" .agents/pr-comments/PR-[number]/comments.md)
 if [ "$ARTIFACT_COUNT" -ne "$TOTAL_COMMENTS" ]; then
   echo "[BLOCKED] Artifact count: $ARTIFACT_COUNT != API count: $TOTAL_COMMENTS"
@@ -313,18 +393,91 @@ fi
 
 ### Gate 3: Artifact Update After Fix
 
-**After EVERY fix commit**: Update artifact status atomically.
+**After EVERY terminal outcome**: Update BOTH artifacts atomically.
+
+The task list records what you did. The comment map records what the gates
+count. Gate 4, Gate 5, and Phase 8.1 read `comments.md` and nothing else, so a
+step that moves only `tasks.md` leaves every status at the value Step 2.2
+rendered. Pending never reaches zero and Phase 8 blocks on finished work.
+
+Set `TERMINAL_STATUS` to the value the `Comment Map Status Vocabulary` table
+marks terminal for this outcome. Do not invent one: a status outside that table
+matches no terminal pattern and keeps the comment pending everywhere.
+
+The task row is the one Phase 6 renders, `- [ ] **TASK-[id]**: [description]`.
+It carries no `pending` token, so a step that matched one moved nothing and then
+failed its own verification. Marking a task done ticks the box and appends the
+terminal status: `- [x] **TASK-[id]**: [description] [COMPLETE]`.
+
+Not every comment has a task row. Phase 6 opens a `TASK-[id]` only for a comment
+it implements; a `[WONTFIX]`, `[DUPLICATE]`, or question outcome is answered in
+the Phase 5 immediate-reply table and never gets one. An absent row is the
+normal case for those outcomes, so the gate skips the task-list write rather
+than blocking. The comment-map write is not optional for any outcome.
+
+Atomic here means both artifacts move or neither does. The comment map is
+checked before either file is written, because a task list that moved while the
+map did not is exactly the split state Gate 4 reads as finished work still
+pending.
 
 ```bash
-# IMMEDIATELY after git commit, update artifact
-sed -i "s/TASK-$COMMENT_ID.*pending/TASK-$COMMENT_ID ... [COMPLETE]/" \
-  .agents/pr-comments/PR-[number]/tasks.md
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+TASK_LIST=".agents/pr-comments/PR-[number]/tasks.md"
+TERMINAL_STATUS="[COMPLETE]"
 
-# Verify update applied
-grep "TASK-$COMMENT_ID.*COMPLETE" .agents/pr-comments/PR-[number]/tasks.md || exit 1
+# The id reaches a sed address, so refuse anything but digits (CWE-78).
+case "$COMMENT_ID" in
+  ''|*[!0-9]*) echo "[BLOCKED] COMMENT_ID is not numeric: $COMMENT_ID"; exit 1 ;;
+esac
+
+# Refuse a status the gates will not accept, before anything is written. The
+# pattern is Gate 4's, so a value that clears here clears there, and the four
+# shapes it admits carry no sed metacharacter.
+printf '%s\n' "**Status**: $TERMINAL_STATUS" \
+  | grep -Eq "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" || {
+    echo "[BLOCKED] TERMINAL_STATUS is not a terminal value: $TERMINAL_STATUS"
+    exit 1
+  }
+
+# Preflight the comment map before either file is written. Every step below is
+# a write, so an unreachable target has to stop the gate here: a task list that
+# moved while the comment map did not is the split state Gate 4 reads as
+# finished work still pending. One check covers both ways the map can fail, no
+# detail entry for this comment and an entry carrying no status field.
+sed -n "/^### Comment $COMMENT_ID /,/^---$/p" "$COMMENT_MAP" \
+  | grep -Eq "^\*\*Status\*\*: " || {
+    echo "[BLOCKED] Comment $COMMENT_ID has no status field in $COMMENT_MAP"
+    exit 1
+  }
+
+# The task row is optional. Phase 6 opens a TASK only for a comment it
+# implements; an immediate-reply outcome is answered in Phase 5 and never gets
+# one. Absent is fine. Present means it must move. The row starts with "- ",
+# which grep reads as a flag, so "--" terminates the option list.
+TASK_ROW="- [ ] **TASK-$COMMENT_ID**:"
+if grep -qF -- "$TASK_ROW" "$TASK_LIST"; then
+  sed -i "s|^- \[ \] \*\*TASK-$COMMENT_ID\*\*:\(.*\)$|- [x] **TASK-$COMMENT_ID**:\1 $TERMINAL_STATUS|" "$TASK_LIST"
+  grep -F -- "- [x] **TASK-$COMMENT_ID**:" "$TASK_LIST" | grep -qF -- "$TERMINAL_STATUS" || {
+    echo "[BLOCKED] TASK-$COMMENT_ID is not $TERMINAL_STATUS in $TASK_LIST"
+    exit 1
+  }
+fi
+
+# The write every later gate depends on. The address range is this comment's
+# detail entry, so a sibling comment's status is never touched.
+sed -i "/^### Comment $COMMENT_ID /,/^---$/ s|^\*\*Status\*\*: .*$|**Status**: $TERMINAL_STATUS|" "$COMMENT_MAP"
+
+# Verify the write. Whole-line and literal, so a status with trailing garbage
+# fails here instead of surviving to Phase 8.1.
+sed -n "/^### Comment $COMMENT_ID /,/^---$/p" "$COMMENT_MAP" \
+  | grep -qxF "**Status**: $TERMINAL_STATUS" || {
+    echo "[BLOCKED] Comment $COMMENT_ID is not $TERMINAL_STATUS in $COMMENT_MAP"
+    exit 1
+  }
 ```
 
-**Evidence required**: Task marked complete in artifact file.
+**Evidence required**: The task is marked in `tasks.md` AND that comment's
+`**Status**:` line in `comments.md` reads the terminal value.
 
 ### Gate 4: State Synchronization Before Resolution
 
@@ -337,7 +490,29 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true)
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
 
 # Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
@@ -351,7 +526,7 @@ fi
 echo "Unresolved API threads: $UNRESOLVED_API"
 ```
 
-**Evidence required**: The comment map exists, pending artifact entries are 0, and the unresolved API thread count is recorded before proceeding.
+**Evidence required**: The comment map exists, its status-field count equals the API comment count, pending artifact entries are 0, and the unresolved API thread count is recorded before proceeding.
 
 ### Gate 5: Final Verification
 
@@ -367,7 +542,29 @@ if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-PENDING=$(grep -Ec "^\*\*Status\*\*: pending|^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true)
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
 
 if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
   echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
@@ -377,7 +574,7 @@ fi
 echo "[PASS] All gates cleared"
 ```
 
-**Evidence required**: Both counts are zero.
+**Evidence required**: The status-field count equals the API comment count, and both the unresolved API count and the pending artifact count are zero.
 
 ## Workflow Protocol
 
@@ -388,8 +585,8 @@ echo "[PASS] All gates cleared"
 #### Step 0.1: Load Core Skills Memory
 
 ```python
-# ALWAYS load pr-comment-responder-skills first
-mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+# ALWAYS load pr-review/pr-comment-responder-skills first
+mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
 ```
 
 This memory contains:
@@ -401,25 +598,25 @@ This memory contains:
 
 #### Step 0.2: Verify Core Memory Loaded
 
-Before proceeding, confirm `pr-comment-responder-skills` is loaded:
+Before proceeding, confirm `pr-review/pr-comment-responder-skills` is loaded:
 
 - [ ] Memory content appears in context
 - [ ] Reviewer signal quality table visible
 - [ ] Triage heuristics available
 
-**If memory load fails**: Proceed with default heuristics but flag in session log.
+**If memory load fails**: Proceed with default heuristics and flag it in the transcript.
 
 #### Step 0.3: Note on Reviewer-Specific Memories
 
-Reviewer-specific memories (e.g., `cursor-bot-review-patterns`) are loaded in **Step 1.2a** after reviewer enumeration completes. Phase 0 focuses only on core skills memory.
+Reviewer-specific memories (e.g., `pr-review/cursor-bot-review-patterns`) are loaded in **Step 1.2a** after reviewer enumeration completes. Phase 0 focuses only on core skills memory.
 
 ---
 
 | Reviewer | Memory Name | Content |
 |----------|-------------|---------|
-| cursor[bot] | `cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
-| Copilot | `copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
-| coderabbitai[bot] | - | (Use pr-comment-responder-skills) |
+| cursor[bot] | `pr-review/cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
+| Copilot | `copilot/copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
+| coderabbitai[bot] | - | (Use pr-review/pr-comment-responder-skills) |
 
 ---
 
@@ -523,7 +720,7 @@ fi
 
 3. **Provide split recommendations**: Suggest how the work could be divided
 
-4. **Document in session log**: Record the analysis and recommendations
+4. **Document in PR artifacts**: Record the analysis and recommendations
 
 **Continue with normal workflow** after completing needs-split handling. The label does not block comment processing.
 
@@ -547,10 +744,10 @@ Now that reviewers are enumerated, load memories for each unique reviewer:
 # For each reviewer, check for dedicated memory
 for reviewer in ALL_REVIEWERS:
     if reviewer == "cursor[bot]":
-        mcp__serena__read_memory(memory_file_name="cursor-bot-review-patterns")
+        mcp__serena__read_memory(memory_file_name="pr-review/cursor-bot-review-patterns")
     elif reviewer == "copilot-pull-request-reviewer":
-        mcp__serena__read_memory(memory_file_name="copilot-pr-review-patterns")
-    # Other reviewers use pr-comment-responder-skills (already loaded in Phase 0)
+        mcp__serena__read_memory(memory_file_name="copilot/copilot-pr-review-patterns")
+    # Other reviewers use pr-review/pr-comment-responder-skills (already loaded in Phase 0)
 ```
 
 **Reference**: See Phase 0, Step 0.3 for the reviewer memory mapping table.
@@ -566,6 +763,12 @@ COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [n
 TOTAL_COMMENTS=$(echo "$COMMENTS" | jq '.TotalComments')
 echo "$COMMENTS"
 echo "Total comments: $TOTAL_COMMENTS"
+
+# Record the API count where every later gate reads it. Shell variables do not
+# survive between fenced blocks, so the count has to reach them as an artifact.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+mkdir -p "$(dirname "$COUNT_FILE")"
+printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
 
 # Returns all comments with: Id, CommentType (Review/Issue), Author, Path, Line, Body, DiffHunk, CreatedAt, InReplyToId
 ```
@@ -601,6 +804,12 @@ ISSUE_COMMENT_COUNT=$(echo "$ALL_ISSUE_COMMENTS" | jq 'length')
 # Total count
 TOTAL_COMMENTS=$((REVIEW_COMMENT_COUNT + ISSUE_COMMENT_COUNT))
 echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $ISSUE_COMMENT_COUNT)"
+
+# Record the API count where every later gate reads it. Shell variables do not
+# survive between fenced blocks, so the count has to reach them as an artifact.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+mkdir -p "$(dirname "$COUNT_FILE")"
+printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
 ```
 
 </details>
@@ -650,18 +859,13 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 
 ### Comment Map Status Vocabulary
 
-Every `**Status**` field in the comment map MUST be exactly one of these values.
-No other values are valid.
+The `Comment Map Status Vocabulary` section near the top of this agent holds the one
+authoritative table. Do not restate the values here. A second copy is how `[DUPLICATE]`
+and `[DEFERRED]` ended up missing from one table while the gates disagreed about what
+counted as done (issue #4054).
 
-| Status | Meaning | Terminal? | Gate behavior |
-|--------|---------|-----------|---------------|
-| `[NEW]` | Comment received, not yet acknowledged | No | Counts as pending in Phase 8.1 |
-| `[ACKNOWLEDGED]` | Acknowledged, work in progress | No | Counts as pending in Phase 8.1 |
-| `[COMPLETE]` | Resolution implemented and verified | Yes | Counts as addressed |
-| `[WONTFIX]` | Intentionally not addressed (with reason) | Yes | Counts as addressed |
-
-Phase 8.1 counts pending (`[NEW]` + `[ACKNOWLEDGED]`) and blocks with `exit 1` when any remain.
-Phase 8.2 requires all GitHub conversation threads resolved before merge.
+Phase 8.1 subtracts the terminal count from the total and blocks with `exit 1` when any
+comment remains. Phase 8.2 requires all GitHub conversation threads resolved before merge.
 
 ### Phase 2: Comment Map Generation
 
@@ -729,9 +933,9 @@ Save to: `.agents/pr-comments/PR-[number]/comments.md`
 
 ## Comment Index
 
-| ID | Author | Type | Path/Line | Status | Priority | Plan Ref |
-|----|--------|------|-----------|--------|----------|----------|
-| [id] | @[author] | review/issue | [path]#[line] | pending | TBD | - |
+| ID | Author | Type | Path/Line | Priority | Plan Ref |
+|----|--------|------|-----------|----------|----------|
+| [id] | @[author] | review/issue | [path]#[line] | TBD | - |
 
 ## Comments Detail
 
@@ -1042,6 +1246,20 @@ Once clarified, I'll proceed with the implementation.
 Understood. This will require [brief scope]. Working on it now.
 ```
 
+#### Step 5.1: Record Terminal Outcomes Decided Here
+
+A Won't Fix, a Duplicate, and a Deferred are terminal, and none of them reaches
+Phase 6. Their comments never pass through Step 6.5, so record them now: run
+Gate 3 for each with the matching `TERMINAL_STATUS` (`[WONTFIX]`,
+`[DUPLICATE]`, or `[DEFERRED] Refs #<issue>`), which writes both `tasks.md` and
+that comment's `**Status**:` line in `comments.md`.
+
+Skipping this leaves a decided comment pending in the comment map, and Phase 8
+blocks on it exactly as it would on an unworked one.
+
+A Question or a Clarification is not terminal. Leave its status alone until the
+reviewer answers.
+
 ### Phase 6: Implementation
 
 Implement tasks in priority order. For each task:
@@ -1123,9 +1341,20 @@ python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$THREAD_ID"
 
 **Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. Do not use bulk resolution in this workflow. Resolve each eligible bot-authored or explicitly approved thread by ID.
 
-#### Step 6.5: Update Task List
+#### Step 6.5: Record the Terminal Status
 
-Mark task as complete in `.agents/pr-comments/PR-[number]/tasks.md`.
+Run Gate 3 with `TERMINAL_STATUS="[COMPLETE]"`. It marks the task in
+`tasks.md` and writes that comment's `**Status**:` line in `comments.md` in the
+same step. Gate 3 names both paths, so this step does not restate them.
+
+Marking only the task list is the failure this step exists to prevent. The
+comment map is the artifact Gate 4, Gate 5, and Phase 8.1 count, so a fix that
+is committed and pushed while the map still reads its starting status stays
+pending forever.
+
+A comment that is genuinely still open, waiting on a reviewer reply or carrying
+`Action: Clarify`, keeps its non-terminal status. Phase 8 blocking on that one
+is the gate working; do not route around it by writing a terminal status.
 
 ### Phase 7: PR Description Update
 
@@ -1163,21 +1392,42 @@ gh pr edit [number] --body "[updated body]"
 #### Phase 8.1: Comment Status Verification
 
 ```bash
-# Count addressed vs total
+# Derive pending exactly as Gate 4 and Gate 5 do: total minus terminal.
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
 if [ ! -f "$COMMENT_MAP" ]; then
   echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
   exit 1
 fi
-ADDRESSED=$(grep -Ec "^\*\*Status\*\*: \[COMPLETE\]" "$COMMENT_MAP" || true)
-WONTFIX=$(grep -Ec "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP" || true)
-TOTAL=$TOTAL_COMMENTS
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
 
-echo "Verification: $((ADDRESSED + WONTFIX)) / $TOTAL comments addressed"
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
 
-if [ "$((ADDRESSED + WONTFIX))" -lt "$TOTAL" ]; then
-  echo "[BLOCKED] INCOMPLETE: $((TOTAL - ADDRESSED - WONTFIX)) comments remaining"
-  grep -E -B 5 "^\*\*Status\*\*: \[ACKNOWLEDGED\]|^\*\*Status\*\*: pending|^\*\*Status\*\*: \[NEW\]" "$COMMENT_MAP" || true
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
+echo "Verification: $TERMINAL / $TOTAL comments terminal"
+
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] INCOMPLETE: $PENDING comment(s) not terminal"
+  grep -En "^\*\*Status\*\*: " "$COMMENT_MAP" \
+    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" || true
   exit 1
 fi
 ```
@@ -1223,15 +1473,110 @@ sleep 45
 # Re-fetch comments (include issue comments to catch AI Quality Gate, CodeRabbit summaries, etc.)
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
-NEW_COMMENTS=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments | jq '.TotalComments')
+# This re-fetch is the only thing that can see a comment posted since the last
+# pass, so both halves of it have to block on failure. Left unchecked, a
+# nonzero exit from the fetch or a payload jq cannot parse leaves NEW_COMMENTS
+# empty or `null`; `[ -gt ]` on a non-numeric operand then raises `integer
+# expression expected`, which is a nonzero exit from `[` and reads as false to
+# `if`, so the branch below never runs and the pass continues as though the API
+# reported no new comments.
+RECHECK_PAYLOAD=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+RECHECK_STATUS=$?
+if [ "$RECHECK_STATUS" -ne 0 ]; then
+  echo "[BLOCKED] Comment re-fetch failed (exit $RECHECK_STATUS)"
+  exit 1
+fi
+NEW_COMMENTS=$(printf '%s' "$RECHECK_PAYLOAD" | jq '.TotalComments')
+JQ_STATUS=$?
+if [ "$JQ_STATUS" -ne 0 ]; then
+  echo "[BLOCKED] Comment re-fetch payload is not parseable JSON (jq exit $JQ_STATUS)"
+  exit 1
+fi
+case "$NEW_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Re-fetched comment count is not numeric: $NEW_COMMENTS"; exit 1 ;;
+esac
 
 # Compare to original count
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
 if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
   echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
-  # Fetch new comments, add to comment map with status [NEW]
+  # Append every comment the map has never seen, at status [NEW]. Every gate
+  # counts `**Status**:` fields out of the map, so a comment that arrives here
+  # and never lands in the map is invisible to every completion check: the pass
+  # can reach Gate 4 reporting zero pending work on a comment nobody read.
+  COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+  if [ ! -f "$COMMENT_MAP" ]; then
+    echo "[BLOCKED] Comment map not found: $COMMENT_MAP"
+    exit 1
+  fi
+  # Comment bodies are deliberately not inlined here. A reviewer comment can
+  # itself contain a line reading `**Status**: [COMPLETE]`, and the gates count
+  # that field with a line-anchored grep, so an inlined body would let a comment
+  # forge a terminal row for itself. Fill Context, Comment, and Analysis from
+  # the payload during triage instead.
+  #
+  # jq's @tsv escapes tabs and newlines inside field values, so a body, author,
+  # or path carrying either cannot break the field split below.
+  printf '%s' "$RECHECK_PAYLOAD" \
+    | jq -r '.Comments[] | [(.Id|tostring), (.Author // "unknown"), (.CommentType // "Review"), (.Path // "-"), (.Line // "-"), (.CreatedAt // "-")] | @tsv' \
+    | while IFS="$(printf '\t')" read -r ID AUTHOR CTYPE CPATH CLINE CREATED; do
+        if grep -q "^### Comment $ID " "$COMMENT_MAP"; then
+          continue
+        fi
+        {
+          printf '### Comment %s (@%s)\n\n' "$ID" "$AUTHOR"
+          printf '**Type**: %s\n' "$CTYPE"
+          printf '**Path**: %s\n' "$CPATH"
+          printf '**Line**: %s\n' "$CLINE"
+          printf '**Created**: %s\n' "$CREATED"
+          printf '**Status**: [NEW]\n\n'
+          printf -- '---\n\n'
+        } >> "$COMMENT_MAP"
+      done
+
+  # The count artifact records how many status fields the comment map should
+  # carry, so it moves with the append. Left at the Phase 1 snapshot it is
+  # smaller than the map from this point on, and Gate 4's
+  # `TOTAL -ne TOTAL_COMMENTS` invariant blocks every later pass on correct
+  # work: the map holds the new rows the recorded count has never heard of.
+  #
+  # Refresh AFTER the rows are appended, never before. The invariant compares
+  # the map against this file, so a file written first would clear a map that
+  # never received the new rows, which is the fail-open case the invariant
+  # exists to catch.
+  #
+  # The append above is what earns the refresh, so prove it landed before
+  # writing. A refresh over a map that never grew is the very fail-open the
+  # invariant exists to catch, written by the one line that feeds it.
+  APPENDED_STATUS=$(grep -c "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+  if [ "$APPENDED_STATUS" -ne "$NEW_COMMENTS" ]; then
+    echo "[BLOCKED] Comment map carries $APPENDED_STATUS status fields after the append, API reported $NEW_COMMENTS"
+    exit 1
+  fi
+  printf '%s\n' "$NEW_COMMENTS" > "$COUNT_FILE"
+
   # Return to Phase 3 for analysis
 fi
 ```
+
+The append and the refresh together are what make the loop below
+repeatable. Without it the second pass
+reaches Gate 4 with a comment map the recorded count contradicts, and no amount
+of correct work clears it.
 
 **Critical**: Repeat this loop until no new comments appear after a commit. Bots like cursor[bot] and Copilot respond to your fixes and may identify issues with your implementation.
 
@@ -1313,7 +1658,7 @@ echo "[PASS] All CI checks passing ($PASSED_COUNT checks)"
 
 | Criterion | Check | Status |
 |-----------|-------|--------|
-| All comments resolved | `grep -c -e "^\*\*Status\*\*: \[COMPLETE\]" -e "^\*\*Status\*\*: \[WONTFIX\]" "$COMMENT_MAP"` equals total | [ ] |
+| All comments resolved | Phase 8.1 reports `PENDING` (`TOTAL` minus `TERMINAL`) of 0 | [ ] |
 | No new comments | Re-check returned 0 new | [ ] |
 | CI checks pass | `get_pr_checks.py --pull-request [number]` MergeRefUsable = true and AllPassing = true | [ ] |
 | No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
@@ -1323,8 +1668,45 @@ echo "[PASS] All CI checks passing ($PASSED_COUNT checks)"
 # Final verification
 PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+# Re-derive the counts. This fence is a separate shell from Phase 8.1, so
+# $TOTAL and $TERMINAL do not survive into it and the summary would otherwise
+# report an empty numerator over an empty denominator.
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] $PENDING comment(s) not terminal"
+  exit 1
+fi
+
 echo "=== Completion Criteria ==="
-echo "[ ] Comments: $((ADDRESSED + WONTFIX))/$TOTAL resolved"
+echo "[ ] Comments: $TERMINAL/$TOTAL resolved"
 echo "[ ] New comments: None after 45s wait"
 
 # CI check verification using skill
@@ -1334,8 +1716,8 @@ if [ "$ALL_PASSING" = "true" ]; then
   CI_STATUS="PASS"
 else
   FAILED=$(echo "$CHECKS" | jq '.Data.FailedCount')
-  PENDING=$(echo "$CHECKS" | jq '.Data.PendingCount')
-  CI_STATUS="$FAILED failures, $PENDING pending"
+  CI_PENDING=$(echo "$CHECKS" | jq '.Data.PendingCount')
+  CI_STATUS="$FAILED failures, $CI_PENDING pending"
 fi
 echo "[ ] CI checks: $CI_STATUS"
 
@@ -1366,11 +1748,11 @@ session_stats = {
 }
 ```
 
-#### Step 9.2: Update pr-comment-responder-skills Memory
+#### Step 9.2: Update pr-review/pr-comment-responder-skills Memory
 
 ```python
 # Read current memory to get existing statistics
-current = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+current = mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
 
 # Calculate new cumulative totals from session_stats
 # Example: If cursor[bot] had 9 comments (100%) and this PR adds 2 more (100%)
@@ -1379,7 +1761,7 @@ current = mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills
 # Update Per-Reviewer Performance table with new totals
 # Find the row for each reviewer and update their cumulative stats
 mcp__serena__edit_memory(
-    memory_file_name="pr-comment-responder-skills",
+    memory_file_name="pr-review/pr-comment-responder-skills",
     needle=r"\| cursor\[bot\] \| \d+ \| \d+ \| \*\*\d+%\*\* \|",
     repl=f"| cursor[bot] | {new_total_comments} | {new_actionable} | **{new_rate}%** |",
     mode="regex"
@@ -1398,7 +1780,7 @@ new_pr_section = f"""### Per-PR Breakdown
 """
 
 mcp__serena__edit_memory(
-    memory_file_name="pr-comment-responder-skills",
+    memory_file_name="pr-review/pr-comment-responder-skills",
     needle="### Per-PR Breakdown",
     repl=new_pr_section,
     mode="literal"
@@ -1407,7 +1789,7 @@ mcp__serena__edit_memory(
 
 #### Step 9.3: Update Required Fields
 
-The following MUST be updated in `pr-comment-responder-skills`:
+The following MUST be updated in `pr-review/pr-comment-responder-skills`:
 
 | Section | What to Update |
 |---------|----------------|
@@ -1417,7 +1799,7 @@ The following MUST be updated in `pr-comment-responder-skills`:
 
 #### Step 9.4: Verify Memory Updated
 
-Confirm that the `pr-comment-responder-skills` memory reflects the new PR:
+Confirm that the `pr-review/pr-comment-responder-skills` memory reflects the new PR:
 
 - [ ] In **Per-Reviewer Performance (Cumulative)**, the PR appears in each relevant reviewer's PR list and their totals are updated
 - [ ] In **Per-PR Breakdown**, a new section for this PR exists with per-reviewer stats populated
@@ -1427,7 +1809,7 @@ Confirm that the `pr-comment-responder-skills` memory reflects the new PR:
 
 ```bash
 # Read updated memory and verify new PR data appears
-mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
 ```
 
 ---
@@ -1471,7 +1853,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037). Memory 
 
 ```text
 # Use Serena memory tools to search for PR review context
-mcp__serena__read_memory(memory_file_name="pr-comment-responder-skills")
+mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
 ```
 
 **After EVERY triage decision (store learnings):**

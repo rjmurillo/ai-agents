@@ -1,5 +1,5 @@
 {
-  "description": "Claude Code hook-group manifest consumed by invoke_dispatch_claude.py (one process per (event, matcher) group) and expanded by build/scripts/generate_hooks_events.py back to per-hook entries so the generated Copilot tree is unchanged. file is relative to .claude/hooks/. timeout/statusMessage preserve the pre-consolidation per-hook registration values for generator fidelity. copilotMatcher overrides the group matcher for Copilot shim generation only.",
+  "description": "Claude Code hook-group manifest consumed by invoke_dispatch_claude.py (one process per (event, matcher) group) and expanded by build/scripts/generate_hooks_events.py back to per-hook entries so the generated Copilot tree is unchanged. file is relative to .claude/hooks/. timeout/statusMessage preserve the pre-consolidation per-hook registration values for generator fidelity. copilotMatcher overrides the group matcher for Copilot shim generation only. copilotExclude must be a strict boolean; when true it omits the shim from Copilot expansion entirely and requires the group to declare surface: plugin, plus non-empty copilotExcludeIssue and copilotExcludeDecision metadata naming the authorizing issue and the ADR that owns the security judgment (ADR-085 Decision 7, generic field governance, issue #5013). invoke_dispatch_claude.py ignores copilotExclude* fields entirely, so Claude Code keeps running the shim unchanged.",
   "groups": {
     "sessionstart-1-context_loader": {
       "event": "SessionStart",
@@ -8,45 +8,19 @@
       "shims": [
         {
           "file": "SessionStart/invoke_context_loader.py",
-          "statusMessage": "Auto-loading HANDOFF.md and latest retrospective (#1703)"
+          "statusMessage": "Auto-loading latest retrospective (#1703)"
         }
       ]
     },
-    "plugin-pretooluse-8-markdownlint_guard": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash(git push*)",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_markdownlint_guard.py",
-          "timeout": 90,
-          "statusMessage": "Checking markdownlint violations on changed .md files (BLOCKING)"
-        }
-      ]
-    },
-    "plugin-pretooluse-9-push_pr_script_identity": {
-      "event": "PreToolUse",
-      "mode": "gate",
-      "matcher": "Bash",
-      "surface": "plugin",
-      "shims": [
-        {
-          "file": "PreToolUse/invoke_push_pr_script_identity_guard.py",
-          "timeout": 10,
-          "statusMessage": "Verifying push-pr script identity (BLOCKING)"
-        }
-      ]
-    },
-    "plugin-posttooluse-1-markdown_auto_lint": {
-      "event": "PostToolUse",
+    "sessionstart-2-checkout_freshness": {
+      "event": "SessionStart",
       "mode": "observe",
-      "matcher": "^(Write|Edit)$",
-      "surface": "plugin",
+      "matcher": null,
       "shims": [
         {
-          "file": "PostToolUse/invoke_markdown_auto_lint.py",
-          "statusMessage": "Auto-linting markdown files"
+          "file": "SessionStart/invoke_checkout_freshness_check.py",
+          "timeout": 35,
+          "statusMessage": "Checking checkout freshness against origin/main (#4689)"
         }
       ]
     }

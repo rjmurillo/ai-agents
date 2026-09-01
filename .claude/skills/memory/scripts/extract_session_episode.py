@@ -823,8 +823,20 @@ def _collect_shas(data: dict) -> list[str]:
             if not _already_seen(sha, seen):
                 seen.append(sha)
 
-    # endingCommit is the protocol's own field, so no prose heuristic applies.
-    _take(_SHA_RE.findall(str(data.get("endingCommit") or "")))
+    episode_metrics = _as_dict(data.get("episodeMetrics"))
+    comparison = _as_dict(episode_metrics.get("comparison"))
+    commit_head = str(episode_metrics.get("commitHead") or "")
+    comparison_head = str(comparison.get("head") or "")
+
+    # commitHead separates episode ownership from a later comparison.head used
+    # to bind QA evidence after another session changed the branch.
+    if _FULL_SHA_RE.fullmatch(commit_head):
+        _take([commit_head])
+    elif _FULL_SHA_RE.fullmatch(comparison_head):
+        _take([comparison_head])
+    else:
+        # endingCommit is the protocol's own field, so no prose heuristic applies.
+        _take(_SHA_RE.findall(str(data.get("endingCommit") or "")))
     # changesCommitted evidence is a free-text sentence rather than a bare SHA,
     # so the hex-letter filter applies: a 20-digit CI run id quoted there is not
     # a commit (issue #3301). Scanning it unfiltered also let a decimal-only
@@ -1411,6 +1423,9 @@ def _maybe_update_event_timestamp(
     target["timestamp"] = incoming_timestamp
 
 
+_COMMIT_EVENT_CONTENT_RE = re.compile(r"^commit:\s*([0-9a-f]{7,40})$")
+
+
 def _dedupe_events(
     existing: list, new: list, midnight: str | None, *, session_id: str = ""
 ) -> list[dict]:
@@ -1422,9 +1437,22 @@ def _dedupe_events(
     unchanged, preserving backward compatibility.  Events stamped with the
     current session are kept unconditionally so accumulated commit events
     survive ``--preserve`` regeneration (issue #3123).
+
+    Commit events dedupe abbreviation-aware, via ``_same_commit``, rather than
+    by exact content-string equality. ``_collect_shas``/``_already_seen``
+    already guarantee that within one fresh extraction, but this function is
+    what also compares a fresh extraction against a *previously preserved*
+    episode: a full 40-char SHA recorded on one ``--preserve`` run and a
+    7-char abbreviation of the same commit recorded on an earlier run (e.g.
+    once ``endingCommit`` widens from empty to the full SHA between commits)
+    hash to two different ``(type, content)`` keys under exact-string
+    comparison, so both survive the union and the episode double-counts one
+    commit as two events (issue #5069, found by copilot-pull-request-reviewer
+    on PR #5178 against episode-2026-08-20-session-99923-...json's e006/e007).
     """
     out: list[dict] = []
     seen: set[tuple[str, str]] = set()
+    commit_shas: list[tuple[str, int]] = []  # (sha, index into out) for type == "commit"
     filtered_existing: list[dict] = []
     for evt in existing:
         entry = _as_dict(evt)
@@ -1435,7 +1463,26 @@ def _dedupe_events(
     positions: dict[tuple[str, str], int] = {}
     for evt in filtered_existing + list(new):
         entry = _as_dict(evt)
-        key = (_norm(entry.get("type")), _norm(entry.get("content")))
+        norm_type = _norm(entry.get("type"))
+        norm_content = _norm(entry.get("content"))
+        key = (norm_type, norm_content)
+
+        if norm_type == "commit":
+            match = _COMMIT_EVENT_CONTENT_RE.match(norm_content)
+            sha = match.group(1) if match else None
+            if sha is not None:
+                dup_index = next(
+                    (
+                        idx
+                        for existing_sha, idx in commit_shas
+                        if _same_commit(sha, existing_sha)
+                    ),
+                    None,
+                )
+                if dup_index is not None:
+                    _maybe_update_event_timestamp(out[dup_index], entry, midnight)
+                    continue
+
         if key in seen:
             _maybe_update_event_timestamp(out[positions[key]], entry, midnight)
             continue
@@ -1446,6 +1493,8 @@ def _dedupe_events(
         if stamped:
             entry["timestamp"] = stamped
         out.append(entry)
+        if norm_type == "commit" and sha is not None:
+            commit_shas.append((sha, len(out) - 1))
     for i, entry in enumerate(out, 1):
         entry["id"] = f"e{i:03d}"
     return out
@@ -1981,6 +2030,23 @@ def _git_commit_timestamp(sha: str) -> str | None:
         return None
 
 
+def _is_synthetic_midnight(ts: datetime) -> bool:
+    """True when a timestamp has the midnight fallback shape (issue #4847).
+
+    Untimestamped milestones receive ``{date}T00:00:00+00:00`` from
+    ``_preserved_timestamp``.  Their position relative to commits is unknown,
+    so ``_event_order_relation`` must treat them as incomparable rather than
+    asserting they preceded every same-day commit.
+    """
+    return ts.hour == 0 and ts.minute == 0 and ts.second == 0 and ts.microsecond == 0
+
+
+# Event types whose midnight timestamp signals unknown order relative to
+# commits.  Error and test events at midnight still sort after a same-timestamp
+# commit because they report on code execution (_POST_COMMIT_SAME_TIMESTAMP_TYPES).
+_MIDNIGHT_INCOMPARABLE_TYPES = frozenset({"milestone", "handoff", "tool_call"})
+
+
 def _event_order_relation(
     left: dict[str, Any],
     right: dict[str, Any],
@@ -1991,13 +2057,34 @@ def _event_order_relation(
     right_id = str(right["id"])
     left_time = timestamps[left_id]
     right_time = timestamps[right_id]
+
+    left_type = left["type"]
+    right_type = right["type"]
+
+    # Issue #4847: an untimestamped non-commit event that fell back to midnight
+    # has unknown order relative to same-day commits.  Return incomparable so
+    # no false causal edge is emitted.  Cross-date ordering is still valid
+    # because unknown time-of-day cannot reverse a date boundary.
+    if (
+        left_type in _MIDNIGHT_INCOMPARABLE_TYPES
+        and right_type == "commit"
+        and _is_synthetic_midnight(left_time)
+        and left_time.date() == right_time.date()
+    ):
+        return None
+    if (
+        right_type in _MIDNIGHT_INCOMPARABLE_TYPES
+        and left_type == "commit"
+        and _is_synthetic_midnight(right_time)
+        and right_time.date() == left_time.date()
+    ):
+        return None
+
     if left_time < right_time:
         return -1
     if right_time < left_time:
         return 1
 
-    left_type = left["type"]
-    right_type = right["type"]
     if left_type == "commit" and right_type == "commit":
         left_sha = _commit_sha(left)
         right_sha = _commit_sha(right)
@@ -2361,6 +2448,27 @@ def _edge_count(events: list) -> int:
     return sum(len(_as_list(_as_dict(evt).get("leads_to"))) for evt in events)
 
 
+def _real_edge_count(events: list) -> int:
+    """Edge count excluding false edges from synthetic-midnight incomparable events.
+
+    Edges originating from milestone/handoff/tool_call events at midnight are
+    false causal claims (issue #4847).  The repair guard must not protect them.
+    """
+    count = 0
+    for evt in events:
+        entry = _as_dict(evt)
+        if entry.get("type") in _MIDNIGHT_INCOMPARABLE_TYPES:
+            ts_str = entry.get("timestamp", "")
+            try:
+                ts = datetime.fromisoformat(ts_str)
+            except (ValueError, TypeError):
+                ts = None
+            if ts is not None and _is_synthetic_midnight(ts):
+                continue
+        count += len(_as_list(entry.get("leads_to")))
+    return count
+
+
 def repair_commit_order(events: list) -> str | None:
     """Restamp commit events from git and rebuild the chain. Return a refusal.
 
@@ -2390,10 +2498,10 @@ def repair_commit_order(events: list) -> str | None:
     except EpisodeValidationError as exc:
         events[:] = before
         return f"relink failed: {exc}"
-    lost = _edge_count(before) - _edge_count(events)
+    lost = _real_edge_count(before) - _real_edge_count(events)
     if lost > 0:
         events[:] = before
-        return f"refused: relink would drop {lost} of {_edge_count(before)} edges"
+        return f"refused: relink would drop {lost} of {_real_edge_count(before)} edges"
     return None
 
 

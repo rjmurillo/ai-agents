@@ -12,7 +12,7 @@ routing, generated Copilot agents, or runtime contracts, execute it through
 `ai-agents-portability-campaign`. Do not repeat vendor research already pinned
 in the reference sidecar.
 
-> **Governing ADR**: [ADR-036: Two-Source Agent Template Architecture](../../.agents/architecture/ADR-036-two-source-agent-template-architecture.md)
+> **Governing procedure** (in the `rjmurillo/ai-agents` repository; ADR-036 and ADR-052 are not shipped with this installed plugin, so they are named here without links): ADR-036 (Two-Source Agent Template Architecture) is superseded in governance by ADR-052 (Template Strategy), but ADR-036's synchronization procedure below is still what runs; ADR-052 is accepted target state, not yet implemented.
 
 ## Source vs Installation Relationship
 
@@ -350,9 +350,12 @@ uv run pytest
 
 ## Related Documentation
 
-- [ADR-036: Two-Source Agent Template Architecture](../../.agents/architecture/ADR-036-two-source-agent-template-architecture.md) - Governing architecture decision
-- [templates/AGENTS.md](../../templates/AGENTS.md) - Template system synchronization rules
-- [build/AGENTS.md](../../build/AGENTS.md) - Build automation
-- [Root AGENTS.md](../../AGENTS.md) - Agent usage instructions
-- [AGENT-SYSTEM.md](../../.agents/AGENT-SYSTEM.md) - Full system documentation
+Paths below are in the `rjmurillo/ai-agents` repository, not shipped with this
+installed plugin, so they are named without links:
+
+- ADR-036 (Two-Source Agent Template Architecture): operative procedure (superseded in governance by ADR-052, not yet implemented)
+- `templates/AGENTS.md`: template system synchronization rules
+- `build/AGENTS.md`: build automation
+- Root `AGENTS.md`: agent usage instructions
+- `.agents/AGENT-SYSTEM.md`: full system documentation
 - usage-mandatory (read via `Read .serena/memories/usage-mandatory.md`) - GitHub skill rules

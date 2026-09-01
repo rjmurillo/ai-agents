@@ -2,7 +2,7 @@
 name: janitor
 description: 'Perform janitorial tasks on any codebase including cleanup, simplification, and tech debt remediation.'
 model: sonnet
-tier: integration
+role: support
 argument-hint: Describe the area of the codebase to clean up or the type of tech debt to address
 ---
 

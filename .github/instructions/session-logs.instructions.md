@@ -4,12 +4,17 @@ applyTo: .agents/**
 
 # Session Log Mechanics
 
-`.agents/SESSION-PROTOCOL.md` describes what a session log contains. This rule
-covers two enforcement mechanics that the protocol document does not state and
-that both fail loudly at commit time.
+`.agents/schemas/session-log.schema.json` describes what a session log
+contains. **Session log creation is discontinued: do not create a new
+`.agents/sessions/*.json` file.** Nothing ever required one to commit, push, or
+open a PR. The existing logs under `.agents/sessions/` stay in the repository
+as history and remain readable by the `retrospective` skill, memory
+extraction, and the PreCompact hook. This rule covers the mechanics that still
+apply to a log that already exists on your branch (carried over from before
+this change, or cherry-picked from an older one).
 
-Scoped to `.agents/**` rather than `**` on purpose. Both rules fire only when a
-change touches that tree, and the always-on instruction ceiling
+Scoped to `.agents/**` rather than `**` on purpose. The mechanics matter only
+when a change touches that tree, and the always-on instruction ceiling
 (`scripts/validation/instruction_budget.py`) has under 500 bytes of headroom, so
 a universally scoped copy would block the next contributor's rule. Note that the
 generator currently ships this rule to the plugin with `applyTo: '**'`, because
@@ -18,16 +23,15 @@ universal; that is issue #4317, not a property of this rule.
 
 ## MUST
 
-1. **The log lands in the same commit as the change.** A commit that stages
-   anything under `.agents/**` MUST carry a session log named
-   `.agents/sessions/YYYY-MM-DD-session-NN<slug>.json` in that same commit.
-   `scripts/validation/git_hook_policy.py session` rejects the commit with
-   `ERROR: staged .agents changes require a JSON session log` otherwise. It runs
-   on every `.agents/**` path, not only on work long enough to feel like a
-   session. Writing the log afterwards does not clear the rejection; the log and
-   the change must land together. One exception: a merge in progress skips the
-   check, both at the hook (`lefthook.yml`, `skip: [merge]`) and in the checker
-   (`check_sessions` returns 0 when `_merge_in_progress`).
+1. **Do not create a new session log.** Session log creation is discontinued;
+   no start, end, commit, push, or PR gate ever required one, and none does
+   now. If a log named `.agents/sessions/YYYY-MM-DD-session-NN<slug>.json`
+   ends up staged anyway (for example, cherry-picked from an older branch),
+   the `session-policy` pre-commit hook still validates it
+   (`scripts/validation/git_hook_policy.py session`, a validate-if-present gate):
+   a malformed log still blocks that commit. When no log is staged, the gate
+   returns 0 (`check_sessions` passes when there are no session paths, and also
+   when `_merge_in_progress`).
 
 2. **Record `endingCommit` in a follow-up commit, never by amending.** Amending
    replaces the commit whose SHA the log names, so `validate_session_json.py`
@@ -65,8 +69,8 @@ universal; that is issue #4317, not a property of this rule.
 
 ## References
 
-- `.agents/SESSION-PROTOCOL.md`. What a session log contains.
-- `scripts/validation/git_hook_policy.py`. The `session` subcommand that blocks
-  the commit.
+- `.agents/schemas/session-log.schema.json`. What a session log contains.
+- `scripts/validation/git_hook_policy.py`. The `session` subcommand that
+  validates a staged log; it passes when none is staged.
 - `scripts/validate_session_json.py`. The reachability check on `endingCommit`.
 - Issue #3618. The amend-breaks-endingCommit report.

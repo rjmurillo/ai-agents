@@ -55,8 +55,8 @@ python3 "$SCRIPTS_DIR/search_memory.py" "[topic]"
 is advisory. Making it BLOCKING achieves 100% compliance, the same pattern as
 the session protocol gates (ADR-070 gate semantics).
 
-**Verification**: session logs must show the memory search BEFORE the decision,
-not after. A search logged after the change is a gate failure, not a pass.
+**Verification**: the transcript, pull request, handoff, Serena memory, or an
+optional log must show the search before the decision.
 
 The canonical Tier 1 script is `search_memory.py`. It is shared with the
 `memory` router and lives at
@@ -106,7 +106,8 @@ the required search:
 
 **Tier 1 (Semantic)**: facts, patterns, constraints.
 
-- Why does the PowerShell-only constraint exist? (ADR-005)
+- Why is Python the default for new internal automation? (ADR-042, which superseded the PowerShell-only ADR-005 but keeps PowerShell for quick fixes to existing PowerShell scripts and PowerShell-specific operations)
+- Why did the PowerShell-only constraint exist, before it was superseded? (ADR-005, superseded by ADR-042)
 - Why do skills exist instead of raw CLI? (usage-mandatory)
 - What incidents led to BLOCKING gates? (protocol-blocking-gates)
 
@@ -143,7 +144,7 @@ the token cost low; most gate checks resolve there.
 | Operation | Verification |
 |-----------|--------------|
 | Gate search ran | Result count greater than 0 OR logged "no results" |
-| Ordering correct | Search appears BEFORE the change in the session log |
+| Ordering correct | Search appears before the change in accepted evidence |
 | Escalation justified | Tier 2 used only after Tier 1 came back thin |
 | Rationale recorded | Decision rationale cites the memory findings |
 

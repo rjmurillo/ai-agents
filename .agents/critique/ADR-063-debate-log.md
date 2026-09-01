@@ -55,3 +55,12 @@ commits to: extract the Tier 1 search operation into a `memory-search`
 sub-skill, with `memory` remaining the thin router. The gate-location
 sub-decision and the remaining operation sub-skills (episode, causal,
 maintenance) are out of Phase 1 scope and flagged in the PR body.
+
+## Correction: frontmatter date read the authoring date, not last update
+
+ADR-073's schema defines `date` as `# last updated`. ADR-063's frontmatter
+carried `2026-06-01`, the date this record was first authored as DRAFT,
+even after the record's own `## Amendment 2026-07-27` section documented a
+later change. Corrected to `2026-07-27`; `2026-06-01` stays in the record's
+own `## Date` section (Copilot, PR #5209 round-11 review). No change to
+this log's verdict or the acceptance it records.

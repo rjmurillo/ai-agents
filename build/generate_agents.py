@@ -23,6 +23,7 @@ This is a Python port of Generate-Agents.ps1 following ADR-042 migration.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 import time
@@ -48,6 +49,7 @@ from generate_agents_common import (  # noqa: E402
     read_toolset_definitions,
     read_yaml_frontmatter,
 )
+from model_pin_manifest import load_pin_manifest  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
 
@@ -185,6 +187,64 @@ def generate_agents(
 
     start_time = time.monotonic()
 
+    # The symlink-ancestor walk a few lines into the per-platform loop below
+    # climbs output_dir's parents looking for repo_root
+    # (`while current != repo_root: current = current.parent`) and never
+    # terminates if output_root does not resolve to a descendant of
+    # repo_root: the walk reaches filesystem root, whose parent is itself,
+    # and repo_root is never found. main() resolving both paths to absolute
+    # (see its own comment on this) protects the CLI entry point, but a
+    # direct call to this function (generate_agents(Path("templates"),
+    # Path("src"), Path.cwd()), as the tests in this file do) bypasses
+    # main() entirely. Resolve all three parameters here, at the top of
+    # this function, and reassign them: checking resolved COPIES while the
+    # rest of the function keeps reading the original possibly-relative
+    # values would pass this guard and then hang anyway, on both the loop
+    # below and the shared_file.relative_to(repo_root) unit computation a
+    # few lines further down (which needs templates_path resolved too: a
+    # relative templates_path produces a relative shared_file, and
+    # shared_file.relative_to(repo_root) raises ValueError once repo_root
+    # is absolute, silently dropping every manifest pin via the except
+    # clause down there rather than erroring).
+    #
+    # output_root specifically is resolved TWICE, into two different
+    # variables, for a reason the other two don't share: os.path.abspath
+    # makes a path absolute by collapsing "."/".." lexically, without
+    # touching the filesystem or following symlinks, unlike Path.resolve(),
+    # which additionally dereferences every symlink component. Reassigning
+    # output_root to its FULLY resolved form here, before the
+    # symlink-ancestor walk below ever runs, would fold away a symlink
+    # placed at or above output_root itself before that walk gets a chance
+    # to see it -- current.is_symlink() only ever sees the walk's OWN
+    # starting point and its ancestors, and if output_root's own resolution
+    # already dereferenced a symlink, that symlink is invisible to the walk
+    # no matter how carefully the walk itself is written. output_root_lexical
+    # keeps the absolute-but-not-dereferenced form specifically for that
+    # walk; output_root itself stays the fully resolved form for the
+    # containment check directly below and for every other downstream path
+    # built from it (mkdir, output file writes, the escape check a few
+    # lines past the walk). This is a narrow gap in practice: the only
+    # caller that ever passes --output-root is build/scripts/build_all.py,
+    # always as a plain `repo_root / "src"` string with no symlink
+    # involved, so this only bites a maintainer who deliberately points
+    # --output-root through a symlink by hand. It is still worth closing:
+    # main() already unconditionally resolved output_root before this
+    # function gained its own resolution, so the gap existed on the CLI
+    # path even before this fix; extending resolution to the direct-call
+    # path without also splitting lexical from resolved would have widened
+    # that same gap rather than just achieving parity.
+    output_root_lexical = Path(os.path.abspath(output_root))
+    output_root = output_root.resolve()
+    repo_root = repo_root.resolve()
+    templates_path = templates_path.resolve()
+    if not output_root.is_relative_to(repo_root):
+        print(
+            f"Error: --output-root must resolve inside the repository root "
+            f"({repo_root}); got {output_root}.",
+            file=sys.stderr,
+        )
+        return 2
+
     # Load platform configurations
     platforms_path = templates_path / "platforms"
     platforms: list[dict[str, object]] = []
@@ -227,6 +287,14 @@ def generate_agents(
     print(f"Found {len(shared_files)} shared source file(s)")
     print()
 
+    # ADR-080 sidecar manifest of KEEP_PIN evidence, loaded once per run.
+    # Empty (or absent) manifest is the common case today: resolve_manifest_model
+    # then returns None for every unit and generation is unaffected. See
+    # build/model_pin_manifest.py for the resolution and formatting logic.
+    pin_manifest = load_pin_manifest(
+        repo_root / ".agents" / "governance" / "model-pin-evidence.json"
+    )
+
     generated = 0
     errors = 0
     differences: list[str] = []
@@ -234,6 +302,17 @@ def generate_agents(
     for shared_file in shared_files:
         agent_name = shared_file.stem.replace(".shared", "")
         print(f"Processing: {agent_name}")
+        # The manifest keys pins by repo-relative unit path
+        # (templates/agents/<name>.shared.md; matches check_model_pins.py's
+        # own _UNIT_GLOBS for this unit kind). A caller-supplied
+        # templates_path outside repo_root can't be expressed that way; fall
+        # back to None rather than fail generation, which just means no
+        # manifest-justified pin resolves for this run (ADR-080 rule 5's
+        # fail-closed default).
+        try:
+            source_unit = shared_file.relative_to(repo_root).as_posix()
+        except ValueError:
+            source_unit = None
 
         content = shared_file.read_text(encoding="utf-8")
         parsed = read_yaml_frontmatter(content)
@@ -286,13 +365,29 @@ def generate_agents(
                 output_dir_relative = prefix_match.group(1)
 
             output_dir = output_root / output_dir_relative
-            current = output_dir
+            # Walk the LEXICAL (unresolved) ancestor chain, not the
+            # resolved output_dir built from the already-dereferenced
+            # output_root above: is_symlink() on a path built from a
+            # pre-resolved output_root can never see a symlink that
+            # resolution already folded away before this loop started (see
+            # the output_root_lexical comment near the top of this
+            # function). Bounded by filesystem depth via the
+            # parent-equals-self fixed point at the root ("/".parent == "/"
+            # on POSIX, a drive root on Windows), not by matching
+            # repo_root: a symlink anywhere in this chain diverts the
+            # lexical walk away from repo_root's resolved form, and a bound
+            # tied to reaching repo_root would spin forever on exactly the
+            # adversarial input this check exists to catch.
+            current = output_root_lexical / output_dir_relative
             has_symlink_ancestor = False
-            while current != repo_root:
+            while True:
                 if current.is_symlink():
                     has_symlink_ancestor = True
                     break
-                current = current.parent
+                parent = current.parent
+                if parent == current:
+                    break
+                current = parent
             if has_symlink_ancestor:
                 print(
                     f"  Error: Agent output path cannot contain symlinks: {output_dir}",
@@ -338,7 +433,8 @@ def generate_agents(
                 continue
 
             transformed_fm = convert_frontmatter_for_platform(
-                frontmatter, platform, agent_name
+                frontmatter, platform, agent_name,
+                manifest=pin_manifest, source_unit=source_unit, repo_root=repo_root,
             )
 
             # Expand toolset references
@@ -493,14 +589,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     # Resolve repo root: script is in build/, go up one level
-    # When paths are explicitly provided, derive repo root from templates path
+    # When paths are explicitly provided, derive repo root from templates path.
+    # templates_path itself must also be resolved to absolute here: generate_agents()
+    # computes each shared file's manifest unit key via
+    # shared_file.relative_to(repo_root), which raises ValueError (silently
+    # caught, source_unit=None) when templates_path stays relative while
+    # repo_root is absolute -- the common case for an invocation like
+    # `--templates-path templates`. A relative templates_path with no
+    # manifest wiring active would work by accident; with it active every
+    # valid KEEP_PIN entry would silently fail to resolve.
     if args.templates_path:
-        repo_root = args.templates_path.resolve().parent
+        templates_path = args.templates_path.resolve()
+        repo_root = templates_path.parent
     else:
         repo_root = _SCRIPT_DIR.parent
+        templates_path = repo_root / "templates"
 
-    templates_path = args.templates_path or (repo_root / "templates")
-    output_root = args.output_root or (repo_root / "src")
+    # output_root must also be absolute for the same reason: generate_agents()
+    # walks current = output_dir up via .parent comparing to the absolute
+    # repo_root (the symlink-ancestor check a few lines into the per-platform
+    # loop) until current == repo_root. A relative output_root never equals
+    # repo_root at any ancestor, including "." (Path(".").parent == Path(".")),
+    # so that walk never terminates: a relative --output-root, e.g.
+    # `--output-root src`, hangs the CLI rather than erroring. Discovered
+    # while adding the manifest-wiring regression test above; not something
+    # the manifest wiring itself introduced, but adjacent code this same fix
+    # already has to touch to resolve the sibling relative-path bug correctly.
+    output_root = (args.output_root.resolve() if args.output_root else None) or (
+        repo_root / "src"
+    )
 
     if not templates_path.is_dir():
         print(f"Error: Templates path not found: {templates_path}", file=sys.stderr)

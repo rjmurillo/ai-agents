@@ -17,7 +17,9 @@ These rules apply to every change in this repository.
 6. **Atomic commits**. Each commit MUST touch five or fewer authored files (see `AGENTS.md` boundaries). Hook-generated companions (session episodes, MCP config, agent catalog, memory index) are exempt and do not count toward the limit.
 7. **No secrets**. MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
 8. **Pin Actions to SHA**. New GitHub Actions references MUST pin to a commit SHA, never a floating tag.
-9. **Session log**. Long-running work MUST have a session log under `.agents/sessions/` per `.agents/SESSION-PROTOCOL.md`.
+9. **Session continuity**. Long-running issue work MUST preserve continuity in
+   the per-issue handoff and Serena memory. Session log creation is
+   discontinued; a log that is already staged still validates.
 10. **Git identity cannot prove a human acted.**
 
 ## SHOULD
@@ -74,4 +76,3 @@ These rules apply to every change in this repository.
 - `AGENTS.md`. Boundaries and standards
 - `.agents/governance/PROJECT-CONSTRAINTS.md`. Canonical constraints
 - `.agents/architecture/ADR-042-python-migration-strategy.md`. Python-first
-- `.agents/SESSION-PROTOCOL.md`. Session gates

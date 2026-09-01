@@ -36,6 +36,7 @@ main = _mod.main
 build_parser = _mod.build_parser
 check_merge_readiness = _mod.check_merge_readiness
 stale_dirty_suspected = _mod.stale_dirty_suspected
+classify_tier = _mod.classify_tier
 
 
 class TestScriptCommit:
@@ -1064,3 +1065,426 @@ class TestQuerySelectsDetailsUrl:
     def test_both_check_run_selections_request_details_url(self):
         assert "detailsUrl" in _mod._CONTEXTS_PAGE_QUERY
         assert "detailsUrl" in _mod._MERGE_READY_QUERY
+
+
+# ---------------------------------------------------------------------------
+# Tests: Non-required failure disposition (issue #4902)
+# ---------------------------------------------------------------------------
+
+_load_dispositions = _mod._load_dispositions
+_check_nonrequired_dispositions = _mod._check_nonrequired_dispositions
+_VALID_DISPOSITIONS = _mod._VALID_DISPOSITIONS
+
+
+class TestNonRequiredDispositions:
+    """Issue #4902: require evidence before accepting nonrequired failures."""
+
+    # -- Positive: disposed failures pass --
+
+    def test_no_failures_returns_empty(self):
+        assert _check_nonrequired_dispositions([], None) == []
+
+    def test_all_failures_disposed_returns_empty(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Tests": {
+                "disposition": "known-flaky",
+                "reason": "Flaky network test tracked in #1234",
+            },
+        }))
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], str(disp_file),
+        )
+        assert result == []
+
+    # -- Negative: undisposed failures block --
+
+    def test_missing_file_returns_all_failures(self):
+        result = _check_nonrequired_dispositions(
+            ["Run Tests", "Lint"], "/nonexistent/path.json",
+        )
+        assert result == ["Run Tests", "Lint"]
+
+    def test_none_file_returns_all_failures(self):
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], None,
+        )
+        assert result == ["Run Tests"]
+
+    def test_partial_disposition_returns_undisposed(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Tests": {
+                "disposition": "known-flaky",
+                "reason": "Tracked in #1234",
+            },
+        }))
+        result = _check_nonrequired_dispositions(
+            ["Run Tests", "Lint"], str(disp_file),
+        )
+        assert result == ["Lint"]
+
+    def test_invalid_disposition_value_treated_as_undisposed(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Tests": {
+                "disposition": "yolo",
+                "reason": "I want to merge",
+            },
+        }))
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], str(disp_file),
+        )
+        assert result == ["Run Tests"]
+
+    def test_empty_reason_treated_as_undisposed(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Tests": {
+                "disposition": "known-flaky",
+                "reason": "",
+            },
+        }))
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], str(disp_file),
+        )
+        assert result == ["Run Tests"]
+
+    # -- Edge cases --
+
+    def test_malformed_json_returns_all_failures(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text("not json{{{")
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], str(disp_file),
+        )
+        assert result == ["Run Tests"]
+
+    def test_non_dict_entry_treated_as_undisposed(self, tmp_path):
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Tests": "just a string",
+        }))
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], str(disp_file),
+        )
+        assert result == ["Run Tests"]
+
+    def test_all_valid_disposition_values_accepted(self, tmp_path):
+        for disp_val in _VALID_DISPOSITIONS:
+            disp_file = tmp_path / f"d_{disp_val}.json"
+            disp_file.write_text(json.dumps({
+                "Check": {"disposition": disp_val, "reason": "valid"},
+            }))
+            assert _check_nonrequired_dispositions(
+                ["Check"], str(disp_file),
+            ) == [], f"Failed for disposition={disp_val}"
+
+
+class TestMergeReadinessWithDispositions:
+    """Integration: check_merge_readiness blocks on undisposed failures."""
+
+    def _pr_with_failed_nonrequired(self):
+        """PR data: zero required checks, one failed non-required check."""
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "UNSTABLE"
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
+            "commit"
+        ]["statusCheckRollup"]["contexts"]["nodes"] = [
+            {
+                "__typename": "CheckRun",
+                "name": "Run Python Tests",
+                "status": "COMPLETED",
+                "conclusion": "FAILURE",
+                "isRequired": False,
+            },
+        ]
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
+            "commit"
+        ]["statusCheckRollup"]["state"] = "FAILURE"
+        return pr_data
+
+    def test_undisposed_nonrequired_failure_blocks_merge(self):
+        """Issue #4902 reproduction: UNSTABLE with no disposition must block."""
+        pr_data = self._pr_with_failed_nonrequired()
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["UndisposedNonRequiredFailures"] == ["Run Python Tests"]
+        assert any("disposition" in r for r in result["Reasons"])
+
+    def test_disposed_nonrequired_failure_allows_merge(self, tmp_path):
+        """With valid disposition file, UNSTABLE PR can merge."""
+        pr_data = self._pr_with_failed_nonrequired()
+        disp_file = tmp_path / "dispositions.json"
+        disp_file.write_text(json.dumps({
+            "Run Python Tests": {
+                "disposition": "known-flaky",
+                "reason": "Tracked in issue #9999",
+            },
+        }))
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness(
+                "o", "r", 42,
+                dispositions_file=str(disp_file),
+            )
+        assert result["CanMerge"] is True
+        assert result["UndisposedNonRequiredFailures"] == []
+
+    def test_zero_required_base_absent_check_blocks(self):
+        """Zero required checks + failed non-required = blocked (no evidence)."""
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "UNSTABLE"
+        # No required checks at all, one non-required failure
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
+            "commit"
+        ]["statusCheckRollup"]["contexts"]["nodes"] = [
+            {
+                "__typename": "CheckRun",
+                "name": "Purpose Check",
+                "status": "COMPLETED",
+                "conclusion": "FAILURE",
+                "isRequired": False,
+            },
+        ]
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
+            "commit"
+        ]["statusCheckRollup"]["state"] = "FAILURE"
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        # Must block: zero required checks, non-required failed, no disposition
+        assert result["CanMerge"] is False
+        assert result["CIPassing"] is True  # no required checks failed
+        assert "Purpose Check" in result["UndisposedNonRequiredFailures"]
+
+    def test_clean_state_no_failures_still_passes(self):
+        """Regression: CLEAN state with no failures should still pass."""
+        with patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is True
+        assert result["UndisposedNonRequiredFailures"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tier classification tests (issue #4899)
+# ---------------------------------------------------------------------------
+
+
+class TestClassifyTier:
+    """Total tier classifier covers all mergeStateStatus values."""
+
+    def test_clean_can_merge_is_t1(self):
+        result = {
+            "CanMerge": True,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "CLEAN",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T1"
+
+    def test_unstable_with_dispositions_is_t1(self):
+        """UNSTABLE + all non-required disposed = T1 (PR #5033 model)."""
+        result = {
+            "CanMerge": True,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "UNSTABLE",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T1"
+
+    def test_unstable_undisposed_is_t2(self):
+        """UNSTABLE with undisposed failures = T2 (CI work needed)."""
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "UNSTABLE",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": ["lint"],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T2"
+
+    def test_blocked_state(self):
+        """BLOCKED mergeStateStatus maps to BLOCKED tier."""
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "BLOCKED",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "BLOCKED"
+
+    def test_behind_state(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "BEHIND",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "BEHIND"
+
+    def test_dirty_state(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "DIRTY",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "DIRTY"
+
+    def test_draft_is_skip(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": True,
+            "State": "OPEN",
+            "MergeStateStatus": "CLEAN",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "SKIP"
+
+    def test_closed_is_skip(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "CLOSED",
+            "MergeStateStatus": "",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "SKIP"
+
+    def test_merged_is_skip(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "MERGED",
+            "MergeStateStatus": "",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "SKIP"
+
+    def test_ci_failures_only_is_t2(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "UNSTABLE",
+            "FailedRequiredChecks": [{"name": "tests"}],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T2"
+
+    def test_threads_only_is_t3(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "CLEAN",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 3,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T3"
+
+    def test_ci_and_threads_is_t4(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "UNSTABLE",
+            "FailedRequiredChecks": [{"name": "lint"}],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 2,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result) == "T4"
+
+    def test_bot_with_failures_is_t5(self):
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "UNSTABLE",
+            "FailedRequiredChecks": [{"name": "tests"}],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result, is_bot=True) == "T5"
+
+    def test_bot_clean_is_t1(self):
+        """Bot PRs that are fully clean still classify as T1."""
+        result = {
+            "CanMerge": True,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "CLEAN",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [],
+        }
+        assert classify_tier(result, is_bot=True) == "T1"
+
+    def test_pending_required_only_is_t2(self):
+        """Pending required checks with no failures = T2 (waiting on CI)."""
+        result = {
+            "CanMerge": False,
+            "IsDraft": False,
+            "State": "OPEN",
+            "MergeStateStatus": "CLEAN",
+            "FailedRequiredChecks": [],
+            "UndisposedNonRequiredFailures": [],
+            "UnresolvedThreads": 0,
+            "PendingRequiredChecks": [{"name": "build"}],
+        }
+        assert classify_tier(result) == "T2"
+
+    def test_tier_order_tuple_is_complete(self):
+        """Verify _TIER_ORDER contains all possible classifier outputs."""
+        from test_pr_merge_ready import _TIER_ORDER
+        expected = {"T1", "T2", "T3", "T4", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP"}
+        assert set(_TIER_ORDER) == expected
+
+
+class TestTierInMergeReadinessOutput:
+    """Verify Tier field appears in check_merge_readiness output."""
+
+    def test_tier_field_present_in_output(self):
+        with patch("test_pr_merge_ready.gh_graphql", return_value=_OPEN_PR):
+            result = check_merge_readiness("o", "r", 42)
+        assert "Tier" in result
+        assert result["Tier"] in _mod._TIER_ORDER

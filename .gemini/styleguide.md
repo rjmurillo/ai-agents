@@ -15,7 +15,7 @@
 | Output schemas | [`ADR-028`](../.agents/architecture/ADR-028-powershell-output-schema-consistency.md) in `.agents/architecture/` |
 | Workflow architecture | [`ADR-006`](../.agents/architecture/ADR-006-thin-workflows-testable-modules.md) in `.agents/architecture/` |
 | Skill usage | [`.serena/memories/usage-mandatory.md`](../.serena/memories/usage-mandatory.md) |
-| Session protocol | [`.agents/SESSION-PROTOCOL.md`](../.agents/SESSION-PROTOCOL.md) |
+| Session log mechanics | [`.claude/rules/session-logs.md`](../.claude/rules/session-logs.md) |
 | Project constraints | [`.agents/governance/PROJECT-CONSTRAINTS.md`](../.agents/governance/PROJECT-CONSTRAINTS.md) |
 | Communication style | [`src/STYLE-GUIDE.md`](../src/STYLE-GUIDE.md) |
 | Naming conventions | [`.agents/governance/naming-conventions.md`](../.agents/governance/naming-conventions.md) |

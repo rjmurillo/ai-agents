@@ -1,3 +1,14 @@
+---
+id: ADR-015
+status: accepted
+date: 2025-12-22
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-015: Artifact Storage Minimization Strategy
 
 ## Status

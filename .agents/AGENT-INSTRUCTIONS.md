@@ -40,7 +40,7 @@ Before starting work, complete these steps IN ORDER:
 - [ ] Read `.agents/archive/planning/enhancement-PROJECT-PLAN.md` for current project
 - [ ] Check `.agents/HANDOFF.md` for previous session notes
 - [ ] Identify your assigned phase and tasks
-- [ ] Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.json`
+- [ ] Read the current per-issue handoff, when one exists
 
 ---
 
@@ -52,7 +52,7 @@ Before starting work, complete these steps IN ORDER:
 | `AGENT-SYSTEM.md` | Agent catalog and workflows | When agents added/modified |
 | `archive/planning/enhancement-PROJECT-PLAN.md` | Master project plan | After task completion |
 | `HANDOFF.md` | Session-to-session context | At END of every session |
-| `sessions/*.md` | Detailed session logs | Throughout session |
+| `sessions/*.json` | Historical session logs | Creation discontinued; never |
 | `governance/*.md` | Standards and protocols | When governance changes |
 | `specs/*/*.md` | Requirements, designs, tasks | When specs created/updated |
 | `steering/*.md` | Domain-specific guidance | When steering updated |
@@ -61,21 +61,19 @@ Before starting work, complete these steps IN ORDER:
 
 ## Phase Execution Protocol
 
-### 1. Session Initialization (MANDATORY)
-
-> **Canonical Source**: Copy the Session Start checklist from [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md#session-start-checklist)
+### 1. Session Initialization
 
 Use the **table format** (not bullet lists) for validation to pass:
 
 ```markdown
-### Session Start (COMPLETE ALL before work)
+### Session Start
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
 | MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
 | MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
-| MUST | Create this session log | [x] | This file exists |
+| MUST NOT | Create a session log | [x] | Session log creation is discontinued |
 | MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented below |
 | MUST | Read skill-usage-mandatory memory | [x] | Content in context |
 | MUST | Read PROJECT-CONSTRAINTS.md | [x] | Content in context |
@@ -83,8 +81,6 @@ Use the **table format** (not bullet lists) for validation to pass:
 | SHOULD | Verify git status | [x] | Output documented below |
 | SHOULD | Note starting commit | [x] | SHA documented below |
 ```
-
-See [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md) for full requirements and validation rules.
 
 ### 2. Task Execution (FOR EACH TASK)
 
@@ -105,33 +101,26 @@ See [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md) for full requirements and validat
 **After completing a task:**
 
 1. ✅ Check off the task in `enhancement-PROJECT-PLAN.md`
-2. Update session log with:
-   - What was done
-   - Decisions made and why
-   - Challenges encountered
-   - How challenges were resolved
-3. Commit the documentation update
+2. Update the per-issue handoff when work remains open
+3. Store durable decisions in Serena memory
+4. Commit the documentation update
 
-### 3. Session Finalization (MANDATORY)
+### 3. Session Finalization
 
-> **Canonical Source**: Copy the Session End checklist from [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md#session-end-checklist)
-
-**Before ending ANY session, you MUST complete the Session End checklist using the table format:**
+Use the Session End checklist for repository quality and continuity:
 
 ```markdown
 ### Session End (COMPLETE ALL before closing)
 
 | Req | Step | Status | Evidence |
 |-----|------|--------|----------|
-| MUST | Complete session log | [x] | All sections filled |
+| MUST NOT | Create a session log | [x] | Session log creation is discontinued |
 | MUST | Update Serena memory (cross-session context) | [x] | Memory write confirmed |
 | MUST | Run `npx markdownlint-cli2 --fix "**/*.md"` | [x] | Lint clean |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report path or SKIPPED: docs-only |
 | MUST | Commit all changes (including `.serena/memories/`) | [x] | Commit SHA: abc1234 |
 | MUST NOT | Update `.agents/HANDOFF.md` | [x] | HANDOFF.md unchanged |
 ```
-
-See [SESSION-PROTOCOL.md](SESSION-PROTOCOL.md) for full requirements and validation rules.
 
 ---
 
@@ -300,75 +289,13 @@ The repository should have a pre-commit hook that:
 
 ---
 
-## Session Log Template
+## Session Log Template (retired)
 
-Create at session start: `.agents/sessions/YYYY-MM-DD-session-NN.json`
-
-```markdown
-# Session NN - [Phase Name] - [Date]
-
-## Session Info
-
-- **Date**: YYYY-MM-DD
-- **Phase**: [Phase number and name]
-- **Branch**: `feat/phase-N-description`
-- **Starting Commit**: [SHA]
-
-## Pre-Flight Checks
-
-- [ ] Read AGENT-INSTRUCTIONS.md
-- [ ] Read AGENT-SYSTEM.md
-- [ ] Read HANDOFF.md
-- [ ] Identified tasks: [Task IDs]
-
-## Tasks Completed
-
-### [Task-ID] - [Task Name]
-
-**Status**: ✅ Complete | 🔄 In Progress | ❌ Blocked
-
-**What was done**:
-- [Specific changes made]
-
-**Decisions made**:
-- [Decision]: [Rationale]
-
-**Challenges**:
-- [Challenge]: [Resolution]
-
-**Files changed**:
-- `path/to/file.md` - [description]
-
-**Commits**:
-- `abc1234` - [commit message]
-
----
-
-## Session Summary
-
-**Completed**: X/Y tasks
-**Time spent**: ~X hours
-**Next up**: [What the next session should do]
-
-## Verification
-
-```bash
-# Verify markdown linting
-npx markdownlint-cli2 "**/*.md"
-
-# Verify no broken internal links
-grep -r "](.*\.md)" .agents/ | grep -v node_modules | head -20
-
-# Verify git state
-git status
-```
-
-## Notes for Next Session
-
-- [Important context]
-- [Gotchas discovered]
-- [Recommendations]
-```
+Session log creation is discontinued (`.claude/rules/session-logs.md` MUST 1).
+Do not create a new `.agents/sessions/*.json` file. The schema at
+`.agents/schemas/session-log.schema.json` and the ~1,500 historical logs
+remain for reference; use a per-issue handoff (see below) and Serena memory
+for continuity instead.
 
 ---
 
@@ -454,7 +381,7 @@ If you need context, read these files in order:
 2. `.agents/AGENT-SYSTEM.md` - Agent catalog and workflows
 3. `.agents/archive/planning/enhancement-PROJECT-PLAN.md` - Master project plan
 4. `.agents/HANDOFF.md` - Previous session context
-5. `.agents/sessions/YYYY-MM-DD-session-NN.json` - Last session details
+5. The current per-issue handoff under `.agents/sessions/handoffs/`, when one exists
 ```
 
 ---
@@ -551,7 +478,7 @@ After completing significant work:
 
 ```text
 @retrospective Analyze this session for learnings.
-Session log: .agents/sessions/YYYY-MM-DD-session-NN.json
+Evidence: transcript, per-issue handoff, Serena memory, or a historical session log if one exists
 Tasks completed: [list]
 ```
 
@@ -744,7 +671,7 @@ Before delegating to an agent:
 1. Identify files that will be touched
 2. Match files against steering glob patterns
 3. Include applicable steering content in context
-4. Note steering files used in session log
+4. Note steering files used in the transcript or per-issue handoff
 
 ---
 
@@ -782,7 +709,7 @@ Before delegating to an agent:
 
 If something goes wrong:
 
-1. **Lost context**: Read session logs in `.agents/sessions/`
+1. **Lost context**: Read the per-issue handoff and Serena memory. Read historical session logs when present.
 2. **Unclear what to do**: Re-read `enhancement-PROJECT-PLAN.md`
 3. **Broken references**: Run traceability validation
 4. **Linting fails**: Run `npx markdownlint-cli2 --fix "**/*.md"`
@@ -792,7 +719,6 @@ If something goes wrong:
 
 ## Related Documents
 
-- [SESSION-PROTOCOL.md](./SESSION-PROTOCOL.md) - Session start/end requirements
 - [PROTOCOL-ANTIPATTERNS.md](./governance/PROTOCOL-ANTIPATTERNS.md) - Protocol design antipatterns and replacement patterns
 - [PROJECT-CONSTRAINTS.md](./governance/PROJECT-CONSTRAINTS.md) - Hard constraints
 
@@ -821,4 +747,3 @@ As the project progresses, document lessons learned here following this format:
 **Fix Applied**:
 - [What was done to resolve]
 ```
-

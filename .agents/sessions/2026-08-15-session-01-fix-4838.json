@@ -1,0 +1,123 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 1,
+    "date": "2026-08-15",
+    "branch": "fix/4838-block-customer-shipped-tests",
+    "startingCommit": "535d278c9d",
+    "objective": "Block customer-shipped CI tests (issue #4838)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Evidence": "serena tools available",
+        "Complete": true
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Evidence": "initial instructions read",
+        "Complete": true
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Evidence": "no prior handoff",
+        "Complete": true
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Evidence": "session log created",
+        "Complete": true
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Evidence": "scripts/validation/ reviewed",
+        "Complete": true
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Evidence": "issue #4838 read",
+        "Complete": true
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Evidence": "CLAUDE.md read",
+        "Complete": true
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Evidence": "pr-comment-responder-skills loaded",
+        "Complete": true
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Evidence": "fix/4838-block-customer-shipped-tests",
+        "Complete": true
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Evidence": "fix/4838-block-customer-shipped-tests",
+        "Complete": true
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Evidence": "all items checked",
+        "Complete": true
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Evidence": "no handoff needed",
+        "Complete": true
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Evidence": "no memory update needed",
+        "Complete": true
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Evidence": "no markdown changes",
+        "Complete": true
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Evidence": ".agents/qa/2026-08-15-pr-5035-colocated-skill-tests.md",
+        "Complete": true
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Evidence": "all changes committed",
+        "Complete": true
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Evidence": "all tests pass",
+        "Complete": true
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "implement",
+      "description": "Created check_colocated_skill_tests.py with path classifier"
+    },
+    {
+      "action": "test",
+      "description": "Added 22 test cases covering positive, negative, edge cases"
+    },
+    {
+      "action": "integrate",
+      "description": "Wired gate into lefthook, checks_plugin, pre_pr_sequence"
+    },
+    {
+      "action": "fix",
+      "description": "Fixed legacy tolerance to use base ref in branch mode"
+    }
+  ],
+  "endingCommit": "68a65b8c32",
+  "nextSteps": [
+    "Monitor for false positives in CI"
+  ]
+}

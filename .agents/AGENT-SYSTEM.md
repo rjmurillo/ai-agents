@@ -785,152 +785,79 @@ Triage by priority and implement fixes.
 
 ---
 
-## 2.5 Agent Tier Hierarchy
+## 2.5 Agent Coordination
 
 ### Overview
 
-The agent system implements a 4-tier hierarchy enabling clear escalation paths and delegation patterns per ADR-009 (Parallel-Safe Multi-Agent Design).
+Agent coordination is governed by ADR-009 (Parallel-Safe Multi-Agent Design).
+The orchestrator dispatches work, aggregates results, and escalates conflicts.
+There is no ranked agent *delegation* hierarchy: nothing in the build, the
+hooks, or the validators reads a rank to decide who may call whom, so a
+documented one only drifts from behavior. "Delegation" is the load-bearing
+word. ADR-009 does rank two agents, but only as vote weights inside conflict
+aggregation, which the next section quotes; that is a weighting on a returned
+result, not a statement about who may invoke whom.
 
-```mermaid
-graph TD
-    I[Integration Tier] -->|Supports| B[Builder Tier]
-    I -->|Supports| M[Manager Tier]
-    I -->|Supports| E[Expert Tier]
-    B -->|Escalates Conflicts| M
-    M -->|Escalates Conflicts| E
-    M -->|Delegates Work| B
-    E -->|Delegates Work| M
-    E -->|Delegates Work| B
+### Aggregation and Escalation
+
+ADR-009 defines three aggregation strategies. Quoted verbatim from
+`.agents/architecture/ADR-009-parallel-safe-multi-agent-design.md`:
+
+| Strategy | Use Case | Behavior |
+|----------|----------|----------|
+| **merge** | Non-conflicting outputs | Combine all outputs |
+| **vote** | Redundant execution | Select majority |
+| **escalate** | Conflicts detected | Route to high-level-advisor |
+
+The consensus protocol, also quoted verbatim from ADR-009:
+
+```text
+1. Orchestrator dispatches to N agents in parallel
+2. Agents return results independently
+3. Orchestrator checks for conflicts:
+   - No conflicts → merge results
+   - Soft conflicts → weighted vote (architect > implementer)
+   - Hard conflicts → escalate to high-level-advisor
+4. Final decision applied
 ```
 
-### Tier 1: Expert (Strategic Depth)
+Escalation terminates at `high-level-advisor`, not at the orchestrator. The
+orchestrator detects the conflict and routes it; it does not arbitrate.
 
-**Purpose**: Strategic decisions, priority arbitration, conflict resolution
-**Escalation Point**: Final authority for conflicts between lower tiers
+### Agent Roles
 
-| Agent | Model | Primary Responsibility |
-|-------|-------|----------------------|
-| high-level-advisor | opus | Strategic decisions, priority arbitration |
-| independent-thinker | sonnet | Challenge assumptions, alternative viewpoints |
-| architect | sonnet | Design governance, ADR creation |
-| roadmap | sonnet | Epic definition, business value prioritization |
+Each agent template carries a `role:` field in its frontmatter describing what
+the agent does, not where it sits in a ranking. The four values and their
+meanings:
 
-**Delegation Rules**:
-- Can delegate to any lower tier
-- Cannot be overridden by lower tiers
-- Resolves conflicts escalated from Manager tier
+| Role | Meaning | Examples |
+|------|---------|----------|
+| `strategic` | Sets direction, arbitrates priority, owns design authority | high-level-advisor, architect, roadmap, independent-thinker |
+| `coordinator` | Routes work, sequences plans, aggregates parallel results | orchestrator, milestone-planner, critic, pr-comment-responder |
+| `executor` | Produces the change: code, tests, deployment, fixes | implementer, qa, devops, security, debug |
+| `support` | Supplies research, documentation, and context to any caller | analyst, explainer, task-decomposer, skillbook, retrospective |
 
-### Tier 2: Manager (Coordination)
+`role` is descriptive metadata consumed by `build/generate_agent_catalog.py`
+(the catalog's Role column) and `scripts/openclaw_bridge.py` (the OpenClaw
+export). It grants and withholds nothing at runtime in this repository: no
+hook, validator, generator, or workflow reads it to allow or deny an action.
+The scope matters because the second consumer named above writes `role` into an
+external OpenClaw manifest, and OpenClaw owns what its role names mean there;
+ADR-098 records that boundary and treats a change to it as a re-evaluation
+trigger. Delegation is decided by the orchestrator against the task, per
+ADR-009, not by comparing two agents' role values.
 
-**Purpose**: Task routing, workflow coordination, plan validation
-**Aggregation Point**: Combines results from parallel Builder execution per ADR-009
+Nor by comparing agent names. The consensus protocol above weights `architect`
+over `implementer` when a soft conflict goes to a vote, and those two agents
+are `strategic` and `executor` in the table above, so the four role values sit
+one inference away from being read back as a rank. They are not one. That vote
+weight is scoped to aggregating a disagreement between results already
+produced; it confers no authority to delegate, to override, or to be consulted
+first, and it extends to no agent ADR-009 does not name. A future reader
+deriving `strategic > executor` from these two facts has derived exactly the
+thing this section removed.
 
-| Agent | Model | Primary Responsibility |
-|-------|-------|----------------------|
-| orchestrator | opus | Task routing, workflow coordination |
-| milestone-planner | sonnet | Milestone breakdown, dependency sequencing |
-| critic | sonnet | Plan validation, blocker identification |
-| issue-feature-review | sonnet | Issue triage and feature review |
-| pr-comment-responder | sonnet | PR feedback coordination |
-
-**Delegation Rules**:
-- Delegates to Builder and Integration tiers
-- Escalates conflicts to Expert tier
-- Aggregates parallel execution results
-
-### Tier 3: Builder (Execution)
-
-**Purpose**: Production implementation, testing, deployment
-**Parallelizable**: Can execute concurrently with conflict detection
-
-| Agent | Model | Primary Responsibility |
-|-------|-------|----------------------|
-| implementer | opus | Production code, .NET patterns |
-| qa | sonnet | Test strategy, verification |
-| devops | sonnet | CI/CD, deployment |
-| security | sonnet | Vulnerability assessment, OWASP |
-| debug | sonnet | Debugging and root cause analysis |
-
-**Delegation Rules**:
-- Cannot delegate to other Builders (parallel peers)
-- Can request Integration tier support
-- Escalates conflicts to Manager tier
-
-### Tier 4: Integration (Support)
-
-**Purpose**: Research, documentation, context management
-**Support Functions**: Available to all tiers
-
-| Agent | Model | Primary Responsibility |
-|-------|-------|----------------------|
-| analyst | sonnet | Research, root cause analysis |
-| explainer | sonnet | PRDs, documentation |
-| task-decomposer | sonnet | Atomic task breakdown |
-| retrospective | sonnet | Learning extraction |
-| spec-generator | sonnet | Specification generation |
-| adr-generator | sonnet | ADR creation |
-| backlog-generator | sonnet | Backlog item generation |
-| memory | haiku | Context retrieval/storage |
-| skillbook | haiku | Skill management |
-| context-retrieval | haiku | Memory search, docs fetch |
-
-**Delegation Rules**:
-- Cannot delegate (leaf tier)
-- Returns results to requesting tier
-- No escalation authority
-
-### Escalation Triggers
-
-| Path | Trigger |
-|------|---------|
-| **Builder → Manager** | Conflicting recommendations between parallel Builders |
-| **Manager → Expert** | Strategic decision required, priority conflicts, architectural disputes |
-| **Any → Expert** | Critical security decisions, major architectural changes |
-
-### Tier Compatibility Rules
-
-**Valid Delegation Patterns**:
-- Expert → Manager, Builder, Integration
-- Manager → Builder, Integration
-- Builder → Integration
-- Integration → None (leaf tier)
-
-**Invalid Patterns** (use escalation instead):
-- Builder → Builder (use parallel execution)
-- Integration → Any (cannot delegate)
-- Lower tier → Higher tier (escalate, don't delegate)
-
-### Escalation Examples
-
-#### Example 1: Builder Conflict → Manager Escalation
-
-**Scenario**: Security agent recommends rejecting PR due to vulnerability; QA agent approves based on test coverage.
-
-1. Orchestrator detects conflict between Builder-tier agents
-2. Escalates to Critic (Manager tier) for validation
-3. Critic reviews both positions and makes coordination decision
-
-**Resolution**: Manager tier has authority to prioritize security over test coverage.
-
-#### Example 2: Manager Conflict → Expert Escalation
-
-**Scenario**: Planner proposes 3-sprint timeline; Critic identifies architectural blockers requiring 5 sprints.
-
-1. Orchestrator detects Manager-tier disagreement
-2. Escalates to Architect (Expert tier) for design decision
-3. Architect evaluates technical feasibility and provides verdict
-
-**Resolution**: Expert tier makes final architectural decision.
-
-#### Example 3: Strategic Priority → Expert Direct
-
-**Scenario**: Feature request conflicts with roadmap priorities.
-
-1. Orchestrator recognizes strategic decision required
-2. Routes directly to Roadmap agent (Expert tier)
-3. Roadmap agent evaluates business value and provides priority verdict
-
-**Resolution**: Expert tier sets strategic direction without lower-tier involvement.
+`docs/agent-catalog.md` is the generated index of every agent and its role.
 
 ---
 
@@ -1285,9 +1212,10 @@ At session end, create a handoff document:
 - [path/to/file]: [Change type]
 ```
 
-#### Session Log Location
+#### Session Log Location (historical only, creation discontinued)
 
-`.agents/sessions/YYYY-MM-DD-[scope].md`
+Historical logs live at `.agents/sessions/YYYY-MM-DD-session-NN[-slug].json`.
+Do not create new ones; see `.claude/rules/session-logs.md`.
 
 ### 5.2 Memory Protocol
 
@@ -1343,7 +1271,8 @@ Skills extracted from retrospectives are stored with:
 | `.agents/roadmap/` | Epic definitions | roadmap |
 | `.agents/devops/` | Pipeline configs | devops |
 | `.agents/security/` | Threat models | security |
-| `.agents/sessions/` | Session context | memory |
+| `.agents/sessions/*.json` | Historical session context (creation discontinued) | memory |
+| `.agents/sessions/handoffs/` | Active per-issue continuity records | all agents |
 | `.agents/skills/` | Skill files | skillbook |
 | `.agents/specs/requirements/` | EARS requirements (Phase 1+) | spec-generator |
 | `.agents/specs/design/` | Design documents (Phase 1+) | architect |
@@ -1411,7 +1340,6 @@ Before launching parallel agents, verify:
 - [ ] Rate limit checked (sufficient API budget)
 - [ ] Worktree directories prepared (if needed)
 - [ ] Orchestrator can aggregate results
-- [ ] Session log created for coordination
 ```
 
 #### Execution Steps
@@ -1420,12 +1348,11 @@ Before launching parallel agents, verify:
 1. Orchestrator creates task list with clear boundaries
 2. Orchestrator verifies prerequisites (rate limit, independence)
 3. Orchestrator dispatches N parallel agents
-4. Each agent creates individual session log
-5. Each agent writes results to designated output location
-6. Orchestrator monitors completion (polling or callbacks)
-7. Orchestrator aggregates results after all complete
-8. Orchestrator resolves any conflicts
-9. Orchestrator commits with all session IDs referenced
+4. Each agent writes results to designated output location
+5. Orchestrator monitors completion (polling or callbacks)
+6. Orchestrator aggregates results after all complete
+7. Orchestrator resolves any conflicts
+8. Orchestrator commits with all changes referenced
 ```
 
 #### Rate Limit Pre-Check
@@ -1534,33 +1461,24 @@ Majority: [A] (2/3)
 
 ### 6.8 Session Coordination Protocol
 
-When running parallel agents, coordinate session logs:
-
-#### Individual Agent Sessions
-
-Each parallel agent creates its own session log:
-
-```text
-.agents/sessions/2025-12-29-session-19-parallel-pr-300.md
-.agents/sessions/2025-12-29-session-20-parallel-pr-301.md
-.agents/sessions/2025-12-29-session-21-parallel-pr-302.md
-```
+Session log creation is discontinued (`.claude/rules/session-logs.md` MUST 1).
+When running parallel agents, coordinate through per-issue handoffs and
+Serena memory instead of per-agent session logs.
 
 #### Orchestrator Aggregation
 
 After all agents complete, orchestrator:
 
-1. Reads all parallel session logs
+1. Reads each agent's per-issue handoff or transcript evidence
 2. Aggregates outcomes into summary
 3. Updates Serena memory with cross-session context
-4. Creates single commit referencing all session IDs
+4. Creates single commit referencing all PRs/issues
 
 #### Commit Message Format
 
 ```text
 docs: parallel execution of PRs #300, #301, #302
 
-Sessions: 19, 20, 21
 - PR #300: [outcome]
 - PR #301: [outcome]
 - PR #302: [outcome]
@@ -1635,7 +1553,7 @@ Commit after all complete.
 | **Context loss** | Parallel agents don't share learnings | Post-aggregation synthesis |
 | **Coordination overhead** | 10-20% time spent on dispatch/aggregation | Accept as cost of parallelism |
 | **Error propagation** | One agent failure affects overall result | Independent error handling per agent |
-| **Memory fragmentation** | Multiple session logs to consolidate | Orchestrator aggregation protocol |
+| **Memory fragmentation** | Multiple per-issue handoffs to consolidate | Orchestrator aggregation protocol |
 
 ### 6.11 Anti-Patterns to Avoid
 

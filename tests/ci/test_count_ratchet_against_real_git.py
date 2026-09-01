@@ -7,7 +7,9 @@ malformed revision expression fails here instead of in CI.
 
 The ``run`` tests below drive the real entry point against a real repository
 with a fake counter. The concurrent-merge race and its enforcement point live
-in ``test_count_ratchet_concurrent_merge.py``.
+in ``test_count_ratchet_concurrent_merge.py``. The fork-point direction cases,
+which build real branch topologies rather than dirtying one commit's working
+tree, live in ``test_count_ratchet_fork_point.py``.
 """
 
 from __future__ import annotations
@@ -158,132 +160,6 @@ def test_a_baseline_outside_the_repo_is_not_bootstrap_against_real_git(tmp_path)
     )
     assert refused.returncode == missing.returncode != 0
 
-
-def _git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", "-C", str(repo), *args], check=True)
-
-
-@pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
-def test_concurrent_baseline_lowering_detects_stale_branch(tmp_path: Path) -> None:
-    """Verify the concurrent-PR race condition described in Issue #4057.
-
-    Scenario:
-      - main starts with baseline=100, count=100
-      - Branch A removes 1 violation, lowers baseline to 99, merges first
-      - Branch B also removed 1 violation but did NOT pick up A's merge
-        (baseline stays at 100 on branch B)
-      - When B runs --base-ref against the updated main (baseline=99),
-        the ratchet must fire BASELINE RAISED and return EXIT_REGRESSION
-
-    This proves that --base-ref is the enforcement point: a branch that has
-    not rebased onto the post-A main cannot slip through with a stale baseline.
-
-    Negative control: if branch B has baseline=99 (rebased), no regression.
-    """
-    import argparse
-
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    _git(repo, "init", "-q")
-    _git(repo, "config", "user.email", "t@example.com")
-    _git(repo, "config", "user.name", "t")
-
-    baseline_file = repo / "baseline.txt"
-    baseline_file.write_text("100\n", encoding="utf-8")
-    (repo / "seed.txt").write_text("seed\n", encoding="utf-8")
-    _git(repo, "add", "baseline.txt", "seed.txt")
-    _git(repo, "commit", "-qm", "main: baseline=100")
-
-    # Branch A: removes 1 violation, lowers baseline to 99
-    _git(repo, "checkout", "-q", "-b", "branch-a")
-    baseline_file.write_text("99\n", encoding="utf-8")
-    _git(repo, "add", "baseline.txt")
-    _git(repo, "commit", "-qm", "branch-a: lower baseline to 99")
-
-    # Merge A into main
-    _git(
-        repo,
-        "checkout",
-        "-q",
-        "master" if (repo / ".git" / "refs" / "heads" / "master").exists() else "main",
-    )
-    try:
-        _git(repo, "merge", "-q", "--ff-only", "branch-a")
-    except subprocess.CalledProcessError:
-        # Some git versions use 'master' by default
-        _git(repo, "checkout", "-q", "-b", "main", "branch-a")
-
-    main_ref = subprocess.run(
-        ["git", "-C", str(repo), "rev-parse", "--abbrev-ref", "HEAD"],
-        capture_output=True, text=True, encoding="utf-8", check=True,
-    ).stdout.strip()
-
-    # Branch B: forked from original main (baseline=100), removes 1 violation
-    # but did NOT pick up A's merge. baseline.txt still says 100.
-    _git(repo, "checkout", "-q", "-b", "branch-b", f"{main_ref}~1")
-    # Do not change baseline.txt - simulating a branch that didn't rebase
-
-    # Branch B's state: baseline file says 100 (stale), count is also 100
-    # (no actual fix on this branch). --base-ref points at main (baseline=99).
-    args_stale = argparse.Namespace(
-        baseline=baseline_file,   # still 100 on branch-b
-        repo_root=repo,
-        update=False,
-        base_ref=main_ref,
-    )
-
-    # A count function that always returns 100 (branch B removed no violations)
-    def count_100(_: Path) -> int:
-        return 100
-
-    rc_stale = count_ratchet.run(
-        args_stale,
-        label="test",
-        counter=count_100,
-        scan_error="scan failed",
-        regression_advice="fix violations",
-    )
-    # Branch B's baseline (100) > main's baseline (99) => BASELINE RAISED
-    assert rc_stale == count_ratchet.EXIT_REGRESSION, (
-        "BASELINE RAISED must fire when a stale branch has baseline > main's baseline"
-    )
-
-    # Negative control: branch B rebases and picks up baseline=99.
-    # Now branch_baseline == base_baseline => no BASELINE RAISED.
-    _git(repo, "checkout", "-q", main_ref)
-    args_fresh = argparse.Namespace(
-        baseline=baseline_file,   # now 99 after rebase checkout
-        repo_root=repo,
-        update=False,
-        base_ref=main_ref,
-    )
-
-    rc_fresh = count_ratchet.run(
-        args_fresh,
-        label="test",
-        counter=count_100,
-        scan_error="scan failed",
-        regression_advice="fix violations",
-    )
-    # count=100 > baseline=99 => regression, but it's a count regression not BASELINE RAISED
-    assert rc_fresh == count_ratchet.EXIT_REGRESSION, (
-        "count regression must still fire when count exceeds baseline"
-    )
-
-    # Positive control: branch with count at baseline, no stale issue
-    def count_99(_: Path) -> int:
-        return 99
-
-    rc_ok = count_ratchet.run(
-        args_fresh,
-        label="test",
-        counter=count_99,
-        scan_error="scan failed",
-        regression_advice="fix violations",
-    )
-    assert rc_ok == count_ratchet.EXIT_OK, (
-        "rebased branch with count == baseline must pass"
-    )
 
 # ---------------------------------------------------------------------------
 # run(): the --base-ref verdict must be named from a count it actually took

@@ -27,11 +27,20 @@ from pathlib import Path
 import yaml
 
 # Fields a Copilot custom agent file must declare as non-empty strings: Copilot
-# needs name/description to register and select the agent (issue #2500). ``tier``
-# is checked only when present (see find_malformed), per the issue's "if the
-# repository requires it" qualifier.
-_REQUIRED_STRING_FIELDS = ("name", "description")
-_OPTIONAL_STRING_FIELDS = ("tier",)
+# needs name/description to register and select the agent (issue #2500), and
+# ``role`` drives the OpenClaw export (scripts/openclaw_bridge.py).
+#
+# ``role`` was optional and unconstrained while it was still ``tier``, which let
+# a typo through: `buidler` parsed as a string, passed here, and then hit the
+# bridge's fallback and exported as `support`. A misclassification is invisible
+# in a way a missing field is not, so the value is checked against the closed
+# set rather than merely for stringness. Refs #5130 review.
+_REQUIRED_STRING_FIELDS = ("name", "description", "role")
+
+# Must stay in sync with _KNOWN_ROLES in scripts/openclaw_bridge.py, the other
+# consumer of this field. Quoted there as: "strategic", "coordinator",
+# "executor", "support".
+_KNOWN_ROLES = frozenset({"strategic", "coordinator", "executor", "support"})
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parents[1]
@@ -60,8 +69,11 @@ def _frontmatter_error(text: str) -> str | None:
     1. No frontmatter block, or YAML that does not parse. The message carries the
        YAML parser error so the offending line is actionable.
     2. Frontmatter that is not a mapping.
-    3. A missing or non-string ``name``/``description`` (Copilot needs both to
-       register and select the agent); a non-string ``tier`` when present.
+    3. A missing or non-string ``name``/``description``/``role`` (Copilot needs
+       name and description to register and select the agent; the OpenClaw
+       export needs role).
+    4. A ``role`` outside the four known values. An unrecognized value is a
+       typo that would otherwise be silently converted to the fallback role.
 
     A colon-bearing description authored as an unquoted plain scalar fails class 1
     here exactly as it does in Copilot, which is the regression these issues fix.
@@ -86,13 +98,10 @@ def _frontmatter_error(text: str) -> str | None:
     ]
     if missing:
         return f"missing or non-string field(s): {', '.join(missing)}"
-    bad_optional = [
-        field
-        for field in _OPTIONAL_STRING_FIELDS
-        if field in parsed and not isinstance(parsed[field], str)
-    ]
-    if bad_optional:
-        return f"non-string field(s): {', '.join(bad_optional)}"
+    role = parsed["role"].strip()
+    if role not in _KNOWN_ROLES:
+        known = ", ".join(sorted(_KNOWN_ROLES))
+        return f"unknown role {role!r}; expected one of: {known}"
     return None
 
 

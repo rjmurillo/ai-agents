@@ -99,6 +99,9 @@ class TestDetectLanguage:
     def test_empty_string(self) -> None:
         assert _detect_language("") == ""
 
+    def test_csharp_hash_alias(self) -> None:
+        assert _detect_language("c#") == "csharp"
+
     def test_unknown_returns_token(self) -> None:
         assert _detect_language("fortran") == "fortran"
 
@@ -1316,6 +1319,24 @@ class TestRunClaimExtraction:
         result = run_claim_extraction(tmp_path, assessment)
         quant = [c for c in result["claims"] if c["type"] == "quantitative"]
         assert len(quant) >= 1
+
+    def test_csharp_hash_fence_detected(self, tmp_path: Path) -> None:
+        """A ```c# fence must be detected as csharp, not truncated to 'c'."""
+        md = "# Doc\n\n```c#\nvar x = new MyWidget();\n```\n"
+        (tmp_path / "doc.md").write_text(md)
+
+        assessment = {
+            "documentation_files": [{
+                "path": "doc.md",
+                "mapped_source_files": [],
+                "referenced_symbols": [],
+            }],
+            "source_symbols": [],
+        }
+        result = run_claim_extraction(tmp_path, assessment)
+        code_claims = [c for c in result["claims"] if c["type"] == "code_example"]
+        assert len(code_claims) == 1
+        assert code_claims[0]["language"] == "csharp"
 
 
 class TestRunCompilabilityCheck:

@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 5050,
+    "date": "2026-08-15",
+    "branch": "feat/5050-import-graph-test-selection",
+    "startingCommit": "dfdcbcbb1e",
+    "objective": "Fix dynamic import detection in test selection (issue 5050)"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena tools used for memory operations."
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Initial instructions read."
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md read."
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Skills directory inspected."
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Usage mandatory memory read."
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "5 files per commit, no force push, hooks."
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Project memories loaded."
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "feat/5050-import-graph-test-selection"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On feat/5050-import-graph-test-selection"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Clean worktree."
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "dfdcbcbb1e"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All acceptance criteria from #5050 met."
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md unchanged."
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Memory updated post-implementation."
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Markdown autofix hook passed."
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/pr-5078-import-graph-test-selection-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "236ee457c2b4d09fe8a8a44a27aa28c8d7275bd4 fix(test-selection): track dynamic imports"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "uv run --frozen pytest tests/test_selection/ -v passed (39 tests); uv run --frozen ruff check scripts/test_selection/import_graph.py scripts/test_selection/select_tests.py tests/test_selection/test_import_graph.py tests/test_selection/test_select_tests.py passed; uv run python scripts/validation/pre_pr.py passed; post-merge re-run on c917e7c642b1: uv run pytest tests/test_selection/ tests/ci/test_run_pytest_selected.py tests/validation/test_pytest_import_selection.py tests/workflows/test_pytest_xdist_parallelism.py tests/test_lefthook_integration.py -q passed (974 passed, 1 skipped)"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Issue #5050 linked in PR."
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": "Deferred."
+      },
+      "ciGreen": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All 5 pytest partitions pass on CI."
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Extended import graph builder",
+      "result": "Literal dynamic imports add edges; variable dynamic imports mark wildcard dependents"
+    },
+    {
+      "action": "Updated test selector",
+      "result": "Wildcard dependents and their importing tests are included for any Python change"
+    },
+    {
+      "action": "Validated regression coverage",
+      "result": "39 test-selection tests passed; pre_pr.py passed"
+    },
+    {
+      "action": "Merged origin/main into feat/5050-import-graph-test-selection",
+      "result": "Only lefthook.yml conflicted; hand-resolved (worktree group renumbered 11->12). Regenerated Copilot mirror, re-ran targeted suite (974 passed, 1 skipped) and full pre_pr.py before pushing."
+    }
+  ],
+  "endingCommit": "c917e7c642b106977c74c46ac5beb470f285f3ea",
+  "nextSteps": [
+    "Monitor CI",
+    "Address review comments"
+  ]
+}

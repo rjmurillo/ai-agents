@@ -40,15 +40,22 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from active_plan_closeout import validate_active_plan_closeout
+from check_adr_lifecycle import validate_adr_lifecycle
+from check_adr_links import validate_adr_links
+from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
+from check_generated_staleness import validate_generated_staleness
+from check_git_hook_health import validate_git_hook_health
 from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
+from check_tmp_worktrees import validate_tmp_worktrees
 from check_unreachable_code import validate_unreachable_code
+from check_worktree_recipes import validate_worktree_recipes
 from checks_coverage import (
     validate_review_marker,
 )
@@ -56,6 +63,7 @@ from checks_dash import validate_dash_prohibition
 from checks_mypy import validate_mypy_changed_files
 from checks_plugin import (
     validate_agent_content_parity,
+    validate_colocated_skill_tests,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
     validate_install_parity,
@@ -73,6 +81,7 @@ from checks_spec import (
     validate_orchestrator_citations,
     validate_rule_activation_coverage,
     validate_skill_md_portability,
+    validate_skill_memory_references,
     validate_skill_shells,
     validate_skill_skip_clauses,
     validate_spec_contradiction,
@@ -119,6 +128,9 @@ class _ValidationStateLike(Protocol):
     skipped: int
 
 
+FAST_STAGE_RAN_ENV = "AI_AGENTS_PRE_PR_FAST_STAGE_RAN"
+
+
 @dataclass(frozen=True)
 class _Gate:
     """One row of the ordered sequence.
@@ -131,6 +143,11 @@ class _Gate:
     SKIP result. ``skip_flag`` is different: it names an ``args`` attribute that,
     when truthy, bypasses ``run_validation`` entirely and only bumps the totals.
     Only ``--skip-tests`` behaves that way, and it predates the SKIP record.
+
+    ``already_run_by`` names an unconditional pre-push fast-stage job that runs
+    the same whole-tree check. The piped hook cannot start pre-pr-validation
+    unless that job passed. Direct and CI callers leave
+    :data:`FAST_STAGE_RAN_ENV` unset and run the full sequence.
     """
 
     name: str
@@ -138,6 +155,7 @@ class _Gate:
     skip_when_quick: bool = False
     skip_flag: str | None = None
     skip_note: str = ""
+    already_run_by: str = ""
     notes: str = field(default="", repr=False)
 
 
@@ -168,9 +186,11 @@ def _run_orphaned_build_deferrals(repo_root: Path, _args: argparse.Namespace) ->
     override is passed positionally only when the environment supplies one.
     """
     deferral_repo = os.environ.get("GH_REPO")
-    return validate_no_orphaned_build_deferrals(
-        repo_root / "build" / "scripts" / "build_all.py",
-        *([deferral_repo] if deferral_repo else []),
+    return bool(
+        validate_no_orphaned_build_deferrals(
+            repo_root / "build" / "scripts" / "build_all.py",
+            *([deferral_repo] if deferral_repo else []),
+        )
     )
 
 
@@ -185,7 +205,7 @@ def _run_copilot_routing_exclusions(repo_root: Path, _args: argparse.Namespace) 
     """
     from checks_copilot import validate_copilot_routing_exclusions
 
-    return validate_copilot_routing_exclusions(repo_root)
+    return bool(validate_copilot_routing_exclusions(repo_root))
 
 
 _SEQUENCE: tuple[_Gate, ...] = (
@@ -197,13 +217,33 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Python Syntax (compile gate)", _root_only(validate_python_syntax)),
     # Second so the cheapest push-blocking signal arrives first. See the
     # checks_ratchet module docstring for why these run here (issue #4251).
-    _Gate("Count Ratchets", _root_only(validate_count_ratchets)),
+    _Gate(
+        "Count Ratchets",
+        _root_only(validate_count_ratchets),
+        already_run_by="count-ratchets",
+    ),
     _Gate("Nested Test Detection", _root_only(validate_no_nested_tests)),
     _Gate("Duplicate Test Helper Detection", _root_only(validate_duplicate_test_helpers)),
-    _Gate("Unreachable Code Detection", _root_only(validate_unreachable_code)),
+    _Gate(
+        "Unreachable Code Detection",
+        _root_only(validate_unreachable_code),
+        already_run_by="python-unreachable-statements",
+    ),
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
+    # Blocks a tracked prescription that tells a reader to create a worktree
+    # under /tmp or inside the checkout, against universal.md MUST NOT 7. Issue
+    # #5111: the rule, a Serena memory, and a prior incident all already
+    # existed, and six violations still accumulated, because nothing read the
+    # recipes.
+    _Gate("Worktree Recipe Destinations", _root_only(validate_worktree_recipes)),
+    # Advisory companion to the gate above: the same rule measured against the
+    # machine rather than the tree. Reports worktrees sitting under /tmp
+    # (including orphans git no longer lists) and a low /tmp free-space floor.
+    # Never fails; see the validator's docstring for why machine state does not
+    # get to block a push. Issue #5111.
+    _Gate("Temp-filesystem Worktrees (advisory)", _root_only(validate_tmp_worktrees)),
     _Gate("Session End Validation", _root_only(validate_session_end)),
     # Type-check changed Python files with ratchet semantics (issue #4674).
     # Surfaces regressions at pre-PR time rather than waiting for push CI.
@@ -218,12 +258,27 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # disagreed and one sat a major below the declared floor; a review then
     # proposed aligning the correct one down.
     _Gate("CI Dependency Pins", _root_only(validate_ci_dependency_pins)),
+    # Ratcheted lifecycle gate over .agents/architecture/ADR-NNN-*.md (issue
+    # #5191). Sits beside the DESIGN-REVIEW gate because both read frontmatter
+    # in the same directory. Read-only: ADR-073 forbids rewriting prose.
+    _Gate("ADR Lifecycle Frontmatter (ratchet)", _root_only(validate_adr_lifecycle)),
+    # Resolves every markdown link naming an ADR, and checks that a link whose
+    # text says ADR-NNN targets that number (issue #5197). Unwired, this gate
+    # cannot stop the rot that produced the ADR-033 repairs it protects.
+    _Gate("ADR Link Resolution", _root_only(validate_adr_links)),
     _Gate("Design Review Frontmatter", _root_only(validate_design_review_frontmatter)),
     # PR #1887 retrospective, Layer 2.
     _Gate("Build Command Exit Gates", _root_only(validate_build_gates)),
     # Fails when live docs command a removed script (issue #2916), the
     # PowerShell-to-Python migration regression behind issues #2914 and #2915.
     _Gate("Stale Script References", _root_only(validate_stale_script_refs)),
+    # Fails when a line ADDED since the base ref cites a path-and-line
+    # location that HEAD contradicts: file untracked, line out of range, or
+    # the named anchor content living elsewhere. Automates the manual
+    # git-grep gate canonical-source-mirror.md prescribes; mechanically
+    # checkable claims were reaching paid AI review rounds instead (PR #5336
+    # existed solely to repair four such citations; issue #5337).
+    _Gate("Citation Freshness (added lines)", _root_only(validate_citation_freshness)),
     # Fails when a live doc tells a contributor to run a script with third-party
     # imports under a bare `python3`, which dies with ModuleNotFoundError on a
     # clean checkout. Issue #3791.
@@ -232,6 +287,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # tracking issue, the orphan signature that hid stale mirrors before #2780.
     # Issue #2770.
     _Gate("Orphaned Build Deferrals", _run_orphaned_build_deferrals),
+    # The gate above reads deferral comments inside build_all.py's source. This
+    # one asks the separate question CI asks: is the generated tree stale
+    # against its inputs. Runs sync_plugin_lib.py --check then
+    # build/scripts/build_all.py --check, in the order
+    # .claude/rules/generated-artifacts.md requires. Both are read-only.
+    # Issue #5079: without it, a hand-edit to a generated file cleared every
+    # local gate and the generator silently reverted it in CI (PR #5059).
+    _Gate("Generated Artifact Staleness", _root_only(validate_generated_staleness)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
     # No new hard-coded upstream-only paths (issue #2050).
@@ -245,6 +308,13 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when a multi-member leading-token skill family lacks a well-formed
     # route to a real sibling. Issue #3484.
     _Gate("Skill SKIP Clause Routing", _root_only(validate_skill_skip_clauses)),
+    # Fails when a skill or agent instruction commands read_memory or
+    # edit_memory on a name that resolves to no tracked memory. Issue #4897:
+    # pr-comment-responder's BLOCKING Phase 0 named an unscoped memory, so the
+    # blocking step failed for any agent that ran the instruction literally.
+    _Gate("Skill Memory References", _root_only(validate_skill_memory_references)),
+    # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
+    _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation
     # scenario and is not baselined, or when a scenario points at a deleted
     # artifact. Fail-closed on any config or structural fault so an unmeasured
@@ -281,8 +351,18 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Issue #3426.
     _Gate("Active Plan Closeout Advisory", _root_only(validate_active_plan_closeout)),
     _Gate("YAML Style Validation", _root_only(validate_yaml_style), skip_when_quick=True),
-    _Gate("Path Normalization", _root_only(validate_path_normalization), skip_when_quick=True),
-    _Gate("Planning Artifacts", _root_only(validate_planning_artifacts), skip_when_quick=True),
+    _Gate(
+        "Path Normalization",
+        _root_only(validate_path_normalization),
+        skip_when_quick=True,
+        already_run_by="path-normalization",
+    ),
+    _Gate(
+        "Planning Artifacts",
+        _root_only(validate_planning_artifacts),
+        skip_when_quick=True,
+        already_run_by="planning-artifacts",
+    ),
     _Gate("Agent Drift Detection", _root_only(validate_agent_drift), skip_when_quick=True),
     # Changed-together sibling check; cheap, always on.
     _Gate("Install Parity (agents and rules)", _root_only(validate_install_parity)),
@@ -311,6 +391,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # This local check calls validate_argument_hint() over the same default scan
     # surface.
     _Gate("Argument-Hint Frontmatter", _root_only(validate_argument_hint)),
+    # Deeper than the gate below, and adjacent so neither reads as covering the
+    # other. "Lefthook Installed" asks whether lefthook considers itself
+    # installed; this asks whether git will read those shims at all. A
+    # core.hooksPath pointing at a missing directory makes git run no hook and
+    # print no warning, which is how the PR #5059 hand-edit reached CI instead
+    # of being refused at push time. Issue #5090; the same repair already
+    # drifted back once after 2026-07-19.
+    _Gate("Git Hook Health (core.hooksPath)", _root_only(validate_git_hook_health)),
     # Local clones must dispatch repository guardrails. Skipped under CI, where
     # workflows invoke validation directly.
     _Gate("Lefthook Installed", _root_only(validate_lefthook_installed)),
@@ -346,9 +434,19 @@ def run_all_validations(
 
     The order is ``_SEQUENCE``. Read that table, not this loop.
     """
+    fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == "1"
     for gate in _SEQUENCE:
         if gate.skip_flag is not None and getattr(args, gate.skip_flag, False):
             print(f"[SKIP] {gate.name} ({gate.skip_note})")
+            state.total += 1
+            state.skipped += 1
+            continue
+
+        if fast_stage_ran and gate.already_run_by:
+            print(
+                f"[SKIP] {gate.name} (already passed as the unconditional "
+                f"pre-push job {gate.already_run_by})"
+            )
             state.total += 1
             state.skipped += 1
             continue

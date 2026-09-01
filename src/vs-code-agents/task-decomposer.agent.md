@@ -9,8 +9,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-model: Claude Opus 4.6 (copilot)
-tier: integration
+role: support
 ---
 # Task Decomposer Agent
 

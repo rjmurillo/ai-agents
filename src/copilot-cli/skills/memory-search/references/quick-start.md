@@ -211,8 +211,6 @@ from datetime import datetime, timedelta
 from memory_router import search_memory
 from reflexion_memory import get_episodes
 
-# Required step in SESSION-PROTOCOL.md
-
 # 1. Read usage-mandatory memory
 mandatory = search_memory(query="usage-mandatory", lexical_only=True)
 
@@ -229,8 +227,6 @@ recent_episodes = get_episodes(since=since, max_results=5)
 ### Session End
 
 ```bash
-# Required step in SESSION-PROTOCOL.md
-
 # 1. Extract episode
 python3 .claude/skills/memory/scripts/extract_session_episode.py \
     ".agents/sessions/$(date +%Y-%m-%d)-session-*.md"

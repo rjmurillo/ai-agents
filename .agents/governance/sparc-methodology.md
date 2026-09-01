@@ -94,7 +94,7 @@ Each phase produces artifacts. Quality gates block progression until criteria pa
 
 - Integration test results
 - Updated documentation
-- Session log with evidence
+- Per-issue handoff or transcript with evidence
 
 **Activities**:
 
@@ -148,7 +148,7 @@ Each gate defines blocking criteria. Progression requires all MUST items to pass
 |-------|-----------|----------|
 | MUST | Full test suite passes | Test output |
 | MUST | Documentation updated | File paths |
-| MUST | Session log complete | Validation passes |
+| MUST | Continuity recorded for open work | Per-issue handoff or Serena memory |
 | SHOULD | Retrospective captured (significant work) | Memory written |
 
 ## Mode Selection
@@ -165,7 +165,8 @@ The orchestrator selects the entry phase based on task complexity.
 
 ## Phase Tracking
 
-Sessions track the current development phase in the session log.
+Track the current development phase in the plan or per-issue handoff. Session
+log creation is discontinued (`.claude/rules/session-logs.md` MUST 1).
 
 ```json
 {
@@ -202,11 +203,11 @@ Phase gates use the hybrid enforcement pattern from SKILL-PHASE-GATES.md:
 
 - Documentation gates in agent prompts (soft enforcement)
 - Script validation via `validate_phase_gates.py` (hard enforcement)
-- Session log tracking for audit trail
+- Per-issue handoff and Serena memory for audit trail (session log creation is discontinued)
 
 ## References
 
 - [Claude-flow Architecture Analysis](../analysis/claude-flow-architecture-analysis.md)
 - [Skill Phase Gates](./SKILL-PHASE-GATES.md)
 - [Agent System Workflows](../AGENT-SYSTEM.md#3-workflow-patterns)
-- [Session Protocol](../SESSION-PROTOCOL.md)
+- [Session Log Mechanics](../../.claude/rules/session-logs.md)

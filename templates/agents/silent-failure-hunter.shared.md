@@ -1,5 +1,5 @@
 ---
-tier: builder
+role: executor
 description: Use this agent when reviewing code changes in a pull request to identify silent failures, inadequate error handling, and inappropriate fallback behavior. This agent should be invoked proactively after completing a logical chunk of work that involves error handling, catch blocks, fallback logic, or any code that could potentially suppress errors.
 argument-hint: Point to the PR, diff, or files whose error handling to audit
 tools_vscode:

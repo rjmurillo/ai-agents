@@ -48,7 +48,7 @@ def _init_repo(repo: Path) -> None:
 
 
 def _changed_python_files(repo: Path, base_ref: str = "origin/main") -> list[str]:
-    status, files = ruff_ratchet.changed_python_files(base_ref, repo)
+    status, files, _base = ruff_ratchet.changed_python_files(base_ref, repo)
     assert status == ruff_ratchet.EXIT_OK
     return files
 
