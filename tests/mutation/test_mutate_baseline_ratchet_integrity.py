@@ -13,15 +13,24 @@ Each mutant is:
   - applied in an isolated git worktree, suite run, result classified
   - restored and verified byte-identically inside the scratch worktree
 
-One inverted control asserts rc == 0 (suite SURVIVES a benign mutation).
+One inverted control asserts rc == 0 (suite SURVIVES a benign mutation). Every
+mutant here runs the one suite named by ``TEST_PATH``, so that single control
+covers the harness's only runner path.
+
 All test files are referenced by filesystem path, never dotted module name.
+
+The ``test_*`` wrappers below are the entry point (issue #4494: the file had no
+test_ functions, so pytest collected 0 items and reported exit 5 as success).
+There is no ``main()``: the script-style runner that used to sit here was
+invoked by no gate, test, or caller, and it graded every mutant sequentially in
+one shared worktree while the wrappers take a fresh worktree per test, so the
+two paths could disagree with nobody reading the one that had no caller.
 """
 
 from __future__ import annotations
 
 import shutil
 import subprocess
-import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -58,11 +67,15 @@ def _run_suite(repo_root: Path, *extra_paths: str) -> subprocess.CompletedProces
 def _classify(proc: subprocess.CompletedProcess[str]) -> str:
     if proc.returncode == 4:
         return "HARNESS-ERROR: pytest exit 4 (no tests ran via path)"
+    if proc.returncode == 5:
+        return "HARNESS-ERROR: no tests collected"
     if "no tests ran" in proc.stdout.lower() or "no tests ran" in proc.stderr.lower():
         return "HARNESS-ERROR: no tests ran"
     if proc.returncode == 0:
         return "SURVIVED"
-    return "DEAD"
+    if proc.returncode == 1:
+        return "DEAD"
+    return f"HARNESS-ERROR: pytest exit {proc.returncode} (run did not complete)"
 
 
 def _count_occurrences(path: Path, pattern: str) -> int:
@@ -219,42 +232,42 @@ def mutant_m4_inverted_control_benign(repo_root: Path) -> str:
     return "SURVIVED"
 
 
-def main() -> int:
-    results: dict[str, str] = {}
-    with isolated_mutation_worktree(REPO_ROOT, TARGETS) as workspace:
-        results["M1-bool-check"] = mutant_m1_bool_check(workspace.root)
-        results["M2-diff-attr-guard"] = mutant_m2_diff_attr_guard(workspace.root)
-        results["M2b-diff-attr-none-guard"] = mutant_m2b_diff_attr_none_guard(
-            workspace.root
-        )
-        results["M3-scan-all-roots"] = mutant_m3_scan_all_roots(workspace.root)
-        results["M4-inverted-ctrl"] = mutant_m4_inverted_control_benign(
-            workspace.root
-        )
+@pytest.mark.parametrize(
+    ("returncode", "expected"),
+    [
+        (0, "SURVIVED"),
+        (1, "DEAD"),
+        (2, "HARNESS-ERROR: pytest exit 2 (run did not complete)"),
+        (3, "HARNESS-ERROR: pytest exit 3 (run did not complete)"),
+        (4, "HARNESS-ERROR: pytest exit 4 (no tests ran via path)"),
+        (5, "HARNESS-ERROR: no tests collected"),
+        (-9, "HARNESS-ERROR: pytest exit -9 (run did not complete)"),
+    ],
+)
+def test_classify_rejects_pytest_failures_as_false_kills(
+    returncode: int, expected: str
+) -> None:
+    """Only pytest's test-failure exit proves that a mutant died."""
+    completed = subprocess.CompletedProcess(
+        args=["pytest"],
+        returncode=returncode,
+        stdout="1 passed",
+        stderr="",
+    )
 
-    print("\n=== Mutation Results ===")
-    all_ok = True
-    for name, result in results.items():
-        expected = "SURVIVED" if "inverted" in name.lower() else "DEAD"
-        ok = result == expected
-        status = "PASS" if ok else "FAIL"
-        print(f"  [{status}] {name}: {result}")
-        if not ok:
-            all_ok = False
-
-    if not all_ok:
-        print("\nFAILURE: one or more mutants survived or inverted control failed")
-        return 1
-    print("\nAll mutants killed; inverted control survived.")
-    return 0
+    assert _classify(completed) == expected
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+def test_classify_rejects_a_silent_nothing_ran_message() -> None:
+    """The output sentinel outranks a nominal test-failure exit."""
+    completed = subprocess.CompletedProcess(
+        args=["pytest"],
+        returncode=1,
+        stdout="no tests ran",
+        stderr="",
+    )
 
-
-# pytest-discoverable wrappers (issue #4494: file had no test_* functions,
-# so pytest collected 0 items and reported exit 5 as success).
+    assert _classify(completed) == "HARNESS-ERROR: no tests ran"
 
 
 @pytest.fixture()

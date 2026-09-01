@@ -1,4 +1,9 @@
-"""Shared test helpers for GitHub skill script tests."""
+"""Shared test helpers for GitHub skill script tests.
+
+pytest-zero-collection: helper module, not a suite. Its siblings import it as
+``from test_helpers import ...``, so renaming it off the ``test_`` prefix would
+touch every GitHub skill test. Issue #4494.
+"""
 
 import importlib.util
 import subprocess
