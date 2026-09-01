@@ -16,8 +16,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts.validation import check_push_lock_paths as checker
-
-CANONICAL_LINE = 'flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push origin "$BR"'
+from tests.validation._push_lock_fixtures import CANONICAL_LINE, _fence, _init_repo
 
 
 def test_canonical_path_is_accepted() -> None:
@@ -114,19 +113,6 @@ def test_line_numbers_point_at_the_offending_line() -> None:
     text = "\n".join(["intro", "more prose", "flock /tmp/bad.lock git push"])
 
     assert checker.scan_text(text)[0][0] == 3
-
-
-def _init_repo(repo: Path, files: dict[str, str]) -> None:
-    repo.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
-    for relative, content in files.items():
-        target = repo / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
 
 
 def test_main_exits_1_and_names_the_file(
@@ -243,10 +229,6 @@ def test_pre_pr_push_lock_gate_calls_the_real_validator() -> None:
 # ---------------------------------------------------------------------------
 # The four ways a recipe reaches its lock path (issue #4366 refutation)
 # ---------------------------------------------------------------------------
-
-
-def _fence(*lines: str) -> str:
-    return "\n".join(["```bash", *lines, "```", ""])
 
 
 def test_a_lock_path_held_in_a_variable_is_caught() -> None:
