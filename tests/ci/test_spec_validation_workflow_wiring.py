@@ -42,6 +42,11 @@ _BUILDER = "scripts/ci/spec_prepare_context.py"
 _PR_BODY_EXPRESSION = "${{ github.event.pull_request.body }}"
 
 
+def _runs_builder(run_body: object) -> bool:
+    """True only for the exact builder invocation this workflow expects."""
+    return str(run_body).strip() == f"python3 {_BUILDER}"
+
+
 @pytest.fixture(scope="module")
 def prepare_context_step() -> dict[str, Any]:
     """The parsed step that runs the spec-context builder."""
@@ -65,10 +70,16 @@ class TestPrBodyIsWiredToTheContextBuilder:
         the `PR_BODY` assertion would still pass while the builder ran
         somewhere else, or nowhere.
         """
-        assert _BUILDER in str(prepare_context_step.get("run", "")), (
+        run_body = prepare_context_step.get("run", "")
+
+        assert _runs_builder(run_body), (
             f"The {_STEP_NAME!r} step does not run {_BUILDER}. Its run body is "
-            f"{prepare_context_step.get('run')!r}."
+            f"{run_body!r}."
         )
+
+    def test_a_path_echo_does_not_count_as_running_the_builder(self) -> None:
+        """A substring hit is not evidence the step executes the builder."""
+        assert not _runs_builder(f"echo {_BUILDER}")
 
     def test_pr_body_is_passed_through_env(self, prepare_context_step: dict[str, Any]) -> None:
         env = prepare_context_step.get("env") or {}

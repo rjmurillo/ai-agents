@@ -219,6 +219,19 @@ class TestDoesNotOverFire:
 
         assert find_nonexecutable_criteria(body) == ["`pytest` passes"]
 
+    @pytest.mark.timeout(0.5)
+    def test_a_late_backtick_in_a_long_fence_like_line_stays_out_of_the_gate(self) -> None:
+        """A long non-fence line must be rejected without burning the scan budget."""
+        fence_like = "`" * 50_000 + "a" * 50_000 + "`"
+        body = (
+            "## Summary\n\n"
+            f"{fence_like}\n\n"
+            "## Acceptance criteria\n\n"
+            "- [x] `pytest` passes\n"
+        )
+
+        assert find_nonexecutable_criteria(body) == ["`pytest` passes"]
+
     @pytest.mark.parametrize(
         "heading",
         ["## Acceptance Criteria Verification", "## Non-Acceptance Criteria"],

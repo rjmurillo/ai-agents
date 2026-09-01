@@ -10,8 +10,8 @@
 ## What shipped
 
 Two commits on `claude/fix-5366-spec-coverage-nonexecutable` carried the
-initial implementation. Four review rounds then reshaped the classifier's
-precision boundary before merge; those are rows 4 through 12 of the
+initial implementation. Five review rounds then reshaped the classifier's
+precision boundary before merge; those are rows 4 through 14 of the
 Remediation table below, and they define the shipped behavior as much as these
 two do:
 
@@ -99,16 +99,20 @@ validation.
 
 ## Evidence
 
-Final state, re-run after the fourth review round. Earlier rounds' numbers are
+Final state, re-run after the fifth review round. Earlier rounds' numbers are
 kept below them so the progression stays readable, marked as intermediate.
 
 - `uv run --frozen python -m pytest tests/ci/test_spec_nonexecutable_criteria.py
   tests/ci/test_spec_prepare_context.py tests/ci/test_spec_extract_refs.py
-  tests/ci/test_ci_scripts_are_wired.py tests/test_check_spec_failures.py
-  tests/test_verdict.py tests/ci/test_validate_ai_review_budgets.py
-  tests/commands/test_spec_ontology.py -q`: 361 passed, 11 skipped.
-- `tests/ci/test_spec_nonexecutable_criteria.py` alone: 64 passed.
+  tests/ci/test_ci_scripts_are_wired.py
+  tests/ci/test_spec_completeness_prompt_contract.py
+  tests/ci/test_spec_validation_workflow_wiring.py
+  tests/test_check_spec_failures.py tests/test_verdict.py
+  tests/ci/test_validate_ai_review_budgets.py
+  tests/commands/test_spec_ontology.py -q`: 379 passed, 11 skipped.
+- `tests/ci/test_spec_nonexecutable_criteria.py` alone: 65 passed.
   `tests/ci/test_spec_prepare_context.py` alone: 14 passed.
+  `tests/ci/test_spec_validation_workflow_wiring.py` alone: 5 passed.
 - `uv run --frozen python scripts/validation/pre_pr.py`: `RESULT: All
   validations passed`.
 - `TestDoesNotOverFire` carries 26 criteria a reviewer can check from the diff
@@ -130,6 +134,12 @@ keeping the tests:
   passed before; 60 passed after.
 - Round 4 (middle elision on truncation): 2 failed, 62 passed before; 64 passed
   after, isolated by restoring only the old `_sanitize` body.
+- Round 5 (linear fence rejection, exact workflow invocation): the old fence
+  opener pattern took about 1.0s to reject a 100 KB non-fence line with a late
+  backtick; the tightened scan stayed near 1 ms, and the 0.5s timeout control
+  stayed green. Separately, the workflow wiring control now rejects
+  `echo scripts/ci/spec_prepare_context.py`, so a path substring no longer
+  counts as executing the builder.
 
 Intermediate figures, superseded: the first push recorded 299 passed / 11
 skipped and 38 detector cases, before `tests/commands/test_spec_ontology.py`
@@ -151,8 +161,10 @@ joined the command and before the review rounds added cases.
 | 10 | Keep an explicitly unchecked criterion in scope, since the template makes an unchecked box an admitted gap | PR #5451 | Shipped (review round 3) |
 | 11 | Skip fenced code blocks, so a quoted sample section never joins the real gate | PR #5451 | Shipped (review round 3) |
 | 12 | Elide the middle of an over-long criterion, so the declaration entry keeps both the command and the result it was classified on | PR #5451 | Shipped (review round 4) |
+| 13 | Reject a would-be backtick fence opener with a backtick-free remainder scan, so a long non-fence line is refused in linear time | PR #5451 | Shipped (review round 5) |
+| 14 | Pin the workflow wiring to the exact `python3 scripts/ci/spec_prepare_context.py` invocation, so a path substring cannot impersonate a live call site | PR #5451 | Shipped (review round 5) |
 
-No tracking issue is open against this work. Items 4 through 12 came from four
+No tracking issue is open against this work. Items 4 through 14 came from five
 review rounds on PR #5451 (Devin and Copilot, independently, on the same
 seams) and shipped in the same PR rather than as follow-ups.
 

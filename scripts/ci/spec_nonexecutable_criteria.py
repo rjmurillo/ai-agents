@@ -84,14 +84,17 @@ _HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 # fences before extracting file claims for the same reason; its
 # `_FENCE_OPEN_LINE` reads, quoted verbatim:
 #
-#     r"^[ ]{0,3}(?:(`{3,})(?![^\n]*`)|(~{3,}))[^\n]*\n"
+#     r"^[ ]{0,3}(?:(`{3,})(?![^`\n]*`)|(~{3,}))[^\n]*\n"
 #
 # Stricter/looser/different than that canonical source: this one matches a
 # single line rather than a line plus its newline, because the caller iterates
-# `splitlines()` instead of walking offsets. Indented four-space blocks are
-# deliberately NOT treated as code here: a wrapped criterion's continuation
-# line is indented, and `_bullets` folds it into the bullet above.
-_FENCE_LINE = re.compile(r"^ {0,3}(?:(`{3,})(?![^\n]*`)|(~{3,}))\s*(?P<info>.*)$")
+# `splitlines()` instead of walking offsets. It also keeps the would-be info
+# scan backtick-free (`[^`\n]*`) so a near-65 KB opener-like line with a late
+# backtick is rejected without rescanning the full remainder on each backtrack.
+# Indented four-space blocks are deliberately NOT treated as code here: a
+# wrapped criterion's continuation line is indented, and `_bullets` folds it
+# into the bullet above.
+_FENCE_LINE = re.compile(r"^ {0,3}(?:(`{3,})(?![^`\n]*`)|(~{3,}))\s*(?P<info>.*)$")
 # The whole heading title, not a substring of it. A prefix or suffix word makes
 # a different section: "Acceptance Criteria Verification" holds evidence and
 # "Non-Acceptance Criteria" holds what the PR is not claiming, and treating
