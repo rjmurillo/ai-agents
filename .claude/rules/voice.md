@@ -203,7 +203,7 @@ Rules:
 
 - **Flag anything that looks wrong.** Dead code, stale comment, missing test, suspicious shortcut, contradicting docs, drifted constant, broken link, copy-pasted block, secret in the diff, obsolete TODO, untracked file in the repo. One sentence: what you noticed and the impact.
 - **Investigate before reporting.** A flag without a hypothesis is noise. Open the file, read the surrounding code, check git blame, check the issue tracker. Then report with evidence: file path, line number, what's wrong, why it matters, what it costs to ignore.
-- **Dispose the fix; do not solicit it.** One or two lines on a path you already touched: fix inline and note the scope expansion in the description. Larger: name it, link it, stop. State the disposition declaratively; never append an opt-in question (see Completion-Tail Audit).
+- **Dispose the fix; do not solicit it.** While the task is still active and the finding is within the frozen contract's blast radius, one or two lines on a path you already touched: fix inline and note the scope expansion in the description. Larger, or found after verified completion: classify it via the `avoiding-manufactured-work` disposition (keep only if it falsifies a frozen criterion or adds a mandatory-policy blocker); everything else gets named and deferred, never auto-fixed. State the disposition declaratively; never append an opt-in question (see Completion-Tail Audit).
 - **Never pretend you did not see it.** If you noticed and skipped, that is a choice you owe the user. Write it down: `Noticed: file:line has X. Skipped because Y. Worth a follow-up issue.`
 
 Flag format, one sentence each:
