@@ -13,7 +13,7 @@ must not break:
    names and not just the hardcoded pointer-var tuple.
 3. All three fallback triggers (git missing, git erroring, git succeeding
    with empty stdout) still return the hand-written pointer-var tuple, and
-   the documented ``cache_clear()`` seam lets a test force rediscovery of a
+   the documented ``_local_env_vars_cache_clear()`` seam lets a test force rediscovery of a
    memoized successful result.
 4. A failed discovery is never memoized, so a transient subprocess failure
    does not permanently pin the fallback for the rest of the worker process.
@@ -264,7 +264,7 @@ class TestGitUnavailableFallback:
             first_result = module._local_env_vars()
         assert first_result == ("GIT_DIR",)
 
-        module._local_env_vars.cache_clear()
+        module._local_env_vars_cache_clear()
 
         with patch.object(
             module.subprocess,

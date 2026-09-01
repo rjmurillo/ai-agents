@@ -162,7 +162,7 @@ def _local_env_vars() -> tuple[str, ...]:
     roughly 30,000 short-lived processes across a full run, multiplied across
     xdist workers. Refs #5379.
 
-    Call ``_local_env_vars.cache_clear()`` to force rediscovery. This is the
+    Call ``_local_env_vars_cache_clear()`` to force rediscovery. This is the
     supported seam for tests that need to change the installed git's reported
     variable set mid-run.
     """
@@ -184,7 +184,7 @@ def _local_env_vars() -> tuple[str, ...]:
     return discovered
 
 
-_local_env_vars.cache_clear = _LOCAL_ENV_VARS_CACHE.clear
+_local_env_vars_cache_clear = _LOCAL_ENV_VARS_CACHE.clear
 
 
 def _sanitize_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
