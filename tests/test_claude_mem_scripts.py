@@ -198,6 +198,49 @@ class TestResolveImporter:
         assert resolution.is_configured is False
 
 
+class TestVanishedImporterUsesStoredClassification:
+    """The exit code must come from the stored source, not a second existence check.
+
+    resolve_importer returns a default only when it exists, so a default that is
+    removed between resolution and use reaches main as a non-None path that no
+    longer exists. Deciding from existence alone reports exit 1 for an optional
+    plugin the caller never configured. These tests build that post-race state
+    directly by returning a crafted ImporterResolution.
+    """
+
+    @staticmethod
+    def _resolve_to(monkeypatch, path: Path, source: str) -> None:
+        monkeypatch.setattr(
+            _import_mem,
+            "resolve_importer",
+            lambda *_args, **_kwargs: _import_mem.ImporterResolution(path, source),
+        )
+
+    def test_exits_0_when_default_vanishes_after_resolution(
+        self, tmp_path: Path, monkeypatch, capsys
+    ) -> None:
+        self._resolve_to(monkeypatch, tmp_path / "vanished.ts", _import_mem._SOURCE_DEFAULT)
+
+        result = _import_mem.main([], env={}, home=tmp_path)
+
+        assert result == 0
+        assert "SKIP" in capsys.readouterr().out
+
+    @pytest.mark.parametrize(
+        "source",
+        [_import_mem._SOURCE_ARGUMENT, _import_mem._SOURCE_ENVIRONMENT],
+        ids=["argument", "environment"],
+    )
+    def test_exits_1_when_configured_path_vanishes_after_resolution(
+        self, source: str, tmp_path: Path, monkeypatch
+    ) -> None:
+        self._resolve_to(monkeypatch, tmp_path / "vanished.ts", source)
+
+        result = _import_mem.main([], env={}, home=tmp_path)
+
+        assert result == 1
+
+
 class TestImportMemoriesMain:
     def test_exits_0_and_skips_when_optional_plugin_absent(self, tmp_path: Path, capsys) -> None:
         result = _import_mem.main([], env={}, home=tmp_path / "empty-home")
