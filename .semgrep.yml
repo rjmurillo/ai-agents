@@ -1,7 +1,0 @@
-rules:
-  - id: p/default
-    rules:
-      - id: python.lang.compatibility.python36
-        enabled: false
-      - id: python.lang.compatibility.python37
-        enabled: false

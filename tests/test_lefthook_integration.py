@@ -11050,6 +11050,38 @@ def test_semgrep_command_excludes_python37_compat_family() -> None:
     )
 
 
+def test_semgrep_command_excludes_full_rule_ids_not_family_prefix() -> None:
+    """--exclude-rule must carry the full rule id, not a family prefix.
+
+    Semgrep 1.159.0 does not suppress findings on a prefix like
+    "python.lang.compatibility.python36": passing that value still reports
+    both Popen findings when scanned directly. Only the full rule id
+    ("...python36.python36-compatibility-Popen1") drops the count to zero.
+    A regression back to the family prefix would keep this test's exact
+    list check red even though the two substring checks above stay green.
+    """
+    cmd = policy._semgrep_command("auto", ["path/to/file.py"])
+    exclude_values = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"]
+    assert exclude_values == [
+        "python.lang.compatibility.python36.python36-compatibility-Popen1",
+        "python.lang.compatibility.python36.python36-compatibility-Popen2",
+        "python.lang.compatibility.python37.python37-compatibility-Popen1",
+        "python.lang.compatibility.python37.python37-compatibility-Popen2",
+    ], f"Expected full rule ids, got family-prefix or altered values: {exclude_values}"
+
+
+def test_semgrep_command_family_prefix_alone_is_insufficient(tmp_path: Path) -> None:
+    """Edge case: a bare family prefix must not appear as its own exclude value.
+
+    Guards against a partial fix that adds the full rule ids alongside the
+    broken prefix instead of replacing it.
+    """
+    cmd = policy._semgrep_command("auto", [str(tmp_path / "file.py")])
+    exclude_values = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"]
+    assert "python.lang.compatibility.python36" not in exclude_values
+    assert "python.lang.compatibility.python37" not in exclude_values
+
+
 _ROOT_SCRATCH_CASES: tuple[tuple[str, list[str], list[str]], ...] = (
     ("investigation_dump", ["pr4147_threads.json"], ["pr4147_threads.json"]),
     ("timestamped_report", ["report.20260804.000717.json"], ["report.20260804.000717.json"]),
@@ -11153,48 +11185,45 @@ def test_root_scratch_policy_is_wired_into_pre_commit() -> None:
     assert job["skip"] == ["merge"]
 
 
+@pytest.mark.skipif(SEMGREP is None, reason="semgrep executable is unavailable")
 def test_semgrep_excludes_python36_compatibility_on_real_file() -> None:
-    """Verify python36 compatibility rules are excluded when scanning the actual file.
+    """Run the real security scan on the file issue #4725 names and assert zero
+    findings from the excluded rule ids.
 
-    The issue #4725 reports that python.lang.compatibility.python36.python36-compatibility-Popen1
-    and python36-compatibility-Popen2 fire false positives on run_workflow_local_test.py.
-    This test verifies they are excluded at the hook level.
+    A prefix like "python.lang.compatibility.python36" in --exclude-rule does not
+    suppress anything on semgrep 1.159.0; only the full rule id does. This test
+    executes semgrep against run_workflow_local_test.py (which calls
+    subprocess.Popen(encoding=, errors=)) so a regression to prefix matching fails
+    the test instead of passing on an argv string check alone.
     """
     test_file = policy.REPO_ROOT / "scripts" / "validation" / "run_workflow_local_test.py"
     assert test_file.exists(), f"Test file not found: {test_file}"
 
-    content = test_file.read_text()
-    # Verify the file contains the subprocess.Popen call with encoding and errors arguments
-    assert "encoding=" in content, "File should contain encoding= argument"
-    assert "errors=" in content, "File should contain errors= argument"
+    command = policy._semgrep_command("auto", [str(test_file)])
+    assert SEMGREP is not None
+    command[0] = SEMGREP
 
-    # Verify the exclusion is in the command
-    cmd = policy._semgrep_command("auto", [str(test_file)])
-    exclude_values = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"]
-
-    # Check that the python36 compatibility family is excluded
-    assert any("python.lang.compatibility.python36" in v for v in exclude_values), (
-        f"python36 compatibility family should be excluded. Got: {exclude_values}"
+    result = subprocess.run(
+        command,
+        cwd=policy.REPO_ROOT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
     )
 
-
-def test_semgrep_configuration_file_excludes_compatibility_rules() -> None:
-    """Verify .semgrep.yml configuration file excludes compatibility rules.
-
-    The configuration file at repository root is used by semgrep-cloud-platform/scan
-    and other external scanners to configure rule exclusions.
-    """
-    semgrep_config = policy.REPO_ROOT / ".semgrep.yml"
-    assert semgrep_config.exists(), f"Semgrep configuration not found: {semgrep_config}"
-
-    config_text = semgrep_config.read_text()
-    # Verify that both python36 and python37 compatibility families are disabled
-    assert "python.lang.compatibility.python36" in config_text, (
-        "Configuration should disable python36 compatibility rules"
+    assert result.returncode in {0, 1}, result.stderr
+    payload = json.loads(result.stdout)
+    excluded_prefixes = (
+        "python.lang.compatibility.python36",
+        "python.lang.compatibility.python37",
     )
-    assert "python.lang.compatibility.python37" in config_text, (
-        "Configuration should disable python37 compatibility rules"
-    )
-    assert "enabled: false" in config_text, (
-        "Configuration should have rules disabled"
+    compat_findings = [
+        finding["check_id"]
+        for finding in payload["results"]
+        if finding["check_id"].startswith(excluded_prefixes)
+    ]
+    assert compat_findings == [], (
+        f"python36/37 compatibility findings survived exclusion: {compat_findings}"
     )
