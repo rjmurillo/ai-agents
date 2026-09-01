@@ -4,9 +4,12 @@
 Idempotent import of all JSON memory files from the memories directory.
 Automatically prevents duplicates using composite keys.
 
-The Claude-Mem plugin is an optional dependency. It ships as a Claude Code
-plugin and has no Copilot CLI equivalent, so the importer path is resolved in
-this order:
+The Claude-Mem plugin is an optional dependency. Upstream ships a Copilot CLI
+integration, but it is MCP-only: ``MCP_IDE_INSTALLERS`` in
+``src/services/integrations/McpIntegrations.ts`` maps ``copilot-cli`` to an MCP
+installer writing ``~/.github/copilot/mcp.json``, and supplies no bulk-importer
+script this module could call. There is therefore a Claude Code default path and
+no Copilot equivalent of it, so the importer path is resolved in this order:
 
   1. ``--importer PATH`` on the command line
   2. the ``CLAUDE_MEM_IMPORTER`` environment variable
@@ -39,9 +42,12 @@ _MEMORIES_DIR = _SCRIPT_DIR.parent / "memories"
 IMPORTER_ENV_VAR = "CLAUDE_MEM_IMPORTER"
 
 _SOURCE_ARGUMENT = "--importer argument"
+_SOURCE_ARGUMENT_BLANK = "--importer argument (empty)"
 _SOURCE_ENVIRONMENT = f"{IMPORTER_ENV_VAR} environment variable"
 _SOURCE_DEFAULT = "Claude Code plugin default"
 _SOURCE_UNSET = "unset"
+
+_CONFIGURED_SOURCES = (_SOURCE_ARGUMENT, _SOURCE_ARGUMENT_BLANK, _SOURCE_ENVIRONMENT)
 
 
 @dataclass(frozen=True)
@@ -59,7 +65,24 @@ class ImporterResolution:
     @property
     def is_configured(self) -> bool:
         """True when the caller named a path, so a miss is a real failure."""
-        return self.source in (_SOURCE_ARGUMENT, _SOURCE_ENVIRONMENT)
+        return self.source in _CONFIGURED_SOURCES
+
+
+def expand_home(raw: str, home: Path) -> Path:
+    """Expand a leading ``~`` against ``home`` instead of the process environment.
+
+    Stricter/looser/different than canonical: ``Path.expanduser`` reads the real
+    ``HOME`` or ``USERPROFILE`` and the password database, which defeats the
+    injected ``home`` this module resolves against and forces tests to mutate
+    global state. This expands only the current user's ``~``; a ``~otheruser``
+    prefix is left literal, so it fails the later existence check with the
+    literal path shown rather than silently resolving against a stranger's home.
+    """
+    if raw == "~":
+        return home
+    if raw.startswith(("~/", "~\\")):
+        return home / raw[2:]
+    return Path(raw)
 
 
 def claude_default_importer(home: Path) -> Path:
@@ -85,13 +108,22 @@ def resolve_importer(
     An empty or whitespace-only environment value counts as unset: exporting
     ``CLAUDE_MEM_IMPORTER=""`` is how a shell disables an inherited value, and
     treating it as a configured-but-broken path would turn that into exit 1.
+
+    A blank ``--importer`` is the opposite case and is rejected, not ignored.
+    ``explicit is None`` means the flag was never passed; ``--importer ""`` means
+    the caller passed the highest-priority option and supplied nothing usable,
+    so falling through to a lower tier would silently disregard an explicit
+    instruction.
     """
-    if explicit:
-        return ImporterResolution(Path(explicit).expanduser(), _SOURCE_ARGUMENT)
+    if explicit is not None:
+        candidate = explicit.strip()
+        if not candidate:
+            return ImporterResolution(None, _SOURCE_ARGUMENT_BLANK)
+        return ImporterResolution(expand_home(candidate, home), _SOURCE_ARGUMENT)
 
     env_value = env.get(IMPORTER_ENV_VAR, "").strip()
     if env_value:
-        return ImporterResolution(Path(env_value).expanduser(), _SOURCE_ENVIRONMENT)
+        return ImporterResolution(expand_home(env_value, home), _SOURCE_ENVIRONMENT)
 
     default = claude_default_importer(home)
     if default.exists():
@@ -112,6 +144,8 @@ def _run_imports(importer: Path, files: list[Path]) -> tuple[int, list[tuple[str
                 ["npx", "tsx", str(importer), str(file_path)],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
             )
         except OSError as e:
             failed_files.append((file_path.name, str(e)))
@@ -164,6 +198,14 @@ def main(
         os.environ if env is None else env,
         Path.home() if home is None else home,
     )
+
+    if resolution.source == _SOURCE_ARGUMENT_BLANK:
+        print(
+            "ERROR: --importer was passed an empty path. Omit the flag to fall "
+            f"back to ${IMPORTER_ENV_VAR} and the Claude Code plugin default.",
+            file=sys.stderr,
+        )
+        return 1
 
     importer = resolution.path
     if importer is None or not importer.exists():

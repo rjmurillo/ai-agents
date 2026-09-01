@@ -183,19 +183,129 @@ class TestResolveImporter:
         assert resolution.path == expected
         assert resolution.is_configured is False
 
-    def test_expands_tilde_in_explicit_path(self, tmp_path: Path, monkeypatch) -> None:
-        monkeypatch.setenv("HOME", str(tmp_path))
-        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    def test_expands_tilde_against_injected_home_not_process_environment(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        # The process HOME points somewhere real and different, so a resolution
+        # that leaked to Path.expanduser() would resolve there instead.
+        process_home = tmp_path / "process-home"
+        process_home.mkdir()
+        monkeypatch.setenv("HOME", str(process_home))
+        monkeypatch.setenv("USERPROFILE", str(process_home))
+        injected_home = tmp_path / "injected-home"
 
-        resolution = _import_mem.resolve_importer("~/importer.ts", {}, tmp_path)
+        resolution = _import_mem.resolve_importer("~/importer.ts", {}, injected_home)
 
-        assert resolution.path == tmp_path / "importer.ts"
+        assert resolution.path == injected_home / "importer.ts"
+        assert resolution.path != process_home / "importer.ts"
+
+    def test_expands_tilde_in_environment_value_against_injected_home(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        process_home = tmp_path / "process-home"
+        process_home.mkdir()
+        monkeypatch.setenv("HOME", str(process_home))
+        monkeypatch.setenv("USERPROFILE", str(process_home))
+        injected_home = tmp_path / "injected-home"
+        env = {_import_mem.IMPORTER_ENV_VAR: "~/from-env.ts"}
+
+        resolution = _import_mem.resolve_importer(None, env, injected_home)
+
+        assert resolution.path == injected_home / "from-env.ts"
+
+    def test_leaves_other_user_tilde_literal(self, tmp_path: Path) -> None:
+        resolution = _import_mem.resolve_importer("~someone/importer.ts", {}, tmp_path)
+
+        assert resolution.path == Path("~someone/importer.ts")
+
+    @pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
+    def test_blank_explicit_argument_is_configured_not_unset(
+        self, blank: str, tmp_path: Path
+    ) -> None:
+        home = tmp_path / "home"
+        _make_claude_default(home)
+        env = {_import_mem.IMPORTER_ENV_VAR: str(tmp_path / "from-env.ts")}
+
+        resolution = _import_mem.resolve_importer(blank, env, home)
+
+        assert resolution.path is None
+        assert resolution.source == _import_mem._SOURCE_ARGUMENT_BLANK
+        assert resolution.is_configured is True
 
     def test_reports_unset_when_plugin_absent(self, tmp_path: Path) -> None:
         resolution = _import_mem.resolve_importer(None, {}, tmp_path / "empty-home")
 
         assert resolution.path is None
         assert resolution.is_configured is False
+
+
+class TestImporterReachesSubprocess:
+    """Prove the resolved path is what gets executed, not just what gets resolved.
+
+    Every other subprocess stub here ignores argv, so hardcoding a wrong path at
+    the call site would leave them all green. These assert on the recorded argv.
+    """
+
+    @staticmethod
+    def _record_calls(monkeypatch) -> list[list[str]]:
+        calls: list[list[str]] = []
+
+        def _fake_run(argv, **_kwargs):
+            calls.append(list(argv))
+            return subprocess.CompletedProcess(argv, 0, "", "")
+
+        monkeypatch.setattr(_import_mem.subprocess, "run", _fake_run)
+        return calls
+
+    @staticmethod
+    def _memories_with_one_file(tmp_path: Path, monkeypatch) -> Path:
+        memories = tmp_path / "memories"
+        memories.mkdir()
+        memory_file = memories / "shared.json"
+        memory_file.write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(_import_mem, "_MEMORIES_DIR", memories)
+        return memory_file
+
+    def test_explicit_importer_is_passed_to_subprocess(self, tmp_path: Path, monkeypatch) -> None:
+        importer = tmp_path / "explicit-importer.ts"
+        importer.write_text("// stub importer", encoding="utf-8")
+        memory_file = self._memories_with_one_file(tmp_path, monkeypatch)
+        calls = self._record_calls(monkeypatch)
+
+        assert _import_mem.main(["--importer", str(importer)], env={}, home=tmp_path) == 0
+
+        assert calls == [["npx", "tsx", str(importer), str(memory_file)]]
+
+    def test_environment_importer_is_passed_to_subprocess(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        importer = tmp_path / "env-importer.ts"
+        importer.write_text("// stub importer", encoding="utf-8")
+        self._memories_with_one_file(tmp_path, monkeypatch)
+        calls = self._record_calls(monkeypatch)
+        env = {_import_mem.IMPORTER_ENV_VAR: str(importer)}
+
+        assert _import_mem.main([], env=env, home=tmp_path) == 0
+
+        assert str(importer) in calls[0]
+
+    def test_subprocess_decodes_utf8_with_replacement(self, tmp_path: Path, monkeypatch) -> None:
+        """Locale-independent decoding: npx output must not raise UnicodeDecodeError."""
+        importer = tmp_path / "importer.ts"
+        importer.write_text("// stub importer", encoding="utf-8")
+        self._memories_with_one_file(tmp_path, monkeypatch)
+        recorded: dict[str, object] = {}
+
+        def _fake_run(argv, **kwargs):
+            recorded.update(kwargs)
+            return subprocess.CompletedProcess(argv, 0, "", "")
+
+        monkeypatch.setattr(_import_mem.subprocess, "run", _fake_run)
+
+        assert _import_mem.main(["--importer", str(importer)], env={}, home=tmp_path) == 0
+
+        assert recorded["encoding"] == "utf-8"
+        assert recorded["errors"] == "replace"
 
 
 class TestVanishedImporterUsesStoredClassification:
@@ -308,6 +418,18 @@ class TestImportMemoriesMain:
         result = _import_mem.main(["--importer", str(importer)], env={}, home=tmp_path)
 
         assert result == 0
+
+    @pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
+    def test_exits_1_when_explicit_argument_is_blank(self, blank: str, tmp_path: Path) -> None:
+        home = tmp_path / "home"
+        _make_claude_default(home)
+        env = {_import_mem.IMPORTER_ENV_VAR: str(_make_claude_default(tmp_path / "other"))}
+
+        result = _import_mem.main(["--importer", blank], env=env, home=home)
+
+        # A usable env value and a usable default both exist; the blank argument
+        # must still fail rather than fall through to either of them.
+        assert result == 1
 
     def test_exits_1_when_importer_binary_is_unavailable(self, tmp_path: Path, monkeypatch) -> None:
         importer = tmp_path / "importer.ts"
