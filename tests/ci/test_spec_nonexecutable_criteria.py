@@ -154,6 +154,16 @@ class TestDoesNotOverFire:
             "- [x] The README documents that `pytest` passes",
             "- [x] The changelog notes that `ruff check .` is green",
             "- [x] The docs claim `npm test` succeeds",
+            # Given/When/Then, one clause per bullet. "Then" introduces a
+            # consequence, and a consequence the diff establishes is a
+            # behavioral contract; the completeness prompt keeps required exit
+            # codes in scope by name. A full "Given ... then ..." line was
+            # already rejected because `given` is a subordinator, so the
+            # split-bullet form is the shape that leaked (PR #5451 review,
+            # round 9).
+            "- [x] Then `wrapper.py` exits 0",
+            "- [x] Then `pytest` passes",
+            "- [x] then `ruff check .` is green",
         ],
     )
     def test_leaves_a_compound_criterion_in_scope(self, criterion: str) -> None:
@@ -223,12 +233,7 @@ class TestDoesNotOverFire:
     def test_a_late_backtick_in_a_long_fence_like_line_stays_out_of_the_gate(self) -> None:
         """A long non-fence line must be rejected without burning the scan budget."""
         fence_like = "`" * 50_000 + "a" * 50_000 + "`"
-        body = (
-            "## Summary\n\n"
-            f"{fence_like}\n\n"
-            "## Acceptance criteria\n\n"
-            "- [x] `pytest` passes\n"
-        )
+        body = f"## Summary\n\n{fence_like}\n\n## Acceptance criteria\n\n- [x] `pytest` passes\n"
 
         assert find_nonexecutable_criteria(body) == ["`pytest` passes"]
 

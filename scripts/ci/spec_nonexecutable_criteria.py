@@ -16,10 +16,18 @@ implementation is. PR #5350 hit exactly this: 7 of 8 criteria SATISFIED, one
 PARTIAL for a `pre_pr.py`-passes criterion, `VERDICT: PARTIAL`, check red.
 
 `scripts/ci/spec_prepare_context.py` renders this module's output as a
-`## Non-Executable Criteria Declaration`, mirroring the
-`## Incremental Scope Declaration` escape hatch built for issue #2255, and
-`.github/prompts/spec-check-completeness.md` tells the reviewer to mark the
-named criteria `N/A` and exclude them from the completeness percentage.
+`## Non-Executable Criteria Declaration` in the reviewer's additional context,
+and `.github/prompts/spec-check-completeness.md` tells the reviewer what to do
+with the named criteria.
+
+That is a description, not a parity claim. An earlier version said this block
+mirrors the `## Incremental Scope Declaration` built for issue #2255, which
+`.claude/rules/canonical-source-mirror.md` requires be backed by the path plus
+the verbatim contract. Both sections are under active revision, so a quoted
+rule number here went stale twice in one review cycle. The comparison, with its
+quotes and the one place the two deliberately disagree, lives in
+`.agents/retrospective/2026-09-01-issue-5366-spec-coverage-nonexecutable-criteria.md`,
+which is a dated record rather than a live document.
 
 This repo's own PR template already puts that evidence elsewhere: the
 `uv run python scripts/validation/pre_pr.py` checkbox lives under
@@ -197,7 +205,16 @@ _RESULT_TAIL = re.compile(
 # the diff establishes, and classifying the bullet away takes it along. This is
 # the mirror of the end anchor on `_RESULT_TAIL`, and costs the same
 # under-firing.
-_CLAIM_PREFIX = re.compile(r"(?i)[#>\s]*(?:(?:run|then)\s+)*")
+#
+# `run` only. `then` was here too and let a Given/When/Then bullet through:
+# "Then `wrapper.py` exits 0" cleared the prefix, the `.py` launcher check and
+# the result tail, so a required exit code was classified as run evidence and
+# dropped from the gate. A full "Given ... then ..." line was rejected anyway,
+# because `given` is a subordinator, which is what made the one-clause-per-
+# bullet form the shape that leaked. `then` introduces a consequence, and a
+# consequence of something the diff establishes is a behavioral contract, which
+# is the category the completeness prompt keeps in scope by name.
+_CLAIM_PREFIX = re.compile(r"(?i)[#>\s]*(?:run\s+)*")
 
 # What may sit between the command span and the result verb that governs it.
 # Only enough to carry "Run `make build` and it completes successfully"; any
