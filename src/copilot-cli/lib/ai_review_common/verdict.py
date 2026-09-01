@@ -1,7 +1,8 @@
-"""Verdict parsing, label/milestone extraction, and failure categorization."""
+"""Verdict parsing, local-axis adaptation, and failure categorization."""
 
 from __future__ import annotations
 
+import json
 import re
 
 _VERDICT_PATTERN = re.compile(r"VERDICT:\s*([A-Z_]+)")
@@ -146,6 +147,18 @@ _EXTRACT_VERDICT_PATTERN = re.compile(
     r"NON_COMPLIANT|COMPLIANT|PARTIAL|DID_NOT_RUN|UNKNOWN)(?![|A-Z_])\]?",
 )
 
+_LOCAL_REVIEW_AXES = frozenset(
+    {
+        "code-qualities-assessment",
+        "doc-accuracy",
+        "golden-principles",
+        "taste-lints",
+    }
+)
+_DOC_ACCURACY_GATE_PATTERN = re.compile(
+    r"(?m)^\s*(?:\*\*)?Gate:\s*(PASS|FAIL|DID_NOT_RUN)(?![|A-Z_])\b"
+)
+
 
 def extract_verdict(text: str) -> str:
     """Scan text for a verdict marker and return the LAST matched token.
@@ -167,6 +180,94 @@ def extract_verdict(text: str) -> str:
         return "UNKNOWN"
     matches = _EXTRACT_VERDICT_PATTERN.findall(text)
     return matches[-1] if matches else "UNKNOWN"
+
+
+def _load_json_object(text: str) -> dict[str, object] | None:
+    """Return a top-level JSON object, or None when stdout is not JSON."""
+    if not text or not text.strip():
+        return None
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _coerce_nonnegative_int(value: object) -> int | None:
+    """Return a non-negative integer field, or None when the value is invalid."""
+    if isinstance(value, int) and value >= 0:
+        return value
+    return None
+
+
+def adapt_local_axis_verdict(
+    axis: str,
+    output: str,
+    exit_code: int,
+    stderr: str = "",
+) -> str:
+    """Normalize local-axis outputs into review verdict tokens.
+
+    `/review` chains four local-only skills whose raw contracts are not the
+    canonical `Verdict:` line:
+
+    - `code-qualities-assessment` emits JSON and gates by exit code.
+    - `doc-accuracy` emits `gate_result.verdict` JSON, or `Gate:` in summary
+      mode for older callers.
+    - `golden-principles` and `taste-lints` emit JSON with `error_count` and
+      `warning_count`.
+
+    The adapter returns one of PASS, WARN, FAIL, or UNKNOWN so the caller can
+    merge the local-axis result with canonical-axis verdicts. Unknown or
+    malformed output fails closed to UNKNOWN.
+    """
+    if axis not in _LOCAL_REVIEW_AXES:
+        raise ValueError(f"unknown local review axis: {axis}")
+
+    payload = _load_json_object(output)
+
+    if axis == "code-qualities-assessment":
+        if payload is None or "files" not in payload or "summary" not in payload:
+            return "UNKNOWN"
+        if exit_code == 0:
+            return "PASS"
+        if exit_code in {10, 11}:
+            return "WARN"
+        return "UNKNOWN"
+
+    if axis == "doc-accuracy":
+        gate_verdict: object | None = None
+        if payload is not None:
+            gate_result = payload.get("gate_result")
+            if isinstance(gate_result, dict):
+                gate_verdict = gate_result.get("verdict")
+        if gate_verdict is None:
+            matches = _DOC_ACCURACY_GATE_PATTERN.findall(output)
+            gate_verdict = matches[-1] if matches else None
+        if gate_verdict == "PASS" and exit_code == 0:
+            return "PASS"
+        if gate_verdict == "FAIL" and exit_code == 10:
+            return "FAIL"
+        if gate_verdict == "DID_NOT_RUN" or exit_code == 1:
+            return "UNKNOWN"
+        return "UNKNOWN"
+
+    if payload is None:
+        return "UNKNOWN"
+
+    error_count = _coerce_nonnegative_int(payload.get("error_count"))
+    warning_count = _coerce_nonnegative_int(payload.get("warning_count"))
+    if error_count is None or warning_count is None:
+        return "UNKNOWN"
+    if error_count > 0:
+        return "FAIL"
+    if warning_count > 0:
+        return "WARN"
+    if exit_code == 0:
+        return "PASS"
+    if stderr.strip():
+        return "UNKNOWN"
+    return "UNKNOWN"
 
 
 _INFRA_PATTERNS = re.compile(
