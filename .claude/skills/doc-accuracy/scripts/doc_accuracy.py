@@ -1379,7 +1379,19 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # Output report
-    if args.format == "summary":
+    if args.format == "json":
+        print(
+            json.dumps(
+                {
+                    "assessment": assessment,
+                    "claims_data": claims_data,
+                    "compilability_data": compilability_data,
+                    "gate_result": gate_result,
+                },
+                indent=2,
+            )
+        )
+    elif args.format == "summary":
         _print_summary(
             assessment, claims_data, compilability_data, gate_result
         )

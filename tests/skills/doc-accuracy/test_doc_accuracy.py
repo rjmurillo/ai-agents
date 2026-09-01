@@ -1673,6 +1673,54 @@ class TestMain:
         assert "Gate: DID_NOT_RUN" in captured.out
         assert "No source symbols found" in captured.out
 
+    def test_json_format_emits_did_not_run_payload(self, tmp_path: Path, capsys) -> None:
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+        assert rc == 1
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["gate_result"]["verdict"] == "DID_NOT_RUN"
+        assert payload["compilability_data"]["status"] == "DID_NOT_RUN"
+
+    def test_json_format_emits_fail_payload(self, tmp_path: Path, capsys) -> None:
+        subprocess.run(
+            ["git", "init", str(tmp_path)],
+            check=True,
+            capture_output=True,
+        )
+        (tmp_path / "main.py").write_text(
+            "def ExistingWidget():\n    pass\n",
+        )
+        (tmp_path / "README.md").write_text(
+            "```python\nMyWidget()\n```\n",
+        )
+
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+        assert rc == 10
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["gate_result"]["verdict"] == "FAIL"
+        assert payload["gate_result"]["blocking_findings"] == 1
+
+    def test_json_format_emits_pass_payload(self, tmp_path: Path, capsys) -> None:
+        subprocess.run(
+            ["git", "init", str(tmp_path)],
+            check=True,
+            capture_output=True,
+        )
+        (tmp_path / "main.py").write_text(
+            "def ExistingWidget():\n    pass\n",
+        )
+        (tmp_path / "README.md").write_text(
+            "```python\nExistingWidget()\n```\n",
+        )
+
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["gate_result"]["verdict"] == "PASS"
+        assert payload["gate_result"]["blocking_findings"] == 0
+
     def test_custom_output_dir(self, tmp_path: Path) -> None:
         out = tmp_path / "custom-output"
         rc = main([
