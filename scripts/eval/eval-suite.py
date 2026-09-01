@@ -62,6 +62,7 @@ EXIT_OK = 0
 EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
+EXIT_AUTH = 4
 
 # Security-critical path patterns (ADR-057: 5 runs, 100% pass)
 SECURITY_PATTERNS = [
@@ -133,6 +134,46 @@ def _contains_external_failure(value: object) -> bool:
     if isinstance(value, list):
         return any(_contains_external_failure(item) for item in value)
     return False
+
+
+def _recorded_exit_codes(value: object) -> list[int]:
+    """Every `exit_code` a child runner recorded, at any depth."""
+    codes: list[int] = []
+    if isinstance(value, dict):
+        code = value.get("exit_code")
+        if isinstance(code, int):
+            codes.append(code)
+        for nested in value.values():
+            codes.extend(_recorded_exit_codes(nested))
+    elif isinstance(value, list):
+        for item in value:
+            codes.extend(_recorded_exit_codes(item))
+    return codes
+
+
+def worst_exit_code(results: dict[str, Any], any_failure: bool) -> int:
+    """Reduce child exit codes to one, keeping the most specific.
+
+    Reduced with `max`, mirroring the accumulator in
+    `scripts/eval/eval-rule-activation.py:_process_scenario_file`:
+
+        state.worst_exit = max(state.worst_exit, _classify_verdict(result["summary"]["verdict"]))
+
+    and the reason its main loop gives for that choice:
+
+        # max, not the bare code: a hard refusal stops the run, but an
+        # earlier target may already have recorded something worse. A
+        # config refusal on file 8 must not lower an API failure seen on
+        # file 1, or adding a target could improve the exit.
+
+    Keeping `max` preserves a child's config (2) or auth (4) refusal instead
+    of flattening every failure to logic (1) or external (3). A failure with
+    no recorded code floors at EXIT_LOGIC.
+    """
+    if not any_failure:
+        return EXIT_OK
+    codes = [code for code in _recorded_exit_codes(results) if code != EXIT_OK]
+    return max(codes) if codes else EXIT_LOGIC
 
 
 # ---------------------------------------------------------------------------
@@ -450,7 +491,11 @@ def find_rule_scenarios() -> dict[str, str]:
     for candidate in sorted(scenario_dir.glob("*.json")):
         try:
             raw = candidate.read_text(encoding="utf-8")
-        except OSError as exc:
+        except (OSError, UnicodeDecodeError) as exc:
+            # UnicodeDecodeError subclasses ValueError, not OSError, so a
+            # binary or mis-encoded scenario file escapes an OSError-only
+            # guard and crashes with a traceback instead of the config exit
+            # this function documents.
             raise ScenarioConfigError(
                 f"cannot read scenario file {candidate}: {exc}"
             ) from exc
@@ -604,9 +649,15 @@ def reconcile_routing_plan(
 ) -> list[dict[str, Any]]:
     """Promote plan entries to `scored` once an evaluation actually ran.
 
-    `scored` means an evaluation ran and produced a verdict. A failing run is
-    still scored: the evidence exists, it is just negative. Only a run that
-    never happened stays at `scenario_defined_not_scored`.
+    `scored` means an evaluation ran and produced a verdict. A failing verdict
+    is still scored: the evidence exists, it is just negative. A timeout or an
+    unreadable result produced no verdict and stays at
+    `scenario_defined_not_scored`.
+
+    Promotion keys on the runner's own `evidence` label, never on `passed`.
+    `passed` is False for a failing verdict, a timeout, and a missing verdict
+    alike, so inferring from it would publish scored efficacy evidence for
+    runs that produced none.
     """
     rule_results = results.get("rules", {}).get("rules", {})
     if not rule_results:
@@ -626,7 +677,10 @@ def reconcile_routing_plan(
         for path in entry["files"]:
             rule_id = rule_id_for_path(path)
             outcome = rule_results.get(rule_id) if rule_id else None
-            if isinstance(outcome, dict) and "passed" in outcome:
+            if (
+                isinstance(outcome, dict)
+                and outcome.get("evidence") == EVIDENCE_SCORED
+            ):
                 scored.append(path)
             else:
                 unscored.append(path)
@@ -669,9 +723,42 @@ def _read_child_json_file(path: Path, context: str) -> tuple[dict[str, Any] | No
     """Read a child evaluator's `--output` JSON file."""
     try:
         raw = path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         return None, f"no results file for {context}: {exc}"
     return _parse_child_json(raw, context)
+
+
+def _verdict_error(parsed: dict[str, Any] | None, rule_id: str) -> str | None:
+    """Return why `parsed` carries no usable verdict for `rule_id`, or None.
+
+    Parseable is not the same as scored. `{"schema_version": 1, "rules": {}}`
+    is valid JSON and names no verdict, so accepting it would publish scored
+    efficacy evidence for a run that produced none.
+
+    The shape is set by `scripts/eval/eval-rule-activation.py:_process_scenario_file`:
+
+        all_results["rules"][rule_id] = result
+        state.worst_exit = max(state.worst_exit, _classify_verdict(result["summary"]["verdict"]))
+
+    so a scored rule always has a string at `rules.<rule_id>.summary.verdict`.
+    """
+    if not isinstance(parsed, dict):
+        return f"results are not an object for rule {rule_id}"
+    rules = parsed.get("rules")
+    if not isinstance(rules, dict):
+        return f"results carry no rules map for rule {rule_id}"
+    entry = rules.get(rule_id)
+    if entry is None:
+        return f"results carry no entry for rule {rule_id}"
+    if not isinstance(entry, dict):
+        return f"results entry is not an object for rule {rule_id}"
+    summary = entry.get("summary")
+    if not isinstance(summary, dict):
+        return f"results carry no summary for rule {rule_id}"
+    verdict = summary.get("verdict")
+    if not isinstance(verdict, str) or not verdict.strip():
+        return f"results carry no verdict for rule {rule_id}"
+    return None
 
 
 def run_rule_activation(files: list[str], model: str) -> dict[str, Any]:
@@ -739,17 +826,27 @@ def run_rule_activation(files: list[str], model: str) -> dict[str, Any]:
                 results["rules"][rule_id] = {"passed": False, "reason": "timeout (600s)"}
                 continue
 
-            parsed, parse_error = _read_child_json_file(output_path, f"rule {rule_id}")
-            passed = result.returncode == 0 and parse_error is None
-            exit_code = EXIT_EXTERNAL if parse_error is not None else result.returncode
-            if parse_error is not None:
-                print(f"WARNING: {parse_error}", file=sys.stderr)
-                parsed = {"stderr_preview": result.stderr[:500], "error": parse_error}
+            parsed, signal_error = _read_child_json_file(output_path, f"rule {rule_id}")
+            if signal_error is None:
+                signal_error = _verdict_error(parsed, rule_id)
+
+            passed = result.returncode == 0 and signal_error is None
+            if signal_error is None:
+                exit_code = result.returncode
+            else:
+                # Keep the child's own refusal code. It exits 2 on an invalid
+                # scenario and 4 on a missing key, in both cases without
+                # writing the output file, so mapping every missing signal to
+                # EXIT_EXTERNAL would report an API failure for a config or
+                # auth fault. Only a child that claimed success and produced
+                # nothing is an external failure.
+                exit_code = result.returncode if result.returncode != EXIT_OK else EXIT_EXTERNAL
+                print(f"WARNING: {signal_error}", file=sys.stderr)
+                parsed = {"stderr_preview": result.stderr[:500], "error": signal_error}
 
             # `scored` records that an evaluation ran and produced a verdict.
-            # A failing run is scored; only a run that produced no verdict is
-            # not.
-            evidence = EVIDENCE_SCENARIO if parse_error is not None else EVIDENCE_SCORED
+            # A failing verdict is scored; a missing one never is.
+            evidence = EVIDENCE_SCENARIO if signal_error is not None else EVIDENCE_SCORED
             results["rules"][rule_id] = {
                 "passed": passed,
                 "exit_code": exit_code,
@@ -1143,9 +1240,7 @@ def main() -> None:
         print(json_output)
 
     _print_summary(output)
-    if not any_failure:
-        sys.exit(EXIT_OK)
-    sys.exit(EXIT_EXTERNAL if _contains_external_failure(results) else EXIT_LOGIC)
+    sys.exit(worst_exit_code(results, any_failure))
 
 
 if __name__ == "__main__":
