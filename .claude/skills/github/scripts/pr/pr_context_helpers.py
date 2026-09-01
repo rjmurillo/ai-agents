@@ -64,10 +64,10 @@ def record_context_fetch_failure(
 def author_is_bot(author: object) -> bool | None:
     """Classify the PR author as a bot, or return None when it cannot be read.
 
-    Canonical rule: `is_bot(login: str, user_type: str | None = None) -> bool`.
-    `canonicalize_login` runs first so `app/copilot-swe-agent` and `Copilot`,
-    the spellings this repo's own bot PRs arrive under, reach it as `[bot]`
-    logins; GitHub's flag feeds `user_type`.
+    Canonical rule, `scripts/github_core/bot_config.py:328`, verbatim:
+    `def is_bot(login: str, user_type: str | None = None) -> bool:`. `canonicalize_login`
+    (line 309) runs first so `app/copilot-swe-agent` and `Copilot`, the spellings this repo's
+    own bot PRs arrive under, reach it as `[bot]` logins; GitHub's flag feeds `user_type`.
 
     Stricter/looser/different than canonical. *Stricter input boundary*: canonical takes
     `login: str` and classifies anything, so `"   "` came back a real `False`; this takes
