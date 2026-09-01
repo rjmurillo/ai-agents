@@ -75,6 +75,7 @@ import re
 # declaration is a hint for the reviewer, not a transcript of the PR.
 _MAX_CRITERIA = 20
 _MAX_CRITERION_CHARS = 200
+_ELISION = " ... "
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 # A fenced block holds sample text. A PR body that demonstrates this feature by
@@ -357,11 +358,21 @@ def _normalize(text: str) -> str:
 
 
 def _sanitize(text: str) -> str:
-    """Flatten a normalized criterion to one bounded, structure-free line."""
+    """Flatten a normalized criterion to one bounded, structure-free line.
+
+    A criterion longer than the cap loses its middle, not its end. The
+    declaration exists so a reviewer can see which criterion was classified and
+    why; the head carries the command and the tail carries the result verb, and
+    those two are the evidence. Cutting from the end kept the command and threw
+    away the half that says what was claimed about it, which left an entry the
+    reviewer could not check the classification against.
+    """
     cleaned = _LEADING_MARKUP.sub("", text)
-    if len(cleaned) > _MAX_CRITERION_CHARS:
-        cleaned = cleaned[: _MAX_CRITERION_CHARS - 3].rstrip() + "..."
-    return cleaned
+    if len(cleaned) <= _MAX_CRITERION_CHARS:
+        return cleaned
+    budget = _MAX_CRITERION_CHARS - len(_ELISION)
+    tail = budget // 3
+    return cleaned[: budget - tail].rstrip() + _ELISION + cleaned[-tail:].lstrip()
 
 
 def find_nonexecutable_criteria(pr_body: str) -> list[str]:

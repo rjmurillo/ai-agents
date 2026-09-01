@@ -18,6 +18,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.ci.spec_nonexecutable_criteria import (
+    _ELISION,
     _MAX_CRITERIA,
     _MAX_CRITERION_CHARS,
     find_nonexecutable_criteria,
@@ -146,6 +147,13 @@ class TestDoesNotOverFire:
             # joining the two halves (PR #5451 review, round 3).
             "- [ ] the parser rejects an empty ref and `pytest` passes",
             "- [x] The CLI exits 2 on a bad flag and `ruff check .` is green",
+            # Same subject misattribution with no coordinator joining the
+            # halves: the grammatical subject is the README, not the command
+            # (PR #5451 review, round 4). Covered by the round-3 rule that the
+            # command span must open the criterion, with no new code.
+            "- [x] The README documents that `pytest` passes",
+            "- [x] The changelog notes that `ruff check .` is green",
+            "- [x] The docs claim `npm test` succeeds",
         ],
     )
     def test_leaves_a_compound_criterion_in_scope(self, criterion: str) -> None:
@@ -298,7 +306,21 @@ class TestSanitizesInjectedText:
 
         assert len(found) == 1
         assert len(found[0]) <= _MAX_CRITERION_CHARS
-        assert found[0].endswith("...")
+        assert _ELISION in found[0]
+
+    def test_a_truncated_criterion_still_shows_what_was_classified(self) -> None:
+        """The entry has to carry its own evidence.
+
+        A declaration entry that kept the command and dropped the result verb
+        left the reviewer nothing to check the classification against
+        (PR #5451 review, round 4).
+        """
+        long_command = "pytest " + " ".join(f"tests/ci/case_{index}.py" for index in range(12))
+        found = find_nonexecutable_criteria(_body(f"- [x] `{long_command}` passes"))
+
+        assert len(found) == 1
+        assert found[0].startswith("`pytest tests/ci/case_0.py")
+        assert found[0].endswith("passes")
 
     def test_deduplicates_repeated_criteria(self) -> None:
         body = _body("- [x] `pytest` passes", "- [x] `pytest` passes")
