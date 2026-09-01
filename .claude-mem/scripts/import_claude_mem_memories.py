@@ -96,11 +96,17 @@ def expand_home(raw: str, home: Path) -> Path:
     global state. This expands only the current user's ``~``; a ``~otheruser``
     prefix is left literal, so it fails the later existence check with the
     literal path shown rather than silently resolving against a stranger's home.
+
+    The suffix is stripped of further leading separators before joining. Without
+    that, ``~//importer.ts`` leaves ``/importer.ts``, and ``Path.__truediv__``
+    discards its left operand when the right side is absolute, so the expansion
+    would silently return ``/importer.ts`` and drop ``home`` entirely. The same
+    holds for a repeated backslash on Windows, where ``\\importer.ts`` is rooted.
     """
     if raw == "~":
         return home
     if raw.startswith(("~/", "~\\")):
-        return home / raw[2:]
+        return home / raw[2:].lstrip("/\\")
     return Path(raw)
 
 

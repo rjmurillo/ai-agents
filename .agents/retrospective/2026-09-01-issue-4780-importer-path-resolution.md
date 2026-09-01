@@ -383,8 +383,8 @@ Per `.claude/rules/retros.md` MUST-4, every item below carries an owner or a
 tracking reference. "Skip" is a decision with a stated reason, not a deferral
 without an owner.
 
-| Delta Item | Category | Priority | Destination | Owner / Tracking |
-|------------|----------|----------|-------------|------------------|
+| Delta Item | Category | Priority | Destination | Reference |
+|------------|----------|----------|-------------|-----------|
 | No FAILURE-MODES class covers a hand-authored cross-harness runtime-contract defect (FM-11's generator premise fails) | Governance | P3 | Issue | Issue #5461, owner: repository maintainer (ADR authoring is Ask First per `AGENTS.md`) |
 | No gate detects an assertion accepting a function's full return range | Tool Gap | P2 | Issue | Issue #5461, "Notes" section, owner: repository maintainer |
 | `.agents/governance/MEMORY-MANAGEMENT.md` exceeds the 500-line taste-lint advisory (506 lines before this change, larger after the mandated verbatim quotes) | Process | P3 | Skip | Owner: none required. Advisory only, pre-existing on `main`, and enlarged by `.claude/rules/canonical-source-mirror.md`, which is binding where the size lint is advisory. Splitting is out of scope for a bug fix. |

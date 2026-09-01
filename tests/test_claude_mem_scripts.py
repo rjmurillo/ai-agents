@@ -230,6 +230,23 @@ class TestResolveImporter:
 
     @pytest.mark.parametrize(
         "raw",
+        ["~//importer.ts", "~///importer.ts", "~\\\\importer.ts", "~/\\importer.ts"],
+        ids=["double-slash", "triple-slash", "double-backslash", "mixed"],
+    )
+    def test_repeated_separator_still_resolves_under_home(self, raw: str, tmp_path: Path) -> None:
+        """Path.__truediv__ discards its left operand when the right side is rooted.
+
+        Slicing `~/` off `~//importer.ts` leaves `/importer.ts`, so joining it
+        unstripped returns `/importer.ts` and drops home entirely.
+        """
+        assert _import_mem.expand_home(raw, tmp_path) == tmp_path / "importer.ts"
+
+    @pytest.mark.parametrize("raw", ["~/", "~//"], ids=["slash", "double-slash"])
+    def test_tilde_with_only_separators_is_home(self, raw: str, tmp_path: Path) -> None:
+        assert _import_mem.expand_home(raw, tmp_path) == tmp_path
+
+    @pytest.mark.parametrize(
+        "raw",
         [" /opt/spaced.ts", "/opt/spaced.ts ", " /opt/spaced.ts "],
         ids=["leading", "trailing", "both"],
     )
