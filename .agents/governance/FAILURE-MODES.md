@@ -540,7 +540,7 @@ Relationship to other modes: FM #4 (false completion) is the inverse error, clai
 
 ### When to Update
 
-- A ninth pattern emerges. Document it with the same shape: description, trigger, evidence, detection, enforcement.
+- A new pattern emerges. Document it with the same shape: description, trigger, evidence, detection, enforcement.
 - An existing pattern has new evidence. Append the retrospective to its evidence list.
 - An enforcement pattern is obsoleted by a better mechanism. Update the table and reference the ADR that supersedes it.
 
