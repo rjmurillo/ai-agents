@@ -33,11 +33,13 @@ defines a test carrying a registered pytest marker (``markers`` in
 ``pyproject.toml``, the same signal ``windows_path`` already uses). That
 distinguishes a genuine platform-specific suite from a skip-only helper or a
 dead test added just to satisfy this guard, without letting either bypass it.
-An unconditional module-level skip (``pytest.skip(..., allow_module_level=True)``
-or ``pytest.importorskip(...)`` run unconditionally) disqualifies the module
-regardless of what else it defines: pytest's import machinery marks the whole
-module skipped the moment such a call executes, so nothing textually after or
-around it is ever collected on any host.
+An unconditional module-level ``pytest.skip(..., allow_module_level=True)``
+disqualifies the module regardless of what else it defines: pytest's import
+machinery marks the whole module skipped the moment such a call executes, so
+nothing textually after or around it is ever collected on any host.
+``pytest.importorskip(...)`` is different: it is conditional on whether the
+named module is importable, so a module using it falls through to the same
+registered-marker check as any other conditionally-skipped module.
 
 Exit codes (``AGENTS.md``): 0 ok, 1 violations found, 2 configuration unusable,
 3 pytest could not be run or its output could not be parsed.
@@ -310,14 +312,16 @@ def _defines_collectable_test(
     Two conditions, both load-bearing:
 
     1. No unconditional module-level skip. ``pytest.skip(..., allow_module_level=True)``
-       and ``pytest.importorskip(...)`` raise ``Skipped`` the moment either
-       executes, and pytest's import machinery catches that by marking the
-       WHOLE module skipped without ever inspecting what got defined earlier in
-       the same file. A test-shaped ``def`` anywhere in a module that also
-       contains an unconditional skip is therefore unreachable on every host,
-       not just this one; a walk that finds the ``def`` regardless of the skip
-       call is exactly the bypass a zero-collecting file could use to dodge
-       this guard by adding a dead ``def test_*``.
+       raises ``Skipped`` the moment it executes, and pytest's import machinery
+       catches that by marking the WHOLE module skipped without ever
+       inspecting what got defined earlier in the same file. A test-shaped
+       ``def`` anywhere in a module that also contains an unconditional skip
+       is therefore unreachable on every host, not just this one; a walk that
+       finds the ``def`` regardless of the skip call is exactly the bypass a
+       zero-collecting file could use to dodge this guard by adding a dead
+       ``def test_*``. ``pytest.importorskip(...)`` is conditional on module
+       availability, not unconditional, and is handled by rule 2 below like
+       any other conditional skip.
     2. The candidate test carries ``@pytest.mark.<name>`` where ``<name>`` is
        registered in ``pyproject.toml``'s ``markers`` list (the same signal
        ``windows_path`` already uses). An ``if <condition>: def test(): ...
@@ -370,19 +374,26 @@ def _is_pytest_attr_call(node: ast.expr, attr: str) -> bool:
 
 
 def _is_unconditional_module_skip(stmt: ast.stmt) -> bool:
-    """True for a bare top-level ``pytest.skip(..., allow_module_level=True)``
-    or ``pytest.importorskip(...)`` statement.
+    """True for a bare top-level ``pytest.skip(..., allow_module_level=True)``.
 
     Checked only against ``module.body`` entries directly, never against
     statements nested inside an ``if``/``try``/``for``/``while``: a skip call
     confined to one branch of a conditional does not execute on a host that
     takes the other branch, so it does not disqualify a test defined there.
+
+    ``pytest.importorskip(...)`` is deliberately excluded. Unlike
+    ``pytest.skip(..., allow_module_level=True)``, it is not unconditional: it
+    returns the imported module and execution continues past it on a host
+    where the dependency is installed. Treating it as always-disqualifying
+    would fail a normal optional-dependency suite's own registered-marker path
+    on every host lacking the dependency, and no exemption can fix that
+    without going stale the moment the dependency is installed elsewhere. An
+    ``importorskip``-skipped module falls through to the marker check below,
+    the same as any other conditionally-skipped module.
     """
     if not isinstance(stmt, ast.Expr) or not isinstance(stmt.value, ast.Call):
         return False
     call = stmt.value
-    if _is_pytest_attr_call(call, "importorskip"):
-        return True
     if _is_pytest_attr_call(call, "skip"):
         return any(
             keyword.arg == "allow_module_level"

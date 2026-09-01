@@ -83,6 +83,17 @@ _IMPORT_OR_SKIP = (
     'pytest.importorskip("a_module_that_does_not_exist")\n\n\n'
     "def test_needs_the_dependency():\n    assert True\n"
 )
+# importorskip is conditional on module availability, unlike an unconditional
+# pytest.skip: it returns the imported module and execution continues past it
+# on a host where the dependency is installed. A marker-decorated test behind
+# it is therefore reachable there, the same trust rule as any other
+# conditionally-skipped module.
+_IMPORT_OR_SKIP_MARKED = (
+    "import pytest\n\n"
+    'pytest.importorskip("a_module_that_does_not_exist")\n\n\n'
+    "@pytest.mark.windows_path\n"
+    "def test_needs_the_dependency():\n    assert True\n"
+)
 _SKIP_ONLY = (
     "import pytest\n\n"
     'pytest.skip("nothing to collect", allow_module_level=True)\n'
@@ -286,14 +297,39 @@ def test_a_registered_marker_cannot_rescue_an_unconditional_skip(tmp_path: Path)
     assert _run(tmp_path) == 1
 
 
-def test_an_unconditional_importorskip_with_a_dead_test_needs_a_declaration(
+def test_an_importorskip_without_a_marker_needs_a_declaration(
     tmp_path: Path,
 ) -> None:
-    """importorskip raises Skipped from the same collection phase as skip()."""
+    """importorskip is conditional, but an unmarked test is still not trusted.
+
+    The module genuinely skips on this host (the named dependency does not
+    exist anywhere), so it lands in the same "skipped, no registered marker"
+    bucket as any other conditionally-skipped module without one.
+    """
     tests = _make_repo(tmp_path)
     (tests / "test_optional_dependency.py").write_text(_IMPORT_OR_SKIP, encoding="utf-8")
 
     assert _run(tmp_path) == 1
+
+
+def test_a_marker_gated_importorskip_test_answers_for_a_skipped_module(
+    tmp_path: Path,
+) -> None:
+    """A registered marker trusts an importorskip-gated test, unlike a plain skip.
+
+    Copilot review round 5 (PR #5344): ``pytest.importorskip`` is conditional
+    on module availability, not unconditional like
+    ``pytest.skip(..., allow_module_level=True)``. It returns the imported
+    module and execution continues past it on a host with the dependency
+    installed, so a marker-decorated test behind it is reachable there and
+    must not be treated the same as a dead test behind an unconditional skip.
+    """
+    tests = _make_repo(tmp_path)
+    (tests / "test_optional_dependency.py").write_text(
+        _IMPORT_OR_SKIP_MARKED, encoding="utf-8"
+    )
+
+    assert _run(tmp_path) == 0
 
 
 def test_a_declaration_on_an_unconditional_module_level_skip_is_not_stale(
