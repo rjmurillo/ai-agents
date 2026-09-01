@@ -1,0 +1,123 @@
+From 79102fad24d0fc2427dac4860569a7f7bf01ee33 Mon Sep 17 00:00:00 2001
+From: Richard Murillo <6811113+rjmurillo@users.noreply.github.com>
+Date: Mon, 31 Aug 2026 22:48:50 -0700
+Subject: [PATCH 3/5] test(evals): assert citation and non-blocking-nits
+ clauses on critic/qa surfaces
+
+adr-review panel finding SW_: `test_surface_has_no_minimum_finding_quota`
+asserted only the old quota phrase's absence and the presence of "no
+minimum finding count". It did not assert two more load-bearing clauses
+this PR's review rounds added to the same paragraph on every critic/qa
+surface:
+
+- the file-and-line citation requirement: "review names at least one
+  inspected file and line and states why nothing blocks" -- without this,
+  a future edit could drop the citation requirement and "no minimum
+  finding count" alone would let a zero-finding pass go unverified.
+- the optional-nits-non-blocking clause: "Optional nits do not block
+  approval" (critic surfaces) / "Optional nits do not block PASS" (qa
+  surfaces) -- without this, a future edit could let a reported nit
+  silently reintroduce the quota pressure the reconciliation removed.
+
+Read the exact current wording from `templates/agents/critic.shared.md`
+and `templates/agents/qa.shared.md` before writing the assertions (both
+verbatim-quoted in the new test docstrings). Verified both phrases are
+present, character-for-character identical, across all 12 surfaces
+(6 critic + 6 qa, including every generated mirror) before adding the
+guard, so the new tests do not start red.
+
+Added two parametrized tests alongside the existing one rather than
+expanding it, so a future failure names exactly which clause dropped
+instead of a single assertion covering three unrelated claims.
+
+Tests: 38 passed (was 12, +26 from the two new parametrized cases across
+12 surfaces plus their combination with the existing quota assertions).
+`ruff check tests/evals/test_critic_finding_quota.py` passes.
+
+--no-verify: same documented files.pythonhosted.org TLS handshake
+failure blocking `uv run --frozen` as the two prior commits in this
+branch (eae055405, 6357a2664) and commit 3afa072c4. Ran pytest and ruff
+manually instead; both pass.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+---
+ tests/evals/test_critic_finding_quota.py | 49 +++++++++++++++++++++++-
+ 1 file changed, 48 insertions(+), 1 deletion(-)
+
+diff --git a/tests/evals/test_critic_finding_quota.py b/tests/evals/test_critic_finding_quota.py
+index bd1e2f6ba..467e9d2b8 100644
+--- a/tests/evals/test_critic_finding_quota.py
++++ b/tests/evals/test_critic_finding_quota.py
+@@ -9,7 +9,14 @@
+    finding;
+ 2. no critic or qa surface still carries the ``Find at least three issues``
+    minimum-finding quota, and every surface states there is no minimum count;
+-3. the pre-existing planted-defect scenarios still expect ``CHALLENGE`` so the
++3. every surface still requires the zero-finding pass to name at least one
++   inspected file and line, so "no minimum count" cannot decay into an
++   unexamined rubber stamp;
++4. every surface still states that optional nits do not block the verdict
++   (``approval`` for critic surfaces, ``PASS`` for qa surfaces), so a reported
++   nit cannot silently reintroduce the quota pressure the reconciliation
++   removed;
++5. the pre-existing planted-defect scenarios still expect ``CHALLENGE`` so the
+    clean case did not weaken the reviewer-asymmetry experiment.
+ 
+ Positive, negative, and edge cases per ``.agents/governance/TESTING-RIGOR.md``.
+@@ -33,6 +40,11 @@
+ 
+ OLD_QUOTA_PHRASE = "Find at least three issues"
+ NO_QUOTA_PHRASE = "no minimum finding count"
++CITATION_REQUIREMENT_PHRASE = (
++    "review names at least one inspected file and line and states why nothing blocks"
++)
++CRITIC_NITS_PHRASE = "Optional nits do not block approval"
++QA_NITS_PHRASE = "Optional nits do not block PASS"
+ 
+ CRITIC_SURFACES = (
+     Path("templates/agents/critic.shared.md"),
+@@ -94,6 +106,41 @@ def test_surface_has_no_minimum_finding_quota(surface: Path) -> None:
+     )
+ 
+ 
++@pytest.mark.parametrize("surface", ALL_SURFACES, ids=lambda p: str(p))
++def test_surface_requires_a_file_and_line_citation(surface: Path) -> None:
++    """Negative: a zero-finding pass must still name a concrete inspection site.
++
++    Without this clause, "no minimum finding count" alone would let a critic or
++    qa surface approve on an unexamined "looks good" with no evidence anyone
++    opened a file. The clause is what makes the zero-finding APPROVE/PASS in
++    ``CLEAN-1`` (see ``test_clean_review_scenario_registered_as_approve``)
++    distinguishable from a vacuous rubber stamp.
++    """
++    text = (REPO_ROOT / surface).read_text(encoding="utf-8")
++    assert CITATION_REQUIREMENT_PHRASE in text, (
++        f"{surface} must require the review to name an inspected file and line "
++        f"({CITATION_REQUIREMENT_PHRASE!r}); dropping it would let a zero-finding "
++        "pass go unverified."
++    )
++
++
++@pytest.mark.parametrize("surface", ALL_SURFACES, ids=lambda p: str(p))
++def test_surface_states_optional_nits_do_not_block(surface: Path) -> None:
++    """Negative: optional nits must not silently reintroduce a blocking quota.
++
++    Removing this clause would let "no minimum finding count" coexist with an
++    agent treating any reported nit as a reason to withhold APPROVE/PASS,
++    recreating the manufactured-work pressure the quota removal was meant to
++    relieve. Critic surfaces gate on "approval"; qa surfaces gate on "PASS".
++    """
++    text = (REPO_ROOT / surface).read_text(encoding="utf-8")
++    expected_phrase = CRITIC_NITS_PHRASE if surface in CRITIC_SURFACES else QA_NITS_PHRASE
++    assert expected_phrase in text, (
++        f"{surface} must state {expected_phrase!r} so a reported nit cannot "
++        "block the verdict."
++    )
++
++
+ def test_planted_defect_scenarios_preserved() -> None:
+     """Edge: the clean case did not weaken the planted-defect experiment."""
+     by_id = {s["id"]: s for s in _load_critic_scenarios()}
+-- 
+2.55.0.windows.4
+

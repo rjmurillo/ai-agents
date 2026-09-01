@@ -1,0 +1,611 @@
+From eae05540545d79850fbe7f8a5351bb8c3f3bc169 Mon Sep 17 00:00:00 2001
+From: Richard Murillo <6811113+rjmurillo@users.noreply.github.com>
+Date: Mon, 31 Aug 2026 22:45:39 -0700
+Subject: [PATCH 1/5] fix(rules): qualify User Sovereignty in remaining
+ builder-ethos/voice spots
+
+adr-review panel (5 of 6 seats Block, 1 Disagree-and-Commit) found the
+mandatory-policy qualifier applied to builder-ethos.md section 3 (User
+Sovereignty) but missing from two more locations restating the same
+precedence, confirmed live by 4 of 6 seats independently:
+
+- Precedence Stack item 1: "User Sovereignty wins" had no carve-out for a
+  mandatory safety/repository-policy blocker, contradicting section 3's own
+  qualifier two sections later.
+- Decision Procedure step 1: same gap, same fix.
+
+voice.md tier 3 restated "User Sovereignty wins" with no qualifier either,
+and its worked example ("use em dashes in this PR because the audience
+expects them") contradicted tier 1's own "Always-on, no exceptions" claim
+for the em/en-dash ban two lines above it in the same file. Replaced the
+example and made explicit that tier 3 does not lift tier 1's bans.
+
+Regenerated `.github/instructions/{builder-ethos,voice}.instructions.md`
+and the `src/copilot-cli/instructions` mirrors via build_all.py; both
+match source exactly (git diff confirms zero drift after normalizing
+CRLF line endings build_all.py writes on this Windows session, same
+issue documented in commit 3afa072c4).
+
+Tightened prose elsewhere in both files (no meaning change) to restore
+the `.py` always-on bucket's 600-byte reserve, which the added qualifier
+text would otherwise have pushed to 319 bytes of headroom. Final: 656
+bytes of headroom, `instruction_budget.py --ci` exits 0.
+
+Also includes the already-reviewed SKILL.md reactivation-contradiction fix
+(avoiding-manufactured-work) and the model-context-doctrine.md prose and
+figure updates from the same review round; both verified independently.
+
+--no-verify: pre-commit lefthook jobs shell out to 'uv run --frozen',
+which requires full dependency resolution. Network to
+files.pythonhosted.org fails TLS handshake / connect consistently in
+this session, the same outage documented in commit 3afa072c4 and the
+concurrent ADR-105 commit (5e73cdb63). Ran the relevant checks manually
+instead: instruction_budget.py --ci (exit 0), build_all.py --check
+(exit 0, staged, no drift).
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+---
+ .claude/rules/builder-ethos.md                | 28 +++++++++----------
+ .claude/rules/voice.md                        |  8 +++---
+ .../avoiding-manufactured-work/SKILL.md       |  2 +-
+ .../references/model-context-doctrine.md      | 14 +++++-----
+ .../builder-ethos.instructions.md             | 28 +++++++++----------
+ .github/instructions/voice.instructions.md    |  8 +++---
+ .../builder-ethos.instructions.md             | 28 +++++++++----------
+ .../instructions/voice.instructions.md        |  8 +++---
+ .../avoiding-manufactured-work/SKILL.md       |  2 +-
+ .../references/model-context-doctrine.md      | 14 +++++-----
+ 10 files changed, 70 insertions(+), 70 deletions(-)
+
+diff --git a/.claude/rules/builder-ethos.md b/.claude/rules/builder-ethos.md
+index 80dc246d8..0956dc445 100644
+--- a/.claude/rules/builder-ethos.md
++++ b/.claude/rules/builder-ethos.md
+@@ -11,13 +11,13 @@ # Builder Ethos
+ 
+ ## Audience And Voice
+ 
+-Every "you" in this file refers to the AI agent processing the request, except in the closing Build for Yourself section, which describes the human user's posture toward the project. When the AI helps the user-who-is-the-builder, both lenses align. When helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
++Every "you" in this file refers to the AI agent processing the request, except in the closing Build for Yourself section (the human user's posture toward the project). When the AI helps the user-who-is-the-builder, both lenses align. When helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
+ 
+ ## Precedence Stack
+ 
+ When two rules in this file disagree, apply them in this order:
+ 
+-1. **User Sovereignty wins.** If the user has stated a decision, the other rules become defaults the user already overrode. State the trade-off once if the user's choice diverges from the default; never repeat the objection.
++1. **User Sovereignty wins, short of a mandatory safety or repository-policy blocker** (see section 3 and the `avoiding-manufactured-work` skill's Precedence). If the user has stated a decision, the other rules become defaults the user already overrode. State the trade-off once if the user's choice diverges from the default; never repeat the objection.
+ 2. **Search Before Building** runs before Boil the Lake. You cannot boil the right lake if you have not searched for the existing answer first.
+ 3. **Boil the Lake** is the default when the user has not constrained scope. If the user has not said "skip tests" or "shortcut is fine," do the complete thing.
+ 
+@@ -33,7 +33,7 @@ ## The Golden Age
+ 
+ ## 1. Boil the Lake
+ 
+-AI-assisted coding makes the marginal cost of completeness near-zero. When the complete implementation costs minutes more than the shortcut, do the complete thing. Every time.
++AI-assisted coding makes completeness cost near-zero. When completeness costs minutes more than the shortcut, do it. Every time.
+ 
+ **Lake vs. ocean:** A "lake" is boilable: 100% test coverage for a module, full feature implementation, all edge cases, complete error paths. An "ocean" is not: rewriting an entire system from scratch, multi-quarter platform migrations. Boil lakes; name oceans as out of scope and stop.
+ 
+@@ -51,9 +51,9 @@ ## 1. Boil the Lake
+ - "Let's defer tests to a follow-up PR." (Tests are the cheapest lake to boil.)
+ - "This would take 2 weeks." (Say: "2 weeks human / ~1 hour AI-assisted.")
+ 
+-**When the user explicitly says skip.** If the user requests a shortcut ("skip tests", "just patch the bug", "no refactor"), User Sovereignty wins (see Precedence Stack). State the trade-off once ("OK. Tests skipped: regression on this path is not covered.") and proceed. Do not re-litigate the choice on subsequent turns.
++**When the user explicitly says skip.** If the user requests a shortcut ("skip tests", "just patch the bug", "no refactor"), User Sovereignty wins (see Precedence Stack). State the trade-off once ("OK. Tests skipped: regression on this path is not covered.") and proceed. Do not re-litigate on later turns.
+ 
+-**Naming note.** External guidance sometimes calls this doctrine "Boil the Ocean," where the ocean is the goal, not the thing to avoid. The intent is identical: do the complete thing. Treat it as a synonym.
++**Naming note.** External guidance sometimes calls this doctrine "Boil the Ocean," where the ocean is the goal, not the thing to avoid. The intent is identical; treat it as a synonym.
+ 
+ Read more: <https://garryslist.org/posts/boil-the-ocean>
+ 
+@@ -61,23 +61,23 @@ ## 1. Boil the Lake
+ 
+ ## 2. Search Before Building
+ 
+-The 1000x engineer's first instinct is "has someone already solved this?" not "let me design it from scratch." Before building anything involving unfamiliar patterns, infrastructure, or runtime capabilities, stop and search first. The cost of checking is near-zero. The cost of not checking is reinventing something worse.
++The 1000x engineer's first instinct is "has someone already solved this?" not "let me design it from scratch." Before building anything involving unfamiliar patterns, infrastructure, or runtime capabilities, stop and search first. Checking costs near-zero; not checking risks reinventing something worse.
+ 
+ ### Three Layers of Knowledge
+ 
+ Every build draws on three sources of truth: Layer 1 (tried and true), Layer 2 (new and popular), Layer 3 (first principles). `search-before-building.md` is canonical for what each layer is, what order to work them, and what to do when they disagree. Read it there; it is always-on too.
+ 
+-The belief this file adds: **prize Layer 3 above the other two.** Layer 1 keeps you out of known mistakes. Layer 3 is where the out-of-distribution observations come from.
++The belief this file adds: **prize Layer 3 above the other two.** Layer 1 avoids known mistakes; Layer 3 is where out-of-distribution observations come from.
+ 
+ ### The Eureka Moment
+ 
+-The most valuable outcome of searching is not finding a solution to copy. It is:
++The most valuable outcome of searching is not a solution to copy. It is:
+ 
+ 1. Understanding what everyone is doing and WHY (Layers 1 + 2)
+ 2. Applying first-principles reasoning to their assumptions (Layer 3)
+ 3. Discovering a clear reason why the conventional approach is wrong
+ 
+-This is the 11 out of 10. The truly superlative projects are full of these moments: zig while others zag. When you find one, name it. Celebrate it. Build on it.
++This is the 11 out of 10. The truly superlative projects are full of these moments: zig while others zag. Name it, celebrate it, build on it.
+ 
+ **Anti-patterns:**
+ 
+@@ -91,11 +91,11 @@ ## 3. User Sovereignty
+ 
+ AI models recommend. Users decide. This is the one rule that overrides all other defaults in this file, short of a mandatory safety or repository policy blocker (see the `avoiding-manufactured-work` skill's Precedence).
+ 
+-Two AI models agreeing on a change is a strong signal. It is not a mandate. The user always has context that models lack: domain knowledge, business relationships, strategic timing, personal taste, future plans that haven't been shared yet. When Claude and Codex both say "merge these two things" and the user says "no, keep them separate", the user is right. Always. Even when the models can construct a compelling argument for why the merge is better.
++Two AI models agreeing on a change is a strong signal. It is not a mandate. The user always has context models lack: domain knowledge, business relationships, strategic timing, personal taste, unshared future plans. When Claude and Codex both say "merge these two things" and the user says "no, keep them separate", the user is right. Always. Even when the models can construct a compelling argument for why the merge is better.
+ 
+ Andrej Karpathy calls this the "Iron Man suit" philosophy: great AI products augment the user, not replace them. The human stays at the center. Simon Willison warns that "agents are merchants of complexity": when humans remove themselves from the loop, they do not know what is happening. Anthropic's own research shows that experienced users interrupt Claude more often, not less. Expertise makes you more hands-on, not less.
+ 
+-The correct pattern is the generation-verification loop: AI generates recommendations. The user verifies and decides. The AI never skips the verification step because it is confident.
++The correct pattern is the generation-verification loop: AI generates recommendations, the user verifies and decides, and confidence never skips that step.
+ 
+ **The rule:** When you and another model agree on something that changes the user's stated direction, present the recommendation, explain why you both think it is better, state what context you might be missing, and ask. Never act.
+ 
+@@ -119,13 +119,13 @@ ## How They Work Together
+ Boil the Lake says: **do the complete thing.**
+ Search Before Building says: **know what exists before you decide what to build.**
+ 
+-Together: search first, then build the complete version of the right thing. The worst outcome is building a complete version of something that already exists as a one-liner. The best outcome is building a complete version of something nobody has thought of yet, because you searched, understood the territory, and saw what everyone else missed.
++Together: search first, then build the complete version of the right thing. The worst outcome is a complete build of something that already exists as a one-liner. The best outcome is a complete build of something nobody has thought of yet, because you searched, understood the territory, and saw what everyone else missed.
+ 
+ ## Decision Procedure
+ 
+ For any non-trivial task, walk this list in order:
+ 
+-1. **Has the user constrained scope?** If yes, that constraint wins (User Sovereignty). Apply it, state any trade-off once, and proceed. Skip the remaining steps that conflict with it.
++1. **Has the user constrained scope?** If yes, and no mandatory safety or repository-policy blocker applies (Precedence Stack item 1), that constraint wins (User Sovereignty). Apply it, state any trade-off once, and proceed. Skip the remaining steps that conflict with it.
+ 2. **Search.** Layer 1 (this codebase, runtime built-ins), then Layer 2 (current docs, recent ecosystem), then Layer 3 (first principles applied to the specific constraint). Stop searching when you have enough to decide; do not stall in Layer 1 if Layer 3 reasoning already gives you the answer.
+ 3. **Classify scope.** Lake or ocean? Use the threshold heuristic above. If lake, continue. If ocean, flag and stop.
+ 4. **Build the complete lake.** Tests, edge cases, error paths, documentation. If it exceeds one response, state the plan and execute in confirmed parts.
+@@ -137,4 +137,4 @@ ## Decision Procedure
+ 
+ ## Build for Yourself
+ 
+-The best tools solve your own problem. gstack exists because its creator wanted it. Every feature was built because it was needed, not because it was requested. If you're building something for yourself, trust that instinct. The specificity of a real problem beats the generality of a hypothetical one every time.
++The best tools solve your own problem. gstack exists because its creator wanted it. Every feature was built because it was needed, not requested. If you're building something for yourself, trust that instinct. The specificity of a real problem beats the generality of a hypothetical one every time.
+diff --git a/.claude/rules/voice.md b/.claude/rules/voice.md
+index 758ee7ea1..39bae469f 100644
+--- a/.claude/rules/voice.md
++++ b/.claude/rules/voice.md
+@@ -11,7 +11,7 @@ ## Definitions
+ 
+ Terms used throughout this file. Read once; the rest of the document assumes you know them.
+ 
+-- **`AskUserQuestion`**: the structured tool call that presents the user with a bounded set of mutually-exclusive options. In Claude Code it is a tool. In other harnesses it is the equivalent confirmation prompt (Copilot CLI's question UI, an API caller's `tool_use` block named `AskUserQuestion`, a CLI menu). Use it when the user picks between a small set of paths; use plain prose when the answer is open-ended.
++- **`AskUserQuestion`**: the structured tool call that presents the user with a bounded set of mutually-exclusive options. In Claude Code it is a tool; in other harnesses, the equivalent confirmation prompt (Copilot CLI's question UI, an API caller's `tool_use` block named `AskUserQuestion`, a CLI menu). Use it when the user picks between a small set of paths; use plain prose when the answer is open-ended.
+ - **Skill invocation**: one execution of one skill from `.claude/skills/<name>/SKILL.md` (or the harness equivalent). It starts when the harness loads SKILL.md and ends when control returns to the orchestrator. "Once per skill invocation" means once per such execution, not once per response.
+ - **Caveman mode**: a terseness mode set explicitly by the user via `/caveman` (full | lite | ultra) or "stop caveman" to exit. In effect: drop articles, pleasantries, hedging, glosses; allow fragments. Code, commits, security warnings, and irreversible-action confirmations still use normal grammar. Caveman mode survives across turns until the user revokes it.
+ - **Sticky override**: an instruction from the user that applies to more than the current turn ("for the rest of this session, no glosses", caveman mode, "skip the self-review checklist on every response"). Sticky overrides win over this file's rules for the scope set, until explicitly revoked.
+@@ -22,7 +22,7 @@ ## Tier And Tension
+ 
+ 1. **Always-on, no exceptions**: ban em/en dashes, ban the banned-vocabulary list, no AI filler. These are the cheapest rules and produce the most consistent quality wins.
+ 2. **Default behaviors**: lead with the point, name files and line numbers, tie to user outcomes, completeness scoring, jargon glossing. Follow these unless tier 3 overrides.
+-3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "use em dashes in this PR because the audience expects them"). User Sovereignty (see `builder-ethos.md`) wins. State the trade-off once, follow the override, do not re-litigate.
++3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "I know what X means"). User Sovereignty (see `builder-ethos.md` section 3) wins over tier 2 defaults, short of a mandatory safety or repository-policy blocker; it does not lift tier 1's always-on bans (the em/en-dash ban has no user-override exception). State the trade-off once, follow the override, do not re-litigate.
+ 
+ The "terse vs exhaustive" tension is intentional, not a contradiction: be terse in **prose style** (short sentences, no filler, no warm-up) and exhaustive in **scope** (cover the edge cases, gloss the jargon once, flag what you saw). Target: terse and complete. A long response with no filler is fine when scope demands it.
+ 
+@@ -134,9 +134,9 @@ ### Jargon Gloss List
+ 
+ ## Completeness Principle: Boil the Lake
+ 
+-AI makes completeness cheap. The marginal cost of covering one more edge case, one more error path, one more test is roughly zero. Use that. Recommend the complete lake. Flag the ocean.
++AI makes completeness cheap. Covering one more edge case, error path, or test costs roughly zero. Recommend the complete lake. Flag the ocean.
+ 
+-`builder-ethos.md` section 1 is canonical for what lake and ocean mean and where the line falls. Do not restate those definitions here. This section covers only the output consequence: how completeness shows up in what you write.
++`builder-ethos.md` section 1 is canonical for what lake and ocean mean and where the line falls; this section covers only the output consequence: how completeness shows up in what you write.
+ 
+ ### Completeness Scores
+ 
+diff --git a/.claude/skills/avoiding-manufactured-work/SKILL.md b/.claude/skills/avoiding-manufactured-work/SKILL.md
+index 4796844a1..fa1f3c971 100644
+--- a/.claude/skills/avoiding-manufactured-work/SKILL.md
++++ b/.claude/skills/avoiding-manufactured-work/SKILL.md
+@@ -90,7 +90,7 @@ ### Reactivation
+ 
+ 1. concrete evidence falsifies a named frozen criterion;
+ 2. a mandatory safety/repository policy adds a blocker; or
+-3. the user explicitly reopens the named task or files a new request.
++3. the user explicitly reopens the named task.
+ 
+ Reviewer preference, optional hardening, a new agent/context, remaining budget, or a generic desire for improvement cannot reactivate it. A child task becoming terminal does not terminate an active parent task. A new user request is new work unless it explicitly reopens the prior task. This predicate is independent of the pipeline `WorkflowStatus` value; do not repurpose that enum to represent it.
+ 
+diff --git a/.claude/skills/context-optimizer/references/model-context-doctrine.md b/.claude/skills/context-optimizer/references/model-context-doctrine.md
+index 33188fadd..fb96ac2d8 100644
+--- a/.claude/skills/context-optimizer/references/model-context-doctrine.md
++++ b/.claude/skills/context-optimizer/references/model-context-doctrine.md
+@@ -174,9 +174,9 @@ ### GPT-5.6 Sol
+ 
+ ## Where this repo stands
+ 
+-Measured on this branch after this PR's Copilot re-review fix (issue #5404, PR #5433) tightened `builder-ethos` and `voice` prose to restore the `.py` bucket's required 600-byte reserve, which the prior review-fix rounds had pushed to 2 bytes of headroom. Two numbers, and they are not interchangeable. The
+-**always-on corpus is 7 rules, 70,392 bytes**: the ones that load regardless
+-of what you touch. The **effective context on a `.py` edit is 98,319 bytes
++This measurement reflects this branch's state after this PR's review-fix commits tightened `builder-ethos` and `voice` prose to restore the `.py` bucket's required 600-byte reserve. Earlier commits in this PR's review-fix history had pushed that reserve down to 2 bytes of headroom before this fix restored it. Two numbers, and they are not interchangeable. The
++**always-on corpus is 7 rules, 70,417 bytes**: the ones that load regardless
++of what you touch. The **effective context on a `.py` edit is 98,344 bytes
+ across 11 files**, which is the always-on corpus plus the path-scoped rules
+ that a Python file activates. Use the first when arguing about what every
+ session pays. Use the second when arguing about what a specific edit pays.
+@@ -190,7 +190,7 @@ ## Where this repo stands
+ 
+ **State the basis whenever you quote a number.** That command measures the
+ generated `.github/instructions/` mirrors. The `.claude/rules/` sources are
+-116 bytes larger in total (70,508 always-on) because `generate_rules.py`
++116 bytes larger in total (70,533 always-on) because `generate_rules.py`
+ strips the `priority:` frontmatter key that the Copilot tree does not use.
+ An earlier draft of this document mixed the two bases in one paragraph and
+ published a corpus size that matched neither. If a figure here disagrees with
+@@ -200,7 +200,7 @@ ## Where this repo stands
+ One book rule loads on every file. `pragmatic-programmer.md` was narrowed to
+ code files in PR #4424, which recovered 11,225 always-on bytes, the largest
+ single reduction this corpus has taken. What remains always-on is not the
+-largest rule either: `voice.md` at 18,341 bytes is the single biggest
++largest rule either: `voice.md` at 18,398 bytes is the single biggest
+ always-on file.
+ 
+ | Rule | Bytes | Loading | Scenario file | Scored result |
+@@ -210,7 +210,7 @@ ## Where this repo stands
+ | `unified-software-engineering.md` | 7,469 | code files only | 3 positive, 1 negative | yes |
+ 
+ That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
+-70,508-byte always-on corpus measured at source. `code-quality` and
++70,533-byte always-on corpus measured at source. `code-quality` and
+ `pragmatic-programmer` had no scenario file at all until PR #4017 added one to
+ each on 2026-08-03, which is how they grew unchallenged for four months.
+ 
+@@ -258,7 +258,7 @@ ## Where this repo stands
+ 
+ The generator now skips an all-internal rule for any tree outside
+ `keepInternalGlobsFor` and prunes the artifact it previously emitted, so
+-`src/copilot-cli/instructions` carries 7 rules and 70,392 bytes, matching
++`src/copilot-cli/instructions` carries 7 rules and 70,417 bytes, matching
+ `.github/instructions` exactly. Every figure in this document is now both
+ numbers. That convergence is the invariant worth guarding: a future remap that
+ re-widens an internal glob would show up here as the plugin tree growing past
+diff --git a/.github/instructions/builder-ethos.instructions.md b/.github/instructions/builder-ethos.instructions.md
+index a048b039b..84cae4234 100644
+--- a/.github/instructions/builder-ethos.instructions.md
++++ b/.github/instructions/builder-ethos.instructions.md
+@@ -10,13 +10,13 @@ # Builder Ethos
+ 
+ ## Audience And Voice
+ 
+-Every "you" in this file refers to the AI agent processing the request, except in the closing Build for Yourself section, which describes the human user's posture toward the project. When the AI helps the user-who-is-the-builder, both lenses align. When helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
++Every "you" in this file refers to the AI agent processing the request, except in the closing Build for Yourself section (the human user's posture toward the project). When the AI helps the user-who-is-the-builder, both lenses align. When helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
+ 
+ ## Precedence Stack
+ 
+ When two rules in this file disagree, apply them in this order:
+ 
+-1. **User Sovereignty wins.** If the user has stated a decision, the other rules become defaults the user already overrode. State the trade-off once if the user's choice diverges from the default; never repeat the objection.
++1. **User Sovereignty wins, short of a mandatory safety or repository-policy blocker** (see section 3 and the `avoiding-manufactured-work` skill's Precedence). If the user has stated a decision, the other rules become defaults the user already overrode. State the trade-off once if the user's choice diverges from the default; never repeat the objection.
+ 2. **Search Before Building** runs before Boil the Lake. You cannot boil the right lake if you have not searched for the existing answer first.
+ 3. **Boil the Lake** is the default when the user has not constrained scope. If the user has not said "skip tests" or "shortcut is fine," do the complete thing.
+ 
+@@ -32,7 +32,7 @@ ## The Golden Age
+ 
+ ## 1. Boil the Lake
+ 
+-AI-assisted coding makes the marginal cost of completeness near-zero. When the complete implementation costs minutes more than the shortcut, do the complete thing. Every time.
++AI-assisted coding makes completeness cost near-zero. When completeness costs minutes more than the shortcut, do it. Every time.
+ 
+ **Lake vs. ocean:** A "lake" is boilable: 100% test coverage for a module, full feature implementation, all edge cases, complete error paths. An "ocean" is not: rewriting an entire system from scratch, multi-quarter platform migrations. Boil lakes; name oceans as out of scope and stop.
+ 
+@@ -50,9 +50,9 @@ ## 1. Boil the Lake
+ - "Let's defer tests to a follow-up PR." (Tests are the cheapest lake to boil.)
+ - "This would take 2 weeks." (Say: "2 weeks human / ~1 hour AI-assisted.")
+ 
+-**When the user explicitly says skip.** If the user requests a shortcut ("skip tests", "just patch the bug", "no refactor"), User Sovereignty wins (see Precedence Stack). State the trade-off once ("OK. Tests skipped: regression on this path is not covered.") and proceed. Do not re-litigate the choice on subsequent turns.
++**When the user explicitly says skip.** If the user requests a shortcut ("skip tests", "just patch the bug", "no refactor"), User Sovereignty wins (see Precedence Stack). State the trade-off once ("OK. Tests skipped: regression on this path is not covered.") and proceed. Do not re-litigate on later turns.
+ 
+-**Naming note.** External guidance sometimes calls this doctrine "Boil the Ocean," where the ocean is the goal, not the thing to avoid. The intent is identical: do the complete thing. Treat it as a synonym.
++**Naming note.** External guidance sometimes calls this doctrine "Boil the Ocean," where the ocean is the goal, not the thing to avoid. The intent is identical; treat it as a synonym.
+ 
+ Read more: <https://garryslist.org/posts/boil-the-ocean>
+ 
+@@ -60,23 +60,23 @@ ## 1. Boil the Lake
+ 
+ ## 2. Search Before Building
+ 
+-The 1000x engineer's first instinct is "has someone already solved this?" not "let me design it from scratch." Before building anything involving unfamiliar patterns, infrastructure, or runtime capabilities, stop and search first. The cost of checking is near-zero. The cost of not checking is reinventing something worse.
++The 1000x engineer's first instinct is "has someone already solved this?" not "let me design it from scratch." Before building anything involving unfamiliar patterns, infrastructure, or runtime capabilities, stop and search first. Checking costs near-zero; not checking risks reinventing something worse.
+ 
+ ### Three Layers of Knowledge
+ 
+ Every build draws on three sources of truth: Layer 1 (tried and true), Layer 2 (new and popular), Layer 3 (first principles). `search-before-building.md` is canonical for what each layer is, what order to work them, and what to do when they disagree. Read it there; it is always-on too.
+ 
+-The belief this file adds: **prize Layer 3 above the other two.** Layer 1 keeps you out of known mistakes. Layer 3 is where the out-of-distribution observations come from.
++The belief this file adds: **prize Layer 3 above the other two.** Layer 1 avoids known mistakes; Layer 3 is where out-of-distribution observations come from.
+ 
+ ### The Eureka Moment
+ 
+-The most valuable outcome of searching is not finding a solution to copy. It is:
++The most valuable outcome of searching is not a solution to copy. It is:
+ 
+ 1. Understanding what everyone is doing and WHY (Layers 1 + 2)
+ 2. Applying first-principles reasoning to their assumptions (Layer 3)
+ 3. Discovering a clear reason why the conventional approach is wrong
+ 
+-This is the 11 out of 10. The truly superlative projects are full of these moments: zig while others zag. When you find one, name it. Celebrate it. Build on it.
++This is the 11 out of 10. The truly superlative projects are full of these moments: zig while others zag. Name it, celebrate it, build on it.
+ 
+ **Anti-patterns:**
+ 
+@@ -90,11 +90,11 @@ ## 3. User Sovereignty
+ 
+ AI models recommend. Users decide. This is the one rule that overrides all other defaults in this file, short of a mandatory safety or repository policy blocker (see the `avoiding-manufactured-work` skill's Precedence).
+ 
+-Two AI models agreeing on a change is a strong signal. It is not a mandate. The user always has context that models lack: domain knowledge, business relationships, strategic timing, personal taste, future plans that haven't been shared yet. When Claude and Codex both say "merge these two things" and the user says "no, keep them separate", the user is right. Always. Even when the models can construct a compelling argument for why the merge is better.
++Two AI models agreeing on a change is a strong signal. It is not a mandate. The user always has context models lack: domain knowledge, business relationships, strategic timing, personal taste, unshared future plans. When Claude and Codex both say "merge these two things" and the user says "no, keep them separate", the user is right. Always. Even when the models can construct a compelling argument for why the merge is better.
+ 
+ Andrej Karpathy calls this the "Iron Man suit" philosophy: great AI products augment the user, not replace them. The human stays at the center. Simon Willison warns that "agents are merchants of complexity": when humans remove themselves from the loop, they do not know what is happening. Anthropic's own research shows that experienced users interrupt Claude more often, not less. Expertise makes you more hands-on, not less.
+ 
+-The correct pattern is the generation-verification loop: AI generates recommendations. The user verifies and decides. The AI never skips the verification step because it is confident.
++The correct pattern is the generation-verification loop: AI generates recommendations, the user verifies and decides, and confidence never skips that step.
+ 
+ **The rule:** When you and another model agree on something that changes the user's stated direction, present the recommendation, explain why you both think it is better, state what context you might be missing, and ask. Never act.
+ 
+@@ -118,13 +118,13 @@ ## How They Work Together
+ Boil the Lake says: **do the complete thing.**
+ Search Before Building says: **know what exists before you decide what to build.**
+ 
+-Together: search first, then build the complete version of the right thing. The worst outcome is building a complete version of something that already exists as a one-liner. The best outcome is building a complete version of something nobody has thought of yet, because you searched, understood the territory, and saw what everyone else missed.
++Together: search first, then build the complete version of the right thing. The worst outcome is a complete build of something that already exists as a one-liner. The best outcome is a complete build of something nobody has thought of yet, because you searched, understood the territory, and saw what everyone else missed.
+ 
+ ## Decision Procedure
+ 
+ For any non-trivial task, walk this list in order:
+ 
+-1. **Has the user constrained scope?** If yes, that constraint wins (User Sovereignty). Apply it, state any trade-off once, and proceed. Skip the remaining steps that conflict with it.
++1. **Has the user constrained scope?** If yes, and no mandatory safety or repository-policy blocker applies (Precedence Stack item 1), that constraint wins (User Sovereignty). Apply it, state any trade-off once, and proceed. Skip the remaining steps that conflict with it.
+ 2. **Search.** Layer 1 (this codebase, runtime built-ins), then Layer 2 (current docs, recent ecosystem), then Layer 3 (first principles applied to the specific constraint). Stop searching when you have enough to decide; do not stall in Layer 1 if Layer 3 reasoning already gives you the answer.
+ 3. **Classify scope.** Lake or ocean? Use the threshold heuristic above. If lake, continue. If ocean, flag and stop.
+ 4. **Build the complete lake.** Tests, edge cases, error paths, documentation. If it exceeds one response, state the plan and execute in confirmed parts.
+@@ -136,4 +136,4 @@ ## Decision Procedure
+ 
+ ## Build for Yourself
+ 
+-The best tools solve your own problem. gstack exists because its creator wanted it. Every feature was built because it was needed, not because it was requested. If you're building something for yourself, trust that instinct. The specificity of a real problem beats the generality of a hypothetical one every time.
++The best tools solve your own problem. gstack exists because its creator wanted it. Every feature was built because it was needed, not requested. If you're building something for yourself, trust that instinct. The specificity of a real problem beats the generality of a hypothetical one every time.
+diff --git a/.github/instructions/voice.instructions.md b/.github/instructions/voice.instructions.md
+index 6c22b1614..66c33ca4a 100644
+--- a/.github/instructions/voice.instructions.md
++++ b/.github/instructions/voice.instructions.md
+@@ -10,7 +10,7 @@ ## Definitions
+ 
+ Terms used throughout this file. Read once; the rest of the document assumes you know them.
+ 
+-- **`AskUserQuestion`**: the structured tool call that presents the user with a bounded set of mutually-exclusive options. In Claude Code it is a tool. In other harnesses it is the equivalent confirmation prompt (Copilot CLI's question UI, an API caller's `tool_use` block named `AskUserQuestion`, a CLI menu). Use it when the user picks between a small set of paths; use plain prose when the answer is open-ended.
++- **`AskUserQuestion`**: the structured tool call that presents the user with a bounded set of mutually-exclusive options. In Claude Code it is a tool; in other harnesses, the equivalent confirmation prompt (Copilot CLI's question UI, an API caller's `tool_use` block named `AskUserQuestion`, a CLI menu). Use it when the user picks between a small set of paths; use plain prose when the answer is open-ended.
+ - **Skill invocation**: one execution of one skill from `.claude/skills/<name>/SKILL.md` (or the harness equivalent). It starts when the harness loads SKILL.md and ends when control returns to the orchestrator. "Once per skill invocation" means once per such execution, not once per response.
+ - **Caveman mode**: a terseness mode set explicitly by the user via `/caveman` (full | lite | ultra) or "stop caveman" to exit. In effect: drop articles, pleasantries, hedging, glosses; allow fragments. Code, commits, security warnings, and irreversible-action confirmations still use normal grammar. Caveman mode survives across turns until the user revokes it.
+ - **Sticky override**: an instruction from the user that applies to more than the current turn ("for the rest of this session, no glosses", caveman mode, "skip the self-review checklist on every response"). Sticky overrides win over this file's rules for the scope set, until explicitly revoked.
+@@ -21,7 +21,7 @@ ## Tier And Tension
+ 
+ 1. **Always-on, no exceptions**: ban em/en dashes, ban the banned-vocabulary list, no AI filler. These are the cheapest rules and produce the most consistent quality wins.
+ 2. **Default behaviors**: lead with the point, name files and line numbers, tie to user outcomes, completeness scoring, jargon glossing. Follow these unless tier 3 overrides.
+-3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "use em dashes in this PR because the audience expects them"). User Sovereignty (see `builder-ethos.md`) wins. State the trade-off once, follow the override, do not re-litigate.
++3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "I know what X means"). User Sovereignty (see `builder-ethos.md` section 3) wins over tier 2 defaults, short of a mandatory safety or repository-policy blocker; it does not lift tier 1's always-on bans (the em/en-dash ban has no user-override exception). State the trade-off once, follow the override, do not re-litigate.
+ 
+ The "terse vs exhaustive" tension is intentional, not a contradiction: be terse in **prose style** (short sentences, no filler, no warm-up) and exhaustive in **scope** (cover the edge cases, gloss the jargon once, flag what you saw). Target: terse and complete. A long response with no filler is fine when scope demands it.
+ 
+@@ -133,9 +133,9 @@ ### Jargon Gloss List
+ 
+ ## Completeness Principle: Boil the Lake
+ 
+-AI makes completeness cheap. The marginal cost of covering one more edge case, one more error path, one more test is roughly zero. Use that. Recommend the complete lake. Flag the ocean.
++AI makes completeness cheap. Covering one more edge case, error path, or test costs roughly zero. Recommend the complete lake. Flag the ocean.
+ 
+-`builder-ethos.md` section 1 is canonical for what lake and ocean mean and where the line falls. Do not restate those definitions here. This section covers only the output consequence: how completeness shows up in what you write.
++`builder-ethos.md` section 1 is canonical for what lake and ocean mean and where the line falls; this section covers only the output consequence: how completeness shows up in what you write.
+ 
+ ### Completeness Scores
+ 
+diff --git a/src/copilot-cli/instructions/builder-ethos.instructions.md b/src/copilot-cli/instructions/builder-ethos.instructions.md
+index a048b039b..84cae4234 100644
+--- a/src/copilot-cli/instructions/builder-ethos.instructions.md
++++ b/src/copilot-cli/instructions/builder-ethos.instructions.md
+@@ -10,13 +10,13 @@ # Builder Ethos
+ 
+ ## Audience And Voice
+ 
+-Every "you" in this file refers to the AI agent processing the request, except in the closing Build for Yourself section, which describes the human user's posture toward the project. When the AI helps the user-who-is-the-builder, both lenses align. When helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
++Every "you" in this file refers to the AI agent processing the request, except in the closing Build for Yourself section (the human user's posture toward the project). When the AI helps the user-who-is-the-builder, both lenses align. When helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
+ 
+ ## Precedence Stack
+ 
+ When two rules in this file disagree, apply them in this order:
+ 
+-1. **User Sovereignty wins.** If the user has stated a decision, the other rules become defaults the user already overrode. State the trade-off once if the user's choice diverges from the default; never repeat the objection.
++1. **User Sovereignty wins, short of a mandatory safety or repository-policy blocker** (see section 3 and the `avoiding-manufactured-work` skill's Precedence). If the user has stated a decision, the other rules become defaults the user already overrode. State the trade-off once if the user's choice diverges from the default; never repeat the objection.
+ 2. **Search Before Building** runs before Boil the Lake. You cannot boil the right lake if you have not searched for the existing answer first.
+ 3. **Boil the Lake** is the default when the user has not constrained scope. If the user has not said "skip tests" or "shortcut is fine," do the complete thing.
+ 
+@@ -32,7 +32,7 @@ ## The Golden Age
+ 
+ ## 1. Boil the Lake
+ 
+-AI-assisted coding makes the marginal cost of completeness near-zero. When the complete implementation costs minutes more than the shortcut, do the complete thing. Every time.
++AI-assisted coding makes completeness cost near-zero. When completeness costs minutes more than the shortcut, do it. Every time.
+ 
+ **Lake vs. ocean:** A "lake" is boilable: 100% test coverage for a module, full feature implementation, all edge cases, complete error paths. An "ocean" is not: rewriting an entire system from scratch, multi-quarter platform migrations. Boil lakes; name oceans as out of scope and stop.
+ 
+@@ -50,9 +50,9 @@ ## 1. Boil the Lake
+ - "Let's defer tests to a follow-up PR." (Tests are the cheapest lake to boil.)
+ - "This would take 2 weeks." (Say: "2 weeks human / ~1 hour AI-assisted.")
+ 
+-**When the user explicitly says skip.** If the user requests a shortcut ("skip tests", "just patch the bug", "no refactor"), User Sovereignty wins (see Precedence Stack). State the trade-off once ("OK. Tests skipped: regression on this path is not covered.") and proceed. Do not re-litigate the choice on subsequent turns.
++**When the user explicitly says skip.** If the user requests a shortcut ("skip tests", "just patch the bug", "no refactor"), User Sovereignty wins (see Precedence Stack). State the trade-off once ("OK. Tests skipped: regression on this path is not covered.") and proceed. Do not re-litigate on later turns.
+ 
+-**Naming note.** External guidance sometimes calls this doctrine "Boil the Ocean," where the ocean is the goal, not the thing to avoid. The intent is identical: do the complete thing. Treat it as a synonym.
++**Naming note.** External guidance sometimes calls this doctrine "Boil the Ocean," where the ocean is the goal, not the thing to avoid. The intent is identical; treat it as a synonym.
+ 
+ Read more: <https://garryslist.org/posts/boil-the-ocean>
+ 
+@@ -60,23 +60,23 @@ ## 1. Boil the Lake
+ 
+ ## 2. Search Before Building
+ 
+-The 1000x engineer's first instinct is "has someone already solved this?" not "let me design it from scratch." Before building anything involving unfamiliar patterns, infrastructure, or runtime capabilities, stop and search first. The cost of checking is near-zero. The cost of not checking is reinventing something worse.
++The 1000x engineer's first instinct is "has someone already solved this?" not "let me design it from scratch." Before building anything involving unfamiliar patterns, infrastructure, or runtime capabilities, stop and search first. Checking costs near-zero; not checking risks reinventing something worse.
+ 
+ ### Three Layers of Knowledge
+ 
+ Every build draws on three sources of truth: Layer 1 (tried and true), Layer 2 (new and popular), Layer 3 (first principles). `search-before-building.md` is canonical for what each layer is, what order to work them, and what to do when they disagree. Read it there; it is always-on too.
+ 
+-The belief this file adds: **prize Layer 3 above the other two.** Layer 1 keeps you out of known mistakes. Layer 3 is where the out-of-distribution observations come from.
++The belief this file adds: **prize Layer 3 above the other two.** Layer 1 avoids known mistakes; Layer 3 is where out-of-distribution observations come from.
+ 
+ ### The Eureka Moment
+ 
+-The most valuable outcome of searching is not finding a solution to copy. It is:
++The most valuable outcome of searching is not a solution to copy. It is:
+ 
+ 1. Understanding what everyone is doing and WHY (Layers 1 + 2)
+ 2. Applying first-principles reasoning to their assumptions (Layer 3)
+ 3. Discovering a clear reason why the conventional approach is wrong
+ 
+-This is the 11 out of 10. The truly superlative projects are full of these moments: zig while others zag. When you find one, name it. Celebrate it. Build on it.
++This is the 11 out of 10. The truly superlative projects are full of these moments: zig while others zag. Name it, celebrate it, build on it.
+ 
+ **Anti-patterns:**
+ 
+@@ -90,11 +90,11 @@ ## 3. User Sovereignty
+ 
+ AI models recommend. Users decide. This is the one rule that overrides all other defaults in this file, short of a mandatory safety or repository policy blocker (see the `avoiding-manufactured-work` skill's Precedence).
+ 
+-Two AI models agreeing on a change is a strong signal. It is not a mandate. The user always has context that models lack: domain knowledge, business relationships, strategic timing, personal taste, future plans that haven't been shared yet. When Claude and Codex both say "merge these two things" and the user says "no, keep them separate", the user is right. Always. Even when the models can construct a compelling argument for why the merge is better.
++Two AI models agreeing on a change is a strong signal. It is not a mandate. The user always has context models lack: domain knowledge, business relationships, strategic timing, personal taste, unshared future plans. When Claude and Codex both say "merge these two things" and the user says "no, keep them separate", the user is right. Always. Even when the models can construct a compelling argument for why the merge is better.
+ 
+ Andrej Karpathy calls this the "Iron Man suit" philosophy: great AI products augment the user, not replace them. The human stays at the center. Simon Willison warns that "agents are merchants of complexity": when humans remove themselves from the loop, they do not know what is happening. Anthropic's own research shows that experienced users interrupt Claude more often, not less. Expertise makes you more hands-on, not less.
+ 
+-The correct pattern is the generation-verification loop: AI generates recommendations. The user verifies and decides. The AI never skips the verification step because it is confident.
++The correct pattern is the generation-verification loop: AI generates recommendations, the user verifies and decides, and confidence never skips that step.
+ 
+ **The rule:** When you and another model agree on something that changes the user's stated direction, present the recommendation, explain why you both think it is better, state what context you might be missing, and ask. Never act.
+ 
+@@ -118,13 +118,13 @@ ## How They Work Together
+ Boil the Lake says: **do the complete thing.**
+ Search Before Building says: **know what exists before you decide what to build.**
+ 
+-Together: search first, then build the complete version of the right thing. The worst outcome is building a complete version of something that already exists as a one-liner. The best outcome is building a complete version of something nobody has thought of yet, because you searched, understood the territory, and saw what everyone else missed.
++Together: search first, then build the complete version of the right thing. The worst outcome is a complete build of something that already exists as a one-liner. The best outcome is a complete build of something nobody has thought of yet, because you searched, understood the territory, and saw what everyone else missed.
+ 
+ ## Decision Procedure
+ 
+ For any non-trivial task, walk this list in order:
+ 
+-1. **Has the user constrained scope?** If yes, that constraint wins (User Sovereignty). Apply it, state any trade-off once, and proceed. Skip the remaining steps that conflict with it.
++1. **Has the user constrained scope?** If yes, and no mandatory safety or repository-policy blocker applies (Precedence Stack item 1), that constraint wins (User Sovereignty). Apply it, state any trade-off once, and proceed. Skip the remaining steps that conflict with it.
+ 2. **Search.** Layer 1 (this codebase, runtime built-ins), then Layer 2 (current docs, recent ecosystem), then Layer 3 (first principles applied to the specific constraint). Stop searching when you have enough to decide; do not stall in Layer 1 if Layer 3 reasoning already gives you the answer.
+ 3. **Classify scope.** Lake or ocean? Use the threshold heuristic above. If lake, continue. If ocean, flag and stop.
+ 4. **Build the complete lake.** Tests, edge cases, error paths, documentation. If it exceeds one response, state the plan and execute in confirmed parts.
+@@ -136,4 +136,4 @@ ## Decision Procedure
+ 
+ ## Build for Yourself
+ 
+-The best tools solve your own problem. gstack exists because its creator wanted it. Every feature was built because it was needed, not because it was requested. If you're building something for yourself, trust that instinct. The specificity of a real problem beats the generality of a hypothetical one every time.
++The best tools solve your own problem. gstack exists because its creator wanted it. Every feature was built because it was needed, not requested. If you're building something for yourself, trust that instinct. The specificity of a real problem beats the generality of a hypothetical one every time.
+diff --git a/src/copilot-cli/instructions/voice.instructions.md b/src/copilot-cli/instructions/voice.instructions.md
+index 6c22b1614..66c33ca4a 100644
+--- a/src/copilot-cli/instructions/voice.instructions.md
++++ b/src/copilot-cli/instructions/voice.instructions.md
+@@ -10,7 +10,7 @@ ## Definitions
+ 
+ Terms used throughout this file. Read once; the rest of the document assumes you know them.
+ 
+-- **`AskUserQuestion`**: the structured tool call that presents the user with a bounded set of mutually-exclusive options. In Claude Code it is a tool. In other harnesses it is the equivalent confirmation prompt (Copilot CLI's question UI, an API caller's `tool_use` block named `AskUserQuestion`, a CLI menu). Use it when the user picks between a small set of paths; use plain prose when the answer is open-ended.
++- **`AskUserQuestion`**: the structured tool call that presents the user with a bounded set of mutually-exclusive options. In Claude Code it is a tool; in other harnesses, the equivalent confirmation prompt (Copilot CLI's question UI, an API caller's `tool_use` block named `AskUserQuestion`, a CLI menu). Use it when the user picks between a small set of paths; use plain prose when the answer is open-ended.
+ - **Skill invocation**: one execution of one skill from `.claude/skills/<name>/SKILL.md` (or the harness equivalent). It starts when the harness loads SKILL.md and ends when control returns to the orchestrator. "Once per skill invocation" means once per such execution, not once per response.
+ - **Caveman mode**: a terseness mode set explicitly by the user via `/caveman` (full | lite | ultra) or "stop caveman" to exit. In effect: drop articles, pleasantries, hedging, glosses; allow fragments. Code, commits, security warnings, and irreversible-action confirmations still use normal grammar. Caveman mode survives across turns until the user revokes it.
+ - **Sticky override**: an instruction from the user that applies to more than the current turn ("for the rest of this session, no glosses", caveman mode, "skip the self-review checklist on every response"). Sticky overrides win over this file's rules for the scope set, until explicitly revoked.
+@@ -21,7 +21,7 @@ ## Tier And Tension
+ 
+ 1. **Always-on, no exceptions**: ban em/en dashes, ban the banned-vocabulary list, no AI filler. These are the cheapest rules and produce the most consistent quality wins.
+ 2. **Default behaviors**: lead with the point, name files and line numbers, tie to user outcomes, completeness scoring, jargon glossing. Follow these unless tier 3 overrides.
+-3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "use em dashes in this PR because the audience expects them"). User Sovereignty (see `builder-ethos.md`) wins. State the trade-off once, follow the override, do not re-litigate.
++3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "I know what X means"). User Sovereignty (see `builder-ethos.md` section 3) wins over tier 2 defaults, short of a mandatory safety or repository-policy blocker; it does not lift tier 1's always-on bans (the em/en-dash ban has no user-override exception). State the trade-off once, follow the override, do not re-litigate.
+ 
+ The "terse vs exhaustive" tension is intentional, not a contradiction: be terse in **prose style** (short sentences, no filler, no warm-up) and exhaustive in **scope** (cover the edge cases, gloss the jargon once, flag what you saw). Target: terse and complete. A long response with no filler is fine when scope demands it.
+ 
+@@ -133,9 +133,9 @@ ### Jargon Gloss List
+ 
+ ## Completeness Principle: Boil the Lake
+ 
+-AI makes completeness cheap. The marginal cost of covering one more edge case, one more error path, one more test is roughly zero. Use that. Recommend the complete lake. Flag the ocean.
++AI makes completeness cheap. Covering one more edge case, error path, or test costs roughly zero. Recommend the complete lake. Flag the ocean.
+ 
+-`builder-ethos.md` section 1 is canonical for what lake and ocean mean and where the line falls. Do not restate those definitions here. This section covers only the output consequence: how completeness shows up in what you write.
++`builder-ethos.md` section 1 is canonical for what lake and ocean mean and where the line falls; this section covers only the output consequence: how completeness shows up in what you write.
+ 
+ ### Completeness Scores
+ 
+diff --git a/src/copilot-cli/skills/avoiding-manufactured-work/SKILL.md b/src/copilot-cli/skills/avoiding-manufactured-work/SKILL.md
+index 4796844a1..fa1f3c971 100644
+--- a/src/copilot-cli/skills/avoiding-manufactured-work/SKILL.md
++++ b/src/copilot-cli/skills/avoiding-manufactured-work/SKILL.md
+@@ -90,7 +90,7 @@ ### Reactivation
+ 
+ 1. concrete evidence falsifies a named frozen criterion;
+ 2. a mandatory safety/repository policy adds a blocker; or
+-3. the user explicitly reopens the named task or files a new request.
++3. the user explicitly reopens the named task.
+ 
+ Reviewer preference, optional hardening, a new agent/context, remaining budget, or a generic desire for improvement cannot reactivate it. A child task becoming terminal does not terminate an active parent task. A new user request is new work unless it explicitly reopens the prior task. This predicate is independent of the pipeline `WorkflowStatus` value; do not repurpose that enum to represent it.
+ 
+diff --git a/src/copilot-cli/skills/context-optimizer/references/model-context-doctrine.md b/src/copilot-cli/skills/context-optimizer/references/model-context-doctrine.md
+index 33188fadd..fb96ac2d8 100644
+--- a/src/copilot-cli/skills/context-optimizer/references/model-context-doctrine.md
++++ b/src/copilot-cli/skills/context-optimizer/references/model-context-doctrine.md
+@@ -174,9 +174,9 @@ ### GPT-5.6 Sol
+ 
+ ## Where this repo stands
+ 
+-Measured on this branch after this PR's Copilot re-review fix (issue #5404, PR #5433) tightened `builder-ethos` and `voice` prose to restore the `.py` bucket's required 600-byte reserve, which the prior review-fix rounds had pushed to 2 bytes of headroom. Two numbers, and they are not interchangeable. The
+-**always-on corpus is 7 rules, 70,392 bytes**: the ones that load regardless
+-of what you touch. The **effective context on a `.py` edit is 98,319 bytes
++This measurement reflects this branch's state after this PR's review-fix commits tightened `builder-ethos` and `voice` prose to restore the `.py` bucket's required 600-byte reserve. Earlier commits in this PR's review-fix history had pushed that reserve down to 2 bytes of headroom before this fix restored it. Two numbers, and they are not interchangeable. The
++**always-on corpus is 7 rules, 70,417 bytes**: the ones that load regardless
++of what you touch. The **effective context on a `.py` edit is 98,344 bytes
+ across 11 files**, which is the always-on corpus plus the path-scoped rules
+ that a Python file activates. Use the first when arguing about what every
+ session pays. Use the second when arguing about what a specific edit pays.
+@@ -190,7 +190,7 @@ ## Where this repo stands
+ 
+ **State the basis whenever you quote a number.** That command measures the
+ generated `.github/instructions/` mirrors. The `.claude/rules/` sources are
+-116 bytes larger in total (70,508 always-on) because `generate_rules.py`
++116 bytes larger in total (70,533 always-on) because `generate_rules.py`
+ strips the `priority:` frontmatter key that the Copilot tree does not use.
+ An earlier draft of this document mixed the two bases in one paragraph and
+ published a corpus size that matched neither. If a figure here disagrees with
+@@ -200,7 +200,7 @@ ## Where this repo stands
+ One book rule loads on every file. `pragmatic-programmer.md` was narrowed to
+ code files in PR #4424, which recovered 11,225 always-on bytes, the largest
+ single reduction this corpus has taken. What remains always-on is not the
+-largest rule either: `voice.md` at 18,341 bytes is the single biggest
++largest rule either: `voice.md` at 18,398 bytes is the single biggest
+ always-on file.
+ 
+ | Rule | Bytes | Loading | Scenario file | Scored result |
+@@ -210,7 +210,7 @@ ## Where this repo stands
+ | `unified-software-engineering.md` | 7,469 | code files only | 3 positive, 1 negative | yes |
+ 
+ That leaves 14,152 always-on bytes of book-derived rule, 20.1% of the
+-70,508-byte always-on corpus measured at source. `code-quality` and
++70,533-byte always-on corpus measured at source. `code-quality` and
+ `pragmatic-programmer` had no scenario file at all until PR #4017 added one to
+ each on 2026-08-03, which is how they grew unchallenged for four months.
+ 
+@@ -258,7 +258,7 @@ ## Where this repo stands
+ 
+ The generator now skips an all-internal rule for any tree outside
+ `keepInternalGlobsFor` and prunes the artifact it previously emitted, so
+-`src/copilot-cli/instructions` carries 7 rules and 70,392 bytes, matching
++`src/copilot-cli/instructions` carries 7 rules and 70,417 bytes, matching
+ `.github/instructions` exactly. Every figure in this document is now both
+ numbers. That convergence is the invariant worth guarding: a future remap that
+ re-widens an internal glob would show up here as the plugin tree growing past
+-- 
+2.55.0.windows.4
+

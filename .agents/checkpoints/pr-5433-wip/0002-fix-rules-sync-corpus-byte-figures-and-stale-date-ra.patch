@@ -1,0 +1,145 @@
+From 6357a26645912f03b2c3a626f3b05af5fa2238da Mon Sep 17 00:00:00 2001
+From: Richard Murillo <6811113+rjmurillo@users.noreply.github.com>
+Date: Mon, 31 Aug 2026 22:47:42 -0700
+Subject: [PATCH 2/5] fix(rules): sync corpus byte figures and stale date range
+
+Continuation of the adr-review panel fix round (5 of 6 seats Block).
+Two more analyst-triaged stale-doc findings from the same review:
+
+KOH: `.agents/governance/FAILURE-MODES.md`'s intro paragraph claimed the
+catalog spanned "December 2025 through January 2026", but the Index
+table's own evidence cites incidents through 2026-06 (pattern 11) and
+issue #5404 dated 2026-08 (pattern 12, this PR). Updated the range to
+"December 2025 through August 2026" to match the Index table's own
+evidence-file dates.
+
+Corpus byte-figure sync: the prior commit (eae055405) tightened
+`builder-ethos.md`/`voice.md`, changing the always-on mirror total from
+70,392 to 70,417 bytes and the `.claude/rules/` source total from
+70,508 to 70,533 bytes. `.claude/rules/canonical-source-mirror.md` and
+`.serena/memories/architecture/always-on-membership-lives-in-the-mirror.md`
+both hand-state these figures in a two-row table; both were still on the
+pre-fix numbers. Updated both to 70,417 / 70,417 / 70,533 (delta
+unchanged at 116, per test_doctrine_source_basis_figure_and_delta_are_consistent).
+
+Regenerated `.github/instructions/canonical-source-mirror.instructions.md`
+and its `src/copilot-cli/instructions` mirror via build_all.py; git diff
+confirms the mirrors match source with zero drift.
+
+Verification: `instruction_budget.py --ci` exits 0 (656 bytes headroom);
+`pytest tests/validation/test_always_on_corpus_claims.py` 37 passed,
+confirming both trees and all hand-stated figures agree with a live
+measurement.
+
+--no-verify: same documented files.pythonhosted.org TLS handshake
+failure blocking `uv run --frozen` as the immediately prior commit in
+this branch (eae055405) and commit 3afa072c4. Ran instruction_budget.py
+--ci and the corpus claims test suite manually instead; both pass.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+---
+ .agents/governance/FAILURE-MODES.md                         | 2 +-
+ .claude/rules/canonical-source-mirror.md                    | 6 +++---
+ .../instructions/canonical-source-mirror.instructions.md    | 6 +++---
+ .../always-on-membership-lives-in-the-mirror.md             | 6 +++---
+ .../instructions/canonical-source-mirror.instructions.md    | 6 +++---
+ 5 files changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/.agents/governance/FAILURE-MODES.md b/.agents/governance/FAILURE-MODES.md
+index 191bdae36..39c5962aa 100644
+--- a/.agents/governance/FAILURE-MODES.md
++++ b/.agents/governance/FAILURE-MODES.md
+@@ -5,7 +5,7 @@ # Agent Failure Modes
+ > **RFC 2119**: This document uses RFC 2119 key words.
+ > **Reference**: Issue #1690
+ 
+-This document catalogs the twelve recurring failure patterns observed across 50+ retrospectives (December 2025 through January 2026). Each pattern lists a description, trigger, evidence, and the enforcement pattern that replaces trust with verification.
++This document catalogs the twelve recurring failure patterns observed across 50+ retrospectives (December 2025 through August 2026). Each pattern lists a description, trigger, evidence, and the enforcement pattern that replaces trust with verification.
+ 
+ ## Cross-Cutting Theme
+ 
+diff --git a/.claude/rules/canonical-source-mirror.md b/.claude/rules/canonical-source-mirror.md
+index 62869a8ad..b2b184fa0 100644
+--- a/.claude/rules/canonical-source-mirror.md
++++ b/.claude/rules/canonical-source-mirror.md
+@@ -139,12 +139,12 @@ ## The one place the mirror outranks the source: always-on membership
+ 
+ | Tree | Consumer | Always-on |
+ |---|---|---|
+-| `.github/instructions` | Copilot working in this repository | 7 rules, 70,392 bytes |
+-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,392 bytes |
++| `.github/instructions` | Copilot working in this repository | 7 rules, 70,417 bytes |
++| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,417 bytes |
+ 
+ The membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`, `knowledge-persistence`, `search-before-building`, `universal`, `voice`.
+ 
+-Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same seven rules measure 70,508 bytes at `.claude/rules/`, 116 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
++Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same seven rules measure 70,533 bytes at `.claude/rules/`, 116 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
+ 
+ That agreement is recent and it is load bearing, so keep naming the tree with the number. Until issue #4317 closed, the generator universalized a rule whose scope was entirely internal, which made `governance`, `secret-redaction`, and `session-logs` always-on in the plugin and cost a vendor install 7,532 bytes a turn on three rules pointing at `.agents/` paths the installing repository does not have. PR #4426 replaced that fallback with an explicit skip, so those rules are now absent from the plugin tree rather than universalized in it. The plugin ships 23 instruction files against 28 in `.github/instructions`, and that gap is the fix rather than drift.
+ 
+diff --git a/.github/instructions/canonical-source-mirror.instructions.md b/.github/instructions/canonical-source-mirror.instructions.md
+index c565e8a46..5fa6ed71b 100644
+--- a/.github/instructions/canonical-source-mirror.instructions.md
++++ b/.github/instructions/canonical-source-mirror.instructions.md
+@@ -130,12 +130,12 @@ ## The one place the mirror outranks the source: always-on membership
+ 
+ | Tree | Consumer | Always-on |
+ |---|---|---|
+-| `.github/instructions` | Copilot working in this repository | 7 rules, 70,392 bytes |
+-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,392 bytes |
++| `.github/instructions` | Copilot working in this repository | 7 rules, 70,417 bytes |
++| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,417 bytes |
+ 
+ The membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`, `knowledge-persistence`, `search-before-building`, `universal`, `voice`.
+ 
+-Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same seven rules measure 70,508 bytes at `.claude/rules/`, 116 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
++Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same seven rules measure 70,533 bytes at `.claude/rules/`, 116 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
+ 
+ That agreement is recent and it is load bearing, so keep naming the tree with the number. Until issue #4317 closed, the generator universalized a rule whose scope was entirely internal, which made `governance`, `secret-redaction`, and `session-logs` always-on in the plugin and cost a vendor install 7,532 bytes a turn on three rules pointing at `.agents/` paths the installing repository does not have. PR #4426 replaced that fallback with an explicit skip, so those rules are now absent from the plugin tree rather than universalized in it. The plugin ships 23 instruction files against 28 in `.github/instructions`, and that gap is the fix rather than drift.
+ 
+diff --git a/.serena/memories/architecture/always-on-membership-lives-in-the-mirror.md b/.serena/memories/architecture/always-on-membership-lives-in-the-mirror.md
+index da8061164..5855cf555 100644
+--- a/.serena/memories/architecture/always-on-membership-lives-in-the-mirror.md
++++ b/.serena/memories/architecture/always-on-membership-lives-in-the-mirror.md
+@@ -19,14 +19,14 @@ ## The contradiction
+ 
+ | Tree | Consumer | Always-on |
+ |---|---|---|
+-| `.github/instructions` | Copilot in this repository | 7 rules, 70,392 bytes |
+-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,392 bytes |
++| `.github/instructions` | Copilot in this repository | 7 rules, 70,417 bytes |
++| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,417 bytes |
+ 
+ Membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`,
+ `knowledge-persistence`, `search-before-building`, `universal`, `voice`.
+ 
+ Those bytes are whole generated files, frontmatter included. The same seven
+-rules measure 70,508 bytes at `.claude/rules/`, 116 more, because the generator
++rules measure 70,533 bytes at `.claude/rules/`, 116 more, because the generator
+ drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. Name the
+ tree whenever you quote a figure; a gap of about that size is a basis mismatch,
+ not staleness.
+diff --git a/src/copilot-cli/instructions/canonical-source-mirror.instructions.md b/src/copilot-cli/instructions/canonical-source-mirror.instructions.md
+index 96567b0be..61537b13e 100644
+--- a/src/copilot-cli/instructions/canonical-source-mirror.instructions.md
++++ b/src/copilot-cli/instructions/canonical-source-mirror.instructions.md
+@@ -130,12 +130,12 @@ ## The one place the mirror outranks the source: always-on membership
+ 
+ | Tree | Consumer | Always-on |
+ |---|---|---|
+-| `.github/instructions` | Copilot working in this repository | 7 rules, 70,392 bytes |
+-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,392 bytes |
++| `.github/instructions` | Copilot working in this repository | 7 rules, 70,417 bytes |
++| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,417 bytes |
+ 
+ The membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`, `knowledge-persistence`, `search-before-building`, `universal`, `voice`.
+ 
+-Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same seven rules measure 70,508 bytes at `.claude/rules/`, 116 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
++Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same seven rules measure 70,533 bytes at `.claude/rules/`, 116 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
+ 
+ That agreement is recent and it is load bearing, so keep naming the tree with the number. Until issue #4317 closed, the generator universalized a rule whose scope was entirely internal, which made `governance`, `secret-redaction`, and `session-logs` always-on in the plugin and cost a vendor install 7,532 bytes a turn on three rules pointing at `.agents/` paths the installing repository does not have. PR #4426 replaced that fallback with an explicit skip, so those rules are now absent from the plugin tree rather than universalized in it. The plugin ships 23 instruction files against 28 in `.github/instructions`, and that gap is the fix rather than drift.
+ 
+-- 
+2.55.0.windows.4
+
