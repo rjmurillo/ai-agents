@@ -122,14 +122,28 @@ class TestBothReviewersReadTheSameDeclaration:
         )
 
 
-class TestTheDeclarationTellsTraceabilityCoverageStillApplies:
+class TestTheDeclarationSplitsTheListForTraceability:
+    """Both halves, because either one alone reintroduces a false failure.
+
+    Telling the analyst to trace nothing drops real requirements from
+    coverage. Telling it to trace everything sends pure run evidence, which
+    has no implementation, to `NOT_COVERED`, and
+    `scripts/ai_review_common/verdict.py` blocks on the trace verdict exactly
+    as it blocks on completeness. That would move the issue #5366 false
+    failure rather than remove it.
+    """
+
     def test_na_is_scoped_to_the_command_not_the_requirement(self, declaration: str) -> None:
         assert "N/A here refers to repeating the command" in declaration
-        assert "never to the underlying requirement" in declaration
+        assert "never to a requirement the diff is meant to establish" in declaration
 
-    def test_traceability_is_told_not_to_drop_a_listed_criterion(self, declaration: str) -> None:
-        assert "Traceability still has to trace every listed criterion" in declaration
-        assert "do NOT drop one from coverage" in declaration
+    def test_a_behavioral_contract_is_still_traced(self, declaration: str) -> None:
+        assert "an entry that reads as a behavioral contract is a requirement" in declaration
+        assert "do NOT drop it from coverage" in declaration
+
+    def test_pure_run_evidence_is_skipped_rather_than_not_covered(self, declaration: str) -> None:
+        assert "An entry that is only run evidence names no requirement to trace" in declaration
+        assert "skip it rather than recording it NOT_COVERED" in declaration
 
     def test_the_exemption_names_completeness_as_its_actor(self, declaration: str) -> None:
         """The instruction half, so an unscoped N/A cannot come back.
@@ -140,7 +154,7 @@ class TestTheDeclarationTellsTraceabilityCoverageStillApplies:
 
     def test_the_coverage_sentence_precedes_the_listed_criteria(self, declaration: str) -> None:
         """A limit printed after the list is one the reader may not reach."""
-        coverage_at = declaration.index("do NOT drop one from coverage")
+        coverage_at = declaration.index("do NOT drop it from coverage")
         first_criterion_at = declaration.index("- `uv run python")
 
         assert coverage_at < first_criterion_at

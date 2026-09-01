@@ -106,6 +106,32 @@ parent issue. Apply these rules:
 If no `## Incremental Scope Declaration` is present, treat all requirements as
 in-scope and apply the normal verdict guidelines below.
 
+## Non-Executable Criteria (fix #5366)
+
+If the additional context contains a `## Non-Executable Criteria Declaration`,
+its entries were flagged by a heuristic as reporting the outcome of a command
+that was already run. Split them before you trace anything:
+
+1. An entry that reads as a **behavioral contract** on code this diff changes
+   is a requirement like any other. Trace it. Required exit codes, output
+   shape, and error handling for a named input all belong here, and the
+   declaration does not exempt them.
+2. An entry that is **only run evidence**, such as "`pytest` passes" or
+   "`ruff check .` is green", names no behavior the diff has to implement.
+   There is nothing to trace, so leave it out of the coverage matrix rather
+   than recording it `NOT_COVERED`.
+
+Rule 2 is why this section exists. Run evidence has no implementation by
+definition, so tracing it can only ever produce `NOT_COVERED`, and enough of
+those produce a `FAIL` on a PR whose implementation is complete. That is the
+same false failure the completeness gate carried before issue #5366, arriving
+through traceability instead.
+
+Do NOT lower the verdict because a run-evidence entry was skipped, and do NOT
+list a skipped entry as a gap. When an entry could be read either way, trace
+it: a requirement wrongly skipped is measured by nothing, while a run-evidence
+entry wrongly traced costs one `NOT_COVERED` row you can explain.
+
 ## Verdict Guidelines
 
 - `PASS`: 100% of in-scope requirements COVERED (N/A requirements excluded)
