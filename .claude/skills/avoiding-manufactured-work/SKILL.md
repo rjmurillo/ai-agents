@@ -41,7 +41,7 @@ Next action: <smallest action, or none>
 
 ## Task Completion Contract
 
-`.claude/rules/builder-ethos.md` section 4 owns the terminal predicate and references this section for the contract, precedence, disposition mapping, and reactivation detail. Use it to decide whether a task is still active.
+The builder-ethos rule's Completion Is a Terminal State section owns the terminal predicate and references this section for the contract, precedence, disposition mapping, and reactivation detail. Use it to decide whether a task is still active.
 
 ### Forming the contract
 
