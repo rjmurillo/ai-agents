@@ -39,7 +39,8 @@ import json
 import os
 import sys
 from collections import deque
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # --- Standard hook boilerplate: resolve lib directory ---
@@ -93,6 +94,31 @@ class PluginSurface:
     search_roots: tuple[Path, ...]
 
 
+@dataclass(slots=True)
+class ScanBudget:
+    """Directory-visit budget for one bounded walk, and whether it ran out.
+
+    Exhausting the budget has to reach the reader. A walk that stopped early
+    may never have visited the stale install this hook exists to name, and
+    reporting that as "matches" or "no installed copy found" is precisely the
+    false-clean verdict the check is meant to prevent. Truncation is therefore
+    an outcome the caller reads, not an early ``return`` the caller cannot see.
+    """
+
+    # Read at construction, not at class creation, so the bound stays one
+    # number that tests and callers can lower.
+    remaining: int = field(default_factory=lambda: MAX_SCAN_DIRS)
+    truncated: bool = False
+
+    def spend(self) -> bool:
+        """Consume one directory visit; False once the budget is exhausted."""
+        if self.remaining <= 0:
+            self.truncated = True
+            return False
+        self.remaining -= 1
+        return True
+
+
 @dataclass(frozen=True, slots=True)
 class InstallReport:
     """Comparison of one installed copy against its source manifest."""
@@ -108,6 +134,42 @@ class InstallReport:
         return bool(self.only_in_install or self.only_in_source or self.error)
 
 
+@dataclass(frozen=True, slots=True)
+class ScanOutcome:
+    """Everything one pass over the install trees established, and did not.
+
+    ``incomplete`` names each search root whose walk hit ``MAX_SCAN_DIRS``.
+    While it is non-empty, no verdict in ``reports`` is a statement about the
+    whole tree.
+    """
+
+    reports: list[InstallReport] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    incomplete: list[str] = field(default_factory=list)
+
+
+def copilot_home(home: Path) -> Path:
+    """Copilot CLI's home directory, honoring the ``COPILOT_HOME`` override.
+
+    Mirrors `scripts/dev/dogfood_copilot_plugin.py::default_target`, which
+    resolves the same directory for the same reason and reads verbatim:
+
+        home_env = os.environ.get("COPILOT_HOME", "").strip()
+        home = Path(home_env) if home_env else Path.home() / ".copilot"
+
+    An operator who moved Copilot's home and left this hook pointed at the
+    account home would be told "no installed copy" about the very install that
+    is enforcing a retired guard.
+
+    Stricter/looser/different than canonical: the fallback uses the ``home``
+    passed in rather than `Path.home()`, because every path in this module is
+    resolved from an injected home so tests can point it at a fixture. The
+    override branch and the strip-to-empty fallback rule are identical.
+    """
+    override = os.environ.get("COPILOT_HOME", "").strip()
+    return Path(override) if override else home / ".copilot"
+
+
 def plugin_surfaces(home: Path) -> tuple[PluginSurface, ...]:
     """The plugin roots this repository publishes, with their install trees."""
     return (
@@ -119,7 +181,7 @@ def plugin_surfaces(home: Path) -> tuple[PluginSurface, ...]:
         PluginSurface(
             label="Copilot CLI",
             source_rel=Path("src") / "copilot-cli",
-            search_roots=(home / ".copilot" / "installed-plugins",),
+            search_roots=(copilot_home(home) / "installed-plugins",),
         ),
     )
 
@@ -177,21 +239,31 @@ def read_registrations(manifest: Path) -> tuple[set[tuple[str, str, str]] | None
     return found, None
 
 
-def find_installed_roots(search_root: Path, plugin_name: str) -> list[Path]:
+def find_installed_roots(
+    search_root: Path, plugin_name: str, budget: ScanBudget | None = None
+) -> list[Path]:
     """Bounded breadth-first search for installed copies of ``plugin_name``.
 
     Symlinked directories are never followed and a matched plugin root is not
     descended into: an install tree may vendor another copy of itself, and one
     session-start walk must not turn into an unbounded one.
+
+    Pass ``budget`` to learn whether the returned list is the whole answer. The
+    walk stops when the budget runs out and sets ``budget.truncated``, so a
+    caller can tell an exhaustive "not installed here" apart from a search that
+    never reached the rest of the tree. Callers that omit ``budget`` get a
+    fresh one and discard that distinction.
     """
+    if budget is None:
+        budget = ScanBudget()
     if not search_root.is_dir():
         return []
     found: list[Path] = []
     queue: deque[tuple[Path, int]] = deque([(search_root, 0)])
-    visited = 0
-    while queue and visited < MAX_SCAN_DIRS:
+    while queue:
+        if not budget.spend():
+            break
         current, depth = queue.popleft()
-        visited += 1
         if read_plugin_name(current) == plugin_name:
             found.append(current)
             continue
@@ -231,29 +303,32 @@ def compare_install(
     )
 
 
-def check_installed_plugins(project_dir: Path, home: Path) -> tuple[list[InstallReport], list[str]]:
+def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
     """Compare every installed copy found on disk against its shipped source.
 
-    Returns ``(reports, notes)``. ``notes`` carries per-surface problems that
-    are not a specific install's fault, such as a source manifest this
-    checkout cannot read.
+    ``notes`` carries per-surface problems that are not a specific install's
+    fault, such as a source manifest this checkout cannot read. ``incomplete``
+    names each search root the walk could not finish, which caps how much any
+    of the reports is allowed to claim.
     """
-    reports: list[InstallReport] = []
-    notes: list[str] = []
+    outcome = ScanOutcome()
     for surface in plugin_surfaces(home):
         source_root = project_dir / surface.source_rel
         plugin_name = read_plugin_name(source_root)
         if plugin_name is None:
-            notes.append(f"{surface.label}: no readable plugin manifest at {source_root}")
+            outcome.notes.append(f"{surface.label}: no readable plugin manifest at {source_root}")
             continue
         source, error = read_registrations(source_root / HOOKS_MANIFEST_REL)
         if source is None:
-            notes.append(f"{surface.label}: {error}")
+            outcome.notes.append(f"{surface.label}: {error}")
             continue
         for search_root in surface.search_roots:
-            for install_path in find_installed_roots(search_root, plugin_name):
-                reports.append(compare_install(surface.label, install_path, source))
-    return reports, notes
+            budget = ScanBudget()
+            for install_path in find_installed_roots(search_root, plugin_name, budget):
+                outcome.reports.append(compare_install(surface.label, install_path, source))
+            if budget.truncated:
+                outcome.incomplete.append(f"{surface.label}: {search_root}")
+    return outcome
 
 
 def _format_report(report: InstallReport) -> str:
@@ -267,30 +342,97 @@ def _format_report(report: InstallReport) -> str:
     return "\n".join(lines)
 
 
-def format_message(reports: list[InstallReport], notes: list[str]) -> str:
+# Drift comes in three directions and they call for opposite responses, so the
+# summary is keyed on which are actually present. Telling a reader whose
+# install is *missing* a hook to go hunt for a retired rule sends them after a
+# guard that is not there.
+_EXTRAS_GUIDANCE = (
+    "A hook that blocks you from one of these paths is enforcing a rule that "
+    "may no longer exist in the repository; check here before diagnosing it as "
+    "live code. Update the install (`/plugin` for Claude Code) to clear it."
+)
+_MISSING_GUIDANCE = (
+    "These installs are behind this checkout, so a guard you expect to run is "
+    "not registered there at all. Update the install (`/plugin` for Claude "
+    "Code) to pick the hooks up."
+)
+_ERROR_GUIDANCE = (
+    "Their registrations were never compared, so neither a match nor drift is "
+    "established for them. Reinstall to replace the manifest."
+)
+_MIXED_GUIDANCE = (
+    "Each entry below names the direction. A registration only the install has "
+    "may enforce a rule that no longer exists in the repository; one only this "
+    "checkout has is missing from the install; an unreadable manifest was not "
+    "compared at all. Update the install (`/plugin` for Claude Code)."
+)
+
+_DRIFT_SUMMARY: dict[tuple[str, ...], tuple[str, str]] = {
+    ("extras",): ("register hooks this checkout does not", _EXTRAS_GUIDANCE),
+    ("missing",): ("are missing hooks this checkout ships", _MISSING_GUIDANCE),
+    ("error",): ("have a hook manifest this check could not read", _ERROR_GUIDANCE),
+}
+_MIXED_SUMMARY = ("diverge from this checkout's hook registrations", _MIXED_GUIDANCE)
+
+
+def _drift_kinds(reports: Sequence[InstallReport]) -> tuple[str, ...]:
+    """Which of extras, missing, and error are present across ``reports``."""
+    present = (
+        ("extras", any(report.only_in_install for report in reports)),
+        ("missing", any(report.only_in_source for report in reports)),
+        ("error", any(report.error for report in reports)),
+    )
+    return tuple(kind for kind, seen in present if seen)
+
+
+def _incomplete_block(incomplete: Sequence[str]) -> str:
+    """Cap what the rest of the message is allowed to claim, or add nothing."""
+    if not incomplete:
+        return ""
+    roots = "".join(f"\n- incomplete scan: {entry}" for entry in incomplete)
+    return (
+        "\n\n**This result is not conclusive.** A search stopped at its "
+        f"{MAX_SCAN_DIRS}-directory bound before the tree was exhausted, so an "
+        f"installed copy past that bound was never compared.{roots}"
+    )
+
+
+def format_message(
+    reports: list[InstallReport], notes: list[str], incomplete: Sequence[str] = ()
+) -> str:
     """Render the session-start message, stating the clean case explicitly."""
     header = "## Installed Plugin Hook Drift\n\n"
     drifted = [report for report in reports if report.has_drift]
     note_block = "".join(f"\n- note: {note}" for note in notes)
+    incomplete_block = _incomplete_block(incomplete)
 
     if not reports:
-        return header + f"No installed copy of this repository's plugins found on disk.{note_block}"
+        reached = " was reached" if incomplete else " found on disk"
+        return (
+            header
+            + f"No installed copy of this repository's plugins{reached}."
+            + note_block
+            + incomplete_block
+        )
 
     if not drifted:
         return (
             header
             + f"{len(reports)} installed copy/copies match this checkout's hook "
-            + f"registrations.{note_block}"
+            + "registrations."
+            + note_block
+            + incomplete_block
         )
 
+    summary, guidance = _DRIFT_SUMMARY.get(_drift_kinds(drifted), _MIXED_SUMMARY)
     body = "\n".join(_format_report(report) for report in drifted)
     return (
         header
-        + f"**{len(drifted)} of {len(reports)} installed copy/copies register hooks "
-        + "this checkout does not.** A hook that blocks you from one of these paths "
-        + "is enforcing a rule that may no longer exist in the repository; check "
-        + "here before diagnosing it as live code. Update the install "
-        + f"(`/plugin` for Claude Code) to clear it.{note_block}\n\n"
+        + f"**{len(drifted)} of {len(reports)} installed copy/copies {summary}.** "
+        + guidance
+        + note_block
+        + incomplete_block
+        + "\n\n"
         + body
     )
 
@@ -335,8 +477,8 @@ def main() -> None:
     if skip_if_consumer_repo(HOOK_NAME):
         sys.exit(0)
 
-    reports, notes = check_installed_plugins(Path(get_project_directory()), Path.home())
-    _emit_utf8(format_message(reports, notes))
+    outcome = check_installed_plugins(Path(get_project_directory()), Path.home())
+    _emit_utf8(format_message(outcome.reports, outcome.notes, outcome.incomplete))
 
 
 if __name__ == "__main__":

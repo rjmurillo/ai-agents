@@ -34,6 +34,17 @@ RETIRED_GUARD_COMMAND = (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_copilot_home(monkeypatch) -> None:
+    """Keep the ambient COPILOT_HOME out of every fixture-home assertion.
+
+    The hook honors the variable (this repo's e2e harnesses set it), so a test
+    that means "under the fixture home" has to say so. Tests that exercise the
+    override set it back explicitly.
+    """
+    monkeypatch.delenv("COPILOT_HOME", raising=False)
+
+
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -182,6 +193,60 @@ def test_find_installed_roots_prunes_heavy_directories(tmp_path) -> None:
     assert drift.find_installed_roots(tmp_path, PLUGIN_NAME) == []
 
 
+# --- ScanBudget: a truncated walk is an outcome, never a clean answer -------
+
+
+def _install_behind_decoys(search_root: Path, decoys: int = 2) -> Path:
+    """Lay out a search root whose plugin copy sorts after ``decoys`` siblings.
+
+    Breadth-first order plus sorted children puts the install last, so a walk
+    bounded below the directory count never reaches it.
+    """
+    for index in range(decoys):
+        (search_root / f"a_decoy{index}").mkdir(parents=True)
+    return _make_plugin_root(search_root / "z_install", {})
+
+
+def test_scan_budget_reports_exhaustion() -> None:
+    budget = drift.ScanBudget(remaining=1)
+
+    assert budget.spend() is True
+    assert budget.truncated is False
+    assert budget.spend() is False
+    assert budget.truncated is True
+
+
+def test_find_installed_roots_flags_a_walk_that_hit_the_directory_bound(tmp_path) -> None:
+    # The install exists but sits past the bound. Returning [] with no other
+    # signal would read as "not installed here", which is the false-clean
+    # result this hook exists to prevent.
+    install = _install_behind_decoys(tmp_path)
+    budget = drift.ScanBudget(remaining=2)
+
+    found = drift.find_installed_roots(tmp_path, PLUGIN_NAME, budget)
+
+    assert found == []
+    assert budget.truncated is True
+    assert install.is_dir()
+
+
+def test_find_installed_roots_does_not_flag_a_walk_that_finished(tmp_path) -> None:
+    install = _install_behind_decoys(tmp_path)
+    budget = drift.ScanBudget()
+
+    found = drift.find_installed_roots(tmp_path, PLUGIN_NAME, budget)
+
+    assert found == [install]
+    assert budget.truncated is False
+
+
+def test_find_installed_roots_does_not_flag_a_missing_search_root(tmp_path) -> None:
+    budget = drift.ScanBudget()
+
+    assert drift.find_installed_roots(tmp_path / "absent", PLUGIN_NAME, budget) == []
+    assert budget.truncated is False
+
+
 # --- compare_install(): the issue #5085 shape --------------------------------
 
 
@@ -248,12 +313,13 @@ def test_check_installed_plugins_compares_claude_installs(tmp_path) -> None:
         _registration(RETIRED_GUARD_COMMAND),
     )
 
-    reports, notes = drift.check_installed_plugins(project_dir, home)
+    outcome = drift.check_installed_plugins(project_dir, home)
 
-    assert notes == []
-    assert [report.install_path for report in reports] == [install]
-    assert reports[0].surface == "Claude Code"
-    assert reports[0].has_drift
+    assert outcome.notes == []
+    assert outcome.incomplete == []
+    assert [report.install_path for report in outcome.reports] == [install]
+    assert outcome.reports[0].surface == "Claude Code"
+    assert outcome.reports[0].has_drift
 
 
 def test_check_installed_plugins_compares_copilot_installs(tmp_path) -> None:
@@ -264,19 +330,21 @@ def test_check_installed_plugins_compares_copilot_installs(tmp_path) -> None:
         _registration(RETIRED_GUARD_COMMAND),
     )
 
-    reports, _ = drift.check_installed_plugins(project_dir, home)
+    outcome = drift.check_installed_plugins(project_dir, home)
 
-    assert [report.surface for report in reports] == ["Copilot CLI"]
-    assert reports[0].has_drift
+    assert [report.surface for report in outcome.reports] == ["Copilot CLI"]
+    assert outcome.reports[0].has_drift
+    assert outcome.incomplete == []
 
 
 def test_check_installed_plugins_returns_nothing_when_no_install_exists(tmp_path) -> None:
     project_dir = _make_checkout(tmp_path / "repo", {})
 
-    reports, notes = drift.check_installed_plugins(project_dir, tmp_path / "home")
+    outcome = drift.check_installed_plugins(project_dir, tmp_path / "home")
 
-    assert reports == []
-    assert notes == []
+    assert outcome.reports == []
+    assert outcome.notes == []
+    assert outcome.incomplete == []
 
 
 def test_check_installed_plugins_notes_an_unreadable_source_manifest(tmp_path) -> None:
@@ -284,7 +352,7 @@ def test_check_installed_plugins_notes_an_unreadable_source_manifest(tmp_path) -
     _make_plugin_root(project_dir / ".claude", None)
     _make_plugin_root(project_dir / "src" / "copilot-cli", {})
 
-    _, notes = drift.check_installed_plugins(project_dir, tmp_path / "home")
+    notes = drift.check_installed_plugins(project_dir, tmp_path / "home").notes
 
     assert len(notes) == 1
     assert "Claude Code" in notes[0]
@@ -294,10 +362,90 @@ def test_check_installed_plugins_notes_a_missing_source_plugin_manifest(tmp_path
     project_dir = tmp_path / "repo"
     _make_plugin_root(project_dir / "src" / "copilot-cli", {})
 
-    _, notes = drift.check_installed_plugins(project_dir, tmp_path / "home")
+    notes = drift.check_installed_plugins(project_dir, tmp_path / "home").notes
 
     assert len(notes) == 1
     assert "no readable plugin manifest" in notes[0]
+
+
+def test_check_installed_plugins_reports_a_scan_it_could_not_finish(tmp_path, monkeypatch) -> None:
+    # The install is real and stale, but sits past the directory bound. The
+    # outcome has to say the search was cut short; an empty report list alone
+    # would be indistinguishable from "nothing installed".
+    project_dir = _make_checkout(tmp_path / "repo", {})
+    home = tmp_path / "home"
+    _install_behind_decoys(home / ".claude" / "plugins")
+    monkeypatch.setattr(drift, "MAX_SCAN_DIRS", 2)
+
+    outcome = drift.check_installed_plugins(project_dir, home)
+
+    assert outcome.reports == []
+    assert len(outcome.incomplete) == 1
+    assert "Claude Code" in outcome.incomplete[0]
+
+
+def test_check_installed_plugins_reports_a_complete_scan_as_complete(tmp_path) -> None:
+    # Negative control for the test above: the same layout under the real
+    # bound must not claim the scan was cut short.
+    project_dir = _make_checkout(tmp_path / "repo", {})
+    home = tmp_path / "home"
+    install = _install_behind_decoys(home / ".claude" / "plugins")
+
+    outcome = drift.check_installed_plugins(project_dir, home)
+
+    assert [report.install_path for report in outcome.reports] == [install]
+    assert outcome.incomplete == []
+
+
+# --- COPILOT_HOME: the override decides which tree is searched --------------
+
+
+def test_copilot_home_honors_the_override(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("COPILOT_HOME", str(tmp_path / "cop"))
+
+    assert drift.copilot_home(tmp_path / "home") == tmp_path / "cop"
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def test_copilot_home_falls_back_when_the_override_is_blank(tmp_path, monkeypatch, value) -> None:
+    # Matches scripts/dev/dogfood_copilot_plugin.py::default_target, which
+    # strips the variable and treats an empty result as unset.
+    monkeypatch.setenv("COPILOT_HOME", value)
+
+    assert drift.copilot_home(tmp_path / "home") == tmp_path / "home" / ".copilot"
+
+
+def test_copilot_home_falls_back_when_the_override_is_absent(tmp_path) -> None:
+    assert drift.copilot_home(tmp_path / "home") == tmp_path / "home" / ".copilot"
+
+
+def test_plugin_surfaces_searches_the_overridden_copilot_home(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("COPILOT_HOME", str(tmp_path / "cop"))
+
+    surfaces = {surface.label: surface for surface in drift.plugin_surfaces(tmp_path / "home")}
+
+    assert surfaces["Copilot CLI"].search_roots == (tmp_path / "cop" / "installed-plugins",)
+    assert surfaces["Claude Code"].search_roots == (tmp_path / "home" / ".claude" / "plugins",)
+
+
+def test_check_installed_plugins_compares_an_install_under_a_custom_copilot_home(
+    tmp_path, monkeypatch
+) -> None:
+    # An operator who moved Copilot's home must not be told the stale install
+    # that is blocking them does not exist.
+    project_dir = _make_checkout(tmp_path / "repo", {})
+    copilot = tmp_path / "elsewhere"
+    monkeypatch.setenv("COPILOT_HOME", str(copilot))
+    install = _make_plugin_root(
+        copilot / "installed-plugins" / "ai-agents" / "project-toolkit",
+        _registration(RETIRED_GUARD_COMMAND),
+    )
+
+    outcome = drift.check_installed_plugins(project_dir, tmp_path / "home")
+
+    assert [report.install_path for report in outcome.reports] == [install]
+    assert outcome.reports[0].surface == "Copilot CLI"
+    assert outcome.reports[0].has_drift
 
 
 # --- format_message(): what actually reaches the injected context -----------
@@ -353,6 +501,67 @@ def test_format_message_omits_clean_installs_from_the_drift_list() -> None:
     assert str(clean.install_path) not in message
 
 
+def test_format_message_names_a_missing_hook_as_missing_not_as_an_extra() -> None:
+    # The extras wording sends the reader hunting for a retired rule. Here the
+    # install ships too few hooks, not too many; the opposite fix applies.
+    report = _report(only_in_source=("SessionStart (matcher ''): shipped-now",))
+
+    message = drift.format_message([report], [])
+
+    assert "are missing hooks this checkout ships" in message
+    assert "register hooks this checkout does not" not in message
+    assert "shipped-now" in message
+
+
+def test_format_message_names_an_unreadable_manifest_as_uncompared() -> None:
+    report = _report(error="unreadable hook manifest /x/hooks.json: ValueError: bad")
+
+    message = drift.format_message([report], [])
+
+    assert "have a hook manifest this check could not read" in message
+    assert "never compared" in message
+    assert "register hooks this checkout does not" not in message
+
+
+def test_format_message_uses_neutral_wording_for_mixed_drift() -> None:
+    extras = _report(only_in_install=("PreToolUse (matcher 'Task'): retired",))
+    missing = _report(
+        install_path=Path("/home/u/.copilot/installed-plugins/x"),
+        only_in_source=("SessionStart (matcher ''): shipped-now",),
+    )
+
+    message = drift.format_message([extras, missing], [])
+
+    assert "diverge from this checkout's hook registrations" in message
+    assert "retired" in message
+    assert "shipped-now" in message
+
+
+def test_format_message_does_not_call_a_truncated_scan_a_clean_result() -> None:
+    # No reports plus a cut-short search is not "nothing is installed".
+    message = drift.format_message([], [], ["Claude Code: /home/u/.claude/plugins"])
+
+    assert "not conclusive" in message
+    assert "found on disk" not in message
+    assert "/home/u/.claude/plugins" in message
+
+
+def test_format_message_caps_a_matching_result_from_a_truncated_scan() -> None:
+    message = drift.format_message([_report()], [], ["Claude Code: /home/u/.claude/plugins"])
+
+    assert "1 installed copy/copies match" in message
+    assert "not conclusive" in message
+
+
+def test_format_message_states_no_install_plainly_when_the_scan_finished() -> None:
+    # Negative control for the two tests above: a complete scan keeps the
+    # unqualified wording and must not warn about conclusiveness.
+    message = drift.format_message([], [])
+
+    assert "found on disk" in message
+    assert "not conclusive" not in message
+
+
 def test_format_message_carries_notes_through() -> None:
     message = drift.format_message([], ["Claude Code: no readable plugin manifest at /x"])
 
@@ -384,7 +593,9 @@ def test_main_emits_the_drift_message_for_the_project_repo(capsys, tmp_path) -> 
     with (
         patch.object(drift, "skip_if_consumer_repo", return_value=False),
         patch.object(drift, "get_project_directory", return_value=str(tmp_path)),
-        patch.object(drift, "check_installed_plugins", return_value=([report], [])),
+        patch.object(
+            drift, "check_installed_plugins", return_value=drift.ScanOutcome(reports=[report])
+        ),
     ):
         drift.main()
 
