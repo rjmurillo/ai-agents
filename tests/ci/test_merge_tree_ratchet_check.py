@@ -28,6 +28,7 @@ from unittest.mock import patch
 import pytest
 
 from scripts.ci import merge_tree_ratchet_check as _m
+from scripts.ci import merge_tree_ratchet_preparation as _prep
 
 
 def _git(repo: Path, *argv: str) -> subprocess.CompletedProcess[str]:
@@ -442,10 +443,15 @@ class TestMergeTreeRatchetCheck:
 
         Moving the message out of the caller must not turn this path silent.
         A bare EXIT_EXTERNAL with no stderr is the failure mode to avoid.
+
+        Patches ``_git`` on ``merge_tree_ratchet_preparation``, not on ``_m``:
+        ``_merge_tree_oid`` moved to that module (issue #5441 review, to keep
+        ``merge_tree_ratchet_check.py`` under the taste-lints line ceiling),
+        and it resolves ``_git`` through its own module's globals.
         """
         repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
         empty = subprocess.CompletedProcess(args=["git"], returncode=0, stdout="", stderr="")
-        with patch.object(_m, "_git", return_value=empty):
+        with patch.object(_prep, "_git", return_value=empty):
             oid, conflicts = _m._merge_tree_oid(repo, "HEAD")
         assert oid is None
         assert conflicts is False

@@ -6,6 +6,8 @@ import errno
 import os
 import shutil
 import stat
+import subprocess
+import time
 from pathlib import Path
 from unittest.mock import call, patch
 
@@ -133,6 +135,70 @@ def test_materialization_or_scratch_init_failure_is_external(
     ):
         rc = _m.main(["--repo-root", str(repo), "--base-ref", "HEAD"])
     assert rc == _m.EXIT_EXTERNAL
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_materialize_tree_reports_deadline_already_exhausted(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Issue #5441 review: an expired deadline blocks materialize before it starts.
+
+    Without this check, ``git read-tree``/``checkout-index`` would run
+    unbounded even though the caller already knows the budget is spent,
+    risking an outer SIGKILL with zero diagnostic instead of this message.
+    """
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    destination = tmp_path / "materialized"
+
+    assert _mat.materialize_tree(repo, head, destination, deadline=time.monotonic() - 1) is False
+    assert "read-tree not run: deadline already exhausted" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_checkout_tree_stops_mid_sequence_when_deadline_expires_between_steps(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Deadline exhaustion DURING materialization, not just before it starts.
+
+    ``read-tree`` gets a positive remaining budget and succeeds; the mocked
+    clock then reports the deadline as expired before ``checkout-index``
+    runs. This is exactly the gap the review named: the aggregate deadline
+    inside the per-ratchet loop never fires if a step upstream of it, like
+    materialization, has no bound of its own and simply keeps running.
+    """
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    destination = tmp_path / "materialized"
+
+    with patch.object(_mat.time, "monotonic", side_effect=[0.0, 100.0]):
+        assert _mat.materialize_tree(repo, head, destination, deadline=1.0) is False
+    assert "checkout-index not run: deadline already exhausted" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_init_scratch_repo_reports_deadline_already_exhausted(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The same deadline guard, applied to the five ``git`` calls in scratch init."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    (scratch / "file.txt").write_text("x\n", encoding="utf-8")
+
+    assert _mat.init_scratch_repo(scratch, deadline=time.monotonic() - 1) is False
+    assert "init not run: deadline already exhausted" in capsys.readouterr().err
+
+
+def test_run_git_timeout_returns_exit_124(capsys: pytest.CaptureFixture[str]) -> None:
+    """``run_git``'s own timeout handling, isolated from the callers above."""
+    with patch.object(
+        _mat.subprocess,
+        "run",
+        side_effect=subprocess.TimeoutExpired(cmd=["git"], timeout=0.01),
+    ):
+        proc = _mat.run_git(Path("."), "status", timeout=0.01)
+    assert proc.returncode == 124
+    assert "timed out after" in proc.stderr
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
