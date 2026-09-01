@@ -62,6 +62,8 @@ from pr_context_helpers import (
     focused_context,
     record_context_fetch_failure,
     requested_json_fields,
+)
+from pr_context_helpers import (
     selected_fields as select_context_fields,
 )
 
@@ -336,7 +338,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--field",
         action="append",
-        choices=sorted(_FOCUSED_JSON_FIELDS),
+        choices=sorted(FOCUSED_JSON_FIELDS),
         default=[],
         help="Fetch only specific context fields with a reduced API query",
     )
