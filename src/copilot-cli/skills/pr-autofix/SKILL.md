@@ -429,8 +429,15 @@ fi
 # between the tier-dispatch markers under bash with fake producers, so the two
 # gate directions below are asserted behavior rather than described behavior.
 if ! AUTHOR_CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
-    --output-format json 2>/dev/null); then
-    AUTHOR_CTX=""
+    --field author_is_bot --output-format json 2>/dev/null); then
+    # Focused mode keeps this read off the review-thread pagination path. A
+    # stale installed helper can still reject `--field`; fall back once so the
+    # existing absent-field diagnostic keeps naming a pre-#5208 copy rather
+    # than collapsing it into the generic unreadable branch.
+    if ! AUTHOR_CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
+        --output-format json 2>/dev/null); then
+        AUTHOR_CTX=""
+    fi
 fi
 # Bot-author lookup, read BEFORE the tier producer because the tier depends on
 # it (issue #5208). classify_tier only reaches T5 when `is_bot and
@@ -443,10 +450,11 @@ fi
 # is blocked by failing checks stays at its merge-state tier and does not
 # reach the T5 handoff, which is correct: the automated loop handles it.
 # Author identity is stable during one pass, so this answer is kept for tier
-# production. Auto-merge is mutation-sensitive and is fetched again at the
-# disarm gate below. That second read is deliberate: the old one-fetch contract
-# is retired because a stale auto-merge verdict fails open, while the extra
-# `get_pr_context.py` call costs only one more bounded API read in the same pass.
+# production. The focused `--field author_is_bot` mode keeps the read down to
+# one `gh pr view --json author` call instead of a full context walk. Auto-merge
+# is mutation-sensitive and is fetched again at the disarm gate below, in the
+# matching `--field auto_merge_method` mode. That split is deliberate: the
+# one-fetch contract is retired because a stale auto-merge verdict fails open.
 # The classification itself is NOT made here. get_pr_context.py emits
 # `author_is_bot` from github_core.bot_config.is_bot, the repository's one
 # authoritative bot-author rule. Re-deriving it here as a `[bot]` suffix test
@@ -638,6 +646,7 @@ esac
 # fetched. Reusing the author lookup would let that stale null bypass disarm,
 # so this gate deliberately spends a second context read for fresh evidence.
 if ! CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
+    --field auto_merge_method \
     --output-format json 2>/dev/null); then
     CTX=""
 fi
@@ -799,7 +808,7 @@ returns T5 only when `is_bot and (has_ci_failures or has_threads)`, and its
 return T5 and every bot PR that reaches work-tier classification lands in
 T2-T4 instead (issue #5208).
 
-Read the author's bot state from `get_pr_context.py`'s `author_is_bot` field,
+Read the author's bot state from `get_pr_context.py --field author_is_bot`,
 not from a `[bot]` login-suffix test. That field comes from
 `github_core.bot_config.is_bot` after `canonicalize_login`, which maps the
 `app/copilot-swe-agent` spelling `gh pr view --json author` returns onto
@@ -912,8 +921,9 @@ SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 # Check merge readiness. Add --is-bot when the PR author is a bot; without it
 # classify_tier cannot return T5, because its is_bot parameter defaults to
 # False and T5 requires `is_bot and (has_ci_failures or has_threads)`
-# (issue #5208). Source the answer from get_pr_context.py's author_is_bot
-# field and pass --is-bot when that field is absent or non-boolean.
+# (issue #5208). Source the answer from get_pr_context.py's focused
+# `--field author_is_bot` mode and pass --is-bot when that field is absent or
+# non-boolean.
 # Derived rather than written as a `[--is-bot]` placeholder: every other line in
 # this block runs as written once {pr} is substituted, so a bracketed token here
 # reaches argparse as a positional argument and the readiness call dies on
@@ -925,8 +935,10 @@ SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 # refuses, for the reasons recorded there. The absent-versus-unknown split that
 # block makes is a diagnostic for the unattended loop and is deliberately not
 # repeated here; both take the closed branch either way.
-if ! CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request {pr} --output-format json 2>/dev/null); then
-    CTX=""
+if ! CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request {pr} --field author_is_bot --output-format json 2>/dev/null); then
+    if ! CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request {pr} --output-format json 2>/dev/null); then
+        CTX=""
+    fi
 fi
 if ! IS_BOT=$(printf '%s' "$CTX" | jq -r 'if (.Data.author_is_bot | type) == "boolean" then (.Data.author_is_bot | tostring) else "unknown" end' 2>/dev/null); then
     IS_BOT="unknown"
