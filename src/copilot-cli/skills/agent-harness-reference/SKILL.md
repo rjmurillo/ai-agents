@@ -99,16 +99,17 @@ that hangs is a gate that passes the call through.
 
 ### Shipped registrations
 
-Re-verified 2026-08-19 against the tree, not carried forward from a prior count:
+Re-verified 2026-09-01 against the tree, not carried forward from a prior count:
 
 - Vendored Claude plugin source, `.claude/hooks/hooks.json`: zero registrations
   (ADR-097 retired all four).
 - Generated Copilot plugin, `src/copilot-cli/hooks/hooks.json`: zero
   registrations (ADR-097 retired the dispatcher itself; no `_dispatch.py`
   ships).
-- Local repository settings, `.claude/settings.json`: six registrations across
-  four events, SessionStart (3), UserPromptSubmit (1), SessionEnd (1), and
-  PreCompact (1). ADR-097 retired the two repo-local per-call registrations
+- Local repository settings, `.claude/settings.json`: seven registrations across
+  four events, SessionStart (4), UserPromptSubmit (1), SessionEnd (1), and
+  PreCompact (1). The fourth SessionStart entry is the plugin hook drift check
+  added for issue #5085. ADR-097 retired the two repo-local per-call registrations
   this file used to carry (PostToolUse `observation_sync`, PostToolUseFailure
   `memory_capture`).
   These do not feed the vendored Copilot plugin generator.
