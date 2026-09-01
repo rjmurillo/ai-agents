@@ -105,6 +105,8 @@ is deferred, so no follow-up issue is open against this record.
 | 4 | Drive each of the six consumers' real `current_count` through a spy, so one leaving the shared enumeration fails | `@rjmurillo` | PR #5454, issue #4746 | DONE |
 | 5 | Suppress the note on the run's second index read, so one run prints one caveat | `@rjmurillo` | PR #5454, issue #4746 | DONE |
 | 6 | Narrow the impact claim to the five ratchets that actually double-counted | `@rjmurillo` | PR #5454, issue #4746 | DONE |
+| 7 | Announce once for the two-scope consumer, whose reads are both counting reads | `@rjmurillo` | PR #5454, issue #4746 | DONE |
+| 8 | Assert exact per-consumer read counts, so dropping one of several scopes fails | `@rjmurillo` | PR #5454, issue #4746 | DONE |
 
 On action 2: the count is right after the fix, and the note still earns its
 place, because the linter reads content off disk, so conflict markers left in
@@ -198,3 +200,53 @@ where the narrower and correct claim was already written down.
 The pattern worth keeping from this round: the strongest claim reachable is not
 always the true one, and a claim already stated correctly somewhere else in the
 same change is the cheapest place to catch that.
+
+## Correction, 2026-09-01, review round 3
+
+Two findings, both real, both consequences of the round 2 fix rather than of the
+original defect.
+
+**The round 2 fix left one consumer behind.** It assigned the announcement to
+"the counting read", on the assumption that each ratchet has exactly one.
+`cli_exit_contract_ratchet` has two: it counts from `scripts/ci/*.py` and
+`.github/scripts/*.py` in one read and `tests/**/*.py` in another, disjoint
+scopes that can each legitimately hold an unmerged path. Both defaulted to
+announcing, so a merge conflicting a file in each scope printed one note per
+scope for a single run. That is the duplicate output round 2 removed,
+reintroduced at a shape the round 2 rule did not describe.
+
+Silencing the second read would have been wrong in the other direction: a
+conflict confined to `tests/` would then announce nothing at all, which is worse
+than announcing twice. The fix reads the union of both pathspecs first, gives
+that read the announcement, and silences both scoped reads. One run, one caveat,
+naming every unmerged path either scope would have counted. The union read also
+serves as the git-health probe for the pair, so its None short-circuits before
+either scoped read runs.
+
+Negative control: reverting to two independent announcing reads, against a
+fixture carrying a conflict in both scopes, failed on `one run printed the
+mid-merge note 2 times`. Restore confirmed byte-identical.
+
+**The wiring test's lower bound could not see a half-broken consumer.** It
+asserted `spy.calls >= 1`, which any one surviving read satisfies, so a consumer
+that dropped one of several scopes for a raw filesystem walk would still have
+passed. The counts are now exact per consumer and per condition: one read when
+the first enumeration is unusable, and for the two-scope consumer three when
+every enumeration is readable.
+
+Negative control, run in two halves against the same mutation. With the tests
+scope switched to `rglob`, the exact assertion failed with
+`made 2 enumeration read(s), expected 3`. Loosening that one assertion back to
+`>= 1`, with the mutation still in place, passed 16 of 16. The lower bound
+demonstrably could not see the defect.
+
+Deviation from the review's suggested shape, recorded because it is visible in
+the diff: the review asked for exactly two reads for this consumer, one per
+glob. It makes three, because the union read that owns the announcement is a
+third. The intent, catching a consumer that silently drops a read, is served
+identically by an exact three.
+
+The pattern across rounds 2 and 3: a rule that assigns a responsibility ("the
+counting read announces") is only as good as its enumeration of the cases. This
+one was written from five consumers that share a shape and applied to a sixth
+that does not. Worth checking the odd one out before generalising, not after.
