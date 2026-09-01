@@ -87,6 +87,19 @@ its own corpus claim.
 | The issue's PRD proposed delegating unfenced runs straight to `_scan_block` | Corpus probe showed it fires on 13 files and contradicts an existing test | A plan's design section is a hypothesis, not a measurement |
 | Test file crossed the 500-line taste limit | Split along the same seam the scanner has, shared builders extracted | Fix the count, do not raise the baseline |
 | Variable resolution took the block's last assignment, not the one live at each `flock` | Copilot review caught it; fixed with `_value_in_effect` plus four regression tests in both directions | Reusing a resolver inherits its latent defects, so widening a caller is a reason to re-read the code being reused, not to trust it |
+| Line-level ordering left the same defect one granularity down, on a shared line | Spec review flagged it; ordering is now by position, with a test using an extensionless path so no bare token can satisfy it by accident | Fixing a defect at one granularity is a prompt to check the next one down, not a finish line |
+| Claimed `ruff format` drift was pre-existing on files new in this PR | Measured it: the pre-existing drift was a single 3-line hunk, so every touched file is now formatted and the excuse is deleted | A caveat is worth measuring before it is written; this one was cheaper to fix than to justify |
+
+### Residual limitations, accepted not fixed
+
+Both follow from taking the Markdown paragraph as the scan unit, and both are
+documented in the rule file rather than closed here. Parsing Markdown structure
+is a different change from the fenced/unfenced asymmetry this issue names.
+
+| Limitation | Direction | Why not now |
+|------------|-----------|-------------|
+| A variable set in one paragraph and read by a `flock` in the next is unresolved, so that recipe goes unchecked | Under-reports | The blank-line boundary is what stops an unrelated assignment being read as the lock. Removing it to catch this reintroduces the worse failure, and a test pins the boundary |
+| A tight list or table is one paragraph, so a dead path in one item and a `flock` in another read as one recipe | Over-reports | Visible and clearable with `push-lock-historical`, unlike the silent misses this issue was about. Currently masked because `_LOCK_PATH` excludes `<` and `>` so a `<slug>` placeholder never tokenizes, which is coincidence and not design |
 
 ## Phase 3: Decisions
 

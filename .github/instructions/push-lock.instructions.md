@@ -124,10 +124,11 @@ catches a lock written without the `.lock` suffix, and what keeps a dead scheme
 visible when it shares a fence with the canonical recipe. The inventory comes
 from the index, so a staged but uncommitted file is checked.
 
-A variable resolves to the assignment live above the `flock` that reads it, the
-way shell binds names. A reassignment placed below a `flock` describes the next
-call, not that one, so it can neither launder a bad path nor condemn a
-canonical one.
+A variable resolves to the assignment live before the `flock` that reads it, the
+way shell binds names. Ordering is by position, not by line, so a reassignment
+placed after a `flock` describes the next call and not that one, whether it sits
+on a later line or later on the same one. It can therefore neither launder a bad
+path nor condemn a canonical one.
 
 A recipe does not become canonical by losing its fence, so unfenced prose is
 read the same way, one Markdown paragraph at a time: a blank line bounds the
@@ -135,6 +136,21 @@ unit, so a variable set in one paragraph never resolves a `flock` in another.
 The one asymmetry is that only a fence is reported for naming no canonical
 path at all, because prose discusses `flock` without prescribing anything
 (issue #4635).
+
+Two limits follow from taking the paragraph as the unit, both known and neither
+covered:
+
+1. A variable set in one paragraph and read by a `flock` in the next is not
+   resolved, so that recipe is not checked. The blank line is what keeps an
+   unrelated assignment from being read as the lock, and the same boundary
+   costs this. Keep an assignment and the `flock` that reads it in one
+   paragraph, or fence them.
+2. A tight list or table is one paragraph, so a dead path in one item and a
+   `flock` in another read as a single recipe. That direction over-reports
+   rather than under-reports, and `push-lock-historical` clears it.
+
+Both want Markdown structure the scanner does not parse. Fence any recipe you
+want read exactly.
 
 ## References
 
