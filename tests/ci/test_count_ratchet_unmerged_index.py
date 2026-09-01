@@ -25,7 +25,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.ci import count_ratchet, taste_count_ratchet
+from scripts.ci import cli_exit_contract_ratchet, count_ratchet, taste_count_ratchet
 from tests.ci.count_ratchet_git_harness import commit_all as _commit_all
 from tests.ci.count_ratchet_git_harness import git as _git
 from tests.ci.count_ratchet_git_harness import init_repo as _init_repo
@@ -344,3 +344,58 @@ def test_one_run_prints_the_mid_merge_note_once(tmp_path, capsys):
     assert err.count("unmerged in the index") == 1, (
         f"the mid-merge note was printed {err.count('unmerged in the index')} times"
     )
+
+
+def _conflict(repo: Path, relative: str, body: str) -> None:
+    """Leave ``relative`` unmerged in the index, resolved on disk."""
+    path = repo / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"# base\n{body}", encoding="utf-8")
+
+
+@needs_git
+def test_two_counting_scopes_still_print_one_note(tmp_path, capsys):
+    """The two-scope consumer announces once, naming paths from both scopes.
+
+    ``cli_exit_contract_ratchet`` counts from two disjoint pathspecs,
+    ``scripts/ci/*.py`` and ``tests/**/*.py``, so it has two counting reads
+    rather than one. Leaving both announcing printed a separate note per scope
+    for a single run, which is the duplicate output #4746 exists to remove at
+    a different shape. Silencing only the second would be wrong the other way:
+    a conflict confined to ``tests/`` would then announce nothing.
+
+    Both scopes carry a conflict here, so a fix that suppresses the wrong read
+    fails this on the path list rather than only on the count.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    _conflict(repo, "scripts/ci/a.py", "x = 1\n")
+    _conflict(repo, "tests/test_b.py", "y = 1\n")
+    _commit_all(repo, "base")
+
+    _git(repo, "checkout", "-q", "-b", "feat")
+    _conflict(repo, "scripts/ci/a.py", "x = 2\n")
+    _conflict(repo, "tests/test_b.py", "y = 2\n")
+    _commit_all(repo, "feat")
+
+    _git(repo, "checkout", "-q", "main")
+    _conflict(repo, "scripts/ci/a.py", "x = 3\n")
+    _conflict(repo, "tests/test_b.py", "y = 3\n")
+    _commit_all(repo, "main")
+
+    assert _git(repo, "merge", "feat").returncode != 0, "the fixture must stop conflicted"
+    unmerged = _git(repo, "ls-files", "-u").stdout
+    assert "scripts/ci/a.py" in unmerged and "tests/test_b.py" in unmerged, (
+        "the fixture must leave a conflict in BOTH counting scopes"
+    )
+
+    result = cli_exit_contract_ratchet.uncovered_scripts(repo)
+
+    err = capsys.readouterr().err
+    assert result is not None, "the enumeration must still succeed mid-merge"
+    assert err.count("unmerged in the index") == 1, (
+        f"one run printed the mid-merge note {err.count('unmerged in the index')} times"
+    )
+    assert "scripts/ci/a.py" in err, "the note dropped the script scope"
+    assert "tests/test_b.py" in err, "the note dropped the test scope"

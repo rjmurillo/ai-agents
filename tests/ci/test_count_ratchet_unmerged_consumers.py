@@ -70,21 +70,31 @@ def _stub_memory_tier_validator(monkeypatch) -> None:
     )
 
 
+# (module, prepare, reads when the first enumeration is unusable, reads when
+# every enumeration is readable). The counts are exact, not lower bounds: a
+# lower bound is satisfied by any one surviving read, so a consumer that
+# dropped one of its scopes for a raw filesystem walk would still have passed.
+# ``cli_exit_contract_ratchet`` is the only two-scope consumer. It reads three
+# times when everything is readable, once over the union of both pathspecs to
+# own the mid-merge announcement and once per scope to partition, and stops
+# after the first when that union read is unusable.
 _RATCHET_CONSUMERS = [
-    (cli_exit_contract_ratchet, None),
-    (memory_index_count_ratchet, _stub_memory_tier_validator),
-    (ruff_count_ratchet, None),
-    (subprocess_encoding_count_ratchet, None),
-    (taste_count_ratchet, None),
-    (type_ignore_count_ratchet, None),
+    (cli_exit_contract_ratchet, None, 1, 3),
+    (memory_index_count_ratchet, _stub_memory_tier_validator, 1, 1),
+    (ruff_count_ratchet, None, 1, 1),
+    (subprocess_encoding_count_ratchet, None, 1, 1),
+    (taste_count_ratchet, None, 1, 1),
+    (type_ignore_count_ratchet, None, 1, 1),
 ]
 
-_CONSUMER_IDS = [module.__name__.rsplit(".", 1)[-1] for module, _ in _RATCHET_CONSUMERS]
+_CONSUMER_IDS = [module.__name__.rsplit(".", 1)[-1] for module, *_ in _RATCHET_CONSUMERS]
+
+_CONSUMER_ARGS = "module, prepare, unusable_reads, readable_reads"
 
 
-@pytest.mark.parametrize(("module", "prepare"), _RATCHET_CONSUMERS, ids=_CONSUMER_IDS)
+@pytest.mark.parametrize(_CONSUMER_ARGS, _RATCHET_CONSUMERS, ids=_CONSUMER_IDS)
 def test_every_ratchet_counts_through_the_shared_enumeration(
-    module, prepare, monkeypatch, tmp_path
+    module, prepare, unusable_reads, readable_reads, monkeypatch, tmp_path
 ):
     """A ratchet that rolls its own ``ls-files`` reopens #4746 for itself.
 
@@ -93,12 +103,20 @@ def test_every_ratchet_counts_through_the_shared_enumeration(
     ``current_count`` and fails the moment one stops routing through the
     deduplicating helper.
 
-    The unreadable-enumeration verdict is asserted alongside the call, because
+    The read count is exact so that a consumer dropping ONE of several scopes
+    is caught. ``>= 1`` passed as long as any single read survived, which is
+    the same shape of insufficiency as the identity assertion this test
+    replaced: true of a consumer that is half broken.
+
+    The unreadable-enumeration verdict is asserted alongside the count, because
     a consumer that reached the helper and then ignored its ``None`` would be
     wired and still wrong: each of these modules documents returning None
     rather than 0 as load-bearing, since a zero from a broken scan reads as a
-    clean tree and ``--update`` would write it into the baseline.
+    clean tree and ``--update`` would write it into the baseline. The exact
+    count doubles as the short-circuit proof: a consumer that kept reading
+    after an unusable enumeration exceeds it.
     """
+    del readable_reads  # asserted by the control below
     if prepare is not None:
         prepare(monkeypatch)
     spy = _EnumerationSpy(None)
@@ -106,20 +124,28 @@ def test_every_ratchet_counts_through_the_shared_enumeration(
 
     result = module.current_count(tmp_path)
 
-    assert spy.calls >= 1, f"{module.__name__} did not reach the shared enumeration"
+    assert spy.calls == unusable_reads, (
+        f"{module.__name__} made {spy.calls} enumeration read(s) on an unusable "
+        f"scan, expected {unusable_reads}"
+    )
     assert result is None, f"{module.__name__} reported a count from an unreadable scan"
 
 
-@pytest.mark.parametrize(("module", "prepare"), _RATCHET_CONSUMERS, ids=_CONSUMER_IDS)
+@pytest.mark.parametrize(_CONSUMER_ARGS, _RATCHET_CONSUMERS, ids=_CONSUMER_IDS)
 def test_a_readable_enumeration_is_not_reported_as_a_failed_scan(
-    module, prepare, monkeypatch, tmp_path
+    module, prepare, unusable_reads, readable_reads, monkeypatch, tmp_path
 ):
     """Control for the case above: the None must come from the enumeration.
 
     Same consumer, same input, differing only in the condition under test. A
     module that returned None for an unrelated reason fails here too, so the
     case above cannot pass for the wrong reason.
+
+    This is also where every scope a consumer reads is counted, since nothing
+    short-circuits when the enumeration is readable. Dropping one of
+    ``cli_exit_contract_ratchet``'s three reads fails here.
     """
+    del unusable_reads  # asserted by the case above
     if prepare is not None:
         prepare(monkeypatch)
     spy = _EnumerationSpy([])
@@ -127,7 +153,10 @@ def test_a_readable_enumeration_is_not_reported_as_a_failed_scan(
 
     result = module.current_count(tmp_path)
 
-    assert spy.calls >= 1, f"{module.__name__} did not reach the shared enumeration"
+    assert spy.calls == readable_reads, (
+        f"{module.__name__} made {spy.calls} enumeration read(s), expected "
+        f"{readable_reads}: a scope was added or dropped"
+    )
     assert result == 0, f"{module.__name__} did not count an empty tree as zero"
 
 
