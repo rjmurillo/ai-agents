@@ -137,6 +137,38 @@ def test_the_workflow_job_running_the_guard_is_unconditional() -> None:
     )
 
 
+def test_the_required_pytest_context_checks_the_guard_result() -> None:
+    """A failed guard MUST fail the "Run Python Tests" required context.
+
+    Copilot review round 4 (PR #5344): ``zero-collection-guard`` runs
+    unconditionally, but neither aggregator job that publishes the "Run
+    Python Tests" required context (``test-result`` when Python inputs
+    changed, ``skip-tests`` when they did not) named it. The guard could
+    therefore fail while the required context still reported success.
+    Both aggregators now depend on ``zero-collection-guard`` and gate their
+    own success on its result via ``require_job_results.py``.
+    """
+    for job_name in ("test-result", "skip-tests"):
+        job = _workflow_job(job_name)
+        assert job["name"] == "Run Python Tests"
+        assert "zero-collection-guard" in job["needs"], (
+            f"{job_name} must depend on zero-collection-guard"
+        )
+        # !cancelled() (or another status function) is required: without one,
+        # GitHub's default implicit success()-over-needs gate would silently
+        # skip this aggregator on a guard failure instead of failing it,
+        # leaving the required context missing rather than red.
+        assert any(
+            function in job["if"] for function in ("cancelled()", "always()", "failure()")
+        ), f"{job_name}'s if must not rely on the implicit success()-over-needs gate"
+        commands = " ".join(
+            str(step.get("run", "")) for step in job["steps"]
+        )
+        assert "ZERO_COLLECTION_RESULT" in commands, (
+            f"{job_name} must check needs.zero-collection-guard.result"
+        )
+
+
 def test_the_workflow_declares_a_mutation_partition() -> None:
     """AC4: the gate that invokes the mutation harnesses is a real matrix leg."""
     include = _load(PYTEST_WORKFLOW)["jobs"]["test"]["strategy"]["matrix"]["include"]

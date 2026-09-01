@@ -574,6 +574,7 @@ jobs:
       - check-paths
       - test
       - coverage
+      - zero-collection-guard
     # !cancelled() rather than always(): a superseded run leaves its
     # dependencies 'cancelled', and always() would turn that into a red
     # required check on the PR head (Issue #5097). !cancelled() still runs on
@@ -593,16 +594,18 @@ jobs:
           persist-credentials: false
           sparse-checkout: scripts/ci/require_job_results.py
 
-      - name: Require test and coverage success
+      - name: Require test, coverage, and zero-collection-guard success
         env:
           PATH_RESULT: ${{ needs.check-paths.result }}
           TEST_RESULT: ${{ needs.test.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
+          ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
           --check PATH_RESULT success "path detection failed or was cancelled: {value}"
           --check TEST_RESULT success "test job failed or was cancelled: {value}"
           --check COVERAGE_RESULT success "coverage job failed or was cancelled: {value}"
+          --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
 
   security:
     name: Python Security Checks
@@ -690,8 +693,17 @@ jobs:
   # See: Issue #1168
   skip-tests:
     name: Run Python Tests
-    needs: check-paths
-    if: needs.check-paths.result == 'success' && needs.check-paths.outputs.python-changed != 'true'
+    needs:
+      - check-paths
+      - zero-collection-guard
+    # !cancelled() so this job still runs (and can fail loudly) when
+    # zero-collection-guard failed, rather than being implicitly skipped by
+    # GitHub's default success()-over-needs gate, which would leave the
+    # required "Run Python Tests" context missing instead of failed.
+    if: >-
+      !cancelled() &&
+      needs.check-paths.result == 'success' &&
+      needs.check-paths.outputs.python-changed != 'true'
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 2
@@ -702,6 +714,18 @@ jobs:
         uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci/require_job_results.py
+
+      - name: Require zero-collection-guard success
+        env:
+          ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
+        run: >-
+          python scripts/ci/require_job_results.py
+          --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
 
       - name: Skip tests (no Python test inputs changed)
         run: |
