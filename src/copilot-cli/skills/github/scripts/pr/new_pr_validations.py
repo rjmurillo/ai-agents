@@ -325,7 +325,7 @@ def _validate_dashes(title: str, body_content: str) -> None:
         file=sys.stderr,
     )
     print(
-        "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Issue #1923).",
+        "  Rule: .claude/rules/universal.md MUST NOT entry 4 (Issue #1923).",
         file=sys.stderr,
     )
     print(
