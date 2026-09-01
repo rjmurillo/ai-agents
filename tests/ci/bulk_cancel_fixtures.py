@@ -37,6 +37,7 @@ SECOND_REQUIRED_WORKFLOW = "Python Tests"
 SECOND_REQUIRED_CONTEXT = "Run Python Tests"
 OPTIONAL_WORKFLOW = "Label PR"
 OPTIONAL_CONTEXT = "Sync Labels"
+BASE_REPOSITORY = "rjmurillo/ai-agents"
 
 _WORKFLOW_CONTEXTS = (
     (REQUIRED_WORKFLOW, REQUIRED_CONTEXT),
@@ -56,7 +57,7 @@ def make_run(
     branch: str | None = None,
     event: str = "synchronize",
     status: str = "queued",
-    head_repo: str = "",
+    head_repo: str = BASE_REPOSITORY,
 ) -> WorkflowRun:
     """Build one run record with sensible incident-shaped defaults.
 
@@ -144,7 +145,7 @@ def plan_with_pinned_contract(runs, subscriptions, recovery_event):
         required=REQUIRED_CONTEXTS,
         subscriptions=subscriptions,
         recovery_event=recovery_event,
-        repository="rjmurillo/ai-agents",
+        repository=BASE_REPOSITORY,
         now=PINNED_CLOCK,
     )
 
