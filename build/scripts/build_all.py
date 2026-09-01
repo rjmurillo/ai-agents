@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
@@ -922,6 +922,13 @@ def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
     Git location env vars (``GIT_DIR`` and friends) are stripped from the
     subprocess env so an inherited value cannot redirect ``ls-files`` away
     from ``repo_root`` (issue #2992 hook-execution context).
+
+    An entry here can be a directory rather than a file: ``ls-files``
+    reports an embedded git repository (a nested worktree checkout, for
+    example under ``.claude/worktrees/<name>/``) as one ignored directory,
+    not one entry per file inside it. Callers must treat each returned
+    path as a prefix, not just an exact key: see
+    :func:`_is_ignored_path`.
     """
     ignored: set[Path] = set()
     scrubbed_env = _git_scrubbed_env()
@@ -956,6 +963,21 @@ def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
             rel = os.fsdecode(raw)
             ignored.add(repo_root / rel)
     return ignored
+
+
+def _is_ignored_path(path: Path, ignored: set[Path]) -> bool:
+    """Return True if ``path`` is ignored, or nested under an ignored dir.
+
+    ``ignored`` (see :func:`_ignored_paths`) can hold directory entries: a
+    nested worktree checkout is reported as one ignored directory, not one
+    entry per file inside it. Matching ``ignored`` with plain set
+    membership therefore misses every file nested under such a directory,
+    which is what let a full worktree checkout get read into the
+    :func:`_snapshot_owned_prefixes` snapshot instead of skipped (issue
+    #5370, OOM reading 24+ nested worktrees under ``.claude/worktrees/``).
+    Treating each ignored entry as a path prefix closes that gap.
+    """
+    return path in ignored or any(parent in ignored for parent in path.parents)
 
 
 def _snapshot_owned_prefixes(
@@ -1012,7 +1034,9 @@ def _snapshot_owned_prefixes(
         for path in root.rglob("*"):
             if not path.is_file() or path.is_symlink():
                 continue
-            if path in ignored or (exclude_ignored and _is_bytecode_artifact(path)):
+            if _is_ignored_path(path, ignored) or (
+                exclude_ignored and _is_bytecode_artifact(path)
+            ):
                 continue
             try:
                 snapshot[path] = path.read_bytes()
@@ -1080,10 +1104,46 @@ def _restore_owned_prefixes(
     _prune_empty_dirs(repo_root, prefixes)
 
 
+def _iter_tree_skip_git_boundaries(root: Path) -> Iterator[tuple[Path, bool]]:
+    """Yield ``(path, is_dir)`` for every entry under ``root``.
+
+    Never descends into a directory that is itself a git repository
+    boundary (holds its own ``.git`` file or directory), the same shape
+    ``git worktree`` uses for a nested checkout under, for example,
+    ``.claude/worktrees/<name>/``. A boundary directory is not yielded
+    either, so callers never enumerate, prune, or (via
+    :func:`_restore_owned_prefixes`) delete anything inside one.
+
+    This is what keeps a future addition of ``.claude/`` to
+    :data:`OWNED_PREFIXES` from making :func:`_restore_owned_prefixes` walk
+    into, and delete, a nested worktree's own working tree (issue #5370).
+    """
+    stack = [root]
+    while stack:
+        current = stack.pop()
+        try:
+            entries = list(current.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if entry.is_symlink():
+                continue
+            is_dir = entry.is_dir()
+            if is_dir and (entry / ".git").exists():
+                continue  # git repository boundary; opaque, do not descend
+            yield entry, is_dir
+            if is_dir:
+                stack.append(entry)
+
+
 def _enumerate_files_under(
     repo_root: Path, prefixes: tuple[str, ...]
 ) -> set[Path]:
-    """Return every regular non-symlink file under any of ``prefixes``."""
+    """Return every regular non-symlink file under any of ``prefixes``.
+
+    Skips nested git repository boundaries; see
+    :func:`_iter_tree_skip_git_boundaries`.
+    """
     found: set[Path] = set()
     for prefix in prefixes:
         root = repo_root / prefix
@@ -1094,8 +1154,8 @@ def _enumerate_files_under(
             continue
         if not root.is_dir():
             continue
-        for path in root.rglob("*"):
-            if path.is_file() and not path.is_symlink():
+        for path, is_dir in _iter_tree_skip_git_boundaries(root):
+            if not is_dir:
                 found.add(path)
     return found
 
@@ -1104,7 +1164,8 @@ def _prune_empty_dirs(repo_root: Path, prefixes: tuple[str, ...]) -> None:
     """Remove empty directories the generator created under ``prefixes``.
 
     Walks bottom-up so child dirs go before parents. Never touches the
-    prefix root itself.
+    prefix root itself, and never descends into or removes a nested git
+    repository boundary; see :func:`_iter_tree_skip_git_boundaries`.
     """
     for prefix in prefixes:
         root = repo_root / prefix
@@ -1112,11 +1173,8 @@ def _prune_empty_dirs(repo_root: Path, prefixes: tuple[str, ...]) -> None:
             continue
         if not root.is_dir():
             continue
-        for dirpath in sorted(
-            (p for p in root.rglob("*") if p.is_dir()),
-            key=lambda p: len(p.parts),
-            reverse=True,
-        ):
+        dirs = [p for p, is_dir in _iter_tree_skip_git_boundaries(root) if is_dir]
+        for dirpath in sorted(dirs, key=lambda p: len(p.parts), reverse=True):
             try:
                 if not any(dirpath.iterdir()):
                     dirpath.rmdir()

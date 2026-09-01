@@ -781,6 +781,74 @@ def test_enumerate_files_under_handles_catalog_file(tmp_path: Path) -> None:
     assert found == {catalog}
 
 
+def test_enumerate_files_under_skips_git_boundary_directory(tmp_path: Path) -> None:
+    """A directory holding its own .git entry is a git repository boundary
+    (the same shape ``git worktree add`` produces) and must never be walked
+    into: it is not the enumerated prefix's own content.
+
+    A sibling file that is not behind a boundary is still found, as a
+    positive control that the skip is scoped to the boundary directory
+    and does not blind the walk to the rest of the prefix.
+    """
+    owned = tmp_path / "owned"
+    nested = owned / "worktrees" / "wt-1"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    nested_file = nested / "inside.txt"
+    nested_file.write_text("nested content\n", encoding="utf-8")
+    nested_subdir_file = nested / "sub" / "deep.txt"
+    nested_subdir_file.parent.mkdir(parents=True)
+    nested_subdir_file.write_text("deep nested content\n", encoding="utf-8")
+    sibling = owned / "real.md"
+    sibling.write_text("# real\n", encoding="utf-8")
+
+    found = build_all._enumerate_files_under(tmp_path, ("owned/",))
+
+    assert nested_file not in found
+    assert nested_subdir_file not in found
+    assert sibling in found
+
+
+def test_restore_owned_prefixes_never_deletes_git_boundary_contents(
+    tmp_path: Path,
+) -> None:
+    """Defense-in-depth for a future OWNED_PREFIXES entry that covers a
+    directory of nested worktrees: _restore_owned_prefixes's delete pass
+    (case 3: on disk and not in the snapshot -> unlink) must never reach a
+    file inside a directory that is itself a git repository boundary, even
+    in the worst case where the snapshot has nothing for that prefix at
+    all (an empty snapshot, as if the worktree post-dated the baseline).
+
+    Without the .git-boundary skip in _enumerate_files_under and
+    _prune_empty_dirs, this is exactly how a future ``.claude/`` entry in
+    OWNED_PREFIXES would let --check's read-only restore step delete a
+    nested worktree's own working tree (issue #5370).
+
+    Positive control: an ordinary generator-created file under the same
+    prefix, also absent from the snapshot, is still deleted, so the
+    boundary skip does not disable the real cleanup behavior.
+    """
+    owned = tmp_path / "owned"
+    nested = owned / "worktrees" / "wt-1"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    nested_file = nested / "inside.txt"
+    nested_file.write_text("nested content\n", encoding="utf-8")
+    generator_created = owned / "created.md"
+    generator_created.write_text("# generated\n", encoding="utf-8")
+
+    prefixes = ("owned/",)
+    found = build_all._enumerate_files_under(tmp_path, prefixes)
+    assert nested_file not in found
+    assert generator_created in found
+
+    build_all._restore_owned_prefixes(tmp_path, prefixes, snapshot={})
+
+    assert nested_file.is_file()
+    assert nested_file.read_text(encoding="utf-8") == "nested content\n"
+    assert not generator_created.exists()
+
+
 def test_build_agent_catalog_writes_docs_catalog(tmp_path: Path) -> None:
     templates = tmp_path / "templates" / "agents"
     _write_agent_template(templates, "alpha")
@@ -1668,6 +1736,102 @@ def test_snapshot_excludes_ignored_runtime_artifacts(tmp_path: Path) -> None:
     )
     assert audit not in snap
     assert owned_file in snap
+
+
+def test_is_ignored_path_treats_directory_entries_as_prefixes() -> None:
+    """Unit-level pin on the matching rule _snapshot_owned_prefixes relies on.
+
+    ``ignored`` can hold a directory (see :func:`_ignored_paths`), and a
+    path nested under that directory must match even though it is not
+    itself a key in the set. An unrelated path, and a path that merely
+    shares a string prefix without being a real path ancestor, must not.
+    """
+    ignored = {Path("/repo/.claude/worktrees/wt-1")}
+    assert build_all._is_ignored_path(
+        Path("/repo/.claude/worktrees/wt-1"), ignored
+    )  # exact match
+    assert build_all._is_ignored_path(
+        Path("/repo/.claude/worktrees/wt-1/sub/file.txt"), ignored
+    )  # nested under the ignored directory
+    assert not build_all._is_ignored_path(
+        Path("/repo/.claude/worktrees/wt-10/file.txt"), ignored
+    )  # sibling directory, not a real path ancestor
+    assert not build_all._is_ignored_path(
+        Path("/repo/.claude/agents/real.md"), ignored
+    )  # unrelated path
+
+
+def test_snapshot_owned_prefixes_excludes_every_file_under_ignored_worktree(
+    tmp_path: Path,
+) -> None:
+    """A whole ignored directory (a nested worktree) must exclude every file
+    under it, not just a path that matches it exactly.
+
+    ``git ls-files --others --ignored --exclude-standard`` reports a
+    registered git worktree as one ignored *directory* entry, not one entry
+    per file inside it (git's embedded-repository boundary; verified via
+    a real ``git worktree add`` in this fixture). Before this fix,
+    ``_snapshot_owned_prefixes`` matched ``ignored`` with plain set
+    membership, so every file inside the worktree still got read into the
+    snapshot: with dozens of real worktrees that is the OOM in issue #5370.
+
+    Positive control: a non-ignored sibling directory's file is still
+    captured, so the fix is scoped to the ignored directory and does not
+    silently swallow the whole ``.claude/`` prefix.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".gitignore").write_text(
+        ".claude/worktrees/\n", encoding="utf-8"
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "add", ".gitignore"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
+    )
+
+    worktrees = repo / ".claude" / "worktrees"
+    worktrees.mkdir(parents=True)
+    nested_worktree = worktrees / "wt-1"
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "worktree",
+            "add",
+            "-q",
+            str(nested_worktree),
+            "-b",
+            "wt-1-branch",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    nested_file = nested_worktree / "extra.txt"
+    nested_file.write_text("nested worktree content\n", encoding="utf-8")
+    nested_subdir_file = nested_worktree / "sub" / "deep.txt"
+    nested_subdir_file.parent.mkdir(parents=True)
+    nested_subdir_file.write_text("deep nested content\n", encoding="utf-8")
+
+    sibling = repo / ".claude" / "agents" / "real.md"
+    sibling.parent.mkdir(parents=True)
+    sibling.write_text("# real agent\n", encoding="utf-8")
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+
+    assert nested_file not in snapshot
+    assert nested_subdir_file not in snapshot
+    assert not any(
+        nested_worktree in path.parents or path == nested_worktree
+        for path in snapshot
+    )
+    assert sibling in snapshot
 
 
 def test_assert_no_claude_writes_ignores_audit_log_churn(tmp_path: Path) -> None:
