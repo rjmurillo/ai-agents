@@ -54,9 +54,17 @@ _CONFIGURED_SOURCES = (_SOURCE_ARGUMENT, _SOURCE_ARGUMENT_BLANK, _SOURCE_ENVIRON
 class ImporterResolution:
     """Where the importer path came from, and what it is.
 
-    ``path`` is None only when nothing was configured and no default exists on
-    disk. ``source`` names the origin for both error messages and the
-    configured/not-configured decision that drives the exit code.
+    ``path`` is None in two distinct states, so it MUST NOT be read as a
+    not-configured signal:
+
+    - ``source`` is ``_SOURCE_UNSET``: nothing was configured and no default
+      exists on disk. ``is_configured`` is False, and the caller should skip.
+    - ``source`` is ``_SOURCE_ARGUMENT_BLANK``: the caller passed ``--importer``
+      with a blank value. ``is_configured`` is True, and the caller must fail.
+
+    ``is_configured`` is the only correct test for the configured/not-configured
+    decision that drives the exit code. ``source`` additionally names the origin
+    for error messages.
     """
 
     path: Path | None
@@ -66,6 +74,17 @@ class ImporterResolution:
     def is_configured(self) -> bool:
         """True when the caller named a path, so a miss is a real failure."""
         return self.source in _CONFIGURED_SOURCES
+
+
+def is_blank(raw: str) -> bool:
+    """True when a configuration value carries no path.
+
+    Detection only. Callers pass the ORIGINAL string on to resolution, never the
+    stripped view: a POSIX filename may legitimately begin or end with a space,
+    so trimming the value that resolves would execute a different file or report
+    a real importer missing.
+    """
+    return not raw.strip()
 
 
 def expand_home(raw: str, home: Path) -> Path:
@@ -116,13 +135,12 @@ def resolve_importer(
     instruction.
     """
     if explicit is not None:
-        candidate = explicit.strip()
-        if not candidate:
+        if is_blank(explicit):
             return ImporterResolution(None, _SOURCE_ARGUMENT_BLANK)
-        return ImporterResolution(expand_home(candidate, home), _SOURCE_ARGUMENT)
+        return ImporterResolution(expand_home(explicit, home), _SOURCE_ARGUMENT)
 
-    env_value = env.get(IMPORTER_ENV_VAR, "").strip()
-    if env_value:
+    env_value = env.get(IMPORTER_ENV_VAR, "")
+    if not is_blank(env_value):
         return ImporterResolution(expand_home(env_value, home), _SOURCE_ENVIRONMENT)
 
     default = claude_default_importer(home)

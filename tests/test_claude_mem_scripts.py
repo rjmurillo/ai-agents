@@ -218,6 +218,47 @@ class TestResolveImporter:
 
         assert resolution.path == Path("~someone/importer.ts")
 
+    def test_bare_tilde_resolves_to_home(self, tmp_path: Path) -> None:
+        assert _import_mem.expand_home("~", tmp_path) == tmp_path
+
+    def test_backslash_tilde_resolves_against_home(self, tmp_path: Path) -> None:
+        """The `~\\` branch a Windows-style argument reaches."""
+        assert _import_mem.expand_home("~\\importer.ts", tmp_path) == tmp_path / "importer.ts"
+
+    def test_plain_path_is_left_alone(self, tmp_path: Path) -> None:
+        assert _import_mem.expand_home("/opt/importer.ts", tmp_path) == Path("/opt/importer.ts")
+
+    @pytest.mark.parametrize(
+        "raw",
+        [" /opt/spaced.ts", "/opt/spaced.ts ", " /opt/spaced.ts "],
+        ids=["leading", "trailing", "both"],
+    )
+    def test_argument_edge_whitespace_survives_into_the_path(
+        self, raw: str, tmp_path: Path
+    ) -> None:
+        """Blankness is detected with strip(); the resolved path keeps the original."""
+        resolution = _import_mem.resolve_importer(raw, {}, tmp_path)
+
+        assert resolution.path == Path(raw)
+        assert resolution.source == _import_mem._SOURCE_ARGUMENT
+
+    def test_environment_edge_whitespace_survives_into_the_path(self, tmp_path: Path) -> None:
+        raw = " /opt/spaced.ts "
+        env = {_import_mem.IMPORTER_ENV_VAR: raw}
+
+        resolution = _import_mem.resolve_importer(None, env, tmp_path)
+
+        assert resolution.path == Path(raw)
+        assert resolution.source == _import_mem._SOURCE_ENVIRONMENT
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [("", True), ("   ", True), ("\t\n", True), ("/opt/x.ts", False), (" /opt/x.ts ", False)],
+        ids=["empty", "spaces", "tabs-newline", "path", "spaced-path"],
+    )
+    def test_is_blank_detects_only_all_whitespace(self, raw: str, expected: bool) -> None:
+        assert _import_mem.is_blank(raw) is expected
+
     @pytest.mark.parametrize("blank", ["", "   "], ids=["empty", "whitespace"])
     def test_blank_explicit_argument_is_configured_not_unset(
         self, blank: str, tmp_path: Path
