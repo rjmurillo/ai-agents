@@ -60,7 +60,8 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 |---|---|---|
 | 0 | Healthy or within limits | `skill_size.py` prints FAIL lines but exits 0 unless `--ci` |
 | 1 | Logic finding (budget exceeded, CRITICAL_FAIL, over limit in `--ci`) | |
-| 2 | Config error (bad path, bad args) or staleness for `build_all.py --check` | |
+| 2 | Config error (bad path, bad args); for `build_all.py --check`, staleness OR an unreadable file under `OWNED_PREFIXES` (read stderr; only the staleness case is fixed by regenerating) | |
+| 3 | External failure; for `build_all.py --check`, git state unreadable (launch failure, timeout, nonzero exit), not fixed by regenerating | |
 | 10 | Violations found | `scan_principles.py` only |
 
 ### Phase 3: Read the number against the baseline

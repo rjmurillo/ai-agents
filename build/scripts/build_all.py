@@ -1104,6 +1104,9 @@ def _queue_strict_owned_path(
 ) -> Path | None:
     """Queue child directories and return child files for strict snapshots."""
     metadata = _strict_owned_stat(path, missing_root_ok=False)
+    assert metadata is not None, (
+        "missing_root_ok=False guarantees a non-None result or a raise"
+    )
     if stat.S_ISDIR(metadata.st_mode):
         pending.append(path)
         return None

@@ -7,7 +7,7 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -2565,17 +2565,15 @@ def test_run_check_aborts_before_generation_when_owned_file_stat_fails(
     protected.write_text("x = 1\n")
     monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
 
-    real_strict_owned_stat = build_all._strict_owned_stat
+    real_stat = Path.stat
     failed = False
 
-    def flaky_strict_owned_stat(path: Path) -> os.stat_result | None:
+    def flaky_stat(self: Path, *, follow_symlinks: bool = True) -> os.stat_result:
         nonlocal failed
-        if path == protected and not failed:
+        if self == protected and not failed:
             failed = True
-            raise build_all.SnapshotIncompleteError(
-                f"cannot inspect owned path {path}: [Errno 13] denied"
-            )
-        return real_strict_owned_stat(path, missing_root_ok=False)
+            raise PermissionError(13, "denied")
+        return real_stat(self, follow_symlinks=follow_symlinks)
 
     generation_called = False
 
@@ -2584,7 +2582,7 @@ def test_run_check_aborts_before_generation_when_owned_file_stat_fails(
         generation_called = True
         return 0
 
-    monkeypatch.setattr(build_all, "_strict_owned_stat", flaky_strict_owned_stat)
+    monkeypatch.setattr(Path, "stat", flaky_stat)
     monkeypatch.setattr(build_all, "_run_generators", record_generation)
 
     rc = build_all.run(
@@ -2703,17 +2701,15 @@ def test_run_check_aborts_before_generation_when_owned_directory_scan_fails(
     protected.write_text("x = 1\n")
     monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
 
-    real_strict_owned_children = build_all._strict_owned_children
+    real_scandir = os.scandir
     failed = False
 
-    def flaky_strict_owned_children(path: Path) -> list[Path]:
+    def flaky_scandir(path: str | os.PathLike[str]) -> Iterator[os.DirEntry[str]]:
         nonlocal failed
-        if path == owned and not failed:
+        if Path(path) == owned and not failed:
             failed = True
-            raise build_all.SnapshotIncompleteError(
-                f"cannot enumerate owned directory {path}: [Errno 13] denied"
-            )
-        return real_strict_owned_children(path)
+            raise PermissionError(13, "denied")
+        return real_scandir(path)
 
     generation_called = False
 
@@ -2722,9 +2718,7 @@ def test_run_check_aborts_before_generation_when_owned_directory_scan_fails(
         generation_called = True
         return 0
 
-    monkeypatch.setattr(
-        build_all, "_strict_owned_children", flaky_strict_owned_children
-    )
+    monkeypatch.setattr(build_all.os, "scandir", flaky_scandir)
     monkeypatch.setattr(build_all, "_run_generators", record_generation)
 
     rc = build_all.run(
