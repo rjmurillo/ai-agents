@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -12,7 +14,13 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
-from check_zero_collection_tests import main, read_pytest_config
+import check_zero_collection_tests
+from check_zero_collection_tests import (
+    CollectionError,
+    CollectionResult,
+    main,
+    read_pytest_config,
+)
 
 _PYPROJECT = """\
 [tool.pytest.ini_options]
@@ -39,10 +47,149 @@ def _run(root: Path) -> int:
     return main(["--repo-root", str(root)])
 
 
+def _fake_collect_only(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: object,
+    *,
+    returncode: int = 0,
+    stdout: str = "",
+    stderr: str = "",
+) -> None:
+    """Replace the pytest subprocess with one that writes a chosen report payload."""
+
+    def fake_run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        environment = kwargs["env"]
+        assert isinstance(environment, dict)
+        report_path = Path(environment["ZERO_COLLECTION_REPORT"])
+        report_path.write_text(json.dumps(payload), encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=returncode,
+            stdout=stdout,
+            stderr=stderr,
+        )
+
+    monkeypatch.setattr(check_zero_collection_tests.subprocess, "run", fake_run)
+
+
 def test_a_file_pytest_cannot_import_is_reported_as_external(tmp_path: Path) -> None:
     """A broken collection must not read as a clean tree."""
     tests = _make_repo(tmp_path)
     (tests / "test_broken.py").write_text("def test_x(:\n", encoding="utf-8")
+
+    assert _run(tmp_path) == 3
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        (
+            {
+                "candidate_modules": ["tests/test_real.py"],
+                "files": ["tests/test_real.py"],
+                "items": 1,
+                "skipped_modules": [],
+            },
+            CollectionResult(
+                candidates=("tests/test_real.py",),
+                collected=frozenset({"tests/test_real.py"}),
+                skipped=frozenset(),
+            ),
+        ),
+        (
+            {
+                "candidate_modules": [],
+                "files": [],
+                "items": 0,
+                "skipped_modules": [],
+            },
+            CollectionResult(candidates=(), collected=frozenset(), skipped=frozenset()),
+        ),
+        (
+            {
+                "candidate_modules": ["tests/test_skipped.py"],
+                "files": [],
+                "items": 0,
+                "skipped_modules": ["tests/test_skipped.py"],
+            },
+            CollectionResult(
+                candidates=("tests/test_skipped.py",),
+                collected=frozenset(),
+                skipped=frozenset({"tests/test_skipped.py"}),
+            ),
+        ),
+    ],
+)
+def test_parse_collection_report_accepts_well_formed_shapes(
+    payload: dict[str, object], expected: CollectionResult
+) -> None:
+    """Well-formed report payloads stay data, not external failures."""
+    assert check_zero_collection_tests._parse_collection_report(payload) == expected
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        {},
+        {
+            "candidate_modules": ["tests/test_real.py"],
+            "files": ["tests/test_real.py"],
+            "skipped_modules": [],
+        },
+        {
+            "candidate_modules": ["tests/test_real.py"],
+            "files": ["tests/test_real.py"],
+            "items": True,
+            "skipped_modules": [],
+        },
+        {
+            "candidate_modules": ["tests/test_real.py"],
+            "files": [1],
+            "items": 1,
+            "skipped_modules": [],
+        },
+        {
+            "candidate_modules": ["tests/test_real.py"],
+            "files": ["tests/test_real.py"],
+            "items": 1,
+            "skipped_modules": [None],
+        },
+    ],
+)
+def test_parse_collection_report_rejects_malformed_shapes(payload: object) -> None:
+    """Schema errors must surface as collection errors, not KeyError or TypeError."""
+    with pytest.raises(CollectionError):
+        check_zero_collection_tests._parse_collection_report(payload)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        {},
+        {
+            "candidate_modules": ["tests/test_real.py"],
+            "files": [1],
+            "items": 1,
+            "skipped_modules": [],
+        },
+        {
+            "candidate_modules": ["tests/test_real.py"],
+            "files": ["tests/test_real.py"],
+            "items": -1,
+            "skipped_modules": [],
+        },
+    ],
+)
+def test_a_malformed_collection_report_is_reported_as_external(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    payload: object,
+) -> None:
+    """Malformed report JSON shapes must keep the CLI on exit 3."""
+    _make_repo(tmp_path)
+    _fake_collect_only(monkeypatch, payload)
 
     assert _run(tmp_path) == 3
 

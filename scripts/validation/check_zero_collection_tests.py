@@ -138,6 +138,7 @@ _STRIPPED_ENVIRONMENT = (
     "PYTEST_XDIST_WORKER",
     "PYTEST_XDIST_WORKER_COUNT",
 )
+_MISSING = object()
 
 
 class CollectionError(RuntimeError):
@@ -161,6 +162,43 @@ class CollectionResult:
     candidates: tuple[str, ...]
     collected: frozenset[str]
     skipped: frozenset[str]
+
+
+def _read_string_list_field(payload: Mapping[str, object], key: str) -> tuple[str, ...]:
+    """Return one required report field after validating its element type."""
+    value = payload.get(key, _MISSING)
+    if not isinstance(value, list):
+        raise CollectionError(
+            f"pytest wrote malformed collection report: {key} must be a list of strings"
+        )
+    items: list[str] = []
+    for entry in value:
+        if not isinstance(entry, str):
+            raise CollectionError(
+                "pytest wrote malformed collection report: "
+                f"{key} entries must be strings, found {entry!r}"
+            )
+        items.append(entry)
+    return tuple(items)
+
+
+def _parse_collection_report(payload: object) -> CollectionResult:
+    """Validate the report JSON schema before building the collection result."""
+    if not isinstance(payload, Mapping):
+        raise CollectionError(
+            "pytest wrote malformed collection report: top-level JSON value must be an object"
+        )
+    items = payload.get("items", _MISSING)
+    if not isinstance(items, int) or isinstance(items, bool) or items < 0:
+        raise CollectionError(
+            "pytest wrote malformed collection report: items must be a non-negative integer"
+        )
+
+    return CollectionResult(
+        candidates=_read_string_list_field(payload, "candidate_modules"),
+        collected=frozenset(_read_string_list_field(payload, "files")),
+        skipped=frozenset(_read_string_list_field(payload, "skipped_modules")),
+    )
 
 
 def read_pytest_config(repo_root: Path) -> tuple[list[str], list[str]]:
@@ -333,16 +371,17 @@ def collect_files(repo_root: Path, testpaths: Sequence[str]) -> CollectionResult
             )
         try:
             payload = json.loads(report.read_text(encoding="utf-8"))
+            return _parse_collection_report(payload)
         except (OSError, json.JSONDecodeError) as exc:
             raise CollectionError(
                 f"pytest wrote no collection report ({exc}); "
                 f"exit was {completed.returncode}\n{completed.stdout[-2000:]}"
             ) from exc
-    return CollectionResult(
-        candidates=tuple(payload["candidate_modules"]),
-        collected=frozenset(payload["files"]),
-        skipped=frozenset(payload.get("skipped_modules", [])),
-    )
+        except CollectionError as exc:
+            raise CollectionError(
+                f"{exc}\nexit was {completed.returncode}\n"
+                f"{completed.stdout[-2000:]}\n{completed.stderr[-2000:]}"
+            ) from exc
 
 
 def build_report(repo_root: Path) -> Report:

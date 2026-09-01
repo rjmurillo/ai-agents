@@ -44,6 +44,7 @@ GUARD_SCRIPT = "scripts/validation/check_zero_collection_tests.py"
 REQUIRE_JOB_RESULTS_SCRIPT = "scripts/ci/require_job_results.py"
 RUN_PYTEST_SCRIPT = "scripts/ci/run_pytest_selected.py"
 MUTATION_DIRECTORY = "tests/mutation"
+_SHELL_CONTROL_TOKENS = frozenset({"&&", "||", ";", "|", "&"})
 
 # Inherited pytest state would reach the child run as extra options or as a
 # worker identity it must not adopt (`.claude/rules/testing.md` SHOULD 12).
@@ -120,16 +121,22 @@ def _find_python_script_invocation(
     run_value: object, script_path: str
 ) -> list[str] | None:
     """Return the invoking token list when a run line executes ``script_path``."""
-    for tokens in _tokenized_lines(run_value):
-        if len(tokens) >= 2 and _is_python_invocation(tokens[0]) and tokens[1] == script_path:
-            return tokens
-        if (
-            len(tokens) >= 5
-            and tokens[:3] == ["uv", "run", "--frozen"]
-            and _is_python_invocation(tokens[3])
-            and tokens[4] == script_path
-        ):
-            return tokens
+    tokenized = _tokenized_lines(run_value)
+    if len(tokenized) != 1:
+        return None
+
+    tokens = tokenized[0]
+    if any(token in _SHELL_CONTROL_TOKENS for token in tokens):
+        return None
+    if len(tokens) >= 2 and _is_python_invocation(tokens[0]) and tokens[1] == script_path:
+        return tokens
+    if (
+        len(tokens) >= 5
+        and tokens[:3] == ["uv", "run", "--frozen"]
+        and _is_python_invocation(tokens[3])
+        and tokens[4] == script_path
+    ):
+        return tokens
     return None
 
 
@@ -195,6 +202,20 @@ def test_invokes_guard_script_rejects_a_no_op_disguise(run_value: str) -> None:
 def test_invokes_guard_script_accepts_python_and_python3(run_value: str) -> None:
     """The invocation check follows the interpreter basename, not its full path."""
     assert _invokes_guard_script(run_value) is True
+
+
+@pytest.mark.parametrize(
+    "run_value",
+    [
+        f"uv run --frozen python {GUARD_SCRIPT} || true",
+        f"uv run --frozen python {GUARD_SCRIPT}\ntrue",
+    ],
+)
+def test_invokes_guard_script_rejects_swallowed_failures_and_extra_commands(
+    run_value: str,
+) -> None:
+    """The helper must accept only one blocking command line."""
+    assert _invokes_guard_script(run_value) is False
 
 
 def test_the_pre_push_job_running_the_guard_has_no_path_filter() -> None:
