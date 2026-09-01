@@ -119,7 +119,7 @@ Findings table with one row per axis:
 | architect | WARN | selected - risk category | ... | ... |
 | devops | UNKNOWN | skipped - reason from `skipped` | ... | ... |
 
-One row per axis in the step-4 candidate set, then one per local axis: 16 rows with the current set, in the order the axes ran. Each Selection cell reads `always-on`, or `selected / skipped` plus its reason taken verbatim from `selection_reasons` or `skipped`.
+One row per axis in the step-4 candidate set, then one per local axis: 16 rows with the current set. Append one `UNKNOWN` row per `unresolved_axes` entry. Each Selection cell reads `always-on`, or `selected / skipped` plus its reason from `selection_reasons` or `skipped`.
 
 **FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL|UNKNOWN] (from `merge_verdicts`)
 

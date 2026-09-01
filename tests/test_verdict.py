@@ -1,3 +1,5 @@
+# taste-lint: ignore file-size
+# Verdict parsing, local-axis adapters, and legacy helpers share one contract surface.
 """Tests for verdict parsing, merging, and presentation mapping.
 
 Split from test_ai_review.py (issue #1963). Covers get_verdict, merge_verdicts,

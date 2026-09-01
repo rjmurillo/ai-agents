@@ -378,6 +378,8 @@ def select_axes(
         local_selected = set(LOCAL_AXES)
         for axis in canonical_selected | local_selected:
             reasons[axis] = blanket
+        for axis in unresolved_axes:
+            reasons[axis] = _UNRESOLVED_REASON
     else:
         # unresolved_axes is empty on this branch (a demanded axis with no
         # prompt fails closed above), so every demanded axis is a candidate.

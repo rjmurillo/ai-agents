@@ -195,6 +195,8 @@ def _load_json_object(text: str) -> dict[str, object] | None:
 
 def _coerce_nonnegative_int(value: object) -> int | None:
     """Return a non-negative integer field, or None when the value is invalid."""
+    if isinstance(value, bool):
+        return None
     if isinstance(value, int) and value >= 0:
         return value
     return None
@@ -227,7 +229,9 @@ def adapt_local_axis_verdict(
     payload = _load_json_object(output)
 
     if axis == "code-qualities-assessment":
-        if payload is None or "files" not in payload or "summary" not in payload:
+        if payload is None:
+            return "UNKNOWN"
+        if not isinstance(payload.get("files"), list) or not isinstance(payload.get("summary"), dict):
             return "UNKNOWN"
         if exit_code == 0:
             return "PASS"

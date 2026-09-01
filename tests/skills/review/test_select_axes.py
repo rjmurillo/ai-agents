@@ -230,6 +230,15 @@ class TestDemandedAxisWithNoPrompt:
         result = self._partial_run(self._references(tmp_path, self.PARTIAL_SET))
         assert result["unresolved_axes"] == ["code-quality", "reliability"]
 
+    def test_unresolved_axes_carry_fail_closed_reasons(self, tmp_path: Path) -> None:
+        result = self._partial_run(self._references(tmp_path, self.PARTIAL_SET))
+        assert result["selection_reasons"]["code-quality"] == (
+            "selected - fail-closed: a demanded axis has no prompt to load"
+        )
+        assert result["selection_reasons"]["reliability"] == (
+            "selected - fail-closed: a demanded axis has no prompt to load"
+        )
+
     def test_a_missing_demanded_axis_fails_closed(self, tmp_path: Path) -> None:
         candidates = self._references(tmp_path, self.PARTIAL_SET)
         result = self._partial_run(candidates)
@@ -488,6 +497,7 @@ class TestSkillDocumentsTheSelector:
     def test_skill_body_names_the_local_axis_verdict_adapter(self) -> None:
         body = self.SKILL_MD.read_text(encoding="utf-8")
         assert "adapt_local_axis_verdict" in body
+        assert "Append one `UNKNOWN` row per `unresolved_axes` entry." in body
         for axis_line in (
             'doc_accuracy.py> --target . --diff-base "origin/$BASE_BRANCH" --format json',
             'scan_principles.py> --diff-scope "origin/$BASE_BRANCH" --format json',
