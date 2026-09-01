@@ -13,6 +13,7 @@ so existing imports keep working.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -198,40 +199,25 @@ def validate_plugin_version_bump(repo_root: Path) -> bool:
     ))
 
 
-_LEFTHOOK_SHIM_INSTALLER = "scripts/maintenance/install_lefthook_worktree_safe.py"
+def _lefthook_check_command() -> list[str] | None:
+    uv = shutil.which("uv")
+    if uv:
+        return [uv, "run", "--frozen", "lefthook", "version"]
+
+    return None
 
 
 def validate_lefthook_installed(repo_root: Path) -> bool:
-    """Fail when the shared git hook shims are missing or worktree-specific.
+    """Fail when the configured Lefthook runtime cannot start.
 
     CI skips this local-clone check because workflows invoke validation directly.
 
-    Why this stopped calling ``lefthook check-install``
-    ---------------------------------------------------
-    That command answers a different question than its name suggests. Measured
-    against lefthook 2.1.10 on 2026-08-27, in throwaway repositories, exit codes
-    only: it exits 0 after an install and still exits 0 with the entire
-    ``.git/hooks`` directory deleted, and 0 with ``core.hooksPath`` pointed at a
-    nonexistent directory. It exits 1 before any install, when the config is
-    unparseable or absent, and after the config is edited without a reinstall.
-    What it reads is ``$GIT_COMMON_DIR/info/lefthook.checksum``, whose whole
-    content is one line of ``<md5-of-config> <timestamp>``. It never inspects a
-    hook file, so it could not see the defect in issue #4789 and could not see
-    hooks that had been deleted outright either.
-
-    So this gate now reads the hook files themselves, through
-    ``scripts/maintenance/install_lefthook_worktree_safe.py --check``, which owns
-    the shim contract and is the same code that writes it. One authoritative
-    representation, checked by the tool that produces it.
-
-    Stricter than the gate it replaces
-    ----------------------------------
-    The old gate softened to a warning inside a linked worktree (issue #2374) on
-    the reasoning that shared hook storage was outside a worktree's change
-    scope. That leniency protected the wrong party: the hooks are shared, so a
-    worktree's install is exactly what breaks the primary clone, and the primary
-    clone never had the leniency. A worktree-safe shim is correct for every
-    checkout at once, so no checkout needs an exemption and none is granted.
+    The adjacent ``Git Hook Health`` gate proves Git can read the installed
+    pre-push hook. This gate must not call ``lefthook check-install``: that
+    command compares the shared checksum written by the last installing branch,
+    so a sibling branch with different hook config makes another worktree fail
+    even though the native shim resolves Lefthook from the active worktree.
+    Issue #4789.
     """
     if (
         os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
@@ -244,19 +230,30 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
         print("[ERROR] lefthook.yml is absent; installation cannot be verified.", file=sys.stderr)
         return False
 
-    installer = repo_root / _LEFTHOOK_SHIM_INSTALLER
-    if not installer.is_file():
-        raise MissingScriptSkip(f"{_LEFTHOOK_SHIM_INSTALLER} not present")
+    command = _lefthook_check_command()
+    if command is None:
+        print(
+            "[ERROR] uv is unavailable. Lefthook jobs run through uv. "
+            "Install uv, then run: uv sync --frozen --extra dev",
+            file=sys.stderr,
+        )
+        return False
 
     exit_code, stdout, stderr = _run_subprocess(
-        ["python3", str(installer), "--check", "--repo-root", str(repo_root)],
+        command,
         cwd=repo_root,
     )
     if stdout.strip():
         print(stdout.strip())
     if stderr.strip():
         print(stderr.strip(), file=sys.stderr)
-    return bool(exit_code == 0)
+    if exit_code != 0:
+        print(
+            "[FAIL] Lefthook runtime is unavailable. Run: "
+            "uv sync --frozen --extra dev"
+        )
+        return False
+    return True
 
 
 def _add_workflow_paths(repo_root: Path, diff_out: str, changed: list[str]) -> None:

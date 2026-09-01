@@ -34,6 +34,7 @@ BOOTSTRAP_PATH = REPO_ROOT / ".claude" / "lib" / "bootstrap.py"
 
 VM_BOOTSTRAP_PATH = REPO_ROOT / "scripts" / "bootstrap-vm.sh"
 SETUP_ACTION_PATH = REPO_ROOT / ".github" / "actions" / "setup-code-env" / "action.yml"
+LEFTHOOK_CONFIG_PATH = REPO_ROOT / "lefthook.yml"
 
 
 WORKTRUNK_CONFIG_PATH = REPO_ROOT / ".config" / "wt.toml"
@@ -206,29 +207,13 @@ def test_setup_hook_lib_path_is_idempotent(
         sys.path.remove(lib_dir)
 
 
-INSTALLER = "scripts/maintenance/install_lefthook_worktree_safe.py"
-
-
 def test_vm_bootstrap_installs_lefthook_after_dependency_sync() -> None:
     text = VM_BOOTSTRAP_PATH.read_text(encoding="utf-8")
 
     sync = text.index("uv sync --frozen --extra dev")
-    install = text.index(f"uv run --frozen python {INSTALLER}\n")
-    check = text.index(f"uv run --frozen python {INSTALLER} --check")
-    assert sync < install < check
+    install = text.index("uv run --frozen lefthook install --reset-hooks-path")
+    assert sync < install
     assert "git config core.hooksPath" not in text
-
-
-def test_vm_bootstrap_does_not_run_a_bare_lefthook_install() -> None:
-    """A bare install bakes the bootstrapping checkout's .venv into the shared
-    shim, so every freshly bootstrapped VM would start with the blocking
-    ``Lefthook Installed`` pre-PR gate already red (issue #4789)."""
-    for line in VM_BOOTSTRAP_PATH.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            continue
-        assert "lefthook install" not in stripped, stripped
-        assert "lefthook check-install" not in stripped, stripped
 
 
 def test_vm_bootstrap_has_no_bare_apt_get_or_unguarded_dpkg_i() -> None:
@@ -373,6 +358,12 @@ def test_setup_action_preserves_input_and_installs_lefthook_after_dependencies()
     assert "git config core.hooksPath" not in text
 
 
+def test_lefthook_disables_automatic_reinstall() -> None:
+    config = yaml.safe_load(LEFTHOOK_CONFIG_PATH.read_text(encoding="utf-8"))
+
+    assert config["no_auto_install"] is True
+
+
 def test_setup_action_verification_gates_lefthook_on_both_inputs(monkeypatch) -> None:
     """The lefthook check runs only when git hooks and Python are both enabled.
 
@@ -431,19 +422,11 @@ def test_workflows_choose_hook_installation_explicitly() -> None:
     assert missing_input == []
 
 
-def test_worktrunk_post_create_installs_worktree_safe_lefthook_shims() -> None:
-    """A new worktree must not install lefthook's env-probed shim (issue #4789).
-
-    Git shares one hooks directory across every worktree, so a bare
-    ``lefthook install`` from a new worktree points the shared hook at that
-    worktree's own ``.venv`` and breaks every other checkout.
-    """
+def test_worktrunk_post_create_installs_lefthook() -> None:
     text = WORKTRUNK_CONFIG_PATH.read_text(encoding="utf-8")
-    installer = "python scripts/maintenance/install_lefthook_worktree_safe.py"
 
     assert (
-        f'configure-hooks = "uv run --frozen --extra dev {installer} '
-        f'&& uv run --frozen --extra dev {installer} --check"' in text
+        'configure-hooks = "uv run --frozen --extra dev lefthook install '
+        '--reset-hooks-path && uv run --frozen --extra dev lefthook check-install"' in text
     )
-    assert "lefthook install --reset-hooks-path" not in text
     assert "core.hooksPath" not in text

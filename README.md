@@ -503,7 +503,7 @@ If you're contributing code or running tests locally:
    ```
 
 3. Set up environment variables (copy `.env.example` to `.env` and fill in your API keys)
-4. Install Git hooks: `uv run --frozen python scripts/maintenance/install_lefthook_worktree_safe.py`, then verify with the same script and `--check`
+4. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
 5. Run tests to verify setup:
 
    ```bash

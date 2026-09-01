@@ -40,7 +40,7 @@ Thank you for your interest in contributing to this project. This guide explains
 3. **Install Python 3.14.x** (see Prerequisites above)
 4. **Set up Python environment**: `uv sync --frozen --extra dev` (creates `.venv` from `uv.lock` without re-resolving it). This matches the locked environment the pre-push gate and CI use. On managed containers, `scripts/bootstrap-vm.sh` runs this automatically.
 5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
-6. Install Git hooks: `uv run --frozen python scripts/maintenance/install_lefthook_worktree_safe.py`, then verify with the same script and `--check`
+6. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
 7. Make your changes following the guidelines below
 8. Submit a pull request
 
@@ -541,24 +541,17 @@ In rare cases (e.g., emergency hotfix), you may need to skip drift detection:
 Enable automated validation on commits:
 
 ```bash
-uv run --frozen python scripts/maintenance/install_lefthook_worktree_safe.py
-uv run --frozen python scripts/maintenance/install_lefthook_worktree_safe.py --check
+uv run --frozen lefthook install --reset-hooks-path
+uv run --frozen lefthook check-install
 ```
 
-Not a bare `lefthook install`. Git shares one hooks directory across every
-worktree, and lefthook's generated shim bakes in an absolute path probed from
-whichever checkout ran the install, so each install pointed the shared hook at
-one checkout's `.venv` and broke it for all the others (issue #4789). The
-installer above runs `lefthook install --reset-hooks-path` itself, so a stale
-`core.hooksPath` is still cleared, then overwrites the shims with ones naming
-no worktree-specific path. Lefthook reads `lefthook.yml` at runtime, so
-configuration edits do not require another install.
+Lefthook installs shims under Git's hook directory. Linked worktrees share
+those shims through the common Git directory. Lefthook reads `lefthook.yml` at
+runtime, so configuration edits do not require another install.
 
-`pre_pr.py` runs that script's `--check` as the local `Lefthook Installed`
-gate. It reads each declared hook file and reports one that is missing, not
-executable, dispatching no lefthook job, or carrying a machine-bound absolute
-path. CI skips this local-clone check because workflows invoke validation
-directly.
+`pre_pr.py` runs `lefthook check-install` as a local gate. It verifies that the
+pinned binary, `lefthook.yml`, and installed shims are available. CI skips this
+local-clone check because workflows invoke validation directly.
 
 Lefthook filters staged files and runs the named pre-commit validators declared
 in `lefthook.yml`. That file is the authoritative list of local Git hook jobs.
