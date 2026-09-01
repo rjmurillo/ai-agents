@@ -11,7 +11,7 @@ Sits alongside `voice.md`: voice rules are how to communicate. Ethos rules are w
 
 ## Audience And Voice
 
-Every "you" in this file refers to the AI agent processing the request, except in section 4 (Build for Yourself), which describes the human user's posture toward the project. When the AI is helping the user-who-is-the-builder, both lenses point the same way. When the AI is helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
+Every "you" in this file refers to the AI agent processing the request, except in the closing Build for Yourself section, which describes the human user's posture toward the project. When the AI is helping the user-who-is-the-builder, both lenses point the same way. When the AI is helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
 
 ## Precedence Stack
 
