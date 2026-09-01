@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from scripts.ai_review_common import (
+    adapt_local_axis_verdict,
     get_verdict,
     get_verdict_alert_type,
     get_verdict_emoji,
@@ -357,6 +358,50 @@ class TestExtractVerdict:
 
         assert extract_verdict("Verdict: PASS_THROUGH") == "UNKNOWN"
         assert extract_verdict("Verdict: WARN_LATER") == "UNKNOWN"
+
+
+class TestAdaptLocalAxisVerdict:
+    def test_code_quality_pass_requires_parseable_json(self):
+        payload = '{"files": [], "summary": {"file_count": 0}, "comparisons": []}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_code_quality_threshold_breach_maps_to_warn(self):
+        payload = '{"files": [], "summary": {"file_count": 1}, "comparisons": []}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 11) == "WARN"
+
+    def test_doc_accuracy_json_pass_maps_to_pass(self):
+        payload = '{"gate_result": {"verdict": "PASS"}}'
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
+
+    def test_doc_accuracy_summary_fail_maps_to_fail(self):
+        output = "--- Documentation Accuracy Summary ---\nGate: FAIL (threshold: high)\n"
+        assert adapt_local_axis_verdict("doc-accuracy", output, 10) == "FAIL"
+
+    def test_doc_accuracy_did_not_run_maps_to_unknown(self):
+        payload = '{"gate_result": {"verdict": "DID_NOT_RUN"}}'
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 1) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_local_lint_error_maps_to_fail(self, axis):
+        payload = '{"error_count": 1, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 10) == "FAIL"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_local_lint_warning_maps_to_warn(self, axis):
+        payload = '{"error_count": 0, "warning_count": 1}'
+        assert adapt_local_axis_verdict(axis, payload, 0) == "WARN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_local_lint_clean_maps_to_pass(self, axis):
+        payload = '{"error_count": 0, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 0) == "PASS"
+
+    def test_malformed_output_stays_unknown(self):
+        assert adapt_local_axis_verdict("taste-lints", "not json", 0) == "UNKNOWN"
+
+    def test_unknown_axis_raises_value_error(self):
+        with pytest.raises(ValueError):
+            adapt_local_axis_verdict("invented-axis", "{}", 0)
 
 
 # ---------------------------------------------------------------------------
