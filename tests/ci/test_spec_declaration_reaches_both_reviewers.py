@@ -158,3 +158,69 @@ class TestTheDeclarationSplitsTheListForTraceability:
         first_criterion_at = declaration.index("- `uv run python")
 
         assert coverage_at < first_criterion_at
+
+
+class TestUndeclaredRunEvidenceStillReachesTraceability:
+    """The classifier under-fires by design, so the prompt carries these alone.
+
+    `find_nonexecutable_criteria` reads only inline code spans. A criterion
+    naming its command in prose produces no declaration, so nothing in the
+    context tells either reviewer anything about it. Completeness has a
+    standalone rule for that case; traceability's rules were briefly gated on
+    a declaration existing, which left this shape landing in `NOT_COVERED`.
+
+    This pins the premise rather than the prompt text: that these shapes really
+    do arrive with no declaration, which is what makes the standalone rules in
+    `tests/ci/test_spec_trace_prompt_contract.py` load-bearing rather than
+    redundant.
+    """
+
+    @pytest.mark.parametrize(
+        "criterion",
+        [
+            "- [x] All tests pass",
+            "- [x] The build succeeds",
+            "- [x] the full suite is green",
+        ],
+    )
+    def test_prose_run_evidence_produces_no_declaration(
+        self, criterion: str, tmp_path: Path
+    ) -> None:
+        spec_file = tmp_path / "spec.md"
+        spec_file.write_text("content", encoding="utf-8")
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_FILE": str(spec_file),
+            "INCREMENTAL_SCOPE": "",
+            "PR_BODY": f"## Acceptance criteria\n\n{criterion}\n",
+            "GITHUB_OUTPUT": str(out_file),
+        }
+
+        with patch.dict(os.environ, env):
+            assert run() == 0
+
+        context = out_file.read_text(encoding="utf-8")
+
+        assert "## Non-Executable Criteria Declaration" not in context, (
+            f"{criterion!r} produced a declaration. If the classifier now "
+            "catches prose run evidence, the traceability prompt's standalone "
+            "rules are no longer the only thing covering this shape and this "
+            "test should be re-thought rather than deleted."
+        )
+
+    def test_a_code_span_command_does_produce_one(self, tmp_path: Path) -> None:
+        """Control: the absence above is about the shape, not a broken fixture."""
+        spec_file = tmp_path / "spec.md"
+        spec_file.write_text("content", encoding="utf-8")
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_FILE": str(spec_file),
+            "INCREMENTAL_SCOPE": "",
+            "PR_BODY": "## Acceptance criteria\n\n- [x] `pytest` passes\n",
+            "GITHUB_OUTPUT": str(out_file),
+        }
+
+        with patch.dict(os.environ, env):
+            assert run() == 0
+
+        assert "## Non-Executable Criteria Declaration" in out_file.read_text(encoding="utf-8")

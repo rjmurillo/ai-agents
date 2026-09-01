@@ -80,7 +80,7 @@ class TestBothHalvesOfTheSplitSurvive:
         )
 
     def test_the_verdict_is_not_lowered_for_a_skipped_entry(self, section: str) -> None:
-        assert "Do NOT lower the verdict because a run-evidence entry was skipped" in section
+        assert "Do NOT lower the verdict because a run-evidence criterion was skipped" in section
 
     def test_ambiguity_resolves_toward_tracing(self, section: str) -> None:
         """The safe direction here is the opposite of the completeness one.
@@ -90,7 +90,39 @@ class TestBothHalvesOfTheSplitSurvive:
         entry for the same reason, and the prompt says so explicitly so the
         two are not read as contradicting each other.
         """
-        assert "When an entry could be read either way, trace it" in section
+        assert "When a criterion could be read either way, trace it" in section
+
+
+class TestTheRulesStandWithoutADeclaration:
+    """The rules must not be gated on the classifier having fired.
+
+    The classifier reads only inline code spans, which is deliberate and
+    documented. "All tests pass" names its command in prose, so it produces no
+    declaration at all. An earlier version of this section opened with "If the
+    additional context contains a `## Non-Executable Criteria Declaration`",
+    which scoped every rule to declared entries and left that criterion with no
+    instruction covering it, reaching `NOT_COVERED` through the trace path.
+
+    Completeness already had this posture: its run-evidence rule applies to any
+    such claim, and its declaration rule says the list "is a hint, not an
+    override". These assertions hold traceability to the same shape.
+    """
+
+    def test_the_rules_apply_with_or_without_a_declaration(self, section: str) -> None:
+        assert "whether or not a declaration names it" in section
+
+    def test_the_declaration_is_a_hint_not_a_gate(self, section: str) -> None:
+        assert "hint, not an override" in section
+        assert "rule 2 still applies to a criterion it does not name" in section
+
+    def test_the_prose_shape_is_named_as_the_reason(self, section: str) -> None:
+        """The specific shape that motivated this, so it cannot be re-narrowed.
+
+        Naming "All tests pass" pins the case rather than the principle, which
+        is what a later editor tightening the section would otherwise drop.
+        """
+        assert "All tests pass" in section
+        assert "never reaches the declaration" in section
 
 
 class TestTheSectionScopeIsReal:
