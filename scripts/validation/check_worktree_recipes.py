@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Fail when a tracked prescription tells a reader to create a worktree in a bad place.
 
-`.claude/rules/universal.md` MUST NOT 7 states the binding rule verbatim:
+`.claude/rules/universal.md` MUST NOT 6 states the binding rule verbatim:
 
-    7. Git worktrees MUST be external.
+    6. Git worktrees MUST be external.
 
 Two destinations break it, and this repository has paid for both:
 
@@ -78,7 +78,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-RULE_CITATION = ".claude/rules/universal.md MUST NOT 7 (git worktrees MUST be external)"
+RULE_CITATION = ".claude/rules/universal.md MUST NOT 6 (git worktrees MUST be external)"
 
 SCANNED_PREFIXES = (
     ".agents/",

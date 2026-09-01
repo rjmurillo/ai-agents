@@ -351,7 +351,7 @@ def test_the_report_cites_the_rule_and_the_repair_command(tmp_path: Path) -> Non
 
     text = checker.format_report(checker.scan_temp_root(tmp_path, 0, [], git_listing_failed=False))
 
-    assert "MUST NOT 7" in text
+    assert "MUST NOT 6" in text
     assert "git worktree move" in text
 
 
