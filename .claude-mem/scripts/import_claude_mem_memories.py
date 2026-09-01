@@ -165,19 +165,22 @@ def main(
         Path.home() if home is None else home,
     )
 
-    if resolution.path is None:
+    importer = resolution.path
+    if importer is None or not importer.exists():
+        # is_configured, not the absence itself, decides the exit code: a path
+        # the caller named is a real failure, an uninstalled optional plugin is
+        # a supported state.
+        if resolution.is_configured:
+            print(
+                f"ERROR: Claude-Mem importer from {resolution.source} not found at: {importer}",
+                file=sys.stderr,
+            )
+            return 1
         print(
             "SKIP: Claude-Mem plugin not installed. Set "
             f"${IMPORTER_ENV_VAR} or pass --importer to enable importing."
         )
         return 0
-
-    if not resolution.path.exists():
-        print(
-            f"ERROR: Claude-Mem importer from {resolution.source} not found at: {resolution.path}",
-            file=sys.stderr,
-        )
-        return 1
 
     if not _MEMORIES_DIR.exists():
         _MEMORIES_DIR.mkdir(parents=True, exist_ok=True)
@@ -191,7 +194,7 @@ def main(
         return 0
 
     print(f"Importing {len(files)} memory file(s) from .claude-mem/memories/")
-    import_count, failed_files = _run_imports(resolution.path, files)
+    import_count, failed_files = _run_imports(importer, files)
     return _report(import_count, failed_files)
 
 

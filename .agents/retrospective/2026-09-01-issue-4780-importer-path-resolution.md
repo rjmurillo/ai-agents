@@ -173,7 +173,7 @@ Three runs, all against the committed test suite.
 |---|---|---|
 | Whole-change revert | Restore the `origin/main` script | 14 failed, 13 passed. Weak: most failures are `TypeError: main() got an unexpected keyword argument 'env'`, which proves an API change, not a behavior change. |
 | Skip-branch flip | Fixed script, `return 0` changed to `return 1` in the unconfigured-absent branch only | Exactly 1 failed: `test_exits_0_and_skips_when_optional_plugin_absent`, `assert 1 == 0`. Isolates the exit-0 half of the contract. |
-| Over-correction | Fixed script, `return 1` changed to `return 0` in the configured-but-missing branch only | Exactly 2 failed: `test_exits_1_when_explicit_importer_does_not_exist` and `test_exits_1_when_configured_environment_importer_does_not_exist`. Isolates the exit-1 half and proves the fix is not a blanket skip. |
+| Over-correction | Fixed script, `if resolution.is_configured:` forced to `if False:` so the configured branch never fires | Exactly 2 failed: `test_exits_1_when_explicit_importer_does_not_exist` and `test_exits_1_when_configured_environment_importer_does_not_exist`. Kills the discrimination itself rather than one return value, so it proves the tests read the condition and not just the outcome. |
 
 The second and third controls together are what make the claim "the fix changes
 behavior in the intended direction, and only in that direction" falsifiable. The
@@ -181,8 +181,21 @@ first control alone would not have supported it.
 
 ### Session Failures
 
-None escaped to a commit. The `dataclasses` collection error was caught by the
-first test run, before any commit.
+None escaped to the PR. Two were caught in-session:
+
+1. The `dataclasses` collection error, caught by the first test run before any
+   commit.
+2. A self-review escape that reached commit `176e68873`. The first
+   implementation keyed the exit code on `resolution.path.exists()` alone and
+   never called `is_configured` in production, so the property was asserted only
+   by tests. The exit-1 behavior therefore rested on an unstated invariant
+   inside `resolve_importer` (it returns a default only when that default
+   exists) rather than on the contract the code claims to implement. A future
+   edit relaxing that invariant would have silently converted configured
+   failures into skips with no test failing, because the tests exercised the
+   same invariant rather than the condition. Fixed by branching on
+   `is_configured` directly, which also strengthened the over-correction control
+   from "flip a return value" to "disable the discrimination".
 
 ### Successes (Tag: helpful)
 
