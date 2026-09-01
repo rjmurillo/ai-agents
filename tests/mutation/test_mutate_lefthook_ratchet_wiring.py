@@ -44,7 +44,8 @@ def mutation_repo() -> Iterator[Path]:
             True,
         ),
         (
-            "            run: uv run --frozen python scripts/validation/checks_ratchet.py",
+            "            run: uv run --frozen python "
+            "scripts/validation/checks_ratchet.py --skip-merge-tree",
             "            run: echo MUTANT-DELETED",
             True,
         ),

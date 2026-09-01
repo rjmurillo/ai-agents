@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import ast
 import builtins
+import importlib
 import io
 import json
 import os
@@ -869,6 +870,15 @@ _POLICY_SUBCOMMAND_TIMEOUT: dict[str, int] = {
 
 _MINIMUM_MARGIN_SECONDS = 30
 
+# Issue #5441. The two ratchet jobs are not git_hook_policy.py subcommands, so
+# they carry their own inner deadline rather than a table keyed by
+# subcommand: each names one Lefthook job, one Python module, and the
+# attribute on that module holding its own aggregate deadline in seconds.
+_RATCHET_JOB_INNER_DEADLINES: tuple[tuple[str, str, str], ...] = (
+    ("count-ratchets", "scripts.validation.checks_ratchet", "_AGGREGATE_TIMEOUT_SECONDS"),
+    ("merge-tree-ratchet", "scripts.ci.merge_tree_ratchet_check", "_TIMEOUT_SECONDS"),
+)
+
 
 def test_each_python_subprocess_budget_has_lefthook_headroom() -> None:
     """Verify per-child configured budget headroom, not whole-command completion."""
@@ -900,6 +910,24 @@ def test_each_python_subprocess_budget_has_lefthook_headroom() -> None:
                 f"{job_name!r} ({hook_name}): outer={outer_seconds}s, "
                 f"inner={inner_seconds}s, margin={margin}s < {_MINIMUM_MARGIN_SECONDS}s"
             )
+
+    pre_push_jobs = _job_map(config, "pre-push")
+    for job_name, module_name, attr_name in _RATCHET_JOB_INNER_DEADLINES:
+        job = pre_push_jobs[job_name]
+        job_timeout = job["timeout"]
+        assert isinstance(job_timeout, str)
+        outer_seconds = _parse_lefthook_duration(job_timeout)
+
+        module = importlib.import_module(module_name)
+        inner_seconds = getattr(module, attr_name)
+        assert isinstance(inner_seconds, int)
+
+        margin = outer_seconds - inner_seconds
+        assert margin >= _MINIMUM_MARGIN_SECONDS, (
+            f"{job_name!r} (pre-push): outer={outer_seconds}s, "
+            f"inner={inner_seconds}s ({module_name}.{attr_name}), "
+            f"margin={margin}s < {_MINIMUM_MARGIN_SECONDS}s"
+        )
 
 
 def test_configuration_uses_native_filters_scheduling_and_staging() -> None:

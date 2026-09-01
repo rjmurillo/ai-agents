@@ -50,35 +50,22 @@ import checks_ratchet  # noqa: E402
 import pre_pr_sequence  # noqa: E402
 
 _GATE_NAME = "Count Ratchets"
+# Issue #5441: the five merge-tree-backed ratchets (ruff count, taste count,
+# type-ignore count, memory-index count, cli exit contract) no longer appear
+# here. They used to run once here AND again inside merge-tree-ratchet's own
+# subprocess, so a push paid for the same five counts twice. They are now
+# measured exactly once, via validate_count_ratchets' call into
+# scripts/ci/merge_tree_ratchet_check.py (see TestMergeTreeBackstopDelegation
+# below), which is also what the separate merge-tree-ratchet Lefthook job
+# runs standalone.
 _EXPECTED_RATCHETS = (
     ("python-lint-ratchet", "scripts/ci/ruff_ratchet.py", True, False),
-    ("python-lint-count-ratchet", "scripts/ci/ruff_count_ratchet.py", True, True),
-    ("taste-count-ratchet", "scripts/ci/taste_count_ratchet.py", False, True),
-    (
-        "type-ignore-count-ratchet",
-        "scripts/ci/type_ignore_count_ratchet.py",
-        False,
-        True,
-    ),
-    (
-        "memory-index-count-ratchet",
-        "scripts/ci/memory_index_count_ratchet.py",
-        False,
-        True,
-    ),
-    (
-        "cli-exit-contract-ratchet",
-        "scripts/ci/cli_exit_contract_ratchet.py",
-        False,
-        True,
-    ),
     (
         "memory-index-token-ratchet",
         "scripts/ci/memory_index_token_ratchet.py",
         False,
         False,
     ),
-    ("merge-tree-ratchet", "scripts/ci/merge_tree_ratchet_check.py", True, True),
 )
 
 
@@ -121,10 +108,11 @@ class TestAggregateLefthookDelegation:
         assert _real_count_ratchets_job() is not None
 
     def test_aggregate_job_invokes_the_registry_runner(self) -> None:
+        """Issue #5441: --skip-merge-tree hands the backstop to its own job."""
         job = _real_count_ratchets_job()
         assert job is not None
         assert str(job.get("run")) == (
-            "uv run --frozen python scripts/validation/checks_ratchet.py"
+            "uv run --frozen python scripts/validation/checks_ratchet.py --skip-merge-tree"
         )
 
     def test_aggregate_job_is_unconditional(self) -> None:
@@ -132,7 +120,7 @@ class TestAggregateLefthookDelegation:
         assert job is not None
         assert job.get("glob") is None
 
-    def test_registry_contains_all_eight_ratchets(self) -> None:
+    def test_registry_contains_the_two_standalone_ratchets(self) -> None:
         assert tuple(
             (ratchet.job_name, ratchet.script, ratchet.extra_dev, ratchet.uses_base_ref)
             for ratchet in checks_ratchet.RATCHETS
@@ -141,11 +129,6 @@ class TestAggregateLefthookDelegation:
     def test_command_builder_adds_dev_extra_when_required(self) -> None:
         ratchet = next(r for r in checks_ratchet.RATCHETS if r.extra_dev)
         assert "--extra" in checks_ratchet.build_command(ratchet, "origin/main")
-
-    def test_command_builder_adds_base_ref_when_required(self) -> None:
-        ratchet = next(r for r in checks_ratchet.RATCHETS if r.uses_base_ref)
-        command = checks_ratchet.build_command(ratchet, "origin/main")
-        assert command[-2:] == ["--base-ref", "origin/main"]
 
     def test_missing_aggregate_job_is_detected(self) -> None:
         synthetic = {"pre-push": {"jobs": [{"name": "other", "run": "true"}]}}
@@ -174,23 +157,56 @@ class TestAggregateLefthookDelegation:
     def test_main_returns_nonzero_when_a_ratchet_fails(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", lambda _root: False)
+        monkeypatch.setattr(
+            checks_ratchet, "validate_count_ratchets", lambda _root, **_kw: False
+        )
         assert checks_ratchet.main() == 1
 
     def test_main_returns_zero_when_every_ratchet_passes(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", lambda _root: True)
+        monkeypatch.setattr(
+            checks_ratchet, "validate_count_ratchets", lambda _root, **_kw: True
+        )
         assert checks_ratchet.main() == 0
 
     def test_main_returns_config_error_when_uv_is_missing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        def unavailable(_root: Path) -> bool:
+        def unavailable(_root: Path, **_kw: object) -> bool:
             raise checks_ratchet.MissingScriptSkip("uv missing")
 
         monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", unavailable)
         assert checks_ratchet.main() == 2
+
+    def test_main_passes_skip_merge_tree_flag_through(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The Lefthook job's ``--skip-merge-tree`` flag must reach the call."""
+        seen: dict[str, object] = {}
+
+        def record(_root: Path, **kwargs: object) -> bool:
+            seen.update(kwargs)
+            return True
+
+        monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", record)
+        monkeypatch.setattr(checks_ratchet.sys, "argv", ["checks_ratchet.py", "--skip-merge-tree"])
+        assert checks_ratchet.main() == 0
+        assert seen == {"skip_merge_tree": True}
+
+    def test_main_defaults_skip_merge_tree_to_false(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: dict[str, object] = {}
+
+        def record(_root: Path, **kwargs: object) -> bool:
+            seen.update(kwargs)
+            return True
+
+        monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", record)
+        monkeypatch.setattr(checks_ratchet.sys, "argv", ["checks_ratchet.py"])
+        assert checks_ratchet.main() == 0
+        assert seen == {"skip_merge_tree": False}
 
 
 class TestWiredIntoTheSequence:
@@ -230,17 +246,22 @@ class TestValidatorBehaviour:
     """Positive, negative, and edge paths through ``validate_count_ratchets``."""
 
     def test_passes_when_every_ratchet_exits_zero(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Positive: all four green means the gate passes."""
+        """Positive: both standalone ratchets green means the gate passes.
+
+        ``skip_merge_tree=True`` isolates the subprocess-dispatched half this
+        test targets; TestMergeTreeBackstopDelegation below covers the other
+        half.
+        """
         monkeypatch.setattr(
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
         )
         monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
         monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", lambda *_a, **_k: (0, "ok", ""))
-        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
+        assert checks_ratchet.validate_count_ratchets(REPO_ROOT, skip_merge_tree=True) is True
 
     def test_runs_every_declared_ratchet(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Positive: the gate invokes all four, not just the first."""
+        """Positive: the gate invokes both standalone ratchets, not just the first."""
         seen: list[list[str]] = []
         monkeypatch.setattr(
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
@@ -254,7 +275,7 @@ class TestValidatorBehaviour:
             return 0, "", ""
 
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", record)
-        checks_ratchet.validate_count_ratchets(REPO_ROOT)
+        checks_ratchet.validate_count_ratchets(REPO_ROOT, skip_merge_tree=True)
         expected = [
             " ".join(checks_ratchet.build_command(ratchet, base_oid))
             for ratchet in checks_ratchet.RATCHETS
@@ -269,7 +290,10 @@ class TestValidatorBehaviour:
         )
         monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
         monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
-        monotonic_values = iter((100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0))
+        # One monotonic() read for the deadline, then one per RATCHETS entry
+        # (2, after issue #5441 moved the five merge-tree-backed ratchets
+        # out) to compute its remaining_seconds.
+        monotonic_values = iter((100.0, 101.0, 102.0))
         timeouts: list[int] = []
 
         monkeypatch.setattr(checks_ratchet.time, "monotonic", lambda: next(monotonic_values))
@@ -284,8 +308,10 @@ class TestValidatorBehaviour:
 
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", record_timeout)
 
-        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
-        assert timeouts == [84, 83, 82, 81, 80, 79, 78, 77]
+        assert (
+            checks_ratchet.validate_count_ratchets(REPO_ROOT, skip_merge_tree=True) is True
+        )
+        assert timeouts == [59, 58]
 
     def test_fails_when_one_ratchet_exits_nonzero(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -304,7 +330,9 @@ class TestValidatorBehaviour:
             return 0, "", ""
 
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", selective)
-        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is False
+        assert (
+            checks_ratchet.validate_count_ratchets(REPO_ROOT, skip_merge_tree=True) is False
+        )
         captured = capsys.readouterr()
         assert target.job_name in captured.out + captured.err
         assert "count rose from 44 to 45" in captured.out
