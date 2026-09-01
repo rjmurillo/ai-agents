@@ -273,7 +273,9 @@ def declaration_kind(text: str) -> str:
     suppression, which `.claude/rules/code-quality.md` rejects, so it does not
     count as a declaration. Conditional declarations are distinct from
     permanent non-suite declarations: they are valid only when pytest actually
-    skipped the module during collection.
+    skipped the module during collection. If a file carries both, the
+    permanent declaration wins so a later collection cannot hide the stale
+    non-suite declaration.
     """
     try:
         module = ast.parse(text)
@@ -297,10 +299,10 @@ def declaration_kind(text: str) -> str:
                 found_permanent = True
     except tokenize.TokenError:
         return "none"
-    if found_conditional:
-        return "conditional"
     if found_permanent:
         return "permanent"
+    if found_conditional:
+        return "conditional"
     return "none"
 
 

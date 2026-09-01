@@ -385,6 +385,27 @@ def test_a_permanent_declaration_goes_stale_when_a_conditional_module_collects(
     assert "stale declarations" in captured.out
 
 
+def test_a_mixed_declaration_still_goes_stale_when_the_file_collects(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A permanent declaration must win if a file also carries a conditional one."""
+    tests = _make_repo(tmp_path)
+    (tests / "test_optional_dependency.py").write_text(
+        f'"""Was a helper.\n\n{EXEMPTION_MARKER} no longer true.\n"""\n'
+        f"# {CONDITIONAL_SKIP_MARKER} optional dependency is absent on some hosts.\n"
+        f"{_CONDITIONAL_IMPORT_OR_SKIP}",
+        encoding="utf-8",
+    )
+    _make_importable_module(tmp_path, _OPTIONAL_DEPENDENCY)
+
+    exit_code = _run(tmp_path)
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "tests/test_optional_dependency.py" in captured.err
+    assert "stale declarations" in captured.out
+
+
 def test_a_conditional_declaration_does_not_exempt_an_ordinary_zero_collecting_file(
     tmp_path: Path,
 ) -> None:
