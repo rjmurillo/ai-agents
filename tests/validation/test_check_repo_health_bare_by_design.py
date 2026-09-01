@@ -75,7 +75,7 @@ GUARD = _VALIDATION_DIR / "check_repo_health.py"
 
 # The command the gate prints for a genuinely corrupted checkout. No stream may
 # carry it for any layout in this file.
-_REPAIR = "core.bare false"
+_REPAIR = "--replace-all core.bare false"
 
 
 def _git_test_env() -> dict[str, str]:
