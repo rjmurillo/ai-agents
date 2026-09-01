@@ -5,7 +5,7 @@
 - **Date**: 2026-09-01
 - **Agent**: Claude Code (fleet worker, isolated external worktree)
 - **Task Type**: Bug fix (CI reliability), single issue
-- **Outcome**: Success, one commit plus this retrospective
+- **Outcome**: Success. The PR shipped the cancellation guard, the classifier widening, and the retrospective record for Issue #5104.
 
 ## Failure Mode Classification
 
@@ -39,13 +39,14 @@ a run cancels the `analyze` matrix legs before they reach their
 on artifacts that were never uploaded, and GitHub recorded a red check run
 against a head nobody was waiting on.
 
-One commit on `claude/fix-5104-codeql-cancelled-guard`:
+Implementation on `claude/fix-5104-codeql-cancelled-guard`:
 
 - `fix(ci): guard codeql check-blocking-issues against cancelled runs`.
   Swapped `always()` for `!cancelled()` (the substitution PR #5103 applied to
-  the five result-reading aggregators), and widened the classifier in
-  `tests/workflows/test_aggregator_cancellation_guard.py` so the
-  repository-wide sweep covers this job's shape.
+  the five result-reading aggregators), and widened the classifier that
+  powers the repository-wide sweep in
+  `tests/workflows/test_aggregator_cancellation_guard.py` so the sweep
+  covers this job's shape.
 
 ## The interesting part: why the #5097 sweep missed this
 
@@ -69,7 +70,8 @@ red identically under `always()`:
    reached it first, and let `actions/download-artifact` error. That is
    #5104.
 
-The fix that actually closes the class, rather than this one instance, is
+The fix that actually closes the class, rather than this one instance, lives
+in the repository-wide sweep module itself:
 `depends_on_upstream_output = _consumes_dependency_results or
 _consumes_dependency_artifacts`. The sweep now sees both shapes.
 
@@ -130,8 +132,10 @@ until green.
 **Two stale counts fixed on the way past.** The module docstring said
 `MINIMUM_AGGREGATORS_EXAMINED` "reflects the five aggregators this module now
 covers" and a comment read "The five jobs this change converted." Both became
-wrong the moment a sixth was added. Fixed in the same commit rather than left
-as a broken window, since I was editing the lines directly above them.
+wrong once this PR added a sixth guarded aggregator and a seventh examined
+job (`pytest.yml::coverage`, already guarded). Fixed in the same commit rather
+than left as a broken window, since I was editing the lines directly above
+them.
 
 ## Process notes
 
@@ -145,11 +149,22 @@ as a broken window, since I was editing the lines directly above them.
 - No hook bypass used. The retrospective gate blocked the first push, which
   is what produced this file.
 
-## Follow-up
+## Remediation
 
-None required for #5104. One observation for whoever next touches this
-module: the sweep classifies by pattern-matching workflow YAML, so any third
-way a job can depend on upstream work (a `gh run download` in a `run:` block,
-for instance, or a cache restore keyed on an upstream artifact) would be
-invisible to it the same way the artifact shape was. That is not a defect to
-fix speculatively, but it is the shape of the next miss if there is one.
+- [Complete] Issue #5104: workflow guard. Changed
+  `.github/workflows/codeql-analysis.yml::check-blocking-issues` from
+  `always()` to `!cancelled()` so a superseded run stops before the missing
+  SARIF download path can fail red.
+- [Complete] Issue #5104: classifier widening. Updated
+  `tests/workflows/test_aggregator_cancellation_guard.py::depends_on_upstream_output`
+  and `_consumes_dependency_artifacts` in the repository-wide sweep module so
+  the sweep classifies both result-reading aggregators and
+  artifact-consuming aggregators.
+
+## Future observation
+
+The sweep still classifies by pattern-matching workflow YAML, so any third way
+a job can depend on upstream work, such as `gh run download` in a `run:` block
+or a cache restore keyed on an upstream artifact, would be invisible to it the
+same way the artifact shape was. That is not a defect to fix speculatively, but
+it is the shape of the next miss if there is one.
