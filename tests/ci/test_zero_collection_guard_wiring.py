@@ -41,6 +41,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 LEFTHOOK = REPO_ROOT / "lefthook.yml"
 PYTEST_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pytest.yml"
 GUARD_SCRIPT = "scripts/validation/check_zero_collection_tests.py"
+REQUIRE_JOB_RESULTS_SCRIPT = "scripts/ci/require_job_results.py"
+RUN_PYTEST_SCRIPT = "scripts/ci/run_pytest_selected.py"
 MUTATION_DIRECTORY = "tests/mutation"
 
 # Inherited pytest state would reach the child run as extra options or as a
@@ -99,6 +101,44 @@ def _is_python_invocation(token: str) -> bool:
     return os.path.basename(token) in {"python", "python3"}
 
 
+def _tokenized_lines(run_value: object) -> list[list[str]]:
+    tokenized: list[list[str]] = []
+    for line in str(run_value).splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        try:
+            tokens = shlex.split(stripped, comments=True)
+        except ValueError:
+            continue
+        if tokens:
+            tokenized.append(tokens)
+    return tokenized
+
+
+def _find_python_script_invocation(
+    run_value: object, script_path: str
+) -> list[str] | None:
+    """Return the invoking token list when a run line executes ``script_path``."""
+    for tokens in _tokenized_lines(run_value):
+        if len(tokens) >= 2 and _is_python_invocation(tokens[0]) and tokens[1] == script_path:
+            return tokens
+        if (
+            len(tokens) >= 5
+            and tokens[:3] == ["uv", "run", "--frozen"]
+            and _is_python_invocation(tokens[3])
+            and tokens[4] == script_path
+        ):
+            return tokens
+    return None
+
+
+def _contains_token_sequence(tokens: list[str], sequence: list[str]) -> bool:
+    """True when ``sequence`` appears contiguously inside ``tokens``."""
+    width = len(sequence)
+    return any(tokens[index : index + width] == sequence for index in range(len(tokens) - width + 1))
+
+
 def _invokes_guard_script(run_value: object) -> bool:
     """True only when ``run_value`` actually executes the guard script.
 
@@ -109,22 +149,7 @@ def _invokes_guard_script(run_value: object) -> bool:
     ``python`` or ``python3`` token after basename normalization, and that
     the line is not a comment.
     """
-    for line in str(run_value).splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        try:
-            tokens = shlex.split(stripped, comments=True)
-        except ValueError:
-            continue
-        for index, token in enumerate(tokens):
-            if (
-                token == GUARD_SCRIPT
-                and index > 0
-                and _is_python_invocation(tokens[index - 1])
-            ):
-                return True
-    return False
+    return _find_python_script_invocation(run_value, GUARD_SCRIPT) is not None
 
 
 def test_a_named_pre_push_job_runs_the_zero_collection_guard() -> None:
@@ -141,6 +166,7 @@ def test_a_named_pre_push_job_runs_the_zero_collection_guard() -> None:
     "run_value",
     [
         f"echo {GUARD_SCRIPT}",
+        f"echo python {GUARD_SCRIPT}",
         f"# uv run --frozen python {GUARD_SCRIPT}",
         f"echo running {GUARD_SCRIPT} now",
     ],
@@ -247,12 +273,17 @@ def test_the_required_pytest_context_checks_the_guard_result() -> None:
         assert any(
             function in job["if"] for function in ("cancelled()", "always()", "failure()")
         ), f"{job_name}'s if must not rely on the implicit success()-over-needs gate"
-        commands = " ".join(
-            str(step.get("run", "")) for step in job["steps"]
+        matching = [
+            _find_python_script_invocation(step.get("run", ""), REQUIRE_JOB_RESULTS_SCRIPT)
+            for step in job["steps"]
+        ]
+        invocations = [tokens for tokens in matching if tokens is not None]
+        assert len(invocations) == 1, (
+            f"{job_name} must execute {REQUIRE_JOB_RESULTS_SCRIPT} exactly once"
         )
-        assert "ZERO_COLLECTION_RESULT" in commands, (
-            f"{job_name} must check needs.zero-collection-guard.result"
-        )
+        assert _contains_token_sequence(
+            invocations[0], ["--check", "ZERO_COLLECTION_RESULT", "success"]
+        ), f"{job_name} must check needs.zero-collection-guard.result"
 
 
 def test_the_workflow_declares_a_mutation_partition() -> None:
@@ -269,9 +300,11 @@ def test_the_run_pytest_step_passes_the_partition_to_the_runner() -> None:
     ]
 
     assert len(matching) == 1
-    command = str(matching[0]["run"])
-    assert "scripts/ci/run_pytest_selected.py" in command
-    assert "--partition ${{ matrix.partition }}" in command
+    invocation = _find_python_script_invocation(matching[0]["run"], RUN_PYTEST_SCRIPT)
+    assert invocation is not None
+    assert _contains_token_sequence(
+        invocation, ["--partition", "${{", "matrix.partition", "}}"]
+    )
     assert matching[0].get("continue-on-error") is not True
 
 
