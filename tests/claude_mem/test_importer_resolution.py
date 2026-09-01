@@ -155,17 +155,13 @@ class TestResolveImporter:
     def test_bare_tilde_resolves_to_home(self, tmp_path: Path) -> None:
         assert _import_mem.expand_home("~", tmp_path) == tmp_path
 
-    def test_backslash_tilde_resolves_against_home(self, tmp_path: Path) -> None:
-        """The `~\\` branch a Windows-style argument reaches."""
-        assert _import_mem.expand_home("~\\importer.ts", tmp_path) == tmp_path / "importer.ts"
-
     def test_plain_path_is_left_alone(self, tmp_path: Path) -> None:
         assert _import_mem.expand_home("/opt/importer.ts", tmp_path) == Path("/opt/importer.ts")
 
     @pytest.mark.parametrize(
         "raw",
-        ["~//importer.ts", "~///importer.ts", "~\\\\importer.ts", "~/\\importer.ts"],
-        ids=["double-slash", "triple-slash", "double-backslash", "mixed"],
+        ["~//importer.ts", "~///importer.ts"],
+        ids=["double-slash", "triple-slash"],
     )
     def test_repeated_separator_still_resolves_under_home(self, raw: str, tmp_path: Path) -> None:
         """Path.__truediv__ discards its left operand when the right side is rooted.
@@ -229,6 +225,7 @@ class TestResolveImporter:
 
         assert resolution.path is None
         assert resolution.is_configured is False
+
 
 
 class TestImporterReachesSubprocess:

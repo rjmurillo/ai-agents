@@ -42,7 +42,21 @@ EXIT CODES:
   0  - Success, or nothing configured and no plugin installed (skipped)
   1  - A configured importer is missing or unusable, or an import failed
 
-See: ADR-035 Exit Code Standardization
+Intentional deviation from ADR-035: this CLI does NOT follow the standard
+mapping, and callers must not assume it does. ADR-035's Exit Code Reference
+assigns code 2 to "Usage, configuration, or environment error", covering
+"Missing params, invalid args, missing dependencies". Three of this module's
+exit-1 paths fall in that category under the ADR: a blank ``--importer``
+(invalid arg), a configured importer path that does not exist (configuration),
+and a missing ``npx`` (missing dependency). They exit 1 here.
+
+That is deliberate, not an oversight. Issue #4780's acceptance criteria fix the
+contract at two codes, 0 for a supported skip and 1 for a real failure, so that
+a caller can branch on "did the import work" without a third state. Widening to
+2 would change the contract the issue specifies. Revisit only with that issue,
+not as a drive-by conformance fix.
+
+See: ADR-035 Exit Code Standardization (deviation documented above)
 """
 
 from __future__ import annotations
@@ -112,13 +126,36 @@ def is_blank(raw: str) -> bool:
     return not raw.strip()
 
 
-def expand_home(raw: str, home: Path) -> Path:
+def path_separators() -> str:
+    """Characters the running platform accepts as path separators.
+
+    ``os.altsep`` is the standard library's own answer: None on POSIX, and
+    ``"/"`` on Windows where ``os.sep`` is a backslash. Deriving the set from it
+    rather than testing ``os.name`` keeps this correct for any platform the
+    standard library describes, and keeps the backslash out of the set on POSIX,
+    where it is an ordinary filename character rather than a separator.
+    """
+    return os.sep + (os.altsep or "")
+
+
+def expand_home(raw: str, home: Path, *, separators: str | None = None) -> Path:
     """Expand a leading ``~`` against ``home`` instead of the process environment.
+
+    ``separators`` defaults to :func:`path_separators` and exists so both
+    platform behaviors are testable from either platform. Pass ``"/"`` for
+    POSIX or ``"\\\\/"`` for Windows.
 
     Stricter/looser/different than canonical: ``Path.expanduser`` reads the real
     ``HOME`` or ``USERPROFILE`` and the password database, which defeats the
     injected ``home`` this module resolves against and forces tests to mutate
     global state. This expands only the current user's ``~``.
+
+    Separator handling is platform-dependent, and deliberately so. On Windows a
+    backslash separates path segments, so ``~\\importer.ts`` is a tilde path. On
+    POSIX a backslash is a legal filename character, so the same string is a
+    single literal relative filename and expanding it would rewrite a real name
+    into a different path. Only the separators this platform actually recognizes
+    are treated as such, in both the prefix test and the suffix strip.
 
     A ``~otheruser`` prefix is NOT expanded. It is returned unchanged, which
     makes it a RELATIVE path beginning with a literal ``~otheruser`` segment, so
@@ -131,14 +168,14 @@ def expand_home(raw: str, home: Path) -> Path:
 
     The suffix is stripped of further leading separators before joining. Without
     that, ``~//importer.ts`` leaves ``/importer.ts``, and ``Path.__truediv__``
-    discards its left operand when the right side is absolute, so the expansion
-    would silently return ``/importer.ts`` and drop ``home`` entirely. The same
-    holds for a repeated backslash on Windows, where ``\\importer.ts`` is rooted.
+    discards its left operand when the right side is rooted, so the expansion
+    would silently return ``/importer.ts`` and drop ``home`` entirely.
     """
+    seps = path_separators() if separators is None else separators
     if raw == "~":
         return home
-    if raw.startswith(("~/", "~\\")):
-        return home / raw[2:].lstrip("/\\")
+    if raw.startswith(tuple("~" + sep for sep in seps)):
+        return home / raw[2:].lstrip(seps)
     return Path(raw)
 
 

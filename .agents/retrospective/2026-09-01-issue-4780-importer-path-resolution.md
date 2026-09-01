@@ -214,7 +214,7 @@ layer.
 
 | What Almost Failed | Recovery | Learning |
 |--------------------|----------|----------|
-| Nearly invented a Copilot CLI default plugin path beside the Claude one | Checked that no Claude-Mem Copilot plugin exists; shipped one real default plus an override seam instead | A "harness detection" that points at a path you cannot verify is a fabricated claim shipped as code |
+| Nearly invented a Copilot CLI default plugin path beside the Claude one | Checked upstream: Copilot's integration is MCP-only and exposes no default bulk-importer path, so there was nothing to point at. Shipped one real default plus an override seam instead | A "harness detection" that points at a path you cannot verify is a fabricated claim shipped as code |
 | Nearly treated `CLAUDE_MEM_IMPORTER=""` as a configured path | `.strip()` plus a parametrized empty/whitespace test | `VAR=""` is the shell idiom for disabling an inherited value; treating it as configured turns a disable into exit 1 |
 | The `is_configured` escape would have made the race unfalsifiable | Cold self-review before the bot review; Copilot independently reported the same defect against the older SHA | Tests that lean on the same invariant as the code cannot detect that invariant breaking |
 
@@ -416,7 +416,7 @@ without an owner.
 |------|--------|
 | Splitting `MEMORY-MANAGEMENT.md` | Advisory, pre-existing on `main`, and out of scope for a bug fix |
 | Formatting the other `.claude-mem/scripts/*.py` files | Not a gate and not sanctioned: `.claude/rules/python.md` forbids running the formatter or citing its check mode. The right answer was never "format them too", it was "do not run it at all", which I only learned in review |
-| A Copilot CLI default importer path | No Claude-Mem Copilot plugin exists to point at |
+| A Copilot CLI default importer path | Copilot's Claude-Mem integration is MCP-only and exposes no default bulk-importer path, so there is nothing to point at. The importer script does exist upstream; what is missing is an installed Copilot-side path to it |
 
 ### ROTI Assessment
 

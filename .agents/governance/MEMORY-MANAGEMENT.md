@@ -194,7 +194,7 @@ The bulk importer resolves its path from configuration before any harness
 default.
 
 Canonical source: `.claude-mem/scripts/import_claude_mem_memories.py`. The
-resolution order is `resolve_importer` at lines 175 to 188, quoted verbatim:
+resolution order is `resolve_importer` at lines 212 to 225, quoted verbatim:
 
 ```python
     if explicit is not None:
@@ -252,7 +252,7 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py \
 ```
 
 The exit code is decided by `is_configured`, not by the absence itself. From
-`main` in the same file, lines 266 to 281, quoted verbatim:
+`main` in the same file, lines 303 to 318, quoted verbatim:
 
 ```python
     importer = resolution.path
@@ -274,7 +274,7 @@ The exit code is decided by `is_configured`, not by the absence itself. From
 ```
 
 `is_configured` is true only for the argument and environment sources, per the
-tuple at line 69 and the property at lines 92 to 101 of the same file. Both are
+tuple at line 83 and the property at lines 106 to 115 of the same file. Both are
 needed: the property alone does not say which sources count as configured.
 
 ```python
