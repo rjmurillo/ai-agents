@@ -158,7 +158,7 @@ PROSE_MARKERS = (
 NO_SHELL_PROSE_MARKERS = (
     "No surface grants this agent a shell",
     "never through a local command",
-    "Do not route around the missing shell",
+    "Do not delegate the review itself",
 )
 
 # Wording that would put a local git command back in the protocol. These are
