@@ -1,7 +1,7 @@
 ---
 qaVerdict: PASS
 qaSessionLog: .agents/sessions/2026-08-12-session-14695-b2c958770-resolve-issue-4879-doc-accuracy-docs-only.json
-qaCommit: 52a1c5414adef16615fd0027e2c5bbabd3143e5f
+qaCommit: 90d417da80f4002b02a40b81b4b509bbf671d3d1
 ---
 
 # Issue 4879 doc-accuracy validation
@@ -12,7 +12,7 @@ PASS. Docs-only targets now return `DID_NOT_RUN` instead of false missing-symbol
 findings. Source targets still fail when documentation names a missing symbol.
 
 Follow-up validation on commit
-`52a1c5414adef16615fd0027e2c5bbabd3143e5f` passed six focused positive,
+`90d417da80f4002b02a40b81b4b509bbf671d3d1` passed six focused positive,
 negative, and edge tests. The set covers exit codes 0, 1, 2, 3, and 10 and the
 portable-source documentation guard. Scoped Ruff, SkillForge validation, and
 `build/scripts/build_all.py --check` also exited 0.
