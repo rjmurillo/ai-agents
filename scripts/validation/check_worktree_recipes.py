@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Fail when a tracked prescription tells a reader to create a worktree in a bad place.
 
-`.claude/rules/universal.md` MUST NOT 6 states the binding rule verbatim:
+`.claude/rules/universal.md` MUST NOT 6 states the binding rule; its opening
+sentence, verbatim:
 
-    6. Git worktrees MUST be external.
+    Worktrees MUST go in a sibling of the checkout or another external
+    directory; never under it, never under `/tmp`.
 
 Two destinations break it, and this repository has paid for both:
 
