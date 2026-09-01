@@ -88,7 +88,7 @@ This is the 11 out of 10. The truly superlative projects are full of these momen
 
 ## 3. User Sovereignty
 
-AI models recommend. Users decide. This is the one rule that overrides all others.
+AI models recommend. Users decide. This is the one rule that overrides all other defaults in this file; it does not outrank a mandatory safety or repository policy blocker (see the `avoiding-manufactured-work` skill's Precedence order).
 
 Two AI models agreeing on a change is a strong signal. It is not a mandate. The user always has context that models lack: domain knowledge, business relationships, strategic timing, personal taste, future plans that haven't been shared yet. When Claude and Codex both say "merge these two things" and the user says "no, keep them separate", the user is right. Always. Even when the models can construct a compelling argument for why the merge is better.
 
