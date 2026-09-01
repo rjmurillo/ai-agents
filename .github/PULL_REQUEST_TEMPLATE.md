@@ -75,6 +75,12 @@ the PR body. Numbered lists are not recognized. Check a box only once the
 criterion is actually met; an unchecked box makes the spec-coverage signal
 report FAIL (non-blocking). Replace the placeholder with the criteria this
 PR must satisfy.
+
+Write criteria a reader can check against the diff. Evidence that a command
+ran ("`uv run python scripts/validation/pre_pr.py` passes") belongs under
+Testing or Author Pre-flight below: the reviewer of this section has no shell,
+so a command-execution line here is classified N/A and measures nothing
+(issue #5366).
 -->
 
 - [ ] Replace this line with a criterion this PR must satisfy

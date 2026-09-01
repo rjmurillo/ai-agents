@@ -113,6 +113,42 @@ parent issue. Apply these rules:
 If no `## Incremental Scope Declaration` is present, treat all criteria as
 in-scope and apply the normal verdict guidelines below.
 
+## Non-Executable Criteria (fix #5366)
+
+You review a diff. You have no shell, so you cannot run a command, and a
+criterion that asserts how a command turned out is unverifiable by
+construction, not unmet. Marking it `[~] PARTIALLY SATISFIED` fails the whole
+gate closed on every re-run no matter how correct the implementation is,
+because `PARTIAL` is a failure token in `scripts/ai_review_common/verdict.py`.
+
+A criterion is a command-execution claim when it names a runnable command and
+asserts the outcome of running it. Examples: "`uv run python
+scripts/validation/pre_pr.py` passes", "`pytest` exits 0", "`ruff check .` is
+green", "`make build` completes successfully".
+
+Apply these rules:
+
+1. Mark every command-execution claim `N/A`, never `PARTIALLY SATISFIED` and
+   never `NOT SATISFIED`. State the reason in one line: the claim asserts a run
+   you cannot perform.
+2. Evaluate completeness only over the non-N/A criteria, exactly as the
+   Incremental Scope rules above do.
+3. Do NOT emit `PARTIAL` or `FAIL` because a command-execution claim could not
+   be executed.
+4. If the additional context carries a `## Non-Executable Criteria
+   Declaration`, every criterion it lists has already been classified for you;
+   mark each one `N/A`. That list comes from
+   `scripts/ci/spec_nonexecutable_criteria.py`, which is deliberately narrower
+   than rule 1, so rule 1 still applies to a claim the declaration does not
+   name.
+
+This covers only the claim that a command ran and produced a result. It does
+not excuse an unimplemented behavior. "The validator rejects an empty ref" is
+verifiable from the diff and stays in scope even when the PR also claims a test
+run proves it. This repo's PR template puts command evidence under `## Testing`
+and `## Author Pre-flight`; a command-execution line under
+`## Acceptance criteria` is misfiled evidence, not a gap in the implementation.
+
 ## Ontology Coverage (issue #1925)
 
 The specification may carry a domain ontology. The canonical OntologyFragment lives
