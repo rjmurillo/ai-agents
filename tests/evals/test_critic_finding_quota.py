@@ -75,9 +75,10 @@ def test_clean_review_scenario_registered_as_approve() -> None:
         "APPROVE must be the graded choice against a real CHALLENGE alternative, "
         "not the only option."
     )
-    assert scenario["expected_reason_contains"] == "examined", (
-        "The clean-review verdict must turn on the critic stating what it "
-        "examined, matching the 'states what was examined' contract."
+    assert scenario["expected_reason_contains"] == "auth.ts:47", (
+        "The clean-review verdict must turn on the critic citing a concrete "
+        "file-and-line anchor, not a generic 'examined' claim a vacuous reason "
+        "could also satisfy."
     )
 
 

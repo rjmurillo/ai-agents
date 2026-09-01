@@ -93,8 +93,8 @@
         "CHALLENGE",
         "APPROVE"
       ],
-      "expected_reason_contains": "examined",
-      "rationale": "After an exhaustive pass with positive, negative, and sole-caller coverage, no blocker remains. There is no minimum finding count: the critic must approve and state what was examined. Optional nits do not force a CHALLENGE. This clean case guards against a manufactured-finding quota without weakening the planted-defect scenarios above."
+      "expected_reason_contains": "auth.ts:47",
+      "rationale": "After an exhaustive pass with positive, negative, and sole-caller coverage, no blocker remains. There is no minimum finding count: the critic must approve and cite a concrete file-and-line anchor from what it examined. Optional nits do not force a CHALLENGE. This clean case guards against a manufactured-finding quota without weakening the planted-defect scenarios above."
     }
   ]
 }
