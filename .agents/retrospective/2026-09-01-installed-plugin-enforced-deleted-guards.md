@@ -6,9 +6,18 @@
 - **Agents**: Claude Opus 5 (1M context), implementer role, single isolated worktree
 - **Task Type**: Bug
 - **Outcome**: Partial (one of the issue's four asks closed; two need consumer-side discovery)
-- **Failure Mode**: Class 11, customer-facing artifact shipped without runtime
-  verification (`.agents/governance/FAILURE-MODES.md`), compounded by Class 9,
-  confident-incorrectness recurrence
+- **Failure Mode**: None of the eleven in `.agents/governance/FAILURE-MODES.md`
+  fits. An earlier draft claimed Class 11, which is wrong. Class 11 is a
+  generated artifact that ships behaviorally broken because no gate ever ran it
+  under its target host's runtime contract (lines 404 to 425). This artifact
+  executed correctly when it was built and went on executing correctly. The
+  defect is that it stayed installed and kept enforcing a policy retired
+  upstream: a freshness and invalidation gap, not an unexecuted runtime
+  contract. ADR-097 retired the guards and specifies no invalidation step for
+  copies already installed (searched `ADR-097-zero-tool-use-hooks.md` for
+  invalidation, uninstall, installed copy, and stale install; no match). Asks 1
+  and 2 of issue #5085 own that open question. Class 9,
+  confident-incorrectness recurrence, is a real compounding factor and stands.
 
 ## Evidence
 
@@ -108,7 +117,13 @@ reporter's machine.
 | Determine why freshness resolution did not invalidate the stale install | needs a real install to probe | #5085 ask 1 |
 | Decide whether removing a hook should actively invalidate installed copies | architecture, Ask First | #5085 ask 2 |
 | Extend the drift check to the consumer case, which requires an out-of-band signal | blocked on ask 2 | #5085 ask 4 follow-up |
-| Factor the duplicated `_drain_stdin` / `_emit_utf8` hook boilerplate, now in four SessionStart and PreCompact hooks, into `hook_utilities` | unassigned | new issue |
+
+Not a remediation row: `_drain_stdin` and `_emit_utf8` are now duplicated across
+four SessionStart and PreCompact hooks and want factoring into `hook_utilities`.
+An earlier draft listed this with owner "unassigned" and tracking "new issue",
+which is neither an owner nor a link. It is recorded here as an observation
+until someone opens the issue; a remediation row with no tracking reads as
+planned work that nobody is doing.
 
 ## Learnings
 
