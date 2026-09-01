@@ -26,6 +26,7 @@ least one test under pytest --collect-only".
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -93,14 +94,60 @@ def _workflow_steps(job_name: str = "test") -> list[dict[str, Any]]:
     return _workflow_job(job_name)["steps"]
 
 
+def _invokes_guard_script(run_value: object) -> bool:
+    """True only when ``run_value`` actually executes the guard script.
+
+    Copilot review round 11 (PR #5344): ``GUARD_SCRIPT in str(run_value)``
+    matches any occurrence of the path, including ``echo scripts/...`` or a
+    ``# scripts/...`` comment, neither of which runs the guard. This checks,
+    line by line, that the script path is a real shell token preceded by a
+    token ending in ``python`` (covering ``python``, ``python3``, and a full
+    interpreter path), and that the line is not a comment.
+    """
+    for line in str(run_value).splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        try:
+            tokens = shlex.split(stripped, comments=True)
+        except ValueError:
+            continue
+        for index, token in enumerate(tokens):
+            if token == GUARD_SCRIPT and index > 0 and tokens[index - 1].endswith("python"):
+                return True
+    return False
+
+
 def test_a_named_pre_push_job_runs_the_zero_collection_guard() -> None:
     """Local pushes fail on a zero-collecting file before CI ever sees it."""
     matching = [
-        job for job in _pre_push_jobs() if GUARD_SCRIPT in str(job.get("run", ""))
+        job for job in _pre_push_jobs() if _invokes_guard_script(job.get("run", ""))
     ]
 
     assert len(matching) == 1, f"expected one pre-push job running {GUARD_SCRIPT}"
     assert matching[0]["name"] == "zero-collection-tests"
+
+
+@pytest.mark.parametrize(
+    "run_value",
+    [
+        f"echo {GUARD_SCRIPT}",
+        f"# uv run --frozen python {GUARD_SCRIPT}",
+        f"echo running {GUARD_SCRIPT} now",
+    ],
+)
+def test_invokes_guard_script_rejects_a_no_op_disguise(run_value: str) -> None:
+    """Copilot review round 11 (PR #5344): a mention is not an invocation.
+
+    ``GUARD_SCRIPT in run_value`` would have passed all three of these: an
+    ``echo``, a commented-out invocation, and the path embedded in ordinary
+    echoed text. None of them runs the guard.
+    """
+    assert _invokes_guard_script(run_value) is False
+
+
+def test_invokes_guard_script_accepts_the_real_invocation() -> None:
+    assert _invokes_guard_script(f"uv run --frozen python {GUARD_SCRIPT}") is True
 
 
 def test_the_pre_push_job_running_the_guard_has_no_path_filter() -> None:
@@ -114,7 +161,7 @@ def test_the_pre_push_job_running_the_guard_has_no_path_filter() -> None:
     would not notice.
     """
     matching = [
-        job for job in _pre_push_jobs() if GUARD_SCRIPT in str(job.get("run", ""))
+        job for job in _pre_push_jobs() if _invokes_guard_script(job.get("run", ""))
     ]
 
     assert len(matching) == 1, f"expected one pre-push job running {GUARD_SCRIPT}"
@@ -129,7 +176,7 @@ def test_the_workflow_step_running_the_guard_is_blocking() -> None:
     matching = [
         step
         for step in _workflow_steps("zero-collection-guard")
-        if GUARD_SCRIPT in str(step.get("run", ""))
+        if _invokes_guard_script(step.get("run", ""))
     ]
 
     assert len(matching) == 1, f"expected one pytest.yml step running {GUARD_SCRIPT}"
