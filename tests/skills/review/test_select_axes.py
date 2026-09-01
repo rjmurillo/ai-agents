@@ -462,9 +462,8 @@ class TestSkillDocumentsTheSelector:
         """The sidecar's claim about prose routing must match the tree.
 
         Deliberately not pinned to a fixed candidate count: the convergence
-        contract promises that dropping a ``references/{role}.md`` file
-        enrolls an axis with no edit to the skill, so enrolling one that
-        carries the section must not red this suite.
+        contract promises runtime discovery, not zero-edit enrollment, so
+        adding a prompt that carries the section must not red this suite.
         """
         section = "## When This Axis Applies"
         without = {
@@ -483,6 +482,16 @@ class TestSkillDocumentsTheSelector:
         claim = text.split(marker, 1)[1].split(".", 1)[0]
         named = set(re.findall(r"`([a-z0-9-]+)`", claim))
         assert named == without, (named, without)
+
+    def test_skill_body_names_the_local_axis_verdict_adapter(self) -> None:
+        body = self.SKILL_MD.read_text(encoding="utf-8")
+        assert "adapt_local_axis_verdict" in body
+        for axis_line in (
+            'doc_accuracy.py> --target . --diff-base "origin/$BASE_BRANCH" --format json',
+            'scan_principles.py> --diff-scope "origin/$BASE_BRANCH" --format json',
+            'taste_lints.py> --diff-scope "origin/$BASE_BRANCH" --format json',
+        ):
+            assert axis_line in body, axis_line
 
 
 @pytest.mark.parametrize(

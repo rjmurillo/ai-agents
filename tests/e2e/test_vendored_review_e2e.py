@@ -81,11 +81,12 @@ VENDORED_SUBTREE = (
     "skills",
 )
 
-# The 3 chained skill axes /review layers on top of the canonical axes
+# The 4 chained skill axes /review layers on top of the canonical axes
 # (SKILL.md Process step 5). They are not under references/, so they are not
 # counted by the references/*.md glob; they add to the verdict-row total.
 CHAINED_SKILL_AXES = (
     "code-qualities-assessment",
+    "doc-accuracy",
     "golden-principles",
     "taste-lints",
 )
@@ -398,7 +399,7 @@ def test_build_vendored_plugin_excludes_runtime_caches(
 def test_discovered_axis_count_matches_canonical_plus_chained(
     tmp_path: Path,
 ) -> None:
-    """Discovered row count = canonical references/*.md + 3 chained skills.
+    """Discovered row count = canonical references/*.md + 4 chained skills.
 
     Cross-checks against the canonical role list the schema test owns, so this
     test tracks the single source of truth and the row-count assertion in the
@@ -498,3 +499,15 @@ def test_vendored_extract_verdict_loads_and_parses(tmp_path: Path) -> None:
     extract_verdict = load_vendored_extract_verdict(root)
     assert extract_verdict("Final verdict: WARN") == "WARN"
     assert extract_verdict("Final verdict: PASS") == "PASS"
+
+
+def test_vendored_local_axis_adapter_loads_and_maps_doc_accuracy(tmp_path: Path) -> None:
+    """Vendored verdict helper exposes local-axis normalization for /review."""
+    root = build_vendored_plugin(tmp_path / "p")
+    verdict_py = root / ".claude" / "lib" / "ai_review_common" / "verdict.py"
+    spec = importlib.util.spec_from_file_location("vendored_verdict_adapter_e2e", verdict_py)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    payload = json.dumps({"gate_result": {"verdict": "PASS"}})
+    assert module.adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
