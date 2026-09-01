@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import subprocess
 import sys
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -89,6 +91,43 @@ def load_open_prs(repo: str, head_ref: str) -> tuple[int, list[PullRequest]]:
     return EXIT_OK, prs
 
 
+
+def load_open_prs_with_retry(
+    repo: str, head_ref: str, max_attempts: int = 3
+) -> tuple[int, list[PullRequest]]:
+    """Load open PRs, retrying if merge state is UNKNOWN.
+
+    GitHub computes mergeability lazily. On the first query after a push,
+    mergeStateStatus may be UNKNOWN. This function retries the query up to
+    max_attempts times with random delays (10-20 seconds) between attempts,
+    allowing GitHub time to compute mergeability.
+
+    Only returns EXIT_EXTERNAL if all attempts return UNKNOWN.
+    """
+    retry_delay_min = 10
+    retry_delay_max = 20
+
+    for attempt in range(max_attempts):
+        rc, prs = load_open_prs(repo, head_ref)
+
+        # If the call failed (not EXIT_OK), return immediately
+        if rc != EXIT_OK:
+            return rc, prs
+
+        # Check if any PR has UNKNOWN status
+        has_unknown = any(pr.merge_state_status == "UNKNOWN" for pr in prs)
+
+        # If no UNKNOWN or this is the last attempt, return
+        if not has_unknown or attempt == max_attempts - 1:
+            return rc, prs
+
+        # Wait before retrying (random between 10-20 seconds)
+        wait_time = random.randint(retry_delay_min, retry_delay_max)
+        time.sleep(wait_time)
+
+    # Should not reach here, but return the last result just in case
+    return rc, prs
+
 def check_prs(prs: Sequence[PullRequest]) -> int:
     if not prs:
         print("PR merge state: no open PR for this branch.")
@@ -138,7 +177,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("error: --head-ref or GITHUB_REF_NAME is required", file=sys.stderr)
         return EXIT_CONFIG
 
-    rc, prs = load_open_prs(args.repo, args.head_ref)
+    rc, prs = load_open_prs_with_retry(args.repo, args.head_ref)
     if rc != EXIT_OK:
         return rc
     return check_prs(prs)

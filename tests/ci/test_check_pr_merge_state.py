@@ -98,3 +98,56 @@ def test_python_workflow_runs_merge_state_on_branch_pushes():
     assert "github.event_name == 'push'" in workflow
     assert "python scripts/ci/check_pr_merge_state.py" in workflow
     assert "push:\n    branches:\n      - main" not in workflow
+
+
+def test_unknown_pr_retries_and_resolves_to_clean(monkeypatch):
+    """Test that UNKNOWN is retried and eventually resolves to CLEAN."""
+    call_count = 0
+
+    def fake_load_open_prs(repo, head_ref):
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            # First two attempts return UNKNOWN
+            return checker.EXIT_OK, [_pr("UNKNOWN")]
+        # Third attempt returns CLEAN
+        return checker.EXIT_OK, [_pr("CLEAN")]
+
+    # Mock time.sleep so tests run fast
+    def fake_sleep(seconds):
+        pass
+
+    monkeypatch.setattr(checker, "load_open_prs", fake_load_open_prs)
+    monkeypatch.setattr("time.sleep", fake_sleep)
+
+    rc, prs = checker.load_open_prs_with_retry("rjmurillo/ai-agents", "feature")
+
+    assert rc == checker.EXIT_OK
+    assert call_count == 3
+    assert len(prs) == 1
+    assert prs[0].merge_state_status == "CLEAN"
+
+
+def test_unknown_pr_exhausts_retries_and_fails(monkeypatch):
+    """Test that UNKNOWN is retried and fails after exhausting retries."""
+    call_count = 0
+
+    def fake_load_open_prs(repo, head_ref):
+        nonlocal call_count
+        call_count += 1
+        # All attempts return UNKNOWN
+        return checker.EXIT_OK, [_pr("UNKNOWN")]
+
+    # Mock time.sleep so tests run fast
+    def fake_sleep(seconds):
+        pass
+
+    monkeypatch.setattr(checker, "load_open_prs", fake_load_open_prs)
+    monkeypatch.setattr("time.sleep", fake_sleep)
+
+    rc, prs = checker.load_open_prs_with_retry("rjmurillo/ai-agents", "feature")
+
+    assert rc == checker.EXIT_OK
+    assert call_count == 3
+    assert len(prs) == 1
+    assert prs[0].merge_state_status == "UNKNOWN"
