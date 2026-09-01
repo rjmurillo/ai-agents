@@ -183,6 +183,33 @@ def test_a_lone_zero_collecting_file_still_fails(tmp_path: Path) -> None:
     assert _run(tmp_path) == 1
 
 
+def test_a_firstresult_short_circuit_does_not_hide_a_candidate(
+    tmp_path: Path,
+) -> None:
+    """A plugin that already answers ``pytest_pycollect_makemodule`` must not hide a file.
+
+    Copilot review round 10 (PR #5344): ``pytest_pycollect_makemodule`` is a
+    firstresult hook (pytest stops calling further implementations once one
+    returns non-None). This conftest registers a normal-priority
+    implementation that answers for the zero-collecting file itself,
+    reproducing the shape that would silently drop the file from
+    ``candidate_modules`` if this guard's own recorder were a plain
+    (non-wrapper) implementation positioned after it in the call order.
+    """
+    tests = _make_repo(tmp_path)
+    (tests / "conftest.py").write_text(
+        "import pytest\n\n"
+        "def pytest_pycollect_makemodule(module_path, parent):\n"
+        '    if module_path.name == "test_collects_nothing.py":\n'
+        "        return pytest.Module.from_parent(parent, path=module_path)\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+    (tests / "test_collects_nothing.py").write_text(_NO_TESTS, encoding="utf-8")
+
+    assert _run(tmp_path) == 1
+
+
 def test_a_declared_file_is_allowed(tmp_path: Path) -> None:
     """A helper module or a checker script declares itself and passes."""
     tests = _make_repo(tmp_path)

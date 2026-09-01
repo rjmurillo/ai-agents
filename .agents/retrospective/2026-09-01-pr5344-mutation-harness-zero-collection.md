@@ -36,7 +36,7 @@
 
 ## Failure Mode Classification (`.claude/rules/retros.md` MUST 2)
 
-**Class 9: Confident-Incorrectness Recurrence** (`.agents/governance/FAILURE-MODES.md`). The prior session (`22dc5b64`) reached a conclusion from partial signal (the lefthook job "looked like" a duplicate of the pytest.yml CI step) and delivered it with full confidence (a plausible conventional-commit message, "drop duplicate zero-collection pre-push gate") without quoting or citing the canonical evidence that would prove duplication (a failing test, a review comment, or the PR's own "Gate wiring" table, which in fact contradicted the claim). The gap surfaced only after this session's independent verification, matching the class's own trigger: "asserts that it matches/mirrors/duplicates an existing source... without quoting that source verbatim."
+**Class 9: Confident-Incorrectness Recurrence** (`.agents/governance/FAILURE-MODES.md`). The prior session (`22dc5b64`) reached a conclusion from partial signal (the lefthook job "looked like" a duplicate of the pytest.yml CI step) and delivered it with full confidence (a plausible conventional-commit message, "drop duplicate zero-collection pre-push gate") without quoting or citing the canonical evidence that would prove duplication (a failing test, a review comment, or the PR's own "Gate wiring" table, which in fact contradicted the claim). The gap surfaced only after this session's independent verification, matching Class 9's own trigger, quoted verbatim from `FAILURE-MODES.md:290-292`: "asserts that it 'matches', 'mirrors', or 'aligns with' an existing source... without quoting that source verbatim."
 
 ## Remediation (`.claude/rules/retros.md` MUST 4)
 

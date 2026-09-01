@@ -82,17 +82,32 @@ _REPORT_PLUGIN_SOURCE = '''"""Write the files pytest collected tests from to a J
 import json
 import os
 
+import pytest
+
 _candidate_modules = []
 
 
+@pytest.hookimpl(wrapper=True)
 def pytest_pycollect_makemodule(module_path, parent):
-    """Record each Python module pytest decided to collect."""
+    """Record each Python module path pytest walks into.
+
+    ``pytest_pycollect_makemodule`` is a firstresult hook: pytest stops
+    calling further implementations the moment one returns non-None. A
+    plain (non-wrapper) implementation registered after a conftest or
+    plugin that already returns a custom ``Module`` for this path would
+    never run at all, silently dropping that file from
+    ``candidate_modules`` and letting a genuinely zero-collecting file pass
+    this guard by accident. ``wrapper=True`` always runs around the whole
+    chain regardless of firstresult, so this observer sees every candidate
+    the walk considers.
+    """
     try:
         relative = module_path.relative_to(parent.config.rootpath)
     except ValueError:
-        return None
-    _candidate_modules.append(relative.as_posix())
-    return None
+        pass
+    else:
+        _candidate_modules.append(relative.as_posix())
+    return (yield)
 
 
 def pytest_collection_finish(session):
