@@ -194,7 +194,7 @@ The bulk importer resolves its path from configuration before any harness
 default.
 
 Canonical source: `.claude-mem/scripts/import_claude_mem_memories.py`. The
-resolution order is `resolve_importer` at lines 212 to 225, quoted verbatim:
+resolution order is `resolve_importer` at lines 269 to 282, quoted verbatim:
 
 ```python
     if explicit is not None:
@@ -229,17 +229,58 @@ original unstripped string is what resolves, because a POSIX filename may
 legitimately begin or end with a space, and trimming the value that resolves
 would execute a different file or report a real importer missing.
 
-A leading `~` is expanded by `expand_home` against the resolved home rather than
-by `Path.expanduser`, so the expansion does not depend on the process `HOME`.
+A leading `~` is expanded by `expand_home`, not by `Path.expanduser`. The claims
+below are about that function's body, so it is quoted rather than described.
+From `.claude-mem/scripts/import_claude_mem_memories.py`, lines 227 to 236,
+verbatim:
 
-A `~otheruser` prefix is not expanded. It is returned unchanged, which makes it
-a relative path beginning with a literal `~otheruser` segment, so it never
-resolves against a stranger's home. The existence check then runs against
-whatever that relative path resolves to under the process working directory.
-That normally does not exist and the error reports the literal path, but failure
-is not guaranteed: a directory literally named `~otheruser` in the working
-directory would satisfy the check and be executed. This branch is a
-non-expansion, not a rejection, and must not be relied on as one.
+```python
+    mod: PathModule = os.path if pathmod is None else pathmod
+    seps = path_separators(mod)
+    if raw == "~":
+        return home
+    if not raw.startswith(tuple("~" + sep for sep in seps)):
+        return Path(raw)
+    suffix = raw[2:].lstrip(seps)
+    if mod.splitdrive(suffix)[0]:
+        return Path(raw)
+    return home / suffix
+```
+
+with `path_separators` at lines 177 to 178 of the same file:
+
+```python
+    mod: PathModule = os.path if pathmod is None else pathmod
+    return mod.sep + (mod.altsep or "")
+```
+
+Four things follow from the quoted lines.
+
+`Path.expanduser` is never called, so the expansion depends on the `home` passed
+in and not on the process `HOME` or the password database.
+
+What counts as a separator is asked of a standard-library path module, defaulting
+to `os.path`, which IS `posixpath` or `ntpath` for the running platform. A
+backslash is therefore a separator on Windows and an ordinary filename character
+on POSIX, where `altsep` is None. The same argument means two different things on
+the two platforms, deliberately.
+
+A `~otheruser` prefix does not match the `startswith` test, so it falls to
+`return Path(raw)` and is returned unchanged. That makes it a relative path
+beginning with a literal `~otheruser` segment, so it never resolves against a
+stranger's home. The existence check then runs against whatever that relative
+path resolves to under the process working directory. That normally does not
+exist and the error reports the literal path, but failure is not guaranteed: a
+directory literally named `~otheruser` in the working directory would satisfy
+the check and be executed. This branch is a non-expansion, not a rejection, and
+must not be relied on as one.
+
+A suffix still carrying a drive after the `lstrip` takes the same literal return.
+Stripping separators does not make a suffix relative on Windows, where a drive is
+a second anchoring mechanism: `~/D:/x` leaves `D:/x`, and joining that onto
+`home` yields `D:\x`, dropping `home` exactly as a rooted suffix would. On POSIX
+`splitdrive` reports no drive, so `D:` stays an ordinary directory name and the
+path expands normally.
 
 ```bash
 # Point at an importer installed outside the Claude Code plugin root
@@ -252,7 +293,7 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py \
 ```
 
 The exit code is decided by `is_configured`, not by the absence itself. From
-`main` in the same file, lines 303 to 318, quoted verbatim:
+`main` in the same file, lines 360 to 375, quoted verbatim:
 
 ```python
     importer = resolution.path
@@ -274,7 +315,7 @@ The exit code is decided by `is_configured`, not by the absence itself. From
 ```
 
 `is_configured` is true only for the argument and environment sources, per the
-tuple at line 83 and the property at lines 106 to 115 of the same file. Both are
+tuple at line 96 and the property at lines 119 to 128 of the same file. Both are
 needed: the property alone does not say which sources count as configured.
 
 ```python
