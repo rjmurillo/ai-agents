@@ -26,7 +26,7 @@ helper's return value (`.claude/rules/testing.md` MUST 8).
 - edge/marker-mention: prose that mentions the marker is not a declaration
 - edge/ignored: pytest defaults, configured norecursedirs globs, and
   collect_ignore entries do not create false violations
-- edge/config: missing, malformed, or unusable testpaths -> exit 2
+- edge/config: missing, malformed, or unusable testpaths/python_files -> exit 2
 - edge/uncollectable: a file pytest cannot import -> exit 3, not a false pass
 - unit: declares_exemption and read_pytest_config
 """
@@ -355,6 +355,23 @@ def test_a_config_without_testpaths_is_a_configuration_error(tmp_path: Path) -> 
     assert _run(tmp_path) == 2
 
 
+@pytest.mark.parametrize(
+    "pyproject",
+    [
+        '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n',
+        '[tool.pytest.ini_options]\ntestpaths = []\npython_files = ["test_*.py"]\n',
+        '[tool.pytest.ini_options]\ntestpaths = ["tests"]\npython_files = []\n',
+    ],
+)
+def test_missing_or_empty_config_lists_are_configuration_errors(
+    tmp_path: Path, pyproject: str
+) -> None:
+    """The guard needs both config lists, and each must contain at least one entry."""
+    _make_repo(tmp_path, pyproject=pyproject)
+
+    assert _run(tmp_path) == 2
+
+
 def test_malformed_toml_syntax_is_a_configuration_error(tmp_path: Path) -> None:
     """A TOML parse error must map to the documented configuration exit.
 
@@ -434,6 +451,31 @@ python_files = ["test_*.py"]
 def test_a_missing_pyproject_is_a_configuration_error(tmp_path: Path) -> None:
     """No contract to read means no verdict to give."""
     (tmp_path / "tests").mkdir()
+
+    assert _run(tmp_path) == 2
+
+
+@pytest.mark.parametrize(
+    ("testpaths", "python_files"),
+    [
+        ([1], ["test_*.py"]),
+        ([""], ["test_*.py"]),
+        (["tests"], [1]),
+        (["tests"], [""]),
+    ],
+)
+def test_invalid_testpaths_and_python_files_entries_are_configuration_errors(
+    tmp_path: Path,
+    testpaths: list[object],
+    python_files: list[object],
+) -> None:
+    """Non-string and empty-string config entries are configuration errors."""
+    pyproject = (
+        "[tool.pytest.ini_options]\n"
+        f"testpaths = {testpaths!r}\n"
+        f"python_files = {python_files!r}\n"
+    )
+    _make_repo(tmp_path, pyproject)
 
     assert _run(tmp_path) == 2
 

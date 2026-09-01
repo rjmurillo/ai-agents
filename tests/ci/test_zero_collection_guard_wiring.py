@@ -94,6 +94,11 @@ def _workflow_steps(job_name: str = "test") -> list[dict[str, Any]]:
     return _workflow_job(job_name)["steps"]
 
 
+def _is_python_invocation(token: str) -> bool:
+    """Recognize python and python3, even when a full path precedes the script."""
+    return os.path.basename(token) in {"python", "python3"}
+
+
 def _invokes_guard_script(run_value: object) -> bool:
     """True only when ``run_value`` actually executes the guard script.
 
@@ -101,8 +106,8 @@ def _invokes_guard_script(run_value: object) -> bool:
     matches any occurrence of the path, including ``echo scripts/...`` or a
     ``# scripts/...`` comment, neither of which runs the guard. This checks,
     line by line, that the script path is a real shell token preceded by a
-    token ending in ``python`` (covering ``python``, ``python3``, and a full
-    interpreter path), and that the line is not a comment.
+    ``python`` or ``python3`` token after basename normalization, and that
+    the line is not a comment.
     """
     for line in str(run_value).splitlines():
         stripped = line.strip()
@@ -113,7 +118,11 @@ def _invokes_guard_script(run_value: object) -> bool:
         except ValueError:
             continue
         for index, token in enumerate(tokens):
-            if token == GUARD_SCRIPT and index > 0 and tokens[index - 1].endswith("python"):
+            if (
+                token == GUARD_SCRIPT
+                and index > 0
+                and _is_python_invocation(tokens[index - 1])
+            ):
                 return True
     return False
 
@@ -146,8 +155,17 @@ def test_invokes_guard_script_rejects_a_no_op_disguise(run_value: str) -> None:
     assert _invokes_guard_script(run_value) is False
 
 
-def test_invokes_guard_script_accepts_the_real_invocation() -> None:
-    assert _invokes_guard_script(f"uv run --frozen python {GUARD_SCRIPT}") is True
+@pytest.mark.parametrize(
+    "run_value",
+    [
+        f"uv run --frozen python {GUARD_SCRIPT}",
+        f"uv run --frozen python3 {GUARD_SCRIPT}",
+        f"/usr/bin/python3 {GUARD_SCRIPT}",
+    ],
+)
+def test_invokes_guard_script_accepts_python_and_python3(run_value: str) -> None:
+    """The invocation check follows the interpreter basename, not its full path."""
+    assert _invokes_guard_script(run_value) is True
 
 
 def test_the_pre_push_job_running_the_guard_has_no_path_filter() -> None:
