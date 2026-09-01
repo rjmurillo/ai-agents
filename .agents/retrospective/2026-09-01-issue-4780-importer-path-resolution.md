@@ -248,7 +248,7 @@ layer.
 | Register modules in `sys.modules` in the test loader | Add | Without it the test file does not collect |
 | Cite and quote the canonical source in the governance doc | Add | `.agents/governance/**` is bound by `.claude/rules/canonical-source-mirror.md` |
 | Split `MEMORY-MANAGEMENT.md` at the 500-line advisory | Drop | Already firing at 506 lines before this change; splitting a governance document is its own change |
-| Invent a Copilot default importer path | Drop | No such plugin exists to point at |
+| Invent a Copilot default importer path | Drop | The plugin does integrate with Copilot CLI, but only as an MCP installer, so no default bulk-importer path exists to point at |
 
 ### SMART Validation
 
