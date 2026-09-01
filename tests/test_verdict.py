@@ -369,6 +369,10 @@ class TestAdaptLocalAxisVerdict:
         payload = '{"files": [], "summary": {"file_count": 1}, "comparisons": []}'
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 11) == "WARN"
 
+    def test_code_quality_malformed_json_shape_stays_unknown(self):
+        payload = '{"files": null, "summary": null}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
     def test_doc_accuracy_json_pass_maps_to_pass(self):
         payload = '{"gate_result": {"verdict": "PASS"}}'
         assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
@@ -380,6 +384,9 @@ class TestAdaptLocalAxisVerdict:
     def test_doc_accuracy_did_not_run_maps_to_unknown(self):
         payload = '{"gate_result": {"verdict": "DID_NOT_RUN"}}'
         assert adapt_local_axis_verdict("doc-accuracy", payload, 1) == "UNKNOWN"
+
+    def test_doc_accuracy_non_object_json_stays_unknown(self):
+        assert adapt_local_axis_verdict("doc-accuracy", "[]", 0) == "UNKNOWN"
 
     @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
     def test_local_lint_error_maps_to_fail(self, axis):
@@ -395,6 +402,16 @@ class TestAdaptLocalAxisVerdict:
     def test_local_lint_clean_maps_to_pass(self, axis):
         payload = '{"error_count": 0, "warning_count": 0}'
         assert adapt_local_axis_verdict(axis, payload, 0) == "PASS"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_bool_counts_stay_unknown(self, axis):
+        payload = '{"error_count": false, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_missing_lint_counts_stay_unknown(self, axis):
+        payload = '{"error_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
 
     def test_malformed_output_stays_unknown(self):
         assert adapt_local_axis_verdict("taste-lints", "not json", 0) == "UNKNOWN"
