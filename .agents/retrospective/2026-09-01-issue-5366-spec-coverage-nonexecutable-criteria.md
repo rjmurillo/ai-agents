@@ -10,8 +10,8 @@
 ## What shipped
 
 Two commits on `claude/fix-5366-spec-coverage-nonexecutable` carried the
-initial implementation. Ten review rounds then reshaped the classifier's
-precision boundary before merge; those are rows 4 through 16 of the
+initial implementation. Eleven review rounds then reshaped the classifier's
+precision boundary before merge; those are rows 4 through 21 of the
 Remediation table below, and they define the shipped behavior as much as these
 two do:
 
@@ -100,18 +100,18 @@ validation.
 
 ## Evidence
 
-Final state, re-run after the tenth review round. Earlier rounds' numbers are
+Final state, re-run after the eleventh review round. Earlier rounds' numbers are
 kept below them so the progression stays readable, marked as intermediate.
 
 Counts are recorded per file rather than only as a total, because the total
 moved every round as files were added and a single number gave no way to tell
 which suite had changed.
 
-- The thirteen-file command over this feature and its neighbours: 404 passed,
+- The thirteen-file command over this feature and its neighbours: 411 passed,
   11 skipped.
 - Per file: detector 68, context integration 14, completeness prompt contract
-  13, traceability prompt contract 7, workflow wiring 5, declaration reaches
-  both reviewers 7, context redaction 7. Feature total 121.
+  13, traceability prompt contract 10, workflow wiring 5, declaration reaches
+  both reviewers 11, context redaction 7. Feature total 128.
 - `uv run --frozen python scripts/validation/pre_pr.py`: `RESULT: All
   validations passed`.
 - `TestDoesNotOverFire` carries 29 criteria a reviewer can check from the diff
@@ -177,13 +177,20 @@ joined the command and before the review rounds added cases.
 | 18 | Drop `then` from the accepted command prefix, so a Given/When/Then consequence is not classified as run evidence | PR #5451 | Shipped (review round 9) |
 | 19 | Split the declaration for traceability, so pure run evidence is skipped rather than traced to `NOT_COVERED` | PR #5451 | Shipped (review round 10) |
 | 20 | Redact the whole body before classification, so truncation cannot split a token past the redactor | PR #5451 | Shipped (review round 10) |
+| 21 | Make the traceability run-evidence rules stand without a declaration, so a prose claim the classifier never sees is not traced to `NOT_COVERED` | PR #5451 | Shipped (review round 11) |
 
-No tracking issue is open against this work. Items 4 through 20 came from ten
+No tracking issue is open against this work. Items 4 through 21 came from eleven
 review rounds on PR #5451 (Devin and Copilot, independently, on the same
 seams) and shipped in the same PR rather than as follow-ups.
 
-Rows 19 and 20 are the last two structural gaps: the traceability path and the
-redaction ordering. Rows after round 8 were increasingly citation drift rather
+Rows 19 to 21 close the traceability path and the redaction ordering. Row 21
+is the second half of row 19 and worth reading together with it: row 19 taught
+traceability what to do with a declared run-evidence entry, and row 21 removed
+the condition that the entry be declared at all. The classifier under-fires by
+design on prose commands, so a rule that only covered declared entries left
+"All tests pass" landing in `NOT_COVERED`, which is issue #5366 arriving
+through the trace verdict instead of the completeness one. Completeness had
+carried a standalone rule since round 6; traceability did not until row 21. Rows after round 8 were increasingly citation drift rather
 than defects in the classifier, which is recorded in the Delta below as a
 coordination artifact rather than a code-quality signal.
 
