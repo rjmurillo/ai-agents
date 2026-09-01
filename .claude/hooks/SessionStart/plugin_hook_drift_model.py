@@ -35,22 +35,13 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from plugin_hook_drift_safety import (
     command_unit,
+    path_token,
     sanitize_label,
 )
-
-# Bounds on the on-disk scan. Session start is not the place for an unbounded
-# walk: a marketplace clone can carry a full node_modules tree. Depth 5 reaches
-# `plugins/marketplaces/<marketplace>/src/copilot-cli`, the deepest plugin root
-# this repository publishes.
-MAX_SCAN_DEPTH = 5
-MAX_SCAN_DIRS = 4000
-PRUNED_DIR_NAMES = frozenset({".git", "node_modules", "__pycache__", ".venv", "venv"})
-
 
 PLUGIN_MANIFEST_REL = Path(".claude-plugin") / "plugin.json"
 HOOKS_MANIFEST_REL = Path("hooks") / "hooks.json"
@@ -75,7 +66,6 @@ CLAUDE_SCHEMA = "claude"
 COPILOT_SCHEMA = "copilot"
 
 
-
 def read_plugin_name(root: Path) -> str | None:
     """Read a plugin root's declared ``name``; None when absent or malformed.
 
@@ -84,11 +74,25 @@ def read_plugin_name(root: Path) -> str | None:
     be the cheapest denial-of-service surface in the hook: a single oversized
     `plugin.json` anywhere under the scanned trees would be loaded in full.
     """
-    data, _ = _read_json_object(root / PLUGIN_MANIFEST_REL)
+    name, _ = read_plugin_identity(root)
+    return name
+
+
+def read_plugin_identity(root: Path) -> tuple[str | None, bool]:
+    """``(declared name, unreadable)`` for one candidate plugin root.
+
+    ``unreadable`` separates "there is no plugin manifest here, so this is not
+    a plugin root" from "there is one and this hook could not read it". The
+    second is not a clean skip: an oversized or corrupt `plugin.json` on the
+    real install would otherwise drop that install from the scan silently, and
+    the message would go on to claim no installed copy exists.
+    """
+    data, error = _read_json_object(root / PLUGIN_MANIFEST_REL)
     if data is None:
-        return None
+        missing = bool(error and error.startswith("no hook manifest"))
+        return None, not missing
     name = data.get("name")
-    return name if isinstance(name, str) and name else None
+    return (name if isinstance(name, str) and name else None), False
 
 
 def _matcher_text(entry: dict[str, object]) -> str | None:
@@ -337,8 +341,15 @@ def copilot_registrations(hooks: object) -> set[tuple[str, str, str]] | None:
     entry and yields the empty set, so every stale Copilot install compared
     clean.
 
-    The PowerShell twin is deliberately not read; it launches the same script
-    and would double every unit.
+    Stricter/looser/different than canonical: `parse_copilot_hooks` reads only
+    `bash` and ignores the PowerShell twin, because validating both would
+    report every violation twice. This reads `bash` and falls back to
+    `powershell` when `bash` is absent, on purpose: the canonical parser is
+    checking the repository's own generated manifest, where `bash` is always
+    present, while this compares an arbitrary installed copy that may ship
+    only the PowerShell launcher. Falling back finds a stale hook that
+    ignoring PowerShell would miss. The two are never read together, so no
+    unit is doubled.
     """
     if not isinstance(hooks, dict):
         return None
@@ -376,12 +387,13 @@ def _read_json_object(path: Path) -> tuple[dict[str, object] | None, str | None]
         with path.open("rb") as handle:
             raw = handle.read(MAX_MANIFEST_BYTES + 1)
     except FileNotFoundError:
-        return None, f"no hook manifest at {path}"
+        return None, f"no hook manifest at {path_token(path)}"
     except OSError as exc:
-        return None, f"unreadable hook manifest {path}: {type(exc).__name__}: {exc}"
+        return None, (f"unreadable hook manifest {path_token(path)}: {type(exc).__name__}")
     if len(raw) > MAX_MANIFEST_BYTES:
         return None, (
-            f"hook manifest {path} exceeds the {MAX_MANIFEST_BYTES}-byte ceiling; not compared"
+            f"hook manifest {path_token(path)} exceeds the "
+            f"{MAX_MANIFEST_BYTES}-byte ceiling; not compared"
         )
     # Broad by intent, and scoped to this one call. A deeply nested document
     # raises RecursionError, which is not a ValueError, so it escaped to the
@@ -392,9 +404,9 @@ def _read_json_object(path: Path) -> tuple[dict[str, object] | None, str | None]
     try:
         data = json.loads(raw.decode("utf-8"))
     except Exception as exc:
-        return None, f"unreadable hook manifest {path}: {type(exc).__name__}: {exc}"
+        return None, (f"unreadable hook manifest {path_token(path)}: {type(exc).__name__}")
     if not isinstance(data, dict):
-        return None, f"hook manifest {path} is not a JSON object"
+        return None, f"hook manifest {path_token(path)} is not a JSON object"
     return data, None
 
 
@@ -424,7 +436,7 @@ def read_registrations(
 
     if found is None:
         return None, (
-            f"hook manifest {manifest} has a malformed 'hooks' mapping, "
+            f"hook manifest {path_token(manifest)} has a malformed 'hooks' mapping, "
             f"an unresolvable dispatch group, or more than {MAX_REGISTRATIONS} registrations"
         )
     return found, None
@@ -438,56 +450,3 @@ def root_registrations(
         root / HOOKS_MANIFEST_REL, schema=schema, dispatch=root / DISPATCH_MANIFEST_REL
     )
 
-
-@dataclass(slots=True)
-class ScanBudget:
-    """Directory-visit budget for one bounded walk, and whether it ran out.
-
-    Exhausting the budget has to reach the reader. A walk that stopped early
-    may never have visited the stale install this hook exists to name, and
-    reporting that as "matches" or "no installed copy found" is precisely the
-    false-clean verdict the check is meant to prevent. Truncation is therefore
-    an outcome the caller reads, not an early ``return`` the caller cannot see.
-    """
-
-    # Read at construction, not at class creation, so the bound stays one
-    # number that tests and callers can lower.
-    remaining: int = field(default_factory=lambda: MAX_SCAN_DIRS)
-    truncated: bool = False
-
-    def spend(self) -> bool:
-        """Consume one directory visit; False once the budget is exhausted."""
-        if self.remaining <= 0:
-            self.truncated = True
-            return False
-        self.remaining -= 1
-        return True
-
-
-@dataclass(frozen=True, slots=True)
-class InstallReport:
-    """Comparison of one installed copy against its source manifest."""
-
-    surface: str
-    install_path: Path
-    only_in_install: tuple[str, ...]
-    only_in_source: tuple[str, ...]
-    error: str | None
-
-    @property
-    def has_drift(self) -> bool:
-        return bool(self.only_in_install or self.only_in_source or self.error)
-
-
-@dataclass(frozen=True, slots=True)
-class ScanOutcome:
-    """Everything one pass over the install trees established, and did not.
-
-    ``incomplete`` names each search root whose walk hit ``MAX_SCAN_DIRS``.
-    While it is non-empty, no verdict in ``reports`` is a statement about the
-    whole tree.
-    """
-
-    reports: list[InstallReport] = field(default_factory=list)
-    notes: list[str] = field(default_factory=list)
-    incomplete: list[str] = field(default_factory=list)

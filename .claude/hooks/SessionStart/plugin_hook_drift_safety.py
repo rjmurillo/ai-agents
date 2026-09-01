@@ -40,6 +40,15 @@ _UNSAFE_LABEL_CHARS = re.compile(r"[^A-Za-z0-9._/@:+= -]")
 _SAFE_TOKEN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 _SCRIPT_IN_COMMAND = re.compile(r"[A-Za-z0-9._/\\-]+\.(?:py|sh|ps1)")
 
+# Shape allowlists for the fields that are rendered as themselves. Every one
+# forbids whitespace, which is the property that matters: a value that cannot
+# contain a space cannot carry an English sentence, whatever characters it
+# uses. Filtering by character class alone does not achieve this, because
+# letters and spaces are both perfectly ordinary characters in a hook name.
+EVENT_SHAPE = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,63}$")
+MATCHER_SHAPE = re.compile(r"^[A-Za-z0-9._|*,:-]{1,64}$")
+SCRIPT_NAME_SHAPE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
 def sanitize_label(text: object, limit: int = MAX_LABEL_CHARS) -> str:
     """Reduce untrusted manifest text to inert, length-capped label characters."""
     collapsed = " ".join(str(text).split())
@@ -47,6 +56,30 @@ def sanitize_label(text: object, limit: int = MAX_LABEL_CHARS) -> str:
     if len(scrubbed) <= limit:
         return scrubbed
     return scrubbed[:limit] + "[truncated]"
+
+
+def redacted(text: object, shape: re.Pattern[str], kind: str) -> str:
+    """Return ``text`` when its shape cannot carry prose, else a digest.
+
+    This is the one rule that closes CWE-74 for this hook, and it replaced
+    three site-specific patches. `sanitize_label` bounds the character set and
+    the length, which is not the same thing as bounding the meaning: "Ignore
+    all previous instructions" is made entirely of allowlisted characters and
+    survives character filtering unchanged. A field is therefore rendered as
+    itself only when it matches a whitespace-free shape for that field, and
+    anything else, which is exactly the free-form case an attacker would use,
+    collapses to a stable digest that still distinguishes two installs.
+
+    An empty value renders as empty: it says nothing, so it can inject
+    nothing.
+    """
+    collapsed = " ".join(str(text).split())
+    if not collapsed:
+        return ""
+    if shape.match(collapsed):
+        return collapsed
+    digest = hashlib.sha256(collapsed.encode("utf-8", "replace")).hexdigest()[:12]
+    return f"{kind} (sha256:{digest})"
 
 
 def command_unit(command: str) -> str:

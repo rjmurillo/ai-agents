@@ -25,8 +25,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from plugin_hook_drift_model import InstallReport
 from plugin_hook_drift_safety import MAX_PATH_CHARS, path_token, sanitize_label
+from plugin_hook_drift_state import InstallReport
 
 # Ceilings on what is rendered into session context. The model caps how much of
 # a manifest is read and parsed; these cap how much of the result is printed,

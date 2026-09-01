@@ -76,28 +76,31 @@ if _hook_dir not in sys.path:
     sys.path.insert(0, _hook_dir)
 
 from plugin_hook_drift_model import (  # noqa: E402
-    # E402 wants imports before statements. This one cannot move: the sibling
-    # module is only importable after the sys.path insert above, and there is
-    # no fallback worth writing (without the model there is no check to run).
-    # Same bootstrap shape as `.claude/hooks/PreToolUse/_bootstrap.py:10-11`.
     CLAUDE_SCHEMA,
     COPILOT_SCHEMA,
-    MAX_SCAN_DEPTH,
-    MAX_SCAN_DIRS,
-    PRUNED_DIR_NAMES,
-    InstallReport,
-    ScanBudget,
-    ScanOutcome,
-    read_plugin_name,
+    read_plugin_identity,
     root_registrations,
 )
 from plugin_hook_drift_report import (  # noqa: E402
     format_message,
 )
 from plugin_hook_drift_safety import (  # noqa: E402
+    EVENT_SHAPE,
+    MATCHER_SHAPE,
     MAX_PATH_CHARS,
     path_token,
+    redacted,
     sanitize_label,
+)
+from plugin_hook_drift_state import (  # noqa: E402
+    DIRECTORY_UNREADABLE,
+    ENTRY_CEILING_REACHED,
+    MAX_SCAN_DEPTH,
+    PLUGIN_MANIFEST_UNREADABLE,
+    PRUNED_DIR_NAMES,
+    InstallReport,
+    ScanBudget,
+    ScanOutcome,
 )
 
 try:
@@ -198,10 +201,10 @@ def _bounded_children(directory: Path, budget: ScanBudget) -> list[Path]:
         # concurrent removal) is not an empty subtree. Returning [] silently
         # would let an unreadable directory hide a stale install while the
         # message still claimed every copy matched.
-        budget.truncated = True
+        budget.stop(DIRECTORY_UNREADABLE)
         return []
     if len(taken) > MAX_ENTRIES_PER_DIR:
-        budget.truncated = True
+        budget.stop(ENTRY_CEILING_REACHED)
         taken = taken[:MAX_ENTRIES_PER_DIR]
     return sorted(taken)
 
@@ -231,7 +234,10 @@ def find_installed_roots(
         if not budget.spend():
             break
         current, depth = queue.popleft()
-        if read_plugin_name(current) == plugin_name:
+        name, unreadable = read_plugin_identity(current)
+        if unreadable:
+            budget.stop(PLUGIN_MANIFEST_UNREADABLE)
+        if name == plugin_name:
             found.append(current)
             continue
         if depth >= MAX_SCAN_DEPTH:
@@ -244,9 +250,16 @@ def find_installed_roots(
 
 
 def _describe(triples: set[tuple[str, str, str]]) -> tuple[str, ...]:
-    """Render units as stable lines, with every field already sanitized."""
+    """Render units as stable lines, every field redacted by shape.
+
+    Event and matcher come from the installed manifest, so they are rendered
+    only when their shape cannot carry prose. Character filtering is not
+    enough here: an event named "Ignore all previous instructions" is made
+    entirely of allowlisted characters.
+    """
     return tuple(
-        f"{sanitize_label(event, 40)} (matcher {sanitize_label(matcher, 40)!r}): {unit}"
+        f"{redacted(event, EVENT_SHAPE, 'event')} "
+        f"(matcher {redacted(matcher, MATCHER_SHAPE, 'matcher')!r}): {unit}"
         for event, matcher, unit in sorted(triples)
     )
 
@@ -284,7 +297,7 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
     outcome = ScanOutcome()
     for surface in plugin_surfaces(home):
         source_root = project_dir / surface.source_rel
-        plugin_name = read_plugin_name(source_root)
+        plugin_name, _ = read_plugin_identity(source_root)
         if plugin_name is None:
             outcome.notes.append(f"{surface.label}: no readable plugin manifest at {source_root}")
             outcome.incomplete.append(f"{surface.label}: not searched (source plugin unreadable)")
@@ -301,10 +314,8 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
                     compare_install(surface.label, install_path, source, surface.schema)
                 )
             if budget.truncated:
-                outcome.incomplete.append(
-                    f"{surface.label}: {search_root} "
-                    f"(stopped at the {MAX_SCAN_DIRS}-directory scan bound)"
-                )
+                causes = "; ".join(sorted(budget.reasons))
+                outcome.incomplete.append(f"{surface.label}: {search_root} ({causes})")
     return outcome
 
 
