@@ -33,11 +33,15 @@ Refs: issue #5085.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
+
+from plugin_hook_drift_safety import (
+    command_unit,
+    sanitize_label,
+)
 
 # Bounds on the on-disk scan. Session start is not the place for an unbounded
 # walk: a marketplace clone can carry a full node_modules tree. Depth 5 reaches
@@ -52,13 +56,6 @@ PLUGIN_MANIFEST_REL = Path(".claude-plugin") / "plugin.json"
 HOOKS_MANIFEST_REL = Path("hooks") / "hooks.json"
 DISPATCH_MANIFEST_REL = Path("hooks") / "dispatch_groups.json"
 
-# Output caps. Everything below is rendered into session context, and an
-# installed manifest is attacker-influenceable, so a label is allowlisted
-# characters only and bounded in length. `?` marks each dropped character so a
-# reader can see that scrubbing happened rather than reading a clean-looking
-# name that is not what the manifest said.
-MAX_LABEL_CHARS = 80
-MAX_PATH_CHARS = 200
 
 # Resource ceilings. A same-named plugin root under the scanned trees is
 # attacker-influenceable, and this runs at session start, so an unbounded
@@ -71,43 +68,12 @@ MAX_PATH_CHARS = 200
 MAX_MANIFEST_BYTES = 512 * 1024
 MAX_REGISTRATIONS = 500
 
-_UNSAFE_LABEL_CHARS = re.compile(r"[^A-Za-z0-9._/@:+= -]")
-_SAFE_TOKEN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
-_SCRIPT_IN_COMMAND = re.compile(r"[A-Za-z0-9._/\\-]+\.(?:py|sh|ps1)")
 _DISPATCH_ENTRYPOINT = "invoke_dispatch_claude.py"
 _GROUP_ARGUMENT = re.compile(r"--group[=\s]+([A-Za-z0-9._-]{1,64})")
 
 CLAUDE_SCHEMA = "claude"
 COPILOT_SCHEMA = "copilot"
 
-
-def sanitize_label(text: object, limit: int = MAX_LABEL_CHARS) -> str:
-    """Reduce untrusted manifest text to inert, length-capped label characters."""
-    collapsed = " ".join(str(text).split())
-    scrubbed = _UNSAFE_LABEL_CHARS.sub("?", collapsed)
-    if len(scrubbed) <= limit:
-        return scrubbed
-    return scrubbed[:limit] + "[truncated]"
-
-
-def command_unit(command: str) -> str:
-    """Name what a registration runs without echoing the command itself.
-
-    Prefers the basename of the last script path in the command, which is the
-    part a reader needs in order to find the hook. A bare identifier is kept as
-    written (it is already within the safe alphabet). Anything else, including
-    shell text a hostile manifest could have chosen freely, collapses to a
-    digest: still stable enough to diff two manifests, but carrying none of the
-    attacker's words into the model's context.
-    """
-    text = " ".join(command.split())
-    scripts = _SCRIPT_IN_COMMAND.findall(text)
-    if scripts:
-        return sanitize_label(PurePosixPath(scripts[-1].replace("\\", "/")).name)
-    if _SAFE_TOKEN.match(text):
-        return text
-    digest = hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:12]
-    return f"unrecognized command (sha256:{digest})"
 
 
 def read_plugin_name(root: Path) -> str | None:
@@ -238,7 +204,32 @@ def _expand_command(
     }
 
 
-def _group_units(event: str, group: object, groups: object) -> set[tuple[str, str, str]] | None:
+def _entry_command(entry: dict[str, object]) -> str | None:
+    """The command a Claude registration runs, or None when it is malformed.
+
+    Mirrors `build/scripts/validate_plugin_manifests.py` lines 137 to 144,
+    which require both fields of every hook entry:
+
+        if hook.get("type") != "command":
+            errors.append(... "`.type`: must be 'command'")
+        if not isinstance(hook.get("command"), str):
+            errors.append(... "`.command`: required string")
+
+    The earlier `str(entry.get("command", ""))` coerced a missing or non-string
+    command into text, so `{"type": "command"}` and `{"command": 7}` both
+    produced a plausible-looking unit instead of reporting as malformed.
+    """
+    if entry.get("type") != "command":
+        return None
+    command = entry.get("command")
+    if not isinstance(command, str):
+        return None
+    return command
+
+
+def _group_units(
+    event: str, group: object, groups: object
+) -> tuple[set[tuple[str, str, str]], int] | None:
     """Units one Claude matcher group enforces, or None if its shape is wrong.
 
     A non-object group, a group whose "hooks" is missing or not a list, and a
@@ -255,14 +246,19 @@ def _group_units(event: str, group: object, groups: object) -> set[tuple[str, st
     if matcher is None:
         return None
     found: set[tuple[str, str, str]] = set()
+    parsed = 0
     for entry in commands:
         if not isinstance(entry, dict):
             return None
-        units = _expand_command(event, matcher, str(entry.get("command", "")), groups)
+        command = _entry_command(entry)
+        if command is None:
+            return None
+        units = _expand_command(event, matcher, command, groups)
         if units is None:
             return None
+        parsed += 1
         found |= units
-    return found
+    return found, parsed
 
 
 def registrations(hooks: object, groups: object = None) -> set[tuple[str, str, str]] | None:
@@ -282,17 +278,51 @@ def registrations(hooks: object, groups: object = None) -> set[tuple[str, str, s
     if not isinstance(hooks, dict):
         return None
     found: set[tuple[str, str, str]] = set()
+    parsed = 0
     for event, entries in hooks.items():
         if not isinstance(entries, list):
             return None
         for group in entries:
-            units = _group_units(str(event), group, groups)
-            if units is None:
+            resolved = _group_units(str(event), group, groups)
+            if resolved is None:
                 return None
+            units, count = resolved
             found |= units
-            if len(found) > MAX_REGISTRATIONS:
+            # Count entries parsed, not unique units. Checking the set size let
+            # 501 identical registrations collapse to one and slip past the
+            # ceiling entirely, which is itself a shape worth reporting: a host
+            # told to run the same hook hundreds of times.
+            parsed += count
+            if parsed > MAX_REGISTRATIONS:
                 return None
     return found
+
+
+# Sentinel for a registration that is legitimately not a command hook, which
+# is different from one this parser could not understand.
+_SKIP_ENTRY: tuple[str, str] = ("", "")
+
+
+def _copilot_entry(entry: dict[str, object]) -> tuple[str, str] | None:
+    """``(command, matcher)`` for one Copilot registration.
+
+    Returns ``_SKIP_ENTRY`` for a registration of another kind: the canonical
+    parser skips those outright (`if registration.get("type") != "command":
+    continue`), and reading their `bash` key would report a non-hook as an
+    enforced hook. Returns None for a command registration this parser cannot
+    understand, which makes the whole manifest unknown rather than short.
+    """
+    if entry.get("type") != "command":
+        return _SKIP_ENTRY
+    command = entry.get("bash")
+    if command is None:
+        command = entry.get("powershell")
+    if not isinstance(command, str):
+        return None
+    matcher = _matcher_text(entry)
+    if matcher is None:
+        return None
+    return command, matcher
 
 
 def copilot_registrations(hooks: object) -> set[tuple[str, str, str]] | None:
@@ -313,23 +343,23 @@ def copilot_registrations(hooks: object) -> set[tuple[str, str, str]] | None:
     if not isinstance(hooks, dict):
         return None
     found: set[tuple[str, str, str]] = set()
+    parsed = 0
     for event, entries in hooks.items():
         if not isinstance(entries, list):
             return None
         for entry in entries:
             if not isinstance(entry, dict):
                 return None
-            command = entry.get("bash")
-            if command is None:
-                command = entry.get("powershell")
-            if not isinstance(command, str):
+            resolved = _copilot_entry(entry)
+            if resolved is _SKIP_ENTRY:
+                continue
+            if resolved is None:
                 return None
-            matcher = _matcher_text(entry)
-            if matcher is None:
+            command, matcher = resolved
+            parsed += 1
+            if parsed > MAX_REGISTRATIONS:
                 return None
             found.add((str(event), matcher, command_unit(command)))
-            if len(found) > MAX_REGISTRATIONS:
-                return None
     return found
 
 
@@ -353,9 +383,15 @@ def _read_json_object(path: Path) -> tuple[dict[str, object] | None, str | None]
         return None, (
             f"hook manifest {path} exceeds the {MAX_MANIFEST_BYTES}-byte ceiling; not compared"
         )
+    # Broad by intent, and scoped to this one call. A deeply nested document
+    # raises RecursionError, which is not a ValueError, so it escaped to the
+    # hook's outer fail-open handler and aborted the whole pass: one hostile
+    # candidate manifest would suppress the drift check for every other
+    # install. Any failure to parse one manifest must stay one unreadable
+    # manifest, so the parse is not allowed to end the scan.
     try:
         data = json.loads(raw.decode("utf-8"))
-    except (UnicodeError, ValueError) as exc:
+    except Exception as exc:
         return None, f"unreadable hook manifest {path}: {type(exc).__name__}: {exc}"
     if not isinstance(data, dict):
         return None, f"hook manifest {path} is not a JSON object"
