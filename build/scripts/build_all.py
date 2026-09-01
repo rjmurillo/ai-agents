@@ -61,6 +61,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -697,8 +698,10 @@ class GitStateUnreadableError(RuntimeError):
 _GIT_STDERR_DETAIL_CHARS = 200
 
 
-def _first_stderr_line(stderr: str | None) -> str:
+def _first_stderr_line(stderr: str | bytes | None) -> str:
     """Return git's first stderr line, capped, for a one-line error message."""
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", errors="replace")
     raw = (stderr or "").strip()
     first = raw.splitlines()[0] if raw else ""
     return first[:_GIT_STDERR_DETAIL_CHARS] or "(no stderr)"
@@ -739,14 +742,21 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
     seen: set[str] = set()
     scrubbed_env = _git_scrubbed_env()
     for argv in (
-        ["git", "-C", str(repo_root), "diff", "--name-only"],
-        ["git", "-C", str(repo_root), "ls-files", "--others", "--exclude-standard"],
+        ["git", "-C", str(repo_root), "diff", "--name-only", "-z"],
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+            "-z",
+        ],
     ):
         try:
             proc = subprocess.run(
                 argv,
                 capture_output=True,
-                text=True,
                 check=False,
                 timeout=30,
                 env=scrubbed_env,
@@ -760,8 +770,8 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
                 f"{' '.join(argv)} exited {proc.returncode}: "
                 f"{_first_stderr_line(proc.stderr)}"
             )
-        for line in proc.stdout.splitlines():
-            p = line.strip()
+        for raw in proc.stdout.split(b"\x00"):
+            p = os.fsdecode(raw)
             if p and p not in seen:
                 seen.add(p)
                 paths.append(p)
@@ -1047,6 +1057,67 @@ class SnapshotIncompleteError(RuntimeError):
     """
 
 
+def _strict_owned_stat(path: Path) -> os.stat_result | None:
+    """Return metadata for ``path``, raising on non-ENOENT failures."""
+    try:
+        return path.stat()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise SnapshotIncompleteError(
+            f"cannot inspect owned path {path}: {exc}"
+        ) from exc
+
+
+def _strict_owned_children(path: Path) -> list[Path]:
+    """Return direct children of ``path``, raising on non-ENOENT failures."""
+    try:
+        with os.scandir(path) as entries:
+            return [Path(entry.path) for entry in entries]
+    except FileNotFoundError:
+        return []
+    except OSError as exc:
+        raise SnapshotIncompleteError(
+            f"cannot enumerate owned directory {path}: {exc}"
+        ) from exc
+
+
+def _queue_strict_owned_path(
+    pending: list[Path], path: Path
+) -> Path | None:
+    """Queue child directories and return child files for strict snapshots."""
+    metadata = _strict_owned_stat(path)
+    if metadata is None:
+        return None
+    if stat.S_ISDIR(metadata.st_mode):
+        pending.append(path)
+        return None
+    if stat.S_ISREG(metadata.st_mode) and not path.is_symlink():
+        return path
+    return None
+
+
+def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
+    """Yield owned files while surfacing strict metadata and scan failures."""
+    root_metadata = _strict_owned_stat(root)
+    if root_metadata is None:
+        return
+    if stat.S_ISREG(root_metadata.st_mode):
+        if not root.is_symlink():
+            yield root
+        return
+    if not stat.S_ISDIR(root_metadata.st_mode):
+        return
+
+    pending = [root]
+    while pending:
+        current = pending.pop()
+        for child in _strict_owned_children(current):
+            child_file = _queue_strict_owned_path(pending, child)
+            if child_file is not None:
+                yield child_file
+
+
 def _snapshot_owned_prefixes(
     repo_root: Path,
     prefixes: tuple[str, ...],
@@ -1110,18 +1181,28 @@ def _snapshot_owned_prefixes(
     :class:`SnapshotIncompleteError` there so the caller aborts before any
     generator runs and no partial snapshot ever reaches restore.
 
-    A read that raises :class:`FileNotFoundError` is skipped even under
-    ``strict``. Restore cannot delete what is not on disk, so a file that
-    vanished between the ``rglob`` walk and the read cannot cause the data
-    loss this guard exists to prevent, and aborting on it would make a
-    pre-push gate flaky for a race that is harmless. Every other
-    :class:`OSError` raises under ``strict``: see :func:`_read_into_snapshot`
-    for why the errno is the only reliable discriminator here.
+    Strict discovery does not use ``Path.is_file()``, ``Path.is_dir()``,
+    ``Path.exists()``, or ``Path.rglob()``. In Python 3.14 those helpers can
+    suppress stat and traversal errors, which turns a transient metadata or
+    scan failure into an omitted path. If the error clears before restore,
+    ``--check`` can then delete that pre-existing file as generator-created.
+    Strict mode instead stats roots and children directly, and enumerates
+    directories with :func:`os.scandir`, skipping only ``ENOENT`` as a path
+    that vanished and raising :class:`SnapshotIncompleteError` for every other
+    metadata, traversal, or read failure before generation starts.
     """
     ignored = _ignored_paths(repo_root, prefixes) if exclude_ignored else set()
     snapshot: dict[Path, bytes] = {}
     for prefix in prefixes:
         root = repo_root / prefix
+        if strict:
+            for path in _iter_strict_owned_files(root):
+                if path in ignored or (
+                    exclude_ignored and _is_bytecode_artifact(path)
+                ):
+                    continue
+                _read_into_snapshot(snapshot, path, strict=True)
+            continue
         if root.is_file() and not root.is_symlink():
             if root in ignored:
                 continue

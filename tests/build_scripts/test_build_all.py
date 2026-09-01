@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -1938,7 +1939,7 @@ def test_confirm_ignored_short_circuits_on_no_candidates(
         calls.append(args)
         raise AssertionError("git must not run when there is nothing to confirm")
 
-    monkeypatch.setattr(build_all.subprocess, "run", record)
+    monkeypatch.setattr(build_all, "subprocess", _subprocess_stub(record))
     assert build_all._confirm_ignored(repo, set()) == set()
     assert calls == []
 
@@ -1973,7 +1974,7 @@ def test_confirm_ignored_returns_empty_when_git_cannot_run(
     def boom(*args: object, **kwargs: object) -> object:
         raise OSError("git missing")
 
-    monkeypatch.setattr(build_all.subprocess, "run", boom)
+    monkeypatch.setattr(build_all, "subprocess", _subprocess_stub(boom))
     assert build_all._confirm_ignored(repo, {pyc}) == set()
 
 
@@ -2002,25 +2003,28 @@ def test_confirm_ignored_is_fail_closed_on_git_error(
         returncode = 128
         stdout = str(pyc).encode()
 
-    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+    monkeypatch.setattr(
+        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
+    )
 
     assert build_all._confirm_ignored(tmp_path, {pyc}) == set()
 
 
-def test_confirm_ignored_survives_non_utf8_paths(
+def test_confirm_ignored_survives_non_ascii_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A non-UTF-8 filename must round-trip rather than raise
-    UnicodeDecodeError and crash the pre-push guard."""
+    """A non-ASCII filename must round-trip rather than crash the guard."""
     import os as _os
 
-    raw = tmp_path / _os.fsdecode(b"caf\xe9.pyc")
+    raw = tmp_path / "café.pyc"
 
     class _Result:
         returncode = 0
         stdout = _os.fsencode(str(raw))
 
-    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+    monkeypatch.setattr(
+        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
+    )
 
     assert build_all._confirm_ignored(tmp_path, {raw}) == {raw}
 
@@ -2049,6 +2053,18 @@ class _NoGit:
     @staticmethod
     def run(*_args: object, **_kwargs: object) -> object:
         raise FileNotFoundError(2, "No such file or directory: 'git'")
+
+
+def _subprocess_stub(run: object) -> object:
+    class _Stub:
+        SubprocessError = subprocess.SubprocessError
+        TimeoutExpired = subprocess.TimeoutExpired
+
+        @staticmethod
+        def run(*args: object, **kwargs: object) -> object:
+            return run(*args, **kwargs)
+
+    return _Stub
 
 
 def _fail_read_bytes_for(
@@ -2080,6 +2096,30 @@ def test_git_diff_paths_raises_when_git_cannot_be_launched(
         build_all._git_diff_paths(tmp_path)
 
 
+def test_git_diff_paths_decodes_non_ascii_output_with_utf8_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UTF-8 Git output bytes must round-trip through `_git_diff_paths`."""
+
+    class _Result:
+        returncode = 0
+        stdout = "src/copilot-cli/skills/ā/SKILL.md\x00".encode()
+        stderr = b""
+
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def record(*args: object, **kwargs: object) -> _Result:
+        calls.append((args, dict(kwargs)))
+        return _Result()
+
+    monkeypatch.setattr(build_all, "subprocess", _subprocess_stub(record))
+
+    assert build_all._git_diff_paths(tmp_path) == [
+        "src/copilot-cli/skills/ā/SKILL.md"
+    ]
+    assert len(calls) == 2
+
+
 def test_git_diff_paths_raises_when_git_exits_nonzero(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2093,10 +2133,12 @@ def test_git_diff_paths_raises_when_git_exits_nonzero(
 
     class _Result:
         returncode = 128
-        stdout = "src/copilot-cli/skills/alpha/SKILL.md\n"
-        stderr = "fatal: not a git repository\n"
+        stdout = b"src/copilot-cli/skills/alpha/SKILL.md\x00"
+        stderr = b"fatal: not a git repository\n"
 
-    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+    monkeypatch.setattr(
+        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
+    )
 
     with pytest.raises(build_all.GitStateUnreadableError) as excinfo:
         build_all._git_diff_paths(tmp_path)
@@ -2119,10 +2161,12 @@ def test_git_diff_paths_error_keeps_gits_stderr_to_one_line(
 
     class _Result:
         returncode = 129
-        stdout = ""
-        stderr = "\n".join([diagnosis] + [f"    --flag-{i}" for i in range(199)])
+        stdout = b""
+        stderr = "\n".join([diagnosis] + [f"    --flag-{i}" for i in range(199)]).encode()
 
-    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+    monkeypatch.setattr(
+        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
+    )
 
     with pytest.raises(build_all.GitStateUnreadableError) as excinfo:
         build_all._git_diff_paths(tmp_path)
@@ -2347,7 +2391,10 @@ def _unstattable_unreadable_path(tmp_path: Path) -> Path:
     raises ``OSError(ELOOP)`` rather than ``FileNotFoundError``.
     """
     loop = tmp_path / "loop"
-    loop.symlink_to(loop)
+    try:
+        loop.symlink_to(loop)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symlink creation unavailable; issue #4632: {exc}")
     return loop
 
 
@@ -2395,6 +2442,120 @@ def test_read_into_snapshot_skips_a_stat_failure_when_not_strict(
     build_all._read_into_snapshot(snapshot, loop, strict=False)
 
     assert snapshot == {}
+
+
+def test_snapshot_non_strict_skips_owned_path_when_stat_fails(
+    tmp_path: Path,
+) -> None:
+    """The comparison-only caller must keep skipping stat failures."""
+    owned = tmp_path / "src" / "copilot-cli" / "lib"
+    owned.mkdir(parents=True)
+    readable = owned / "other.py"
+    readable.write_bytes(b"y = 2\n")
+    loop = _unstattable_unreadable_path(owned)
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        tmp_path, build_all.OWNED_PREFIXES
+    )
+
+    assert loop not in snapshot
+    assert snapshot[readable] == b"y = 2\n"
+
+
+
+def test_run_check_aborts_before_generation_when_owned_file_stat_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A transient file stat failure must not create a partial snapshot."""
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "owned" / "frozen.py"
+    protected.parent.mkdir(parents=True)
+    protected.write_text("x = 1\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
+
+    real_strict_owned_stat = build_all._strict_owned_stat
+    failed = False
+
+    def flaky_strict_owned_stat(path: Path) -> os.stat_result | None:
+        nonlocal failed
+        if path == protected and not failed:
+            failed = True
+            raise build_all.SnapshotIncompleteError(
+                f"cannot inspect owned path {path}: [Errno 13] denied"
+            )
+        return real_strict_owned_stat(path)
+
+    generation_called = False
+
+    def record_generation(*_args: object, **_kwargs: object) -> int:
+        nonlocal generation_called
+        generation_called = True
+        return 0
+
+    monkeypatch.setattr(build_all, "_strict_owned_stat", flaky_strict_owned_stat)
+    monkeypatch.setattr(build_all, "_run_generators", record_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not generation_called
+    assert protected.read_text() == "x = 1\n"
+    assert "cannot inspect owned path" in capsys.readouterr().err
+
+
+
+def test_run_check_aborts_before_generation_when_owned_directory_scan_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A transient directory scan failure must not create a partial snapshot."""
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    owned = repo / "owned"
+    protected = owned / "frozen.py"
+    owned.mkdir()
+    protected.write_text("x = 1\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
+
+    real_strict_owned_children = build_all._strict_owned_children
+    failed = False
+
+    def flaky_strict_owned_children(path: Path) -> list[Path]:
+        nonlocal failed
+        if path == owned and not failed:
+            failed = True
+            raise build_all.SnapshotIncompleteError(
+                f"cannot enumerate owned directory {path}: [Errno 13] denied"
+            )
+        return real_strict_owned_children(path)
+
+    generation_called = False
+
+    def record_generation(*_args: object, **_kwargs: object) -> int:
+        nonlocal generation_called
+        generation_called = True
+        return 0
+
+    monkeypatch.setattr(
+        build_all, "_strict_owned_children", flaky_strict_owned_children
+    )
+    monkeypatch.setattr(build_all, "_run_generators", record_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not generation_called
+    assert protected.read_text() == "x = 1\n"
+    assert "cannot enumerate owned directory" in capsys.readouterr().err
+
 
 
 def test_run_check_aborts_without_deleting_an_unreadable_owned_file(
