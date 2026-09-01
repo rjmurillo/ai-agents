@@ -468,37 +468,73 @@ def test_find_rule_scenarios_returns_empty_when_the_directory_is_absent(
     assert suite.find_rule_scenarios() == {}
 
 
-def test_find_rule_scenarios_skips_malformed_json(
+def test_find_rule_scenarios_raises_on_malformed_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A broken scenario file is an authoring bug, not an absent scenario.
+
+    Mirrors `check_rule_activation_coverage.py:_read_scenario_json`, which
+    raises CoverageConfigError rather than skipping the file.
+    """
+    scenario_dir = _scenario_root(tmp_path, monkeypatch)
+    (scenario_dir / "broken.json").write_text("{not json", encoding="utf-8")
+    with pytest.raises(suite.ScenarioConfigError, match="invalid JSON"):
+        suite.find_rule_scenarios()
+
+
+def test_find_rule_scenarios_raises_on_unreadable_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     scenario_dir = _scenario_root(tmp_path, monkeypatch)
-    (scenario_dir / "broken.json").write_text("{not json", encoding="utf-8")
+    # A directory named *.json satisfies the glob but cannot be read as text.
+    (scenario_dir / "adirectory.json").mkdir()
+    with pytest.raises(suite.ScenarioConfigError, match="cannot read scenario file"):
+        suite.find_rule_scenarios()
+
+
+@pytest.mark.parametrize(
+    "payload,match",
+    [
+        ('["not", "an", "object"]', "must contain an object"),
+        ('{"rule_path": ""}', "non-empty string"),
+        ('{"rule_path": "   "}', "non-empty string"),
+        ('{"rule_path": 42}', "non-empty string"),
+    ],
+    ids=["list", "empty", "blank", "wrong_type"],
+)
+def test_find_rule_scenarios_raises_on_broken_rule_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: str, match: str
+) -> None:
+    scenario_dir = _scenario_root(tmp_path, monkeypatch)
+    (scenario_dir / "case.json").write_text(payload, encoding="utf-8")
+    with pytest.raises(suite.ScenarioConfigError, match=match):
+        suite.find_rule_scenarios()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    ['{"skill_path": ".claude/skills/analyze/SKILL.md"}', "{}"],
+    ids=["skill_target", "no_keys"],
+)
+def test_find_rule_scenarios_skips_scenarios_with_no_rule_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: str
+) -> None:
+    """ADR-088 skill scenarios live in the same directory and are not errors."""
+    scenario_dir = _scenario_root(tmp_path, monkeypatch)
+    (scenario_dir / "case.json").write_text(payload, encoding="utf-8")
+    assert suite.find_rule_scenarios() == {}
+
+
+def test_find_rule_scenarios_reads_a_valid_rule_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scenario_dir = _scenario_root(tmp_path, monkeypatch)
     (scenario_dir / "good.json").write_text(
         '{"rule_path": ".claude/rules/good.md"}', encoding="utf-8"
     )
     assert suite.find_rule_scenarios() == {
         "good": f"{suite.RULE_SCENARIO_DIR}/good.json"
     }
-
-
-@pytest.mark.parametrize(
-    "payload",
-    [
-        '["not", "an", "object"]',
-        '{"skill_path": ".claude/skills/analyze/SKILL.md"}',
-        '{"rule_path": ""}',
-        '{"rule_path": "   "}',
-        '{"rule_path": 42}',
-        "{}",
-    ],
-    ids=["list", "skill_target", "empty", "blank", "wrong_type", "no_keys"],
-)
-def test_find_rule_scenarios_ignores_non_rule_targets(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: str
-) -> None:
-    scenario_dir = _scenario_root(tmp_path, monkeypatch)
-    (scenario_dir / "case.json").write_text(payload, encoding="utf-8")
-    assert suite.find_rule_scenarios() == {}
 
 
 # ---------------------------------------------------------------------------
@@ -544,17 +580,36 @@ class _FakeCompleted:
         self.stderr = ""
 
 
+# The real child prints a human table to stdout. Any mock that returns JSON on
+# stdout encodes the imagined contract that shipped the first version of this
+# runner; keep the stub faithful to
+# `scripts/eval/eval-rule-activation.py:2450-2452`.
+_CHILD_STDOUT = "code-quality  activation 4.2  citation 3.9\n\nWrote results: /tmp/x.json\n"
+
+
+def _output_path_from(cmd: list[str]) -> Path | None:
+    if "--output" not in cmd:
+        return None
+    return Path(cmd[cmd.index("--output") + 1])
+
+
 def _stub_child(
     monkeypatch: pytest.MonkeyPatch,
-    stdout: str = '{"verdict": "PASS"}',
+    file_payload: str | None = '{"schema_version": 1, "rules": {}}',
     returncode: int = 0,
 ) -> list[list[str]]:
-    """Replace subprocess.run and record the argv of every invocation."""
+    """Replace subprocess.run with a stub that honors the --output contract.
+
+    `file_payload=None` simulates a child that writes no results file.
+    """
     calls: list[list[str]] = []
 
     def fake_run(cmd, **_kwargs):
         calls.append(list(cmd))
-        return _FakeCompleted(stdout, returncode)
+        target = _output_path_from(list(cmd))
+        if target is not None and file_payload is not None:
+            target.write_text(file_payload, encoding="utf-8")
+        return _FakeCompleted(_CHILD_STDOUT, returncode)
 
     monkeypatch.setattr(suite.subprocess, "run", fake_run)
     return calls
@@ -574,6 +629,48 @@ def test_run_rule_activation_scores_a_scenario_backed_rule(
     assert "eval-rule-activation.py" in calls[0][1]
     assert "--scenarios" in calls[0]
     assert "tests/evals/rule-scenarios/code-quality.json" in calls[0]
+    # The results contract: JSON comes from --output, never stdout.
+    assert "--output" in calls[0]
+    assert "--dry-run" not in calls[0]
+
+
+def test_run_rule_activation_reads_results_from_the_output_file_not_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for the imagined-contract bug this runner shipped with.
+
+    The child prints a table to stdout and serializes JSON only to --output.
+    A runner that parsed stdout would fail on every real run.
+    """
+    _stub_child(monkeypatch, file_payload='{"schema_version": 1, "rules": {"x": 1}}')
+    result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
+    entry = result["rules"]["code-quality"]
+    assert entry["results"] == {"schema_version": 1, "rules": {"x": 1}}
+    assert entry["passed"] is True
+
+
+def test_run_rule_activation_fails_when_no_results_file_is_written(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exit 0 with no results file must not read as a pass."""
+    _stub_child(monkeypatch, file_payload=None, returncode=0)
+    result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
+    entry = result["rules"]["code-quality"]
+    assert entry["passed"] is False
+    assert entry["exit_code"] == suite.EXIT_EXTERNAL
+    assert entry["evidence"] == suite.EVIDENCE_SCENARIO
+    assert "no results file" in entry["results"]["error"]
+
+
+def test_run_rule_activation_marks_a_failing_run_as_scored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A verdict that ran and failed is still scored evidence."""
+    _stub_child(monkeypatch, returncode=1)
+    result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
+    entry = result["rules"]["code-quality"]
+    assert entry["passed"] is False
+    assert entry["evidence"] == suite.EVIDENCE_SCORED
 
 
 def test_run_rule_activation_dedupes_a_rule_and_its_two_mirrors(
@@ -625,22 +722,29 @@ def test_run_rule_activation_fails_when_the_child_exits_nonzero(
     _stub_child(monkeypatch, returncode=1)
     result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
     assert result["passed"] is False
-    entry = result["rules"]["code-quality"]
-    assert entry["exit_code"] == 1
-    assert entry["evidence"] == suite.EVIDENCE_SCENARIO
+    assert result["rules"]["code-quality"]["exit_code"] == 1
 
 
-def test_run_rule_activation_maps_unparseable_child_output_to_external(
+def test_run_rule_activation_maps_unparseable_results_to_external(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The failure shape issue #4882 produced: empty stdout from the child."""
-    _stub_child(monkeypatch, stdout="", returncode=1)
+    _stub_child(monkeypatch, file_payload="not json at all", returncode=0)
     result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
     entry = result["rules"]["code-quality"]
     assert entry["exit_code"] == suite.EXIT_EXTERNAL
     assert entry["evidence"] == suite.EVIDENCE_SCENARIO
     assert "error" in entry["results"]
     assert suite._contains_external_failure(result) is True
+
+
+def test_run_rule_activation_rejects_non_object_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_child(monkeypatch, file_payload='["a", "list"]', returncode=0)
+    entry = suite.run_rule_activation(
+        [".claude/rules/code-quality.md"], "test-model"
+    )["rules"]["code-quality"]
+    assert entry["exit_code"] == suite.EXIT_EXTERNAL
 
 
 def test_run_rule_activation_handles_a_child_timeout(
@@ -679,6 +783,75 @@ def test_run_rule_activation_pins_utf8_decoding(
     assert seen["encoding"] == "utf-8"
     assert seen["errors"] == "replace"
     assert seen["capture_output"] is True
+
+
+# ---------------------------------------------------------------------------
+# Real child CLI contract (no mock)
+# ---------------------------------------------------------------------------
+
+def _run_child(args: list[str], tmp_path: Path):
+    import os
+    import subprocess as _subprocess
+
+    return _subprocess.run(
+        [sys.executable, str(EVAL_DIR / "eval-rule-activation.py"), *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=300,
+        cwd=str(REPO_ROOT),
+        env={**os.environ, "PYTHONPATH": str(EVAL_DIR)},
+    )
+
+
+def test_child_cli_does_not_emit_json_on_stdout() -> None:
+    """The contract the first version of this runner got wrong.
+
+    `eval-rule-activation.py` prints a human table to stdout and serializes
+    JSON only to `--output`. This runs the real CLI to prove it, so the mock
+    above cannot drift back to the imagined stdout-JSON contract.
+    """
+    import json as _json
+
+    proc = _run_child(
+        ["--scenarios", "tests/evals/rule-scenarios/code-quality.json", "--dry-run"],
+        REPO_ROOT,
+    )
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    assert proc.stdout.strip(), "child produced no stdout at all"
+    with pytest.raises(_json.JSONDecodeError):
+        _json.loads(proc.stdout)
+
+
+def test_child_cli_writes_no_results_file_during_dry_run(tmp_path: Path) -> None:
+    """Why the suite never passes --dry-run to this child.
+
+    The child returns before the --output write, so a dry run yields no
+    results file. The suite short circuits its own dry run instead.
+    """
+    out = tmp_path / "results.json"
+    proc = _run_child(
+        [
+            "--scenarios", "tests/evals/rule-scenarios/code-quality.json",
+            "--dry-run", "--output", str(out),
+        ],
+        tmp_path,
+    )
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    assert not out.exists()
+
+
+def test_suite_invokes_the_child_with_output_and_without_dry_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ties the runner's argv to the contract the two tests above measured."""
+    calls = _stub_child(monkeypatch)
+    suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
+    argv = calls[0]
+    assert "--output" in argv
+    assert "--dry-run" not in argv
+    assert argv[argv.index("--output") + 1].endswith(".json")
 
 
 # ---------------------------------------------------------------------------
@@ -767,44 +940,340 @@ def test_agents_scope_does_not_run_rules(monkeypatch: pytest.MonkeyPatch) -> Non
     assert "rules" not in seen
 
 
+def test_run_evals_propagates_a_rule_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(suite, "run_rule_activation", lambda *_: {"passed": False})
+    classified = suite.classify_changes([".claude/rules/code-quality.md"])
+    _results, any_failure = suite._run_evals(classified, _Args("all"))
+    assert any_failure is True
+
+
+def test_run_evals_propagates_a_skill_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(suite, "run_skill_knowledge", lambda *_: {"passed": False})
+    classified = suite.classify_changes([".claude/skills/analyze/SKILL.md"])
+    _results, any_failure = suite._run_evals(classified, _Args("all"))
+    assert any_failure is True
+
+
+def test_run_evals_reports_no_failure_when_every_runner_passes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _record_runners(monkeypatch)
+    classified = suite.classify_changes([
+        ".claude/rules/code-quality.md",
+        ".claude/skills/analyze/SKILL.md",
+        ".claude/agents/implementer.md",
+    ])
+    _results, any_failure = suite._run_evals(classified, _Args("all"))
+    assert any_failure is False
+
+
 def test_rules_is_an_accepted_scope_value() -> None:
     source = (EVAL_DIR / "eval-suite.py").read_text(encoding="utf-8")
     assert '"prompts", "agents", "skills", "rules", "all"' in source
 
 
 # ---------------------------------------------------------------------------
+# Scope: the dry-run plan must describe what THIS invocation will do
+# ---------------------------------------------------------------------------
+
+SCOPED_PATHS = [
+    ".claude/commands/spec.md",
+    ".claude/agents/implementer.md",
+    ".claude/skills/analyze/SKILL.md",
+    ".claude/rules/code-quality.md",
+]
+
+
+@pytest.mark.parametrize(
+    "scope,expected_runner_categories",
+    [
+        ("all", {"prompts", "agents", "skills", "rules"}),
+        ("prompts", {"prompts"}),
+        ("agents", {"agents"}),
+        ("skills", {"skills"}),
+        ("rules", {"rules"}),
+    ],
+)
+def test_plan_reports_only_in_scope_categories_as_routed(
+    scope: str, expected_runner_categories: set[str]
+) -> None:
+    plan = suite.build_routing_plan(suite.classify_changes(SCOPED_PATHS), scope)
+    routed = {e["category"] for e in plan if e["runner"] is not None}
+    assert routed == expected_runner_categories
+
+
+@pytest.mark.parametrize("scope", ["prompts", "agents", "skills", "rules"])
+def test_out_of_scope_categories_say_why(scope: str) -> None:
+    plan = suite.build_routing_plan(suite.classify_changes(SCOPED_PATHS), scope)
+    for entry in plan:
+        if entry["runner"] is None and entry["category"] in suite.SCOPE_BY_CATEGORY:
+            assert entry["evidence"] == suite.EVIDENCE_NONE
+            assert entry["reason"] == f"excluded by --scope {scope}"
+
+
+def test_plan_scope_gate_matches_run_evals_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The plan must not promise work the real path skips.
+
+    Runs both sides for every scope and asserts they agree on which
+    runner-backed categories are active.
+    """
+    for scope in ("all", "prompts", "agents", "skills", "rules"):
+        seen = _record_runners(monkeypatch)
+        classified = suite.classify_changes(SCOPED_PATHS)
+        suite._run_evals(classified, _Args(scope))
+        planned = {
+            e["category"] for e in suite.build_routing_plan(classified, scope)
+            if e["runner"] is not None
+        }
+        # _run_evals reports skills and prompts under one key each.
+        actually_ran = set(seen)
+        planned_runners = {
+            "skills" if c in ("skills", "skill_references") else
+            "rules" if c in ("rules", "instructions") else c
+            for c in planned
+        }
+        assert planned_runners - {"prompts"} == actually_ran - {"prompts"}, (
+            f"scope {scope}: plan says {planned_runners}, _run_evals ran {actually_ran}"
+        )
+
+
+def test_category_in_scope_rejects_categories_with_no_runner() -> None:
+    for category in ("entrypoints", "references", "scenarios", "other"):
+        assert suite.category_in_scope(category, "all") is False
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation: the published plan must match what actually happened
+# ---------------------------------------------------------------------------
+
+def test_reconcile_promotes_an_evaluated_rule_to_scored() -> None:
+    plan = suite.build_routing_plan(
+        suite.classify_changes([".claude/rules/code-quality.md"]), "all"
+    )
+    assert plan[0]["evidence"] == suite.EVIDENCE_SCENARIO
+
+    results = {"rules": {"rules": {"code-quality": {"passed": True, "exit_code": 0}}}}
+    reconciled = suite.reconcile_routing_plan(plan, results)
+    assert reconciled[0]["evidence"] == suite.EVIDENCE_SCORED
+
+
+def test_reconcile_counts_a_failing_run_as_scored() -> None:
+    """Scored means a verdict exists, not that the verdict was positive."""
+    plan = suite.build_routing_plan(
+        suite.classify_changes([".claude/rules/code-quality.md"]), "all"
+    )
+    results = {"rules": {"rules": {"code-quality": {"passed": False, "exit_code": 1}}}}
+    assert suite.reconcile_routing_plan(plan, results)[0]["evidence"] == (
+        suite.EVIDENCE_SCORED
+    )
+
+
+def test_reconcile_leaves_a_skipped_rule_unscored() -> None:
+    plan = suite.build_routing_plan(
+        suite.classify_changes([".claude/rules/code-quality.md"]), "all"
+    )
+    results = {
+        "rules": {"rules": {"code-quality": {"skipped": True, "reason": "no scenario"}}}
+    }
+    assert suite.reconcile_routing_plan(plan, results)[0]["evidence"] == (
+        suite.EVIDENCE_SCENARIO
+    )
+
+
+def test_reconcile_leaves_a_scenarioless_rule_entry_untouched() -> None:
+    """A rules entry already at not_evaluated has nothing to promote."""
+    plan = suite.build_routing_plan(
+        suite.classify_changes([".claude/rules/canonical-source-mirror.md"]), "all"
+    )
+    assert plan[0]["evidence"] == suite.EVIDENCE_NONE
+    results = {"rules": {"rules": {"code-quality": {"passed": True}}}}
+    assert suite.reconcile_routing_plan(plan, results) == plan
+
+
+def test_reconcile_splits_a_mixed_entry_into_scored_and_unscored() -> None:
+    """Two scenario-backed rules where only one actually ran."""
+    plan = [{
+        "category": "rules",
+        "files": [".claude/rules/code-quality.md", ".claude/rules/universal.md"],
+        "runner": "eval-rule-activation.py",
+        "evidence": suite.EVIDENCE_SCENARIO,
+        "reason": "activation scenario defined; run without --dry-run to score",
+    }]
+    results = {"rules": {"rules": {"code-quality": {"passed": True, "exit_code": 0}}}}
+    reconciled = suite.reconcile_routing_plan(plan, results)
+    by_evidence = {e["evidence"]: e["files"] for e in reconciled}
+    assert by_evidence[suite.EVIDENCE_SCORED] == [".claude/rules/code-quality.md"]
+    assert by_evidence[suite.EVIDENCE_SCENARIO] == [".claude/rules/universal.md"]
+
+
+def test_reconcile_is_a_noop_without_rule_results() -> None:
+    plan = suite.build_routing_plan(suite.classify_changes(SCOPED_PATHS), "all")
+    assert suite.reconcile_routing_plan(plan, {}) == plan
+
+
+def test_reconcile_leaves_non_rule_categories_alone() -> None:
+    plan = suite.build_routing_plan(
+        suite.classify_changes([".claude/agents/implementer.md"]), "all"
+    )
+    results = {"rules": {"rules": {"code-quality": {"passed": True}}}}
+    assert suite.reconcile_routing_plan(plan, results) == plan
+
+
+# ---------------------------------------------------------------------------
 # End to end: the dry run the issue reproduced
 # ---------------------------------------------------------------------------
 
-def test_dry_run_exits_zero_and_emits_a_routing_plan() -> None:
-    """AC: a dry run exits successfully and prints a deterministic routing plan.
-
-    Pre-fix, this exited 3 because misrouted files reached eval-agents.py, which
-    exits 1 with empty stdout. A dry run now invokes no evaluator at all.
-    """
-    import json as _json
+def _git(repo: Path, *args: str) -> None:
     import subprocess as _subprocess
 
-    proc = _subprocess.run(
-        [sys.executable, str(EVAL_DIR / "eval-suite.py"), "--base-ref", "HEAD", "--dry-run"],
+    _subprocess.run(
+        ["git", *args],
+        cwd=str(repo),
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+
+def _build_fixture_repo(tmp_path: Path) -> Path:
+    """A throwaway repo with a base commit and one changed file per category.
+
+    Built rather than reusing this checkout: a clean CI checkout has no diff
+    against HEAD, so a test pointed at the real repo skips itself and never
+    exercises the path it claims to cover.
+    """
+    repo = tmp_path / "fixture-repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.email", "test@example.invalid")
+    _git(repo, "config", "user.name", "Test")
+    _git(repo, "config", "commit.gpgsign", "false")
+
+    tracked = {
+        ".claude/agents/implementer.md": "base agent\n",
+        ".claude/skills/analyze/SKILL.md": "base skill\n",
+        "src/copilot-cli/skills/analyze/references/deep.md": "base reference\n",
+        "src/copilot-cli/instructions/code-quality.instructions.md": "base mirror\n",
+        ".claude/rules/code-quality.md": "base rule\n",
+        "AGENTS.md": "base entrypoint\n",
+        "unrelated.txt": "base other\n",
+    }
+    for rel, body in tracked.items():
+        target = repo / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body, encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "base")
+
+    # Change every tracked artifact so each category is populated.
+    for rel in tracked:
+        (repo / rel).write_text("changed\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "change every artifact")
+    return repo
+
+
+def _run_suite_in(repo: Path, *args: str):
+    """Run the suite against a fixture repo by pointing REPO_ROOT at it."""
+    import os
+    import subprocess as _subprocess
+
+    runner = (
+        "import importlib.util,sys;"
+        f"spec=importlib.util.spec_from_file_location('es',{str(EVAL_DIR / 'eval-suite.py')!r});"
+        "m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);"
+        f"m.REPO_ROOT=__import__('pathlib').Path({str(repo)!r});"
+        "sys.argv=['eval-suite']+sys.argv[1:];m.main()"
+    )
+    return _subprocess.run(
+        [sys.executable, "-c", runner, *args],
         capture_output=True,
         text=True,
         encoding="utf-8",
         errors="replace",
         timeout=120,
-        cwd=str(REPO_ROOT),
-        env={**__import__("os").environ, "PYTHONPATH": str(EVAL_DIR)},
+        cwd=str(repo),
+        env={**os.environ, "PYTHONPATH": str(EVAL_DIR)},
     )
-    if proc.returncode == 0 and not proc.stdout.strip():
-        pytest.skip("no changes against HEAD, suite exited early")
 
-    assert proc.returncode == 0, proc.stderr[-2000:]
+
+def test_dry_run_over_a_real_diff_exits_zero_with_a_populated_plan(
+    tmp_path: Path,
+) -> None:
+    """AC: a dry run exits successfully and prints a deterministic routing plan.
+
+    Pre-fix this exited 3, because misrouted files reached the agent evaluator,
+    which exits 1 with empty stdout. A dry run now invokes no evaluator at all.
+    """
+    import json as _json
+
+    repo = _build_fixture_repo(tmp_path)
+    proc = _run_suite_in(repo, "--base-ref", "HEAD~1", "--dry-run")
+
+    assert proc.returncode == 0, proc.stderr[-3000:]
     payload = _json.loads(proc.stdout)
+
     assert payload["dry_run"] is True
     assert payload["passed"] is True
-    assert payload["results"] == {}
-    assert "routing_plan" in payload
-    for entry in payload["routing_plan"]:
+    assert payload["results"] == {}, "a dry run must invoke no evaluator"
+    assert "JSON parse failed" not in proc.stderr
+
+    plan = payload["routing_plan"]
+    assert plan, "fixture diff produced an empty routing plan"
+    by_category = {e["category"]: e for e in plan}
+    for expected in ("agents", "skills", "skill_references", "instructions", "rules"):
+        assert expected in by_category, f"{expected} missing from plan: {list(by_category)}"
+
+    # The four paths issue #4882 misrouted must not be under `agents`.
+    assert by_category["agents"]["files"] == [".claude/agents/implementer.md"]
+
+    for entry in plan:
         assert entry["reason"]
         assert entry["files"] == sorted(entry["files"])
-    assert "JSON parse failed" not in proc.stderr
+
+
+def test_dry_run_plan_honors_scope_over_a_real_diff(tmp_path: Path) -> None:
+    import json as _json
+
+    repo = _build_fixture_repo(tmp_path)
+    proc = _run_suite_in(repo, "--base-ref", "HEAD~1", "--dry-run", "--scope", "agents")
+
+    assert proc.returncode == 0, proc.stderr[-3000:]
+    plan = _json.loads(proc.stdout)["routing_plan"]
+    routed = {e["category"] for e in plan if e["runner"] is not None}
+    assert routed == {"agents"}
+    for entry in plan:
+        if entry["category"] in ("rules", "skills") and entry["runner"] is None:
+            assert entry["reason"] == "excluded by --scope agents"
+
+
+def test_dry_run_exits_config_on_a_malformed_scenario_file(tmp_path: Path) -> None:
+    """A broken scenario file must stop the run, not read as 'no scenario'.
+
+    Exit 2 is EXIT_CONFIG, matching the canonical coverage checker's exit code
+    for a scenario-file fault.
+    """
+    repo = _build_fixture_repo(tmp_path)
+    scenario_dir = repo / "tests" / "evals" / "rule-scenarios"
+    scenario_dir.mkdir(parents=True, exist_ok=True)
+    (scenario_dir / "broken.json").write_text("{not json", encoding="utf-8")
+
+    proc = _run_suite_in(repo, "--base-ref", "HEAD~1", "--dry-run")
+    assert proc.returncode == 2, (proc.returncode, proc.stdout[-500:], proc.stderr[-2000:])
+    assert "invalid JSON in scenario file" in proc.stderr
+
+
+def test_dry_run_is_deterministic_across_runs(tmp_path: Path) -> None:
+    import json as _json
+
+    repo = _build_fixture_repo(tmp_path)
+    first = _run_suite_in(repo, "--base-ref", "HEAD~1", "--dry-run")
+    second = _run_suite_in(repo, "--base-ref", "HEAD~1", "--dry-run")
+    assert first.returncode == 0 and second.returncode == 0
+    assert _json.loads(first.stdout)["routing_plan"] == (
+        _json.loads(second.stdout)["routing_plan"]
+    )
