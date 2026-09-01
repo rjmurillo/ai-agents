@@ -1057,12 +1057,31 @@ class SnapshotIncompleteError(RuntimeError):
     """
 
 
-def _strict_owned_stat(path: Path) -> os.stat_result | None:
+def _missing_owned_root(path: Path) -> bool:
+    """Return whether the parent directory also reports no entry for ``path``."""
+    try:
+        with os.scandir(path.parent) as entries:
+            return all(entry.name != path.name for entry in entries)
+    except FileNotFoundError:
+        return True
+    except OSError as exc:
+        raise SnapshotIncompleteError(
+            f"cannot verify missing owned path {path}: {exc}"
+        ) from exc
+
+
+def _strict_owned_stat(
+    path: Path, *, missing_root_ok: bool
+) -> os.stat_result | None:
     """Return metadata for ``path`` without following symlinks."""
     try:
         return path.stat(follow_symlinks=False)
-    except FileNotFoundError:
-        return None
+    except FileNotFoundError as exc:
+        if missing_root_ok and _missing_owned_root(path):
+            return None
+        raise SnapshotIncompleteError(
+            f"owned path disappeared during snapshot {path}: {exc}"
+        ) from exc
     except OSError as exc:
         raise SnapshotIncompleteError(
             f"cannot inspect owned path {path}: {exc}"
@@ -1070,12 +1089,10 @@ def _strict_owned_stat(path: Path) -> os.stat_result | None:
 
 
 def _strict_owned_children(path: Path) -> list[Path]:
-    """Return direct children of ``path``, raising on non-ENOENT failures."""
+    """Return direct children of ``path`` or fail the strict snapshot."""
     try:
         with os.scandir(path) as entries:
             return [Path(entry.path) for entry in entries]
-    except FileNotFoundError:
-        return []
     except OSError as exc:
         raise SnapshotIncompleteError(
             f"cannot enumerate owned directory {path}: {exc}"
@@ -1086,9 +1103,7 @@ def _queue_strict_owned_path(
     pending: list[Path], path: Path
 ) -> Path | None:
     """Queue child directories and return child files for strict snapshots."""
-    metadata = _strict_owned_stat(path)
-    if metadata is None:
-        return None
+    metadata = _strict_owned_stat(path, missing_root_ok=False)
     if stat.S_ISDIR(metadata.st_mode):
         pending.append(path)
         return None
@@ -1099,7 +1114,7 @@ def _queue_strict_owned_path(
 
 def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
     """Yield owned files while surfacing strict metadata and scan failures."""
-    root_metadata = _strict_owned_stat(root)
+    root_metadata = _strict_owned_stat(root, missing_root_ok=True)
     if root_metadata is None:
         return
     if stat.S_ISREG(root_metadata.st_mode):
@@ -1186,10 +1201,11 @@ def _snapshot_owned_prefixes(
     suppress stat and traversal errors, which turns a transient metadata or
     scan failure into an omitted path. If the error clears before restore,
     ``--check`` can then delete that pre-existing file as generator-created.
-    Strict mode instead stats roots and children directly, and enumerates
-    directories with :func:`os.scandir`, skipping only ``ENOENT`` as a path
-    that vanished and raising :class:`SnapshotIncompleteError` for every other
-    metadata, traversal, or read failure before generation starts.
+    A missing prefix root is skipped because generators may create it. Once a
+    path has been discovered, every metadata, traversal, or read error raises
+    before generation starts, including :class:`FileNotFoundError`, so a
+    transient disappear-and-recreate race cannot leave restore with a partial
+    snapshot.
     """
     ignored = _ignored_paths(repo_root, prefixes) if exclude_ignored else set()
     snapshot: dict[Path, bytes] = {}
@@ -1258,16 +1274,12 @@ def _read_into_snapshot(
     ``False`` while ``read_bytes()`` raises ``OSError(ELOOP)``, not
     ``FileNotFoundError``.
 
-    The genuine race is unchanged. A file removed between the ``rglob`` walk
-    and the read raises ``FileNotFoundError`` (``ENOENT``) from ``read_bytes``,
-    which is skipped even under ``strict``: restore cannot delete what is not
-    on disk, so that race carries none of the data-loss risk strict mode
-    exists to prevent, and aborting on it would make a pre-push gate flaky.
+    Under ``strict`` every :class:`OSError` raises because the path was already
+    discovered and statted. A path that disappears and returns before restore
+    would otherwise be absent from the snapshot and deleted as generator-created.
     """
     try:
         snapshot[path] = path.read_bytes()
-    except FileNotFoundError:
-        return
     except OSError as exc:
         if strict:
             raise SnapshotIncompleteError(

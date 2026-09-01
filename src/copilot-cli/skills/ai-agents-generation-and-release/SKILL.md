@@ -195,7 +195,7 @@ Rollback is roll-FORWARD: npm unpublish is restricted; fix, bump patch, retag (R
 Run this checklist before pushing any change that touched a canonical or generated surface:
 
 - [ ] `uv run python build/generate_agents.py --validate` exits 0
-- [ ] `uv run python build/scripts/build_all.py --check` exits 0 (2 means staleness: regenerate and stage)
+- [ ] `uv run python build/scripts/build_all.py --check` exits 0 (if it returns 2, read stderr first: regenerate only for staleness, not for an unreadable owned file)
 - [ ] `python3 scripts/sync_plugin_lib.py --check` exits 0 (only relevant if `scripts/` packages changed)
 - [ ] `python3 build/scripts/check_plugin_manifest_parity.py` exits 0
 - [ ] `python3 build/scripts/validate_plugin_version_bump.py` exits 0 (no manifest or marketplace entry carries a `version`)

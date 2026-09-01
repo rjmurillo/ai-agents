@@ -2056,6 +2056,17 @@ class _NoGit:
         raise FileNotFoundError(2, "No such file or directory: 'git'")
 
 
+class _TimeoutGit:
+    """Stand-in for the ``subprocess`` module where git times out."""
+
+    SubprocessError = subprocess.SubprocessError
+    TimeoutExpired = subprocess.TimeoutExpired
+
+    @staticmethod
+    def run(*_args: object, **_kwargs: object) -> object:
+        raise subprocess.TimeoutExpired(cmd="git", timeout=30)
+
+
 def _subprocess_stub(run: Callable[..., object]) -> object:
     class _Stub:
         SubprocessError = subprocess.SubprocessError
@@ -2095,6 +2106,17 @@ def test_git_diff_paths_raises_when_git_cannot_be_launched(
 
     with pytest.raises(build_all.GitStateUnreadableError):
         build_all._git_diff_paths(tmp_path)
+
+
+def test_git_diff_paths_raises_when_git_times_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A git timeout must fail closed, not escape the external-failure path."""
+    monkeypatch.setattr(build_all, "subprocess", _TimeoutGit)
+
+    with pytest.raises(build_all.GitStateUnreadableError):
+        build_all._git_diff_paths(tmp_path)
+
 
 
 def test_git_diff_paths_decodes_non_ascii_output_with_utf8_replacement(
@@ -2269,6 +2291,35 @@ def test_run_check_returns_3_when_git_state_is_unreadable(
     )
 
 
+def test_cli_exits_3_when_git_state_read_times_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI must report exit 3 when the git read times out."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    monkeypatch.setattr(build_all, "subprocess", _TimeoutGit)
+
+    rc = build_all.main(["--repo-root", str(repo), "--check"])
+
+    assert rc == 3, f"expected CLI exit 3 when git times out, got {rc}"
+    assert "cannot read git state" in capsys.readouterr().err
+
+
+
 def test_cli_exits_3_when_git_state_is_unreadable(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2367,16 +2418,25 @@ def test_snapshot_non_strict_skips_unreadable_owned_file(
     assert snapshot[readable] == b"y = 2\n"
 
 
-def test_read_into_snapshot_skips_a_path_that_vanished(tmp_path: Path) -> None:
-    """A file gone before the read cannot be deleted by restore, so skip it.
+def test_read_into_snapshot_raises_when_a_discovered_path_vanishes(
+    tmp_path: Path,
+) -> None:
+    """Strict mode must abort if a discovered path vanishes before its read."""
+    with pytest.raises(build_all.SnapshotIncompleteError):
+        build_all._read_into_snapshot(
+            {}, tmp_path / "never-existed.py", strict=True
+        )
 
-    Aborting here would make a pre-push gate flaky for a race that carries
-    none of the data-loss risk strict mode exists to prevent.
-    """
+
+
+def test_read_into_snapshot_non_strict_skips_a_path_that_vanished(
+    tmp_path: Path,
+) -> None:
+    """The comparison-only caller still skips a vanished path."""
     snapshot: dict[Path, bytes] = {}
 
     build_all._read_into_snapshot(
-        snapshot, tmp_path / "never-existed.py", strict=True
+        snapshot, tmp_path / "never-existed.py", strict=False
     )
 
     assert snapshot == {}
@@ -2515,7 +2575,7 @@ def test_run_check_aborts_before_generation_when_owned_file_stat_fails(
             raise build_all.SnapshotIncompleteError(
                 f"cannot inspect owned path {path}: [Errno 13] denied"
             )
-        return real_strict_owned_stat(path)
+        return real_strict_owned_stat(path, missing_root_ok=False)
 
     generation_called = False
 
@@ -2535,6 +2595,97 @@ def test_run_check_aborts_before_generation_when_owned_file_stat_fails(
     assert not generation_called
     assert protected.read_text() == "x = 1\n"
     assert "cannot inspect owned path" in capsys.readouterr().err
+
+
+
+def test_run_check_preserves_owned_root_after_transient_enoent_stat(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A root that still has a directory entry must not be treated as absent."""
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "owned.txt"
+    protected.write_text("x = 1\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned.txt",))
+
+    real_strict_owned_stat = build_all._strict_owned_stat
+    failed = False
+
+    def flaky_strict_owned_stat(
+        path: Path, *, missing_root_ok: bool
+    ) -> os.stat_result | None:
+        nonlocal failed
+        if path == protected and not failed:
+            failed = True
+            raise build_all.SnapshotIncompleteError(
+                f"owned path disappeared during snapshot {path}: [Errno 2] vanished"
+            )
+        return real_strict_owned_stat(path, missing_root_ok=missing_root_ok)
+
+    generation_called = False
+
+    def record_generation(*_args: object, **_kwargs: object) -> int:
+        nonlocal generation_called
+        generation_called = True
+        return 0
+
+    monkeypatch.setattr(build_all, "_strict_owned_stat", flaky_strict_owned_stat)
+    monkeypatch.setattr(build_all, "_run_generators", record_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not generation_called
+    assert protected.read_text() == "x = 1\n"
+    assert "owned path disappeared during snapshot" in capsys.readouterr().err
+
+
+
+def test_run_check_preserves_file_after_transient_enoent_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A file that returns after ENOENT must not be deleted by restore."""
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "owned" / "frozen.py"
+    protected.parent.mkdir(parents=True)
+    protected.write_text("x = 1\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
+
+    real_read_bytes = Path.read_bytes
+    failed = False
+
+    def flaky_read_bytes(self: Path) -> bytes:
+        nonlocal failed
+        if self == protected and not failed:
+            failed = True
+            raise FileNotFoundError(2, "vanished", str(self))
+        return real_read_bytes(self)
+
+    generation_called = False
+
+    def record_generation(*_args: object, **_kwargs: object) -> int:
+        nonlocal generation_called
+        generation_called = True
+        return 0
+
+    monkeypatch.setattr(Path, "read_bytes", flaky_read_bytes)
+    monkeypatch.setattr(build_all, "_run_generators", record_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not generation_called
+    assert protected.read_text() == "x = 1\n"
+    assert "cannot read owned file" in capsys.readouterr().err
 
 
 
