@@ -9,25 +9,20 @@
 
 ## Failure Mode Classification
 
-**Primary**: FM-9 (Confident-Incorrectness Recurrence,
-`.agents/governance/FAILURE-MODES.md` lines 284-311).
+**Primary**: No existing `FAILURE-MODES.md` class cleanly matches.
+Issue #5145 tracks the proposed class `State Conflation in a Boolean Guard`.
 
-PR #5103's sweep reported the repository's `always()`-gated aggregators as
-fixed after modeling "depends on upstream work" as one shape (a job that
-reads `needs.<job>.result`). `check-blocking-issues` depends on upstream work
-through a second shape (a downloaded artifact the upstream job never
-produced when cancelled) that the classifier's regex could not see. The
-sweep's audit table even flagged the job by name and still reported it
-unfixed without anyone treating that flag as a live defect, which is FM-9's
-shape exactly: a validator shipped confidence ("the five result-reading
-aggregators are now guarded") from a partial signal (one dependency shape),
-and the gap surfaced only when issue #5104 reproduced it live, one round of
-correction after the flag was already on record. The fix in this PR does not
-just patch the instance; per FM-9's Enforcement Pattern, it widens the
-classifier itself (`depends_on_upstream_output`) so the artifact-consuming
-shape is part of the checked contract going forward, and the PR's
-measured-blast-radius table stands in for the "quote the canonical source"
-step, since the source here is the workflow YAML shape rather than a schema.
+PR #5103 did not miss this job. Its audit table flagged
+`codeql-analysis.yml::check-blocking-issues` as outside the result-reading
+shape and left it as a follow-up. Issue #5104 cites that audit, not a live
+reproduction. The defect here is the job's `always()` guard on a PR head: it
+collapses cancellation and failure into the same visible red path on a
+superseded head. That shape is not FM-9, and it is not FM-10 because nothing
+is hidden.
+
+The fix in this PR does not just patch the instance; it widens the classifier
+itself (`depends_on_upstream_output`) so the artifact-consuming shape is part
+of the checked contract going forward.
 
 ## What shipped
 
@@ -48,12 +43,13 @@ Implementation on `claude/fix-5104-codeql-cancelled-guard`:
   `tests/workflows/test_aggregator_cancellation_guard.py` so the sweep
   covers this job's shape.
 
-## The interesting part: why the #5097 sweep missed this
+## The interesting part: why the #5097 sweep left this open
 
-PR #5103 swept every `needs` + `always()` job and fixed five. Its audit table
-flagged this job but did not fix it, and issue #5104 exists because of that
-gap. The sweep's classifier, `_consumes_dependency_results`, defined an
-aggregator as a job whose payload matches
+PR #5103 audited every `needs` + `always()` job and fixed five. Its audit
+table flagged this job but deliberately left it open because it never reads a
+dependency result. Issue #5104 reports that follow-up. The sweep's
+classifier, `_consumes_dependency_results`, defined an aggregator as a job
+whose payload matches
 `needs\.[A-Za-z0-9_-]+\.result|toJSON\(\s*needs\s*\)`.
 
 `check-blocking-issues` matches neither. It never reads a dependency result.
