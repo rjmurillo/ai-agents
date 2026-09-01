@@ -2,6 +2,18 @@
     "env": {
         "AI_AGENTS_PROJECT_REPO": "1"
     },
+    "permissions": {
+        "deny": [
+            "Bash(git *--output*)",
+            "Bash(git *--exec-path*)",
+            "Bash(git *diff.external=*)",
+            "Bash(git *core.pager=*)",
+            "Bash(git *core.sshCommand=*)",
+            "Bash(git *core.fsmonitor=*)",
+            "Bash(git *textconv=*)",
+            "Bash(git *uploadpack.packObjectsHook=*)"
+        ]
+    },
     "hooks": {
         "SessionStart": [
             {
