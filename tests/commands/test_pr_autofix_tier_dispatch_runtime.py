@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size, this file is the single runtime harness suite
+# for pr-autofix tier dispatch and keeping the matrix in one place preserves
+# the shell block contract it exercises.
 """Runtime behavior of `/pr-autofix`'s tier-dispatch block.
 
 Refs #5094. The static contract gate proves each `jq` read names a field its
