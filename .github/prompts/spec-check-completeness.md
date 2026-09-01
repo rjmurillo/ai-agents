@@ -148,20 +148,21 @@ diff. A criterion wrongly marked `N/A` is measured by nothing.
 
 Apply these rules:
 
-1. Mark a historical-run-evidence claim `N/A`, never `PARTIALLY SATISFIED` and
-   never `NOT SATISFIED`. State the reason in one line: the claim reports a run
-   you cannot perform.
-2. Evaluate completeness only over the non-N/A criteria, exactly as the
+1. An explicitly unchecked criterion stays in scope as `NOT SATISFIED`. The
+   run-evidence exemption does not erase an admitted gap.
+2. Otherwise, mark a historical-run-evidence claim `N/A`, never `PARTIALLY SATISFIED` and never `NOT SATISFIED`.
+   State the reason in one line: the claim reports a run you cannot perform.
+3. Evaluate completeness only over the non-N/A criteria, exactly as the
    Incremental Scope rules above do.
-3. Do NOT emit `PARTIAL` or `FAIL` because a historical-run-evidence claim
+4. Do NOT emit `PARTIAL` or `FAIL` because a historical-run-evidence claim
    could not be re-executed.
-4. If the additional context carries a `## Non-Executable Criteria
+5. If the additional context carries a `## Non-Executable Criteria
    Declaration`, its entries were classified by
    `scripts/ci/spec_nonexecutable_criteria.py`, which fires only when a named
    command is the subject of the result verb. Mark each listed criterion `N/A`
    unless it reads as a behavioral contract on code this diff changes; in that
    case keep it in scope and say why. The declaration is a hint, not an
-   override, and it is deliberately narrower than rule 1, so rule 1 still
+   override, and it is deliberately narrower than rule 2, so rule 2 still
    applies to a claim it does not name.
 
 This covers only the claim that a command ran and produced a result. It does

@@ -68,6 +68,9 @@ def section() -> str:
 
 
 class TestTheExemptionRuleSurvives:
+    def test_an_explicitly_unchecked_run_claim_stays_not_satisfied(self, section: str) -> None:
+        assert "unchecked criterion stays in scope as `NOT SATISFIED`" in section
+
     def test_run_evidence_is_marked_not_applicable(self, section: str) -> None:
         assert "N/A" in section
         assert "historical-run-evidence" in section or "historical run evidence" in section
