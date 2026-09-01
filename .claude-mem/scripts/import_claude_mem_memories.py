@@ -39,22 +39,34 @@ still counts as configured, so "no path resolved" alone does not mean skip. See
 ``ImporterResolution.is_configured``.
 
 EXIT CODES:
-  0  - Success, or nothing configured and no plugin installed (skipped)
+  0  - Success, or nothing configured and no plugin installed (skipped).
+       Also ``--help``, which argparse exits 0 without reaching ``main``'s body.
   1  - A configured importer is missing or unusable, or an import failed
+  2  - Malformed command line: an unknown flag, a bare ``--importer`` with no
+       value, an unexpected positional. ``argparse`` raises ``SystemExit(2)``
+       from ``parse_args`` and the entrypoint's ``sys.exit(main())`` propagates
+       it, so this code bypasses the resolution contract below entirely. It is
+       reachable only when the CALLER's command line is wrong, never as an
+       outcome of an import, so a caller that invokes this script correctly sees
+       only 0 and 1.
 
-Intentional deviation from ADR-035: this CLI does NOT follow the standard
-mapping, and callers must not assume it does. ADR-035's Exit Code Reference
-assigns code 2 to "Usage, configuration, or environment error", covering
-"Missing params, invalid args, missing dependencies". Three of this module's
-exit-1 paths fall in that category under the ADR: a blank ``--importer``
-(invalid arg), a configured importer path that does not exist (configuration),
-and a missing ``npx`` (missing dependency). They exit 1 here.
+Partial deviation from ADR-035. The exit-2 path above CONFORMS: ADR-035's Exit
+Code Reference assigns code 2 to "Usage, configuration, or environment error",
+covering "Missing params, invalid args, missing dependencies", which is what a
+malformed command line is.
+
+Three exit-1 paths deviate, and callers must not assume the standard mapping for
+them. Under the ADR they would also be 2: a blank ``--importer`` (invalid arg), a
+configured importer path that does not exist (configuration), and a missing
+``npx`` (missing dependency). They exit 1 here.
 
 That is deliberate, not an oversight. Issue #4780's acceptance criteria fix the
-contract at two codes, 0 for a supported skip and 1 for a real failure, so that
-a caller can branch on "did the import work" without a third state. Widening to
-2 would change the contract the issue specifies. Revisit only with that issue,
-not as a drive-by conformance fix.
+IMPORT outcome at two codes, 0 for a supported skip and 1 for a real failure, so
+that a caller can branch on "did the import work" without a third state. Routing
+those three to 2 would put a real failure and a supported skip on either side of
+a code that also means "you typed the command wrong", which is the distinction
+the issue exists to make clean. Revisit only with that issue, not as a drive-by
+conformance fix.
 
 See: ADR-035 Exit Code Standardization (deviation documented above)
 """
@@ -68,6 +80,7 @@ import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _MEMORIES_DIR = _SCRIPT_DIR.parent / "memories"
@@ -126,24 +139,53 @@ def is_blank(raw: str) -> bool:
     return not raw.strip()
 
 
-def path_separators() -> str:
-    """Characters the running platform accepts as path separators.
+class PathModule(Protocol):
+    """The slice of ``posixpath``/``ntpath`` the path helpers below depend on.
 
-    ``os.altsep`` is the standard library's own answer: None on POSIX, and
-    ``"/"`` on Windows where ``os.sep`` is a backslash. Deriving the set from it
-    rather than testing ``os.name`` keeps this correct for any platform the
-    standard library describes, and keeps the backslash out of the set on POSIX,
-    where it is an ordinary filename character rather than a separator.
+    Named as a Protocol rather than typed ``ModuleType`` so the dependency is
+    visible and checked: ``ModuleType`` attribute access is ``Any``, which would
+    let a wrong module through and silently erase the return types.
+
+    The members are read-only properties on purpose. Typeshed declares
+    ``ntpath.altsep`` as ``str`` and ``posixpath.altsep`` as ``None``, and a
+    mutable Protocol attribute is invariant, so a writable ``altsep: str | None``
+    matches neither module. A read-only member is covariant and matches both.
     """
-    return os.sep + (os.altsep or "")
+
+    @property
+    def sep(self) -> str: ...
+
+    @property
+    def altsep(self) -> str | None: ...
+
+    def splitdrive(self, path: str) -> tuple[str, str]: ...
 
 
-def expand_home(raw: str, home: Path, *, separators: str | None = None) -> Path:
+def path_separators(pathmod: PathModule | None = None) -> str:
+    """Characters a platform accepts as path separators.
+
+    ``pathmod`` is a standard-library path module and defaults to ``os.path``,
+    which IS ``posixpath`` or ``ntpath`` for the running platform. Pass
+    ``posixpath`` or ``ntpath`` to ask about the other one.
+
+    ``altsep`` is the standard library's own answer: None on POSIX, and ``"/"``
+    on Windows where ``sep`` is a backslash. Deriving the set from it rather than
+    testing ``os.name`` keeps this correct for any platform the standard library
+    describes, and keeps the backslash out of the set on POSIX, where it is an
+    ordinary filename character rather than a separator.
+    """
+    mod: PathModule = os.path if pathmod is None else pathmod
+    return mod.sep + (mod.altsep or "")
+
+
+def expand_home(raw: str, home: Path, *, pathmod: PathModule | None = None) -> Path:
     """Expand a leading ``~`` against ``home`` instead of the process environment.
 
-    ``separators`` defaults to :func:`path_separators` and exists so both
-    platform behaviors are testable from either platform. Pass ``"/"`` for
-    POSIX or ``"\\\\/"`` for Windows.
+    ``pathmod`` defaults to ``os.path`` and exists so both platform behaviors are
+    testable from either platform. Pass ``posixpath`` or ``ntpath``. One knob
+    rather than two, because the separator question and the drive question below
+    must be answered about the SAME platform; splitting them lets a caller pin a
+    combination no platform has.
 
     Stricter/looser/different than canonical: ``Path.expanduser`` reads the real
     ``HOME`` or ``USERPROFILE`` and the password database, which defeats the
@@ -154,7 +196,7 @@ def expand_home(raw: str, home: Path, *, separators: str | None = None) -> Path:
     backslash separates path segments, so ``~\\importer.ts`` is a tilde path. On
     POSIX a backslash is a legal filename character, so the same string is a
     single literal relative filename and expanding it would rewrite a real name
-    into a different path. Only the separators this platform actually recognizes
+    into a different path. Only the separators that platform actually recognizes
     are treated as such, in both the prefix test and the suffix strip.
 
     A ``~otheruser`` prefix is NOT expanded. It is returned unchanged, which
@@ -170,13 +212,28 @@ def expand_home(raw: str, home: Path, *, separators: str | None = None) -> Path:
     that, ``~//importer.ts`` leaves ``/importer.ts``, and ``Path.__truediv__``
     discards its left operand when the right side is rooted, so the expansion
     would silently return ``/importer.ts`` and drop ``home`` entirely.
+
+    A suffix left carrying a DRIVE after that strip is returned literally, the
+    same as ``~otheruser``. Stripping separators does not make a suffix relative
+    on Windows, where a drive is a second anchoring mechanism: ``~/D:/x`` leaves
+    ``D:/x``, and joining that onto ``home`` yields ``D:\\x``, dropping ``home``
+    exactly as a rooted suffix would. The drive-relative form is worse still,
+    because ``C:x`` anchors to that drive's own working directory, which is
+    process-global state no argument to this function can describe. Both are
+    malformed input rather than a path under ``home``, so neither is expanded.
+    ``splitdrive`` is the same per-platform module's answer, which is why it
+    reports no drive on POSIX and leaves ``D:`` an ordinary directory name there.
     """
-    seps = path_separators() if separators is None else separators
+    mod: PathModule = os.path if pathmod is None else pathmod
+    seps = path_separators(mod)
     if raw == "~":
         return home
-    if raw.startswith(tuple("~" + sep for sep in seps)):
-        return home / raw[2:].lstrip(seps)
-    return Path(raw)
+    if not raw.startswith(tuple("~" + sep for sep in seps)):
+        return Path(raw)
+    suffix = raw[2:].lstrip(seps)
+    if mod.splitdrive(suffix)[0]:
+        return Path(raw)
+    return home / suffix
 
 
 def claude_default_importer(home: Path) -> Path:
