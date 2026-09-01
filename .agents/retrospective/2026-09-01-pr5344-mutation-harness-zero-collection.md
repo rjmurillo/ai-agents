@@ -36,7 +36,7 @@
 
 ## Failure Mode Classification (`.claude/rules/retros.md` MUST 2)
 
-**Class 9: Confident-Incorrectness Recurrence** (`.agents/governance/FAILURE-MODES.md`). The prior session (`22dc5b64`) reached a conclusion from partial signal (the lefthook job "looked like" a duplicate of the pytest.yml CI step) and delivered it with full confidence (a plausible conventional-commit message, "drop duplicate zero-collection pre-push gate") without quoting or citing the canonical evidence that would prove duplication (a failing test, a review comment, or the PR's own "Gate wiring" table, which in fact contradicted the claim). The gap surfaced only after this session's independent verification, matching Class 9's own trigger, quoted verbatim from `FAILURE-MODES.md:290-292`: "asserts that it 'matches', 'mirrors', or 'aligns with' an existing source... without quoting that source verbatim."
+**Class 9: Confident-Incorrectness Recurrence** (`.agents/governance/FAILURE-MODES.md`). The prior session (`22dc5b64`) reached a conclusion from partial signal (the lefthook job "looked like" a duplicate of the pytest.yml CI step) and delivered it with full confidence (a plausible conventional-commit message, "drop duplicate zero-collection pre-push gate") without quoting or citing the canonical evidence that would prove duplication (a failing test, a review comment, or the PR's own "Gate wiring" table, which in fact contradicted the claim). The gap surfaced only after this session's independent verification, matching the Class 9 description quoted verbatim from `.agents/governance/FAILURE-MODES.md:286-289`: "An agent reaches a conclusion from partial signal, delivers it with full confidence, and the gap surfaces only after multiple rounds of correction. The shape is: partial signal, premature conclusion, confident delivery, multi-round correction."
 
 ## Remediation (`.claude/rules/retros.md` MUST 4)
 
@@ -151,8 +151,8 @@
 
 | Learning | Atomicity | Existing Match | Result |
 |----------|-----------|----------------|--------|
-| Verify orphaned pr-autofix commits against a real test run before reuse | 85% | None found | Added (pr-autofix-orphaned-commit-verification) |
-| Prefer a native WSL worktree path for `uv`-dependent work in this sandbox | 70% | None found | Added (wsl-native-worktree-for-uv-network-access) |
+| Verify orphaned pr-autofix commits against a real test run before reuse | 85% | None found | Added (`.serena/memories/pr-autofix/pr-autofix-orphaned-commit-verification.md`) |
+| Prefer a native WSL worktree path for `uv`-dependent work in this sandbox | 70% | None found | Added (`.serena/memories/workspace/wsl-native-worktree-for-uv-network-access.md`) |
 
 ### +/Delta
 
