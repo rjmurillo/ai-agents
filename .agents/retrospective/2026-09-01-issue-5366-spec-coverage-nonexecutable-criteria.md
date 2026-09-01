@@ -10,7 +10,7 @@
 ## What shipped
 
 Two commits on `claude/fix-5366-spec-coverage-nonexecutable` carried the
-initial implementation. Three review rounds then reshaped the classifier's
+initial implementation. Four review rounds then reshaped the classifier's
 precision boundary before merge; those are rows 4 through 12 of the
 Remediation table below, and they define the shipped behavior as much as these
 two do:
@@ -99,7 +99,7 @@ validation.
 
 ## Evidence
 
-Final state, re-run after the third review round. Earlier rounds' numbers are
+Final state, re-run after the fourth review round. Earlier rounds' numbers are
 kept below them so the progression stays readable, marked as intermediate.
 
 - `uv run --frozen python -m pytest tests/ci/test_spec_nonexecutable_criteria.py
@@ -181,9 +181,47 @@ Deliberately not fixed, with reasons:
 ## +/Delta
 
 **+**: The issue named the root cause precisely and cited the run IDs, so the
-session spent its time on the fix rather than on reproduction. The existing
-Incremental Scope Declaration gave the fix a shape to mirror, down to the
-context-injection seam and the prompt's rule numbering.
+session spent its time on the fix rather than on reproduction.
+
+The existing Incremental Scope Declaration from issue #2255 gave the fix a
+shape to mirror. Canonical source, `scripts/ci/spec_prepare_context.py:44-50`,
+quoted verbatim:
+
+    def _incremental_scope_block(incremental_scope: str) -> list[str]:
+        """Render the issue #2255 scope declaration, or nothing when unscoped."""
+        if not incremental_scope:
+            return []
+        return [
+            "",
+            "## Incremental Scope Declaration",
+
+`_nonexecutable_criteria_block` at `:60` takes the same shape: one input, an
+empty list when that input is falsy, and a `## ... Declaration` heading as the
+first rendered line.
+
+The prompt's rule numbering mirrors it too. `.github/prompts/spec-check-completeness.md`
+rule 2 under `## Incremental Scope (fix #2255)` reads, verbatim:
+
+    2. Evaluate completeness only over the non-N/A criteria.
+
+and rule 2 of `## Non-Executable Criteria (fix #5366)` reads:
+
+    2. Evaluate completeness only over the non-N/A criteria, exactly as the
+       Incremental Scope rules above do.
+
+Stricter/looser/different than canonical: the two sections resolve ambiguity in
+**opposite** directions, and this is deliberate. Issue #2255 rule 5 reads
+verbatim:
+
+    5. When a criterion is ambiguously scoped, lean toward `N/A` rather than
+       treating it as a gap. The author declared they are not claiming to cover it.
+
+The #5366 section inverts that, because nothing here is author-declared: the
+classifier guesses from sentence shape, so an ambiguous criterion has no
+declaration behind it. Its wording is "When both readings stay open, keep the
+criterion in scope and evaluate it from the diff. A criterion wrongly marked
+`N/A` is measured by nothing." Copying rule 5 unchanged is the defect three
+review rounds were spent removing.
 
 **Delta**: The first draft checked "names a command" and "asserts a result"
 as two independent scans over the same bullet, and the eight negative controls
