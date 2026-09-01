@@ -1,6 +1,6 @@
 ---
 id: ADR-105
-status: accepted
+status: proposed
 date: 2026-08-31
 decision-makers: [rjmurillo]
 supersedes: []
@@ -265,7 +265,14 @@ consensus protocol in CONSENSUS.md") is satisfied at this reduced scope for
 that reason. If a future review finds the doctrine's blast radius broader
 than assessed here, most likely by contesting the precedence deviation
 named in Consequences above, the full panel should run before any further
-change to these four files.
+change to these four files. `status` is `proposed` rather than `accepted`
+for exactly this reason: no debate-log artifact exists yet at
+`.agents/critique/ADR-105-debate-log.md`, and the `adr-review` skill's own
+review checklist treats a hand-edit to `accepted` with no debate-log
+artifact as a forgeable approval signal that MUST be rejected
+(`.claude/skills/adr-review/SKILL.md`). A full `adr-review` panel run
+producing that debate-log artifact is the condition for a future transition
+to `accepted`.
 
 ## References
 
