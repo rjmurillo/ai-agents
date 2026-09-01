@@ -150,6 +150,23 @@ class PathModule(Protocol):
     ``ntpath.altsep`` as ``str`` and ``posixpath.altsep`` as ``None``, and a
     mutable Protocol attribute is invariant, so a writable ``altsep: str | None``
     matches neither module. A read-only member is covariant and matches both.
+
+    ``splitdrive`` takes a positional-only parameter named ``p``, matching
+    typeshed. Both matter, and neither is cosmetic. The real functions accept no
+    keyword at all: ``posixpath.splitdrive(path="x")`` raises ``TypeError:
+    splitdrive() got an unexpected keyword argument 'path'``. A Protocol that
+    declares a named parameter therefore advertises a call that cannot work, and
+    the type checker endorses it: under ``mypy --strict``, assigning ``os.path``
+    to such a Protocol passes AND a ``splitdrive(path=...)`` call through it
+    passes, so the checker launders a runtime crash instead of catching it.
+
+    Stricter/looser/different than canonical: ``_PathModule`` in
+    ``.claude/skills/skillforge/scripts/quick_validate.py`` is the same idea and
+    is the source of the positional-only form used here. It declares ``sep`` and
+    ``altsep`` as plain attributes, which this deliberately does not copy. That
+    version does not accept ``ntpath`` (``altsep: expected "str | None", got
+    "str"``); it is sound there only because that module ever assigns ``os.path``.
+    This module injects ``ntpath`` by design, so the read-only form is required.
     """
 
     @property
@@ -158,7 +175,7 @@ class PathModule(Protocol):
     @property
     def altsep(self) -> str | None: ...
 
-    def splitdrive(self, path: str) -> tuple[str, str]: ...
+    def splitdrive(self, p: str, /) -> tuple[str, str]: ...
 
 
 def path_separators(pathmod: PathModule | None = None) -> str:

@@ -194,7 +194,7 @@ The bulk importer resolves its path from configuration before any harness
 default.
 
 Canonical source: `.claude-mem/scripts/import_claude_mem_memories.py`. The
-resolution order is `resolve_importer` at lines 276 to 289, quoted verbatim:
+resolution order is `resolve_importer` at lines 293 to 306, quoted verbatim:
 
 ```python
     if explicit is not None:
@@ -231,7 +231,7 @@ would execute a different file or report a real importer missing.
 
 A leading `~` is expanded by `expand_home`, not by `Path.expanduser`. The claims
 below are about that function's body, so it is quoted rather than described.
-From `.claude-mem/scripts/import_claude_mem_memories.py`, lines 234 to 243,
+From `.claude-mem/scripts/import_claude_mem_memories.py`, lines 251 to 260,
 verbatim:
 
 ```python
@@ -247,7 +247,7 @@ verbatim:
     return home / suffix
 ```
 
-with `path_separators` at lines 177 to 178 of the same file:
+with `path_separators` at lines 194 to 195 of the same file:
 
 ```python
     mod: PathModule = os.path if pathmod is None else pathmod
@@ -293,7 +293,7 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py \
 ```
 
 The exit code is decided by `is_configured`, not by the absence itself. From
-`main` in the same file, lines 367 to 382, quoted verbatim:
+`main` in the same file, lines 384 to 399, quoted verbatim:
 
 ```python
     importer = resolution.path
