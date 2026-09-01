@@ -12,10 +12,17 @@
 
 `git ls-files` prints one line per index entry, and an unmerged path holds one
 entry per merge stage. `count_ratchet.tracked_files` returned that raw list, so
-every ratchet under `scripts/ci` handed its linter the same conflicted path two
-or three times and counted its violations that many times. The reporter saw
+all six ratchets under `scripts/ci` were handed the same conflicted path two or
+three times. Five of them counted its violations that many times. The
+memory-index ratchet did not, because its `_tracked_relative_paths` builds a set
+and the repeats collapsed before anything counted them. The reporter saw
 `585 violations > baseline 583 (+2)` on a branch whose only conflicted file was
 byte-identical to `origin/main`, and `git add` of unchanged content cleared it.
+
+Fixing the shared enumeration still covers the immune consumer, because it reads
+the index like the rest and so carries the mid-merge note. That note is a
+reporting concern rather than a counting one, which is the distinction the
+first draft of this record blurred.
 
 `deduplicate_index_entries` keeps the first occurrence and the original order.
 Repeats are reported on stderr rather than through a second git call, because a
@@ -96,6 +103,8 @@ is deferred, so no follow-up issue is open against this record.
 | 2 | Emit a stderr note naming the unmerged paths, capped at five | `@rjmurillo` | PR #5454, issue #4746 | DONE |
 | 3 | Pin git's per-stage enumeration so a future git that stops repeating cannot leave the fix guarding nothing | `@rjmurillo` | PR #5454, issue #4746 | DONE |
 | 4 | Drive each of the six consumers' real `current_count` through a spy, so one leaving the shared enumeration fails | `@rjmurillo` | PR #5454, issue #4746 | DONE |
+| 5 | Suppress the note on the run's second index read, so one run prints one caveat | `@rjmurillo` | PR #5454, issue #4746 | DONE |
+| 6 | Narrow the impact claim to the five ratchets that actually double-counted | `@rjmurillo` | PR #5454, issue #4746 | DONE |
 
 On action 2: the count is right after the fix, and the note still earns its
 place, because the linter reads content off disk, so conflict markers left in
@@ -149,3 +158,43 @@ place of the remediation table. Both are now supplied above.
 The through-line across all three: each was a claim stated in the right shape
 without the thing that makes the shape load-bearing. That is the same defect
 class as the bug this PR fixes, one level up.
+
+## Correction, 2026-09-01, review round 2
+
+Three more findings, all real, all confirmed by reading the cited source before
+acting.
+
+**A duplicate note, which is the fix reproducing the defect it fixes.** On a
+regression `run` reads the index twice: once through the counter, then again
+through the lister that renders the violations. Both reads saw the same unmerged
+index, so both emitted the identical caveat and a contributor mid-merge read it
+twice for one run. The note exists to make a mid-merge count legible, and
+printing it twice makes the output harder to read, not easier. Fixed by giving
+the enumeration an `announce_unmerged` keyword that the counting read leaves
+true and both listers pass false: the counting read runs on every invocation, so
+it owns the announcement, and the diagnostic re-read stays silent because the
+count already said it. `memory_index_count_ratchet` needed the keyword threaded
+two frames down, through `_collect` and `_tracked_relative_paths`.
+
+Negative control: restoring both call sites to the announcing form failed three
+cases, the end-to-end once-only assertion and one lister case per module, with
+28 passing. Both restores were confirmed byte-identical and returned all 31 to
+green. The end-to-end case drives `main` rather than the helpers, because the
+double emission only exists in the sequence `run` performs, and it asserts the
+violations header so a future change that skips the lister entirely cannot make
+it pass vacuously. A paired control asserts the counting read still announces,
+because silencing both reads would leave a mid-merge run with no caveat at all,
+which is this defect one step further on.
+
+**An overstated impact claim, twice.** The first draft of this record and the
+test module both said every ratchet counted the conflicted path two or three
+times. Five did. `memory_index_count_ratchet._tracked_relative_paths` builds a
+set, so the repeats collapsed there before anything counted them, and that
+consumer was already immune to the counting symptom while still sharing the
+enumeration. The PR description's scope analysis had this right from the start,
+so the defect was an inconsistency between two documents in the same change,
+where the narrower and correct claim was already written down.
+
+The pattern worth keeping from this round: the strongest claim reachable is not
+always the true one, and a claim already stated correctly somewhere else in the
+same change is the cheapest place to catch that.
