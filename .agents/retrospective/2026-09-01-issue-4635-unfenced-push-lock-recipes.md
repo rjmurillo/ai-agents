@@ -50,8 +50,14 @@ Five Whys:
    silently did not exist in the other.
 
 Root cause: One behavior lived in two code paths with no shared resolver, so
-the paths drifted. This is failure mode 2, Partial Coverage, because the gate
-reported success while an entire input shape went unexamined.
+the paths drifted. This is failure mode 10, Silent Defaults and Guard-Clause
+Suppression, whose unifying property is that "the call site has no way to know
+the operation didn't actually do what its name claims"
+(`.agents/governance/FAILURE-MODES.md`). `scan_text` returned `[]` for an
+unfenced recipe it could not structurally resolve, and a caller reading that
+empty list could not tell "examined and clean" from "never examined". Absence
+of signal was returned as a passing verdict, which is the same shape as the
+verdict parser that emits PASS when the check produced no output.
 
 Patterns and shifts: The fix removed the second path rather than teaching it
 the same tricks. Two units now differ only in the one place where they must,
@@ -80,6 +86,7 @@ its own corpus claim.
 |--------------------|----------|----------|
 | The issue's PRD proposed delegating unfenced runs straight to `_scan_block` | Corpus probe showed it fires on 13 files and contradicts an existing test | A plan's design section is a hypothesis, not a measurement |
 | Test file crossed the 500-line taste limit | Split along the same seam the scanner has, shared builders extracted | Fix the count, do not raise the baseline |
+| Variable resolution took the block's last assignment, not the one live at each `flock` | Copilot review caught it; fixed with `_value_in_effect` plus four regression tests in both directions | Reusing a resolver inherits its latent defects, so widening a caller is a reason to re-read the code being reused, not to trust it |
 
 ## Phase 3: Decisions
 
@@ -116,6 +123,13 @@ merge, and applied before the implementation is written rather than after.
 - **Statement**: When one behavior has two code paths, a feature added to one is absent from the other until a shared resolver forces agreement.
 - **Atomicity Score**: 90%
 - **Evidence**: Variable resolution existed in `_scan_block` for fences and nowhere else; `d0d9c7961` removes the second path.
+- **Skill Operation**: TAG
+- **Target Skill ID**: code-qualities-assessment
+
+### Learning 3
+- **Statement**: Routing a second caller into an existing resolver inherits its latent defects, so read the reused code against the new inputs instead of trusting that it was already correct.
+- **Atomicity Score**: 85%
+- **Evidence**: `_assignments` collapsed a block to one value per name, so a reassignment below a `flock` laundered the path that call actually opened. The defect predates this change and reached both units once they shared the resolver; review caught it and `_value_in_effect` fixes it.
 - **Skill Operation**: TAG
 - **Target Skill ID**: code-qualities-assessment
 
