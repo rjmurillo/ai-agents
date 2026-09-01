@@ -241,7 +241,6 @@ _RISK_TABLE: tuple[tuple[str, Callable[[str], bool], tuple[str, ...], tuple[str,
     ("executable-code", _is_code_path, ("code-quality",), ("code-qualities-assessment", "taste-lints")),
     ("toolkit-governance", _is_toolkit_artifact_path, (), ("golden-principles",)),
 )
-
 # The 12 diff effects the caller verified in the diff body, which no path glob
 # can see. An effect outside this vocabulary fails closed. The execution,
 # untrusted-input, artifact, and rollback rows of issue #4981 live here rather
