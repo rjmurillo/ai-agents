@@ -30,34 +30,39 @@ deliberately narrower. It fires only when the criterion is nothing but run
 evidence, which means the named command is the subject of a result verb, that
 verb ends the criterion, and the criterion states no condition:
 
-    `pytest` passes                                   -> fires
+    - [x] `pytest` passes                             -> fires
     the helper passes the flag to `run_gh`            -> no command as subject
     `pre_pr.py` passes the changed-file list to ruff  -> transitive, not a run
     the wrapper returns zero when `pytest` passes     -> conditional
     `wrapper.py` returns zero when `pytest` passes    -> conditional
-    `pytest` passes locally and the parser rejects    -> carries a requirement
+    `pytest` passes locally and the parser rejects    -> trailing requirement
+    the parser rejects an empty ref and `pytest` pass -> leading requirement
+    - [ ] `pytest` passes                             -> author says unmet
 
-Every line below the first states something about the code under review, which
-a diff reviewer can and must check. Each escaped an earlier draft a different
-way: scanning for a command and a result verb independently anywhere in the
-bullet; truncating a conditional at its subordinator, which left "`wrapper.py`
-returns zero" reading as run evidence about the script under test; and letting
-`Pattern.match` succeed on a prefix, so a bullet that also carried a real
-requirement was classified away with the requirement inside it.
+Every line below the first states something about the code under review, or
+about whether the author considers it done, and a diff reviewer can and must
+check it. Each escaped an earlier draft a different way: scanning for a command
+and a result verb independently anywhere in the bullet; truncating a
+conditional at its subordinator, which left "`wrapper.py` returns zero" reading
+as run evidence about the script under test; letting `Pattern.match` succeed on
+a prefix or on a suffix, so a bullet that also carried a real requirement was
+classified away with the requirement inside it; and dropping the checkbox state
+while parsing, which turned an admitted gap into an exemption. Sample text
+inside a fenced block was read as a real section for the same reason: nothing
+told the parser the lines were not the document.
 
-Each of the three checks rejects on its own, which costs under-firing: a real
-claim written with a leading adverbial ("after the rename, `pytest` passes")
-or a trailing qualifier ("`pytest` passes with the new flag") is not detected.
-That trade is deliberate. Under-firing is safe, because the prompt rule still
-tells the reviewer to treat an unexecutable criterion as N/A when no
-declaration names it. Over-firing is not safe: it would silently drop a real
-criterion from the gate.
+Every check rejects on its own, which costs under-firing: a real claim written
+with a leading adverbial ("after the rename, `pytest` passes") or a trailing
+qualifier ("`pytest` passes with the new flag") is not detected. That trade is
+deliberate. Under-firing is safe, because the prompt rule still tells the
+reviewer to treat an unexecutable criterion as N/A when no declaration names
+it. Over-firing is not safe: it would silently drop a real criterion from the
+gate.
 
 Criterion text reaches the reviewer only after `_normalize` strips control
 characters and collapses newlines, and `_sanitize` drops leading markdown
 structure and truncates. That bounds the shape of the injected block; it does
-not make the text
-trustworthy, and it does not need to, because
+not make the text trustworthy, and it does not need to, because
 `build_ai_review_context.py` already hands the reviewer the same PR body
 verbatim.
 """
@@ -72,13 +77,27 @@ _MAX_CRITERIA = 20
 _MAX_CRITERION_CHARS = 200
 
 _HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
+# A fenced block holds sample text. A PR body that demonstrates this feature by
+# quoting an acceptance-criteria section would otherwise have its own example
+# read as a real section. `scripts/validation/pr_description.py:721` masks
+# fences before extracting file claims for the same reason; its
+# `_FENCE_OPEN_LINE` reads, quoted verbatim:
+#
+#     r"^[ ]{0,3}(?:(`{3,})(?![^\n]*`)|(~{3,}))[^\n]*\n"
+#
+# Stricter/looser/different than that canonical source: this one matches a
+# single line rather than a line plus its newline, because the caller iterates
+# `splitlines()` instead of walking offsets. Indented four-space blocks are
+# deliberately NOT treated as code here: a wrapped criterion's continuation
+# line is indented, and `_bullets` folds it into the bullet above.
+_FENCE_LINE = re.compile(r"^ {0,3}(?:(`{3,})(?![^\n]*`)|(~{3,}))\s*(?P<info>.*)$")
 # The whole heading title, not a substring of it. A prefix or suffix word makes
 # a different section: "Acceptance Criteria Verification" holds evidence and
 # "Non-Acceptance Criteria" holds what the PR is not claiming, and treating
 # either one's bullets as requirements misreads the document. Trailing `#` is
 # Markdown's optional closing fence on an ATX heading.
 _ACCEPTANCE_TITLE = re.compile(r"(?i)acceptance\s+criteri(?:a|on)\s*:?\s*#*\s*")
-_BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX~-]\]\s*)?(?P<text>.*)$")
+_BULLET = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+(?:\[(?P<mark>[ xX~-])\]\s*)?(?P<text>.*)$")
 _CODE_SPAN = re.compile(r"`([^`\n]+)`")
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _LEADING_MARKUP = re.compile(r"^[#>\s]+")
@@ -153,6 +172,15 @@ _RESULT_TAIL = re.compile(
     r"(?i)(?:\s+(?:locally|clean(?:ly)?|green|in\s+ci|on\s+ci))?[\s.;,:!?)\]}]*$"
 )
 
+# What may sit before the command span. The claim has to open the criterion,
+# modulo leading markdown structure and a word that introduces a run. Real
+# content in front of it means the criterion says something else as well:
+# "the parser rejects an empty ref and `pytest` passes" carries a requirement
+# the diff establishes, and classifying the bullet away takes it along. This is
+# the mirror of the end anchor on `_RESULT_TAIL`, and costs the same
+# under-firing.
+_CLAIM_PREFIX = re.compile(r"(?i)[#>\s]*(?:(?:run|then)\s+)*")
+
 # What may sit between the command span and the result verb that governs it.
 # Only enough to carry "Run `make build` and it completes successfully"; any
 # wider and the verb stops belonging to the command.
@@ -175,13 +203,43 @@ _SUBORDINATOR = re.compile(
 )
 
 
+def _outside_fences(pr_body: str) -> list[str]:
+    """Return `pr_body`'s lines with every fenced code block removed.
+
+    A fence closes on the same character with a run at least as long as the
+    opener's (CommonMark 0.31.2 section 4.5). An unclosed fence swallows the
+    rest of the body, which is the safe direction: sample text never reaches
+    the gate.
+    """
+    lines: list[str] = []
+    open_run: str | None = None
+
+    for line in pr_body.splitlines():
+        fence = _FENCE_LINE.match(line)
+        if open_run is None:
+            if fence is not None:
+                open_run = fence.group(1) or fence.group(2)
+            else:
+                lines.append(line)
+            continue
+        closes = (
+            fence is not None
+            and not fence.group("info")
+            and (fence.group(1) or fence.group(2)).startswith(open_run[0] * len(open_run))
+        )
+        if closes:
+            open_run = None
+
+    return lines
+
+
 def _acceptance_lines(pr_body: str) -> list[str]:
     """Return the non-heading lines under every Acceptance Criteria heading."""
     collected: list[str] = []
     inside = False
     level = 0
 
-    for line in pr_body.splitlines():
+    for line in _outside_fences(pr_body):
         heading = _HEADING.match(line)
         if heading is None:
             if inside:
@@ -198,23 +256,41 @@ def _acceptance_lines(pr_body: str) -> list[str]:
 
 
 def _bullets(lines: list[str]) -> list[str]:
-    """Return list items from `lines`, folding wrapped continuation lines in."""
-    bullets: list[str] = []
+    """Return classifiable list items, folding wrapped continuation lines in.
+
+    An explicitly unchecked box is dropped. The PR template says so directly at
+    `.github/PULL_REQUEST_TEMPLATE.md:73`, quoted verbatim:
+
+        Check a box only once the criterion is actually met; an unchecked box
+        makes the spec-coverage signal report FAIL (non-blocking).
+
+    So `- [ ]` is the author stating the criterion is unmet, and turning that
+    into `N/A` would erase an admitted gap from the completeness count. A
+    bullet with no checkbox at all is not a statement either way and stays
+    classifiable.
+
+    Stricter/looser/different than the canonical source: the template names
+    only `- [ ]` and `- [x]`. `[~]` and `[-]` are treated as unchecked here,
+    because neither claims the criterion is met.
+    """
+    texts: list[str] = []
+    unchecked: list[bool] = []
     open_index = -1
 
     for line in lines:
         item = _BULLET.match(line)
         if item is not None:
-            bullets.append(item.group("text").strip())
-            open_index = len(bullets) - 1
+            texts.append(item.group("text").strip())
+            unchecked.append(item.group("mark") in {" ", "~", "-"})
+            open_index = len(texts) - 1
             continue
         if not line.strip():
             open_index = -1
             continue
         if open_index >= 0:
-            bullets[open_index] = f"{bullets[open_index]} {line.strip()}"
+            texts[open_index] = f"{texts[open_index]} {line.strip()}"
 
-    return [bullet for bullet in bullets if bullet]
+    return [text for text, skip in zip(texts, unchecked, strict=True) if text and not skip]
 
 
 def _is_conditional(text: str) -> bool:
@@ -223,15 +299,22 @@ def _is_conditional(text: str) -> bool:
 
 
 def _command_span_ends(text: str) -> list[int]:
-    """Offsets just past each inline code span that reads as a runnable command."""
+    """Offsets just past each command span that opens the criterion.
+
+    A span with real content in front of it is skipped, so the returned offsets
+    are only for commands the criterion leads with.
+    """
     ends: list[int] = []
     for span in _CODE_SPAN.finditer(text):
         token = span.group(1).strip().lstrip("$>").strip()
         if not token:
             continue
         first = token.split()[0].lower().lstrip("./")
-        if first in _COMMAND_LAUNCHERS or first.endswith(_SCRIPT_SUFFIXES):
-            ends.append(span.end())
+        if first not in _COMMAND_LAUNCHERS and not first.endswith(_SCRIPT_SUFFIXES):
+            continue
+        if _CLAIM_PREFIX.fullmatch(text[: span.start()]) is None:
+            continue
+        ends.append(span.end())
     return ends
 
 

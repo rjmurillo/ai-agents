@@ -56,16 +56,16 @@ class TestDetectsCommandExecutionClaims:
     @pytest.mark.parametrize(
         "criterion",
         [
-            "- [ ] `uv run python scripts/validation/pre_pr.py` passes",
+            "- [x] `uv run python scripts/validation/pre_pr.py` passes",
             "- [x] `pytest tests/ci -q` exits 0",
             "- `ruff check .` is green",
             "- Run `make build` and it completes successfully",
-            "- [ ] `scripts/validation/pre_pr.py` passes locally",
-            "- [ ] `pwsh -File build.ps1` returns zero",
-            "- [ ] `npm test` succeeds",
-            "- [ ] `$ pytest` passes",
-            "- [ ] `semgrep --config auto .` reports no findings",
-            "* [ ] `go test ./...` runs clean",
+            "- [x] `scripts/validation/pre_pr.py` passes locally",
+            "- [x] `pwsh -File build.ps1` returns zero",
+            "- [x] `npm test` succeeds",
+            "- [x] `$ pytest` passes",
+            "- [x] `semgrep --config auto .` reports no findings",
+            "* [x] `go test ./...` runs clean",
             "1. `gh pr checks` is green",
         ],
     )
@@ -74,7 +74,7 @@ class TestDetectsCommandExecutionClaims:
 
     def test_folds_a_wrapped_criterion_into_one_entry(self) -> None:
         body = _body(
-            "- [ ] `uv run --frozen python scripts/validation/pre_pr.py`",
+            "- [x] `uv run --frozen python scripts/validation/pre_pr.py`",
             "      passes",
         )
 
@@ -84,9 +84,9 @@ class TestDetectsCommandExecutionClaims:
 
     def test_returns_criteria_in_body_order(self) -> None:
         body = _body(
-            "- [ ] `pytest` passes",
+            "- [x] `pytest` passes",
             "- [ ] the parser rejects an empty ref",
-            "- [ ] `ruff check .` is green",
+            "- [x] `ruff check .` is green",
         )
 
         assert find_nonexecutable_criteria(body) == ["`pytest` passes", "`ruff check .` is green"]
@@ -142,10 +142,74 @@ class TestDoesNotOverFire:
             "- [ ] `pytest` passes locally and the parser rejects an empty ref",
             "- [ ] `ruff check .` is green, and the CLI exits 2 on a bad flag",
             "- [ ] `npm test` succeeds; the bundle stays under 200 KB",
+            # Mirror shape: the requirement comes first, with no subordinator
+            # joining the two halves (PR #5451 review, round 3).
+            "- [ ] the parser rejects an empty ref and `pytest` passes",
+            "- [x] The CLI exits 2 on a bad flag and `ruff check .` is green",
         ],
     )
     def test_leaves_a_compound_criterion_in_scope(self, criterion: str) -> None:
         assert find_nonexecutable_criteria(_body(criterion)) == [], criterion
+
+    @pytest.mark.parametrize(
+        "criterion",
+        [
+            "- [ ] `uv run python scripts/validation/pre_pr.py` passes",
+            "- [ ] `pytest` passes",
+            "- [~] `ruff check .` is green",
+        ],
+    )
+    def test_leaves_an_unchecked_criterion_in_scope(self, criterion: str) -> None:
+        """An unchecked box is an admitted gap, not something to wave through.
+
+        `.github/PULL_REQUEST_TEMPLATE.md:73` says so directly: "Check a box
+        only once the criterion is actually met; an unchecked box makes the
+        spec-coverage signal report FAIL (non-blocking)." Classifying it `N/A`
+        would erase that FAIL from the completeness count.
+        """
+        assert find_nonexecutable_criteria(_body(criterion)) == [], criterion
+
+    @pytest.mark.parametrize(
+        ("label", "body"),
+        [
+            (
+                "blank line before the closing fence",
+                "## Summary\n\nExample of a criteria section:\n\n"
+                "```markdown\n## Acceptance Criteria\n\n- [x] `pytest` passes\n\n```\n\n"
+                "## Notes\n\nNothing else.\n",
+            ),
+            (
+                "unclosed fence running to the end of the body",
+                "## Summary\n\n```markdown\n## Acceptance Criteria\n\n- [x] `pytest` passes\n",
+            ),
+            (
+                "tilde fence inside a real acceptance section",
+                "## Acceptance criteria\n\n- [x] renders for a body like this:\n\n"
+                "~~~\n- [x] `ruff check .` is green\n\n~~~\n",
+            ),
+        ],
+    )
+    def test_ignores_a_fenced_sample_section(self, label: str, body: str) -> None:
+        """Sample text must never take part in the gate.
+
+        Each shape was verified to leak before the fence check existed. A
+        closing fence on the line directly after the bullet does NOT leak, but
+        only because `_bullets` folds that line into the bullet and the result
+        tail then refuses it, which is an accident of two unrelated rules
+        rather than a guarantee (PR #5451 review, round 3).
+        """
+        assert find_nonexecutable_criteria(body) == [], label
+
+    def test_still_reads_criteria_after_a_fenced_block_closes(self) -> None:
+        body = (
+            "## Acceptance criteria\n\n"
+            "```text\n"
+            "- [x] `ruff check .` is green\n"
+            "```\n\n"
+            "- [x] `pytest` passes\n"
+        )
+
+        assert find_nonexecutable_criteria(body) == ["`pytest` passes"]
 
     @pytest.mark.parametrize(
         "heading",
@@ -180,7 +244,7 @@ class TestDoesNotOverFire:
         body = (
             "## Acceptance criteria\n\n"
             "### Validator\n\n"
-            "- [ ] `uv run python scripts/validation/pre_pr.py` passes\n"
+            "- [x] `uv run python scripts/validation/pre_pr.py` passes\n"
         )
 
         assert find_nonexecutable_criteria(body) == [
@@ -206,7 +270,7 @@ class TestDegradesQuietly:
         ],
     )
     def test_matches_the_heading_case_insensitively(self, heading: str) -> None:
-        body = f"{heading}\n\n- [ ] `pytest` passes\n"
+        body = f"{heading}\n\n- [x] `pytest` passes\n"
 
         assert find_nonexecutable_criteria(body) == ["`pytest` passes"]
 
@@ -216,29 +280,32 @@ class TestDegradesQuietly:
 
 class TestSanitizesInjectedText:
     def test_strips_leading_markdown_structure(self) -> None:
-        found = find_nonexecutable_criteria(_body("- [ ] ## `pytest` passes"))
+        found = find_nonexecutable_criteria(_body("- [x] ## `pytest` passes"))
 
         assert found == ["`pytest` passes"]
 
     def test_strips_control_characters(self) -> None:
-        found = find_nonexecutable_criteria(_body("- [ ] `pytest`\x07 passes"))
+        found = find_nonexecutable_criteria(_body("- [x] `pytest`\x07 passes"))
 
         assert found == ["`pytest` passes"]
 
     def test_truncates_a_long_criterion(self) -> None:
-        padding = "detail " * 60
-        found = find_nonexecutable_criteria(_body(f"- [ ] {padding}`pytest` passes"))
+        # The length lives in the command itself. Prose in front of the command
+        # span would make this a compound criterion, which is out of scope by
+        # design (PR #5451 review, round 3).
+        long_command = "pytest " + " ".join(f"tests/ci/case_{index}.py" for index in range(12))
+        found = find_nonexecutable_criteria(_body(f"- [x] `{long_command}` passes"))
 
         assert len(found) == 1
         assert len(found[0]) <= _MAX_CRITERION_CHARS
         assert found[0].endswith("...")
 
     def test_deduplicates_repeated_criteria(self) -> None:
-        body = _body("- [ ] `pytest` passes", "- [x] `pytest` passes")
+        body = _body("- [x] `pytest` passes", "- [x] `pytest` passes")
 
         assert find_nonexecutable_criteria(body) == ["`pytest` passes"]
 
     def test_caps_the_number_of_criteria(self) -> None:
-        body = _body(*[f"- [ ] `pytest tests/case_{index}.py` passes" for index in range(40)])
+        body = _body(*[f"- [x] `pytest tests/case_{index}.py` passes" for index in range(40)])
 
         assert len(find_nonexecutable_criteria(body)) == _MAX_CRITERIA
