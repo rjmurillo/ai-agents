@@ -953,9 +953,19 @@ def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
                 timeout=30,
                 env=scrubbed_env,
             )
-        except (OSError, subprocess.SubprocessError):
+        except (OSError, subprocess.SubprocessError) as exc:
+            print(
+                f"WARN: git ls-files failed for {prefix!r}, ignore set may be "
+                f"incomplete: {exc}",
+                file=sys.stderr,
+            )
             continue
         if proc.returncode != 0:
+            print(
+                f"WARN: git ls-files exited {proc.returncode} for {prefix!r}, "
+                "ignore set may be incomplete",
+                file=sys.stderr,
+            )
             continue
         for raw in proc.stdout.split(b"\x00"):
             if not raw:
@@ -1014,6 +1024,14 @@ def _snapshot_owned_prefixes(
     pre-existing ``__pycache__`` under an owned prefix, which is the same
     cache-eviction that makes the next run recompile inside the guard
     window: the exact race issue #3856 closes.
+
+    The walk always skips nested git repository boundaries (see
+    :func:`_iter_tree_skip_git_boundaries`), regardless of
+    ``exclude_ignored``. ``--check`` calls this with ``exclude_ignored=False``,
+    so relying on ``_is_ignored_path`` alone would leave this snapshot pass
+    asymmetric with :func:`_enumerate_files_under`'s boundary skip: a nested
+    worktree would still be read here and then clobbered by
+    :func:`_restore_owned_prefixes` (issue #5370).
     """
     ignored = _ignored_paths(repo_root, prefixes) if exclude_ignored else set()
     snapshot: dict[Path, bytes] = {}
@@ -1031,8 +1049,8 @@ def _snapshot_owned_prefixes(
             continue
         if not root.is_dir():
             continue
-        for path in root.rglob("*"):
-            if not path.is_file() or path.is_symlink():
+        for path, is_dir in _iter_tree_skip_git_boundaries(root):
+            if is_dir or not path.is_file():
                 continue
             if _is_ignored_path(path, ignored) or (
                 exclude_ignored and _is_bytecode_artifact(path)

@@ -809,6 +809,37 @@ def test_enumerate_files_under_skips_git_boundary_directory(tmp_path: Path) -> N
     assert sibling in found
 
 
+def test_snapshot_owned_prefixes_skips_git_boundary_directory(
+    tmp_path: Path,
+) -> None:
+    """The snapshot pass, not just the enumerate pass, must skip a nested
+    git repository boundary, with ``exclude_ignored`` left at its default
+    (``False``): that is the exact flag value ``run()`` passes for the
+    ``--check`` snapshot (build_all.py:1216), so a gitignore-only guard
+    (``_is_ignored_path``) would not cover it.
+
+    Without routing this walk through
+    :func:`_iter_tree_skip_git_boundaries`, a nested worktree under an
+    owned prefix gets read into the snapshot here while
+    :func:`_enumerate_files_under`'s delete pass skips it, and the
+    asymmetry lets :func:`_restore_owned_prefixes` overwrite the nested
+    worktree's own files with snapshot bytes (issue #5370).
+    """
+    owned = tmp_path / "owned"
+    nested = owned / "worktrees" / "wt-1"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    nested_file = nested / "inside.txt"
+    nested_file.write_text("nested content\n", encoding="utf-8")
+    sibling = owned / "real.md"
+    sibling.write_text("# real\n", encoding="utf-8")
+
+    snapshot = build_all._snapshot_owned_prefixes(tmp_path, ("owned/",))
+
+    assert nested_file not in snapshot
+    assert sibling in snapshot
+
+
 def test_restore_owned_prefixes_never_deletes_git_boundary_contents(
     tmp_path: Path,
 ) -> None:
@@ -847,6 +878,34 @@ def test_restore_owned_prefixes_never_deletes_git_boundary_contents(
     assert nested_file.is_file()
     assert nested_file.read_text(encoding="utf-8") == "nested content\n"
     assert not generator_created.exists()
+
+
+def test_prune_empty_dirs_never_rmdirs_inside_git_boundary(
+    tmp_path: Path,
+) -> None:
+    """_prune_empty_dirs's own boundary skip, not just the delete pass, must
+    hold: an empty directory inside a nested worktree (a ``build/`` or
+    ``logs/`` dir with nothing tracked in it) must survive
+    _restore_owned_prefixes.
+
+    Swapping ``_iter_tree_skip_git_boundaries`` back to plain
+    ``root.rglob("*")`` in _prune_empty_dirs leaves every other test in
+    this suite green because their fixture worktrees hold only non-empty
+    directories: the prune loop's ``if not any(dirpath.iterdir())`` never
+    fires either way. This fixture adds an empty directory under the
+    nested worktree so the mutation is caught (issue #5370).
+    """
+    owned = tmp_path / "owned"
+    nested = owned / "worktrees" / "wt-1"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    nested_empty_dir = nested / "empty_build_dir"
+    nested_empty_dir.mkdir()
+
+    prefixes = ("owned/",)
+    build_all._restore_owned_prefixes(tmp_path, prefixes, snapshot={})
+
+    assert nested_empty_dir.is_dir()
 
 
 def test_build_agent_catalog_writes_docs_catalog(tmp_path: Path) -> None:
