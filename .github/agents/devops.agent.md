@@ -21,8 +21,7 @@ tools:
   - github/search_issues
   - github/search_repositories
   - serena/*
-model: claude-opus-4.6
-tier: builder
+role: executor
 ---
 # DevOps Agent
 

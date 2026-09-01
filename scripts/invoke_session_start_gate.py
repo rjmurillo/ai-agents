@@ -4,7 +4,7 @@
 Implements BLOCKING gates for AI agent sessions to ensure:
 1. Memory-First: memory-index and task-relevant memories loaded
 2. Skill Availability: GitHub skills cataloged and usage-mandatory memory loaded
-3. Session Log: Valid session log exists
+3. Session Log: Session log inspected when present (advisory, never blocking)
 4. Branch Verification: Not on main/master branch
 
 EXIT CODES (per ADR-035):
@@ -106,19 +106,50 @@ def check_skill_gate(repo_root: Path) -> bool:
 
 
 def check_session_log_gate(repo_root: Path) -> bool:
+    """Advisory session-log presence check. Always returns True.
+
+    Session log creation is discontinued (`.claude/rules/session-logs.md`):
+    AGENTS.md's Start checklist no longer lists it, so its absence is the
+    expected case, not something worth flagging. A missing sessions directory
+    or the absence of a log for today therefore prints [PASS], not [WARN];
+    [WARN] is reserved for a log that exists but is structurally incomplete.
+
+    "No longer lists it" is checked against `AGENTS.md:16` verbatim:
+
+        **Start**:Init Serena|Read HANDOFF+latest issue handoff|Resume check|Search mem|Verify git
+
+    No step in that pipe-delimited row names a session log.
+
+    Stricter/looser/different than canonical: `.claude/rules/session-logs.md`
+    MUST 1 (lines 27-35) describes a validate-if-present pre-commit gate,
+    quoted verbatim:
+
+        If a log named `.agents/sessions/YYYY-MM-DD-session-NN<slug>.json`
+        ends up staged anyway (for example, cherry-picked from an older branch),
+        the `session-policy` pre-commit hook still validates it
+        (`scripts/validation/git_hook_policy.py session`, a validate-if-present gate):
+        a malformed log still blocks that commit. When no log is staged, the gate
+        returns 0 (`check_sessions` passes when there are no session paths, and also
+        when `_merge_in_progress`).
+
+    That pre-commit gate returns 0 silently when nothing is staged. This
+    session-start gate prints one confirming [PASS] line instead of full
+    silence, so the "Session Start Gate" summary this function reports into
+    still shows Gate 3 ran rather than vanishing.
+    """
     print("\n=== Gate 3: Session Log Verification ===")
     sessions_dir = repo_root / ".agents" / "sessions"
 
     if not sessions_dir.exists():
-        print(f"[FAIL] Sessions directory not found: {sessions_dir}")
-        return False
+        print("[PASS] No session log for today (creation discontinued; optional)")
+        return True
 
     today = date.today().isoformat()
     today_sessions = sorted(sessions_dir.glob(f"{today}-session-*.json"), reverse=True)
 
     if not today_sessions:
-        print(f"[FAIL] No session log found for today ({today})")
-        return False
+        print("[PASS] No session log for today (creation discontinued; optional)")
+        return True
 
     latest = today_sessions[0]
     print(f"[PASS] Session log found: {latest.name}")

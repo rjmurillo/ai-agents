@@ -1,0 +1,55 @@
+{
+  "id": "episode-2026-08-15-session-14709-pr-5005-review-fixes",
+  "session": "2026-08-15-session-14709-pr-5005-review-fixes",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix PR #5005 review findings: memory index entry and QA report naming",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T06:12:05+00:00",
+      "type": "commit",
+      "content": "Commit: 2b801e7a5f",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-14709-pr-5005-review-fixes"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T06:28:39+00:00",
+      "type": "commit",
+      "content": "Commit: 1a4c020dd4",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-15-session-14709-pr-5005-review-fixes"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T06:33:34+00:00",
+      "type": "commit",
+      "content": "Commit: 2c9ec1e2b2",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-14709-pr-5005-review-fixes"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 7
+  },
+  "lessons": []
+}

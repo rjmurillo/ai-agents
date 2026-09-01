@@ -10,13 +10,76 @@ This is a Python port of Generate-Agents.Common.psm1 following ADR-042 migration
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
-    pass
+    from collections.abc import Callable
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+
+
+def _load_model_pin_manifest_exports() -> tuple[
+    Callable[..., str | None], Callable[..., str | None]
+]:
+    """Load resolve_manifest_model / format_model_id_for_platform without
+    mutating sys.path.
+
+    Canonical source and reuse decision
+    (``.claude/rules/canonical-source-mirror.md``): mirrors
+    ``scripts/validation/agent_registry.py``'s
+    ``_load_read_yaml_frontmatter`` (lines 32-59), which loads a sibling
+    build-tree module via ``importlib.util.spec_from_file_location`` and
+    ``exec_module`` specifically so that importing the *loading* module
+    never touches ``sys.path``
+    (``tests/test_agent_registry.py::TestIntegration::test_import_does_not_mutate_sys_path``).
+
+    A prior version of this import used
+    ``if str(_SCRIPT_DIR) not in sys.path: sys.path.insert(...)`` followed
+    by a plain ``from model_pin_manifest import (...)``. That guard checks
+    whether the path is ALREADY present, not whether mutating it is safe:
+    ``scripts/validation/agent_registry.py`` loads THIS module the same
+    exec_module way (to reuse its ``read_yaml_frontmatter``), and in that
+    context ``build/`` is never already on ``sys.path``, so the guard
+    always inserted it. That made every import of
+    ``scripts.validation.agent_registry`` mutate the caller's ``sys.path``
+    as a side effect of loading this file, breaking the exact guarantee
+    ``agent_registry.py``'s own loader exists to provide. Confirmed via
+    ``tests/test_agent_registry.py::TestIntegration::test_import_does_not_mutate_sys_path``,
+    which failed deterministically (3/3 local runs) before this fix and
+    passed on ``origin/main`` (where this file did not yet import
+    ``model_pin_manifest``), isolating the mutation to this import.
+    """
+    path = _SCRIPT_DIR / "model_pin_manifest.py"
+    spec = importlib.util.spec_from_file_location(
+        "_generate_agents_common_model_pin_manifest", path
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load build utility {path}: no import spec")
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        raise ImportError(f"Cannot load build utility {path}: {exc}") from exc
+    try:
+        resolve = module.resolve_manifest_model
+        fmt = module.format_model_id_for_platform
+    except AttributeError as exc:
+        raise ImportError(
+            f"Build utility {path} does not define the expected exports"
+        ) from exc
+    return (
+        cast("Callable[..., str | None]", resolve),
+        cast("Callable[..., str | None]", fmt),
+    )
+
+
+resolve_manifest_model, format_model_id_for_platform = (
+    _load_model_pin_manifest_exports()
+)
 
 # Field ordering for frontmatter output
 _FIELD_ORDER = ("name", "description", "argument-hint", "tools", "model")
@@ -192,8 +255,24 @@ def convert_frontmatter_for_platform(
     frontmatter: dict[str, str | None],
     platform_config: dict[str, object],
     agent_name: str,
+    manifest: dict[str, dict[str, object]] | None = None,
+    source_unit: str | None = None,
+    repo_root: Path | None = None,
 ) -> dict[str, str | None]:
-    """Transform frontmatter for a specific platform."""
+    """Transform frontmatter for a specific platform.
+
+    ``manifest``, ``source_unit``, and ``repo_root`` wire in the ADR-080
+    sidecar manifest (``build.model_pin_manifest``): when ``source_unit``
+    names a unit that carries a fully valid, fresh ``KEEP_PIN`` entry, that
+    entry's model id is formatted for this platform and emitted instead of
+    the haiku-tier default. ``repo_root`` is required for the manifest path
+    because ``resolve_manifest_model`` validates the entry's ``artifact``
+    field stays within the repository (CWE-22); all three default to
+    ``None``, which reproduces the pre-manifest-wiring behavior
+    (haiku-tier-or-omit) exactly, so every existing caller and test is
+    unaffected. See ``convert_frontmatter_for_platform``'s model-resolution
+    block below for the full three-step order.
+    """
     result: dict[str, str | None] = {}
     # Support both new schema (provider + legacy block) and old schema (platform + top-level)
     platform_name = str(
@@ -219,18 +298,46 @@ def convert_frontmatter_for_platform(
         else:
             result.pop("name", None)
 
-        # Resolve model: use model_tier mapping if template specifies a tier
+        # Resolve model in three steps, in order:
+        #   1. A manifest-justified versioned pin: a fresh, fully-validated
+        #      KEEP_PIN entry for this source unit (ADR-080 rules 2 and 4),
+        #      formatted for this platform. ADR-080 rule 5 requires the
+        #      generator to "emit no model: unless the source unit carries
+        #      a justified one"; this is that path. See
+        #      build/model_pin_manifest.py.
+        #   2. The 'haiku' tier, matching the sole cost exception ADR-080
+        #      rule 3 recognizes (a rolling alias resolving, via this same
+        #      model_tiers map, to an id priced below the harness default).
+        #      Whether this fallback is itself fully governed under rule 3
+        #      is a separate, still-open policy question (the ADR-080
+        #      2026-08-12 Amendment leaves model_tier alias translation and
+        #      the cost exception's interaction undecided); this step's
+        #      behavior is unchanged by the manifest wiring above it.
+        #   3. Omit the field. Any other tier, and the platform's own
+        #      default model, injected a versioned pin no manifest evidence
+        #      justified (ADR-080 rule 2), which breaks on the next
+        #      retirement (issue #5313, the retired claude-opus-4.5).
+        #      Omitting the field lets the harness inherit its own default
+        #      at runtime instead.
         model_tier = frontmatter.get("model_tier")
         # Look for model_tiers in legacy block first, then top-level for backward compat
         model_tiers = legacy.get("model_tiers") or platform_config.get("model_tiers")
-        if model_tier and isinstance(model_tiers, dict) and model_tier in model_tiers:
-            result["model"] = str(model_tiers[model_tier])
+        manifest_model_id = (
+            resolve_manifest_model(manifest, source_unit, repo_root)
+            if manifest is not None and source_unit is not None and repo_root is not None
+            else None
+        )
+        formatted_manifest_model = (
+            format_model_id_for_platform(manifest_model_id, model_tiers)
+            if manifest_model_id is not None and isinstance(model_tiers, dict)
+            else None
+        )
+        if formatted_manifest_model is not None:
+            result["model"] = formatted_manifest_model
+        elif model_tier == "haiku" and isinstance(model_tiers, dict) and "haiku" in model_tiers:
+            result["model"] = str(model_tiers["haiku"])
         else:
-            model = fm.get("model")
-            if model:
-                result["model"] = str(model)
-            else:
-                result.pop("model", None)
+            result.pop("model", None)
     else:
         result.pop("name", None)
         result.pop("model", None)

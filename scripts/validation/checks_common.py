@@ -4,8 +4,12 @@
 Extracted from ``scripts/validation/pre_pr.py`` (issue #2223) so the pre-PR
 runner stays under the file-size limit and the area-specific check modules
 (``checks_tooling``, ``checks_dash``, ``checks_spec``, ``checks_plugin``,
-``checks_coverage``) share one home for the subprocess wrapper, the
-SKIP control-flow signal, and the git base-ref resolution helpers.
+``checks_coverage``) share one home for the SKIP control-flow signal and the
+git base-ref resolution helpers.
+
+The subprocess wrapper itself lives in ``subprocess_runner`` (issue #4955, so
+the timeout path can preserve partial child output without pushing this module
+past the file-size ceiling) and is re-exported here as ``_run_subprocess``.
 
 This began as a behavior-preserving move from ``pre_pr.py``. Later fixes can
 land in these extracted modules directly while ``pre_pr`` re-exports them so
@@ -17,10 +21,23 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+if TYPE_CHECKING:
+    # Type checkers resolve the sibling via its package path so the wrapper's
+    # ``tuple[int, str, str]`` return type is preserved. Runtime uses the bare
+    # import because ``pre_pr`` and ``checks_ratchet`` load this module as a
+    # top-level name after inserting ``_SCRIPT_DIR`` on ``sys.path``.
+    from scripts.validation.subprocess_runner import _run_subprocess
+else:
+    from subprocess_runner import _run_subprocess
+
 
 from scripts.cli_exec import resolve_executable
 
@@ -232,8 +249,10 @@ def _gh_base_ref(repo_root: Path) -> str | None:
     Retries with the upstream head branch per :func:`_gh_base_ref_probe`
     (issue #4382).
 
-    A same-named, but NOT behaviorally identical, helper lives in
-    ``.claude/hooks/PreToolUse/push_guard_base.py``; it lacks this retry.
+    A same-named, but NOT behaviorally identical, helper used to live in
+    ``.claude/hooks/PreToolUse/push_guard_base.py`` and lacked this retry.
+    Issue #5154 deleted that file with the push guards, so this is now the
+    only copy.
     """
     if not shutil.which("gh"):
         return None
@@ -325,9 +344,9 @@ def _resolve_branch_base_ref(repo_root: Path) -> str | None:
     default branch via ``refs/remotes/origin/HEAD``; (4) ``origin/main``.
     Returns None when none resolve.
 
-    A related helper (``_detect_default_base_ref``) in
-    ``.claude/hooks/PreToolUse/push_guard_base.py`` follows the same
-    priority order and has its own separate test suite.
+    A related helper (``_detect_default_base_ref``) followed the same priority
+    order in ``.claude/hooks/PreToolUse/push_guard_base.py``, which issue #5154
+    deleted with the push guards.
     """
     pr_base = _gh_base_ref(repo_root)
     if pr_base:

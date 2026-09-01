@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import errno
+import os
 import shutil
 import stat
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import pytest
 
@@ -114,11 +116,48 @@ def test_cleanup_failure_does_not_mask_primary_failure(
     assert "PermissionError: denied" in capsys.readouterr().err
 
 
-def test_remove_tree_reports_permission_error(tmp_path: Path) -> None:
+def test_remove_tree_retries_transient_permission_error(tmp_path: Path) -> None:
     target = tmp_path / "scratch"
     target.mkdir()
-    with patch.object(_mat.shutil, "rmtree", side_effect=PermissionError("denied")):
+    real_rmtree = shutil.rmtree
+    attempts = 0
+
+    def remove_after_transient_lock(path: Path, **_: object) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 4:
+            raise PermissionError("pack index locked")
+        real_rmtree(path)
+
+    with (
+        patch.object(
+            _mat.shutil,
+            "rmtree",
+            side_effect=remove_after_transient_lock,
+        ) as remove,
+        patch.object(_mat.time, "sleep") as sleep,
+    ):
         error = _mat.remove_tree(target, "scratch")
+
+    assert error is None
+    assert remove.call_count == 5
+    assert sleep.call_args_list == [
+        call(delay) for delay in _mat._CLEANUP_RETRY_DELAYS[:4]
+    ]
+    assert not target.exists()
+
+
+def test_remove_tree_reports_permission_error_after_retry_budget(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "scratch"
+    target.mkdir()
+    with (
+        patch.object(_mat.shutil, "rmtree", side_effect=PermissionError("denied")) as remove,
+        patch.object(_mat.time, "sleep") as sleep,
+    ):
+        error = _mat.remove_tree(target, "scratch")
+
     assert error == "scratch cleanup failed: PermissionError: denied"
 
 

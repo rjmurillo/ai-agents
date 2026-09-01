@@ -1,4 +1,7 @@
-# Merge Guards and Branch Protection Recommendations
+# Merge Guards and Branch Protection
+
+> **See also:** [`docs/landing-workflow.md`](landing-workflow.md) for the serial
+> one-front auto-merge protocol that governs how PRs land.
 
 ## Overview
 
@@ -8,10 +11,10 @@ This document provides recommendations for GitHub branch protection rules to enf
 
 The repository currently has:
 
-- ✅ Pre-commit hooks (session log, skill detection, test coverage)
-- ✅ CI validation (PR description, QA reports, session protocol)
-- ⚠️ No branch protection enforcement at merge gate
-- ⚠️ PRs can be merged with failing validations using admin override
+- ✅ Pre-commit hooks (session-log validation if present, skill detection, test coverage)
+- ✅ CI validation (PR description, tests, CodeQL, and deterministic validators)
+- ✅ Active ruleset with nine required contexts
+- ✅ Required review-thread resolution and squash-only merging
 
 ## Recommended Branch Protection Rules
 
@@ -22,22 +25,13 @@ The repository currently has:
 Configure these CI checks as **required** before merge:
 
 1. **PR Validation** (`.github/workflows/pr-validation.yml`)
-   - Blocks: PR description mismatches (CRITICAL)
-   - Warns: Missing QA reports
+   - Blocks: PR description and commit-count violations
 
-2. **Session Protocol Validation** (`.github/workflows/ai-session-protocol.yml`)
-   - Blocks: Session End protocol violations (MUST requirements)
-   - Required: For PRs changing `.agents/sessions/*.md`
-
-3. **Pester Tests** (`.github/workflows/pester-tests.yml`)
+2. **Pester Tests** (`.github/workflows/pester-tests.yml`)
    - Blocks: PowerShell test failures
    - Required: For PRs changing `scripts/**`
 
-4. **AI Quality Gate** (`.github/workflows/ai-pr-quality-gate.yml`)
-   - Blocks: Analyst/QA/Security CRITICAL_FAIL verdicts
-   - Required: For PRs changing code
-
-5. **CodeQL Analysis** (`.github/workflows/codeql-analysis.yml`)
+3. **CodeQL Analysis** (`.github/workflows/codeql-analysis.yml`)
    - Blocks: Critical/high severity security findings
    - Required: For PRs changing code files (PowerShell, Python, GitHub Actions)
    - Matrix: powershell, actions, python
@@ -90,9 +84,7 @@ Configure these CI checks as **required** before merge:
    - ✅ Do not allow bypassing the above settings (for admins)
 4. Add status checks:
    - `PR Validation / Validate PR`
-   - `Session Protocol Validation / validate` (matrix jobs)
    - `Pester Tests / test`
-   - `AI Quality Gate / aggregate`
 5. Save changes
 
 #### Via GitHub CLI
@@ -101,7 +93,7 @@ Configure these CI checks as **required** before merge:
 # Create branch protection rule
 gh api repos/:owner/:repo/branches/main/protection \
   --method PUT \
-  --field required_status_checks='{"strict":true,"contexts":["PR Validation / Validate PR","Session Protocol Validation / validate","Pester Tests / test","AI Quality Gate / aggregate","CodeQL Analysis / Analyze (powershell)","CodeQL Analysis / Analyze (actions)","CodeQL Analysis / Analyze (python)"]}' \
+  --field required_status_checks='{"strict":true,"contexts":["Validate Path Normalization","Validate Generated Files","Validate Spec Coverage","Validate PR","Validate PR title","Analyze (actions)","Analyze (python)","Run Python Tests","Validate Plugin Version Bump"]}' \
   --field enforce_admins=true \
   --field required_pull_request_reviews='{"required_approving_review_count":1,"dismiss_stale_reviews":true}' \
   --field restrictions=null \
@@ -119,9 +111,7 @@ resource "github_branch_protection" "main" {
     strict   = true
     contexts = [
       "PR Validation / Validate PR",
-      "Session Protocol Validation / validate",
       "Pester Tests / test",
-      "AI Quality Gate / aggregate",
       "CodeQL Analysis / Analyze (powershell)",
       "CodeQL Analysis / Analyze (actions)",
       "CodeQL Analysis / Analyze (python)"
@@ -198,15 +188,7 @@ Enhance `.github/workflows/pr-validation.yml` to detect security dismissals:
 
 **Verify**: PR cannot be merged until description is fixed
 
-#### Scenario 2: Missing Session Log
-
-**Setup**: Create PR with `.agents/` changes but no session log
-
-**Expected**: Pre-commit hook blocks, or if bypassed, CI fails
-
-**Verify**: Merge blocked until session log is added and validated
-
-#### Scenario 3: Unresolved Review Comments
+#### Scenario 2: Unresolved Review Comments
 
 **Setup**: Create PR, add review comment, leave unresolved
 
@@ -214,7 +196,7 @@ Enhance `.github/workflows/pr-validation.yml` to detect security dismissals:
 
 **Verify**: Must resolve or dismiss comment to merge
 
-#### Scenario 4: Security Dismissal
+#### Scenario 3: Security Dismissal
 
 **Setup**: Create PR, add security comment, dismiss without approval
 
@@ -318,7 +300,6 @@ When merge is blocked but code is correct:
 | False positive rate | <1% | >5% |
 | Override usage | <5% | >10% |
 | Security dismissals without review | 0 | >0 |
-| Session protocol violations | <5% | >10% |
 | Time to merge (P50) | <4 hours | >24 hours |
 
 ### Dashboard Queries
@@ -337,7 +318,7 @@ gh pr list --state merged --limit 100 --json createdAt,mergedAt | jq '[.[] | (.m
 ## Related Documents
 
 - [Technical Guardrails Guide](technical-guardrails.md)
-- [SESSION-PROTOCOL.md](../.agents/SESSION-PROTOCOL.md)
+- [`.claude/rules/session-logs.md`](../.claude/rules/session-logs.md)
 - [Issue #230](https://github.com/rjmurillo/ai-agents/issues/230)
 - [Retrospective: PR #226](../.agents/retrospective/2025-12-22-pr-226-premature-merge-failure.md)
 

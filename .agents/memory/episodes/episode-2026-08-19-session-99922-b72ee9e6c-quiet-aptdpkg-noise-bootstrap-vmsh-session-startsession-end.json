@@ -1,0 +1,55 @@
+{
+  "id": "episode-2026-08-19-session-99922-b72ee9e6c-quiet-aptdpkg-noise-bootstrap-vmsh-session-startsession-end",
+  "session": "2026-08-19-session-99922-b72ee9e6c-quiet-aptdpkg-noise-bootstrap-vmsh-session-startsession-end",
+  "timestamp": "2026-08-19T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Quiet apt/dpkg noise in bootstrap-vm.sh (session-start/session-end ROI audit)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-19T18:45:05+00:00",
+      "type": "commit",
+      "content": "Commit: a5c27d9995",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-19-session-99922-b72ee9e6c-quiet-aptdpkg-noise-bootstrap-vmsh-session-startsession-end"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-19T19:34:15+00:00",
+      "type": "commit",
+      "content": "Commit: 14de240eb0",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-19-session-99922-b72ee9e6c-quiet-aptdpkg-noise-bootstrap-vmsh-session-startsession-end"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-19T19:48:45+00:00",
+      "type": "commit",
+      "content": "Commit: 5a6d6bf70a",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-19-session-99922-b72ee9e6c-quiet-aptdpkg-noise-bootstrap-vmsh-session-startsession-end"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 5
+  },
+  "lessons": []
+}

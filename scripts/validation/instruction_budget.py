@@ -47,6 +47,7 @@ if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path
 
 from scripts.validation.instruction_budget_constants import (
     DEFAULT_CEILINGS_BYTES,
+    DEFAULT_RESERVE_BYTES,
     INSTRUCTION_GLOB,
     INSTRUCTIONS_SUBDIR,
 )
@@ -62,6 +63,7 @@ from scripts.validation.token_budget import estimate_token_count
 
 __all__ = [
     "DEFAULT_CEILINGS_BYTES",
+    "DEFAULT_RESERVE_BYTES",
     "INSTRUCTIONS_SUBDIR",
     "BudgetVerdict",
     "ExtensionResult",
@@ -271,12 +273,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--reserve",
         type=parse_reserve,
-        default=os.environ.get("INSTRUCTION_BUDGET_RESERVE", "0"),
+        default=os.environ.get(
+            "INSTRUCTION_BUDGET_RESERVE",
+            str(DEFAULT_RESERVE_BYTES),
+        ),
         metavar="BYTES",
         help=(
             "Bytes of headroom to keep free below the ceiling so concurrent "
             "merges cannot breach it (env: INSTRUCTION_BUDGET_RESERVE, "
-            "default: 0, meaning no reserve)."
+            f"default: {DEFAULT_RESERVE_BYTES})."
         ),
     )
     return parser

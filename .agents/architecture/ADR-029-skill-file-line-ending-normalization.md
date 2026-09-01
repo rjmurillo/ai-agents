@@ -1,3 +1,14 @@
+---
+id: ADR-029
+status: accepted
+date: 2025-12-27
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-029: Skill File Line Ending Normalization
 
 ## Status

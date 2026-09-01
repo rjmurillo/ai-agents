@@ -332,7 +332,7 @@ Text-based indicators ([PASS], [FAIL]) are easier to scan than emojis or colors 
 
 - **Issue #325**: Unified shift-left validation runner
 - **SHIFT-LEFT.md**: User-facing documentation
-- **SESSION-PROTOCOL.md**: Session end validation requirements
+- **`.claude/rules/session-logs.md`**: Session log validation mechanics
 - **DevOps Agent**: Agent responsible for CI/CD automation
 
 ## Changelog

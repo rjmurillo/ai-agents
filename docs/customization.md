@@ -31,7 +31,7 @@ Each session, the agent reads these files and reconstructs *something coherent i
 ### Further reading
 
 - Theoretical grounding for this split lives in the operator's vault under *The Bicameral Bet*, sections "Substrate Constraints, The James Delos Problem" and "Distributed Persistence, The Akecheta Constraint". This split is the practical instantiation of those constraints.
-- For the session-start ritual itself: `.claude/skills/session-init/SKILL.md`.
+- For the session-start ritual itself: `templates/agents/implementer.shared.md`.
 
 ## Adding a New Agent
 
@@ -122,7 +122,7 @@ Step-by-step instructions the agent follows when this skill is invoked.
 The SkillForge skill automates skill creation:
 
 ```text
-/SkillForge create a skill that validates JSON schemas against a directory of files
+/skillforge create a skill that validates JSON schemas against a directory of files
 ```
 
 SkillForge analyzes your request, checks for existing skills that overlap, and generates the skill following project conventions.

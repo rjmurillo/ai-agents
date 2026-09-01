@@ -42,7 +42,7 @@ EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 
 # ADR-015 Decision: the only permitted retention-days values.
-# 1 = operational/temporary (same-run handoff, e.g. ai-session-protocol)
+# 1 = operational/temporary (same-run handoff artifacts)
 # 7 = standard (test results, metrics, analysis outputs)
 ALLOWED_DAYS: frozenset[int] = frozenset({1, 7})
 

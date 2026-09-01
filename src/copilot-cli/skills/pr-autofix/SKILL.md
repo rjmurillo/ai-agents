@@ -25,6 +25,10 @@ into a skill or references/ requires changing how the command is invoked and loa
 which is a structural change that must be measured against the eval harness before
 shipping (Issue #3953 doctrine). Until that measurement is done, the exception is
 the safer choice over unmeasured content removal.
+Preserved invariant: One loaded workflow owns lease, mutation safety, live-state revalidation, and merge readiness.
+Behavioral tests: `tests/test_pr_autofix_late_live_state_gate.py`, `tests/test_pr_autofix_force_push_lease.py`, `tests/test_pr_autofix_worktree_identity.py`, `tests/skills/pr-autofix/test_check_pr_round_cap.py`
+Review trigger: Revisit when a measured split keeps those tests green and Ready-to-Merge behavior unchanged.
+vendor-portability: upstream-only. Test paths reference rjmurillo/ai-agents contributor fixtures; installed plugin consumers do not have these files.
 -->
 
 Autonomous PR monitor and fixer. This file carries the whole protocol,
@@ -202,6 +206,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
                 cleanup_pr_autofix
                 return 75
             fi
+            stop_mutation_group "$mutation_pid"
             return "$mutation_rc"
         fi
         sleep 0.01
@@ -220,11 +225,19 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
                 cleanup_pr_autofix
                 return 75
             fi
+            stop_mutation_group "$mutation_pid"
             return "$mutation_rc"
         fi
         kill "$mutation_pid" 2>/dev/null || true
         wait "$mutation_pid" 2>/dev/null || true
         echo "Stopping mutation for #$PR: process group setup failed"
+        cleanup_pr_autofix
+        return 75
+    fi
+    if lease_renewal_failed; then
+        stop_mutation_group "$mutation_pid"
+        wait "$mutation_pid" 2>/dev/null || true
+        echo "Stopping mutation for #$PR: lease ownership lost"
         cleanup_pr_autofix
         return 75
     fi
@@ -262,6 +275,7 @@ os.execvp(sys.argv[1], sys.argv[1:])' \
         cleanup_pr_autofix
         return 75
     fi
+    stop_mutation_group "$mutation_pid"
     return "$mutation_rc"
 }
 # lease-renewal:end
@@ -323,13 +337,31 @@ run_pr_mutation_if_live() {
 # Per PR, immediately before any per-tier action:
 
 # Step 1: Acquire the branch-ownership lease (issue #3413, ADR-076 Phase 1).
-# Exit 1 = another agent holds the lease; skip this PR without touching it.
+# Exit 1 = SKIP. Branch on .Data.reason so a lease-store outage is surfaced as
+# a distinct diagnostic instead of being silently misreported as contention
+# (issue #4966 MEDIUM). .Data.held_by does not exist in the envelope; the
+# machine-readable field is .Data.reason (held-by:<owner> or
+# lease-store-unavailable).
 LEASE=$(python3 "$SCRIPTS_DIR/pr_autofix_lease.py" acquire \
     --pull-request "$PR" --session "$SESSION_ID" --output-format json) || {
     LEASE_RC=$?
     if [ "$LEASE_RC" -eq 1 ]; then
-        HELD_BY=$(echo "$LEASE" | jq -r '.Data.held_by // "unknown"')
-        echo "Lease held by $HELD_BY for #$PR; skipping."
+        LEASE_REASON=$(echo "$LEASE" | jq -r '.Data.reason // "unknown"')
+        case "$LEASE_REASON" in
+            lease-store-unavailable)
+                # Store unreachable: ownership is unknown and acquire fails
+                # CLOSED (issue #4966). This is NOT contention. Surface a clear
+                # diagnostic so a persistent outage cannot make every PR SKIP
+                # forever with no alert; investigate the API/network path.
+                echo "Lease store unreachable for #$PR (reason=$LEASE_REASON); ownership unknown, failing closed and skipping. Check GitHub API/network before retrying." >&2
+                ;;
+            held-by:*)
+                echo "Lease held by ${LEASE_REASON#held-by:} for #$PR; skipping."
+                ;;
+            *)
+                echo "Lease acquire returned SKIP for #$PR (reason=$LEASE_REASON); skipping."
+                ;;
+        esac
         continue
     fi
     echo "Lease acquire failed (exit $LEASE_RC) for #$PR; skipping to avoid racing."
@@ -359,11 +391,152 @@ if [ -z "$EXPECTED_HEAD_SHA" ] || [ -z "$EXPECTED_BASE_REF" ] || [ -z "$EXPECTED
 fi
 # ACTION == "ACT": proceed with the tier's planned action set.
 
-# Step 3: Auto-merge disarm gate (BLOCKING, issue #3913).
+# tier-dispatch:start
+# Step 2.5: Tier read, then the auto-merge disarm gate, then the round-cap
+# circuit breaker (BLOCKING for T3/T4, issue #5056). The two gates run in that
+# order for the reason given at the disarm gate below; do not swap them back.
+# T3/T4 PRs iterate: post a fix, wait for CI or a bot review, repeat. Nothing
+# capped how many times that loop could run, and prose caps have been
+# ignored repeatedly (the documented failure mode, not a hypothetical one):
+# PR #1887 ran 11+ bot review rounds over 46 hours wall clock before a human
+# intervened (see the pr-1887-iteration-paradox retrospective in this repo's
+# rjmurillo/ai-agents source, contributor-only); PRs #1965 and #1979 each ran
+# 18 rounds (see the CI-FEEDBACK-SUBLOOP governance doc, same source, line
+# 11). check_pr_round_cap.py records one round per call against a
+# hidden marker comment on the PR (same storage pattern as
+# pr_autofix_lease.py's ADR-076 lease) and returns Data.action=ESCALATE when
+# either the round count or the wall-clock budget is exceeded. Call it once
+# per pass through this loop for a T3/T4 PR, after the tier is known and after
+# the auto-merge disarm gate below, before any thread-lifecycle or CI-fix
+# action. It used to say "immediately after the tier is known", which was true
+# until the disarm gate moved ahead of it to close CWE-284; the disarm gate and
+# the unknown-tier exit now both run in between.
+# Tier comes from test_pr_merge_ready.py, the authoritative tier source;
+# check_pr_live_state.py emits no tier field, so reading $LIVE here pins TIER
+# at UNKNOWN. Computed once, also consumed by the auto-merge disarm gate below.
+# Read `.Tier`, not `.Data.Tier`: unlike the github_core.output emitters,
+# test_pr_merge_ready.py has no --output-format flag and prints its result
+# dict directly (`print(json.dumps(result, indent=2))`), so there is no Data
+# envelope to traverse.
+# A pinned UNKNOWN breaks the two gates in OPPOSITE directions, so do not
+# read it as "the gates turn off": this gate tests TIER = T3 or T4, which
+# UNKNOWN never satisfies, so it goes inert; the disarm gate below tests
+# TIER != T1, which UNKNOWN always satisfies, so it fires on every armed PR
+# and strips auto-merge from genuine T1 PRs too.
+# tests/commands/test_pr_autofix_field_contract.py checks every read in this
+# file against its producer's real schema, and
+# tests/commands/test_pr_autofix_tier_dispatch_runtime.py executes the block
+# between the tier-dispatch markers under bash with fake producers, so the two
+# gate directions below are asserted behavior rather than described behavior.
+MERGE_READY=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" 2>/dev/null)
+# Deliberately no 2>/dev/null on either jq below. The producer's stderr is
+# suppressed above, so a jq parse error is the only signal an operator gets that
+# the producer emitted something unreadable, and both guards below would
+# otherwise skip the PR with no explanation. Adding the redirect here was tried
+# and the runtime suite failed it by name; see the malformed-producer case.
+TIER=$(printf '%s' "$MERGE_READY" | jq -r '.Tier // "UNKNOWN"')
+# Captured once and read twice, because the tier alone does not say whether the
+# evidence behind it was complete. classify_tier returns T1 on CanMerge, and
+# CanMerge is `len(reasons) == 0` with fetched_pages_complete computed after it
+# and never appended to reasons (test_pr_merge_ready.py, check_merge_readiness).
+# So a fetch truncated at the pagination cap that happens to surface no
+# unresolved thread and no failing required check classifies T1, which the
+# producer's own docstring warns about: "a partial fetch that happens to find no
+# failing checks is not evidence that no failing checks exist."
+# This mattered only after the tier read above was fixed. While TIER was pinned
+# at UNKNOWN, TIER != T1 held for every PR, so the disarm gate below stripped
+# auto-merge from the truncated-fetch case by accident. Making T1 reachable
+# removes that accident, so the exemption has to be earned rather than assumed.
+# Anything other than the literal `true` denies the exemption: the real producer
+# always emits the boolean, so healthy input is unaffected, and a missing or
+# unreadable field is exactly the state that must not buy a merge.
+# The read has been wrong twice, in opposite directions, so both are pinned.
+# First it said `// "unknown"`, and jq's alternative operator fires on `false`
+# as well as `null`, so a producer reporting an incomplete fetch was relabelled
+# "unknown": the operator was told the field could not be read when it had been
+# read fine. Both deny the exemption, which is why no test could tell them apart
+# until one was added that reads the message.
+# Then the repair used a bare `tostring`, which does not check the JSON type, so
+# the *string* "true" came out as `true` and bought the exemption. That is the
+# worse direction: malformed evidence granting a merge is the thing this guard
+# exists to refuse. Only a real JSON boolean is accepted now; every other type,
+# including a string spelling of a boolean, is "unknown" and denies.
+PAGES_COMPLETE=$(printf '%s' "$MERGE_READY" | jq -r 'if (.fetched_pages_complete | type) == "boolean" then (.fetched_pages_complete | tostring) else "unknown" end')
+# .claude/commands/pr-review-config.yaml already ANDs this field into its
+# completion-gate criterion, so this is the same safety rule applied at the
+# other place a merge can be armed, not a new policy.
+# Fail closed on a tier the producer never declared. Without pipefail jq masks a
+# producer failure, and the two failure shapes do not even agree with each other:
+# empty stdout (crash, or unparseable JSON) leaves TIER empty, while a JSON error
+# object leaves it UNKNOWN. Both skip the T3/T4 breaker below AND satisfy
+# TIER != T1 in the disarm gate, so without this guard the loop would keep
+# acting on a PR whose tier it never learned. Acting is the harm here; disarming
+# is not, so the guard stops the acting and still runs the disarm gate.
+# Do not gate on exit status instead:
+# test_pr_merge_ready.py exits 1 for any not-merge-ready PR, so T2 through T4 are
+# legitimately non-zero.
+# The accepted set is the producer's own, quoted verbatim from
+# test_pr_merge_ready.py:1103, which classify_tier's docstring names as the
+# range of its return value:
+#   _TIER_ORDER = ("T1", "T2", "T3", "T4", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP")
+# The four beyond the T1-T5 ladder are real: SKIP for a draft, closed, or merged
+# PR, and BEHIND/BLOCKED/DIRTY from the merge-state lookup. Listing only the
+# ladder rejected those as producer failures and silently disabled the
+# documented BEHIND and DIRTY handling.
+# tests/commands/test_pr_autofix_tier_contract.py pins this list against the
+# producer so the two cannot drift apart again.
+# Recognized and actionable are two different questions, and collapsing them is
+# what put SKIP on the acting path. The tier table below reads
+# "| SKIP | Draft, merged, or closed | No action |", so SKIP terminates here.
+# Letting it reach the disarm gate means TIER != T1 holds and auto-merge is
+# stripped from a PR that went draft, merged, or closed after the live-state
+# gate ran.
+# SKIP and an unknown tier both terminate the PR, but at different points, and
+# the difference is which one has a reason not to disarm. SKIP names a state:
+# the PR is a draft, merged, or closed, so stripping auto-merge is either
+# meaningless or destroys a choice its author made deliberately. An unknown tier
+# names no state at all, so "armed but not provably T1" is exactly true of it,
+# which is the disarm gate's own trigger condition. It therefore falls through
+# to that gate and stops immediately after, before the round-cap breaker and
+# before any tier action.
+# The cost of that direction is real and is accepted: a transient producer
+# failure on a healthy T1 PR strips an auto-merge its author armed, and they
+# have to arm it again. The other direction leaves a PR this session could not
+# assess free to land itself, which is not recoverable. Copilot reported the
+# arm as it first shipped, where it exited before the disarm gate; that made a
+# producer crash the one path where this loop leaves auto-merge armed on a PR
+# it never assessed, and contradicted this change's own claim that the armed
+# set only shrinks.
+TIER_KNOWN=yes
+case "$TIER" in
+    SKIP)
+        echo "Tier SKIP for #$PR (draft, merged, or closed); no action."
+        cleanup_pr_autofix
+        continue
+        ;;
+    T1|T2|T3|T4|T5|BEHIND|BLOCKED|DIRTY) ;;
+    *)
+        echo "Cannot determine tier for #$PR (tier producer failed or emitted no tier); disarming auto-merge if armed, then skipping."
+        TIER_KNOWN=no
+        ;;
+esac
+# Ordered before the round-cap breaker deliberately, and this order is load
+# bearing. The breaker's ESCALATE path terminates the PR, and while it sat first
+# that exit ran before this gate, so a T3 or T4 PR that reached its cap was
+# handed to a human with native auto-merge still armed: GitHub can then land it
+# on its own, with readiness never proven by this session (CWE-284). Copilot
+# found it. Like the completeness case above it was opened by the tier-read fix
+# rather than found beside it, since a pinned UNKNOWN never matched T3 or T4, so
+# the breaker never fired and this gate disarmed every armed PR anyway.
+# Disarming is not acting on a PR, it is taking a capability away from one, so
+# there is no tier this is unsafe to run first. A test asserted the opposite
+# contract and is flipped in the same change.
+# Step 2.6: Auto-merge disarm gate (BLOCKING, issue #3913). Numbered after the
+# tier read and before the round-cap breaker, which is where it now runs.
 # If the PR has auto-merge armed but is not T1-ready, a conflict refresh or CI
 # fix push could immediately land a PR whose readiness was never explicitly
 # verified in this session.  Disable auto-merge now, before any commit or push.
-TIER=$(echo "$LIVE" | jq -r '.Data.tier // "UNKNOWN"')
+# TIER and PAGES_COMPLETE were both read from the single producer call above.
 CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
     --output-format json 2>/dev/null)
 AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null)
@@ -374,8 +547,19 @@ if [ -z "$AUTO_MERGE" ]; then
     cleanup_pr_autofix
     continue
 fi
-if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
-    echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
+# "Not provably T1" rather than "not T1": a T1 whose evidence came from a
+# truncated fetch has not earned the exemption, so it disarms with the rest.
+if [ "$TIER" = "T1" ] && [ "$PAGES_COMPLETE" = "true" ]; then
+    TIER_TRUSTED_T1=yes
+else
+    TIER_TRUSTED_T1=no
+fi
+if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
+    if [ "$TIER" = "T1" ]; then
+        echo "Auto-merge armed on #$PR and the tier is T1, but the merge-readiness fetch was incomplete (fetched_pages_complete=$PAGES_COMPLETE); disabling before acting."
+    else
+        echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
+    fi
     if run_pr_mutation_if_live \
         python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \
         --pull-request "$PR" --disable --output-format json; then
@@ -389,6 +573,29 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER" != "T1" ]; then
         continue
     fi
 fi
+# The unknown-tier arm resumes here, one gate later than SKIP leaves. Everything
+# below needs a tier to mean anything, so it stops now.
+if [ "$TIER_KNOWN" = "no" ]; then
+    cleanup_pr_autofix
+    continue
+fi
+if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
+    ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
+        --pull-request "$PR" --output-format json)
+    ROUND_ACTION=$(echo "$ROUND_CAP" | jq -r '.Data.action // empty')
+    if [ "$ROUND_ACTION" != "ACT" ]; then
+        ROUND_REASON=$(echo "$ROUND_CAP" | jq -r '.Data.reason // "round-cap check failed"')
+        echo "Stopping thread-fix loop for #$PR: $ROUND_REASON"
+        # check_pr_round_cap.py already posted a human-readable PR comment
+        # naming the round count, wall-clock elapsed, and both caps
+        # (issue #5056 item 4: leave a note, do not just stop silently).
+        # A human must review the remaining thread(s)/CI failure(s) directly.
+        cleanup_pr_autofix
+        continue
+    fi
+fi
+
+# tier-dispatch:end
 
 # Release the lease after all per-PR work (push + post-push CI wait + merge).
 # Pattern:
@@ -396,9 +603,13 @@ fi
 #   cleanup_pr_autofix
 ```
 
-Lease SKIP verdicts: when exit code is 1 the lease is held by another autofix
-loop. Do NOT push, do NOT arm auto-merge, do NOT post threads.  The `held_by`
-field identifies the owner so the operator can investigate a stale lease.
+Lease SKIP verdicts: when exit code is 1 the lease was not acquired. Branch on
+the `reason` field: `held-by:<owner>` means another autofix loop holds the
+lease (real contention), and `lease-store-unavailable` means the lease store
+was unreachable so ownership could not be verified and acquire failed CLOSED
+(issue #4966). In both cases do NOT push, do NOT arm auto-merge, do NOT post
+threads. A persistent `lease-store-unavailable` is an infrastructure signal,
+not contention: investigate the GitHub API or network path.
 
 LIVE-STATE SKIP verdicts are binding: do NOT push commits, do NOT arm
 auto-merge, do NOT run `merge_pr.py` on a PR this gate classifies as SKIP.
@@ -431,13 +642,16 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
 cleanup_pr_autofix
 ```
 
+Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all criteria passed; exit 1 a criterion failed; exit 2 config error INCLUDING a `pr-review-config.yaml` that diverges from or is absent at the trusted ref (`origin/main`); exit 3 trust verification impossible (no git work tree, trusted ref missing or not remote-tracking). A trust halt (stderr starts with `HALT: completion-gate config`, statuses diverged/missing-base, and every exit 3) occurs before any dispatch, so NO criterion command was executed. Other exit-2 config errors (a malformed later criterion, an evidence-write failure) can fire mid- or post-dispatch, so earlier criterion commands may already have run; treat exit 2 as "verdict unusable", not "nothing happened". Neither exit is transient: do NOT retry, do NOT treat exit 3 as a passing external outage, and do NOT pass `--approve-untrusted-config` autonomously. The flag only applies to a trust-halt exit 2 (diverged or missing-at-base); an exit-3 halt cannot be overridden at all. Surface the stderr diff to a human and skip the PR.
+
 ## Workflow
 
 1. Triage all open PRs into tiers T1-T5 using `test_pr_merge_ready.py`.
 2. Process T1 (land-ready) first, then T2 (CI fix), T3/T4 (threads), T5 (bot).
 3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `Data.action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
 4. **Before any branch mutation, acquire the branch lease** via `pr_autofix_lease.py acquire` (issue #3413). A SKIP result means another session holds the branch; exit before creating a worktree or pushing. Release the lease via `pr_autofix_lease.py release` when done or on error. The lease is advisory; the Force-Push Safety SHA gate is the hard backstop. For any remote mutation that can outlive the final pre-mutation poll, keep renewal supervision active through the whole critical section and re-verify lease ownership immediately before the mutation. If renewal ownership is lost, block the mutation and release the lease before continuing.
-5. For each PR that the live-state gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
+5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE` (issue #5056). It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; PR #1887 ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to.
+6. For each PR that the live-state gate and round-cap gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
 
@@ -452,18 +666,31 @@ cleanup_pr_autofix
 
 ## Tier Definitions
 
+The `Tier` field in `test_pr_merge_ready.py` output is the authoritative
+classifier.  Pass `--is-bot` when the PR author is a bot.
+
+### Work-needed tiers
+
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | Branch up to date, no CI failures, no threads, `CLEAN` | Use the CLEAN merge path after the four-condition gate |
-| T2 | CI failures only, branch up to date | Fix CI, verify required checks pass |
+| T1 | `CanMerge=true` (`CLEAN` or `UNSTABLE` with all non-required failures disposed) | Merge via the appropriate merge path |
+| T2 | CI failures only (required or undisposed non-required), no threads | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing) | Walk full thread lifecycle, then merge |
 | T4 | Both CI failures + threads | Fix CI first, then lifecycle threads |
-| T5 | Bot PR with validation failures | Handle individually |
+| T5 | Bot PR with any failure or threads | Handle individually |
 
-If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Update section).
+### Merge-path states (not work tiers)
+
+| State | Criteria | Action |
+|-------|----------|--------|
+| BEHIND | `MergeStateStatus == "BEHIND"` | Update branch against main, then reclassify |
+| BLOCKED | `MergeStateStatus == "BLOCKED"` (branch protection, pending reviews) | Wait for external gate (review approval, etc.) |
+| DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
+| SKIP | Draft, merged, or closed | No action |
 
 ## Fix Patterns
 
+- **CI-failure triage step 1 (issue #5073)**: for every failing check name, run `triage_red_check.py --check-name "<name>" --pull-request {pr}` before any log reading or local investigation. `RED_ON_MAIN` (exit 1) means the failure is inherited from main: cite the `EvidenceUrl` main run, do not debug the PR, and re-run checks after main recovers. `GREEN_ON_MAIN` (exit 0) means the PR introduced it: proceed to logs. `UNKNOWN` (exit 3) is a probe failure, never evidence of green.
 - **PR description mismatch**: Remove file references not in the diff (use GitHub API to PATCH body).
 - **Branch behind main**: Run each base refresh command through the late live-state wrapper:
 
@@ -477,7 +704,7 @@ If `BEHIND`, update branch against main BEFORE other actions (see doc Branch Upd
 - **Stale CI check**: Push fresh commit to re-trigger; avoid `--no-verify` if possible.
 - **Bot review threads**: Read, triage per Thread Severity, reply with disposition, resolve via `add_pr_review_thread_reply.py --resolve`.
 - **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate.
-- **Session validation failure**: Use session-log-fixer skill.
+- **Session validation failure**: Hand-edit the log to satisfy the session-log schema, then re-validate it.
 
 ## Force-Push Safety
 
@@ -542,7 +769,23 @@ python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr}
 # the PR is merged/closed/draft or fully superseded by base.
 python3 "$SCRIPTS_DIR/check_pr_live_state.py" --pull-request {pr} --skip-fetch --output-format json
 
-# Get CI check logs
+# Round-cap circuit breaker (BLOCKING for T3/T4 per Phase 2; issue #5056).
+# Records one round against a hidden marker comment and returns exit 0 +
+# Data.action=ACT when both the round-count and wall-clock caps hold, exit 1
+# + Data.action=ESCALATE when either is exceeded. Defaults: 5 rounds / 4
+# hours, each overridable via --max-rounds/--max-hours or
+# $PR_AUTOFIX_MAX_ROUNDS/$PR_AUTOFIX_MAX_ROUND_HOURS.
+python3 "$SCRIPTS_DIR/check_pr_round_cap.py" --pull-request {pr} --output-format json
+
+# CI-failure triage step 1 (BLOCKING, issue #5073): before reading any log or
+# starting any local investigation, ask whether the same check is red on
+# origin/main. Exit 0 = green on main (the PR introduced it; investigate the
+# PR). Exit 1 = red on main (inherited; cite Data.EvidenceUrl and fix or wait
+# out main instead of debugging the PR). Exit 3 = cannot determine (probe
+# failure is not absence; never treat UNKNOWN as green).
+python3 "$SCRIPTS_DIR/triage_red_check.py" --check-name "<failing check name>" --pull-request {pr}
+
+# Get CI check logs (step 2, only when the check is green on main)
 python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request {pr} | \
   python3 "$SCRIPTS_DIR/get_pr_check_logs.py" --pull-request {pr} --checks-input -
 
@@ -659,20 +902,24 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
   --pull-request {pr} --json
 ```
 
+The dispatcher enforces the Issue #5072 trust boundary before dispatching anything: exit 2 also means the config diverges from or is absent at `origin/main`, and exit 3 means trust verification was impossible; in both cases no criterion command ran and the failure is not transient. `--approve-untrusted-config` requires a human who has read the surfaced diff and applies only to exit 2; an exit-3 halt (verification impossible) cannot be overridden.
+
 ## Verification
 
 Per PR processed:
 
-- [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (another agent holds it); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
+- [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (reason `held-by:<owner>` is contention; reason `lease-store-unavailable` is a store outage that fails CLOSED, issue #4966); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
 - [ ] Branch lease acquired via `pr_autofix_lease.py acquire` before any branch mutation (issue #3413). SKIP result caused early exit; ACT result recorded with `base_sha`.
 - [ ] Remote mutations stayed under renewal supervision and were re-verified immediately before the mutation; if renewal ownership was lost, the mutation was blocked and the lease was released first.
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
-- [ ] Auto-merge disarm ran after live-state ACT on any non-T1 PR (issue #3913): `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
+- [ ] Auto-merge disarm ran after live-state ACT on any PR that is not provably T1 (issue #3913, and issue #5094 for the completeness half): that is every non-T1 PR, and also a T1 whose `fetched_pages_complete` was not the boolean `true`, since a tier derived from a truncated fetch has not earned the exemption. `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
+- [ ] Round-cap circuit breaker ran on every pass through a T3/T4 PR, after the tier was known and after the auto-merge disarm gate above (issue #5056, ordering per issue #5094): `check_pr_round_cap.py --pull-request $PR --output-format json`. `Data.action=ACT` recorded and work continued; `Data.action=ESCALATE` stopped the thread-fix loop for that PR (round cap or wall-clock budget exceeded) and the script's own PR comment carries the reason, so nothing further was posted by the agent. The breaker's ESCALATE exit hands the PR to a human, so the disarm above has to have run first.
 - [ ] Live-state gate re-ran immediately before any base refresh or conflict resolution (issue #4349): stale gate result from the start of the session is not sufficient; the PR can merge mid-cycle.
 - [ ] Every base refresh, rebase, push, auto-merge change, and direct merge ran through `run_pr_mutation_if_live` immediately before mutation (issue #4349).
 - [ ] Late mutation checks matched the head SHA, base ref, and base SHA captured by the current readiness cycle; any mismatch stopped mutation and restarted readiness checks.
 - [ ] When `StaleDirtySuspected=true`: `set_pr_auto_merge.py disable` ran and `autoMergeRequest` confirmed null before any base-ref refresh push (issue #3913).
+- [ ] CI-failure triage step 1 ran before any log reading (T2/T4 only, issue #5073): `triage_red_check.py --check-name "<name>"` verdict recorded per failing check; RED_ON_MAIN failures were attributed to main with the EvidenceUrl, not investigated on the PR.
 - [ ] All required CI checks pass (T2/T4 only).
 - [ ] Every review thread is READ, TRIAGED, SOLVED (if Blocking), REPLIED with course of action, and RESOLVED (T3/T4 only).
 - [ ] `mergeStateStatus` is `CLEAN` (or `UNSTABLE` with documented non-required failures).

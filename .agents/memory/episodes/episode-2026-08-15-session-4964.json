@@ -1,0 +1,68 @@
+{
+  "id": "episode-2026-08-15-session-4964",
+  "session": "2026-08-15-session-4964",
+  "timestamp": "2026-08-15T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Fix Copilot CLI project-agent discovery on hosted runners (issue #4964)",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-15T00:00:00+00:00",
+      "type": "milestone",
+      "content": "Diagnosed hosted-runner contract: Copilot CLI 1.0.78 with token auth does not emit session.custom_agents_updated",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-15-session-4964"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-15T15:03:29+00:00",
+      "type": "commit",
+      "content": "Commit: 28f1c6513be6bd01d055a8fab077b3d570d9add5",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-15-session-4964"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-15T15:35:44+00:00",
+      "type": "commit",
+      "content": "Commit: e08e58b372c1c5d4633e9c5f9b343314d7dd360a",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-15-session-4964"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-15T15:50:24+00:00",
+      "type": "commit",
+      "content": "Commit: 4da170ab0b1b6d1ed114f03b3666bf311f9540b5",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-15-session-4964"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 3,
+    "files_changed": 4
+  },
+  "lessons": []
+}

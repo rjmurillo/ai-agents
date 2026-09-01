@@ -8,11 +8,12 @@ from __future__ import annotations
 import os
 import sys
 import time
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
+import scripts.hook_utilities.utilities as hook_utilities
 from scripts.hook_utilities import (
     coerce_to_list,
     format_work_item,
@@ -23,7 +24,6 @@ from scripts.hook_utilities import (
     is_git_commit_command,
     is_git_push_command,
     is_pr_create_command,
-    is_session_logged_command,
     lock_file,
     unlock_file,
 )
@@ -141,32 +141,6 @@ class TestIsPrCreateCommand:
         assert is_pr_create_command(None) is False
 
 
-class TestIsSessionLoggedCommand:
-    """M7-T3: aggregate predicate for hooks registered under git commit + pr create."""
-
-    def test_true_for_git_commit(self) -> None:
-        assert is_session_logged_command("git commit -m x") is True
-
-    def test_true_for_git_ci(self) -> None:
-        assert is_session_logged_command("git ci -m x") is True
-
-    def test_true_for_pr_create(self) -> None:
-        assert is_session_logged_command("gh pr create --title x") is True
-
-    def test_false_for_git_status(self) -> None:
-        assert is_session_logged_command("git status") is False
-
-    def test_false_for_git_push(self) -> None:
-        # push is a different matcher's concern (branch_*_guard)
-        assert is_session_logged_command("git push origin main") is False
-
-    def test_false_for_pr_view(self) -> None:
-        assert is_session_logged_command("gh pr view 123") is False
-
-    def test_false_for_none(self) -> None:
-        assert is_session_logged_command(None) is False
-
-
 class TestGetTodaySessionLog:
     def test_returns_none_for_nonexistent_dir(self, tmp_path: Path) -> None:
         nonexistent = tmp_path / "nonexistent"
@@ -185,7 +159,7 @@ class TestGetTodaySessionLog:
         assert result is None
 
     def test_returns_most_recent_log(self, tmp_path: Path) -> None:
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
 
         session1 = tmp_path / f"{today}-session-001.json"
         session2 = tmp_path / f"{today}-session-002.json"
@@ -199,6 +173,16 @@ class TestGetTodaySessionLog:
         result = get_today_session_log(str(tmp_path))
         assert result is not None
         assert result.name == f"{today}-session-002.json"
+
+    def test_default_uses_host_date_sentinel(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sentinel = "2099-12-31"
+        selected = tmp_path / f"{sentinel}-session-001.json"
+        selected.write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(hook_utilities, "host_session_date", lambda: sentinel)
+
+        assert get_today_session_log(str(tmp_path)) == selected
 
     def test_accepts_explicit_date(self, tmp_path: Path) -> None:
         session = tmp_path / "2025-01-15-session-001.json"
@@ -235,8 +219,19 @@ class TestGetTodaySessionLogs:
             result = get_today_session_logs(str(nonexistent))
         assert result == []
 
+    def test_default_uses_host_date_sentinel(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sentinel = "2099-12-31"
+        selected = tmp_path / f"{sentinel}-session-001.json"
+        selected.write_text("{}", encoding="utf-8")
+        (tmp_path / "2099-12-30-session-999.json").write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(hook_utilities, "host_session_date", lambda: sentinel)
+
+        assert get_today_session_logs(str(tmp_path)) == [selected]
+
     def test_returns_all_today_logs(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
         yesterday = "2020-01-01"
 
         (tmp_path / f"{today}-session-001.json").write_text("{}")
@@ -257,7 +252,7 @@ class TestGetRecentSessionLog:
             assert get_recent_session_log(str(tmp_path / "missing")) is None
 
     def test_returns_today_log_when_present(self, tmp_path: Path) -> None:
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
         f = tmp_path / f"{today}-session-01.json"
         f.write_text("{}")
         result = get_recent_session_log(str(tmp_path))
@@ -265,7 +260,7 @@ class TestGetRecentSessionLog:
 
     def test_falls_back_to_yesterday_when_no_today(self, tmp_path: Path) -> None:
         """Cross-midnight sessions: prefer today; fall back only when today is empty."""
-        yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         f = tmp_path / f"{yesterday}-session-01.json"
         f.write_text("{}")
         result = get_recent_session_log(str(tmp_path))
@@ -273,8 +268,8 @@ class TestGetRecentSessionLog:
 
     def test_prefers_today_over_yesterday(self, tmp_path: Path) -> None:
         """When both dates exist, today wins regardless of mtime."""
-        today_d = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        yesterday = (datetime.now(tz=UTC) - timedelta(days=1)).strftime("%Y-%m-%d")
+        today_d = datetime.now().strftime("%Y-%m-%d")
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         today_f = tmp_path / f"{today_d}-session-01.json"
         yesterday_f = tmp_path / f"{yesterday}-session-99.json"
         today_f.write_text("{}")
@@ -283,6 +278,31 @@ class TestGetRecentSessionLog:
         os.utime(yesterday_f, (time.time() + 100, time.time() + 100))
         result = get_recent_session_log(str(tmp_path))
         assert result is not None and result.name == today_f.name
+
+    def test_finds_pre_migration_utc_tomorrow_log(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A new local-date consumer finds an active old UTC-date log."""
+        utc_log = tmp_path / "2026-03-15-session-01.json"
+        utc_log.write_text("{}", encoding="utf-8")
+        stale_local = tmp_path / "2026-03-13-session-01.json"
+        stale_local.write_text("{}", encoding="utf-8")
+
+        class _FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                if tz is not None:
+                    return cls(2026, 3, 15, 1, 30, tzinfo=UTC)
+                return cls(2026, 3, 14, 18, 30)
+
+        monkeypatch.setattr(
+            hook_utilities,
+            "recent_host_session_dates",
+            lambda: ("2026-03-14", "2026-03-13"),
+        )
+        monkeypatch.setattr(hook_utilities, "datetime", _FrozenDateTime)
+
+        assert get_recent_session_log(str(tmp_path)) == utc_log
 
     def test_skips_candidate_with_transient_stat_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -293,7 +313,7 @@ class TestGetRecentSessionLog:
         permission error) on one candidate must not cause the whole
         selection to return None when other candidates are healthy.
         """
-        today_d = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today_d = datetime.now().strftime("%Y-%m-%d")
         bad = tmp_path / f"{today_d}-session-01.json"
         good = tmp_path / f"{today_d}-session-02.json"
         bad.write_text("{}")
@@ -424,9 +444,67 @@ class TestModuleExports:
             "is_git_push_command",
             "is_pr_create_command",
             "is_project_repo",
-            "is_session_logged_command",
             "lock_file",
             "skip_if_consumer_repo",
             "unlock_file",
         }
         assert set(mod.__all__) == expected
+
+
+def _naive_local(utc_instant: datetime, offset_hours: int) -> datetime:
+    """Local naive datetime a host at ``offset_hours`` would read.
+
+    Mirrors ``datetime.now()`` (no tzinfo) for a host in that offset.
+    """
+    tz = timezone(timedelta(hours=offset_hours))
+    return utc_instant.astimezone(tz).replace(tzinfo=None)
+
+
+class TestHostSessionDate:
+    """Issue #4779: session logs are dated by host-local time, not UTC.
+
+    Ported from the deleted session-init skill's parity test (that skill and
+    its ``session_init.date_helpers`` twin no longer exist); these cases still
+    cover the surviving production helper directly.
+    """
+
+    def test_when_host_behind_utc_returns_host_date(self) -> None:
+        """Edge: the reported bug. UTC date is one day ahead of the host date."""
+        utc_instant = datetime(2026, 8, 9, 6, 30, tzinfo=UTC)
+        assert utc_instant.strftime("%Y-%m-%d") == "2026-08-09"
+
+        result = hook_utilities.host_session_date(now=lambda: _naive_local(utc_instant, -7))
+
+        assert result == "2026-08-08"
+
+    def test_when_host_ahead_of_utc_returns_host_date(self) -> None:
+        """Host at +1000; the host has rolled to the next day but UTC has not."""
+        utc_instant = datetime(2026, 8, 8, 16, 0, tzinfo=UTC)
+        assert utc_instant.strftime("%Y-%m-%d") == "2026-08-08"
+
+        result = hook_utilities.host_session_date(now=lambda: _naive_local(utc_instant, 10))
+
+        assert result == "2026-08-09"
+
+    def test_positive_formats_injected_local_time(self) -> None:
+        result = hook_utilities.host_session_date(now=lambda: datetime(2026, 8, 14, 12, 0, 0))
+
+        assert result == "2026-08-14"
+
+    def test_boundary_midnight_and_last_second(self) -> None:
+        assert (
+            hook_utilities.host_session_date(now=lambda: datetime(2026, 8, 14, 0, 0, 0))
+            == "2026-08-14"
+        )
+        assert (
+            hook_utilities.host_session_date(now=lambda: datetime(2026, 8, 13, 23, 59, 59))
+            == "2026-08-13"
+        )
+
+    def test_default_clocks_are_local_now_not_utc(self) -> None:
+        """A regression to a UTC-bound default would reintroduce Issue #4779."""
+        for helper in (
+            hook_utilities.host_session_date,
+            hook_utilities.recent_host_session_dates,
+        ):
+            assert helper.__defaults__ == (datetime.now,)

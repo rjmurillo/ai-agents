@@ -1,3 +1,14 @@
+---
+id: ADR-038
+status: proposed
+date: 2026-01-01
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-038: Reflexion Memory Schema
 
 ## Status

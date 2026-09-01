@@ -37,11 +37,13 @@ Per Anthropic Claude Code specification:
 
 ### Excellent Examples
 
-**session-log-fixer**:
+**Observed-error pattern** (illustrative; the skill this example was drawn
+from was later removed, but the pattern still applies):
+
 ```yaml
-description: Fix session protocol validation failures in GitHub Actions. Use when
-  a PR fails with "Session protocol validation failed", "MUST requirement(s) not
-  met", "NON_COMPLIANT" verdict, or "Aggregate Results: FAIL".
+description: Fix a validation failure in GitHub Actions. Use when a PR fails
+  with "Validation failed", "MUST requirement(s) not met", "NON_COMPLIANT"
+  verdict, or "Aggregate Results: FAIL".
 ```
 
 - Trigger keywords: exact error messages users will see
@@ -299,8 +301,9 @@ author. The only variable was who wrote the prompts.
 **Two authoring rules.**
 
 1. Prefer an observed phrase to an invented one. The best example in this
-   document already follows the rule: `session-log-fixer` quotes the exact CI
-   error strings a user will paste, not phrasings its author imagined.
+   document already follows the rule: the observed-error pattern above
+   quotes the exact CI error strings a user will paste, not phrasings its
+   author imagined.
 2. Never benchmark trigger phrases on prompts you wrote. A score against your
    own prompts measures your consistency, not the phrase.
 

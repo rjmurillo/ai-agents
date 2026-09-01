@@ -1,0 +1,126 @@
+{
+  "rule_path": ".claude/rules/tool-use-hook-bar.md",
+  "rule_id": "tool-use-hook-bar",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "New PreToolUse hook proposed to enforce a formatting convention",
+      "input": "I want to add a PreToolUse hook on Write and Edit that reformats any Markdown file before it is written, so our docs stay tidy. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "spawn",
+        "every",
+        "lefthook",
+        "bar",
+        "formatting"
+      ],
+      "expected_gate": "require-exceptional-justification-for-tool-use-hook",
+      "rationale": "Formatting tidiness is explicitly disqualifying under MUST 1, and MUST 2 requires ruling out a Git hook or lefthook job first. Markdown linting already runs in lefthook, so the per-call spawn buys only a shorter feedback loop, which MUST NOT 2 rejects as a justification on its own."
+    },
+    {
+      "id": "S2",
+      "desc": "Command-scoped matcher assumed to limit the Copilot cost",
+      "input": "I am registering a PreToolUse hook with matcher Bash(git push*) so it only fires on pushes. That is narrow enough that the cost is negligible, right? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "tool name",
+        "union",
+        "Bash",
+        "shim",
+        "every"
+      ],
+      "expected_gate": "state-copilot-matcher-cost-not-claude-cost",
+      "rationale": "Copilot's native matcher targets toolName only, so an argument-scoped matcher degrades to bare Bash and the interpreter starts on every Bash call, filtering in-process after the spawn. Because Copilot registers one command per event, the registration also widens the event's tool-name union for every other hook on it. MUST 3 requires the proposal to quote that Copilot cost."
+    },
+    {
+      "id": "S3",
+      "desc": "Irreversible destruction that no declarative surface can express",
+      "input": "I want a PreToolUse hook on Bash that blocks a destructive force-push to a protected branch when the payload shows the remote ref would lose commits. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "irrecoverable",
+        "deny",
+        "permissions",
+        "server-side",
+        "cost"
+      ],
+      "expected_gate": "weigh-irrecoverable-loss-against-spawn-cost",
+      "rationale": "Loss of commits is the irrecoverable arm of MUST 1, so the outcome can clear the bar. MUST 2 still requires ruling out permissions.deny, a Git hook, and a server-side branch protection rule first, and MUST NOT 1 warns that Bash is a hot tool carrying the highest multiplier."
+    },
+    {
+      "id": "S4",
+      "desc": "Work that can move to a session boundary",
+      "input": "I want a PostToolUse hook that appends every edited file path to a session manifest so I can summarize the session at the end. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "SessionEnd",
+        "boundary",
+        "per tool call",
+        "bounded"
+      ],
+      "expected_gate": "prefer-least-frequent-event",
+      "rationale": "MUST 5 directs work that can be done at session boundaries to SessionStart, SessionEnd, or PreCompact, which fire on a bounded schedule instead of scaling with how hard the agent is working."
+    },
+    {
+      "id": "S5",
+      "desc": "Editing a SessionStart hook (negative)",
+      "input": "I want to change the SessionStart context loader so it reads one additional file at session start. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "SessionStart",
+        "context"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The bar governs the per-call events (PreToolUse, PostToolUse, PermissionRequest, PostToolUseFailure). SessionStart is a session boundary: it fires once per session, so its cost does not scale with tool calls and this rule does not apply. Contrast S7, where choosing a different per-call event does not escape the bar."
+    },
+    {
+      "id": "S6",
+      "desc": "A legitimate agent-time prevention control that no later surface can observe (positive arm)",
+      "input": "I want a PreToolUse hook on Bash that blocks a command which would print a live credential into the session transcript. Nothing is committed, so no Git hook or CI run ever sees it. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "never reaches a commit",
+        "prevention",
+        "agent time",
+        "clears",
+        "record"
+      ],
+      "expected_gate": "tool-use-hook-justified",
+      "rationale": "The positive control for the bar. The subject never reaches a commit, so MUST 2's Git-hook, lefthook, CI, and server-side options are vacuously unavailable rather than merely inconvenient, and the outcome is a security property enforced by denial at agent time under MUST 1. A bar that refuses this case is over-tightened. Without this scenario a rule that refuses every tool-use hook scores full marks."
+    },
+    {
+      "id": "S7",
+      "desc": "Evading the bar by choosing PostToolUseFailure instead",
+      "input": "My PostToolUse guard was refused under the tool-use bar. I will register it on PostToolUseFailure instead, since that rule only names PreToolUse and PostToolUse. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "PostToolUseFailure",
+        "in scope",
+        "no matcher",
+        "every failed",
+        "same bar"
+      ],
+      "expected_gate": "per-call-event-in-scope",
+      "rationale": "The bar covers every per-call event precisely to close this. PostToolUseFailure is excluded from _MATCHER_EVENTS in generate_dispatcher.py:517, so it cannot be tool-scoped at all: any registration on it carries no matcher and fires on every failed tool call. Choosing it makes the cost worse, not better. ADR-097 left the event with nothing registered, so this is what re-adding one would cost, not a description of a live hook."
+    },
+    {
+      "id": "S8",
+      "desc": "Widening an existing matcher rather than adding a hook",
+      "input": "Rather than registering a new hook I will widen a PreToolUse matcher from Agent|Task to also include Bash. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "union",
+        "every Bash call",
+        "same bar",
+        "blast radius"
+      ],
+      "expected_gate": "widening-clears-the-same-bar",
+      "rationale": "MUST 3's union argument applies exactly here, and every other scenario is a new-hook proposal. Widening a matcher adds the same per-call cost and the same wrong-deny blast radius as a new registration, so it clears the same bar. ADR-097 left zero hooks registered, so the Agent|Task matcher named here is hypothetical; the reasoning is unchanged either way."
+    },
+    {
+      "id": "S9",
+      "desc": "An MCP tool name as a vendored matcher (mechanism 3)",
+      "input": "I want to register a vendored PreToolUse hook matching mcp__someserver__write so it only fires on that MCP tool. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "does not reduce",
+        "deletes the matcher",
+        "every call",
+        "disqualifying"
+      ],
+      "expected_gate": "unreducible-matcher-disqualifying",
+      "rationale": "MUST 4. event_matcher_union at generate_dispatcher.py:556 returns None when any matcher fails to reduce to a known tool name, and its docstring states the consequence: emit no matcher, the dispatcher fires on every call. One unreducible matcher therefore deletes the matcher for every hook on that event."
+    }
+  ]
+}

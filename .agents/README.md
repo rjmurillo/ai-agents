@@ -9,14 +9,18 @@
 ## Plugin Consumer Guide
 
 When installed as a Claude Code plugin, this project creates an `.agents/` directory in
-consumer project roots. This directory stores session logs, analysis artifacts, and
-governance documents used by the plugin's hooks and skills.
+consumer project roots. This directory stores analysis artifacts and governance
+documents used by the plugin's hooks and skills. Session log creation is
+discontinued; the plugin no longer writes new JSON session log files under
+`.agents/sessions/`. Per-issue continuity handoffs under
+`.agents/sessions/handoffs/` are unaffected and remain actively written.
 
 ### Directory Structure
 
 | Path | Purpose | Safe to Delete |
 |------|---------|----------------|
-| `.agents/sessions/` | Session logs (JSON) for audit trail | Yes, loses history |
+| `.agents/sessions/*.json` | Historical session logs (JSON), creation discontinued | Yes, loses history |
+| `.agents/sessions/handoffs/` | Active per-issue continuity records, still written by every agent | No, deletes an open issue's continuity |
 | `.agents/analysis/` | Generated analysis reports | Yes, regenerated on demand |
 | `.agents/architecture/` | ADRs and design decisions | No, contains governance |
 | `.agents/governance/` | Project constraints and policies | No, contains enforcement rules |
@@ -29,10 +33,13 @@ Add to your `.gitignore` if you do not want to track generated artifacts:
 
 ```gitignore
 # Optional: exclude regenerable plugin artifacts
-.agents/sessions/
+.agents/sessions/*.json
 .agents/analysis/
 .agents/critique/
 ```
+
+Do not exclude `.agents/sessions/handoffs/`: those files are the active
+per-issue continuity record, not regenerable history.
 
 Do not exclude `.agents/architecture/`, `.agents/governance/`, or `.agents/security/`.
 These contain decisions and policies that should be version-controlled.
@@ -47,9 +54,7 @@ root is read-only, set `CLAUDE_PROJECT_DIR` to a writable location.
 ## Quick Start
 
 1. Copy contents to your ai-agents repository's `.agents/` directory
-2. Use `SESSION-START-PROMPT.md` to begin any session
-3. Follow phase prompts in `PHASE-PROMPTS.md` for specific work
-4. Use `SESSION-END-PROMPT.md` before ending any session
+2. Follow phase prompts in `PHASE-PROMPTS.md` for specific work
 
 ---
 
@@ -58,8 +63,6 @@ root is read-only, set `CLAUDE_PROJECT_DIR` to a writable location.
 | File | Purpose | Use When |
 |------|---------|----------|
 | **AGENT-INSTRUCTIONS.md** | Task execution protocol | Reference during all work |
-| **SESSION-START-PROMPT.md** | Universal session initialization | Start of every session |
-| **SESSION-END-PROMPT.md** | Universal session finalization | End of every session |
 | **PHASE-PROMPTS.md** | Phase-specific orchestrator prompts | Starting each phase |
 | **planning/enhancement-PROJECT-PLAN.md** | Master 6-phase project plan | Track progress |
 | **prompts/GENERATE-AGENT-SYSTEM-PROMPT.md** | Generate AGENT-SYSTEM.md | One-time setup |
@@ -84,12 +87,10 @@ root is read-only, set `CLAUDE_PROJECT_DIR` to a writable location.
 
 ```bash
 # In your ai-agents repository
-mkdir -p .agents/planning .agents/prompts .agents/sessions .agents/governance .agents/specs .agents/steering
+mkdir -p .agents/planning .agents/prompts .agents/governance .agents/specs .agents/steering
 
 # Copy files
 cp AGENT-INSTRUCTIONS.md .agents/
-cp SESSION-START-PROMPT.md .agents/
-cp SESSION-END-PROMPT.md .agents/
 cp PHASE-PROMPTS.md .agents/
 cp prompts/GENERATE-AGENT-SYSTEM-PROMPT.md .agents/prompts/
 
@@ -149,15 +150,13 @@ src/claude/*.md → load agent-prompts.md steering
 
 **Start**:
 1. Read context files (AGENT-SYSTEM, AGENT-INSTRUCTIONS, HANDOFF, PROJECT-PLAN)
-2. Create session log
-3. Identify current phase/task
-4. Delegate to orchestrator
+2. Identify current phase/task
+3. Delegate to orchestrator
 
 **Execute**:
 1. Work incrementally
 2. Commit frequently (conventional commits)
-3. Update session log
-4. Check off tasks
+3. Check off tasks
 
 **End**:
 1. Run retrospective agent

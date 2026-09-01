@@ -8,9 +8,8 @@ and the escaped-newline guard.
 
 Loaded by absolute path, never by name
 --------------------------------------
-``new_pr.py`` runs under ``python3 -I``. The push-pr identity guard requires
-that flag, and isolated mode removes the script's own directory from
-``sys.path``. Measured on CPython 3.14.6:
+``new_pr.py`` runs under ``python3 -I``. Isolated mode removes the script's own
+directory from ``sys.path``. Measured on CPython 3.14.6:
 
     $ python3 -I main.py
     ModuleNotFoundError: No module named 'sibling'
@@ -22,9 +21,11 @@ provide: putting the directory on ``sys.path`` instead would let anyone who can
 write into the script directory shadow a stdlib module for this process, which
 is a strictly worse position than the one before the split.
 
-The identity guard pins this file's SHA-256 alongside ``new_pr.py`` and
-``validate_pr_description.py``, so the bundle is verified as a unit and this
-module cannot be swapped independently.
+A PreToolUse guard used to pin this file's SHA-256 alongside ``new_pr.py`` and
+``validate_pr_description.py``, verifying the bundle as a unit. Issue #5154
+deleted that guard, so no run-time check now stops this module being swapped
+independently. Code review and the server-side gate in
+``.github/workflows/pr-validation.yml`` are what catch it.
 """
 
 from __future__ import annotations
@@ -103,7 +104,7 @@ _SKILL_SCAN_EXTENSIONS = frozenset({".md", ".py", ".ps1", ".psm1"})
 
 
 _SESSION_LOG_FILENAME_RE = re.compile(
-    # Canonical filename per session-init script:
+    # Canonical filename convention:
     # .agents/sessions/YYYY-MM-DD-session-NN[-keyword1-keyword2-...].{md|json}
     # Keywords are kebab-case (lowercase letters/digits + hyphens only).
     r"^\.agents/sessions/"
@@ -121,9 +122,10 @@ def _extract_validatable_session_logs(
     Filename pattern requires YYYY-MM-DD-session-NN prefix to exclude
     tally files like STEP-0-METRICS.md and STEP-0.5-METRICS.md.
     validate_session_json.py only accepts JSON. Legacy .md session logs
-    require migration (handled by the CI workflow at
-    .github/workflows/ai-session-protocol.yml). Local pre-PR validation
-    only checks JSON; warn the author so they know CI will migrate.
+    are not validated here and are not migrated by any workflow: the
+    ai-session-protocol.yml CI check that once migrated them was retired.
+    Session log creation is discontinued; a staged log is validated if
+    present, never required.
 
     Returns a tuple so callers can distinguish "no session log at all"
     (both empty) from "legacy .md staged, no JSON to validate locally"
@@ -134,8 +136,9 @@ def _extract_validatable_session_logs(
     if legacy_md:
         print(
             f"  WARNING: legacy .md session log(s) staged ({legacy_md}); "
-            "CI workflow will migrate to JSON before validation. Local "
-            "pre-PR validation only runs against JSON session logs.",
+            "these are not validated. Session log creation is discontinued; "
+            "an existing one must use the JSON format that "
+            "validate_session_json.py checks.",
             file=sys.stderr,
         )
     return [f for f in matched if f.endswith(".json")], bool(legacy_md)
@@ -274,9 +277,8 @@ def run_validations(
             warnings.record(
                 "only legacy .md session log(s) staged; no JSON session log was validated here"
             )
-        else:
-            print("  WARNING: No session log found but .agents/ files changed", file=sys.stderr)
-            warnings.record("no session log found but .agents/ files changed")
+        # No session log at all is the expected case: session log creation
+        # is discontinued, so absence is not warning-worthy.
     elif diff_failed:
         print("  Skipped: git diff failed, changed files unknown (see warning above).")
     else:

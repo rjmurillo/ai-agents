@@ -125,8 +125,14 @@ Coverage: 90+ memories across Forgetful, Claude-Mem, Serena; 100+ GitHub issues 
 
 ## Enforcement Fences Built
 
+> **IMPORTANT (2026-08-25, issue #5201)**: the "PowerShell-only" fence below
+> reflects this report's January 2026 policy snapshot. ADR-005 was
+> superseded by ADR-042 (Python migration) on 2026-01-17, so "PowerShell-only"
+> is no longer current policy; the historical reasoning (Windows support) now
+> lives in ADR-042 instead.
+
 From the report, these fences exist with documented reasons:
-- PowerShell-only (ADR-005: Windows support)
+- PowerShell-only (ADR-005: Windows support, historical; superseded by ADR-042)
 - Skills-first (usage-mandatory: testability)
 - BLOCKING gates (SESSION-PROTOCOL: 100% compliance)
 - Memory-first (ADR-007: learning from history)

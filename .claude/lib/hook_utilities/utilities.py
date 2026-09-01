@@ -13,6 +13,7 @@ import os
 import re
 import sys
 import warnings
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import IO, Any
@@ -23,6 +24,35 @@ _GIT_PUSH_PATTERN = re.compile(r"(?:^|\s)git\s+push(?:\s|$)")
 # Hooks registered for both commands need to recognize both.
 _GH_PR_CREATE_PATTERN = re.compile(r"(?:^|\s)gh\s+pr\s+create\b")
 _DATE_FORMAT = re.compile(r"\d{4}-\d{2}-\d{2}")
+_ISO_DATE = "%Y-%m-%d"
+
+
+def host_session_date(now: Callable[[], datetime] = datetime.now) -> str:
+    """Return the host local date as ``YYYY-MM-DD``.
+
+    Session logs are named by the contributor's host local date, not UTC
+    (Issue #4779). A consumer that scans by date prefix must anchor on the
+    same host clock a hand-written log's date field used, or a session in a
+    far-east timezone becomes invisible near midnight UTC. ``now`` is
+    injectable for deterministic tests and must return a naive local
+    datetime.
+    """
+    return now().strftime(_ISO_DATE)
+
+
+def recent_host_session_dates(now: Callable[[], datetime] = datetime.now) -> tuple[str, str]:
+    """Return ``(today, yesterday)`` host local date strings.
+
+    The two-day window absorbs a session that spans host-local midnight.
+    Anchored on the host clock so it matches :func:`host_session_date` and the
+    creator's filename (Issue #4779). Both strings derive from one captured
+    instant so a midnight tick between them cannot split the pair. ``now`` is
+    injectable for deterministic tests and must return a naive local datetime.
+    """
+    current = now()
+    today = current.strftime(_ISO_DATE)
+    yesterday = (current - timedelta(days=1)).strftime(_ISO_DATE)
+    return today, yesterday
 
 # Cross-platform file locking
 # Windows: msvcrt.locking is byte-position-aware and only locks 1 byte at the
@@ -121,23 +151,13 @@ def is_pr_create_command(command: str | None) -> bool:
     return _GH_PR_CREATE_PATTERN.search(command) is not None
 
 
-def is_session_logged_command(command: str | None) -> bool:
-    """True for any command that requires a session log to exist (git commit or pr create).
-
-    Aggregates :func:`is_git_commit_command` and :func:`is_pr_create_command`
-    so multi-matcher hooks have a single predicate to call regardless of
-    which matcher fired the shim.
-    """
-    return is_git_commit_command(command) or is_pr_create_command(command)
-
-
 def get_today_session_log(sessions_dir: str, date: str | None = None) -> Path | None:
     """Find the most recent session log for the given date.
 
     Returns the path with the latest modification time, or None if no logs found.
     """
     if date is None:
-        date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        date = host_session_date()
     elif not _DATE_FORMAT.fullmatch(date):
         msg = f"Invalid date format: {date!r}. Expected YYYY-MM-DD."
         raise ValueError(msg)
@@ -191,7 +211,7 @@ def _newest_by_mtime(candidates: list[Path]) -> Path | None:
 
 def get_today_session_logs(sessions_dir: str) -> list[Path]:
     """Find all session logs for today's date."""
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+    today = host_session_date()
 
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():
@@ -209,56 +229,48 @@ def get_today_session_logs(sessions_dir: str) -> list[Path]:
 
 
 def get_recent_session_log(sessions_dir: str) -> Path | None:
-    """Find the most recent session log for the current session.
+    """Find the newest recent session log using rollout-safe date priority.
 
-    Returns the newest today-prefixed session log when any today candidate
-    stats successfully. Falls back to the newest yesterday-prefixed session
-    log in two cases: (1) no today-prefixed file exists at all, and (2) today
-    candidates exist but every one of them fails stat() (a transient FS error
-    or race). The fallback supports sessions that span midnight and prevents
-    a single transient stat failure from blinding hooks to the session.
+    Host-local today and yesterday remain authoritative for newly created
+    logs. UTC today and yesterday follow as deduplicated compatibility
+    fallbacks for active logs created before Issue #4779 changed the creator's
+    date authority. The first prefix with a readable candidate wins.
     """
     sessions_path = Path(sessions_dir)
     if not sessions_path.is_dir():
         warnings.warn(f"Session directory not found: {sessions_dir}", stacklevel=2)
         return None
 
-    now = datetime.now(tz=UTC)
-    today = now.strftime("%Y-%m-%d")
+    host_dates = recent_host_session_dates()
+    now_utc = datetime.now(tz=UTC)
+    utc_dates = (
+        now_utc.strftime(_ISO_DATE),
+        (now_utc - timedelta(days=1)).strftime(_ISO_DATE),
+    )
+    prefixes = tuple(
+        dict.fromkeys((host_dates[0], utc_dates[0], host_dates[1], utc_dates[1]))
+    )
 
-    # First, check for today's sessions
-    try:
-        today_candidates = list(sessions_path.glob(f"{today}-session-*.json"))
-    except OSError as exc:
-        warnings.warn(
-            f"Failed to read session logs from {sessions_dir}: {exc}",
-            stacklevel=2,
-        )
-        return None
+    for index, prefix in enumerate(prefixes):
+        try:
+            candidates = list(sessions_path.glob(f"{prefix}-session-*.json"))
+        except OSError as exc:
+            warnings.warn(
+                f"Failed to read session logs from {sessions_dir}: {exc}",
+                stacklevel=2,
+            )
+            return None
 
-    most_recent = _newest_by_mtime(today_candidates)
-    if most_recent is not None:
-        return most_recent
-    if today_candidates:
-        # All today candidates errored on stat. Fall through to yesterday so a
-        # single transient stat failure does not blind hooks to the session.
-        warnings.warn(
-            "All today session logs failed stat; falling back to yesterday",
-            stacklevel=2,
-        )
+        most_recent = _newest_by_mtime(candidates)
+        if most_recent is not None:
+            return most_recent
+        if candidates and index == 0:
+            warnings.warn(
+                "All today session logs failed stat; trying fallback dates",
+                stacklevel=2,
+            )
 
-    # Only fall back to yesterday if no today session exists (cross-midnight continuation)
-    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-    try:
-        yesterday_candidates = list(sessions_path.glob(f"{yesterday}-session-*.json"))
-    except OSError as exc:
-        warnings.warn(
-            f"Failed to read session logs from {sessions_dir}: {exc}",
-            stacklevel=2,
-        )
-        return None
-
-    return _newest_by_mtime(yesterday_candidates)
+    return None
 
 
 def coerce_to_list(value: object) -> list[Any]:

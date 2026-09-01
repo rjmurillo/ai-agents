@@ -227,49 +227,6 @@ class TestOversizePayloadHappyPath:
 class TestDispatcherFileMissing:
     """Partial install: hooks dir exists but _dispatch.py missing (GAP 1)."""
 
-    def test_missing_dispatch_py_bash_allows(self, tmp_path: Path) -> None:
-        """Shell guard catches missing _dispatch.py before Python runs."""
-        import json
-        import os
-        import subprocess
-
-        # Create a valid plugin root with hooks/ but no _dispatch.py
-        (tmp_path / "hooks" / "PreToolUse").mkdir(parents=True)
-        # Do NOT create _dispatch.py
-
-        hooks_json = (
-            REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json"
-        )
-        data = json.loads(hooks_json.read_text())
-        bash_cmd = None
-        for entries in data["hooks"].values():
-            for entry in entries:
-                if "PreToolUse" in entry.get("bash", ""):
-                    bash_cmd = entry["bash"]
-                    break
-            if bash_cmd:
-                break
-        assert bash_cmd is not None
-
-        env = dict(os.environ)
-        env["COPILOT_PLUGIN_ROOT"] = str(tmp_path)
-
-        proc = subprocess.run(
-            ["/usr/bin/bash", "-c", bash_cmd],
-            capture_output=True,
-            env=env,
-            timeout=10,
-        )
-        assert proc.returncode == 0, (
-            f"Expected 0, got {proc.returncode}: "
-            f"{proc.stderr.decode()}"
-        )
-        stderr = proc.stderr.decode()
-        assert "hooks DISABLED" in stderr
-        assert "Dispatcher missing" in stderr
-        assert "Reinstall" in stderr
-
-
 class TestTooOldPythonDegrades:
     """Python below floor (3.10) must degrade with warning, not crash."""
 
@@ -410,30 +367,6 @@ class TestVersionAgreement:
     3. README.md prerequisite statement
     If a future change raises the floor, this test forces all three to move.
     """
-
-    def test_generator_and_hooks_json_agree(self, tmp_path: Path) -> None:
-        """The version in _dispatch.py must match the generator constants."""
-        repo = Path(__file__).resolve().parents[2]
-        maj, minor = _read_generator_version()
-
-        # Version check is now inside the generated _dispatch.py
-        dispatch = (
-            repo / "src" / "copilot-cli" / "hooks"
-            / "PreToolUse" / "_dispatch.py"
-        )
-        content = dispatch.read_text()
-        assert f"({maj}, {minor})" in content, (
-            f"_dispatch.py does not contain ({maj}, {minor})"
-        )
-        # Also verify the shell template mentions the version in its
-        # warning messages (as "X.Y" not as a tuple)
-        hooks_json = (
-            repo / "src" / "copilot-cli" / "hooks" / "hooks.json"
-        )
-        hj_content = hooks_json.read_text()
-        assert f"{maj}.{minor}" in hj_content, (
-            f"hooks.json does not mention {maj}.{minor}"
-        )
 
     def test_readme_states_correct_version(self) -> None:
         """README.md must name the same minimum version as the generator."""

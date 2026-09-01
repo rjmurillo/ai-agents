@@ -35,9 +35,63 @@ on 2026-07-28 after confirming `observation_sync` is absent from plugin
 registrations and vendored trees, while a Git-hook or CI re-home cannot observe
 its MCP event. Issue #3218 closed the same day after confirming the remaining
 dispatcher machinery serves live generation paths. The decision's terminal
-states are implemented. Sources:
-<https://github.com/rjmurillo/ai-agents/issues/3217> and
-<https://github.com/rjmurillo/ai-agents/issues/3218>.
+states are implemented. On 2026-08-11 issue #4874 added the
+`require_subagent_model` registration to the vendored inventory; section 6 and
+the repo-local `.github/hooks` surface note were updated in the same review
+(debate log `.agents/critique/ADR-068-071-085-metric-refresh-debate-log.md`).
+On 2026-08-14 issue #5013 excluded `push_pr_script_identity_guard` from the
+generated Copilot inventory only. The trigger was a live containment incident:
+the guard's plugin-wide `Bash` matcher combined with the Copilot dispatcher's
+timed child-process deny (#4706) denied 127 unrelated Bash commands over more
+than 21 minutes before the owner applied immediate containment. The root
+cause was the guard's broad `Bash` registration paired with a timed child
+process that denies on overrun, not a defect in the identity check itself.
+Claude Code keeps running the guard unchanged in its own canonical dispatch
+group, because its host entry is not a timed child process. Copilot CLI
+accepts, as residual risk for the excluded window, the reopened gap that a
+prompt-injected repository lookalike `new_pr.py` is no longer denied there.
+Section 7 now records the exclusion, the eligibility test applied to it, and
+the field-governance and reintroduction requirements; section 6 is otherwise
+unchanged and the dispatcher itself is unchanged. Debate log:
+`.agents/critique/ADR-068-071-085-5013-debate-log.md`. Sources:
+<https://github.com/rjmurillo/ai-agents/issues/3217>,
+<https://github.com/rjmurillo/ai-agents/issues/3218>, and
+<https://github.com/rjmurillo/ai-agents/issues/5013>.
+
+On 2026-08-18 issue #5154 deleted `push_pr_script_identity_guard` from both
+harnesses, superseding the 2026-08-14 Copilot-only exclusion above. The hard
+delete removed `invoke_push_pr_script_identity_guard.py`, its nine
+`_push_pr_guard_*` companion modules, and dispatch group
+`plugin-pretooluse-9-push_pr_script_identity` from `.claude/hooks/hooks.json`
+and `.claude/hooks/dispatch_groups.json`. No shim remains to exclude, so the
+Copilot exclusion and its `copilotExclude: true` field are moot. The owner
+classified the disposition as deleted, which is the terminal state Decision
+7's reintroduction gate 8 already admits, so this exercises that gate rather
+than bypassing it. The warrant is the owner's own security judgment, not a
+cost-benefit veto. The guard's module docstring conceded that its threat model
+bounded only invocations that name `new_pr.py`: a command reconstructing the
+path without naming the file was out of scope, and an actor able to run
+arbitrary code never needed `new_pr.py` to open a pull request. The owner
+judged that residual slice not worth a 102 ms tax on every Bash call. Cost is
+context for that judgment, not its authority. This decision does not invoke
+ADR-084's ROI bar, because
+`.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")` forbids it:
+"It does not authorize retiring an actual security control... a future
+reviewer must not use this ADR's ROI bar to retire it." Section 8 complies by
+changing the warrant rather than arguing the carve-out away. The 102 ms figure
+is the median of five timings taken before deletion, against the dispatch
+group this same change deletes, so it is not reproducible from the tree
+afterward. The outcome the guard protected, pull requests that meet this
+repository's standards, keeps a server-side gate that no local bypass can
+evade: `.github/workflows/pr-validation.yml` runs "Validate PR Description vs
+Diff", "Validate PR Description Standards"
+(`.github/scripts/parse_pr_standards.py`), and "Enforce Blocking Issues"
+(`scripts/ci/enforce_pr_validation.py`). That gate catches the outcome, not
+the execution, and `.github/workflows/` is not part of the vendored plugin
+surface, so a plugin consumer gets no compensating control at all for this
+vector. Section 8 records the deletion; section 7 stays as the 2026-08-14
+historical record of the containment incident. Source:
+<https://github.com/rjmurillo/ai-agents/issues/5154>.
 
 ## Amendment Record
 
@@ -57,9 +111,16 @@ runtime behavior or accepted design outcome. It records that both issues are
 closed and that future component retirement requires a new architecture
 decision.
 
+The 2026-08-18 amendment (issue #5154) supersedes the 2026-08-14 Copilot-only
+exclusion with deletion from both harnesses. It does not undo the D-A
+framework correction or the D-B deletion above. Section 7 stays in place as
+history: it records a real containment incident and the eligibility reasoning
+applied to it at the time. Section 8 carries the current position.
+
 ## Date
 
-2026-07-20; amended 2026-07-31
+2026-07-20; amended 2026-07-31, 2026-08-11, 2026-08-14, 2026-08-18, and
+2026-08-19
 
 ## Context
 
@@ -85,10 +146,12 @@ Three survivor hooks were named in #3217 when this ADR began:
   of test-runner commands to cut permission fatigue. It was Claude-only when this
   ADR started. The hook-contract branch briefly generated a Copilot translation,
   then removed both registrations after Finding 3.
-- `invoke_observation_sync.py` (PostToolUse). Syncs this repo's internal Serena
-  and Forgetful memories. It had no documented plugin-consumer contract. The
-  2026-07-22 owner decision removes it from the vendored Copilot surface and
-  retains it only in local repository settings.
+- `invoke_observation_sync.py` (PostToolUse, retired outright by ADR-097).
+  Synced this repo's internal Serena and Forgetful memories. It had no
+  documented plugin-consumer contract. The 2026-07-22 owner decision removed
+  it from the vendored Copilot surface and retained it only in local
+  repository settings; ADR-097 completed the retirement by removing the
+  local registration too.
 
 ### Finding 1: Copilot has no repo-committed permission surface, and the guard self-neutered before retirement
 
@@ -328,9 +391,41 @@ accepted decision with dedicated tests; and each component still referenced by
 a surviving vendored hook is listed with the hook that keeps it alive. Decision
 3 is the named retention decision for the dormant generic PermissionRequest
 adapter. Removing that adapter requires superseding this decision, not treating
-zero active producers as implicit approval. The vendored source has three registrations across two events:
-`markdownlint_guard`, `push_pr_script_identity_guard`, and
-`markdown_auto_lint`. Copilot generation emits two host registrations. #3218
+zero active producers as implicit approval. As of 2026-08-14 the vendored source had four registrations across two events:
+`markdownlint_guard`, `push_pr_script_identity_guard`,
+`require_subagent_model`, and `markdown_auto_lint`. Copilot generation then emitted two host registrations. Issue #5013 excluded
+`push_pr_script_identity_guard` from the generated Copilot inventory only: the
+four-registration count above described the vendored Claude source, and
+the Copilot-side PreToolUse manifest then carried the remaining two shims,
+`markdownlint_guard` and `require_subagent_model`. Issue #5154 (2026-08-18)
+re-baselined both counts. It deleted `push_pr_script_identity_guard` from both
+harnesses (section 8) and deleted `markdownlint_guard` and
+`markdown_auto_lint` in the same change. `require_subagent_model` is the only
+survivor, so the vendored source then had one registration on one event,
+PreToolUse, and Copilot generation emitted one host registration. Two
+issues then each independently added a gate to that one-registration
+baseline, both dated 2026-08-18: #5061 added `serena_memory_scope_guard`,
+and #4917 added `serena_worktree_scope`. Merged together on 2026-08-19, the
+vendored source now has three registrations on one event, PreToolUse, and
+Copilot generation still emits one host registration carrying all three
+shims, `require_subagent_model`, `serena_memory_scope_guard`, and
+`serena_worktree_scope` (measured: `.claude/hooks/hooks.json` and
+`src/copilot-cli/hooks/PreToolUse/_manifest.json` both list exactly those
+three), since one dispatcher entry serves every registered shim for an
+event regardless of shim count (ADR-068 Decision point 1).
+`.claude/hooks/dispatch_groups.json` registers the worktree guard as
+`plugin-pretooluse-12-serena_worktree_scope`, renumbered up from the `-11-`
+suffix used on its own branch to avoid colliding with
+`plugin-pretooluse-11-serena_memory_scope`, already landed from #5061. This
+repository also
+registers the require-subagent-model gate directly at
+`.github/hooks/require-subagent-model.json` for local Copilot runs; cloud
+agent reads only default-branch `.github/hooks/*.json`, so cloud coverage
+begins at merge. That surface is repository-local and outside the plugin
+inventory. On the Claude side this repository carries no `settings.json` twin:
+the duplicate-entry contract forbids one, and gate-mode groups skip the
+dispatcher self-host bail, so in-repo Claude enforcement arrives through the
+installed plugin as it updates. #3218
 closed after deriving its consumer list from active source registrations and
 generated manifests. Any future retirement or replacement requires reference
 search, regeneration, and artifact tests that prove no active consumer lost
@@ -340,6 +435,280 @@ The current dispatcher state is not permanent debt accepted by documentation.
 Each retained component must record why direct registration or deletion would
 lose a measured host contract or cost more than the retained machinery.
 Simplification requires a new architecture decision.
+
+### 7. `push_pr_script_identity_guard`: temporary Copilot-only exclusion, Claude retained (D-C)
+
+Superseded on 2026-08-18 by section 8, which deletes the guard from both
+harnesses. This section stays as the historical record of the 2026-08-14
+containment incident and the reasoning applied to it. Read it as history, not
+as the current disposition.
+
+Issue #5013 (2026-08-14) excluded `push_pr_script_identity_guard` from the
+generated Copilot inventory only, in response to the containment incident
+recorded in Status: the guard's plugin-wide `Bash` matcher paired with the
+Copilot dispatcher's timed child-process deny (#4706) denied 127 unrelated
+Bash commands over more than 21 minutes. `.claude/hooks/dispatch_groups.json`
+marks the group `copilotExclude: true` and still lists the guard in Claude
+Code's canonical dispatch group. `.claude/hooks/hooks.json` still registers
+that group. This ADR is the policy authority for the exclusion; ADR-068
+and ADR-071 record only the derived dispatcher and runtime metrics that
+result from it.
+
+**Eligibility test applied (Decision 1).** This exclusion is not a
+hook-to-permissions migration, so Decision 1's three-part test does not admit
+or reject it directly. Applied by analogy, it bounds what a temporary
+exclusion may claim:
+
+1. **Portability.** The question is inverted here: the guard already ships on
+   both harnesses today, and the field removes it from one. No permission
+   surface replaces it on Copilot. Copilot regains no equivalent policy; it
+   regains nothing.
+2. **Fidelity.** Removing the guard from Copilot removes all of its fidelity,
+   not a partial subset. There is no partial-fidelity carrier and none is
+   claimed.
+3. **Policy safety.** The guard's underlying policy, deny a noncanonical
+   `new_pr.py` invocation, remains a real safety boundary. Excluding the guard
+   from Copilot does not make that boundary safe to skip. It accepts skipping
+   it as a temporary, contained cost.
+
+Containment passes temporarily because the alternative, 127 unrelated denials
+recurring on every Copilot Bash call, is an availability failure with no
+compensating security benefit: the guard was denying commands it was never
+meant to evaluate, not catching a live attack. The remaining security cost is
+real and named, not eliminated: while excluded, Copilot CLI has no guard
+against a prompt-injected repository lookalike `new_pr.py` gaining user-level
+Python execution through `/push-pr`. Claude Code is unaffected because its
+host entry is not a timed child process and the guard runs there unchanged.
+
+**Generic field governance.** A generic `copilotExclude` field on a
+dispatch-group shim entry is allowed only when all of the following hold, not
+merely a boolean flip:
+
+1. Strict boolean validation. The generator rejects any `copilotExclude`
+   value that is not literally `true` or `false`; a truthy non-boolean value
+   such as `1`, `"true"`, or `null` fails generation rather than silently
+   including or excluding the shim.
+2. Plugin surface named. The record states which generated surface loses the
+   shim, the Copilot plugin `hooks.json` and its manifest, and which surface
+   keeps it, the vendored Claude plugin source and the unaffected
+   `.claude/settings.json`.
+3. Issue metadata. The record names the issue that authorized the exclusion,
+   #5013, in the field's generator comment and in this ADR.
+4. Decision metadata. The record names the ADR that owns the security
+   judgment, this ADR, not the mechanical ADR that owns dispatcher shape,
+   ADR-068.
+5. Residual risk stated. The record states what protection is lost on the
+   excluded harness while the field is `true`, the `new_pr.py` lookalike gap
+   above.
+6. Unaffected-harness behavior stated. The record states that the
+   non-excluded harness is unchanged and names the mechanism, the field is
+   ignored by `invoke_dispatch_claude.py`.
+7. Reintroduction criteria named. The record names the gates a future change
+   must pass before flipping the field back to `false`, the eight gates
+   below.
+8. Cleanup obligation named. The record states that a permanent exclusion
+   requires removing the dead Copilot-side generation path rather than
+   leaving `copilotExclude: true` as permanent scaffolding.
+9. Tests required. The record names the tests that must pass before and
+   after any change to the field: absence regressions on the Copilot side,
+   presence regressions on the Claude side, and the boolean-validation test
+   in item 1.
+
+**Reintroduction gates.** Issue #5013 and assignee rjmurillo own
+reintroduction. Reintroduction is optional and requires rjmurillo's approval
+before the field reverts to `false`. All eight gates below must pass in the
+same change:
+
+1. Unrelated commands never launch the guard's child process on Copilot.
+2. The canonical `new_pr.py` invocation is allowed.
+3. A prompt-injected repository lookalike `new_pr.py` is denied.
+4. A dynamic launcher, `python -c`, `eval`, or shell substitution, targeting
+   `new_pr.py` is denied.
+5. A Windows load test of 32 calls across 8 workers completes without a false
+   denial.
+6. Latency stays under a 500ms p95 and a 1 second maximum across that load
+   test.
+7. The measurement runs against a real Copilot CLI probe, not a simulated
+   harness.
+8. The owner classifies the guard's disposition as deleted or essential
+   before it returns to the generated inventory.
+
+Debate log: `.agents/critique/ADR-068-071-085-5013-debate-log.md`.
+
+### 8. `push_pr_script_identity_guard`: deleted from both harnesses (D-D)
+
+Issue #5154 (2026-08-18) deletes the guard outright. This supersedes section
+7. The change deleted `.claude/hooks/PreToolUse/invoke_push_pr_script_identity_guard.py`,
+its nine `_push_pr_guard_*` companion modules, and dispatch group
+`plugin-pretooluse-9-push_pr_script_identity` from `.claude/hooks/hooks.json`
+and `.claude/hooks/dispatch_groups.json`. Claude Code no longer runs the
+guard. Copilot generation no longer skips it, because nothing is left to skip:
+the Copilot exclusion, its `copilotExclude: true` field, and the
+`copilotExcludeIssue` and `copilotExcludeDecision` metadata attached to that
+group are moot and go away with the group. The generic-field governance in
+section 7 still binds any future use of `copilotExclude` on another group; it
+no longer describes any live registration.
+
+**Owner classification.** Section 7's reintroduction gate 8 requires the owner
+to classify the guard's disposition as deleted or essential. On 2026-08-18
+rjmurillo classified it as deleted. That closes the gate rather than
+bypassing it: gate 8 names deletion as a valid terminal answer, and the other
+seven gates measure a reintroduction that will not happen. Section 7's
+cleanup obligation is also satisfied, because a permanent exclusion required
+removing the dead Copilot-side generation path instead of leaving
+`copilotExclude: true` as standing scaffolding.
+
+**Decision driver: the owner's security judgment.** The warrant is a judgment
+about what the guard actually bounded, made by the person who owns the
+security posture of this repository. The guard's own module docstring conceded
+the threat model: it bounded only invocations that name `new_pr.py`. A command
+that reconstructs the path without naming the file was out of scope, and an
+actor able to run arbitrary code never needed `new_pr.py` to open a pull
+request at all. What remained was a narrow slice of the vector, and the owner
+judged that slice not worth a 102 ms tax on every Bash call in Claude Code.
+The cost is context for the judgment. It is not the authority for it.
+
+The 102 ms figure is the median of five timings taken before deletion, against
+the now-deleted group through `python3 -u
+.claude/hooks/invoke_dispatch_claude.py --group
+plugin-pretooluse-9-push_pr_script_identity` with a `git status --short`
+payload on Python 3.14.6. Because this change deletes that dispatch group, the
+number is not reproducible from the tree afterward. It is recorded here as
+measured-then evidence, not as a figure a later reader can re-derive.
+
+**ADR-084's carve-out, and why this decision does not invoke the ROI bar.**
+`.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")` states: "It
+does not authorize retiring an actual security control. A hook that enforces a
+security property in consumer repos earns its place by that property, not by
+an ROI cost-benefit veto, and a future reviewer must not use this ADR's ROI
+bar to retire it." That carve-out binds. This decision complies with it by
+changing the warrant, not by arguing the carve-out away or claiming the guard
+was never a security control. ADR-084's ROI bar is not cited as authority
+anywhere in this decision. The authority is the disposition power that section
+7's reintroduction gate 8 already assigns to the owner, exercised on the
+owner's reading of the threat model above.
+
+**Where the protected outcome is enforced now, and what that does not cover.**
+Pull requests that meet this repository's standards are gated server side by
+`.github/workflows/pr-validation.yml`, which runs "Validate PR Description vs
+Diff", "Validate PR Description Standards"
+(`.github/scripts/parse_pr_standards.py`), and "Enforce Blocking Issues"
+(`scripts/ci/enforce_pr_validation.py`). No local bypass evades that gate: it
+runs on the GitHub side of the push, so `--no-verify`, a disabled hook, or a
+deleted guard changes nothing about whether the pull request passes. The gate
+catches the outcome, not the execution. It reads a pull request that already
+exists; it cannot stop the local Python execution the guard was watching for.
+`.github/workflows/` is also not part of the vendored plugin surface. A plugin
+consumer inherits no workflow from this repository, so for this vector a
+consumer gets no compensating control at all, not a weaker one.
+
+**Residual risk accepted.** The guard's own module docstring already conceded
+the limit of what it bounded. A command that reconstructs the path to
+`new_pr.py` without naming the file was out of scope, and an actor able to run
+arbitrary code never needed `new_pr.py` to open a pull request. Deleting the
+guard therefore widens an already porous boundary rather than removing a tight
+one. The security cost is real and named: neither harness now denies a
+prompt-injected repository lookalike `new_pr.py` at agent time. The
+server-side gate above catches the outcome, not the execution.
+
+**Reversibility.** Reintroduction is a new architecture decision, not a field
+flip. A future proposal must restore the hook source and its companions, add a
+narrower matcher than bare `Bash`, and clear the measurable gates section 7
+lists, before any registration returns to either harness.
+
+### 9. `markdownlint_guard`: deleted, markdown linting belongs in Git hooks (D-E)
+
+Issue #5154 (2026-08-18) deleted the push-time markdown gate: the retired
+`invoke_markdownlint_guard.py`, its `push_guard_base.py` framework module, and
+dispatch group `plugin-pretooluse-8-markdownlint_guard`. The retired hook
+registered on `Bash(git push*)` and ran `markdownlint-cli2` over the `*.md`
+files in the push changeset.
+
+**Owner classification.** The owner classified the disposition as deleted. The
+stated reason is placement: linting can be done outside the harness, with Git
+hooks or Lefthook. Markdown linting is a commit-time and push-time concern. It
+belongs in a Git hook that fires once per commit or push, not in a
+per-tool-call agent hook that spawns an interpreter on every `git push` the
+model issues.
+
+**Rationale: placement, not ROI.** This is a judgment about where a check
+belongs, not a cost-benefit veto on whether the check is worth running. The
+check keeps running; it moves to the scheduler whose trigger matches its
+subject. ADR-084's carve-out under "What this ADR does NOT do" governs retiring an actual
+security control by ROI. Markdown lint is a formatting gate, no ROI argument
+is offered here, so the carve-out does not arise. ADR-086 makes Lefthook the
+sole Git-hook scheduler in this repository, which is the surface that receives
+the work.
+
+**Settled fact: this guard self-neutered in consumer repos.** Two reviewers
+disagreed, so the source at `HEAD` settles it. The deleted
+`push_guard_base.run_guard` opened its body with `if skip_if_consumer_repo(name): return 0`,
+and the deleted `invoke_markdownlint_guard.py` defined `main()` as
+`return run_guard(_validate, ["*.md"], GUARD_NAME)`. In a consumer repo the
+guard therefore returned 0 before it read stdin, so it never ran
+`markdownlint-cli2` there. The record at
+`.agents/critique/ADR-084-debate-log.md:17` says the opposite: it credits a
+reviewer with verifying that the now-removed guard was "not
+`skip_if_consumer_repo` gated and run in consumer repos". That verification
+was wrong, and this decision corrects it. Two consequences follow. The
+retired guard was a standing violation of ADR-084 rule 4, which bans
+self-neutering vendored hooks. And consumer-side coverage from this particular
+hook was already zero before the deletion, so for this hook the panel's
+drop-to-zero finding describes a state that already held.
+
+**Residual risk accepted.** What the deletion actually removes is agent-time
+markdown enforcement inside this repository: the model can no longer be
+blocked at `git push` by a lint failure the plugin detects. The Lefthook
+equivalent is already in place and this decision previously overstated the
+gap: `lefthook.yml` runs `markdown-autofix` and `markdown-check` at
+pre-commit over staged `**/*.md`, so an ordinary commit is still linted
+locally. What remains is narrower than "a push reaches the remote
+unchecked": a violation in a file the commit did not stage, or a commit made
+with `SKIP_AUTOFIX=1`, is no longer caught at push time and surfaces in CI
+instead. The owner accepts that. For plugin consumers the answer is blunter: this hook
+never ran in a consumer repo, so the plugin was not providing them a
+push-time markdown gate to lose, and this decision stops implying otherwise
+rather than claiming continuity.
+
+**Reversibility.** Restoring a push-time markdown gate is a Lefthook
+configuration change, not a plugin change. Returning it to the vendored plugin
+surface requires a new architecture decision that also answers ADR-084 rule 4,
+because the deleted shape could not ship to consumers without self-neutering.
+
+### 10. `markdown_auto_lint`: deleted, the same placement judgment (D-F)
+
+Issue #5154 (2026-08-18) also deleted the PostToolUse auto-fixer: the retired
+`invoke_markdown_auto_lint.py` and dispatch group
+`plugin-posttooluse-1-markdown_auto_lint`. The removed hook matched
+`^(Write|Edit)$` and ran `markdownlint-cli2 --fix` on each `.md` file the
+model touched.
+
+**Owner classification.** The owner classified the disposition as deleted,
+under the same placement judgment as section 9: markdown linting belongs in
+Git hooks or Lefthook, not in a hook that spawns an interpreter on every
+Write and every Edit. The per-tool-call trigger is the thing being rejected,
+not the linting.
+
+**Rationale: placement, not ROI.** As in section 9, no ROI argument is offered
+and ADR-084's carve-out under "What this ADR does NOT do" does not arise, because a markdown
+auto-fixer is not a security control. A file-by-file auto-fix on every edit
+also does work a single pre-commit pass does once, so the commit-time
+scheduler is the cheaper and more predictable home for it.
+
+**Residual risk accepted, and it is larger here than in section 9.** Unlike
+the retired push guard, this deleted hook carried no `skip_if_consumer_repo`
+call anywhere in its source, so it did run in consumer repos. Deleting it
+therefore does drop consumer-side markdown coverage from this plugin to zero:
+a consumer who installs neither Git hooks nor Lefthook now has no markdown
+gate from this plugin at all, and gets one only by wiring their own. The
+owner accepts that as the cost of the placement judgment. It is not
+continuity, and this decision does not present it as continuity.
+
+**Reversibility.** A future consumer-facing markdown capability is a new
+architecture decision, not a revert. It must state which surface carries it
+and how a consumer receives it, because `.github/workflows/` and this
+repository's Lefthook configuration both stay outside the vendored plugin
+surface.
 
 ## Resolved Owner Decisions
 
@@ -489,6 +858,9 @@ repository-only carrier is approved; Lefthook and CI cannot preserve that timing
 | Removed `.claude/hooks/PermissionRequest/invoke_test_auto_approval.py` | Direct | Delete the producer and its dedicated tests | High |
 | `src/copilot-cli/hooks/PermissionRequest/` | Generated | Remove through regeneration and prove the event directory stays absent | High |
 | `src/copilot-cli/hooks/PreToolUse/invoke_skill_first_guard__*.py` | Generated | Removed from the vendored surface under #3217 (stops shipping) | Medium |
+| Deleted `.claude/hooks/PreToolUse/invoke_push_pr_script_identity_guard.py` and its nine `_push_pr_guard_*` companions | Direct | Deleted under Decision 8 (#5154) with dispatch group `plugin-pretooluse-9-push_pr_script_identity` and its `copilotExclude` metadata | High |
+| Deleted `.claude/hooks/PreToolUse/invoke_markdownlint_guard.py` and `push_guard_base.py` | Direct | Deleted under Decision 9 (#5154); push-time markdown lint moves to Lefthook; the removed hook self-neutered in consumer repos, so no consumer behavior changes | Medium |
+| Deleted `.claude/hooks/PostToolUse/invoke_markdown_auto_lint.py` | Direct | Deleted under Decision 10 (#5154); this removed hook did run in consumer repos, so consumer markdown coverage from the plugin drops to zero | Medium |
 
 ## Implementation Notes
 
@@ -509,17 +881,36 @@ retirement or replacement requires a new architecture decision.
   unfaithful carrier: D-A retires one guard, while D-B deletes the unsafe
   approval goal.
 - ADR-084 (#3215): the vendored-hook ROI bar and the no-self-neuter rule that D-A
-  applies.
+  applies. Its "What this ADR does NOT do" section carves security controls out of the ROI bar.
+  Decisions 8, 9, and 10 do not invoke the bar: section 8 rests on the owner's
+  security judgment, and sections 9 and 10 rest on a placement judgment. Rule
+  4, the no-self-neuter rule, is what section 9's settled fact shows the
+  retired markdown push guard was violating.
 - ADR-086 and PR #3259: Lefthook is the sole Git-hook scheduler; it does not
-  replace agent-time PreToolUse enforcement.
+  replace agent-time PreToolUse enforcement. Sections 9 and 10 send markdown
+  linting there on purpose, accepting that trade.
 - ADR-083 (#3222): the dogfood mandate that makes Finding 2 blocking.
 - ADR-068: the generic PermissionRequest adapter and the active-policy removal.
+  Its 2026-08-14 amendment records the derived dispatcher metrics that follow
+  from Decision 7 here, and its 2026-08-18 amendment records the metrics that
+  follow from Decision 8; ADR-068 is not the policy authority for either.
+- ADR-071: its 2026-08-14 amendment records the derived runtime-contract
+  metrics that follow from Decision 7 here, and its 2026-08-18 amendment
+  records the metrics that follow from Decision 8.
 - ADR-082: the dispatcher machinery whose simplification is bounded by
   surviving hooks. Issue #3218 no longer owns that scope.
 
 ## References
 
-- Issues #3197, #3217, #3218, #3216, #3219.
+- Issues #3197, #3217, #3218, #3216, #3219, #4764, #4825, #5013, #5154.
+- `.github/workflows/pr-validation.yml`, the server-side gate that catches the
+  outcome, not the execution, that Decision 8's deleted guard used to bound
+  locally. It is not part of the vendored plugin surface, so it reaches no
+  plugin consumer.
+- `.agents/architecture/ADR-084-vendored-hook-roi-bar.md ("What this ADR does NOT do")`, the
+  carve-out that Decision 8 complies with by not invoking the ROI bar.
+- `.agents/critique/ADR-084-debate-log.md:17`, the reviewer verification that
+  Decision 9 corrects with the source.
 - Claude Code permissions, "Compound commands": <https://code.claude.com/docs/en/permissions>.
 - anthropics/claude-code#4956: Bash permission bypass via command chaining.
 - PR #3293, commit `8f391b3c67a7ea85e279d036f07e8a4c1a92a243`,
@@ -533,3 +924,5 @@ retirement or replacement requires a new architecture decision.
   Permission controls.
 - `.claude/skills/agent-harness-reference/references/probe-evidence.md`,
   Permission-surface inventory.
+- `.agents/critique/ADR-068-071-085-5013-debate-log.md`, the issue #5013
+  containment and exclusion review.

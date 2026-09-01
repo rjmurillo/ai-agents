@@ -7,9 +7,7 @@ _FORBIDDEN_PATHS = [
 ]
 _GUIDANCE_FILES = [
     Path(".claude/commands/push-pr.md"),
-    Path(".claude/skills/guard-maturity/SKILL.md"),
     Path("src/copilot-cli/skills/push-pr/SKILL.md"),
-    Path("src/copilot-cli/skills/guard-maturity/SKILL.md"),
     Path(".serena/memories/git/git-stale-branch-fails-repo-state-tests.md"),
 ]
 

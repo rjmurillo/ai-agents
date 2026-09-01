@@ -135,6 +135,6 @@ echo "exit=$?"   # 0 = clean, 10 = violations found, 1 = tool error
 
 ## Cross-References
 
-- [Golden Principles Document](.agents/governance/golden-principles.md)
-- [Taste Lints](.claude/skills/taste-lints/SKILL.md) for GP-007, GP-008
-- [Quality Grades](.claude/skills/quality-grades/SKILL.md) for domain-level grading
+- Golden Principles Document: `.agents/governance/golden-principles.md`
+- [Taste Lints](../taste-lints/SKILL.md) for GP-007, GP-008
+- [Quality Grades](../quality-grades/SKILL.md) for domain-level grading

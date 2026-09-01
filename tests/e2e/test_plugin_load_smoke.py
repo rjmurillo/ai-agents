@@ -59,9 +59,11 @@ import os
 import shutil
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # tests/e2e is not on sys.path under --import-mode=importlib (no __init__.py), so
@@ -135,6 +137,37 @@ _CLAUDE_ANALYST_TOOLS = frozenset(
         "mcp__serena__read_memory",
     }
 )
+# The reviewed security-agent grant (issue #4781, PR #5356). `Bash` and `Edit`
+# are deliberately absent: the agent enumerates a review from a pinned GitHub
+# diff or a caller-supplied artifact, never from a local command. That absence
+# is the enforcement for the acceptance criterion "commit, push, and
+# branch-mutation capabilities remain unavailable", because a settings-file deny
+# rule cannot substitute for it (it matches command text case-sensitively while
+# git config keys are case-insensitive, so `git -c Diff.External=` slips it).
+_CLAUDE_SECURITY_TOOLS = frozenset(
+    {
+        "Read",
+        "Grep",
+        "Glob",
+        "WebSearch",
+        "WebFetch",
+        "TodoWrite",
+        "Write",
+        "mcp__github__pull_request_read",
+        "mcp__github__get_commit",
+        "mcp__github__list_commits",
+        "mcp__github__get_file_contents",
+        "mcp__github__search_code",
+        "mcp__github__issue_read",
+        "mcp__serena__list_memories",
+        "mcp__serena__read_memory",
+        "mcp__serena__write_memory",
+        "mcp__serena__edit_memory",
+    }
+)
+_CLAUDE_SECURITY_FORBIDDEN_TOOLS = frozenset({"Bash", "Edit"})
+_SECURITY_AGENT_FILE = REPO_ROOT / ".claude" / "agents" / "security.md"
+
 _COPILOT_ANALYST_TOOLS = frozenset(
     {
         "cognitionai/deepwiki/*",
@@ -164,6 +197,15 @@ _COPILOT_ANALYST_TOOLS = frozenset(
 # CLI emits this on stderr when a skill's front matter has a non-string
 # argument-hint; the schema check passes but the real loader rejects it.
 _ARGUMENT_HINT_WARNING = "argument-hint"
+
+# Claude CLI auth-failure markers (issue #4861). The CLI emits these in its
+# stream-json output or stderr when the local OAuth session is expired or absent.
+# Keep lowercased for case-insensitive matching (same pattern as Copilot markers).
+_CLAUDE_AUTH_EXPIRED_MARKERS: tuple[str, ...] = (
+    "oauth session expired",
+    "failed to authenticate",
+    "could not be refreshed",
+)
 
 _CLI_TIMEOUT_SECONDS = 240
 _PLUGIN_ROOT_ENV_KEYS = {"CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"}
@@ -248,10 +290,17 @@ def _claude_init_tools(agent: str) -> set[str]:
         cwd=REPO_ROOT,
         timeout=_CLI_TIMEOUT_SECONDS,
     )
-    assert run.returncode == 0, (
-        f"claude agent probe failed for {agent} (rc={run.returncode}). "
-        f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
-    )
+    if run.returncode != 0:
+        haystack = f"{run.stderr or ''}\n{run.stdout or ''}".lower()
+        if any(marker in haystack for marker in _CLAUDE_AUTH_EXPIRED_MARKERS):
+            pytest.skip(
+                f"Claude OAuth session expired or could not authenticate for "
+                f"agent {agent!r}; re-run after `claude auth login`."
+            )
+        raise AssertionError(
+            f"claude agent probe failed for {agent} (rc={run.returncode}). "
+            f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
+        )
     init_events = [
         event
         for event in _json_events(run)
@@ -264,16 +313,32 @@ def _claude_init_tools(agent: str) -> set[str]:
 
 
 def _copilot_project_agent_tools(events: list[dict[str, object]], agent: str) -> set[str]:
+    """Extract declared tools for a project agent from Copilot CLI events.
+
+    Primary path: look for a ``session.custom_agents_updated`` event that reports
+    the agent with ``source: project``.
+
+    Fallback path (issue #4964): Copilot CLI 1.0.78 on hosted runners with
+    token-based auth (COPILOT_GITHUB_TOKEN) does not emit the enumeration event,
+    even though ``--agent <name>`` succeeds (rc=0) and the agent file is present.
+    When the event is absent, read the tool list from the canonical agent file at
+    ``.github/agents/{agent}.agent.md``.  The exact-allowlist assertion and the
+    executor-control negative control still hold because:
+      - The CLI loaded the agent (rc=0 asserted by caller).
+      - The file is the CLI's own source of truth for declared tools.
+      - Runtime enforcement is separately verified by the shell-unavailability
+        and implementer-shell assertions in the calling test.
+    """
     for event in events:
         if event.get("type") != "session.custom_agents_updated":
             continue
         data = event.get("data")
         if not isinstance(data, dict):
             continue
-        agents = data.get("agents")
-        if not isinstance(agents, list):
+        agents_list = data.get("agents")
+        if not isinstance(agents_list, list):
             continue
-        for record in agents:
+        for record in agents_list:
             if not isinstance(record, dict):
                 continue
             if record.get("id") != agent or record.get("source") != "project":
@@ -281,7 +346,42 @@ def _copilot_project_agent_tools(events: list[dict[str, object]], agent: str) ->
             tools = record.get("tools")
             assert isinstance(tools, list) and all(isinstance(tool, str) for tool in tools)
             return set(tools)
-    pytest.fail(f"Copilot did not report project agent {agent!r}")
+
+    # Fallback: event not emitted (issue #4964 hosted-runner contract).
+    event_types = sorted(str(e.get("type", "<no type>")) for e in events)
+    warnings.warn(
+        f"session.custom_agents_updated not found for {agent!r}; "
+        f"falling back to agent file. Events received: {event_types}",
+        stacklevel=2,
+    )
+    return _read_agent_tools_from_file(agent)
+
+
+_GITHUB_AGENTS_DIR = REPO_ROOT / ".github" / "agents"
+
+
+def _read_agent_tools_from_file(agent: str) -> set[str]:
+    """Read the declared tools from the project agent's frontmatter.
+
+    Canonical source: ``.github/agents/{agent}.agent.md`` YAML front matter,
+    ``tools`` key.  Fails hard if the file is missing or malformed.
+    """
+    agent_file = _GITHUB_AGENTS_DIR / f"{agent}.agent.md"
+    assert agent_file.is_file(), (
+        f"Agent file not found: {agent_file}. "
+        f"Cannot verify tools for project agent {agent!r}."
+    )
+    content = agent_file.read_text(encoding="utf-8")
+    # Parse YAML front matter between --- delimiters.
+    parts = content.split("---", 2)
+    assert len(parts) >= 3, f"Agent file {agent_file} has no valid YAML front matter."
+    frontmatter = yaml.safe_load(parts[1])
+    assert isinstance(frontmatter, dict), f"Agent frontmatter is not a mapping: {agent_file}"
+    tools = frontmatter.get("tools")
+    assert isinstance(tools, list) and all(isinstance(t, str) for t in tools), (
+        f"Agent {agent!r} frontmatter 'tools' must be a list of strings: {tools!r}"
+    )
+    return set(tools)
 
 
 def _run_copilot_agent(agent: str, prompt: str) -> list[dict[str, object]]:
@@ -663,6 +763,71 @@ def test_claude_analyst_runtime_uses_exact_allowlist_with_executor_control() -> 
 
 
 @pytest.mark.smoke
+@requires_claude
+def test_claude_security_runtime_grants_no_shell_with_executor_control() -> None:
+    """Claude resolves the security agent to the reviewed read-and-report set.
+
+    PR #5356's review found the contract tests only parsed frontmatter and
+    searched prose, so nothing observed what the harness actually hands the
+    agent. This probes the live loader. The implementer probe is the defective
+    tool path control: it proves this probe CAN see `Bash` and `Edit` when an
+    agent declares them, so their absence from the security set is a real
+    boundary and not a probe that reports nothing.
+    """
+    security_tools = _claude_init_tools("security")
+    implementer_tools = _claude_init_tools("implementer")
+
+    assert {"Glob", "Grep", "Read", "Write"} <= security_tools
+    assert not security_tools - _CLAUDE_SECURITY_TOOLS, (
+        f"Claude exposed unreviewed security tools: "
+        f"{sorted(security_tools - _CLAUDE_SECURITY_TOOLS)}"
+    )
+    assert not security_tools & _CLAUDE_SECURITY_FORBIDDEN_TOOLS, (
+        f"Claude granted the security agent "
+        f"{sorted(security_tools & _CLAUDE_SECURITY_FORBIDDEN_TOOLS)}. A shell "
+        f"reopens `git commit`, `git push`, and `git -c Diff.External=<cmd>`, "
+        f"which the case-sensitive deny rules do not catch (issue #4781)."
+    )
+    assert {"Bash", "Edit", "Write"} <= implementer_tools, (
+        "negative control failed: Claude did not report execution and write tools "
+        "for implementer, so the security allowlist cannot prove the grant was read"
+    )
+
+
+@pytest.mark.smoke
+@requires_copilot
+def test_copilot_security_runtime_has_no_shell_with_executor_control() -> None:
+    """Copilot's security agent cannot execute a command, and says so.
+
+    The exact-allowlist half is covered by the manifest; this half observes the
+    runtime refusing an execution request. The implementer probe is the control:
+    the same prompt against an agent that does hold a shell must run.
+    """
+    security_events = _run_copilot_agent(
+        "security",
+        (
+            "Use the shell tool to execute exactly: printf COPILOT_SHELL_CONTROL. "
+            "Do not use a substitute. If unavailable reply exactly SHELL_UNAVAILABLE."
+        ),
+    )
+    implementer_events = _run_copilot_agent(
+        "implementer",
+        (
+            "Use the shell tool to execute exactly: printf COPILOT_SHELL_CONTROL. "
+            "Do not use a substitute. Then reply exactly READY."
+        ),
+    )
+
+    assert not {"bash", "shell", "execute"} & set(_copilot_tool_names(security_events))
+    assert "SHELL_UNAVAILABLE" in _copilot_assistant_text(security_events)
+    assert "bash" in _copilot_tool_names(implementer_events), (
+        "negative control failed: implementer did not execute the shell command, "
+        "so the security refusal proves nothing about the security agent"
+    )
+    assert "COPILOT_SHELL_CONTROL" in _copilot_tool_result_text(implementer_events)
+
+
+@pytest.mark.smoke
 @requires_copilot
 def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() -> None:
     """Copilot resolves only reviewed analyst tools, with an execution control."""
@@ -712,6 +877,29 @@ def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() ->
 # ships in BOTH plugin trees, and the fired-hook detector has a working positive
 # and negative control. A break here means the gated smoke is asserting a skill
 # set that cannot load, or a load signal that cannot fail.
+
+
+def test_security_agent_file_declares_the_probed_allowlist() -> None:
+    """The gated smoke must not assert a tool set the agent file cannot produce.
+
+    Same role as the skill-set pins below: this runs without a CLI, so a grant
+    edited on disk fails here in bare CI rather than silently making the gated
+    probe assert a set nothing will ever load.
+    """
+    frontmatter = yaml.safe_load(
+        _SECURITY_AGENT_FILE.read_text(encoding="utf-8").split("---", 2)[1]
+    )
+    declared = set(frontmatter["tools"])
+
+    assert declared == set(_CLAUDE_SECURITY_TOOLS), (
+        f"{_SECURITY_AGENT_FILE.relative_to(REPO_ROOT)} declares {sorted(declared)}, "
+        f"but the runtime probe asserts {sorted(_CLAUDE_SECURITY_TOOLS)}. Update both."
+    )
+    assert not declared & set(_CLAUDE_SECURITY_FORBIDDEN_TOOLS), (
+        f"{_SECURITY_AGENT_FILE.relative_to(REPO_ROOT)} declares "
+        f"{sorted(declared & set(_CLAUDE_SECURITY_FORBIDDEN_TOOLS))}; the security "
+        f"agent gets no shell and no editor (issue #4781)"
+    )
 
 
 def test_expected_skills_ship_in_copilot_plugin_tree() -> None:
@@ -984,6 +1172,66 @@ def test_empty_plugin_negative_control_skips_classified_block(
 
 
 # ---------------------------------------------------------------------------
+# Claude probe auth-skip tests (issue #4861, always-on, no runtime needed)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "auth_error_text",
+    [
+        '"result":"Failed to authenticate: OAuth session expired and could not be refreshed"',
+        '"result":"Failed to authenticate: token invalid"',
+        "oauth session expired",
+    ],
+    ids=["expired-oauth-json", "failed-auth-generic", "bare-marker"],
+)
+def test_claude_probe_skips_on_expired_oauth(
+    monkeypatch: pytest.MonkeyPatch, auth_error_text: str
+) -> None:
+    """Claude probe skips (not fails) when auth is expired or cannot
+    authenticate (issue #4861); markers match on stdout or stderr."""
+    expired = subprocess.CompletedProcess(
+        ["claude"], 1, stdout=auth_error_text, stderr=""
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: expired
+    )
+    with pytest.raises(pytest.skip.Exception, match="OAuth session expired"):
+        _claude_init_tools("analyst")
+
+
+def test_claude_probe_fails_on_non_auth_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Claude probe still raises AssertionError on non-auth failures."""
+    non_auth = subprocess.CompletedProcess(
+        ["claude"], 1, stdout="some unknown error", stderr=""
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: non_auth
+    )
+    with pytest.raises(AssertionError, match="claude agent probe failed"):
+        _claude_init_tools("analyst")
+
+
+def test_claude_probe_succeeds_when_rc_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Claude probe does NOT skip when the CLI succeeds, even if auth words appear."""
+    init_event = json.dumps(
+        {"type": "system", "subtype": "init", "tools": ["Bash"]}
+    )
+    success = subprocess.CompletedProcess(
+        ["claude"], 0, stdout=init_event, stderr="oauth session expired"
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: success
+    )
+    tools = _claude_init_tools("analyst")
+    assert tools == {"Bash"}
+
+
+# ---------------------------------------------------------------------------
 # GitHub tool declaration checks (always-on, no runtime needed)
 # ---------------------------------------------------------------------------
 
@@ -1043,3 +1291,56 @@ def test_copilot_analyst_manifest_declares_github_tools() -> None:
     assert not missing, (
         f"Copilot analyst frontmatter missing GitHub tools: {sorted(missing)}"
     )
+
+
+def test_read_agent_tools_from_file_returns_analyst_tools() -> None:
+    """_read_agent_tools_from_file correctly parses the analyst agent frontmatter.
+
+    Positive control for the file-based fallback (issue #4964).
+    """
+    tools = _read_agent_tools_from_file("analyst")
+    assert tools == _COPILOT_ANALYST_TOOLS
+
+
+def test_copilot_project_agent_tools_fallback_on_missing_event() -> None:
+    """_copilot_project_agent_tools falls back to file when event is absent.
+
+    Edge case: Copilot CLI on hosted runners may not emit
+    session.custom_agents_updated (issue #4964). The fallback reads the agent
+    file and returns the declared tools.
+    """
+    # Simulate events with no custom_agents_updated
+    events: list[dict[str, object]] = [
+        {"type": "user.message", "data": {}},
+        {"type": "assistant.message", "data": {}},
+        {"type": "result", "data": {}},
+    ]
+    with pytest.warns(UserWarning, match="session.custom_agents_updated not found"):
+        tools = _copilot_project_agent_tools(events, "analyst")
+    assert tools == _COPILOT_ANALYST_TOOLS
+
+
+def test_copilot_project_agent_tools_primary_path() -> None:
+    """_copilot_project_agent_tools uses the event when available.
+
+    Positive control: when the event is emitted, it takes precedence.
+    """
+    events: list[dict[str, object]] = [
+        {
+            "type": "session.custom_agents_updated",
+            "data": {
+                "agents": [
+                    {"id": "analyst", "source": "project", "tools": ["read", "search"]},
+                    {"id": "implementer", "source": "project", "tools": ["shell", "edit"]},
+                ]
+            },
+        }
+    ]
+    tools = _copilot_project_agent_tools(events, "analyst")
+    assert tools == {"read", "search"}
+
+
+def test_read_agent_tools_from_file_fails_on_missing_agent() -> None:
+    """_read_agent_tools_from_file fails clearly on a nonexistent agent."""
+    with pytest.raises(AssertionError, match="Agent file not found"):
+        _read_agent_tools_from_file("nonexistent-agent-xyz")

@@ -63,6 +63,10 @@ DEFAULT_MODEL = "claude-sonnet-4-6"
 
 ROLLING_ALIASES = ("sonnet", "opus", "haiku")
 
+# Keys that carry a model identifier in skill/agent frontmatter.
+# Any key added here is subject to ADR-080 enforcement.
+MODEL_BEARING_KEYS: frozenset[str] = frozenset({"model", "subagent_model"})
+
 # Manifest evidence older than this many days is stale (harness/pricing drift).
 MANIFEST_MAX_AGE_DAYS = 180
 
@@ -74,11 +78,11 @@ _BASELINE_PATH = _SCRIPT_DIR / "model_pin_baseline.json"
 _MANIFEST_PATH = _REPO_ROOT / ".agents" / "governance" / "model-pin-evidence.json"
 _TIERS_PATH = _REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
 
-# Source unit trees. Generated mirrors (src/copilot-cli, .github/agents) are
-# handled by regeneration in the migration, not scanned here.
+# Source unit trees and self-host copies scanned for model-pin policy.
 _UNIT_GLOBS: tuple[tuple[str, str], ...] = (
     ("skill", ".claude/skills/*/SKILL.md"),
     ("agent", ".claude/agents/*.md"),
+    ("agent", ".github/agents/*.md"),
     ("agent", "templates/agents/*.shared.md"),
     ("command", ".claude/commands/**/*.md"),
 )
@@ -178,6 +182,45 @@ def alias_prices_below_default(
     return alias_price < default_price
 
 
+def _record_bearing_key_pins(
+    path: str, value: object, out: list[tuple[str, str]]
+) -> bool:
+    """Record pins for a model-bearing key's value; report whether it was handled.
+
+    Preserve model-bearing context through lists and mappings. A generic YAML
+    walk cannot infer that ``id`` in ``subagent_model: {id: ...}`` is a model
+    value after it descends past ``subagent_model``; every non-blank string
+    leaf below that key must therefore be collected here.
+
+    The traversal has its own visited set because a mapping may first appear
+    through a non-model alias and later through a model-bearing key. Reusing
+    the generic walk's visited set would make detection depend on YAML key
+    order and restore the bypass for that alias shape.
+    """
+    if not isinstance(value, (str, dict, list)):
+        return False
+
+    bearing_seen: set[int] = set()
+
+    def collect(node: object, node_path: str) -> None:
+        if isinstance(node, str):
+            if node.strip():
+                out.append((node_path, node.strip()))
+            return
+        if not isinstance(node, (dict, list)) or id(node) in bearing_seen:
+            return
+        bearing_seen.add(id(node))
+        if isinstance(node, dict):
+            for key, item in node.items():
+                collect(item, f"{node_path}.{key}")
+        else:
+            for index, item in enumerate(node):
+                collect(item, f"{node_path}[{index}]")
+
+    collect(value, path)
+    return True
+
+
 def _collect_nested_pins(
     node: object, prefix: str, seen: set[int], out: list[tuple[str, str]]
 ) -> None:
@@ -204,18 +247,8 @@ def _collect_nested_pins(
     if isinstance(node, dict):
         for key, value in node.items():
             path = f"{prefix}.{key}" if prefix else str(key)
-            if key == "model":
-                if isinstance(value, str) and value.strip():
-                    out.append((path, value.strip()))
-                    continue
-                elif isinstance(value, list):
-                    for index, item in enumerate(value):
-                        item_path = f"{path}[{index}]"
-                        if isinstance(item, str) and item.strip():
-                            out.append((item_path, item.strip()))
-                        else:
-                            _collect_nested_pins(item, item_path, seen, out)
-                    continue
+            if key in MODEL_BEARING_KEYS and _record_bearing_key_pins(path, value, out):
+                continue
             _collect_nested_pins(value, path, seen, out)
     elif isinstance(node, list):
         for index, item in enumerate(node):
@@ -281,7 +314,12 @@ def _nested_pins(typed: dict[object, object]) -> tuple[tuple[str, str], ...]:
     for key, value in typed.items():
         # A scalar top-level model is the compliant shape and is judged by the
         # alias rules instead. A structured one is not, so walk into it.
+        # NOTE: only 'model' has alias-rule coverage; other MODEL_BEARING_KEYS
+        # (e.g. subagent_model), and any non-scalar 'model' (e.g. a list),
+        # are collected directly as pins via the shared helper below.
         if key == "model" and isinstance(value, str):
+            continue
+        if key in MODEL_BEARING_KEYS and _record_bearing_key_pins(str(key), value, out):
             continue
         _collect_nested_pins(value, str(key), seen, out)
     return tuple(sorted(out))
@@ -389,7 +427,7 @@ def _unit_rule_failure(
             f"{_display(value)} under {_display(key)}" for key, value in unit.nested_pins
         )
         return (
-            f"model pin(s) nested below the top level: {listed}; no harness "
+            f"unsupported model-bearing key value(s): {listed}; no harness "
             f"reads them, so they are drift with no effect (ADR-080)"
         )
     if model in ROLLING_ALIASES:
@@ -490,7 +528,7 @@ def run_check(
             continue
         model = unit.model or ""
         if unit.nested_pins:
-            report.fail(unit.path, f"[nested pin] {failure}")
+            report.fail(unit.path, f"[unsupported model-bearing value] {failure}")
         elif unit.path not in baseline:
             report.fail(unit.path, f"[new pin] {failure}")
         elif _normalize_id(baseline[unit.path]) != _normalize_id(model):

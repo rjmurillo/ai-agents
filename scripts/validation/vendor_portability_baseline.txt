@@ -13,13 +13,8 @@
 .claude/skills/chestertons-fence/scripts/investigate.py
 .claude/skills/github/scripts/pr/new_pr.py
 .claude/skills/github/scripts/pr/new_pr_validations.py
-.claude/skills/github/scripts/pr/prepare_pr_body.py
-# pr_validations.py: split out of new_pr.py (issue #4764). The scripts/ paths
-# are display strings in _UNTRUSTED_REPOSITORY_VALIDATORS, which names the three
-# repository-local validators /push-pr deliberately does not run. Naming them is
-# the point of the message, so the reference cannot be dropped, and no
-# portability helper applies to a string the script never opens.
 .claude/skills/github/scripts/pr/pr_validations.py
+.claude/skills/github/scripts/pr/prepare_pr_body.py
 .claude/skills/golden-principles/scripts/scan_principles.py
 .claude/skills/golden-principles/scripts/scan_principles_core.py
 .claude/skills/memory/memory_core/reflexion_memory.py
@@ -29,8 +24,6 @@
 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py
 .claude/skills/orphan-ref-validator/scripts/scan.py
 .claude/skills/quality-grades/scripts/grade_domains.py
-.claude/skills/session-end/scripts/rework_warning.py
-.claude/skills/session/scripts/test_investigation_eligibility.py
 .claude/skills/steering-matcher/get_applicable_steering.py
 .claude/skills/steering-matcher/scripts/get_applicable_steering.py
 .claude/skills/taste-lints/scripts/taste_lints.py

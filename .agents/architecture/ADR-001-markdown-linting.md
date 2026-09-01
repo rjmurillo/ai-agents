@@ -1,3 +1,14 @@
+---
+id: ADR-001
+status: accepted
+date: 2025-12-13
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-001: Markdown Linting Configuration
 
 ## Status

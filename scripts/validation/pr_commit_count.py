@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# taste-lint: ignore file-size -- grew from 471 to 513 lines for issues #3895/#3920
-# (authored commit count, needs-split bypass). Refactor to helper module deferred.
 """Classify a pull request's commit count for the PR validation gate.
 
 Extracted from the inline PowerShell of the ``Check PR commit count`` step in
@@ -10,13 +8,31 @@ testable (ADR-006) and tolerant of transient GitHub API failures (issue #3262).
 Behavior:
 
 * On a healthy API response, count commits and map the count to a status using
-  the issue #362 thresholds (warning 10, alert 15, block 20). The downstream
-  ``Enforce Blocking Issues`` step enforces the ``BLOCKED`` status; this script
-  only classifies.
+  the issue #362 thresholds (warning 10, alert 15). This is advisory only: a
+  large commit count never blocks a push or a merge. The
+  ``commit-limit-bypass`` label, the 20/40-commit block ceiling, and the
+  main-merge relief that used to raise it were removed (issue #5233).
+  ``needs-split`` stays: it is a purely advisory label with no enforcement
+  attached.
+
+  This script itself never had a GitHub-access availability problem: this
+  workflow step runs under ``GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}``
+  (``.github/workflows/pr-validation.yml``), so the ``gh`` calls below always
+  had working credentials in CI. The actual availability failure lived in a
+  different, now-deleted script, the local pre-push hook's
+  ``scripts/validation/check_pr_bypass_label.py``, which shelled out to
+  ``gh api`` to check for the bypass label from inside a sandboxed Claude Code
+  session that frequently has no GitHub token at all (403 "GitHub access is
+  not enabled for this session"). That local failure forced authors into an
+  expensive workaround -- spinning up an entirely new stacked branch and PR --
+  to route around a check that could not confirm a fact (the label was
+  already applied) that was already true. This CI-side block was removed in
+  the same change for consistency with ADR-099's decision to make the whole
+  commit-count signal advisory everywhere, not because this script suffered
+  the same access failure.
 * On a *transient* transport error (HTTP 503, "no server is currently
   available", connection reset, timeout), degrade to ``status=UNKNOWN`` and
-  exit 0. The commit cap is advisory for that run and re-fires on the next
-  healthy run, so a GitHub outage no longer red-blocks an otherwise clean PR.
+  exit 0. A GitHub outage no longer affects this advisory check either way.
 * On a *genuine* error (auth failure, PR not found, bad arguments), exit
   non-zero so the failure stays visible. Transient tolerance must never swallow
   a real policy or auth failure.
@@ -25,10 +41,8 @@ Behavior:
 
 The commit count is fetched with ``per_page=100`` (the GitHub REST maximum for
 a single page) and is not paginated, so the reported count saturates at 100.
-Classification is unaffected: any PR above ``BLOCK_THRESHOLD`` (20) is
-``BLOCKED``, and 100 far exceeds 20, so a PR with more than 100 commits is
-always ``BLOCKED`` regardless of the exact count. For such PRs the emitted
-``commit_count`` is a floor.
+For such PRs the emitted ``commit_count`` is a floor; this has no effect on
+classification since the only two active thresholds are 10 and 15.
 
 Exit codes follow ADR-035:
     0 - Success (a status was classified, including transient UNKNOWN)
@@ -43,7 +57,6 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -57,33 +70,15 @@ from scripts.github_core.api import (  # noqa: E402
     resolve_repo_params,
 )
 
-# Commit-count thresholds (issue #362). A PR above BLOCK_THRESHOLD is
-# blocked by the downstream Enforce Blocking Issues step unless it carries the
-# commit-limit-bypass label.
+# Commit-count thresholds (issue #362). Advisory only (issue #5233): neither
+# threshold blocks a push or a merge. WARNING_THRESHOLD and ALERT_THRESHOLD
+# only decide which notice is printed and which GitHub Actions annotation
+# level is used.
 WARNING_THRESHOLD = 10
 ALERT_THRESHOLD = 15
-BLOCK_THRESHOLD = 20
-# Issue #3596: the ceiling is relieved to 40 for a branch that merges main, and
-# the pre-push hook has always honoured that. CI never did, so a branch the
-# hook let through was blocked on arrival. These two numbers are the single
-# source of truth; `scripts/validation/git_hook_policy.py` imports them rather
-# than restating them.
-MAIN_MERGE_BLOCK_THRESHOLD = 40
 
 # Sentinel status emitted when a transient API failure prevents a real count.
 STATUS_UNKNOWN = "UNKNOWN"
-
-# Wall-clock bound on this module's git calls. Matched to
-# `git_hook_policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS` on purpose: the two gates
-# read the same trunk, so giving CI a shorter budget would let a slow runner
-# time out on a walk the hook completes, and the ceilings would diverge again on
-# nothing but machine speed. The hosting CI job caps itself at 10 minutes.
-_GIT_TIMEOUT_SECONDS = 90
-
-# A git runner: given a repo root and git arguments, return the finished
-# process. `git_hook_policy` supplies its own so a trunk read inside a hook
-# keeps that module's scrubbed environment and timeout reporting.
-GitRunner = Callable[[Path, Sequence[str]], subprocess.CompletedProcess[str]]
 
 # Conditions that mark a GitHub API failure as something to degrade around
 # rather than fail on. Auth (401), permission denial (403 without rate-limit
@@ -115,193 +110,20 @@ class CountResult:
     status: str
     count: int | None
     transient: bool
-    limit: int = BLOCK_THRESHOLD
     total_count: int | None = None
 
 
-def classify_count(count: int, limit: int = BLOCK_THRESHOLD) -> str:
-    """Map a commit count to a threshold status (issue #362).
+def classify_count(count: int) -> str:
+    """Map a commit count to an advisory threshold status (issue #362).
 
-    ``limit`` is the effective block ceiling: BLOCK_THRESHOLD normally, or
-    MAIN_MERGE_BLOCK_THRESHOLD when the branch carries a merge from the base
-    (issue #3596). The advisory WARNING and ALERT rungs are unchanged.
-
-    The comparison is strict (issue #3721). The local pre-push hook allows
-    ``commit_count <= limit``, so blocking at ``count == limit`` here would
-    block a push the hook had just accepted.
+    Advisory only (issue #5233): there is no block tier. A PR of any size
+    passes; this only decides which notice, if any, gets printed.
     """
-    if count > limit:
-        return "BLOCKED"
     if count >= ALERT_THRESHOLD:
         return "ALERT"
     if count >= WARNING_THRESHOLD:
         return "WARNING"
     return "OK"
-
-
-def _run_git(repo_root: Path, argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
-    """Run a git command in repo_root, failing closed instead of raising or hanging.
-
-    ``core.commitGraph=false`` mirrors the pre-push hook's runner
-    (``git_hook_policy._git_command``). A stale or corrupt commit-graph file can
-    make ``rev-list`` report a trunk the repository does not actually have, and
-    a governance decision must not rest on a cache this gate cannot verify.
-
-    Every failure mode is returned rather than raised: a timeout comes back as
-    returncode 124 and a missing or unusable git binary as 127, so callers read
-    a non-zero returncode and deny relief. Without the timeout a wedged
-    ``rev-list`` would hang the CI step until the job timeout, and, since the
-    pre-push hook shares this module's trunk reader, could wedge a push.
-    """
-    command = ["git", "-c", "core.commitGraph=false", *argv]
-    try:
-        return subprocess.run(
-            command,
-            cwd=repo_root,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired:
-        # Deliberately not the wording in _TRANSIENT_MARKERS. That vocabulary is
-        # for gh transport noise, where degrading to UNKNOWN is right. A git
-        # timeout here denies relief instead, and the two must not be confused
-        # if this result ever reaches is_transient_error.
-        return subprocess.CompletedProcess(command, 124, "", "git rev-list exceeded its budget")
-    except OSError:
-        # FileNotFoundError (git absent) and its OSError siblings are config
-        # problems, not merge evidence. Fail closed to the 20-commit ceiling.
-        return subprocess.CompletedProcess(command, 127, "", "git is not available")
-
-
-def main_first_parent_shas(repo_root: Path, run_git: GitRunner | None = None) -> frozenset[str]:
-    """Return the SHAs on origin/main's first-parent lineage (the direct trunk).
-
-    A branch that main has landed through a merge PR is reachable from main but
-    sits on a non-first parent of the landing merge. Merging such a branch does
-    not bring in new history, so it does not qualify for the raised commit limit.
-    Only commits on the first-parent spine count.
-
-    ``run_git`` lets a caller supply its own vetted git runner. The pre-push hook
-    passes ``git_hook_policy._run_git`` so a trunk read taken inside a hook keeps
-    that module's scrubbed git environment (``GIT_DIR``, ``GIT_SHALLOW_FILE`` and
-    the rest of ``GIT_ENV_KEYS`` are unset there, and git sets several of them
-    while a hook runs) along with its timeout diagnostics. CI takes this module's
-    ``_run_git``. Only the process invocation varies; the traversal stays one
-    implementation, which is what issue #3997 requires.
-
-    Returns an empty frozenset when git fails or origin/main does not exist,
-    so callers fail closed (no relief) rather than open. CI therefore requires a
-    checkout that populates ``refs/remotes/origin/main``; ``pr-validation.yml``
-    pins ``fetch-depth: 0`` for that reason.
-    """
-    runner = _run_git if run_git is None else run_git
-    result = runner(repo_root, ["rev-list", "--first-parent", "origin/main"])
-    if result.returncode != 0:
-        return frozenset()
-    return frozenset(result.stdout.split())
-
-
-def _is_external_parent(parent: object, own_shas: set[str]) -> bool:
-    """Return True only when this parent is a readable sha the branch does not own.
-
-    An unreadable parent must not buy relief: a parent that is not a mapping,
-    carries no ``sha``, or carries a non-string ``sha`` is unreadable and fails
-    closed to False.
-    """
-    if not isinstance(parent, dict):
-        return False
-    sha = parent.get("sha")
-    if not isinstance(sha, str) or not sha:
-        return False
-    return sha not in own_shas
-
-
-def _external_non_first_parent_shas(commits: list[Any]) -> set[str]:
-    """Collect SHAs of non-first parents that are not in the PR's own commit list.
-
-    The candidate set, not the decision. ``main_merge_evidence`` is the only
-    consumer: it intersects these SHAs with origin/main's first-parent trunk
-    (``return ReliefEvidence(granted=bool(external_shas & trunk), ...)``) and
-    that intersection is what grants the relief. ``contains_main_merge`` and
-    ``count_pr_commits`` both reach it through that one call, so this helper
-    never decides anything on its own.
-    """
-    own_shas: set[str] = set()
-    for commit in commits:
-        if not isinstance(commit, dict):
-            continue
-        own_sha = commit.get("sha")
-        if isinstance(own_sha, str) and own_sha:
-            own_shas.add(own_sha)
-    shas: set[str] = set()
-    for commit in commits:
-        if not isinstance(commit, dict):
-            continue
-        parents = commit.get("parents")
-        if not isinstance(parents, list) or len(parents) < 2:
-            continue
-        for parent in parents[1:]:
-            if _is_external_parent(parent, own_shas):
-                # _is_external_parent guarantees parent["sha"] is a non-empty str.
-                shas.add(parent["sha"])
-    return shas
-
-
-def contains_main_merge(
-    commits: list[Any], repo_root: Path, run_git: GitRunner | None = None
-) -> bool:
-    """True when the PR carries a merge of origin/main's direct trunk.
-
-    The single shared predicate for the 40-commit-limit relief: a non-first
-    parent of a merge commit in the PR must belong to origin/main's first-parent
-    history. Merging a side branch that main has already landed does not qualify;
-    merging origin/main (or an older commit on its trunk) does.
-
-    This is the server-side counterpart of the pre-push hook's
-    _contains_main_merge in git_hook_policy.py. Both callers call
-    main_first_parent_shas to obtain the trunk frozenset, which is the one
-    shared implementation.
-
-    Fails closed (returns False) when git is unavailable or origin/main does
-    not exist. Use main_merge_evidence when the caller needs to tell that case
-    apart from an honest "this branch merges nothing on the trunk".
-    """
-    return main_merge_evidence(commits, repo_root, run_git).granted
-
-
-@dataclass(frozen=True)
-class ReliefEvidence:
-    """Why the commit-limit relief was granted or withheld.
-
-    ``granted`` is the decision. ``trunk_unreadable`` separates the two ways of
-    withholding it: the branch merges nothing on origin/main's trunk, or the
-    trunk could not be read at all. Both deny relief, but only the second is an
-    infrastructure fault, and a gate that cannot say which one it hit sends an
-    author to re-cut a branch that was never the problem.
-    """
-
-    granted: bool
-    trunk_unreadable: bool
-
-
-def main_merge_evidence(
-    commits: list[Any], repo_root: Path, run_git: GitRunner | None = None
-) -> ReliefEvidence:
-    """Decide the relief and report whether the trunk was actually readable.
-
-    One trunk read serves both answers, so asking for the diagnostic costs no
-    extra git call. See contains_main_merge for the predicate's contract.
-    """
-    external_shas = _external_non_first_parent_shas(commits)
-    if not external_shas:
-        return ReliefEvidence(granted=False, trunk_unreadable=False)
-    trunk = main_first_parent_shas(repo_root, run_git)
-    if not trunk:
-        return ReliefEvidence(granted=False, trunk_unreadable=True)
-    return ReliefEvidence(granted=bool(external_shas & trunk), trunk_unreadable=False)
 
 
 def _authored_commit_count(commits: list[Any]) -> int:
@@ -313,7 +135,7 @@ def _authored_commit_count(commits: list[Any]) -> int:
 
     A commit without a readable ``parents`` key (missing, null, not a list) is
     counted as authored to fail closed: an unreadable parent must not silently
-    lower the count and let a large PR through the gate.
+    lower the count and mask real growth from the advisory notice.
     """
     count = 0
     for commit in commits:
@@ -373,8 +195,8 @@ def fetch_commit_count(pr_number: int, owner: str, repo: str) -> CountResult:
     raises FileNotFoundError so the caller can exit 2 (config error, ADR-035).
 
     The count is fetched with ``per_page=100`` and is not paginated, so it
-    saturates at 100. This does not change classification: any count above
-    BLOCK_THRESHOLD (20) is BLOCKED, and 100 >> 20.
+    saturates at 100. Classification is unaffected since the only active
+    thresholds are 10 and 15.
     """
     endpoint = f"repos/{owner}/{repo}/pulls/{pr_number}/commits?per_page=100"
     result = _run_gh(["gh", "api", endpoint])
@@ -408,27 +230,16 @@ def fetch_commit_count(pr_number: int, owner: str, repo: str) -> CountResult:
 
     total_count = len(commits)
     authored_count = _authored_commit_count(commits)
-    evidence = main_merge_evidence(commits, Path.cwd())
-    if evidence.trunk_unreadable:
-        print(
-            "::warning::Could not read origin/main's first-parent history, so the "
-            "commit-limit relief was denied without being evaluated and this PR is "
-            "held to the base ceiling. The checkout must populate "
-            "refs/remotes/origin/main; pr-validation.yml pins fetch-depth: 0 for "
-            "that reason (issue #3997)."
-        )
-    limit = MAIN_MERGE_BLOCK_THRESHOLD if evidence.granted else BLOCK_THRESHOLD
     return CountResult(
-        classify_count(authored_count, limit),
+        classify_count(authored_count),
         authored_count,
         transient=False,
-        limit=limit,
         total_count=total_count,
     )
 
 
-def _write_github_output(status: str, count: int | None, limit: int = BLOCK_THRESHOLD) -> None:
-    """Append status/count/limit key=value lines to $GITHUB_OUTPUT when set."""
+def _write_github_output(status: str, count: int | None) -> None:
+    """Append status/count key=value lines to $GITHUB_OUTPUT when set."""
     output_path = os.environ.get("GITHUB_OUTPUT")
     if not output_path:
         return
@@ -436,7 +247,6 @@ def _write_github_output(status: str, count: int | None, limit: int = BLOCK_THRE
     with open(output_path, "a", encoding="utf-8") as handle:
         handle.write(f"status={status}\n")
         handle.write(f"commit_count={count_value}\n")
-        handle.write(f"commit_limit={limit}\n")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -482,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 3
 
-    _write_github_output(outcome.status, outcome.count, outcome.limit)
+    _write_github_output(outcome.status, outcome.count)
 
     if outcome.transient:
         print(
@@ -496,19 +306,9 @@ def main(argv: list[str] | None = None) -> int:
     total_count = outcome.total_count if outcome.total_count is not None else count
     suffix = f" ({total_count} total, {count} authored)" if total_count != count else ""
     print(f"PR #{args.pr_number} has {count} commits (status: {outcome.status}){suffix}")
-    if outcome.status == "BLOCKED":
-        # Emit a warning here, not an error. The final enforcement decision and
-        # its error annotation live in enforce_pr_validation.py, which checks
-        # the bypass label before escalating to ::error::. An ::error:: here
-        # fires before the bypass check and creates a false red annotation on
-        # PRs that carry commit-limit-bypass (issue #3901).
+    if outcome.status == "ALERT":
         print(
-            f"::warning::PR has {count} authored commits (limit {outcome.limit}). "
-            "Enforcement pending bypass-label check."
-        )
-    elif outcome.status == "ALERT":
-        print(
-            f"::warning::PR approaching commit limit ({count} >= {ALERT_THRESHOLD}). "
+            f"::warning::PR approaching a large commit count ({count} >= {ALERT_THRESHOLD}). "
             "Consider shipping current changes."
         )
     elif outcome.status == "WARNING":

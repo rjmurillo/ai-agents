@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import argparse
 import ast
+import builtins
 import io
 import json
 import os
@@ -13,6 +15,7 @@ import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
+from types import ModuleType
 from typing import Any, NoReturn, Self, cast
 from unittest import mock
 
@@ -49,12 +52,19 @@ HOOK_PAYLOADS = (
     PROJECT_ROOT / "scripts/hooks/pre-push",
     PROJECT_ROOT / "scripts/hooks/commit-msg",
 )
+# Every file a job under test imports, not only the file the job names. The
+# fixture repository holds nothing else, so a script that grows a sibling import
+# fails here with ModuleNotFoundError until that sibling is listed. That is the
+# roster working: it caught `check_repo_health_report.py` on the commit that
+# split it out.
 POLICY_SUPPORT_FILES = (
     "scripts/maintenance/repair_packed_refs.py",
+    "scripts/validation/check_repo_health.py",
+    "scripts/validation/check_repo_health_report.py",
     "scripts/validation/git_hook_policy.py",
+    "scripts/validation/push_ref_staleness.py",
     "scripts/validation/sha_pinning.py",
     "scripts/validation/__init__.py",
-    "scripts/validation/check_pr_bypass_label.py",
     "scripts/validation/validate_review_marker.py",
     "build/scripts/validate_plugin_version_bump.py",
 )
@@ -318,19 +328,38 @@ def _write_today_session(repo: Path, content: str) -> Path:
     return session
 
 
+def _debate_log(*adr_ids: str) -> str:
+    """A log carrying the review evidence the gate requires (issue #5205).
+
+    A name-shaped stub no longer clears the gate, so fixtures that exercise the
+    id-matching branches have to get past the evidence branch first.
+    """
+    names = " and ".join(adr_ids)
+    return (
+        f"# ADR Debate Log: {names}\n\n"
+        "## Participants\n\n- architect agent\n- security agent\n\n"
+        "## Verdict: Accept\n\n"
+        f"The architect reviewed {names} and found no P0 or P1 issues. The\n"
+        "decision text matches the implementation and template compliance is\n"
+        "confirmed against the canonical structure for this record.\n"
+        "Alternatives considered are recorded in the decision section.\n"
+    )
+
+
 def test_adr_review_policy_blocks_stale_debate_reference(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _init_repo(tmp_path)
     # A debate log exists in the correct dir (.agents/critique/) but references
     # a DIFFERENT ADR (ADR-042), not the staged ADR (ADR-062). This exercises
     # the stale-reference branch, not the missing-log branch.
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-042-debate.md", "ADR-042 review")
+    debate = critique / "adr-042-debate.md"
+    _write_lf(debate, _debate_log("ADR-042"))
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
@@ -345,11 +374,12 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-062-debate.md", "ADR-062 review")
+    debate = critique / "adr-062-debate.md"
+    _write_lf(debate, _debate_log("ADR-062"))
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(
@@ -362,10 +392,12 @@ def test_adr_review_policy_allows_fresh_evidence_and_no_adr_change(
 
 
 def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
-    _write_lf(critique / "adr-0620-debate.md", "ADR-0620 review")
+    debate = critique / "adr-0620-debate.md"
+    _write_lf(debate, _debate_log("ADR-0620"))
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(
@@ -379,12 +411,14 @@ def test_adr_review_policy_matches_complete_adr_ids(tmp_path: Path) -> None:
 def test_adr_review_policy_rejects_symlinked_debate_evidence(tmp_path: Path) -> None:
     if os.name == "nt":
         pytest.skip("Symlink creation requires elevated Windows privileges")
-    _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
+    _init_repo(tmp_path)
     critique = tmp_path / ".agents" / "critique"
     critique.mkdir(parents=True)
     evidence = tmp_path / "evidence.md"
-    _write_lf(evidence, "ADR-062 review")
-    (critique / "adr-062-debate.md").symlink_to(evidence)
+    _write_lf(evidence, _debate_log("ADR-062"))
+    debate = critique / "adr-062-debate.md"
+    debate.symlink_to(evidence)
+    _git(tmp_path, "add", "--", debate.relative_to(tmp_path).as_posix())
 
     assert (
         policy.check_adr_review_policy(
@@ -401,12 +435,17 @@ def test_adr_review_policy_missing_critique_dir_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No .agents/critique/ directory at all means no debate logs: gate fails."""
-    session = _write_today_session(tmp_path, '{"notes": "/adr-review was run"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
+    # A real repository, because the premise is "the critique directory is
+    # absent", not "this is not a git checkout". Without the init, the staged-log
+    # query fails and the gate reports that failure rather than the absence
+    # (issue #5205), and this assertion would be met by an error message about
+    # git rather than about the missing directory.
+    _init_repo(tmp_path)
+
     # Only the old wrong dir exists; critique dir is absent.
     wrong = tmp_path / ".agents" / "analysis"
     wrong.mkdir(parents=True)
-    _write_lf(wrong / "adr-062-debate.md", "ADR-062 review")
+    _write_lf(wrong / "adr-062-debate.md", _debate_log("ADR-062"))
 
     result = policy.check_adr_review_policy(
         [".agents/architecture/ADR-062-navigation.md"],
@@ -518,6 +557,54 @@ def test_retrospective_policy_accepts_yesterday_retro_across_midnight(
     )
 
 
+def test_retrospective_policy_accepts_host_tomorrow_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A UTC+14 producer's next-day artifact satisfies the UTC-running gate."""
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 14, 12, 0, tzinfo=UTC))
+    monkeypatch.setattr(
+        policy,
+        "recent_host_session_dates",
+        lambda: ("2026-03-14", "2026-03-13"),
+    )
+    retro = tmp_path / ".agents" / "retrospective" / "2026-03-15-session-finish.md"
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    _write_lf(retro, "# Retrospective\nreal work\n")
+
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
+def test_retrospective_policy_accepts_utc_minus_12_current_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A UTC-12 producer's current artifact satisfies a UTC+14-running gate."""
+    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 14, 11, 0, tzinfo=UTC))
+    monkeypatch.setattr(
+        policy,
+        "recent_host_session_dates",
+        lambda: ("2026-03-15", "2026-03-14"),
+    )
+    retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-session-finish.md"
+    retro.parent.mkdir(parents=True, exist_ok=True)
+    _write_lf(retro, "# Retrospective\nreal work\n")
+
+    assert (
+        policy.check_retrospective_evidence(
+            ["scripts/one.py", "tests/test_one.py"],
+            tmp_path,
+        )
+        == 0
+    )
+
+
 def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -556,6 +643,11 @@ def test_retrospective_policy_blocks_evidence_older_than_grace_window(
     so the widened window cannot silently accept arbitrarily stale sessions.
     """
     _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
+    monkeypatch.setattr(
+        policy,
+        "recent_host_session_dates",
+        lambda: ("2026-03-15", "2026-03-14"),
+    )
     retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-x.md"
     retro.parent.mkdir(parents=True, exist_ok=True)
     _write_lf(retro, "# Retrospective\nstale\n")
@@ -573,6 +665,53 @@ def test_retrospective_policy_blocks_evidence_older_than_grace_window(
     )
 
 
+def test_handle_retrospective_uses_stdin_derived_paths_when_available(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #5128: {push_files} resolves empty on a branch's first push.
+
+    _handle_retrospective must derive the real push range independently via
+    _push_range_changed_files instead of trusting args.paths (which lefthook
+    leaves empty once {push_files} is dropped from the job), so the
+    documentation-only bypass can still fire for a genuinely docs-only push.
+    """
+    monkeypatch.setattr(policy, "_push_range_changed_files", lambda _stream, _root: {"README.md"})
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 0
+
+
+def test_handle_retrospective_stdin_range_blocks_non_doc_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A stdin-derived range that includes code still requires evidence."""
+    monkeypatch.setattr(
+        policy,
+        "_push_range_changed_files",
+        lambda _stream, _root: {"scripts/one.py", "tests/test_one.py"},
+    )
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 1
+    assert "retrospective evidence" in capsys.readouterr().err
+
+
+def test_handle_retrospective_falls_back_to_args_paths_when_stdin_unresolvable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unresolvable push range (None) preserves the old args.paths behavior."""
+    monkeypatch.setattr(policy, "_push_range_changed_files", lambda _stream, _root: None)
+    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
+
+    assert policy._handle_retrospective(args) == 1
+    assert "retrospective evidence" in capsys.readouterr().err
+
+
 def test_configuration_uses_named_native_jobs() -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
 
@@ -583,8 +722,10 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert "commands" not in config["pre-push"]
     assert set(_job_map(config, "commit-msg")) == {"commit-message-policy"}
     expected_pre_commit = {
+        "repo-health",
         "repair-packed-refs",
         "branch-policy",
+        "push-lock-commit-guard",
         "handoff-protection",
         "root-hygiene-policy",
         "session-policy",
@@ -623,6 +764,7 @@ def test_configuration_uses_named_native_jobs() -> None:
         "commit-file-count",
     }
     expected_pre_push = {
+        "repo-health",
         "repair-packed-refs",
         "push-ref-policy",
         "retrospective-policy",
@@ -636,14 +778,12 @@ def test_configuration_uses_named_native_jobs() -> None:
         "workflow-local-run",
         "path-normalization",
         "planning-artifacts",
-        "build-all-check",
         "placeholder-identity",
         "branch-scope",
         "additions-advisory",
         "hook-anchoring-e2e",
         "plugin-load-e2e",
         "review-axis-drift",
-        "session-json-validation",
         "observation-sync-advisory",
         "bot-cascade-advisory",
     }
@@ -657,10 +797,20 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert str(pre_commit["root-hygiene-policy"]["run"]).endswith(
         "git_hook_policy.py root-hygiene {staged_files}"
     )
-    assert str(pre_push["retrospective-policy"]["run"]).endswith(
-        "git_hook_policy.py retrospective {push_files}"
+    assert str(pre_commit["push-lock-commit-guard"]["run"]).endswith(
+        "check_push_lock_before_commit.py"
     )
+    # 20s, not the original 30s: repo-health's 10s cap is funded from this job's
+    # slack so the pre-commit declared worst case does not rise against the base
+    # ref (tests/ci/test_lefthook_declared_budget.py). The guard's own bound is a
+    # `timeout=10` subprocess plus a non-blocking flock probe, so 20s is twice it.
+    assert pre_commit["push-lock-commit-guard"]["timeout"] == "20s"
+    assert str(pre_push["retrospective-policy"]["run"]).endswith("git_hook_policy.py retrospective")
+    assert pre_push["retrospective-policy"]["use_stdin"] is True
     pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
+    assert pre_commit_names.index("push-lock-commit-guard") < pre_commit_names.index(
+        "markdown-autofix"
+    )
     assert pre_commit_names.index("memory-token-update") < pre_commit_names.index("memory-size")
     assert pre_commit_names.index("memory-size") < pre_commit_names.index("memory-cross-reference")
     assert pre_commit_names.index("memory-cross-reference") < pre_commit_names.index(
@@ -683,7 +833,16 @@ def test_configuration_bounds_every_job() -> None:
         assert all(isinstance(job.get("timeout"), str) for job in jobs)
 
     pre_push = _job_map(config, "pre-push")
-    assert pre_push["python-tests"]["timeout"] == "30m"
+    # `python-tests` was 30m and was resized from in-hook measurement (ADR-104
+    # rule 7): the cap is the ceiling for the opt-in local-execution path, and
+    # its inner budget sits under it so the inner timeout fires first.
+    assert pre_push["python-tests"]["timeout"] == "15m"
+    # `workflow-local-run` stays at 30m and is pinned so a future cut has to
+    # come with a measurement. It was cut to 10m on the branch that resized
+    # `python-tests` and restored in review (PR #5319): rule 7 sizes a cap from
+    # a measured worst case, and the only firing path a container can time
+    # reports DEGRADED in 0.42s because actionlint is absent there, which is
+    # not the `act` run the cap protects.
     assert pre_push["workflow-local-run"]["timeout"] == "30m"
     assert pre_push["security-scan"]["timeout"] == "15m"
     assert pre_push["hook-anchoring-e2e"]["timeout"] == "20m"
@@ -753,8 +912,16 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert pre_commit["piped"] is True
     assert pre_push["piped"] is True
     assert "files" not in pre_push
-    assert pre_commit["jobs"][0]["name"] == "repair-packed-refs"
-    assert pre_push["jobs"][0]["name"] == "repair-packed-refs"
+    # Issue #4698: repo-health precedes repair-packed-refs because a bare-flagged
+    # checkout makes later jobs fail for reasons that name the wrong component.
+    assert [job["name"] for job in pre_commit["jobs"][:2]] == [
+        "repo-health",
+        "repair-packed-refs",
+    ]
+    assert [job["name"] for job in pre_push["jobs"][:2]] == [
+        "repo-health",
+        "repair-packed-refs",
+    ]
     assert pre_commit_jobs["markdown-autofix"]["stage_fixed"] is True
     markdown_autofix_run = pre_commit_jobs["markdown-autofix"]["run"]
     markdown_check_run = pre_commit_jobs["markdown-check"]["run"]
@@ -810,18 +977,19 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         assert "merge" not in skip
     assert "glob" not in pre_push_jobs["pre-pr-validation"]
     assert "glob" not in pre_push_jobs["python-tests"]
-    assert pre_push_jobs["pre-pr-validation"]["env"] == {"SKIP_AUTOFIX": "1"}
-    assert pre_push_jobs["python-tests"]["env"] == {
-        "AI_AGENTS_PYTEST_WORKER_CAP": "4"
+    assert pre_push_jobs["pre-pr-validation"]["env"] == {
+        "AI_AGENTS_PRE_PR_FAST_STAGE_RAN": "1",
+        "SKIP_AUTOFIX": "1",
+        # The job's own timeout in seconds, consumed by the
+        # generated-staleness gate's outer-cap clamp; the cross-check
+        # against the actual timeout lives in
+        # tests/validation/test_check_generated_staleness.py.
+        "PRE_PR_OUTER_CAP_SECONDS": "240",
     }
+    assert pre_push_jobs["python-tests"]["env"] == {"AI_AGENTS_PYTEST_WORKER_CAP": "4"}
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True
     assert pre_push_jobs["security-suppression-policy"]["use_stdin"] is True
-    assert pre_push_jobs["session-json-validation"]["use_stdin"] is True
-    session_validation_run = pre_push_jobs["session-json-validation"]["run"]
-    assert isinstance(session_validation_run, str)
-    assert "{push_files}" not in session_validation_run
-    assert "glob" not in pre_push_jobs["session-json-validation"]
     piped_stdin_groups = [
         item["group"]
         for item in pre_push["jobs"]
@@ -834,11 +1002,20 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert piped_stdin_groups[0].get("parallel") is not True
     assert [job["name"] for job in piped_stdin_groups[0]["jobs"]] == [
         "push-ref-policy",
-        "security-scan",
         "security-suppression-policy",
         "placeholder-identity",
-        "session-json-validation",
+        "retrospective-policy",
     ]
+    # Issue #5066: security-scan (semgrep) left the cheap stdin group so a
+    # fast-stage failure no longer waits on it. It stays a top-level job
+    # under the piped hook, which serializes stdin delivery exactly as the
+    # piped group does (ci-scripts.md MUST-21 forbids parallel use_stdin).
+    top_level_names = [
+        str(item.get("name"))
+        for item in pre_push["jobs"]
+        if isinstance(item, dict) and "group" not in item
+    ]
+    assert "security-scan" in top_level_names
     markdown_groups = [
         item["group"]
         for item in pre_commit["jobs"]
@@ -856,20 +1033,32 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "python-type-check",
         "infrastructure-advisory",
         "workflow-local-run",
-        "observation-sync-advisory",
     ):
         run = pre_push_jobs[name]["run"]
         assert isinstance(run, str)
         assert "{push_files}" in run
+    # observation-sync-advisory derives its file set from the push refs on
+    # stdin instead of {push_files}: the first-push fallback fed the whole
+    # observation corpus to the sync and overran the job's cap (#5071).
+    observation_job = pre_push_jobs["observation-sync-advisory"]
+    observation_run = observation_job["run"]
+    assert isinstance(observation_run, str)
+    assert observation_run.endswith("git_hook_policy.py observations-push")
+    assert "{push_files}" not in observation_run
+    assert observation_job.get("use_stdin") is True
     workflow_run = pre_push_jobs["workflow-local-run"]["run"]
-    build_run = pre_push_jobs["build-all-check"]["run"]
     branch_scope_run = pre_push_jobs["branch-scope"]["run"]
     assert isinstance(workflow_run, str)
-    assert isinstance(build_run, str)
     assert isinstance(branch_scope_run, str)
     assert "--no-full" not in workflow_run
-    assert build_run.endswith("build_all.py --check")
     assert "origin/main" in branch_scope_run
+    # Issue #5079 review: the standalone build-all-check job is gone on
+    # purpose. pre-pr-validation's Generated Artifact Staleness gate runs
+    # build_all.py --check inside the sequence; a second concurrent
+    # invocation in the same parallel group raced its snapshot/restore over
+    # the same owned prefixes, and its 15m lefthook timeout was a SIGKILL
+    # that skipped build_all's restoring finally.
+    assert "build-all-check" not in pre_push_jobs
     pre_commit_parallel = False
     for item in pre_commit["jobs"]:
         group = item.get("group")
@@ -1027,7 +1216,7 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     )
 
     assert config["lefthook"] == "uv run --frozen lefthook"
-    assert version.stdout.splitlines()[0] == "2.1.10"
+    assert version.stdout.splitlines()[0] == "2.1.11"
     assert validated.returncode == 0
     assert "All good" in validated.stdout
 
@@ -1130,7 +1319,73 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
-def test_packed_refs_repair_runs_as_a_native_first_job(
+def test_repo_health_runs_as_a_native_job(hook_name: str, tmp_path: Path) -> None:
+    """The healthy control for the bare-flagged case below (issue #4698)."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    head_sha = _commit_file(repo, "tracked.txt", "content\n")
+    push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {head_sha}\n"
+
+    result = _run_lefthook(
+        repo,
+        "run",
+        hook_name,
+        "--job",
+        "repo-health",
+        "--force",
+        stdin=push_input if hook_name == "pre-push" else None,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "repo-health" in result.stdout
+
+
+@pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
+def test_repo_health_blocks_a_hook_when_the_shared_config_is_poisoned(
+    hook_name: str,
+    tmp_path: Path,
+) -> None:
+    """Issue #4698: the gate must stop the hook, not merely print a diagnosis.
+
+    The fixture is the mixed state, not a plainly bare-flagged checkout, and
+    that is not a softer case. Measured on lefthook 2.1.10: from a checkout
+    that resolves bare, lefthook runs ``git rev-parse --path-format=absolute
+    --show-toplevel ...`` before its first job and exits 128 on ``fatal: this
+    operation must be run in a work tree``, so no job of any kind runs there
+    and no hook can report anything. The worktree carrying the worktree-scoped
+    ``false`` that ``.agents/governance/GOTCHAS.md`` prescribes is the one
+    lefthook still runs in, and it is the one that has to raise the alarm for
+    the siblings the shared value has already killed.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    head_sha = _commit_file(repo, "tracked.txt", "content\n")
+    push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {head_sha}\n"
+    _git(repo, "config", "extensions.worktreeConfig", "true")
+    _git(repo, "worktree", "add", "-q", str(tmp_path / "linked"), "-b", "linked")
+    _git(repo, "config", "--worktree", "core.bare", "false")
+    _git(repo, "config", "core.bare", "true")
+
+    result = _run_lefthook(
+        repo,
+        "run",
+        hook_name,
+        "--job",
+        "repo-health",
+        "--force",
+        stdin=push_input if hook_name == "pre-push" else None,
+        check=False,
+    )
+
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "core.bare" in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
+def test_packed_refs_repair_runs_as_a_native_job(
     hook_name: str,
     tmp_path: Path,
 ) -> None:
@@ -1180,6 +1435,71 @@ def test_pre_push_repairs_corrupt_packed_refs_before_policy(tmp_path: Path) -> N
     assert result.returncode == 0, result.stdout + result.stderr
     assert b"\n\n" not in packed_refs.read_bytes()
     assert packed_refs.with_name("packed-refs.before-repair").is_file()
+
+
+def _summary_lines(stdout: str, job: str) -> list[str]:
+    """Return the summary lines naming a job, one per execution lefthook ran."""
+    _, _, summary = stdout.partition("summary:")
+    return [line for line in summary.splitlines() if job in line]
+
+
+def test_pre_push_staleness_checks_the_remote_named_on_the_command_line(
+    tmp_path: Path,
+) -> None:
+    """The staleness job queries the remote git named, not a hardcoded default.
+
+    Issue #4634: the job passed ``{remote}``, which lefthook leaves verbatim, so
+    ``git ls-remote "{remote}" <ref>`` resolved no SHA, ``push_ref_staleness.py``
+    read that as a new branch, and the job reported success on every push. Its
+    duplicate hardcoded ``origin`` by passing no argument at all.
+
+    Two file-backed remotes make the wiring observable end to end. ``clean``
+    holds exactly the SHA the simulated push claims; ``advanced`` has moved one
+    commit past the local branch. Only naming ``advanced`` on the command line
+    may fail, so a run body that ignored its argument (or expanded it to a name
+    no remote resolves) could not produce this pair of outcomes.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    head_sha = _commit_file(repo, "tracked.txt", "content\n")
+    branch = "refs/heads/feature/test"
+
+    for name in ("clean", "advanced"):
+        _git(repo, "init", "-q", "--bare", str(tmp_path / f"{name}.git"))
+        _git(repo, "remote", "add", name, str(tmp_path / f"{name}.git"))
+        _git(repo, "push", "-q", name, f"HEAD:{branch}")
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "test: remote-only commit")
+    _git(repo, "push", "-q", "advanced", f"HEAD:{branch}")
+    _git(repo, "reset", "-q", "--hard", head_sha)
+
+    # What git sends a pre-push hook: the local ref, what is being pushed, the
+    # remote ref, and the SHA git believes the remote holds.
+    push_input = f"{branch} {head_sha} {branch} {head_sha}\n"
+
+    def _run_against(remote: str) -> subprocess.CompletedProcess[str]:
+        return _run_lefthook(
+            repo,
+            "run",
+            "pre-push",
+            "--job",
+            "push-ref-staleness",
+            "--force",
+            remote,
+            str(tmp_path / f"{remote}.git"),
+            stdin=push_input,
+            check=False,
+        )
+
+    clean = _run_against("clean")
+    advanced = _run_against("advanced")
+
+    assert clean.returncode == 0, clean.stdout + clean.stderr
+    assert advanced.returncode != 0, advanced.stdout + advanced.stderr
+    assert "remote is at" in advanced.stdout + advanced.stderr
+    # One declaration, so one execution. The duplicate ran the job twice and
+    # reported both an OK and a FAILED line for the same name (issue #4634).
+    assert len(_summary_lines(clean.stdout, "push-ref-staleness")) == 1, clean.stdout
 
 
 def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
@@ -1747,13 +2067,119 @@ def test_branch_context_survives_a_committed_merge_import(tmp_path: Path) -> Non
     _add_upstream_with(repo, imported)
     os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
 
-    # Negative control: the imported log alone still blocks, because the
-    # exemption also requires the branch to own a log.
-    assert policy.check_branch_context(repo) == 1
+    # Negative control: before the log is upstream, the mismatch still
+    # blocks, so the merged-history assertion below cannot pass vacuously.
+    fresh_repo = tmp_path / "fresh"
+    _init_repo(fresh_repo, branch="feature/x")
+    _commit_file(fresh_repo, "tracked", "value\n")
+    _write_session_log(
+        fresh_repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    assert policy.check_branch_context(fresh_repo) == 1
+
+    assert policy.check_branch_context(repo) == 0
 
     _write_session_log(repo, branch="feature/x", name="session-own", mtime=1_000_000_000.0)
 
     assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_survives_merged_import_when_current_branch_owns_no_log(
+    tmp_path: Path,
+) -> None:
+    """A branch that has never authored its own log must still pass.
+
+    Session log creation is discontinued (`.claude/rules/session-logs.md`
+    MUST 1), so no branch will ever again author a same-day log to prove
+    participation. The old exemption required
+    `_session_log_for_branch(sessions_dir, current_branch) is not None` in
+    addition to `_is_merged_history`; that precondition can never hold once
+    creation is discontinued, which would make every commit on every branch
+    block the moment any other branch's same-day log lands upstream.
+    `_is_merged_history` alone is the correct discriminator: a log already
+    reachable from the upstream default branch is settled history, not a
+    live co-mingling claim, whether or not the current branch owns one.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/never-logged")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/other-session", name="session-other", mtime=2_000_000_000.0
+    )
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    # feature/never-logged owns no session log at all, today or otherwise.
+    sessions_dir = repo / ".agents" / "sessions"
+    assert policy._session_log_for_branch(sessions_dir, "feature/never-logged") is None
+
+    assert policy.check_branch_context(repo) == 0
+
+
+def test_branch_context_blocks_a_locally_tampered_upstream_log(tmp_path: Path) -> None:
+    """A working-tree edit to an already-merged log must not inherit its exemption.
+
+    ``_is_merged_history`` compares the on-disk file's bytes against the
+    upstream blob, not merely whether the path exists upstream. A path that
+    was genuinely merged can still be edited locally (for example, a hand-edit
+    of the ``branch`` field) without committing; an existence-only probe would
+    grant the settled-history exemption to that uncommitted, tampered content
+    because the path was on upstream before the edit. Comparing bytes closes
+    that gap.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    # Sanity: unmodified, the exemption applies.
+    assert policy.check_branch_context(repo) == 0
+
+    # Tamper the working-tree copy without committing: same path, different
+    # content than what is upstream.
+    _write_lf(imported, json.dumps({"session": {"branch": "feature/tampered"}}))
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    assert policy.check_branch_context(repo) == 1
+
+
+def test_branch_context_blocks_when_the_upstream_candidate_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable merged-history candidate must not grant its exemption.
+
+    ``_is_merged_history`` says it fails closed on an unreadable file:
+    ``path.read_bytes()`` raising ``OSError`` returns False rather than
+    propagating, so the byte comparison is skipped and the caller treats the
+    file as not matching upstream. Pin that the mismatch still blocks, not
+    only that the exception is caught.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="feature/x")
+    _commit_file(repo, "tracked", "value\n")
+    imported = _write_session_log(
+        repo, branch="feature/merged", name="session-merged", mtime=2_000_000_000.0
+    )
+    _add_upstream_with(repo, imported)
+    os.utime(imported, (2_000_000_000.0, 2_000_000_000.0))
+
+    # Sanity: unmodified and readable, the exemption applies.
+    assert policy.check_branch_context(repo) == 0
+
+    real_read_bytes = Path.read_bytes
+
+    def unreadable_read_bytes(self: Path, *args: object, **kwargs: object) -> bytes:
+        if self == imported:
+            raise OSError(13, "Permission denied", str(self))
+        return real_read_bytes(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_bytes", unreadable_read_bytes)
+
+    assert policy.check_branch_context(repo) == 1
 
 
 def test_branch_context_blocks_a_newer_log_that_is_not_upstream(tmp_path: Path) -> None:
@@ -2028,9 +2454,7 @@ def test_root_hygiene_allowlist_matches_current_tracked_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
-    root_entries = set(
-        _git(PROJECT_ROOT, "ls-tree", "--name-only", "HEAD").stdout.splitlines()
-    )
+    root_entries = set(_git(PROJECT_ROOT, "ls-tree", "--name-only", "HEAD").stdout.splitlines())
 
     assert policy.ALLOWED_REPO_ROOT_ENTRIES == root_entries
     assert policy.check_root_hygiene(sorted(root_entries), PROJECT_ROOT) == 0
@@ -2048,8 +2472,7 @@ def test_root_hygiene_blocks_staged_root_scratch_file(
 
     assert policy.check_root_hygiene(["scratch-notes.txt"], repo) == 1
     assert (
-        "scripts/validation/git_hook_policy.py:ALLOWED_REPO_ROOT_ENTRIES"
-        in capsys.readouterr().err
+        "scripts/validation/git_hook_policy.py:ALLOWED_REPO_ROOT_ENTRIES" in capsys.readouterr().err
     )
 
 
@@ -2075,15 +2498,18 @@ def test_root_hygiene_skips_merge_state(tmp_path: Path) -> None:
     assert policy.check_root_hygiene(["scratch-notes.txt"], repo) == 0
 
 
-def test_session_policy_requires_and_validates_session(
+def test_session_policy_is_validate_if_present(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # The committed session-log gate is retired: a non-session .agents change
+    # needs no session log (returns 0), while a present session log is still
+    # validated by shelling out to the validator.
     monkeypatch.setattr(policy, "_merge_in_progress", lambda _root: False)
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(0))
     monkeypatch.setattr(policy, "added_session_paths_in_index", lambda paths, repo_root: set(paths))
 
-    assert policy.check_sessions([".agents/planning/plan.md"], tmp_path) == 1
+    assert policy.check_sessions([".agents/planning/plan.md"], tmp_path) == 0
     assert (
         policy.check_sessions(
             [".agents/sessions/2026-07-19-session-1-test.json"],
@@ -2163,7 +2589,13 @@ def test_pre_commit_session_policy_validates_changed_upstream_content(
         assert policy.check_sessions([relative], repo) == 1
 
     assert commands == [
-        [sys.executable, "scripts/validate_session_json.py", relative, "--pre-commit"]
+        [
+            sys.executable,
+            "scripts/validate_session_json.py",
+            relative,
+            "--pre-commit",
+            "--existing-log",
+        ]
     ]
 
 
@@ -3113,6 +3545,7 @@ def test_pushed_semgrep_scan_materializes_immutable_head(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert paths == ["nested/source.py"]
         assert not (tree / "unchanged.py").exists()
@@ -3148,6 +3581,7 @@ def test_pushed_semgrep_scan_reads_export_ignored_changed_blob(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert "nested/source.py" in paths
         content = (tree / "nested/source.py").read_text(encoding="utf-8")
@@ -3178,6 +3612,7 @@ def test_pushed_semgrep_scan_reads_unsubstituted_changed_blob(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert "source.js" in paths
         content = (tree / "source.js").read_text(encoding="utf-8")
@@ -3211,6 +3646,7 @@ def test_pushed_semgrep_scan_ignores_local_replacement_blob(
         tree: Path,
         paths: Sequence[str],
         _root: Path,
+        **_kwargs: object,
     ) -> subprocess.CompletedProcess[str]:
         assert paths == ["source.py"]
         content = (tree / "source.py").read_text(encoding="utf-8")
@@ -3243,7 +3679,9 @@ def test_pushed_semgrep_scan_rejects_non_regular_type_change(
     monkeypatch.setattr(
         policy,
         "_run_semgrep_tree",
-        lambda *_args: pytest.fail("Semgrep must not run on a non-regular snapshot"),
+        lambda *_args, **_kwargs: pytest.fail(
+            "Semgrep must not run on a non-regular snapshot"
+        ),
     )
 
     assert policy.scan_pushed_heads(stream, repo) == 2
@@ -3268,7 +3706,9 @@ def test_pushed_semgrep_validates_all_paths_before_suffix_selection(
     monkeypatch.setattr(
         policy,
         "_scan_pushed_head",
-        lambda *_args: pytest.fail("invalid pushed paths must not reach Semgrep"),
+        lambda *_args, **_kwargs: pytest.fail(
+            "invalid pushed paths must not reach Semgrep"
+        ),
     )
 
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
@@ -3292,7 +3732,9 @@ def test_pushed_semgrep_detects_collision_with_unchanged_head_path(
     monkeypatch.setattr(
         policy,
         "_scan_pushed_head",
-        lambda *_args: pytest.fail("colliding pushed trees must not reach Semgrep"),
+        lambda *_args, **_kwargs: pytest.fail(
+            "colliding pushed trees must not reach Semgrep"
+        ),
     )
 
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
@@ -4638,6 +5080,43 @@ def test_parse_changed_lines_ignores_pure_rename() -> None:
     assert changed == {}
 
 
+def test_parse_changed_lines_strips_the_quoted_b_prefix() -> None:
+    # Git quotes the "b/" prefix together with the path, so a pattern that
+    # strips the prefix before unquoting leaves "b/" in the key and the map
+    # never matches the path mypy reports.
+    diff = '+++ "b/pkg/od\\"d.py"\n@@ -0,0 +3,1 @@\n'
+
+    assert policy._parse_changed_lines(diff) == {'pkg/od"d.py': {3}}
+
+
+def test_iter_diff_changes_strips_the_b_prefix_from_the_header() -> None:
+    # Regression: the shared header pattern keeps the "b/" prefix, so the
+    # suppression scanner must strip it via _file_header_path. Reporting
+    # "b/pkg/a.py" made every net-new suppression look like a different file,
+    # which fails a security gate open.
+    diff = (
+        "diff --git a/pkg/a.py b/pkg/a.py\n"
+        "--- a/pkg/a.py\n"
+        "+++ b/pkg/a.py\n"
+        "@@ -1,0 +2 @@\n"
+        "+added line\n"
+    )
+
+    assert list(policy._iter_diff_changes(diff)) == [("pkg/a.py", "+", 2, "added line")]
+
+
+def test_iter_diff_changes_skips_a_dev_null_post_image() -> None:
+    diff = (
+        "diff --git a/pkg/gone.py b/pkg/gone.py\n"
+        "--- a/pkg/gone.py\n"
+        "+++ /dev/null\n"
+        "@@ -1 +0,0 @@\n"
+        "-removed line\n"
+    )
+
+    assert list(policy._iter_diff_changes(diff)) == []
+
+
 def test_parse_mypy_error_locations_selects_errors_only() -> None:
     stdout = (
         "pkg/a.py:12: error: Incompatible types  [assignment]\n"
@@ -4733,6 +5212,26 @@ def test_changed_line_map_returns_none_when_base_unresolved(tmp_path: Path) -> N
     assert policy._changed_line_map(["mod.py"], repo, "origin/main") is None
 
 
+def test_changed_line_map_ignores_a_pure_rename(tmp_path: Path) -> None:
+    # A pathspec on `git diff` drops the delete half of a rename pair before
+    # diffcore_rename runs, so a pure rename reads as a full-file add and
+    # every pre-existing line looks newly authored. _changed_line_map
+    # delegates to diff_line_scope.changed_line_map, which runs the diff
+    # with no pathspec specifically to avoid this (issue #2993's fix for
+    # the ruff gate, shared here so the mypy gate cannot regress the same
+    # way).
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "old_name.py", "line one\nline two\nline three\n")
+    _git(repo, "mv", "old_name.py", "new_name.py")
+    _git(repo, "commit", "-qm", "test: rename with no content change")
+
+    changed = policy._changed_line_map(["new_name.py"], repo, base)
+
+    assert changed is not None
+    assert changed.get("new_name.py", set()) == set()
+
+
 def test_mypy_ratchet_blocks_error_on_changed_line(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -4821,6 +5320,190 @@ def test_mypy_ratchet_ignores_error_in_unpushed_file(
     )
 
     assert policy.run_mypy(["source.py"], tmp_path) == 0
+
+
+def test_merge_base_scope_drops_round_trip_keeps_modified_rename_deletion(
+    tmp_path: Path,
+) -> None:
+    # Issue #5071: the scope is what the push ships versus the merge base.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "keep.py", "value: int = 1\n")
+    _commit_file(repo, "round.py", "flag: bool = True\n")
+    _commit_file(repo, "old.py", "name: str = 'x'\n")
+    base = _commit_file(repo, "gone.py", "count: int = 0\n")
+    _write_file(repo, "keep.py", "value: int = 2\n")
+    _write_file(repo, "round.py", "flag: bool = False\n")
+    _git(repo, "mv", "old.py", "new.py")
+    _git(repo, "rm", "-q", "gone.py")
+    _git(repo, "add", "--", "keep.py", "round.py")
+    _git(repo, "commit", "-qm", "test: touch everything")
+    _write_file(repo, "round.py", "flag: bool = True\n")
+    _git(repo, "commit", "-aqm", "test: revert round.py to base content")
+
+    scope = policy._merge_base_scope(["keep.py", "round.py", "new.py", "gone.py"], repo, base)
+
+    assert scope is not None
+    assert "keep.py" in scope
+    assert "new.py" in scope
+    assert "gone.py" in scope
+    # The commit-then-revert round trip no longer differs from the merge
+    # base, so it contributes nothing to the mypy scope.
+    assert "round.py" not in scope
+
+
+def test_merge_base_scope_returns_none_when_base_unresolved(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "mod.py", "value: int = 1\n")
+
+    # origin/main does not exist in this fresh repo, so the diff fails and
+    # the caller must fall back to the unfiltered pushed set.
+    assert policy._merge_base_scope(["mod.py"], repo, "origin/main") is None
+
+
+def test_merge_base_scope_empty_paths_is_empty_set(tmp_path: Path) -> None:
+    assert policy._merge_base_scope([], tmp_path, "origin/main") == set()
+
+
+def test_mypy_scope_round_trip_file_is_not_scanned(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Negative case for issue #5071: a file whose branch edits round-tripped
+    # back to the merge-base content is dropped before mypy ever runs, so its
+    # pre-existing type debt cannot block the push.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: set())
+    invoked: list[Sequence[str]] = []
+
+    def fail_if_invoked(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(paths)
+        return _completed(1, "source.py:1: error: preexisting  [assignment]\n")
+
+    monkeypatch.setattr(policy, "_invoke_mypy", fail_if_invoked)
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 0
+    assert invoked == []
+    # The scope report names both counts so an empty run is distinguishable
+    # from a run that examined nothing (ci-scripts rule: report scope size).
+    assert "0 of 1 pushed file(s)" in capsys.readouterr().out
+
+
+def test_mypy_scope_keeps_modified_file_and_blocks_its_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Positive case for issue #5071: a file that still differs from the merge
+    # base stays in scope and its new-line errors still block.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: {"source.py"})
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+
+
+def test_mypy_scope_fallback_scans_full_set_when_base_unresolved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Unresolvable merge base must never weaken the gate: the full pushed set
+    # is scanned, and the block-on-any-error fallback still applies.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: None)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: None)
+    invoked: list[Sequence[str]] = []
+
+    def record(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(list(paths))
+        return _completed(1, "source.py:2: error: bad  [assignment]\n")
+
+    monkeypatch.setattr(policy, "_invoke_mypy", record)
+
+    assert policy.run_mypy(["source.py"], tmp_path) == 1
+    assert invoked == [["source.py"]]
+    # The fallback also reports its scope size (ci-scripts: report examined
+    # counts), so a full scan is distinguishable from a filtered one.
+    assert "scanning all 1 pushed file(s)" in capsys.readouterr().out
+
+
+def test_mypy_scope_end_to_end_drops_round_trip_with_real_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Wiring proof over a real repository: run_mypy consults the real
+    # merge-base diff and hands mypy only the file that still differs.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    _commit_file(repo, "keep.py", "value: int = 1\n")
+    base = _commit_file(repo, "round.py", "flag: bool = True\n")
+    _write_file(repo, "keep.py", "value: int = 2\n")
+    _write_file(repo, "round.py", "flag: bool = False\n")
+    _git(repo, "commit", "-aqm", "test: edit both files")
+    _write_file(repo, "round.py", "flag: bool = True\n")
+    _git(repo, "commit", "-aqm", "test: revert round.py")
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, base)
+    invoked: list[list[str]] = []
+
+    def record(paths: Sequence[str], *_a: object) -> subprocess.CompletedProcess[str]:
+        invoked.append(list(paths))
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_invoke_mypy", record)
+
+    assert policy.run_mypy(["keep.py", "round.py"], repo) == 0
+    assert invoked == [["keep.py"]]
+
+
+def test_mypy_scope_end_to_end_blocks_changed_line_with_real_git(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Companion to the round-trip end-to-end test: blocking must also work
+    # through real merge-base discovery, not only through mocked seams.
+    repo = tmp_path / "repo"
+    _init_repo(repo, branch="main")
+    base = _commit_file(repo, "keep.py", "value: int = 1\n")
+    _write_file(repo, "keep.py", "value: int = 'broken'\n")
+    _git(repo, "commit", "-aqm", "test: break typing on line 1")
+    monkeypatch.setenv(policy.MYPY_RATCHET_BASE_REF_ENV, base)
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "keep.py:1: error: bad  [assignment]\n"),
+    )
+
+    assert policy.run_mypy(["keep.py"], repo) == 1
+
+
+def test_mypy_cli_main_exit_codes_respect_merge_base_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # ci-scripts CLI exit contract: drive main(argv), not the helper. The
+    # same blocking error must exit nonzero in scope and zero when the file
+    # round-tripped out of scope.
+    _write_source(tmp_path)
+    monkeypatch.setattr(policy, "_changed_line_map", lambda *_a: {"source.py": {2}})
+    monkeypatch.setattr(
+        policy,
+        "_invoke_mypy",
+        lambda *_a: _completed(1, "source.py:2: error: bad  [assignment]\n"),
+    )
+    argv = ["--repo-root", str(tmp_path), "mypy", "source.py"]
+
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: {"source.py"})
+    assert policy.main(argv) == 1
+
+    monkeypatch.setattr(policy, "_merge_base_scope", lambda *_a: set())
+    assert policy.main(argv) == 0
 
 
 def test_mypy_invocation_sets_validation_path(
@@ -5590,34 +6273,6 @@ def test_check_push_refs_multi_ref_catches_second_rewrite(
     assert "not a fast-forward" in capsys.readouterr().err
 
 
-def test_commit_limit_queries_the_destination_branch(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/heads/other", "2" * 40),
-        base="origin/main",
-        head="1" * 40,
-        range_spec="origin/main..head",
-        destination_branch="other",
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
-    captured: list[str] = []
-
-    def fake_command(
-        args: Sequence[str],
-        _root: Path,
-        **_kwargs: object,
-    ) -> subprocess.CompletedProcess[str]:
-        captured.extend(args)
-        return _completed(0, "bypass present\n")
-
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    assert policy._check_commit_limit(update, tmp_path) == 0
-    assert captured[-2:] == ["--branch", "other"]
-
-
 def test_plugin_version_policy_passes_exact_base_and_head(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -6221,70 +6876,61 @@ def test_push_update_aggregation_returns_configuration_error(
 
 
 @pytest.mark.parametrize(
-    ("git_result", "expected"),
-    [
-        (_completed(1, stderr="git failed\n"), 2),
-        (_completed(0, "not-a-number\n"), 2),
-        (_completed(0, "20\n"), 0),
-    ],
+    "git_result",
+    [_completed(1, stderr="git failed\n"), _completed(0, "not-a-number\n")],
 )
-def test_commit_limit_handles_git_count_results(
+def test_commit_limit_degrades_measurement_failures_to_a_warning(
     git_result: subprocess.CompletedProcess[str],
-    expected: int,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = _push_update(None)
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: git_result)
-
-    assert policy._check_commit_limit(update, tmp_path) == expected
-
-
-def test_commit_limit_blocks_when_bypass_check_fails(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch=None,
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stderr="no bypass\n"),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_commit_limit_prints_bypass_explanation_with_blocking_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/local", "1" * 40, "refs/tags/v1", "2" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch=None,
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "21\n"))
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stdout="no open PR for local\n"),
-    )
+    """A `git rev-list` failure or an unparseable count MUST NOT block the
+    push (issue #5233's contract: the commit-count check never blocks).
+    Both branches previously returned 2, which `_check_push_updates`
+    aggregates into a nonzero, push-blocking result; a Copilot review on
+    PR #5234 caught the contradiction between that behavior and this
+    function's own "Never blocks" docstring.
+    """
+    update = _push_update(None)
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: git_result)
 
-    assert policy._check_commit_limit(update, tmp_path) == 1
+    assert policy._check_commit_limit(update, tmp_path) == 0
+    assert "WARNING" in capsys.readouterr().err
 
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert captured.err == "no open PR for local\nERROR: push has 21 commits, limit is 20\n"
+
+@pytest.mark.parametrize(
+    ("commit_count", "expect_note"),
+    [
+        (policy.WARNING_THRESHOLD - 1, False),
+        (policy.WARNING_THRESHOLD, True),
+        (policy.WARNING_THRESHOLD + 4, True),
+        (policy.ALERT_THRESHOLD, True),
+        (policy.ALERT_THRESHOLD + 6, True),
+    ],
+)
+def test_commit_limit_notice_covers_below_warning_through_alert(
+    commit_count: int,
+    expect_note: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Never blocks at any count, and prints the advisory NOTE only from
+    WARNING_THRESHOLD upward; below it, the push is silent.
+    """
+    update = _push_update(None)
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, f"{commit_count}\n"))
+
+    result = policy._check_commit_limit(update, tmp_path)
+
+    assert result == 0
+    out = capsys.readouterr().out
+    if expect_note:
+        assert f"NOTE: branch has {commit_count} commits" in out
+        assert "does not block" in out
+    else:
+        assert out == ""
 
 
 def test_advisory_failure_prints_process_explanation_with_warning(
@@ -6295,476 +6941,6 @@ def test_advisory_failure_prints_process_explanation_with_warning(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == "reason\nWARNING: plugin version check failed without blocking\n"
-
-
-def test_commit_limit_relaxes_for_merge_from_main(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = _push_update()
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"]:
-            return _completed(0, "30\n")
-        if args[:2] == ["rev-list", "--merges"]:
-            return _completed(0, "merge-sha\n")
-        if args[0] == "show" and "--format=%P" in args:
-            return _completed(0, "first-parent main-parent\n")
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    # main_first_parent_shas is imported into git_hook_policy's namespace; patch
-    # there so _contains_main_merge sees the correct trunk without a real git repo.
-    # The double takes run_git because the hook passes its own hardened runner.
-    monkeypatch.setattr(
-        policy,
-        "main_first_parent_shas",
-        lambda _root, run_git=None: frozenset(["main-parent", "older-main"]),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 0
-
-
-def test_commit_limit_holds_when_the_merged_parent_is_off_main_trunk(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The negative control for the test above.
-
-    Only the trunk answer changes. A parent main can reach but did not reach
-    by first parent is a branch main landed, and the wider limit is refused.
-    """
-    update = _push_update()
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"]:
-            return _completed(0, "30\n")
-        if args[:2] == ["rev-list", "--merges"]:
-            return _completed(0, "merge-sha\n")
-        if args[0] == "show" and "--format=%P" in args:
-            return _completed(0, "first-parent landed-parent\n")
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    # Trunk contains a different commit; "landed-parent" is not on first-parent
-    # history, so the wider limit must be refused.
-    monkeypatch.setattr(
-        policy,
-        "main_first_parent_shas",
-        lambda _root, run_git=None: frozenset(["some-other-main-commit"]),
-    )
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stderr="no bypass\n"),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_main_merge_detection_handles_git_errors(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    update = _push_update()
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))
-
-    assert not policy._contains_main_merge(update, tmp_path)
-    assert not policy._merge_has_main_parent("merge", tmp_path)
-
-
-def test_needs_split_bypass_allows_small_push_on_large_branch(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """needs-split label + <= 5 new commits bypasses the limit (issue #3895).
-
-    PR #3688 scenario: branch has 52 commits (over limit) but only adds
-    3 new commits in this push to address review feedback. The push must
-    succeed because splitting is already in progress.
-    """
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
-            # New commits only: 3
-            return _completed(0, "3\n")
-        if args[:2] == ["rev-list", "--count"]:
-            # Total branch commits: 52
-            return _completed(0, "52\n")
-        return _completed(0)
-
-    call_count = [0]
-
-    def fake_command(
-        args: Sequence[str], _root: Path, **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        call_count[0] += 1
-        if "--label" in args and "needs-split" in args:
-            return _completed(0, "needs-split present on PR #3688\n")
-        # commit-limit-bypass not present
-        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    assert policy._check_commit_limit(update, tmp_path) == 0
-    assert "needs-split" in capsys.readouterr().out
-
-
-def test_needs_split_bypass_blocks_when_new_commits_exceed_cap(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """needs-split label does NOT bypass when this push is itself large (issue #3895).
-
-    If the author is adding 10 commits to an already-over-limit branch, the
-    needs-split bypass must not apply. Only commit-limit-bypass unlocks this.
-    """
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
-            # New commits: 10 (over the cap of 5)
-            return _completed(0, "10\n")
-        if args[:2] == ["rev-list", "--count"]:
-            return _completed(0, "52\n")
-        return _completed(0)
-
-    def fake_command(
-        args: Sequence[str], _root: Path, **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        if "--label" in args and "needs-split" in args:
-            return _completed(0, "needs-split present on PR #3688\n")
-        return _completed(1, stdout="no commit-limit-bypass label (PR #3688)\n")
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_needs_split_bypass_absent_falls_through_to_block(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """When neither bypass label is present, the block stands (issue #3895)."""
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "52\n"))
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: _completed(1, stdout="no label\n"),
-    )
-
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_needs_split_bypass_allows_push_at_exact_cap(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """needs-split bypass allows exactly _NEEDS_SPLIT_NEW_COMMIT_CAP new commits.
-
-    The boundary: 5 new commits on a 52-commit over-limit branch must succeed.
-    6 new commits must not. This test covers cap=5 exactly so the <= vs < mutation
-    is detected.
-    """
-    update = policy.PushUpdate(
-        source=policy.PushRef("refs/heads/fix/big", "a" * 40, "refs/heads/fix/big", "b" * 40),
-        base="base",
-        head="head",
-        range_spec="base..head",
-        destination_branch="fix/big",
-    )
-
-    def _fake_git_with_new(new_count: int) -> object:
-        def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-            if args[:2] == ["rev-list", "--count"] and "^origin/" in " ".join(args):
-                return _completed(0, f"{new_count}\n")
-            return _completed(0, "52\n")
-
-        return fake_git
-
-    def fake_command(
-        args: Sequence[str], _root: Path, **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
-        if "--label" in args and "needs-split" in args:
-            return _completed(0, "needs-split\n")
-        return _completed(1, stdout="no commit-limit-bypass\n")
-
-    monkeypatch.setattr(policy, "_run_command", fake_command)
-
-    # Exactly at cap (5): must pass
-    monkeypatch.setattr(policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP))
-    assert policy._check_commit_limit(update, tmp_path) == 0
-
-    # One over the cap (6): must block
-    monkeypatch.setattr(
-        policy, "_run_git", _fake_git_with_new(policy._NEEDS_SPLIT_NEW_COMMIT_CAP + 1)
-    )
-    assert policy._check_commit_limit(update, tmp_path) == 1
-
-
-def test_main_merge_detection_rejects_non_main_second_parent(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    responses = iter([_completed(0, "first other\n"), _completed(1)])
-    monkeypatch.setattr(policy, "_run_git", lambda *_args: next(responses))
-
-    assert not policy._merge_has_main_parent("merge", tmp_path)
-
-
-# A session fixture in tests/conftest.py injects `commit.gpgsign=false` through
-# GIT_CONFIG_COUNT, which outranks repo config. The command line outranks the
-# injection in turn, so signing is requested there and nowhere else.
-_SIGNING = ("-c", "commit.gpgsign=true")
-
-
-def _sign_with_ssh(repo: Path) -> None:
-    """Make this repo sign its commits, using the backend that needs no keyring.
-
-    Verification is left to fail. An unknown signer still makes git print a
-    verification line, which is the decoration under test.
-    """
-    keygen = shutil.which("ssh-keygen")
-    if keygen is None:
-        pytest.skip("ssh-keygen is required to build a signed history")
-    key = repo / "signing-key"
-    subprocess.run(
-        [keygen, "-q", "-t", "ed25519", "-N", "", "-C", "t", "-f", str(key)],
-        cwd=repo,
-        capture_output=True,
-        check=False,
-    )
-    if not key.with_suffix(".pub").exists():
-        pytest.skip("ssh-keygen produced no key on this host")
-    _git(repo, "config", "gpg.format", "ssh")
-    _git(repo, "config", "user.signingkey", str(key.with_suffix(".pub")))
-
-
-def _repo_with_a_signed_merge(tmp_path: Path, of_main: bool) -> tuple[Path, str]:
-    """Build a repo holding one signed merge, and ask to see the signatures.
-
-    `of_main` chooses which merge. False builds one whose second parent is a
-    side branch and whose first parent is an ancestor of `origin/main`, which
-    is not a merge of main and must not raise the commit limit. True builds a
-    real merge of main, the case the limit is raised for.
-    """
-    repo = tmp_path / ("merge-of-main" if of_main else "merge-of-side")
-    _init_repo(repo, branch="main")
-    _sign_with_ssh(repo)
-    _commit_file(repo, "base.md", "base\n")
-    # Named refs only. A raw sha as a branch point is not resolvable under this
-    # suite's git environment (Refs #3661).
-    _git(repo, "branch", "side")
-    _git(repo, "branch", "pivot")
-    main_head = _commit_file(repo, "main-only.md", "main\n")
-    _git(repo, "update-ref", "refs/remotes/origin/main", main_head)
-    _git(repo, "checkout", "-q", "side")
-    _commit_file(repo, "side-only.md", "side\n")
-    if of_main:
-        _git(repo, *_SIGNING, "merge", "-q", "--no-ff", "-m", "merge main", "main")
-    else:
-        _git(repo, "checkout", "-q", "pivot")
-        _git(repo, *_SIGNING, "merge", "-q", "--no-ff", "-m", "merge side", "side")
-    merge = _git(repo, "rev-parse", "HEAD").stdout.strip()
-    assert "gpgsig" in _git(repo, "cat-file", "commit", merge).stdout
-    # The setting under test lives in the developer's own config.
-    _git(repo, "config", "log.showSignature", "true")
-    return repo, merge
-
-
-def test_main_merge_detection_reads_a_signed_merge(tmp_path: Path) -> None:
-    """`log.showSignature` decorates `git show` as well as `git log`.
-
-    The parents are read by splitting that output and skipping the first
-    field, which is the merge's own first parent. Prefixed with a
-    verification report, the first field is a word of that report instead,
-    so the first parent joins the parents searched for main. A merge of a
-    side branch made from a commit main already holds then reports as a
-    merge of main, which doubles the commit limit this push is held to.
-    """
-    repo, merge = _repo_with_a_signed_merge(tmp_path, of_main=False)
-
-    assert policy._merge_has_main_parent(merge, repo) is False
-
-
-def test_main_merge_detection_still_reads_a_signed_merge_of_main(
-    tmp_path: Path,
-) -> None:
-    """The negative control for the test above.
-
-    Naming the signature behaviour must not stop a real merge of main from
-    being found, which is the case the raised limit exists for.
-    """
-    repo, merge = _repo_with_a_signed_merge(tmp_path, of_main=True)
-
-    assert policy._merge_has_main_parent(merge, repo) is True
-
-
-def _repo_where_main_has_landed_a_branch(tmp_path: Path, name: str) -> Path:
-    """Build a repo whose main landed a feature branch through a merge.
-
-    `origin/main` then contains that branch's tip, but the tip is the second
-    parent of the merge that landed it, not a commit on main's own trunk.
-    Branch `trunk-landing` names the landing merge, and main carries one
-    commit past it, so a merge of an older trunk commit can be told from a
-    merge of main's tip.
-    """
-    repo = tmp_path / name
-    _init_repo(repo, branch="main")
-    _commit_file(repo, "base.md", "base\n")
-    # Named refs only. A raw sha as a branch point is not resolvable under this
-    # suite's git environment (Refs #3661).
-    _git(repo, "branch", "local")
-    _git(repo, "branch", "landed")
-    _git(repo, "checkout", "-q", "landed")
-    _commit_file(repo, "landed.md", "landed\n")
-    _git(repo, "checkout", "-q", "main")
-    _git(repo, "merge", "-q", "--no-ff", "-m", "land the feature", "landed")
-    _git(repo, "branch", "trunk-landing")
-    _commit_file(repo, "after.md", "after\n")
-    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
-    _git(repo, "checkout", "-q", "local")
-    return repo
-
-
-def _merge_into_local(repo: Path, ref: str) -> str:
-    _git(repo, "merge", "-q", "--no-ff", "-m", f"merge {ref}", ref)
-    return _git(repo, "rev-parse", "HEAD").stdout.strip()
-
-
-def test_merging_a_branch_main_already_landed_is_not_a_merge_of_main(
-    tmp_path: Path,
-) -> None:
-    """A landed branch is an ancestor of main, and that is not enough.
-
-    Merging a branch main has already landed brings in no history main did
-    not already hand out, so it is not the case the raised limit exists for.
-    Reading the parent as main's because main can reach it lets any developer
-    take the wider limit by merging a branch whose pull request has landed,
-    which is ordinary git usage rather than an attack.
-    """
-    repo = _repo_where_main_has_landed_a_branch(tmp_path, "landed-branch")
-    merge = _merge_into_local(repo, "landed")
-
-    assert policy._merge_has_main_parent(merge, repo) is False
-
-
-def test_merging_main_itself_is_still_a_merge_of_main(tmp_path: Path) -> None:
-    """The negative control. The case the raised limit exists for still reads."""
-    repo = _repo_where_main_has_landed_a_branch(tmp_path, "merge-of-main")
-    merge = _merge_into_local(repo, "main")
-
-    assert policy._merge_has_main_parent(merge, repo) is True
-
-
-def test_merging_an_older_commit_on_main_is_a_merge_of_main(tmp_path: Path) -> None:
-    """Main's trunk is not just its tip.
-
-    A developer who merges main and then falls behind has still merged main,
-    so every commit main reaches by first parent counts, not only the newest.
-    """
-    repo = _repo_where_main_has_landed_a_branch(tmp_path, "older-main")
-    merge = _merge_into_local(repo, "trunk-landing")
-
-    assert policy._merge_has_main_parent(merge, repo) is True
-
-
-def test_a_landed_branch_does_not_widen_the_commit_limit(tmp_path: Path) -> None:
-    """The consumer reads the same way the detector does.
-
-    The limit is what this gate actually holds a push to, so the detector's
-    verdict is checked where it is spent as well as where it is made.
-    """
-    repo = _repo_where_main_has_landed_a_branch(tmp_path, "limit-landed")
-    base = _git(repo, "rev-parse", "local").stdout.strip()
-    for index in range(21):
-        _git(repo, "commit", "-q", "--allow-empty", "-m", f"local {index:02d}")
-    head = _merge_into_local(repo, "landed")
-    update = policy.PushUpdate(
-        policy.PushRef("refs/heads/local", head, "refs/heads/local", base),
-        base,
-        head,
-        f"{base}..{head}",
-        "local",
-    )
-
-    assert policy._contains_main_merge(update, repo) is False
-
-
-def test_a_merge_is_not_a_merge_of_main_when_there_is_no_origin_main(
-    tmp_path: Path,
-) -> None:
-    """The edge case. An unreadable trunk must not widen the limit.
-
-    A clone that has never fetched `origin/main` cannot say what main's trunk
-    holds. Reading nothing as reaching everything would hand the wider limit
-    to exactly the repos the gate knows least about.
-    """
-    repo = _repo_where_main_has_landed_a_branch(tmp_path, "no-origin")
-    _git(repo, "update-ref", "-d", "refs/remotes/origin/main")
-    merge = _merge_into_local(repo, "main")
-
-    assert policy.main_first_parent_shas(repo) == frozenset()
-    assert policy._merge_has_main_parent(merge, repo) is False
-
-
-def test_the_main_trunk_is_read_once_for_one_push(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Reading main's trunk per merge walks the same history many times.
-
-    The walk is cheap on a small repo and is not cheap on a long-lived one,
-    and a push may legitimately carry many merges. Reading it once per push
-    keeps the cost flat in the number of merges pushed.
-    """
-    update = _push_update()
-    trunk_reads: list[None] = []
-
-    def fake_first_parent_shas(_root: Path, run_git: object = None) -> frozenset[str]:
-        trunk_reads.append(None)
-        return frozenset(["a-main-commit"])
-
-    def fake_git(_root: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-        if args[:2] == ["rev-list", "--count"]:
-            return _completed(0, "5\n")
-        if args[:2] == ["rev-list", "--merges"]:
-            return _completed(0, "".join(f"merge-{index}\n" for index in range(25)))
-        if args[0] == "show" and "--format=%P" in args:
-            return _completed(0, "first-parent a-landed-branch\n")
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_git", fake_git)
-    # main_first_parent_shas is imported into git_hook_policy's namespace; patch
-    # it there so _contains_main_merge picks up the mock.
-    monkeypatch.setattr(policy, "main_first_parent_shas", fake_first_parent_shas)
-
-    assert policy._contains_main_merge(update, tmp_path) is False
-    assert len(trunk_reads) == 1
 
 
 def test_review_marker_reports_git_error(
@@ -6826,14 +7002,27 @@ def test_pytest_policy_cleans_hook_environment(
         returncode = 0
         pid = os.getpid()
 
-        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+        def __init__(self, args: Sequence[str], **kwargs: object) -> None:
+            self.args = args
             captured.update(kwargs)
 
         def communicate(
-            self, *, input: object = None, timeout: float | None = None
+            self, input: object = None, *, timeout: float | None = None
         ) -> tuple[str, str]:
             captured["timeout"] = timeout
             return ("", "")
+
+        def poll(self) -> int:
+            return self.returncode
+
+        def kill(self) -> None:
+            return None
+
+        def __enter__(self) -> FakePopen:
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            return None
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
 
@@ -6887,6 +7076,7 @@ def test_workflow_local_maps_secret_skip_but_blocks_tool_gap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _write_file(tmp_path, ".github/workflows/test.yml", "name: test\n")
     monkeypatch.setattr(
         policy,
         "_run_command",
@@ -7044,6 +7234,12 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
             return ("", "")
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    # Pin the workstation contract. `_run_command` clamps a child's deadline
+    # inside a managed container (ADR-104 rule 8), and this repository's own
+    # dev containers set CLAUDECODE, so without this the assertion below reads
+    # the clamp rather than the budget it is about. The container behaviour is
+    # covered by its own test below.
+    monkeypatch.setattr(policy, "_container_clamped", lambda seconds: seconds)
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
     env = captured["env"]
@@ -7052,6 +7248,222 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
     assert captured["timeout"] == policy.CLI_E2E_TIMEOUT_SECONDS
     assert "CLAUDE_PROJECT_DIR" not in env
     assert "COPILOT_PLUGIN_ROOT" not in env
+
+
+@pytest.mark.parametrize(
+    ("runner", "empty"),
+    [("_run_command", ""), ("_run_command_bytes", b"")],
+)
+def test_both_subprocess_entry_points_clamp_in_a_container(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    runner: str,
+    empty: object,
+) -> None:
+    """Two functions spawn children, so the bound has to be on both.
+
+    `_run_command_bytes` did not clamp until review on PR #5319. Its only
+    caller passes the 90s default, under the 150s ceiling, so nothing was
+    escaping in practice, which is exactly why nothing noticed: a second entry
+    point that spawns without the bound is a hole in ADR-104 rule 8 whatever
+    the current call graph looks like, and the next caller passing a larger
+    value would have found it in production rather than here.
+
+    Parametrized over both so neither can regress alone. A test that covered
+    only the clamped one would have passed throughout the period the other was
+    unclamped.
+    """
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **_kwargs: object) -> None:
+            pass
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[object, object]:
+            captured["timeout"] = timeout
+            return (empty, empty)
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(
+        policy,
+        "_container_clamped",
+        lambda seconds: min(seconds, policy.CONTAINER_SUBPROCESS_CEILING_SECONDS),
+    )
+
+    getattr(policy, runner)(["true"], tmp_path, timeout_seconds=1_800.0)
+
+    ceiling = policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+    assert captured["timeout"] == ceiling, (
+        f"{runner} handed its child {captured['timeout']}s against a {ceiling}s "
+        "container ceiling, so that entry point spawns children the container "
+        "bound does not reach."
+    )
+
+
+def test_neither_entry_point_clamps_on_a_workstation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Control for the pair above: without a container the budget is untouched.
+
+    If this ever agrees with the test above, the clamp is unconditional and
+    that assertion is reading the ceiling under another name rather than
+    evidence that a container is detected.
+    """
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **_kwargs: object) -> None:
+            pass
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(policy, "_container_clamped", lambda seconds: seconds)
+
+    policy._run_command(["true"], tmp_path, timeout_seconds=1_800.0)
+
+    assert captured["timeout"] == 1_800.0
+    assert captured["timeout"] > policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+
+
+def test_an_unavailable_container_detector_says_so_before_going_unclamped(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The one hole in the per-job container bound must be audible.
+
+    `_container_clamped` degrades to the unclamped deadline when the sibling
+    detection module cannot be imported, which is the right call: a safety net
+    that can itself block a legitimate push is worse than no net. But the
+    degradation voids the bound the PR claims, and a claim that lapses without
+    saying so is the failure mode this whole change is about. Raised by a
+    spec-validation pass, which read the guarantee as unconditional and the
+    code as conditional, and was right about both.
+
+    Pinned on the warning rather than on a raise, deliberately. Failing closed
+    here would either clamp a workstation job that legitimately needs 20
+    minutes, or refuse the push outright over a broken import unrelated to the
+    diff. Both trade a rare silent gap for a common loud one.
+    """
+    real_import = builtins.__import__
+
+    # Signature mirrors `builtins.__import__` exactly rather than using
+    # *args/**kwargs. The loose form does not type-check: mypy resolves the
+    # forwarded call against __import__'s real overloads and rejects
+    # `object` for globals, fromlist, and level. Spelling the parameters out
+    # is the idiomatic fix and documents what the shim intercepts.
+    def refuse_the_detector(
+        name: str,
+        globals: Mapping[str, object] | None = None,
+        locals: Mapping[str, object] | None = None,
+        fromlist: Sequence[str] = (),
+        level: int = 0,
+    ) -> ModuleType:
+        if name == "run_workflow_local_test":
+            raise ImportError("simulated missing sibling module")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", refuse_the_detector)
+    monkeypatch.delitem(sys.modules, "run_workflow_local_test", raising=False)
+
+    assert policy._container_clamped(1140.0) == 1140.0, (
+        "an unavailable detector must not clamp: it cannot tell a container "
+        "from a workstation, and guessing either way is worse than the warning."
+    )
+
+    err = capsys.readouterr().err
+    for expected in ("container detection unavailable", "NOT applied", "ADR-104"):
+        assert expected in err, (
+            f"the degradation path did not say {expected!r}. Going unclamped "
+            "in silence leaves a container push able to outlive its "
+            "environment with nothing in the output to explain the reclaim."
+        )
+
+
+def test_a_container_clamps_the_cli_e2e_child_deadline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The other half of the contract the test above pins.
+
+    A managed container is reclaimed after a period without progress, so a
+    child allowed 1140s there can outlive the environment and take the push
+    with it, leaving no diagnostic. On a workstation the same budget is
+    correct, which is why the two cases are asserted separately.
+    """
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setenv("CLAUDECODE", "1")
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
+
+    assert captured["timeout"] == policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+    assert policy.CONTAINER_SUBPROCESS_CEILING_SECONDS < policy.CLI_E2E_TIMEOUT_SECONDS
+
+
+def test_ci_keeps_the_full_budget_even_inside_a_container_image(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Negative control: CI must not inherit the clamp.
+
+    CI runners can carry container markers, and a real hang there is a real
+    failure that should surface as one. `_is_remote_container` returns False
+    whenever the CI marker is truthy, and this is the assertion that says so.
+    """
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(policy.shutil, "which", lambda name: name if name == "copilot" else None)
+    captured: dict[str, object] = {}
+
+    class FakePopen:
+        returncode = 0
+        pid = os.getpid()
+
+        def __init__(self, _args: Sequence[str], **kwargs: object) -> None:
+            captured.update(kwargs)
+
+        def communicate(
+            self, *, input: object = None, timeout: float | None = None
+        ) -> tuple[str, str]:
+            captured["timeout"] = timeout
+            return ("", "")
+
+    monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setenv("CI", "true")
+
+    assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
+    assert captured["timeout"] == policy.CLI_E2E_TIMEOUT_SECONDS
 
 
 def test_cli_e2e_without_cli_fails_closed(
@@ -7095,6 +7507,80 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
 
     monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
     assert policy.sync_observations(["memory-observations.md"], tmp_path) == 0
+
+
+def test_sync_observations_stops_at_its_internal_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The advisory must finish under its lefthook cap from the inside.
+
+    A lefthook `timeout:` kill cannot be absorbed by a shell guard, so an
+    advisory job that overruns its cap blocks the push. Each file costs up to
+    the MCP client timeout when the Forgetful server is unreachable, and the
+    first push of a new branch sweeps every tracked observation file into the
+    job, so the loop needs a wall-clock deadline of its own.
+    """
+    synced: list[str] = []
+
+    def _record(command: list[str], _root: Path, **_kwargs: object) -> object:
+        synced.append(command[3])
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    clock = iter([0.0, 0.0, 500.0])
+    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
+
+    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
+
+    assert synced == ["a.md"]
+    assert "skipped 1 of 2" in capsys.readouterr().err
+
+
+def test_sync_observations_clamps_the_child_timeout_to_the_remaining_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child spawned near the deadline must not outlive the budget.
+
+    The deadline check runs between spawns, so without a clamp a child started
+    just under the deadline keeps the 90s subprocess default and carries the
+    job past the lefthook cap whose kill cannot be absorbed by a shell guard.
+    """
+    seen: list[float] = []
+
+    def _record(command: list[str], _root: Path, *, timeout_seconds: float) -> object:
+        seen.append(timeout_seconds)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 200.0)
+    clock = iter([0.0, 150.0, 199.0, 250.0])
+    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
+
+    assert policy.sync_observations(["a.md", "b.md", "c.md"], tmp_path) == 0
+
+    # 50s left at the first spawn, 1s at the second; both beat the 90s default.
+    assert seen == [50.0, 1.0]
+
+
+def test_sync_observations_reports_a_fully_exhausted_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: the deadline can pass before the first file is attempted."""
+    monkeypatch.setattr(
+        policy,
+        "_run_command",
+        lambda *_args, **_kwargs: pytest.fail("budget was exhausted; nothing may sync"),
+    )
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 0.0)
+
+    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
+
+    assert "skipped 2 of 2" in capsys.readouterr().err
 
 
 def test_placeholder_identity_handles_malformed_deletion_and_failure(
@@ -7826,6 +8312,125 @@ def test_remaining_policy_success_and_error_branches(
     assert "recommended maximum" not in capsys.readouterr().out
 
 
+def test_observation_sync_runs_every_file_within_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Positive: with budget headroom every pushed file is imported once,
+    each child clamped to at most the remaining budget."""
+    commands: list[list[str]] = []
+    timeouts: list[float] = []
+
+    def _record(command, *_args, **_kwargs):
+        commands.append(command)
+        timeouts.append(_kwargs["timeout_seconds"])
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    imported = [command[3] for command in commands]
+    assert imported == ["a-observations.md", "b-observations.md"]
+    assert all(t <= policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS for t in timeouts)
+    assert all(t > 0 for t in timeouts)
+    assert "budget" not in capsys.readouterr().err
+
+
+def test_observation_sync_stays_advisory_on_per_file_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Negative: a failing import warns, continues, and never blocks the push."""
+    results = iter([_completed(1), _completed(0)])
+    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: next(results))
+    assert policy.sync_observations(["bad-observations.md", "ok-observations.md"], tmp_path) == 0
+    err = capsys.readouterr().err
+    assert "observation sync failed for 'bad-observations.md'" in err
+    assert "budget" not in err
+
+
+def test_observation_sync_budget_exhaustion_skips_remaining_and_stays_green(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: lefthook's 5m timeout kill cannot be absorbed by an advisory job,
+    so the loop's own budget must stop it first, name every skipped file (no
+    silent caps), and still return 0."""
+    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", -1.0)
+    calls: list[list[str]] = []
+
+    def _forbidden(command, *_args, **_kwargs):
+        calls.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _forbidden)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    assert calls == []
+    err = capsys.readouterr().err
+    assert "budget" in err
+    assert "skipped 2" in err
+    assert "'a-observations.md', 'b-observations.md'" in err
+
+
+def test_observation_sync_mid_loop_expiry_keeps_progress_and_names_the_rest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Edge: the deadline passing between files keeps the files already
+    imported and skips exactly the remainder, naming them."""
+    clock = iter([0.0, 0.0, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0])
+
+    def _tick() -> float:
+        return next(clock, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0)
+
+    monkeypatch.setattr(policy.time, "monotonic", _tick)
+    commands: list[list[str]] = []
+
+    def _record(command, *_args, **_kwargs):
+        commands.append(command)
+        return _completed(0)
+
+    monkeypatch.setattr(policy, "_run_command", _record)
+    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
+    assert [command[3] for command in commands] == ["a-observations.md"]
+    err = capsys.readouterr().err
+    assert "exhausted after 1 of 2" in err
+    assert "'b-observations.md'" in err
+    assert "'a-observations.md'," not in err
+
+
+def test_observation_sync_budget_sits_below_the_lefthook_cap() -> None:
+    """The budget protects the job only if budget plus one worst-case child
+    (the unclamped straggler bound) stays at or under lefthook.yml's cap."""
+    import yaml
+
+    repo_root = Path(__file__).resolve().parents[1]
+    config = yaml.safe_load((repo_root / "lefthook.yml").read_text(encoding="utf-8"))
+
+    def _find(jobs):
+        for job in jobs:
+            if job.get("name") == "observation-sync-advisory":
+                return job
+            if "group" in job:
+                found = _find(job["group"].get("jobs", []))
+                if found is not None:
+                    return found
+        return None
+
+    job = _find(config["pre-push"]["jobs"])
+    assert job is not None, "observation-sync-advisory job missing from lefthook.yml"
+    cap_text = job["timeout"]
+    assert cap_text.endswith("m")
+    cap_seconds = float(cap_text[:-1]) * 60
+    assert (
+        policy._OBSERVATION_SYNC_BUDGET_SECONDS + policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
+        <= cap_seconds
+    )
+
+
 def test_changed_commit_path_and_scan_edge_cases(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7864,7 +8469,7 @@ def test_changed_commit_path_and_scan_edge_cases(
         "_changed_commit_paths",
         lambda *_args: ["source.py"],
     )
-    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args: 2)
+    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 2)
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
     monkeypatch.setattr(policy, "_materialize_commit_tree", lambda *_args: 2)
     assert real_scan_pushed_head("head", ["source.py"], tmp_path) == 2
@@ -7880,7 +8485,7 @@ def test_changed_commit_path_and_scan_edge_cases(
         "_changed_commit_paths",
         lambda *_args: ["source.py"],
     )
-    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args: 0)
+    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 0)
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0
 
 
@@ -8079,6 +8684,19 @@ def test_pushed_workflow_paths_selects_only_branch_delta(tmp_path: Path) -> None
     )
 
     assert changed == {".github/workflows/mine.yml"}
+
+
+def test_select_pushed_workflows_excludes_deleted_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, base = _workflow_repo_with_base(tmp_path)
+    deleted = ".github/workflows/imported.yml"
+    _git(repo, "rm", "--", deleted)
+    _git(repo, "commit", "-qm", "test: delete imported workflow")
+    monkeypatch.setenv(policy.WORKFLOW_LOCAL_BASE_REF_ENV, base)
+
+    assert policy._select_pushed_workflows([deleted], repo) == []
 
 
 def test_pushed_workflow_paths_returns_none_when_base_unresolved(
@@ -9933,109 +10551,6 @@ def test_the_repository_itself_has_no_unfenced_conflict_markers() -> None:
     assert offenders == []
 
 
-# ---------------------------------------------------------------------------
-# Issue #3610: the ceiling's only relief was a `commit-limit-bypass` label on an
-# open PR, which cannot exist on a branch's first push. A stacked branch that
-# inherits its ancestors' commits therefore deadlocked.
-# ---------------------------------------------------------------------------
-
-
-def _deny_bypass_label(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Fail only the bypass-label lookup, leaving real git calls intact.
-
-    `_run_git` is implemented on top of `_run_command`, so a blanket patch of
-    `_run_command` also breaks the rev-list the ceiling depends on and turns
-    every result into a config error.
-    """
-    real = policy._run_command
-
-    def fake(
-        argv: Sequence[str],
-        repo_root: Path,
-        **kwargs: Any,
-    ) -> subprocess.CompletedProcess[str]:
-        if any("check_pr_bypass_label" in str(part) for part in argv):
-            return _completed(1)
-        return real(argv, repo_root, **kwargs)
-
-    monkeypatch.setattr(policy, "_run_command", fake)
-
-
-def _stacked_repo(tmp_path: Path, first: int, second: int) -> tuple[Path, str]:
-    """Build origin/main plus a pushed featA and an unpushed featB stacked on it."""
-    remote = tmp_path / "remote.git"
-    work = tmp_path / "work"
-    subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
-    _init_repo(work, branch="main")
-    _commit_file(work, "README.md", "seed\n")
-    _git(work, "remote", "add", "origin", str(remote))
-    _git(work, "push", "-q", "origin", "main")
-
-    _git(work, "checkout", "-q", "-b", "featA")
-    for index in range(first):
-        _commit_file(work, f"a{index}.txt", f"{index}\n")
-    _git(work, "push", "-q", "origin", "featA")
-
-    _git(work, "checkout", "-q", "-b", "featB")
-    for index in range(second):
-        _commit_file(work, f"b{index}.txt", f"{index}\n")
-    head = _git(work, "rev-parse", "HEAD").stdout.strip()
-    return work, head
-
-
-def _update_for(branch: str, head: str) -> policy.PushUpdate:
-    source = policy.PushRef(f"refs/heads/{branch}", head, f"refs/heads/{branch}", "0" * 40)
-    return policy.PushUpdate(source, "origin/main", head, f"origin/main..{head}", branch)
-
-
-def test_a_stacked_branch_counts_only_the_commits_it_adds(tmp_path: Path) -> None:
-    work, head = _stacked_repo(tmp_path, first=15, second=10)
-    assert int(_git(work, "rev-list", "--count", "origin/main..HEAD").stdout) == 25
-    assert policy._unpushed_commit_count(_update_for("featB", head), work) == 10
-
-
-def test_a_re_push_of_the_same_branch_gets_no_relief(tmp_path: Path) -> None:
-    """Negative control: excluding the branch's own remote ref would retire the
-    ceiling for every branch pushed more than once."""
-    work, _ = _stacked_repo(tmp_path, first=15, second=0)
-    _git(work, "checkout", "-q", "featA")
-    for index in range(6):
-        _commit_file(work, f"a2_{index}.txt", f"{index}\n")
-    head = _git(work, "rev-parse", "HEAD").stdout.strip()
-    assert int(_git(work, "rev-list", "--count", "origin/main..HEAD").stdout) == 21
-    assert policy._unpushed_commit_count(_update_for("featA", head), work) == 21
-
-
-def test_the_commit_limit_lets_a_stacked_first_push_through(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """End to end: no PR exists, the bypass label check fails, relief still applies."""
-    work, head = _stacked_repo(tmp_path, first=15, second=10)
-    _deny_bypass_label(monkeypatch)
-    assert policy._check_commit_limit(_update_for("featB", head), work) == 0
-
-
-def test_the_commit_limit_still_blocks_an_unstacked_branch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Negative control: 25 commits none of which another branch carries is blocked."""
-    work, _ = _stacked_repo(tmp_path, first=0, second=0)
-    _git(work, "checkout", "-q", "-b", "solo")
-    for index in range(25):
-        _commit_file(work, f"s{index}.txt", f"{index}\n")
-    head = _git(work, "rev-parse", "HEAD").stdout.strip()
-    _deny_bypass_label(monkeypatch)
-    assert policy._check_commit_limit(_update_for("solo", head), work) == 1
-
-
-def test_the_commit_ceilings_come_from_the_shared_module() -> None:
-    """Issue #3596: the hook must not restate the numbers CI enforces."""
-    from scripts.validation import pr_commit_count
-
-    assert policy.BLOCK_THRESHOLD == pr_commit_count.BLOCK_THRESHOLD == 20
-    assert policy.MAIN_MERGE_BLOCK_THRESHOLD == pr_commit_count.MAIN_MERGE_BLOCK_THRESHOLD == 40
-
-
 def test_taste_findings_stay_advisory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -10315,7 +10830,10 @@ def test_the_tracked_scan_skips_a_sparse_missing_file(tmp_path: Path) -> None:
     assert policy.check_tracked_conflict_markers(repo) == 0
 
 
-@pytest.mark.skipif(os.name == "nt", reason="chmod 0 is a no-op on Windows")
+@pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="root and Windows do not honour the mode-bit barrier this needs",
+)
 def test_the_tracked_scan_fails_config_on_an_unreadable_file(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

@@ -1,0 +1,94 @@
+{
+  "id": "episode-2026-08-14-session-14710-b2c958770-split-memory-from-4956",
+  "session": "2026-08-14-session-14710-b2c958770-split-memory-from-4956",
+  "timestamp": "2026-08-14T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Split memory changes from PR #4956 to comply with no-bundling rule",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-14T16:30:00+00:00",
+      "type": "milestone",
+      "content": "Reverted .serena/memories/ to main.",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-14-session-14710-b2c958770-split-memory-from-4956"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-14T16:35:00+00:00",
+      "type": "milestone",
+      "content": "Created PR #4983 for memory-only changes.",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-14-session-14710-b2c958770-split-memory-from-4956"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-14T16:40:00+00:00",
+      "type": "milestone",
+      "content": "Updated session evidence to reference external commit.",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-14-session-14710-b2c958770-split-memory-from-4956"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-14T16:45:00+00:00",
+      "type": "milestone",
+      "content": "Updated QA report commit references.",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-14-session-14710-b2c958770-split-memory-from-4956"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-14T16:52:35+00:00",
+      "type": "commit",
+      "content": "Commit: fadc1ef6f",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-14-session-14710-b2c958770-split-memory-from-4956"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-14T18:24:03+00:00",
+      "type": "commit",
+      "content": "Commit: 92358004b8004da624d48215c3a47b7f8ea646b2",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-14-session-14710-b2c958770-split-memory-from-4956"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 15,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 2,
+    "files_changed": 15
+  },
+  "lessons": []
+}

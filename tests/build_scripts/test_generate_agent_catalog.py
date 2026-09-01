@@ -9,6 +9,7 @@ is stale or missing).
 from __future__ import annotations
 
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
@@ -26,7 +27,7 @@ def _write_template(
     name: str,
     *,
     description: str = "A test agent.",
-    tier: str = "builder",
+    role: str = "executor",
     extra_body: str = "Body line.\n",
 ) -> Path:
     """Write a ``<name>.shared.md`` template with the given frontmatter."""
@@ -34,7 +35,7 @@ def _write_template(
     path = templates_dir / f"{name}.shared.md"
     content = (
         "---\n"
-        f"tier: {tier}\n"
+        f"role: {role}\n"
         f"description: {description}\n"
         "---\n"
         f"# {name.title()} Agent\n"
@@ -50,17 +51,47 @@ def _write_template(
 def test_render_includes_one_row_per_template(tmp_path: Path) -> None:
     # Arrange
     templates_dir = tmp_path / "templates" / "agents"
-    _write_template(templates_dir, "alpha", description="First agent.", tier="builder")
-    _write_template(templates_dir, "beta", description="Second agent.", tier="expert")
+    _write_template(templates_dir, "alpha", description="First agent.", role="executor")
+    _write_template(templates_dir, "beta", description="Second agent.", role="strategic")
 
     # Act
     content = gac.render_catalog(gac.collect_entries(templates_dir))
 
     # Assert
-    assert "| [alpha](../templates/agents/alpha.shared.md) | builder |" in content
+    assert "| [alpha](../templates/agents/alpha.shared.md) | executor |" in content
     assert "First agent." in content
-    assert "| [beta](../templates/agents/beta.shared.md) | expert |" in content
+    assert "| [beta](../templates/agents/beta.shared.md) | strategic |" in content
     assert "_2 agent templates indexed._" in content
+
+
+@pytest.mark.parametrize("role", ["strategic", "coordinator", "executor", "support"])
+def test_every_known_role_is_accepted(tmp_path: Path, role: str) -> None:
+    # Arrange
+    templates_dir = tmp_path / "templates" / "agents"
+    _write_template(templates_dir, "alpha", role=role)
+
+    # Act
+    content = gac.render_catalog(gac.collect_entries(templates_dir))
+
+    # Assert
+    assert f"| {role} |" in content
+
+
+@pytest.mark.parametrize("role", ["buidler", "builder", "expert", "Executor"])
+def test_role_outside_the_known_set_is_rejected(tmp_path: Path, role: str) -> None:
+    """A typo or a stale pre-migration value must not render into the catalog.
+
+    The Copilot frontmatter validator constrains this field; this generator did
+    not, so a value rejected by one gate could still reach docs/agent-catalog.md
+    through the other. Refs #5130 review.
+    """
+    # Arrange
+    templates_dir = tmp_path / "templates" / "agents"
+    _write_template(templates_dir, "alpha", role=role)
+
+    # Act / Assert
+    with pytest.raises(gac.CatalogError, match="expected one of"):
+        gac.collect_entries(templates_dir)
 
 
 def test_entries_are_sorted_by_name(tmp_path: Path) -> None:
@@ -171,7 +202,7 @@ def test_invalid_yaml_raises_catalog_error(tmp_path: Path) -> None:
         gac.collect_entries(templates_dir)
 
 
-@pytest.mark.parametrize("field", ["description", "tier"])
+@pytest.mark.parametrize("field", ["description", "role"])
 def test_missing_required_frontmatter_field_raises_catalog_error(
     tmp_path: Path, field: str
 ) -> None:
@@ -180,7 +211,7 @@ def test_missing_required_frontmatter_field_raises_catalog_error(
     templates_dir.mkdir(parents=True)
     frontmatter_lines = {
         "description": "description: A test agent.",
-        "tier": "tier: builder",
+        "role": "role: executor",
     }
     frontmatter_lines.pop(field)
     (templates_dir / "broken.shared.md").write_text(
@@ -198,8 +229,8 @@ def test_missing_required_frontmatter_field_raises_catalog_error(
     [
         ("description", "[]"),
         ("description", "''"),
-        ("tier", "[]"),
-        ("tier", "''"),
+        ("role", "[]"),
+        ("role", "''"),
     ],
 )
 def test_malformed_required_frontmatter_field_raises_catalog_error(
@@ -210,7 +241,7 @@ def test_malformed_required_frontmatter_field_raises_catalog_error(
     templates_dir.mkdir(parents=True)
     frontmatter_lines = {
         "description": "description: A test agent.",
-        "tier": "tier: builder",
+        "role": "role: executor",
     }
     frontmatter_lines[field] = f"{field}: {value}"
     (templates_dir / "broken.shared.md").write_text(
@@ -301,10 +332,19 @@ def test_validator_returns_config_error_when_generator_import_fails(
 
     original_import = builtins.__import__
 
-    def fake_import(name: str, *args: object, **kwargs: object) -> object:
+    # Mirror __import__'s real signature rather than (*args, **kwargs). mypy
+    # resolves __import__ through overloads keyed on the fromlist argument, so
+    # forwarding *tuple[object, ...] fails every overload at once.
+    def fake_import(
+        name: str,
+        globals: Mapping[str, object] | None = None,
+        locals: Mapping[str, object] | None = None,
+        fromlist: Sequence[str] = (),
+        level: int = 0,
+    ) -> object:
         if name == "generate_agent_catalog":
             raise ImportError("boom")
-        return original_import(name, *args, **kwargs)
+        return original_import(name, globals, locals, fromlist, level)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
 

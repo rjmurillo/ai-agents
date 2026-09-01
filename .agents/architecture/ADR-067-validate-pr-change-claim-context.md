@@ -1,3 +1,14 @@
+---
+id: ADR-067
+status: proposed
+date: 2026-06-02
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-067: validate-pr Check 1 default-flip - change-claim context required
 
 ## Status

@@ -79,28 +79,13 @@ found" reads identically either way.
 
 Authored file size is a **hard error at 501 lines** and a warning from 301 to
 500, so a file that silently skipped the check can block a later commit.
-## A commit touching `.agents/` must carry the session log
+## Session logs validate only when present
 
-`session-policy` rejects any commit that stages a file under `.agents/` unless
-the JSON session log is staged in that **same** commit. Splitting the work into
-"content commit, then log commit" fails on the first one.
+Commits under `.agents/` do not require a session log. The `session-policy`
+hook returns success when no log is staged. If a JSON log is staged, the
+retained validator still rejects malformed or incomplete content.
 
-Symptom: a commit touching `.agents/analysis/` or `.agents/architecture/` is
-rejected while the identical change under any other path commits fine. See also
-"Session log ordering" below, which governs when the log may first be staged.
-## Session log ordering
-
-Create the session log **untracked in the worktree before the first commit**,
-and stage it only at session end.
-
-`branch-context-policy` reads the worktree and wants the log present.
-`session-policy` rejects a *staged* log whose `sessionEnd` is incomplete. A
-session log cannot be both staged early and complete early, so following the
-protocol literally (create and stage at start) cannot pass both gates.
-
-Symptom: a commit is rejected by one of the two policies no matter which order
-you try. Refs #3904.
-## Never record `endingCommit` and then amend
+## If you opt into a log, never record `endingCommit` and then amend
 
 `endingCommit` must name a commit that is still reachable:
 `scripts/validation/session_scope.py` runs `git merge-base --is-ancestor <sha>
@@ -128,7 +113,7 @@ endingCommit '<sha>' names a commit that is not an ancestor of HEAD
 
 Refs #3618.
 
-## A session log cannot name the commit that carries it
+## An opted-in session log cannot name the commit that carries it
 
 The follow-up-commit remedy above has a missing first step, and without it the
 first commit of a session is unreachable.
@@ -238,20 +223,29 @@ destination file, because the suppression becomes active at that boundary.
 
 Existing suppressions on `main` remain grandfathered unless the change makes
 them newly active. Refs #3940, #4049, #4051, and #4052.
-## The push blocks at 21 commits, and the check runs at push time
+## Large branches get an advisory notice, not a block (ADR-099)
 
-The pre-push `push-ref-policy` hook hard-fails at more than 20 commits ahead of
-`origin/main`. It runs at push time, so a long branch discovers the ceiling
-after the work is committed, not while it accumulates. Check it mid-session:
+The pre-push `push-ref-policy` hook and `pr-validation.yml` used to hard-fail a
+branch carrying more than 20 commits ahead of `origin/main` (40 after a
+main-merge), with relief only through a human-only `commit-limit-bypass`
+label. ADR-099 removed that block: the local verification step
+(`scripts/validation/check_pr_bypass_label.py`, since deleted) shelled out to
+`gh api`, and a Claude Code cloud session with no `gh`/API access could never
+satisfy it even when the label was already correctly applied, forcing an
+expensive stacked-branch-and-PR workaround (issue #5233) to route around a
+verification failure that had nothing to do with the PR's merits.
+
+A large branch still gets a `needs-split` label and a WARNING (>=10 commits)
+or ALERT (>=15 commits) notice, both from `scripts/validation/pr_commit_count.py`,
+but neither blocks a push or a merge. Check mid-session if you want to see it
+coming:
 
 ```
 git rev-list --count HEAD ^origin/main
 ```
 
-Relief is the `commit-limit-bypass` label on the PR, and nothing else. Squashing
-is often the wrong repair, because the five-file atomic-commit rule then makes
-the collapsed commit a violation of a different rule. Prefer the label when the
-branch is one coherent thread, and split into a second PR when it is not.
+Splitting a large PR is still good practice for reviewability; it is no
+longer required by git.
 ## Never revert a source file with `git checkout` to negative-control a fix
 
 Negative-controlling a fix means reverting the source, confirming the new tests
@@ -486,6 +480,18 @@ it is validating**, so a rejected push is not by itself evidence that the branch
 is bad. Check `git config core.bare` before believing a push failure, and
 re-verify against a repaired repository before attributing anything to your
 change. Tracked in issue #4698.
+
+Detection now exists. `scripts/validation/check_repo_health.py` runs as the
+first `pre-commit` and `pre-push` job and fails with a repair named for the
+config scope that carries the value. It reads every scope rather than the
+effective answer, because the immunization above makes a repaired worktree
+report itself healthy while its siblings are still dead. It cannot help from a
+worktree git already refuses: lefthook resolves the top level before its first
+job and exits 128 there, so run the script by hand in that case:
+
+```
+uv run --frozen python scripts/validation/check_repo_health.py
+```
 
 ## When several unrelated checks fail at once, suspect the substrate
 
@@ -972,11 +978,8 @@ uv run --frozen python .claude/skills/memory/scripts/extract_session_episode.py 
 value stays derived rather than hand-set. Commit the log and the regenerated
 episode together as the follow-up commit the section above already requires.
 
-Watch for the interaction: `session-policy` forces any `.agents/` change to
-stage a session log, so a governance or architecture edit cannot avoid creating
-an episode, and the first such commit on a branch always produces a violating
-one. The follow-up commit is not optional bookkeeping; it is what keeps the
-branch pushable.
+This trap applies only when a contributor opts into a session log. Governance
+and architecture changes do not create logs or episodes by default.
 ## Two green PRs can merge into a red main, and the count ratchets will not warn
 
 The count ratchets compare one scalar baseline against a count taken over the
@@ -1116,17 +1119,18 @@ edits that usually live in different pull requests. Each is green against its
 own base, and they meet for the first time on main. That is the merge race in
 issue #3755, whose thesis was that
 `strict_required_status_checks_policy: false` let a green check describe a tree
-that no longer existed. That remedy shipped: the setting is now `true`
-(measured 2026-08-08), which is why #3755 closed on 2026-08-05. A branch behind
-main can no longer land at all, so the two edits can no longer meet for the
-first time on main.
+that no longer existed. That remedy shipped as `true` on 2026-08-04 but has
+since been returned to `false` (measured 2026-08-15). The count ratchets block
+a behind branch only when main lowers a relevant baseline; they do not enforce
+universal freshness.
 
-What remains is the case strict does not cover. Ruleset 11104075 still has no
-`merge_queue` rule and no workflow handles a `merge_group` event, so admission
-is serialized only by the refresh requirement, not by testing the combined
-result before the merge. The exact-equality assertion above is therefore the
-gate that still catches a baseline and a count arriving out of step, and it
-fires locally on a tree nobody's diff touched.
+What remains is the case neither strict nor the ratchets cover. Ruleset
+11104075 still has no `merge_queue` rule and no workflow handles a
+`merge_group` event, so admission is serialized only by the one-front landing
+protocol (see `docs/landing-workflow.md`), not by testing the combined result
+before the merge. The exact-equality assertion above is therefore the gate that
+still catches a baseline and a count arriving out of step, and it fires locally
+on a tree nobody's diff touched.
 
 **Fix.** Set `scripts/ci/taste_count_baseline.txt` to the count your tree
 actually measures, in the same commit that moves the count. Lowering a baseline

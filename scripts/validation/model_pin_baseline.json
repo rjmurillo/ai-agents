@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "description": "Frozen ADR-080 model-pin baseline. Draining ratchet: this count must never grow and should shrink each release until empty.",
-  "frozen_count": 52,
+  "frozen_count": 51,
   "pins": {
     ".claude/agents/analyst.md": "sonnet",
     ".claude/agents/architect.md": "opus",
@@ -43,7 +43,6 @@
     ".claude/commands/pr-quality/security.md": "sonnet",
     ".claude/commands/research.md": "opus",
     ".claude/skills/fix-markdown-fences/SKILL.md": "haiku",
-    ".claude/skills/guard-maturity/SKILL.md": "haiku",
     ".claude/skills/metrics/SKILL.md": "haiku",
     ".claude/skills/observability/SKILL.md": "haiku",
     ".claude/skills/security-detection/SKILL.md": "haiku",

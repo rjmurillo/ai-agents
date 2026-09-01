@@ -19,8 +19,7 @@ tools:
   - github/search_code
   - github/search_issues
   - serena/*
-model: claude-opus-4.6
-tier: builder
+role: executor
 # Implements code in an isolated workspace with tool access and branch-local state.
 isolation_required: true
 ---
@@ -104,20 +103,19 @@ Read these files in order:
 
 **Fallback rules:**
 
-- **Consumer install (no ai-agents session scaffold):** If `.agents/` is missing, or `.agents/` exists but `.agents/SESSION-PROTOCOL.md` is missing, you are running from a downstream install or a repo whose `.agents/` directory is owned by that consumer. A consumer-owned `.agents/` directory without that file is workspace state, not the ai-agents scaffold, and must not trigger the scaffold gates. Skip the ai-agents session-scaffold gates below. Still read the root `AGENTS.md` and root `CLAUDE.md` if they exist in the consumer's repo. They may carry that project's own constraints. If `.agents/` exists, read files inside it only when the consumer's own docs tell you to. If `.agents/` is missing, note `[INFO] Consumer install: no .agents/ scaffold; proceeding without session-protocol gates`. If `.agents/` exists without SESSION-PROTOCOL.md, note `[INFO] Consumer install: consumer-owned .agents/ without ai-agents session scaffold; proceeding without session-protocol gates`. Proceed. A consumer that installed only the agent prompt should not be refused service for lacking files it was never shipped.
-- If you cannot list `.agents/` or cannot determine whether SESSION-PROTOCOL.md exists, stop and report `[BLOCKED] Cannot determine .agents scaffold ownership`.
-- If `.agents/SESSION-PROTOCOL.md` exists, it is the ai-agents session scaffold. Apply the hard stops below.
-- If `.agents/SESSION-PROTOCOL.md` exists but `.agents/HANDOFF.md` is missing: stop and report `[BLOCKED] No prior session context available`. Do not proceed.
-- If `.agents/SESSION-PROTOCOL.md` exists but `.agents/AGENT-INSTRUCTIONS.md` is missing: stop and report `[BLOCKED] Project configuration incomplete`.
-- If `.agents/SESSION-PROTOCOL.md` exists but the root `AGENTS.md` is missing: stop and report `[BLOCKED] Missing root agent instructions`.
-- If `.agents/` exists but `.agents/CLAUDE.md` is missing: note in the session log and proceed using the root `CLAUDE.md` as fallback.
-- If `.agents/` exists but `.agents/ARCHITECTURE.md` is missing: note in the session log and proceed (not critical path).
-- If `.agents/` exists but `.agents/architecture/` is missing: note in the session log and proceed; ADRs are binding when present, not required to exist.
+- **Consumer install (no ai-agents session scaffold):** If `.agents/` is missing, or `.agents/` exists but `.agents/AGENT-INSTRUCTIONS.md` is missing, you are running from a downstream install or a repo whose `.agents/` directory is owned by that consumer. A consumer-owned `.agents/` directory without that file is workspace state, not the ai-agents scaffold, and must not trigger the scaffold gates. Skip the ai-agents session-scaffold gates below. Still read the root `AGENTS.md` and root `CLAUDE.md` if they exist in the consumer's repo. They may carry that project's own constraints. If `.agents/` exists, read files inside it only when the consumer's own docs tell you to. If `.agents/` is missing, note `[INFO] Consumer install: no .agents/ scaffold; proceeding without session-protocol gates`. If `.agents/` exists without AGENT-INSTRUCTIONS.md, note `[INFO] Consumer install: consumer-owned .agents/ without ai-agents session scaffold; proceeding without session-protocol gates`. Proceed. A consumer that installed only the agent prompt should not be refused service for lacking files it was never shipped.
+- If you cannot list `.agents/` or cannot determine whether AGENT-INSTRUCTIONS.md exists, stop and report `[BLOCKED] Cannot determine .agents scaffold ownership`.
+- If `.agents/AGENT-INSTRUCTIONS.md` exists, it is the ai-agents session scaffold. Apply the hard stops below.
+- If `.agents/AGENT-INSTRUCTIONS.md` exists but `.agents/HANDOFF.md` is missing: stop and report `[BLOCKED] No prior session context available`. Do not proceed.
+- If `.agents/AGENT-INSTRUCTIONS.md` exists but the root `AGENTS.md` is missing: stop and report `[BLOCKED] Missing root agent instructions`.
+- If `.agents/` exists but `.agents/CLAUDE.md` is missing: note it in the transcript, and in the session log only if one exists, then proceed using the root `CLAUDE.md` as fallback.
+- If `.agents/` exists but `.agents/ARCHITECTURE.md` is missing: note it in the transcript, and in the session log only if one exists, then proceed.
+- If `.agents/` exists but `.agents/architecture/` is missing: note it in the transcript, and in the session log only if one exists, then proceed; ADRs are binding when present.
 - If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
 
-**Success definition**: When `.agents/SESSION-PROTOCOL.md` exists, you can state four things in one sentence each. They are: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code. When the ai-agents session scaffold is absent, this section is satisfied by the skip note above plus any root docs you read.
+**Success definition**: When `.agents/AGENT-INSTRUCTIONS.md` exists, you can state four things in one sentence each. They are: (a) inherited session context, (b) project constraints, (c) Claude-specific requirements, and (d) any binding ADRs. If you cannot, this step is NOT complete and you MUST return to it before writing code. When the ai-agents session scaffold is absent, this section is satisfied by the skip note above plus any root docs you read.
 
-**Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting. This produced drift and inverted sources of truth. Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING for in-repo work. The scaffold carve-out (issues #1908 and #4580) keys on ownership, not on the directory name. `.agents/SESSION-PROTOCOL.md` declares the ai-agents session scaffold. A consumer-owned `.agents/` directory without that file is not the scaffold and must not trigger the scaffold gates. Consumer-owned `.agents/` paths are workspace state, not a torn scaffold. Root `AGENTS.md` and `CLAUDE.md` are still read when present, even on a consumer install. Strategic memory is optional optimization; project documentation is mandatory when it ships.
+**Rationale**: Past retrospectives document agents skipping CLAUDE.md, AGENTS.md, and HANDOFF.md before acting. This produced drift and inverted sources of truth. Explicit stop criteria, fallbacks, and a success definition prevent recurrence. This section is BLOCKING for in-repo work. The scaffold carve-out (issues #1908 and #4580) keys on ownership, not on the directory name. `.agents/AGENT-INSTRUCTIONS.md` declares the ai-agents session scaffold. A consumer-owned `.agents/` directory without that file is not the scaffold and must not trigger the scaffold gates. Consumer-owned `.agents/` paths are workspace state, not a torn scaffold. Root `AGENTS.md` and `CLAUDE.md` are still read when present, even on a consumer install. Strategic memory is optional optimization; project documentation is mandatory when it ships.
 
 ## Plan Validation Protocol
 
@@ -868,7 +866,8 @@ Your context window is finite, and you cannot see how much of it is left. Both h
 **Checkpoint protocol** (runs on every atomic unit, never on a self-assessed trigger):
 
 1. Commit each atomic unit as soon as it verifies. An atomic unit is the smallest change you can run a test or validation command against. Do not batch verified units to commit later, and do not wait for a file-count threshold.
-2. Record progress in the session log: what is done, what remains, the next concrete step. That is the state the next session inherits.
+2. Record progress in the task tracker and per-issue handoff. If an optional
+   session log exists, update it too.
 3. Return `[NEEDS_DECOMPOSITION]` when the task is XL complexity or touches more than five files. List the remaining steps and their dependencies so the orchestrator can check the split against that list. A claim about your own capacity is not a reason and will not be accepted as one.
 
 **A placeholder is a correctness defect, not a signal about context.** `TODO`, `pass`, an empty body, or "left as an exercise" where real code belongs means you have not finished that unit. Finish it, or return `[BLOCKED]` naming what blocks it. Re-reading a file you already read is verification, which this repository requires; it is never a reason to stop.

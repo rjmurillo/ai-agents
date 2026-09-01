@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import shutil
 import stat
 import subprocess
 import sys
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -114,7 +117,7 @@ def _checkout_tree(
     if read_tree.returncode != 0:
         print(f"git read-tree failed: {read_tree.stderr}", file=sys.stderr)
         return False
-    prefix = f"{destination.resolve()}{os.sep}"
+    prefix = f"{destination.resolve().as_posix()}/"
     checkout = run_git(
         repo_root,
         "-c",

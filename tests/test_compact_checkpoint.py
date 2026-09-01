@@ -37,7 +37,7 @@ class TestFallbackRecentSessionLog:
     def test_skips_candidate_that_disappears_during_stat(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
         disappeared = tmp_path / f"{today}-session-001.json"
         readable = tmp_path / f"{today}-session-002.json"
         disappeared.write_text("{}", encoding="utf-8")
@@ -59,10 +59,33 @@ class TestFallbackRecentSessionLog:
 
         assert result == readable
 
+    def test_finds_pre_migration_utc_tomorrow_log(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The fallback finds an active log named by the old UTC creator."""
+        utc_log = tmp_path / "2026-03-15-session-001.json"
+        utc_log.write_text("{}", encoding="utf-8")
+        stale_local = tmp_path / "2026-03-13-session-001.json"
+        stale_local.write_text("{}", encoding="utf-8")
+
+        class _FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                if tz is not None:
+                    return cls(2026, 3, 15, 1, 30, tzinfo=UTC)
+                return cls(2026, 3, 14, 18, 30)
+
+        monkeypatch.setattr(invoke_compact_checkpoint, "datetime", _FrozenDateTime)
+
+        assert (
+            invoke_compact_checkpoint._fallback_get_recent_session_log(str(tmp_path))
+            == utc_log
+        )
+
     def test_falls_back_to_yesterday_when_today_candidates_are_unreadable(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        now = datetime.now(tz=UTC)
+        now = datetime.now()
         today = now.strftime("%Y-%m-%d")
         yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
         unreadable = tmp_path / f"{today}-session-001.json"

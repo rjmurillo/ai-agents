@@ -36,7 +36,7 @@ scripts:
 
 check_failure_actions:
   - check_type: "Session validation"
-    action: "Invoke session-log-fixer skill"
+    action: "Hand-fix against .agents/schemas/session-log.schema.json and re-run scripts/validate_session_json.py"
   - check_type: "AI reviewer (infra)"
     action: "May be transient; note and continue"
   - check_type: "AI reviewer (code quality)"
@@ -117,7 +117,7 @@ completion_criteria:
     fail_open: false
   - name: "PR is ready to merge (CI green, no conflicts)"
     verification: "command"
-    command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr}"
+    command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr} --dispositions-file .agents/pr-checks/dispositions.json"
     # pr-autofix readiness is a four-condition gate: GitHub says the PR can
     # merge, required checks pass, review threads are resolved, and the merge
     # state is CLEAN or UNSTABLE. Keep these fields explicit here so a future
@@ -126,7 +126,7 @@ completion_criteria:
     # fetched_pages_complete is a separate data-integrity guard: a truncated
     # GraphQL page can hide a failing required check, so the gate fails closed
     # on partial fetches per the PR #1887 retrospective.
-    pass_when_python: "lambda d: d.get('CanMerge') is True and d.get('CIPassing') is True and d.get('fetched_pages_complete') is True and d.get('UnresolvedThreads') == 0 and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE')"
+    pass_when_python: "lambda d: d.get('CanMerge') is True and d.get('CIPassing') is True and d.get('fetched_pages_complete') is True and d.get('UnresolvedThreads') == 0 and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE') and d.get('UndisposedNonRequiredFailures', ['x']) == []"
     fail_open: false
   - name: "PR is not already merged"
     verification: "command"
@@ -136,7 +136,7 @@ completion_criteria:
 
 failure_handling:
   - type: "Session validation fails"
-    action: "Use session-log-fixer skill to diagnose and fix"
+    action: "Hand-fix against .agents/schemas/session-log.schema.json and re-run scripts/validate_session_json.py"
   - type: "AI reviewer fails (infra)"
     action: "Note as infrastructure issue; may be transient"
   - type: "AI reviewer fails (code quality)"
@@ -166,8 +166,6 @@ related_memories:
     purpose: "Session context for multi-round reviews"
   - name: "ai-quality-gate-failure-categorization"
     purpose: "Infrastructure vs code quality failures"
-  - name: "session-log-fixer"
-    purpose: "Diagnose and fix session protocol failures"
 
 thread_resolution:
   note: "Replying to a review comment does NOT automatically resolve the thread. Thread resolution requires a separate GraphQL mutation."

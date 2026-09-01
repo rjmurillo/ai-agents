@@ -1,0 +1,161 @@
+{
+  "id": "episode-2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review",
+  "session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review",
+  "timestamp": "2026-08-13T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Complete PR 4893 autofix after late review feedback",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-13T12:03:40+00:00",
+      "type": "milestone",
+      "content": "Invoked adr-review for the ADR-068 runtime-evidence correction",
+      "caused_by": [],
+      "leads_to": [
+        "e002",
+        "e003"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-13T12:12:00+00:00",
+      "type": "milestone",
+      "content": "Ran final local QA for late review fixes",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-13T12:12:00+00:00",
+      "type": "test",
+      "content": "Ran final local QA for late review fixes      397 passed, 3 skipped; build and plugin version checks passed; existing session evidence refreshed to the final implementation commit",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-13T13:20:00+00:00",
+      "type": "milestone",
+      "content": "Applied suppressed-review corrections to ADR-071 and the model gate",
+      "caused_by": [
+        "e002",
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-13T13:25:45+00:00",
+      "type": "commit",
+      "content": "Commit: 2c5ed039c1e7ecd7879ebed83ed2eb110c67fb4d",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-13T14:15:07+00:00",
+      "type": "commit",
+      "content": "Commit: 5b87249318eaf7a4be2ae7cabf3a0a0540cddd7f",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-13T14:55:58+00:00",
+      "type": "commit",
+      "content": "Commit: abf4b8651e8a297876ede306aaac54f1cab739b8",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-13T15:09:19+00:00",
+      "type": "commit",
+      "content": "Commit: e7202ce172f8b6474367eaae2f08d0dda1deb7bb",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-13T15:41:58+00:00",
+      "type": "commit",
+      "content": "Commit: 99dce54d4d7c4285688681f5ffec61adacdf36c0",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-13T16:25:24+00:00",
+      "type": "commit",
+      "content": "Commit: c27f1e42463e4e31d91f67c1433d3634d2a3d0db",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-14T02:59:08+00:00",
+      "type": "commit",
+      "content": "Commit: 4bb24a294b16859b08050ded72f55636fb26cdb9",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-13-session-14695-bc7f4fac3-complete-4893-autofix-late-review"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": 76,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 7,
+    "files_changed": 34
+  },
+  "lessons": []
+}

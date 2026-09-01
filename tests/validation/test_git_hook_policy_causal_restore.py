@@ -1075,6 +1075,12 @@ class TestStagedSuppressionPolicy:
 class TestAdrReviewPolicyMergeScope:
     def test_non_merge_adr_without_review_evidence_is_blocked(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        # tmp_path is not a git repository, so the staged-log query fails here
+        # rather than returning nothing. That distinction is now reported
+        # (issue #5205), so state the premise this test actually needs: no
+        # debate logs are staged. Discovery failure has its own case in
+        # tests/validation/test_git_hook_policy_adr_debate_discovery.py.
+        monkeypatch.setattr(policy, "_staged_debate_log_paths", lambda root: [])
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: False)
         monkeypatch.setattr(
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
@@ -1086,7 +1092,7 @@ class TestAdrReviewPolicyMergeScope:
         )
 
         assert result == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_merge_in_progress_with_staged_adr_from_main_is_allowed(self, tmp_path, monkeypatch):
         path = ".agents/architecture/ADR-120-reviewed-on-main.md"
@@ -1122,6 +1128,12 @@ class TestAdrReviewPolicyMergeScope:
     ):
         path = ".agents/architecture/ADR-999-branch-authored-during-merge.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        # tmp_path is not a git repository, so the staged-log query fails here
+        # rather than returning nothing. That distinction is now reported
+        # (issue #5205), so state the premise this test actually needs: no
+        # debate logs are staged. Discovery failure has its own case in
+        # tests/validation/test_git_hook_policy_adr_debate_discovery.py.
+        monkeypatch.setattr(policy, "_staged_debate_log_paths", lambda root: [])
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
         monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"authored adr")
         monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: b"branch adr")
@@ -1147,7 +1159,7 @@ class TestAdrReviewPolicyMergeScope:
         )
 
         assert result == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_merge_in_progress_with_conflicted_adr_is_gated_when_stage_zero_is_absent(
         self,
@@ -1157,6 +1169,12 @@ class TestAdrReviewPolicyMergeScope:
     ):
         path = ".agents/architecture/ADR-998-conflicted.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        # tmp_path is not a git repository, so the staged-log query fails here
+        # rather than returning nothing. That distinction is now reported
+        # (issue #5205), so state the premise this test actually needs: no
+        # debate logs are staged. Discovery failure has its own case in
+        # tests/validation/test_git_hook_policy_adr_debate_discovery.py.
+        monkeypatch.setattr(policy, "_staged_debate_log_paths", lambda root: [])
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
         monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: None)
         monkeypatch.setattr(
@@ -1169,7 +1187,7 @@ class TestAdrReviewPolicyMergeScope:
         )
 
         assert result == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_blob_readers_preserve_raw_git_bytes(self, tmp_path):
         repo = tmp_path / "repo"
@@ -1320,7 +1338,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_an_adr_a_collaborator_wrote_on_the_shared_branch_is_still_gated(
         self,
@@ -1368,7 +1386,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_an_approved_merge_parent_exempts_content_origin_main_does_not_carry(
         self,
@@ -1467,7 +1485,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_a_synthetic_merge_head_that_head_already_contains_is_not_a_merge(
         self,
@@ -1518,7 +1536,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_a_real_merge_of_a_shared_branch_tip_exempts_the_adr_main_contributed(
         self,
@@ -1636,7 +1654,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_merge_of_a_shared_branch_tip_still_gates_content_main_does_not_have(
         self,
@@ -1653,6 +1671,12 @@ class TestAdrReviewPolicyMergeScope:
         """
         path = ".agents/architecture/ADR-999-written-during-the-merge.md"
         monkeypatch.setattr(policy, "_gated_adr_review_paths", lambda paths, root: list(paths))
+        # tmp_path is not a git repository, so the staged-log query fails here
+        # rather than returning nothing. That distinction is now reported
+        # (issue #5205), so state the premise this test actually needs: no
+        # debate logs are staged. Discovery failure has its own case in
+        # tests/validation/test_git_hook_policy_adr_debate_discovery.py.
+        monkeypatch.setattr(policy, "_staged_debate_log_paths", lambda root: [])
         monkeypatch.setattr(policy, "_merge_in_progress", lambda root: True)
         monkeypatch.setattr(policy, "_read_index_blob", lambda root, relative_path: b"authored adr")
         monkeypatch.setattr(policy, "_read_head_blob", lambda root, relative_path: None)
@@ -1680,7 +1704,7 @@ class TestAdrReviewPolicyMergeScope:
         )
 
         assert policy.check_adr_review_policy([path], tmp_path) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_line_endings_alone_do_not_make_a_staged_adr_mains_content(
         self,
@@ -1713,7 +1737,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_two_different_undecodable_blobs_are_not_one_blob(
         self,
@@ -1745,7 +1769,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_a_merge_that_carries_crlf_content_keeps_mains_exemption(
         self,
@@ -1873,7 +1897,7 @@ class TestAdrReviewPolicyMergeScope:
             policy, "_session_log_for_current_branch", lambda sessions_dir, repo_root: None
         )
         assert policy.check_adr_review_policy([relative], repo) == 1
-        assert "ADR changes require adr-review evidence" in capsys.readouterr().err
+        assert "ADR changes require a debate log" in capsys.readouterr().err
 
     def test_a_rename_does_not_hide_the_history_the_head_copy_came_from(
         self,
@@ -2322,19 +2346,6 @@ class TestAdrReviewPolicyMergeScope:
         assert foreign not in carried
         assert policy._head_copy_is_one_main_has_carried(repo, adr_path) is False
 
-    def test_the_protocol_itself_is_still_a_path_this_gate_governs(
-        self,
-        tmp_path,
-    ):
-        """The negative control for the test above.
-
-        Anchoring the protocol half must not narrow it past the real file,
-        which lives one directory down and is the reason the alternative
-        exists. Checked at both the segment boundary and the repository root.
-        """
-        assert policy.ADR_REVIEW_PATH_RE.search(".agents/SESSION-PROTOCOL.md")
-        assert policy.ADR_REVIEW_PATH_RE.search("SESSION-PROTOCOL.md")
-
     def test_a_lineage_into_a_different_decision_record_is_not_carried(
         self,
         tmp_path,
@@ -2559,15 +2570,6 @@ class TestGovernedDocumentIdentity:
         assert policy._governed_document_identity(
             ".agents/architecture/ADR-201-first.md"
         ) != policy._governed_document_identity(".agents/architecture/ADR-202-second.md")
-
-    def test_the_protocol_stands_for_itself(self):
-        """It carries no number, and it is not any record's."""
-        protocol = policy._governed_document_identity(".agents/SESSION-PROTOCOL.md")
-
-        assert protocol is not None
-        assert protocol != policy._governed_document_identity(
-            ".agents/architecture/ADR-201-first.md"
-        )
 
     def test_a_directory_named_for_a_record_does_not_shadow_the_file(self):
         """The number is read where the path test anchors: the last segment.

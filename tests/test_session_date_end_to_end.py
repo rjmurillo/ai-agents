@@ -1,0 +1,258 @@
+"""End-to-end agreement test: creator names it, every consumer finds it.
+
+Issue #4779. Controlled-instant unit tests prove that the shared date helpers
+select the host-local calendar date when it differs from UTC. This module has a
+different responsibility: under real process timezones, a real creator and all
+date-prefix consumers must agree on the same filename. It intentionally tests
+pipeline agreement rather than independently proving the date authority.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PRECOMPACT_DIR = REPO_ROOT / ".claude" / "hooks" / "PreCompact"
+
+for _path in (str(PRECOMPACT_DIR),):
+    if _path not in sys.path:
+        sys.path.insert(0, _path)
+
+import invoke_compact_checkpoint  # noqa: E402
+
+from scripts.hook_utilities.utilities import (  # noqa: E402
+    get_recent_session_log,
+    host_session_date,
+)
+from scripts.validation.git_hook_policy import (  # noqa: E402
+    _recent_session_candidates,
+    _session_log_for_branch,
+)
+
+# Both drift directions plus the no-offset control. Kiritimati is UTC+14, so its
+# host date runs a day ahead of UTC; Los Angeles is UTC-7/8, a day behind.
+_TIMEZONES = ["UTC", "Pacific/Kiritimati", "America/Los_Angeles"]
+
+pytestmark = pytest.mark.skipif(
+    not hasattr(time, "tzset"),
+    reason="process timezone switching requires time.tzset",
+)
+
+
+@pytest.fixture(params=_TIMEZONES)
+def host_timezone(request: pytest.FixtureRequest):
+    """Set a real process timezone so ``datetime.now()`` reads host-local."""
+    original = os.environ.get("TZ")
+    os.environ["TZ"] = request.param
+    time.tzset()
+    try:
+        yield request.param
+    finally:
+        if original is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original
+        time.tzset()
+
+
+def _create_session_log(
+    tmp_path: Path,
+    *,
+    log_date: str | None = None,
+    branch: str = "fix/4779-e2e",
+    number: int = 1,
+) -> Path:
+    """Write a session log JSON directly at the host session date.
+
+    The session-init skill's creator script has been removed along with the
+    session skill cluster; session logs are now optional and hand-written
+    (see `.claude/rules/session-logs.md`). This constructs the same minimal
+    JSON shape by hand, at the real host date, so the consumer-side
+    date-agreement assertions below keep exercising production code.
+    """
+    sessions_dir = tmp_path / ".agents" / "sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    resolved_date = log_date if log_date is not None else host_session_date()
+    created = sessions_dir / f"{resolved_date}-session-{number}-e2e.json"
+    created.write_text(
+        json.dumps({"session": {"date": resolved_date, "branch": branch, "number": number}}),
+        encoding="utf-8",
+    )
+    return created
+
+
+def test_hook_utilities_consumer_finds_host_dated_log(host_timezone, tmp_path):
+    """``get_recent_session_log`` locates the creator's host-dated file."""
+    created = _create_session_log(tmp_path)
+    sessions_dir = created.parent
+
+    result = get_recent_session_log(str(sessions_dir))
+
+    assert result is not None, f"consumer missed the log under TZ={host_timezone}"
+    assert result.name == created.name
+
+
+def test_git_hook_policy_consumer_finds_host_dated_log(host_timezone, tmp_path):
+    """``_recent_session_candidates`` includes the creator's host-dated file."""
+    created = _create_session_log(tmp_path)
+    sessions_dir = created.parent
+
+    candidates = _recent_session_candidates(sessions_dir)
+
+    assert candidates is not None, f"scan returned None under TZ={host_timezone}"
+    assert created in candidates, f"candidate set missed the log under TZ={host_timezone}"
+
+
+def _create_then_scan_across_timezones(
+    tmp_path: Path,
+    *,
+    creator_timezone: str,
+    scanner_timezone: str,
+    creator_date: str,
+    scanner_today: str,
+    scanner_instant: datetime,
+) -> Path:
+    """Create for one host date, then scan from another fixed host date."""
+    os.environ["TZ"] = creator_timezone
+    time.tzset()
+    created = _create_session_log(tmp_path, log_date=creator_date)
+
+    os.environ["TZ"] = scanner_timezone
+    time.tzset()
+    scanner_yesterday = (
+        date.fromisoformat(scanner_today) - timedelta(days=1)
+    ).isoformat()
+    class _FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp(scanner_instant.timestamp(), tz)
+
+    with patch(
+        "scripts.validation.git_hook_policy.recent_host_session_dates",
+        return_value=(scanner_today, scanner_yesterday),
+    ), patch(
+        "scripts.validation.git_hook_policy.datetime",
+        _FrozenDateTime,
+    ):
+        candidates = _recent_session_candidates(created.parent)
+
+    assert candidates is not None
+    assert created in candidates
+    return created
+
+
+def test_git_hook_policy_finds_next_day_log_after_timezone_switch(tmp_path):
+    """A UTC scanner finds a log created for a UTC+14 host next day."""
+    original = os.environ.get("TZ")
+    try:
+        _create_then_scan_across_timezones(
+            tmp_path,
+            creator_timezone="Pacific/Kiritimati",
+            scanner_timezone="UTC",
+            creator_date="2026-08-09",
+            scanner_today="2026-08-08",
+            scanner_instant=datetime(2026, 8, 8, 12, tzinfo=UTC),
+        )
+    finally:
+        if original is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original
+        time.tzset()
+
+
+def test_git_hook_policy_finds_log_across_extreme_timezone_switch(tmp_path):
+    """A UTC-12 scanner finds a UTC+14 creator date two days ahead."""
+    original = os.environ.get("TZ")
+    try:
+        _create_then_scan_across_timezones(
+            tmp_path,
+            creator_timezone="Pacific/Kiritimati",
+            scanner_timezone="Etc/GMT+12",
+            creator_date="2026-08-10",
+            scanner_today="2026-08-08",
+            scanner_instant=datetime(2026, 8, 9, 11, tzinfo=UTC),
+        )
+    finally:
+        if original is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original
+        time.tzset()
+
+
+def test_git_hook_policy_finds_log_across_reverse_timezone_switch(tmp_path):
+    """A UTC+14 scanner finds a UTC-12 creator date two days behind."""
+    original = os.environ.get("TZ")
+    try:
+        _create_then_scan_across_timezones(
+            tmp_path,
+            creator_timezone="Etc/GMT+12",
+            scanner_timezone="Pacific/Kiritimati",
+            creator_date="2026-08-08",
+            scanner_today="2026-08-10",
+            scanner_instant=datetime(2026, 8, 9, 11, tzinfo=UTC),
+        )
+    finally:
+        if original is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = original
+        time.tzset()
+
+
+def test_git_hook_policy_rejects_stale_same_branch_log(tmp_path):
+    """A scanner-relative two-day-old log cannot satisfy branch evidence."""
+    sessions = tmp_path / ".agents" / "sessions"
+    sessions.mkdir(parents=True)
+    stale = sessions / "2026-03-13-session-1.json"
+    stale.write_text('{"session": {"branch": "fix/current"}}', encoding="utf-8")
+
+    class _FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 3, 15, 0, 30, tzinfo=UTC)
+            return cls.fromtimestamp(instant.timestamp(), tz)
+
+    with patch(
+        "scripts.validation.git_hook_policy.recent_host_session_dates",
+        return_value=("2026-03-15", "2026-03-14"),
+    ), patch(
+        "scripts.validation.git_hook_policy.datetime",
+        _FrozenDateTime,
+    ):
+        assert _session_log_for_branch(sessions, "fix/current") is None
+
+
+def test_checkpoint_fallback_consumer_finds_host_dated_log(host_timezone, tmp_path):
+    """The checkpoint fallback locates the creator's host-dated file."""
+    created = _create_session_log(tmp_path)
+    sessions_dir = created.parent
+
+    result = invoke_compact_checkpoint._fallback_get_recent_session_log(
+        str(sessions_dir)
+    )
+
+    assert result is not None, f"fallback missed the log under TZ={host_timezone}"
+    assert Path(result).name == created.name
+
+
+def test_created_filename_and_payload_agree(host_timezone, tmp_path):
+    """A written log uses one date consistently in filename and payload.
+
+    The controlled-instant authority assertions for the date helper itself
+    live in ``tests/test_hook_utilities.py::TestHostSessionDate``; this
+    end-to-end assertion covers agreement only.
+    """
+    created = _create_session_log(tmp_path)
+
+    payload = json.loads(created.read_text(encoding="utf-8"))
+    assert created.name == f"{payload['session']['date']}-session-1-e2e.json"

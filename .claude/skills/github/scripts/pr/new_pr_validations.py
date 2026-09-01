@@ -102,8 +102,9 @@ def _extract_validatable_session_logs(
     if legacy_md:
         print(
             f"  WARNING: legacy .md session log(s) staged ({legacy_md}); "
-            "CI workflow will migrate to JSON before validation. Local "
-            "pre-PR validation only runs against JSON session logs.",
+            "these are not validated. Session log creation is discontinued; "
+            "an existing one must use the JSON format that "
+            "validate_session_json.py checks.",
             file=sys.stderr,
         )
     return [path for path in matched if path.endswith(".json")], bool(legacy_md)
@@ -183,11 +184,8 @@ def _validate_session_end(
 
     session_logs, has_legacy_md = _extract_validatable_session_logs(changed_files)
     if not session_logs:
-        if not has_legacy_md:
-            print(
-                "  WARNING: No session log found but .agents/ files changed",
-                file=sys.stderr,
-            )
+        # No session log at all is the expected case: session log creation
+        # is discontinued, so absence is not warning-worthy.
         return
 
     session_log = sorted(session_logs, key=_session_sort_key)[-1]

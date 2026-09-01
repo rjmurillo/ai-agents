@@ -1,3 +1,14 @@
+---
+id: ADR-053
+status: accepted
+date: 2026-03-07
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-053: ADR Exception Criteria (Chesterton's Fence)
 
 ## Status
@@ -29,9 +40,9 @@ The broader issue is that ADR exceptions are structurally easier to create than 
 
 The analysis MUST answer three questions:
 
-1. **Why does the rule exist?** — Quote the original ADR rationale. Paraphrase is not acceptable.
-2. **Impact if removed?** — Document what breaks, degrades, or sets problematic precedent.
-3. **Alternatives tried?** — List at least two compliance attempts and their outcomes.
+1. **Why does the rule exist?**: Quote the original ADR rationale. Paraphrase is not acceptable.
+2. **Impact if removed?**: Document what breaks, degrades, or sets problematic precedent.
+3. **Alternatives tried?**: List at least two compliance attempts and their outcomes.
 
 Exceptions that do not include this analysis are rejected by the architect agent.
 
@@ -75,14 +86,14 @@ The analysis template and rejection criteria are documented in `.agents/governan
 
 ## Implementation Notes
 
-1. `.agents/governance/ADR-EXCEPTION-CRITERIA.md` — criteria document and exception template (this PR).
-2. `src/claude/architect.md` — exception validation checklist added to ADR Review section (this PR).
+1. `.agents/governance/ADR-EXCEPTION-CRITERIA.md`: criteria document and exception template (this PR).
+2. `src/claude/architect.md`: exception validation checklist added to ADR Review section (this PR).
 3. Existing ADR-005 exceptions remain valid; no retroactive revocation.
 
 ## Related Decisions
 
-- [ADR-005](./ADR-005-powershell-only-scripting.md) — Motivating case (PR #908 (2026-01-14) exception)
-- [ADR-022](./ADR-022-architecture-governance-split-criteria.md) — Governance split criteria
+- [ADR-005](./ADR-005-powershell-only-scripting.md): Motivating case (PR #908 (2026-01-14) exception)
+- [ADR-022](./ADR-022-architecture-governance-split-criteria.md): Governance split criteria
 
 ## Confirmation
 

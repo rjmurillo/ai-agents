@@ -19,7 +19,6 @@ Thank you for your interest in contributing to this project. This guide explains
 - [Session Protocol](#session-protocol)
 - [Running Tests](#running-tests)
 - [Copilot CLI Version Management](#copilot-cli-version-management)
-- [ADR-to-Protocol Sync Process](#adr-to-protocol-sync-process)
 - [Pull Request Guidelines](#pull-request-guidelines)
   - [Commit Count Thresholds](#commit-count-thresholds)
 - [Third-Party License Attribution](#third-party-license-attribution)
@@ -315,12 +314,17 @@ The shipped pattern:
 3. **Pick the right exit code on bootstrap failure.** Use `sys.exit(2)` for blocking hooks (the missing lib means the hook cannot run, so the gate must fail closed). Use `sys.exit(0)` for non-blocking hooks where a missing lib should not stop the user. Add the inline annotation `# Non-blocking hook: exit 0 on bootstrap failure (intentional, not a typo)` next to a `sys.exit(0)` so the next reader does not "fix" it.
 
 4. **Canonical implementation examples.** Pick a sibling at the same blocking/non-blocking tier:
-   - Blocking (exit 2): `.claude/hooks/PreToolUse/invoke_markdownlint_guard.py`
-   - Non-blocking (exit 0): `.claude/hooks/PostToolUse/invoke_observation_sync.py`, `.claude/hooks/PostToolUse/invoke_markdown_auto_lint.py`, `.claude/hooks/SessionStart/invoke_context_loader.py`
+   - Blocking (exit 2): none. ADR-097 retired every tool-call hook, so no
+     blocking example ships. A new one must clear
+     `.claude/rules/tool-use-hook-bar.md` before it is written, not after.
+   - Non-blocking (exit 0): `.claude/hooks/SessionStart/invoke_context_loader.py`,
+     `.claude/hooks/SessionEnd/invoke_memory_reflection.py`
 
    Internal policy and advisory hooks were removed under ADR-084 in issues #3184
-   and #3295. Retrieve behavioral guidance through static rules and skills.
-   Push-time policy belongs in Lefthook and CI.
+   and #3295, and every remaining `PreToolUse`, `PostToolUse`, and
+   `PostToolUseFailure` hook was retired under ADR-097. Retrieve behavioral
+   guidance through static rules and skills. Push-time policy belongs in
+   Lefthook and CI.
 
 5. **Run the platform regen after adding the hook.** `uv run python build/scripts/build_all.py --platform copilot-cli` (and any other downstream platform) so the regenerated copy under `src/<provider>/hooks/` stays in sync.
 
@@ -402,9 +406,8 @@ A prompt change passes when all three criteria hold:
 
 ### Enforcement
 
-- **Claude Code hook**: Blocks `git commit` when prompt/skill/agent files are staged without eval evidence
-- **Git pre-commit hook**: Non-blocking warning for human developers
-- **Bypass**: Set `SKIP_PROMPT_EVAL=1` and document justification in the PR
+- **CI gate**: The `/spec` eval in `.github/workflows/slash-command-quality.yml` blocks merge on regression (see ADR-057 Amendment 2026-07-22 for advisory vs blocking scope).
+- **PR review**: For prompt files without a blocking CI leg, the gate is advisory and PR review carries judgment.
 
 ### References
 
@@ -424,7 +427,7 @@ outputDir: src/vs-code-agents
 fileExtension: .agent.md
 
 frontmatter:
-  model: "Claude Opus 4.5 (copilot)"
+  model: "Claude Opus 4.6 (copilot)"
   includeNameField: false
 
 handoffSyntax: "#runSubagent"
@@ -439,7 +442,7 @@ fileExtension: .agent.md
 
 frontmatter:
   # Copilot CLI model: use CLI model identifiers (not VS Code display names)
-  model: "claude-opus-4.5"
+  model: "claude-opus-4.6"
   includeNameField: true
 
 handoffSyntax: "/agent"
@@ -449,13 +452,13 @@ handoffSyntax: "/agent"
 
 | Feature | VS Code | Copilot CLI |
 |---------|---------|-------------|
-| Model field | `Claude Opus 4.5 (copilot)` | `claude-opus-4.5` |
+| Model field | `Claude Opus 4.6 (copilot)` | `claude-opus-4.6` |
 | Name field | Not included | Required |
 | Handoff syntax | `#runSubagent` | `/agent` |
 | Tools prefix | `tools_vscode` | `tools_copilot` |
 | `argument-hint` | Included | Included |
 
-> **Note:** The Copilot CLI `model` frontmatter field is accepted but does not control runtime model selection on version 0.0.397. The `--model` CLI flag is required. See ADR-044 for details.
+> **Note:** These model values reflect the current platform configuration, not durable policy. ADR-080 governs model-pin evidence. Runtime model selection follows the current Copilot CLI contract and action inputs.
 
 ## Important: Do Not Edit Generated Files
 
@@ -567,9 +570,17 @@ and push enforcement runs through Lefthook, `pre_pr.py`, and CI under ADR-084.
 
 | Hook | File | Purpose | Bypass env var |
 |------|------|---------|----------------|
-| SessionStart | `invoke_context_loader.py` | Auto-loads HANDOFF.md + latest retrospective into context | none (fail-open) |
-| PostToolUse | `invoke_observation_sync.py` | Syncs Serena observations to Forgetful | none (fail-open) |
+| SessionStart | `invoke_context_loader.py` | Auto-loads latest retrospective into context | none (fail-open) |
+| SessionStart | `invoke_checkout_freshness_check.py` | Reports how far HEAD is behind origin/main | none (fail-open) |
+| UserPromptSubmit | `invoke_memory_recall.py` | Recalls relevant memories for the prompt | none (fail-open) |
+| SessionEnd | `invoke_memory_reflection.py` | Persists memory confidence scores | none (fail-open) |
 | PreCompact | `invoke_compact_checkpoint.py` | Snapshots WIP state before context compaction | none (always runs) |
+
+No `PreToolUse`, `PostToolUse`, `PermissionRequest`, or `PostToolUseFailure`
+hook is registered. ADR-097 retired all five, including
+`invoke_observation_sync.py`, which previously synced Serena observations to
+Forgetful on this event. Every surviving hook fires once per session or per
+turn, never once per tool call.
 
 **Diagnosability:** Hook errors print to stderr (visible in the harness output)
 tagged `[hook-error] {hook_name} {context}: {ExceptionClass}: {message}`. The
@@ -682,11 +693,14 @@ if __name__ == "__main__":
 
 ## Session Protocol
 
-This project uses a session-based workflow for tracking work. Session logs are required for all significant work.
+This project preserves continuity through per-issue handoffs and Serena memory.
+Committed session logs are optional.
 
 ### Session Logs
 
-Create session logs at `.agents/sessions/YYYY-MM-DD-session-NN.json` to document work done during a session.
+Create a log at `.agents/sessions/YYYY-MM-DD-session-NN.json` only when you
+want an explicit committed record. Any staged or explicitly supplied log must
+pass `scripts/validate_session_json.py`.
 
 ### QA Validation
 
@@ -699,7 +713,7 @@ The pre-commit hook validates that QA has been performed for sessions involving 
 
 **Investigation artifacts** (allowlist for investigation-only exemption):
 
-- `.agents/sessions/` - Session logs
+- `.agents/sessions/` - Optional session logs and per-issue handoffs
 - `.agents/analysis/` - Research findings
 - `.agents/retrospective/` - Learning extractions
 - `.serena/memories/` - AI memory updates
@@ -749,7 +763,9 @@ The CI pipeline uses GitHub Copilot CLI to run agent reviews. The CLI version is
 
 ### Current Pin
 
-The CI action (`.github/actions/ai-review/action.yml`) pins `@github/copilot@0.0.397` with `--no-auto-update` on all invocations. This is documented in [ADR-044](.agents/architecture/ADR-044-copilot-cli-frontmatter-compatibility.md).
+The required review path reads `COPILOT_VERSION` from `.github/actions/ai-review/action.yml`. The fallback in `scripts/ci/install_copilot_cli.py` must match it. The nightly smoke workflow carries an independent, Renovate-managed version.
+
+`scripts/validation/check_copilot_version_pin.py` rejects known-bad required-review pins. It is a denylist guard, not the version source or proof of runtime compatibility. See [ADR-094](.agents/architecture/ADR-094-govern-copilot-cli-compatibility.md).
 
 ### Why Version Pinning
 
@@ -784,13 +800,13 @@ gh extension install nektos/gh-act
 docker pull catthehacker/ubuntu:act-latest
 
 # Dry run (validate workflow structure)
-gh act pull_request -n -W .github/workflows/ai-pr-quality-gate.yml
+gh act pull_request -n -W .github/workflows/ai-spec-validation.yml
 
 # Full run (single job)
 TOKEN=$(gh auth token)
 gh act pull_request \
-  -j "analyst-review" \
-  -W .github/workflows/ai-pr-quality-gate.yml \
+  -j "validate-spec" \
+  -W .github/workflows/ai-spec-validation.yml \
   -s "GITHUB_TOKEN=$TOKEN" \
   -s "BOT_PAT=$TOKEN" \
   -P ubuntu-latest=catthehacker/ubuntu:act-latest
@@ -798,38 +814,18 @@ gh act pull_request \
 
 **Known limitation:** PowerShell composite action steps fail with "Exec format error" in `act`. This is a known `act` limitation, not a workflow bug. The Copilot CLI install and agent invocation steps run correctly.
 
-### Upgrading the Copilot CLI Pin
+### Upgrading the Required Review Pin
 
-When the upstream regression ([github/copilot-cli#1195](https://github.com/github/copilot-cli/issues/1195)) is fixed:
+When changing the required review path's Copilot CLI version:
 
 1. Install the new version locally: `npm install -g @github/copilot@X.Y.Z`
 2. Run the agent validation loop above
-3. Update the version in `.github/actions/ai-review/action.yml`
+3. Update `.github/actions/ai-review/action.yml` and `scripts/ci/install_copilot_cli.py` together
 4. Run `gh act` dry-run to validate workflow structure
-5. Update ADR-044 with the new version and test results
+5. Run `uv run pytest tests/test_check_copilot_version_pin.py`
+6. Run `uv run python scripts/validation/check_copilot_version_pin.py`
 
-See `.serena/memories/copilot-cli-frontmatter-regression-runbook.md` for the full diagnostic runbook.
-
-## ADR-to-Protocol Sync Process
-
-When you create or update an Architecture Decision Record (ADR) that introduces enforceable requirements (MUST, SHOULD, MAY per RFC 2119), you must sync those requirements into SESSION-PROTOCOL.md so agents enforce them.
-
-### Manual Checklist
-
-1. Identify MUST/SHOULD requirements in the ADR's Decision section
-2. Add a "Protocol Integration" section to the ADR listing which SESSION-PROTOCOL.md sections need updates
-3. Update SESSION-PROTOCOL.md with the new requirements
-4. Update the ADR Cross-Reference table in SESSION-PROTOCOL.md
-
-### Automated Audit
-
-Run the sync audit script to detect ADRs with MUST requirements not referenced in SESSION-PROTOCOL.md:
-
-```bash
-uv run python scripts/sync_adr_protocol.py
-```
-
-The script parses all ADR files, extracts RFC 2119 requirements, and reports coverage gaps. See [ADR-050](.agents/architecture/ADR-050-adr-protocol-sync.md) for the full process.
+Routine version bumps do not require an ADR edit. See `.serena/memories/copilot/copilot-cli-frontmatter-regression-runbook.md` for the diagnostic runbook.
 
 ## Pull Request Guidelines
 
@@ -842,30 +838,34 @@ The script parses all ADR files, extracts RFC 2119 requirements, and reports cov
 
 ### Commit Count Thresholds
 
-PRs with many commits often indicate scope creep or should be split into smaller PRs. The repository enforces commit thresholds automatically:
+PRs with many commits often indicate scope creep or should be split into smaller PRs. The repository flags large commit counts advisorily; it does not block a PR on commit count:
 
 | Commit Count | Action | Label Applied |
 |--------------|--------|---------------|
 | 10 commits | Warning notice in PR | `needs-split` |
 | 15 commits | Alert warning in PR | `needs-split` |
-| Above active limit | PR blocked from merge | `needs-split` |
 
 #### What This Means
 
 - **10 commits**: The workflow adds a notice. Consider whether the PR should be split.
 - **15 commits**: The workflow adds an alert. Splitting is strongly recommended.
-- **Above active limit**: The workflow blocks the PR. You MUST either split the PR or add the `commit-limit-bypass` label.
 
-The active limit is 20 by default. Validation may raise it to 40 after detecting
-a qualifying base merge. Exactly 20 or 40 commits remains an alert, not a block.
+There is no hard ceiling and no bypass label: a large PR is never blocked from
+merge on commit count alone. The former 20/40-commit block and its
+`commit-limit-bypass` human-only label were removed (issue #5233). That gate
+required local, pre-push verification of a GitHub label, which is not always
+possible: a sandboxed harness without `gh`/API access could not confirm a
+label that was already correctly applied, and the only way through was an
+expensive workaround (an entirely new stacked branch and PR) that a local
+check could not distinguish from a genuine violation.
 
 #### Handling `needs-split` Labels
 
 **For contributors**:
 
 1. Review the commit history to identify logical groupings
-2. Split into smaller, focused PRs where possible
-3. If splitting is not practical, add a comment explaining why and request the `commit-limit-bypass` label
+2. Split into smaller, focused PRs where practical
+3. It is fine to leave a large PR unsplit when splitting is not practical; the label is a suggestion, not a requirement
 
 **For AI agents (pr-review, pr-comment-responder)**:
 
@@ -875,14 +875,6 @@ When encountering a PR with the `needs-split` label:
 2. **Analyze commit history**: Group commits by logical change to identify potential split points
 3. **Provide recommendations**: Suggest how the work could be divided into smaller PRs
 4. **Document findings**: Save analysis to `.agents/retrospective/PR-[number]-needs-split-analysis.md` for future reference
-
-#### Bypassing the Limit
-
-To bypass the active commit limit:
-
-1. A human maintainer MUST add the `commit-limit-bypass` label
-2. The bypass is visible in the PR labels and auditable
-3. Use this sparingly for genuinely large, atomic changes that cannot be split
 
 ### PR Description Validation
 
@@ -907,7 +899,7 @@ The validator strips these sections before extracting file mentions, so any inli
 
 #### Bypassing Description Validation
 
-For PRs where the contextual section allowlist does not fit (e.g. inline pattern reference inside `## Summary`), apply the `description-validation-bypass` label.
+For PRs where the contextual section allowlist does not fit (e.g. inline pattern reference inside `## Summary`), ask a human maintainer to apply the `description-validation-bypass` label. Do not apply it yourself.
 
 1. A human maintainer MUST add the `description-validation-bypass` label (case-insensitive match)
 2. The validator still runs and prints all issues for visibility, but exits 0

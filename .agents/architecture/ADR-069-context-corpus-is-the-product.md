@@ -1,9 +1,21 @@
 ---
+id: ADR-069
 status: proposed
 date: 2026-05-02
-decision-makers: ["architect", "user"]
-consulted: ["analyst", "critic", "qa"]
-informed: ["implementer", "devops", "security", "roadmap"]
+decision-makers: [architect, user]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: false
+consulted:
+- analyst
+- critic
+- qa
+informed:
+- implementer
+- devops
+- security
+- roadmap
 ---
 
 # ADR-069: The Curated Context Corpus IS the Product, Orchestration Is Plumbing

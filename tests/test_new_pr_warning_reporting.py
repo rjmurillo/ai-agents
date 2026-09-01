@@ -122,18 +122,23 @@ def test_passing_description_validator_keeps_the_pass_summary(tmp_path, capsys) 
     assert WARNING_SUMMARY not in captured.out
 
 
-def test_missing_session_log_warning_is_tracked(tmp_path, capsys) -> None:
+def test_legacy_markdown_session_log_warning_is_tracked(tmp_path, capsys) -> None:
     """Every warning path feeds the same counter, not only Validation 4.
 
-    ``.agents/`` files changed with no session log prints a WARNING and was
-    equally invisible in the summary. Fixing one warning path and leaving the
-    others is the partial-guard failure mode.
+    A staged legacy ``.md`` session log (unvalidated, since only JSON is
+    checked) prints a WARNING and was equally invisible in the summary.
+    Fixing one warning path and leaving the others is the partial-guard
+    failure mode. Session log creation is discontinued, so the sibling
+    "no session log at all" case this test covered previously no longer
+    warns: absence is now the expected state, not a gap to flag.
     """
 
     def run(cmd, **_kwargs) -> subprocess.CompletedProcess[str]:
         argv = [str(part) for part in cmd]
         if argv[:3] == ["git", "diff", "--name-only"]:
-            return _completed(stdout=".agents/notes.txt\n", rc=0)
+            return _completed(
+                stdout=".agents/sessions/2026-08-21-session-1.md\n", rc=0
+            )
         if any(part.endswith("validate_pr_description.py") for part in argv):
             return _completed(rc=0)
         return _completed(rc=0)
@@ -143,7 +148,7 @@ def test_missing_session_log_warning_is_tracked(tmp_path, capsys) -> None:
 
     captured = capsys.readouterr()
 
-    assert "No session log found" in captured.err
+    assert "legacy .md session log(s) staged" in captured.err
     assert PASS_SUMMARY not in captured.out
     assert WARNING_SUMMARY in captured.out
 

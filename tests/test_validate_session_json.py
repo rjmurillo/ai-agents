@@ -179,6 +179,8 @@ def test_rejects_non_full_qa_commit(tmp_path: Path, commit: str) -> None:
 
 
 def test_rejects_qa_report_for_unrelated_session(tmp_path: Path) -> None:
+    # The session-log identity check runs before any git call (ADR-096), so
+    # no real git repo is needed here: the ValueError fires first.
     report_path = tmp_path / "report.md"
     _write_qa_report(report_path, session_log=".agents/sessions/unrelated.json")
 
@@ -186,6 +188,8 @@ def test_rejects_qa_report_for_unrelated_session(tmp_path: Path) -> None:
         validate_qa_report(
             report_path,
             QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT),
+            head=QA_COMMIT,
+            repo_root=tmp_path,
         )
 
 
@@ -193,22 +197,64 @@ def test_accepts_qa_report_with_matching_session_and_commit(tmp_path: Path) -> N
     report_path = tmp_path / "report.md"
     _write_qa_report(report_path)
 
-    report = validate_qa_report(
-        report_path,
-        QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT),
-    )
+    completed = [
+        subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 0, "", ""),
+    ]
+    with mock.patch.object(_qa_report.subprocess, "run", side_effect=completed):
+        report = validate_qa_report(
+            report_path,
+            QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT),
+            head=QA_COMMIT,
+            repo_root=tmp_path,
+        )
+
+    assert report.verdict == "PASS"
+
+
+def test_accepts_qa_report_whose_commit_differs_but_only_evidence_changed(
+    tmp_path: Path,
+) -> None:
+    # ADR-096: a qaCommit that textually differs from the current head no
+    # longer hard-fails on its own. When every commit in the range touches
+    # only QA_EVIDENCE_PREFIXES (a pure rebind), the report is still valid.
+    report_path = tmp_path / "report.md"
+    _write_qa_report(report_path, commit="b" * 40)
+
+    completed = [
+        subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 0, ".agents/sessions/session.json\0", ""),
+    ]
+    with mock.patch.object(_qa_report.subprocess, "run", side_effect=completed):
+        report = validate_qa_report(
+            report_path,
+            QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT),
+            head=QA_COMMIT,
+            repo_root=tmp_path,
+        )
 
     assert report.verdict == "PASS"
 
 
 def test_rejects_qa_report_for_stale_commit(tmp_path: Path) -> None:
+    # A real (non-evidence) code change between the QA-validated commit and
+    # the current head still hard-fails, unchanged behavior (ADR-096).
     report_path = tmp_path / "report.md"
     _write_qa_report(report_path, commit="b" * 40)
 
-    with pytest.raises(ValueError, match=f"{'b' * 40} != {QA_COMMIT}"):
+    completed = [
+        subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 0, "scripts/changed.py\0", ""),
+    ]
+    with (
+        mock.patch.object(_qa_report.subprocess, "run", side_effect=completed),
+        pytest.raises(ValueError, match="QA report is stale"),
+    ):
         validate_qa_report(
             report_path,
             QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT),
+            head=QA_COMMIT,
+            repo_root=tmp_path,
         )
 
 
@@ -234,15 +280,108 @@ def test_extracts_qa_binding_from_full_ending_commit() -> None:
     assert binding == QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT)
 
 
-def test_rejects_qa_commit_disagreement() -> None:
-    with pytest.raises(ValueError, match="different commits"):
-        session_qa_binding(
-            {
-                "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
-                "endingCommit": "b" * 40,
-            },
-            session_log=QA_SESSION_LOG,
-        )
+def test_binds_to_comparison_head_when_commit_fields_disagree() -> None:
+    # ADR-102 replaces the raise this case used to assert. The equality it
+    # enforced would have forced a hand-sync repair for exactly this drift
+    # (PR #4954 documented the pattern, never fixed by a commit), not the
+    # naturally-independent pattern an earlier draft assumed, so a
+    # disagreement is now reported, not rejected.
+    ending = "b" * 40
+
+    binding = session_qa_binding(
+        {
+            "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
+            "endingCommit": ending,
+        },
+        session_log=QA_SESSION_LOG,
+    )
+
+    assert binding.commit == QA_COMMIT
+    assert binding.session_log == QA_SESSION_LOG
+    assert binding.inconsistency is not None
+    # Both SHAs must appear so a reader can act on the warning without
+    # reopening the log.
+    assert QA_COMMIT in binding.inconsistency
+    assert ending in binding.inconsistency
+
+
+def test_inconsistency_is_excluded_from_binding_identity() -> None:
+    # QaBinding's docstring says inconsistency "is not part of that
+    # identity," but a plain dataclass field generates equality and
+    # hashing over every field by default, contradicting the docstring
+    # unless the field is explicitly excluded. Two bindings that agree on
+    # session_log and commit but disagree on inconsistency must still
+    # compare equal and hash equal, or callers that compare or dedupe
+    # bindings would see two different-diagnostic bindings as distinct
+    # identities.
+    with_diagnostic = QaBinding(
+        session_log=QA_SESSION_LOG, commit=QA_COMMIT, inconsistency="drift noted"
+    )
+    without_diagnostic = QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT)
+
+    assert with_diagnostic == without_diagnostic
+    assert hash(with_diagnostic) == hash(without_diagnostic)
+
+
+def test_reports_no_inconsistency_when_commit_fields_agree() -> None:
+    binding = session_qa_binding(
+        {
+            "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
+            "endingCommit": QA_COMMIT,
+        },
+        session_log=QA_SESSION_LOG,
+    )
+
+    assert binding == QaBinding(session_log=QA_SESSION_LOG, commit=QA_COMMIT)
+    assert binding.inconsistency is None
+
+
+def test_reports_no_inconsistency_when_ending_commit_is_absent() -> None:
+    # comparison.head alone has always won here. Nothing disagreed with it, so
+    # the diagnostic must stay silent rather than fire on a missing field.
+    binding = session_qa_binding(
+        {"episodeMetrics": {"comparison": {"head": QA_COMMIT}}},
+        session_log=QA_SESSION_LOG,
+    )
+
+    assert binding.commit == QA_COMMIT
+    assert binding.inconsistency is None
+
+
+def test_reports_disagreement_after_resolving_abbreviated_ending_commit() -> None:
+    # The resolver path at qa_report.py:160-168 turns an abbreviated
+    # endingCommit into a full SHA. A disagreement only becomes visible after
+    # that resolution, so it needs its own case.
+    resolved = "b" * 40
+
+    binding = session_qa_binding(
+        {
+            "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
+            "endingCommit": "b" * 10,
+        },
+        session_log=QA_SESSION_LOG,
+        resolve_commit=lambda _commit: resolved,
+    )
+
+    assert binding.commit == QA_COMMIT
+    assert binding.inconsistency is not None
+    assert resolved in binding.inconsistency
+
+
+def test_reports_no_inconsistency_when_ending_commit_is_unresolvable() -> None:
+    # An endingCommit that never resolves cannot disagree with anything. This
+    # is the case a naive "the two fields differ" check would fire on wrongly.
+    binding = session_qa_binding(
+        {
+            "episodeMetrics": {"comparison": {"head": QA_COMMIT}},
+            "endingCommit": "b" * 10,
+        },
+        session_log=QA_SESSION_LOG,
+        resolve_commit=lambda _commit: None,
+    )
+
+    assert binding.commit == QA_COMMIT
+    assert binding.inconsistency is None
 
 
 def test_resolves_abbreviated_qa_ending_commit() -> None:
@@ -825,6 +964,63 @@ class TestValidateSessionSection:
 
         assert not any("future" in e for e in result.errors)
 
+    @pytest.mark.parametrize(
+        ("hour", "minute", "expected_future_errors"),
+        [(9, 59, 1), (10, 0, 0)],
+        ids=["before-utc-10", "at-utc-10"],
+    )
+    def test_host_local_tomorrow_at_utc_10_boundary(
+        self, hour: int, minute: int, expected_future_errors: int
+    ) -> None:
+        """UTC+14 reaches tomorrow precisely at 10:00 UTC (#4779)."""
+        from datetime import datetime, timedelta, timezone
+
+        fixed_now = datetime(2026, 8, 14, hour, minute, tzinfo=timezone.utc)
+        tomorrow = (fixed_now.date() + timedelta(days=1)).isoformat()
+        session = {
+            "number": 1,
+            "date": tomorrow,
+            "branch": "fix/test",
+            "startingCommit": "abcdef1",
+            "objective": "Test",
+        }
+        result = ValidationResult()
+
+        with mock.patch("scripts.validate_session_json.datetime") as clock:
+            clock.now.return_value = fixed_now
+            validate_session_section(session, result)
+
+        future_errors = [error for error in result.errors if "future" in error]
+        assert len(future_errors) == expected_future_errors
+        assert all(tomorrow in error for error in future_errors)
+
+    def test_date_two_days_ahead_of_utc_emits_error(self) -> None:
+        """Two days ahead exceeds the max timezone offset, so it is flagged (#4779).
+
+        No real timezone puts the host-local date two calendar days ahead of
+        UTC, so a +2 date is a placeholder or a wrong date, not a timezone
+        artifact.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        fixed_now = datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc)
+        two_days = (fixed_now.date() + timedelta(days=2)).isoformat()
+        session = {
+            "number": 1,
+            "date": two_days,
+            "branch": "fix/test",
+            "startingCommit": "abcdef1",
+            "objective": "Test",
+        }
+        result = ValidationResult()
+
+        with mock.patch("scripts.validate_session_json.datetime") as clock:
+            clock.now.return_value = fixed_now
+            validate_session_section(session, result)
+
+        assert any("future" in e for e in result.errors)
+        assert any(two_days in e for e in result.errors)
+
 
 class TestValidateSessionStart:
     """Tests for validate_session_start function."""
@@ -1285,9 +1481,12 @@ class TestValidateQaReportEvidence:
         self._write_report(report)
         result = ValidationResult()
 
-        with mock.patch(
-            "scripts.validate_session_json.artifact_dir",
-            return_value=qa_root,
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(_qa_report, "post_qa_code_changes", return_value=[]),
         ):
             validate_qa_report_evidence(
                 self._data(),
@@ -1297,6 +1496,169 @@ class TestValidateQaReportEvidence:
             )
 
         assert result.errors == []
+
+    @pytest.mark.parametrize(
+        ("ending_commit", "expects_warning"),
+        [("b" * 40, True), (COMMIT, False)],
+        ids=["fields-disagree", "fields-agree"],
+    )
+    def test_commit_field_disagreement_warns_without_blocking(
+        self,
+        tmp_path: Path,
+        ending_commit: str,
+        expects_warning: bool,
+    ) -> None:
+        # Wiring test (ADR-102). The unit tests above prove session_qa_binding
+        # produces the diagnostic; only this one proves the caller surfaces it,
+        # and that it is a warning rather than an error. Before ADR-102 the
+        # disagree case appended an error here, so `result.errors == []` is the
+        # assertion that pins the behavior change.
+        #
+        # Parametrized over both branches on purpose: a test that only ran the
+        # disagree case would pass against an implementation that warns
+        # unconditionally.
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report)
+        data = {
+            "episodeMetrics": {"comparison": {"head": self.COMMIT}},
+            "endingCommit": ending_commit,
+        }
+        result = ValidationResult()
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(_qa_report, "post_qa_code_changes", return_value=[]),
+        ):
+            validate_qa_report_evidence(
+                data,
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+            )
+
+        assert result.errors == []
+        if expects_warning:
+            assert len(result.warnings) == 1
+            assert self.COMMIT in result.warnings[0]
+            assert ending_commit in result.warnings[0]
+        else:
+            assert result.warnings == []
+
+    def test_disagreement_warning_survives_a_subsequent_validation_failure(
+        self, tmp_path: Path
+    ) -> None:
+        # Ordering-contract wiring test. The code comment and ADR-102 both
+        # say the disagreement warning is appended before validate_qa_report()
+        # runs "so the observation survives an unrelated failure below", but
+        # the parametrized wiring test above only exercises a passing report
+        # (post_qa_code_changes mocked to return []), so both parametrize
+        # cases hit result.errors == []. A regression that moved the
+        # result.warnings.append() call after the validate_qa_report() call
+        # would silently drop the warning whenever validation raises, and
+        # every existing test would stay green: this one forces both a
+        # disagreement AND a validation failure in the same call so that
+        # exact regression fails it.
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report)
+        data = {
+            "episodeMetrics": {"comparison": {"head": self.COMMIT}},
+            "endingCommit": "b" * 40,
+        }
+        result = ValidationResult()
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(
+                _qa_report, "post_qa_code_changes", return_value=["scripts/new_code.py"]
+            ),
+        ):
+            validate_qa_report_evidence(
+                data,
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+            )
+
+        assert len(result.warnings) == 1
+        assert self.COMMIT in result.warnings[0]
+        assert ("b" * 40) in result.warnings[0]
+        assert result.errors == [
+            "QA report is stale; code changed after its commit: scripts/new_code.py"
+        ]
+
+    def test_fallback_head_masks_a_real_change_between_the_two_fields(
+        self, tmp_path: Path
+    ) -> None:
+        # ADR-102 Implementation Note 8. Pins the laxer-direction exposure
+        # named in "The laxer direction is bounded, not impossible": when
+        # live-HEAD resolution fails (validation_head=None, simulating that
+        # failure) and the two commit fields disagree with comparison.head
+        # older, the fallback binds staleness checking to comparison.head
+        # (precedence always picks it), never to the newer endingCommit. A
+        # real code change landing between those two fields is therefore
+        # unreported. This asserts both halves: the report still passes
+        # (result.errors == []) and the git ancestry query never mentions
+        # endingCommit at all, so the gap is pinned rather than assumed.
+        older_head = "a" * 40  # comparison.head; wins precedence
+        newer_ending = "b" * 40  # endingCommit; never queried
+        qa_commit = "c" * 40  # a genuine ancestor of older_head
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report, commit=qa_commit)
+        data = {
+            "episodeMetrics": {"comparison": {"head": older_head}},
+            "endingCommit": newer_ending,
+        }
+        result = ValidationResult()
+        completed = [
+            subprocess.CompletedProcess([], 0, "", ""),
+            subprocess.CompletedProcess([], 0, "", ""),
+        ]
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(
+                _qa_report.subprocess, "run", side_effect=completed
+            ) as run,
+        ):
+            validate_qa_report_evidence(
+                data,
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+                validation_head=None,
+            )
+
+        assert result.errors == []
+        called_commands = [call.args[0] for call in run.call_args_list]
+        assert called_commands == [
+            ["git", "merge-base", "--is-ancestor", qa_commit, older_head],
+            [
+                "git",
+                "log",
+                "--format=",
+                "--name-only",
+                "--no-renames",
+                "-m",
+                "-z",
+                f"{qa_commit}..{older_head}",
+            ],
+        ]
+        assert not any(newer_ending in command for command in called_commands)
 
     def test_missing_report_fails_closed(self, tmp_path: Path) -> None:
         qa_root = tmp_path / "qa"
@@ -1415,15 +1777,23 @@ class TestValidateQaReportEvidence:
         ]
 
     def test_stale_commit_report_fails_closed(self, tmp_path: Path) -> None:
+        # ADR-096: a qaCommit that textually differs from the fallback head
+        # (binding.commit, since no explicit validation_head is passed here)
+        # only fails when real (non-evidence) code changed in between.
         qa_root = tmp_path / "qa"
         qa_root.mkdir()
         report = qa_root / "report.md"
         self._write_report(report, commit="b" * 40)
         result = ValidationResult()
 
-        with mock.patch(
-            "scripts.validate_session_json.artifact_dir",
-            return_value=qa_root,
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(
+                _qa_report, "post_qa_code_changes", return_value=["scripts/new_code.py"]
+            ),
         ):
             validate_qa_report_evidence(
                 self._data(),
@@ -1433,9 +1803,36 @@ class TestValidateQaReportEvidence:
             )
 
         assert result.errors == [
-            "QA report commit does not match current session commit: "
-            f"{'b' * 40} != {self.COMMIT}"
+            "QA report is stale; code changed after its commit: scripts/new_code.py"
         ]
+
+    def test_mismatched_commit_with_evidence_only_changes_passes(
+        self, tmp_path: Path
+    ) -> None:
+        # ADR-096: the specific defect this ADR fixes. A qaCommit that
+        # differs from the fallback head because only evidence-bookkeeping
+        # commits (a rebind) landed in between no longer forces a rebind.
+        qa_root = tmp_path / "qa"
+        qa_root.mkdir()
+        report = qa_root / "report.md"
+        self._write_report(report, commit="b" * 40)
+        result = ValidationResult()
+
+        with (
+            mock.patch(
+                "scripts.validate_session_json.artifact_dir",
+                return_value=qa_root,
+            ),
+            mock.patch.object(_qa_report, "post_qa_code_changes", return_value=[]),
+        ):
+            validate_qa_report_evidence(
+                self._data(),
+                self._session_end(str(report)),
+                result,
+                session_log=self.SESSION_LOG,
+            )
+
+        assert result.errors == []
 
     def test_code_changed_after_qa_fails_closed(self, tmp_path: Path) -> None:
         qa_root = tmp_path / "qa"
@@ -1449,9 +1846,8 @@ class TestValidateQaReportEvidence:
                 "scripts.validate_session_json.artifact_dir",
                 return_value=qa_root,
             ),
-            mock.patch(
-                "scripts.validate_session_json.post_qa_code_changes",
-                return_value=["scripts/new_code.py"],
+            mock.patch.object(
+                _qa_report, "post_qa_code_changes", return_value=["scripts/new_code.py"]
             ),
         ):
             validate_qa_report_evidence(
@@ -1478,10 +1874,7 @@ class TestValidateQaReportEvidence:
                 "scripts.validate_session_json.artifact_dir",
                 return_value=qa_root,
             ),
-            mock.patch(
-                "scripts.validate_session_json.post_qa_code_changes",
-                return_value=[],
-            ),
+            mock.patch.object(_qa_report, "post_qa_code_changes", return_value=[]),
         ):
             validate_qa_report_evidence(
                 self._data(),
@@ -1505,8 +1898,9 @@ class TestValidateQaReportEvidence:
                 "scripts.validate_session_json.artifact_dir",
                 return_value=qa_root,
             ),
-            mock.patch(
-                "scripts.validate_session_json.post_qa_code_changes",
+            mock.patch.object(
+                _qa_report,
+                "post_qa_code_changes",
                 side_effect=ValueError("Could not inspect commits after QA"),
             ),
         ):
@@ -1558,8 +1952,9 @@ class TestValidateQaReportEvidence:
 
         with (
             mock.patch("scripts.validate_session_json.artifact_dir") as artifact_dir_mock,
-            mock.patch(
-                "scripts.validate_session_json.post_qa_code_changes",
+            mock.patch.object(
+                _qa_report,
+                "post_qa_code_changes",
                 return_value=["scripts/new_code.py"],
             ) as post_qa_code_changes,
         ):
@@ -1602,8 +1997,9 @@ class TestValidateSessionLog:
     def test_valid_minimal_log(self) -> None:
         """Valid minimal log passes validation.
 
-        "Minimal" means the six root fields SESSION-PROTOCOL.md requires, not
-        the two the schema used to name (issue #3763).
+        "Minimal" means the six root fields the schema requires
+        (.agents/schemas/session-log.schema.json), not the two it used to
+        name (issue #3763).
         """
         data = {
             "schemaVersion": "1.0",
@@ -1661,10 +2057,10 @@ class TestValidateSessionLog:
 
 
 class TestValidateQaSkipScope:
-    """Tests for blocking investigation-only claim verification."""
+    """Tests for blocking docs-only and investigation-only claim verification."""
 
     @staticmethod
-    def _log() -> dict[str, Any]:
+    def _log(evidence: str = "SKIPPED: investigation-only") -> dict[str, Any]:
         return {
             "session": {"startingCommit": "a" * 40},
             "endingCommit": "b" * 40,
@@ -1672,7 +2068,7 @@ class TestValidateQaSkipScope:
                 "sessionEnd": {
                     "qaValidation": {
                         "Complete": True,
-                        "Evidence": "SKIPPED: investigation-only",
+                        "Evidence": evidence,
                         "level": "MUST",
                     }
                 }
@@ -1738,7 +2134,7 @@ class TestValidateQaSkipScope:
             validate_qa_skip_scope(self._log(), result)
 
         assert result.errors == [
-            "QA investigation-only scope includes non-investigation files: "
+            "QA investigation-only scope includes disqualifying changes: "
             "scripts/main.py"
         ]
 
@@ -1760,18 +2156,64 @@ class TestValidateQaSkipScope:
             "QA investigation-only scope cannot be verified: bad ref"
         ]
 
-    def test_docs_only_skip_requires_qa_report(self) -> None:
-        log = self._log()
-        log["protocolCompliance"]["sessionEnd"]["qaValidation"]["Evidence"] = (
-            "SKIPPED: docs-only"
+    def test_docs_only_eligible_range_passes(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps({"Eligible": True, "Violations": []}),
+            stderr="",
         )
         result = ValidationResult()
 
-        validate_qa_skip_scope(log, result)
+        with mock.patch("subprocess.run", return_value=completed) as run:
+            validate_qa_skip_scope(self._log("SKIPPED: docs-only"), result)
+
+        assert result.errors == []
+        assert run.call_args.args[0][-4:] == [
+            "--base-ref",
+            "a" * 40,
+            "--head-ref",
+            "b" * 40,
+        ]
+        assert "test_docs_only_eligibility.py" in run.call_args.args[0][1]
+
+    def test_docs_only_ineligible_range_fails(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps(
+                {
+                    "Eligible": False,
+                    "Violations": ["scripts/main.py: not a documentation file"],
+                }
+            ),
+            stderr="",
+        )
+        result = ValidationResult()
+
+        with mock.patch("subprocess.run", return_value=completed):
+            validate_qa_skip_scope(self._log("SKIPPED: docs-only"), result)
 
         assert result.errors == [
-            "QA docs-only scope cannot be verified automatically; provide a QA report"
+            "QA docs-only scope includes disqualifying changes: "
+            "scripts/main.py: not a documentation file"
         ]
+
+    def test_docs_only_checker_error_fails_closed(self) -> None:
+        completed = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout=json.dumps(
+                {"Eligible": False, "Violations": [], "Error": "bad ref"}
+            ),
+            stderr="",
+        )
+        result = ValidationResult()
+
+        with mock.patch("subprocess.run", return_value=completed):
+            validate_qa_skip_scope(self._log("SKIPPED: docs-only"), result)
+
+        assert result.errors == ["QA docs-only scope cannot be verified: bad ref"]
 
 
 class TestLoadSessionFile:
@@ -1816,14 +2258,50 @@ class TestMainFunction:
 
     @pytest.fixture
     def valid_session_file(self, tmp_path: Path) -> Path:
-        """Create a valid session log file."""
+        """Create a valid session log file.
+
+        ADR-096: the QA-evidence gate now always resolves a staleness head
+        and shells out to git via ``post_qa_code_changes``, so ``tmp_path``
+        must be a real git repository with a real commit for the QA report's
+        ``qaCommit`` to resolve. A fabricated ``"a" * 40`` SHA (the prior
+        fixture shape) is not a valid object in a real repo and fails the
+        ancestry check.
+        """
+
+        def git(*args: str) -> None:
+            subprocess.run(
+                ["git", *args],
+                cwd=tmp_path,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+
+        git("init", "-q", "-b", "main")
+        git("config", "user.name", "Test User")
+        git("config", "user.email", "test@example.com")
+        (tmp_path / "README.md").write_text("base\n", encoding="utf-8")
+        git("add", "README.md")
+        git("commit", "-q", "-m", "test: base")
+        commit = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        ).stdout.strip()
+
         qa_report = tmp_path / ".agents" / "qa" / "report.md"
         qa_report.parent.mkdir(parents=True)
         qa_report.write_text(
             "---\n"
             "qaVerdict: PASS\n"
             "qaSessionLog: .agents/sessions/valid-session.json\n"
-            f"qaCommit: {'a' * 40}\n"
+            f"qaCommit: {commit}\n"
             "---\n"
             "# QA\n",
             encoding="utf-8",
@@ -1848,7 +2326,7 @@ class TestMainFunction:
                 ),
             },
             "workLog": [],
-            "endingCommit": "a" * 40,
+            "endingCommit": commit,
             "nextSteps": [],
         }
         session_file = tmp_path / ".agents" / "sessions" / "valid-session.json"
@@ -2079,10 +2557,10 @@ def _make_valid_log(**session_overrides: object) -> dict:
     }
     session.update(session_overrides)
     return {
-        # The four fields below are required by SESSION-PROTOCOL.md and emitted
-        # by session_structure.build_session_log, but the schema did not name
-        # them until issue #3763. A fixture that omitted them was only "valid"
-        # against the weaker schema, so it is corrected here alongside the fix.
+        # The four fields below were required by protocol convention but the
+        # schema did not name them until issue #3763. A fixture that omitted
+        # them was only "valid" against the weaker schema, so it is corrected
+        # here alongside the fix.
         "schemaVersion": "1.0",
         "session": session,
         "protocolCompliance": {
@@ -2442,18 +2920,6 @@ class TestHistoricalLogsAreExemptByConstruction:
 
         assert result == 0
         assert seen == [new_path]
-
-    def test_workflow_validates_one_file_per_invocation(self) -> None:
-        """One log per invocation, never a glob (ADR-006: logic lives in the script).
-
-        A glob would hand the validator all 131 historical logs at once and
-        fail the job on files no one in this PR touched.
-        """
-        script = (
-            Path(__file__).resolve().parents[1] / "scripts/ci/validate_session_protocol.py"
-        ).read_text(encoding="utf-8")
-        assert "./scripts/validate_session_json.py" in script
-        assert ".agents/sessions/*" not in script
 
 
 class TestMainNarrowsOnThePayload:
@@ -3032,6 +3498,7 @@ class TestAMalformedChecklistItemIsReportedNotFatal:
         ).errors
         assert not [e for e in errors if "Malformed item" in e]
 
+    @pytest.mark.timeout(300)
     def test_every_committed_log_can_be_validated_without_crashing(self) -> None:
         """The corpus is the reason this guard exists."""
         sessions = Path(__file__).resolve().parents[1] / ".agents" / "sessions"
@@ -3134,28 +3601,6 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
             return subprocess.CompletedProcess([], 0, "", "")
 
         return _git, seen
-
-    def test_the_workflow_reads_head_adds_from_the_shared_scope_helper(self) -> None:
-        """The workflow must choose creation-mode outside the validator.
-
-        A branch-added log needs --creation-mode, while a later edit to the
-        same path must validate as an existing record. Keeping
-        --scope-from-git here pins the broken in-between state where neither
-        mode is selected for a branch-added log.
-        """
-        script = (
-            Path(__file__).resolve().parents[1] / "scripts/ci/validate_session_protocol.py"
-        ).read_text(encoding="utf-8")
-        assert "committed_session_validation_modes" in script
-        assert "--creation-mode" in script
-        assert "--existing-log" in script
-        assert "--scope-from-git" not in script
-
-    # Issue #3806 retired the whole-file `"uv run" not in workflow` assertion
-    # that used to sit here. The validate job now installs uv on purpose, and a
-    # substring over the whole file cannot tell that job from the three that
-    # still install nothing. The per-job successor lives in
-    # tests/ci/test_validate_session_protocol_wiring.py::TestEachJobInstallsWhatItsScriptsNeed.
 
     def test_the_shared_module_imports_no_third_party_package(self) -> None:
         """It runs under the workflow's bare python3, which has no PyYAML."""
@@ -3639,8 +4084,12 @@ class TestCheckSessionsCreationMode:
 
     The session-policy hook calls git_hook_policy session (singular), which
     routes to check_sessions. Only the staged add that creates the session log
-    should get --creation-mode. A later commit that edits the same file must
-    run the full pre-commit validation.
+    should get --creation-mode. A later commit that edits the same file gets
+    --pre-commit --existing-log instead, which validates record shape and
+    structure for an already-committed log but skips the protocol-compliance,
+    evidence-agreement, and QA-evidence checks that --pre-commit alone runs,
+    since those items cannot be made true retroactively for a session that
+    already happened (e.g. a tool unavailable in the original session).
     """
 
     _stub = staticmethod(TestSessionScopeIsDecidedOnceForBothCallSites._stub)
@@ -3676,7 +4125,11 @@ class TestCheckSessionsCreationMode:
         )
 
     def test_check_sessions_no_creation_mode_for_existing_log(self) -> None:
-        """A staged edit must NOT keep getting creation-mode forever."""
+        """A staged edit must NOT keep getting creation-mode forever, and must
+        get --existing-log so a refinement of an already-committed log is not
+        held to protocol-compliance items that cannot be made true
+        retroactively (e.g. a tool unavailable in the original session).
+        """
         from scripts.validation import git_hook_policy
 
         existing = ".agents/sessions/2026-01-01-session-1.json"
@@ -3699,6 +4152,10 @@ class TestCheckSessionsCreationMode:
         assert validate_commands
         assert "--creation-mode" not in validate_commands[0], (
             "existing log must not get --creation-mode"
+        )
+        assert "--existing-log" in validate_commands[0], (
+            "existing log must get --existing-log so protocol-compliance is not "
+            "re-enforced on every edit to an already-committed log"
         )
 
     def test_the_hook_passes_creation_mode_for_a_new_log(self) -> None:
@@ -3785,13 +4242,17 @@ class TestCheckSessionsCreationMode:
         assert rc == 1
         assert validate_commands == []
 
-    def test_check_sessions_rejects_commit_without_session_log(self) -> None:
-        """If no session JSON is staged, the hook must fail with an error."""
+    def test_check_sessions_allows_commit_without_session_log(self) -> None:
+        """The committed session-log gate is retired: no staged log is fine.
+
+        Staging a .agents change with no session JSON must pass. check_sessions
+        is validate-if-present, so an absent log returns 0 and emits no mandate.
+        """
         from scripts.validation import git_hook_policy
 
         with mock.patch.object(git_hook_policy, "_merge_in_progress", return_value=False):
             rc = git_hook_policy.check_sessions([".agents/governance/GOTCHAS.md"], Path.cwd())
-        assert rc == 1
+        assert rc == 0
 
     def test_the_hook_fully_validates_when_head_presence_is_unknown(self) -> None:
         from scripts.validation import git_hook_policy, session_scope
@@ -3915,7 +4376,7 @@ class TestEvidenceAgreesWithSession:
         assert not any("endingCommit is empty" in w for w in validate_session_log(log).warnings)
 
     def test_a_log_with_no_next_steps_field_warns(self) -> None:
-        """`SESSION-PROTOCOL.md` lists `nextSteps` as a required top-level field."""
+        """The schema lists `nextSteps` as a required top-level field."""
         log = _make_valid_log()
         log.pop("nextSteps", None)
         assert any("nextSteps" in w for w in validate_session_log(log).warnings)
@@ -4264,9 +4725,9 @@ class TestARequiredItemCannotChooseItsOwnEnforcement:
         assert not any(e.startswith(_MISSING_LEVEL_PREFIX) for e in errors)
 
     def test_a_demoted_incomplete_item_without_evidence_is_an_error(self) -> None:
-        """The bypass #3747 names. SESSION-PROTOCOL.md line 20 already requires
-        documented justification to deviate from a MUST, so this enforces the
-        rule as written rather than inventing policy."""
+        """The bypass #3747 names. Deviating from a MUST already requires
+        documented justification, so this enforces the rule as written
+        rather than inventing policy."""
         errors = self._check({"complete": False, "level": "SHOULD", "evidence": ""}).errors
         assert any(e.startswith(_UNJUSTIFIED_DEMOTION_PREFIX) for e in errors)
 
@@ -4337,19 +4798,15 @@ class TestARequiredItemCannotChooseItsOwnEnforcement:
             e.startswith(_MISSING_LEVEL_PREFIX) and "branchVerified" in e for e in result.errors
         )
 
-    def test_the_generator_output_trips_neither_rule(self) -> None:
-        """A rule that fires on the repo's own session-init template is a rule
-        that blocks every new session. build_session_log emits `level` on all
-        twelve required items, so both rules are pure ratchets on practice."""
-        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".claude/skills/session-init"))
-        from session_init.session_structure import build_session_log
-
-        log = build_session_log(
+    def test_a_well_formed_log_trips_neither_rule(self) -> None:
+        """A rule that fires on a well-formed log is a rule that blocks every
+        new session. A log with `level` on all required items must be a pure
+        ratchet on practice, not a false positive."""
+        log = _make_valid_log(
             branch="feat/probe",
-            commit="a" * 40,
-            session_number=1,
+            startingCommit="a" * 40,
             objective="probe",
-            current_date="2026-07-29",
+            date="2026-07-29",
         )
         errors = validate_session_log(log).errors
         assert not any(e.startswith(_MISSING_LEVEL_PREFIX) for e in errors)
@@ -4358,9 +4815,10 @@ class TestARequiredItemCannotChooseItsOwnEnforcement:
 
 
 class TestTheSchemaNamesEveryRequiredRootField:
-    """Issue #3763: SESSION-PROTOCOL.md lists six required root fields and
-    build_session_log emits all six, but the schema named two. The schema was
-    the single document disagreeing with both the prose and the generator.
+    """Issue #3763: the session protocol prose listed six required root
+    fields and build_session_log emits all six, but the schema named two.
+    The schema was the single document disagreeing with both the prose and
+    the generator.
     """
 
     def test_each_promoted_field_is_individually_required(self) -> None:

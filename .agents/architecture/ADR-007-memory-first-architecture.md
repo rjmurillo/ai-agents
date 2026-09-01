@@ -1,8 +1,26 @@
+---
+id: ADR-007
+status: accepted
+date: 2026-08-16
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-007: Memory-First Architecture
 
 ## Status
 
 Accepted (Revised 2026-01-01)
+
+### Current-State Amendment (2026-08-16)
+
+Session logs are optional. Memory retrieval evidence may live in the
+transcript, pull request, per-issue handoff, Serena memory, or an opted-in log.
+The memory-first decision remains active; committed log evidence is retired.
+This amendment supersedes original log-specific confirmation statements below.
 
 ## Date
 

@@ -6,12 +6,15 @@ A document that tells a contributor to run
 doc-interpreter-portability: the defect this guard finds, quoted so it can be named
     python3 scripts/sync_adr_protocol.py
 is only correct on a machine whose *system* interpreter already has the script's
-third-party dependencies. ``scripts/sync_adr_protocol.py:24`` is ``import yaml``
+third-party dependencies. ``scripts/sync_adr_protocol.py:24`` was ``import yaml``
 and PyYAML is a declared project dependency (``pyproject.toml``), not a stdlib
-module, so on a clean checkout the documented command dies with::
+module, so on a clean checkout the documented command died with::
     ModuleNotFoundError: No module named 'yaml'
 The portable form names the project environment::
     uv run python scripts/sync_adr_protocol.py
+(``sync_adr_protocol.py`` itself was later deleted along with
+``.agents/SESSION-PROTOCOL.md``, the doc it synced ADR requirements into; the
+worked example above stands as the originating incident, not a live target.)
 Why a docs guard and not a code fix:
   PR #3793 tried to delete the ``import yaml`` by hand-rolling a scalar reader.
   It was closed unmerged after review measured six behavioral divergences from

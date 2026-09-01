@@ -2,7 +2,7 @@
 
 > **Status**: Operational Guidance
 > **Last Updated**: 2026-01-03
-> **Related**: ADR-007 (Memory-First Architecture), SESSION-PROTOCOL.md
+> **Related**: ADR-007 (Memory-First Architecture), `AGENTS.md` Retrieval gate
 
 This document describes the unified memory management workflow across three memory systems: **Serena**, **Forgetful**, and **Claude-Mem**.
 
@@ -66,7 +66,7 @@ This document describes the unified memory management workflow across three memo
 ### Phase 2.1: Import Shared Memories (RECOMMENDED)
 1. Check `.claude-mem/memories/imports/` for new exports
 2. Import: `npx tsx scripts/import-memories.ts [file].json`
-3. Document import count in session log
+3. Document import count in the transcript or per-issue handoff
 ```
 
 ### During Session
@@ -104,11 +104,11 @@ mcp__serena__write_memory(
 
 2. Security review runs automatically (mandatory gate)
 3. Commit export to git if review passes
-4. Document export path in session log
+4. Document export path in the transcript or per-issue handoff
 
 ### Phase 1: Documentation Update (REQUIRED)
 1. Update Serena memory for cross-session context
-2. Complete session log
+2. Do not create a session log; creation is discontinued (`.claude/rules/session-logs.md` MUST 1)
 3. DO NOT modify HANDOFF.md (read-only reference)
 ```
 
@@ -452,7 +452,8 @@ curl http://localhost:8020/mcp
 
 ### Track Export Coverage
 
-Add to session log:
+Session log creation is discontinued; record this in the per-issue handoff or
+transcript instead:
 
 ```markdown
 ### Memory Management
@@ -472,13 +473,13 @@ Before exporting, verify:
 - [ ] Memories have importance 7+ (only export high-value learnings)
 - [ ] Privacy review completed (no secrets, paths, PII)
 - [ ] Naming follows convention (YYYY-MM-DD-session-NNN-topic.json)
-- [ ] Session log documents export path
+- [ ] Export path documented in the per-issue handoff or transcript
 
 ---
 
 ## Related Documents
 
-- [SESSION-PROTOCOL.md](../SESSION-PROTOCOL.md) - Session start/end requirements
+- [`.claude/rules/session-logs.md`](../../.claude/rules/session-logs.md) - Session log mechanics
 - [ADR-007: Memory-First Architecture](../architecture/ADR-007-memory-first-architecture.md)
 - [.claude-mem/memories/README.md](../../.claude-mem/memories/README.md) - Export/import detailed workflow
 - [Claude-Mem Export/Import Docs](https://docs.claude-mem.ai/usage/export-import)

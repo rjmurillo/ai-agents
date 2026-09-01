@@ -100,6 +100,47 @@ def test_build_details_renders_similarity_and_sections() -> None:
     assert "Header" not in body
 
 
+def test_build_details_renders_missing_sections() -> None:
+    """Issue #4852 review: an agent whose only failure is a missing H2 section
+    carries no sections[].status == "DRIFT" entries, so the alert body must
+    still name the missing heading via the missingSections field."""
+    # Arrange
+    results = {
+        "summary": {"driftDetected": 1, "missingSections": 1, "adapterSections": 0},
+        "results": [
+            {
+                "agentName": "orchestrator",
+                "comparison": "src-claude vs src-vscode",
+                "overallSimilarity": 100.0,
+                "status": "DRIFT DETECTED",
+                "driftingSections": [],
+                "missingSections": ["Context Maintenance"],
+                "adapterSections": [],
+                "sections": [],
+            }
+        ],
+    }
+
+    # Act
+    body, count = build_drift_details(results)
+
+    # Assert
+    assert count == 1
+    assert "### orchestrator" in body
+    assert "- **Missing sections**: Context Maintenance" in body
+
+
+def test_build_details_omits_missing_sections_line_when_absent() -> None:
+    # Arrange: pre-#4852 payload shape, no missingSections key at all.
+    results = _drift_payload()
+
+    # Act
+    body, _ = build_drift_details(results)
+
+    # Assert
+    assert "**Missing sections**" not in body
+
+
 def test_build_details_empty_when_no_drift() -> None:
     # Arrange
     results = {

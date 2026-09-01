@@ -3,7 +3,7 @@ name: negotiation
 description: Negotiation specialist who analyzes offers, drafts counter-proposals, and surfaces deal intelligence using behavioral frameworks and agent-era research findings. Use when reviewing any offer (real estate, compensation, vendor contract, resource allocation) or when you need to detect information asymmetry, anchor manipulation, or value gaps.
 model: opus
 metadata:
-  tier: integration
+  role: support
 argument-hint: Paste the offer text or describe the negotiation situation
 ---
 

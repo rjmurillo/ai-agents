@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from pathlib import Path
 
 import pytest
@@ -132,13 +133,16 @@ def _group_shim_basenames(surface_is_plugin: bool) -> set[str]:
 
 
 def _settings_direct_basenames() -> set[str]:
-    return {
-        (hook.get("command") or "").rsplit("/", 1)[-1]
+    basenames = {
+        Path(token).name
         for groups in SETTINGS["hooks"].values()
         for group in groups
         for hook in group.get("hooks", [])
         if "invoke_dispatch_claude.py" not in (hook.get("command") or "")
+        for token in shlex.split(hook.get("command") or "")
+        if token.endswith((".py", ".sh"))
     }
+    return basenames
 
 
 def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
@@ -147,13 +151,12 @@ def test_repo_settings_cover_plugin_shims_minus_documented_prunes():
     # every hook the plugin would have run, minus the prunes this repo
     # deliberately made. A plugin shim missing here would silently never
     # run during this repo's own sessions (the 19-day dead-hook class).
-    pruned = {
-        # ADR-084 keeps customer-value markdown hooks plugin-only.
-        "invoke_markdown_auto_lint.py",
-        "invoke_markdownlint_guard.py",
-        # Gate groups do not take the plugin dispatcher's self-host bail.
-        "invoke_push_pr_script_identity_guard.py",
-    }
+    # ADR-097 retired every plugin-surface tool-call hook, so there is nothing
+    # left for repo settings to cover or to prune. The three former entries
+    # (require_subagent_model, serena_worktree_scope_guard,
+    # serena_memory_scope_guard) went with their hooks; leaving them here would
+    # trip the stale-prune-entry half of the assertion below.
+    pruned: set[str] = set()
     uncovered = (
         _group_shim_basenames(surface_is_plugin=True)
         - _group_shim_basenames(surface_is_plugin=False)
@@ -195,21 +198,16 @@ def test_plugin_registrations_are_dispatcher_only():
 # The authorized set is small and shrinking while the running set is what
 # drifts, so this stays cheap and gets stronger as the ROI program completes.
 AUTHORIZED_HOOKS = {
-    "invoke_push_pr_script_identity_guard.py": "#4764: block repository-controlled "
-    "lookalike PR scripts before Python execution",
-    "invoke_markdownlint_guard.py": "ADR-084 keeper (customer value)",
-    "invoke_markdown_auto_lint.py": "ADR-084 keeper (customer value)",
-    "invoke_observation_sync.py": "#3217: relocate to .githooks/CI, authorized until then",
     "invoke_compact_checkpoint.py": "#3217 KEEP, trimmed by #3273",
     "invoke_context_loader.py": "#3349 KEEP: read-only, fail-open, automates the "
-    "SESSION-PROTOCOL start gate for this repo's own sessions",
+    "session start gate for this repo's own sessions",
     "session-start.sh": "#3244 deterministic .githooks activation",
     "invoke_memory_recall.py": "#4011 KEEP: fail-open recall, dogfood-only, "
     "stdout on exit 0 so it can never erase a prompt",
-    "invoke_memory_capture.py": "#4011 KEEP: fail-open suggestion after the "
-    "tool already ran, dogfood-only",
     "invoke_memory_reflection.py": "#4011 KEEP: the only live caller that "
     "persists memory confidence scores, dogfood-only",
+    "invoke_checkout_freshness_check.py": "#4689: state how many commits HEAD "
+    "is behind origin/main before triage begins, fail-open, dogfood-only",
 }
 
 
@@ -239,3 +237,5 @@ def test_no_authorization_outlives_the_hook_it_authorizes():
         f"authorized but not running: {sorted(stale)}. Delete these entries; "
         f"the ledger records what runs, not what once did."
     )
+
+

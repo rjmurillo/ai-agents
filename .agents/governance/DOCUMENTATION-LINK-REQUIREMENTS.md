@@ -16,9 +16,9 @@ When referencing an existing file in any documentation artifact, the reference M
 
 | Pattern | Status | Example |
 |---------|--------|---------|
-| Linked reference | CORRECT | `[`.agents/SESSION-PROTOCOL.md`](.agents/SESSION-PROTOCOL.md)` |
-| Plain text path | WRONG | `` `.agents/SESSION-PROTOCOL.md` `` |
-| Inline code path (no link) | WRONG | `See .agents/SESSION-PROTOCOL.md` |
+| Linked reference | CORRECT | `[`.claude/rules/session-logs.md`](.claude/rules/session-logs.md)` |
+| Plain text path | WRONG | `` `.claude/rules/session-logs.md` `` |
+| Inline code path (no link) | WRONG | `See .claude/rules/session-logs.md` |
 
 **Correct examples**:
 
@@ -29,7 +29,7 @@ Plan referenced test file [`.github/workflows/tests/ai-issue-triage.Tests.ps1`](
 <!-- Linking in a table -->
 | Source | Location |
 |--------|----------|
-| Session protocol | [`.agents/SESSION-PROTOCOL.md`](.agents/SESSION-PROTOCOL.md) |
+| Session log mechanics | [`.claude/rules/session-logs.md`](.claude/rules/session-logs.md) |
 
 <!-- Linking in prose -->
 See the [`.agents/governance/naming-conventions.md`](.agents/governance/naming-conventions.md) for details.

@@ -1,8 +1,26 @@
+---
+id: ADR-014
+status: accepted
+date: 2026-08-16
+decision-makers: [rjmurillo]
+supersedes: []
+superseded-by: null
+explainer: null
+implemented: true
+---
+
 # ADR-014: Distributed Handoff Architecture
 
 ## Status
 
 Accepted
+
+### Current-State Amendment (2026-08-16)
+
+Committed session logs are optional. Per-issue handoffs and Serena memory now
+carry active continuity. Historical logs and this ADR's original rationale
+remain preserved. HANDOFF.md remains read-only. Log-specific authority,
+requirements, and success metrics below apply only to opted-in logs.
 
 ## Date
 

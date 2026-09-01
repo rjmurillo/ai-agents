@@ -60,7 +60,14 @@ def main():
     args = ap.parse_args()
     cells = load(args.reports)
     psec = args.hourly / 3600.0
-    Q = ["cohesion", "coupling", "encapsulation", "testability", "non_redundancy", "overall"]
+    qualities = [
+        "cohesion",
+        "coupling",
+        "encapsulation",
+        "testability",
+        "non_redundancy",
+        "overall",
+    ]
     labels = list(cells)
 
     print("=== overall score: mean +/- sd ===")
@@ -71,11 +78,11 @@ def main():
                   f"median={st.median(ov)} min={min(ov)} max={max(ov)} n={len(ov)}")
 
     print("\n=== per-quality mean ===")
-    print(f"  {'config':20}" + "".join(f"{q[:5]:>7}" for q in Q))
+    print(f"  {'config':20}" + "".join(f"{q[:5]:>7}" for q in qualities))
     for lbl in labels:
         vals = [c for c in cells[lbl].values() if ok(c)]
         if vals:
-            ms = [st.mean([c["scores"][q] for c in vals]) for q in Q]
+            ms = [st.mean([c["scores"][q] for c in vals]) for q in qualities]
             print(f"  {lbl:20}" + "".join(f"{m:>7.2f}" for m in ms))
 
     if args.pair:
@@ -107,7 +114,7 @@ def main():
         hum = [c["ms"] / 1000 * psec for c in vals]
         out = [c["out_total"] for c in vals]
         lat = [c["ms"] / 1000 for c in vals]
-        allin = [t + h for t, h in zip(tok, hum)]
+        allin = [t + h for t, h in zip(tok, hum, strict=True)]
         print(f"  {lbl:20}{st.mean(out):>7.0f}{st.mean(lat):>7.0f}{st.mean(tok):>9.4f}"
               f"{st.mean(tok) * 0.5:>9.4f}{st.mean(hum):>9.3f}{st.mean(allin):>9.3f}"
               f"{st.mean(hum) / st.mean(tok):>6.0f}x")

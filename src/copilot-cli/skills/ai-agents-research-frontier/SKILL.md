@@ -32,7 +32,7 @@ build on it.
 |------|---------|------------------|---------------------------|-------------------------------------|
 | 1 | Verified governance | ADR-069, `scripts/eval/eval-rule-activation.py` | ADR-069 is PROPOSED; eval tool exists, 15 rule scenario fixtures exist | Controlled eval shows gated-corpus sessions beat ungated on N scenarios with defensible stats |
 | 2 | Cross-harness abstraction | ADR-072, ADR-068, `build/generate_agents.py`, `tests/build_scripts/test_generate_hooks_runtime_contract.py` | ADR-072 PROPOSED, ADR-068 ACCEPTED as of 2026-07-30; generators and contract tests exist and run | New harness target added with zero hand-edits to generated trees, contract suite green |
-| 3 | Self-improving loop | issue #1345 hooks, `guard-maturity` tiers, `EVENT=` telemetry | Apply-step hooks unregistered; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
+| 3 | Self-improving loop | issue #1345 hooks, `EVENT=` telemetry (retired, ADR-084/#5154) | Apply-step hooks unregistered; end-to-end consumer pipeline UNVERIFIED | A correction observed once auto-proposes a guard that survives calibration |
 
 ## Process
 
@@ -102,9 +102,9 @@ durable competitive surface and everything else is plumbing.
 
 - A large corpus of skill directories, rules, retrospectives, and Serena
   memories. Run the Phase 1 corpus command for current counts.
-- Gates that produce inspectable artifacts (verification-based governance,
-  SESSION-PROTOCOL.md): every rule violation leaves evidence, so compliance is
-  measurable after the fact.
+- Gates that produce inspectable artifacts (verification-based governance):
+  every rule violation leaves evidence, so compliance is measurable after the
+  fact.
 - A working eval harness: `scripts/eval/eval-rule-activation.py` compares
   baseline (no rule) vs description-only vs full-body loading, LLM-judged on
   activation, citation, and behavior scores (1 to 5), with `--dry-run` as the
@@ -193,7 +193,7 @@ conformance suite green on every harness. The milestone fails, and the
 abstraction is falsified, if the third target requires manual patching of
 generated output or a contract row that cannot be expressed in the spec.
 
-## Program 3: Self-Improving Loop (issue #1345, guard-maturity)
+## Program 3: Self-Improving Loop (issue #1345)
 
 ### Why current state of the art fails
 
@@ -213,21 +213,27 @@ generated output or a contract row that cannot be expressed in the spec.
   The registration-state test named in
   Phase 1 guards their absence from both Claude source manifests and the generated
   Copilot manifest.
-- Guard telemetry exists at the emitter: `push_guard_base.py` writes a
-  machine-parseable `EVENT={...}` line to stderr on every block and fail-open
-  (`.claude/hooks/PreToolUse/push_guard_base.py:19`).
-- A maturity model with numeric thresholds: the `guard-maturity` skill
-  classifies guards as Budding, Growing, Mature, Proficient, Inert, or Harmful
-  from age, intercept count, and fitness, with explicit prune/promote actions.
+- Guard telemetry existed at the emitter: `push_guard_base.py` wrote a
+  machine-parseable `EVENT={...}` line to stderr on every block and fail-open.
+  That emitter and every guard built on it were deleted under ADR-084 (issue
+  #5154). The skill that consumed the telemetry and its two build scripts
+  (an aggregator and a classifier, both deleted with it) classified guards
+  as Budding,
+  Growing, Mature, Proficient, Inert, or Harmful from age, intercept count,
+  and fitness, with explicit prune/promote actions. It was retired in the
+  same change (issue #5154) once its only producer was gone: neither the
+  emitter nor the classifier exists in this repo today.
 - A reflexion write path: `memory-reflexion` (ADR-063) extracts episodes.
   Its derived causal graph was removed by ADR-089 for having no reader.
 
 What is NOT yet built (state this in any pitch):
 
 - UNVERIFIED: no automated `EVENT=` consumer pipeline was found under
-  `scripts/` on 2026-07-03; `push_guard_base.py` describes a pipeline that
-  "greps for ^EVENT=" but the `guard-maturity` report appears to be the only
-  consumer, invoked manually.
+  `scripts/` on 2026-07-03; `push_guard_base.py` (deleted under ADR-084,
+  issue #5154) described a pipeline that "greps for ^EVENT=" but the
+  tier-classifier report appeared to be the only consumer, invoked
+  manually. Both the emitter and that classifier are gone now, so there is
+  no producer and no consumer.
 - UNVERIFIED: Forgetful memory population size and freshness are unknown; do
   not assume Tier 1 supplementary recall works until you query it.
 - The Graduate step has no calibration gate: nothing today forces a promoted
@@ -237,11 +243,11 @@ What is NOT yet built (state this in any pitch):
 
 ### First three steps
 
-1. Close the telemetry loop: build or verify one automated consumer that
-   aggregates `EVENT=` lines into the guard-maturity tier report on a schedule,
-   and record where the events are persisted (today they go to stderr at push
-   time; if nothing captures them, the tier model has no data and that finding
-   itself goes in the write-up).
+1. Rebuild the telemetry loop from scratch: both the `EVENT=` emitter and its
+   tier-classifier consumer are gone (ADR-084, issue #5154). A revival needs
+   a new emitter on whatever guard exists at the time, a scheduled aggregator,
+   and a record of where the events persist; there is no existing pipeline to
+   "close", only the retired design to reference.
 2. Add a calibration gate to Graduate: before any correction-derived guard
    ships, replay it against roughly the last 5 real PRs and show it fires where
    it should and stays silent where it should (recipe in
@@ -300,8 +306,7 @@ Sources and re-verification:
 - Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py:1-40` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
 - FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:44`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
 - Detect-Log-Graduate and explicit retrieval: the `reflect` skill, `.claude/skills/memory/SKILL.md`, and `.claude/skills/memory-search/SKILL.md`. Re-verify the deleted advisory hooks' absence with the Phase 1 test command.
-- EVENT telemetry emitter: `.claude/hooks/PreToolUse/push_guard_base.py:19`. Re-verify: `grep -n "EVENT=" .claude/hooks/PreToolUse/push_guard_base.py`.
-- Guard tiers and thresholds: `.claude/skills/guard-maturity/SKILL.md:52-59`. Re-verify: `sed -n '52,59p' .claude/skills/guard-maturity/SKILL.md`.
+- EVENT telemetry emitter and tier classifier: RETIRED. `push_guard_base.py`, every guard built on it, and the skill that classified guards into Budding/Growing/Mature/Proficient/Inert/Harmful tiers were all deleted under ADR-084 (issue #5154); no live file emits or consumes this schema. Re-verify the removal: `ls .claude/hooks/PreToolUse/` (expect no `push_guard_base.py` or `invoke_*_guard.py`) and `ls .claude/skills/ | grep guard-maturity` (expect no output).
 - Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls tests/build_scripts/test_generate_hooks_runtime_contract.py scripts/validation/validate_hook_anchoring.py`.
 - Env-anchor decision memory: `.serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`. Re-verify: `ls .serena/memories/decision-copilot-cli-hook-plugin-root-contract.md`.
 - Counts (skill dirs, rules, retros, memories, scenario fixtures): Phase 1 command. Volatile; run the command, never quote a stored number.

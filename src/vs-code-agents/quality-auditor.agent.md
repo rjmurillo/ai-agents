@@ -10,8 +10,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
   - memory
-model: Claude Sonnet 4.6 (copilot)
-tier: integration
+role: support
 ---
 # Quality Auditor Agent
 

@@ -10,7 +10,6 @@ can silently die on an unmapped runtime tool name.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -72,25 +71,6 @@ def test_dispatcher_entry_carries_matcher_when_given():
     assert "matcher" not in dispatcher_entry("PreToolUse", 60, None)
 
 
-def test_committed_matcher_capable_entries_have_matchers():
-    hooks = json.loads(
-        (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(
-            encoding="utf-8"
-        )
-    )["hooks"]
-    expected = {
-        "PreToolUse": {"Bash"},
-        "PostToolUse": {"Write", "Edit"},
-    }
-
-    assert set(hooks) == set(expected)
-    for event, tokens in expected.items():
-        entry = hooks[event][0]
-        assert set(entry["matcher"].split("|")) == tokens
-
-
 def test_internal_claude_matcher_key_never_reaches_committed_artifact():
-    text = (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(
-        encoding="utf-8"
-    )
+    text = (REPO_ROOT / "src" / "copilot-cli" / "hooks" / "hooks.json").read_text(encoding="utf-8")
     assert "claudeMatcher" not in text

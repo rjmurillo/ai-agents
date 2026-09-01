@@ -45,8 +45,18 @@ class TestExportDirectValidateOutputPath:
 
 class TestExportDirectGetCount:
     @pytest.mark.skipif(shutil.which("sqlite3") is None, reason="sqlite3 binary not installed")
-    def test_returns_negative_on_error(self) -> None:
-        result = _export_direct.get_count("/nonexistent.db", "SELECT 1;")
+    def test_returns_negative_on_error(self, tmp_path: Path) -> None:
+        # A directory is unopenable as a database, so the CLI fails at open in
+        # every sqlite3 version. A nonexistent file path does not error here:
+        # the shell creates the database lazily and "SELECT 1;" touches no
+        # table, so sqlite3 exits 0 and get_count returns 1.
+        result = _export_direct.get_count(str(tmp_path), "SELECT 1;")
+        assert result == -1
+
+    @pytest.mark.skipif(shutil.which("sqlite3") is None, reason="sqlite3 binary not installed")
+    def test_returns_negative_on_non_numeric_output(self, tmp_path: Path) -> None:
+        db = tmp_path / "real.db"
+        result = _export_direct.get_count(str(db), "SELECT 'not-a-number';")
         assert result == -1
 
 

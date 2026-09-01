@@ -390,8 +390,8 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
     strategy:
       matrix:
         include:
-          - pytest_args: -n auto --dist loadfile tests/
-          - pytest_args: tests/test_safe_push_pr_branch.py
+          - partition: bulk
+          - partition: safe-push
 """,
         encoding="utf-8",
     )
@@ -408,9 +408,14 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
         assert env is not None
         assert env["COPILOT_PLUGIN_ROOT"] == str(tmp_path / ".claude")
         assert env["CLAUDE_PLUGIN_ROOT"] == str(tmp_path / ".claude")
+        assert env["GITHUB_EVENT_NAME"] == "merge_group"
         assert Path(env["PYTEST_NON_TMP_ROOT"]).parent == Path(env["COVERAGE_FILE"]).parent
         normalized = [*cmd]
-        normalized[7] = f"--junitxml={Path(cmd[7].removeprefix('--junitxml=')).name}"
+        for position, token in enumerate(normalized):
+            if token.startswith("--junitxml="):
+                relative = token.removeprefix("--junitxml=")
+                normalized[position] = f"--junitxml={Path(relative).name}"
+                break
         calls.append(
             (
                 normalized,
@@ -440,15 +445,12 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
                 "run",
                 "--frozen",
                 "python",
-                "scripts/ci/run_pytest_non_tmp.py",
+                "scripts/ci/run_pytest_selected.py",
+                "--partition",
+                "bulk",
                 "--cov",
                 "--cov-report=",
                 "--junitxml=pytest-0.xml",
-                "-n",
-                "auto",
-                "--dist",
-                "loadfile",
-                "tests/",
             ],
             600,
             tmp_path,
@@ -463,11 +465,12 @@ def test_act_true_runs_pytest_matrix_locally(all_tools, monkeypatch, tmp_path):
                 "run",
                 "--frozen",
                 "python",
-                "scripts/ci/run_pytest_non_tmp.py",
+                "scripts/ci/run_pytest_selected.py",
+                "--partition",
+                "safe-push",
                 "--cov",
                 "--cov-report=",
                 "--junitxml=pytest-1.xml",
-                "tests/test_safe_push_pr_branch.py",
             ],
             600,
             tmp_path,

@@ -18,8 +18,31 @@ pre-merge-commit:
 pre-commit:
   piped: true
   jobs:
+    # Issue #4698: a push can write core.bare=true into the shared .git/config,
+    # which leaves every worktree unable to run a command needing a work tree.
+    # It runs first because the failures it causes name the wrong component:
+    # the incident produced four unrelated-looking diagnoses before the shared
+    # cause was found. One accurate message has to precede all of them.
+    # Cap sized from the script's own budget, not from a default. The script
+    # holds GIT_BUDGET_SECONDS = 7 across the whole evaluation and exits 3 when
+    # it runs out, so this 10s cap is that budget plus 3s of interpreter
+    # headroom and is never what stops the job. Measured on this checkout:
+    # 0.077s and 0.130s warm, 0.944s on the run that also built the venv.
+    # The per-call GIT_TIMEOUT_SECONDS = 5 watchdog does NOT bound the run: the
+    # corrupted path issues five sequential git calls, so the watchdog alone
+    # allows 25s and lefthook would kill the job before it printed the repair,
+    # which is the one message this gate exists to deliver.
+    # `tests/validation/test_check_repo_health_budget.py` parses this cap and
+    # fails if either number moves without the other. The pair below is funded
+    # from one allocation (see repair-packed-refs) so the stage's declared worst
+    # case does not rise; ADR-104 rule 7 and
+    # `tests/ci/test_lefthook_declared_budget.py` both refuse a cap that does.
+    - name: repo-health
+      timeout: 10s
+      run: uv run --frozen python scripts/validation/check_repo_health.py
+
     - name: repair-packed-refs
-      timeout: 1m
+      timeout: 20s
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
     - name: branch-policy
@@ -29,6 +52,20 @@ pre-commit:
     - name: branch-context-policy
       timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
+
+    # Issue #5123: a commit landing while a push for this branch name is
+    # still running its pre-push suite (6-15 minutes), in this worktree or
+    # any other checkout of the same branch on this machine, can corrupt any
+    # test whose fixture reads live git state. Reuses the existing per-branch
+    # push-lock file (push-lock.md) rather than a second scheme; blocks only
+    # when that lock is currently held. Bypass: SKIP_PUSH_LOCK_COMMIT_GUARD=1.
+    # 30s -> 20s pays for repo-health's 10s above, so the pre-commit declared
+    # worst case is unchanged. This job's own bound is one subprocess under a
+    # `timeout=10` plus a non-blocking flock probe, and it measured 0.087s here,
+    # so 20s is still twice its internal ceiling.
+    - name: push-lock-commit-guard
+      timeout: 20s
+      run: uv run --frozen python scripts/validation/check_push_lock_before_commit.py
 
     - group:
         piped: true
@@ -167,6 +204,11 @@ pre-commit:
             run: uv run --frozen python scripts/validation/skill_size.py --staged-only --ci
             glob: "**/SKILL.md"
 
+          - name: colocated-skill-tests
+            timeout: 1m
+            run: uv run --frozen python scripts/validation/check_colocated_skill_tests.py --staged-only
+            glob: "{.claude/skills,src/copilot-cli/skills,src/claude/skills}/**/tests/**test*.py"
+
           - name: command-size
             timeout: 5m
             run: uv run --frozen python scripts/validation/command_size.py --changed-files {staged_files} --ci
@@ -178,7 +220,7 @@ pre-commit:
             glob: ".agents/planning/**/*.md"
 
           - name: infrastructure-advisory
-            timeout: 5m
+            timeout: 60s
             run: >-
               uv run --frozen python
               .claude/skills/security-detection/detect_infrastructure.py
@@ -190,7 +232,6 @@ pre-commit:
             run: uv run --frozen python scripts/validation/git_hook_policy.py adr-review {staged_files}
             glob:
               - ".agents/architecture/ADR-*.md"
-              - ".agents/SESSION-PROTOCOL.md"
             skip:
               - merge
 
@@ -373,141 +414,208 @@ pre-commit:
       timeout: 5m
       run: uv run --frozen python scripts/detect_scope_explosion.py
 
+# Issue #5066: pre-push is staged so cheap gates fail before the expensive
+# ones start. The hook is `piped: true`, so a failing job or group skips
+# everything after it (verified empirically on lefthook 2.1.10: a failing job
+# inside a `parallel: true` group makes later top-level jobs report
+# "(skip) broken pipe"). Stage order:
+#   1. Singleton guards (repo-health, repair-packed-refs, mutation-safety,
+#      push-ref-staleness).
+#   2. Fast stage, stdin half: the piped group of cheap ref-payload policies.
+#   3. Fast stage, parallel half: ratchets and policy gates that each finish
+#      in seconds (measured 0.1s-17s standalone on 2026-08-15).
+#   4. security-scan (semgrep): expensive stdin consumer. Kept serial as a
+#      top-level job because `.claude/rules/ci-scripts.md` MUST-21 forbids
+#      `use_stdin: true` inside a `parallel: true` group; the top level of a
+#      piped hook delivers the same serialized stdin a piped group does.
+#   5. Expensive stage: python-tests, mypy, workflow-local-run,
+#      build-all-check, the e2e smokes, pre-pr-validation, plus the advisory
+#      reporters that were already scheduled alongside them.
+# Only ordering changed; every job body is identical to the pre-#5066 config.
 pre-push:
   piped: true
   jobs:
+    # Issue #4698: measured twice in one session, a push wrote core.bare=true
+    # into the shared .git/config and broke the main checkout plus three of
+    # five linked worktrees. The pre-push hook can therefore corrupt the
+    # repository it is validating, so this runs before every job whose failure
+    # the corruption would otherwise be blamed for.
+    # Same 10s as pre-commit, and for the same reason: the cap tracks the
+    # script's GIT_BUDGET_SECONDS = 7 shared deadline plus interpreter headroom,
+    # not the stage it runs in. The script reports first whatever the machine is
+    # doing, so a slow run yields exit 3 naming the git call that ran out rather
+    # than a lefthook kill with no diagnosis. This job is a leading serial
+    # singleton, ahead of the parallel group, so the loaded-machine contention
+    # ci-scripts.md MUST-16 measures on a group member does not apply to it.
+    - name: repo-health
+      timeout: 10s
+      run: uv run --frozen python scripts/validation/check_repo_health.py
+
+    # 1m -> 50s pays for repo-health's 10s above, so the pre-push declared worst
+    # case is unchanged. This job's single git call runs under a 15s watchdog, so
+    # 50s is still more than three times its internal ceiling.
     - name: repair-packed-refs
-      timeout: 1m
+      timeout: 50s
       run: uv run --frozen python scripts/maintenance/repair_packed_refs.py
 
     - name: mutation-safety
       timeout: 30s
       run: uv run --frozen python -m scripts.testing.mutation_workspace check
 
+    # Issue #4634: this job was declared twice, and the copy that ran first
+    # passed `{remote}`. Lefthook substitutes positional hook arguments only
+    # (`{0}` for all of them, `{1}`..`{n}` for one), so `{remote}` reached the
+    # script verbatim, `git ls-remote "{remote}"` resolved nothing, and the
+    # check reported success on every push. Git hands pre-push the remote name
+    # (or URL) as the first argument, so `{1}` is the supported spelling; the
+    # commit-message-policy job above uses the same `"{1}"` form. If a token
+    # ever reaches the script unexpanded again, it exits 2 rather than guessing
+    # a remote, so the misconfiguration fails the push instead of passing it.
+    # Keep this job ahead of the long-running groups: aborting here is the
+    # whole point, since the jobs below take 6-15 minutes before git would
+    # report the rejection.
+    # The 1m timeout is the deleted copy's, which is the safer of the two: the
+    # script allows `git ls-remote` 10s per pushed ref, so a push of several
+    # refs on a slow link could exceed the 30s this copy carried.
     - name: push-ref-staleness
-      timeout: 30s
-      run: uv run --frozen python scripts/validation/push_ref_staleness.py {remote}
+      timeout: 60s
+      run: uv run --frozen python scripts/validation/push_ref_staleness.py "{1}"
       use_stdin: true
 
+    # Fast stage, stdin half (issue #5066). Cheap policies that read the
+    # ref-update payload stay in one piped group per ci-scripts.md MUST-21.
     - group:
         piped: true
         jobs:
           - name: push-ref-policy
-            timeout: 5m
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pre-push
             use_stdin: true
 
-          - name: security-scan
-            timeout: 15m
-            run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py semgrep-push
-            use_stdin: true
-
           - name: security-suppression-policy
-            timeout: 5m
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-push
             use_stdin: true
 
           - name: placeholder-identity
-            timeout: 5m
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py placeholder-identity
             use_stdin: true
 
-          - name: session-json-validation
-            timeout: 10m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py sessions
+          # Reads the ref-update payload (issue #5128) to derive the real
+          # push range independently of lefthook's own {push_files}
+          # substitution, which resolves empty on a branch's first push and
+          # silently defeats the documentation-only bypass. Stays in this
+          # piped group, not the parallel one below, per ci-scripts.md
+          # MUST-21: a stdin consumer in a parallel group races the shared
+          # stream under Lefthook 2.1.10.
+          - name: retrospective-policy
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py retrospective
             use_stdin: true
 
-    - name: push-ref-staleness
-      timeout: 1m
-      run: uv run --frozen python scripts/validation/push_ref_staleness.py
-      use_stdin: true
-
+    # Fast stage, parallel half (issue #5066). Blocking gates that finish in
+    # seconds. A failure here skips semgrep and the expensive stage below, so
+    # a ratchet or policy miss costs seconds, not a full pytest run.
     - group:
         parallel: true
         jobs:
-          - name: retrospective-policy
-            timeout: 2m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py retrospective {push_files}
+          - name: count-ratchets
+            timeout: 90s
+            run: uv run --frozen python scripts/validation/checks_ratchet.py
 
+          - name: python-unreachable-statements
+            timeout: 90s
+            run: uv run --frozen python scripts/validation/check_unreachable_code.py .
+
+          - name: path-normalization
+            timeout: 90s
+            run: >-
+              uv run --frozen python
+              build/scripts/validate_path_normalization.py
+              --path . --fail-on-violation
+
+          - name: planning-artifacts
+            timeout: 90s
+            run: >-
+              uv run --frozen python
+              build/scripts/validate_planning_artifacts.py
+              --path . --fail-on-error
+
+          - name: branch-scope
+            timeout: 90s
+            run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
+
+          - name: branch-context-policy
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
+
+          - name: review-axis-drift
+            timeout: 90s
+            run: uv run --frozen python build/scripts/generate_pr_quality_prompts.py --dry-run
+
+    # Expensive stdin consumer (issue #5066). Serial on purpose: MUST-21
+    # forbids `use_stdin: true` under `parallel: true`, and the piped top
+    # level delivers the same full payload here as a piped group would
+    # (verified on lefthook 2.1.10). Runs only after the fast stage passes.
+    - name: security-scan
+      timeout: 15m
+      run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py semgrep-push
+      use_stdin: true
+
+    # Expensive stage (issue #5066). Nothing here starts until every gate
+    # above has passed. The two e2e jobs keep their pre-#5066
+    # `use_stdin: true`-inside-a-parallel-group shape; see
+    # tests/ci/test_lefthook_prepush_fast_fail.py for the documented
+    # exception.
+    - group:
+        parallel: true
+        jobs:
           - name: pre-pr-validation
-            timeout: 15m
+            timeout: 4m
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
+              # The four deferral targets are unconditional fast-stage jobs.
+              # Because the hook is piped, this job starts only after they pass.
+              # Direct pre_pr.py and CI calls leave this unset and run all gates.
+              AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"
+              # This job's own timeout (above) in seconds, so the
+              # generated-staleness gate can clamp its deadline to the
+              # process's remaining share; a test pins the two values.
+              PRE_PR_OUTER_CAP_SECONDS: "240"
 
           - name: worktree-gc-report
             timeout: 2m
             run: uv run --frozen python scripts/maintenance/gc_worktrees.py || echo "worktree-gc-report exited non-zero; ignored because this job is advisory (issue 4257)"
 
+          # Runs the import-graph subset for the push when the graph can map
+          # every changed file, and a whole-suite collection smoke when it
+          # cannot. It does not execute the whole suite: that duplicates the
+          # `pytest.yml` partition matrix CI runs on the same commit, and on a
+          # container checkout it was 475s of a 679s push, long enough that a
+          # container restart killed the push before it reached the remote gate
+          # the local copy was imitating. The 15m cap is the ceiling for the
+          # opt-in `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` path, whose inner
+          # aggregate budget is 780s on a workstation; the default path is
+          # bounded by the inner 300s collection budget, not by this. Both
+          # figures are workstation ones: inside a managed container
+          # `run_pytest` clamps whichever aggregate applies to 150s before it
+          # starts a child, so neither number is what bounds a container push.
+          # See ADR-104.
           - name: python-tests
-            timeout: 30m
+            timeout: 15m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
             env:
               AI_AGENTS_PYTEST_WORKER_CAP: "4"
 
           - name: python-lint-advisory
-            timeout: 10m
+            timeout: 2m
             run: uv run --frozen --extra dev ruff check --exit-zero -- {push_files}
             glob: "**/*.py"
 
-          - name: python-lint-ratchet
-            timeout: 5m
-            run: uv run --frozen --extra dev python scripts/ci/ruff_ratchet.py
-            env:
-              RUFF_RATCHET_BASE_REF: origin/main
-            glob: "**/*.py"
-
-          - name: python-lint-count-ratchet
-            timeout: 5m
-            run: uv run --frozen --extra dev python scripts/ci/ruff_count_ratchet.py --base-ref origin/main
-            glob:
-              - "**/*.py"
-              - "scripts/ci/ruff_count_baseline.txt"
-          - name: taste-count-ratchet
-            timeout: 5m
-            run: uv run --frozen python scripts/ci/taste_count_ratchet.py --base-ref origin/main
-            glob: ["**/*.{py,md,yml,yaml,json,ps1,psm1,sh}", "scripts/ci/taste_count_baseline.txt"]
-          - name: type-ignore-count-ratchet
-            timeout: 5m
-            run: uv run --frozen python scripts/ci/type_ignore_count_ratchet.py --base-ref origin/main
-            glob: ["**/*.py", "scripts/ci/type_ignore_count_baseline.txt"]
-          - name: memory-index-count-ratchet
-            timeout: 5m
-            run: uv run --frozen python scripts/ci/memory_index_count_ratchet.py --base-ref origin/main
-            glob: [".serena/memories/**/*.md", "scripts/ci/memory_index_count_baseline.txt"]
-          - name: cli-exit-contract-ratchet
-            timeout: 5m
-            run: uv run --frozen python scripts/ci/cli_exit_contract_ratchet.py --base-ref origin/main
-            glob: ["**/*.py", "scripts/ci/cli_exit_contract_baseline.txt"]
-          - name: memory-index-token-ratchet
-            timeout: 5m
-            run: uv run --frozen python scripts/ci/memory_index_token_ratchet.py
-            glob: [".serena/memories/**/*.md"]
-          - name: python-unreachable-statements
-            timeout: 2m
-            run: uv run --frozen python scripts/validation/check_unreachable_code.py .
-            glob: "**/*.py"
-          - name: merge-tree-ratchet
-            timeout: 5m
-            run: uv run --frozen --extra dev python scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main
-            glob:
-              - "**/*.py"
-              - "**/*.md"
-              - "**/*.yml"
-              - "**/*.yaml"
-              - "**/*.json"
-              - "**/*.ps1"
-              - "**/*.psm1"
-              - "**/*.sh"
-              - "**/*.bash"
-              - ".serena/memories/**/*.md"
-              - "scripts/ci/ruff_count_baseline.txt"
-              - "scripts/ci/taste_count_baseline.txt"
-              - "scripts/ci/type_ignore_count_baseline.txt"
-              - "scripts/ci/memory_index_count_baseline.txt"
-              - "scripts/ci/cli_exit_contract_baseline.txt"
           - name: python-type-check
-            timeout: 15m
+            timeout: 2m
             run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py mypy {push_files}
             glob: "**/*.py"
             exclude:
@@ -522,45 +630,27 @@ pre-push:
               - "evals/**"
 
           - name: infrastructure-advisory
-            timeout: 5m
+            timeout: 60s
             run: uv run --frozen python .claude/skills/security-detection/detect_infrastructure.py --files {push_files}
             glob: "**/*"
 
+          # Kept at main's 30m. Cut to 10m earlier on this branch and put
+          # back in review (PR #5319): rule 7 sizes a cap from a measured
+          # worst case and this job has no such measurement. A push carrying
+          # a workflow change does fire it, but in a container it reports
+          # DEGRADED in 0.42s because actionlint is not installed there, so
+          # the firing path a container can measure is not the path the cap
+          # protects. On a workstation with actionlint present the job runs
+          # `act`, and a 10m cap could kill a legitimate run to buy a number
+          # in a declared-budget table. The container exposure this branch is
+          # about is closed by the subprocess clamp, not by this cap.
           - name: workflow-local-run
             timeout: 30m
             run: uv run --frozen python scripts/validation/git_hook_policy.py workflow-local {push_files}
             glob: ".github/workflows/**/*.{yml,yaml}"
 
-          - name: path-normalization
-            timeout: 5m
-            run: >-
-              uv run --frozen python
-              build/scripts/validate_path_normalization.py
-              --path . --fail-on-violation
-            glob: "**/*.md"
-
-          - name: planning-artifacts
-            timeout: 5m
-            run: >-
-              uv run --frozen python
-              build/scripts/validate_planning_artifacts.py
-              --path . --fail-on-error
-            glob: ".agents/planning/**/*.md"
-
-          - name: build-all-check
-            timeout: 15m
-            run: uv run --frozen python build/scripts/build_all.py --check
-
-          - name: branch-scope
-            timeout: 5m
-            run: uv run --frozen python scripts/detect_scope_explosion.py --base-branch origin/main
-
-          - name: branch-context-policy
-            timeout: 2m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py branch-context
-
           - name: additions-advisory
-            timeout: 5m
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py additions
 
           - name: hook-anchoring-e2e
@@ -593,15 +683,17 @@ pre-push:
               - "tests/e2e/copilot_hook_probe.py"
               - ".github/workflows/nightly-cli-smoke.yml"
 
-          - name: review-axis-drift
-            timeout: 5m
-            run: uv run --frozen python build/scripts/generate_pr_quality_prompts.py --dry-run
-
+          # Issue #4492 pattern: on the first push of a new branch lefthook's
+          # {push_files} fallback includes upstream-only files, which fed every
+          # tracked observation file to this job; without a reachable Forgetful
+          # service each file burns a 10s MCP timeout and the corpus overruns
+          # the 5m cap. The handler derives the real push range from stdin.
           - name: observation-sync-advisory
             timeout: 5m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py observations {push_files}
+            run: uv run --frozen python scripts/validation/git_hook_policy.py observations-push
+            use_stdin: true
             glob: ".serena/memories/**/*-observations.md"
 
           - name: bot-cascade-advisory
-            timeout: 5m
+            timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py bot-cascade

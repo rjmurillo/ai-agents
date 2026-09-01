@@ -1,7 +1,7 @@
 # Search, Don't Load: Memory-First Evidence Protocol
 
 > **Status**: Active
-> **Related**: [ADR-007: Memory-First Architecture](/.agents/architecture/ADR-007-memory-first-architecture.md) | [SESSION-PROTOCOL.md](/.agents/SESSION-PROTOCOL.md) Phase 2
+> **Related**: [ADR-007: Memory-First Architecture](../.agents/architecture/ADR-007-memory-first-architecture.md) | [AGENTS.md](/AGENTS.md) Retrieval gate
 
 ## What This Pattern Means
 
@@ -50,10 +50,10 @@ python3 .claude/skills/memory/scripts/search_memory.py --query "pr review patter
 
 Unified search across Serena and Forgetful with token budget warnings per ADR-037.
 
-## Recording Evidence in Session Logs
+## Recording Retrieval Evidence
 
-The Session Start checklist requires evidence that memories were loaded. In your
-session log's Protocol Compliance table, fill the Evidence column:
+Record loaded memory names in the transcript, pull request, per-issue handoff,
+Serena memory, or an optional session log:
 
 ```markdown
 | MUST | Read memory-index, load task-relevant memories | [x] | Loaded: skills-pr-review-index, ci-observations |
@@ -76,13 +76,11 @@ and loaded.
 
 ## When to Use This Pattern
 
-Every session start. The SESSION-PROTOCOL.md Phase 2 marks this as a **MUST**
-requirement. Agents must read `memory-index` and load task-relevant memories
-before modifying any code or files.
+Every session start. `AGENTS.md`'s Retrieval gate requires agents to search the
+memory index and load task-relevant memories before modifying files.
 
 ## References
 
-- [ADR-007: Memory-First Architecture](/.agents/architecture/ADR-007-memory-first-architecture.md)
-- [SESSION-PROTOCOL.md, Phase 2: Context Retrieval](/.agents/SESSION-PROTOCOL.md)
-- [Memory Loading Protocol](/.agents/SESSION-PROTOCOL.md) (lines 112-123)
+- [ADR-007: Memory-First Architecture](../.agents/architecture/ADR-007-memory-first-architecture.md)
+- [AGENTS.md, Retrieval](/AGENTS.md)
 - Serena memory: `init-003-memory-first-monitoring-gate` (30% efficiency data)

@@ -77,33 +77,33 @@ Serena MCP tools available → MUST call FIRST:
 | Python first (.py preferred, PowerShell grandfathered) | ADR-042 |
 | No raw gh when skill exists | usage-mandatory |
 | No logic in workflow YAML | ADR-006 |
-| Verify branch before git operations | SESSION-PROTOCOL |
+| Verify branch before git operations | `templates/agents/implementer.shared.md` |
 | HANDOFF.md is read-only | ADR-014 |
 
 ## Session Protocol (Quick Reference)
 
-> **Full Details**: `../.agents/SESSION-PROTOCOL.md`
+> **Full Details**: `../templates/agents/implementer.shared.md` (start/end checklists), `../.claude/rules/session-logs.md` (optional session log mechanics)
 
 **Session Start:**
 
 1. Init Serena (if available)
 2. Read HANDOFF.md (read-only dashboard)
-3. Create session log: `.agents/sessions/YYYY-MM-DD-session-NN.json`
+3. Read latest per-issue handoff when issue context exists
 4. Verify branch: `git branch --show-current`
+5. Create a JSON session log only when explicitly opting in
 
 **Session End:**
 
-1. Complete session log
+1. Update per-issue handoff when work remains
 2. Update Serena memory (if available)
-3. Run scoped markdownlint on changed files (ADR-043, see SESSION-PROTOCOL.md Phase 2)
-4. Commit all changes
-5. Run `uv run python scripts/validate_session_json.py [log]`
+3. Run scoped markdownlint on changed files (ADR-043)
+4. Validate an existing JSON session log when one is staged or supplied
 
 ## Gotchas (non-obvious, save cycles)
 
 Traps that recur across PRs and cannot be inferred from the code: the PR
-description gate, the four portability checkers, taste-lints, session-log
-ordering, the suppression and ratchet gates, and the eval harness.
+description gate, the four portability checkers, taste-lints, optional
+session-log validation, the suppression and ratchet gates, and the eval harness.
 
 **Read `.agents/governance/GOTCHAS.md` before your first push on a branch.**
 
@@ -114,7 +114,7 @@ apart. Add new ones there.
 ## Key Documents
 
 1. **AGENTS.md** - Primary reference (read first)
-2. `.agents/SESSION-PROTOCOL.md` - Session requirements
+2. `.claude/rules/session-logs.md` - Session log mechanics (optional)
 3. `.agents/HANDOFF.md` - Project dashboard (read-only)
 4. `.agents/governance/PROJECT-CONSTRAINTS.md` - Hard constraints
 5. `.agents/AGENT-SYSTEM.md` - Full agent details

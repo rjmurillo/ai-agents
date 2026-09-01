@@ -27,7 +27,7 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 | Measure drift, budgets, telemetry, coverage trends | `ai-agents-diagnostics-toolkit` |
 | Probe an external tool's runtime behavior empirically | `ai-agents-empirical-probe-toolkit` |
 | Understand which gates a change class triggers | `ai-agents-change-control` |
-| Session-end mechanics beyond the QA row | `session-end` skill |
+| Session-log mechanics beyond the QA row | `.claude/rules/session-logs.md` |
 
 ## Process
 
@@ -112,20 +112,28 @@ Two traps, both fossilized in `.github/workflows/pytest.yml` comments:
 
 Related discipline, FM-10: there is no neutral default for a missing signal (FAILURE-MODES.md:387). The neutral default is UNKNOWN, not PASS (`extract_verdict` on no-match, `merge_verdicts` on empty; `get_verdict` fails safe to CRITICAL_FAIL). PR #1965 still took 3 fix rounds to make UNKNOWN blocking everywhere it flowed: the workflow verdict list, the action parser allowlist, and the action exit-code mapping. When testing parsers or gates, always include the missing-signal case and assert it raises or blocks, never that it silently passes.
 
-### Phase 5: QA gate semantics at session end
+### Phase 5: QA evidence semantics
 
-Session protocol Phase 2.5 makes QA validation BLOCKING before committing feature code (SESSION-PROTOCOL.md:738-756). Skip classes (ADR-034, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md`):
+QA validation remains required for feature code. Session-log presence does not
+affect that gate. Skip classes are defined by ADR-034 and
+`.agents/architecture/ADR-034-investigation-session-qa-exemption.md`:
 
 | Evidence string | When valid | Staged files limited to |
 |-----------------|-----------|------------------------|
 | `SKIPPED: docs-only` | Strictly editorial doc edits: no code, config, tests, workflows, or code blocks changed | Documentation files |
-| `SKIPPED: investigation-only` | No code/config changes at all | The 8 patterns in `scripts/modules/investigation_allowlist.py` (single source of truth per its docstring): `.agents/sessions/`, `.agents/analysis/`, `.agents/retrospective/`, `.serena/memories/`, `.agents/security/`, `.agents/memory/` (incl. `episodes/`), `.agents/architecture/REVIEW-*`, `.agents/critique/`. ADR-034:78-87 lists the same 8 after the 2026-07-08 amendments (issues #831 and #732), so the ADR and the code agree. `SESSION-PROTOCOL.md:754` still lists only the first 5, so treat the module and ADR-034 as authoritative |
+| `SKIPPED: investigation-only` | No code/config changes at all | The patterns in `scripts/modules/investigation_allowlist.py`, which is the executable source |
 
-Explicitly NOT skippable: `.agents/planning/`, `.agents/architecture/ADR-*` (ADRs; `REVIEW-*` files ARE allowlisted by the enforcement module), `.github/`, `.claude/agents/`, `src/`, `scripts/` (ADR-034 "Not Allowed" table, which predates the module's wider allowlist). Session logs, analysis artifacts, and memory updates are audit trail, not implementation: they are filtered out automatically when deciding whether QA is required, so they can ride along with implementation commits (SESSION-PROTOCOL.md:758).
+Explicitly NOT skippable: `.agents/planning/`, `.agents/architecture/ADR-*`,
+`.github/`, `.claude/agents/`, `src/`, and `scripts/`. Optional session logs,
+analysis artifacts, and memory updates are filtered when deciding whether QA is
+required.
 
-Mixed session (investigation turned into code)? Split it: commit investigation work with the skip evidence, then start a new session for the code change with real QA (SESSION-PROTOCOL.md:798-800). Abusing skip markers is a trust failure with precedent; escape-hatch history lives in `ai-agents-config-catalog` and `ai-agents-failure-archaeology`.
+Mixed work (investigation turned into code)? Split the commits. Commit
+investigation work with skip evidence, then validate the code change with real
+QA.
 
-Full evidence line in the session log looks like `"qaValidation": { "level": "MUST", "Complete": true, "Evidence": "SKIPPED: investigation-only" }` or a QA report path under `.agents/qa/` (SESSION-PROTOCOL.md:996).
+Record QA evidence in the PR, transcript, per-issue handoff, or an optional
+session log.
 
 ### Phase 6: Add tests for a new skill, hook, or script
 
@@ -168,7 +176,7 @@ Before claiming a change meets the evidence bar:
 
 ## Provenance and Maintenance
 
-Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55,77-81`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml [tool.pytest.ini_options]`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `.agents/SESSION-PROTOCOL.md:738-800,996`, `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
+Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55,77-81`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml [tool.pytest.ini_options]`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
 
 Re-verify volatile facts:
 
@@ -176,7 +184,7 @@ Re-verify volatile facts:
 grep -n testpaths pyproject.toml                                  # collection roots
 sed -n '315,386p' conftest.py                                     # #2316 HEAD guard still present
 grep -n "cov-fail-under" .github/workflows/pytest.yml             # coverage pins and forms
-grep -n "SKIPPED" .agents/SESSION-PROTOCOL.md | head -5           # QA skip evidence strings
+grep -n "_QA_SKIP_CHECKERS" -A5 scripts/validate_session_json.py   # QA skip evidence strings
 ls tests/skills/ .claude/skills/prose-self-check/tests/           # both skill-test locations alive
 git ls-files '*.Tests.ps1' | wc -l                                # Pester doc still stale if 0
 ```

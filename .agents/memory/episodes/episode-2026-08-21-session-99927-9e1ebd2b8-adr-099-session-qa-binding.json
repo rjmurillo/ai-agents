@@ -1,0 +1,419 @@
+{
+  "id": "episode-2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding",
+  "session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding",
+  "timestamp": "2026-08-21T00:00:00+00:00",
+  "causal_order_version": 2,
+  "outcome": "success",
+  "task": "Ship issue #5217: relax session_qa_binding()'s comparison.head/endingCommit equality raise in .claude/lib/qa_report.py. Per .claude/rules/ci-scripts.md MUST-NOT-2 this is a validator behavior change, so it needs its own ADR and the mandatory six-agent adr-review debate before any code lands. The design question the issue asks for is whether ADR-096's post_qa_code_changes relaxation is the right shape here; the answer reached is no, because this check protects session-log field consistency rather than QA staleness.",
+  "decisions": [],
+  "events": [
+    {
+      "id": "e001",
+      "timestamp": "2026-08-21T14:08:22+00:00",
+      "type": "commit",
+      "content": "Commit: be1e79b71",
+      "caused_by": [],
+      "leads_to": [
+        "e002"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e002",
+      "timestamp": "2026-08-21T14:14:15+00:00",
+      "type": "commit",
+      "content": "Commit: 3b05b71d4",
+      "caused_by": [
+        "e001"
+      ],
+      "leads_to": [
+        "e003"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e003",
+      "timestamp": "2026-08-21T14:19:47+00:00",
+      "type": "commit",
+      "content": "Commit: 359ced9f6",
+      "caused_by": [
+        "e002"
+      ],
+      "leads_to": [
+        "e004"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e004",
+      "timestamp": "2026-08-21T14:34:14+00:00",
+      "type": "commit",
+      "content": "Commit: 0d4089177",
+      "caused_by": [
+        "e003"
+      ],
+      "leads_to": [
+        "e005"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e005",
+      "timestamp": "2026-08-21T14:49:00+00:00",
+      "type": "commit",
+      "content": "Commit: a454130f9",
+      "caused_by": [
+        "e004"
+      ],
+      "leads_to": [
+        "e006"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e006",
+      "timestamp": "2026-08-21T14:50:57+00:00",
+      "type": "commit",
+      "content": "Commit: a00a676aa",
+      "caused_by": [
+        "e005"
+      ],
+      "leads_to": [
+        "e007"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e007",
+      "timestamp": "2026-08-21T15:04:24+00:00",
+      "type": "commit",
+      "content": "Commit: 4a08172f5",
+      "caused_by": [
+        "e006"
+      ],
+      "leads_to": [
+        "e008"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-21T15:14:29+00:00",
+      "type": "commit",
+      "content": "Commit: cca9b6166",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-21T15:31:28+00:00",
+      "type": "commit",
+      "content": "Commit: a031a5699",
+      "caused_by": [
+        "e008"
+      ],
+      "leads_to": [
+        "e010"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e010",
+      "timestamp": "2026-08-21T15:43:23+00:00",
+      "type": "commit",
+      "content": "Commit: 5484cc8a2",
+      "caused_by": [
+        "e009"
+      ],
+      "leads_to": [
+        "e011"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e011",
+      "timestamp": "2026-08-21T16:10:24+00:00",
+      "type": "commit",
+      "content": "Commit: 8b53bce9da7c0a3436db7988ad2697d76147f91d",
+      "caused_by": [
+        "e010"
+      ],
+      "leads_to": [
+        "e012"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e012",
+      "timestamp": "2026-08-21T16:49:32+00:00",
+      "type": "commit",
+      "content": "Commit: d0084e597490354c3de1e8e10c7b58bd8346ac1d",
+      "caused_by": [
+        "e011"
+      ],
+      "leads_to": [
+        "e013"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e013",
+      "timestamp": "2026-08-21T17:08:17+00:00",
+      "type": "commit",
+      "content": "Commit: c8900bc0ff064a52a20762d7af0fd0c9f085050a",
+      "caused_by": [
+        "e012"
+      ],
+      "leads_to": [
+        "e018"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e014",
+      "timestamp": "2026-08-21T17:43:53+00:00",
+      "type": "commit",
+      "content": "Commit: 936abc5c7060cc40c200567d535a63ad99bb7950",
+      "caused_by": [
+        "e018"
+      ],
+      "leads_to": [
+        "e019"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e015",
+      "timestamp": "2026-08-21T20:35:22+00:00",
+      "type": "commit",
+      "content": "Commit: 577a512cbe37d8a29a9002ec38c85a018589086c",
+      "caused_by": [
+        "e020"
+      ],
+      "leads_to": [
+        "e021"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e016",
+      "timestamp": "2026-08-21T20:47:13+00:00",
+      "type": "commit",
+      "content": "Commit: a154e463bc60a2d010de1b57693200ef85453693",
+      "caused_by": [
+        "e023"
+      ],
+      "leads_to": [
+        "e017"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e017",
+      "timestamp": "2026-08-21T21:17:00+00:00",
+      "type": "commit",
+      "content": "Commit: 0416154b083f38f1f058a49dfa76a6bc52dc3815",
+      "caused_by": [
+        "e016"
+      ],
+      "leads_to": [
+        "e024"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e018",
+      "timestamp": "2026-08-21T17:42:58+00:00",
+      "type": "commit",
+      "content": "Commit: 21a23ec39",
+      "caused_by": [
+        "e013"
+      ],
+      "leads_to": [
+        "e014"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e019",
+      "timestamp": "2026-08-21T20:33:31+00:00",
+      "type": "commit",
+      "content": "Commit: a13bcce2e",
+      "caused_by": [
+        "e014"
+      ],
+      "leads_to": [
+        "e020"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e020",
+      "timestamp": "2026-08-21T20:33:58+00:00",
+      "type": "commit",
+      "content": "Commit: 3386b3cc5",
+      "caused_by": [
+        "e019"
+      ],
+      "leads_to": [
+        "e015"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e021",
+      "timestamp": "2026-08-21T20:37:29+00:00",
+      "type": "commit",
+      "content": "Commit: c348f17a5",
+      "caused_by": [
+        "e015"
+      ],
+      "leads_to": [
+        "e022"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e022",
+      "timestamp": "2026-08-21T20:45:45+00:00",
+      "type": "commit",
+      "content": "Commit: 9abe35817",
+      "caused_by": [
+        "e021"
+      ],
+      "leads_to": [
+        "e023"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e023",
+      "timestamp": "2026-08-21T20:46:07+00:00",
+      "type": "commit",
+      "content": "Commit: 9d8a6c287",
+      "caused_by": [
+        "e022"
+      ],
+      "leads_to": [
+        "e016"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e024",
+      "timestamp": "2026-08-21T21:23:40+00:00",
+      "type": "commit",
+      "content": "Commit: d4b017fb1c093d7c26764bc07d896b92cf38374b",
+      "caused_by": [
+        "e017"
+      ],
+      "leads_to": [
+        "e025"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e025",
+      "timestamp": "2026-08-21T21:39:13+00:00",
+      "type": "commit",
+      "content": "Commit: c7298e571d0449d73f6edd9ee04e2b1023e859ed",
+      "caused_by": [
+        "e024"
+      ],
+      "leads_to": [
+        "e026"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e026",
+      "timestamp": "2026-08-21T21:43:55+00:00",
+      "type": "commit",
+      "content": "Commit: bd36dcf779365bd0ac9eac93be7b272d596e9be2",
+      "caused_by": [
+        "e025"
+      ],
+      "leads_to": [
+        "e027"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e027",
+      "timestamp": "2026-08-21T22:04:35+00:00",
+      "type": "commit",
+      "content": "Commit: 0dc7d0a254e3aa253b9c9895e008265f06f496d8",
+      "caused_by": [
+        "e026"
+      ],
+      "leads_to": [
+        "e028"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e028",
+      "timestamp": "2026-08-21T23:30:05+00:00",
+      "type": "commit",
+      "content": "Commit: b129f20377ef2bf5a20b5bf63a9613b79c5d0a91",
+      "caused_by": [
+        "e027"
+      ],
+      "leads_to": [
+        "e029"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e029",
+      "timestamp": "2026-08-21T23:50:06+00:00",
+      "type": "commit",
+      "content": "Commit: cdbb80ff1f5b81c6560fa52a9d4c77a59faee788",
+      "caused_by": [
+        "e028"
+      ],
+      "leads_to": [
+        "e030"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e030",
+      "timestamp": "2026-08-22T00:18:10+00:00",
+      "type": "commit",
+      "content": "Commit: 57be343d4d4bf0328e9ad15e55d5c3be57322dd4",
+      "caused_by": [
+        "e029"
+      ],
+      "leads_to": [
+        "e031"
+      ],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    },
+    {
+      "id": "e031",
+      "timestamp": "2026-08-22T00:50:26+00:00",
+      "type": "commit",
+      "content": "Commit: e0e10108df9a664998b7e0bb18721b0c981a7892",
+      "caused_by": [
+        "e030"
+      ],
+      "leads_to": [],
+      "_source_session": "2026-08-21-session-99927-9e1ebd2b8-adr-099-session-qa-binding"
+    }
+  ],
+  "metrics": {
+    "duration_minutes": null,
+    "tool_calls": null,
+    "errors": 0,
+    "recoveries": 0,
+    "commits": 31,
+    "files_changed": 14
+  },
+  "lessons": []
+}

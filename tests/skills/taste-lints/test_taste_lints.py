@@ -42,6 +42,8 @@ get_base_file_line_count = mod.get_base_file_line_count
 _parse_hunk_header = mod._parse_hunk_header
 _filter_violations_for_diff = mod._filter_violations_for_diff
 _lint_file_rules = mod._lint_file_rules
+has_suppression = mod.has_suppression
+_suppression_window = mod._suppression_window
 
 
 class TestCheckFileSize:
@@ -963,3 +965,190 @@ class TestDiffScopeLineFilteringTasteLints:
         assert not any(v.file == cplx for v in result.violations), (
             "pre-existing complexity violation on unchanged line 1 must be suppressed"
         )
+
+
+class TestSuppressionSurvivesFrontmatter:
+    """A suppression must be findable on a file carrying YAML frontmatter.
+
+    ADR-073 lifecycle frontmatter is exactly 10 lines, which is the whole
+    suppression window. ADR-035 lost a working `file-size` suppression this way
+    during the issue #5190 backfill.
+    """
+
+    FM = [
+        "---\n", "id: ADR-035\n", "status: accepted\n", "date: 2025-12-30\n",
+        "decision-makers: [rjmurillo]\n", "supersedes: []\n",
+        "superseded-by: null\n", "explainer: null\n", "implemented: true\n",
+        "---\n",
+    ]
+    SUPPRESSION = "<!-- # taste-lint: ignore file-size (prose ADR) -->\n"
+
+    def test_suppression_found_after_frontmatter(self) -> None:
+        lines = [*self.FM, "\n", "# ADR-035: Title\n", "\n", self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_suppression_still_found_without_frontmatter(self) -> None:
+        lines = ["# ADR-035: Title\n", "\n", self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_absent_suppression_still_reports_false(self) -> None:
+        lines = [*self.FM, "\n", "# ADR-035: Title\n", "\n", "Body text.\n"]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_suppression_for_a_different_rule_does_not_match(self) -> None:
+        lines = [*self.FM, "<!-- # taste-lint: ignore long-function -->\n"]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_suppression_far_below_frontmatter_is_still_out_of_window(self) -> None:
+        lines = [*self.FM, *["filler\n"] * 11, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_unterminated_frontmatter_does_not_widen_the_window(self) -> None:
+        # A leading `---` with no closing delimiter is a horizontal rule, not
+        # frontmatter, so the window stays at 10 lines. The suppression sits
+        # past line 10 on purpose: on line 2 it would fall inside both the
+        # correct window and a buggy to-EOF one, and the test could not fail.
+        lines = ["---\n", *["filler\n"] * 12, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_a_horizontal_rule_pair_is_not_frontmatter(self) -> None:
+        # The regression Copilot found: a doc opening with a horizontal rule and
+        # carrying an unrelated `---` separator far below. Accepting any second
+        # `---` as the terminator widened the window to that separator and
+        # disabled a lint hundreds of lines from any real suppression. The body
+        # between the delimiters is prose, not a YAML mapping.
+        lines = ["---\n", "# Title\n", *["filler\n"] * 300, "---\n", self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_frontmatter_scalar_body_is_not_a_mapping(self) -> None:
+        # Parses as YAML, but as a string rather than a mapping. Not frontmatter.
+        lines = ["---\n", "just a sentence\n", "---\n", *["filler\n"] * 9, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_mapping_shaped_but_malformed_yaml_still_counts_as_frontmatter(self) -> None:
+        # `key: [unclosed` would fail a real YAML parse, but between two `---`
+        # at the top of a file it is frontmatter the author got wrong, not a
+        # horizontal rule. The window is deciding which of those two things it
+        # is looking at, and a broken value does not make it prose.
+        lines = ["---\n", "key: [unclosed\n", "---\n", *["filler\n"] * 9, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_block_style_yaml_list_is_valid_frontmatter(self) -> None:
+        # Every other fixture uses inline arrays (`supersedes: []`), so the
+        # block-style branch that accepts `- item` continuation lines had no
+        # coverage. Multiline lists are valid frontmatter and several records in
+        # this repository use them for `decision-makers` and `consulted`.
+        lines = [
+            "---\n",
+            "id: ADR-034\n",
+            "status: accepted\n",
+            "decision-makers:\n",
+            "  - orchestrator\n",
+            "consulted:\n",
+            "  - analyst\n",
+            "  - security\n",
+            "informed: []\n",
+            "---\n",
+            "\n",
+            "# ADR-034: Title\n",
+            "\n",
+            self.SUPPRESSION,
+        ]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_a_bare_url_in_prose_is_not_a_mapping_key(self) -> None:
+        # A URL scheme's colon is not a `key:` separator. Matching any colon
+        # classified this line as frontmatter and widened the window past the
+        # `---` below it, finding a suppression that is out of range.
+        lines = [
+            "---\n",
+            "See https://example.com for details\n",
+            "---\n",
+            *["filler\n"] * 8,
+            self.SUPPRESSION,
+        ]
+
+        assert _suppression_window(lines) == lines[:10]
+        assert has_suppression(lines, "file-size") is False
+
+    def test_a_key_whose_value_is_a_url_is_still_a_mapping(self) -> None:
+        # The other half of the same rule: the colon here is followed by a
+        # space, so `explainer` is a real key and this really is frontmatter.
+        lines = [
+            "---\n",
+            "id: ADR-035\n",
+            "explainer: https://example.com/design-doc\n",
+            "---\n",
+            *["filler\n"] * 9,
+            self.SUPPRESSION,
+        ]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_a_key_with_an_empty_value_is_a_mapping(self) -> None:
+        # `key:` at end of line is valid YAML and must not be rejected by the
+        # requirement that a colon be followed by whitespace.
+        lines = ["---\n", "superseded-by:\n", "---\n", *["filler\n"] * 9, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_prose_with_a_colon_is_not_a_mapping(self) -> None:
+        # The discriminator is shape, so a sentence that happens to contain a
+        # colon must still be rejected: its key half is not a bare key.
+        lines = [
+            "---\n",
+            "Note: this document was written on a Tuesday, see below\n",
+            "and it continues without indentation\n",
+            "---\n",
+            *["filler\n"] * 9,
+            self.SUPPRESSION,
+        ]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_a_single_line_label_is_not_a_mapping(self) -> None:
+        # Copilot's finding on PR #5291: a single unindented line shaped like
+        # `Label: rest of sentence` matches `_YAML_KEY_LINE` on its own, with
+        # no second line to trip the continuation check the way
+        # `test_prose_with_a_colon_is_not_a_mapping` does. The discriminator
+        # has to reject it on the value half: "release details" is prose, not
+        # a YAML scalar, unlike the URL in `explainer: https://example.com`.
+        lines = ["---\n", "Note: release details\n", "---\n", *["filler\n"] * 9, self.SUPPRESSION]
+
+        assert has_suppression(lines, "file-size") is False
+
+    def test_empty_file_is_safe(self) -> None:
+        assert has_suppression([], "file-size") is False
+
+    def test_suppression_inside_the_frontmatter_still_counts(self) -> None:
+        # ADR-068 and ADR-085 put it on line 2, as a YAML comment. Widening the
+        # window must not retire that placement.
+        lines = [
+            "---\n",
+            "# taste-lint: ignore file-size, accepted append-only record.\n",
+            *self.FM[1:],
+            "# ADR-068: Title\n",
+        ]
+
+        assert has_suppression(lines, "file-size") is True
+
+    def test_window_covers_frontmatter_plus_ten_content_lines(self) -> None:
+        lines = [*self.FM, *["filler\n"] * 9, self.SUPPRESSION]
+
+        assert _suppression_window(lines)[-1] == self.SUPPRESSION
+        assert has_suppression(lines, "file-size") is True
+
+    def test_window_is_ten_lines_without_a_block(self) -> None:
+        lines = ["# Title\n", "body\n"]
+
+        assert _suppression_window(lines) == lines

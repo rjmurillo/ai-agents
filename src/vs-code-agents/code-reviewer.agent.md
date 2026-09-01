@@ -20,7 +20,7 @@ tools:
   - serena/*
   - memory
 model: Claude Haiku 4.5 (copilot)
-tier: builder
+role: executor
 ---
 
 # Code Reviewer Agent

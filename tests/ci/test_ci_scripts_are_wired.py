@@ -43,16 +43,19 @@ _WORKFLOW_DIRS = (
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
 _NOT_WORKFLOW_INVOKED: dict[str, str] = {
-    "build_triage_summary_comment.py": (
-        "Library entrypoint invoked by post_issue_triage_summary_comment.py; "
-        "tests/ci/test_ai_issue_triage_workflow.py verifies the wrapper calls it."
-    ),
     "cli_exit_contract_coverage.py": (
         "Library holding the test-coverage analysis for "
         "cli_exit_contract_ratchet.py, which is workflow-invoked from "
         "pr-validation.yml. It has no main() and no shebang; "
         "tests/ci/test_cli_exit_contract_ratchet.py drives it directly through "
         "covered_stems (issue #4068)."
+    ),
+    "diff_line_scope.py": (
+        "Library holding the unified-diff line-scope parsing shared by "
+        "ruff_ratchet.py, which pytest.yml invokes, and the pre-push mypy gate "
+        "in scripts/validation/git_hook_policy.py. It has no main() and no "
+        "shebang; tests/ci/test_diff_line_scope.py covers it directly "
+        "(issue #2993)."
     ),
     "count_ratchet.py": (
         "Library holding the ratchet policy shared by ruff_count_ratchet.py and "
@@ -89,6 +92,18 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "Subprocess helper called by drift_collect_details.py (ADR-006 extraction "
         "batch 6). drift_collect_details.py is the workflow-invoked entry point; "
         "parse_drift_results.py is its implementation detail."
+    ),
+    "run_pytest_non_tmp.py": (
+        "Library entry invoked by run_pytest_selected.py, which pytest.yml runs "
+        "for every partition (issue #5050). It keeps the repo-isolated temp root; "
+        "tests/ci/test_pytest_non_tmp_policy.py covers it directly and asserts the "
+        "workflow routes through the selection runner that calls it."
+    ),
+    "ruleset_required_contexts.py": (
+        "Library holding the required-context contract shared by "
+        "ruleset_context_drift.py and test_merge_group_readiness.py. The "
+        "scheduled workflow invokes the detector, while both test files verify "
+        "the shared contract."
     ),
 }
 

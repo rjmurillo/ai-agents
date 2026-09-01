@@ -35,6 +35,26 @@ def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         "Duplicate Test Helper Detection",
         "Subprocess Encoding Convention",
         "Unreachable Code Detection",
+        # Reads the real .git directory via `git rev-parse --git-path hooks`.
+        # _healthy_git_run's rev-parse branch answers every rev-parse call with
+        # "0" * 40 (a plausible commit SHA for HEAD-style queries), which this
+        # gate's --git-path call turns into a nonsense path and then correctly
+        # reports as unhealthy. The gate's own correctness against a real git
+        # tree is covered by tests/validation/test_check_git_hook_health.py;
+        # here it is real-git-state-dependent noise the same way the other
+        # corpus gates are real-filesystem-dependent noise.
+        "Git Hook Health (core.hooksPath)",
+        # check_adr_links.py's validate_adr_links() calls `git ls-files -z
+        # *.md` via git_ls_markdown(). _healthy_git_run's blanket
+        # `else: stdout = ""` branch answers that call (it matches neither
+        # "symbolic-ref" nor "rev-parse"), so git_ls_markdown() returns an
+        # empty list under this mock regardless of the real repo's tracked
+        # files. check_adr_links.py's round-9 fix (PR #5209) treats a
+        # zero-file result as a wrong-but-valid repository root and fails
+        # closed, which is correct against a real git invocation but is a
+        # mock artifact here, not a real empty corpus: real-filesystem-
+        # dependent noise the same way the other corpus gates above are.
+        "ADR Link Resolution",
     }
     return tuple(
         replace(gate, run=lambda _repo_root, _args: True)
