@@ -32,6 +32,33 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.ci.spec_nonexecutable_criteria import find_nonexecutable_criteria
+from scripts.gh_retry_helpers import SECRET_ENVIRONMENT_VARIABLES
+from scripts.redact_secrets import redact_ci_sink
+
+
+def _redact(value: str) -> str:
+    """Redact credential shapes and installed secrets from injected text.
+
+    Mirrors `scripts/ci/build_ai_review_context.py`, whose `_redact_secrets`
+    (`scripts/gh_retry_helpers.py:110`) reads, quoted verbatim:
+
+        secret_values = (os.environ.get(variable, "") for variable in
+        SECRET_ENVIRONMENT_VARIABLES)
+        return redact_ci_sink(value or "", secret_values=secret_values).text
+
+    That builder redacts the PR title and body before they reach the reviewer.
+    Criterion text is a slice of the same author-controlled body arriving at
+    the same reviewer by a different route, so it needs the same treatment;
+    without this a token written into an acceptance criterion reached the model
+    unredacted while the identical bytes elsewhere in the body were masked
+    (CWE-200).
+
+    Applied here rather than inside the classifier so that module stays a pure
+    text classifier with no environment access, and because this is the point
+    where the text is injected, which is the same seam the builder redacts at.
+    """
+    secret_values = (os.environ.get(variable, "") for variable in SECRET_ENVIRONMENT_VARIABLES)
+    return redact_ci_sink(value, secret_values=secret_values).text
 
 
 def _write_multiline_output(key: str, value: str, github_output: str) -> None:
@@ -63,6 +90,15 @@ def _nonexecutable_criteria_block(pr_body: str) -> list[str]:
     A criterion that asserts the outcome of running a command cannot be
     verified by a reviewer with no shell, so leaving it unannotated costs a
     permanent PARTIAL. Naming it here lets the reviewer mark it N/A instead.
+
+    The traceability paragraph is in this text rather than in a prompt because
+    `.github/workflows/ai-spec-validation.yml` hands this one string to two
+    steps: traceability (analyst, `spec-trace-requirements.md`) and
+    completeness (critic, `spec-check-completeness.md`). Naming completeness as
+    the actor stops the analyst being told to exempt anything, but it still
+    leaves a list of criteria in its context with nothing saying coverage
+    applies to them. Traceability decides whether a requirement is covered at
+    all, so that is where a classifier false positive costs the most.
     """
     criteria = find_nonexecutable_criteria(pr_body)
     if not criteria:
@@ -79,9 +115,14 @@ def _nonexecutable_criteria_block(pr_body: str) -> list[str]:
         "changes, keep it in scope and say why. Otherwise it is historical",
         "run evidence, so completeness should mark it N/A, exclude it from",
         "the percentage, and do NOT emit PARTIAL or FAIL because it could",
-        "not be executed:",
+        "not be executed.",
         "",
-        *[f"- {criterion}" for criterion in criteria],
+        "N/A here refers to repeating the command, never to the underlying",
+        "requirement. Traceability still has to trace every listed criterion",
+        "to its implementation, so do NOT drop one from coverage because it",
+        "appears below:",
+        "",
+        *[f"- {_redact(criterion)}" for criterion in criteria],
     ]
 
 
