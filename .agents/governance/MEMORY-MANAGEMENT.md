@@ -167,6 +167,35 @@ npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/import-memories.ts \
 python3 .claude-mem/scripts/import_claude_mem_memories.py
 ```
 
+**Locating the importer across harnesses**
+
+Claude-Mem is an optional Claude Code plugin with no Copilot CLI equivalent.
+The bulk importer resolves the `import-memories.ts` path in this order:
+
+1. `--importer PATH` on the command line
+2. the `CLAUDE_MEM_IMPORTER` environment variable
+3. the Claude Code plugin default under `~/.claude/plugins/`
+
+```bash
+# Point at an importer installed outside the Claude Code plugin root
+CLAUDE_MEM_IMPORTER=/opt/claude-mem/scripts/import-memories.ts \
+  python3 .claude-mem/scripts/import_claude_mem_memories.py
+
+# Or pass it explicitly
+python3 .claude-mem/scripts/import_claude_mem_memories.py \
+  --importer /opt/claude-mem/scripts/import-memories.ts
+```
+
+Exit codes follow the optional-dependency contract:
+
+| Situation | Exit | Reason |
+|-----------|------|--------|
+| Nothing configured, no plugin installed | 0 | Optional dependency absent; import skipped with a `SKIP:` line |
+| Configured path missing, or importer fails | 1 | The caller named an importer that does not work |
+
+A Copilot CLI session with no Claude-Mem installed therefore skips cleanly
+instead of reporting a false failure (issue #4780).
+
 **Manual bulk import** (advanced users):
 
 ```bash
