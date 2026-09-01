@@ -84,16 +84,30 @@ _HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 # fences before extracting file claims for the same reason; its
 # `_FENCE_OPEN_LINE` reads, quoted verbatim:
 #
-#     r"^[ ]{0,3}(?:(`{3,})(?![^`\n]*`)|(~{3,}))[^\n]*\n"
+#     r"^[ ]{0,3}(?:(`{3,})(?![^\n]*`)|(~{3,}))[^\n]*\n"
 #
-# Stricter/looser/different than that canonical source: this one matches a
-# single line rather than a line plus its newline, because the caller iterates
-# `splitlines()` instead of walking offsets. It also keeps the would-be info
-# scan backtick-free (`[^`\n]*`) so a near-65 KB opener-like line with a late
-# backtick is rejected without rescanning the full remainder on each backtrack.
-# Indented four-space blocks are deliberately NOT treated as code here: a
-# wrapped criterion's continuation line is indented, and `_bullets` folds it
-# into the bullet above.
+# Stricter/looser/different than that canonical source, three ways:
+#
+# 1. This matches a single line rather than a line plus its newline, because
+#    the caller iterates `splitlines()` instead of walking offsets.
+# 2. Indented four-space blocks are deliberately NOT treated as code: a wrapped
+#    criterion's continuation line is indented, and `_bullets` folds it into
+#    the bullet above.
+# 3. The lookahead's inner scan is `[^`\n]*` here against the canonical
+#    `[^\n]*`. That one character is the difference between linear and
+#    quadratic. The canonical scan can cross a backtick, so it re-walks the
+#    remainder once per backtrack of the leading run; measured on a line shaped
+#    ("`" * n) + ("x" * n) + "`" + ("x" * n), it costs 0.020s at 12KB, 0.268s
+#    at 46KB and 0.481s at 62KB, on an author-controlled PR body (CWE-1333).
+#    Excluding the backtick stops each scan at the first one, which is the same
+#    rule and 0.0013s on the 100KB fixture
+#    `test_a_late_backtick_in_a_long_fence_like_line_stays_out_of_the_gate`
+#    uses.
+#
+# The quote above is the canonical text as it stands, not as it ought to stand.
+# `pr_description.py` still carries the quadratic form and parses PR bodies
+# too, so it is exposed the same way; flagged on PR #5451 rather than changed
+# here, because that validator feeds gates well outside this one.
 _FENCE_LINE = re.compile(r"^ {0,3}(?:(`{3,})(?![^`\n]*`)|(~{3,}))\s*(?P<info>.*)$")
 # The whole heading title, not a substring of it. A prefix or suffix word makes
 # a different section: "Acceptance Criteria Verification" holds evidence and
