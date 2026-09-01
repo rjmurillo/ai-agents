@@ -1,10 +1,10 @@
-# Prefer a native WSL worktree for uv-dependent work
+# Use a native WSL worktree when Windows hits uv TLS failures
 
 In this environment, a Windows-native git worktree can fail `uv` and `pip`
 resolution with TLS handshake errors while the same repository works from a
-native WSL path. For `uv run`, `uv sync`, or mutation-harness work in this
-repository, start from a WSL-native worktree under `/home/<user>/...`, not
-under `/mnt/c/...`.
+native WSL path. When that failure reproduces, move `uv run`, `uv sync`, or
+mutation-harness work for this repository into a WSL-native path under
+`/home/<user>/...` instead of continuing under `/mnt/c/...`.
 
 ## Why
 
@@ -17,9 +17,9 @@ PR #5344 hit repeated Windows-only failures:
 
 ## Practice
 
-1. Create the worktree under a native Linux path.
+1. Reproduce the TLS handshake failure on the Windows-native worktree first.
 2. Confirm `command -v uv` before running the test or build.
-3. Move to WSL immediately if a Windows worktree shows TLS handshake failures.
+3. Move the worktree to a native Linux path only when that Windows failure is real.
 
 ## Evidence
 
