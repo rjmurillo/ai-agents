@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+# This end-to-end fixture, parser, and vendored-load coverage belong together.
 """End-to-end /review test inside a vendored checkout (issue #1984, PR #1965 Y13).
 
 `tests/integration/test_vendored_install.py` proves AC5 (REQ-008-06) at the
@@ -15,7 +17,7 @@ a synthetic one-line diff inside that tree. It asserts:
 
   1. `/review` exits without error (returncode 0).
   2. The output carries a verdict row for every axis the vendored install
-     ships (the canonical `references/*.md` set plus the 3 chained-skill axes),
+     ships (the canonical `references/*.md` set plus the 4 chained-skill axes),
      discovered from the vendored copy rather than hardcoded. The issue text
      said "9 verdict rows", which was the 6-canonical + 3-chained era; the current canonical
      set is larger, so the test derives the expected count from the directory

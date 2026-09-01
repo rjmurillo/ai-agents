@@ -1,3 +1,5 @@
+# taste-lint: ignore file-size
+# This routing suite stays in one file so the selector, contract, and guards share fixtures.
 """Executable routing tests for the ``/review`` axis selector (issue #4981).
 
 PR #5010 shipped risk-based selection as prose plus fixture files, so the
