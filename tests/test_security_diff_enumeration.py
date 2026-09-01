@@ -131,6 +131,16 @@ READONLY_GITHUB_TOOLS = frozenset({
     "mcp__github__get_pull_request_comments",
     "mcp__github__list_branches",
     "mcp__github__list_tags",
+    # Platform (Copilot/VS Code) `$toolset:github-research` grants read-only
+    # alert and PR-search tools the Claude surfaces have no equivalent call
+    # for. Read-only per the GitHub API (list/get, never create or dismiss),
+    # so they belong on this allowlist rather than tripping the platform
+    # remote-mutation check below as false-positive offenders.
+    "mcp__github__list_code_scanning_alerts",
+    "mcp__github__get_code_scanning_alert",
+    "mcp__github__list_secret_scanning_alerts",
+    "mcp__github__list_dependabot_alerts",
+    "mcp__github__search_pull_requests",
 })
 
 # Markers every surface must carry, whatever tools its harness grants.
@@ -256,6 +266,10 @@ def find_unparseable_tool_entries(tools: list[str]) -> list[str]:
     return offenders
 
 
+_MCP_GITHUB_PREFIX = "mcp__github__"
+_PLATFORM_GITHUB_PREFIX = "github/"
+
+
 def find_mutating_github_grants(tools: list[str]) -> list[str]:
     """Return declared GitHub tools that are NOT on the read-only allowlist.
 
@@ -263,14 +277,29 @@ def find_mutating_github_grants(tools: list[str]) -> list[str]:
     potentially mutating. This catches tools like update_pull_request,
     add_issue_comment, run_workflow, and rerun_failed_jobs that an incomplete
     blacklist would miss.
+
+    Normalizes both naming forms this repository's surfaces use for the same
+    GitHub tool: Claude's MCP form ``mcp__github__<name>`` and the platform
+    ``$toolset:github-research`` form ``github/<name>`` (Copilot, VS Code).
+    Checking only the ``mcp__github__`` prefix left every platform grant
+    unexamined, since none of them ever match it: a mutating platform entry
+    such as ``github/push_files`` would pass this guard while this test
+    stayed green (issue #5356 review).
     """
     readonly_lower = {name.casefold() for name in READONLY_GITHUB_TOOLS}
-    return [
-        tool.strip()
-        for tool in tools
-        if tool.strip().casefold().startswith("mcp__github__")
-        and tool.strip().casefold() not in readonly_lower
-    ]
+    offenders = []
+    for tool in tools:
+        stripped = tool.strip()
+        lowered = stripped.casefold()
+        if lowered.startswith(_MCP_GITHUB_PREFIX):
+            canonical = lowered
+        elif lowered.startswith(_PLATFORM_GITHUB_PREFIX):
+            canonical = _MCP_GITHUB_PREFIX + lowered[len(_PLATFORM_GITHUB_PREFIX) :]
+        else:
+            continue
+        if canonical not in readonly_lower:
+            offenders.append(stripped)
+    return offenders
 
 
 def find_missing_tools(tools: list[str], required: tuple[str, ...]) -> list[str]:
@@ -396,6 +425,18 @@ def test_platform_surface_can_bind_to_a_sha(path: Path) -> None:
 
     missing = find_missing_tools(tools, REQUIRED_PINNED_DIFF_PLATFORM)
     assert not missing, f"{path.relative_to(REPO_ROOT)}: missing pinned-diff grants {missing}"
+
+
+@pytest.mark.parametrize("path", PLATFORM_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_platform_surface_grants_no_remote_mutation(path: Path) -> None:
+    """The same fail-closed check `test_claude_surface_grants_no_remote_mutation`
+    runs, applied to the `github/<name>` naming platform surfaces use instead of
+    Claude's `mcp__github__<name>`.
+    """
+    tools = _tool_list(_frontmatter(path), "tools", path)
+
+    offenders = find_mutating_github_grants(tools)
+    assert not offenders, f"{path.relative_to(REPO_ROOT)}: remote-mutating grants {offenders}"
 
 
 @pytest.mark.parametrize(
@@ -720,6 +761,13 @@ class TestRemoteMutationControls:
 
     def test_read_only_github_tools_accepted(self) -> None:
         assert find_mutating_github_grants(list(REQUIRED_PINNED_DIFF_CLAUDE)) == []
+
+    def test_mutating_platform_github_tool_detected(self) -> None:
+        """The naming form platform surfaces use, not just Claude's MCP form."""
+        assert find_mutating_github_grants(["read", "github/push_files"])
+
+    def test_read_only_platform_github_tools_accepted(self) -> None:
+        assert find_mutating_github_grants(list(REQUIRED_PINNED_DIFF_PLATFORM)) == []
 
 
 class TestMissingToolControls:
