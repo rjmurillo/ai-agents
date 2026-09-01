@@ -18,10 +18,17 @@ Evaluator routing:
     - Skill reference changes    -> eval-knowledge-integration.py (parent skill)
     - Canonical rule changes     -> eval-rule-activation.py (scenario-gated)
     - Instruction mirror changes -> eval-rule-activation.py (via canonical rule)
+    - Command mirror changes     -> not evaluated (evaluate the command instead)
+    - Entrypoint changes         -> not evaluated (no evaluator exists)
 
 Every classified category either names a runner or carries an explicit
 `not_evaluated` reason in the routing plan. No context-bearing category falls
 silently into `other` (issue #4882, required work item 2).
+
+Two rows are identified by something other than a directory prefix, so they run
+before every prefix row: entrypoints, which are named by filename and live
+inside the prompt and skill trees, and command mirrors, which sit in the
+Copilot skills tree but are generated from `.claude/commands/`.
 
 Usage:
     # Auto-detect from git diff against main:
@@ -51,6 +58,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -256,6 +264,7 @@ class RoutingRule(NamedTuple):
     basenames: frozenset[str] = frozenset()
     exclude_basenames: frozenset[str] = frozenset()
     exclude_substrings: tuple[str, ...] = ()
+    predicate: Callable[[str], bool] | None = None
 
     def matches(self, path: str) -> bool:
         if self.prefix and not path.startswith(self.prefix):
@@ -272,7 +281,40 @@ class RoutingRule(NamedTuple):
             return False
         if self.segment is not None and self.segment not in parts[:-1]:
             return False
+        if self.predicate is not None and not self.predicate(path):
+            return False
         return True
+
+
+def is_command_mirror_skill(path: str) -> bool:
+    """Whether a generated Copilot skill mirrors a command, not a Claude skill.
+
+    `src/copilot-cli/skills/` holds two different kinds of artifact. Most
+    entries mirror `.claude/skills/<name>/`. Fourteen instead mirror
+    `.claude/commands/<name>.md` and have no `.claude/skills/<name>/` at all:
+    build, checkpoint, context-hub-setup, plan, pr-autofix, pr-review,
+    push-pr, research, retro, ship, sync, spec, test, validate-pr-description.
+
+    The distinction is load bearing because `eval-knowledge-integration.py`
+    resolves a skill only under `.claude/skills/`. Measured:
+
+        $ eval-knowledge-integration.py --skill spec --dry-run
+        exit=1
+        ERROR: Skill directory not found for 'spec' in .../.claude/skills
+
+    Routing a command mirror there reproduces issue #4882's own failure shape
+    at a new site, so these are reported `not_evaluated` instead.
+
+    Reads the filesystem because the distinction exists only there: nothing in
+    the path spells out which kind a Copilot skill is.
+    """
+    parts = path.split("/")
+    if not path.startswith("src/copilot-cli/skills/") or len(parts) < 4:
+        return False
+    name = parts[3]
+    if (REPO_ROOT / ".claude" / "skills" / name).is_dir():
+        return False
+    return (REPO_ROOT / ".claude" / "commands" / f"{name}.md").is_file()
 
 
 def _rules_for(
@@ -308,6 +350,21 @@ def _rules_for(
 # negative control replays the broad prefix to prove the tests catch a
 # reintroduction.
 ROUTING_RULES: tuple[RoutingRule, ...] = (
+    # Basename rows first. An entrypoint is identified by its filename, not by
+    # where it sits, and real ones live inside the prompt and skill trees
+    # (`.claude/commands/CLAUDE.md`, `.claude/skills/CLAUDE.md`,
+    # `.claude/skills/adr-review/CLAUDE.md`, `src/copilot-cli/skills/github/
+    # CLAUDE.md`, and 14 more). Behind the prefix rows they were all captured
+    # as prompts or skills.
+    RoutingRule("entrypoints", basenames=ENTRYPOINT_BASENAMES),
+    # Command mirrors before the skill rows: they live under the Copilot skills
+    # tree but the skill evaluator cannot resolve them.
+    RoutingRule(
+        "command_mirrors",
+        prefix="src/copilot-cli/skills/",
+        suffix="",
+        predicate=is_command_mirror_skill,
+    ),
     *_rules_for("prompts", PROMPT_PATTERNS),
     # References must precede the trees that contain them.
     *_rules_for("skill_references", SKILL_PATTERNS, segment=REFERENCE_SEGMENT),
@@ -321,7 +378,6 @@ ROUTING_RULES: tuple[RoutingRule, ...] = (
         exclude_basenames=AGENT_EXCLUDED_BASENAMES,
         exclude_substrings=AGENT_EXCLUDED_SUBSTRINGS,
     ),
-    RoutingRule("entrypoints", basenames=ENTRYPOINT_BASENAMES),
     *_rules_for("scenarios", SCENARIO_DIRS, suffix=""),
 )
 
@@ -330,6 +386,7 @@ CATEGORIES: tuple[str, ...] = (
     "agents",
     "skills",
     "skill_references",
+    "command_mirrors",
     "references",
     "rules",
     "instructions",
@@ -353,6 +410,10 @@ RUNNER_BY_CATEGORY: dict[str, str] = {
 }
 
 NOT_EVALUATED_REASONS: dict[str, str] = {
+    "command_mirrors": (
+        "generated from a .claude/commands/ file; the skill evaluator resolves "
+        "only .claude/skills/, so evaluate the generating command instead"
+    ),
     "references": (
         "reference material for a non-skill artifact; no evaluator consumes it"
     ),
@@ -510,13 +571,33 @@ def find_rule_scenarios() -> dict[str, str]:
                 f"scenario file must contain an object: {candidate}"
             )
         rule_path = data.get("rule_path")
-        if rule_path is None:
-            # A skill-targeted ADR-088 scenario. Not a rule; not an error.
-            continue
-        if not isinstance(rule_path, str) or not rule_path.strip():
+        has_rule = isinstance(rule_path, str) and bool(rule_path.strip())
+        if not has_rule:
+            # Only the real ADR-088 reference-scenario shape is a legitimate
+            # skip. The canonical test is
+            # `check_rule_activation_coverage.py:_is_reference_scenario`:
+            #
+            #     has_reference = isinstance(reference, str) and bool(reference.strip())
+            #     has_skill = isinstance(skill, str) and bool(skill.strip())
+            #     has_rule = isinstance(rule, str) and bool(rule.strip())
+            #     if not (has_reference and has_skill and not has_rule):
+            #         return False
+            #
+            # An empty object, or a lone skill_path with no reference_path, is
+            # not a reference scenario. Treating it as one turns a malformed
+            # file into a silent absence, which is the failure this function
+            # exists to prevent.
+            reference = data.get("reference_path")
+            skill = data.get("skill_path")
+            has_reference = isinstance(reference, str) and bool(reference.strip())
+            has_skill = isinstance(skill, str) and bool(skill.strip())
+            if has_reference and has_skill:
+                continue
             raise ScenarioConfigError(
-                f"rule_path must be a non-empty string in {candidate}"
+                f"scenario names no rule_path and is not an ADR-088 reference "
+                f"scenario (needs both skill_path and reference_path): {candidate}"
             )
+        assert isinstance(rule_path, str)
         scenarios[Path(rule_path).stem] = str(candidate.relative_to(REPO_ROOT))
 
     return scenarios
@@ -823,7 +904,11 @@ def run_rule_activation(files: list[str], model: str) -> dict[str, Any]:
                     cwd=str(REPO_ROOT),
                 )
             except subprocess.TimeoutExpired:
-                results["rules"][rule_id] = {"passed": False, "reason": "timeout (600s)"}
+                results["rules"][rule_id] = {
+                    "passed": False,
+                    "exit_code": EXIT_EXTERNAL,
+                    "reason": "timeout (600s)",
+                }
                 continue
 
             parsed, signal_error = _read_child_json_file(output_path, f"rule {rule_id}")
@@ -891,7 +976,12 @@ def run_structural_tests(targets: list[str], dry_run: bool) -> dict[str, Any]:
     except FileNotFoundError:
         return {"skipped": True, "reason": "pwsh not found", "targets": targets}
     except subprocess.TimeoutExpired:
-        return {"passed": False, "reason": "timeout (60s)", "targets": targets}
+        return {
+            "passed": False,
+            "exit_code": EXIT_EXTERNAL,
+            "reason": "timeout (60s)",
+            "targets": targets,
+        }
 
 
 def run_behavioral_for_prompt(
@@ -943,7 +1033,12 @@ def run_behavioral_for_prompt(
             "results": parsed,
         }
     except subprocess.TimeoutExpired:
-        return {"passed": False, "reason": "timeout (600s)", "prompt": prompt_path}
+        return {
+            "passed": False,
+            "exit_code": EXIT_EXTERNAL,
+            "reason": "timeout (600s)",
+            "prompt": prompt_path,
+        }
 
 
 def run_agent_quality(
@@ -986,7 +1081,11 @@ def run_agent_quality(
                 "results": parsed,
             }
         except subprocess.TimeoutExpired:
-            results["agents"][name] = {"passed": False, "reason": "timeout (300s)"}
+            results["agents"][name] = {
+                "passed": False,
+                "exit_code": EXIT_EXTERNAL,
+                "reason": "timeout (300s)",
+            }
 
     results["passed"] = all(a.get("passed", False) for a in results["agents"].values())
     return results
@@ -1040,7 +1139,11 @@ def run_skill_knowledge(
                 "results": parsed,
             }
         except subprocess.TimeoutExpired:
-            results["skills"][name] = {"passed": False, "reason": "timeout (300s)"}
+            results["skills"][name] = {
+                "passed": False,
+                "exit_code": EXIT_EXTERNAL,
+                "reason": "timeout (300s)",
+            }
 
     results["passed"] = all(s.get("passed", False) for s in results["skills"].values())
     return results
