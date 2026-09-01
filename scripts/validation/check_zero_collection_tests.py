@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- the guard, its config reader, its exemption
+# parser, and its skip-module trust check are one gate with one contract;
+# splitting them would let the pieces drift out of sync with what
+# tests/validation/test_check_zero_collection_tests.py exercises as a unit.
 """Fail when a file pytest walks into contributes no tests.
 
 A file that matches ``python_files`` inside ``testpaths`` is walked on every CI
@@ -25,9 +29,15 @@ in both directions: a declared file that starts collecting tests fails too, so
 a marker cannot outlive the reason it was written for.
 
 A module pytest skips during collection answers for itself only when its source
-still defines a collectable test. That covers platform and optional-dependency
-tests without letting a skip-only helper bypass the gate. A skipped module with
-no test definition needs the same explicit exemption as any other helper.
+defines a test carrying a registered pytest marker (``markers`` in
+``pyproject.toml``, the same signal ``windows_path`` already uses). That
+distinguishes a genuine platform-specific suite from a skip-only helper or a
+dead test added just to satisfy this guard, without letting either bypass it.
+An unconditional module-level skip (``pytest.skip(..., allow_module_level=True)``
+or ``pytest.importorskip(...)`` run unconditionally) disqualifies the module
+regardless of what else it defines: pytest's import machinery marks the whole
+module skipped the moment such a call executes, so nothing textually after or
+around it is ever collected on any host.
 
 Exit codes (``AGENTS.md``): 0 ok, 1 violations found, 2 configuration unusable,
 3 pytest could not be run or its output could not be parsed.
@@ -180,12 +190,64 @@ def read_pytest_config(repo_root: Path) -> tuple[list[str], list[str]]:
         raise ValueError(f"{pyproject} has no [tool.pytest.ini_options] testpaths")
     if not isinstance(python_files, list) or not python_files:
         raise ValueError(f"{pyproject} has no [tool.pytest.ini_options] python_files")
-    declared_testpaths = [str(path) for path in testpaths]
+    declared_testpaths = _require_nonempty_strings(testpaths, pyproject, "testpaths")
+    declared_python_files = _require_nonempty_strings(python_files, pyproject, "python_files")
     for testpath in declared_testpaths:
         resolved = (repo_root / testpath).resolve()
         if not resolved.is_relative_to(repo_root) or not resolved.exists():
             raise ValueError(f"{pyproject} has unusable testpath: {testpath}")
-    return declared_testpaths, [str(pattern) for pattern in python_files]
+    return declared_testpaths, declared_python_files
+
+
+def _require_nonempty_strings(values: list[object], pyproject: Path, key: str) -> list[str]:
+    """Reject a TOML entry pytest cannot use as a path or glob pattern.
+
+    ``python_files = [1]`` is valid TOML, so ``tomllib`` never raises. Stringifying
+    it unconditionally used to hand pytest ``"1"`` as a collection pattern, which
+    fails during collection itself (external exit 3) instead of the documented
+    configuration exit 2. A non-string or empty-string entry is a malformed
+    contract, not an unusable-but-honest one, so it is refused here.
+    """
+    result: list[str] = []
+    for value in values:
+        if not isinstance(value, str) or not value:
+            raise ValueError(
+                f"{pyproject} [tool.pytest.ini_options] {key} entries must be "
+                f"non-empty strings, found {value!r}"
+            )
+        result.append(value)
+    return result
+
+
+def registered_pytest_markers(repo_root: Path) -> frozenset[str]:
+    """Return the marker names declared in ``[tool.pytest.ini_options] markers``.
+
+    Each entry is ``"name: description"``; only the name is a signal this guard
+    can trust. A marker registered here (``windows_path`` is the existing
+    example) is a repository-level decision that a test is tied to a real,
+    supported environment, made by whoever edited ``pyproject.toml`` under its
+    own review, not a claim this guard can verify from one file's source.
+    """
+    pyproject = repo_root / "pyproject.toml"
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return frozenset()
+    options: object = data
+    for section in ("tool", "pytest", "ini_options"):
+        if not isinstance(options, Mapping):
+            return frozenset()
+        options = options.get(section)
+    if not isinstance(options, Mapping):
+        return frozenset()
+    markers = options.get("markers")
+    if not isinstance(markers, list):
+        return frozenset()
+    names: set[str] = set()
+    for entry in markers:
+        if isinstance(entry, str) and entry.strip():
+            names.add(entry.split(":", 1)[0].strip())
+    return frozenset(names)
 
 
 def _contains_exemption(text: str) -> bool:
@@ -241,20 +303,49 @@ def _defines_collectable_test(
     text: str,
     python_classes: Sequence[str],
     python_functions: Sequence[str],
+    registered_markers: frozenset[str],
 ) -> bool:
+    """Return True only when a skipped module is safe to trust without a marker.
+
+    Two conditions, both load-bearing:
+
+    1. No unconditional module-level skip. ``pytest.skip(..., allow_module_level=True)``
+       and ``pytest.importorskip(...)`` raise ``Skipped`` the moment either
+       executes, and pytest's import machinery catches that by marking the
+       WHOLE module skipped without ever inspecting what got defined earlier in
+       the same file. A test-shaped ``def`` anywhere in a module that also
+       contains an unconditional skip is therefore unreachable on every host,
+       not just this one; a walk that finds the ``def`` regardless of the skip
+       call is exactly the bypass a zero-collecting file could use to dodge
+       this guard by adding a dead ``def test_*``.
+    2. The candidate test carries ``@pytest.mark.<name>`` where ``<name>`` is
+       registered in ``pyproject.toml``'s ``markers`` list (the same signal
+       ``windows_path`` already uses). An ``if <condition>: def test(): ...
+       else: skip()`` shape cannot be trusted by AST presence alone: the
+       condition can name a platform that will never match on any real host,
+       which is functionally identical to an unconditional skip. Only a
+       registered marker is a decision a maintainer made about a real,
+       supported environment; an arbitrary ``if`` is not.
+    """
     module = ast.parse(text)
+    if any(_is_unconditional_module_skip(stmt) for stmt in module.body):
+        return False
+
     function_types = (ast.FunctionDef, ast.AsyncFunctionDef)
     pending = list(reversed(module.body))
     while pending:
         node = pending.pop()
-        if isinstance(node, function_types) and _matches_test_name(
-            node.name, python_functions
+        if (
+            isinstance(node, function_types)
+            and _matches_test_name(node.name, python_functions)
+            and _has_registered_marker(node.decorator_list, registered_markers)
         ):
             return True
         if isinstance(node, ast.ClassDef):
             if _matches_test_name(node.name, python_classes) and any(
                 isinstance(child, function_types)
                 and _matches_test_name(child.name, python_functions)
+                and _has_registered_marker(child.decorator_list, registered_markers)
                 for child in node.body
             ):
                 return True
@@ -265,6 +356,57 @@ def _defines_collectable_test(
             child for child in ast.iter_child_nodes(node) if isinstance(child, ast.stmt)
         ]
         pending.extend(reversed(statements))
+    return False
+
+
+def _is_pytest_attr_call(node: ast.expr, attr: str) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == attr
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "pytest"
+    )
+
+
+def _is_unconditional_module_skip(stmt: ast.stmt) -> bool:
+    """True for a bare top-level ``pytest.skip(..., allow_module_level=True)``
+    or ``pytest.importorskip(...)`` statement.
+
+    Checked only against ``module.body`` entries directly, never against
+    statements nested inside an ``if``/``try``/``for``/``while``: a skip call
+    confined to one branch of a conditional does not execute on a host that
+    takes the other branch, so it does not disqualify a test defined there.
+    """
+    if not isinstance(stmt, ast.Expr) or not isinstance(stmt.value, ast.Call):
+        return False
+    call = stmt.value
+    if _is_pytest_attr_call(call, "importorskip"):
+        return True
+    if _is_pytest_attr_call(call, "skip"):
+        return any(
+            keyword.arg == "allow_module_level"
+            and isinstance(keyword.value, ast.Constant)
+            and keyword.value.value is True
+            for keyword in call.keywords
+        )
+    return False
+
+
+def _has_registered_marker(
+    decorators: Sequence[ast.expr], registered_markers: frozenset[str]
+) -> bool:
+    for decorator in decorators:
+        target = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if (
+            isinstance(target, ast.Attribute)
+            and isinstance(target.value, ast.Attribute)
+            and isinstance(target.value.value, ast.Name)
+            and target.value.value.id == "pytest"
+            and target.value.attr == "mark"
+            and target.attr in registered_markers
+        ):
+            return True
     return False
 
 
@@ -299,6 +441,8 @@ def collect_files(repo_root: Path, testpaths: Sequence[str]) -> CollectionResult
                 sys.executable,
                 "-m",
                 "pytest",
+                "-c",
+                str(repo_root / "pyproject.toml"),
                 "--collect-only",
                 "-p",
                 _REPORT_PLUGIN_NAME,
@@ -347,10 +491,12 @@ def build_report(repo_root: Path) -> Report:
     """Compare what pytest walks against what answered for itself.
 
     A path is satisfied when pytest collected a test from it. A skipped module
-    is also satisfied when its source still defines a collectable test, which
-    distinguishes a platform-specific suite from a skip-only helper.
+    is also satisfied when its source defines a test carrying a registered
+    pytest marker, which distinguishes a genuine platform-specific suite from
+    a skip-only helper or a dead test added to dodge the gate.
     """
     testpaths, _ = read_pytest_config(repo_root)
+    registered_markers = registered_pytest_markers(repo_root)
     collection = collect_files(repo_root, testpaths)
     if not collection.candidates:
         raise ValueError("pytest found no candidate modules under configured testpaths")
@@ -368,6 +514,7 @@ def build_report(repo_root: Path) -> Report:
                 text,
                 collection.python_classes,
                 collection.python_functions,
+                registered_markers,
             )
         )
         if satisfied:

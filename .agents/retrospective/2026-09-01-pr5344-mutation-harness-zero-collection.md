@@ -30,9 +30,21 @@
 2. Why did it conclude that? No comment in the commit or any review thread explains the reasoning; no failing test named the job as a duplicate.
 3. Why wasn't it caught before this session? The round-cap breaker fired on wall-clock budget before the prior session pushed or self-verified, so the commit sat unpushed and unreviewed.
 4. Why did this session catch it? The task instructions required verifying artifacts, not reports (per orchestrator synthesis protocol): each orphaned commit was diffed and test-run individually rather than trusted by commit message.
-5. Root cause: an autonomous session under time pressure (round-cap) produced a plausible-sounding but unverified commit message ("drop duplicate ... gate") for a change with no supporting evidence, and had no downstream gate that would have caught a silently-dropped CI/pre-push wiring on push (the wiring test only asserts a job exists when present in the diff; it does not flag "this session removed a gate with no cited reason").
+5. Root cause: an autonomous session under time pressure (round-cap) produced a plausible-sounding but unverified commit message ("drop duplicate ... gate") for a change with no supporting evidence. `tests/ci/test_zero_collection_guard_wiring.py::test_a_named_pre_push_job_runs_the_zero_collection_guard`, as it exists on the branch after this session's fix, unconditionally requires exactly one lefthook job named `zero-collection-tests`; it does not inspect the diff, so deleting only the job would have failed it. Commit `26683e981` combined both changes: it deleted the lefthook job AND deleted that exact test function from the same commit, so nothing was left in the diff to catch the removal. The gap this session closed was re-verifying the dropped commit against the ORIGINAL (pre-commit-2) test, not against the test as commit 2 had already rewritten it.
 
 **Pattern**: PR autofix sessions that hit the round-cap wall-clock escalation leave local, unpushed, unverified work. That work must be treated as untrusted input, not as ready-to-push, even when it is well-written and shares the session's own commit conventions.
+
+## Failure Mode Classification (`.claude/rules/retros.md` MUST 2)
+
+**Class 9: Confident-Incorrectness Recurrence** (`.agents/governance/FAILURE-MODES.md`). The prior session (`22dc5b64`) reached a conclusion from partial signal (the lefthook job "looked like" a duplicate of the pytest.yml CI step) and delivered it with full confidence (a plausible conventional-commit message, "drop duplicate zero-collection pre-push gate") without quoting or citing the canonical evidence that would prove duplication (a failing test, a review comment, or the PR's own "Gate wiring" table, which in fact contradicted the claim). The gap surfaced only after this session's independent verification, matching the class's own trigger: "asserts that it matches/mirrors/duplicates an existing source... without quoting that source verbatim."
+
+## Remediation (`.claude/rules/retros.md` MUST 4)
+
+| Action | Owner/Issue | Status |
+|--------|-------------|--------|
+| File a follow-up issue documenting the orphaned-unverified-commit gap and proposing a round-cap-aware detection step | Issue #5447 | Filed this session |
+| Verify each orphaned local commit against an independent test run (not the commit message) before reusing it, specifically when it touches CI/pre-push wiring | This session (`53440000-0000-4000-8000-000000000009`) | Done: commit 2 dropped, commits 1 and 3 cherry-picked after verification |
+| Correct the two review threads on this retrospective's own accuracy (failure-mode classification, root-cause wiring-test claim) | This session | Done: see Learning 1 and the corrected root-cause paragraph above |
 
 ## Phase 2: Diagnosis
 
@@ -130,6 +142,8 @@
 
 | New Skill | Most Similar | Similarity | Decision |
 |-----------|--------------|------------|----------|
+| pr-autofix-orphaned-commit-verification | No existing skill on verifying orphaned pr-autofix commits found in a memory search | Low | Add |
+| wsl-native-worktree-for-uv-network-access | No existing skill on WSL-vs-Windows worktree placement for `uv` found in a memory search | Low | Add |
 
 ## Phase 5: Persist and Close
 
@@ -137,15 +151,19 @@
 
 | Learning | Atomicity | Existing Match | Result |
 |----------|-----------|----------------|--------|
-| [Learning] | [%] | [Memory name or none] | [Added / Updated / Deduplicated / Skipped / Failed] |
+| Verify orphaned pr-autofix commits against a real test run before reuse | 85% | None found | Added (pr-autofix-orphaned-commit-verification) |
+| Prefer a native WSL worktree path for `uv`-dependent work in this sandbox | 70% | None found | Added (wsl-native-worktree-for-uv-network-access) |
 
 ### +/Delta
 
 #### + Keep
-- [What worked well in this retrospective]
+- Triaging red checks with `triage_red_check.py` before reading any log saved real time: 2 of 3 red checks resolved without opening a single log.
+- Diffing and independently test-running each orphaned local commit, rather than trusting its commit message, caught a real unforced regression before it reached the remote branch.
+- Rebuilding the worktree natively under WSL once the Windows sandbox's network/permission limits surfaced, rather than continuing to fight the Windows path.
 
 #### Delta Change
-- [What should be different next time]
+- Check for orphaned local commits ahead of the PR's live remote head, and check for a prior round-cap escalation record, at the START of a resumed pr-autofix session, not partway through, once a worktree happens to already exist.
+- Default to a native (non-`/mnt/c`) WSL worktree for this repository from the first command, rather than discovering the drvfs performance and `uv`-on-PATH issues empirically.
 
 ### Delta Triage
 
@@ -153,45 +171,49 @@
 
 | Delta Item | Category | Priority | Destination | Reference |
 |------------|----------|----------|-------------|-----------|
-| [Item from Delta] | [Missing Docs/Tool Gap/Process/Feature] | P0/P1/P2/P3 | Issue #N / Memory / Skip | [Link] |
+| Detect and warn about orphaned local commits behind an escalated round-cap record at session start | Process | P2 | Issue #5447 | https://github.com/rjmurillo/ai-agents/issues/5447 |
+| Document the native-WSL-worktree preference for `uv`-dependent work in this sandbox | Tool Gap | P3 | Memory (this retrospective) | N/A |
 
 #### Issues Created
 
 | Issue | Title | Priority | Labels |
 |-------|-------|----------|--------|
-| #[N] | [Title] | P0/P1 | enhancement, source:retrospective |
+| #5447 | pr-autofix: verify orphaned local commits from an escalated round-cap session before reuse | P2 | enhancement |
 
 #### Backlog Items Stored
 
 | Item | Priority | Memory File |
 |------|----------|-------------|
-| [Item] | P2/P3 | backlog/retro-YYYY-MM-DD-items.md |
+| Native-WSL-worktree preference for `uv`-dependent work | P3 | This retrospective (no separate backlog file; low volume) |
 
 #### Skipped Items
 
 | Item | Reason |
 |------|--------|
-| [Item] | [Duplicate of #X / Not actionable / Already addressed] |
+| Re-litigating the timing of when the three already-resolved threads (malformed TOML, marker-in-string, `{arch}` norecursedirs) were marked resolved relative to when their fix actually landed | Out of scope for this PR; the fix is present on the branch as of this session's push, so the resolutions are truthful at merge time regardless of the earlier ordering |
 
 ### ROTI Assessment
 
-**Score**: [0-4]
+**Score**: 3
 
 **Benefits Received**:
-- [Benefit 1]
-- [Benefit 2]
+- A real, demonstrated regression (commit 26683e981) was caught and kept off the branch before it could ship.
+- Two genuine, reusable process/tooling learnings were captured with concrete evidence.
+- The environment-specific WSL vs. Windows-worktree finding will save time on this repository's future sessions.
 
-**Time Invested**: [Duration]
+**Time Invested**: Roughly 1-2 hours of this session's total wall clock (verification, worktree rebuild, and writing this artifact), against a PR that needed the work regardless.
 
-**Verdict**: [Continue | Modify | Stop]
+**Verdict**: Continue
 
 ### Helped, Hindered, Hypothesis
 
 #### Helped
-- [What made this retrospective effective]
+- Having the orphaned commits' full diffs available made it possible to verify each one against a real test run rather than guessing from the commit message alone.
+- The repository's own `triage_red_check.py` and `check_pr_live_state.py` tooling made the CI-triage and live-state steps fast and unambiguous.
 
 #### Hindered
-- [What got in the way]
+- The Windows sandbox's lack of outbound network egress for `uv`/pip, discovered only after several failed attempts, cost real time before the WSL-native path was tried.
+- This repository's very high commit velocity on `main` (multiple advances during a single PR session) meant the "merge main, verify, push" cycle had to run twice to catch two different transient main-branch regressions (a memory-index token-count staleness, then a Unicode em-dash), each already fixed by the time it was investigated.
 
 #### Hypothesis
-- [Experiment to try next retrospective]
+- For any future session in this sandbox that needs `uv run --frozen` against this repository, starting directly from a native WSL clone (not a Windows worktree, and not a WSL worktree whose `.git` points back into a Windows-mounted repository) would avoid the environment issues encountered here entirely.

@@ -202,7 +202,7 @@ def _mutation(spec: MutationSpec, repo_root: Path) -> str:
     MUST 7 requires each mutant to "count occurrences of its target before
     patching and refuse an ambiguous or absent match", and the sibling harness
     ``tests/mutation/test_mutate_baseline_ratchet_integrity.py`` already does,
-    quoted verbatim from its lines 104 to 105::
+    quoted verbatim from its lines 108 to 109::
 
         if count > 1:
             return f"DID-NOT-APPLY: ambiguous, {count} occurrences"

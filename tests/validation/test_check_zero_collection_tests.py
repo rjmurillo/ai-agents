@@ -1,3 +1,7 @@
+# taste-lint: ignore file-size -- one gate, one test file; splitting these
+# cases across files would let a case for one behavior pass while another
+# silently loses its coverage, the same reasoning `.claude/lib/github_core`
+# uses for the file this test suite exercises.
 """Tests for scripts/validation/check_zero_collection_tests.py (issue #4494).
 
 Guards the gate that catches a file pytest walks into and collects nothing
@@ -15,9 +19,10 @@ helper's return value (`.claude/rules/testing.md` MUST 8).
 - neg/only-file: the sole file collecting nothing (pytest exit 5) -> exit 1
 - neg/stale: a declared file that starts collecting -> exit 1
 - edge/declared: a declared zero-collecting file -> exit 0
-- edge/module-skip: a skipped suite with test definitions -> exit 0; a
-  skip-only module -> exit 1 unless explicitly declared, including tests
-  defined inside a module-level platform branch
+- edge/module-skip: a skipped suite with a registered-marker-decorated test in
+  a module-level branch -> exit 0; an unconditional skip, an unmarked
+  conditional test, or an unregistered marker -> exit 1 unless explicitly
+  declared
 - edge/bare-marker: a declaration with no reason is not a declaration -> exit 1
 - edge/marker-mention: prose that mentions the marker is not a declaration
 - edge/ignored: pytest defaults, configured norecursedirs globs, and
@@ -50,16 +55,27 @@ _PYPROJECT = """\
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = [
+    "windows_path: Tests that exercise Windows path handling and must run on a Windows runner.",
+]
 """
 
 _REAL_TEST = "def test_passes():\n    assert True\n"
 _NO_TESTS = "def helper():\n    return 1\n"
 
-# Both raise Skipped while the Module collector runs, so no item ever exists on
-# the host that skips and every item exists on the host that does not.
+# An unconditional module-level skip raises Skipped the moment it executes, on
+# every host, so pytest never collects anything from the module regardless of
+# what else it defines. A dead `def test_*` placed beside it is unreachable
+# everywhere, not merely on this host: these are bypass fixtures, not carve-outs.
 _MODULE_LEVEL_SKIP = (
     "import pytest\n\n"
     'pytest.skip("windows only", allow_module_level=True)\n\n\n'
+    "def test_windows_path():\n    assert True\n"
+)
+_MODULE_LEVEL_SKIP_MARKED = (
+    "import pytest\n\n"
+    'pytest.skip("windows only", allow_module_level=True)\n\n\n'
+    "@pytest.mark.windows_path\n"
     "def test_windows_path():\n    assert True\n"
 )
 _IMPORT_OR_SKIP = (
@@ -75,10 +91,36 @@ _IMPORT_OR_SKIP_ONLY = (
     "import pytest\n\n"
     'pytest.importorskip("a_module_that_does_not_exist")\n'
 )
+# A skip confined to one branch of a module-level `if` never executes on a
+# host that takes the other branch, so the test defined there is genuinely
+# reachable there. `@pytest.mark.windows_path` is the trusted signal a
+# maintainer registered for exactly this shape; without it, the same shape
+# cannot be told apart from a condition that will never be true anywhere
+# (see `_CONDITIONAL_PLATFORM_SKIP_UNMARKED` below).
 _CONDITIONAL_PLATFORM_SKIP = (
     "import sys\n"
     "import pytest\n\n"
     'if sys.platform == "a-platform-that-does-not-exist":\n'
+    "    @pytest.mark.windows_path\n"
+    "    def test_platform_behavior():\n"
+    "        assert True\n"
+    "else:\n"
+    '    pytest.skip("other platform", allow_module_level=True)\n'
+)
+_CONDITIONAL_PLATFORM_SKIP_UNMARKED = (
+    "import sys\n"
+    "import pytest\n\n"
+    'if sys.platform == "a-platform-that-does-not-exist":\n'
+    "    def test_platform_behavior():\n"
+    "        assert True\n"
+    "else:\n"
+    '    pytest.skip("other platform", allow_module_level=True)\n'
+)
+_CONDITIONAL_PLATFORM_SKIP_UNREGISTERED_MARKER = (
+    "import sys\n"
+    "import pytest\n\n"
+    'if sys.platform == "a-platform-that-does-not-exist":\n'
+    '    @pytest.mark.a_marker_pyproject_does_not_register\n'
     "    def test_platform_behavior():\n"
     "        assert True\n"
     "else:\n"
@@ -211,67 +253,138 @@ def test_a_declaration_on_a_file_that_collects_fails(
     assert "stale declarations" in captured.out
 
 
-def test_a_module_level_skip_needs_no_declaration(tmp_path: Path) -> None:
-    """A file that skips on this host collects on another, so neither spelling fits.
+def test_an_unconditional_module_level_skip_with_a_dead_test_needs_a_declaration(
+    tmp_path: Path,
+) -> None:
+    """An unconditional skip disqualifies the module regardless of a dead test.
 
-    Undeclared it would fail wherever it skips; declared it would fail as stale
-    wherever it collects. pyproject.toml sanctions the pattern with the
-    windows_path marker and the lefthook job has no OS gate, so the guard has to
-    read a module-level skip as the file answering for itself.
+    ``pytest.skip(..., allow_module_level=True)`` with no enclosing condition
+    raises ``Skipped`` on every host, including a real Windows runner: there is
+    no host where this file collects. A ``def test_windows_path`` placed beside
+    it is unreachable everywhere, and this is the bypass Copilot demonstrated on
+    PR #5344 -- a zero-collecting file could otherwise dodge the gate by adding
+    one dead ``def test_*``.
     """
     tests = _make_repo(tmp_path)
     (tests / "test_windows_only.py").write_text(_MODULE_LEVEL_SKIP, encoding="utf-8")
 
-    assert _run(tmp_path) == 0
+    assert _run(tmp_path) == 1
 
 
-def test_an_import_scope_importorskip_needs_no_declaration(tmp_path: Path) -> None:
+def test_a_registered_marker_cannot_rescue_an_unconditional_skip(tmp_path: Path) -> None:
+    """A registered marker is not a signal when the skip itself is unconditional.
+
+    The marker mechanism (see the conditional-platform tests below) exists to
+    trust a test that is reachable on some real host. An unconditional skip
+    means no host reaches it, so decorating the dead test changes nothing.
+    """
+    tests = _make_repo(tmp_path)
+    (tests / "test_windows_only.py").write_text(
+        _MODULE_LEVEL_SKIP_MARKED, encoding="utf-8"
+    )
+
+    assert _run(tmp_path) == 1
+
+
+def test_an_unconditional_importorskip_with_a_dead_test_needs_a_declaration(
+    tmp_path: Path,
+) -> None:
     """importorskip raises Skipped from the same collection phase as skip()."""
     tests = _make_repo(tmp_path)
     (tests / "test_optional_dependency.py").write_text(_IMPORT_OR_SKIP, encoding="utf-8")
 
-    assert _run(tmp_path) == 0
+    assert _run(tmp_path) == 1
 
 
-def test_a_declaration_on_a_module_level_skip_is_stale(
+def test_a_declaration_on_an_unconditional_module_level_skip_is_not_stale(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """The mirror of the case above: satisfying the guard makes a marker stale.
+    """An unconditional skip is never satisfied, so its declaration is not stale.
 
-    One set decides both directions, so a skipped module must not keep a
-    declaration it no longer needs, exactly as a collecting file must not.
+    Unlike a genuine platform carve-out, this file collects on no host, so the
+    exemption it needs is exactly the ``declared`` (non-violation) bucket, not
+    ``stale_declarations``.
     """
     tests = _make_repo(tmp_path)
     (tests / "test_windows_only.py").write_text(
-        f"# {EXEMPTION_MARKER} was thought to collect nothing.\n{_MODULE_LEVEL_SKIP}",
+        f"# {EXEMPTION_MARKER} always skips; no host collects this file.\n"
+        f"{_MODULE_LEVEL_SKIP}",
         encoding="utf-8",
     )
 
     exit_code = _run(tmp_path)
 
     captured = capsys.readouterr()
-    assert exit_code == 1
-    assert "tests/test_windows_only.py" in captured.err
-    assert "stale declarations" in captured.out
+    assert exit_code == 0
+    assert "stale declarations" not in captured.out or "0 stale" in captured.out
 
 
-def test_a_module_level_skip_does_not_excuse_a_neighbour(tmp_path: Path) -> None:
-    """Negative control: the carve-out must not turn the guard off wholesale."""
+def test_a_conditional_carve_out_does_not_excuse_an_undeclared_neighbour(
+    tmp_path: Path,
+) -> None:
+    """Negative control: a legitimate carve-out must not turn the guard off wholesale."""
     tests = _make_repo(tmp_path)
-    (tests / "test_windows_only.py").write_text(_MODULE_LEVEL_SKIP, encoding="utf-8")
+    (tests / "test_platform_only.py").write_text(
+        _CONDITIONAL_PLATFORM_SKIP, encoding="utf-8"
+    )
     (tests / "test_collects_nothing.py").write_text(_NO_TESTS, encoding="utf-8")
 
     assert _run(tmp_path) == 1
 
 
-def test_a_conditional_platform_test_answers_for_a_skipped_module(tmp_path: Path) -> None:
-    """A test defined in a module-level branch can collect on another host."""
+def test_a_marker_gated_conditional_test_answers_for_a_skipped_module(
+    tmp_path: Path,
+) -> None:
+    """A registered-marker test defined in a module-level branch is trusted.
+
+    ``@pytest.mark.windows_path`` is registered in this fixture's own
+    ``pyproject.toml``, the same signal the real repository's
+    ``windows_path``-marked suites carry. That is the "another signal tied to
+    a supported environment" a conditional skip needs to be trusted without
+    AST presence alone.
+    """
     tests = _make_repo(tmp_path)
     (tests / "test_platform_only.py").write_text(
         _CONDITIONAL_PLATFORM_SKIP, encoding="utf-8"
     )
 
     assert _run(tmp_path) == 0
+
+
+def test_an_unmarked_conditional_test_does_not_answer_for_a_skipped_module(
+    tmp_path: Path,
+) -> None:
+    """AST presence alone is not trusted: the reviewer-demonstrated bypass.
+
+    Same ``if``/``else`` shape as the trusted case above, but the guarded test
+    carries no registered marker. The condition names a platform that will
+    never match on any real host, which is functionally an unconditional skip;
+    without a marker this guard cannot tell the two shapes apart, so neither is
+    trusted.
+    """
+    tests = _make_repo(tmp_path)
+    (tests / "test_platform_only.py").write_text(
+        _CONDITIONAL_PLATFORM_SKIP_UNMARKED, encoding="utf-8"
+    )
+
+    assert _run(tmp_path) == 1
+
+
+def test_an_unregistered_marker_does_not_answer_for_a_skipped_module(
+    tmp_path: Path,
+) -> None:
+    """Only a marker pyproject.toml registers is a trusted signal.
+
+    An arbitrary decorator name is not a maintainer decision about a real,
+    supported environment; only registration in ``[tool.pytest.ini_options]
+    markers`` is.
+    """
+    tests = _make_repo(tmp_path)
+    (tests / "test_platform_only.py").write_text(
+        _CONDITIONAL_PLATFORM_SKIP_UNREGISTERED_MARKER, encoding="utf-8"
+    )
+
+    assert _run(tmp_path) == 1
 
 
 @pytest.mark.parametrize("source", [_SKIP_ONLY, _IMPORT_OR_SKIP_ONLY])
