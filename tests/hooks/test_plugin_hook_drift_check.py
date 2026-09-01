@@ -51,6 +51,13 @@ def _registration(command: str, *, event: str = "PreToolUse", matcher: str = "Ta
     return {event: [{"matcher": matcher, "hooks": [{"type": "command", "command": command}]}]}
 
 
+def _source(hooks: object) -> set[tuple[str, str, str]]:
+    """Registrations for a well-formed mapping, failing loudly if it is not."""
+    found = drift.registrations(hooks)
+    assert found is not None, f"test fixture is not a well-formed hooks mapping: {hooks!r}"
+    return found
+
+
 # --- registrations(): shape handling, malformed is not "registers nothing" ---
 
 
@@ -193,7 +200,7 @@ def test_compare_install_names_a_guard_the_source_retired(tmp_path) -> None:
 
 def test_compare_install_reports_no_drift_when_registrations_match(tmp_path) -> None:
     install = _make_plugin_root(tmp_path / "install", _registration("shared"))
-    source = drift.registrations(_registration("shared"))
+    source = _source(_registration("shared"))
 
     report = drift.compare_install("Claude Code", install, source)
 
@@ -206,7 +213,7 @@ def test_compare_install_reports_the_other_direction_too(tmp_path) -> None:
     # An install missing a hook the source ships is drift as well. Reporting
     # one direction only would certify a half-updated install as clean.
     install = _make_plugin_root(tmp_path / "install", {})
-    source = drift.registrations(_registration("shipped-now"))
+    source = _source(_registration("shipped-now"))
 
     report = drift.compare_install("Claude Code", install, source)
 
@@ -296,16 +303,21 @@ def test_check_installed_plugins_notes_a_missing_source_plugin_manifest(tmp_path
 # --- format_message(): what actually reaches the injected context -----------
 
 
-def _report(**overrides) -> drift.InstallReport:
-    fields = {
-        "surface": "Claude Code",
-        "install_path": Path("/home/u/.claude/plugins/marketplaces/ai-agents/.claude"),
-        "only_in_install": (),
-        "only_in_source": (),
-        "error": None,
-    }
-    fields.update(overrides)
-    return drift.InstallReport(**fields)
+def _report(
+    *,
+    surface: str = "Claude Code",
+    install_path: Path = Path("/home/u/.claude/plugins/marketplaces/ai-agents/.claude"),
+    only_in_install: tuple[str, ...] = (),
+    only_in_source: tuple[str, ...] = (),
+    error: str | None = None,
+) -> drift.InstallReport:
+    return drift.InstallReport(
+        surface=surface,
+        install_path=install_path,
+        only_in_install=only_in_install,
+        only_in_source=only_in_source,
+        error=error,
+    )
 
 
 def test_format_message_states_the_no_install_case_explicitly() -> None:
