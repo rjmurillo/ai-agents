@@ -61,6 +61,44 @@ def test_an_unfenced_bad_reassignment_after_a_canonical_flock_is_accepted() -> N
     assert checker.scan_text(text) == []
 
 
+def test_an_unfenced_commented_assignment_does_not_launder_the_live_one() -> None:
+    """Unfenced mirror: a comment binds nothing here either."""
+    text = _prose(
+        "LOCK=/tmp/bad.lock",
+        '# LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock"',
+        'flock "$LOCK" git push',
+    )
+
+    assert checker.scan_text(text) == [(1, "/tmp/bad.lock")]
+
+
+def test_an_unfenced_terminator_attached_to_the_argument_still_resolves() -> None:
+    """Unfenced mirror of the attached-terminator shape."""
+    text = _prose("LOCK=/tmp/bad.lock", 'flock "$LOCK"; git push')
+
+    assert checker.scan_text(text) == [(1, "/tmp/bad.lock")]
+
+
+def test_an_unfenced_same_line_rebind_is_not_read_as_the_lock() -> None:
+    """Unfenced mirror: a trailing rebind is a statement no `flock` reads."""
+    text = _prose(
+        'LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock" ; '
+        'flock "$LOCK" git push ; LOCK=/tmp/bad.lock'
+    )
+
+    assert checker.scan_text(text) == []
+
+
+def test_every_unfenced_flock_on_one_line_is_inspected() -> None:
+    """Unfenced mirror: the second call on the line opens the rogue path."""
+    text = _prose(
+        'LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock" ; '
+        'flock "$LOCK" git push ; LOCK=/tmp/rogue ; flock "$LOCK" git push'
+    )
+
+    assert [path for _line, path in checker.scan_text(text)] == ["/tmp/rogue"]
+
+
 def test_an_unfenced_file_descriptor_form_is_caught() -> None:
     text = _prose("exec 9>/tmp/aiagents-push.lock", "flock -n 9", "git push")
 
