@@ -520,9 +520,38 @@ pre-push:
     - group:
         parallel: true
         jobs:
+          # Issue #5441. count-ratchets used to also run the merge-tree
+          # backstop as its 8th registry entry, which recomputed the same
+          # five counts scripts/ci/merge_tree_ratchet_check.py's own registry
+          # already measures, inside the same 85s deadline as everything
+          # else here. Two subprocesses now (extra_dev entries have their own
+          # --extra dev; this job needs none), --skip-merge-tree, and the
+          # backstop moved to its own job below so the two run in this same
+          # parallel group instead of one paying for both in series.
           - name: count-ratchets
             timeout: 90s
-            run: uv run --frozen python scripts/validation/checks_ratchet.py
+            run: uv run --frozen python scripts/validation/checks_ratchet.py --skip-merge-tree
+
+          # Issue #5441. Split from count-ratchets: the same five counts
+          # measured there for each ratchet's own baseline are measured here
+          # again against the materialized merge tree, which is unavoidable
+          # duplication once the two checks run as separate processes, but
+          # costs nothing in wall time because this parallel group already
+          # runs every job concurrently. --extra dev is required: the ruff
+          # count ratchet in the registry shells out to a bare `ruff`
+          # executable. 2m outer matches branch-context-policy below, the
+          # group's existing ceiling, so this job's own budget adds no wall
+          # time here AND does not raise the declared pre-push worst case
+          # tests/ci/test_lefthook_declared_budget.py ratchets against; it
+          # leaves the required 30s margin over
+          # merge_tree_ratchet_check.py's own 90s internal deadline (see that
+          # constant's docstring for why 90s and not the larger number the
+          # original repro's 92-201s range would otherwise suggest).
+          - name: merge-tree-ratchet
+            timeout: 2m
+            run: >-
+              uv run --frozen --extra dev python
+              scripts/ci/merge_tree_ratchet_check.py --base-ref origin/main
 
           - name: python-unreachable-statements
             timeout: 90s

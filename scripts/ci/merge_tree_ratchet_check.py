@@ -49,6 +49,7 @@ from __future__ import annotations
 import argparse
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -72,6 +73,25 @@ EXIT_REGRESSION = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 EXIT_CONFLICT = 100
+
+# Measured 2026-09-01 (issue #5441): the slowest of the five registered
+# ratchets, the CLI exit-contract scan, alone took ~27s on a warm checkout;
+# the full materialize-and-recount path (the non-fast-forward fallback) took
+# ~64s. 90s leaves real headroom over that without being open-ended; a
+# ratchet that cannot finish inside it reports "not run" instead of leaving
+# the caller to be killed by the outer Lefthook timeout with no diagnostic.
+#
+# Pinned to 90s rather than a larger number that would fit a slower machine
+# with more room to spare: the standalone merge-tree-ratchet Lefthook job's
+# outer timeout is capped at the fast parallel group's existing 2m ceiling
+# (scripts/validation/checks_ratchet.py's sibling job docstring explains why
+# tests/ci/test_lefthook_declared_budget.py forbids raising it), which needs
+# _MINIMUM_MARGIN_SECONDS (30s, tests/test_lefthook_integration.py) of
+# headroom over this constant. A machine too slow to finish inside 90s hits
+# this deadline and reports a clear per-ratchet "not run" instead of Lefthook
+# silently killing the process, which is strictly better than the pre-#5441
+# behavior even though it does not raise the ceiling further.
+_TIMEOUT_SECONDS = 90
 
 
 class BaselineState(Enum):
@@ -111,6 +131,28 @@ def _refresh_base_ref(repo_root: Path, base_ref: str) -> bool:
         file=sys.stderr,
     )
     return False
+
+
+def is_fast_forward_clean(repo_root: Path, base_oid: str) -> bool:
+    """True when merging ``base_oid`` into HEAD is provably a no-op.
+
+    Issue #5441. ``git merge-tree --write-tree base_oid HEAD`` computes a tree
+    identical to HEAD's own tree whenever ``base_oid`` is an ancestor of HEAD:
+    there is nothing from the base side left to fold in. A clean working tree
+    (no staged or unstaged changes) is in turn identical to HEAD. Chain the two
+    and the repository's working tree IS the merged tree, so whatever a
+    ratchet counts against ``repo_root`` is exactly what it would count
+    against a materialized copy. Materializing one and recounting anyway would
+    recompute a value already in hand; skipping it is what closes issue #5441
+    without weakening the check itself, which still runs in full (materialize,
+    checkout, recount) the moment either condition fails, e.g. a branch behind
+    a base ref that lowered a baseline (issue #4398).
+    """
+    ancestor = _git(repo_root, "merge-base", "--is-ancestor", base_oid, "HEAD")
+    if ancestor.returncode != 0:
+        return False
+    clean = _git(repo_root, "diff", "--quiet", "HEAD", "--")
+    return clean.returncode == 0
 
 
 def _resolve_base_oid(repo_root: Path, base_ref: str) -> str | None:
@@ -310,10 +352,30 @@ def _prepare_merged_tree(
 
 
 def _evaluate_registered_ratchets(
-    repo_root: Path, base_oid: str, scratch_root: Path
+    repo_root: Path,
+    base_oid: str,
+    scratch_root: Path,
+    *,
+    deadline: float | None = None,
 ) -> int:
+    """Run every registered ratchet against ``scratch_root``.
+
+    ``deadline`` is an absolute ``time.monotonic()`` value. A ratchet whose
+    turn arrives after the deadline reports a clear "not run" verdict instead
+    of running anyway and risking the whole process being killed by an outer
+    timeout with no diagnostic (issue #5441): every registered ratchet reports
+    its own verdict, one way or the other, before the outer cap can fire.
+    """
     exit_code = EXIT_OK
     for ratchet in RATCHETS:
+        if deadline is not None and time.monotonic() >= deadline:
+            exit_code = max(exit_code, EXIT_EXTERNAL)
+            print(
+                f"merge-tree-ratchet: {ratchet.label}: FAIL. Not run: aggregate "
+                "timeout exhausted.",
+                file=sys.stderr,
+            )
+            continue
         base = _read_baseline_at_ref(repo_root, base_oid, ratchet.baseline_path)
         merged = _read_baseline_in_tree(scratch_root, ratchet.baseline_path)
         code, msg = _check_one(
@@ -330,34 +392,57 @@ def _evaluate_registered_ratchets(
     return exit_code
 
 
-def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
-    """Extract merged tree, run counters, compare. Returns an EXIT_* code."""
+def _evaluate_merged_tree(
+    repo_root: Path,
+    base_ref: str,
+    *,
+    deadline: float | None = None,
+) -> int:
+    """Extract merged tree, run counters, compare. Returns an EXIT_* code.
+
+    ``deadline`` lets a caller that already spent part of its own budget (for
+    example ``checks_ratchet.py``'s aggregate) hand down the remaining share
+    instead of this function measuring a fresh ``_TIMEOUT_SECONDS`` on top of
+    it. Standalone callers, including ``main()``, leave it unset and get the
+    module default.
+    """
     base_oid, tree_oid, preparation_exit = _prepare_merged_tree(repo_root, base_ref)
     if preparation_exit != EXIT_OK:
         return preparation_exit
     assert base_oid is not None and tree_oid is not None
+    effective_deadline = deadline if deadline is not None else time.monotonic() + _TIMEOUT_SECONDS
 
-    try:
-        scratch_root = Path(tempfile.mkdtemp(prefix="merge-tree-ratchet-"))
-    except OSError as exc:
-        print(f"scratch creation failed: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return EXIT_EXTERNAL
+    if is_fast_forward_clean(repo_root, base_oid):
+        # The working tree IS the merged tree (see is_fast_forward_clean), so
+        # there is nothing to materialize: read baselines and count straight
+        # off repo_root instead of a scratch copy, which is both faster and
+        # what makes this the single authoritative pass for a caller that
+        # already needs these same counts (issue #5441).
+        primary_exit = _evaluate_registered_ratchets(
+            repo_root, base_oid, repo_root, deadline=effective_deadline
+        )
+    else:
+        try:
+            scratch_root = Path(tempfile.mkdtemp(prefix="merge-tree-ratchet-"))
+        except OSError as exc:
+            print(f"scratch creation failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return EXIT_EXTERNAL
 
-    primary_exit = EXIT_EXTERNAL
-    cleanup_error: str | None = None
-    try:
-        if _materialize_tree(repo_root, tree_oid, scratch_root) and _init_scratch_repo(
-            scratch_root
-        ):
-            primary_exit = _evaluate_registered_ratchets(
-                repo_root, base_oid, scratch_root
-            )
-    finally:
-        cleanup_error = _remove_tree(scratch_root, "merge-tree scratch")
-    if cleanup_error:
-        print(cleanup_error, file=sys.stderr)
-        if primary_exit == EXIT_OK:
-            primary_exit = EXIT_EXTERNAL
+        primary_exit = EXIT_EXTERNAL
+        cleanup_error: str | None = None
+        try:
+            if _materialize_tree(repo_root, tree_oid, scratch_root) and _init_scratch_repo(
+                scratch_root
+            ):
+                primary_exit = _evaluate_registered_ratchets(
+                    repo_root, base_oid, scratch_root, deadline=effective_deadline
+                )
+        finally:
+            cleanup_error = _remove_tree(scratch_root, "merge-tree scratch")
+        if cleanup_error:
+            print(cleanup_error, file=sys.stderr)
+            if primary_exit == EXIT_OK:
+                primary_exit = EXIT_EXTERNAL
     exit_code = primary_exit
 
     if exit_code == EXIT_REGRESSION:
