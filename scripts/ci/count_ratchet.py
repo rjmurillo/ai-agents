@@ -20,7 +20,9 @@ untracked scratch, nested worktrees, and vendored caches that a contributor
 happens to have on disk, which inflated a local ruff run to 767 against a real
 tracked count of 361 and made that gate report a phantom regression outside CI.
 Tracked files are the only thing a PR can change, so they are the only thing a
-baseline should freeze.
+baseline should freeze. That enumeration lists INDEX ENTRIES, so an unmerged
+path arrives once per merge stage and must be deduplicated before it reaches a
+linter (issue #4746); see ``deduplicate_index_entries``.
 
 The baseline is a committed absolute number, so two branches can each remove one
 violation and write the same lowered value. Git merges the identical one-line
@@ -165,15 +167,106 @@ def _git_rc(repo_root: Path, argv: Sequence[str]) -> int | None:
     return None if proc is None else proc.returncode
 
 
+MAX_NAMED_UNMERGED = 5
+"""How many unmerged paths the mid-merge note lists before summarising.
+
+A merge that conflicts on one file needs the name. A merge that conflicts on
+two hundred needs the count and nothing else, and printing two hundred paths
+above a capped violation list buries the thing the reader came for.
+"""
+
+
+def deduplicate_index_entries(entries: Sequence[str]) -> tuple[list[str], list[str]]:
+    """Split ``git ls-files`` output into unique paths and repeated ones.
+
+    ``git ls-files`` prints one line per INDEX ENTRY, and an unmerged path
+    holds one entry per merge stage. Measured on git 2.43.0 against a scratch
+    repository whose only conflict is ``a.txt``::
+
+        $ git status --porcelain
+        UU a.txt
+        $ git ls-files -z | tr '\\0' '\\n'
+        a.txt
+        a.txt
+        a.txt
+        keep.txt
+        $ git ls-files -u
+        100644 df967b96... 1   a.txt
+        100644 ba2906d0... 2   a.txt
+        100644 c7747099... 3   a.txt
+
+    Handing that list to a linter scans the same file on disk once per stage
+    and counts its violations that many times, so a single conflicted path
+    reports a regression that exists in no tree (issue #4746). Reproduced end
+    to end: a 601-line file conflicted content-versus-content measured 4
+    violations mid-merge against 2 after ``git add`` of byte-identical content,
+    the exact ``+2`` in that issue. Not every conflict has three stages, so the
+    inflation is not a fixed multiple: add/add and the delete/modify pair carry
+    two, which is why this deduplicates rather than dividing by three.
+
+    First occurrence wins and the rest of the order is preserved, so a run over
+    a clean index returns exactly what git printed. That matters because the
+    fix must be a no-op outside a merge: every ratchet in ``scripts/ci`` reads
+    its file list through ``tracked_files``, and a reordering here would move
+    which violations survive the 40-line cap in ``run``.
+
+    The repeated list is what the caller reports, not a separate git call. A
+    duplicate index entry is what an unmerged path IS, so the enumeration
+    already carries the answer.
+    """
+    unique: list[str] = []
+    repeated: list[str] = []
+    seen: set[str] = set()
+    for entry in entries:
+        if entry in seen:
+            if entry not in repeated:
+                repeated.append(entry)
+            continue
+        seen.add(entry)
+        unique.append(entry)
+    return unique, repeated
+
+
+def _unmerged_note(paths: Sequence[str]) -> str:
+    """The stderr note naming paths that are unmerged in the index.
+
+    The count is now right, and the reader still needs to know the tree is
+    mid-merge: the linter reads content off disk, so conflict markers left in
+    the working copy add lines and can push a file over a size threshold on
+    their own. Issue #4746 records the cost of a number with no such hint. Its
+    author diffed violation sets against a clean tree, diffed per-file counts,
+    and checked whether test files had crossed 500 lines, because the count and
+    the file list were internally consistent and nothing pointed at the index.
+    """
+    named = ", ".join(paths[:MAX_NAMED_UNMERGED])
+    if len(paths) > MAX_NAMED_UNMERGED:
+        named += f", and {len(paths) - MAX_NAMED_UNMERGED} more"
+    return (
+        f"note: {len(paths)} path(s) unmerged in the index, counted once each "
+        f"rather than once per merge stage: {named}. The count measures the "
+        f"working tree, so any conflict markers still on disk count with it. "
+        f"Finish the merge before trusting this verdict.\n"
+    )
+
+
 def tracked_files(repo_root: Path, globs: Sequence[str]) -> list[str] | None:
-    """Git-tracked paths matching ``globs``, or None when git could not run."""
+    """Git-tracked paths matching ``globs``, or None when git could not run.
+
+    Each path appears once even mid-merge. See ``deduplicate_index_entries``
+    for why git repeats an unmerged one and what that cost (issue #4746).
+    """
     proc = _git_run(repo_root, ["ls-files", "-z", "--", *globs])
     if proc is None:
         return None
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr)
         return None
-    return [path for path in proc.stdout.split("\0") if path]
+    unique, unmerged = deduplicate_index_entries(
+        [path for path in proc.stdout.split("\0") if path]
+    )
+    if unmerged:
+        sys.stderr.write(_unmerged_note(unmerged))
+    return unique
 
 
 def _diff_paths(repo_root: Path, spec: str, scope: str) -> frozenset[str]:
