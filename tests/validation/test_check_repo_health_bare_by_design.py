@@ -55,6 +55,7 @@ Coverage:
 
 from __future__ import annotations
 
+import functools
 import os
 import subprocess
 import sys
@@ -116,13 +117,11 @@ def _use_scratch_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
 
-    real_run = subprocess.run
-
-    def run_with_devnull(*args, **kwargs):
-        kwargs.setdefault("stdin", subprocess.DEVNULL)
-        return real_run(*args, **kwargs)
-
-    monkeypatch.setattr(subprocess, "run", run_with_devnull)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        functools.partial(subprocess.run, stdin=subprocess.DEVNULL),
+    )
 
 
 def _make_repo(root: Path, name: str = "seed") -> Path:
