@@ -39,6 +39,9 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+_CI_DIR = _REPO_ROOT / "scripts" / "ci"
+if str(_CI_DIR) not in sys.path:
+    sys.path.insert(0, str(_CI_DIR))
 
 from checks_common import (  # noqa: E402
     MissingScriptSkip,
@@ -46,11 +49,10 @@ from checks_common import (  # noqa: E402
     _resolve_default_base_ref,
     _run_subprocess,
 )
-
-from scripts.ci.merge_tree_ratchet_check import (  # noqa: E402
+from merge_tree_ratchet_check import (  # noqa: E402
     EXIT_OK as _MERGE_TREE_EXIT_OK,
 )
-from scripts.ci.merge_tree_ratchet_check import (  # noqa: E402
+from merge_tree_ratchet_check import (  # noqa: E402
     _evaluate_merged_tree as _evaluate_merge_tree_backstop,
 )
 
