@@ -185,11 +185,43 @@ about those three children, not about a fourth.
 | 4 | Read the rule evaluator's results from `--output`, not stdout, and pin the contract with tests that run the real child CLI | Done, this PR | PR #5460 |
 | 5 | Filter the routing plan by `--scope` so the dry-run plan matches `_run_evals` | Done, this PR | PR #5460 |
 | 6 | Reconcile the published plan against actual results so a scored rule is not reported unscored | Done, this PR | PR #5460 |
-| 7 | Fail loudly on a malformed scenario file instead of reporting `not_evaluated`, matching the canonical coverage checker | Done, this PR | PR #5460 |
+| 7 | Fail loudly on a malformed scenario file instead of reporting `not_evaluated`, matching the canonical coverage checker | Done in two passes. Round two caught only `OSError` and `JSONDecodeError`; round three found `UnicodeDecodeError` subclasses `ValueError`, so a binary scenario file still crashed with a traceback instead of the documented config exit. Both paths are now covered and pinned | PR #5460 |
 | 8 | Replace the always-skipping end-to-end test with one that builds an isolated fixture repository | Done, this PR | PR #5460 |
 | 9 | Three-state evidence in the activation coverage checker's own output, so baseline exemption is never read as efficacy | Not done, deliberately out of scope | Issue #4882, acceptance criterion 7 |
 | 10 | Shape `routing_plan` for the always-on reduction work to consume | Not done, needs that work's requirements first | Issue #4871 |
-| 11 | The three `nosemgrep` comments in this file sit two lines above their `subprocess.run`, so they attach to nothing; decide whether to repair or delete them repo-wide | Not done, collides with the staged-suppression gate | Flagged to a maintainer on PR #5460 |
+| 11 | The three `nosemgrep` comments in this file sit two lines above their `subprocess.run`, so they attach to nothing; decide whether to repair or delete them repo-wide | Not done. Measured with a probe, patch written, commit refused by `security-suppressions-staged`, reverted | Flagged to a maintainer on PR #5460 |
+| 12 | Reject a parseable child payload that names no verdict for the requested rule, instead of reading it as scored | Done, round three | PR #5460 |
+| 13 | Preserve the child's own exit code (2 config, 4 auth) instead of flattening a missing results file to 3 | Done, round three | PR #5460 |
+| 14 | Promote a routing-plan entry to `scored` only on the runner's evidence label, never inferred from `passed` | Done, round three | PR #5460 |
+
+## Third failure, same shape as the second
+
+Round two fixed the child contract but left four adjacent paths wrong, and the
+common thread is the same one the section above names: I fixed the case I was
+shown rather than the class it belongs to.
+
+- Round two made the runner read `--output`. It did not ask what a *parseable
+  but empty* payload should mean, so `{"schema_version": 1, "rules": {}}` was
+  accepted as a pass and published as scored efficacy evidence for a run that
+  produced no verdict.
+- Round two mapped a missing results file to `EXIT_EXTERNAL`. The child exits 2
+  on an invalid scenario and 4 on a missing key, writing no file in either
+  case, so that mapping reported an API failure for a config or auth fault.
+- Round two caught `OSError` and `JSONDecodeError` on scenario reads.
+  `UnicodeDecodeError` subclasses `ValueError`, so it escaped both.
+- Round two reconciled the plan by checking `"passed" in outcome`. `passed` is
+  False for a failing verdict, a timeout, and an unreadable result alike, so a
+  timeout was promoted to `scored`.
+
+Each is a different exception type or a different branch, and each was
+reachable from the code round two shipped. The generalizable lesson: **after
+fixing a contract, enumerate the states the contract can be in, not just the
+state that failed.** Parse success is not verdict presence; a nonzero exit is
+not one kind of failure; a decode error is not an I/O error; and a boolean that
+means "did not pass" cannot distinguish "failed" from "never ran".
+
+The negative control for round three: reverting all four fixes at once fails 16
+tests, spread across all four findings.
 
 ## What I would tell the next person
 

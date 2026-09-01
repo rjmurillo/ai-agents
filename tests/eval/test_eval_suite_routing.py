@@ -29,6 +29,7 @@ Two classes of test here:
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -492,6 +493,26 @@ def test_find_rule_scenarios_raises_on_unreadable_file(
         suite.find_rule_scenarios()
 
 
+def test_find_rule_scenarios_raises_on_a_non_utf8_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """UnicodeDecodeError subclasses ValueError, not OSError.
+
+    An OSError-only guard lets a binary or mis-encoded scenario file escape as
+    an unhandled traceback instead of the documented config exit.
+    """
+    scenario_dir = _scenario_root(tmp_path, monkeypatch)
+    (scenario_dir / "binary.json").write_bytes(b'{"rule_path": "\xff\xfe\x00\x81"}')
+    with pytest.raises(suite.ScenarioConfigError, match="cannot read scenario file"):
+        suite.find_rule_scenarios()
+
+
+def test_non_utf8_is_not_an_oserror() -> None:
+    """Pins the reason the guard needs a second exception type."""
+    assert not issubclass(UnicodeDecodeError, OSError)
+    assert issubclass(UnicodeDecodeError, ValueError)
+
+
 @pytest.mark.parametrize(
     "payload,match",
     [
@@ -593,9 +614,27 @@ def _output_path_from(cmd: list[str]) -> Path | None:
     return Path(cmd[cmd.index("--output") + 1])
 
 
+# A scored run, shaped like the real child's output. The verdict path is set by
+# `scripts/eval/eval-rule-activation.py:_process_scenario_file`:
+#
+#     all_results["rules"][rule_id] = result
+#     state.worst_exit = max(state.worst_exit, _classify_verdict(result["summary"]["verdict"]))
+#
+# The default must carry a verdict. An earlier default of `{"rules": {}}`
+# certified that "child produced zero verdicts" was a passing, scored shape,
+# which is the bug that shape is now a negative test for.
+_SCORED_PAYLOAD = json.dumps({
+    "schema_version": 1,
+    "model_id": "test-model",
+    "rules": {"code-quality": {"summary": {"verdict": "PASS"}}},
+})
+
+_NO_VERDICT_PAYLOAD = '{"schema_version": 1, "rules": {}}'
+
+
 def _stub_child(
     monkeypatch: pytest.MonkeyPatch,
-    file_payload: str | None = '{"schema_version": 1, "rules": {}}',
+    file_payload: str | None = _SCORED_PAYLOAD,
     returncode: int = 0,
 ) -> list[list[str]]:
     """Replace subprocess.run with a stub that honors the --output contract.
@@ -642,11 +681,129 @@ def test_run_rule_activation_reads_results_from_the_output_file_not_stdout(
     The child prints a table to stdout and serializes JSON only to --output.
     A runner that parsed stdout would fail on every real run.
     """
-    _stub_child(monkeypatch, file_payload='{"schema_version": 1, "rules": {"x": 1}}')
+    _stub_child(monkeypatch)
     result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
     entry = result["rules"]["code-quality"]
-    assert entry["results"] == {"schema_version": 1, "rules": {"x": 1}}
+    assert entry["results"]["rules"]["code-quality"]["summary"]["verdict"] == "PASS"
     assert entry["passed"] is True
+
+
+# ---------------------------------------------------------------------------
+# Parseable is not scored: the verdict must actually be present
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "payload,ids",
+    [
+        (_NO_VERDICT_PAYLOAD, "empty_rules_map"),
+        ('{"schema_version": 1}', "no_rules_key"),
+        ('{"rules": []}', "rules_not_a_map"),
+        ('{"rules": {"other-rule": {"summary": {"verdict": "PASS"}}}}', "wrong_rule_id"),
+        ('{"rules": {"code-quality": "not an object"}}', "entry_not_object"),
+        ('{"rules": {"code-quality": {}}}', "no_summary"),
+        ('{"rules": {"code-quality": {"summary": {}}}}', "no_verdict"),
+        ('{"rules": {"code-quality": {"summary": {"verdict": ""}}}}', "blank_verdict"),
+        ('{"rules": {"code-quality": {"summary": {"verdict": 5}}}}', "verdict_not_string"),
+    ],
+    ids=lambda v: v if isinstance(v, str) and " " not in v and "{" not in v else "",
+)
+def test_a_parseable_payload_without_a_verdict_is_not_scored(
+    monkeypatch: pytest.MonkeyPatch, payload: str, ids: str
+) -> None:
+    """Valid JSON naming no verdict must not read as scored efficacy evidence."""
+    _stub_child(monkeypatch, file_payload=payload, returncode=0)
+    entry = suite.run_rule_activation(
+        [".claude/rules/code-quality.md"], "test-model"
+    )["rules"]["code-quality"]
+    assert entry["passed"] is False, ids
+    assert entry["evidence"] == suite.EVIDENCE_SCENARIO, ids
+    assert entry["exit_code"] == suite.EXIT_EXTERNAL, ids
+
+
+def test_a_present_verdict_is_scored_even_when_it_is_a_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = json.dumps(
+        {"rules": {"code-quality": {"summary": {"verdict": "FAIL"}}}}
+    )
+    _stub_child(monkeypatch, file_payload=payload, returncode=1)
+    entry = suite.run_rule_activation(
+        [".claude/rules/code-quality.md"], "test-model"
+    )["rules"]["code-quality"]
+    assert entry["evidence"] == suite.EVIDENCE_SCORED
+    assert entry["passed"] is False
+    assert entry["exit_code"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Exit-code precedence: keep the child's own refusal code
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "child_exit,expected",
+    [
+        (suite.EXIT_CONFIG, suite.EXIT_CONFIG),
+        (suite.EXIT_AUTH, suite.EXIT_AUTH),
+        (suite.EXIT_LOGIC, suite.EXIT_LOGIC),
+        (suite.EXIT_EXTERNAL, suite.EXIT_EXTERNAL),
+        # Claimed success and wrote nothing: that IS an external failure.
+        (suite.EXIT_OK, suite.EXIT_EXTERNAL),
+    ],
+    ids=["config", "auth", "logic", "external", "silent_success"],
+)
+def test_child_refusal_code_survives_a_missing_results_file(
+    monkeypatch: pytest.MonkeyPatch, child_exit: int, expected: int
+) -> None:
+    """The child exits 2 on a bad scenario and 4 on a missing key, writing no
+    file in either case. Flattening those to 3 would report an API failure for
+    a config or auth fault."""
+    _stub_child(monkeypatch, file_payload=None, returncode=child_exit)
+    entry = suite.run_rule_activation(
+        [".claude/rules/code-quality.md"], "test-model"
+    )["rules"]["code-quality"]
+    assert entry["exit_code"] == expected
+
+
+def test_worst_exit_code_keeps_the_most_specific_child_code() -> None:
+    results = {
+        "agents": {"agents": {"a": {"exit_code": suite.EXIT_EXTERNAL}}},
+        "rules": {"rules": {"r": {"exit_code": suite.EXIT_AUTH}}},
+    }
+    assert suite.worst_exit_code(results, any_failure=True) == suite.EXIT_AUTH
+
+
+def test_worst_exit_code_is_ok_without_failure() -> None:
+    results = {"rules": {"rules": {"r": {"exit_code": suite.EXIT_AUTH}}}}
+    assert suite.worst_exit_code(results, any_failure=False) == suite.EXIT_OK
+
+
+def test_worst_exit_code_floors_at_logic_when_no_code_was_recorded() -> None:
+    assert suite.worst_exit_code({"skills": {"passed": False}}, True) == suite.EXIT_LOGIC
+
+
+def test_worst_exit_code_ignores_zero_codes() -> None:
+    results = {"rules": {"rules": {"r": {"exit_code": suite.EXIT_OK}}}}
+    assert suite.worst_exit_code(results, any_failure=True) == suite.EXIT_LOGIC
+
+
+def test_worst_exit_code_walks_into_lists() -> None:
+    """`behavioral` results are a list, so codes nest inside one."""
+    results = {"behavioral": [{"exit_code": suite.EXIT_CONFIG}, {"skipped": True}]}
+    assert suite.worst_exit_code(results, any_failure=True) == suite.EXIT_CONFIG
+
+
+def test_worst_exit_code_ignores_non_integer_codes() -> None:
+    results = {"rules": {"rules": {"r": {"exit_code": "not an int"}}}}
+    assert suite.worst_exit_code(results, any_failure=True) == suite.EXIT_LOGIC
+
+
+def test_verdict_error_rejects_a_non_object_payload() -> None:
+    assert "not an object" in (suite._verdict_error(None, "code-quality") or "")
+
+
+def test_verdict_error_accepts_a_well_formed_payload() -> None:
+    payload = {"rules": {"code-quality": {"summary": {"verdict": "PASS"}}}}
+    assert suite._verdict_error(payload, "code-quality") is None
 
 
 def test_run_rule_activation_fails_when_no_results_file_is_written(
@@ -1054,7 +1211,17 @@ def test_reconcile_promotes_an_evaluated_rule_to_scored() -> None:
     )
     assert plan[0]["evidence"] == suite.EVIDENCE_SCENARIO
 
-    results = {"rules": {"rules": {"code-quality": {"passed": True, "exit_code": 0}}}}
+    results = {
+        "rules": {
+            "rules": {
+                "code-quality": {
+                    "passed": True,
+                    "exit_code": 0,
+                    "evidence": suite.EVIDENCE_SCORED,
+                }
+            }
+        }
+    }
     reconciled = suite.reconcile_routing_plan(plan, results)
     assert reconciled[0]["evidence"] == suite.EVIDENCE_SCORED
 
@@ -1064,7 +1231,17 @@ def test_reconcile_counts_a_failing_run_as_scored() -> None:
     plan = suite.build_routing_plan(
         suite.classify_changes([".claude/rules/code-quality.md"]), "all"
     )
-    results = {"rules": {"rules": {"code-quality": {"passed": False, "exit_code": 1}}}}
+    results = {
+        "rules": {
+            "rules": {
+                "code-quality": {
+                    "passed": False,
+                    "exit_code": 1,
+                    "evidence": suite.EVIDENCE_SCORED,
+                }
+            }
+        }
+    }
     assert suite.reconcile_routing_plan(plan, results)[0]["evidence"] == (
         suite.EVIDENCE_SCORED
     )
@@ -1080,6 +1257,41 @@ def test_reconcile_leaves_a_skipped_rule_unscored() -> None:
     assert suite.reconcile_routing_plan(plan, results)[0]["evidence"] == (
         suite.EVIDENCE_SCENARIO
     )
+
+
+@pytest.mark.parametrize(
+    "outcome,label",
+    [
+        ({"passed": False, "reason": "timeout (600s)"}, "timeout"),
+        (
+            {
+                "passed": False,
+                "exit_code": 3,
+                "evidence": "scenario_defined_not_scored",
+                "results": {"error": "no results file"},
+            },
+            "missing_verdict",
+        ),
+        ({"passed": True}, "passed_without_evidence_label"),
+    ],
+    ids=["timeout", "missing_verdict", "passed_without_evidence_label"],
+)
+def test_reconcile_never_promotes_a_run_that_produced_no_verdict(
+    outcome: dict, label: str
+) -> None:
+    """Promotion must key on the evidence label, not on `passed`.
+
+    `passed` is False for a failing verdict, a timeout, and an unreadable
+    result alike, so inferring from it would publish scored efficacy evidence
+    for runs that produced none.
+    """
+    plan = suite.build_routing_plan(
+        suite.classify_changes([".claude/rules/code-quality.md"]), "all"
+    )
+    results = {"rules": {"rules": {"code-quality": outcome}}}
+    assert suite.reconcile_routing_plan(plan, results)[0]["evidence"] == (
+        suite.EVIDENCE_SCENARIO
+    ), label
 
 
 def test_reconcile_leaves_a_scenarioless_rule_entry_untouched() -> None:
@@ -1101,7 +1313,17 @@ def test_reconcile_splits_a_mixed_entry_into_scored_and_unscored() -> None:
         "evidence": suite.EVIDENCE_SCENARIO,
         "reason": "activation scenario defined; run without --dry-run to score",
     }]
-    results = {"rules": {"rules": {"code-quality": {"passed": True, "exit_code": 0}}}}
+    results = {
+        "rules": {
+            "rules": {
+                "code-quality": {
+                    "passed": True,
+                    "exit_code": 0,
+                    "evidence": suite.EVIDENCE_SCORED,
+                }
+            }
+        }
+    }
     reconciled = suite.reconcile_routing_plan(plan, results)
     by_evidence = {e["evidence"]: e["files"] for e in reconciled}
     assert by_evidence[suite.EVIDENCE_SCORED] == [".claude/rules/code-quality.md"]
