@@ -97,6 +97,27 @@ def _workflow_steps(job_name: str = "test") -> list[dict[str, Any]]:
     return _workflow_job(job_name)["steps"]
 
 
+def _require_unconditional_failure_propagation(
+    step: dict[str, Any], *, label: str
+) -> None:
+    """Refuse config surface that can skip the step or swallow its failure.
+
+    This file proves a workflow step is the real gate. That proof is weaker
+    than it looks if the step carries its own `if:` or `continue-on-error:`
+    key, because either one creates a second control surface GitHub evaluates
+    after this YAML parse. Requiring both keys to be absent keeps the proof on
+    the exact invocation the repository ships.
+    """
+    for key, reason in (
+        (
+            "continue-on-error",
+            "any boolean or expression value weakens the proof that failures propagate",
+        ),
+        ("if", "any step-level condition can skip the gate"),
+    ):
+        assert key not in step, f"{label} must not set `{key}`; {reason}"
+
+
 def _is_python_invocation(token: str) -> bool:
     """Recognize python and python3, even when a full path precedes the script."""
     return os.path.basename(token) in {"python", "python3"}
@@ -245,8 +266,8 @@ def test_the_pre_push_job_running_the_guard_has_no_path_filter() -> None:
     )
 
 
-def test_the_workflow_step_running_the_guard_is_blocking() -> None:
-    """continue-on-error would make the step a reporter, not a gate."""
+def test_the_workflow_step_running_the_guard_is_unconditional_and_blocking() -> None:
+    """The step itself must not carry config that skips it or swallows failure."""
     matching = [
         step
         for step in _workflow_steps("zero-collection-guard")
@@ -254,7 +275,10 @@ def test_the_workflow_step_running_the_guard_is_blocking() -> None:
     ]
 
     assert len(matching) == 1, f"expected one pytest.yml step running {GUARD_SCRIPT}"
-    assert matching[0].get("continue-on-error") is not True
+    _require_unconditional_failure_propagation(
+        matching[0],
+        label="the zero-collection guard step",
+    )
 
 
 def test_the_workflow_job_running_the_guard_is_unconditional() -> None:
@@ -338,7 +362,67 @@ def test_the_run_pytest_step_passes_the_partition_to_the_runner() -> None:
     assert _contains_token_sequence(
         invocation, ["--partition", "${{", "matrix.partition", "}}"]
     )
-    assert matching[0].get("continue-on-error") is not True
+    _require_unconditional_failure_propagation(
+        matching[0],
+        label="the pytest matrix runner step",
+    )
+
+
+@pytest.mark.parametrize(
+    ("label", "control", "expected_message"),
+    [
+        (
+            "the zero-collection guard step",
+            {"continue-on-error": True},
+            "must not set `continue-on-error`",
+        ),
+        (
+            "the zero-collection guard step",
+            {"continue-on-error": "${{ true }}"},
+            "must not set `continue-on-error`",
+        ),
+        (
+            "the zero-collection guard step",
+            {"if": False},
+            "must not set `if`",
+        ),
+        (
+            "the zero-collection guard step",
+            {"if": "${{ false }}"},
+            "must not set `if`",
+        ),
+        (
+            "the pytest matrix runner step",
+            {"continue-on-error": False},
+            "must not set `continue-on-error`",
+        ),
+        (
+            "the pytest matrix runner step",
+            {"continue-on-error": "${{ false }}"},
+            "must not set `continue-on-error`",
+        ),
+        (
+            "the pytest matrix runner step",
+            {"if": "false"},
+            "must not set `if`",
+        ),
+        (
+            "the pytest matrix runner step",
+            {"if": "${{ matrix.partition == 'mutation' }}"},
+            "must not set `if`",
+        ),
+    ],
+)
+def test_require_unconditional_failure_propagation_rejects_present_controls(
+    label: str,
+    control: dict[str, object],
+    expected_message: str,
+) -> None:
+    """Boolean and expression forms both fail; only key absence proves the gate."""
+    step = {"name": "step", "run": f"python3 {GUARD_SCRIPT}", **control}
+
+    with pytest.raises(AssertionError, match=expected_message):
+        _require_unconditional_failure_propagation(step, label=label)
 
 
 def test_the_mutation_partition_covers_the_mutation_directory() -> None:

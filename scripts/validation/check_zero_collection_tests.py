@@ -193,11 +193,19 @@ def _parse_collection_report(payload: object) -> CollectionResult:
         raise CollectionError(
             "pytest wrote malformed collection report: items must be a non-negative integer"
         )
+    candidates = _read_string_list_field(payload, "candidate_modules")
+    collected = frozenset(_read_string_list_field(payload, "files"))
+    if len(collected) > items:
+        raise CollectionError(
+            "pytest wrote malformed collection report: files names more distinct paths "
+            "than items were collected"
+        )
+    skipped = frozenset(_read_string_list_field(payload, "skipped_modules"))
 
     return CollectionResult(
-        candidates=_read_string_list_field(payload, "candidate_modules"),
-        collected=frozenset(_read_string_list_field(payload, "files")),
-        skipped=frozenset(_read_string_list_field(payload, "skipped_modules")),
+        candidates=candidates,
+        collected=collected,
+        skipped=skipped,
     )
 
 

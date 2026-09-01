@@ -155,6 +155,18 @@ def test_parse_collection_report_accepts_well_formed_shapes(
             "items": 1,
             "skipped_modules": [None],
         },
+        {
+            "candidate_modules": ["tests/test_real.py"],
+            "files": ["tests/test_real.py"],
+            "items": 0,
+            "skipped_modules": [],
+        },
+        {
+            "candidate_modules": ["tests/test_real.py", "tests/test_other.py"],
+            "files": ["tests/test_real.py", "tests/test_other.py"],
+            "items": 1,
+            "skipped_modules": [],
+        },
     ],
 )
 def test_parse_collection_report_rejects_malformed_shapes(payload: object) -> None:
@@ -178,6 +190,18 @@ def test_parse_collection_report_rejects_malformed_shapes(payload: object) -> No
             "candidate_modules": ["tests/test_real.py"],
             "files": ["tests/test_real.py"],
             "items": -1,
+            "skipped_modules": [],
+        },
+        {
+            "candidate_modules": ["tests/test_real.py"],
+            "files": ["tests/test_real.py"],
+            "items": 0,
+            "skipped_modules": [],
+        },
+        {
+            "candidate_modules": ["tests/test_real.py", "tests/test_other.py"],
+            "files": ["tests/test_real.py", "tests/test_other.py"],
+            "items": 1,
             "skipped_modules": [],
         },
     ],
