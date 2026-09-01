@@ -47,6 +47,9 @@ FAST_STDIN_GATES = (
 FAST_PARALLEL_GATES = frozenset(
     {
         "count-ratchets",
+        # Issue #5441: split from count-ratchets so the merge-tree backstop
+        # gets its own budget instead of sharing count-ratchets' deadline.
+        "merge-tree-ratchet",
         "python-unreachable-statements",
         "path-normalization",
         "planning-artifacts",

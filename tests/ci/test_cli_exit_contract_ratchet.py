@@ -18,7 +18,7 @@ import pytest
 import yaml
 
 from scripts.ci import cli_exit_contract_ratchet as ratchet
-from scripts.validation import checks_ratchet
+from scripts.ci import merge_tree_ratchet_registry
 
 _SCRIPT_WITH_MAIN = "def main(argv=None):\n    return 0\n"
 _SCRIPT_WITHOUT_MAIN = "def helper():\n    return 0\n"
@@ -448,32 +448,30 @@ class TestLocalMainScopeGateBehavior:
         assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
 
 
-def test_ratchet_registered_with_base_ref_in_checks_ratchet() -> None:
-    """The cli-exit-contract ratchet must be in RATCHETS with uses_base_ref=True.
+def test_ratchet_registered_with_base_ref_via_merge_tree_backstop() -> None:
+    """The cli-exit-contract ratchet gets a one-directional guard.
 
     Issue #4528 comment: the gate accepted only ``--update`` (decrease) with no
-    one-directional guard. Adding it to the RATCHETS registry with
-    ``uses_base_ref=True`` makes ``checks_ratchet.build_command`` append
-    ``--base-ref`` to the invocation, so a raised baseline fails locally before a
-    push rather than only on CI.
-
-    The ref is resolved per environment, not hardcoded. The runner calls
-    ``_resolve_default_base_ref`` in ``scripts/validation/checks_common.py``,
-    which prefers the PR's own ``baseRefName``, then ``refs/remotes/origin/HEAD``,
-    then falls back to ``origin/main`` and ``main``. CI passes
-    ``--base-ref FETCH_HEAD``. What this test pins is that ``--base-ref`` is
-    passed at all, not which ref it names.
+    one-directional guard. Issue #5441 moved this ratchet's registration out of
+    ``checks_ratchet.RATCHETS`` (which used to run it a second time against a
+    materialized merge tree) and into
+    ``scripts/ci/merge_tree_ratchet_registry.py``, whose entries
+    ``validate_count_ratchets`` always evaluates with a resolved base ref
+    through the merge-tree backstop (see
+    ``scripts/ci/merge_tree_ratchet_check.py::_evaluate_merged_tree``), so a
+    raised baseline still fails locally before a push, not only on CI.
     """
-    names = {r.job_name: r for r in checks_ratchet.RATCHETS}
-    assert "cli-exit-contract-ratchet" in names, (
-        "cli-exit-contract-ratchet is missing from RATCHETS in "
-        "scripts/validation/checks_ratchet.py. Add it so the pre-push runner "
-        "and pre-PR gate enforce the one-directional guard."
+    labels = {r.label for r in merge_tree_ratchet_registry.RATCHETS}
+    assert "cli exit contract ratchet" in labels, (
+        "cli exit contract ratchet is missing from RATCHETS in "
+        "scripts/ci/merge_tree_ratchet_registry.py. Add it so the merge-tree "
+        "backstop enforces the one-directional guard."
     )
-    entry = names["cli-exit-contract-ratchet"]
-    assert entry.uses_base_ref, (
-        "cli-exit-contract-ratchet in RATCHETS has uses_base_ref=False. "
-        "Set it to True so --base-ref is passed and a raised baseline is caught."
+    assert ratchet.MERGE_TREE_BACKED is True, (
+        "cli_exit_contract_ratchet.MERGE_TREE_BACKED must stay True: it "
+        "declares that scripts/ci/merge_tree_ratchet_check.py, not this "
+        "ratchet's own --base-ref comparison, is what catches a branch behind "
+        "a base ref that lowered the baseline."
     )
 
 

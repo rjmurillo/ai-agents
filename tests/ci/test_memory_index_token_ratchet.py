@@ -292,8 +292,9 @@ class TestRegisteredInBothGates:
         assert "memory-index-token-ratchet" in names
 
     def test_aggregate_registry_runner_is_the_pre_push_job(self) -> None:
+        """Issue #5441: --skip-merge-tree hands the backstop to its own job."""
         job = _count_ratchets_job()
         assert job is not None
         assert str(job.get("run")) == (
-            "uv run --frozen python scripts/validation/checks_ratchet.py"
+            "uv run --frozen python scripts/validation/checks_ratchet.py --skip-merge-tree"
         )
