@@ -160,12 +160,12 @@ names anything else (issue #4366).
 census, evidence of what was live, not a recipe to copy. -->
 
 
-The lock file currently lives under `/tmp`. The requirement is that every agent
-names it identically, since `flock` excludes only processes that agree on the
-path; `/tmp` is just the one absolute path every agent here can already name.
-The push *log* must not go there: use `~/src/scratch`. See
-`.serena/memories/git/git-lock-pushes-per-branch-not-globally.md` for the `/tmp`-wipe hazard this
-carries and how to detect it.
+The lock file lives under `$HOME/src/scratch/locks`, per the recipe above and
+`.claude/rules/push-lock.md`. It used to live under `/tmp`, on the reasoning
+that `/tmp` was the one absolute path every agent could already name; the
+`/tmp`-wipe hazard that choice carried is recorded in
+`.serena/memories/git/git-lock-pushes-per-branch-not-globally.md`. The push
+*log* likewise belongs under `~/src/scratch`, never `/tmp`.
 
 ## Evidence
 

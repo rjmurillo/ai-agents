@@ -165,3 +165,90 @@ merge, and applied before the implementation is written rather than after.
 |----------|-----|--------|
 | empirical-probe-toolkit | corpus-probe-before-widening | Counted blast radius chose the design |
 | code-qualities-assessment | one-behavior-one-path | Duplicate paths drift silently |
+
+### REMOVE
+
+| Skill ID | Reason | Evidence |
+|----------|--------|----------|
+| None | No obsolete skill identified | Issue #4635 |
+
+## Deduplication Check
+
+| New Skill | Most Similar | Similarity | Decision |
+|-----------|--------------|------------|----------|
+| None | `ai-agents-empirical-probe-toolkit` already owns probe recipes | 80% | Persist the two learnings as memories instead of adding a skill |
+
+## Phase 5: Persist and Close
+
+### Memory Persistence
+
+| Learning | Atomicity | Existing Match | Result |
+|----------|-----------|----------------|--------|
+| Measure a detector widening over the corpus before choosing its design | 90% | None found in `.serena/memories/validation/` | Written to `validation/measure-a-detector-widening-before-designing-it`, indexed |
+| Routing a second caller into a resolver inherits its latent defects | 90% | None found | Written to `validation/reusing-a-resolver-inherits-its-latent-defects`, indexed |
+| Fixing a defect at one granularity is a prompt to check the next one down | 85% | Folded into the resolver memory above | Merged rather than duplicated |
+
+### +/Delta
+
+#### + Keep
+- Probe the corpus for each candidate design before writing the implementation.
+- Pair every behavior fix with a negative control that reverts only that change.
+- Let direction (over-report versus under-report) decide which residual limits get fixed.
+
+#### Delta Change
+- Stop patching a raw-line regex when the third same-shape defect appears; tokenize once instead.
+- Scope a formatter to the files in the diff. `ruff format` on a directory touched 146 unrelated files and had to be reverted.
+
+### Delta Triage
+
+#### Actionable Items Identified
+
+| Delta Item | Category | Priority | Destination | Reference |
+|------------|----------|----------|-------------|-----------|
+| Replace per-regex line scanning with one statement tokenizer | Code | P2 | Completed | `scripts/validation/shell_text.py` |
+| Share the shell-comment parser rather than copying it | Code | P2 | Completed | Same module, consumed by two gates |
+| Scope formatter invocations to changed files | Process | P2 | This retrospective | Reverted 146-file reformat |
+
+#### Issues Created
+
+| Issue | Title | Priority | Labels |
+|-------|-------|----------|--------|
+| None | No new issue required | P2 | Remaining limit documented in `.claude/rules/push-lock.md` |
+
+#### Backlog Items Stored
+
+| Item | Priority | Memory File |
+|------|----------|-------------|
+| List and table paragraphs read as one recipe | P3 | Documented in the rule file, over-reporting direction only |
+
+#### Skipped Items
+
+| Item | Reason |
+|------|--------|
+| Adopting a real shell lexer dependency | Not warranted while the tokenizer covers every measured shape; revisit if a new same-line gap appears |
+
+### ROTI Assessment
+
+**Score**: 4
+
+**Benefits Received**:
+- The corpus probe inverted the design the issue's own PRD proposed, before any code was written.
+- Review found three defects older than this branch, in the resolver it widened.
+- The third same-shape defect triggered a structural fix instead of a fourth patch.
+
+**Time Invested**: One session, five review rounds.
+
+**Verdict**: Continue
+
+### Helped, Hindered, Hypothesis
+
+#### Helped
+- Cheap corpus probes turned two design arguments into counts.
+- Reverting one change at a time proved each test was paired to its own fix.
+
+#### Hindered
+- Patching one regex at a time let the same defect class resurface at three granularities before the structure changed.
+- A directory-wide `ruff format` reverted cleanly but also discarded uncommitted tests, which had to be rewritten.
+
+#### Hypothesis
+- Counting how many times one defect class recurs, rather than judging each instance alone, would trigger the structural fix a round or two earlier.
