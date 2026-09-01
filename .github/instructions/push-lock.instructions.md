@@ -133,24 +133,31 @@ path nor condemn a canonical one.
 A recipe does not become canonical by losing its fence, so unfenced prose is
 read the same way, one Markdown paragraph at a time: a blank line bounds the
 unit, so a variable set in one paragraph never resolves a `flock` in another.
-The one asymmetry is that only a fence is reported for naming no canonical
-path at all, because prose discusses `flock` without prescribing anything
+The one asymmetry is that a whole unfenced run is not reported for naming no
+canonical path, because prose discusses `flock` without prescribing anything
 (issue #4635).
 
-Two limits follow from taking the paragraph as the unit, both known and neither
-covered:
+That asymmetry covers prose *about* `flock`, not a real call, so one case
+overrides it: `flock "$VAR"` where the variable reaches no path the checker can
+read is reported wherever it appears, fenced or not. Both shapes count, the
+variable nothing in the unit assigns and the variable that resolves only to
+another name:
 
-1. A variable set in one paragraph and read by a `flock` in the next is not
-   resolved, so that recipe is not checked. The blank line is what keeps an
-   unrelated assignment from being read as the lock, and the same boundary
-   costs this. Keep an assignment and the `flock` that reads it in one
-   paragraph, or fence them.
-2. A tight list or table is one paragraph, so a dead path in one item and a
-   `flock` in another read as a single recipe. That direction over-reports
-   rather than under-reports, and `push-lock-historical` clears it.
+```bash
+# push-lock-historical: specimens of what gets rejected, not recipes to copy.
+flock "$LOCK" git push                    # LOCK assigned in another paragraph
+LOCK=$SOME_EXTERNAL_ENV ; flock "$LOCK"   # resolves to a name, not a path
+```
 
-Both want Markdown structure the scanner does not parse. Fence any recipe you
-want read exactly.
+A lock this checker cannot read is a lock nobody can confirm agrees with anyone
+else's, which is the state issue #4366 was measured in. Keep an assignment and
+the `flock` that reads it in one paragraph, or fence them.
+
+One limit remains, uncovered: a tight list or table is one paragraph, so a dead
+path in one item and a `flock` in another read as a single recipe. That
+over-reports rather than under-reports and `push-lock-historical` clears it, so
+it is left alone. Fixing it wants Markdown structure this checker does not
+parse. Fence any recipe you want read exactly.
 
 ## References
 

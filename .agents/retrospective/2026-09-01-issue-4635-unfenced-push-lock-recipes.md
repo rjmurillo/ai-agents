@@ -90,16 +90,16 @@ its own corpus claim.
 | Line-level ordering left the same defect one granularity down, on a shared line | Spec review flagged it; ordering is now by position, with a test using an extensionless path so no bare token can satisfy it by accident | Fixing a defect at one granularity is a prompt to check the next one down, not a finish line |
 | Claimed `ruff format` drift was pre-existing on files new in this PR | Measured it: the pre-existing drift was a single 3-line hunk, so every touched file is now formatted and the excuse is deleted | A caveat is worth measuring before it is written; this one was cheaper to fix than to justify |
 
-### Residual limitations, accepted not fixed
+### Residual limitations, triaged by direction
 
-Both follow from taking the Markdown paragraph as the scan unit, and both are
-documented in the rule file rather than closed here. Parsing Markdown structure
-is a different change from the fenced/unfenced asymmetry this issue names.
+Both follow from taking the Markdown paragraph as the scan unit. Direction
+decided which got fixed: an under-report is the failure this gate exists to
+prevent, an over-report is visible and clearable.
 
-| Limitation | Direction | Why not now |
+| Limitation | Direction | Disposition |
 |------------|-----------|-------------|
-| A variable set in one paragraph and read by a `flock` in the next is unresolved, so that recipe goes unchecked | Under-reports | The blank-line boundary is what stops an unrelated assignment being read as the lock. Removing it to catch this reintroduces the worse failure, and a test pins the boundary |
-| A tight list or table is one paragraph, so a dead path in one item and a `flock` in another read as one recipe | Over-reports | Visible and clearable with `push-lock-historical`, unlike the silent misses this issue was about. Currently masked because `_LOCK_PATH` excludes `<` and `>` so a `<slug>` placeholder never tokenizes, which is coincidence and not design |
+| A `flock` whose variable reaches no readable path, either unassigned in the unit or resolving only to another name, passed silently outside a fence | Under-reports | **Fixed.** `_unresolved_flock_variables` reports it wherever it appears. The discriminator is that the argument is a bare variable, which prose never hands `flock`, so the "prose about flock" asymmetry is preserved and pinned by its own test. Zero of 3518 tracked files gain a finding |
+| A tight list or table is one paragraph, so a dead path in one item and a `flock` in another read as one recipe | Over-reports | **Documented, not fixed.** Visible and clearable with `push-lock-historical`, unlike the silent misses this issue was about. Currently masked because `_LOCK_PATH` excludes `<` and `>` so a `<slug>` placeholder never tokenizes, which is coincidence and not design. Closing it wants Markdown structure the checker does not parse |
 
 ## Phase 3: Decisions
 
