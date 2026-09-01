@@ -59,11 +59,13 @@ Routine low-risk work does not require user confirmation of obvious inferred cri
 
 ```text
 system / host requirements
-    > explicit current user request
     > mandatory safety and repository policy
+    > explicit current user request
     > frozen task contract
     > optional improvements and preferences
 ```
+
+<!-- Deviates from issue #5404's literal precedence text: mandatory policy must outrank a raw user request per security review (PR #5433 threads). -->
 
 "Boil the lake" applies inside the frozen task contract and its direct correctness blast radius. Work is not included merely because it fits in one session.
 
