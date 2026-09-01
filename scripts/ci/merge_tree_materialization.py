@@ -31,12 +31,23 @@ def _make_writable_and_retry(
         return
 
 
+_EXIT_TIMEOUT = 124
+"""Conventional shell exit code for a command that was killed on timeout."""
+
+
 def run_git(
     cwd: Path,
     *argv: str,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run Git without a shell, returning rc 127 when launch itself fails."""
+    """Run Git without a shell, returning rc 127 when launch itself fails.
+
+    ``timeout`` (seconds) returns rc 124 instead of raising ``subprocess.
+    TimeoutExpired``: callers materializing a merge tree (issue #5441 review)
+    need a diagnosable failure, not an uncaught exception, when a git
+    subcommand alone runs past the caller's remaining deadline budget.
+    """
     command = ["git", "-C", str(cwd), *argv]
     try:
         command[0] = resolve_executable("git", env=env)
@@ -48,6 +59,7 @@ def run_git(
             errors="replace",
             check=False,
             env=env,
+            timeout=timeout,
         )
     except OSError as exc:
         return subprocess.CompletedProcess(
@@ -55,6 +67,13 @@ def run_git(
             127,
             "",
             f"{type(exc).__name__}: {exc}",
+        )
+    except subprocess.TimeoutExpired as exc:
+        return subprocess.CompletedProcess(
+            command,
+            _EXIT_TIMEOUT,
+            "",
+            f"git {' '.join(argv)} timed out after {exc.timeout:.1f}s",
         )
 
 
@@ -127,15 +146,38 @@ def _cleanup_materialization(index_path: Path, isolated_home: Path) -> bool:
     return success
 
 
+def _remaining_budget(deadline: float | None) -> float | None:
+    """Seconds left before ``deadline`` (absolute ``time.monotonic()``), or None.
+
+    ``None`` means unbounded, preserved for every caller that does not pass a
+    deadline. A non-positive result signals the budget is already spent; the
+    caller checks for that explicitly rather than passing a non-positive
+    ``timeout`` into ``subprocess.run`` (which raises ``ValueError``).
+    """
+    if deadline is None:
+        return None
+    return deadline - time.monotonic()
+
+
 def _checkout_tree(
     repo_root: Path,
     tree_oid: str,
     destination: Path,
     env: dict[str, str],
+    *,
+    deadline: float | None = None,
 ) -> bool:
-    read_tree = run_git(repo_root, "read-tree", tree_oid, env=env)
+    remaining = _remaining_budget(deadline)
+    if remaining is not None and remaining <= 0:
+        print("git read-tree not run: deadline already exhausted", file=sys.stderr)
+        return False
+    read_tree = run_git(repo_root, "read-tree", tree_oid, env=env, timeout=remaining)
     if read_tree.returncode != 0:
         print(f"git read-tree failed: {read_tree.stderr}", file=sys.stderr)
+        return False
+    remaining = _remaining_budget(deadline)
+    if remaining is not None and remaining <= 0:
+        print("git checkout-index not run: deadline already exhausted", file=sys.stderr)
         return False
     prefix = f"{destination.resolve().as_posix()}/"
     checkout = run_git(
@@ -147,6 +189,7 @@ def _checkout_tree(
         "--force",
         f"--prefix={prefix}",
         env=env,
+        timeout=remaining,
     )
     if checkout.returncode != 0:
         print(f"git checkout-index failed: {checkout.stderr}", file=sys.stderr)
@@ -154,8 +197,23 @@ def _checkout_tree(
     return True
 
 
-def materialize_tree(repo_root: Path, tree_oid: str, destination: Path) -> bool:
-    """Check out every tree entry through a temporary index, ignoring export-ignore."""
+def materialize_tree(
+    repo_root: Path,
+    tree_oid: str,
+    destination: Path,
+    *,
+    deadline: float | None = None,
+) -> bool:
+    """Check out every tree entry through a temporary index, ignoring export-ignore.
+
+    ``deadline`` (absolute ``time.monotonic()``) bounds ``read-tree`` and
+    ``checkout-index`` individually: on a merge large enough that checkout
+    alone would run past the caller's remaining budget, this reports a timeout
+    failure instead of running unbounded until an outer process (Lefthook)
+    SIGKILLs the whole call tree with zero diagnostic output (issue #5441
+    review: the aggregate deadline inside the per-ratchet loop never fired
+    because materialization, upstream of that loop, had no bound of its own).
+    """
     destination.mkdir(parents=True, exist_ok=True)
     isolated_home = destination.parent / f".{destination.name}-materialize-home"
     index_path = destination.parent / f".{destination.name}-materialize-index"
@@ -169,7 +227,7 @@ def materialize_tree(repo_root: Path, tree_oid: str, destination: Path) -> bool:
     try:
         env = isolated_git_environment(isolated_home)
         env["GIT_INDEX_FILE"] = str(index_path)
-        materialized = _checkout_tree(repo_root, tree_oid, destination, env)
+        materialized = _checkout_tree(repo_root, tree_oid, destination, env, deadline=deadline)
     finally:
         cleaned = _cleanup_materialization(index_path, isolated_home)
     if not materialized:
@@ -177,7 +235,9 @@ def materialize_tree(repo_root: Path, tree_oid: str, destination: Path) -> bool:
     return materialized and cleaned
 
 
-def _initialize_repo(scratch: Path, env: dict[str, str]) -> bool:
+def _initialize_repo(
+    scratch: Path, env: dict[str, str], *, deadline: float | None = None
+) -> bool:
     commands = (
         ("init", "-q", "-b", "main", str(scratch)),
         ("config", "user.email", "ci@example.com"),
@@ -186,16 +246,24 @@ def _initialize_repo(scratch: Path, env: dict[str, str]) -> bool:
         ("commit", "-qm", "merge-tree snapshot"),
     )
     for index, argv in enumerate(commands):
+        remaining = _remaining_budget(deadline)
+        if remaining is not None and remaining <= 0:
+            print(f"git {argv[0]} not run: deadline already exhausted", file=sys.stderr)
+            return False
         cwd = scratch if index else scratch.parent
-        proc = run_git(cwd, *argv, env=env)
+        proc = run_git(cwd, *argv, env=env, timeout=remaining)
         if proc.returncode != 0:
             print(f"git scratch init failed: {proc.stderr}", file=sys.stderr)
             return False
     return True
 
 
-def init_scratch_repo(scratch: Path) -> bool:
-    """Commit the materialized tree in a Git environment isolated from user state."""
+def init_scratch_repo(scratch: Path, *, deadline: float | None = None) -> bool:
+    """Commit the materialized tree in a Git environment isolated from user state.
+
+    ``deadline`` bounds each of the five ``git`` calls this issues (issue
+    #5441 review: see ``materialize_tree``'s docstring for why this matters).
+    """
     isolated_home = scratch.parent / f".{scratch.name}-git-home"
     setup_error = remove_tree(isolated_home, "stale scratch Git home")
     if setup_error:
@@ -206,7 +274,7 @@ def init_scratch_repo(scratch: Path) -> bool:
     cleanup_error: str | None = None
     try:
         env = isolated_git_environment(isolated_home)
-        initialized = _initialize_repo(scratch, env)
+        initialized = _initialize_repo(scratch, env, deadline=deadline)
     finally:
         cleanup_error = remove_tree(isolated_home, "scratch Git home")
         if cleanup_error:

@@ -66,6 +66,18 @@ from scripts.ci.merge_tree_materialization import (
 from scripts.ci.merge_tree_materialization import materialize_tree as _materialize_tree
 from scripts.ci.merge_tree_materialization import remove_tree as _remove_tree
 from scripts.ci.merge_tree_materialization import run_git as _git
+from scripts.ci.merge_tree_ratchet_baseline_direction import (
+    raised_baseline as _one_directional_baseline_failure,
+)
+from scripts.ci.merge_tree_ratchet_preparation import (
+    _merge_tree_oid,
+    _refresh_base_ref,
+    _sanitize_diagnostic,
+    is_fast_forward_clean,
+)
+from scripts.ci.merge_tree_ratchet_preparation import (
+    resolve_default_base_ref as _resolve_default_base_ref,
+)
 from scripts.ci.merge_tree_ratchet_registry import RATCHETS
 
 EXIT_OK = 0
@@ -108,53 +120,6 @@ class BaselineRead:
     diagnostic: str = ""
 
 
-def _remote_branch(base_ref: str) -> str | None:
-    for prefix in ("origin/", "refs/remotes/origin/"):
-        if base_ref.startswith(prefix):
-            branch = base_ref[len(prefix) :]
-            return branch if branch and "/" not in branch else None
-    return None
-
-
-def _refresh_base_ref(repo_root: Path, base_ref: str) -> bool:
-    """Refresh a remote-tracking base before resolving its immutable OID."""
-    branch = _remote_branch(base_ref)
-    if branch is None:
-        return True
-    refspec = f"+refs/heads/{branch}:refs/remotes/origin/{branch}"
-    proc = _git(repo_root, "fetch", "--no-tags", "--quiet", "origin", refspec)
-    if proc.returncode == 0:
-        return True
-    detail = _sanitize_diagnostic(proc.stderr) or f"git fetch rc {proc.returncode}"
-    print(
-        f"merge-tree-ratchet: failed to refresh {base_ref}: {detail}",
-        file=sys.stderr,
-    )
-    return False
-
-
-def is_fast_forward_clean(repo_root: Path, base_oid: str) -> bool:
-    """True when merging ``base_oid`` into HEAD is provably a no-op.
-
-    Issue #5441. ``git merge-tree --write-tree base_oid HEAD`` computes a tree
-    identical to HEAD's own tree whenever ``base_oid`` is an ancestor of HEAD:
-    there is nothing from the base side left to fold in. A clean working tree
-    (no staged or unstaged changes) is in turn identical to HEAD. Chain the two
-    and the repository's working tree IS the merged tree, so whatever a
-    ratchet counts against ``repo_root`` is exactly what it would count
-    against a materialized copy. Materializing one and recounting anyway would
-    recompute a value already in hand; skipping it is what closes issue #5441
-    without weakening the check itself, which still runs in full (materialize,
-    checkout, recount) the moment either condition fails, e.g. a branch behind
-    a base ref that lowered a baseline (issue #4398).
-    """
-    ancestor = _git(repo_root, "merge-base", "--is-ancestor", base_oid, "HEAD")
-    if ancestor.returncode != 0:
-        return False
-    clean = _git(repo_root, "diff", "--quiet", "HEAD", "--")
-    return clean.returncode == 0
-
-
 def _resolve_base_oid(repo_root: Path, base_ref: str) -> str | None:
     """Resolve the mutable base ref once, or report why it cannot be pinned."""
     if not _refresh_base_ref(repo_root, base_ref):
@@ -174,41 +139,6 @@ def _resolve_base_oid(repo_root: Path, base_ref: str) -> str | None:
         f"{proc.stderr}\n"
     )
     return None
-
-
-def _merge_tree_oid(repo_root: Path, base_oid: str) -> tuple[str | None, bool]:
-    """Return (tree-oid, conflicts). oid is None on git failure.
-
-    Every None return writes its own explanation to stderr, so callers must not
-    add a second generic one. Two messages for one failure make the specific
-    diagnosis read like a guess (PR #4567 review).
-    """
-    proc = _git(repo_root, "merge-tree", "--write-tree", base_oid, "HEAD")
-    if proc.returncode in (0, 1):
-        # exit 1 means conflicts; stdout still has the partial tree oid on line 1
-        lines = proc.stdout.strip().splitlines()
-        conflicts = proc.returncode == 1
-        if not lines:
-            sys.stderr.write(
-                f"merge-tree-ratchet: git merge-tree exited {proc.returncode} but wrote\n"
-                "no tree OID, so there is no merged tree to evaluate.\n"
-            )
-            return None, conflicts
-        return lines[0], conflicts
-    sys.stderr.write(f"git merge-tree failed (rc {proc.returncode}):\n{proc.stderr}\n")
-    if "unrelated histories" in proc.stderr:
-        sys.stderr.write(
-            "merge-tree-ratchet: no merge base was reachable. This is a shallow-fetch\n"
-            "regression, not a ratchet breach: a `git fetch --depth=1` writes\n"
-            ".git/shallow and cuts history traversal, so any branch behind the base\n"
-            "aborts here. Fetch the base ref at full depth (issue #4518).\n"
-        )
-    return None, False
-
-
-def _sanitize_diagnostic(text: str) -> str:
-    cleaned = " ".join(text.replace("\x00", "").split())
-    return cleaned[:500]
 
 
 def _parse_baseline(text: str) -> BaselineRead:
@@ -356,15 +286,16 @@ def _evaluate_registered_ratchets(
     base_oid: str,
     scratch_root: Path,
     *,
+    base_ref: str,
     deadline: float | None = None,
 ) -> int:
     """Run every registered ratchet against ``scratch_root``.
 
-    ``deadline`` is an absolute ``time.monotonic()`` value. A ratchet whose
-    turn arrives after the deadline reports a clear "not run" verdict instead
-    of running anyway and risking the whole process being killed by an outer
-    timeout with no diagnostic (issue #5441): every registered ratchet reports
-    its own verdict, one way or the other, before the outer cap can fire.
+    ``deadline`` (absolute ``time.monotonic()``) reports a clear "not run"
+    verdict for a ratchet whose turn arrives after it, instead of risking an
+    outer-timeout kill with no diagnostic (issue #5441). ``base_ref`` is the
+    original ref string, not ``base_oid``: ``raised_baseline`` below reads the
+    fork point between it and HEAD.
     """
     exit_code = EXIT_OK
     for ratchet in RATCHETS:
@@ -378,12 +309,16 @@ def _evaluate_registered_ratchets(
             continue
         base = _read_baseline_at_ref(repo_root, base_oid, ratchet.baseline_path)
         merged = _read_baseline_in_tree(scratch_root, ratchet.baseline_path)
-        code, msg = _check_one(
-            ratchet.label,
-            ratchet.current_count(scratch_root),
-            base,
-            merged,
-        )
+        count = ratchet.current_count(scratch_root)
+        code, msg = _check_one(ratchet.label, count, base, merged)
+        if code == EXIT_OK and _one_directional_baseline_failure(
+            repo_root, base_ref, ratchet, count
+        ):
+            # _one_directional_baseline_failure already printed its own
+            # diagnostic (count_ratchet's _base_ref_verdict does), so the
+            # merge-tree "OK" message below would contradict it; skip it.
+            exit_code = max(exit_code, EXIT_REGRESSION)
+            continue
         exit_code = max(exit_code, code)
         if code != EXIT_OK:
             print(f"merge-tree-ratchet: {msg}", file=sys.stderr)
@@ -419,7 +354,7 @@ def _evaluate_merged_tree(
         # what makes this the single authoritative pass for a caller that
         # already needs these same counts (issue #5441).
         primary_exit = _evaluate_registered_ratchets(
-            repo_root, base_oid, repo_root, deadline=effective_deadline
+            repo_root, base_oid, repo_root, base_ref=base_ref, deadline=effective_deadline
         )
     else:
         try:
@@ -431,11 +366,15 @@ def _evaluate_merged_tree(
         primary_exit = EXIT_EXTERNAL
         cleanup_error: str | None = None
         try:
-            if _materialize_tree(repo_root, tree_oid, scratch_root) and _init_scratch_repo(
-                scratch_root
-            ):
+            if _materialize_tree(
+                repo_root, tree_oid, scratch_root, deadline=effective_deadline
+            ) and _init_scratch_repo(scratch_root, deadline=effective_deadline):
                 primary_exit = _evaluate_registered_ratchets(
-                    repo_root, base_oid, scratch_root, deadline=effective_deadline
+                    repo_root,
+                    base_oid,
+                    scratch_root,
+                    base_ref=base_ref,
+                    deadline=effective_deadline,
                 )
         finally:
             cleanup_error = _remove_tree(scratch_root, "merge-tree scratch")
@@ -477,8 +416,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--base-ref",
-        default="origin/main",
-        help="Git ref to merge HEAD into and read baselines from (default: origin/main).",
+        default=None,
+        help=(
+            "Git ref to merge HEAD into. Defaults to the same dynamic "
+            "resolution checks_ratchet.py uses (PR base, then origin/HEAD, "
+            "then origin/main): a hardcoded origin/main here measured a "
+            "branch on a non-main base wrongly (issue #5441 review)."
+        ),
     )
     parser.add_argument(
         "--repo-root",
@@ -487,7 +431,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Repository root (default: cwd).",
     )
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
-    return _evaluate_merged_tree(args.repo_root.resolve(), args.base_ref)
+    repo_root = args.repo_root.resolve()
+    base_ref = args.base_ref or _resolve_default_base_ref(repo_root)
+    if base_ref is None:
+        print(
+            "merge-tree-ratchet: could not resolve a default base ref "
+            "(no PR base, no origin/HEAD, no origin/main); pass --base-ref.",
+            file=sys.stderr,
+        )
+        return EXIT_EXTERNAL
+    return _evaluate_merged_tree(repo_root, base_ref)
 
 
 if __name__ == "__main__":

@@ -15,9 +15,10 @@ gate for a merge-tree-backed ratchet. Issue #5441: this module used to ALSO
 run each of those five individually before handing them to the merge-tree
 check a second time, so a push paid for the same five counts twice inside one
 85 second budget and could not finish. This module now runs each of them
-exactly once, through ``validate_shared_ratchets`` below, which is also what a
-``uv run --frozen`` caller of ``scripts/ci/merge_tree_ratchet_check.py``
-reaches directly when it is run as its own Lefthook job.
+exactly once, through ``validate_count_ratchets`` below, which delegates to
+``scripts/ci/merge_tree_ratchet_check.py``'s ``_evaluate_merged_tree``, the
+same function a ``uv run --frozen`` caller of that script reaches directly
+when it is run as its own Lefthook job.
 
 The pre-push hook and pre-PR runner both delegate to this module. Keeping the
 ratchet set and command construction here avoids parallel hook jobs
@@ -88,25 +89,30 @@ RATCHETS: tuple[Ratchet, ...] = (
 
 The five ratchets registered in ``merge_tree_ratchet_registry.py`` (ruff
 count, taste count, type-ignore count, memory-index count, cli exit
-contract) are NOT listed here: ``validate_shared_ratchets`` below runs each of
+contract) are NOT listed here: ``validate_count_ratchets`` below runs each of
 them exactly once, through the merge-tree evaluation, instead of running them
 here a second time (issue #5441).
 """
 
 _AGGREGATE_TIMEOUT_SECONDS = 60
-"""Covers the two RATCHETS entries plus validate_shared_ratchets' own budget.
+"""Bounds the two RATCHETS entries; does NOT bound the merge-tree backstop.
 
 Measured 2026-09-01 on a warm checkout (issue #5441): the two remaining
-individual entries finish in well under a second, and
-``validate_shared_ratchets``'s fast-forward path (the common case: no
-divergence from the base ref) measures ~32s, dominated by the cli
-exit-contract scan. 60s leaves real headroom over that without reintroducing
-the 85s-against-90s margin that caused the original timeout. A branch that is
-genuinely behind its base ref falls back to the slower materialize-and-recount
-path; that path is bounded by its own deadline
-(``scripts/ci/merge_tree_ratchet_check.py::_TIMEOUT_SECONDS``), which the
-separate ``merge-tree-ratchet`` Lefthook job also uses when it runs the same
-check standalone.
+individual entries finish in well under a second, so 60s is generous headroom
+for them alone. This deadline is also a pre-check ``_run_merge_tree_backstop``
+uses to skip the backstop outright if those two somehow consumed the whole
+window, but it is deliberately NOT handed down as the backstop's own deadline.
+
+An earlier version of this fix did hand it down, which put a 60s cap on a
+path ``scripts/ci/merge_tree_ratchet_check.py`` measures at ~64s worst case
+(the non-fast-forward materialize-and-recount fallback): a 60s cap under a
+64s worst case is a guaranteed failure, not headroom, on exactly the branch
+this backstop exists to judge (issue #5441 review). The backstop instead runs
+under its own internal deadline
+(``scripts/ci/merge_tree_ratchet_check.py::_TIMEOUT_SECONDS``, 90s, with that
+module's own docstring recording the margin over the 64s measurement), the
+same one the standalone ``merge-tree-ratchet`` Lefthook job gets when it runs
+that check standalone.
 """
 
 
@@ -250,14 +256,23 @@ def _run_individual_ratchets(
 
 
 def _run_merge_tree_backstop(repo_root: Path, base_ref: str, deadline: float) -> str | None:
-    """Run the merge-tree backstop; return its failure label, or None on pass."""
+    """Run the merge-tree backstop; return its failure label, or None on pass.
+
+    ``deadline`` gates only whether the backstop starts at all: a fast exit if
+    the two RATCHETS entries already burned through the whole aggregate
+    window. The evaluation call itself gets no ``deadline`` argument, so it
+    falls back to its own internal ``_TIMEOUT_SECONDS`` (90s) instead of
+    inheriting the tighter 60s aggregate budget, which measures below the
+    documented ~64s materialize-and-recount worst case (see
+    ``_AGGREGATE_TIMEOUT_SECONDS``'s docstring).
+    """
     if time.monotonic() >= deadline:
         print(
             "[FAIL] merge-tree-ratchet not run: aggregate timeout exhausted.",
             file=sys.stderr,
         )
         return "merge-tree-ratchet"
-    if _evaluate_merge_tree_backstop(repo_root, base_ref, deadline=deadline) != _MERGE_TREE_EXIT_OK:
+    if _evaluate_merge_tree_backstop(repo_root, base_ref) != _MERGE_TREE_EXIT_OK:
         return "merge-tree-ratchet"
     return None
 
@@ -291,14 +306,26 @@ def validate_count_ratchets(repo_root: Path, *, skip_merge_tree: bool = False) -
         _report_missing_scripts(missing)
         return False
 
-    base_ref, base_oid = _prepare_base_oid(repo_root)
-    if base_oid is None or base_ref is None:
-        return False
+    # The merge-tree backstop always needs the base ref; a RATCHETS entry
+    # needs it only when it declares uses_base_ref=True. Skipping resolution
+    # (and its network fetch) when neither applies matters concretely: the
+    # count-ratchets Lefthook job always passes skip_merge_tree=True, and
+    # both entries left in RATCHETS after issue #5441 have uses_base_ref=False,
+    # so that job used to block on a base-ref refresh failure for a value
+    # nothing it runs would consume (issue #5441 review).
+    needs_base_ref = not skip_merge_tree or any(r.uses_base_ref for r in RATCHETS)
+    base_ref: str | None = None
+    base_oid: str | None = None
+    if needs_base_ref:
+        base_ref, base_oid = _prepare_base_oid(repo_root)
+        if base_oid is None or base_ref is None:
+            return False
 
     deadline = time.monotonic() + _AGGREGATE_TIMEOUT_SECONDS
-    failures = _run_individual_ratchets(repo_root, base_oid, deadline)
+    failures = _run_individual_ratchets(repo_root, base_oid or "", deadline)
 
     if not skip_merge_tree:
+        assert base_ref is not None, "needs_base_ref forces resolution above"
         backstop_failure = _run_merge_tree_backstop(repo_root, base_ref, deadline)
         if backstop_failure is not None:
             failures.append(backstop_failure)
