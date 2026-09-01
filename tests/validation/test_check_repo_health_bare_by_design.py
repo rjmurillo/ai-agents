@@ -103,6 +103,7 @@ def _try_git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
         ["git", *args],
         cwd=str(cwd),
         env=_git_test_env(),
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         check=False,
@@ -114,6 +115,14 @@ def _use_scratch_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep the gate's own git calls off the host's global and system config."""
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+
+    real_run = subprocess.run
+
+    def run_with_devnull(*args, **kwargs):
+        kwargs.setdefault("stdin", subprocess.DEVNULL)
+        return real_run(*args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", run_with_devnull)
 
 
 def _make_repo(root: Path, name: str = "seed") -> Path:
@@ -143,6 +152,7 @@ def _run_cli(repo: Path) -> subprocess.CompletedProcess[str]:
         [sys.executable, str(GUARD), str(repo)],
         cwd=str(repo),
         env={**_git_test_env(), "PYTHONPATH": str(REPO_ROOT)},
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         check=False,
@@ -259,7 +269,7 @@ class TestABareRepositoryStoredAtADotGitPath:
 
         listing = _git(holder / ".git", "worktree", "list", "--porcelain")
 
-        assert listing.stdout.splitlines()[0] == f"worktree {holder}"
+        assert listing.stdout.splitlines()[0] == f"worktree {holder.as_posix()}"
         assert sorted(entry.name for entry in holder.iterdir()) == [".git"]
 
     def test_it_exits_zero_and_prints_no_repair(
@@ -318,7 +328,7 @@ class TestABareRepositoryStoredAtADotGitPath:
         _git(holder, "config", "core.bare", "true")
 
         listing = _try_git(holder / ".git", "worktree", "list", "--porcelain")
-        assert listing.stdout.splitlines()[0] == f"worktree {holder}"
+        assert listing.stdout.splitlines()[0] == f"worktree {holder.as_posix()}"
         assert check_repo_health._has_main_work_tree_index(holder / ".git") is True
         assert check_repo_health.main([str(holder / ".git")]) == 1
 
