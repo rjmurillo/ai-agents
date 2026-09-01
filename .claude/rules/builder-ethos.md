@@ -110,7 +110,7 @@ The correct pattern is the generation-verification loop: AI generates recommenda
 
 ## 4. Completion Is a Terminal State
 
-This file owns task completion. When every requested deliverable satisfies the frozen task contract and no blocker remains, the task is terminal: stop autonomous work. Budgets, retry limits, review rounds, and TODO exhaustion are backstops, not proof of completion, and cannot keep a verified-terminal task active. Reopen only on evidence falsifying a named frozen criterion, a mandatory policy blocker, or an explicit user request; reviewer preference, optional hardening, a fresh context, or leftover budget cannot. Contract formation, precedence, finding disposition, parent/child, and reactivation detail live in the `avoiding-manufactured-work` skill. Completed responses stop per the Completion-Tail Audit in `voice.md`.
+This file owns task completion. When every requested deliverable satisfies the frozen task contract and no blocker remains, the task is terminal: stop autonomous work. Budgets, retry limits, review rounds, and TODO exhaustion are backstops, not proof of completion, and cannot keep a verified-terminal task active. Reopen only on evidence falsifying a named frozen criterion, a mandatory policy blocker, or an explicit user request; reviewer preference, optional hardening, a fresh context, or leftover budget cannot. Contract formation (including precedence), finding disposition, parent/child, and reactivation detail are canonical in the `avoiding-manufactured-work` skill, which applies both before non-trivial execution (contract formation) and after a deliverable appears done (disposition), not only the latter. Completed responses stop per the Completion-Tail Audit in `voice.md`.
 
 ---
 
