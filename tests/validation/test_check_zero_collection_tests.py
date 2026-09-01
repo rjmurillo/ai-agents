@@ -328,11 +328,45 @@ def test_a_config_without_testpaths_is_a_configuration_error(tmp_path: Path) -> 
     assert _run(tmp_path) == 2
 
 
+def test_malformed_toml_syntax_is_a_configuration_error(tmp_path: Path) -> None:
+    """A TOML parse error must map to the documented configuration exit.
+
+    Distinct from the malformed-table-shape cases below: this is a syntax
+    error tomllib itself refuses to parse (an unterminated string), not a
+    shape ``tomllib`` accepts but this guard cannot use.
+    """
+    _make_repo(tmp_path, pyproject='[tool.pytest.ini_options]\ntestpaths = ["tests\n')
+
+    assert _run(tmp_path) == 2
+
+
 def test_a_nonexistent_testpath_is_a_configuration_error(tmp_path: Path) -> None:
     """A configured path pytest cannot enter is invalid configuration."""
     pyproject = """\
 [tool.pytest.ini_options]
 testpaths = ["tests/missing"]
+python_files = ["test_*.py"]
+"""
+    _make_repo(tmp_path, pyproject)
+
+    assert _run(tmp_path) == 2
+
+
+def test_a_testpath_outside_the_repository_is_a_configuration_error(
+    tmp_path: Path,
+) -> None:
+    """A testpath that resolves outside the repo root must not be trusted.
+
+    The nonexistent-path case above exercises only the ``not
+    resolved.exists()`` half of the guard; this exercises the
+    ``is_relative_to(repo_root)`` half, so removing either check regresses
+    silently without both cases.
+    """
+    outside = tmp_path.parent / f"outside-{tmp_path.name}"
+    outside.mkdir()
+    pyproject = f"""\
+[tool.pytest.ini_options]
+testpaths = ["{outside.as_posix()}"]
 python_files = ["test_*.py"]
 """
     _make_repo(tmp_path, pyproject)

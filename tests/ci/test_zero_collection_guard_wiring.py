@@ -103,6 +103,27 @@ def test_a_named_pre_push_job_runs_the_zero_collection_guard() -> None:
     assert matching[0]["name"] == "zero-collection-tests"
 
 
+def test_the_pre_push_job_running_the_guard_has_no_path_filter() -> None:
+    """A ``glob`` here would silently narrow a whole-tree check to a diff.
+
+    Copilot review round 9 (PR #5344): ``lefthook.yml``'s comment above this
+    job makes the absence of a ``glob`` load-bearing (a lockfile-only or
+    interpreter-only push changes the pytest environment this script
+    measures), but nothing pinned that beyond the comment. A future edit
+    could re-add ``glob: ["**/*.py", "pyproject.toml"]`` and this test suite
+    would not notice.
+    """
+    matching = [
+        job for job in _pre_push_jobs() if GUARD_SCRIPT in str(job.get("run", ""))
+    ]
+
+    assert len(matching) == 1, f"expected one pre-push job running {GUARD_SCRIPT}"
+    assert "glob" not in matching[0], (
+        "the zero-collection-tests pre-push job must not be gated behind a "
+        "path filter; it is a whole-tree check, not a diff-scoped one"
+    )
+
+
 def test_the_workflow_step_running_the_guard_is_blocking() -> None:
     """continue-on-error would make the step a reporter, not a gate."""
     matching = [
