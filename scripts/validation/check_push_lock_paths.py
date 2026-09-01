@@ -261,6 +261,48 @@ def _prose_runs(lines: Sequence[str], skipped: set[int], fenced: set[int]) -> li
     return runs
 
 
+def _unresolved_flock_variables(block: Sequence[str], start: int) -> list[tuple[int, str]]:
+    """Report each ``flock "$VAR"`` that does not reach a readable path.
+
+    A bare variable handed to ``flock`` is a call site, not discussion: prose
+    writes "``flock`` excludes processes that open the same path", never
+    "``flock`` $SOMETHING". So one the checker cannot follow to a path is a
+    recipe whose lock it cannot read at all, and reading nothing is exactly how
+    the three schemes of issue #4366 stayed invisible.
+
+    Two ways it fails to reach one, and both are silent without this:
+
+        flock "$LOCK" git push          # nothing in the block assigns LOCK
+        LOCK=$SOME_EXTERNAL_ENV ; flock "$LOCK"   # resolves to another name
+
+    A fence already surfaces both through ``_scan_block``'s no-targets
+    fallback. Unfenced runs suppress that fallback so prose about ``flock``
+    does not fire, and this restores the case the suppression was never meant
+    to cover.
+
+    Reported with an empty path, the same shape a fence uses, because the point
+    is that no path could be determined. It reports at the ``flock`` line
+    rather than at the assignment, because the call is what is unverifiable.
+    Measured over 3518 tracked Markdown files before landing: zero gain a
+    finding.
+    """
+    assignments = _assignments(block, start)
+    unresolved: list[tuple[int, str]] = []
+    for offset, line in enumerate(block):
+        argument = _flock_argument(line)
+        if argument is None:
+            continue
+        column, token = argument
+        variable = _BARE_VARIABLE.match(token)
+        if variable is None:
+            continue
+        number = start + offset + 1
+        live = _value_in_effect(assignments, variable.group(1), (number, column))
+        if live is None or not _is_path_like(live[1]):
+            unresolved.append((number, ""))
+    return unresolved
+
+
 def _scan_prose_run(lines: Sequence[str], start: int, end: int) -> list[tuple[int, str]]:
     """Scan one run of unfenced prose, resolving locks the way a fence does.
 
@@ -270,19 +312,23 @@ def _scan_prose_run(lines: Sequence[str], start: int, end: int) -> list[tuple[in
     path read each line alone: the assignment line has no ``flock`` and the
     ``flock`` line has no path (issue #4635).
 
-    Unlike ``_scan_block`` this never reports "names no canonical path". Prose
-    discusses ``flock`` without prescribing anything, and the empty finding
-    over unfenced runs fired on 13 tracked files that only mention the tool,
-    including this module's own rule mirror. A run that records a dead scheme
-    as evidence opts out with ``push-lock-historical``, the same token a fence
-    uses.
+    Unlike ``_scan_block`` this does not report "names no canonical path" for
+    the whole run. Prose discusses ``flock`` without prescribing anything, and
+    the blanket empty finding over unfenced runs fired on 13 tracked files that
+    only mention the tool, including this module's own rule mirror. A run that
+    records a dead scheme as evidence opts out with ``push-lock-historical``,
+    the same token a fence uses.
+
+    ``_unresolved_flock_variables`` is the narrow exception, because that
+    asymmetry was meant for prose *about* ``flock`` and would otherwise swallow
+    a real call whose lock cannot be read.
     """
     block = lines[start:end]
     if not any(_FLOCK.search(line) for line in block):
         return []
     if any(HISTORICAL_MARKER in line for line in block):
         return []
-    return _non_canonical(_lock_targets(block, start))
+    return _non_canonical(_lock_targets(block, start)) + _unresolved_flock_variables(block, start)
 
 
 def scan_text(text: str) -> list[tuple[int, str]]:

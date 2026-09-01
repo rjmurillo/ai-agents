@@ -145,12 +145,44 @@ def test_a_blank_line_bounds_the_unfenced_run() -> None:
     """A variable set in one paragraph must not resolve a `flock` in another.
 
     Without the blank-line boundary the whole file is one unit, so an unrelated
-    assignment far above silently becomes the reported lock path.
+    assignment far above silently becomes the reported lock path. The `flock`
+    is reported for naming no readable path rather than being passed clean:
+    not resolving is a reason to speak up, not a reason to stay quiet.
     """
     text = _prose(
         "LOCK=/tmp/unrelated.lock",
         "",
         'flock "$LOCK" git push',
+    )
+
+    findings = checker.scan_text(text)
+
+    assert findings == [(3, "")]
+    assert "/tmp/unrelated.lock" not in [path for _line, path in findings]
+
+
+def test_an_unfenced_flock_on_an_unassigned_variable_is_reported() -> None:
+    """The narrow exception to the prose asymmetry.
+
+    A recipe that takes its lock from an environment variable set elsewhere
+    reads no path this checker can verify, and silently passing it is the same
+    invisibility the three-scheme census of issue #4366 ran on. A fence already
+    reports this; unfenced prose used to swallow it.
+    """
+    text = _prose("LOCK=$SOME_EXTERNAL_ENV", 'flock "$LOCK" git push')
+
+    assert checker.scan_text(text) == [(2, "")]
+
+
+def test_prose_about_flock_still_reports_nothing_after_that_exception() -> None:
+    """The exception keys on a bare variable, which prose never hands `flock`.
+
+    Guards the inverse: widening detection must not start firing on the 13
+    tracked files that only discuss the tool.
+    """
+    text = _prose(
+        "`flock` excludes only processes that open the same path, so naming it",
+        "differently in two places buys nothing at all.",
     )
 
     assert checker.scan_text(text) == []
