@@ -9,7 +9,11 @@
 
 ## What shipped
 
-Two commits on `claude/fix-5366-spec-coverage-nonexecutable`:
+Two commits on `claude/fix-5366-spec-coverage-nonexecutable` carried the
+initial implementation. Three review rounds then reshaped the classifier's
+precision boundary before merge; those are rows 4 through 12 of the
+Remediation table below, and they define the shipped behavior as much as these
+two do:
 
 - `5fe383aa0` `fix(ci): classify unexecutable acceptance criteria for spec
   coverage`. New `scripts/ci/spec_nonexecutable_criteria.py` classifies
@@ -74,11 +78,16 @@ The issue offered three options. Two shipped, in a specific relationship:
 - The deterministic classifier is the reliable half. It removes the
   classification from the model's judgment for the cases it can recognize.
 
-That ordering let the classifier stay narrow. It fires only when a criterion
-BOTH names a runnable command in an inline code span AND asserts an execution
-result in intransitive position. "The helper passes the flag through to
-`run_gh`" does not match, and neither does "`pre_pr.py` passes the changed-file
-list to ruff".
+That ordering let the classifier stay narrow. As first written it fired when a
+criterion BOTH named a runnable command in an inline code span AND asserted an
+execution result in intransitive position. Three review rounds replaced that
+conjunction with a stricter rule: the criterion must be nothing but run
+evidence, meaning the command span opens it, a result verb governs that command
+and ends it, the criterion states no condition, and its box is not left
+unchecked. "The helper passes the flag through to `run_gh`" does not match,
+and neither does "`pre_pr.py` passes the changed-file list to ruff", "the
+wrapper returns zero when `pytest` passes", or "the parser rejects an empty ref
+and `pytest` passes".
 
 The asymmetry is the point. Under-firing costs nothing, because the prompt rule
 still covers the criterion. Over-firing would silently drop a real criterion
@@ -90,21 +99,41 @@ validation.
 
 ## Evidence
 
+Final state, re-run after the third review round. Earlier rounds' numbers are
+kept below them so the progression stays readable, marked as intermediate.
+
 - `uv run --frozen python -m pytest tests/ci/test_spec_nonexecutable_criteria.py
   tests/ci/test_spec_prepare_context.py tests/ci/test_spec_extract_refs.py
   tests/ci/test_ci_scripts_are_wired.py tests/test_check_spec_failures.py
-  tests/test_verdict.py tests/ci/test_validate_ai_review_budgets.py -q`:
-  299 passed, 11 skipped.
+  tests/test_verdict.py tests/ci/test_validate_ai_review_budgets.py
+  tests/commands/test_spec_ontology.py -q`: 361 passed, 11 skipped.
+- `tests/ci/test_spec_nonexecutable_criteria.py` alone: 64 passed.
+  `tests/ci/test_spec_prepare_context.py` alone: 14 passed.
 - `uv run --frozen python scripts/validation/pre_pr.py`: `RESULT: All
   validations passed`.
-- Negative control: replacing the body of `find_nonexecutable_criteria` with
-  `return []` turned 25 of the new tests red, including both
+- `TestDoesNotOverFire` carries 26 criteria a reviewer can check from the diff
+  and asserts none of them is classified away, plus heading, section-scope, and
+  fenced-sample controls.
+
+Negative controls, one per round, each run by reverting only the classifier and
+keeping the tests:
+
+- Initial implementation: replacing the body of `find_nonexecutable_criteria`
+  with `return []` turned 25 tests red, including both
   `test_includes_nonexecutable_criteria_block` and
-  `test_emits_both_declarations_together`. Restoring it returned all 38
-  detector tests and 14 context tests to green. The over-fire controls stayed
-  green in both states, which is correct: they assert an empty result.
-- `TestDoesNotOverFire` carries eight criteria a reviewer can check from the
-  diff and asserts none of them is classified away.
+  `test_emits_both_declarations_together`.
+- Round 1 (same-clause tying, heading anchoring): 8 failed, 39 passed before;
+  47 passed after.
+- Round 2 (conditional rejection, tail anchoring): 2 failed, 49 passed before;
+  51 passed after.
+- Round 3 (leading requirement, unchecked box, fenced samples): 8 failed, 52
+  passed before; 60 passed after.
+- Round 4 (middle elision on truncation): 2 failed, 62 passed before; 64 passed
+  after, isolated by restoring only the old `_sanitize` body.
+
+Intermediate figures, superseded: the first push recorded 299 passed / 11
+skipped and 38 detector cases, before `tests/commands/test_spec_ontology.py`
+joined the command and before the review rounds added cases.
 
 ## Remediation
 
@@ -121,8 +150,9 @@ validation.
 | 9 | Require the command claim to open the criterion, closing the mirror of row 8 where the requirement comes first | PR #5451 | Shipped (review round 3) |
 | 10 | Keep an explicitly unchecked criterion in scope, since the template makes an unchecked box an admitted gap | PR #5451 | Shipped (review round 3) |
 | 11 | Skip fenced code blocks, so a quoted sample section never joins the real gate | PR #5451 | Shipped (review round 3) |
+| 12 | Elide the middle of an over-long criterion, so the declaration entry keeps both the command and the result it was classified on | PR #5451 | Shipped (review round 4) |
 
-No tracking issue is open against this work. Items 4 through 11 came from three
+No tracking issue is open against this work. Items 4 through 12 came from four
 review rounds on PR #5451 (Devin and Copilot, independently, on the same
 seams) and shipped in the same PR rather than as follow-ups.
 
