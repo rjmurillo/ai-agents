@@ -116,9 +116,11 @@ validation.
 | 4 | Tie the command reference and the result verb to one clause, so a behavioral contract is not classified away | PR #5451 | Shipped (review round, see below) |
 | 5 | Anchor the Acceptance Criteria heading match, so "Acceptance Criteria Verification" is not read as the criteria list | PR #5451 | Shipped (review round, see below) |
 | 6 | Narrow the prompt exemption to historical run evidence, keeping command-shaped behavioral contracts in scope | PR #5451 | Shipped (review round, see below) |
+| 7 | Reject a conditional criterion whole instead of truncating it, so a fragment cannot read as run evidence | PR #5451 | Shipped (review round 2) |
+| 8 | Anchor the result tail to the end of the criterion, so a bullet that also carries a requirement stays in scope | PR #5451 | Shipped (review round 2) |
 
-No tracking issue is open against this work. Items 4 through 6 came from the
-review round on PR #5451 (Devin and Copilot, independently, on the same two
+No tracking issue is open against this work. Items 4 through 8 came from two
+review rounds on PR #5451 (Devin and Copilot, independently, on the same
 seams) and shipped in the same PR rather than as follow-ups.
 
 Deliberately not fixed, with reasons:
@@ -127,10 +129,11 @@ Deliberately not fixed, with reasons:
   command in plain prose ("all tests pass") is not detected and falls to the
   prompt rule. That is the intended split, not a gap to close by widening the
   regex.
-- Cutting the criterion at its first subordinator also drops a real claim
-  written with a leading adverbial ("after the rename, `pytest` passes"). That
-  is under-firing, which the prompt rule covers. Widening it back would
-  re-admit the over-fire the review round closed.
+- Rejecting a conditional criterion whole also drops a real claim written with
+  a leading adverbial ("after the rename, `pytest` passes"), and anchoring the
+  tail drops one with a trailing qualifier ("`pytest` passes with the new
+  flag"). Both are under-firing, which the prompt rule covers. Widening either
+  back would re-admit an over-fire a review round closed.
 - `PR_BODY` is empty on `workflow_dispatch`, which has no `pull_request`
   payload. The declaration is then absent and the prompt rule carries the
   case alone. Covered by
@@ -158,6 +161,16 @@ behavioral contract the gate must keep. A negative control that only exercises
 the conjunction of two predicates cannot tell you the conjunction is the wrong
 shape. The six cases added in the review round each satisfy one predicate and
 must still stay in scope, which is the control the first draft was missing.
+
+**Delta**: The first repair narrowed by salvaging rather than rejecting, and
+each salvage leaked. Truncating a conditional at its subordinator left
+"`wrapper.py` returns zero", a fragment whose command span is the script under
+test rather than the command the sentence conditions on, so the criterion was
+still classified away. `Pattern.match` succeeding on a prefix let "`pytest`
+passes locally and the parser rejects an empty ref" match on "locally" alone,
+classifying a bullet that carried a real requirement. Both fixes replace a
+salvage with a rejection. When the safe failure direction is known, reject on
+partial recognition instead of working with what survived the trim.
 
 **Delta**: The first draft of `_RESULT_TAIL` used `^` with
 `Pattern.match(text, pos)`. In a non-multiline pattern `^` anchors to the start
