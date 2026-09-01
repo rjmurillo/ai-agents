@@ -1058,9 +1058,9 @@ class SnapshotIncompleteError(RuntimeError):
 
 
 def _strict_owned_stat(path: Path) -> os.stat_result | None:
-    """Return metadata for ``path``, raising on non-ENOENT failures."""
+    """Return metadata for ``path`` without following symlinks."""
     try:
-        return path.stat()
+        return path.stat(follow_symlinks=False)
     except FileNotFoundError:
         return None
     except OSError as exc:

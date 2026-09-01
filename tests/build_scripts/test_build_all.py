@@ -2381,6 +2381,13 @@ def test_read_into_snapshot_skips_a_path_that_vanished(tmp_path: Path) -> None:
     assert snapshot == {}
 
 
+def _directory_symlink_or_skip(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symlink creation unavailable; issue #4632: {exc}")
+
+
 def _unstattable_unreadable_path(tmp_path: Path) -> Path:
     """Return a path whose stat AND read both fail, and not with ENOENT.
 
@@ -2442,6 +2449,27 @@ def test_read_into_snapshot_skips_a_stat_failure_when_not_strict(
     build_all._read_into_snapshot(snapshot, loop, strict=False)
 
     assert snapshot == {}
+
+
+def test_snapshot_strict_skips_owned_directory_symlink(
+    tmp_path: Path,
+) -> None:
+    """Strict owned-prefix discovery must not traverse directory symlinks."""
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    target = tmp_path / "external"
+    target.mkdir()
+    protected = target / "keep.py"
+    protected.write_text("x = 1\n")
+    _directory_symlink_or_skip(owned / "linked", target)
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        repo, ("owned/",), strict=True
+    )
+
+    assert snapshot == {}
+    assert protected.read_text() == "x = 1\n"
 
 
 def test_snapshot_non_strict_skips_owned_path_when_stat_fails(
