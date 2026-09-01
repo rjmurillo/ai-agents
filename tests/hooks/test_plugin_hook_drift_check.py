@@ -27,6 +27,7 @@ sys.path.insert(0, HOOKS_DIR)
 
 import invoke_plugin_hook_drift_check as drift
 import plugin_hook_drift_model as model
+import plugin_hook_drift_state as state
 
 PLUGIN_NAME = "project-toolkit"
 RETIRED_GUARD_COMMAND = (
@@ -315,7 +316,7 @@ def test_check_installed_plugins_reports_a_scan_it_could_not_finish(tmp_path, mo
     _install_behind_decoys(home / ".claude" / "plugins")
     # ScanBudget reads the bound from the model at construction, so the
     # bound has to be lowered where it lives.
-    monkeypatch.setattr(model, "MAX_SCAN_DIRS", 2)
+    monkeypatch.setattr(state, "MAX_SCAN_DIRS", 2)
 
     outcome = drift.check_installed_plugins(project_dir, home)
 
