@@ -88,7 +88,13 @@ class ImporterResolution:
 
     @property
     def is_configured(self) -> bool:
-        """True when the caller named a path, so a miss is a real failure."""
+        """True when configuration was attempted, so a miss is a real failure.
+
+        That is: ``--importer`` was supplied, even blank, or a nonblank
+        ``CLAUDE_MEM_IMPORTER`` was set. It does NOT mean a usable path exists.
+        A blank ``--importer`` names no path and is still configured, which is
+        why ``path`` may be None here.
+        """
         return self.source in _CONFIGURED_SOURCES
 
 

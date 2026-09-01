@@ -39,9 +39,10 @@
   split the exit-code contract so an unconfigured absent plugin prints `SKIP:`
   and exits 0 while a configured-but-broken importer stays exit 1; replaced the
   vacuous test with a suite that pins both directions of that contract. The
-  count is deliberately not restated here. It went stale three times during
-  review because it lived in two documents that drift independently; the PR
-  body's Testing section now states it once, against a named SHA.
+  count is deliberately not restated here. It went stale repeatedly during
+  review because it lived in two documents that drift independently. The PR
+  body's Testing section now carries pasted `pytest` output instead of a
+  transcribed figure, and names CI as the authority for any later head.
 
 **Execution Trace**: checked issue #4780 for a competing PR and a
 `PR-AUTOFIX-LEASE` marker (neither present) -> read the script, its tests, and

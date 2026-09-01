@@ -191,7 +191,7 @@ The bulk importer resolves its path from configuration before any harness
 default.
 
 Canonical source: `.claude-mem/scripts/import_claude_mem_memories.py`. The
-resolution order is `resolve_importer` at lines 159 to 172, quoted verbatim:
+resolution order is `resolve_importer` at lines 165 to 178, quoted verbatim:
 
 ```python
     if explicit is not None:
@@ -242,7 +242,7 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py \
 ```
 
 The exit code is decided by `is_configured`, not by the absence itself. From
-`main` in the same file, lines 250 to 265, quoted verbatim:
+`main` in the same file, lines 256 to 271, quoted verbatim:
 
 ```python
     importer = resolution.path
@@ -264,7 +264,7 @@ The exit code is decided by `is_configured`, not by the absence itself. From
 ```
 
 `is_configured` is true only for the argument and environment sources, per the
-tuple at line 66 and the property at lines 89 to 92 of the same file. Both are
+tuple at line 66 and the property at lines 89 to 98 of the same file. Both are
 needed: the property alone does not say which sources count as configured.
 
 ```python
@@ -272,7 +272,13 @@ _CONFIGURED_SOURCES = (_SOURCE_ARGUMENT, _SOURCE_ARGUMENT_BLANK, _SOURCE_ENVIRON
 
     @property
     def is_configured(self) -> bool:
-        """True when the caller named a path, so a miss is a real failure."""
+        """True when configuration was attempted, so a miss is a real failure.
+
+        That is: ``--importer`` was supplied, even blank, or a nonblank
+        ``CLAUDE_MEM_IMPORTER`` was set. It does NOT mean a usable path exists.
+        A blank ``--importer`` names no path and is still configured, which is
+        why ``path`` may be None here.
+        """
         return self.source in _CONFIGURED_SOURCES
 ```
 
