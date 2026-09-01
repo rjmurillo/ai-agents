@@ -83,7 +83,6 @@ import json
 import os
 
 _candidate_modules = []
-_skipped_modules = []
 
 
 def pytest_pycollect_makemodule(module_path, parent):
@@ -94,24 +93,6 @@ def pytest_pycollect_makemodule(module_path, parent):
         return None
     _candidate_modules.append(relative.as_posix())
     return None
-
-
-def pytest_collectreport(report):
-    """Record a module pytest skipped during collection.
-
-    A module-level ``pytest.skip(..., allow_module_level=True)`` or an
-    import-scope ``pytest.importorskip`` raises Skipped while the Module
-    collector runs, so the file contributes no session items and would read as
-    collecting nothing. The collect report carries the module's nodeid, which
-    is the same relative path shape ``session.items`` yields; a nodeid holding
-    "::" belongs to a class or a parametrized node, not to a whole module.
-    """
-    if report.outcome != "skipped":
-        return
-    nodeid = getattr(report, "nodeid", "")
-    if not nodeid or "::" in nodeid:
-        return
-    _skipped_modules.append(nodeid)
 
 
 def pytest_collection_finish(session):
@@ -125,7 +106,6 @@ def pytest_collection_finish(session):
                 "candidate_modules": sorted(set(_candidate_modules)),
                 "files": files,
                 "items": len(session.items),
-                "skipped_modules": sorted(set(_skipped_modules)),
             },
             stream,
         )
@@ -161,7 +141,6 @@ class CollectionResult:
 
     candidates: tuple[str, ...]
     collected: frozenset[str]
-    skipped: frozenset[str]
 
 
 def read_pytest_config(repo_root: Path) -> tuple[list[str], list[str]]:
@@ -256,7 +235,7 @@ def declares_exemption(text: str) -> bool:
 
 
 def collect_files(repo_root: Path, testpaths: Sequence[str]) -> CollectionResult:
-    """Return pytest's candidate modules, collected files, and skipped modules.
+    """Return pytest's candidate modules and the files it collected tests from.
 
     Candidate discovery comes from ``pytest_pycollect_makemodule``. Pytest owns
     directory ignores, configured ``norecursedirs`` globs, conftest
@@ -326,7 +305,6 @@ def collect_files(repo_root: Path, testpaths: Sequence[str]) -> CollectionResult
     return CollectionResult(
         candidates=tuple(payload["candidate_modules"]),
         collected=frozenset(payload["files"]),
-        skipped=frozenset(payload["skipped_modules"]),
     )
 
 

@@ -63,9 +63,6 @@ markers = [
 _REAL_TEST = "def test_passes():\n    assert True\n"
 _NO_TESTS = "def helper():\n    return 1\n"
 
-_REAL_TEST = "def test_passes():\n    assert True\n"
-_NO_TESTS = "def helper():\n    return 1\n"
-
 # Any module pytest skips at collection time, marked or not, conditional or
 # not, needs the same explicit `pytest-zero-collection:` declaration as a file
 # that collects nothing outright (Copilot review rounds 3-7, PR #5344: a
