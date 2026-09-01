@@ -60,7 +60,7 @@ A PR is ready to merge ONLY when ALL of the following hold:
 1. **Branch up to date with `main`**. `mergeStateStatus != BEHIND`. If behind, merge `main` into the branch (or rebase) and push before landing. `CanMerge=True` from `test_pr_merge_ready.py` is not sufficient when the GitHub `mergeStateStatus` is `BLOCKED` or `BEHIND`.
 2. **All required checks pass**. Each required check's latest run is `SUCCESS`. The canonical signal is `test_pr_merge_ready.py`'s `CIPassing == true`, which collapses each check name to its latest run state and ignores superseded `CANCELLED` runs when a later `SUCCESS` exists. A `FAILURE` or `PENDING` on the latest run still blocks; a stale `CANCELLED` on an older run does not.
 3. **All conversations addressed end-to-end**. For every currently UNRESOLVED thread, the agent must walk the 5-step lifecycle below (READ, TRIAGE, SOLVE if Blocking, REPLY, RESOLVE). Threads already RESOLVED before the session started require only READ and TRIAGE to confirm the resolution still matches the current diff; SOLVE, REPLY, and RESOLVE do not apply when there is nothing to act on. A reply without resolution leaves the thread open. A resolution without a reply leaves the reviewer without explanation.
-4. **`mergeStateStatus == CLEAN`** (or `UNSTABLE` if non-required checks are failing and have been documented). `BLOCKED`, `BEHIND`, `DIRTY`, `DRAFT`, and `UNKNOWN` are not landable. **Auto-merge** (`set_pr_auto_merge.py --enable`) is only appropriate when GitHub still has branch-protection work to wait on. GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may reject an already-`CLEAN` PR because there is nothing left to wait on (issue #2450). For documented-`UNSTABLE` PRs, or an already-`CLEAN` rejection, use direct merge (`merge_pr.py --strategy squash`) after all four conditions pass.
+4. **`mergeStateStatus` is an executable merge state**. Land only when the state is `CLEAN`, `HAS_HOOKS`, or `UNSTABLE` with documented non-required failures. `BLOCKED`, `BEHIND`, `DIRTY`, `DRAFT`, and `UNKNOWN` are not landable. **Auto-merge** (`set_pr_auto_merge.py --enable`) is only appropriate when GitHub still has branch-protection work to wait on. GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may reject an already-`CLEAN` PR because there is nothing left to wait on (issue #2450). `HAS_HOOKS` follows the same executable path as `CLEAN`. For documented-`UNSTABLE` PRs, or an already-`CLEAN` rejection, use direct merge (`merge_pr.py --strategy squash`) after all four conditions pass.
 
 `CanMerge` from `test_pr_merge_ready.py` is a partial signal. Always cross-check against the four conditions above before enabling auto-merge or merging directly.
 
@@ -72,7 +72,7 @@ Use `test_pr_merge_ready.py` to collect merge readiness data for each PR. Then a
 
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | Branch up to date, no CI failures, no unresolved threads, `CLEAN` merge state | Land through the CLEAN merge path after the four-condition gate |
+| T1 | Branch up to date, no CI failures, no unresolved threads, and an executable merge state (`CLEAN`, `HAS_HOOKS`, or documented `UNSTABLE`) | Land through the matching executable merge path after the four-condition gate |
 | T2 | CI failures only (no threads), branch up to date | Fix CI, verify all required checks pass, then land |
 | T3 | Threads only (CI passing) | Triage every thread, solve blockers, reply with course of action, resolve all threads, then land |
 | T4 | Both CI failures and unresolved threads | Fix CI first, then walk Thread Severity lifecycle for every thread |
@@ -821,10 +821,10 @@ python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --owner {owner} --
 # Get unresolved review threads
 python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --owner {owner} --repo {repo} --pull-request {number}
 
-# Merge a PR (direct merge: use for UNSTABLE with documented non-required failures, or any CLEAN PR you want merged immediately)
+# Merge a PR (direct merge: use for documented UNSTABLE, or any CLEAN or HAS_HOOKS PR you want merged immediately)
 python3 .claude/skills/github/scripts/pr/merge_pr.py --owner {owner} --repo {repo} --pull-request {number}
 
-# Enable auto-merge (CLEAN state only; GitHub refuses UNSTABLE per issue #2439)
+# Enable auto-merge (CLEAN or HAS_HOOKS; GitHub refuses UNSTABLE per issue #2439)
 python3 .claude/skills/github/scripts/pr/set_pr_auto_merge.py --owner {owner} --repo {repo} --pull-request {number}
 
 # Find notifications needing attention
