@@ -11151,3 +11151,50 @@ def test_root_scratch_policy_is_wired_into_pre_commit() -> None:
 
     assert str(job["run"]).endswith("git_hook_policy.py root-scratch {staged_files}")
     assert job["skip"] == ["merge"]
+
+
+def test_semgrep_excludes_python36_compatibility_on_real_file() -> None:
+    """Verify python36 compatibility rules are excluded when scanning the actual file.
+
+    The issue #4725 reports that python.lang.compatibility.python36.python36-compatibility-Popen1
+    and python36-compatibility-Popen2 fire false positives on run_workflow_local_test.py.
+    This test verifies they are excluded at the hook level.
+    """
+    test_file = policy.REPO_ROOT / "scripts" / "validation" / "run_workflow_local_test.py"
+    assert test_file.exists(), f"Test file not found: {test_file}"
+
+    content = test_file.read_text()
+    # Verify the file contains the subprocess.Popen call with encoding and errors arguments
+    assert "encoding=" in content, "File should contain encoding= argument"
+    assert "errors=" in content, "File should contain errors= argument"
+
+    # Verify the exclusion is in the command
+    cmd = policy._semgrep_command("auto", [str(test_file)])
+    exclude_values = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"]
+
+    # Check that the python36 compatibility family is excluded
+    assert any("python.lang.compatibility.python36" in v for v in exclude_values), (
+        f"python36 compatibility family should be excluded. Got: {exclude_values}"
+    )
+
+
+def test_semgrep_configuration_file_excludes_compatibility_rules() -> None:
+    """Verify .semgrep.yml configuration file excludes compatibility rules.
+
+    The configuration file at repository root is used by semgrep-cloud-platform/scan
+    and other external scanners to configure rule exclusions.
+    """
+    semgrep_config = policy.REPO_ROOT / ".semgrep.yml"
+    assert semgrep_config.exists(), f"Semgrep configuration not found: {semgrep_config}"
+
+    config_text = semgrep_config.read_text()
+    # Verify that both python36 and python37 compatibility families are disabled
+    assert "python.lang.compatibility.python36" in config_text, (
+        "Configuration should disable python36 compatibility rules"
+    )
+    assert "python.lang.compatibility.python37" in config_text, (
+        "Configuration should disable python37 compatibility rules"
+    )
+    assert "enabled: false" in config_text, (
+        "Configuration should have rules disabled"
+    )
