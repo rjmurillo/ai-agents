@@ -375,6 +375,13 @@ class TestAdaptLocalAxisVerdict:
         payload = '{"files": null, "summary": null}'
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
 
+    def test_code_quality_invalid_json_stays_unknown(self):
+        assert adapt_local_axis_verdict("code-qualities-assessment", "{", 0) == "UNKNOWN"
+
+    def test_code_quality_unexpected_exit_stays_unknown(self):
+        payload = '{"files": [], "summary": {"file_count": 0}, "comparisons": []}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 3) == "UNKNOWN"
+
     def test_doc_accuracy_json_pass_maps_to_pass(self):
         payload = '{"gate_result": {"verdict": "PASS"}}'
         assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
@@ -389,6 +396,10 @@ class TestAdaptLocalAxisVerdict:
 
     def test_doc_accuracy_non_object_json_stays_unknown(self):
         assert adapt_local_axis_verdict("doc-accuracy", "[]", 0) == "UNKNOWN"
+
+    def test_doc_accuracy_non_mapping_gate_result_stays_unknown(self):
+        payload = '{"gate_result": []}'
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "UNKNOWN"
 
     @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
     def test_local_lint_error_maps_to_fail(self, axis):
@@ -414,6 +425,16 @@ class TestAdaptLocalAxisVerdict:
     def test_missing_lint_counts_stay_unknown(self, axis):
         payload = '{"error_count": 0}'
         assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_lint_nonzero_exit_with_empty_stderr_stays_unknown(self, axis):
+        payload = '{"error_count": 0, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 2, "") == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_lint_nonzero_exit_with_stderr_stays_unknown(self, axis):
+        payload = '{"error_count": 0, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 2, "parse failed") == "UNKNOWN"
 
     def test_malformed_output_stays_unknown(self):
         assert adapt_local_axis_verdict("taste-lints", "not json", 0) == "UNKNOWN"

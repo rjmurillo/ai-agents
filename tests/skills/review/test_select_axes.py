@@ -498,6 +498,7 @@ class TestSkillDocumentsTheSelector:
         body = self.SKILL_MD.read_text(encoding="utf-8")
         assert "adapt_local_axis_verdict" in body
         assert "Append one `UNKNOWN` row per `unresolved_axes` entry." in body
+        assert "Pass every path from step 1 and every effect from the diff hunks." in body
         for axis_line in (
             'doc_accuracy.py> --target . --diff-base "origin/$BASE_BRANCH" --format json',
             'scan_principles.py> --diff-scope "origin/$BASE_BRANCH" --format json',
