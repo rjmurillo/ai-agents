@@ -1,11 +1,11 @@
 # Agent Failure Modes
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2026-04-19
+> **Last Updated**: 2026-08-31
 > **RFC 2119**: This document uses RFC 2119 key words.
 > **Reference**: Issue #1690
 
-This document catalogs the eight recurring failure patterns observed across 50+ retrospectives (December 2025 through January 2026). Each pattern lists a description, trigger, evidence, and the enforcement pattern that replaces trust with verification.
+This document catalogs the twelve recurring failure patterns observed across 50+ retrospectives (December 2025 through January 2026). Each pattern lists a description, trigger, evidence, and the enforcement pattern that replaces trust with verification.
 
 ## Cross-Cutting Theme
 
@@ -515,7 +515,7 @@ This is a control-flow defect, not mere verbosity: task execution fails to make 
 | Terminal predicate | `.claude/rules/builder-ethos.md` section 4: terminal when every deliverable satisfies the frozen contract and no blocker remains | Always-on rule |
 | Finding disposition | `avoiding-manufactured-work` skill classifies keep/shrink/defer/delete; optional and side-quest findings do not reactivate | Skill |
 | Completion-tail audit | `.claude/rules/voice.md` removes unsolicited continuation tails from completed responses | Always-on rule |
-| Behavioral proof | Runtime-parity response-tail scenarios grade whether a terminal response reopens interaction | CI (when runtime available) |
+| Behavioral proof | Runtime-parity response-tail scenarios grade whether a terminal response reopens interaction | Planned (not yet implemented; blocked on live model access, tracked in the PR's Incremental Scope Declaration) |
 
 Relationship to other modes: FM #4 (false completion) is the inverse error, claiming done when not done; FM #12 is reaching done and then not stopping. FM #10 (silent defaults) shares the reward-bias root but fires when an ambiguous branch is resolved silently, not when a completed task is reopened. Remediation is canonical semantics (the terminal predicate plus the completion-tail audit) with behavioral proof, not a phrase blacklist.
 
@@ -526,6 +526,7 @@ Relationship to other modes: FM #4 (false completion) is the inverse error, clai
 - `.claude/rules/voice.md` (Completion-Tail Audit)
 - `.claude/skills/avoiding-manufactured-work/SKILL.md` (task completion contract)
 - Follow-up #5417 (persisted completion across compaction and handoff)
+- `.agents/architecture/ADR-105-terminal-state-completion-contract.md` (governance ADR for this failure mode and the canonical semantics it documents)
 
 ---
 
@@ -534,7 +535,7 @@ Relationship to other modes: FM #4 (false completion) is the inverse error, clai
 ### When to Read
 
 - Before authoring or editing a protocol requirement. Each pattern above is a failure mode the new requirement MUST avoid.
-- During retrospective analysis. Map the observed incident to one of the eight patterns before proposing remediation.
+- During retrospective analysis. Map the observed incident to one of the twelve patterns before proposing remediation.
 - During ADR review. A proposal that adds a trust-based requirement MUST explain why verification is not feasible.
 
 ### When to Update
