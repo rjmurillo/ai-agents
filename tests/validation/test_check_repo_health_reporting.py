@@ -63,12 +63,12 @@ class TestRepairNamesEveryScopeThatCarriesTheValue:
     @pytest.mark.parametrize(
         ("scope", "expected"),
         [
-            ("local", "git config core.bare false"),
-            ("worktree", "git config --worktree core.bare false"),
+            ("local", "git config --replace-all core.bare false"),
+            ("worktree", "git config --worktree --replace-all core.bare false"),
             ("global", "git config --global --unset-all core.bare"),
             ("system", "git config --system --unset-all core.bare"),
             ("command", "remove the command-scoped core.bare override"),
-            ("unheard-of", "git config core.bare false"),
+            ("unheard-of", "git config --replace-all core.bare false"),
         ],
     )
     def test_every_scope_maps_to_a_command_that_can_clear_it(
@@ -88,8 +88,8 @@ class TestRepairNamesEveryScopeThatCarriesTheValue:
         _report(tmp_path, (("local", "true"), ("worktree", "true")))
 
         err = capsys.readouterr().err
-        assert "Fix: git config core.bare false" in err
-        assert "Fix: git config --worktree core.bare false" in err
+        assert "Fix: git config --replace-all core.bare false" in err
+        assert "Fix: git config --worktree --replace-all core.bare false" in err
 
     def test_the_work_tree_and_every_poisoned_scope_are_named(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

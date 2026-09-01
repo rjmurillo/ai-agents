@@ -49,6 +49,7 @@ Refs #4698.
 
 from __future__ import annotations
 
+import functools
 import os
 import subprocess
 import sys
@@ -67,7 +68,7 @@ import check_repo_health
 
 GUARD = _VALIDATION_DIR / "check_repo_health.py"
 
-_REPAIR = "core.bare false"
+_REPAIR = "--replace-all core.bare false"
 
 
 def _git_test_env() -> dict[str, str]:
@@ -88,6 +89,7 @@ def _git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
         ["git", *args],
         cwd=str(cwd),
         env=env or _git_test_env(),
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         check=False,
@@ -102,6 +104,7 @@ def _git_rc(cwd: Path, *args: str, env: dict[str, str] | None = None) -> int:
         ["git", *args],
         cwd=str(cwd),
         env=env or _git_test_env(),
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         check=False,
@@ -113,6 +116,12 @@ def _use_scratch_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep the gate's own git calls off the host's global and system config."""
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        functools.partial(subprocess.run, stdin=subprocess.DEVNULL),
+    )
 
 
 def _make_repo(root: Path, name: str = "repo") -> Path:
@@ -139,6 +148,7 @@ def _run_cli(repo: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str
         [sys.executable, str(GUARD), str(repo)],
         cwd=str(repo),
         env={**env, "PYTHONPATH": str(REPO_ROOT)},
+        stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
         check=False,
