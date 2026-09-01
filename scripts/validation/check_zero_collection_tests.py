@@ -16,27 +16,27 @@ The contract this guard reads, verbatim from pyproject.toml:68-69::
 Both are read from the file rather than hardcoded, so widening either one
 widens the guard.
 
-Not every such file is a defect. Two in this repository are legitimately not test suites:
-``tests/skills/github/test_helpers.py`` is imported by its siblings, and
-``tests/workflows/test_claude_authorization.py`` is a checker script
-``.github/workflows/claude.yml`` invokes. Those declare themselves with a
-``pytest-zero-collection:`` marker plus a reason. That permanent declaration is
-checked in both directions: a declared file that starts collecting tests fails
-too, so the marker cannot outlive the reason it was written for.
+Not every such file is a defect. Two in this repository are legitimately not
+test suites: ``tests/skills/github/test_helpers.py`` is imported by its
+siblings, and ``tests/workflows/test_claude_authorization.py`` is a checker
+script ``.github/workflows/claude.yml`` invokes. Those declare themselves with
+a ``pytest-zero-collection:`` marker plus a reason. That permanent declaration
+is checked in both directions: a declared file that starts collecting tests
+fails too, so the marker cannot outlive the reason it was written for.
 
 A module pytest skips during collection is different. It may skip on one host
-and collect on another. Marker syntax alone (``@pytest.mark.<name>``, or any
-other AST-visible shape) still proves nothing about whether the guarded code
-actually runs elsewhere, and a dead test behind a condition that is false on
-every host (`.claude/rules/testing.md` MUST 7's own falsifiability standard)
-can carry that syntax forever. The guard therefore requires a second,
-skip-specific declaration: ``pytest-zero-collection-conditional: <reason>``.
-That declaration satisfies the guard only when pytest actually skipped the
-module during collection. If the same module collects tests on another host,
-the conditional declaration stays valid there instead of going stale.
+and collect on another. Marker syntax alone still proves nothing about whether
+the guarded code actually runs elsewhere, and a dead test behind a condition
+that is false on every host (`.claude/rules/testing.md` MUST 7's own
+falsifiability standard) can carry that syntax forever. The guard therefore
+requires a second declaration, ``pytest-zero-collection-conditional:
+<reason>``. That declaration satisfies the guard only when pytest actually
+skipped the module during collection. If the same module collects tests on
+another host, the conditional declaration stays valid there instead of going
+stale.
 
-Exit codes (``AGENTS.md``): 0 ok, 1 violations found, 2 configuration unusable,
-3 pytest could not be run or its output could not be parsed.
+Exit codes (``AGENTS.md``): 0 ok, 1 violations found, 2 configuration
+unusable, 3 pytest could not be run or its output could not be parsed.
 """
 
 from __future__ import annotations
@@ -64,11 +64,8 @@ EXIT_EXTERNAL = 3
 EXEMPTION_MARKER = "pytest-zero-collection:"
 CONDITIONAL_SKIP_MARKER = "pytest-zero-collection-conditional:"
 
-# Read the collected set from pytest's own session rather than from its
-# console output. ``--collect-only`` renders three different shapes depending
-# on net verbosity: a tree, one node id per line, and a ``path: count`` digest.
-# Net verbosity is addopts minus command-line flags, so a text parser silently
-# changes meaning when someone edits addopts.
+# Read the collected set from pytest's own session rather than from console output.
+# ``--collect-only`` renders multiple shapes as addopts and flags change.
 _REPORT_PLUGIN_NAME = "_zero_collection_report_plugin"
 _REPORT_ENVIRONMENT_VARIABLE = "ZERO_COLLECTION_REPORT"
 _REPORT_PLUGIN_SOURCE = '''"""Write the files pytest collected tests from to a JSON report."""
@@ -86,15 +83,11 @@ _skipped_modules = []
 def pytest_pycollect_makemodule(module_path, parent):
     """Record each Python module path pytest walks into.
 
-    ``pytest_pycollect_makemodule`` is a firstresult hook: pytest stops
-    calling further implementations the moment one returns non-None. A
-    plain (non-wrapper) implementation registered after a conftest or
-    plugin that already returns a custom ``Module`` for this path would
-    never run at all, silently dropping that file from
-    ``candidate_modules`` and letting a genuinely zero-collecting file pass
-    this guard by accident. ``wrapper=True`` always runs around the whole
-    chain regardless of firstresult, so this observer sees every candidate
-    the walk considers.
+    ``pytest_pycollect_makemodule`` is a firstresult hook: a plain
+    implementation registered after one that already returns a custom
+    ``Module`` would never run, silently dropping the file from
+    ``candidate_modules``. ``wrapper=True`` still sees every candidate the
+    walk considers.
     """
     try:
         relative = module_path.relative_to(parent.config.rootpath)
@@ -197,8 +190,8 @@ def _parse_collection_report(payload: object) -> CollectionResult:
     collected = frozenset(_read_string_list_field(payload, "files"))
     if len(collected) > items:
         raise CollectionError(
-            "pytest wrote malformed collection report: files names more distinct paths "
-            "than items were collected"
+            "pytest wrote malformed collection report: the files list contains more "
+            "distinct paths than the reported item count"
         )
     skipped = frozenset(_read_string_list_field(payload, "skipped_modules"))
 
@@ -319,90 +312,101 @@ def declares_exemption(text: str) -> bool:
 
 
 def collect_files(repo_root: Path, testpaths: Sequence[str]) -> CollectionResult:
-    """Return pytest's candidate modules and the files it collected tests from.
-
-    Candidate discovery comes from ``pytest_pycollect_makemodule``. Pytest owns
-    directory ignores, configured ``norecursedirs`` globs, conftest
-    ``collect_ignore`` entries, and future collection rules. Reimplementing that
-    traversal beside pytest creates false violations for files pytest never
-    visits.
-    """
+    """Return the candidate modules and collected files from one pytest walk."""
     with tempfile.TemporaryDirectory(prefix="zero-collection-") as scratch:
         scratch_root = Path(scratch)
-        plugin = scratch_root / f"{_REPORT_PLUGIN_NAME}.py"
-        plugin.write_text(_REPORT_PLUGIN_SOURCE, encoding="utf-8")
-        report = scratch_root / "report.json"
-
-        environment = {
-            key: value
-            for key, value in os.environ.items()
-            if key not in _STRIPPED_ENVIRONMENT
-        }
-        environment[_REPORT_ENVIRONMENT_VARIABLE] = str(report)
-        existing_path = environment.get("PYTHONPATH")
-        environment["PYTHONPATH"] = (
-            f"{scratch_root}{os.pathsep}{existing_path}" if existing_path else str(scratch_root)
+        report = _write_collection_report_plugin(scratch_root)
+        completed = _run_pytest_collect(
+            repo_root,
+            testpaths,
+            environment=_collection_environment(scratch_root, report),
         )
+        return _read_collection_report(report, completed)
 
-        completed = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pytest",
-                "-c",
-                str(repo_root / "pyproject.toml"),
-                "--collect-only",
-                "-p",
-                _REPORT_PLUGIN_NAME,
-                "-p",
-                "no:cacheprovider",
-                "-q",
-                "-q",
-                "-q",
-                "--",
-                *testpaths,
-            ],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            env=environment,
-            check=False,
+
+def _write_collection_report_plugin(scratch_root: Path) -> Path:
+    """Write the temporary plugin and return the report path it will populate."""
+    (scratch_root / f"{_REPORT_PLUGIN_NAME}.py").write_text(
+        _REPORT_PLUGIN_SOURCE, encoding="utf-8"
+    )
+    return scratch_root / "report.json"
+
+
+def _collection_environment(scratch_root: Path, report: Path) -> dict[str, str]:
+    """Build the child environment for the collect-only subprocess."""
+    environment = {
+        key: value for key, value in os.environ.items() if key not in _STRIPPED_ENVIRONMENT
+    }
+    environment[_REPORT_ENVIRONMENT_VARIABLE] = str(report)
+    existing_path = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = (
+        f"{scratch_root}{os.pathsep}{existing_path}" if existing_path else str(scratch_root)
+    )
+    return environment
+
+
+def _run_pytest_collect(
+    repo_root: Path,
+    testpaths: Sequence[str],
+    *,
+    environment: dict[str, str],
+) -> subprocess.CompletedProcess[str]:
+    """Run collect-only pytest and fail closed on collection or usage errors."""
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-c",
+            str(repo_root / "pyproject.toml"),
+            "--collect-only",
+            "-p",
+            _REPORT_PLUGIN_NAME,
+            "-p",
+            "no:cacheprovider",
+            "-q",
+            "-q",
+            "-q",
+            "--",
+            *testpaths,
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=environment,
+        check=False,
+    )
+    if completed.returncode not in (0, 5):
+        raise CollectionError(
+            f"pytest --collect-only exited {completed.returncode}\n"
+            f"{completed.stdout[-2000:]}\n{completed.stderr[-2000:]}"
         )
-        # 0 is a normal collection; 5 means the whole run collected nothing,
-        # which is a legitimate input here because every candidate is then a
-        # violation and the report says so. Anything else (a collection error,
-        # a usage error) leaves the guard with no evidence.
-        if completed.returncode not in (0, 5):
-            raise CollectionError(
-                f"pytest --collect-only exited {completed.returncode}\n"
-                f"{completed.stdout[-2000:]}\n{completed.stderr[-2000:]}"
-            )
-        try:
-            payload = json.loads(report.read_text(encoding="utf-8"))
-            return _parse_collection_report(payload)
-        except (OSError, json.JSONDecodeError) as exc:
-            raise CollectionError(
-                f"pytest wrote no collection report ({exc}); "
-                f"exit was {completed.returncode}\n{completed.stdout[-2000:]}"
-            ) from exc
-        except CollectionError as exc:
-            raise CollectionError(
-                f"{exc}\nexit was {completed.returncode}\n"
-                f"{completed.stdout[-2000:]}\n{completed.stderr[-2000:]}"
-            ) from exc
+    return completed
+
+
+def _read_collection_report(
+    report: Path, completed: subprocess.CompletedProcess[str]
+) -> CollectionResult:
+    """Load and validate the JSON report produced by the collect-only run."""
+    try:
+        payload = json.loads(report.read_text(encoding="utf-8"))
+        return _parse_collection_report(payload)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CollectionError(
+            f"pytest wrote no collection report ({exc}); "
+            f"exit was {completed.returncode}\n{completed.stdout[-2000:]}"
+        ) from exc
+    except CollectionError as exc:
+        raise CollectionError(
+            f"{exc}\nexit was {completed.returncode}\n"
+            f"{completed.stdout[-2000:]}\n{completed.stderr[-2000:]}"
+        ) from exc
 
 
 def build_report(repo_root: Path) -> Report:
-    """Compare what pytest walks against what answered for itself.
-
-    A path is satisfied only when pytest actually collected a test from it.
-    Permanent ``pytest-zero-collection:`` declarations cover files that should
-    never collect tests. Conditional
-    ``pytest-zero-collection-conditional:`` declarations cover modules that
-    pytest skipped during collection on this host but may collect elsewhere.
-    """
+    """Compare what pytest walks against collected tests and declarations."""
     testpaths, _ = read_pytest_config(repo_root)
     collection = collect_files(repo_root, testpaths)
     if not collection.candidates:
