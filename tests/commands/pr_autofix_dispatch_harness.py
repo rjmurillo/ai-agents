@@ -39,9 +39,8 @@ _SCRIPTS_END = "# Per-PR live-state gate"
 SHIPPED_TIER_READ = "jq -r '.Tier // \"UNKNOWN\"'"
 PREFIX_TIER_READ = "jq -r '.Data.Tier // \"UNKNOWN\"'"
 
-# Environment keys GitHub Actions always sets. The block does not read them, but
-# inheriting runner-only values is how a test passes locally and fails in CI
-# (testing rule SHOULD-12), so they must never reach the subprocess.
+# GitHub Actions keys that must never reach the subprocess, or a test can pass
+# locally and fail in CI (testing rule SHOULD-12).
 CI_ONLY_ENV = ("GITHUB_STEP_SUMMARY", "GITHUB_OUTPUT", "GITHUB_ENV", "CI")
 
 # The only ambient variables the extracted block is given. Everything else the
@@ -64,9 +63,8 @@ CI_ONLY_ENV = ("GITHUB_STEP_SUMMARY", "GITHUB_OUTPUT", "GITHUB_ENV", "CI")
 # it ever runs somewhere that needs it.
 _ENV_ALLOWLIST = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT")
 
-# The SHOULD-12 rule above is now a consequence of the allowlist rather than a
-# separate filter, and this keeps that consequence checked instead of assumed.
-# Adding a runner-set name to the allowlist fails here at import.
+# This keeps SHOULD-12 checked instead of assumed: adding a runner-set name to
+# the allowlist fails here at import.
 assert not set(CI_ONLY_ENV) & set(_ENV_ALLOWLIST), (
     "an allowlisted variable is also a CI-only variable, so SHOULD-12's "
     "passes-locally-fails-in-CI protection has been reopened"
@@ -194,9 +192,11 @@ if field == "auto_merge_method":
     print(json.dumps({"Success": True, "Data": {"auto_merge_method": payload}}))
     raise SystemExit(0)
 
-# Same three shapes FAKE_PAGES_COMPLETE uses. "OMIT" is the shape a
-# get_pr_context.py predating the field emits (issue #5208).
+# Same three shapes FAKE_PAGES_COMPLETE uses. "OMIT" is the shape a pre-#5208
+# get_pr_context.py emits.
 author = os.environ["FAKE_AUTHOR_IS_BOT"]
+if field == "author_is_bot" and author == "FOCUSED_REJECTS":
+    raise SystemExit(2)
 if author == "UNREADABLE":
     raise SystemExit(1)
 data = {}
@@ -210,6 +210,8 @@ elif author == "SECOND_DATA_ARRAY":
     print(json.dumps({"Success": True, "Data": data}))
     print(json.dumps({"Success": True, "Data": []}))
     raise SystemExit(0)
+elif author == "FOCUSED_REJECTS":
+    pass
 elif author == "FAILED_WITH_HUMAN":
     data["author_is_bot"] = False
     print(json.dumps({"Success": True, "Data": data}))
@@ -312,12 +314,11 @@ class DispatchRun:
     def queue_completed(self) -> bool:
         """True when the loop walked its whole queue instead of aborting.
 
-        The harness iterates two PRs. With one, `continue`, `break`, and
-        `exit 0` are observationally identical to every other accessor here:
-        the gate's message is printed, cleanup ran, and the shell exits 0
-        because the shared helper requires exactly that. Mutating the SKIP
-        arm's `continue` to `break` or `exit 0` was verified to survive the
-        whole suite before this property existed.
+        With one PR, `continue`, `break`, and `exit 0` are observationally
+        identical here: the gate's message is printed, cleanup ran, and the
+        shell exits 0 because the shared helper requires exactly that. Mutating
+        the SKIP arm's `continue` to `break` or `exit 0` was verified to
+        survive the whole suite before this property existed.
 
         This asserts the second PR was *visited*, not that the loop exited
         normally. The first version checked a marker printed after `done`,

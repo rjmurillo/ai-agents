@@ -138,12 +138,17 @@ def test_a_stale_context_helper_is_named_rather_than_silently_reclassifying(
     the whole repository. One indistinguishable notice makes that invisible;
     naming the helper makes it fixable.
     """
-    run = run_dispatch(tmp_path, doc, tier="T3", author_is_bot="OMIT")
+    run = run_dispatch(tmp_path, doc, tier="T3", author_is_bot="FOCUSED_REJECTS")
 
     assert "emits no author_is_bot field" in run.stdout, (
         "an absent field was reported the same way as an unreadable value, so "
         "an operator cannot tell a stale helper from a malformed author"
     )
+    assert run.context_calls[:3] == [
+        ["--pull-request", "5176", "--field", "author_is_bot", "--output-format", "json"],
+        ["--pull-request", "5176", "--output-format", "json"],
+        ["--pull-request", "5176", "--field", "auto_merge_method", "--output-format", "json"],
+    ]
     assert run.forwarded_is_bot
     assert run.reached_end
 
