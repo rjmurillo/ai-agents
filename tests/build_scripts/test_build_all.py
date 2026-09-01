@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -2055,7 +2056,7 @@ class _NoGit:
         raise FileNotFoundError(2, "No such file or directory: 'git'")
 
 
-def _subprocess_stub(run: object) -> object:
+def _subprocess_stub(run: Callable[..., object]) -> object:
     class _Stub:
         SubprocessError = subprocess.SubprocessError
         TimeoutExpired = subprocess.TimeoutExpired
