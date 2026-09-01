@@ -399,10 +399,14 @@ def main(
         return 1
 
     importer = resolution.path
-    if importer is None or not importer.exists():
-        # is_configured, not the absence itself, decides the exit code: a path
-        # the caller named is a real failure, an uninstalled optional plugin is
-        # a supported state.
+    if importer is None or not importer.is_file():
+        # is_file() rather than exists(): a directory can occupy the path (a
+        # misconfigured --importer, or a marketplace layout change), and
+        # exists() alone would let that pass the guard and then fail
+        # unhelpfully once tsx runs against a directory. is_configured, not
+        # the absence itself, decides the exit code: a path the caller named
+        # is a real failure, an uninstalled optional plugin is a supported
+        # state.
         if resolution.is_configured:
             print(
                 f"ERROR: Claude-Mem importer from {resolution.source} not found at: {importer}",

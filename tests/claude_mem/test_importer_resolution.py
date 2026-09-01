@@ -363,6 +363,31 @@ class TestImportMemoriesMain:
 
         assert result == 1
 
+    def test_exits_1_when_configured_importer_is_a_directory(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        # exists() is true for a directory too. A misconfigured --importer (or
+        # an upstream marketplace layout change) that names a directory must
+        # be rejected by the guard, never handed to tsx as an argument.
+        importer_dir = tmp_path / "importer.ts"
+        importer_dir.mkdir()
+        memories = tmp_path / "memories"
+        memories.mkdir()
+        (memories / "shared.json").write_text("{}", encoding="utf-8")
+        monkeypatch.setattr(_import_mem, "_MEMORIES_DIR", memories)
+        calls = []
+
+        def _record_call(*args, **kwargs):
+            calls.append(args)
+            return subprocess.CompletedProcess(args[0], 0, "", "")
+
+        monkeypatch.setattr(_import_mem.subprocess, "run", _record_call)
+
+        result = _import_mem.main(["--importer", str(importer_dir)], env={}, home=tmp_path)
+
+        assert result == 1
+        assert calls == []
+
     def test_exits_1_when_configured_importer_fails(self, tmp_path: Path, monkeypatch) -> None:
         importer = tmp_path / "importer.ts"
         importer.write_text("// stub importer", encoding="utf-8")
