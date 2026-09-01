@@ -222,15 +222,23 @@ quoted verbatim:
 empty list when that input is falsy, and a `## ... Declaration` heading as the
 first rendered line.
 
-The prompt's rule numbering mirrors it too. `.github/prompts/spec-check-completeness.md`
-rule 2 under `## Incremental Scope (fix #2255)` reads, verbatim:
+The prompt's rules mirror it too. Rule 2 under
+`## Incremental Scope (fix #2255)` in
+`.github/prompts/spec-check-completeness.md` reads, verbatim:
 
     2. Evaluate completeness only over the non-N/A criteria.
 
-and rule 2 of `## Non-Executable Criteria (fix #5366)` reads:
+The `## Non-Executable Criteria (fix #5366)` section carries the same
+instruction and points at it in its own text, "exactly as the Incremental
+Scope rules above do".
 
-    2. Evaluate completeness only over the non-N/A criteria, exactly as the
-       Incremental Scope rules above do.
+That rule's number is deliberately not quoted. It was rule 2 when this record
+was written, became rule 3 when the unchecked-criterion safeguard was inserted
+ahead of it, and the stale citation still looked correct afterwards. The #2255
+numbering above is quoted because that section is not under revision here; the
+#5366 numbering is not, because it was, twice. An ordinal quoted from a live
+document is a claim that goes stale silently, which is the failure this record
+already documents in another form.
 
 Stricter/looser/different than canonical: the two sections resolve ambiguity in
 **opposite** directions, and this is deliberate. Issue #2255 rule 5 reads
