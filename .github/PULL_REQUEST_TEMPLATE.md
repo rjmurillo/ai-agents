@@ -79,8 +79,8 @@ PR must satisfy.
 Write criteria a reader can check against the diff. Evidence that a command
 ran ("`uv run python scripts/validation/pre_pr.py` passes") belongs under
 Testing or Author Pre-flight below: the reviewer of this section has no shell,
-so a command-execution line here is classified N/A and measures nothing
-(issue #5366).
+so a checked historical run result here may be classified N/A. An unchecked
+command claim stays in scope and reports NOT SATISFIED (issue #5366).
 -->
 
 - [ ] Replace this line with a criterion this PR must satisfy
