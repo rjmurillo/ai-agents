@@ -172,31 +172,34 @@ import os
 import sys
 from pathlib import Path
 
-# Records the PR it was asked about, one line per call, for the same reason the
-# two producers above record argv: the bare fact of a call cannot prove the
-# author read happened before tiering and the auto-merge read happened after
-# it. Written before the early exit below so an unreadable-context case still
-# counts its call.
+# Records one line per call. The bare fact of a call cannot prove the author
+# read happened before tiering and the auto-merge read happened after it.
+# Written before the early exit below so an unreadable case still counts.
 context_log = Path(os.environ["CONTEXT_LOG"])
 context_log.open("a", encoding="utf-8").write(
     json.dumps(sys.argv[1:]) + "\\n"
 )
-call_number = len(context_log.read_text(encoding="utf-8").splitlines())
+argv = sys.argv[1:]
+field = None
+if "--field" in argv:
+    field = argv[argv.index("--field") + 1]
 
-if os.environ["FAKE_AUTO_MERGE"] == "UNREADABLE":
-    raise SystemExit(1)
+if field == "auto_merge_method":
+    method = os.environ["FAKE_AUTO_MERGE"]
+    if method == "UNREADABLE":
+        raise SystemExit(1)
+    if method == "ARMED_AFTER_AUTHOR":
+        method = "SQUASH"
+    payload = None if method == "null" else method
+    print(json.dumps({"Success": True, "Data": {"auto_merge_method": payload}}))
+    raise SystemExit(0)
 
-method = os.environ["FAKE_AUTO_MERGE"]
-if method == "ARMED_AFTER_AUTHOR":
-    method = "null" if call_number % 2 else "SQUASH"
-payload = None if method == "null" else method
-data = {"auto_merge_method": payload}
-
-# Same three shapes FAKE_PAGES_COMPLETE uses, and for the same reason: the
-# command type-checks this field, so a case has to be able to hand it a wrong
-# JSON type and an absent key, not only true and false. "OMIT" is the shape a
+# Same three shapes FAKE_PAGES_COMPLETE uses. "OMIT" is the shape a
 # get_pr_context.py predating the field emits (issue #5208).
 author = os.environ["FAKE_AUTHOR_IS_BOT"]
+if author == "UNREADABLE":
+    raise SystemExit(1)
+data = {}
 if author == "MALFORMED_SUFFIX":
     # Emit valid JSON followed by garbage to simulate jq streaming failure.
     data["author_is_bot"] = False

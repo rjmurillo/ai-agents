@@ -366,7 +366,7 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     context = (REPO_ROOT / ".claude/skills/github/scripts/pr/get_pr_context.py").read_text(
         encoding="utf-8"
     )
-    assert '"author_is_bot": _author_is_bot(author),' in context
+    assert '"author_is_bot": author_is_bot(author),' in context
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)

@@ -219,14 +219,22 @@ def test_an_unreadable_author_fails_closed_to_bot(
 def test_a_failed_context_producer_discards_its_human_output(
     tmp_path: Path, doc: str
 ) -> None:
-    """A producer failure cannot buy either the human or auto-merge path."""
+    """A failed author read cannot buy the human path through stale stdout.
+
+    `FAILED_WITH_HUMAN` makes the focused author helper print
+    `author_is_bot=false` and then exit nonzero. The command must treat that as
+    unknown and fail closed to bot rather than trusting the partial human
+    verdict. The later focused auto-merge read is independent and should still
+    succeed, which is the split this PR introduces.
+    """
     run = run_dispatch(
         tmp_path, doc, tier="T3", author_is_bot="FAILED_WITH_HUMAN"
     )
 
     assert run.forwarded_is_bot
-    assert "Cannot read auto-merge state" in run.stdout
-    assert not run.reached_end
+    assert "Cannot read author bot state" in run.stdout
+    assert "Cannot read auto-merge state" not in run.stdout
+    assert run.reached_end
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -284,10 +292,10 @@ def test_every_dispatch_call_targets_its_current_pr(tmp_path: Path, doc: str) ->
         ["--pull-request", "5177", "--is-bot"],
     ]
     assert run.context_calls == [
-        ["--pull-request", "5176", "--output-format", "json"],
-        ["--pull-request", "5176", "--output-format", "json"],
-        ["--pull-request", "5177", "--output-format", "json"],
-        ["--pull-request", "5177", "--output-format", "json"],
+        ["--pull-request", "5176", "--field", "author_is_bot", "--output-format", "json"],
+        ["--pull-request", "5176", "--field", "auto_merge_method", "--output-format", "json"],
+        ["--pull-request", "5177", "--field", "author_is_bot", "--output-format", "json"],
+        ["--pull-request", "5177", "--field", "auto_merge_method", "--output-format", "json"],
     ]
     assert run.disarm_calls == [
         ["--pull-request", "5176", "--disable", "--output-format", "json"],
@@ -326,6 +334,10 @@ def test_the_author_lookup_runs_before_the_tier_producer(tmp_path: Path, doc: st
 
     assert run.forwarded_is_bot, "the tier call did not see an author state fetched before it"
     assert run.disarmed, "the disarm gate lost the context fetch when it moved"
+    assert run.context_calls[:2] == [
+        ["--pull-request", "5176", "--field", "author_is_bot", "--output-format", "json"],
+        ["--pull-request", "5176", "--field", "auto_merge_method", "--output-format", "json"],
+    ]
     assert "--disable" in run.disarm_argv
 
 
@@ -347,8 +359,11 @@ def test_auto_merge_is_refetched_after_tier_production(tmp_path: Path, doc: str)
     )
     for pr in ("5176", "5177"):
         matching = [line for line in fetches if f"--pull-request {pr}" in line]
-        assert len(matching) == 2, (
-            f"PR #{pr} was fetched {len(matching)} times, not twice; calls were {fetches!r}"
+        assert matching == [
+            f"--pull-request {pr} --field author_is_bot --output-format json",
+            f"--pull-request {pr} --field auto_merge_method --output-format json",
+        ], (
+            f"PR #{pr} did not use focused author and auto-merge reads; calls were {fetches!r}"
         )
     assert run.disarmed, "auto-merge armed after author lookup bypassed the disarm gate"
 
@@ -379,35 +394,30 @@ def test_the_scripts_readiness_recipe_fails_closed(
 def test_an_unreadable_context_terminates_on_auto_merge_guard(
     tmp_path: Path, doc: str
 ) -> None:
-    """A context fetch that fails outright classifies the bot but terminates at the guard.
+    """An auto-merge fetch failure must not retroactively poison the author read.
 
-    `UNREADABLE` makes the fake `get_pr_context.py` exit 1 with no stdout, so
-    both reads off `$CTX` come back empty. The author read falls to its closed
-    branch and the PR is classified as a bot, but the auto-merge guard below it
-    still terminates the PR on the same missing evidence, so nothing acts on a
-    tier computed from a fetch that never returned.
-
-    The author notice is asserted here rather than in the parametrized
-    unreadable-author case above because this is the one shape that produces it
-    without any `author_is_bot` value: empty stdin leaves `jq` printing nothing,
-    so the variable holds the empty string, which is neither `false` nor any
-    verdict the branch can name. The closed branch was taken silently, which is
-    exactly what `test_a_real_human_author_is_not_reported_as_unreadable` calls
-    load bearing, and the sibling `AUTO_MERGE` read six lines below already
-    documented the same trap.
+    The focused author read moved ahead of the focused auto-merge read to avoid
+    paying one full context walk twice. That split is only correct if a later
+    auto-merge fetch failure still leaves the author classification intact.
     """
     run = run_dispatch(
         tmp_path, doc, tier="T3", auto_merge="UNREADABLE", author_is_bot="true"
     )
 
-    assert "Cannot read author bot state" in run.stdout, (
-        "an empty context fetch failed closed on the author with no message, so "
-        "an operator reading the log sees only the auto-merge skip"
-    )
-    assert "emits no author_is_bot field" not in run.stdout, (
-        "an empty fetch was blamed on a stale helper; nothing was read at all"
-    )
+    assert "Cannot read author bot state" not in run.stdout
     assert "Cannot read auto-merge state" in run.stdout
     assert not run.reached_end, "the loop acted on a PR whose context fetch failed"
     assert run.cleaned_up
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_an_unreadable_author_fetch_still_fails_closed_with_a_notice(
+    tmp_path: Path, doc: str
+) -> None:
+    """An empty author fetch still needs its explicit fail-closed notice."""
+    run = run_dispatch(tmp_path, doc, tier="T3", author_is_bot="UNREADABLE")
+
+    assert "Cannot read author bot state" in run.stdout
+    assert "emits no author_is_bot field" not in run.stdout
+    assert run.forwarded_is_bot

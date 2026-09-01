@@ -1516,8 +1516,8 @@ class TestIsBotFlagReachesTierT5:
     directly with `is_bot=True`, which skips the two wirings that can break:
     `build_parser`'s `--is-bot` into `args.is_bot`, and `main`'s `args.is_bot`
     into `check_merge_readiness(is_bot=...)` into `classify_tier`. These run the
-    real `main` over the real code path with only `gh_graphql` faked, so all of
-    it is exercised.
+    real `main` over the real code path while isolating exactly three external
+    boundaries: authentication, repository resolution, and `gh_graphql`.
     """
 
     def _tier(self, argv: list[str], capsys) -> str:

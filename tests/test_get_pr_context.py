@@ -186,6 +186,14 @@ class TestBuildParser:
         assert args.diff_stat is True
         assert args.include_changed_files is True
 
+    def test_focused_field_flag(self):
+        args = build_parser().parse_args([
+            "--pull-request", "50",
+            "--field", "author_is_bot",
+            "--field", "auto_merge_method",
+        ])
+        assert args.field == ["author_is_bot", "auto_merge_method"]
+
 
 # ---------------------------------------------------------------------------
 # Tests: main - error paths
@@ -301,6 +309,20 @@ class TestMainErrors:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
+
+    @pytest.mark.parametrize(
+        "extra_args",
+        [
+            pytest.param(["--include-diff"], id="include-diff"),
+            pytest.param(["--include-changed-files"], id="include-changed-files"),
+            pytest.param(["--diff-stat"], id="diff-stat"),
+        ],
+    )
+    def test_field_mode_rejects_full_context_flags(self, extra_args):
+        with pytest.raises(SystemExit) as exc:
+            main(["--pull-request", "50", "--field", "author_is_bot", *extra_args])
+
+        assert exc.value.code == 1
 
 
     def test_review_threads_fetch_failure_exits_3(self):
@@ -1384,3 +1406,47 @@ class TestAuthorIsBot:
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["author"] is None
         assert data["author_is_bot"] is None
+
+
+class TestFocusedFieldMode:
+    def test_author_field_uses_the_lightweight_query(self, capsys):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(author={"login": "app/copilot-swe-agent"})),
+            ) as run,
+            patch("get_pr_context.gh_graphql") as gh_graphql,
+        ):
+            rc = main(["--pull-request", "50", "--field", "author_is_bot"])
+
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"] == {"author_is_bot": True}
+        command = run.call_args.args[0]
+        assert command[command.index("--json") + 1] == "author"
+        gh_graphql.assert_not_called()
+
+    def test_auto_merge_field_uses_the_lightweight_query(self, capsys):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(
+                    stdout=_pr_json(autoMergeRequest={"mergeMethod": "SQUASH"})
+                ),
+            ) as run,
+            patch("get_pr_context.gh_graphql") as gh_graphql,
+        ):
+            rc = main(["--pull-request", "50", "--field", "auto_merge_method"])
+
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"] == {"auto_merge_method": "SQUASH"}
+        command = run.call_args.args[0]
+        assert command[command.index("--json") + 1] == "autoMergeRequest"
+        gh_graphql.assert_not_called()
