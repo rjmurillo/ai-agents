@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Commits b985c58bae and 52a1c5414a remove unrelated state and fix both citation defects; protocol evidence remains for its atomic commit."
+        "Evidence": "Commits b985c58bae and 52a1c5414a remove unrelated state and fix both citation defects; merged validation head 90d417da80 passed focused checks."
       },
       "validationPassed": {
         "level": "MUST",
@@ -137,15 +137,20 @@
     {
       "timestamp": "2026-08-14T04:20:00+00:00",
       "action": "Fixed portable citations and added a regression assertion.",
-      "outcome": "Canonical and generated skill docs now cite scripts/doc_accuracy.py; commit 52a1c5414a passed focused tests and hooks."
+      "outcome": "Canonical and generated skill docs now cite scripts/doc_accuracy.py; merged validation head 90d417da80 passed focused tests and hooks."
     },
     {
       "timestamp": "2026-08-14T04:31:00+00:00",
       "action": "Refreshed completion evidence.",
-      "outcome": "Reconciled all branch-created session and QA bindings with 52a1c5414a and documented the separate memory todo."
+      "outcome": "Reconciled all branch-created session and QA bindings and documented the separate memory todo."
+    },
+    {
+      "timestamp": "2026-08-14T05:33:00+00:00",
+      "action": "Merged current origin/main after the push gate detected stale ratchet baselines.",
+      "outcome": "Merge commit 90d417da80 had no file overlap; six focused tests, scoped Ruff, SkillForge, and generator drift validation passed."
     }
   ],
-  "endingCommit": "52a1c5414adef16615fd0027e2c5bbabd3143e5f",
+  "endingCommit": "90d417da80f4002b02a40b81b4b509bbf671d3d1",
   "nextSteps": [
     "Push PR #4956 under renewed lease and late live-state protection.",
     "Reply to current review discourse with validation evidence.",

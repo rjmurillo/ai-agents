@@ -91,16 +91,42 @@
       "caused_by": [
         "e004"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
+    },
+    {
+      "id": "e008",
+      "timestamp": "2026-08-14T05:33:00+00:00",
+      "type": "milestone",
+      "content": "Merged current origin/main after the push gate detected stale ratchet baselines.",
+      "caused_by": [
+        "e009"
+      ],
       "leads_to": [],
+      "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T05:25:56+00:00",
+      "type": "commit",
+      "content": "Commit: 90d417da80f4002b02a40b81b4b509bbf671d3d1",
+      "caused_by": [
+        "e007"
+      ],
+      "leads_to": [
+        "e008"
+      ],
       "_source_session": "2026-08-14-session-14706-b2c958770-complete-4956-follow-up-split-serena"
     }
   ],
   "metrics": {
-    "duration_minutes": 61,
+    "duration_minutes": 123,
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 3,
+    "commits": 4,
     "files_changed": 17
   },
   "lessons": []

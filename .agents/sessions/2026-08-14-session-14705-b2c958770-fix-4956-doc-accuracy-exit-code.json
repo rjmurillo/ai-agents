@@ -99,7 +99,7 @@
       "changesCommitted": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Follow-up commits b985c58bae and 52a1c5414a remove the unrelated memory and use a portable source citation; remaining files are protocol-owned QA and session evidence."
+        "Evidence": "Follow-up commits b985c58bae and 52a1c5414a remove the unrelated memory and use a portable source citation; merged validation head 90d417da80 passed focused checks."
       },
       "validationPassed": {
         "level": "MUST",
@@ -142,9 +142,9 @@
     {
       "timestamp": "2026-08-14T04:30:00+00:00",
       "action": "Applied completion-gate follow-up",
-      "outcome": "Removed the unrelated Serena patch, preserved it for split-pr-4956-memory, replaced repository-only citations with scripts/doc_accuracy.py, and refreshed validation at 52a1c5414a."
+      "outcome": "Removed the unrelated Serena patch, preserved it for split-pr-4956-memory, replaced repository-only citations with scripts/doc_accuracy.py, and refreshed validation at 90d417da80."
     }
   ],
-  "endingCommit": "52a1c5414adef16615fd0027e2c5bbabd3143e5f",
+  "endingCommit": "90d417da80f4002b02a40b81b4b509bbf671d3d1",
   "nextSteps": []
 }

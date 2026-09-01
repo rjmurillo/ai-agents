@@ -104,6 +104,19 @@
       "caused_by": [
         "e005"
       ],
+      "leads_to": [
+        "e009"
+      ],
+      "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
+    },
+    {
+      "id": "e009",
+      "timestamp": "2026-08-14T05:25:56+00:00",
+      "type": "commit",
+      "content": "Commit: 90d417da80f4002b02a40b81b4b509bbf671d3d1",
+      "caused_by": [
+        "e008"
+      ],
       "leads_to": [],
       "_source_session": "2026-08-14-session-14705-b2c958770-fix-4956-doc-accuracy-exit-code"
     }
@@ -113,7 +126,7 @@
     "tool_calls": null,
     "errors": 0,
     "recoveries": 0,
-    "commits": 4,
+    "commits": 5,
     "files_changed": 19
   },
   "lessons": []
