@@ -118,8 +118,11 @@ validation.
 | 6 | Narrow the prompt exemption to historical run evidence, keeping command-shaped behavioral contracts in scope | PR #5451 | Shipped (review round, see below) |
 | 7 | Reject a conditional criterion whole instead of truncating it, so a fragment cannot read as run evidence | PR #5451 | Shipped (review round 2) |
 | 8 | Anchor the result tail to the end of the criterion, so a bullet that also carries a requirement stays in scope | PR #5451 | Shipped (review round 2) |
+| 9 | Require the command claim to open the criterion, closing the mirror of row 8 where the requirement comes first | PR #5451 | Shipped (review round 3) |
+| 10 | Keep an explicitly unchecked criterion in scope, since the template makes an unchecked box an admitted gap | PR #5451 | Shipped (review round 3) |
+| 11 | Skip fenced code blocks, so a quoted sample section never joins the real gate | PR #5451 | Shipped (review round 3) |
 
-No tracking issue is open against this work. Items 4 through 8 came from two
+No tracking issue is open against this work. Items 4 through 11 came from three
 review rounds on PR #5451 (Devin and Copilot, independently, on the same
 seams) and shipped in the same PR rather than as follow-ups.
 
@@ -161,6 +164,16 @@ behavioral contract the gate must keep. A negative control that only exercises
 the conjunction of two predicates cannot tell you the conjunction is the wrong
 shape. The six cases added in the review round each satisfy one predicate and
 must still stay in scope, which is the control the first draft was missing.
+
+**Delta**: Round 3 turned up a control that passed for the wrong reason. Three
+of the four fenced-sample fixtures written first were green against the
+unfixed code, not because fences were handled but because a closing fence on
+the line after the bullet folds into that bullet and the result tail then
+refuses it: two unrelated rules cancelling out. Running the fixtures against
+the unfixed code before writing the fix is what surfaced it; the shipped
+controls are the shapes that actually leaked (blank line before the closing
+fence, unclosed fence, tilde fence). A control that has never been observed
+failing is a claim about coverage, not evidence of it.
 
 **Delta**: The first repair narrowed by salvaging rather than rejecting, and
 each salvage leaked. Truncating a conditional at its subordinator left
