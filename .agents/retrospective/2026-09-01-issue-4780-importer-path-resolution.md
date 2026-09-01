@@ -38,7 +38,10 @@
   argument, then `CLAUDE_MEM_IMPORTER`, then the Claude Code plugin default;
   split the exit-code contract so an unconfigured absent plugin prints `SKIP:`
   and exits 0 while a configured-but-broken importer stays exit 1; replaced the
-  vacuous test with 17 tests that pin both directions of that contract.
+  vacuous test with a suite that pins both directions of that contract. The
+  count is deliberately not restated here. It went stale three times during
+  review because it lived in two documents that drift independently; the PR
+  body's Testing section now states it once, against a named SHA.
 
 **Execution Trace**: checked issue #4780 for a competing PR and a
 `PR-AUTOFIX-LEASE` marker (neither present) -> read the script, its tests, and
@@ -123,18 +126,37 @@ script is hand-authored and installed by cloning the repository. The mechanism
 FM-11 names (no gate runs the artifact under the target host's runtime contract)
 is what produced the defect; the generator premise is not satisfied.
 
-`.claude/rules/retros.md` MUST-2 requires that when no existing class matches, a
-new class MUST be proposed in a linked ADR. An earlier draft of this
-retrospective recorded the divergence and stopped there, which is exactly the
-"stretch the nearest class" move the rule forbids. Corrected: **issue #5461**
-proposes the class (widen FM-11, add FM-12, or reject), with the three-way
-decision and the FM-9, FM-10, and FM-4 exclusions written out.
+### Unresolved rule conflict: retros.md MUST-2 versus the Ask First boundary
 
-The ADR itself is deliberately not authored here. `AGENTS.md` lists new ADRs
-under Ask First, and this was an unattended session, so the proposal is filed
-for a human to take to an ADR rather than guessed at. That is the halt-this-
-branch-and-continue-elsewhere path in `.claude/rules/voice.md` for unattended
-runs, not an omission.
+This retrospective does **not** fully satisfy `.claude/rules/retros.md` MUST-2,
+and says so rather than implying otherwise.
+
+MUST-2 offers exactly two compliant outcomes: classify against an existing
+FAILURE-MODES class, or "propose a new class in a linked ADR". Neither is
+reachable from this session:
+
+- **No existing class fits.** All eleven were checked, not just the neighbours.
+  FM-11 matches the mechanism and fails on its generator premise. FM-9, FM-10,
+  and FM-4 are excluded on the record below. FM-1 through FM-8 concern agent
+  process (context reading, compaction, instruction inversion, premature merge,
+  rubber-stamping, delegation, security drift) and do not describe a shipped
+  code defect at all. Recording FM-11 with a divergence note is the closest
+  honest answer, and it is still short of the rule.
+- **The ADR cannot be authored here.** `AGENTS.md` lists new ADRs under **Ask
+  First**. This was an unattended session, and `.claude/rules/voice.md` directs
+  that Ask First items "get no guess: halt only that branch; continue
+  elsewhere."
+
+So the two rules conflict for an unattended run, and the conflict is not
+resolvable by an agent. **Issue #5461 is the halt action, not the compliance.**
+It records the analysis and puts the three-way decision (widen FM-11, add FM-12,
+or reject) in front of a human. Full MUST-2 compliance is **blocked on that
+human decision** and should be closed out when the ADR is written.
+
+An earlier draft of this section recorded the divergence and moved on, which was
+the "stretch the nearest class" move the rule forbids. A later draft cited #5461
+as though filing it discharged MUST-2, which it does not. This is the accurate
+statement of where the requirement actually stands.
 
 ### Near Misses Ruled Out (adjacent failure modes)
 
@@ -201,7 +223,7 @@ layer.
 | Action | Type | Rationale |
 |---|---|---|
 | Split the exit-code contract on `is_configured` | Add | The acceptance criteria name it and it is the crux of the issue |
-| Replace the vacuous test with 17 pinning tests | Modify | The gate gap that let the defect ship |
+| Replace the vacuous test with a suite pinning both contract directions | Modify | The gate gap that let the defect ship; count lives in the PR body only |
 | Narrow `except Exception` to `except OSError` | Modify | On the block being extracted; FM-10 shape |
 | Register modules in `sys.modules` in the test loader | Add | Without it the test file does not collect |
 | Cite and quote the canonical source in the governance doc | Add | `.agents/governance/**` is bound by `.claude/rules/canonical-source-mirror.md` |

@@ -178,17 +178,16 @@ needs. The bulk importer resolves its path from configuration before any
 harness default.
 
 Canonical source: `.claude-mem/scripts/import_claude_mem_memories.py`. The
-resolution order is `resolve_importer` at lines 118 to 132, quoted verbatim:
+resolution order is `resolve_importer` at lines 137 to 150, quoted verbatim:
 
 ```python
     if explicit is not None:
-        candidate = explicit.strip()
-        if not candidate:
+        if is_blank(explicit):
             return ImporterResolution(None, _SOURCE_ARGUMENT_BLANK)
-        return ImporterResolution(expand_home(candidate, home), _SOURCE_ARGUMENT)
+        return ImporterResolution(expand_home(explicit, home), _SOURCE_ARGUMENT)
 
-    env_value = env.get(IMPORTER_ENV_VAR, "").strip()
-    if env_value:
+    env_value = env.get(IMPORTER_ENV_VAR, "")
+    if not is_blank(env_value):
         return ImporterResolution(expand_home(env_value, home), _SOURCE_ENVIRONMENT)
 
     default = claude_default_importer(home)
@@ -209,6 +208,11 @@ The two blank cases are deliberately asymmetric, which the quoted code shows:
 | `CLAUDE_MEM_IMPORTER=""` | unset, falls through | 0 or the next tier's outcome | `VAR=""` is the shell idiom for disabling an inherited value |
 | `--importer ""` | configured but invalid | 1 | The caller passed the highest-priority option and supplied nothing usable; falling through would disregard an explicit instruction |
 
+`is_blank` performs the blank test for both tiers. It is detection only: the
+original unstripped string is what resolves, because a POSIX filename may
+legitimately begin or end with a space, and trimming the value that resolves
+would execute a different file or report a real importer missing.
+
 A leading `~` is expanded by `expand_home` against the resolved home rather than
 by `Path.expanduser`, so the expansion does not depend on the process `HOME`. A
 `~otheruser` prefix is left literal and fails the existence check with the
@@ -225,7 +229,7 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py \
 ```
 
 The exit code is decided by `is_configured`, not by the absence itself. From
-`main` in the same file, lines 210 to 225, quoted verbatim:
+`main` in the same file, lines 228 to 243, quoted verbatim:
 
 ```python
     importer = resolution.path
@@ -247,13 +251,16 @@ The exit code is decided by `is_configured`, not by the absence itself. From
 ```
 
 `is_configured` is true only for the argument and environment sources, per the
-property at lines 64 to 67 of the same file:
+tuple at line 50 and the property at lines 73 to 76 of the same file. Both are
+needed: the property alone does not say which sources count as configured.
 
 ```python
+_CONFIGURED_SOURCES = (_SOURCE_ARGUMENT, _SOURCE_ARGUMENT_BLANK, _SOURCE_ENVIRONMENT)
 
     @property
     def is_configured(self) -> bool:
         """True when the caller named a path, so a miss is a real failure."""
+        return self.source in _CONFIGURED_SOURCES
 ```
 
 | Situation | Exit | Reason |
