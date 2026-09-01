@@ -223,6 +223,13 @@ def expand_home(raw: str, home: Path, *, pathmod: PathModule | None = None) -> P
     malformed input rather than a path under ``home``, so neither is expanded.
     ``splitdrive`` is the same per-platform module's answer, which is why it
     reports no drive on POSIX and leaves ``D:`` an ordinary directory name there.
+
+    Deferring to ``splitdrive`` also inherits its permissiveness: ``ntpath``
+    calls any single character before a colon a drive, so on Windows ``1:x`` is
+    treated as anchored even though no such drive can exist. That direction is
+    the safe one. A wrongly-anchored suffix returned literally fails the
+    caller's existence check and reports the literal path, while a wrongly
+    expanded one would resolve somewhere the caller never named.
     """
     mod: PathModule = os.path if pathmod is None else pathmod
     seps = path_separators(mod)

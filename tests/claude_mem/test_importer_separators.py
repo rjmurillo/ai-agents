@@ -157,6 +157,18 @@ class TestDriveAnchoredSuffixIsNotExpanded:
 
         assert result == tmp_path / "D:" / "importer.ts"
 
+    def test_windows_inherits_splitdrive_permissiveness(self, tmp_path: Path) -> None:
+        """`ntpath` calls any single character before a colon a drive, and so does this.
+
+        No drive `1:` can exist, so this is over-rejection. It is the safe
+        direction: a wrongly-anchored suffix returned literally fails the
+        caller's existence check, while a wrongly expanded one would resolve
+        somewhere the caller never named.
+        """
+        assert ntpath.splitdrive("1:x")[0] == "1:", "premise: ntpath calls this a drive"
+
+        assert _import_mem.expand_home("~/1:x", tmp_path, pathmod=ntpath) == Path("~/1:x")
+
     def test_windows_still_expands_a_suffix_with_no_drive(self, tmp_path: Path) -> None:
         """The guard rejects drive anchoring only, not every Windows suffix."""
         result = _import_mem.expand_home("~/sub/importer.ts", tmp_path, pathmod=ntpath)
