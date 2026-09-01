@@ -57,6 +57,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 markers = [
     "windows_path: Tests that exercise Windows path handling and must run on a Windows runner.",
+    "unit: Unit tests. Registered but not tied to any separately gated environment.",
 ]
 """
 
@@ -92,6 +93,16 @@ _IMPORT_OR_SKIP_MARKED = (
     "import pytest\n\n"
     'pytest.importorskip("a_module_that_does_not_exist")\n\n\n'
     "@pytest.mark.windows_path\n"
+    "def test_needs_the_dependency():\n    assert True\n"
+)
+# Copilot review round 6 (PR #5344): a marker registered in pyproject.toml is
+# not automatically trusted. `unit` is registered but proves nothing about a
+# separately gated environment, unlike `windows_path`; a dead test carrying it
+# must not buy the same trust.
+_IMPORT_OR_SKIP_ORDINARY_MARKER = (
+    "import pytest\n\n"
+    'pytest.importorskip("a_module_that_does_not_exist")\n\n\n'
+    "@pytest.mark.unit\n"
     "def test_needs_the_dependency():\n    assert True\n"
 )
 _SKIP_ONLY = (
@@ -132,6 +143,16 @@ _CONDITIONAL_PLATFORM_SKIP_UNREGISTERED_MARKER = (
     "import pytest\n\n"
     'if sys.platform == "a-platform-that-does-not-exist":\n'
     '    @pytest.mark.a_marker_pyproject_does_not_register\n'
+    "    def test_platform_behavior():\n"
+    "        assert True\n"
+    "else:\n"
+    '    pytest.skip("other platform", allow_module_level=True)\n'
+)
+_CONDITIONAL_PLATFORM_SKIP_ORDINARY_MARKER = (
+    "import sys\n"
+    "import pytest\n\n"
+    'if sys.platform == "a-platform-that-does-not-exist":\n'
+    "    @pytest.mark.unit\n"
     "    def test_platform_behavior():\n"
     "        assert True\n"
     "else:\n"
@@ -332,6 +353,26 @@ def test_a_marker_gated_importorskip_test_answers_for_a_skipped_module(
     assert _run(tmp_path) == 0
 
 
+def test_an_ordinary_registered_marker_does_not_trust_an_importorskip_test(
+    tmp_path: Path,
+) -> None:
+    """Registration alone is not trust; only an environment-gated marker is.
+
+    Copilot review round 6 (PR #5344): ``unit`` is registered in this
+    fixture's own ``pyproject.toml`` (mirroring the real repository, which
+    also registers ``integration``, ``security``, and ``smoke``), but none of
+    those select a different runner or environment the way ``windows_path``
+    does. Swapping the marker in ``_IMPORT_OR_SKIP_MARKED`` for ``unit`` must
+    not buy the same trust.
+    """
+    tests = _make_repo(tmp_path)
+    (tests / "test_optional_dependency.py").write_text(
+        _IMPORT_OR_SKIP_ORDINARY_MARKER, encoding="utf-8"
+    )
+
+    assert _run(tmp_path) == 1
+
+
 def test_a_declaration_on_an_unconditional_module_level_skip_is_not_stale(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -418,6 +459,23 @@ def test_an_unregistered_marker_does_not_answer_for_a_skipped_module(
     tests = _make_repo(tmp_path)
     (tests / "test_platform_only.py").write_text(
         _CONDITIONAL_PLATFORM_SKIP_UNREGISTERED_MARKER, encoding="utf-8"
+    )
+
+    assert _run(tmp_path) == 1
+
+
+def test_an_ordinary_registered_marker_does_not_answer_for_a_skipped_module(
+    tmp_path: Path,
+) -> None:
+    """Registered is necessary but not sufficient; the marker must be environment-gated.
+
+    Copilot review round 6 (PR #5344): the same repro as the importorskip
+    case above, for the conditional-if/else shape. ``unit`` is registered but
+    proves nothing about a separately gated environment.
+    """
+    tests = _make_repo(tmp_path)
+    (tests / "test_platform_only.py").write_text(
+        _CONDITIONAL_PLATFORM_SKIP_ORDINARY_MARKER, encoding="utf-8"
     )
 
     assert _run(tmp_path) == 1

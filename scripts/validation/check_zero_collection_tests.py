@@ -70,6 +70,16 @@ EXIT_EXTERNAL = 3
 
 EXEMPTION_MARKER = "pytest-zero-collection:"
 
+# Copilot review round 6 (PR #5344): trusting every registered pytest marker
+# leaves the gate bypassable. pyproject.toml also registers ``unit``,
+# ``integration``, ``security``, and ``smoke``, none of which selects a
+# different runner or environment; a dead test decorated with any of those
+# would still pass. Only a marker this repository actually uses to route a
+# test to a separately gated environment proves a skipped module is reachable
+# elsewhere. Widen this set only alongside a real environment-selection
+# mechanism for the new marker, not merely because pyproject.toml declares it.
+_ENVIRONMENT_GATED_MARKERS = frozenset({"windows_path"})
+
 # Read the collected set from pytest's own session rather than from its
 # console output. ``--collect-only`` renders three different shapes depending
 # on net verbosity: a tree, one node id per line, and a ``path: count`` digest.
@@ -222,13 +232,18 @@ def _require_nonempty_strings(values: list[object], pyproject: Path, key: str) -
 
 
 def registered_pytest_markers(repo_root: Path) -> frozenset[str]:
-    """Return the marker names declared in ``[tool.pytest.ini_options] markers``.
+    """Return the environment-gated marker names this guard may trust.
 
-    Each entry is ``"name: description"``; only the name is a signal this guard
-    can trust. A marker registered here (``windows_path`` is the existing
-    example) is a repository-level decision that a test is tied to a real,
-    supported environment, made by whoever edited ``pyproject.toml`` under its
-    own review, not a claim this guard can verify from one file's source.
+    Every entry in ``[tool.pytest.ini_options] markers`` is ``"name:
+    description"``, but registration alone is not a signal this guard can
+    trust: this repository also registers ``unit``, ``integration``,
+    ``security``, and ``smoke``, none of which routes a test to a different
+    runner or environment, so a dead test decorated with any of those would
+    still buy a bypass. The result is intersected with
+    ``_ENVIRONMENT_GATED_MARKERS``, the curated set this repository actually
+    uses to select a separately gated environment (``windows_path`` is the
+    existing example), so removing a marker from ``pyproject.toml`` also
+    revokes this guard's trust in it.
     """
     pyproject = repo_root / "pyproject.toml"
     try:
@@ -249,7 +264,7 @@ def registered_pytest_markers(repo_root: Path) -> frozenset[str]:
     for entry in markers:
         if isinstance(entry, str) and entry.strip():
             names.add(entry.split(":", 1)[0].strip())
-    return frozenset(names)
+    return frozenset(names) & _ENVIRONMENT_GATED_MARKERS
 
 
 def _contains_exemption(text: str) -> bool:
