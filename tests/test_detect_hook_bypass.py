@@ -15,7 +15,6 @@ from scripts.detect_hook_bypass import (
     BypassIndicator,
     check_agents_without_session,
     check_bash_scripts_added,
-    check_handoff_modified,
     format_report,
     is_merge_commit,
 )
@@ -126,27 +125,6 @@ class TestCheckAgentsWithoutSession:
         assert result is not None
 
 
-class TestCheckHandoffModified:
-    """Tests for check_handoff_modified."""
-
-    def test_returns_none_when_handoff_not_in_files(self) -> None:
-        result = check_handoff_modified(
-            "sha1",
-            "normal commit",
-            ["README.md", ".agents/sessions/log.json"],
-        )
-        assert result is None
-
-    def test_returns_indicator_when_handoff_modified(self) -> None:
-        result = check_handoff_modified(
-            "sha1",
-            "update handoff",
-            [".agents/HANDOFF.md"],
-        )
-        assert result is not None
-        assert result.indicator_type == "handoff-modified"
-
-
 class TestCheckBashScriptsAdded:
     """Tests for check_bash_scripts_added."""
 
@@ -208,15 +186,15 @@ class TestFormatReport:
                 BypassIndicator(
                     "abc12345full",
                     "bad commit",
-                    "handoff-modified",
-                    "HANDOFF.md modified",
+                    "bash-script-added",
+                    "Bash script(s) under .github/scripts/",
                 ),
             ],
         )
         output = format_report(report)
         assert "Bypass indicators: 1" in output
         assert "abc12345" in output
-        assert "handoff-modified" in output
+        assert "bash-script-added" in output
 
 
 class TestIsMergeCommit:
