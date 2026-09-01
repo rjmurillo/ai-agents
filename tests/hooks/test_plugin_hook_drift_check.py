@@ -62,6 +62,16 @@ def _registration(command: str, *, event: str = "PreToolUse", matcher: str = "Ta
     return {event: [{"matcher": matcher, "hooks": [{"type": "command", "command": command}]}]}
 
 
+def _copilot_registration(command: str, *, event: str = "preToolUse") -> dict:
+    """Copilot's real schema: flat under the event, command under `bash`.
+
+    Using Claude's nested shape here would test the parser against a manifest
+    Copilot CLI never writes, which is how the Copilot half of this check went
+    unexercised in the first place.
+    """
+    return {event: [{"type": "command", "matcher": "task", "bash": command, "timeoutSec": 10}]}
+
+
 def _source(hooks: object) -> set[tuple[str, str, str]]:
     """Registrations for a well-formed mapping, failing loudly if it is not."""
     found = drift.registrations(hooks)
@@ -327,12 +337,13 @@ def test_check_installed_plugins_compares_copilot_installs(tmp_path) -> None:
     home = tmp_path / "home"
     _make_plugin_root(
         home / ".copilot" / "installed-plugins" / "ai-agents" / "project-toolkit",
-        _registration(RETIRED_GUARD_COMMAND),
+        _copilot_registration(RETIRED_GUARD_COMMAND),
     )
 
     outcome = drift.check_installed_plugins(project_dir, home)
 
     assert [report.surface for report in outcome.reports] == ["Copilot CLI"]
+    assert outcome.reports[0].error is None
     assert outcome.reports[0].has_drift
     assert outcome.incomplete == []
 
@@ -438,13 +449,14 @@ def test_check_installed_plugins_compares_an_install_under_a_custom_copilot_home
     monkeypatch.setenv("COPILOT_HOME", str(copilot))
     install = _make_plugin_root(
         copilot / "installed-plugins" / "ai-agents" / "project-toolkit",
-        _registration(RETIRED_GUARD_COMMAND),
+        _copilot_registration(RETIRED_GUARD_COMMAND),
     )
 
     outcome = drift.check_installed_plugins(project_dir, tmp_path / "home")
 
     assert [report.install_path for report in outcome.reports] == [install]
     assert outcome.reports[0].surface == "Copilot CLI"
+    assert outcome.reports[0].error is None
     assert outcome.reports[0].has_drift
 
 
@@ -602,9 +614,9 @@ def test_main_emits_the_drift_message_for_the_project_repo(capsys, tmp_path) -> 
     assert "retired-guard" in capsys.readouterr().out
 
 
-def test_hook_exits_zero_when_the_check_raises(tmp_path) -> None:
-    # Fail-open is the whole contract: a broken drift check must never be the
-    # reason a session cannot start.
+def test_hook_exits_zero_on_a_clean_run(tmp_path) -> None:
+    # The launch path itself must not fail. This says nothing about the
+    # exception handler; the next test owns that.
     import subprocess
 
     script = Path(HOOKS_DIR) / "invoke_plugin_hook_drift_check.py"
@@ -617,3 +629,54 @@ def test_hook_exits_zero_when_the_check_raises(tmp_path) -> None:
     )
 
     assert proc.returncode == 0
+
+
+def test_hook_exits_zero_and_warns_when_the_check_raises(tmp_path) -> None:
+    # Fail-open is the whole contract: a broken drift check must never be the
+    # reason a session cannot start. The earlier version of this test never
+    # made anything raise, so it passed with the exception handler deleted and
+    # proved nothing. Force a real failure inside the scan and assert both
+    # halves of the contract: the warning is emitted and the exit is still 0.
+    import subprocess
+    import textwrap
+
+    driver = tmp_path / "driver.py"
+    driver.write_text(
+        textwrap.dedent(
+            f"""
+            import runpy
+            import sys
+            import types
+
+            # main() resolves the project directory through hook_utilities, so
+            # a stand-in that raises there fails the real code path under the
+            # module's own __main__ guard, which is what fail-open protects.
+            utilities = types.ModuleType("hook_utilities")
+            def get_project_directory():
+                raise RuntimeError("scan exploded")
+            utilities.get_project_directory = get_project_directory
+            guards = types.ModuleType("hook_utilities.guards")
+            guards.skip_if_consumer_repo = lambda name: False
+            utilities.guards = guards
+            sys.modules["hook_utilities"] = utilities
+            sys.modules["hook_utilities.guards"] = guards
+
+            runpy.run_path(
+                {str(Path(HOOKS_DIR) / "invoke_plugin_hook_drift_check.py")!r},
+                run_name="__main__",
+            )
+            """
+        ),
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [sys.executable, "-u", str(driver)],
+        input=b"",
+        capture_output=True,
+        cwd=str(tmp_path),
+        timeout=60,
+    )
+
+    assert proc.returncode == 0
+    assert b"scan exploded" in proc.stderr
+    assert b"[WARNING]" in proc.stderr

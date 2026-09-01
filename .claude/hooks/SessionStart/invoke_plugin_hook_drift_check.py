@@ -8,17 +8,32 @@ after all four had been deleted from `main`, and 45 minutes spent diagnosing a
 hook that no longer existed. Nothing in a session told the reader that the
 thing which blocked them came from a stale install.
 
-This hook states it. At session start it compares the hook registrations in
-this checkout's shipped manifests against every installed copy of the same
-plugin it can find on disk, and names the registrations present in an install
-but not in the source.
+This hook states it. At session start it compares the hooks each shipped
+manifest actually enforces against every installed copy of the same plugin it
+can find on disk, and names what diverges.
+
+"Actually enforces" is the load-bearing part. A Claude registration usually
+names `invoke_dispatch_claude.py --group <id>` rather than a hook script, and
+that group's real membership lives in `dispatch_groups.json`. Comparing the
+`hooks.json` entry points alone would call a stale install a match whenever
+both sides route through the same dispatcher, which is the issue #5085 shape
+exactly. Registrations are therefore expanded to their shim membership before
+anything is diffed. Copilot CLI manifests use a flatter schema (registrations
+directly under the event, command under `bash`), parsed separately.
+
+Untrusted input, stated plainly: an installed manifest under the scanned trees
+is attacker-influenceable (a mis-added marketplace entry is enough), and this
+hook's output becomes session context. No manifest string is echoed. Only
+allowlisted, length-capped metadata leaves this file: an event name, a matcher,
+and a sanitized script basename or dispatch-group id. A command resolving to
+neither is reported as an opaque digest.
 
 Scope and its limit, stated plainly: the check runs only inside a checkout of
 the repository that publishes the plugin, because that checkout is the only
 available second opinion. A consumer whose install is stale never receives
-this hook at all, since the stale install is what would have to ship it. That
-gap is the freshness-resolution question in issue #5085 asks 1 and 2, and it
-is not closed here.
+this hook at all, since the stale install is what would have to ship it. Asks
+1 and 2 of issue #5085, the freshness-resolution questions, need evidence this
+hook cannot produce, and are not closed here.
 
 Hook Type: SessionStart (non-blocking, fail-open)
 Exit Codes:
@@ -34,14 +49,16 @@ References:
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
+import re
 import sys
 from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 # --- Standard hook boilerplate: resolve lib directory ---
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -83,6 +100,52 @@ PRUNED_DIR_NAMES = frozenset({".git", "node_modules", "__pycache__", ".venv", "v
 
 PLUGIN_MANIFEST_REL = Path(".claude-plugin") / "plugin.json"
 HOOKS_MANIFEST_REL = Path("hooks") / "hooks.json"
+DISPATCH_MANIFEST_REL = Path("hooks") / "dispatch_groups.json"
+
+# Output caps. Everything below is rendered into session context, and an
+# installed manifest is attacker-influenceable, so a label is allowlisted
+# characters only and bounded in length. `?` marks each dropped character so a
+# reader can see that scrubbing happened rather than reading a clean-looking
+# name that is not what the manifest said.
+MAX_LABEL_CHARS = 80
+MAX_PATH_CHARS = 200
+_UNSAFE_LABEL_CHARS = re.compile(r"[^A-Za-z0-9._/@:+= -]")
+_SAFE_TOKEN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+_SCRIPT_IN_COMMAND = re.compile(r"[A-Za-z0-9._/\\-]+\.(?:py|sh|ps1)")
+_DISPATCH_ENTRYPOINT = "invoke_dispatch_claude.py"
+_GROUP_ARGUMENT = re.compile(r"--group[=\s]+([A-Za-z0-9._-]{1,64})")
+
+CLAUDE_SCHEMA = "claude"
+COPILOT_SCHEMA = "copilot"
+
+
+def sanitize_label(text: object, limit: int = MAX_LABEL_CHARS) -> str:
+    """Reduce untrusted manifest text to inert, length-capped label characters."""
+    collapsed = " ".join(str(text).split())
+    scrubbed = _UNSAFE_LABEL_CHARS.sub("?", collapsed)
+    if len(scrubbed) <= limit:
+        return scrubbed
+    return scrubbed[:limit] + "[truncated]"
+
+
+def command_unit(command: str) -> str:
+    """Name what a registration runs without echoing the command itself.
+
+    Prefers the basename of the last script path in the command, which is the
+    part a reader needs in order to find the hook. A bare identifier is kept as
+    written (it is already within the safe alphabet). Anything else, including
+    shell text a hostile manifest could have chosen freely, collapses to a
+    digest: still stable enough to diff two manifests, but carrying none of the
+    attacker's words into the model's context.
+    """
+    text = " ".join(command.split())
+    scripts = _SCRIPT_IN_COMMAND.findall(text)
+    if scripts:
+        return sanitize_label(PurePosixPath(scripts[-1].replace("\\", "/")).name)
+    if _SAFE_TOKEN.match(text):
+        return text
+    digest = hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:12]
+    return f"unrecognized command (sha256:{digest})"
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +155,7 @@ class PluginSurface:
     label: str
     source_rel: Path
     search_roots: tuple[Path, ...]
+    schema: str = CLAUDE_SCHEMA
 
 
 @dataclass(slots=True)
@@ -182,6 +246,7 @@ def plugin_surfaces(home: Path) -> tuple[PluginSurface, ...]:
             label="Copilot CLI",
             source_rel=Path("src") / "copilot-cli",
             search_roots=(copilot_home(home) / "installed-plugins",),
+            schema=COPILOT_SCHEMA,
         ),
     )
 
@@ -196,10 +261,61 @@ def read_plugin_name(root: Path) -> str | None:
     return name if isinstance(name, str) and name else None
 
 
-def registrations(hooks: object) -> set[tuple[str, str, str]] | None:
-    """Flatten a ``hooks`` mapping to ``(event, matcher, command)`` triples.
+def dispatch_membership(groups: object, group_id: str) -> tuple[str, ...] | None:
+    """Shim files a dispatch group runs, or None when it cannot be resolved.
 
-    Returns None when the mapping is not the shape Claude Code loads, so a
+    None is deliberately not "the group is empty". An install whose manifest
+    this hook cannot resolve enforces an unknown set, and the caller must say
+    unknown rather than compare against nothing.
+    """
+    if not isinstance(groups, dict):
+        return None
+    group = groups.get(group_id)
+    if not isinstance(group, dict):
+        return None
+    shims = group.get("shims")
+    if not isinstance(shims, list):
+        return None
+    files: list[str] = []
+    for shim in shims:
+        if not isinstance(shim, dict):
+            return None
+        name = shim.get("file")
+        if not isinstance(name, str) or not name:
+            return None
+        files.append(PurePosixPath(name.replace("\\", "/")).name)
+    return tuple(sorted(files))
+
+
+def _expand_command(
+    event: str, matcher: str, command: str, groups: object
+) -> set[tuple[str, str, str]] | None:
+    """Units one Claude registration enforces, expanding a dispatch group."""
+    if _DISPATCH_ENTRYPOINT not in command:
+        return {(event, matcher, command_unit(command))}
+    found = _GROUP_ARGUMENT.search(command)
+    if found is None:
+        return None
+    group_id = found.group(1)
+    members = dispatch_membership(groups, group_id)
+    if members is None:
+        return None
+    return {
+        (event, matcher, f"{sanitize_label(group_id)}: {sanitize_label(member)}")
+        for member in members
+    }
+
+
+def registrations(hooks: object, groups: object = None) -> set[tuple[str, str, str]] | None:
+    """Flatten a Claude ``hooks`` mapping to ``(event, matcher, unit)`` triples.
+
+    ``groups`` is the parsed ``dispatch_groups.json`` mapping for the same
+    plugin root. Registrations that route through the dispatcher expand to the
+    shims they actually run; without a resolvable group the answer is None,
+    because comparing two dispatcher entry points would call any pair of
+    installs identical no matter which hooks they enforce (issue #5085).
+
+    Returns None whenever the mapping is not a shape Claude Code loads, so a
     malformed manifest reports as unreadable rather than as "registers
     nothing", which are opposite verdicts (the same split
     ``scripts/ci/test_installed_plugin_hooks.py`` draws for this manifest).
@@ -207,36 +323,118 @@ def registrations(hooks: object) -> set[tuple[str, str, str]] | None:
     if not isinstance(hooks, dict):
         return None
     found: set[tuple[str, str, str]] = set()
-    for event, groups in hooks.items():
-        if not isinstance(groups, list):
+    for event, entries in hooks.items():
+        if not isinstance(entries, list):
             return None
-        for group in groups:
+        for group in entries:
+            # A non-object group and a group whose "hooks" is missing or not a
+            # list are both malformed shapes, not "this group registers
+            # nothing". Skipping them would let a broken manifest read as the
+            # deliberate empty state.
             if not isinstance(group, dict):
-                continue
+                return None
             matcher = group.get("matcher") or ""
-            entries = group.get("hooks")
-            if not isinstance(entries, list):
-                continue
-            for entry in entries:
-                if isinstance(entry, dict):
-                    found.add((str(event), str(matcher), str(entry.get("command", ""))))
+            commands = group.get("hooks")
+            if not isinstance(commands, list):
+                return None
+            for entry in commands:
+                if not isinstance(entry, dict):
+                    return None
+                units = _expand_command(
+                    str(event), str(matcher), str(entry.get("command", "")), groups
+                )
+                if units is None:
+                    return None
+                found |= units
     return found
 
 
-def read_registrations(manifest: Path) -> tuple[set[tuple[str, str, str]] | None, str | None]:
-    """Return ``(registrations, error)`` for one ``hooks/hooks.json``."""
+def copilot_registrations(hooks: object) -> set[tuple[str, str, str]] | None:
+    """Flatten a Copilot CLI ``hooks`` mapping to ``(event, matcher, unit)``.
+
+    Copilot's schema is flatter than Claude's: registrations sit directly under
+    the event name and the command lives under ``bash``, per
+    `scripts/validation/hook_contracts.py::parse_copilot_hooks`, which states
+    "the entries sit directly under the event name, the command lives under
+    'bash', and the timeout is spelled 'timeoutSec'". Reading a Copilot
+    manifest with Claude's nested parser finds no ``hooks`` key inside any
+    entry and yields the empty set, so every stale Copilot install compared
+    clean.
+
+    The PowerShell twin is deliberately not read; it launches the same script
+    and would double every unit.
+    """
+    if not isinstance(hooks, dict):
+        return None
+    found: set[tuple[str, str, str]] = set()
+    for event, entries in hooks.items():
+        if not isinstance(entries, list):
+            return None
+        for entry in entries:
+            if not isinstance(entry, dict):
+                return None
+            command = entry.get("bash")
+            if command is None:
+                command = entry.get("powershell")
+            if not isinstance(command, str):
+                return None
+            matcher = entry.get("matcher") or ""
+            found.add((str(event), str(matcher), command_unit(command)))
+    return found
+
+
+def _read_json_object(path: Path) -> tuple[dict | None, str | None]:
+    """Parse one JSON object file into ``(data, error)``; never both."""
     try:
-        data = json.loads(manifest.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return None, f"no hook manifest at {manifest}"
+        return None, f"no hook manifest at {path}"
     except (OSError, UnicodeError, ValueError) as exc:
-        return None, f"unreadable hook manifest {manifest}: {type(exc).__name__}: {exc}"
+        return None, f"unreadable hook manifest {path}: {type(exc).__name__}: {exc}"
     if not isinstance(data, dict):
-        return None, f"hook manifest {manifest} is not a JSON object"
-    found = registrations(data.get("hooks"))
+        return None, f"hook manifest {path} is not a JSON object"
+    return data, None
+
+
+def read_registrations(
+    manifest: Path, *, schema: str = CLAUDE_SCHEMA, dispatch: Path | None = None
+) -> tuple[set[tuple[str, str, str]] | None, str | None]:
+    """Return ``(units, error)`` for one ``hooks/hooks.json``.
+
+    ``dispatch`` points at the sibling ``dispatch_groups.json`` that resolves
+    grouped Claude registrations. A missing dispatch manifest is not an error
+    on its own; it becomes one only if a registration actually needs it, which
+    `registrations` signals by returning None.
+    """
+    data, error = _read_json_object(manifest)
+    if data is None:
+        return None, error
+
+    if schema == COPILOT_SCHEMA:
+        found = copilot_registrations(data.get("hooks"))
+    else:
+        groups: object = None
+        if dispatch is not None:
+            parsed, _ = _read_json_object(dispatch)
+            if parsed is not None:
+                groups = parsed.get("groups")
+        found = registrations(data.get("hooks"), groups)
+
     if found is None:
-        return None, f"hook manifest {manifest} has a malformed 'hooks' mapping"
+        return None, (
+            f"hook manifest {manifest} has a malformed 'hooks' mapping "
+            "or an unresolvable dispatch group"
+        )
     return found, None
+
+
+def root_registrations(
+    root: Path, schema: str
+) -> tuple[set[tuple[str, str, str]] | None, str | None]:
+    """Units one plugin root enforces, resolved through its own manifests."""
+    return read_registrations(
+        root / HOOKS_MANIFEST_REL, schema=schema, dispatch=root / DISPATCH_MANIFEST_REL
+    )
 
 
 def find_installed_roots(
@@ -281,17 +479,21 @@ def find_installed_roots(
 
 
 def _describe(triples: set[tuple[str, str, str]]) -> tuple[str, ...]:
-    """Render registration triples as stable, readable lines."""
+    """Render units as stable lines, with every field already sanitized."""
     return tuple(
-        f"{event} (matcher {matcher!r}): {command}" for event, matcher, command in sorted(triples)
+        f"{sanitize_label(event, 40)} (matcher {sanitize_label(matcher, 40)!r}): {unit}"
+        for event, matcher, unit in sorted(triples)
     )
 
 
 def compare_install(
-    surface_label: str, install_path: Path, source: set[tuple[str, str, str]]
+    surface_label: str,
+    install_path: Path,
+    source: set[tuple[str, str, str]],
+    schema: str = CLAUDE_SCHEMA,
 ) -> InstallReport:
-    """Compare one installed copy's registrations against the source set."""
-    installed, error = read_registrations(install_path / HOOKS_MANIFEST_REL)
+    """Compare one installed copy's enforced units against the source set."""
+    installed, error = root_registrations(install_path, schema)
     if installed is None:
         return InstallReport(surface_label, install_path, (), (), error)
     return InstallReport(
@@ -308,8 +510,11 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
 
     ``notes`` carries per-surface problems that are not a specific install's
     fault, such as a source manifest this checkout cannot read. ``incomplete``
-    names each search root the walk could not finish, which caps how much any
-    of the reports is allowed to claim.
+    names every reason the pass is not a statement about the whole tree: a walk
+    that hit its directory bound, and a surface that was never searched at all
+    because its source manifest could not be read. Both produce no reports, and
+    an empty report list on its own reads as "nothing is installed", so each
+    one has to be said out loud.
     """
     outcome = ScanOutcome()
     for surface in plugin_surfaces(home):
@@ -317,24 +522,31 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
         plugin_name = read_plugin_name(source_root)
         if plugin_name is None:
             outcome.notes.append(f"{surface.label}: no readable plugin manifest at {source_root}")
+            outcome.incomplete.append(f"{surface.label}: not searched (source plugin unreadable)")
             continue
-        source, error = read_registrations(source_root / HOOKS_MANIFEST_REL)
+        source, error = root_registrations(source_root, surface.schema)
         if source is None:
             outcome.notes.append(f"{surface.label}: {error}")
+            outcome.incomplete.append(f"{surface.label}: not searched (source hooks unreadable)")
             continue
         for search_root in surface.search_roots:
             budget = ScanBudget()
             for install_path in find_installed_roots(search_root, plugin_name, budget):
-                outcome.reports.append(compare_install(surface.label, install_path, source))
+                outcome.reports.append(
+                    compare_install(surface.label, install_path, source, surface.schema)
+                )
             if budget.truncated:
-                outcome.incomplete.append(f"{surface.label}: {search_root}")
+                outcome.incomplete.append(f"{surface.label}: {search_root} (scan bound reached)")
     return outcome
 
 
 def _format_report(report: InstallReport) -> str:
-    lines = [f"- `{report.install_path}` ({report.surface})"]
+    # The path comes from a directory an attacker may have created, so it is
+    # capped and scrubbed like every other label here.
+    path = sanitize_label(report.install_path, MAX_PATH_CHARS)
+    lines = [f"- `{path}` ({report.surface})"]
     if report.error:
-        lines.append(f"  - unreadable: {report.error}")
+        lines.append(f"  - unreadable: {sanitize_label(report.error, MAX_PATH_CHARS)}")
     for line in report.only_in_install:
         lines.append(f"  - **only in this install**: {line}")
     for line in report.only_in_source:
