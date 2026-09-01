@@ -169,12 +169,32 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py
 
 **Locating the importer across harnesses**
 
-Claude-Mem is an optional Claude Code plugin with no Copilot CLI equivalent.
-The bulk importer resolves the `import-memories.ts` path in this order:
+Claude-Mem is an optional Claude Code plugin with no Copilot CLI equivalent, so
+the bulk importer resolves its path from configuration before any harness
+default.
 
-1. `--importer PATH` on the command line
-2. the `CLAUDE_MEM_IMPORTER` environment variable
-3. the Claude Code plugin default under `~/.claude/plugins/`
+Canonical source: `.claude-mem/scripts/import_claude_mem_memories.py`. The
+resolution order is `resolve_importer` at lines 89 to 100, quoted verbatim:
+
+```python
+    if explicit:
+        return ImporterResolution(Path(explicit).expanduser(), _SOURCE_ARGUMENT)
+
+    env_value = env.get(IMPORTER_ENV_VAR, "").strip()
+    if env_value:
+        return ImporterResolution(Path(env_value).expanduser(), _SOURCE_ENVIRONMENT)
+
+    default = claude_default_importer(home)
+    if default.exists():
+        return ImporterResolution(default, _SOURCE_DEFAULT)
+
+    return ImporterResolution(None, _SOURCE_UNSET)
+```
+
+Read as: `--importer PATH` first, then the `CLAUDE_MEM_IMPORTER` environment
+variable (blank or whitespace-only counts as unset, because `.strip()` empties
+it), then the Claude Code plugin default, which is returned only when it already
+exists on disk.
 
 ```bash
 # Point at an importer installed outside the Claude Code plugin root
@@ -186,7 +206,37 @@ python3 .claude-mem/scripts/import_claude_mem_memories.py \
   --importer /opt/claude-mem/scripts/import-memories.ts
 ```
 
-Exit codes follow the optional-dependency contract:
+The exit code is decided by `is_configured`, not by the absence itself. From
+`main` in the same file, lines 168 to 183, quoted verbatim:
+
+```python
+    importer = resolution.path
+    if importer is None or not importer.exists():
+        # is_configured, not the absence itself, decides the exit code: a path
+        # the caller named is a real failure, an uninstalled optional plugin is
+        # a supported state.
+        if resolution.is_configured:
+            print(
+                f"ERROR: Claude-Mem importer from {resolution.source} not found at: {importer}",
+                file=sys.stderr,
+            )
+            return 1
+        print(
+            "SKIP: Claude-Mem plugin not installed. Set "
+            f"${IMPORTER_ENV_VAR} or pass --importer to enable importing."
+        )
+        return 0
+```
+
+`is_configured` is true only for the argument and environment sources, per the
+property at lines 59 to 62 of the same file:
+
+```python
+    @property
+    def is_configured(self) -> bool:
+        """True when the caller named a path, so a miss is a real failure."""
+        return self.source in (_SOURCE_ARGUMENT, _SOURCE_ENVIRONMENT)
+```
 
 | Situation | Exit | Reason |
 |-----------|------|--------|
@@ -195,6 +245,12 @@ Exit codes follow the optional-dependency contract:
 
 A Copilot CLI session with no Claude-Mem installed therefore skips cleanly
 instead of reporting a false failure (issue #4780).
+
+**Stricter/looser/different than canonical**: no divergence. This section
+restates the quoted fragments above and adds no rule the script does not
+implement. Line numbers are a reading aid and drift with edits; the function and
+property names (`resolve_importer`, `ImporterResolution.is_configured`) are the
+stable anchors.
 
 **Manual bulk import** (advanced users):
 
