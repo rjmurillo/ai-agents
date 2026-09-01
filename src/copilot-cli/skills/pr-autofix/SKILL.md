@@ -650,12 +650,15 @@ if ! CTX=$(python3 "$SCRIPTS_DIR/get_pr_context.py" --pull-request "$PR" \
     --output-format json 2>/dev/null); then
     CTX=""
 fi
-if ! AUTO_MERGE=$(printf '%s' "$CTX" | jq -r '.Data.auto_merge_method // "null"' 2>/dev/null); then
+if ! AUTO_MERGE=$(printf '%s' "$CTX" | jq -r 'if (.Data | has("auto_merge_method") | not) then "unknown" elif (.Data.auto_merge_method | type) == "string" then .Data.auto_merge_method elif (.Data.auto_merge_method | type) == "null" then "null" else "unknown" end' 2>/dev/null); then
     AUTO_MERGE=""
 fi
-# Empty stdin or a jq parse error yields an empty string, not "null". Treating
-# that as "armed" would fire the disarm path on no evidence, so skip instead.
-if [ -z "$AUTO_MERGE" ]; then
+# Empty stdin or a jq parse error yields an empty string, not a verdict.
+# A schema-invalid value such as `false` is also unreadable evidence here:
+# `false // "null"` would launder it into "definitely unarmed" and bypass the
+# disarm gate on malformed input. Accept only a string or a real null.
+AUTO_MERGE=${AUTO_MERGE:-unknown}
+if [ "$AUTO_MERGE" = "unknown" ]; then
     echo "Cannot read auto-merge state for #$PR (context fetch or parse failed); skipping."
     cleanup_pr_autofix
     continue

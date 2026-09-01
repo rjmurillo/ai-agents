@@ -3,18 +3,23 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
-    _lib_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
-    )
+    _lib_dir = ""
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / ".claude-plugin" / "plugin.json"
+        if candidate.is_file():
+            _lib_dir = str(parent / "lib")
+            break
+    if not _lib_dir:
+        _lib_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+        )
 if not os.path.isdir(_lib_dir):
     print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
     sys.exit(2)
@@ -59,10 +64,10 @@ def record_context_fetch_failure(
 def author_is_bot(author: object) -> bool | None:
     """Classify the PR author as a bot, or return None when it cannot be read.
 
-    Canonical rule, `scripts/github_core/bot_config.py:328`, verbatim:
-    `def is_bot(login: str, user_type: str | None = None) -> bool:`. `canonicalize_login`
-    (line 309) runs first so `app/copilot-swe-agent` and `Copilot`, the spellings this repo's
-    own bot PRs arrive under, reach it as `[bot]` logins; GitHub's flag feeds `user_type`.
+    Canonical rule: `is_bot(login: str, user_type: str | None = None) -> bool`.
+    `canonicalize_login` runs first so `app/copilot-swe-agent` and `Copilot`,
+    the spellings this repo's own bot PRs arrive under, reach it as `[bot]`
+    logins; GitHub's flag feeds `user_type`.
 
     Stricter/looser/different than canonical. *Stricter input boundary*: canonical takes
     `login: str` and classifies anything, so `"   "` came back a real `False`; this takes
