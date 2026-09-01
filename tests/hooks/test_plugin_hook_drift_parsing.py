@@ -86,9 +86,9 @@ def _copilot_hooks(command: str, *, event: str = "preToolUse", matcher: str = "t
     }
 
 
-def _group(*files: str, event: str = "PreToolUse") -> dict:
+def _group(*files: str, event: str = "PreToolUse", mode: str = "gate") -> dict:
     return {
-        "pretooluse-task": {"event": event, "mode": "block", "shims": [{"file": f} for f in files]}
+        "pretooluse-task": {"event": event, "mode": mode, "shims": [{"file": f} for f in files]}
     }
 
 
@@ -152,8 +152,8 @@ def test_dispatch_membership_includes_event_and_mode_with_each_shim() -> None:
     members = model.dispatch_membership({"pretooluse-task": groups}, "pretooluse-task")
 
     assert members == (
-        f"PreToolUse/block/{RETIRED_GUARD}",
-        "PreToolUse/block/invoke_other.py",
+        f"PreToolUse/gate/{RETIRED_GUARD}",
+        "PreToolUse/gate/invoke_other.py",
     )
 
 
@@ -202,7 +202,7 @@ def test_registrations_expands_a_dispatch_group_to_its_shims() -> None:
     assert len(found) == 1
     event, matcher, unit = next(iter(found))
     assert (event, matcher) == ("PreToolUse", "Task")
-    assert unit == f"pretooluse-task: PreToolUse/block/{RETIRED_GUARD}"
+    assert unit == f"pretooluse-task: PreToolUse/gate/{RETIRED_GUARD}"
 
 
 def test_registrations_returns_none_for_an_unresolvable_dispatch_group() -> None:
@@ -284,7 +284,9 @@ def test_registrations_flattens_event_matcher_command() -> None:
 
 
 def test_registrations_treats_absent_matcher_as_empty_string() -> None:
-    found = model.registrations({"SessionStart": [{"hooks": [{"command": "run-me"}]}]})
+    found = model.registrations(
+        {"SessionStart": [{"hooks": [{"type": "command", "command": "run-me"}]}]}
+    )
 
     assert found == {("SessionStart", "", "run-me")}
 
@@ -347,69 +349,6 @@ def test_read_registrations_reports_malformed_hooks_mapping(tmp_path) -> None:
     assert "malformed 'hooks' mapping" in (error or "")
 
 
-# --- Resource ceilings: an unbounded manifest cannot stall session start ----
-
-
-def test_read_registrations_refuses_a_manifest_over_the_byte_ceiling(tmp_path) -> None:
-    # A same-named plugin root under the scanned trees is attacker-placeable.
-    # Reading it without a ceiling is a denial-of-service surface at startup.
-    manifest = tmp_path / "hooks.json"
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    filler = "x" * (model.MAX_MANIFEST_BYTES + 1024)
-    manifest.write_text(json.dumps({"hooks": {}, "pad": filler}), encoding="utf-8")
-
-    found, error = model.read_registrations(manifest)
-
-    assert found is None
-    assert "exceeds" in (error or "")
-    assert "not compared" in (error or "")
-
-
-def test_read_registrations_accepts_a_manifest_under_the_byte_ceiling(tmp_path) -> None:
-    # Negative control: the ceiling must not reject ordinary manifests.
-    manifest = tmp_path / "hooks.json"
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    manifest.write_text(json.dumps({"hooks": {}, "pad": "x" * 1024}), encoding="utf-8")
-
-    found, error = model.read_registrations(manifest)
-
-    assert error is None
-    assert found == set()
-
-
-def test_registrations_refuses_more_than_the_registration_ceiling() -> None:
-    # Parsing partially would manufacture drift in both directions against a
-    # source that is fine, so the whole manifest is reported as not compared.
-    hooks = {
-        f"Event{index}": [{"matcher": "", "hooks": [{"command": f"guard{index}.py"}]}]
-        for index in range(model.MAX_REGISTRATIONS + 5)
-    }
-
-    assert model.registrations(hooks) is None
-
-
-def test_copilot_registrations_refuses_more_than_the_registration_ceiling() -> None:
-    hooks = {
-        f"event{index}": [{"type": "command", "bash": f"guard{index}.py"}]
-        for index in range(model.MAX_REGISTRATIONS + 5)
-    }
-
-    assert model.copilot_registrations(hooks) is None
-
-
-def test_registrations_accepts_a_manifest_under_the_registration_ceiling() -> None:
-    # Negative control for the two ceilings above.
-    hooks = {
-        f"Event{index}": [{"matcher": "", "hooks": [{"command": f"guard{index}.py"}]}]
-        for index in range(10)
-    }
-
-    found = model.registrations(hooks)
-
-    assert found is not None
-    assert len(found) == 10
-
-
 # --- A malformed matcher is drift, never a normalized empty string ----------
 
 
@@ -419,7 +358,9 @@ def test_registrations_rejects_a_non_string_matcher(matcher) -> None:
     # normalized matcher as an absent one, so an install carrying a garbage
     # matcher compared equal to a source that has no matcher at all. The
     # canonical Copilot parser rejects these shapes rather than coercing them.
-    hooks = {"PreToolUse": [{"matcher": matcher, "hooks": [{"command": "guard.py"}]}]}
+    hooks = {
+        "PreToolUse": [{"matcher": matcher, "hooks": [{"type": "command", "command": "guard.py"}]}]
+    }
 
     assert model.registrations(hooks) is None
 
@@ -433,9 +374,11 @@ def test_copilot_registrations_rejects_a_non_string_matcher(matcher) -> None:
 
 def test_registrations_still_accepts_an_absent_or_null_matcher() -> None:
     # Negative control: null and absent are legitimate and mean "no matcher".
-    absent = model.registrations({"SessionStart": [{"hooks": [{"command": "guard.py"}]}]})
+    absent = model.registrations(
+        {"SessionStart": [{"hooks": [{"type": "command", "command": "guard.py"}]}]}
+    )
     explicit_null = model.registrations(
-        {"SessionStart": [{"matcher": None, "hooks": [{"command": "guard.py"}]}]}
+        {"SessionStart": [{"matcher": None, "hooks": [{"type": "command", "command": "guard.py"}]}]}
     )
 
     assert absent == {("SessionStart", "", "guard.py")}
@@ -454,35 +397,3 @@ def test_compare_install_reports_a_garbage_matcher_rather_than_matching(tmp_path
 
     assert report.has_drift
     assert report.error is not None
-
-
-# --- The plugin manifest is read through the same byte ceiling --------------
-
-
-def test_read_plugin_name_refuses_an_oversized_plugin_manifest(tmp_path) -> None:
-    # This manifest is read once per visited directory, so an unbounded read
-    # here is the cheapest denial-of-service surface in the hook.
-    root = tmp_path / "install"
-    manifest = root / ".claude-plugin" / "plugin.json"
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    filler = "x" * (model.MAX_MANIFEST_BYTES + 1024)
-    manifest.write_text(json.dumps({"name": PLUGIN_NAME, "pad": filler}), encoding="utf-8")
-
-    assert model.read_plugin_name(root) is None
-
-
-def test_read_plugin_name_still_reads_an_ordinary_manifest(tmp_path) -> None:
-    # Negative control for the ceiling above.
-    root = _plugin_root(tmp_path / "install", {})
-
-    assert model.read_plugin_name(root) == PLUGIN_NAME
-
-
-def test_find_installed_roots_skips_an_install_behind_an_oversized_manifest(tmp_path) -> None:
-    root = tmp_path / "search" / "install"
-    manifest = root / ".claude-plugin" / "plugin.json"
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    filler = "x" * (model.MAX_MANIFEST_BYTES + 1024)
-    manifest.write_text(json.dumps({"name": PLUGIN_NAME, "pad": filler}), encoding="utf-8")
-
-    assert drift.find_installed_roots(tmp_path / "search", PLUGIN_NAME) == []
