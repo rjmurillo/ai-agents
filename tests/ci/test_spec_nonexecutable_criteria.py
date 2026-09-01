@@ -123,9 +123,28 @@ class TestDoesNotOverFire:
             "- [ ] The gate stays green after `pytest` passes",
             "- [ ] The runner exits 0 unless `go test ./...` is green",
             "- [ ] `spec_prepare_context.py` is skipped if `pytest` passes",
+            # The subject of the result verb is the script under test, and the
+            # command it is conditioned on sits in the subordinate clause.
+            # Truncating at "when" left `wrapper.py` returns zero, which reads
+            # as run evidence on its own (PR #5451 review, round 2).
+            "- [ ] `wrapper.py` returns zero when `pytest` passes",
         ],
     )
     def test_leaves_behavioral_contracts_in_scope(self, criterion: str) -> None:
+        assert find_nonexecutable_criteria(_body(criterion)) == [], criterion
+
+    @pytest.mark.parametrize(
+        "criterion",
+        [
+            # Run evidence plus a real requirement in one bullet. Classifying
+            # the bullet away takes the requirement with it, so the whole
+            # bullet stays in scope (PR #5451 review, round 2).
+            "- [ ] `pytest` passes locally and the parser rejects an empty ref",
+            "- [ ] `ruff check .` is green, and the CLI exits 2 on a bad flag",
+            "- [ ] `npm test` succeeds; the bundle stays under 200 KB",
+        ],
+    )
+    def test_leaves_a_compound_criterion_in_scope(self, criterion: str) -> None:
         assert find_nonexecutable_criteria(_body(criterion)) == [], criterion
 
     @pytest.mark.parametrize(

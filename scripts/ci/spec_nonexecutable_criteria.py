@@ -26,26 +26,32 @@ This repo's own PR template already puts that evidence elsewhere: the
 `## Author Pre-flight`, not under `## Acceptance criteria`.
 
 Stricter/looser/different than the prompt rule it feeds: this detector is
-deliberately narrower. It fires only when the named command is itself the
-subject of the result verb, in the criterion's leading clause:
+deliberately narrower. It fires only when the criterion is nothing but run
+evidence, which means the named command is the subject of a result verb, that
+verb ends the criterion, and the criterion states no condition:
 
     `pytest` passes                                   -> fires
     the helper passes the flag to `run_gh`            -> no command as subject
     `pre_pr.py` passes the changed-file list to ruff  -> transitive, not a run
-    the wrapper returns zero when `pytest` passes     -> subordinate clause
-    the fallback passes when `ruff` reports an error  -> subordinate clause
+    the wrapper returns zero when `pytest` passes     -> conditional
+    `wrapper.py` returns zero when `pytest` passes    -> conditional
+    `pytest` passes locally and the parser rejects    -> carries a requirement
 
-The last two shapes are behavioral contracts on the code under review, which a
-diff reviewer can and must check. Scanning for a command and for a result verb
-independently anywhere in one bullet classified them as unverifiable and
-dropped them from the gate.
+Everything after the second line is a behavioral contract on the code under
+review, which a diff reviewer can and must check. Each escaped an earlier draft
+a different way: scanning for a command and a result verb independently
+anywhere in the bullet; truncating a conditional at its subordinator, which
+left "`wrapper.py` returns zero" reading as run evidence about the script under
+test; and letting `Pattern.match` succeed on a prefix, so a bullet that also
+carried a real requirement was classified away with the requirement inside it.
 
-Cutting at the first subordinator also costs a real claim written with a
-leading adverbial ("after the rename, `pytest` passes"). That trade is
-deliberate. Under-firing is safe, because the prompt rule still tells the
-reviewer to treat an unexecutable criterion as N/A when no declaration names
-it. Over-firing is not safe: it would silently drop a real criterion from the
-gate.
+Each of the three checks rejects on its own, which costs under-firing: a real
+claim written with a leading adverbial ("after the rename, `pytest` passes")
+or a trailing qualifier ("`pytest` passes with the new flag") is not detected.
+That trade is deliberate. Under-firing is safe, because the prompt rule still
+tells the reviewer to treat an unexecutable criterion as N/A when no
+declaration names it. Over-firing is not safe: it would silently drop a real
+criterion from the gate.
 
 Criterion text reaches the reviewer only after `_normalize` strips control
 characters and collapses newlines and `_sanitize` drops leading markdown
@@ -128,18 +134,23 @@ _RESULT_VERB = re.compile(
     r")\b"
 )
 
-# The result verb must sit in intransitive position: at the end of the
-# criterion, or followed by an adverbial. "passes" with a direct object after
-# it ("passes the flag to X") is ordinary prose about the code, not a claim
-# about a run, and must not fire. `Pattern.match(text, pos)` anchors this, so
-# it carries no `^`: in a non-multiline pattern `^` matches the start of the
-# string, not the start position handed to match().
+# The result verb must sit in intransitive position and must end the criterion.
+# Two things ride on that.
+#
+# "passes" with a direct object after it ("passes the flag to X") is ordinary
+# prose about the code, not a claim about a run.
+#
+# The `$` is load-bearing, because `Pattern.match` succeeds on a prefix.
+# Without it, "`pytest` passes locally and the parser rejects an empty ref"
+# matched on "locally" alone and the whole bullet was classified away, taking
+# the parser requirement with it. A bullet that carries anything past the run
+# evidence is not pure run evidence, so it stays in scope.
+#
+# The pattern carries no `^`: `Pattern.match(text, pos)` already anchors the
+# start, and in a non-multiline pattern `^` matches the start of the string
+# rather than the position handed to match().
 _RESULT_TAIL = re.compile(
-    r"(?i)(?:"
-    r"[\s.;,:!?)\]}]*$"
-    r"|\s+(?:locally|clean(?:ly)?|green|in\s+ci|on\s+ci|with|without"
-    r"|after|before|again|for|when)\b"
-    r")"
+    r"(?i)(?:\s+(?:locally|clean(?:ly)?|green|in\s+ci|on\s+ci))?[\s.;,:!?)\]}]*$"
 )
 
 # What may sit between the command span and the result verb that governs it.
@@ -147,11 +158,17 @@ _RESULT_TAIL = re.compile(
 # wider and the verb stops belonging to the command.
 _RESULT_BRIDGE = re.compile(r"(?i)[\s,:;]*(?:(?:and|then|it|still)\s+)*")
 
-# A subordinator opens a clause that describes a condition, not the deliverable.
-# "The wrapper returns zero when `pytest` passes" asserts what the wrapper must
-# do; the `pytest` run is the premise. Only the leading clause can carry a
-# command-execution claim, so everything from the first subordinator on is cut
-# before the command is looked for.
+# A subordinator opens a clause that describes a condition. A criterion built
+# around one states behavior under that condition, which is a contract the diff
+# establishes, not a report of a run: "the wrapper returns zero when `pytest`
+# passes" asserts what the wrapper must do.
+#
+# A conditional criterion is rejected whole rather than truncated at the
+# subordinator. Truncating left a fragment that reads as run evidence on its
+# own: "`wrapper.py` returns zero when `pytest` passes" became "`wrapper.py`
+# returns zero", whose command span is the script under test rather than the
+# command the sentence conditions on, and the whole criterion was classified
+# away. Rejecting cannot produce that inversion, and costs only under-firing.
 _SUBORDINATOR = re.compile(
     r"(?i)\b(?:after|although|assuming|because|before|even|given|if|once"
     r"|provided|since|so|though|unless|until|when|whenever|while)\b"
@@ -200,10 +217,9 @@ def _bullets(lines: list[str]) -> list[str]:
     return [bullet for bullet in bullets if bullet]
 
 
-def _leading_clause(text: str) -> str:
-    """Return `text` up to its first subordinator, where the deliverable is."""
-    subordinator = _SUBORDINATOR.search(text)
-    return text if subordinator is None else text[: subordinator.start()]
+def _is_conditional(text: str) -> bool:
+    """True when `text` states behavior under a condition rather than a run."""
+    return _SUBORDINATOR.search(text) is not None
 
 
 def _command_span_ends(text: str) -> list[int]:
@@ -236,9 +252,15 @@ def _asserts_execution_result(text: str, command_end: int) -> bool:
 
 
 def _is_command_execution_claim(text: str) -> bool:
-    """True when `text` claims how a run turned out, not what the code does."""
-    clause = _leading_clause(text)
-    return any(_asserts_execution_result(clause, end) for end in _command_span_ends(clause))
+    """True when `text` claims how a run turned out, and claims nothing else.
+
+    Three conditions, each of which rejects on its own: the criterion states no
+    condition, it names a runnable command, and a result verb governs that
+    command and ends the criterion.
+    """
+    if _is_conditional(text):
+        return False
+    return any(_asserts_execution_result(text, end) for end in _command_span_ends(text))
 
 
 def _normalize(text: str) -> str:
