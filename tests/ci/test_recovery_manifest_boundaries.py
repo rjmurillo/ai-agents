@@ -59,7 +59,14 @@ class TestPathFilterScope:
 
     def _plan(self, recovery_event: str):
         return plan(
-            [make_run(1, workflow=REQUIRED_WORKFLOW, context=REQUIRED_CONTEXT)],
+            [
+                make_run(
+                    1,
+                    workflow=REQUIRED_WORKFLOW,
+                    context=REQUIRED_CONTEXT,
+                    head_repo="rjmurillo/ai-agents",
+                )
+            ],
             self._subscriptions(),
             recovery_event,
         )

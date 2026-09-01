@@ -67,7 +67,7 @@ import check_repo_health
 
 GUARD = _VALIDATION_DIR / "check_repo_health.py"
 
-_REPAIR = "core.bare false"
+_REPAIR = "--replace-all core.bare false"
 
 
 def _git_test_env() -> dict[str, str]:
