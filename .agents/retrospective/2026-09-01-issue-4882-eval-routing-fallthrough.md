@@ -193,6 +193,47 @@ about those three children, not about a fourth.
 | 12 | Reject a parseable child payload that names no verdict for the requested rule, instead of reading it as scored | Done, round three | PR #5460 |
 | 13 | Preserve the child's own exit code (2 config, 4 auth) instead of flattening a missing results file to 3 | Done, round three | PR #5460 |
 | 14 | Promote a routing-plan entry to `scored` only on the runner's evidence label, never inferred from `passed` | Done, round three | PR #5460 |
+| 15 | Route command-mirror Copilot skills away from the skill evaluator, which cannot resolve them | Done, round four | PR #5460 |
+| 16 | Move the entrypoint row ahead of the prefix rows and test it through the assembled table | Done, round four | PR #5460 |
+| 17 | Accept only the real ADR-088 shape as a reference-scenario skip; everything else is malformed | Done, round four | PR #5460 |
+| 18 | Give every timeout an explicit `EXIT_EXTERNAL` code, at all five runner sites | Done, round four | PR #5460 |
+
+## Fourth round: the original bug, twice more, inside my own fix
+
+Round four found `src/copilot-cli/skills/` conflates two artifact kinds. Most
+entries mirror `.claude/skills/<name>/`. Fourteen mirror
+`.claude/commands/<name>.md` and have no Claude skill at all. The skill
+evaluator resolves only `.claude/skills/`:
+
+```text
+$ eval-knowledge-integration.py --skill spec --dry-run
+exit=1
+ERROR: Skill directory not found for 'spec' in .../.claude/skills
+```
+
+That is issue #4882's exact failure shape, at a site my own fix created by
+adding `src/copilot-cli/skills/` to the skill prefixes without asking what was
+actually in that directory. I widened a prefix to fix a widening bug.
+
+The same round found the `entrypoints` row was dead. It sat after the prefix
+rows in a first-match table, and every real path-local entrypoint lives inside
+a prefix that precedes it, so `.claude/commands/CLAUDE.md`,
+`.claude/skills/CLAUDE.md`, `.claude/skills/github/CLAUDE.md` and twenty more
+were classified as prompts or skills. My round-one test exercised the matcher
+in isolation, where it passed. The shadowing exists only in the assembled
+table, and no test drove that.
+
+Both are one mistake in different clothes: **I checked that each rule matches
+what it should, never that it wins.** The reachability test from round one used
+synthetic representative paths, so it proved each row could win for a path
+invented to suit it, not for the paths that actually exist in the tree. A
+routing table's contract is resolution order against real inputs, and synthetic
+inputs cannot test order because they were built to match exactly one row.
+
+Round four's tests are anchored to real tree contents, with negative controls
+asserting the premise (these entrypoint files exist; these fourteen skills have
+a command and no Claude skill) so the assertions cannot pass vacuously.
+Reverting the four fixes together fails 37 tests.
 
 ## Third failure, same shape as the second
 

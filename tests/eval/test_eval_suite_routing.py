@@ -243,8 +243,18 @@ def test_negative_control_reordering_skills_after_agents_breaks_references() -> 
 # Structural: ordering, reachability, and category bookkeeping
 # ---------------------------------------------------------------------------
 
+# Rows with a filesystem predicate cannot use a synthetic name, because the
+# predicate asks the tree a question about it. `spec` is a real command mirror:
+# `.claude/commands/spec.md` exists and `.claude/skills/spec/` does not.
+PREDICATE_ROW_REPRESENTATIVES = {
+    "command_mirrors": "src/copilot-cli/skills/spec/SKILL.md",
+}
+
+
 def _representative_path(rule) -> str:
     """Build a path the rule is meant to claim."""
+    if rule.predicate is not None:
+        return PREDICATE_ROW_REPRESENTATIVES[rule.category]
     if rule.basenames:
         return f"sample/{sorted(rule.basenames)[0]}"
     segment = f"{rule.segment}/" if rule.segment else ""
@@ -268,6 +278,102 @@ def test_no_routing_row_is_shadowed_by_an_earlier_row(index: int) -> None:
         f"row {index} ({rule.category}, prefix={rule.prefix!r}) is shadowed; "
         f"{path} resolved to {suite.classify_path(path)!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Entrypoints are identified by filename, so their row must win over prefixes
+# ---------------------------------------------------------------------------
+
+# Every one of these exists in the tree. Behind the prefix rows they were all
+# captured as prompts or skills.
+SHADOWED_ENTRYPOINTS = [
+    ".claude/commands/CLAUDE.md",
+    ".claude/skills/CLAUDE.md",
+    ".claude/skills/adr-review/CLAUDE.md",
+    ".claude/skills/adr-review/scripts/CLAUDE.md",
+    ".claude/skills/github/CLAUDE.md",
+    ".claude/skills/github/scripts/issue/CLAUDE.md",
+    ".claude/skills/memory/CLAUDE.md",
+    "src/copilot-cli/skills/adr-review/CLAUDE.md",
+    "src/copilot-cli/skills/github/CLAUDE.md",
+    ".claude/agents/AGENTS.md",
+    ".claude/agents/CLAUDE.md",
+]
+
+
+@pytest.mark.parametrize("path", SHADOWED_ENTRYPOINTS)
+def test_entrypoints_inside_prompt_and_skill_trees_are_not_shadowed(path: str) -> None:
+    """Exercised through classify_path, not the matcher in isolation.
+
+    The matcher always matched these; the bug was that broader prefix rows ran
+    first, so only the full ordered table reproduces it.
+    """
+    assert suite.classify_path(path) == "entrypoints"
+
+
+@pytest.mark.parametrize("path", SHADOWED_ENTRYPOINTS)
+def test_shadowed_entrypoints_exist_in_the_tree(path: str) -> None:
+    """Negative control: these must be real, or the test above proves nothing."""
+    assert (REPO_ROOT / path).is_file(), f"{path} is not in the tree"
+
+
+def test_entrypoint_row_is_first_in_the_table() -> None:
+    assert suite.ROUTING_RULES[0].category == "entrypoints"
+
+
+def test_negative_control_entrypoints_after_prefixes_recreates_the_shadowing() -> None:
+    """Move the row back where it was and the misroute returns."""
+    entry_row = suite.ROUTING_RULES[0]
+    rest = suite.ROUTING_RULES[1:]
+    shadowed = (*rest, entry_row)
+    assert _classify_with(shadowed, ".claude/commands/CLAUDE.md") == "prompts"
+    assert _classify_with(shadowed, ".claude/skills/github/CLAUDE.md") == "skills"
+    assert suite.classify_path(".claude/commands/CLAUDE.md") == "entrypoints"
+
+
+# ---------------------------------------------------------------------------
+# Command mirrors: same tree as skills, different generator
+# ---------------------------------------------------------------------------
+
+COMMAND_MIRROR_SKILLS = [
+    "build", "checkpoint", "context-hub-setup", "plan", "pr-autofix",
+    "pr-review", "push-pr", "research", "retro", "ship", "spec", "sync",
+    "test", "validate-pr-description",
+]
+
+
+@pytest.mark.parametrize("name", COMMAND_MIRROR_SKILLS)
+def test_command_mirror_skills_do_not_route_to_the_skill_evaluator(name: str) -> None:
+    """The skill evaluator resolves only .claude/skills/ and exits 1 otherwise."""
+    path = f"src/copilot-cli/skills/{name}/SKILL.md"
+    assert suite.classify_path(path) == "command_mirrors"
+    assert suite.RUNNER_BY_CATEGORY.get("command_mirrors") is None
+
+
+@pytest.mark.parametrize("name", COMMAND_MIRROR_SKILLS)
+def test_command_mirror_premise_holds_in_the_tree(name: str) -> None:
+    """Negative control for the premise: no Claude skill, but a Claude command."""
+    assert not (REPO_ROOT / ".claude" / "skills" / name).is_dir()
+    assert (REPO_ROOT / ".claude" / "commands" / f"{name}.md").is_file()
+
+
+@pytest.mark.parametrize("name", ["analyze", "github", "review", "planner"])
+def test_mirrored_claude_skills_still_route_as_skills(name: str) -> None:
+    """The narrowing must not capture ordinary mirrored skills."""
+    assert (REPO_ROOT / ".claude" / "skills" / name).is_dir()
+    assert suite.classify_path(f"src/copilot-cli/skills/{name}/SKILL.md") == "skills"
+
+
+def test_command_mirror_predicate_ignores_paths_outside_the_copilot_skill_tree() -> None:
+    assert suite.is_command_mirror_skill(".claude/skills/spec/SKILL.md") is False
+    assert suite.is_command_mirror_skill("src/copilot-cli/skills") is False
+    assert suite.is_command_mirror_skill("README.md") is False
+
+
+def test_command_mirror_reason_points_at_the_generating_command() -> None:
+    reason = suite.NOT_EVALUATED_REASONS["command_mirrors"]
+    assert ".claude/commands/" in reason
+    assert ".claude/skills/" in reason
 
 
 def test_references_rows_precede_the_trees_that_contain_them() -> None:
@@ -513,37 +619,79 @@ def test_non_utf8_is_not_an_oserror() -> None:
     assert issubclass(UnicodeDecodeError, ValueError)
 
 
-@pytest.mark.parametrize(
-    "payload,match",
-    [
-        ('["not", "an", "object"]', "must contain an object"),
-        ('{"rule_path": ""}', "non-empty string"),
-        ('{"rule_path": "   "}', "non-empty string"),
-        ('{"rule_path": 42}', "non-empty string"),
-    ],
-    ids=["list", "empty", "blank", "wrong_type"],
-)
-def test_find_rule_scenarios_raises_on_broken_rule_target(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: str, match: str
+def test_find_rule_scenarios_raises_on_a_non_object_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     scenario_dir = _scenario_root(tmp_path, monkeypatch)
-    (scenario_dir / "case.json").write_text(payload, encoding="utf-8")
-    with pytest.raises(suite.ScenarioConfigError, match=match):
+    (scenario_dir / "case.json").write_text('["not", "an", "object"]', encoding="utf-8")
+    with pytest.raises(suite.ScenarioConfigError, match="must contain an object"):
         suite.find_rule_scenarios()
 
 
+# Only the real ADR-088 shape is a legitimate skip. The canonical test is
+# `check_rule_activation_coverage.py:_is_reference_scenario`:
+#
+#     has_reference = isinstance(reference, str) and bool(reference.strip())
+#     has_skill = isinstance(skill, str) and bool(skill.strip())
+#     has_rule = isinstance(rule, str) and bool(rule.strip())
+#     if not (has_reference and has_skill and not has_rule):
+#         return False
+#
+# so an empty object, a lone skill_path, a lone reference_path, and a blank or
+# non-string rule_path are all malformed rather than reference scenarios.
 @pytest.mark.parametrize(
     "payload",
-    ['{"skill_path": ".claude/skills/analyze/SKILL.md"}', "{}"],
-    ids=["skill_target", "no_keys"],
+    [
+        "{}",
+        '{"skill_path": ".claude/skills/analyze/SKILL.md"}',
+        '{"reference_path": ".claude/skills/analyze/references/x.md"}',
+        '{"skill_path": "   ", "reference_path": "   "}',
+        '{"skill_path": ".claude/skills/analyze/SKILL.md", "reference_path": ""}',
+        '{"rule_path": ""}',
+        '{"rule_path": "   "}',
+        '{"rule_path": 42}',
+        '{"rule_path": null, "skill_path": ".claude/skills/analyze/SKILL.md"}',
+    ],
+    ids=[
+        "empty_object",
+        "lone_skill_path",
+        "lone_reference_path",
+        "blank_both",
+        "blank_reference",
+        "empty_rule_path",
+        "blank_rule_path",
+        "rule_path_not_a_string",
+        "null_rule_path_lone_skill",
+    ],
 )
-def test_find_rule_scenarios_skips_scenarios_with_no_rule_target(
+def test_malformed_scenarios_are_not_treated_as_reference_scenarios(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: str
 ) -> None:
-    """ADR-088 skill scenarios live in the same directory and are not errors."""
     scenario_dir = _scenario_root(tmp_path, monkeypatch)
     (scenario_dir / "case.json").write_text(payload, encoding="utf-8")
+    with pytest.raises(suite.ScenarioConfigError):
+        suite.find_rule_scenarios()
+
+
+def test_a_real_adr_088_reference_scenario_is_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-empty skill_path AND reference_path, no rule_path: a valid skip."""
+    scenario_dir = _scenario_root(tmp_path, monkeypatch)
+    (scenario_dir / "ref.json").write_text(
+        json.dumps({
+            "skill_path": ".claude/skills/analyze/SKILL.md",
+            "reference_path": ".claude/skills/analyze/references/x.md",
+        }),
+        encoding="utf-8",
+    )
     assert suite.find_rule_scenarios() == {}
+
+
+def test_the_repositorys_own_scenarios_all_satisfy_the_stricter_shape() -> None:
+    """The tightened check must not reject any scenario already in the tree."""
+    scenarios = suite.find_rule_scenarios()
+    assert scenarios, "no rule scenarios discovered"
 
 
 def test_find_rule_scenarios_reads_a_valid_rule_target(
@@ -913,7 +1061,48 @@ def test_run_rule_activation_handles_a_child_timeout(
     monkeypatch.setattr(suite.subprocess, "run", fake_run)
     result = suite.run_rule_activation([".claude/rules/code-quality.md"], "test-model")
     assert result["passed"] is False
-    assert result["rules"]["code-quality"]["reason"] == "timeout (600s)"
+    entry = result["rules"]["code-quality"]
+    assert entry["reason"] == "timeout (600s)"
+    # A timeout is an external failure: the evaluator never ran to completion,
+    # so there is no logic verdict to report.
+    assert entry["exit_code"] == suite.EXIT_EXTERNAL
+
+
+def test_a_timed_out_child_reduces_to_exit_external(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The top-level code, not just the reason string.
+
+    Without an explicit code the timeout fell through worst_exit_code's
+    no-code default and surfaced as exit 1, reporting a content failure for an
+    evaluator that never finished.
+    """
+    def fake_run(cmd, **_kwargs):
+        raise suite.subprocess.TimeoutExpired(cmd, 600)
+
+    monkeypatch.setattr(suite.subprocess, "run", fake_run)
+    results = {"rules": suite.run_rule_activation(
+        [".claude/rules/code-quality.md"], "test-model"
+    )}
+    assert suite.worst_exit_code(results, any_failure=True) == suite.EXIT_EXTERNAL
+
+
+def test_every_timeout_path_records_an_external_exit_code() -> None:
+    """All five runners, not just the one review flagged.
+
+    `worst_exit_code` consumes every runner's records, so a sibling timeout
+    without a code would surface as exit 1 through the same default.
+    """
+    source = (EVAL_DIR / "eval-suite.py").read_text(encoding="utf-8")
+    timeout_blocks = source.count('"reason": "timeout (')
+    assert timeout_blocks == 5, f"expected 5 timeout records, found {timeout_blocks}"
+    for line_no, line in enumerate(source.splitlines(), start=1):
+        if '"reason": "timeout (' not in line:
+            continue
+        window = source.splitlines()[max(0, line_no - 4):line_no]
+        assert any("EXIT_EXTERNAL" in w for w in window), (
+            f"timeout record at line {line_no} has no explicit exit code"
+        )
 
 
 def test_run_rule_activation_on_no_files_is_vacuously_passing(
