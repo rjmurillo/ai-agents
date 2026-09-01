@@ -163,14 +163,12 @@ class TestMain:
             "state": "OPEN", "mergeable": "MERGEABLE",
             "mergeStateStatus": "CLEAN", "headRefName": "feature",
         })
-        call_count = 0
-
-        def _side_effect(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
+        def _side_effect(cmd, **kwargs):
+            if cmd[:3] == ["gh", "pr", "view"]:
                 return _completed(stdout=state_json, rc=0)
-            return _completed(rc=0)
+            if cmd[:3] == ["gh", "pr", "merge"]:
+                return _completed(rc=0)
+            raise AssertionError(f"unexpected subprocess.run command: {cmd!r}")
 
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -196,14 +194,12 @@ class TestMain:
             "state": "OPEN", "mergeable": "MERGEABLE",
             "mergeStateStatus": "HAS_HOOKS", "headRefName": "feature",
         })
-        call_count = 0
-
-        def _side_effect(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
+        def _side_effect(cmd, **kwargs):
+            if cmd[:3] == ["gh", "pr", "view"]:
                 return _completed(stdout=state_json, rc=0)
-            return _completed(rc=0)
+            if cmd[:3] == ["gh", "pr", "merge"]:
+                return _completed(rc=0)
+            raise AssertionError(f"unexpected subprocess.run command: {cmd!r}")
 
         with patch(
             "merge_pr.assert_gh_authenticated",
@@ -226,14 +222,12 @@ class TestMain:
             "state": "OPEN", "mergeable": "MERGEABLE",
             "mergeStateStatus": "BLOCKED", "headRefName": "feature",
         })
-        call_count = 0
-
-        def _side_effect(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
+        def _side_effect(cmd, **kwargs):
+            if cmd[:3] == ["gh", "pr", "view"]:
                 return _completed(stdout=state_json, rc=0)
-            return _completed(rc=0)
+            if cmd[:3] == ["gh", "pr", "merge"]:
+                return _completed(rc=0)
+            raise AssertionError(f"unexpected subprocess.run command: {cmd!r}")
 
         with patch(
             "merge_pr.assert_gh_authenticated",
