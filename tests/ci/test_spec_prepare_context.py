@@ -70,6 +70,75 @@ class TestRun:
         assert "phase-1" in out
         assert "Incremental Scope" in out
 
+    def test_includes_nonexecutable_criteria_block(self, tmp_path: Path) -> None:
+        """Issue #5366: a command-execution criterion must reach the reviewer as N/A."""
+        spec_file = tmp_path / "spec.md"
+        spec_file.write_text("content")
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_FILE": str(spec_file),
+            "INCREMENTAL_SCOPE": "",
+            "PR_BODY": (
+                "## Acceptance criteria\n\n"
+                "- [x] `uv run python scripts/validation/pre_pr.py` passes\n"
+            ),
+            "GITHUB_OUTPUT": str(out_file),
+        }
+        with patch.dict(os.environ, env):
+            rc = run()
+        out = out_file.read_text()
+        assert rc == 0
+        assert "## Non-Executable Criteria Declaration" in out
+        assert "- `uv run python scripts/validation/pre_pr.py` passes" in out
+        assert "N/A" in out
+
+    def test_omits_nonexecutable_block_for_verifiable_criteria(self, tmp_path: Path) -> None:
+        """Negative control: an ordinary criterion must stay inside the gate."""
+        spec_file = tmp_path / "spec.md"
+        spec_file.write_text("content")
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_FILE": str(spec_file),
+            "INCREMENTAL_SCOPE": "",
+            "PR_BODY": "## Acceptance criteria\n\n- [ ] The parser rejects an empty ref\n",
+            "GITHUB_OUTPUT": str(out_file),
+        }
+        with patch.dict(os.environ, env):
+            rc = run()
+        assert rc == 0
+        assert "Non-Executable Criteria" not in out_file.read_text()
+
+    def test_omits_nonexecutable_block_when_pr_body_is_absent(self, tmp_path: Path) -> None:
+        """workflow_dispatch has no pull_request payload, so PR_BODY is empty."""
+        spec_file = tmp_path / "spec.md"
+        spec_file.write_text("content")
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_FILE": str(spec_file),
+            "INCREMENTAL_SCOPE": "",
+            "GITHUB_OUTPUT": str(out_file),
+        }
+        with patch.dict(os.environ, env, clear=True):
+            rc = run()
+        assert rc == 0
+        assert "Non-Executable Criteria" not in out_file.read_text()
+
+    def test_emits_both_declarations_together(self, tmp_path: Path) -> None:
+        spec_file = tmp_path / "spec.md"
+        spec_file.write_text("content")
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_FILE": str(spec_file),
+            "INCREMENTAL_SCOPE": "Phase 2 of #1799",
+            "PR_BODY": "## Acceptance criteria\n\n- [x] `pytest` passes\n",
+            "GITHUB_OUTPUT": str(out_file),
+        }
+        with patch.dict(os.environ, env):
+            run()
+        out = out_file.read_text()
+        assert "## Incremental Scope Declaration" in out
+        assert "## Non-Executable Criteria Declaration" in out
+
     def test_fallback_when_spec_file_missing(self, tmp_path: Path) -> None:
         out_file = tmp_path / "out.txt"
         env = {

@@ -1,0 +1,194 @@
+"""Tests for scripts/ci/spec_nonexecutable_criteria.py (issue #5366).
+
+The detector's job is to name the acceptance criteria a shell-less reviewer
+cannot verify. Two failure directions matter and both are covered here:
+
+- Under-firing leaves the gate failing closed on a command-execution claim,
+  which is the bug the issue reports.
+- Over-firing silently drops a real criterion from the gate, which is worse,
+  because the check would go green while measuring less than it claims to.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from scripts.ci.spec_nonexecutable_criteria import (
+    _MAX_CRITERIA,
+    _MAX_CRITERION_CHARS,
+    find_nonexecutable_criteria,
+)
+
+# The shape that broke PR #5350: a pre_pr.py-passes line inside the PR body's
+# own acceptance-criteria list, alongside criteria a diff reviewer can check.
+_PR_5350_BODY = """## Summary
+
+Fixes #4727.
+
+## Acceptance criteria
+
+- [x] `scripts/validation/pre_pr.py` gains a gate for the new artifact
+- [x] Tests cover the positive and negative branches
+- [x] `uv run python scripts/validation/pre_pr.py` passes
+
+## Testing
+
+- [x] `uv run --frozen python -m pytest tests/ci -q` passes locally
+"""
+
+
+def _body(*criteria: str) -> str:
+    lines = ["## Acceptance criteria", ""]
+    lines.extend(criteria)
+    return "\n".join(lines) + "\n"
+
+
+class TestDetectsCommandExecutionClaims:
+    def test_detects_the_pr_5350_criterion(self) -> None:
+        found = find_nonexecutable_criteria(_PR_5350_BODY)
+
+        assert found == ["`uv run python scripts/validation/pre_pr.py` passes"]
+
+    @pytest.mark.parametrize(
+        "criterion",
+        [
+            "- [ ] `uv run python scripts/validation/pre_pr.py` passes",
+            "- [x] `pytest tests/ci -q` exits 0",
+            "- `ruff check .` is green",
+            "- Run `make build` and it completes successfully",
+            "- [ ] `scripts/validation/pre_pr.py` passes locally",
+            "- [ ] `pwsh -File build.ps1` returns zero",
+            "- [ ] `npm test` succeeds",
+            "- [ ] `$ pytest` passes",
+            "- [ ] `semgrep --config auto .` reports no findings",
+            "* [ ] `go test ./...` runs clean",
+            "1. `gh pr checks` is green",
+        ],
+    )
+    def test_detects_each_command_claim_shape(self, criterion: str) -> None:
+        assert find_nonexecutable_criteria(_body(criterion)), criterion
+
+    def test_folds_a_wrapped_criterion_into_one_entry(self) -> None:
+        body = _body(
+            "- [ ] `uv run --frozen python scripts/validation/pre_pr.py`",
+            "      passes",
+        )
+
+        assert find_nonexecutable_criteria(body) == [
+            "`uv run --frozen python scripts/validation/pre_pr.py` passes"
+        ]
+
+    def test_returns_criteria_in_body_order(self) -> None:
+        body = _body(
+            "- [ ] `pytest` passes",
+            "- [ ] the parser rejects an empty ref",
+            "- [ ] `ruff check .` is green",
+        )
+
+        assert find_nonexecutable_criteria(body) == ["`pytest` passes", "`ruff check .` is green"]
+
+
+class TestDoesNotOverFire:
+    """Negative controls. A criterion the reviewer CAN check must stay in scope."""
+
+    @pytest.mark.parametrize(
+        "criterion",
+        [
+            "- [ ] The helper passes the new flag through to `run_gh`",
+            "- [ ] `pre_pr.py` passes the changed-file list to ruff",
+            "- [ ] `run_gh` passes",
+            "- [ ] All tests pass",
+            "- [ ] The build succeeds",
+            "- [ ] `PARTIAL` is documented in the prompt",
+            "- [ ] `scripts/ci/spec_prepare_context.py` renders the declaration",
+            "- [ ] Coverage stays above 80%",
+        ],
+    )
+    def test_leaves_verifiable_criteria_alone(self, criterion: str) -> None:
+        assert find_nonexecutable_criteria(_body(criterion)) == []
+
+    def test_ignores_command_claims_outside_the_acceptance_section(self) -> None:
+        body = (
+            "## Testing\n\n"
+            "- [x] `uv run python scripts/validation/pre_pr.py` passes\n\n"
+            "## Author Pre-flight\n\n"
+            "- [x] `uv run --frozen python -m pytest` passes\n"
+        )
+
+        assert find_nonexecutable_criteria(body) == []
+
+    def test_stops_at_the_next_same_level_heading(self) -> None:
+        body = (
+            "## Acceptance criteria\n\n"
+            "- [ ] parser handles an empty body\n\n"
+            "## Testing\n\n"
+            "- [x] `pytest` passes\n"
+        )
+
+        assert find_nonexecutable_criteria(body) == []
+
+    def test_keeps_collecting_through_a_deeper_subheading(self) -> None:
+        body = (
+            "## Acceptance criteria\n\n"
+            "### Validator\n\n"
+            "- [ ] `uv run python scripts/validation/pre_pr.py` passes\n"
+        )
+
+        assert find_nonexecutable_criteria(body) == [
+            "`uv run python scripts/validation/pre_pr.py` passes"
+        ]
+
+    def test_ignores_bullets_before_any_heading(self) -> None:
+        assert find_nonexecutable_criteria("- [ ] `pytest` passes\n\n## Summary\n") == []
+
+
+class TestDegradesQuietly:
+    @pytest.mark.parametrize("body", ["", "\n", "## Summary\n\nNo criteria here.\n"])
+    def test_returns_empty_without_an_acceptance_section(self, body: str) -> None:
+        assert find_nonexecutable_criteria(body) == []
+
+    @pytest.mark.parametrize(
+        "heading",
+        ["## acceptance criteria", "### Acceptance Criteria", "## Acceptance Criterion"],
+    )
+    def test_matches_the_heading_case_insensitively(self, heading: str) -> None:
+        body = f"{heading}\n\n- [ ] `pytest` passes\n"
+
+        assert find_nonexecutable_criteria(body) == ["`pytest` passes"]
+
+    def test_ignores_an_empty_code_span(self) -> None:
+        assert find_nonexecutable_criteria(_body("- [ ] `` passes")) == []
+
+
+class TestSanitizesInjectedText:
+    def test_strips_leading_markdown_structure(self) -> None:
+        found = find_nonexecutable_criteria(_body("- [ ] ## `pytest` passes"))
+
+        assert found == ["`pytest` passes"]
+
+    def test_strips_control_characters(self) -> None:
+        found = find_nonexecutable_criteria(_body("- [ ] `pytest`\x07 passes"))
+
+        assert found == ["`pytest` passes"]
+
+    def test_truncates_a_long_criterion(self) -> None:
+        padding = "detail " * 60
+        found = find_nonexecutable_criteria(_body(f"- [ ] {padding}`pytest` passes"))
+
+        assert len(found) == 1
+        assert len(found[0]) <= _MAX_CRITERION_CHARS
+        assert found[0].endswith("...")
+
+    def test_deduplicates_repeated_criteria(self) -> None:
+        body = _body("- [ ] `pytest` passes", "- [x] `pytest` passes")
+
+        assert find_nonexecutable_criteria(body) == ["`pytest` passes"]
+
+    def test_caps_the_number_of_criteria(self) -> None:
+        body = _body(*[f"- [ ] `pytest tests/case_{index}.py` passes" for index in range(40)])
+
+        assert len(find_nonexecutable_criteria(body)) == _MAX_CRITERIA

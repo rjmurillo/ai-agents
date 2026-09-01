@@ -11,6 +11,7 @@ delimiter, which would be exploited if spec content contained that string.
 ENV:
   SPEC_FILE          - path to spec content file (from load-spec step)
   INCREMENTAL_SCOPE  - incremental scope declaration (may be empty)
+  PR_BODY            - pull request body (may be empty; issue #5366)
   GITHUB_OUTPUT      - path to step output file
 
 Outputs:
@@ -28,6 +29,10 @@ import secrets
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from scripts.ci.spec_nonexecutable_criteria import find_nonexecutable_criteria
+
 
 def _write_multiline_output(key: str, value: str, github_output: str) -> None:
     """Write a multiline value using a random EOF delimiter (CWE-78 safe)."""
@@ -36,10 +41,51 @@ def _write_multiline_output(key: str, value: str, github_output: str) -> None:
         fh.write(f"{key}<<{delimiter}\n{value}\n{delimiter}\n")
 
 
+def _incremental_scope_block(incremental_scope: str) -> list[str]:
+    """Render the issue #2255 scope declaration, or nothing when unscoped."""
+    if not incremental_scope:
+        return []
+    return [
+        "",
+        "## Incremental Scope Declaration",
+        "",
+        f"This PR explicitly declares it implements: {incremental_scope}",
+        "Evaluate coverage ONLY against the acceptance criteria",
+        "relevant to this declared scope. Criteria belonging to",
+        "other phases or future PRs are NOT expected to be covered",
+        "and must be treated as N/A for this evaluation.",
+    ]
+
+
+def _nonexecutable_criteria_block(pr_body: str) -> list[str]:
+    """Render the issue #5366 declaration, or nothing when none was found.
+
+    A criterion that asserts the outcome of running a command cannot be
+    verified by a reviewer with no shell, so leaving it unannotated costs a
+    permanent PARTIAL. Naming it here lets the reviewer mark it N/A instead.
+    """
+    criteria = find_nonexecutable_criteria(pr_body)
+    if not criteria:
+        return []
+    return [
+        "",
+        "## Non-Executable Criteria Declaration",
+        "",
+        "These acceptance criteria from the PR description assert the outcome",
+        "of running a command. This review has no shell, so they are",
+        "unverifiable by construction rather than unmet. Treat each one as",
+        "N/A, exclude it from the completeness percentage, and do NOT emit",
+        "PARTIAL or FAIL because it could not be executed:",
+        "",
+        *[f"- {criterion}" for criterion in criteria],
+    ]
+
+
 def run(_argv: list[str] | None = None) -> int:
     """Prepare and write spec_context output."""
     spec_file_path = os.environ.get("SPEC_FILE", "")
     incremental_scope = os.environ.get("INCREMENTAL_SCOPE", "")
+    pr_body = os.environ.get("PR_BODY", "")
     github_output = os.environ.get("GITHUB_OUTPUT", "")
 
     if not spec_file_path:
@@ -58,18 +104,8 @@ def run(_argv: list[str] | None = None) -> int:
         return 2
 
     context_parts = ["## Specification Content", "", spec_content]
-
-    if incremental_scope:
-        context_parts += [
-            "",
-            "## Incremental Scope Declaration",
-            "",
-            f"This PR explicitly declares it implements: {incremental_scope}",
-            "Evaluate coverage ONLY against the acceptance criteria",
-            "relevant to this declared scope. Criteria belonging to",
-            "other phases or future PRs are NOT expected to be covered",
-            "and must be treated as N/A for this evaluation.",
-        ]
+    context_parts += _incremental_scope_block(incremental_scope)
+    context_parts += _nonexecutable_criteria_block(pr_body)
 
     context_value = "\n".join(context_parts)
 
