@@ -16,10 +16,10 @@
   under `~/.claude/plugins/marketplaces/thedotmack/scripts/` and exits 1 when
   that file is absent. The issue attributed the session-start recommendation to
   `SESSION-PROTOCOL.md`; that file no longer exists, deleted with the session
-  skill cluster by PR #5135 on 2026-08-18, three weeks before this session and
+  skill cluster by PR #5135 on 2026-08-18, two weeks before this session and
   after the issue was filed on 2026-08-09. The live publication surface is
   `.agents/governance/MEMORY-MANAGEMENT.md`, which carries the command
-  unqualified by harness at lines 167, 306, and 339. The defect is unchanged by
+  unqualified by harness at lines 167, 487, and 520. The defect is unchanged by
   the correction: a Copilot CLI session reports a failure for an optional
   dependency that is simply not installed.
 - Respond: read the script before trusting the issue's framing, then read the
@@ -34,8 +34,13 @@
      that no possible implementation can fail. The exit-code behavior was
      untested in both directions, and the defect was invisible to the suite that
      nominally covered the file.
-- Apply: added a pure `resolve_importer(explicit, env, home)` with precedence
-  argument, then `CLAUDE_MEM_IMPORTER`, then the Claude Code plugin default;
+- Apply: added `resolve_importer(explicit, env, home)` with precedence argument,
+  then `CLAUDE_MEM_IMPORTER`, then the Claude Code plugin default. Its precedence
+  is decided from its arguments alone, with no process state read; only the
+  lowest tier touches the filesystem, through the one `default.exists()` call
+  that decides whether the plugin is installed. So it is isolated from ambient
+  state, not pure, and its result can change between calls if the plugin is
+  installed or removed;
   split the exit-code contract so an unconfigured absent plugin prints `SKIP:`
   and exits 0 while a configured-but-broken importer stays exit 1; replaced the
   vacuous test with a suite that pins both directions of that contract. The
@@ -90,8 +95,10 @@ three findings, all addressed.
    commit time.
 
 **Root cause**: no gate executes this script under a target host's runtime
-contract, and the test that nominally covered it could not fail. This is FM-11
-(see Phase 2).
+contract, and the test that nominally covered it could not fail. FM-11 is the
+closest mechanism match, and it is not a clean fit: its premise is a generated
+artifact, and this script is hand-authored. No existing class fits, which is the
+unresolved classification Phase 2 sets out below and issue #5461 raises.
 
 **Learning Matrix**
 
