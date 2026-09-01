@@ -16,9 +16,10 @@ never verified.
 
 ## Practice
 
-1. Record every orphaned commit SHA first, or create a preservation branch
-   that points at the current local tip.
-2. Reset or branch from the live remote head only after that evidence is safe.
+1. Create a preservation branch or tag pointing at the current local tip
+   before resetting; a SHA written only in prose is not a git ref and does
+   not stop those commits from becoming eligible for garbage collection.
+2. Reset or branch from the live remote head only after that ref exists.
 3. Inspect each orphaned commit diff in isolation.
 4. Run the smallest independent test that can disprove the commit's claim.
 5. Reuse only the commits that pass that check.
@@ -29,5 +30,6 @@ never verified.
 - Orphaned commits `77691c852`, `26683e981`, `418f9595d`
 - The dropped commit contradicted the PR's own gate-wiring table and removed
   the test that checked the job it deleted.
-- Recording those SHAs before resetting kept the review evidence reachable
-  after the branch moved back to the live remote head.
+- Recording those SHAs identifies them for review, but text alone does not
+  keep the commit objects reachable; only a branch, tag, or other ref does
+  that, and none was created here before the branch tip moved.
