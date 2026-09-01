@@ -231,7 +231,10 @@ def adapt_local_axis_verdict(
     if axis == "code-qualities-assessment":
         if payload is None:
             return "UNKNOWN"
-        if not isinstance(payload.get("files"), list) or not isinstance(payload.get("summary"), dict):
+        if (
+            not isinstance(payload.get("files"), list)
+            or not isinstance(payload.get("summary"), dict)
+        ):
             return "UNKNOWN"
         if exit_code == 0:
             return "PASS"
