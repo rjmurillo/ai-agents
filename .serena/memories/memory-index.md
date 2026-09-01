@@ -163,7 +163,7 @@
 
 [Retrospective and Learning]
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
-|skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (924)
+|skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (1674)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
 |implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (632), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
 
