@@ -136,7 +136,10 @@ def _find_python_script_invocation(
 def _contains_token_sequence(tokens: list[str], sequence: list[str]) -> bool:
     """True when ``sequence`` appears contiguously inside ``tokens``."""
     width = len(sequence)
-    return any(tokens[index : index + width] == sequence for index in range(len(tokens) - width + 1))
+    return any(
+        tokens[index : index + width] == sequence
+        for index in range(len(tokens) - width + 1)
+    )
 
 
 def _invokes_guard_script(run_value: object) -> bool:
