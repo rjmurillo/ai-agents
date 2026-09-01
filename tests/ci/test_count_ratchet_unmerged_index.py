@@ -15,6 +15,7 @@ the enumeration and the scan and a fake counter cannot show it.
 from __future__ import annotations
 
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -315,22 +316,97 @@ def test_a_conflicted_file_counts_the_same_as_the_tree_it_resolves_to(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "module",
-    [
-        cli_exit_contract_ratchet,
+class _EnumerationSpy:
+    """Stands in for ``tracked_files`` and records that it was reached.
+
+    Asserting that a module still holds the imported name proves only that the
+    import survived: a consumer can stop calling it, keep the unused import,
+    and pass. Driving the real counting entry point with this in place is what
+    the repository's consumer-wiring rule asks for.
+    """
+
+    def __init__(self, result: list[str] | None) -> None:
+        self.result = result
+        self.calls = 0
+
+    def __call__(self, repo_root: Path, globs: Sequence[str]) -> list[str] | None:
+        self.calls += 1
+        return self.result
+
+
+def _stub_memory_tier_validator(monkeypatch) -> None:
+    """Stub the external validator ``memory_index_count_ratchet`` shells out to.
+
+    That module runs the memory-tier validator before it enumerates, and the
+    validator is absent from a scratch root, so the module would bail before
+    reaching the enumeration and the spy would prove nothing. This mocks at the
+    process boundary only, leaving the enumeration on the path under test. The
+    stub warning names a file that the empty enumeration will report untracked,
+    which is what makes the control below land on zero.
+    """
+    monkeypatch.setattr(
         memory_index_count_ratchet,
-        ruff_count_ratchet,
-        subprocess_encoding_count_ratchet,
-        taste_count_ratchet,
-        type_ignore_count_ratchet,
-    ],
-    ids=lambda module: module.__name__.rsplit(".", 1)[-1],
-)
-def test_every_ratchet_enumerates_through_the_shared_helper(module):
+        "_warning_lines",
+        lambda _root: ["a.md: no index references this file"],
+    )
+
+
+_RATCHET_CONSUMERS = [
+    (cli_exit_contract_ratchet, None),
+    (memory_index_count_ratchet, _stub_memory_tier_validator),
+    (ruff_count_ratchet, None),
+    (subprocess_encoding_count_ratchet, None),
+    (taste_count_ratchet, None),
+    (type_ignore_count_ratchet, None),
+]
+
+_CONSUMER_IDS = [module.__name__.rsplit(".", 1)[-1] for module, _ in _RATCHET_CONSUMERS]
+
+
+@pytest.mark.parametrize(("module", "prepare"), _RATCHET_CONSUMERS, ids=_CONSUMER_IDS)
+def test_every_ratchet_counts_through_the_shared_enumeration(
+    module, prepare, monkeypatch, tmp_path
+):
     """A ratchet that rolls its own ``ls-files`` reopens #4746 for itself.
 
     The issue asked whether the siblings share the enumeration. They do, which
-    is why one fix covers all six. This fails the moment one stops sharing it.
+    is why one fix covers all six. This drives each consumer's real
+    ``current_count`` and fails the moment one stops routing through the
+    deduplicating helper.
+
+    The unreadable-enumeration verdict is asserted alongside the call, because
+    a consumer that reached the helper and then ignored its ``None`` would be
+    wired and still wrong: each of these modules documents returning None
+    rather than 0 as load-bearing, since a zero from a broken scan reads as a
+    clean tree and ``--update`` would write it into the baseline.
     """
-    assert module.tracked_files is count_ratchet.tracked_files
+    if prepare is not None:
+        prepare(monkeypatch)
+    spy = _EnumerationSpy(None)
+    monkeypatch.setattr(module, "tracked_files", spy)
+
+    result = module.current_count(tmp_path)
+
+    assert spy.calls >= 1, f"{module.__name__} did not reach the shared enumeration"
+    assert result is None, f"{module.__name__} reported a count from an unreadable scan"
+
+
+@pytest.mark.parametrize(("module", "prepare"), _RATCHET_CONSUMERS, ids=_CONSUMER_IDS)
+def test_a_readable_enumeration_is_not_reported_as_a_failed_scan(
+    module, prepare, monkeypatch, tmp_path
+):
+    """Control for the case above: the None must come from the enumeration.
+
+    Same consumer, same input, differing only in the condition under test. A
+    module that returned None for an unrelated reason fails here too, so the
+    case above cannot pass for the wrong reason.
+    """
+    if prepare is not None:
+        prepare(monkeypatch)
+    spy = _EnumerationSpy([])
+    monkeypatch.setattr(module, "tracked_files", spy)
+
+    result = module.current_count(tmp_path)
+
+    assert spy.calls >= 1, f"{module.__name__} did not reach the shared enumeration"
+    assert result == 0, f"{module.__name__} did not count an empty tree as zero"

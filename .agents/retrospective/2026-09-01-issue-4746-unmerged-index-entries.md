@@ -57,22 +57,54 @@ duplicate index entry is what an unmerged path is.
 
 ## Failure mode classification
 
-A measurement gate reported a number that described no tree that existed, with
-no signal distinguishing it from a real regression. The count and the printed
-violation list were internally consistent, so the output actively led the reader
-away from the index. It fires exactly when someone is mid-merge and least able
-to tell an artifact from a regression, which is what turned a two-line defect
-into a substantial diagnostic detour for the reporter.
+**Failure mode 10, silent defaults and guard-clause suppression**
+(`.agents/governance/FAILURE-MODES.md`). That entry's unifying property, quoted
+verbatim: "the call site has no way to know the operation didn't actually do
+what its name claims." The enumeration claims paths and returned index entries,
+all six call sites consumed the difference as though it were paths, and the
+verdict that came out was internally consistent with the file list printed
+beneath it. The reporter could not tell from the output that the index was the
+cause, which is the whole of that mode. It fires exactly when someone is
+mid-merge and least able to tell an artifact from a regression.
+
+The shape is inverted from that entry's canonical examples, and worth naming so
+the next reader is not misled: those describe a check falling through to a
+positive signal, while this one falls through to a false RED. The suppression is
+the same either way, because a verdict nobody can place is what both produce.
+The remedy the entry asks for is the one taken here, which is to surface the
+suppression rather than only correct the number.
+
+**Not failure mode 9** (confident-incorrectness recurrence), which the symptom
+superficially resembles. That entry describes "an agent reaches a conclusion
+from partial signal, delivers it with full confidence." No agent asserted this
+count. The gate computed it from a mis-measured input, so the defect is in the
+measurement, not in a claim anyone made about it.
+
+**Not failure mode 4** (false completion markers), whose direction is opposite:
+success reported against an artifact that does not satisfy the criteria. This
+gate reported failure against a tree that did.
 
 ## Remediation
 
-- Deduplication at the shared seam, so all six ratchets are covered at once.
-- A stderr note naming the unmerged paths. The count is right after the fix, and
-  the note still earns its place: the linter reads content off disk, so conflict
-  markers left in the working copy add lines and can push a file over a size
-  threshold on their own. A count taken mid-merge deserves the caveat.
-- The note is capped at five named paths, because a two-hundred-file conflict
-  printed above a 40-line violation cap buries the payload.
+Every action below is a code change, and all of them landed in PR #5454 against
+issue #4746. Owner: the PR author (`@rjmurillo`, agent-assisted). Nothing here
+is deferred, so no follow-up issue is open against this record.
+
+| # | Action | Owner | Tracking | Status |
+|---|--------|-------|----------|--------|
+| 1 | Deduplicate at the shared seam, covering all six ratchets at once | `@rjmurillo` | PR #5454, issue #4746 | DONE |
+| 2 | Emit a stderr note naming the unmerged paths, capped at five | `@rjmurillo` | PR #5454, issue #4746 | DONE |
+| 3 | Pin git's per-stage enumeration so a future git that stops repeating cannot leave the fix guarding nothing | `@rjmurillo` | PR #5454, issue #4746 | DONE |
+| 4 | Drive each of the six consumers' real `current_count` through a spy, so one leaving the shared enumeration fails | `@rjmurillo` | PR #5454, issue #4746 | DONE |
+
+On action 2: the count is right after the fix, and the note still earns its
+place, because the linter reads content off disk, so conflict markers left in
+the working copy add lines and can push a file over a size threshold on their
+own. A count taken mid-merge deserves the caveat. The five-path cap exists
+because a two-hundred-file conflict printed above a 40-line violation cap buries
+the payload.
+
+On action 4: this replaced a weaker first attempt. See the correction below.
 
 ## Learnings
 
@@ -82,6 +114,38 @@ into a substantial diagnostic detour for the reporter.
 - When a gate reports a number, the honest failure is one that says which tree
   it measured. Correcting the count and dropping the mid-merge note would have
   left a second, smaller version of the same defect: a number nobody can place.
-- A shared helper makes the mirror obligation cheap to discharge but easy to
-  under-claim. Asserting each consumer still holds the fixed reference costs six
-  lines and converts "they share it today" into a standing check.
+- A shared helper makes the mirror obligation cheap to discharge and easy to
+  over-claim. The first wiring test asserted each consumer still held the
+  imported reference, which proves an import survived and not that anything
+  calls it. See the correction below.
+
+## Correction, 2026-09-01, review round 1
+
+Appended rather than rewritten, per this repository's rule that a landed retro
+is corrected by addition.
+
+Review found the wiring claim above unsupported by the test that was supposed to
+carry it. The original test asserted `module.tracked_files is
+count_ratchet.tracked_files` for each of the six consumers. That is an
+identity check on an imported name: a consumer can stop calling the enumeration,
+keep the now-unused import, and pass.
+
+Measured rather than argued. One consumer was rewritten to walk the filesystem
+with `rglob` instead of calling the shared enumeration, with the import left in
+place. Under that mutation the identity assertion evaluated `True`, so the
+original test would have shipped green against exactly the regression it was
+written to catch. The replacement, which drives each consumer's real
+`current_count` with the enumeration monkeypatched to a spy, failed both of that
+consumer's cases on the same mutation. Restoring the consumer was confirmed
+byte-identical and returned all 26 cases to green.
+
+Second and third findings, both real and both against
+`.claude/rules/retros.md`: MUST 2 requires a retro to classify its failure
+against a numbered entry in `.agents/governance/FAILURE-MODES.md`, and MUST 4
+requires remediation actions to carry owners or issues. The original record had
+a prose description in place of the classification and a bare bullet list in
+place of the remediation table. Both are now supplied above.
+
+The through-line across all three: each was a claim stated in the right shape
+without the thing that makes the shape load-bearing. That is the same defect
+class as the bug this PR fixes, one level up.
