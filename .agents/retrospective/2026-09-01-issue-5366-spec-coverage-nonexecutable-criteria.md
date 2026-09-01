@@ -10,7 +10,7 @@
 ## What shipped
 
 Two commits on `claude/fix-5366-spec-coverage-nonexecutable` carried the
-initial implementation. Seven review rounds then reshaped the classifier's
+initial implementation. Ten review rounds then reshaped the classifier's
 precision boundary before merge; those are rows 4 through 16 of the
 Remediation table below, and they define the shipped behavior as much as these
 two do:
@@ -31,11 +31,12 @@ two do:
 
 The `Validate Spec Coverage` job feeds a PR's own `## Acceptance criteria`
 list to a reviewer that sees a diff and has no shell.
-`scripts/ci/build_ai_review_context.py:296` injects the PR body verbatim as
+`scripts/ci/build_ai_review_context.py` injects the PR body verbatim as
 `## PR Description`, so a criterion phrased as a command-execution claim
 reaches a reviewer that structurally cannot satisfy it. The reviewer does the
 only honest thing available and marks it `[~] PARTIALLY SATISFIED`. `PARTIAL`
-is a failure token in `scripts/ai_review_common/verdict.py:216`:
+is a failure token in `_COMPLETENESS_FAILURES`, in
+`scripts/ai_review_common/verdict.py`:
 
     _COMPLETENESS_FAILURES = frozenset({"CRITICAL_FAIL", "FAIL", "PARTIAL", "NEEDS_REVIEW"})
 
@@ -51,7 +52,7 @@ reviewer cannot perform".
 ## Failure mode classification
 
 **FM-10, Silent Defaults and Guard-Clause Suppression**
-(`.agents/governance/FAILURE-MODES.md:315`). Not a new class.
+(section 10 of `.agents/governance/FAILURE-MODES.md`). Not a new class.
 
 FM-10's governing principle is "there is no neutral default for a missing
 signal", and its listed shape is a verdict parser that turns absence of signal
@@ -99,23 +100,21 @@ validation.
 
 ## Evidence
 
-Final state, re-run after the seventh review round. Earlier rounds' numbers are
+Final state, re-run after the tenth review round. Earlier rounds' numbers are
 kept below them so the progression stays readable, marked as intermediate.
 
-- `uv run --frozen python -m pytest tests/ci/test_spec_nonexecutable_criteria.py
-  tests/ci/test_spec_prepare_context.py tests/ci/test_spec_extract_refs.py
-  tests/ci/test_ci_scripts_are_wired.py
-  tests/ci/test_spec_completeness_prompt_contract.py
-  tests/ci/test_spec_validation_workflow_wiring.py
-  tests/test_check_spec_failures.py tests/test_verdict.py
-  tests/ci/test_validate_ai_review_budgets.py
-  tests/commands/test_spec_ontology.py -q`: 380 passed, 11 skipped.
-- `tests/ci/test_spec_nonexecutable_criteria.py` alone: 65 passed.
-  `tests/ci/test_spec_prepare_context.py` alone: 14 passed.
-  `tests/ci/test_spec_validation_workflow_wiring.py` alone: 5 passed.
+Counts are recorded per file rather than only as a total, because the total
+moved every round as files were added and a single number gave no way to tell
+which suite had changed.
+
+- The thirteen-file command over this feature and its neighbours: 404 passed,
+  11 skipped.
+- Per file: detector 68, context integration 14, completeness prompt contract
+  13, traceability prompt contract 7, workflow wiring 5, declaration reaches
+  both reviewers 7, context redaction 7. Feature total 121.
 - `uv run --frozen python scripts/validation/pre_pr.py`: `RESULT: All
   validations passed`.
-- `TestDoesNotOverFire` carries 26 criteria a reviewer can check from the diff
+- `TestDoesNotOverFire` carries 29 criteria a reviewer can check from the diff
   and asserts none of them is classified away, plus heading, section-scope, and
   fenced-sample controls.
 
@@ -174,10 +173,19 @@ joined the command and before the review rounds added cases.
 | 14 | Pin the workflow wiring to the exact `python3 scripts/ci/spec_prepare_context.py` invocation, so a path substring cannot impersonate a live call site | PR #5451 | Shipped (review round 5) |
 | 15 | Make the shared Non-Executable Criteria declaration a hint, not an override, so completeness and traceability both preserve behavioral contracts in scope | PR #5451 | Shipped (review round 6) |
 | 16 | Keep an explicitly unchecked run-evidence criterion in scope as `NOT SATISFIED`, so the prompt cannot turn an admitted gap into `N/A` | PR #5451 | Shipped (review round 7) |
+| 17 | Redact criterion text before it is injected, so a token in an acceptance criterion is not handed to the model verbatim | PR #5451 | Shipped (review round 8) |
+| 18 | Drop `then` from the accepted command prefix, so a Given/When/Then consequence is not classified as run evidence | PR #5451 | Shipped (review round 9) |
+| 19 | Split the declaration for traceability, so pure run evidence is skipped rather than traced to `NOT_COVERED` | PR #5451 | Shipped (review round 10) |
+| 20 | Redact the whole body before classification, so truncation cannot split a token past the redactor | PR #5451 | Shipped (review round 10) |
 
-No tracking issue is open against this work. Items 4 through 16 came from seven
+No tracking issue is open against this work. Items 4 through 20 came from ten
 review rounds on PR #5451 (Devin and Copilot, independently, on the same
 seams) and shipped in the same PR rather than as follow-ups.
+
+Rows 19 and 20 are the last two structural gaps: the traceability path and the
+redaction ordering. Rows after round 8 were increasingly citation drift rather
+than defects in the classifier, which is recorded in the Delta below as a
+coordination artifact rather than a code-quality signal.
 
 Deliberately not fixed, with reasons:
 
@@ -207,8 +215,8 @@ Deliberately not fixed, with reasons:
 session spent its time on the fix rather than on reproduction.
 
 The existing Incremental Scope Declaration from issue #2255 gave the fix a
-shape to mirror. Canonical source, `scripts/ci/spec_prepare_context.py:44-50`,
-quoted verbatim:
+shape to mirror. Canonical source, `_incremental_scope_block` in
+`scripts/ci/spec_prepare_context.py`, quoted verbatim:
 
     def _incremental_scope_block(incremental_scope: str) -> list[str]:
         """Render the issue #2255 scope declaration, or nothing when unscoped."""
@@ -218,9 +226,15 @@ quoted verbatim:
             "",
             "## Incremental Scope Declaration",
 
-`_nonexecutable_criteria_block` at `:60` takes the same shape: one input, an
-empty list when that input is falsy, and a `## ... Declaration` heading as the
-first rendered line.
+`_nonexecutable_criteria_block` in the same module takes the same shape: one
+input, an empty list when that input is falsy, and a `## ... Declaration`
+heading as the first rendered line.
+
+Both are named by function rather than by line range on purpose. Line ranges
+into this module moved twice during review as the declaration text grew, and a
+range that has drifted still parses as a citation, so it fails silently in the
+direction that looks correct. A function name survives every edit that does
+not rename it, and a rename is the kind of change a reader notices.
 
 The prompt's rules mirror it too. Rule 2 under
 `## Incremental Scope (fix #2255)` in
@@ -263,6 +277,29 @@ behavioral contract the gate must keep. A negative control that only exercises
 the conjunction of two predicates cannot tell you the conjunction is the wrong
 shape. The six cases added in the review round each satisfy one predicate and
 must still stay in scope, which is the control the first draft was missing.
+
+**Delta**: Citations by line number went stale five times across ten rounds,
+in three files, and only one was caught by a gate. The rest read as correct
+because a drifted line number is still a well-formed line number and a moved
+rule ordinal is still an ordinal. Patching them one at a time invited the next
+one: rounds 7 through 10 were mostly this, not defects in the classifier.
+
+The repair was to remove the class rather than the instances. Every citation in
+this change now names a path plus a function, section, or constant, and never a
+line or an ordinal. `.claude/rules/canonical-source-mirror.md` still gets what
+it asks for, because it requires the path and the verbatim contract and treats
+the line range as optional when the fragment is inlined, which it is here.
+
+Two things made this worse than ordinary drift. The files being cited were
+under active edit by this PR itself, so citations aged within a single review
+cycle. And a second automated session was pushing to the same branch, which is
+how one "quoted verbatim" block came to quote a regex that exists nowhere in
+the repository: the quote was updated to match a local fix while the cited
+source was left alone. That is a coordination failure, not a review failure,
+and it is flagged on the PR for a maintainer.
+
+If a future reader is tempted to restore precise line numbers here: they were
+removed deliberately, and the reason is this paragraph.
 
 **Delta**: Round 3 turned up a control that passed for the wrong reason. Three
 of the four fenced-sample fixtures written first were green against the

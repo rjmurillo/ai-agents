@@ -7,7 +7,8 @@ Issue #5366. The `Validate Spec Coverage` check feeds a PR's own
 example "``uv run python scripts/validation/pre_pr.py`` passes") is
 unsatisfiable by construction. The reviewer marks it
 `[~] PARTIALLY SATISFIED`, and `PARTIAL` is a failure token in
-`scripts/ai_review_common/verdict.py:216`, quoted verbatim:
+`_COMPLETENESS_FAILURES` in `scripts/ai_review_common/verdict.py`, quoted
+verbatim:
 
     _COMPLETENESS_FAILURES = frozenset({"CRITICAL_FAIL", "FAIL", "PARTIAL", "NEEDS_REVIEW"})
 
@@ -88,7 +89,8 @@ _ELISION = " ... "
 _HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 # A fenced block holds sample text. A PR body that demonstrates this feature by
 # quoting an acceptance-criteria section would otherwise have its own example
-# read as a real section. `scripts/validation/pr_description.py:721` masks
+# read as a real section. `_FENCE_OPEN_LINE` in
+# `scripts/validation/pr_description.py` masks
 # fences before extracting file claims for the same reason; its
 # `_FENCE_OPEN_LINE` reads, quoted verbatim:
 #
@@ -294,7 +296,7 @@ def _bullets(lines: list[str]) -> list[str]:
     """Return classifiable list items, folding wrapped continuation lines in.
 
     An explicitly unchecked box is dropped. The PR template says so directly at
-    `.github/PULL_REQUEST_TEMPLATE.md:74-76`, quoted verbatim:
+    `.github/PULL_REQUEST_TEMPLATE.md`, quoted verbatim:
 
         Check a box only once the criterion is actually met; an unchecked box
         makes the spec-coverage signal report FAIL (non-blocking).
