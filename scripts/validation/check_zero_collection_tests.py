@@ -20,27 +20,24 @@ The contract this guard reads, verbatim from pyproject.toml:68-69::
 Both are read from the file rather than hardcoded, so widening either one
 widens the guard.
 
-Not every such file is a defect. Two in this repository are legitimately not
-test suites: ``tests/skills/github/test_helpers.py`` is imported by its
-siblings, and ``tests/workflows/test_claude_authorization.py`` is a checker
-script ``.github/workflows/claude.yml`` invokes. Those declare themselves with
-a ``pytest-zero-collection:`` marker plus a reason. The declaration is checked
-in both directions: a declared file that starts collecting tests fails too, so
-a marker cannot outlive the reason it was written for.
+Not every such file is a defect. Two in this repository are legitimately not test suites:
+``tests/skills/github/test_helpers.py`` is imported by its siblings, and
+``tests/workflows/test_claude_authorization.py`` is a checker script
+``.github/workflows/claude.yml`` invokes. Those declare themselves with a
+``pytest-zero-collection:`` marker plus a reason. That permanent declaration is
+checked in both directions: a declared file that starts collecting tests fails
+too, so the marker cannot outlive the reason it was written for.
 
-A module pytest skips during collection needs the same explicit declaration as
-a file that collects nothing: marker syntax alone (``@pytest.mark.<name>``, or
-any other AST-visible shape) proves nothing about whether the guarded code
-actually runs on another host, and a dead test behind a condition that is
-false on every host (`.claude/rules/testing.md` MUST 7's own falsifiability
-standard) can carry that syntax forever. Three rounds of review on PR #5344
-tried, and each time found a new bypass, in registration alone, then in an
-unrestricted marker set, then in marker syntax with no reachability proof at
-all. A skipped module answering for itself without a human-reviewed
-declaration is not achievable by static analysis of one file in isolation, so
-this guard no longer tries: every module pytest skips at collection time
-needs the ``pytest-zero-collection:`` declaration, exactly like a module that
-collects nothing outright.
+A module pytest skips during collection is different. It may skip on one host
+and collect on another. Marker syntax alone (``@pytest.mark.<name>``, or any
+other AST-visible shape) still proves nothing about whether the guarded code
+actually runs elsewhere, and a dead test behind a condition that is false on
+every host (`.claude/rules/testing.md` MUST 7's own falsifiability standard)
+can carry that syntax forever. The guard therefore requires a second,
+skip-specific declaration: ``pytest-zero-collection-conditional: <reason>``.
+That declaration satisfies the guard only when pytest actually skipped the
+module during collection. If the same module collects tests on another host,
+the conditional declaration stays valid there instead of going stale.
 
 Exit codes (``AGENTS.md``): 0 ok, 1 violations found, 2 configuration unusable,
 3 pytest could not be run or its output could not be parsed.
@@ -69,6 +66,7 @@ EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
 EXEMPTION_MARKER = "pytest-zero-collection:"
+CONDITIONAL_SKIP_MARKER = "pytest-zero-collection-conditional:"
 
 # Read the collected set from pytest's own session rather than from its
 # console output. ``--collect-only`` renders three different shapes depending
@@ -85,6 +83,7 @@ import os
 import pytest
 
 _candidate_modules = []
+_skipped_modules = []
 
 
 @pytest.hookimpl(wrapper=True)
@@ -110,6 +109,14 @@ def pytest_pycollect_makemodule(module_path, parent):
     return (yield)
 
 
+def pytest_collectreport(report):
+    if report.outcome != "skipped":
+        return
+    path = report.nodeid.split("::", 1)[0]
+    if path.endswith(".py"):
+        _skipped_modules.append(path)
+
+
 def pytest_collection_finish(session):
     target = os.environ.get("ZERO_COLLECTION_REPORT")
     if not target:
@@ -121,6 +128,7 @@ def pytest_collection_finish(session):
                 "candidate_modules": sorted(set(_candidate_modules)),
                 "files": files,
                 "items": len(session.items),
+                "skipped_modules": sorted(set(_skipped_modules)),
             },
             stream,
         )
@@ -156,6 +164,7 @@ class CollectionResult:
 
     candidates: tuple[str, ...]
     collected: frozenset[str]
+    skipped: frozenset[str]
 
 
 def read_pytest_config(repo_root: Path) -> tuple[list[str], list[str]]:
@@ -211,42 +220,58 @@ def _require_nonempty_strings(values: list[object], pyproject: Path, key: str) -
     return result
 
 
-def _contains_exemption(text: str) -> bool:
+def _contains_marker(text: str, marker: str) -> bool:
     for line in text.splitlines():
         candidate = line.strip()
         if candidate.startswith("#"):
             candidate = candidate[1:].lstrip()
-        if not candidate.startswith(EXEMPTION_MARKER):
+        if not candidate.startswith(marker):
             continue
-        if candidate.removeprefix(EXEMPTION_MARKER).strip():
+        if candidate.removeprefix(marker).strip():
             return True
     return False
 
 
-def declares_exemption(text: str) -> bool:
-    """True when the file declares itself as deliberately collecting nothing.
+def declaration_kind(text: str) -> str:
+    """Return the declaration kind a file carries, or ``"none"``.
 
     The marker needs a reason after it. A bare marker is an undocumented
     suppression, which `.claude/rules/code-quality.md` rejects, so it does not
-    count as a declaration.
+    count as a declaration. Conditional declarations are distinct from
+    permanent non-suite declarations: they are valid only when pytest actually
+    skipped the module during collection.
     """
     try:
         module = ast.parse(text)
     except SyntaxError:
-        return False
+        return "none"
 
     docstring = ast.get_docstring(module, clean=False)
-    if docstring and _contains_exemption(docstring):
-        return True
+    found_permanent = bool(docstring and _contains_marker(docstring, EXEMPTION_MARKER))
+    found_conditional = bool(
+        docstring and _contains_marker(docstring, CONDITIONAL_SKIP_MARKER)
+    )
 
     try:
         tokens = tokenize.generate_tokens(io.StringIO(text).readline)
-        return any(
-            token.type == tokenize.COMMENT and _contains_exemption(token.string)
-            for token in tokens
-        )
+        for token in tokens:
+            if token.type != tokenize.COMMENT:
+                continue
+            if _contains_marker(token.string, CONDITIONAL_SKIP_MARKER):
+                found_conditional = True
+            if _contains_marker(token.string, EXEMPTION_MARKER):
+                found_permanent = True
     except tokenize.TokenError:
-        return False
+        return "none"
+    if found_conditional:
+        return "conditional"
+    if found_permanent:
+        return "permanent"
+    return "none"
+
+
+def declares_exemption(text: str) -> bool:
+    return declaration_kind(text) != "none"
 
 
 def collect_files(repo_root: Path, testpaths: Sequence[str]) -> CollectionResult:
@@ -320,44 +345,45 @@ def collect_files(repo_root: Path, testpaths: Sequence[str]) -> CollectionResult
     return CollectionResult(
         candidates=tuple(payload["candidate_modules"]),
         collected=frozenset(payload["files"]),
+        skipped=frozenset(payload.get("skipped_modules", [])),
     )
 
 
 def build_report(repo_root: Path) -> Report:
     """Compare what pytest walks against what answered for itself.
 
-    A path is satisfied only when pytest actually collected a test from it. A
-    module pytest skipped during collection is never automatically satisfied:
-    marker syntax alone (``@pytest.mark.<name>``) proves nothing about
-    whether the guarded code runs on another host, and a dead test behind a
-    condition that is false everywhere can carry any marker forever. A
-    skipped module needs the same explicit ``pytest-zero-collection:``
-    declaration as a file that collects nothing outright.
+    A path is satisfied only when pytest actually collected a test from it.
+    Permanent ``pytest-zero-collection:`` declarations cover files that should
+    never collect tests. Conditional
+    ``pytest-zero-collection-conditional:`` declarations cover modules that
+    pytest skipped during collection on this host but may collect elsewhere.
     """
     testpaths, _ = read_pytest_config(repo_root)
     collection = collect_files(repo_root, testpaths)
     if not collection.candidates:
         raise ValueError("pytest found no candidate modules under configured testpaths")
-    examined = collection.candidates
 
     undeclared: list[str] = []
     stale: list[str] = []
     declared: list[str] = []
-    for relative in examined:
+    for relative in collection.candidates:
         text = (repo_root / relative).read_text(encoding="utf-8")
-        exempt = declares_exemption(text)
-        satisfied = relative in collection.collected
-        if satisfied:
-            if exempt:
+        declaration = declaration_kind(text)
+        if relative in collection.collected:
+            if declaration == "permanent":
                 stale.append(relative)
             continue
-        if exempt:
+
+        if declaration == "permanent" or (
+            declaration == "conditional" and relative in collection.skipped
+        ):
             declared.append(relative)
-        else:
-            undeclared.append(relative)
+            continue
+
+        undeclared.append(relative)
 
     return Report(
-        examined=tuple(examined),
+        examined=tuple(collection.candidates),
         undeclared=tuple(undeclared),
         stale_declarations=tuple(stale),
         declared=tuple(declared),
@@ -374,8 +400,9 @@ def _print_report(report: Report) -> None:
     for relative in report.undeclared:
         print(
             f"[FAIL] {relative}: collects zero tests. Add test functions, rename "
-            f"the file off the test_ prefix, or declare it with a "
-            f"'{EXEMPTION_MARKER} <reason>' comment.",
+            f"the file off the test_ prefix, declare a permanent non-suite with "
+            f"'{EXEMPTION_MARKER} <reason>', or declare a host-conditional skip "
+            f"with '{CONDITIONAL_SKIP_MARKER} <reason>'.",
             file=sys.stderr,
         )
     for relative in report.stale_declarations:

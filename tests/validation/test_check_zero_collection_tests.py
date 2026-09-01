@@ -19,9 +19,9 @@ helper's return value (`.claude/rules/testing.md` MUST 8).
 - neg/only-file: the sole file collecting nothing (pytest exit 5) -> exit 1
 - neg/stale: a declared file that starts collecting -> exit 1
 - edge/declared: a declared zero-collecting file -> exit 0
-- edge/module-skip: any module pytest skips at collection time (unconditional
-  or conditional, with or without a marker) needs the same explicit
-  declaration as a file that collects nothing outright
+- edge/module-skip: unconditional skips need a permanent declaration;
+  host-conditional skips need a conditional declaration that stays valid when
+  the same module later collects
 - edge/bare-marker: a declaration with no reason is not a declaration -> exit 1
 - edge/marker-mention: prose that mentions the marker is not a declaration
 - edge/ignored: pytest defaults, configured norecursedirs globs, and
@@ -44,6 +44,7 @@ if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 
 from check_zero_collection_tests import (
+    CONDITIONAL_SKIP_MARKER,
     EXEMPTION_MARKER,
     declares_exemption,
     main,
@@ -63,11 +64,11 @@ markers = [
 _REAL_TEST = "def test_passes():\n    assert True\n"
 _NO_TESTS = "def helper():\n    return 1\n"
 
-# Any module pytest skips at collection time, marked or not, conditional or
-# not, needs the same explicit `pytest-zero-collection:` declaration as a file
-# that collects nothing outright (Copilot review rounds 3-7, PR #5344: a
-# marker-based auto-trust mechanism was tried and repeatedly found bypassable,
-# since marker syntax alone never proves the guarded code runs anywhere).
+# Marker syntax alone never proves a skipped module collects anywhere else, so
+# skipped modules still need an explicit declaration. The difference is which
+# one: unconditional skips are permanent non-suites, while host-conditional
+# skips need a conditional declaration that stays valid when the module
+# collects on another host.
 _MODULE_LEVEL_SKIP = (
     "import pytest\n\n"
     'pytest.skip("windows only", allow_module_level=True)\n\n\n'
@@ -108,6 +109,12 @@ _CONDITIONAL_PLATFORM_SKIP_MARKED = (
     "else:\n"
     '    pytest.skip("other platform", allow_module_level=True)\n'
 )
+_OPTIONAL_DEPENDENCY = "optional_dependency"
+_CONDITIONAL_IMPORT_OR_SKIP = (
+    "import pytest\n\n"
+    f'pytest.importorskip("{_OPTIONAL_DEPENDENCY}")\n\n\n'
+    "def test_optional_dependency():\n    assert True\n"
+)
 _CONDITIONAL_PLATFORM_SKIP_UNMARKED = (
     "import sys\n"
     "import pytest\n\n"
@@ -130,6 +137,10 @@ def _make_repo(root: Path, pyproject: str = _PYPROJECT) -> Path:
 
 def _run(root: Path) -> int:
     return main(["--repo-root", str(root)])
+
+
+def _make_importable_module(root: Path, module_name: str) -> None:
+    (root / f"{module_name}.py").write_text("VALUE = 1\n", encoding="utf-8")
 
 
 def test_a_tree_whose_files_all_collect_passes(tmp_path: Path) -> None:
@@ -294,9 +305,8 @@ def test_a_skipped_module_needs_a_declaration_regardless_of_marker_syntax(
     (``_CONDITIONAL_PLATFORM_SKIP_MARKED``'s ``"a-platform-that-does-not-exist"``)
     can carry ``@pytest.mark.windows_path`` forever and still never collect
     anywhere. Every one of these six shapes, unconditional or conditional,
-    ``skip`` or ``importorskip``, decorated or not, needs the same explicit
-    ``pytest-zero-collection:`` declaration as a file that collects nothing
-    outright.
+    ``skip`` or ``importorskip``, decorated or not, needs an explicit
+    declaration instead of trying to answer for itself through marker syntax.
     """
     tests = _make_repo(tmp_path)
     (tests / "test_skipped_module.py").write_text(source, encoding="utf-8")
@@ -305,7 +315,7 @@ def test_a_skipped_module_needs_a_declaration_regardless_of_marker_syntax(
 
 
 def test_a_declared_skipped_module_is_allowed(tmp_path: Path) -> None:
-    """A skipped module with an explicit, reasoned declaration passes."""
+    """An unconditional skip may declare itself as a permanent non-suite."""
     tests = _make_repo(tmp_path)
     (tests / "test_windows_only.py").write_text(
         f"# {EXEMPTION_MARKER} this repository never collects it on any CI host.\n"
@@ -327,6 +337,68 @@ def test_a_skipped_module_does_not_excuse_an_undeclared_neighbour(
         encoding="utf-8",
     )
     (tests / "test_collects_nothing.py").write_text(_NO_TESTS, encoding="utf-8")
+
+    assert _run(tmp_path) == 1
+
+
+def test_a_conditionally_skipped_module_accepts_a_conditional_declaration_when_skipped(
+    tmp_path: Path,
+) -> None:
+    """A host-conditional skip needs a declaration that does not stale on collect."""
+    tests = _make_repo(tmp_path)
+    (tests / "test_optional_dependency.py").write_text(
+        f"# {CONDITIONAL_SKIP_MARKER} optional dependency is absent on some hosts.\n"
+        f"{_CONDITIONAL_IMPORT_OR_SKIP}",
+        encoding="utf-8",
+    )
+
+    assert _run(tmp_path) == 0
+
+
+def test_a_conditionally_skipped_module_collects_cleanly_with_the_same_declaration(
+    tmp_path: Path,
+) -> None:
+    """The conditional declaration stays valid when the dependency exists."""
+    tests = _make_repo(tmp_path)
+    (tests / "test_optional_dependency.py").write_text(
+        f"# {CONDITIONAL_SKIP_MARKER} optional dependency is absent on some hosts.\n"
+        f"{_CONDITIONAL_IMPORT_OR_SKIP}",
+        encoding="utf-8",
+    )
+    _make_importable_module(tmp_path, _OPTIONAL_DEPENDENCY)
+
+    assert _run(tmp_path) == 0
+
+
+def test_a_permanent_declaration_goes_stale_when_a_conditional_module_collects(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A permanent non-suite marker must not hide a real test module."""
+    tests = _make_repo(tmp_path)
+    (tests / "test_optional_dependency.py").write_text(
+        f"# {EXEMPTION_MARKER} optional dependency is absent on some hosts.\n"
+        f"{_CONDITIONAL_IMPORT_OR_SKIP}",
+        encoding="utf-8",
+    )
+    _make_importable_module(tmp_path, _OPTIONAL_DEPENDENCY)
+
+    exit_code = _run(tmp_path)
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "tests/test_optional_dependency.py" in captured.err
+    assert "stale declarations" in captured.out
+
+
+def test_a_conditional_declaration_does_not_exempt_an_ordinary_zero_collecting_file(
+    tmp_path: Path,
+) -> None:
+    """The conditional marker is for collection-time skips, not plain helpers."""
+    tests = _make_repo(tmp_path)
+    (tests / "test_helper_shape.py").write_text(
+        f"# {CONDITIONAL_SKIP_MARKER} not a real skip.\n{_NO_TESTS}",
+        encoding="utf-8",
+    )
 
     assert _run(tmp_path) == 1
 
@@ -540,6 +612,7 @@ def test_malformed_pytest_table_shapes_are_configuration_errors(
     ("text", "expected"),
     [
         (f"# {EXEMPTION_MARKER} imported by siblings", True),
+        (f"# {CONDITIONAL_SKIP_MARKER} optional dependency on some hosts", True),
         (f'"""Doc.\n\n{EXEMPTION_MARKER} a reason spanning the line.\n"""', True),
         (f'MARKER = "{EXEMPTION_MARKER} ordinary string"', False),
         (
