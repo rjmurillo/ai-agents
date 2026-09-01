@@ -68,7 +68,15 @@ These rules apply to every change in this repository.
    this pattern repeatedly (three corrections as of 2025-12-17). If a script
    grows a helper that emits such headers, delete the helper instead of
    calling it.
-6. Git worktrees MUST be external.
+6. **Worktree placement**. Worktrees MUST go in a sibling of the checkout
+   or another external directory; never under it, never under `/tmp`.
+   Convention: `../wt-<topic>`. In-checkout worktrees get walked by every
+   filesystem scan: issue #5370 (107,078 files, `.claude/worktrees/`, 24
+   worktrees/1.6 GB now) and `plugin-self-containment.md` (1,557,567
+   findings). A `/tmp` worktree holds the only unpushed copy, and `/tmp`
+   reclaims without warning. Harness or plugin defaults nesting under the
+   clone (Claude Code's `.claude/worktrees/`, superpowers'
+   `.worktrees/`) do not override this rule.
 
 ## References
 
