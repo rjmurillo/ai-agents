@@ -260,7 +260,7 @@ def _bullets(lines: list[str]) -> list[str]:
     """Return classifiable list items, folding wrapped continuation lines in.
 
     An explicitly unchecked box is dropped. The PR template says so directly at
-    `.github/PULL_REQUEST_TEMPLATE.md:73`, quoted verbatim:
+    `.github/PULL_REQUEST_TEMPLATE.md:74`, quoted verbatim:
 
         Check a box only once the criterion is actually met; an unchecked box
         makes the spec-coverage signal report FAIL (non-blocking).

@@ -170,7 +170,7 @@ class TestDoesNotOverFire:
     def test_leaves_an_unchecked_criterion_in_scope(self, criterion: str) -> None:
         """An unchecked box is an admitted gap, not something to wave through.
 
-        `.github/PULL_REQUEST_TEMPLATE.md:73` says so directly: "Check a box
+        `.github/PULL_REQUEST_TEMPLATE.md:74` says so directly: "Check a box
         only once the criterion is actually met; an unchecked box makes the
         spec-coverage signal report FAIL (non-blocking)." Classifying it `N/A`
         would erase that FAIL from the completeness count.
