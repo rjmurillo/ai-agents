@@ -115,13 +115,40 @@ def _is_path_like(token: str) -> bool:
     return "/" in token or token.endswith(".lock")
 
 
-def _assignments(block: Sequence[str], start: int) -> dict[str, tuple[int, str]]:
-    """Map each shell variable in the block to where it was set and to what."""
-    found: dict[str, tuple[int, str]] = {}
+def _assignments(block: Sequence[str], start: int) -> list[tuple[int, str, str]]:
+    """Return (line number, variable, value) for every assignment, in source order.
+
+    Order is kept rather than collapsed into a name-to-value map because a
+    block can set the same variable more than once and only the setting that
+    precedes a given ``flock`` describes the lock that call actually opens.
+    """
+    found: list[tuple[int, str, str]] = []
     for offset, line in enumerate(block):
         for name, value in _ASSIGNMENT.findall(line):
-            found[name] = (start + offset + 1, value.strip("\"'"))
+            found.append((start + offset + 1, name, value.strip("\"'")))
     return found
+
+
+def _value_in_effect(
+    assignments: Sequence[tuple[int, str, str]], variable: str, use_line: int
+) -> tuple[int, str] | None:
+    """Return the assignment to ``variable`` that is live at ``use_line``.
+
+    Shell rebinds a name in source order, so ``flock "$LOCK"`` opens whatever
+    ``LOCK`` was set to *above* it, and a later reassignment cannot reach
+    backwards to change that. Taking the block's final value instead read the
+    wrong recipe in both directions: a bad path rebound to the canonical one
+    afterwards reported clean, and the canonical path rebound to a bad one
+    afterwards reported a violation the ``flock`` never opened.
+
+    ``<=`` rather than ``<`` because the assignment and the use share a line in
+    the sanctioned one-liner ``LOCK=/tmp/a.lock ; flock "$LOCK" git push``.
+    """
+    live: tuple[int, str] | None = None
+    for number, name, value in assignments:
+        if name == variable and number <= use_line:
+            live = (number, value)
+    return live
 
 
 def _candidate_tokens(block: Sequence[str], start: int) -> list[tuple[int, str]]:
@@ -152,15 +179,16 @@ def _lock_targets(block: Sequence[str], start: int) -> list[tuple[int, str]]:
 
     Reading only ``.lock`` tokens misses a lock file written without the
     suffix, so the ``flock`` argument and the ``exec`` redirect target count as
-    targets whatever they are named. A bare variable reports at its assignment,
-    which is where a reader fixes it.
+    targets whatever they are named. A bare variable resolves to the assignment
+    live at that line and reports there, which is where a reader fixes it.
     """
     assignments = _assignments(block, start)
     targets: list[tuple[int, str]] = []
     for number, token in _candidate_tokens(block, start):
         variable = _BARE_VARIABLE.match(token)
         if variable is not None:
-            number, token = assignments.get(variable.group(1), (number, ""))
+            live = _value_in_effect(assignments, variable.group(1), number)
+            number, token = live if live is not None else (number, "")
         if _is_path_like(token) and (number, token) not in targets:
             targets.append((number, token))
     return targets

@@ -124,6 +124,11 @@ catches a lock written without the `.lock` suffix, and what keeps a dead scheme
 visible when it shares a fence with the canonical recipe. The inventory comes
 from the index, so a staged but uncommitted file is checked.
 
+A variable resolves to the assignment live above the `flock` that reads it, the
+way shell binds names. A reassignment placed below a `flock` describes the next
+call, not that one, so it can neither launder a bad path nor condemn a
+canonical one.
+
 A recipe does not become canonical by losing its fence, so unfenced prose is
 read the same way, one Markdown paragraph at a time: a blank line bounds the
 unit, so a variable set in one paragraph never resolves a `flock` in another.

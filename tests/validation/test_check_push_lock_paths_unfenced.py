@@ -39,6 +39,28 @@ def test_the_fenced_and_unfenced_variable_recipes_agree() -> None:
     assert [path for _line, path in fenced] == [path for _line, path in unfenced]
 
 
+def test_an_unfenced_reassignment_after_the_flock_does_not_clean_the_recipe() -> None:
+    """Unfenced mirror: a later canonical rebind cannot launder the bad path."""
+    text = _prose(
+        "LOCK=/tmp/bad.lock",
+        'flock "$LOCK" git push',
+        'LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock"',
+    )
+
+    assert checker.scan_text(text) == [(1, "/tmp/bad.lock")]
+
+
+def test_an_unfenced_bad_reassignment_after_a_canonical_flock_is_accepted() -> None:
+    """Unfenced mirror of the opposite sign: no false positive either."""
+    text = _prose(
+        'LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock"',
+        'flock "$LOCK" git push',
+        "LOCK=/tmp/bad.lock",
+    )
+
+    assert checker.scan_text(text) == []
+
+
 def test_an_unfenced_file_descriptor_form_is_caught() -> None:
     text = _prose("exec 9>/tmp/aiagents-push.lock", "flock -n 9", "git push")
 

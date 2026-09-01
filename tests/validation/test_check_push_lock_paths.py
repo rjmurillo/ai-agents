@@ -67,6 +67,56 @@ def test_variable_reassignment_uses_the_last_value_before_flock() -> None:
     assert checker.scan_text(text) == []
 
 
+def test_a_reassignment_after_the_flock_does_not_clean_the_recipe() -> None:
+    """The `flock` opened the path live at its own line, not the block's last.
+
+    Reading the block's final value let a bad path be laundered by a canonical
+    reassignment placed below the `flock` that already used it, which is the
+    exact fourth-scheme shape this gate exists to catch (issue #4366).
+    """
+    text = _fence(
+        "LOCK=/tmp/bad.lock",
+        'flock "$LOCK" git push',
+        'LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock"',
+    )
+
+    assert checker.scan_text(text) == [(2, "/tmp/bad.lock")]
+
+
+def test_a_bad_reassignment_after_a_canonical_flock_is_not_a_violation() -> None:
+    """The inverse: a later rebind cannot reach backwards to dirty the call.
+
+    Same defect, opposite sign. Reading the block's final value reported a
+    violation against a `flock` that opened the canonical path.
+    """
+    text = _fence(
+        'LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock"',
+        'flock "$LOCK" git push',
+        "LOCK=/tmp/bad.lock",
+    )
+
+    assert checker.scan_text(text) == []
+
+
+def test_each_flock_resolves_against_its_own_live_assignment() -> None:
+    """Two `flock` calls, one variable, two different locks. Both are read."""
+    text = _fence(
+        "LOCK=/tmp/first.lock",
+        'flock "$LOCK" git push',
+        "LOCK=/tmp/second.lock",
+        'flock "$LOCK" git push',
+    )
+
+    assert checker.scan_text(text) == [(2, "/tmp/first.lock"), (4, "/tmp/second.lock")]
+
+
+def test_an_assignment_sharing_the_flock_line_still_resolves() -> None:
+    """The sanctioned one-liner sets and uses the name on the same line."""
+    text = _fence('LOCK=/tmp/bad.lock ; flock "$LOCK" git push')
+
+    assert [path for _line, path in checker.scan_text(text)] == ["/tmp/bad.lock"]
+
+
 def test_a_lock_path_outside_the_canonical_directory_is_rejected() -> None:
     findings = checker.scan_text('flock "$HOME/locks/push-lock-x.lock" git push')
 
