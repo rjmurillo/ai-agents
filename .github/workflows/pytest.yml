@@ -227,6 +227,37 @@ jobs:
             echo "Python test inputs changed: $PYTHON_CHANGED"
           fi
 
+  zero-collection-guard:
+    name: Check for zero-collection test files (blocking)
+    # Copilot review round 3, PR #5344: this whole-tree guard examines every
+    # file under testpaths regardless of diff, so it must not sit behind a
+    # path filter (`.claude/rules/ci-scripts.md`: "The whole tree ... MUST
+    # run"). It used to live inside the `test` job's `bulk` partition, which
+    # is skipped whenever check-paths reports no Python-relevant diff,
+    # letting a mainline push publish a stale green tick without measuring
+    # the current tree. No `needs:`/`if:` here on purpose.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Check for zero-collection test files (blocking)
+        run: uv run --frozen python scripts/validation/check_zero_collection_tests.py
+
   test:
     name: "pytest (${{ matrix.partition }})"
     needs: check-paths
@@ -293,14 +324,6 @@ jobs:
       - name: Validate AI review workflow budgets
         if: matrix.partition == 'bulk'
         run: python scripts/ci/validate_ai_review_budgets.py
-
-      # Issue #4494: a test_*.py inside testpaths that defines no test collects
-      # nothing and is counted in no failure, so it reads as a passing suite
-      # forever. Two mutation harnesses sat in that state, one of them grading
-      # mutants nobody read. Blocking on purpose: do NOT add continue-on-error.
-      - name: Check for zero-collection test files (blocking)
-        if: matrix.partition == 'bulk'
-        run: uv run --frozen python scripts/validation/check_zero_collection_tests.py
 
       # Issue #2939: keep repo-wide ruff debt from blocking unrelated PRs while
       # failing new violations in changed Python files.

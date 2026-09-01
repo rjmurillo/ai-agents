@@ -8,7 +8,8 @@ and was named by no gate.
 Two claims are pinned here, one per gate:
 
 1. ``check_zero_collection_tests.py`` is invoked by a named lefthook pre-push
-   job and by a blocking step in ``pytest.yml``.
+   job and by a blocking step in an unconditional ``pytest.yml`` job (not
+   gated behind a path filter: it examines the whole tree, not the diff).
 2. The mutation harnesses are reachable by the ``pytest (mutation)`` matrix
    leg: the partition exists in the workflow, the runner maps it to
    ``tests/mutation``, and each harness file contributes collectable tests.
@@ -84,8 +85,12 @@ def _pre_push_jobs() -> list[dict[str, Any]]:
     return _iter_jobs(_load(LEFTHOOK)["pre-push"]["jobs"])
 
 
-def _workflow_steps() -> list[dict[str, Any]]:
-    return _load(PYTEST_WORKFLOW)["jobs"]["test"]["steps"]
+def _workflow_job(name: str) -> dict[str, Any]:
+    return _load(PYTEST_WORKFLOW)["jobs"][name]
+
+
+def _workflow_steps(job_name: str = "test") -> list[dict[str, Any]]:
+    return _workflow_job(job_name)["steps"]
 
 
 def test_a_named_pre_push_job_runs_the_zero_collection_guard() -> None:
@@ -101,11 +106,35 @@ def test_a_named_pre_push_job_runs_the_zero_collection_guard() -> None:
 def test_the_workflow_step_running_the_guard_is_blocking() -> None:
     """continue-on-error would make the step a reporter, not a gate."""
     matching = [
-        step for step in _workflow_steps() if GUARD_SCRIPT in str(step.get("run", ""))
+        step
+        for step in _workflow_steps("zero-collection-guard")
+        if GUARD_SCRIPT in str(step.get("run", ""))
     ]
 
     assert len(matching) == 1, f"expected one pytest.yml step running {GUARD_SCRIPT}"
     assert matching[0].get("continue-on-error") is not True
+
+
+def test_the_workflow_job_running_the_guard_is_unconditional() -> None:
+    """A whole-tree guard MUST run without a path filter (`.claude/rules/ci-scripts.md`).
+
+    Copilot review round 3 (PR #5344): this step used to live inside the
+    ``test`` job's ``bulk`` partition, which is gated behind
+    ``needs.check-paths.outputs.python-changed == 'true'``. A mainline push
+    that touches no Python-matched path would then skip the whole job and
+    publish the workflow's existing success, without the guard ever measuring
+    the current tree. The step's own ``continue-on-error`` check above cannot
+    see a skip one level up, at the job.
+    """
+    job = _workflow_job("zero-collection-guard")
+
+    assert "if" not in job, (
+        "the zero-collection-guard job must not be gated behind a path filter"
+    )
+    assert "needs" not in job, (
+        "the zero-collection-guard job must not depend on check-paths, which "
+        "would let its 'if' condition gate this job transitively"
+    )
 
 
 def test_the_workflow_declares_a_mutation_partition() -> None:
