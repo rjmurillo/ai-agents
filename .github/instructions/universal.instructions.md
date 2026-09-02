@@ -69,6 +69,46 @@ These rules apply to every change in this repository.
    calling it.
 6. Worktrees MUST be external: a sibling of the checkout or `~/worktrees/`,
    never under the clone, never under `/tmp`.
+7. MUST NOT rely on Serena memory or Copilot Memory alone to persist a
+   convention that other harnesses or contributors must obey. Those are
+   retrieval complements, not the cross-harness binding.
+8. MUST NOT cite an operator preference as a repository rule. Anything in a
+   rule file or a Serena memory is repo-scoped, so it binds every contributor,
+   while operator context such as `~/.copilot/copilot-instructions.md` or a
+   personal `SOUL.md` binds one person on one machine. The two arrive in a
+   session with identical authority and read identically once paraphrased, so
+   the distinction cannot be recovered by feel. Before writing "the repository
+   forbids X" or "per the standing prohibition on X", grep the rule tree for X
+   and cite the file and item number, or drop the attribution and let the
+   advice stand on its own reason. Measured: a memory asserted a repository
+   prohibition on `rm -rf` that does not exist, and
+   `.serena/memories/parallel/parallel-001-worktree-isolation.md` uses
+   `rm -rf` as normal procedure, so the invented rule contradicted a committed
+   memory in the same tree.
+9. MUST NOT assert an absence from a single probe. This is the mirror of item 8
+   and is worse, because an absence is unfalsifiable by later reading: a cited
+   presence claim gets checked the next time someone opens the file, while an
+   absence claim has no such automatic trigger. Before writing that no script,
+   validator, rule, or caller exists, search the whole repository from its root
+   and cite the search, or narrow the claim to the scope actually searched.
+   Measured: a memory asserted "No script regenerates these, and no validator
+   checks them" after one probe of a guessed path,
+   `memory/update_memory_index_tokens.py` beneath the scripts tree. The
+   regenerator and its pre-push ratchet both exist one directory up (that is,
+   directly under `scripts`), lefthook runs both, and
+   `.claude/rules/knowledge-persistence.md` MUST 6 names the regenerator by
+   path, so the memory taught the anti-pattern a binding rule forbids
+   (`78e808238`, corrected in `9cd7097f1`).
+
+## Choosing a persistence surface
+
+When you learn a durable fact, convention, or decision procedure that future sessions must honor, choose the persistence surface by who must obey it and across which harnesses. This repository runs under Claude, Codex, and Copilot. A convention that lives in only one harness's memory is invisible to the other two.
+
+1. **Ephemeral, this-task-only**: do not persist as a rule. Record unfinished issue state in the per-issue handoff.
+2. **Retrieval aid, non-binding**: Serena memory (`.serena/memories/`, committed but MCP-gated) or Copilot Memory (the `store_memory` tool, GitHub-scoped and per-user). Use these for "useful to recall," never as the binding for a convention other harnesses must follow. Serena is not guaranteed loaded on every harness; Copilot Memory does not reach Claude or Codex at all.
+3. **Durable convention that binds every contributor and every harness**: a rule file under `.claude/rules/<name>.md`. This is the canonical surface.
+
+Once you know which tree you are writing to, `.claude/rules/knowledge-persistence.md` carries the mechanics: mirror regeneration, memory indexing, and token-count repair.
 
 ## References
 
