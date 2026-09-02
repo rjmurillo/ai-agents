@@ -181,12 +181,19 @@ What is classified, and why:
     untracked file is the operator's own state, such as a local scratch
     fixture a reviewer writes during the review. Comparing those would
     halt every real run against a trusted-ref copy that cannot exist.
-    ``--dispositions-file`` is no longer an example of this. PR #5481
-    committed ``.agents/pr-checks/dispositions.json``, the path the
-    shipped config passes, so it is tracked, it is compared like any
-    other tracked file, and a PR that edits it halts the gate until the
-    change is approved. That is the intended posture for a file whose
-    contents can wave a red check through.
+
+    ``--dispositions-file`` used to be the example here and is no longer
+    a safe one. Classification follows the git state of the workspace
+    this runs in, nothing else, and that answer differs by workspace.
+    In the upstream repository, PR #5481 committed
+    ``.agents/pr-checks/dispositions.json``, the path the shipped config
+    passes, so there it is tracked and compared, and a PR that edits it
+    halts the gate until the change is approved. That is the posture to
+    want for a file whose contents can wave a red check through. In an
+    installed-plugin consumer it is not the same file: the plugin ships
+    ``.claude`` and ``src/copilot-cli``, not ``.agents``, so a consumer
+    workspace has no such path until someone writes one, and a file
+    written there is untracked and skipped exactly as before.
   * A repo-local path whose resolution leaves the work tree (a
     PR-committed symlink) or cannot be resolved fails closed as
     untrusted: the link is PR content and its target has no trusted-ref
@@ -1633,10 +1640,14 @@ def _tracked_subset(rel_paths: list[str], toplevel: Path) -> tuple[set[str], str
     scratch fixture, a reviewer's private copy of a config); comparing
     it would halt every real run against a trusted-ref copy that cannot
     exist, which trains operators to pass the approval flag by reflex.
-    ``--dispositions-file`` used to be the example here. PR #5481
-    committed the path the shipped config passes, so that file is now
-    tracked and is compared. A non-empty ``error`` means the probe
-    itself failed and the caller must halt.
+    ``--dispositions-file`` used to be the example here, and it is a
+    poor one now because the answer depends on the workspace: upstream,
+    PR #5481 committed the path the shipped config passes, so there it
+    is tracked and compared; in an installed-plugin consumer, which
+    receives no ``.agents`` tree, any file written at that path is
+    untracked and skipped. This probe reports the workspace it is given
+    and takes no position beyond it. A non-empty ``error`` means the
+    probe itself failed and the caller must halt.
 
     ``-z`` because paths are not newline-safe and ``core.quotePath``
     would otherwise escape non-ASCII names out of alignment with the
