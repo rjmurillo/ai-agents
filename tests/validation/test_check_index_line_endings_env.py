@@ -438,3 +438,63 @@ def test_a_repository_whose_refs_were_removed_fails_closed(tmp_path: Path) -> No
 
     with pytest.raises(RuntimeError, match="object database still holds commits"):
         checker.check_repository(repo)
+
+
+# --- the command line has a ceiling ---------------------------------------
+
+
+def test_argv_batches_keeps_a_batch_under_the_budget() -> None:
+    """Windows CreateProcess caps a command line; the violating set has no cap.
+
+    Mirrors `scripts/ci/count_ratchet.py::chunk`, including the rule that a
+    single over-budget path gets a batch to itself rather than being dropped:
+    dropping it would leave a violation unremediated while the run reported
+    the rest fixed.
+    """
+    paths = [f"docs/{index:04d}.md" for index in range(500)]
+
+    batches = gitmod.argv_batches(paths, budget=200)
+
+    assert [path for batch in batches for path in batch] == paths
+    assert len(batches) > 1
+    assert all(sum(len(p.encode()) + 1 for p in b) <= 200 for b in batches if len(b) > 1)
+
+    long_path = "x" * 500
+    assert gitmod.argv_batches([long_path], budget=200) == [[long_path]]
+
+
+def test_fix_remediates_a_set_that_exceeds_one_command_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The whole set is fixed, and it takes more than one `git add` to do it.
+
+    The budget is lowered rather than planting 24000 bytes of filenames, so
+    the seam is exercised without a slow fixture. Counting the invocations is
+    the part that matters: without it the test passes whether or not batching
+    happens, because twelve short paths fit on one command line either way.
+    That inert version survived until the mutation check caught it.
+    """
+    repo = _repo_with_crlf_blob(tmp_path, name="docs/000.md")
+    for index in range(1, 12):
+        name = f"docs/{index:03d}.md"
+        (repo / name).write_bytes(b"line one\r\nline two\r\n")
+        blob = _git(repo, "hash-object", "-w", "--no-filters", name).stdout.strip()
+        _git(repo, "update-index", "--add", "--cacheinfo", f"100644,{blob},{name}")
+    _commit(repo, "plant twelve CRLF blobs")
+    monkeypatch.setattr(gitmod, "ARGV_BUDGET_BYTES", 40)
+    monkeypatch.chdir(repo)
+    adds: list[list[str]] = []
+    real_run_git = checker.run_git
+
+    def counting(repo_root: Path, args: list[str], env: dict[str, str] | None = None):
+        if args[:1] == ["add"]:
+            adds.append(args)
+        return real_run_git(repo_root, args, env)
+
+    monkeypatch.setattr(checker, "run_git", counting)
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
+
+    assert len(adds) > 1  # the set did not fit on one command line
+    violations, _ = checker.index_violations(repo)
+    assert violations == []  # and every batch was remediated
