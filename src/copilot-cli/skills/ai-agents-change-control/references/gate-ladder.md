@@ -21,12 +21,11 @@ Local Git hooks only run after Lefthook is installed. Run
 
 `pre_pr.py` does not run `check-install`. Its checksum is shared by every
 linked worktree, so it fails in a sibling whose hooks are fine (issue #4789).
-Two gates cover the ground instead: `Lefthook Installed` runs
-`uv run --frozen lefthook version` from the active checkout
-(`scripts/validation/checks_plugin.py`), and `Git Hook Health (core.hooksPath)`
-reads the installed `pre-push` and requires Lefthook's own dispatch line
-(`scripts/validation/check_git_hook_health.py`). The first proves the runtime
-starts; the second proves Git will reach it.
+Two gates cover the ground instead (`scripts/validation/checks_plugin.py`).
+`Lefthook Installed` runs `uv run --frozen lefthook version` from the active
+checkout. `Git Hook Health (core.hooksPath)` reads the installed `pre-push` and
+requires Lefthook's own dispatch line. The first proves the runtime starts; the
+second proves Git will reach it.
 
 ## Respect commit discipline
 
