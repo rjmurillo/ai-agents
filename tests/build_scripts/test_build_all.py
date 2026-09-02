@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -809,13 +811,60 @@ def test_enumerate_files_under_skips_git_boundary_directory(tmp_path: Path) -> N
     assert sibling in found
 
 
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="os.mkfifo is POSIX only")
+def test_restore_owned_prefixes_never_unlinks_a_pre_existing_fifo(
+    tmp_path: Path,
+) -> None:
+    """A non-regular file is not generator output and must survive --check.
+
+    ``_snapshot_owned_prefixes`` keeps regular files only. In
+    ``build/scripts/build_all.py`` its walk reads::
+
+        if is_dir or not path.is_file():
+            continue
+
+    so a FIFO, a unix socket, or a device node is never in the snapshot.
+    If ``_enumerate_files_under`` counted every non-directory entry, that
+    FIFO would land in ``current - set(snapshot)`` and case 3 of
+    :func:`_restore_owned_prefixes` would unlink it, so a read-only
+    ``--check`` would destroy a path it never created.
+
+    Positive control: a file the generator really did create after the
+    snapshot is still deleted, so a mutant that empties
+    ``_enumerate_files_under`` fails here rather than passing.
+    """
+    owned = tmp_path / "owned"
+    owned.mkdir()
+    fifo = owned / "pipe"
+    os.mkfifo(fifo)
+    pre_existing = owned / "real.md"
+    pre_existing.write_text("# real\n", encoding="utf-8")
+
+    assert fifo not in build_all._enumerate_files_under(tmp_path, ("owned/",))
+
+    snapshot = build_all._snapshot_owned_prefixes(tmp_path, ("owned/",))
+    assert fifo not in snapshot
+    generated = owned / "generated.md"
+    generated.write_text("# generated\n", encoding="utf-8")
+
+    build_all._restore_owned_prefixes(tmp_path, ("owned/",), snapshot)
+
+    assert fifo.is_fifo()
+    assert not generated.exists()
+    assert pre_existing.read_text(encoding="utf-8") == "# real\n"
+
+
 def test_snapshot_owned_prefixes_skips_git_boundary_directory(
     tmp_path: Path,
 ) -> None:
     """The snapshot pass, not just the enumerate pass, must skip a nested
     git repository boundary, with ``exclude_ignored`` left at its default
     (``False``): that is the exact flag value ``run()`` passes for the
-    ``--check`` snapshot (build_all.py:1216), so a gitignore-only guard
+    ``--check`` snapshot. ``build/scripts/build_all.py:1244`` reads::
+
+        snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES)
+
+    with no ``exclude_ignored`` argument, so a gitignore-only guard
     (``_is_ignored_path``) would not cover it.
 
     Without routing this walk through
@@ -1690,6 +1739,43 @@ def test_ignored_paths_empty_when_not_a_git_repo(tmp_path: Path) -> None:
 
     ignored = build_all._ignored_paths(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
     assert ignored == set()
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        OSError("git missing"),
+        subprocess.TimeoutExpired(cmd="git", timeout=30),
+    ],
+    ids=["oserror", "timeout"],
+)
+def test_ignored_paths_warns_and_falls_back_when_git_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    exc: Exception,
+) -> None:
+    """``subprocess.run`` raising must degrade to an empty set plus a warning.
+
+    ``_ignored_paths`` catches ``(OSError, subprocess.SubprocessError)``.
+    The nonzero-exit test covers only the ``returncode != 0`` branch, which
+    a missing ``git`` binary (``OSError``) or a hung ``git`` (a 30 second
+    ``TimeoutExpired``, a ``SubprocessError`` subclass) never reaches. Both
+    arms must fall back rather than crash the build, and both must say so
+    on stderr: a silent empty set reads as "nothing is gitignored" and
+    would let the REQ-003-010 guard report a hook's own log write as a
+    generator violation.
+    """
+
+    def boom(*args: object, **kwargs: object) -> object:
+        raise exc
+
+    monkeypatch.setattr(build_all.subprocess, "run", boom)
+
+    ignored = build_all._ignored_paths(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
+
+    assert ignored == set()
+    assert "WARN: git ls-files failed" in capsys.readouterr().err
 
 
 def test_ignored_paths_ignores_inherited_git_dir_env(

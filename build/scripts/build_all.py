@@ -1161,6 +1161,16 @@ def _enumerate_files_under(
 
     Skips nested git repository boundaries; see
     :func:`_iter_tree_skip_git_boundaries`.
+
+    ``path.is_file()`` is load-bearing, not a redundant re-check of
+    ``not is_dir``. A FIFO, a unix socket, or a device node is neither a
+    directory nor a regular file. :func:`_snapshot_owned_prefixes` drops
+    those with the same predicate (``if is_dir or not path.is_file():
+    continue``), so counting every non-directory entry here would put a
+    pre-existing special file in ``current - snapshot`` and case 3 of
+    :func:`_restore_owned_prefixes` would unlink it. That turns a
+    read-only ``--check`` into a delete. Symlinks are already dropped
+    upstream by :func:`_iter_tree_skip_git_boundaries`.
     """
     found: set[Path] = set()
     for prefix in prefixes:
@@ -1173,7 +1183,7 @@ def _enumerate_files_under(
         if not root.is_dir():
             continue
         for path, is_dir in _iter_tree_skip_git_boundaries(root):
-            if not is_dir:
+            if not is_dir and path.is_file():
                 found.add(path)
     return found
 
