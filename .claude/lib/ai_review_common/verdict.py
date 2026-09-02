@@ -202,17 +202,52 @@ def _coerce_nonnegative_int(value: object) -> int | None:
     return None
 
 
+# assess.py labels each file before scoring it, and short-circuits one label:
+#
+#     category = classify_file_category(file_path, content)
+#     if category == "generated":
+#         return _unscored_generated_assessment(file_path)
+#
+# so a generated entry lands in `files` with every quality unscored. It is
+# counted, never assessed. `/review` says the same thing in prose: generated
+# artifacts are generator-owned and create no local quality finding.
+_ASSESSED_CATEGORIES = frozenset({"authored", "test"})
+
+
 def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool:
     """Return True when the assessment actually evaluated at least one file.
 
     Requires a positive ``summary.file_count`` that agrees with the length of
     ``files``. A disagreement means the two halves of the payload describe
     different runs, which is not evidence of a pass.
+
+    Requires at least one entry whose ``category`` was actually scored. A diff
+    of nothing but generated artifacts yields a positive count of unscored
+    entries, which is a file list, not a review.
     """
     file_count = summary.get("file_count")
     if isinstance(file_count, bool) or not isinstance(file_count, int):
         return False
-    return file_count > 0 and file_count == len(files)
+    if not (file_count > 0 and file_count == len(files)):
+        return False
+    return any(
+        isinstance(entry, dict) and entry.get("category") in _ASSESSED_CATEGORIES
+        for entry in files
+    )
+
+
+def _has_inventoried_docs(payload: dict[str, object]) -> bool:
+    """Return True when doc-accuracy actually inventoried a documentation file.
+
+    ``assessment.documentation_files`` is the list the scanner built from
+    ``DOC_GLOBS``; ``doc_accuracy.py`` reports its length as the doc count.
+    Empty means the gate had nothing to check, so its PASS is silence.
+    """
+    assessment = payload.get("assessment")
+    if not isinstance(assessment, dict):
+        return False
+    documentation_files = assessment.get("documentation_files")
+    return isinstance(documentation_files, list) and bool(documentation_files)
 
 
 def adapt_local_axis_verdict(
@@ -263,14 +298,24 @@ def adapt_local_axis_verdict(
 
     if axis == "doc-accuracy":
         gate_verdict: object | None = None
+        inventoried_docs = False
         if payload is not None:
             gate_result = payload.get("gate_result")
             if isinstance(gate_result, dict):
                 gate_verdict = gate_result.get("verdict")
+            inventoried_docs = _has_inventoried_docs(payload)
         if gate_verdict is None:
+            # Summary mode prints no examined-file count, so a clean Gate line
+            # there cannot distinguish "checked the docs and they hold up" from
+            # "found no docs to check". Only the JSON contract carries the
+            # evidence, so summary output can report FAIL but never PASS.
             matches = _DOC_ACCURACY_GATE_PATTERN.findall(output)
             gate_verdict = matches[-1] if matches else None
-        if gate_verdict == "PASS" and exit_code == 0:
+        # check_gate returns PASS whenever no claim contradicts the code, and a
+        # run that inventoried zero documentation files has no claims to
+        # contradict. A deletion-only Markdown diff, or one under an
+        # EXCLUDE_DIRS path, passes that way without opening a changed file.
+        if gate_verdict == "PASS" and exit_code == 0 and inventoried_docs:
             return "PASS"
         if gate_verdict == "FAIL" and exit_code == 10:
             return "FAIL"

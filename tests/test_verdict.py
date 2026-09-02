@@ -390,10 +390,49 @@ def lint_payload(
 class TestAdaptLocalAxisVerdict:
     def test_code_quality_pass_requires_an_assessed_file(self):
         payload = (
+            '{"files": [{"path": "a.py", "category": "authored"}],'
+            ' "summary": {"file_count": 1}, "comparisons": []}'
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    @pytest.mark.parametrize("category", ["authored", "test"])
+    def test_code_quality_pass_accepts_either_scored_category(self, category):
+        payload = (
+            '{"files": [{"path": "a.py", "category": "%s"}],'
+            ' "summary": {"file_count": 1}, "comparisons": []}' % category
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_generated_only_assessment_is_not_a_pass(self):
+        """assess.py returns an unscored assessment for a generated file.
+
+        `classify_file_category` short-circuits to
+        `_unscored_generated_assessment`, so the entry is counted but never
+        scored. A diff of nothing but generated artifacts is a file list, not a
+        review, and `/review` says generated artifacts create no local quality
+        finding.
+        """
+        payload = (
+            '{"files": [{"path": "gen.ts", "category": "generated"}],'
+            ' "summary": {"file_count": 1}, "comparisons": []}'
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_one_authored_file_beside_generated_ones_still_passes(self):
+        """Negative control: the gate needs one scored file, not all of them."""
+        payload = (
+            '{"files": [{"path": "gen.ts", "category": "generated"},'
+            ' {"path": "a.py", "category": "authored"}],'
+            ' "summary": {"file_count": 2}, "comparisons": []}'
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_missing_category_field_stays_unknown(self):
+        payload = (
             '{"files": [{"path": "a.py"}], "summary": {"file_count": 1},'
             ' "comparisons": []}'
         )
-        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
 
     def test_code_quality_empty_assessment_is_unknown_not_pass(self):
         """A clean exit over zero files is silence, not a verdict.
@@ -460,8 +499,36 @@ class TestAdaptLocalAxisVerdict:
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 3) == "UNKNOWN"
 
     def test_doc_accuracy_json_pass_maps_to_pass(self):
-        payload = '{"gate_result": {"verdict": "PASS"}}'
+        payload = (
+            '{"gate_result": {"verdict": "PASS"},'
+            ' "assessment": {"documentation_files": [{"path": "README.md"}]}}'
+        )
         assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
+
+    def test_doc_accuracy_pass_over_zero_documents_is_unknown(self):
+        """check_gate passes when no claim contradicts the code.
+
+        A run that inventoried nothing has no claims, so its PASS says only
+        that it found no docs. A deletion-only Markdown diff, or one under an
+        EXCLUDE_DIRS path, reaches that state without opening a changed file.
+        """
+        payload = (
+            '{"gate_result": {"verdict": "PASS"},'
+            ' "assessment": {"documentation_files": []}}'
+        )
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "UNKNOWN"
+
+    def test_doc_accuracy_pass_without_an_assessment_block_is_unknown(self):
+        payload = '{"gate_result": {"verdict": "PASS"}}'
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "UNKNOWN"
+
+    def test_doc_accuracy_summary_pass_is_unknown(self):
+        """Summary mode prints no examined-file count, so it cannot prove a PASS.
+
+        It can still report a FAIL, which needs no such evidence.
+        """
+        output = "--- Documentation Accuracy Summary ---\nGate: PASS (threshold: high)\n"
+        assert adapt_local_axis_verdict("doc-accuracy", output, 0) == "UNKNOWN"
 
     def test_doc_accuracy_summary_fail_maps_to_fail(self):
         output = "--- Documentation Accuracy Summary ---\nGate: FAIL (threshold: high)\n"
