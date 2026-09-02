@@ -103,10 +103,10 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
 ## UNKNOWN handling
 
-- A skill that crashes or exits non-zero -> mark axis `UNKNOWN`, log the failure, continue with remaining axes.
+- A skill that crashes or exits with a status step 6's adapter does not recognize -> mark `UNKNOWN`, log it, continue.
 - A canonical axis whose output cannot be parsed by `extract_verdict` -> mark `UNKNOWN`.
 - UNKNOWN does NOT override real findings: `merge_verdicts(["WARN", "UNKNOWN"])` returns `WARN`. UNKNOWN only matters when it would otherwise be PASS.
-- UNKNOWN axes are surfaced explicitly in the output table so the reviewer sees what was not evaluated.
+- UNKNOWN axes are surfaced in the output table so the reviewer sees what was not evaluated.
 
 ## Output
 

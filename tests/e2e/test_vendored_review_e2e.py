@@ -214,17 +214,24 @@ def make_synthetic_diff_repo(repo: Path) -> str:
     return "widget.py"
 
 
-def discover_axis_count(plugin_root: Path) -> int:
-    """Total verdict rows /review emits for the vendored install.
+def discover_expected_axes(plugin_root: Path) -> frozenset[str]:
+    """Every axis name /review must emit a verdict row for.
 
     The canonical axes are the stems of `references/*.md` under the vendored
-    review skill (SKILL.md auto-discovers the set from that directory). The 3
-    chained-skill axes layer on top. The total is the number of verdict rows
-    the findings table must carry.
+    review skill (SKILL.md auto-discovers the set from that directory). The
+    chained-skill axes layer on top.
+
+    Returns names, not just a count. A count lets an unexpected row mask a
+    missing one, so enrolling a new axis raises the expected total while the
+    axis itself can still be absent from the table.
     """
     refs = plugin_root / ".claude" / "skills" / "review" / "references"
-    canonical = sorted(p.stem for p in refs.glob("*.md"))
-    return len(canonical) + len(CHAINED_SKILL_AXES)
+    return frozenset(p.stem for p in refs.glob("*.md")) | frozenset(CHAINED_SKILL_AXES)
+
+
+def discover_axis_count(plugin_root: Path) -> int:
+    """Total verdict rows /review emits for the vendored install."""
+    return len(discover_expected_axes(plugin_root))
 
 
 def load_vendored_extract_verdict(plugin_root: Path):
@@ -300,7 +307,7 @@ def test_review_runs_end_to_end_in_vendored_checkout(tmp_path: Path) -> None:
     workdir = tmp_path / "workdir"
     make_synthetic_diff_repo(workdir)
 
-    expected_rows = discover_axis_count(plugin_root)
+    expected_axes = discover_expected_axes(plugin_root)
     extract_verdict = load_vendored_extract_verdict(plugin_root)
 
     # Strip inherited plugin-root vars so the CLI sets its own for the loaded
@@ -331,12 +338,16 @@ def test_review_runs_end_to_end_in_vendored_checkout(tmp_path: Path) -> None:
 
     output = run.stdout
 
-    # 2. one distinct verdict row per discovered axis.
+    # 2. a verdict row for every discovered axis, by name.
+    # Naming each one is what proves a newly enrolled axis actually reported;
+    # a count alone lets an unexpected row stand in for a missing one.
     distinct_axes = extract_distinct_verdict_axes(output)
-    assert len(distinct_axes) >= expected_rows, (
-        f"expected at least {expected_rows} distinct axis verdict rows (canonical axes + "
-        f"chained skills), found {len(distinct_axes)} distinct axes: {sorted(distinct_axes)}. "
-        f"A short count means an axis failed to load or chain in the vendored install. "
+    missing = sorted(expected_axes - distinct_axes)
+    assert not missing, (
+        f"missing {len(missing)} axis verdict row(s): {missing}. "
+        f"Expected every canonical axis and chained skill: {sorted(expected_axes)}. "
+        f"Found: {sorted(distinct_axes)}. "
+        f"A missing row means that axis failed to load or chain in the vendored install. "
         f"output_tail={output[-1500:]!r}"
     )
 
