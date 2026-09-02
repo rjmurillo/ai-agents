@@ -54,6 +54,9 @@ from check_rule_scope_keys import (
     validate_rule_scope_keys,
 )
 
+_REMOTE_GATE_JOB = "validate-pr"
+_GATE_SCRIPT_PATH = "scripts/validation/check_rule_scope_keys.py"
+
 PATHS_BLOCK = 'paths:\n  - "**/*.py"\n  - "**/*.cs"\n'
 PATHS_INLINE = 'paths: ["**"]\n'
 APPLYTO = "applyTo: '**/*.py,**/*.cs'\n"
@@ -353,13 +356,43 @@ def test_the_gate_runs_as_a_remote_check_not_only_a_local_hook() -> None:
     A push from a clone without `lefthook install`, from the web editor, or
     from the API bypasses the hook entirely. Deleting the workflow step would
     silently restore that gap, and no other test would notice.
-    """
-    workflow = REPO_ROOT / ".github" / "workflows" / "pr-validation.yml"
-    body = workflow.read_text(encoding="utf-8")
 
-    assert "scripts/validation/check_rule_scope_keys.py" in body, (
-        f"{workflow.relative_to(REPO_ROOT).as_posix()} no longer invokes the rule "
-        "scope gate; the check is back to being local-hook-only."
+    Parses the workflow rather than searching its text, per
+    `.claude/rules/testing.md` item 9. A substring assertion passes when the
+    step is deleted but its path survives in a comment, when the step moves to
+    an unrelated job, and when it is neutered with `if: false` or
+    `continue-on-error: true` while the text stays put. Each of those leaves
+    the required check green while it blocks nothing, so the step's identity,
+    its job, and both of its neutering knobs are asserted here.
+    """
+    import yaml
+
+    workflow_path = REPO_ROOT / ".github" / "workflows" / "pr-validation.yml"
+    rel = workflow_path.relative_to(REPO_ROOT).as_posix()
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+
+    job = workflow["jobs"].get(_REMOTE_GATE_JOB)
+    assert job is not None, f"{rel} no longer defines the `{_REMOTE_GATE_JOB}` job"
+
+    matching = [
+        step
+        for step in job["steps"]
+        if _GATE_SCRIPT_PATH in str(step.get("run", ""))
+    ]
+    assert len(matching) == 1, (
+        f"{rel} job `{_REMOTE_GATE_JOB}` should run {_GATE_SCRIPT_PATH} exactly once, "
+        f"found {len(matching)}. The gate is back to being local-hook-only."
+    )
+
+    step = matching[0]
+    assert "if" not in step, (
+        f"{rel}: the rule scope step gained an `if:` condition, so it no longer "
+        "runs on every PR. A conditional backstop is not a backstop for the "
+        "actors who bypass the local hook."
+    )
+    assert step.get("continue-on-error") is not True, (
+        f"{rel}: the rule scope step is `continue-on-error: true`, so a violation "
+        "reports green. The check exists to block."
     )
 
 
