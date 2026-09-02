@@ -178,10 +178,15 @@ What is classified, and why:
   * UNTRACKED work-tree files are recorded in
     ``command_trust.skipped_untracked_files`` and not compared. PR
     content arrives through a checkout, so it is always tracked; an
-    untracked file is the operator's own state, such as the
-    ``--dispositions-file`` JSON a reviewer writes during the review.
-    Comparing those would halt every real run against a trusted-ref
-    copy that cannot exist.
+    untracked file is the operator's own state, such as a local scratch
+    fixture a reviewer writes during the review. Comparing those would
+    halt every real run against a trusted-ref copy that cannot exist.
+    ``--dispositions-file`` is no longer an example of this. PR #5481
+    committed ``.agents/pr-checks/dispositions.json``, the path the
+    shipped config passes, so it is tracked, it is compared like any
+    other tracked file, and a PR that edits it halts the gate until the
+    change is approved. That is the intended posture for a file whose
+    contents can wave a red check through.
   * A repo-local path whose resolution leaves the work tree (a
     PR-committed symlink) or cannot be resolved fails closed as
     untrusted: the link is PR content and its target has no trusted-ref
@@ -1624,11 +1629,13 @@ def _tracked_subset(rel_paths: list[str], toplevel: Path) -> tuple[set[str], str
 
     Trust is scoped to tracked files because the threat is PR content,
     and PR content arrives through a checkout, so it is always tracked.
-    An untracked work-tree file is the operator's own state (the
-    ``--dispositions-file`` a reviewer writes during the review, a local
-    scratch fixture); comparing it would halt every real run against a
-    trusted-ref copy that cannot exist, which trains operators to pass
-    the approval flag by reflex. A non-empty ``error`` means the probe
+    An untracked work-tree file is the operator's own state (a local
+    scratch fixture, a reviewer's private copy of a config); comparing
+    it would halt every real run against a trusted-ref copy that cannot
+    exist, which trains operators to pass the approval flag by reflex.
+    ``--dispositions-file`` used to be the example here. PR #5481
+    committed the path the shipped config passes, so that file is now
+    tracked and is compared. A non-empty ``error`` means the probe
     itself failed and the caller must halt.
 
     ``-z`` because paths are not newline-safe and ``core.quotePath``

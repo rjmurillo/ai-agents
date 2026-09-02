@@ -2368,9 +2368,14 @@ class TestCommandTrustBoundary:
     def test_untracked_operator_file_is_recorded_not_compared(
         self, git_repo, tmp_path, capsys,
     ):
-        # The shipped config passes --dispositions-file, a JSON file the
-        # reviewer writes during the review. It is untracked, so it has
-        # no trusted-ref copy; comparing it would halt every real run.
+        # A file the operator writes during the review, such as a local
+        # scratch fixture. It is untracked, so it has no trusted-ref copy;
+        # comparing it would halt every real run.
+        #
+        # This used to cite the shipped --dispositions-file as the example.
+        # PR #5481 committed .agents/pr-checks/dispositions.json, so that
+        # path is tracked now and is compared like any other tracked file.
+        # The carve-out this test pins is unchanged; only the example moved.
         marker = tmp_path / "ran.txt"
         script = _write_marker_script(tmp_path / "verify.py", marker)
         dispositions = tmp_path / "dispositions.json"
