@@ -68,7 +68,8 @@ These rules apply to every change in this repository.
    this pattern repeatedly (three corrections as of 2025-12-17). If a script
    grows a helper that emits such headers, delete the helper instead of
    calling it.
-6. Git worktrees MUST be external.
+6. Worktrees MUST be external: a sibling of the checkout or `~/worktrees/`,
+   never under the clone, never under `/tmp`.
 
 ## References
 
