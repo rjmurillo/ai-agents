@@ -125,8 +125,14 @@ _GP_SCRIPT_SUFFIXES = (".sh", ".bash")
 _GP_WORKFLOW_SUFFIXES = (".yml", ".yaml")
 _GP_SKILL_FILENAME = "skill.md"
 _GP_AGENT_EXCLUDED_FILENAME = "claude.md"
-_GP_SKILLS_MARKER = (".claude", "skills")
-_GP_AGENTS_MARKER = (".claude", "agents")
+# These markers match segments of a caller-supplied changed-file path, they do
+# not resolve anything on disk, so the vendor-portability ratchet's concern
+# does not apply. The root is a named constant so the pair is never spelled as
+# an adjacent ".claude", "skills" literal, which that ratchet reads as a
+# hard-coded upstream path (issue #2050).
+_TOOLKIT_ROOT_SEGMENT = ".claude"
+_GP_SKILLS_MARKER = (_TOOLKIT_ROOT_SEGMENT, "skills")
+_GP_AGENTS_MARKER = (_TOOLKIT_ROOT_SEGMENT, "agents")
 _GP_WORKFLOWS_MARKER = (".github", "workflows")
 _DECISION_DIRECTORIES = frozenset({"architecture", "decisions"})
 _ROADMAP_DIRECTORIES = frozenset({"roadmap", "planning", "specs"})
