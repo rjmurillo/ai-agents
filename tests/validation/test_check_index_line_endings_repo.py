@@ -14,7 +14,9 @@ reads.
 
 from __future__ import annotations
 
+import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -59,6 +61,57 @@ def test_git_ls_files_eol_still_emits_the_parsed_shape() -> None:
     assert head[0].startswith("i/")
     assert head[1].startswith("w/")
     assert head[2].startswith("attr/")
+
+
+# The last commit before this branch renormalized the two handoff blobs. It is
+# on `main`, so it survives however this PR merges, and it is the only tree in
+# the repository's history that still carries the defect the gate exists for.
+PRE_FIX_COMMIT = "12bea5f5990086f9d1a83dce5bc1ed57757f00c7"
+
+
+def _violations_at(revision: str) -> list[object]:
+    """Scan one historical commit the way the HEAD scope scans HEAD.
+
+    An isolated index holds that commit's blobs and `GIT_ATTR_SOURCE` pins its
+    attributes, so the answer is about that tree and nothing else in the
+    checkout.
+    """
+    env = checker._git_environment()
+    with tempfile.TemporaryDirectory() as scratch:
+        env["GIT_INDEX_FILE"] = str(Path(scratch) / "pinned.index")
+        env["GIT_ATTR_SOURCE"] = revision
+        checker._git(REPO_ROOT, ["read-tree", revision], env=env)
+        output = checker._ls_files_eol(REPO_ROOT, env=env)
+    violations, _ = checker.parse_violations(output, scope=revision)
+    return violations
+
+
+def test_the_gate_fails_on_the_commit_the_incident_shipped() -> None:
+    """The historical negative control, not a synthetic stand-in.
+
+    `test_this_repository_has_no_contradicting_blobs` proves the gate passes on
+    a clean tree and `test_negative_control_gate_fails_on_a_real_crlf_blob`
+    proves it fails on a built one. Neither proves it would have caught the
+    blobs that actually broke every worktree. This scans the commit that
+    carried them.
+    """
+    if (
+        subprocess.run(
+            ["git", "cat-file", "-e", f"{PRE_FIX_COMMIT}^{{commit}}"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            timeout=60,
+            check=False,
+            env={k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")},
+        ).returncode
+        != 0
+    ):
+        pytest.skip(f"{PRE_FIX_COMMIT} is not in this clone (shallow checkout)")
+
+    violations = _violations_at(PRE_FIX_COMMIT)
+
+    assert sorted(v.path for v in violations) == sorted(INCIDENT_PATHS)
+    assert {v.index_state for v in violations} == {"i/crlf"}
 
 
 def test_negative_control_gate_fails_on_a_real_crlf_blob(tmp_path: Path) -> None:
