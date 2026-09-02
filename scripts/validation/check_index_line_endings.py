@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Block index blobs whose line endings contradict their gitattributes.
+"""Block blobs whose line endings contradict their gitattributes.
 
-A file declared `text ... eol=lf` is supposed to hold LF in the index. A blob
+A file declared `text ... eol=lf` is supposed to hold LF in its blob. A blob
 that holds CRLF anyway is not a cosmetic problem: with `core.autocrlf=input`
 the clean filter rewrites CRLF to LF on read, so the checked-out copy never
 matches its own blob. Git's stat cache hides that right after checkout, then
@@ -14,9 +14,17 @@ Two such blobs reached `main` and broke merges in every worktree until
 hook ran on them, because both commits were created through the GraphQL
 `createCommitOnBranch` API, which uploads file contents verbatim. That path
 stays available and is documented as the workaround when a sandbox cannot run
-lefthook, so nothing upstream of the index can be relied on to prevent a
-repeat. This check reads the index itself, which is the one place the defect
-is always visible.
+lefthook, so nothing upstream of the stored blob can be relied on to prevent a
+repeat. This check reads the stored blobs, which is the one place the defect is
+always visible.
+
+Two scopes are read, because they answer different questions and can disagree:
+
+- `HEAD`, through an isolated index, is what a push transmits. This is the
+  scope that matters for the API path and for CI.
+- the working index is what the next commit will create. Staging a fix without
+  committing it leaves `HEAD` bad, and scanning only the index would call that
+  clean.
 
 Exit codes follow ADR-035: 0 clean, 1 violations found, 2 git unavailable.
 """
@@ -24,70 +32,97 @@ Exit codes follow ADR-035: 0 clean, 1 violations found, 2 git unavailable.
 from __future__ import annotations
 
 import argparse
+import os
 import shlex
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-# `git ls-files --eol` prefixes the index state with `i/`. `mixed` is included
+# `git ls-files --eol` prefixes the stored state with `i/`. `mixed` is included
 # because a blob holding both endings is broken the same way a pure-CRLF one
 # is; `none` means no line endings at all and cannot contradict anything.
 _BAD_INDEX_STATES = frozenset({"i/crlf", "i/mixed"})
 
-# Only these attribute values promise LF in the index. A path marked `-text`
-# is exempt by declaration, and `eol=crlf` asks for CRLF on purpose, so
-# neither is a contradiction.
+# Only these attribute values promise LF in the blob. A path marked `-text` is
+# exempt by declaration, and `eol=crlf` asks for CRLF on purpose, so neither is
+# a contradiction.
 _LF_ATTRIBUTES = ("eol=lf",)
 
 REMEDIATION = "git add --renormalize <path>, then commit the result"
 
+_GIT_TIMEOUT_SECONDS = 120
+
 
 @dataclass(frozen=True)
 class Violation:
-    """One tracked path whose index blob contradicts its attributes."""
+    """One tracked path whose stored blob contradicts its attributes."""
 
     path: str
     index_state: str
     attributes: str
+    scope: str = "HEAD"
 
     def render(self) -> str:
         return (
-            f"[CRLF] {self.path}: index blob is {self.index_state} "
+            f"[CRLF] {self.path}: {self.scope} blob is {self.index_state} "
             f"but attributes say {self.attributes}"
         )
 
 
-def _run_ls_files_eol(repo_root: Path) -> str:
-    """Return `git ls-files --eol` output, or raise RuntimeError."""
+def _git(
+    repo_root: Path,
+    args: list[str],
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a git command, raising RuntimeError on a non-zero exit."""
     result = subprocess.run(
-        ["git", "ls-files", "--eol"],
+        ["git", *args],
         cwd=repo_root,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
-        timeout=120,
+        timeout=_GIT_TIMEOUT_SECONDS,
         check=False,
+        env=env,
     )
     if result.returncode != 0:
         raise RuntimeError(
-            f"git ls-files --eol failed ({result.returncode}): "
+            f"git {' '.join(args)} failed ({result.returncode}): "
             f"{(result.stderr or '').strip()}"
         )
-    return result.stdout
+    return result
 
 
-def parse_violations(output: str) -> tuple[list[Violation], int]:
-    """Parse `git ls-files --eol` output into violations and an examined count.
+def _ls_files_eol(repo_root: Path, env: dict[str, str] | None = None) -> str:
+    """Return NUL-terminated `git ls-files --eol` output.
 
-    Each row is `i/<state> w/<state> attr/<attrs><TAB><path>`. The attribute
-    field can carry several space-separated values, so the path is split on the
+    `-z` is required, not cosmetic. Without it git applies `core.quotePath` and
+    C-quotes any non-ASCII or control character in a path, so a violation would
+    be reported under its display spelling and the remediation would name a file
+    that does not exist.
+    """
+    return _git(repo_root, ["ls-files", "--eol", "-z"], env=env).stdout
+
+
+def parse_violations(output: str, scope: str = "HEAD") -> tuple[list[Violation], int]:
+    """Parse NUL-terminated `git ls-files --eol -z` output.
+
+    Each record is `i/<state> w/<state> attr/<attrs><TAB><path>`. The attribute
+    field carries several space-separated values, so the path is split on the
     tab rather than on whitespace: a path containing spaces would otherwise be
     truncated and silently drop a real violation.
+
+    Newline-separated input is accepted too, so a caller holding output from a
+    git that predates `-z` still parses. A path containing a literal newline is
+    only safe under `-z`, which is why the producer above always passes it.
     """
     violations: list[Violation] = []
     examined = 0
-    for line in output.splitlines():
+    records = output.split("\0") if "\0" in output else output.splitlines()
+    for record in records:
+        line = record.strip("\n")
         if "\t" not in line:
             continue
         head, path = line.split("\t", 1)
@@ -102,14 +137,63 @@ def parse_violations(output: str) -> tuple[list[Violation], int]:
         if not any(token in attributes for token in _LF_ATTRIBUTES):
             continue
         violations.append(
-            Violation(path=path, index_state=index_state, attributes=attributes)
+            Violation(
+                path=path,
+                index_state=index_state,
+                attributes=attributes,
+                scope=scope,
+            )
         )
     return violations, examined
 
 
+def _head_env(repo_root: Path, index_path: str) -> dict[str, str]:
+    """Environment pointing git at a scratch index loaded from HEAD."""
+    env = os.environ.copy()
+    env["GIT_INDEX_FILE"] = index_path
+    _git(repo_root, ["read-tree", "HEAD"], env=env)
+    return env
+
+
+def _has_commits(repo_root: Path) -> bool:
+    """Return True when HEAD resolves, False for an unborn branch."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", "HEAD"],
+        cwd=repo_root,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_GIT_TIMEOUT_SECONDS,
+        check=False,
+    )
+    return result.returncode == 0
+
+
 def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
-    """Return violations and the number of tracked files examined."""
-    return parse_violations(_run_ls_files_eol(repo_root))
+    """Return violations across HEAD and the working index, plus files examined.
+
+    A path bad in both scopes is reported once, under HEAD, because that is the
+    scope a push transmits and one remediation fixes both.
+    """
+    violations: list[Violation] = []
+    examined = 0
+
+    if _has_commits(repo_root):
+        # NamedTemporaryFile would hand git an existing empty file, which
+        # read-tree rejects as a malformed index, so reserve a name instead.
+        with tempfile.TemporaryDirectory() as scratch:
+            index_path = str(Path(scratch) / "head.index")
+            env = _head_env(repo_root, index_path)
+            violations, examined = parse_violations(
+                _ls_files_eol(repo_root, env=env), scope="HEAD"
+            )
+
+    seen = {violation.path for violation in violations}
+    staged, staged_examined = parse_violations(
+        _ls_files_eol(repo_root), scope="index"
+    )
+    violations.extend(v for v in staged if v.path not in seen)
+    return violations, max(examined, staged_examined)
 
 
 def _report(violations: list[Violation], examined: int) -> None:
@@ -119,12 +203,28 @@ def _report(violations: list[Violation], examined: int) -> None:
     if violations:
         print(f"index-line-endings: {len(violations)} blob(s) contradict gitattributes")
         print(f"  Fix: {REMEDIATION}")
-        # shlex.quote per path: a tracked path may contain spaces or shell
-        # metacharacters, and an unquoted join would print a command that
-        # renormalizes the wrong files or nothing at all.
+        print("  Or re-run this check with --fix, which calls git directly.")
+        # shlex.quote per path, and `--` before them. A tracked path may carry
+        # shell syntax or a leading dash, and an unquoted join would print a
+        # command that runs attacker-controlled text if a maintainer pasted it
+        # (CWE-78). The quoting is POSIX-shell specific, which is why --fix
+        # exists: it passes an argument list to git and never builds a string.
         paths = " ".join(shlex.quote(v.path) for v in violations)
-        print(f"  git add --renormalize {paths}")
+        print(f"  git add --renormalize -- {paths}")
     print(f"index-line-endings: {len(violations)} violation(s) in {examined} tracked files")
+
+
+def renormalize(repo_root: Path, violations: list[Violation]) -> None:
+    """Run `git add --renormalize` on the violating paths, without a shell.
+
+    Paths reach git as argv entries, so a filename carrying shell syntax is
+    inert. `--` stops a leading-dash filename from parsing as an option.
+    """
+    if not violations:
+        return
+    paths = sorted({violation.path for violation in violations})
+    _git(repo_root, ["add", "--renormalize", "--", *paths])
+    print(f"index-line-endings: renormalized {len(paths)} path(s); commit the result")
 
 
 def validate_index_line_endings(repo_root: Path) -> bool:
@@ -145,6 +245,11 @@ def main(argv: list[str] | None = None) -> int:
         default=".",
         help="Repository root to inspect (default: current directory)",
     )
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Renormalize the violating paths via git argv instead of printing a command",
+    )
     args = parser.parse_args(argv)
 
     repo_root = Path(args.repo_root).resolve()
@@ -153,11 +258,13 @@ def main(argv: list[str] | None = None) -> int:
     # two would report "line endings are wrong" when git never ran.
     try:
         violations, examined = check_repository(repo_root)
+        _report(violations, examined)
+        if args.fix:
+            renormalize(repo_root, violations)
     except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
         print(f"[FAIL] index line endings: {exc}", file=sys.stderr)
         return 2
 
-    _report(violations, examined)
     return 1 if violations else 0
 
 

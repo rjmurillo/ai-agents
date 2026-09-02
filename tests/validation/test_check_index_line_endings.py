@@ -180,7 +180,7 @@ def test_validate_prints_the_renormalize_command(monkeypatch, capsys) -> None:
 
     assert checker.validate_index_line_endings(REPO_ROOT) is False
     out = capsys.readouterr().out
-    assert "git add --renormalize docs/a.md" in out
+    assert "git add --renormalize -- docs/a.md" in out
 
 
 def test_validate_passes_on_a_clean_repository(monkeypatch) -> None:
@@ -333,7 +333,7 @@ def test_remediation_command_quotes_paths_with_spaces(tmp_path: Path, capsys) ->
     assert checker.validate_index_line_endings(repo) is False
 
     out = capsys.readouterr().out
-    assert "git add --renormalize 'a handoff.md'" in out
+    assert "git add --renormalize -- 'a handoff.md'" in out
 
 
 def _commit(repo: Path, message: str) -> None:
@@ -404,3 +404,126 @@ def test_the_two_incident_handoffs_hold_lf_index_blobs(path: str) -> None:
     if not rows:
         pytest.skip(f"{path} is no longer tracked")
     assert rows[0].split()[0] == "i/lf", rows[0]
+
+
+# --- HEAD vs index scope (review thread on check_index_line_endings.py:65) --
+
+
+def test_head_blob_is_reported_even_when_the_index_is_already_clean(
+    tmp_path: Path,
+) -> None:
+    """Staging a fix does not make the pushed tree clean.
+
+    `git ls-files` reads the mutable index. After `git add --renormalize` but
+    before committing, the index says LF while HEAD still carries the CRLF blob
+    that a push transmits, so an index-only scan would call this clean.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    _git(repo, "add", "--renormalize", "handoff.md")
+
+    violations, _ = checker.check_repository(repo)
+
+    assert [(v.path, v.scope) for v in violations] == [("handoff.md", "HEAD")]
+    assert checker.main(["--repo-root", str(repo)]) == 1
+
+
+def test_staged_blob_is_reported_when_head_is_clean(tmp_path: Path) -> None:
+    """The index scope still matters: it is what the next commit will store."""
+    repo = _repo_with_crlf_blob(tmp_path)
+
+    violations, _ = checker.check_repository(repo)
+
+    assert [(v.path, v.scope) for v in violations] == [("handoff.md", "index")]
+
+
+def test_a_path_bad_in_both_scopes_is_reported_once(tmp_path: Path) -> None:
+    """One remediation fixes both, so two rows would be noise."""
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+
+    violations, _ = checker.check_repository(repo)
+
+    assert [(v.path, v.scope) for v in violations] == [("handoff.md", "HEAD")]
+
+
+def test_an_unborn_branch_scans_the_index_without_crashing(tmp_path: Path) -> None:
+    """A repo with no commits has no HEAD to read; the index still counts."""
+    repo = _repo_with_crlf_blob(tmp_path)
+
+    violations, _ = checker.check_repository(repo)
+
+    assert [v.scope for v in violations] == ["index"]
+
+
+# --- --fix mode (review thread on the advertised command, CWE-78) ----------
+
+
+def test_fix_mode_renormalizes_without_building_a_shell_string(
+    tmp_path: Path,
+) -> None:
+    """A filename carrying shell syntax must be inert, not executed.
+
+    `--fix` passes paths to git as argv entries, so the quoting of the printed
+    command is never load-bearing for anyone who uses it.
+    """
+    repo = _repo_with_crlf_blob(tmp_path, name="a;$(touch pwned).md")
+    _commit(repo, "plant a CRLF blob under a hostile name")
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
+
+    assert not (repo / "pwned").exists()
+    violations, _ = checker.check_repository(repo)
+    assert [v.scope for v in violations] == ["HEAD"]  # index fixed, HEAD awaits commit
+
+
+def test_fix_mode_then_commit_clears_the_gate(tmp_path: Path) -> None:
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
+    _commit(repo, "renormalize")
+
+    assert checker.main(["--repo-root", str(repo)]) == 0
+
+
+def test_fix_mode_on_a_clean_repository_is_a_no_op(tmp_path: Path) -> None:
+    repo = _repo_with_crlf_blob(tmp_path)
+    _git(repo, "add", "--renormalize", "handoff.md")
+    _commit(repo, "clean from the start")
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 0
+
+
+# --- NUL-terminated parsing (review thread on core.quotePath) --------------
+
+
+def test_nul_terminated_records_are_parsed() -> None:
+    output = (
+        "i/crlf  w/crlf  attr/text eol=lf     \tdocs/a.md\0"
+        "i/lf  w/lf  attr/text eol=lf     \tdocs/b.md\0"
+    )
+
+    violations, examined = checker.parse_violations(output)
+
+    assert [v.path for v in violations] == ["docs/a.md"]
+    assert examined == 2
+
+
+def test_a_path_containing_a_newline_survives_nul_parsing() -> None:
+    """The exact case `core.quotePath` would have mangled without -z."""
+    output = "i/crlf  w/crlf  attr/text eol=lf     \tdocs/we\nird.md\0"
+
+    violations, _ = checker.parse_violations(output)
+
+    assert [v.path for v in violations] == ["docs/we\nird.md"]
+
+
+def test_non_ascii_paths_are_reported_raw_not_c_quoted(tmp_path: Path) -> None:
+    """Under core.quotePath git would print \\346..., naming a nonexistent file."""
+    repo = _repo_with_crlf_blob(tmp_path, name="ハンドオフ.md")
+    _git(repo, "config", "core.quotePath", "true")
+
+    violations, _ = checker.check_repository(repo)
+
+    assert [v.path for v in violations] == ["ハンドオフ.md"]
