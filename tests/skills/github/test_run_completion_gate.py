@@ -2398,6 +2398,71 @@ class TestCommandTrustBoundary:
             "dispositions.json",
         ]
 
+    def test_a_tracked_option_value_is_compared_like_any_other_path(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """Positive control for the pair above: tracked means compared.
+
+        `_classify_argv_token` skips a token only when it is empty or
+        starts with a hyphen. There is no option-position tracking, so an
+        option VALUE naming an existing in-tree file is classified by what
+        is on disk, exactly like a bare path argument. The test above shows
+        the untracked half; without this one, a classifier that skipped
+        every option value by position would satisfy it and nothing would
+        notice.
+
+        This is the mechanism by which the shipped `--dispositions-file`
+        value is verified, which the `--command-trust` documentation now
+        states.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, str(registry))],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["command_trust"]["status"] == "trusted"
+        assert payload["command_trust"]["checked_files"] == [
+            "verify.py",
+            "dispositions.json",
+        ], "a tracked option value must be compared, not skipped by position"
+        assert payload["command_trust"]["skipped_untracked_files"] == []
+
+    def test_a_tampered_tracked_option_value_halts_the_gate(
+        self, git_repo, tmp_path,
+    ):
+        """The half that matters: comparison without a halt is decoration.
+
+        A registry that can wave a red check through has to stop the gate
+        when a PR edits it, not merely appear in `checked_files`.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, str(registry))],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+        registry.write_text('{"some-check": {"disposition": "known-flaky"}}',
+                            encoding="utf-8")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), "no criterion may run on an edited registry"
+
     def test_untracked_script_does_not_mask_a_tampered_tracked_one(
         self, git_repo, tmp_path,
     ):

@@ -166,10 +166,14 @@ case as well; there is one approval model, not two.
 
 What is classified, and why:
 
-  * Option flags (leading ``-``), option values, the substituted PR
-    number, and bare interpreter names that are not paths (``python3``
-    resolves under the cwd but no such file exists) are skipped: there
-    is nothing to compare.
+  * Option flags (leading ``-``), the substituted PR number, bare
+    interpreter names that are not paths (``python3`` resolves under
+    the cwd but no such file exists), and directories are skipped:
+    there is nothing to compare. Classification is by token shape and
+    by what is on disk, never by argv position. There is no
+    option-position tracking, so an option VALUE that names an existing
+    file is classified exactly like any other path token. That is how
+    a tracked ``--dispositions-file`` value comes to be compared.
   * Files OUTSIDE the git work tree are recorded in
     ``command_trust.skipped_external_files`` and not compared. An
     absolute interpreter path or an installed-plugin script cannot be
@@ -1386,10 +1390,13 @@ def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
     Returns ``(kind, value)`` where kind is one of the ``_ARGV_*``
     constants:
 
-      * ``_ARGV_SKIP`` -- nothing to verify: an option flag, an option
-        value, a PR number, a bare interpreter name that is not a path
-        (``python3`` resolves under the cwd but no such file exists), or
-        a directory.
+      * ``_ARGV_SKIP`` -- nothing to verify: an option flag, a PR
+        number, a bare interpreter name that is not a path (``python3``
+        resolves under the cwd but no such file exists), or a
+        directory. Only the leading-hyphen test is by shape; every
+        other token is classified by what is on disk. An option value
+        is not skipped for being one, so a value naming an existing
+        file falls through to the cases below like any other path.
       * ``_ARGV_VERIFY`` -- an existing file inside the work tree; the
         value is its work-tree-relative POSIX path. Whether git tracks
         it is decided later, in one batched probe
