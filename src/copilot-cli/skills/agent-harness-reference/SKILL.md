@@ -48,9 +48,11 @@ The repository keeps one canonical skill tree and one generated Copilot tree:
 - `src/copilot-cli/skills/agent-harness-reference/` is generated from it.
 - `.github/skills/` is not a repository shipping surface. Do not create it to
   mirror this skill.
-- `AGENTS.md`, `src/claude/AGENTS.md`, `.github/AGENTS.md`,
-  `.github/copilot-instructions.md`, `src/AGENTS.md`, and
-  `templates/AGENTS.md` route authoring work here.
+- In the `rjmurillo/ai-agents` repository, `AGENTS.md`, `src/claude/AGENTS.md`,
+  `.github/AGENTS.md`, `.github/copilot-instructions.md`, `src/AGENTS.md`, and
+  `templates/AGENTS.md` route authoring work here. An installed plugin ships
+  none of them and does not need to; they are maintainer routing, not a
+  runtime dependency of this skill.
 
 Individual agent prompts do not copy the vendor contract. Repository
 instructions route agents to this skill so one source owns refresh rules,
