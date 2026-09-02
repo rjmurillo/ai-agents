@@ -6,9 +6,13 @@ module existed that gate ran none of the count ratchets; they ran only at
 contributor whose change raised a ratchet count therefore saw ``pre_pr.py``
 pass, pushed, and learned about a 0.21 second failure 674 seconds later.
 
-The ratchets together finish in about three seconds, so the entire signal
-is available long before the suite starts. Running them here converts that
-674 second round trip into a local three second one.
+Running them here converts that 674 second round trip into a local one that
+finishes before the suite starts. The registry has grown since: measured warm
+on this tree it is about 51 seconds concurrently, dominated by
+subprocess-encoding at 33.7s, merge-tree at 22.9s and cli-exit-contract at
+15.6s, with the other six between 0.1s and 2.6s. Still far inside the 674
+seconds it replaces, and far inside the 90 second lefthook budget, but no
+longer the "about three seconds" this paragraph used to claim.
 
 The pre-push hook and pre-PR runner both delegate to this module. Keeping the
 ratchet set and command construction here avoids eight parallel hook jobs
@@ -18,7 +22,6 @@ duplicating the registry while preserving early failure before expensive jobs.
 from __future__ import annotations
 
 import concurrent.futures
-import os
 import shutil
 import sys
 import time
@@ -111,7 +114,21 @@ RATCHETS: tuple[Ratchet, ...] = (
     ),
 )
 
-_AGGREGATE_TIMEOUT_SECONDS = 85
+# Raised from 85 with the registry's real cost, not to paper over the added
+# ratchet. 85 was already marginal for the eight-entry sequential registry:
+# a cold run this session reported "merge-tree-ratchet: Command timed out
+# after 33s" and then passed on retry with no code change. Concurrently the
+# nine entries need about 51s on an idle machine, and the ratchets are
+# CPU-bound subprocesses, so a loaded machine stretches that: measured at
+# load average 6.2 the aggregate reached 85.3s and failed on the deadline
+# while every ratchet passed when run alone. A budget that fails under load
+# is a false red, which is the same class of defect as the false green this
+# module exists to remove. lefthook's count-ratchets job allows
+# _LEFTHOOK_TIMEOUT_SECONDS, kept strictly above this so the deadline is the
+# thing that fires and names the offending ratchet, rather than lefthook
+# killing the gate with no attribution.
+_AGGREGATE_TIMEOUT_SECONDS = 170
+_LEFTHOOK_TIMEOUT_SECONDS = 180
 
 
 def build_command(ratchet: Ratchet, base_ref: str) -> list[str]:
@@ -238,9 +255,14 @@ def _run_ratchets(
     rather than silently skipped.
     """
     deadline = time.monotonic() + _AGGREGATE_TIMEOUT_SECONDS
-    # Threads, not processes: each worker only waits on a subprocess, so the
-    # GIL is released for the whole of it.
-    workers = min(len(RATCHETS), os.cpu_count() or 4)
+    # One worker per ratchet, deliberately not capped by os.cpu_count(). These
+    # threads only wait on subprocesses, so they are not the resource the core
+    # count measures, and a cpu_count cap would hand a one-core host a pool of
+    # one: the sequential loop this replaced, complete with the starvation of
+    # whichever entry is registered last. Oversubscribing a small host makes
+    # each ratchet slower but still lets every one start inside the budget,
+    # which is the property that matters.
+    workers = len(RATCHETS)
     results: dict[str, tuple[int, str, str]] = {}
 
     def run_one(ratchet: Ratchet) -> tuple[int, str, str]:

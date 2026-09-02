@@ -516,7 +516,7 @@ pre-push:
         parallel: true
         jobs:
           - name: count-ratchets
-            timeout: 90s
+            timeout: 180s
             run: uv run --frozen python scripts/validation/checks_ratchet.py
 
           - name: python-unreachable-statements
