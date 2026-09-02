@@ -2,7 +2,7 @@
 
 The gate exists because a frontmatter-less Markdown file under
 ``.claude/agents/`` still registers with the Claude Code plugin loader as a
-dispatchable subagent. Five did, for a quarter, while our own validators were
+dispatchable subagent. Five did, for months, while our own validators were
 narrowed to skip them.
 
 Coverage:

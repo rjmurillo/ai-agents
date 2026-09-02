@@ -12,7 +12,7 @@ plausible text and the orchestrator accepts it.
 
 Five such files shipped for months (issue #5493): ``AGENTS.md``, ``CLAUDE.md``,
 and three documents under ``security/references/``. Issue #4813 named the same
-five a quarter earlier and responded by narrowing this repository's own
+five on 2026-08-10 and closed on 2026-08-15 by narrowing this repository's own
 validator globs (``check_agent_skill_discriminator.py`` grew
 ``_NON_AGENT_NAMES`` and a ``/references/`` skip). That taught our CI to look
 away. It did nothing to the loader, which is a separate consumer reading the
