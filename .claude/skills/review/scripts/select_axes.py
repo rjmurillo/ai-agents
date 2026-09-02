@@ -240,10 +240,47 @@ def _has_contiguous_segments(segments: list[str], marker: tuple[str, ...]) -> bo
 
 
 def _is_toolkit_artifact_path(path: str) -> bool:
-    """Match exactly the files the golden-principles scanner checks.
+    """Classify a path as toolkit governance, mirroring the GP scanner's domain.
 
-    Aligned with scan_principles._is_applicable so the axis is selected when,
-    and only when, at least one rule can fire.
+    Canonical source: `.claude/skills/golden-principles/scripts/scan_principles.py`,
+    function `_is_applicable`. Its contract, quoted verbatim:
+
+        suffix = Path(filepath).suffix
+        name = Path(filepath).name
+
+        if suffix in (".sh", ".bash"):
+            return True
+        if name == "SKILL.md" and _has_path_parts(filepath, _SKILLS_PATH_PARTS):
+            return True
+        if suffix == ".md" and _has_path_parts(filepath, _AGENTS_PATH_PARTS) and name != "CLAUDE.md":
+            return True
+        if suffix in (".yml", ".yaml") and _has_path_parts(filepath, _WORKFLOWS_PATH_PARTS):
+            return True
+        return False
+
+    The markers it tests are `.claude/skills/`, `.claude/agents/`, and
+    `.github/workflows/` (`_SKILLS_PATH_MARKER`, `_AGENTS_PATH_MARKER`,
+    `_WORKFLOWS_PATH_MARKER` in `scan_principles_core.py`), matched as
+    contiguous path components.
+
+    Stricter/looser/different than canonical
+    ---------------------------------------
+    Different in case handling, and only there. `classify_paths` lowercases
+    every path through `_norm` before any predicate sees it, so this function
+    compares lowercased literals while the canonical compares `"SKILL.md"` and
+    `"CLAUDE.md"` as written. Consequences in both directions:
+
+    - Looser: `.CLAUDE/SKILLS/review/SKILL.MD` classifies here and would not be
+      applicable to the scanner.
+    - Stricter: `.claude/agents/Claude.md` is excluded here (it folds to the
+      excluded name) and would be applicable to the scanner.
+
+    The fold is deliberate and stays: this predicate feeds category reporting
+    and the eight canonical-axis rows, which have no scanner behind them and
+    should match case-insensitively. Axis routing does not rely on it. The
+    local `golden-principles` axis is gated separately by
+    `_golden_principles_reads`, which mirrors the canonical casing exactly, so
+    the looser direction above cannot select an axis the scanner would skip.
     """
     if path.endswith(_GP_SCRIPT_SUFFIXES):
         return True
@@ -299,20 +336,30 @@ def _is_code_path(path: str) -> bool:
 # against the path as git reports it rather than the lowercased form the
 # category predicates match.
 
-# assess.py resolves a language with _LANGUAGE_BY_SUFFIX.get(suffix.lower()),
-# so its match ignores case. Missing here on purpose, because that map has no
-# entry for them: .ps1, .psm1, .sh, .rs, .rb.
+# Canonical source: .claude/skills/code-qualities-assessment/scripts/assess.py,
+# dict `_LANGUAGE_BY_SUFFIX`, read through `_LANGUAGE_BY_SUFFIX.get(
+# file_path.suffix.lower())`. The `.lower()` is why this mirror folds case.
+# Divergence: none. Absent on purpose because the canonical map has no entry
+# for them: .ps1, .psm1, .sh, .rs, .rb. Parity is asserted against the dict
+# itself in tests/skills/review/test_select_axes_scanner_capability.py.
 _ASSESS_SUFFIXES = frozenset(
     {".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".cs", ".java", ".go"}
 )
-# taste_lints.py tests `Path(filepath).suffix in SCANNABLE_EXTENSIONS` with no
-# case folding, so its match is case-sensitive. It has no entry for TypeScript,
-# JavaScript, C#, Go, Rust, Ruby, or Java.
+# Canonical source: .claude/skills/taste-lints/scripts/taste_lints.py, set
+# `SCANNABLE_EXTENSIONS`, read through `Path(filepath).suffix in
+# SCANNABLE_EXTENSIONS`. No case folding there, so this mirror does not fold
+# either. Divergence: none. The canonical set has no entry for TypeScript,
+# JavaScript, C#, Go, Rust, Ruby, or Java. Parity is asserted against the set
+# itself in tests/skills/review/test_select_axes_scanner_capability.py.
 _TASTE_LINT_SUFFIXES = frozenset(
     {".py", ".ps1", ".psm1", ".sh", ".bash", ".yml", ".yaml", ".md", ".json"}
 )
-# doc_accuracy.py inventories DOC_GLOBS, which is ["docs/**/*.md", "**/*.md"].
-# Markdown only, matched case-sensitively, so .mdx, .rst, and .txt are not read.
+# Canonical source: .claude/skills/doc-accuracy/scripts/doc_accuracy.py,
+# `DOC_GLOBS = ["docs/**/*.md", "**/*.md"]`, quoted verbatim. Markdown only,
+# and fnmatch applies those globs case-sensitively, so .mdx, .rst, and .txt are
+# never inventoried. Divergence: none. The literal is asserted unchanged in
+# tests/skills/review/test_select_axes_scanner_capability.py, so widening the
+# canonical list reds that test instead of silently drifting from this one.
 _DOC_ACCURACY_SUFFIXES = frozenset({".md"})
 # scan_principles._is_applicable compares these two names literally. The
 # classifier above matches them lowercased; this mirror keeps the real casing.
@@ -330,22 +377,53 @@ def _suffix(path: str) -> str:
 
 
 def _assess_reads(path: str) -> bool:
-    """Mirror assess.py: suffix looked up in _LANGUAGE_BY_SUFFIX, case-folded."""
+    """Return True when assess.py would score *path*.
+
+    Mirrors `_LANGUAGE_BY_SUFFIX` in
+    `.claude/skills/code-qualities-assessment/scripts/assess.py`; see the
+    constant above for the quoted contract and the divergence note.
+    """
     return _suffix(path).lower() in _ASSESS_SUFFIXES
 
 
 def _taste_lints_reads(path: str) -> bool:
-    """Mirror taste_lints.py: suffix tested against SCANNABLE_EXTENSIONS as-is."""
+    """Return True when taste_lints.py would scan *path*.
+
+    Mirrors `SCANNABLE_EXTENSIONS` in
+    `.claude/skills/taste-lints/scripts/taste_lints.py`; see the constant above
+    for the quoted contract and the divergence note.
+    """
     return _suffix(path) in _TASTE_LINT_SUFFIXES
 
 
 def _doc_accuracy_reads(path: str) -> bool:
-    """Mirror doc_accuracy.py: DOC_GLOBS covers Markdown and nothing else."""
+    """Return True when doc_accuracy.py would inventory *path*.
+
+    Mirrors `DOC_GLOBS` in
+    `.claude/skills/doc-accuracy/scripts/doc_accuracy.py`; see the constant
+    above for the quoted contract and the divergence note.
+    """
     return _suffix(path) in _DOC_ACCURACY_SUFFIXES
 
 
 def _golden_principles_reads(path: str) -> bool:
-    """Mirror scan_principles._is_applicable, including its literal casing."""
+    """Return True when the GP scanner would treat *path* as applicable.
+
+    Canonical source: `.claude/skills/golden-principles/scripts/scan_principles.py`,
+    function `_is_applicable`, quoted verbatim in `_is_toolkit_artifact_path`
+    above. Markers come from `scan_principles_core.py`: `.claude/skills/`,
+    `.claude/agents/`, `.github/workflows/`, matched as contiguous components
+    by `_has_path_parts`.
+
+    Stricter/looser/different than canonical
+    ---------------------------------------
+    No behavioral divergence. This is the case-preserving mirror, so it is fed
+    the path as git reports it rather than the lowercased form the classifier
+    uses. `tests/skills/review/test_select_axes_scanner_capability.py`
+    asserts parity against the canonical function itself across a path table
+    that includes the case variants, so drift in either reds that test rather
+    than living in this comment.
+    """
     segments = _segments(_posix(path))
     if not segments:
         return False
