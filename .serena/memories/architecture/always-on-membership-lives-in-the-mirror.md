@@ -16,8 +16,14 @@ question gives a wrong answer, wrong in both directions.
 
 Claude is the other half, and it reads the source: `paths:` alone, ignoring
 `applyTo:`, `globs:`, and `alwaysApply:`. That split is what made issue #4871
-possible. Two rules declared a code-only scope under a key Claude ignores, so
-the mirror looked correct while 25,527 bytes loaded on every doc-only session.
+possible, and the three keys fail differently. `pragmatic-programmer` declared
+code globs under `applyTo:`, which the generator remaps, so only the mirror was
+scoped and only the Claude source leaked. `code-quality` declared
+`alwaysApply: true`, which the generator drops before synthesizing
+`applyTo: '**'`, so both trees loaded universally and the rule had no way to
+state a code-only scope. `globs:` is preserved verbatim and never becomes
+`applyTo:`, so a rule using it leaves both trees unscoped. Between them,
+25,527 bytes loaded on every doc-only session.
 `scripts/validation/check_rule_scope_keys.py` now rejects every scope key but
 `paths:`, so the source-side and mirror-side answers cannot diverge again.
 

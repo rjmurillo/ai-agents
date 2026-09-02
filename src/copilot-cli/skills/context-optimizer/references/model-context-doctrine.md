@@ -237,10 +237,15 @@ convention misses the others: the first audit of this corpus grepped two and
 reported 8 of the 9 that were always-on at the time, and
 `knowledge-persistence.md` loaded on every file while absent from the count for
 a full review cycle. The second cost was larger. Claude Code honors `paths:`
-and ignores `applyTo:` and `alwaysApply:`, so a rule using either declared a
-scope that only the Copilot mirror obeyed, and `pragmatic-programmer` plus
-`code-quality` loaded on every doc-only session for months while both documents
-and the budget gate read them as scoped (issue #4871).
+and ignores `applyTo:`, `globs:`, and `alwaysApply:`. The three fail
+differently, so do not describe them as one defect. `applyTo:` is remapped to
+`applyTo:` in the mirror, which scopes Copilot correctly and leaves the Claude
+source declaring nothing; that is `pragmatic-programmer`. `globs:` is preserved
+verbatim and never becomes `applyTo:`, so neither tree is scoped. `alwaysApply:`
+is dropped and the generator synthesizes `applyTo: '**'`, so both trees load
+universally and a code-only rule cannot state its scope in that key at all; that
+is `code-quality`. Between them, 25,527 bytes loaded on every doc-only session
+for months (issue #4871).
 `scripts/validation/check_rule_scope_keys.py` now fails on any scope key but
 `paths:`. Enumerate by parsing frontmatter, never by grep.
 

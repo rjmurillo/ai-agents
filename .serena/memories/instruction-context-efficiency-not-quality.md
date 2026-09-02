@@ -26,18 +26,25 @@ appended instruction context; score by compiler + test outcomes (no LLM judge)
   that motivated the gate, not as the current state. Scope of that fix is the
   frontmatter key alone. Issue #4871 stays open for its remaining criteria: the
   effective-context inventory across harnesses, always-on skill and agent
-  accounting, and the frozen real-CLI before/after evaluation. None were done.
-  Measured through the real CLI, not inferred from docs. Same prompt, same
-  model, file tools disabled so the model could not read the rules, no code
-  file touched, 3 trials per tree, identical output every trial:
+  accounting, and the frozen real-CLI *behavioral* before/after via the #4853
+  evaluator. That behavioral eval was not run.
+  What WAS run is a narrower thing, and the two must not be conflated: a
+  runtime-membership probe that observes which rule files enter the system
+  prompt, not whether output quality changes. Real CLI (Claude Code 2.1.258),
+  same prompt, same model, file tools disabled so the model could not read the
+  rules, no code file touched, 3 trials per tree, identical output every trial:
   `claude -p "List the file paths under .claude/rules/ whose full text is
   present in your system prompt..." --model haiku --disallowed-tools
   "Read,Bash,Glob,Grep,Edit,Write,Task,WebFetch,WebSearch"`. Pre-fix tree: 8
   rules, including `code-quality.md` (`alwaysApply: true`) and
   `pragmatic-programmer.md` (`applyTo:` with 18 code globs). Post-fix tree: 6
   rules; both of those are absent. 14,152 + 11,375 = 25,527 source bytes that
-  stopped loading. That is both halves at once: `applyTo:`/`alwaysApply:` do
-  not scope the Claude source, and `paths:` does.
+  stopped loading. That is both halves of the membership claim at once:
+  `applyTo:`/`alwaysApply:` do not scope the Claude source, and `paths:` does.
+  It says nothing about whether the model behaves better or worse without them.
+  This corroborates the sentinel-rule mechanism A/B already recorded below
+  under "Post-fix verification (2026-06-08)"; that A/B remains the sharper
+  proof because it flips only the key on otherwise identical rules.
 - **252KB of `.claude/rules` load unconditionally because of a frontmatter-key
   mismatch, not a harness bug.** The rules carry `applyTo`/`alwaysApply` (GitHub
   Copilot and Cursor keys). Claude Code's conditional-load key is `paths` (a YAML
