@@ -4929,10 +4929,15 @@ def _semgrep_command(
     # subprocess Popen(encoding=, errors=) that are valid on Python 3.6+.
     # This repo requires Python 3.14 (pyproject.toml python_requires >=3.14),
     # so those compatibility warnings are false positives here.
-    # Full rule IDs required: prefix matching does not suppress with --exclude-rule
-    # on semgrep 1.159.0. Verified directly: passing the family prefix
-    # ("python.lang.compatibility.python36") still reports both Popen findings;
-    # only the full rule ID drops the count to zero (issue #4725).
+    # Full rule IDs are required: --exclude-rule does not match on a family
+    # prefix, so "python.lang.compatibility.python36" suppresses nothing.
+    # tests/test_lefthook_integration.py proves both halves against the
+    # installed semgrep binary (issue #4725).
+    # Scope: this covers the local semgrep-push hook only. The remote
+    # semgrep-cloud-platform/scan check runs a server-side ruleset that reads
+    # no repo-local flag or config file, so nothing here can turn it green.
+    # See .agents/governance/GOTCHAS.md, "The semgrep check in CI cannot be
+    # reproduced by the semgrep CLI".
     exclude_compat_rules = [
         "--exclude-rule",
         "python.lang.compatibility.python36.python36-compatibility-Popen1",
