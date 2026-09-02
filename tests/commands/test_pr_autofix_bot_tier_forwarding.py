@@ -283,7 +283,16 @@ def test_a_flag_lookalike_is_not_the_is_bot_token(tmp_path: Path, doc: str) -> N
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
 def test_every_dispatch_call_targets_its_current_pr(tmp_path: Path, doc: str) -> None:
-    """The two-PR queue must not reuse one PR number."""
+    """The two-PR queue must not reuse one PR number.
+
+    The expected argv also pins ``--dispositions-file``, added in PR #5481.
+    Without it the tier producer reads an empty registry, so a disposed
+    non-required failure still classifies as T2 or T5. This assertion is the
+    runtime half of that guarantee, since it captures what the dispatch block
+    really executes; ``TestShippedCallersPassTheRegistry`` in
+    ``tests/test_test_pr_merge_ready.py`` is the static half and covers the
+    two ``pr-review-config.yaml`` callers this harness does not run.
+    """
     run = run_dispatch(
         tmp_path,
         doc,
@@ -292,9 +301,10 @@ def test_every_dispatch_call_targets_its_current_pr(tmp_path: Path, doc: str) ->
         author_is_bot="true",
     )
 
+    dispositions = ["--dispositions-file", ".agents/pr-checks/dispositions.json"]
     assert run.merge_ready_calls == [
-        ["--pull-request", "5176", "--is-bot"],
-        ["--pull-request", "5177", "--is-bot"],
+        ["--pull-request", "5176", *dispositions, "--is-bot"],
+        ["--pull-request", "5177", *dispositions, "--is-bot"],
     ]
     assert run.context_calls == [
         ["--pull-request", "5176", "--field", "author_is_bot", "--output-format", "json"],
