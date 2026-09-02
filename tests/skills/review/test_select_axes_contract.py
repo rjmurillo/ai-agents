@@ -215,8 +215,59 @@ class TestAgentArtifactMatchingIsSegmentShaped:
         result = select([path])
         assert "agent-safety" in result["canonical_selected"], result["matched_categories"]
 
-    def test_root_rules_directory_selects_golden_principles(self) -> None:
-        assert "golden-principles" in select(["rules/universal.md"])["local_selected"]
+    def test_rules_markdown_does_not_select_golden_principles(self) -> None:
+        """A rules doc matches no GP rule, so the axis would scan nothing.
+
+        scan_principles._is_applicable checks .sh/.bash, SKILL.md under
+        .claude/skills/, .md under .claude/agents/, and workflow YAML. A file
+        under rules/ is in none of those domains, and a clean scan over it
+        reports zero applicable rules rather than a reviewed design.
+        """
+        assert "golden-principles" not in select(["rules/universal.md"])["local_selected"]
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "scripts/install.sh",               # GP-001, anywhere in the tree
+            "tools/nested/setup.bash",          # GP-001, .bash spelling
+            ".claude/skills/review/SKILL.md",   # GP-003
+            ".claude/agents/architect.md",      # GP-004
+            ".github/workflows/ci.yml",         # GP-005 / GP-006
+            ".github/workflows/ci.yaml",        # GP-005 / GP-006, .yaml spelling
+        ],
+    )
+    def test_scanner_applicable_paths_select_golden_principles(self, path: str) -> None:
+        """Every file the scanner would check must select the axis."""
+        assert "golden-principles" in select([path])["local_selected"], path
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "scripts/install.py",                 # not a shell script
+            ".claude/skills/review/README.md",    # not SKILL.md
+            ".claude/agents/CLAUDE.md",           # explicitly excluded by GP-004
+            ".claude/hooks/PreToolUse/guard.py",  # hooks dir, no applicable rule
+            ".claude/commands/ship.md",           # commands dir, no applicable rule
+            ".claude/prompts/review.md",          # prompts dir, no applicable rule
+            ".github/actions/setup/action.yml",   # actions, not workflows
+            "config/deploy.yml",                  # YAML outside .github/workflows
+        ],
+    )
+    def test_scanner_inapplicable_paths_do_not_select_golden_principles(
+        self, path: str,
+    ) -> None:
+        """A path no rule can fire on must not buy an empty scan."""
+        assert "golden-principles" not in select([path])["local_selected"], path
+
+    def test_install_sh_selects_golden_principles_not_only_code_quality(self) -> None:
+        """The regression this alignment fixes: a Python-only view missed GP-001.
+
+        scripts/install.sh matched only executable-code before, so
+        golden-principles was skipped and its shell-script rule never ran.
+        """
+        result = select(["scripts/install.sh"])
+        assert "golden-principles" in result["local_selected"]
+        assert "toolkit-governance" in result["matched_categories"]
 
     def test_workflow_still_selects_golden_principles(self) -> None:
         # Negative control for the rewrite: toolkit-governance must not have

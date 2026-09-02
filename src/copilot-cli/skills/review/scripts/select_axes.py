@@ -113,7 +113,21 @@ _TEST_DIRECTORIES = frozenset({"tests", "fixtures"})
 _TEST_EXACT_FILENAMES = frozenset({"conftest.py"})
 _AGENT_ARTIFACT_DIRECTORIES = frozenset({"skills", "agents", "hooks", "prompts", "commands"})
 _AGENT_ARTIFACT_FILENAMES = frozenset({"skill.md"})
-_TOOLKIT_DIRECTORIES = _AGENT_ARTIFACT_DIRECTORIES | {"rules"}
+# The four file-type domains golden-principles actually checks, mirroring
+# scan_principles._is_applicable and the markers in scan_principles_core.py:84-86.
+# GP-001 covers .sh/.bash anywhere, GP-003 SKILL.md under .claude/skills/,
+# GP-004 .md under .claude/agents/ except CLAUDE.md, and GP-005/GP-006
+# .yml/.yaml under .github/workflows/. Selecting on any broader notion of
+# "toolkit artifact" buys a scan with zero applicable rules; selecting on any
+# narrower one drops a real violation, which is what happened to
+# scripts/install.sh.
+_GP_SCRIPT_SUFFIXES = (".sh", ".bash")
+_GP_WORKFLOW_SUFFIXES = (".yml", ".yaml")
+_GP_SKILL_FILENAME = "skill.md"
+_GP_AGENT_EXCLUDED_FILENAME = "claude.md"
+_GP_SKILLS_MARKER = (".claude", "skills")
+_GP_AGENTS_MARKER = (".claude", "agents")
+_GP_WORKFLOWS_MARKER = (".github", "workflows")
 _DECISION_DIRECTORIES = frozenset({"architecture", "decisions"})
 _ROADMAP_DIRECTORIES = frozenset({"roadmap", "planning", "specs"})
 
@@ -200,10 +214,38 @@ def _is_agent_artifact_path(path: str) -> bool:
     return bool(_AGENT_ARTIFACT_DIRECTORIES & set(segments[:-1]))
 
 
+def _has_contiguous_segments(segments: list[str], marker: tuple[str, ...]) -> bool:
+    """Return True when marker appears as contiguous path segments."""
+    width = len(marker)
+    return any(
+        tuple(segments[index : index + width]) == marker
+        for index in range(len(segments) - width + 1)
+    )
+
+
 def _is_toolkit_artifact_path(path: str) -> bool:
-    if _is_agent_artifact_path(path) or any(path.startswith(t) for t in _CI_PATH_TOKENS):
+    """Match exactly the files the golden-principles scanner checks.
+
+    Aligned with scan_principles._is_applicable so the axis is selected when,
+    and only when, at least one rule can fire.
+    """
+    if path.endswith(_GP_SCRIPT_SUFFIXES):
         return True
-    return bool(_TOOLKIT_DIRECTORIES & set(_segments(path)[:-1]))
+    segments = _segments(path)
+    if not segments:
+        return False
+    name = segments[-1]
+    if name == _GP_SKILL_FILENAME and _has_contiguous_segments(segments, _GP_SKILLS_MARKER):
+        return True
+    if (
+        name.endswith(".md")
+        and name != _GP_AGENT_EXCLUDED_FILENAME
+        and _has_contiguous_segments(segments, _GP_AGENTS_MARKER)
+    ):
+        return True
+    return name.endswith(_GP_WORKFLOW_SUFFIXES) and _has_contiguous_segments(
+        segments, _GP_WORKFLOWS_MARKER
+    )
 
 
 def _is_decision_doc_path(path: str) -> bool:

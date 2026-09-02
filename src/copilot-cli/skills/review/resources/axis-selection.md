@@ -80,7 +80,7 @@ contributes its axes.
 | `roadmap-or-spec-docs` | a whole `roadmap/`, `planning/`, or `specs/` path segment | `roadmap` | |
 | `docs-and-instructions` | `*.md`, `*.mdx`, `*.rst`, `*.txt` | | `doc-accuracy` |
 | `executable-code` | a source file in a supported language | `code-quality` | `code-qualities-assessment`, `taste-lints` |
-| `toolkit-governance` | an agent artifact, a workflow, or a whole `rules/` path segment | | `golden-principles` |
+| `toolkit-governance` | a file at least one golden-principle rule can fire on: `.sh` or `.bash` anywhere (GP-001), `SKILL.md` under `.claude/skills/` (GP-003), `.md` under `.claude/agents/` except `CLAUDE.md` (GP-004), or `.yml`/`.yaml` under `.github/workflows/` (GP-005, GP-006) | | `golden-principles` |
 
 `docs-and-instructions` routes to the `doc-accuracy` skill, which verifies
 documentation claims against the code they describe. A docs-only change still
