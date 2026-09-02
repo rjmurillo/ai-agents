@@ -520,29 +520,37 @@ pre-push:
     - group:
         parallel: true
         jobs:
-          # Issue #5441. count-ratchets used to also run the merge-tree
-          # backstop as its 8th registry entry, which recomputed the same
-          # five counts scripts/ci/merge_tree_ratchet_check.py's own registry
-          # already measures, inside the same 85s deadline as everything
-          # else here. Two subprocesses now (extra_dev entries have their own
-          # --extra dev; this job needs none), --skip-merge-tree, and the
-          # backstop moved to its own job below so the two run in this same
-          # parallel group instead of one paying for both in series.
+          # Issue #5441. count-ratchets used to run the merge-tree backstop as
+          # its 8th registry entry, which recomputed the same five counts
+          # scripts/ci/merge_tree_ratchet_check.py's own registry already
+          # measures, inside the same 85s deadline as everything else here.
+          # Those five moved out of checks_ratchet.py's RATCHETS entirely, so
+          # this job now owns only the two with no merge-tree registration
+          # (python-lint-ratchet, memory-index-token-ratchet) and passes
+          # --skip-merge-tree to leave the rest to the job below.
           - name: count-ratchets
             timeout: 90s
             run: uv run --frozen python scripts/validation/checks_ratchet.py --skip-merge-tree
 
-          # Issue #5441. Split from count-ratchets: the same five counts
-          # measured there for each ratchet's own baseline are measured here
-          # again against the materialized merge tree, which is unavoidable
-          # duplication once the two checks run as separate processes, but
-          # costs nothing in wall time because this parallel group already
-          # runs every job concurrently. --extra dev is required: the ruff
+          # Issue #5441. Sole owner of the five merge-tree-registered counters
+          # (ruff count, taste count, type-ignore count, memory-index count,
+          # cli exit contract). count-ratchets above no longer runs them, so
+          # each is measured exactly once per push, which is the whole point of
+          # the split: the old arrangement counted all five twice inside one
+          # 85s budget and could not finish. --extra dev is required: the ruff
           # count ratchet in the registry shells out to a bare `ruff`
-          # executable. 2m outer matches branch-context-policy below, the
-          # group's existing ceiling, so this job's own budget adds no wall
-          # time here AND does not raise the declared pre-push worst case
-          # tests/ci/test_lefthook_declared_budget.py ratchets against; it
+          # executable.
+          #
+          # Splitting also moves this work off count-ratchets' critical path.
+          # The two jobs run concurrently in this parallel group, so the added
+          # wall time is the difference between this job and the longest other
+          # job in the group, not this job's full runtime. It is not zero: the
+          # group's jobs contend for CPU and disk, and the five counters
+          # measure 26.7s together on a warm checkout.
+          #
+          # 2m outer matches branch-context-policy below, the group's existing
+          # ceiling, so this job does not raise the declared pre-push worst
+          # case tests/ci/test_lefthook_declared_budget.py ratchets against; it
           # leaves the required 30s margin over
           # merge_tree_ratchet_check.py's own 90s internal deadline (see that
           # constant's docstring for why 90s and not the larger number the
