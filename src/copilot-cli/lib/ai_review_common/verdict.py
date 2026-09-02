@@ -269,6 +269,15 @@ def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool
         return False
     if not all(entry.get("category") in _KNOWN_CATEGORIES for entry in entries):
         return False
+    # Each entry must name a distinct file. assess.py emits `file_path` from
+    # the dataclass field of that name, and duplicates cannot occur in a real
+    # run, so a repeated or missing identity is a payload padded to satisfy the
+    # file_count check while hiding an assessment that never happened.
+    paths = [entry.get("file_path") for entry in entries]
+    if not all(isinstance(name, str) and name.strip() for name in paths):
+        return False
+    if len(set(paths)) != len(paths):
+        return False
     eligible = [entry for entry in entries if entry.get("category") in _ASSESSED_CATEGORIES]
     return bool(eligible) and all(_is_scored(entry) for entry in eligible)
 

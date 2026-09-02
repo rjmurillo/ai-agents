@@ -401,12 +401,16 @@ def _scored(value: float = 8.0, confidence: float = 0.9) -> dict:
 def cq_file(path: str = "a.py", category: str = "authored", *, scored: bool = True) -> dict:
     """One assess.py `files` entry, carrying the five quality metrics.
 
+    The identity key is `file_path`, the dataclass field `asdict` serializes.
+    An earlier version of this helper used `path`, which assess.py never emits,
+    so every PASS test here was pinning a payload the producer cannot produce.
+
     `_unreadable_assessment` keeps the real category while zeroing every
     confidence, so a test payload without the metrics cannot tell a scored file
     from one the scanner gave up on.
     """
     quality = _scored() if scored else _scored(10.0, 0.0)
-    entry: dict[str, object] = {"path": path, "category": category}
+    entry: dict[str, object] = {"file_path": path, "category": category}
     for field in ("cohesion", "coupling", "encapsulation", "testability", "non_redundancy"):
         entry[field] = dict(quality)
     return entry
@@ -571,6 +575,34 @@ class TestAdaptLocalAxisVerdict:
         payload = cq_payload(
             [cq_file("a.py"), cq_file("b.py", "test"), cq_file("g.ts", "generated", scored=False)]
         )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_entry_without_a_file_path_stays_unknown(self):
+        """`file_path` is the identity assess.py emits; without it there is no
+        evidence which file was assessed."""
+        entry = cq_file()
+        del entry["file_path"]
+        payload = cq_payload([entry])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_blank_file_path_stays_unknown(self):
+        assert (
+            adapt_local_axis_verdict("code-qualities-assessment", cq_payload([cq_file("  ")]), 0)
+            == "UNKNOWN"
+        )
+
+    def test_duplicate_file_paths_stay_unknown(self):
+        """A repeated survivor can pad `file_count` past the length check.
+
+        assess.py assesses each path once, so a duplicate is a payload padded
+        to look complete while an assessment is missing.
+        """
+        payload = cq_payload([cq_file("a.py"), cq_file("a.py")])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_distinct_file_paths_pass(self):
+        """Negative control: two real files still pass."""
+        payload = cq_payload([cq_file("a.py"), cq_file("b.py")])
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
 
     def test_code_quality_unexpected_exit_stays_unknown(self):
