@@ -505,7 +505,11 @@ class TestSkillDocumentsTheSelector:
         assert "Append one `UNKNOWN` row per `unresolved_axes` entry." in body
         assert "Pass every path from step 1 and every effect from the diff hunks." in body
         for axis_line in (
-            'doc_accuracy.py> --target . --diff-base "origin/$BASE_BRANCH" --format json',
+            # gate, not json: /review reads only gate_result.verdict and
+            # assessment.documentation_files, and --format json also serializes
+            # the repository-wide source_symbols index, 98.8% of an 8.5 MB
+            # payload on this repo, which truncates into a parse failure.
+            'doc_accuracy.py> --target . --diff-base "origin/$BASE_BRANCH" --format gate',
             'scan_principles.py> --diff-scope "origin/$BASE_BRANCH" --format json',
             'taste_lints.py> --diff-scope "origin/$BASE_BRANCH" --format json',
         ):
