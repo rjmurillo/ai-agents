@@ -60,7 +60,7 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 |---|---|---|
 | 0 | Healthy or within limits | `skill_size.py` prints FAIL lines but exits 0 unless `--ci` |
 | 1 | Logic finding (budget exceeded, CRITICAL_FAIL, over limit in `--ci`) | |
-| 2 | Config error (bad path, bad args); for `build_all.py --check`, staleness, an unreadable or symlinked path under `OWNED_PREFIXES`, or a generator writing under `.claude/` (REQ-003-010). Read stderr: only the staleness producer is fixed by regenerating | |
+| 2 | Config error (bad path, bad args); for `build_all.py --check`, staleness, a path under `OWNED_PREFIXES` that cannot be read or redirects (symlink or junction) or holds a nested git repository, or a generator writing under `.claude/` (REQ-003-010). Read stderr: only the staleness producer is fixed by regenerating | |
 | 3 | External failure; for `build_all.py --check`, git state unreadable (launch failure, timeout, nonzero exit), not fixed by regenerating | |
 | 10 | Violations found | `scan_principles.py` only |
 

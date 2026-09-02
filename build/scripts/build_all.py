@@ -17,15 +17,22 @@ EXIT CODES:
     0 - success
     1 - generator logic error
     2 - configuration error; staleness detected (--check); a path under
-        OWNED_PREFIXES that cannot be read or is a symlink (--check,
-        aborts before generation); a generator wrote under .claude/
+        OWNED_PREFIXES that cannot be read, redirects (symlink or
+        junction), or holds a nested git repository (--check, aborts
+        before generation); a generator wrote under .claude/
         (REQ-003-010)
     3 - audit blocklist violation (REQ-003-011); git state unreadable
         (--check)
 
 Exit 2 has four producers and only the staleness one is fixed by
-regenerating and committing. The unreadable-or-symlinked-owned-path producer
-arrived with issue #4632. The fourth is the REQ-003-010 no-write violation,
+regenerating and committing. The unreachable-owned-path producer arrived with
+issue #4632 and covers three shapes: a path that cannot be read, one that
+redirects (a symlink or a Windows junction, which is a directory carrying a
+reparse tag and passes every symlink test), and a directory holding its own
+``.git`` entry. All three are cases where ``--check`` could write somewhere it
+cannot restore, so it refuses before any generator runs.
+
+The fourth producer is the REQ-003-010 no-write violation,
 set in :func:`_run_generators` when :func:`assert_no_claude_writes` reports a
 write under ``.claude/``: that is a generator policy failure, and regenerating
 reproduces it, because the offending generator runs again.
