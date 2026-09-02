@@ -64,9 +64,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import tomllib
-import yaml
-
 # The repair below is a lefthook command, so this gate only speaks to a
 # repository that configures lefthook. These are the config names lefthook
 # itself looks for.
@@ -82,6 +79,23 @@ LEFTHOOK_CONFIG_NAMES = tuple(
 # means the install never ran or was overridden.
 PROBE_HOOK = "pre-push"
 
+# Every diagnosis reached after the pre-push probe passed starts with this, so
+# the summary line does not claim pre-push is dead when pre-push proved live.
+_POST_PROBE_PREFIX = "pre-push is live, but "
+
+# A hook in `lefthook dump` output is a top-level mapping carrying work; the
+# settings beside it are scalars, and `templates` and `colors` hold strings.
+# Structural rather than an allowlist: the hand-written list this replaces
+# omitted nine of Lefthook's 28 hook types and dropped unlisted names silently,
+# so `reference-transaction` got no shim and no complaint. This cannot go stale.
+HOOK_WORK_KEYS = frozenset({"jobs", "commands", "scripts"})
+
+
+def _is_hook_entry(value: object) -> bool:
+    """True when a top-level dump entry declares hook work rather than a setting."""
+    return isinstance(value, dict) and bool(HOOK_WORK_KEYS & set(value))
+
+
 # Lefthook's generated shim ends by dispatching the hook through its own
 # resolver function, and that line is the one part of the template every
 # supported platform shares. Measured on the shim Lefthook 2.1.11 installed
@@ -92,37 +106,16 @@ PROBE_HOOK = "pre-push"
 # override, and the PATH fallback. Matching this instead of parsing the shim
 # keeps the gate on Lefthook's own output rather than reimplementing a shell
 # reader, which the ADR-086 amendment debate rejected.
-DISPATCH_MARKER = f'call_lefthook run "{PROBE_HOOK}"'
-# The complete generated command, matched exactly. A containment test on the
-# final line still accepts `echo 'call_lefthook run "pre-push"'`, which is an
-# executable final command that dispatches nothing (CWE-693). Including `"$@"`
-# also pins argument forwarding, which the Windows template asserts separately
-# in `tests/test_lefthook_integration.py`.
-DISPATCH_COMMAND = f'{DISPATCH_MARKER} "$@"'
-
-# Every git hook Lefthook can install. Used to tell hook types apart from the
-# settings that share the config's top level (`min_version`, `lefthook`,
-# `no_auto_install`, `glob_matcher`).
-# Identifies the missing-hook-type diagnosis so the summary line below does not
-# claim pre-push is dead when pre-push is what proved live.
-_MISSING_TYPES_PREFIX = "has no live shim for configured hook"
-
-# Read from the JSON schema Lefthook 2.1.11 embeds in its own binary, not from
-# memory: the hand-written version omitted nine names, and a hook type this set
-# does not know is silently dropped and never checked for a shim.
-GIT_HOOK_NAMES = frozenset(
-    "applypatch-msg commit-msg fsmonitor-watchman p4-changelist p4-post-changelist "
-    "p4-pre-submit p4-prepare-changelist post-applypatch post-checkout post-commit "
-    "post-index-change post-merge post-receive post-rewrite post-update pre-applypatch "
-    "pre-auto-gc pre-commit pre-merge-commit pre-push pre-rebase pre-receive "
-    "prepare-commit-msg proc-receive push-to-checkout reference-transaction "
-    "sendemail-validate update".split()
-)
-
-
 def _dispatch_command(hook_name: str) -> str:
-    """The complete line Lefthook generates as ``hook_name``'s final command."""
+    """The complete line Lefthook generates as ``hook_name``'s final command.
+
+    Matched exactly, not by containment. `echo 'call_lefthook run "pre-push"'`
+    is an executable final command that dispatches nothing (CWE-693), and only
+    equality has no weaker interior to fall through to. The `"$@"` also pins
+    argument forwarding.
+    """
     return f'call_lefthook run "{hook_name}" "$@"'
+
 
 REMEDY = "uv run --frozen lefthook install --reset-hooks-path"
 WORKTREE_REMEDY = f"git config --worktree --unset-all core.hooksPath && {REMEDY}"
@@ -133,6 +126,9 @@ SYSTEM_REMEDY = f"git config --system --unset-all core.hooksPath && {REMEDY}"
 # milliseconds, so this only trips on a genuine hang. The gate fails closed
 # with ADR-035 exit 3 because an unreadable hook state is not a verified pass.
 GIT_TIMEOUT_SECONDS = 5
+
+# `lefthook dump` is a local config merge and answers in about 0.1 seconds.
+DUMP_TIMEOUT_SECONDS = 20
 
 
 class GitExecutionError(RuntimeError):
@@ -298,54 +294,56 @@ def _dispatch_failure(hook: Path, hook_name: str) -> str | None:
     return None
 
 
-def _parse_hook_types(path: Path) -> frozenset[str] | None:
-    """Hook types declared in one config file, or None when unreadable."""
-    name = path.name
-    try:
-        raw = path.read_bytes()
-        if name.endswith((".yml", ".yaml")):
-            data = yaml.safe_load(raw.decode("utf-8"))
-        elif name.endswith(".json"):
-            data = json.loads(raw)
-        elif name.endswith(".toml"):
-            data = tomllib.loads(raw.decode("utf-8"))
-        else:
-            return None
-    except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    return frozenset(str(key) for key in data) & GIT_HOOK_NAMES
-
-
 def _configured_hook_types(repo_root: Path) -> frozenset[str] | None:
-    """Hook types declared across every Lefthook config, or None if unreadable.
+    """Hook types in the merged Lefthook config, or None when Lefthook cannot say.
 
-    Every config file is read, not the first match. ``LEFTHOOK_CONFIG_NAMES``
-    includes the ``-local`` overlays, and a local file that adds a hook type
-    installs a shim for it, so stopping at the base file reports healthy while
-    the overlay's hook type has none.
+    Asks Lefthook instead of reading its config. ``lefthook dump`` merges every
+    config file, every ``extends``, and all five supported formats. Reading the
+    files here meant reimplementing that, and got it wrong twice: it missed
+    ``-local`` overlays, then returned None for ``.jsonc``, which silently
+    degraded the check to a single ``pre-push`` probe. Both were fail-open.
 
-    The union is the safe direction here. This gate asks which hook types could
-    be installed, not which jobs win a merge, and a type present in any config
-    needs a shim.
-
-    Returns None rather than an empty set when any config cannot be parsed, so
-    the caller keeps the single-probe behavior instead of reporting every hook
-    type as missing. ``.jsonc`` has no stdlib parser and lands there.
+    None means Lefthook could not answer, which the caller treats as
+    unverifiable rather than healthy.
     """
-    found: set[str] = set()
-    seen_any = False
-    for name in LEFTHOOK_CONFIG_NAMES:
-        path = repo_root / name
-        if not path.is_file():
+    for command in _dump_commands():
+        try:
+            result = subprocess.run(
+                command,
+                cwd=str(repo_root),
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=DUMP_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
             continue
-        seen_any = True
-        parsed = _parse_hook_types(path)
-        if parsed is None:
-            return None
-        found |= parsed
-    return frozenset(found) if seen_any else None
+        if result.returncode != 0:
+            continue
+        try:
+            data = json.loads(result.stdout)
+        except ValueError:
+            continue
+        if isinstance(data, dict):
+            return frozenset(str(k) for k, v in data.items() if _is_hook_entry(v))
+    return None
+
+
+def _dump_commands() -> list[list[str]]:
+    """Ways to print the merged config as JSON, pinned runtime first.
+
+    ``uv run --frozen`` matches how this repo pins Lefthook, but fails outside a
+    uv project, so a bare ``lefthook`` on PATH is tried after it.
+    """
+    commands = []
+    uv = shutil.which("uv")
+    if uv:
+        commands.append([uv, "run", "--frozen", "lefthook", "dump", "--format", "json"])
+    lefthook = shutil.which("lefthook")
+    if lefthook:
+        commands.append([lefthook, "dump", "--format", "json"])
+    return commands
 
 
 def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
@@ -382,7 +380,11 @@ def _missing_hook_types(repo_root: Path, hooks_dir: Path) -> str | None:
     """
     configured = _configured_hook_types(repo_root)
     if configured is None:
-        return None
+        return (
+            f"{_POST_PROBE_PREFIX}the merged Lefthook configuration could not "
+            "be read, so which hook types need a shim is unverifiable; run: "
+            "uv sync --frozen --extra dev"
+        )
     missing = sorted(
         name
         for name in configured - {PROBE_HOOK}
@@ -391,7 +393,7 @@ def _missing_hook_types(repo_root: Path, hooks_dir: Path) -> str | None:
     if not missing:
         return None
     return (
-        f"{hooks_dir} {_MISSING_TYPES_PREFIX} "
+        f"{_POST_PROBE_PREFIX}{hooks_dir} has no live shim for configured hook "
         f"{'types' if len(missing) > 1 else 'type'} {', '.join(missing)}, so "
         "git runs nothing for them; run install again after any hook-type change"
     )
@@ -447,11 +449,8 @@ def _evaluate(repo_root: Path) -> int:
     # Only claim the push is ungated when the pre-push probe is what failed.
     # A missing commit-msg shim reaches here with a working pre-push, and the
     # blanket line sent contributors after the wrong hook.
-    if _MISSING_TYPES_PREFIX in reason:
-        print(
-            "Those hook types run nothing locally. pre-push itself is live.",
-            file=sys.stderr,
-        )
+    if reason.startswith(_POST_PROBE_PREFIX):
+        print("pre-push itself is live; the gap is elsewhere.", file=sys.stderr)
     else:
         print(
             "Pushes are not locally gated: pre-push does not run.",

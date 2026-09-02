@@ -363,7 +363,7 @@ class TestDeadHooks:
 
         assert result.returncode == 1
         assert "commit-msg" in result.stderr
-        assert check_git_hook_health._MISSING_TYPES_PREFIX in result.stderr
+        assert check_git_hook_health._POST_PROBE_PREFIX in result.stderr
 
     def test_every_configured_hook_type_installed_passes(self, tmp_path: Path) -> None:
         """The positive control for the check above."""
@@ -447,6 +447,7 @@ class TestDeadHooks:
 
         assert result.returncode == 1
         assert "pre-push itself is live" in result.stderr
+        assert check_git_hook_health._POST_PROBE_PREFIX in result.stderr
         assert "pre-push does not run" not in result.stderr
 
     def test_a_dead_pre_push_still_says_pushes_are_ungated(
@@ -460,13 +461,25 @@ class TestDeadHooks:
         assert result.returncode == 1
         assert "pre-push does not run" in result.stderr
 
-    def test_an_unparseable_config_keeps_the_single_probe(self, tmp_path: Path) -> None:
-        """A config the gate cannot parse must not fail every hook type."""
+    def test_an_unreadable_config_fails_instead_of_degrading(
+        self, tmp_path: Path
+    ) -> None:
+        """An inventory the gate cannot obtain is unverifiable, not healthy.
+
+        The first version returned None here and fell back to probing only
+        `pre-push`, so a `.jsonc` overlay adding `commit-msg` left that shim
+        absent while this gate passed. Unverifiable is not a pass, the same rule
+        the unreadable-hook case follows.
+        """
         repo = _make_repo(tmp_path, "unparseable")
         (repo / "lefthook.yml").write_text("pre-push: [unclosed\n", encoding="utf-8")
         _install_prepush(repo / ".git" / "hooks")
 
-        assert _run_cli(repo).returncode == 0
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "could not be read" in result.stderr
+        assert "pre-push does not run" not in result.stderr
 
     def test_validation_reuses_the_resolved_hooks_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
