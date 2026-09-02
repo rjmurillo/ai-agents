@@ -1,6 +1,6 @@
 """Regression pin for Issue #4079: no U+2014 / U+2013 in the shipped trees.
 
-``.claude/rules/universal.md`` MUST NOT item 5 bans U+2014 and U+2013 in all
+``.claude/rules/universal.md`` MUST NOT item 4 bans U+2014 and U+2013 in all
 authored text, including code comments. Both runtime guards filter to
 markdown: ``lefthook.yml`` runs ``staged-dashes`` with ``glob: "**/*.md"``
 and ``scripts/validation/checks_dash.py`` keeps only paths ending in

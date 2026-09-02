@@ -5,11 +5,13 @@ markers from a shipped document and executes it with `bash`, against fake
 producer scripts on `$SCRIPTS_DIR`. Parameterized over the source command and
 its generated mirror, so a stale mirror fails.
 
-Two properties here were added only after a mutation proved the earlier version
-could not see the defect, and both are documented at their definitions: the
-fake `set_pr_auto_merge.py` records its argument vector rather than the bare
-fact of a call, and the queue walks two PRs so a per-PR skip is distinguishable
-from a queue abort.
+Four properties here were added only after a mutation proved the earlier
+version could not see the defect, and all four are documented at their
+definitions: the fake `set_pr_auto_merge.py` records its argument vector rather
+than the bare fact of a call, the fake `test_pr_merge_ready.py` does the same so
+a dropped `--is-bot` is visible (issue #5208), the fake `get_pr_context.py`
+records one line per call so a duplicated context fetch is countable, and the
+queue walks two PRs so a per-PR skip is distinguishable from a queue abort.
 
 Split from `test_pr_autofix_tier_dispatch_runtime.py` when it crossed the
 500-line taste rule, following the parser precedent in this directory: this
@@ -18,6 +20,7 @@ module is the machinery, that one is the cases.
 
 from __future__ import annotations
 
+import json
 import os
 import shlex
 import subprocess
@@ -30,13 +33,14 @@ DISPATCH_DOCS = (
 )
 _START = "# tier-dispatch:start"
 _END = "# tier-dispatch:end"
+_SCRIPTS_START = "# Check merge readiness."
+_SCRIPTS_END = "# Per-PR live-state gate"
 
 SHIPPED_TIER_READ = "jq -r '.Tier // \"UNKNOWN\"'"
 PREFIX_TIER_READ = "jq -r '.Data.Tier // \"UNKNOWN\"'"
 
-# Environment keys GitHub Actions always sets. The block does not read them, but
-# inheriting runner-only values is how a test passes locally and fails in CI
-# (testing rule SHOULD-12), so they must never reach the subprocess.
+# GitHub Actions keys that must never reach the subprocess, or a test can pass
+# locally and fail in CI (testing rule SHOULD-12).
 CI_ONLY_ENV = ("GITHUB_STEP_SUMMARY", "GITHUB_OUTPUT", "GITHUB_ENV", "CI")
 
 # The only ambient variables the extracted block is given. Everything else the
@@ -59,9 +63,8 @@ CI_ONLY_ENV = ("GITHUB_STEP_SUMMARY", "GITHUB_OUTPUT", "GITHUB_ENV", "CI")
 # it ever runs somewhere that needs it.
 _ENV_ALLOWLIST = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT")
 
-# The SHOULD-12 rule above is now a consequence of the allowlist rather than a
-# separate filter, and this keeps that consequence checked instead of assumed.
-# Adding a runner-set name to the allowlist fails here at import.
+# This keeps SHOULD-12 checked instead of assumed: adding a runner-set name to
+# the allowlist fails here at import.
 assert not set(CI_ONLY_ENV) & set(_ENV_ALLOWLIST), (
     "an allowlisted variable is also a CI-only variable, so SHOULD-12's "
     "passes-locally-fails-in-CI protection has been reopened"
@@ -77,12 +80,29 @@ def extract_dispatch(text: str) -> str:
     return text[start : end + len(_END)]
 
 
+def extract_scripts_readiness(text: str) -> str:
+    """Return the runnable readiness recipe from the Scripts fence."""
+    scripts = text.index("## Scripts")
+    start = text.index(_SCRIPTS_START, scripts)
+    end = text.index(_SCRIPTS_END, start)
+    return text[start:end]
+
+
 def write_fake_scripts(scripts_dir: Path) -> None:
     (scripts_dir / "test_pr_merge_ready.py").write_text(
         """\
 import json
 import os
 import sys
+from pathlib import Path
+
+# Records the argument vector, for the same reason the disarm fake does: the
+# bare fact of a call cannot distinguish a run that forwarded --is-bot from one
+# that did not, and that flag is the whole of issue #5208. Written before the
+# early exits below so a producer failure still records what it was asked for.
+Path(os.environ["MERGE_READY_LOG"]).open("a", encoding="utf-8").write(
+    json.dumps(sys.argv[1:]) + "\\n"
+)
 
 tier = os.environ["FAKE_TIER"]
 
@@ -96,6 +116,14 @@ if tier == "CRASH":
 if tier == "MALFORMED":
     print("not json at all")
     raise SystemExit(1)
+if tier == "PREFIX_MALFORMED":
+    print(json.dumps({
+        "Success": True,
+        "Tier": "T1",
+        "Ready": True,
+        "fetched_pages_complete": True,
+    }) + "\\n{GARBAGE")
+    raise SystemExit(0)
 if tier == "ERROR_OBJECT":
     print(json.dumps({"Success": False, "Error": "rate limited"}))
     raise SystemExit(1)
@@ -115,7 +143,8 @@ if pages.startswith("RAW:"):
 elif pages != "OMIT":
     payload["fetched_pages_complete"] = pages == "true"
 print(json.dumps(payload, indent=2))
-raise SystemExit(0 if tier == "T1" else 1)
+forced_rc = os.environ.get("FAKE_MERGE_READY_RC", "")
+raise SystemExit(int(forced_rc) if forced_rc else (0 if tier == "T1" else 1))
 """,
         encoding="utf-8",
     )
@@ -138,13 +167,60 @@ print(json.dumps({
         """\
 import json
 import os
+import sys
+from pathlib import Path
 
-if os.environ["FAKE_AUTO_MERGE"] == "UNREADABLE":
+# Records one line per call. It proves call order, and it is written before the
+# early exit below so an unreadable case still counts.
+context_log = Path(os.environ["CONTEXT_LOG"])
+context_log.open("a", encoding="utf-8").write(
+    json.dumps(sys.argv[1:]) + "\\n"
+)
+argv = sys.argv[1:]
+field = argv[argv.index("--field") + 1] if "--field" in argv else None
+
+if field == "auto_merge_method":
+    method = os.environ["FAKE_AUTO_MERGE"]
+    if method == "UNREADABLE":
+        raise SystemExit(1)
+    if method == "ARMED_AFTER_AUTHOR":
+        method = "SQUASH"
+    if method.startswith("RAW:"):
+        payload = json.loads(method[4:])
+    else:
+        payload = None if method == "null" else method
+    print(json.dumps({"Success": True, "Data": {"auto_merge_method": payload}}))
+    raise SystemExit(0)
+
+# Same three shapes FAKE_PAGES_COMPLETE uses. "OMIT" is the shape a pre-#5208
+# get_pr_context.py emits.
+author = os.environ["FAKE_AUTHOR_IS_BOT"]
+if field == "author_is_bot" and author == "FOCUSED_REJECTS":
+    raise SystemExit(2)
+if author == "UNREADABLE":
     raise SystemExit(1)
-
-method = os.environ["FAKE_AUTO_MERGE"]
-payload = None if method == "null" else method
-print(json.dumps({"Success": True, "Data": {"auto_merge_method": payload}}))
+data = {}
+if author == "MALFORMED_SUFFIX":
+    # Emit valid JSON followed by garbage to simulate jq streaming failure.
+    data["author_is_bot"] = False
+    print(json.dumps({"Success": True, "Data": data}) + "\\n{GARBAGE")
+    raise SystemExit(0)
+elif author == "SECOND_DATA_ARRAY":
+    data["author_is_bot"] = False
+    print(json.dumps({"Success": True, "Data": data}))
+    print(json.dumps({"Success": True, "Data": []}))
+    raise SystemExit(0)
+elif author == "FOCUSED_REJECTS":
+    pass
+elif author == "FAILED_WITH_HUMAN":
+    data["author_is_bot"] = False
+    print(json.dumps({"Success": True, "Data": data}))
+    raise SystemExit(1)
+elif author.startswith("RAW:"):
+    data["author_is_bot"] = json.loads(author[4:])
+elif author != "OMIT":
+    data["author_is_bot"] = author == "true"
+print(json.dumps({"Success": True, "Data": data}))
 """,
         encoding="utf-8",
     )
@@ -160,7 +236,7 @@ from pathlib import Path
 # for, so `--disable` could become `--enable` with the whole suite green. That
 # mutation was verified to survive before this line existed.
 Path(os.environ["DISARM_LOG"]).open("a", encoding="utf-8").write(
-    "disarmed " + " ".join(sys.argv[1:]) + "\\n"
+    json.dumps(sys.argv[1:]) + "\\n"
 )
 print(json.dumps({"Success": True, "Data": {"disabled": True}}))
 """,
@@ -177,6 +253,8 @@ class DispatchRun:
         round_cap_log: Path,
         disarm_log: Path,
         cleanup_log: Path,
+        merge_ready_log: Path,
+        context_log: Path,
     ) -> None:
         self.process = process
         self.stdout = process.stdout
@@ -184,6 +262,48 @@ class DispatchRun:
         self.disarmed = disarm_log.exists()
         self.cleaned_up = cleanup_log.exists()
         self.disarm_argv = disarm_log.read_text(encoding="utf-8") if self.disarmed else ""
+        self.merge_ready_argv = (
+            merge_ready_log.read_text(encoding="utf-8") if merge_ready_log.exists() else ""
+        )
+        self.context_argv = context_log.read_text(encoding="utf-8") if context_log.exists() else ""
+
+    @property
+    def context_fetches(self) -> list[str]:
+        """One entry per `get_pr_context.py` invocation, in call order."""
+        return [" ".join(call) for call in self.context_calls]
+
+    @property
+    def context_calls(self) -> list[list[str]]:
+        """Exact argv for each context producer call."""
+        return [json.loads(line) for line in self.context_argv.splitlines() if line]
+
+    @property
+    def merge_ready_calls(self) -> list[list[str]]:
+        """Exact argv for each readiness producer call."""
+        return [json.loads(line) for line in self.merge_ready_argv.splitlines() if line]
+
+    @property
+    def disarm_calls(self) -> list[list[str]]:
+        """Exact argv for each auto-merge mutation call."""
+        return [json.loads(line) for line in self.disarm_argv.splitlines() if line]
+
+    @property
+    def forwarded_is_bot(self) -> bool:
+        """True when every tier-producer call in this run carried `--is-bot`.
+
+        Every call, not any call, because the queue walks two PRs and both get
+        the same fake author. A read that returned true on one of two would
+        pass a block that forwarded the flag on the first pass and lost it on
+        the second, which is a shape a per-PR variable reset produces.
+        """
+        calls = self.merge_ready_calls
+        return bool(calls) and all("--is-bot" in call for call in calls)
+
+    @property
+    def did_not_forward_is_bot(self) -> bool:
+        """True when every tier-producer call omitted the exact flag token."""
+        calls = self.merge_ready_calls
+        return bool(calls) and all("--is-bot" not in call for call in calls)
 
     @property
     def reached_end(self) -> bool:
@@ -194,12 +314,11 @@ class DispatchRun:
     def queue_completed(self) -> bool:
         """True when the loop walked its whole queue instead of aborting.
 
-        The harness iterates two PRs. With one, `continue`, `break`, and
-        `exit 0` are observationally identical to every other accessor here:
-        the gate's message is printed, cleanup ran, and the shell exits 0
-        because the shared helper requires exactly that. Mutating the SKIP
-        arm's `continue` to `break` or `exit 0` was verified to survive the
-        whole suite before this property existed.
+        With one PR, `continue`, `break`, and `exit 0` are observationally
+        identical here: the gate's message is printed, cleanup ran, and the
+        shell exits 0 because the shared helper requires exactly that. Mutating
+        the SKIP arm's `continue` to `break` or `exit 0` was verified to
+        survive the whole suite before this property existed.
 
         This asserts the second PR was *visited*, not that the loop exited
         normally. The first version checked a marker printed after `done`,
@@ -224,6 +343,8 @@ def run_dispatch(
     auto_merge: str = "null",
     round_action: str = "ACT",
     pages_complete: str = "true",
+    author_is_bot: str = "false",
+    merge_ready_rc: str = "",
     mutation_rc: str = "",
     tier_read: str = SHIPPED_TIER_READ,
     block_edit: tuple[str, str] | None = None,
@@ -240,6 +361,8 @@ def run_dispatch(
     round_cap_log = tmp_path / "round-cap"
     disarm_log = tmp_path / "disarm"
     cleanup_log = tmp_path / "cleanup"
+    merge_ready_log = tmp_path / "merge-ready"
+    context_log = tmp_path / "context"
 
     block = extract_dispatch((REPO_ROOT / doc).read_text(encoding="utf-8"))
     if tier_read != SHIPPED_TIER_READ:
@@ -290,7 +413,11 @@ done
             "FAKE_AUTO_MERGE": auto_merge,
             "FAKE_ROUND_ACTION": round_action,
             "FAKE_PAGES_COMPLETE": pages_complete,
+            "FAKE_AUTHOR_IS_BOT": author_is_bot,
+            "MERGE_READY_LOG": str(merge_ready_log),
+            "FAKE_MERGE_READY_RC": merge_ready_rc,
             "MUTATION_RC_OVERRIDE": mutation_rc,
+            "CONTEXT_LOG": str(context_log),
         }
     )
     process = subprocess.run(
@@ -328,4 +455,46 @@ done
         assert expected_stderr in process.stderr, (
             f"expected {expected_stderr!r} on stderr, got: {process.stderr.strip()!r}"
         )
-    return DispatchRun(process, round_cap_log, disarm_log, cleanup_log)
+    return DispatchRun(
+        process, round_cap_log, disarm_log, cleanup_log, merge_ready_log, context_log
+    )
+
+
+def run_scripts_readiness(tmp_path: Path, doc: str, *, author_is_bot: str) -> list[str]:
+    """Run the Scripts readiness recipe and return producer argv."""
+    scripts_dir = tmp_path / "scripts"
+    scripts_dir.mkdir(parents=True)
+    write_fake_scripts(scripts_dir)
+    merge_ready_log = tmp_path / "merge-ready"
+    context_log = tmp_path / "context"
+    block = extract_scripts_readiness((REPO_ROOT / doc).read_text(encoding="utf-8"))
+    block = block.replace("{pr}", "5176")
+    env = {k: os.environ[k] for k in _ENV_ALLOWLIST if k in os.environ}
+    env.update(
+        {
+            "CONTEXT_LOG": str(context_log),
+            "FAKE_AUTHOR_IS_BOT": author_is_bot,
+            "FAKE_AUTO_MERGE": "null",
+            "FAKE_PAGES_COMPLETE": "true",
+            "FAKE_TIER": "T1",
+            "FAKE_MERGE_READY_RC": "",
+            "MERGE_READY_LOG": str(merge_ready_log),
+        }
+    )
+    process = subprocess.run(
+        ["bash", "-c", f"set -u\nSCRIPTS_DIR={shlex.quote(scripts_dir.as_posix())}\n{block}"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )
+    assert process.returncode == 0, (
+        f"the Scripts readiness recipe exited {process.returncode}: {process.stderr.strip()}"
+    )
+    calls = [line for line in merge_ready_log.read_text(encoding="utf-8").splitlines() if line]
+    assert len(calls) == 1, f"expected one readiness call, got {calls!r}"
+    return json.loads(calls[0])

@@ -623,7 +623,7 @@ def file_matches(actual: str, mentioned: str) -> bool:
 # and `pre_pr.py:_DASH_RE`; this is the PR-description analogue.
 #
 # Uses Unicode escape sequences so this source file does not contain U+2014
-# or U+2013 itself (per `.claude/rules/universal.md` MUST NOT entry 5,
+# or U+2013 itself (per `.claude/rules/universal.md` MUST NOT entry 4,
 # Issue #1923). REQ-006 acceptance criteria cover the four enforcement
 # placements: AC1/AC2 (pre-commit hook for staged files), AC3 (commit-msg
 # hook for commit messages), AC7 (pre_pr.py for branch-wide files), and the
@@ -897,7 +897,7 @@ def validate_no_dashes(title: str, body: str) -> list[Issue]:
     do not cover: PR descriptions live in GitHub, never reach `git
     commit`, and were the source of bot reviewer threads on PR #1930
     despite the hook implementation. See `.claude/rules/universal.md`
-    MUST NOT entry 5 (Refs Issue #1923).
+    MUST NOT entry 4 (Refs Issue #1923).
     """
     issues: list[Issue] = []
     if _DASH_RE.search(title):
@@ -909,7 +909,7 @@ def validate_no_dashes(title: str, body: str) -> list[Issue]:
                 message=(
                     "PR title contains U+2014 (em-dash) or U+2013 (en-dash). "
                     "Replace with comma, period, hyphen, or restructure. "
-                    "Rule: .claude/rules/universal.md MUST NOT entry 5."
+                    "Rule: .claude/rules/universal.md MUST NOT entry 4."
                 ),
             )
         )
@@ -930,7 +930,7 @@ def validate_no_dashes(title: str, body: str) -> list[Issue]:
                 message=(
                     f"PR description contains U+2014 or U+2013 ({offending_str}). "
                     "Replace with comma, period, hyphen, or restructure. "
-                    "Rule: .claude/rules/universal.md MUST NOT entry 5."
+                    "Rule: .claude/rules/universal.md MUST NOT entry 4."
                 ),
             )
         )

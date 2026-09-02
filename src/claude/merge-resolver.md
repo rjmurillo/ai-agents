@@ -245,7 +245,6 @@ See `.claude/skills/merge-resolver/SKILL.md` for full script documentation.
 ## Constraints
 
 - **Session files from main are immutable**. Accept theirs, rename ours with a distinguishing suffix (PR #4856)
-- **HANDOFF.md is read-only**. Accept theirs (main is canonical)
 - **Lock files**: Accept base, regenerate with package manager
 - **Generated files**: Resolve in template/source, regenerate outputs
 - Do not push without session protocol validation (BLOCKING)

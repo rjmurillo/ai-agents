@@ -2,6 +2,18 @@
     "env": {
         "AI_AGENTS_PROJECT_REPO": "1"
     },
+    "permissions": {
+        "deny": [
+            "Bash(git *--output*)",
+            "Bash(git *--exec-path*)",
+            "Bash(git *diff.external=*)",
+            "Bash(git *core.pager=*)",
+            "Bash(git *core.sshCommand=*)",
+            "Bash(git *core.fsmonitor=*)",
+            "Bash(git *textconv=*)",
+            "Bash(git *uploadpack.packObjectsHook=*)"
+        ]
+    },
     "hooks": {
         "SessionStart": [
             {
@@ -31,6 +43,16 @@
                         "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/invoke_dispatch_claude.py --group sessionstart-2-checkout_freshness",
                         "timeout": 45,
                         "statusMessage": "Running sessionstart-2-checkout_freshness hooks (grouped, #4689)"
+                    }
+                ]
+            },
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/invoke_dispatch_claude.py --group sessionstart-3-plugin_hook_drift",
+                        "timeout": 25,
+                        "statusMessage": "Running sessionstart-3-plugin_hook_drift hooks (grouped, #5085)"
                     }
                 ]
             }

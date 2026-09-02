@@ -44,9 +44,8 @@ These rules apply to every change in this repository.
    a 10 minute local failure into a slower remote one and can leave the branch
    red for other agents. When a hook blocks you for a reason unrelated to your
    diff, hand the branch back with the measurement instead of bypassing.
-3. MUST NOT edit `.agents/HANDOFF.md` (read-only per ADR-014).
-4. MUST NOT put logic in YAML workflows (ADR-006).
-5. MUST NOT use em-dashes (U+2014) or en-dashes (U+2013) in any authored text:
+3. MUST NOT put logic in YAML workflows (ADR-006).
+4. MUST NOT use em-dashes (U+2014) or en-dashes (U+2013) in any authored text:
    markdown prose, code comments, agent prompts, commit messages, PR descriptions,
    rule files (`.claude/rules/`, `.github/instructions/`), retrospectives, ADRs,
    or session logs. Use commas, periods, colons, parentheses, hyphens, or
@@ -62,14 +61,15 @@ These rules apply to every change in this repository.
    span or title has a prohibited dash, do not rewrite it. End the quote before
    it, use `[...]`, or split the quote and explain the dash's job in your prose.
    Refs Issue #4079.
-6. MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
+5. MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
    comments to any file (agent prompts, documentation, code, template outputs).
    Generated output must be indistinguishable from hand-written content:
    metadata headers waste tokens for AI consumers, and the user has rejected
    this pattern repeatedly (three corrections as of 2025-12-17). If a script
    grows a helper that emits such headers, delete the helper instead of
    calling it.
-7. Git worktrees MUST be external.
+6. Worktrees MUST be external: a sibling of the checkout or `~/worktrees/`,
+   never under the clone, never under `/tmp`.
 
 ## References
 

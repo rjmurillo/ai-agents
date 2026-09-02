@@ -12,8 +12,11 @@ The canonical form is fixed by ``.claude/rules/push-lock.md``:
 
 Scope is prescriptive Markdown only. A retrospective or an audit that records
 what an old scheme looked like is evidence, not a recipe, so those trees are
-skipped wholesale; a fenced block elsewhere opts out by carrying the token
-``push-lock-historical`` on a line inside the fence.
+skipped wholesale; a fenced block or a paragraph of prose elsewhere opts out by
+carrying the token ``push-lock-historical`` on a line inside it.
+
+A recipe does not stop being a recipe when it loses its fence, so unfenced
+prose is scanned in paragraph-sized runs with the same resolver (issue #4635).
 
 EXIT CODES (ADR-035):
   0 - every prescription agrees (prints the examined count)
@@ -30,6 +33,20 @@ import sys
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.push_lock_resolver import (  # noqa: E402
+    _FLOCK,
+    _lock_targets,
+    _non_canonical,
+    _unresolved_flock_variables,
+    is_canonical,
+)
+
+__all__ = ["is_canonical", "main", "scan_text", "validate_push_lock_paths"]
+
 CANONICAL_TEMPLATE = '"$HOME/src/scratch/locks/push-lock-<slug>.lock"'
 HISTORICAL_MARKER = "push-lock-historical"
 
@@ -40,32 +57,11 @@ EXCLUDED_PREFIXES = (
     ".agents/archive/",
 )
 
-_FLOCK = re.compile(r"\bflock\b")
-# A lock path token anywhere on a line. The character class stops at the shell
-# metacharacters that cannot appear inside a path, so `exec 9>/tmp/x.lock`
-# yields `/tmp/x.lock` rather than `9>/tmp/x.lock`. The `+` requires at least
-# one character before the suffix, so prose that writes the bare extension is
-# not mistaken for a path.
-_LOCK_PATH = re.compile(r"[A-Za-z0-9_./$~{}@%+-]+\.lock\b")
-_CANONICAL_PATH = re.compile(
-    r"^(?:\$HOME|\$\{HOME\})/src/scratch/locks/push-lock-[^/]*\.lock$"
-)
 _FENCE = re.compile(r"^\s*(?:```|~~~)")
-# `exec 9>/path` opens the lock without ever naming it to `flock`.
-_EXEC_REDIRECT = re.compile(r"\bexec\s+\d*>+\s*([^\s;|&<>'\"]+)")
-# `LOCK=/path` then `flock "$LOCK"`. Name to (line number, value).
-_ASSIGNMENT = re.compile(r"\b(\w+)=(\S+)")
-# A whole token that is only a variable, so it points at an assignment above.
-_BARE_VARIABLE = re.compile(r"^\$\{?(\w+)\}?$")
 NO_PATH_MESSAGE = (
     "flock recipe names no canonical lock path in this block "
     "(expected {template}; see .claude/rules/push-lock.md, issue #4366)"
 )
-
-
-def is_canonical(path: str) -> bool:
-    """Return True when ``path`` matches the one sanctioned lock filename shape."""
-    return bool(_CANONICAL_PATH.match(path.strip("\"'")))
 
 
 def _fenced_blocks(lines: Sequence[str]) -> list[tuple[int, int]]:
@@ -95,74 +91,6 @@ def _historical_line_numbers(lines: Sequence[str]) -> set[int]:
     return skipped
 
 
-def _flock_argument(line: str) -> str | None:
-    """Return the token ``flock`` is given as its lock, ignoring options and fds."""
-    match = _FLOCK.search(line)
-    if match is None:
-        return None
-    for token in line[match.end() :].split():
-        if token.startswith("-") or token.isdigit():
-            continue
-        return token.strip("\"'")
-    return None
-
-
-def _is_path_like(token: str) -> bool:
-    """Return True when a token could name a file rather than a prose word."""
-    return "/" in token or token.endswith(".lock")
-
-
-def _assignments(block: Sequence[str], start: int) -> dict[str, tuple[int, str]]:
-    """Map each shell variable in the block to where it was set and to what."""
-    found: dict[str, tuple[int, str]] = {}
-    for offset, line in enumerate(block):
-        for name, value in _ASSIGNMENT.findall(line):
-            found[name] = (start + offset + 1, value.strip("\"'"))
-    return found
-
-
-def _candidate_tokens(block: Sequence[str], start: int) -> list[tuple[int, str]]:
-    """Return every token in the block that could name a lock file."""
-    candidates: list[tuple[int, str]] = []
-    for offset, line in enumerate(block):
-        number = start + offset + 1
-        assignment_only = _ASSIGNMENT.search(line) is not None and _FLOCK.search(line) is None
-        if not assignment_only:
-            candidates.extend((number, match.group(0)) for match in _LOCK_PATH.finditer(line))
-        candidates.extend((number, match.group(1)) for match in _EXEC_REDIRECT.finditer(line))
-        argument = _flock_argument(line)
-        if argument is not None:
-            candidates.append((number, argument))
-    return candidates
-
-
-def _lock_targets(block: Sequence[str], start: int) -> list[tuple[int, str]]:
-    """Return (line number, lock path) for every lock the block actually opens.
-
-    A recipe reaches its lock four ways and only the first keeps ``flock`` and
-    the path together:
-
-        flock /tmp/a.lock git push
-        LOCK=/tmp/a.lock ; flock "$LOCK" git push
-        exec 9>/tmp/a.lock ; flock -n 9
-        flock \\ (newline) /tmp/a.lock \\ (newline) git push
-
-    Reading only ``.lock`` tokens misses a lock file written without the
-    suffix, so the ``flock`` argument and the ``exec`` redirect target count as
-    targets whatever they are named. A bare variable reports at its assignment,
-    which is where a reader fixes it.
-    """
-    assignments = _assignments(block, start)
-    targets: list[tuple[int, str]] = []
-    for number, token in _candidate_tokens(block, start):
-        variable = _BARE_VARIABLE.match(token)
-        if variable is not None:
-            number, token = assignments.get(variable.group(1), (number, ""))
-        if _is_path_like(token) and (number, token) not in targets:
-            targets.append((number, token))
-    return targets
-
-
 def _scan_block(lines: Sequence[str], start: int, end: int) -> list[tuple[int, str]]:
     """Scan one fenced block that mentions ``flock``.
 
@@ -174,11 +102,22 @@ def _scan_block(lines: Sequence[str], start: int, end: int) -> list[tuple[int, s
     Every target, not merely the first: a block that contrasts the canonical
     recipe with a dead scheme names two, and stopping at the canonical one hid
     the dead one, which is the exact evidence shape issue #4366 recorded.
+
+    The no-targets fallback alone was not enough for the same reason. It fires
+    only when the block names *nothing*, so a fence holding the canonical
+    recipe on one line and ``flock "$OTHER"`` on the next had a non-empty
+    target list and swallowed the second call. That is the coexistence shape
+    this block scan exists to catch, so unresolvable variables are collected
+    per call site and the fallback is what remains for a block that names
+    nothing at all.
     """
     block = lines[start:end]
     targets = _lock_targets(block, start)
-    findings = [(number, path) for number, path in targets if not is_canonical(path)]
-    if not targets:
+    findings = _non_canonical(targets)
+    findings.extend(
+        finding for finding in _unresolved_flock_variables(block, start) if finding not in findings
+    )
+    if not targets and not findings:
         flock_lines = [
             start + offset + 1 for offset, line in enumerate(block) if _FLOCK.search(line)
         ]
@@ -186,8 +125,68 @@ def _scan_block(lines: Sequence[str], start: int, end: int) -> list[tuple[int, s
     return findings
 
 
+def _prose_runs(lines: Sequence[str], skipped: set[int], fenced: set[int]) -> list[tuple[int, int]]:
+    """Return (start, end) indices for each run of unfenced prose, end exclusive.
+
+    A run is a maximal group of consecutive lines that are neither fenced nor
+    skipped nor blank, so the unit is one Markdown paragraph. The blank line is
+    the boundary because it is the boundary Markdown itself uses: it is what
+    separates a recipe from the paragraph that discusses it. Taking every
+    unfenced line in a file as one unit instead would let a variable assigned
+    in one section resolve a ``flock`` in another.
+    """
+    runs: list[tuple[int, int]] = []
+    start: int | None = None
+    for index, line in enumerate(lines):
+        number = index + 1
+        if number in skipped or number in fenced or not line.strip():
+            if start is not None:
+                runs.append((start, index))
+                start = None
+            continue
+        if start is None:
+            start = index
+    if start is not None:
+        runs.append((start, len(lines)))
+    return runs
+
+
+def _scan_prose_run(lines: Sequence[str], start: int, end: int) -> list[tuple[int, str]]:
+    """Scan one run of unfenced prose, resolving locks the way a fence does.
+
+    A recipe does not become canonical by losing its fence. Before this ran,
+    ``LOCK=/var/locks/branch.lock`` followed by ``flock "$LOCK" git push`` was
+    reported inside a fence and invisible outside one, because the unfenced
+    path read each line alone: the assignment line has no ``flock`` and the
+    ``flock`` line has no path (issue #4635).
+
+    Unlike ``_scan_block`` this does not report "names no canonical path" for
+    the whole run. Prose discusses ``flock`` without prescribing anything, and
+    the blanket empty finding over unfenced runs fired on 13 tracked files that
+    only mention the tool, including this module's own rule mirror. A run that
+    records a dead scheme as evidence opts out with ``push-lock-historical``,
+    the same token a fence uses.
+
+    ``_unresolved_flock_variables`` is the narrow exception, because that
+    asymmetry was meant for prose *about* ``flock`` and would otherwise swallow
+    a real call whose lock cannot be read.
+    """
+    block = lines[start:end]
+    if not any(_FLOCK.search(line) for line in block):
+        return []
+    if any(HISTORICAL_MARKER in line for line in block):
+        return []
+    return _non_canonical(_lock_targets(block, start)) + _unresolved_flock_variables(block, start)
+
+
 def scan_text(text: str) -> list[tuple[int, str]]:
     """Return (line number, offending path) for every non-canonical lock path.
+
+    Two units, one resolver. A fenced block is scanned by ``_scan_block`` and
+    each run of unfenced prose by ``_scan_prose_run``; both read their lock
+    targets from ``_lock_targets``, so a recipe resolves the same way whether
+    or not it carries a fence. Only the fenced unit reports "names no
+    canonical path", because only a fence is unambiguously a prescription.
 
     An empty path means the block invokes ``flock`` without naming the
     canonical path anywhere in it.
@@ -203,14 +202,8 @@ def scan_text(text: str) -> list[tuple[int, str]]:
         if not any(_FLOCK.search(line) for line in lines[start:end]):
             continue
         findings.extend(_scan_block(lines, start, end))
-    for index, line in enumerate(lines, start=1):
-        if index in skipped or index in fenced or not _FLOCK.search(line):
-            continue
-        findings.extend(
-            (index, match.group(0))
-            for match in _LOCK_PATH.finditer(line)
-            if not is_canonical(match.group(0))
-        )
+    for start, end in _prose_runs(lines, skipped, fenced):
+        findings.extend(_scan_prose_run(lines, start, end))
     return sorted(findings)
 
 

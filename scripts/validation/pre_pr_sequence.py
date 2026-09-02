@@ -233,7 +233,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
     # Blocks a tracked prescription that tells a reader to create a worktree
-    # under /tmp or inside the checkout, against universal.md MUST NOT 7. Issue
+    # under /tmp or inside the checkout, against universal.md MUST NOT 6. Issue
     # #5111: the rule, a Serena memory, and a prior incident all already
     # existed, and six violations still accumulated, because nothing read the
     # recipes.

@@ -16,8 +16,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts.validation import check_push_lock_paths as checker
-
-CANONICAL_LINE = 'flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push origin "$BR"'
+from tests.validation._push_lock_fixtures import CANONICAL_LINE, _fence, _init_repo
 
 
 def test_canonical_path_is_accepted() -> None:
@@ -68,6 +67,49 @@ def test_variable_reassignment_uses_the_last_value_before_flock() -> None:
     assert checker.scan_text(text) == []
 
 
+def test_a_reassignment_after_the_flock_does_not_clean_the_recipe() -> None:
+    """The `flock` opened the path live at its own line, not the block's last.
+
+    Reading the block's final value let a bad path be laundered by a canonical
+    reassignment placed below the `flock` that already used it, which is the
+    exact fourth-scheme shape this gate exists to catch (issue #4366).
+    """
+    text = _fence(
+        "LOCK=/tmp/bad.lock",
+        'flock "$LOCK" git push',
+        'LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock"',
+    )
+
+    assert checker.scan_text(text) == [(2, "/tmp/bad.lock")]
+
+
+def test_a_bad_reassignment_after_a_canonical_flock_is_not_a_violation() -> None:
+    """The inverse: a later rebind cannot reach backwards to dirty the call.
+
+    Same defect, opposite sign. Reading the block's final value reported a
+    violation against a `flock` that opened the canonical path.
+    """
+    text = _fence(
+        'LOCK="$HOME/src/scratch/locks/push-lock-$SLUG.lock"',
+        'flock "$LOCK" git push',
+        "LOCK=/tmp/bad.lock",
+    )
+
+    assert checker.scan_text(text) == []
+
+
+def test_each_flock_resolves_against_its_own_live_assignment() -> None:
+    """Two `flock` calls, one variable, two different locks. Both are read."""
+    text = _fence(
+        "LOCK=/tmp/first.lock",
+        'flock "$LOCK" git push',
+        "LOCK=/tmp/second.lock",
+        'flock "$LOCK" git push',
+    )
+
+    assert checker.scan_text(text) == [(2, "/tmp/first.lock"), (4, "/tmp/second.lock")]
+
+
 def test_a_lock_path_outside_the_canonical_directory_is_rejected() -> None:
     findings = checker.scan_text('flock "$HOME/locks/push-lock-x.lock" git push')
 
@@ -114,19 +156,6 @@ def test_line_numbers_point_at_the_offending_line() -> None:
     text = "\n".join(["intro", "more prose", "flock /tmp/bad.lock git push"])
 
     assert checker.scan_text(text)[0][0] == 3
-
-
-def _init_repo(repo: Path, files: dict[str, str]) -> None:
-    repo.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
-    for relative, content in files.items():
-        target = repo / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-qm", "seed"], cwd=repo, check=True)
 
 
 def test_main_exits_1_and_names_the_file(
@@ -243,10 +272,6 @@ def test_pre_pr_push_lock_gate_calls_the_real_validator() -> None:
 # ---------------------------------------------------------------------------
 # The four ways a recipe reaches its lock path (issue #4366 refutation)
 # ---------------------------------------------------------------------------
-
-
-def _fence(*lines: str) -> str:
-    return "\n".join(["```bash", *lines, "```", ""])
 
 
 def test_a_lock_path_held_in_a_variable_is_caught() -> None:
@@ -381,9 +406,7 @@ def test_the_shipped_corpus_has_no_violation() -> None:
     """The gate must be green against the whole tree before it can block a push."""
     repo_root = Path(__file__).resolve().parents[2]
 
-    violations, examined = checker.check_paths(
-        repo_root, checker.tracked_markdown(repo_root)
-    )
+    violations, examined = checker.check_paths(repo_root, checker.tracked_markdown(repo_root))
 
     assert violations == []
     assert examined > 0

@@ -30,7 +30,6 @@ and pull request evidence remain valid, and the ~1,500 historical logs under
 | ADR | `.agents/architecture/ADR-NNN-slug.md` | `adr-generator` skill | `scripts/validation/check_adr_uniqueness.py`; `adr-review` debate gate |
 | Retrospective | `.agents/retrospective/` | auto-retro skeleton + `/retro fill`, or `retrospective` skill | `INDEX.md` row (auto-appended, incomplete; see Phase 4) |
 | Serena memory | `.serena/memories/[domain]-[name].md` | `memory` skill write conventions | `curating-memories` skill; `memory-index` routing |
-| Project dashboard | `.agents/HANDOFF.md` | nobody. READ-ONLY per ADR-014, 5K hard cap | push guard; protocol MUST NOT |
 
 ## Process
 
@@ -164,16 +163,15 @@ Tier model per ADR-014 and `.agents/sessions/handoffs/README.md`:
 | Session log | `.agents/sessions/*.json` | Historical only; creation discontinued |
 | Per-issue handoff | `.agents/sessions/handoffs/{date}-{issue}-handoff.md` | One issue across sessions; rewritten each session |
 | Per-branch handoff | `.agents/handoffs/{branch}/{session}.md` | Multi-session branch coordination |
-| Dashboard | `.agents/HANDOFF.md` | Project-wide, READ-ONLY, 5K hard cap |
 
 Start from the template `.agents/templates/HANDOFF.md`. A handoff must carry a
 "Verification on Resume" checklist; the next session executes it before any
 Edit or Write (`templates/agents/implementer.shared.md`, "Session Start", a
-blocking gate). Never edit
-`.agents/HANDOFF.md` itself: it had grown to 122KB with an 80%+ per-PR merge
-conflict rate before ADR-014 froze it
-(`.agents/architecture/ADR-014-distributed-handoff-architecture.md:13-16`;
-AGENTS.md "Never" list).
+blocking gate). The old project-wide `.agents/HANDOFF.md` dashboard is
+deleted: it had grown to 122KB with an 80%+ per-PR merge conflict rate before
+ADR-014 froze it, and per-issue handoffs plus Serena memory now carry the
+continuity it used to
+(`.agents/architecture/ADR-014-distributed-handoff-architecture.md:13-16`).
 
 ### Phase 7: House style and stale docs
 
@@ -181,11 +179,11 @@ Prose rules (canonical: `.claude/rules/voice.md`, `.claude/rules/universal.md`):
 
 - Lead with the point. Name file, line, command, number, or say you do not know.
 - No em-dashes or en-dashes anywhere in authored text (universal.md MUST NOT
-  item 5; only `tests/hooks/fixtures/` is exempt). Every dash costs a bot
+  item 4; only `tests/hooks/fixtures/` is exempt). Every dash costs a bot
   review thread.
 - No banned vocabulary (voice.md "Banned Vocabulary" section).
 - No auto-generated headers or timestamps-as-headers in any authored or
-  generated file (universal.md MUST NOT item 6; rejected by the user three
+  generated file (universal.md MUST NOT item 5; rejected by the user three
   times as of 2025-12-17).
 - Block-style YAML arrays only in frontmatter
   (`.agents/governance/PROJECT-CONSTRAINTS.md`, Frontmatter constraints table;
@@ -219,7 +217,6 @@ into) the rest. Behavioral claims in docs are verified with `doc-accuracy`.
 
 | Anti-pattern | Why it burns you | Evidence |
 |--------------|------------------|----------|
-| Editing `.agents/HANDOFF.md` | Read-only per ADR-014; push guards and reviewers reject it | AGENTS.md "Never" list |
 | Creating any new session log | Session log creation is discontinued | `.claude/rules/session-logs.md` MUST 1 |
 | Trusting an ADR number without reading the file | Numbers collided (058/062/063 dupes; 024 vs 055 same slug) | `check_adr_uniqueness.py` docstring |
 | Repo-wide `markdownlint --fix` | Reformatted 53 unrelated memory files in PR #908 | PR #908 retro Five Whys |
@@ -228,7 +225,7 @@ into) the rest. Behavioral claims in docs are verified with `doc-accuracy`.
 | Leaving learnings only in the retro artifact | Never read by future sessions | `retrospective-accuracy` memory |
 | Treating INDEX.md or `git log` as complete history | 5 index rows vs 95 retro files; retro-cited SHAs do not resolve locally | Phase 4 |
 | `git checkout --ours` on session-log conflicts | Corrupted the main session log once | session 1187 incident |
-| Em/en dashes, banned vocab, generated headers | One bot thread per dash, every PR | universal.md MUST NOT 5 and 6 |
+| Em/en dashes, banned vocab, generated headers | One bot thread per dash, every PR | universal.md MUST NOT 4 and 5 |
 
 ## Verification
 
@@ -259,7 +256,7 @@ relying on them:
 | Retro corpus size vs INDEX.md coverage | `.agents/retrospective/` | `python3 -c "import pathlib;d=pathlib.Path('.agents/retrospective');f={p.name for p in d.glob('*.md')}-{'INDEX.md'};t=(d/'INDEX.md').read_text();print(len(f),'retro files,',sum(n in t for n in f),'indexed')"` |
 | Memory naming + index-row hazard | `.claude/skills/memory/SKILL.md` "Serena Write Conventions" | `grep -n "Serena Write Conventions" .claude/skills/memory/SKILL.md` |
 | Memory/skill separate-PR rule | `.claude/rules/claude-agents.md` MUST NOT item 2 | `grep -n "same PR" .claude/rules/claude-agents.md` |
-| Handoff tiers, HANDOFF.md 5K cap | `.agents/sessions/handoffs/README.md` tier table; ADR-014 | `grep -n "5K hard cap" .agents/sessions/handoffs/README.md` |
+| Handoff tiers (session log, per-issue, per-branch) | `.agents/sessions/handoffs/README.md` tier table; ADR-014 | `grep -n "Tier" .agents/sessions/handoffs/README.md` |
 | FM-9 verbatim-quote rule | `.agents/governance/FAILURE-MODES.md:284-307` | `grep -n "character-for-character" .agents/governance/FAILURE-MODES.md` |
 | PR #908 lint scope story | `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-296` | `grep -n "markdownlint" .agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
 | CONTRIBUTING.md pre-PR #2871 staleness example | PR #2871 repointed `CONTRIBUTING.md` to `build/generate_agents.py` | `git show b320f4ac1 -- CONTRIBUTING.md` |

@@ -9,9 +9,9 @@ Loads the latest retrospective from .agents/retrospective/ (learnings from
 prior sessions), truncated to prevent context bloat. Output is printed to
 stdout so Claude Code injects it into the session context.
 
-Does NOT load .agents/HANDOFF.md. That file has been a frozen, read-only
-artifact since 2025-12-22 (superseded by per-issue handoffs and Serena
-memory per ADR-014), and injecting it unconditionally spent roughly 1,000
+Does NOT load .agents/HANDOFF.md. That file was frozen read-only from
+2025-12-22 and is now deleted (superseded by per-issue handoffs and Serena
+memory per ADR-014); injecting it unconditionally spent roughly 1,000
 tokens per session on a dashboard nobody updates.
 
 Hook Type: SessionStart (non-blocking, fail-open)

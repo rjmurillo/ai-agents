@@ -115,10 +115,9 @@ apart. Add new ones there.
 
 1. **AGENTS.md** - Primary reference (read first)
 2. `.claude/rules/session-logs.md` - Session log mechanics (optional)
-3. `.agents/HANDOFF.md` - Project dashboard (read-only)
-4. `.agents/governance/PROJECT-CONSTRAINTS.md` - Hard constraints
-5. `.agents/AGENT-SYSTEM.md` - Full agent details
-6. **Global behavioral steering**: `~/.copilot/copilot-instructions.md` (local) or [`rjmurillo/ubuntu-machine-config/app-configs/copilot/copilot-instructions.md`](https://github.com/rjmurillo/ubuntu-machine-config/blob/HEAD/app-configs/copilot/copilot-instructions.md) (Copilot Cloud; requires repo access)
+3. `.agents/governance/PROJECT-CONSTRAINTS.md` - Hard constraints
+4. `.agents/AGENT-SYSTEM.md` - Full agent details
+5. **Global behavioral steering**: `~/.copilot/copilot-instructions.md` (local) or [`rjmurillo/ubuntu-machine-config/app-configs/copilot/copilot-instructions.md`](https://github.com/rjmurillo/ubuntu-machine-config/blob/HEAD/app-configs/copilot/copilot-instructions.md) (Copilot Cloud; requires repo access)
 
 ---
 

@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size  one release plan; milestones reference each other by section -->
 # v0.4.0 Milestone: Framework Extraction (awesome-ai)
 
 **Status**: Proposed
@@ -308,7 +309,7 @@ rjmurillo/awesome-ai/
 |----------|---------|---------|
 | `${CLAUDE_PLUGIN_ROOT}` | Plugin installation directory | Set by Claude Code runtime |
 | `AWESOME_AI_SESSIONS_DIR` | Consumer session log directory | `.agents/sessions` |
-| `AWESOME_AI_HANDOFF_PATH` | Consumer handoff file | `.agents/HANDOFF.md` |
+| `AWESOME_AI_HANDOFFS_DIR` | Consumer per-issue handoff directory | `.agents/sessions/handoffs` |
 | `AWESOME_AI_ARCHITECTURE_DIR` | Consumer ADR directory | `.agents/architecture` |
 | `AWESOME_AI_MEMORY_DIR` | Consumer memory directory | `.serena/memories` |
 

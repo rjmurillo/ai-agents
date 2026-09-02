@@ -35,8 +35,8 @@ are template/example content, are excluded):
 | Monolith | Top-level `##` sections | Lines |
 |----------|-------------------------|-------|
 | `AGENT-SYSTEM.md` | 13 | 1908 |
-| `AGENT-INSTRUCTIONS.md` | 17 | 749 |
-| **Total** | **30** | **2657** |
+| `AGENT-INSTRUCTIONS.md` | 15 | 681 |
+| **Total** | **28** | **2589** |
 
 `SESSION-PROTOCOL.md` (10 sections, 324 lines) was one of the three
 always-loaded monoliths this audit covered; it was deleted 2026-08-20

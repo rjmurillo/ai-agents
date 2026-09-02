@@ -189,7 +189,7 @@ When running with `--dry-run`, exit code `0` indicates that conflicts were fully
 {
   "success": true,
   "message": "Successfully resolved conflicts for PR #123",
-  "files_resolved": [".agents/HANDOFF.md"],
+  "files_resolved": [".agents/governance/PROJECT-CONSTRAINTS.md"],
   "files_blocked": []
 }
 ```
@@ -305,7 +305,7 @@ uv run python scripts/validate_session_json.py ".agents/sessions/<log>.json"
 | MUST | Update Serena memory (cross-session context) | [ ] |
 | MUST | Run markdown lint | [ ] |
 | MUST | Route to qa agent (feature implementation) | [ ] |
-| MUST NOT | Update `.agents/HANDOFF.md` directly | [ ] |
+| MUST | Update the per-issue handoff, when work remains open | [ ] |
 
 ### Common Failures
 

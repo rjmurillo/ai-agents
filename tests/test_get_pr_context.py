@@ -186,6 +186,14 @@ class TestBuildParser:
         assert args.diff_stat is True
         assert args.include_changed_files is True
 
+    def test_focused_field_flag(self):
+        args = build_parser().parse_args([
+            "--pull-request", "50",
+            "--field", "author_is_bot",
+            "--field", "auto_merge_method",
+        ])
+        assert args.field == ["author_is_bot", "auto_merge_method"]
+
 
 # ---------------------------------------------------------------------------
 # Tests: main - error paths
@@ -301,6 +309,20 @@ class TestMainErrors:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
+
+    @pytest.mark.parametrize(
+        "extra_args",
+        [
+            pytest.param(["--include-diff"], id="include-diff"),
+            pytest.param(["--include-changed-files"], id="include-changed-files"),
+            pytest.param(["--diff-stat"], id="diff-stat"),
+        ],
+    )
+    def test_field_mode_rejects_full_context_flags(self, extra_args):
+        with pytest.raises(SystemExit) as exc:
+            main(["--pull-request", "50", "--field", "author_is_bot", *extra_args])
+
+        assert exc.value.code == 1
 
 
     def test_review_threads_fetch_failure_exits_3(self):
@@ -1203,3 +1225,228 @@ class TestExtendedMetadata:
         assert data["merge_state_status"] is None
         assert data["auto_merge"] is False
         assert data["reviews"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tests: author_is_bot (issue #5208)
+# ---------------------------------------------------------------------------
+
+
+class TestAuthorIsBot:
+    """`author_is_bot` is what lets `/pr-autofix` reach tier T5.
+
+    `classify_tier` in `test_pr_merge_ready.py` returns T5 only when
+    `is_bot and (has_ci_failures or has_threads)`, and its `is_bot` parameter
+    defaults to `False`. The command had no author lookup at all, so it never
+    passed `--is-bot`, and every affected bot PR that reached work-tier
+    classification was classified T2-T4 and entered the unattended thread-fix
+    loop.
+
+    Three states, not two. `None` means the author could not be read, which the
+    consumer must be able to tell apart from a real `False` so it can fail
+    closed. `test_unreadable_author_is_null_not_false` pins that distinction.
+
+    The delegation to `github_core.bot_config` is load bearing, not stylistic,
+    and it was measured rather than assumed. Replacing the two lines
+
+        user_type = "Bot" if author.get("is_bot") is True else None
+        return bool(is_bot(canonicalize_login(login), user_type))
+
+    with the cheap alternative, `return login.lower().endswith("[bot]")`, and
+    running `pytest tests/test_get_pr_context.py -k TestAuthorIsBot` gives
+    5 failed, 12 passed of 17 collected. Four failures are the discrimination
+    probe, and they fail for three different reasons, not one:
+
+        test_a_hyphen_bot_suffix_is_a_bot (rjmurillo-bot)
+            Dropped SUFFIX detection, not an alias miss. `canonicalize_login`
+            returns this login unchanged; canonical
+            `bot_config._BOT_SUFFIXES = ("[bot]", "-bot")` and the substitution
+            keeps only the first of the two.
+        test_the_gh_author_spelling_of_the_copilot_coding_agent_is_a_bot
+        test_the_copilot_reviewer_alias_is_a_bot (Copilot)
+            Alias table. `canonicalize_login` maps `app/copilot-swe-agent` to
+            `copilot-swe-agent[bot]` and `Copilot` to `github-copilot[bot]`;
+            the substitution never canonicalizes, so it tests the raw login.
+        test_the_api_bot_flag_is_honored_over_the_login
+            Dropped `user_type` argument. The substitution is one edit spanning
+            both lines, so GitHub's own flag stops being consulted at all and
+            `{"login": "somebody", "is_bot": True}` comes back False.
+
+    The fifth failure, `test_the_whitespace_guard_does_not_reclassify_a_known_bot`,
+    is collateral rather than a fourth cause: it enumerates the same two alias
+    logins as its no-over-fire control.
+
+    The two alias cases are the ones that matter operationally.
+    `app/copilot-swe-agent` and `Copilot` are the spellings this repository's own
+    bot PRs arrive under, so a suffix test would read them as human-authored and
+    leave issue #5208 unfixed for the exact population it is about.
+    """
+
+    def _data(self, capsys, author):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_pr_json(author=author), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        return json.loads(capsys.readouterr().out)["Data"]
+
+    def test_a_human_login_is_not_a_bot(self, capsys):
+        assert self._data(capsys, {"login": "alice"})["author_is_bot"] is False
+
+    def test_a_bracket_bot_suffix_is_a_bot(self, capsys):
+        assert self._data(capsys, {"login": "dependabot[bot]"})["author_is_bot"] is True
+
+    def test_a_hyphen_bot_suffix_is_a_bot(self, capsys):
+        assert self._data(capsys, {"login": "rjmurillo-bot"})["author_is_bot"] is True
+
+    def test_the_gh_author_spelling_of_the_copilot_coding_agent_is_a_bot(self, capsys):
+        """`app/copilot-swe-agent` carries no `[bot]` suffix and is still a bot.
+
+        `bot_config.py`'s `_DEFAULT_BOT_ALIASES` records this spelling with the
+        comment "gh pr view --json author returns this spelling", and maps it to
+        `copilot-swe-agent[bot]`. A suffix test at the call site would read the
+        Copilot coding agent's own PRs as human-authored, which is the exact
+        population issue #5208 is about.
+        """
+        assert self._data(capsys, {"login": "app/copilot-swe-agent"})["author_is_bot"] is True
+
+    def test_the_copilot_reviewer_alias_is_a_bot(self, capsys):
+        """`Copilot` is a configured bot carrying no suffix of either kind."""
+        assert self._data(capsys, {"login": "Copilot"})["author_is_bot"] is True
+
+    def test_the_api_bot_flag_is_honored_over_the_login(self, capsys):
+        """A login that looks human is still a bot when GitHub says so."""
+        assert self._data(capsys, {"login": "somebody", "is_bot": True})["author_is_bot"] is True
+
+    def test_a_non_boolean_api_bot_flag_falls_back_to_the_login(self, capsys):
+        """Only a real `True` counts; anything else leaves the login deciding.
+
+        Without the `is True` check, a truthy non-boolean such as the string
+        `"no"` would classify every author as a bot.
+        """
+        assert self._data(capsys, {"login": "alice", "is_bot": "no"})["author_is_bot"] is False
+        assert self._data(capsys, {"login": "alice", "is_bot": None})["author_is_bot"] is False
+
+    def test_unreadable_author_is_null_not_false(self, capsys):
+        """Three states. `False` is a claim; `None` is the absence of one.
+
+        Collapsing these to `False` is the fail-open direction: `/pr-autofix`
+        would read "not a bot" off a PR whose author GitHub never returned and
+        send it into the unattended loop.
+        """
+        assert self._data(capsys, None)["author_is_bot"] is None
+        assert self._data(capsys, {})["author_is_bot"] is None
+        assert self._data(capsys, {"login": ""})["author_is_bot"] is None
+        assert self._data(capsys, {"login": 7})["author_is_bot"] is None
+        assert self._data(capsys, "alice")["author_is_bot"] is None
+
+    @pytest.mark.parametrize(
+        "login",
+        [
+            pytest.param("   ", id="spaces-only"),
+            pytest.param("\t", id="tab-only"),
+            pytest.param("\n", id="newline-only"),
+            pytest.param(" \t \n ", id="mixed-whitespace-only"),
+            pytest.param(" alice ", id="padded-human-login"),
+            pytest.param(" dependabot[bot] ", id="padded-bot-login"),
+            pytest.param("al ice", id="interior-space"),
+        ],
+    )
+    def test_a_whitespace_bearing_login_is_null_not_false(self, capsys, login):
+        """A login nobody could have typed is unreadable, not human.
+
+        Same direction as `test_unreadable_author_is_null_not_false`, and the
+        hole that one left. `""` is rejected by `not login`, but `"   "` is
+        truthy, so it reached `is_bot`, matched no suffix and no configured
+        name, and came back a real `False`.
+
+        Negative control, measured against the pre-fix code at `49e1c1a96` by
+        calling `_author_is_bot` directly: `{"login": "   "}` returned `False`
+        and `{"login": "\\t"}` returned `False`, while `{"login": ""}` already
+        returned `None`. A PR whose author GitHub returned blank was therefore
+        forwarded to the tier producer as a human and entered the unattended
+        thread-fix loop, which is the fail-open direction the `None` state
+        exists to refuse.
+
+        The padded and interior cases are rejected rather than stripped and
+        classified: a whitespace-bearing login is malformed whichever end the
+        whitespace sits on, and classifying `" alice "` by its stripped form
+        would still hand back an unearned `False` off data GitHub cannot
+        produce. Real logins are `[A-Za-z0-9-]` only.
+        """
+        assert self._data(capsys, {"login": login})["author_is_bot"] is None
+
+    def test_the_whitespace_guard_does_not_reclassify_a_known_bot(self, capsys):
+        """No-over-fire control for the guard above.
+
+        A guard broad enough to reject `"   "` must not reject a name `is_bot`
+        already recognizes. Enumerated on this checkout, `bot_config`'s
+        `_BOT_ALIAS_MAP` keys and values together with `get_bot_authors()` are
+        28 names, and none contains a whitespace character, so the two
+        populations do not overlap. The three bot spellings below are the ones
+        this repository's own bot PRs arrive under; a broadened guard that also
+        swallowed them would leave issue #5208 unfixed while looking fixed.
+        """
+        for login in ("dependabot[bot]", "app/copilot-swe-agent", "Copilot"):
+            assert self._data(capsys, {"login": login})["author_is_bot"] is True, login
+        assert self._data(capsys, {"login": "alice"})["author_is_bot"] is False
+
+    def test_a_missing_author_key_is_null(self, capsys):
+        raw = json.loads(_pr_json())
+        del raw["author"]
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch(
+            "subprocess.run",
+            return_value=_completed(stdout=json.dumps(raw), rc=0),
+        ):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["author"] is None
+        assert data["author_is_bot"] is None
+
+
+class TestFocusedFieldMode:
+    def test_author_field_uses_the_lightweight_query(self, capsys):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(author={"login": "app/copilot-swe-agent"})),
+            ) as run,
+            patch("get_pr_context.gh_graphql") as gh_graphql,
+        ):
+            rc = main(["--pull-request", "50", "--field", "author_is_bot"])
+
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"] == {"author_is_bot": True}
+        command = run.call_args.args[0]
+        assert command[command.index("--json") + 1] == "author"
+        gh_graphql.assert_not_called()
+
+    def test_auto_merge_field_uses_the_lightweight_query(self, capsys):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(
+                    stdout=_pr_json(autoMergeRequest={"mergeMethod": "SQUASH"})
+                ),
+            ) as run,
+            patch("get_pr_context.gh_graphql") as gh_graphql,
+        ):
+            rc = main(["--pull-request", "50", "--field", "auto_merge_method"])
+
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["Data"] == {"auto_merge_method": "SQUASH"}
+        command = run.call_args.args[0]
+        assert command[command.index("--json") + 1] == "autoMergeRequest"
+        gh_graphql.assert_not_called()

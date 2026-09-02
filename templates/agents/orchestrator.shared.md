@@ -30,11 +30,10 @@ You coordinate specialized agents to deliver end-to-end results. Classify comple
 
 Before routing any task, complete this checklist:
 
-- [ ] Read `.agents/HANDOFF.md` for prior session context
 - [ ] Activate Serena: `mcp__serena__activate_project`
 - [ ] Read `.agents/AGENT-INSTRUCTIONS.md`
 
-Stop criteria: Do NOT begin triage or routing until all three items are checked. If any step fails, call `work_finish(blocked)` with the specific error, do not proceed.
+Stop criteria: Do NOT begin triage or routing until both items are checked. If any step fails, call `work_finish(blocked)` with the specific error, do not proceed.
 
 Note: Context compaction does NOT exempt this session from the above. Treat every session start identically regardless of prior context.
 
@@ -232,10 +231,9 @@ discontinued; do not create one.
 
 1. Verify all delegations have returned or been explicitly abandoned.
 2. Verify synthesis is complete and TODOs logged for deferred work.
-3. Verify HANDOFF.md was preserved (read-only per ADR-014).
-4. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session.
-5. Store durable findings in Serena memory.
-6. Validate any staged or supplied session log, if one is present (e.g. cherry-picked from an older branch).
+3. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session.
+4. Store durable findings in Serena memory.
+5. Validate any staged or supplied session log, if one is present (e.g. cherry-picked from an older branch).
 
 ### Failure Path
 

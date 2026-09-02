@@ -4,7 +4,6 @@
 Analyzes PR commits to identify those that likely bypassed the pre-commit hook.
 Detection heuristics:
   - Commits modifying .agents/ files without a session log in the same commit
-  - Commits modifying HANDOFF.md on feature branches
   - Commits with markdown lint violations that auto-fix would have caught
 
 Results are logged as structured JSON for metrics and audit trail.
@@ -169,22 +168,6 @@ def check_agents_without_session(
     return None
 
 
-def check_handoff_modified(
-    sha: str,
-    subject: str,
-    files: list[str],
-) -> BypassIndicator | None:
-    """Check if commit modifies HANDOFF.md (blocked by pre-commit hook)."""
-    if ".agents/HANDOFF.md" in files:
-        return BypassIndicator(
-            commit_sha=sha,
-            commit_message=subject,
-            indicator_type="handoff-modified",
-            details="HANDOFF.md modified on feature branch (blocked by pre-commit hook)",
-        )
-    return None
-
-
 def check_bash_scripts_added(
     sha: str,
     subject: str,
@@ -225,7 +208,6 @@ def analyze_commits(
 
     checks = [
         check_agents_without_session,
-        check_handoff_modified,
         check_bash_scripts_added,
     ]
 
