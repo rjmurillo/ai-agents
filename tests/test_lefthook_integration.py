@@ -1853,6 +1853,123 @@ def test_installed_hooks_work_from_linked_worktree(tmp_path: Path) -> None:
     assert result.returncode == 0
 
 
+def _shared_hooks_dir(repo: Path) -> Path:
+    """Return the hooks directory git reads, which every worktree shares.
+
+    ``--git-path hooks`` resolves to the common directory's ``hooks/`` from a
+    linked worktree, not ``.git/worktrees/<name>/hooks``, which is why one
+    worktree's install is visible to all of them.
+    """
+    raw = _git(repo, "rev-parse", "--git-path", "hooks").stdout.strip()
+    path = Path(raw)
+    if not path.is_absolute():
+        path = repo / path
+    return path
+
+
+def test_a_sibling_worktree_run_does_not_rewrite_the_shared_hooks(
+    tmp_path: Path,
+) -> None:
+    """``no_auto_install: true`` stops a stale checksum reinstalling shared shims.
+
+    Lefthook keeps one checksum for the whole clone, at
+    ``<common git dir>/info/lefthook.checksum``, and every linked worktree
+    shares it along with ``<common git dir>/hooks``. Without
+    ``no_auto_install``, running Lefthook from a worktree whose ``lefthook.yml``
+    no longer matches that checksum makes Lefthook reinstall before running,
+    rewriting the shims and the checksum for every other worktree. That churn is
+    the false ``lefthook check-install`` failure reported in issue #4789.
+
+    The sibling here adds a ``post-checkout`` hook the primary never configured,
+    so a reinstall from the sibling is directly observable: it would leave a
+    ``post-checkout`` shim in the shared directory. Delete ``no_auto_install``
+    from ``lefthook.yml`` and this test fails on all three assertions.
+
+    The checksum file holds an md5 and a unix timestamp, and Lefthook re-syncs
+    only when the config's mtime is newer than that timestamp. A write alone can
+    land inside the same second as the install and read as not-newer, so the
+    mtime is pushed forward explicitly rather than left to wall-clock luck.
+    Measured against Lefthook 2.1.11: without ``no_auto_install`` the sibling run
+    prints ``sync hooks: (pre-commit, post-checkout)`` and creates the shared
+    ``post-checkout`` shim; with it, neither happens.
+    """
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "worktree"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    _commit_file(repo, "tracked.txt", "initial\n")
+    _git(repo, "add", "lefthook.yml", "scripts", "build")
+    _git(repo, "commit", "-qm", "test: add hook configuration")
+    _git(repo, "worktree", "add", "-q", str(worktree), "-b", "feature/worktree")
+    _run_lefthook(repo, "install", "--reset-hooks-path")
+    hooks_dir = _shared_hooks_dir(repo)
+    checksum = hooks_dir.parent / "info" / "lefthook.checksum"
+    installed_shim = (hooks_dir / "pre-commit").read_bytes()
+    installed_checksum = checksum.read_bytes()
+
+    sibling_config = yaml.safe_load(
+        (worktree / "lefthook.yml").read_text(encoding="utf-8")
+    )
+    sibling_config["post-checkout"] = {"jobs": [{"name": "noop", "run": "true"}]}
+    sibling_path = worktree / "lefthook.yml"
+    _write_lf(sibling_path, yaml.safe_dump(sibling_config, sort_keys=False))
+    stale_after = time.time() + 3600
+    os.utime(sibling_path, (stale_after, stale_after))
+
+    _run_lefthook(
+        worktree, "run", "pre-commit", "--job", "branch-policy", "--force"
+    )
+
+    assert (hooks_dir / "pre-commit").read_bytes() == installed_shim
+    assert checksum.read_bytes() == installed_checksum
+    assert not (hooks_dir / "post-checkout").exists()
+
+
+def test_the_primary_hook_still_dispatches_after_a_sibling_install(
+    tmp_path: Path,
+) -> None:
+    """A real ``git commit`` in the primary works after the sibling installed.
+
+    Issue #4789 reported the poisoning direction: a linked worktree installs,
+    the shared shim gains that worktree's absolute path, and the primary clone
+    is said to lose its hooks. This drives that exact order and then invokes the
+    hook through git rather than through ``lefthook run``, so the assertion
+    covers the shim git actually executes.
+
+    The fixture configures no ``lefthook:`` runner, so the generated shim
+    resolves Lefthook from ``PATH`` on every platform. That keeps the test
+    honest about what it proves: the shared shim survives a sibling install and
+    dispatches, not that any particular fallback branch was taken.
+    """
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "worktree"
+    _init_repo(repo)
+    _write_lf(
+        repo / "marker.py",
+        "from pathlib import Path\n"
+        "Path('marker.txt').write_text('ran\\n', encoding='utf-8')\n",
+    )
+    config = {
+        "min_version": "2.1.10",
+        "no_auto_install": True,
+        "pre-commit": {
+            "jobs": [{"name": "marker", "run": f'"{PYTHON_POSIX}" marker.py'}]
+        },
+    }
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
+    _git(repo, "add", "lefthook.yml", "marker.py")
+    _git(repo, "commit", "-qm", "test: add marker hook configuration")
+    _git(repo, "worktree", "add", "-q", str(worktree), "-b", "feature/worktree")
+
+    _run_lefthook(worktree, "install", "--reset-hooks-path")
+
+    _write_file(repo, "tracked.txt", "content\n")
+    _git(repo, "add", "tracked.txt")
+    _git(repo, "commit", "-qm", "test: commit through the shared hook")
+
+    assert (repo / "marker.txt").read_text(encoding="utf-8") == "ran\n"
+
+
 def test_stage_fixed_restages_only_the_formatted_input(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
