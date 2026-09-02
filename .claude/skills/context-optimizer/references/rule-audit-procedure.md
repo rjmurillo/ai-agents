@@ -450,14 +450,16 @@ A single tie is the third row, not the first. Replication is what separates
 them: one run cannot distinguish a real equivalence from noise, and the noise
 floor here spans most of the usable range.
 
-The last row is the common case and the easy one to skip. As of 2026-08-04,
-`code-quality.md` (14,152 bytes) already has a scenario file carrying four
+The last row is the common case and the easy one to skip. As of 2026-09-02,
+`code-quality.md` (14,174 bytes) already has a scenario file carrying four
 scenarios, added by PR #4017, and no scored result anywhere in
-`evals/reports/`. It is the only **book-derived** always-on rule left, rank 2
-in the corpus behind `voice.md` (18,142 bytes). `pragmatic-programmer.md`
-(11,375 bytes) sits on the same footing with four scenarios of its own, and was
-itself always-on until PR #4424 narrowed its `applyTo` to source files, so it
-now loads on a code edit and not otherwise.
+`evals/reports/`. No **book-derived** rule is always-on now: issue #4871 found
+this one scoped with `alwaysApply:`, a key Claude Code ignores, and rescoped it
+to code files, which leaves `voice.md` (18,142 bytes) as the largest rule in the
+corpus. `pragmatic-programmer.md` (11,479 bytes) sits on the same footing with
+four scenarios of its own. PR #4424 narrowed it to source files, but it wrote
+the narrowing under `applyTo:`, so the rule went on loading on every Claude
+session until #4871 moved it to `paths:`.
 
 Written scenarios are not the missing piece for either rule. A scored run is.
 `check_rule_activation_coverage.py` lists both as uncovered and still exits 0,
@@ -465,22 +467,22 @@ because the uncovered set is inside its recorded baseline. Nothing goes red
 while the gap stays open, which is why reading the scenario directory is a
 worse signal than reading `evals/reports/`.
 
-Note that always-on status is declared **three** different ways: `applyTo:
-'**'` (five rules), `alwaysApply: true` (one, `code-quality.md`), and `paths:`
-carrying `**` (one, `knowledge-persistence.md`, which uses the block-list form
-rather than the inline `paths: ["**"]`). A survey that greps for one convention
-misses the others, and a regex written for the inline form misses the block
-list. That is how an earlier draft got the ranking wrong and then, after a
-correction that added only the second form, still undercounted. Enumerate by
-parsing frontmatter.
+Always-on status used to be declared three different ways, and only one of them
+is legal now: `applyTo: '**'` (zero rules), `alwaysApply: true` (zero, since
+`scripts/validation/check_rule_scope_keys.py` fails the build on either key),
+and `paths:` carrying `**` (six, in the block-list form or the inline
+`paths: ["**"]`). Both surviving forms still matter to a survey: a regex written
+for the inline form misses the block list. That is how an earlier draft got the
+ranking wrong and then, after a correction that added only the second form,
+still undercounted. Enumerate by parsing frontmatter.
 
-Seven rules is the corpus. Do not hardcode its size; it changes on every rule
+Six rules is the corpus. Do not hardcode its size; it changes on every rule
 edit. Regenerate it below, and say which basis you mean: this gate reads the
-generated `.github/instructions/` mirrors, which total 116 bytes less than the
-`.claude/rules/` sources. Two separate frontmatter rewrites produce that delta,
-not one. `generate_rules.py` strips `priority:` from the six rules that carry
-it, worth 112 bytes, and it converts `code-quality.md` from `alwaysApply: true`
-to `applyTo: '**'`, worth the remaining 4 bytes.
+generated `.github/instructions/` mirrors, which total 112 bytes less than the
+`.claude/rules/` sources. `generate_rules.py` strips `priority:` from the six
+rules that carry it, worth 112 bytes. The second rewrite it used to perform,
+turning `alwaysApply: true` into `applyTo: '**'`, is worth the remaining 0 bytes
+now that no rule declares that key.
 
 ```bash
 uv run --frozen python scripts/validation/instruction_budget.py --format table
