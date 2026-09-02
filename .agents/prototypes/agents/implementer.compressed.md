@@ -18,11 +18,12 @@ Implement what is in front of you. Plans are authoritative. Quality is non-negot
 
 1. `AGENTS.md` (root): cross-platform agent gates.
 2. `.agents/AGENT-INSTRUCTIONS.md`: project constraints.
-3. `.agents/HANDOFF.md`: prior session outcomes (read-only per ADR-014).
+3. The current per-issue handoff under `.agents/sessions/handoffs/`, when one exists.
 4. `.agents/architecture/ADR-*.md`: any ADR binding the changed area.
 5. `CLAUDE.md` and `.agents/CLAUDE.md`: Claude-specific guidance.
 
-If `.agents/HANDOFF.md` is missing: stop and report `[BLOCKED] No prior session context`.
+If `.agents/AGENT-INSTRUCTIONS.md` exists but the root `AGENTS.md` is missing:
+stop and report `[BLOCKED] Missing root agent instructions`.
 
 ## Quality gates (fail closed)
 
