@@ -3278,20 +3278,19 @@ def test_snapshot_non_strict_still_skips_an_owned_directory_symlink(
     assert snapshot == {kept: b"y = 2\n"}
 
 
-def test_snapshot_strict_stops_at_a_nested_git_checkout(tmp_path: Path) -> None:
-    """Issue #5370: strict discovery must not descend into a nested repository.
+def test_snapshot_strict_rejects_a_nested_git_checkout(tmp_path: Path) -> None:
+    """Strict discovery must refuse a nested repository, not skip past it.
 
-    ``git worktree add`` writes a ``.git`` FILE holding a ``gitdir:`` pointer,
-    which is the shape reproduced here. Before the boundary skip reached the
-    strict walk, ``--check`` read every file inside such a tree into memory
-    (24 of them under ``.claude/worktrees/`` exhausted the process), and
-    ``_restore_owned_prefixes`` skips boundaries, so it could not put back what
-    the snapshot then let restore clobber.
+    `git worktree add` writes a `.git` FILE holding a `gitdir:` pointer, the
+    shape reproduced here. Skipping it protected restore and nothing else: the
+    checkout stays out of the snapshot (issue #5370, where 24 nested worktrees
+    read into memory exhausted the process), generation still writes into it,
+    and restore skips the same directory, so `--check` returns having modified
+    a tree it promised not to touch.
 
-    Strict discovery does not use ``Path.rglob`` or
-    ``_iter_tree_skip_git_boundaries``, so it inherits nothing from #5464's
-    fix. This test is what holds the repeated boundary test in
-    ``_queue_strict_owned_path``.
+    Strict discovery does not use `Path.rglob` or
+    `_iter_tree_skip_git_boundaries`, so it inherits nothing from #5464's fix.
+    This test is what holds the boundary test in `_queue_strict_owned_path`.
     """
     repo = tmp_path / "repo"
     owned = repo / "owned"
@@ -3304,11 +3303,12 @@ def test_snapshot_strict_stops_at_a_nested_git_checkout(tmp_path: Path) -> None:
     kept = owned / "real.py"
     kept.write_bytes(b"y = 2\n")
 
-    snapshot = build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
 
-    assert set(snapshot) == {kept}, (
-        "strict discovery read inside a nested git checkout (issue #5370)"
-    )
+    assert "nested git repository" in str(excinfo.value)
+    assert (nested / "checked_out.py").read_text() == "z = 3\n"
+    assert kept.read_bytes() == b"y = 2\n"
 
 
 def test_snapshot_strict_skips_files_under_an_ignored_directory(
@@ -3932,6 +3932,47 @@ def test_run_check_aborts_before_a_generator_writes_through_a_symlink(
     )
     assert "owned path redirects" in capsys.readouterr().err
 
+
+
+def test_run_check_aborts_before_the_real_generator_writes_into_a_checkout(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The real skills generator must never reach a nested checkout.
+
+    No stand-in generator here. `generate_skills` runs for real in this repo
+    shape, and its target for the `alpha` skill is
+    `src/copilot-cli/skills/alpha/SKILL.md`, which is exactly the path a
+    nested checkout would occupy. Recording the checkout as an opaque boundary
+    protected restore and nothing else: the generator overwrote the file, and
+    restore skipped the directory, so `--check` returned having modified a
+    tree it promised not to touch.
+
+    The assertion that matters is the file's content, not the exit code. A
+    version that let the write through and then failed for some other reason
+    would still pass an exit-code check.
+    """
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    nested = repo / "src" / "copilot-cli" / "skills" / "alpha"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: ../../../../.git/worktrees/alpha\n")
+    protected = nested / "SKILL.md"
+    protected.write_text("# someone else's checkout\n")
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert protected.read_text() == "# someone else's checkout\n", (
+        "--check let a generator overwrite a file inside a nested checkout"
+    )
+    assert rc == 2
+    assert "nested git repository" in capsys.readouterr().err
 
 
 def test_run_check_aborts_without_deleting_an_unreadable_owned_file(

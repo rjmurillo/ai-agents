@@ -1292,9 +1292,7 @@ def _strict_is_git_boundary(directory: Path) -> bool:
     return True
 
 
-def _queue_strict_owned_path(
-    pending: list[Path], path: Path, boundaries_seen: set[Path] | None
-) -> Path | None:
+def _queue_strict_owned_path(pending: list[Path], path: Path) -> Path | None:
     """Queue child directories and return child files for strict snapshots."""
     metadata = _strict_owned_stat(path, missing_root_ok=False)
     assert metadata is not None, (
@@ -1302,49 +1300,42 @@ def _queue_strict_owned_path(
     )
     if stat.S_ISDIR(metadata.st_mode):
         if _strict_is_git_boundary(path):
-            if boundaries_seen is not None:
-                boundaries_seen.add(path)
-        else:
-            pending.append(path)
+            raise SnapshotIncompleteError(
+                f"owned prefix contains a nested git repository, and --check "
+                f"cannot keep its promise over one: {path}"
+            )
+        pending.append(path)
         return None
     if stat.S_ISREG(metadata.st_mode):
         return path
     return None
 
 
-def _iter_strict_owned_files(
-    root: Path, *, boundaries_seen: set[Path] | None = None
-) -> Iterable[Path]:
+def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
     """Yield owned files while surfacing strict metadata and scan failures.
 
-    Stops at nested git repository boundaries, the same trees
-    :func:`_iter_tree_skip_git_boundaries` refuses to enter. This walk is
-    ``--check``'s snapshot pass, and a boundary it descended into would be
-    read into the snapshot and then handed to
-    :func:`_restore_owned_prefixes`, which skips boundaries and so could not
-    put back what it clobbered. That is issue #5370: 24 nested worktrees
-    under ``.claude/worktrees/`` read into memory until the process died.
-    Nothing in the strict path inherits that skip for free, because strict
-    discovery deliberately avoids ``Path.rglob`` and the shared walk, so the
-    boundary test is repeated here rather than reused.
+    Rejects a nested git repository under an owned prefix rather than
+    skipping it. Skipping protected restore and nothing else: the checkout
+    stays out of the snapshot, generation still writes into it (a checkout at
+    ``src/copilot-cli/skills/alpha`` gets its ``SKILL.md`` overwritten by
+    :func:`generate_skills.generate_skills` like any other target), and
+    restore then skips the same directory, so ``--check`` returns having
+    modified a tree it promised not to touch. The snapshot cannot hold the
+    checkout (issue #5370: 24 nested worktrees under ``.claude/worktrees/``
+    read into memory until the process died) and restore cannot repair it, so
+    the only honest answer is to refuse the run.
 
-    Shape detection is correct at this call site for the same reason it is
-    correct for the pre-build ``.claude/`` baseline: this runs before any
-    generator, so nothing can have manufactured a ``.git`` entry yet, and
-    there is no recorded set to consult. The post-build passes take the
-    recorded set instead (see :func:`_is_opaque_boundary`). The probe is
-    :func:`_strict_is_git_boundary`, not :func:`_is_opaque_boundary`, because
-    the latter's shape branch uses ``Path.exists()`` and would swallow a
-    metadata failure on the marker.
+    That refusal is cheap here. :data:`OWNED_PREFIXES` is generated output,
+    and the repository has no nested checkout under any of it. The
+    ``.claude/`` guard keeps skipping boundaries, which is where #5370
+    actually bit: it compares snapshots, never deletes, and never generates
+    into them.
 
-    ``boundaries_seen`` collects what this walk refused to enter, and
-    :func:`run` hands that same set to :func:`_restore_owned_prefixes`.
-    Deriving it from a separate :func:`_git_boundaries_under` pass would let
-    the two disagree, because that helper's walker swallows directory-scan
-    errors while this one raises on them: one transient failure returns a
-    short set, this walk succeeds on a later attempt and skips the repository
-    by shape, and restore then descends into a tree the snapshot never read
-    and deletes it. One traversal, one set, no disagreement to test for.
+    Shape detection is correct at this call site because this runs before any
+    generator, so nothing can have manufactured a ``.git`` entry yet. The
+    probe is :func:`_strict_is_git_boundary`, not :func:`_is_opaque_boundary`,
+    because the latter's shape branch uses ``Path.exists()`` and would swallow
+    a metadata failure on the marker.
 
     Neither this function nor :func:`_queue_strict_owned_path` re-tests
     ``Path.is_symlink()``. :func:`_strict_owned_stat` stats with
@@ -1364,7 +1355,7 @@ def _iter_strict_owned_files(
     while pending:
         current = pending.pop()
         for child in _strict_owned_children(current):
-            child_file = _queue_strict_owned_path(pending, child, boundaries_seen)
+            child_file = _queue_strict_owned_path(pending, child)
             if child_file is not None:
                 yield child_file
 
@@ -1376,7 +1367,6 @@ def _snapshot_owned_prefixes(
     exclude_ignored: bool = False,
     opaque_boundaries: set[Path] | None = None,
     strict: bool = False,
-    boundaries_seen: set[Path] | None = None,
 ) -> dict[Path, bytes]:
     """Snapshot every file under ``prefixes`` into an in-memory dict.
 
@@ -1471,9 +1461,7 @@ def _snapshot_owned_prefixes(
         # rewriting the forward to ``strict=False`` left all 137 tests green).
         if strict:
             _reject_redirecting_ancestors(repo_root, root)
-            for path in _iter_strict_owned_files(
-                root, boundaries_seen=boundaries_seen
-            ):
+            for path in _iter_strict_owned_files(root):
                 if _is_ignored_path(path, ignored) or (
                     exclude_ignored and _is_bytecode_artifact(path)
                 ):
@@ -1578,14 +1566,14 @@ def _restore_owned_prefixes(
     files) is preserved exactly because the snapshot captured it.
 
     ``preexisting_boundaries`` is the set of git repository boundaries recorded
-    before the generators ran. ``--check`` collects it during the strict
-    snapshot traversal itself (``boundaries_seen``), which is what keeps the
-    snapshot and this pass from disagreeing; do not reintroduce a second
-    :func:`_git_boundaries_under` walk to build it, because that helper's
-    walker swallows directory-scan errors and can return a short set. Other
-    callers, such as the ``.claude/`` guard, do use
-    :func:`_git_boundaries_under`, whose walk is the whole pass. Pass a set
-    whenever the caller holds one. Detecting boundaries by shape here instead would read the
+    before the generators ran. ``--check`` passes an EMPTY set, not ``None``,
+    because strict discovery aborts on any nested repository under an owned
+    prefix, so by the time this runs there provably are none. ``None`` would
+    switch :func:`_is_opaque_boundary` back to shape detection and let a
+    generator hide its own output behind a ``.git`` entry it wrote during the
+    build. The ``.claude/`` guard passes a real set from
+    :func:`_git_boundaries_under`, because that walk tolerates boundaries
+    rather than refusing them. Detecting boundaries by shape here instead would read the
     post-generation tree, so a tree the generator created with a ``.git``
     entry inside it would look like a nested checkout and case 3 would
     skip its files. Measured before this argument existed: a generator
@@ -1849,13 +1837,16 @@ def run(
         # and delete its files as generator-created: issue #4632's data loss
         # reopened one level out. Collecting here makes the two agree by
         # construction, and a scan failure aborts the run instead.
+        # Empty on purpose, not None. Strict discovery aborts on any nested
+        # repository under an owned prefix, so by the time restore runs there
+        # provably are none, and membership against an empty set is the right
+        # answer. None would switch _is_opaque_boundary back to shape
+        # detection, which would let a generator hide its own output behind a
+        # .git entry it wrote during the build (#5464).
         boundaries = set()
         try:
             snapshot = _snapshot_owned_prefixes(
-                repo_root,
-                OWNED_PREFIXES,
-                strict=True,
-                boundaries_seen=boundaries,
+                repo_root, OWNED_PREFIXES, strict=True
             )
         except SnapshotIncompleteError as exc:
             print(
