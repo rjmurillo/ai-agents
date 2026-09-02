@@ -548,6 +548,41 @@ def discover_canonical_axes(references_dir: Path) -> list[str]:
     return [stem for stem in stems if stem != STAGE1_AXIS]
 
 
+def unreviewable_paths(paths: Sequence[str]) -> list[str]:
+    """Paths whose every contributed axis is a local axis no scanner reads.
+
+    Narrowing a local axis to what its scanner can read is safe only while some
+    other axis still covers the path. `executable-code` also contributes the
+    canonical `code-quality` subagent, so dropping both scanners for a Rust file
+    still leaves it reviewed. `docs-and-instructions` and `toolkit-governance`
+    contribute local axes alone, so dropping theirs leaves nobody: a tracked
+    `build/AGENTS.md` or a `README.MD` would be classified, skipped by every
+    axis that claimed it, and the run could still finish PASS with no
+    documentation evidence at all. Those paths are reported so the caller fails
+    the run closed instead.
+    """
+    stranded: list[str] = []
+    for raw in paths:
+        normalized = _norm(raw)
+        if not normalized:
+            continue
+        # Per path, not per run: a sibling that doc-accuracy can read does not
+        # make this one readable, and asking globally let a stranded path hide
+        # behind a covered one in the same diff.
+        posix = _posix(raw)
+        covered = any(
+            predicate(normalized)
+            and (
+                bool(canonical_axes)
+                or any(_LOCAL_SCANNER_READS[axis](posix) for axis in local_axes)
+            )
+            for _category, predicate, canonical_axes, local_axes in _RISK_TABLE
+        )
+        if not covered:
+            stranded.append(raw)
+    return stranded
+
+
 def classify_paths(paths: Sequence[str]) -> tuple[list[str], list[str]]:
     """Split *paths* into matched risk categories and unclassified paths."""
     categories: list[str] = []
@@ -614,6 +649,11 @@ def select_axes(
     # the risk branch with nothing matched and narrow to analyst alone.
     usable_paths = [raw for raw in changed_paths if _norm(raw)]
     categories, unclassified = classify_paths(changed_paths)
+    # A path every claiming axis then skips is reviewed by nobody, which is the
+    # unclassified case wearing a category. Fold it in so the run fails closed.
+    unclassified = unclassified + [
+        raw for raw in unreviewable_paths(usable_paths) if raw not in unclassified
+    ]
     canonical_sources, local_sources, unknown_effects = _contributions(categories, effects)
 
     # A demanded canonical axis with no references/{stem}.md prompt cannot be

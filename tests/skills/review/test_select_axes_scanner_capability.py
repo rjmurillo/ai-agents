@@ -160,9 +160,15 @@ class TestLocalRoutingFollowsScannerSupport:
 class TestCaseSensitivityFollowsEachScanner:
     """The classifier lowercases; the scanners do not all agree with that."""
 
-    def test_uppercase_markdown_is_not_routed_to_doc_accuracy(self):
-        """DOC_GLOBS matches case-sensitively, so `.MD` is never inventoried."""
-        assert "doc-accuracy" not in select(["README.MD"])["local_selected"]
+    def test_uppercase_markdown_is_not_read_by_doc_accuracy(self):
+        """DOC_GLOBS matches case-sensitively, so `.MD` is never inventoried.
+
+        Asserted on the predicate rather than on `local_selected`, because a
+        `.MD`-only diff now strands the path and fails the run closed, which
+        selects every axis. The routing decision is the predicate.
+        """
+        assert not mod._doc_accuracy_reads("README.MD")
+        assert select(["README.MD"])["fail_closed"] is True
 
     def test_uppercase_skill_path_is_not_routed_to_golden_principles(self):
         """The reported case: selected, zero applicable files, UNKNOWN."""
@@ -244,3 +250,52 @@ class TestExecutableCodeCoversEveryScannerSuffix:
     def test_mjs_does_not_reach_taste_lints(self):
         """Negative control in the other direction."""
         assert "taste-lints" not in select([".claude/hooks/thing.mjs"])["local_selected"]
+
+
+class TestUnreviewablePathsFailClosed:
+    """Narrowing a local axis must not leave a path reviewed by nobody.
+
+    The narrowing is safe while another axis still covers the path.
+    `executable-code` also contributes the canonical `code-quality` subagent, so
+    a Rust file stays reviewed. `docs-and-instructions` and
+    `toolkit-governance` contribute local axes alone, so dropping theirs strands
+    the path: it is classified, every claiming axis skips it, and the run can
+    still finish PASS with no evidence about the change at all.
+    """
+
+    @pytest.mark.parametrize("path", ["build/AGENTS.md", "README.MD"])
+    def test_stranded_documentation_fails_the_run_closed(self, path):
+        """Both reach doc-accuracy's row and neither can be inventoried.
+
+        `build/AGENTS.md` is tracked in this repository and pruned by
+        EXCLUDE_DIRS; `README.MD` matches the lowercased docs predicate but not
+        the case-sensitive glob.
+        """
+        result = select([path])
+        assert result["fail_closed"] is True
+        assert path in result["unclassified_paths"]
+
+    @pytest.mark.parametrize("path", ["src/main.rs", "lib/widget.rb"])
+    def test_code_paths_do_not_fail_closed(self, path):
+        """Negative control: the canonical axis still covers them.
+
+        Without this, the fix for the unreadable-scanner routing would turn
+        every Rust or Ruby change into a full deep review.
+        """
+        result = select([path])
+        assert result["fail_closed"] is False
+        assert "code-quality" in result["canonical_selected"]
+
+    @pytest.mark.parametrize(
+        "path", ["docs/guide.md", "src/app.py", "scripts/setup.bash", ".github/workflows/ci.yml"]
+    )
+    def test_covered_paths_do_not_fail_closed(self, path):
+        """Negative control: an axis that can read the file keeps the run open."""
+        assert select([path])["fail_closed"] is False
+
+    def test_one_stranded_path_strands_the_whole_run(self):
+        """Fail-closed is per run, so a covered sibling does not excuse it."""
+        result = select(["docs/guide.md", "build/AGENTS.md"])
+        assert result["fail_closed"] is True
+        assert "build/AGENTS.md" in result["unclassified_paths"]
+        assert "docs/guide.md" not in result["unclassified_paths"]
