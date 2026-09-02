@@ -553,6 +553,26 @@ class TestAdaptLocalAxisVerdict:
         payload = cq_payload([entry])
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
 
+    def test_malformed_entry_beside_a_valid_one_stays_unknown(self):
+        """A valid sibling must not carry an entry the adapter cannot read.
+
+        Letting it through is the partial-evidence pass this gate exists to
+        refuse, and the adapter contract says malformed output fails closed.
+        """
+        payload = cq_payload([cq_file(), "not-an-object"])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_unknown_category_beside_a_valid_one_stays_unknown(self):
+        payload = cq_payload([cq_file(), cq_file("x.py", "vendored")])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_every_known_category_is_accepted(self):
+        """Negative control: the three labels assess.py emits all parse."""
+        payload = cq_payload(
+            [cq_file("a.py"), cq_file("b.py", "test"), cq_file("g.ts", "generated", scored=False)]
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
     def test_code_quality_unexpected_exit_stays_unknown(self):
         payload = '{"files": [], "summary": {"file_count": 0}, "comparisons": []}'
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 3) == "UNKNOWN"
@@ -561,6 +581,50 @@ class TestAdaptLocalAxisVerdict:
         payload = (
             '{"gate_result": {"verdict": "PASS"},'
             ' "assessment": {"documentation_files": [{"path": "README.md"}]}}'
+        )
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
+
+    def test_doc_accuracy_partial_inventory_is_unknown(self):
+        """A changed Markdown file the walk pruned is not covered by its peers.
+
+        `changed_files` names both; `documentation_files` holds only the one
+        that survived EXCLUDE_DIRS, and check_gate still reports PASS.
+        """
+        payload = json.dumps(
+            {
+                "gate_result": {"verdict": "PASS"},
+                "assessment": {
+                    "documentation_files": [{"path": "docs/guide.md"}],
+                    "changed_files": ["docs/guide.md", "build/notes.md"],
+                },
+            }
+        )
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "UNKNOWN"
+
+    def test_doc_accuracy_complete_inventory_passes(self):
+        """Negative control: every changed document accounted for."""
+        payload = json.dumps(
+            {
+                "gate_result": {"verdict": "PASS"},
+                "assessment": {
+                    "documentation_files": [{"path": "docs/guide.md"}],
+                    "changed_files": ["docs/guide.md", "src/app.py"],
+                },
+            }
+        )
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
+
+    def test_doc_accuracy_without_a_diff_scope_needs_no_completeness(self):
+        """`changed_files` is null on a full-repo run, so there is no set to
+        be complete against."""
+        payload = json.dumps(
+            {
+                "gate_result": {"verdict": "PASS"},
+                "assessment": {
+                    "documentation_files": [{"path": "README.md"}],
+                    "changed_files": None,
+                },
+            }
         )
         assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
 

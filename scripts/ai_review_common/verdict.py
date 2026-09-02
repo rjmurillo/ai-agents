@@ -219,6 +219,9 @@ def _coerce_nonnegative_int(value: object) -> int | None:
 # generated entry is counted in `files` and never assessed. `/review` says the
 # same in prose: generated artifacts create no local quality finding.
 _ASSESSED_CATEGORIES = frozenset({"authored", "test"})
+# The full label set `classify_file_category` can return. Anything else is a
+# payload shape this adapter does not recognize.
+_KNOWN_CATEGORIES = _ASSESSED_CATEGORIES | {"generated"}
 
 # `_unreadable_assessment` keeps the file's real category while setting every
 # one of these to confidence 0.0, "so ``check_thresholds`` skips the file",
@@ -255,11 +258,16 @@ def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool
         return False
     if not (file_count > 0 and file_count == len(files)):
         return False
-    eligible = [
-        entry
+    # Every entry must be a recognizable assessment. A non-object, or a
+    # category this adapter does not know, is output it cannot vouch for, and
+    # letting a valid sibling carry it would be the partial-evidence pass this
+    # function exists to refuse.
+    if not all(
+        isinstance(entry, dict) and entry.get("category") in _KNOWN_CATEGORIES
         for entry in files
-        if isinstance(entry, dict) and entry.get("category") in _ASSESSED_CATEGORIES
-    ]
+    ):
+        return False
+    eligible = [entry for entry in files if entry.get("category") in _ASSESSED_CATEGORIES]
     return bool(eligible) and all(_is_scored(entry) for entry in eligible)
 
 
@@ -278,16 +286,32 @@ def _has_linted_category(payload: dict[str, object]) -> bool:
 
 
 def _has_inventoried_docs(payload: dict[str, object]) -> bool:
-    """Return True when doc-accuracy inventoried a documentation file.
+    """Return True when doc-accuracy inventoried every changed document.
 
     ``assessment.documentation_files`` is built from ``DOC_GLOBS``; empty means
-    the gate had nothing to check, so its PASS is silence.
+    the gate had nothing to check, so its PASS is silence. A non-empty
+    inventory is not enough either: ``changed_files`` can name a Markdown file
+    the walk pruned, and a gate that examined the rest still reports PASS,
+    hiding the one it never opened.
     """
     assessment = payload.get("assessment")
     if not isinstance(assessment, dict):
         return False
     documentation_files = assessment.get("documentation_files")
-    return isinstance(documentation_files, list) and bool(documentation_files)
+    if not isinstance(documentation_files, list) or not documentation_files:
+        return False
+    inventoried = {
+        entry.get("path") for entry in documentation_files if isinstance(entry, dict)
+    }
+    changed = assessment.get("changed_files")
+    if not isinstance(changed, list):
+        # No diff scope, so there is no changed set to be complete against.
+        return True
+    return all(
+        name in inventoried
+        for name in changed
+        if isinstance(name, str) and name.endswith(".md")
+    )
 
 
 def adapt_local_axis_verdict(
