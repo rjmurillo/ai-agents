@@ -3311,6 +3311,69 @@ def test_snapshot_strict_rejects_a_nested_git_checkout(tmp_path: Path) -> None:
     assert kept.read_bytes() == b"y = 2\n"
 
 
+def _fifo_or_skip(path: Path) -> None:
+    try:
+        os.mkfifo(path)
+    except (AttributeError, OSError, NotImplementedError) as exc:
+        pytest.skip(f"FIFO creation unavailable: {exc}")
+
+
+def test_snapshot_strict_rejects_a_special_file(tmp_path: Path) -> None:
+    """A FIFO under an owned prefix must abort, not be quietly omitted.
+
+    `_strict_owned_stat` returned its metadata and both callers dropped it,
+    because it is neither a directory to queue nor a regular file to yield. So
+    it stayed out of the snapshot while generation was allowed to start. Two
+    ways that ends badly: a FIFO sitting at an expected output such as
+    `docs/agent-catalog.md` blocks the generator's write forever, and if
+    generation replaces the entry instead, no snapshot of bytes can put a FIFO
+    back.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    _fifo_or_skip(owned / "pipe")
+    (owned / "real.py").write_bytes(b"y = 2\n")
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "neither a regular file nor a directory" in str(excinfo.value)
+
+
+def test_snapshot_strict_rejects_a_special_file_prefix_root(
+    tmp_path: Path,
+) -> None:
+    """The root takes the same test, on its own `_strict_owned_stat` call.
+
+    `missing_root_ok=True` is a different call site from the per-child one, so
+    a FIFO standing where a single-file prefix belongs has to be rejected
+    there too rather than read as "not a regular file, nothing to do".
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _fifo_or_skip(repo / "owned.txt")
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned.txt",), strict=True)
+
+    assert "neither a regular file nor a directory" in str(excinfo.value)
+
+
+def test_snapshot_non_strict_still_skips_a_special_file(tmp_path: Path) -> None:
+    """Inverse control: the .claude/ guard keeps skipping, not failing."""
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    _fifo_or_skip(owned / "pipe")
+    kept = owned / "real.py"
+    kept.write_bytes(b"y = 2\n")
+
+    assert build_all._snapshot_owned_prefixes(repo, ("owned/",)) == {
+        kept: b"y = 2\n"
+    }
+
+
 def test_snapshot_strict_rejects_a_prefix_root_that_is_a_checkout(
     tmp_path: Path,
 ) -> None:

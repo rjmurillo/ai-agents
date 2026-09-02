@@ -1248,6 +1248,11 @@ def _strict_owned_stat(
             f"owned path redirects (symlink or junction), and --check cannot "
             f"restore a write through it: {path}"
         )
+    if not stat.S_ISDIR(metadata.st_mode) and not stat.S_ISREG(metadata.st_mode):
+        raise SnapshotIncompleteError(
+            f"owned path is neither a regular file nor a directory, and "
+            f"--check can neither snapshot nor restore it: {path}"
+        )
     return metadata
 
 
@@ -1324,9 +1329,7 @@ def _queue_strict_owned_path(pending: list[Path], path: Path) -> Path | None:
         _reject_nested_repository(path)
         pending.append(path)
         return None
-    if stat.S_ISREG(metadata.st_mode):
-        return path
-    return None
+    return path
 
 
 def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
@@ -1356,17 +1359,17 @@ def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
     a metadata failure on the marker.
 
     Neither this function nor :func:`_queue_strict_owned_path` re-tests
-    ``Path.is_symlink()``. :func:`_strict_owned_stat` stats with
-    ``follow_symlinks=False`` and raises on ``S_ISLNK`` before returning, so
-    every ``st_mode`` reaching a caller is already a non-link.
+    ``Path.is_symlink()``, and neither tests for a special file.
+    :func:`_strict_owned_stat` stats with ``follow_symlinks=False`` and raises
+    on a redirect or on anything that is not a regular file or a directory
+    before returning, so every ``st_mode`` reaching a caller is already one of
+    those two.
     """
     root_metadata = _strict_owned_stat(root, missing_root_ok=True)
     if root_metadata is None:
         return
     if stat.S_ISREG(root_metadata.st_mode):
         yield root
-        return
-    if not stat.S_ISDIR(root_metadata.st_mode):
         return
 
     _reject_nested_repository(root)
