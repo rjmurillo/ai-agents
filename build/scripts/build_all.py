@@ -1070,6 +1070,8 @@ def _restore_owned_prefixes(
     repo_root: Path,
     prefixes: tuple[str, ...],
     snapshot: dict[Path, bytes],
+    *,
+    preexisting_boundaries: set[Path] | None = None,
 ) -> None:
     """Restore the working tree to the snapshot state under ``prefixes``.
 
@@ -1084,8 +1086,21 @@ def _restore_owned_prefixes(
     After this returns, every file under ``prefixes`` matches its
     pre-run state. Pre-existing dirty state (uncommitted edits, untracked
     files) is preserved exactly because the snapshot captured it.
+
+    ``preexisting_boundaries`` is the set :func:`_git_boundaries_under`
+    recorded before the generators ran. Pass it whenever the caller holds
+    one. Detecting boundaries by shape here instead would read the
+    post-generation tree, so a tree the generator created with a ``.git``
+    entry inside it would look like a nested checkout and case 3 would
+    skip its files. Measured before this argument existed: a generator
+    creating ``owned/out/.git`` plus ``owned/out/generated.txt`` left both
+    on disk after a ``--check`` restore, breaking the read-only contract
+    of issue #2440. ``None`` keeps the shape test, which is correct for a
+    caller with no recorded baseline.
     """
-    current = _enumerate_files_under(repo_root, prefixes)
+    current = _enumerate_files_under(
+        repo_root, prefixes, opaque_boundaries=preexisting_boundaries
+    )
 
     # Cases 1 & 2: restore every file that was in the snapshot.
     for path, content in snapshot.items():
@@ -1119,10 +1134,35 @@ def _restore_owned_prefixes(
                 file=sys.stderr,
             )
 
-    _prune_empty_dirs(repo_root, prefixes)
+    _prune_empty_dirs(
+        repo_root, prefixes, opaque_boundaries=preexisting_boundaries
+    )
 
 
-def _iter_tree_skip_git_boundaries(root: Path) -> Iterator[tuple[Path, bool]]:
+def _is_opaque_boundary(entry: Path, opaque: set[Path] | None) -> bool:
+    """Return True if ``entry`` is a boundary the walk must not enter.
+
+    ``opaque`` of ``None`` means "detect boundaries by shape": any
+    directory holding its own ``.git`` file or directory. That is the
+    right question before a build, when nothing has been recorded yet.
+
+    A caller that passes a set is asking a different question: which
+    boundaries existed at a recorded moment. Shape is the wrong test
+    there, because a generator can create a ``.git`` entry during the
+    build, and treating that new tree as opaque would leave the
+    generator's own output on disk (see :func:`_restore_owned_prefixes`).
+    """
+    if opaque is None:
+        return (entry / ".git").exists()
+    return entry in opaque
+
+
+def _iter_tree_skip_git_boundaries(
+    root: Path,
+    *,
+    opaque_boundaries: set[Path] | None = None,
+    boundaries_seen: set[Path] | None = None,
+) -> Iterator[tuple[Path, bool]]:
     """Yield ``(path, is_dir)`` for every entry under ``root``.
 
     Never descends into a directory that is itself a git repository
@@ -1135,6 +1175,12 @@ def _iter_tree_skip_git_boundaries(root: Path) -> Iterator[tuple[Path, bool]]:
     This is what keeps a future addition of ``.claude/`` to
     :data:`OWNED_PREFIXES` from making :func:`_restore_owned_prefixes` walk
     into, and delete, a nested worktree's own working tree (issue #5370).
+
+    ``opaque_boundaries`` narrows that skip to a recorded set of paths;
+    see :func:`_is_opaque_boundary` for why the post-build walk cannot use
+    shape detection. ``boundaries_seen`` collects every boundary the walk
+    refused to enter, which is how :func:`_git_boundaries_under` records
+    the pre-build set without a second traversal shape.
     """
     stack = [root]
     while stack:
@@ -1147,20 +1193,51 @@ def _iter_tree_skip_git_boundaries(root: Path) -> Iterator[tuple[Path, bool]]:
             if entry.is_symlink():
                 continue
             is_dir = entry.is_dir()
-            if is_dir and (entry / ".git").exists():
-                continue  # git repository boundary; opaque, do not descend
+            if is_dir and _is_opaque_boundary(entry, opaque_boundaries):
+                # git repository boundary; opaque, do not descend
+                if boundaries_seen is not None:
+                    boundaries_seen.add(entry)
+                continue
             yield entry, is_dir
             if is_dir:
                 stack.append(entry)
 
 
-def _enumerate_files_under(
+def _git_boundaries_under(
     repo_root: Path, prefixes: tuple[str, ...]
+) -> set[Path]:
+    """Return the git repository boundaries under ``prefixes`` right now.
+
+    ``--check`` records this before any generator runs so
+    :func:`_restore_owned_prefixes` can tell a pre-existing nested
+    checkout, which it must leave alone, from a boundary-shaped tree a
+    generator created during the build, which is output and must be
+    removed like any other generator write (issue #2440).
+
+    The walk stops at each boundary, so this costs a directory traversal
+    and reads no file contents, which is the property issue #5370 needed.
+    """
+    boundaries: set[Path] = set()
+    for prefix in prefixes:
+        root = repo_root / prefix
+        if not root.is_dir():
+            continue
+        for _ in _iter_tree_skip_git_boundaries(root, boundaries_seen=boundaries):
+            pass
+    return boundaries
+
+
+def _enumerate_files_under(
+    repo_root: Path,
+    prefixes: tuple[str, ...],
+    *,
+    opaque_boundaries: set[Path] | None = None,
 ) -> set[Path]:
     """Return every regular non-symlink file under any of ``prefixes``.
 
     Skips nested git repository boundaries; see
-    :func:`_iter_tree_skip_git_boundaries`.
+    :func:`_iter_tree_skip_git_boundaries` and, for what
+    ``opaque_boundaries`` changes, :func:`_is_opaque_boundary`.
 
     ``path.is_file()`` is load-bearing, not a redundant re-check of
     ``not is_dir``. A FIFO, a unix socket, or a device node is neither a
@@ -1182,18 +1259,31 @@ def _enumerate_files_under(
             continue
         if not root.is_dir():
             continue
-        for path, is_dir in _iter_tree_skip_git_boundaries(root):
+        for path, is_dir in _iter_tree_skip_git_boundaries(
+            root, opaque_boundaries=opaque_boundaries
+        ):
             if not is_dir and path.is_file():
                 found.add(path)
     return found
 
 
-def _prune_empty_dirs(repo_root: Path, prefixes: tuple[str, ...]) -> None:
+def _prune_empty_dirs(
+    repo_root: Path,
+    prefixes: tuple[str, ...],
+    *,
+    opaque_boundaries: set[Path] | None = None,
+) -> None:
     """Remove empty directories the generator created under ``prefixes``.
 
     Walks bottom-up so child dirs go before parents. Never touches the
     prefix root itself, and never descends into or removes a nested git
     repository boundary; see :func:`_iter_tree_skip_git_boundaries`.
+
+    ``opaque_boundaries`` protects the same set
+    :func:`_enumerate_files_under` protects. Without it here, a
+    boundary-shaped tree a generator created would keep its now-empty
+    directories after case 3 deleted their files, which is still a
+    ``--check`` write.
     """
     for prefix in prefixes:
         root = repo_root / prefix
@@ -1201,7 +1291,13 @@ def _prune_empty_dirs(repo_root: Path, prefixes: tuple[str, ...]) -> None:
             continue
         if not root.is_dir():
             continue
-        dirs = [p for p, is_dir in _iter_tree_skip_git_boundaries(root) if is_dir]
+        dirs = [
+            p
+            for p, is_dir in _iter_tree_skip_git_boundaries(
+                root, opaque_boundaries=opaque_boundaries
+            )
+            if is_dir
+        ]
         for dirpath in sorted(dirs, key=lambda p: len(p.parts), reverse=True):
             try:
                 if not any(dirpath.iterdir()):
@@ -1240,7 +1336,12 @@ def run(
     # staleness diff is computed. This makes --check safe to call from
     # any worktree without dirtying it.
     snapshot: dict[Path, bytes] | None = None
+    boundaries: set[Path] | None = None
     if check:
+        # Record boundaries first. A generator that creates a .git entry
+        # during the build must not be mistaken for a pre-existing nested
+        # checkout when the restore pass decides what to delete.
+        boundaries = _git_boundaries_under(repo_root, OWNED_PREFIXES)
         snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES)
 
     # REQ-003-010 (issue #2613): snapshot the .claude/ tree before any
@@ -1263,7 +1364,12 @@ def run(
         # Otherwise a generator crash mid-build leaves partial writes
         # in the caller's worktree.
         if snapshot is not None:
-            _restore_owned_prefixes(repo_root, OWNED_PREFIXES, snapshot)
+            _restore_owned_prefixes(
+                repo_root,
+                OWNED_PREFIXES,
+                snapshot,
+                preexisting_boundaries=boundaries,
+            )
 
 
 def _run_generators(

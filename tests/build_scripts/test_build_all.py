@@ -860,7 +860,7 @@ def test_snapshot_owned_prefixes_skips_git_boundary_directory(
     """The snapshot pass, not just the enumerate pass, must skip a nested
     git repository boundary, with ``exclude_ignored`` left at its default
     (``False``): that is the exact flag value ``run()`` passes for the
-    ``--check`` snapshot. ``build/scripts/build_all.py:1244`` reads::
+    ``--check`` snapshot. ``build/scripts/build_all.py:1345`` reads::
 
         snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES)
 
@@ -927,6 +927,108 @@ def test_restore_owned_prefixes_never_deletes_git_boundary_contents(
     assert nested_file.is_file()
     assert nested_file.read_text(encoding="utf-8") == "nested content\n"
     assert not generator_created.exists()
+
+
+def test_restore_owned_prefixes_removes_a_boundary_tree_created_mid_build(
+    tmp_path: Path,
+) -> None:
+    """A ``.git`` entry a generator writes is output, not a nested checkout.
+
+    Detecting boundaries by shape during the restore pass reads the
+    post-generation tree, so a directory the generator created with a
+    ``.git`` entry inside it looks identical to a pre-existing worktree
+    and case 3 of :func:`_restore_owned_prefixes` skips its files.
+    Measured before ``preexisting_boundaries`` existed: a generator
+    creating ``owned/out/.git`` plus ``owned/out/generated.txt`` left both
+    on disk after the restore, so ``--check`` was no longer read-only
+    (issue #2440).
+
+    :func:`_git_boundaries_under` records the boundary set before the
+    generators run, which separates the two cases by when they appeared
+    rather than by shape.
+
+    Both directions are asserted here on purpose. Removing the new tree is
+    worthless if it also removes a live nested worktree, which is the
+    deletion issue #5370 exists to prevent, so the pre-existing checkout
+    and its file are asserted intact in the same run.
+    """
+    owned = tmp_path / "owned"
+    owned.mkdir()
+    pre_existing_wt = owned / "worktrees" / "wt-1"
+    pre_existing_wt.mkdir(parents=True)
+    (pre_existing_wt / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    live_file = pre_existing_wt / "live.txt"
+    live_file.write_text("live worktree content\n", encoding="utf-8")
+    untouched = owned / "real.md"
+    untouched.write_text("# real\n", encoding="utf-8")
+
+    prefixes = ("owned/",)
+    boundaries = build_all._git_boundaries_under(tmp_path, prefixes)
+    assert boundaries == {pre_existing_wt}
+    snapshot = build_all._snapshot_owned_prefixes(tmp_path, prefixes)
+
+    # The generator now creates a boundary-shaped tree of its own.
+    generated_tree = owned / "out"
+    generated_tree.mkdir()
+    (generated_tree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    generated_file = generated_tree / "generated.txt"
+    generated_file.write_text("generator output\n", encoding="utf-8")
+
+    build_all._restore_owned_prefixes(
+        tmp_path, prefixes, snapshot, preexisting_boundaries=boundaries
+    )
+
+    assert not generated_file.exists()
+    assert not generated_tree.exists()
+    assert live_file.read_text(encoding="utf-8") == "live worktree content\n"
+    assert (pre_existing_wt / ".git").is_file()
+    assert untouched.read_text(encoding="utf-8") == "# real\n"
+
+
+def test_restore_owned_prefixes_prunes_a_generated_repo_shaped_tree(
+    tmp_path: Path,
+) -> None:
+    """Deleting the files is not enough when ``.git`` is a real directory.
+
+    The sibling test above writes ``.git`` as a file, so once case 3
+    unlinks it the tree stops looking like a boundary and shape detection
+    inside :func:`_prune_empty_dirs` would remove the empty directory
+    anyway. A cloned repository does not have that shape: ``.git`` is a
+    directory, and an emptied directory still satisfies
+    ``(entry / ".git").exists()``, so shape detection keeps treating the
+    tree as opaque and never prunes it.
+
+    Measured: dropping ``opaque_boundaries`` from the prune call left
+    ``owned/out`` and ``owned/out/.git`` on disk here while every other
+    test stayed green. Empty directories the run created are still a
+    ``--check`` write (issue #2440), so this case is what holds that
+    argument in place.
+    """
+    owned = tmp_path / "owned"
+    owned.mkdir()
+    untouched = owned / "real.md"
+    untouched.write_text("# real\n", encoding="utf-8")
+
+    prefixes = ("owned/",)
+    boundaries = build_all._git_boundaries_under(tmp_path, prefixes)
+    assert boundaries == set()
+    snapshot = build_all._snapshot_owned_prefixes(tmp_path, prefixes)
+
+    generated_tree = owned / "out"
+    (generated_tree / ".git").mkdir(parents=True)
+    (generated_tree / ".git" / "HEAD").write_text(
+        "ref: refs/heads/main\n", encoding="utf-8"
+    )
+    (generated_tree / "generated.txt").write_text(
+        "generator output\n", encoding="utf-8"
+    )
+
+    build_all._restore_owned_prefixes(
+        tmp_path, prefixes, snapshot, preexisting_boundaries=boundaries
+    )
+
+    assert not generated_tree.exists()
+    assert untouched.read_text(encoding="utf-8") == "# real\n"
 
 
 def test_prune_empty_dirs_never_rmdirs_inside_git_boundary(
