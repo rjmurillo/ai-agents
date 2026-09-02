@@ -317,6 +317,7 @@ def _evaluate_registered_ratchets(
     *,
     base_ref: str,
     deadline: float | None = None,
+    label: str = "merge-tree-ratchet",
 ) -> int:
     """Run every registered ratchet against ``scratch_root``.
 
@@ -330,13 +331,19 @@ def _evaluate_registered_ratchets(
     still unspent, so no counter is launched that cannot finish by the deadline
     at its measured speed. See that constant for the per-counter measurements
     and for why a subprocess timeout could not carry this bound.
+
+    ``label`` names the caller in every diagnostic. ``checks_ratchet.py`` passes
+    ``working-tree-ratchets`` when it counts the working tree rather than a
+    merged tree (issue #5441 review), because a reader told
+    ``merge-tree-ratchet`` about a violation that exists only in an uncommitted
+    edit would look for it in the merge and not find it.
     """
     exit_code = EXIT_OK
     for ratchet in RATCHETS:
         if deadline is not None and time.monotonic() + _COUNTER_RESERVE_SECONDS >= deadline:
             exit_code = max(exit_code, EXIT_EXTERNAL)
             print(
-                f"merge-tree-ratchet: {ratchet.label}: FAIL. Not run: aggregate "
+                f"{label}: {ratchet.label}: FAIL. Not run: aggregate "
                 "timeout exhausted.",
                 file=sys.stderr,
             )
@@ -355,9 +362,9 @@ def _evaluate_registered_ratchets(
             continue
         exit_code = max(exit_code, code)
         if code != EXIT_OK:
-            print(f"merge-tree-ratchet: {msg}", file=sys.stderr)
+            print(f"{label}: {msg}", file=sys.stderr)
         else:
-            print(f"merge-tree-ratchet: {msg}")
+            print(f"{label}: {msg}")
     return exit_code
 
 

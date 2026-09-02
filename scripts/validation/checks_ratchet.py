@@ -60,11 +60,18 @@ from checks_common import (  # noqa: E402
     _run_subprocess,
 )
 from merge_tree_ratchet_check import (  # noqa: E402
+    _TIMEOUT_SECONDS as _MERGE_TREE_TIMEOUT_SECONDS,
+)
+from merge_tree_ratchet_check import (  # noqa: E402
     EXIT_OK as _MERGE_TREE_EXIT_OK,
 )
 from merge_tree_ratchet_check import (  # noqa: E402
     _evaluate_merged_tree as _evaluate_merge_tree_backstop,
 )
+from merge_tree_ratchet_check import (  # noqa: E402
+    _evaluate_registered_ratchets as _evaluate_ratchets_against,
+)
+from merge_tree_ratchet_preparation import is_fast_forward_clean  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -289,6 +296,48 @@ def _run_merge_tree_backstop(repo_root: Path, base_ref: str, deadline: float) ->
     return None
 
 
+def _run_working_tree_ratchets(
+    repo_root: Path, base_ref: str, base_oid: str
+) -> str | None:
+    """Count the registered ratchets against the working tree, when needed.
+
+    Issue #5441 review. The merge-tree backstop counts the MERGED tree, which
+    is built from HEAD and therefore holds no staged or unstaged content. That
+    is correct for the question that check exists to answer, and wrong for the
+    one ``pre_pr.py`` asks: whether the tree in front of the contributor
+    breaches a baseline, before a commit exists.
+
+    Before issue #5441 these five ran individually against the working tree
+    here, so ``pre_pr.py`` saw an uncommitted violation. Folding them into the
+    backstop dropped that unless the backstop happened to count the working
+    tree itself, which it does only in the fast-forward-clean case. Measured on
+    this branch, 2026-09-02: ``origin/main`` was not an ancestor of HEAD, the
+    ordinary state of any branch main has moved past, so the fast path did not
+    fire and a staged ``# type: ignore`` moved the working-tree count 44 -> 45
+    while the merged-tree count stayed at 44. The regression was the common
+    case, not an edge one.
+
+    So when the backstop did not already count this exact tree, count it here.
+    ``is_fast_forward_clean`` is the same predicate the backstop uses to choose
+    its path, so the two never both count: no duplicate pass returns, which is
+    what issue #5441 is about. The push-side ``count-ratchets`` job passes
+    ``--skip-merge-tree`` and never reaches this function, so nothing here
+    lands on the budget that issue measured.
+    """
+    if is_fast_forward_clean(repo_root, base_oid):
+        return None
+    deadline = time.monotonic() + _MERGE_TREE_TIMEOUT_SECONDS
+    exit_code = _evaluate_ratchets_against(
+        repo_root,
+        base_oid,
+        repo_root,
+        base_ref=base_ref,
+        deadline=deadline,
+        label="working-tree-ratchets",
+    )
+    return None if exit_code == _MERGE_TREE_EXIT_OK else "working-tree-ratchets"
+
+
 def validate_count_ratchets(repo_root: Path, *, skip_merge_tree: bool = False) -> bool:
     """Run every ratchet in :data:`RATCHETS`, then the merge-tree backstop.
 
@@ -338,9 +387,13 @@ def validate_count_ratchets(repo_root: Path, *, skip_merge_tree: bool = False) -
 
     if not skip_merge_tree:
         assert base_ref is not None, "needs_base_ref forces resolution above"
+        assert base_oid is not None, "needs_base_ref forces resolution above"
         backstop_failure = _run_merge_tree_backstop(repo_root, base_ref, deadline)
         if backstop_failure is not None:
             failures.append(backstop_failure)
+        working_tree_failure = _run_working_tree_ratchets(repo_root, base_ref, base_oid)
+        if working_tree_failure is not None:
+            failures.append(working_tree_failure)
 
     if failures:
         print(

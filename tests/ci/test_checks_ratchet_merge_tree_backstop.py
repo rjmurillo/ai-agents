@@ -244,3 +244,97 @@ class TestArgvContract:
             checks_ratchet.main(["--skip-merge-tre"])
 
         validate.assert_not_called()
+
+
+class TestWorkingTreeCoverage:
+    """pre_pr must still see an uncommitted violation.
+
+    Issue #5441 review: the merge-tree backstop builds its tree from HEAD, so
+    it holds no staged or unstaged content. Folding the five shared counters
+    into it dropped pre_pr's working-tree coverage everywhere the backstop did
+    not happen to count the working tree itself, which it does only when the
+    base is an ancestor of HEAD and the tree is clean. A branch main has moved
+    past fails that predicate, so the gap was the common case.
+    """
+
+    def _dirty_repo(self, tmp_path: Path) -> Path:
+        repo = _repo(tmp_path)
+        _stub_standalone_ratchets(repo)
+        (repo / "uncommitted.py").write_text("x = 1\n", encoding="utf-8")
+        return repo
+
+    def test_a_working_tree_count_over_baseline_fails(
+        self, tmp_path: Path, monkeypatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        repo = self._dirty_repo(tmp_path)
+        monkeypatch.setattr(checks_ratchet, "_resolve_default_base_ref", lambda _root: "HEAD")
+        monkeypatch.setattr(checks_ratchet, "is_fast_forward_clean", lambda *_a: False)
+
+        # The merged tree is clean; only the working tree carries the breach.
+        with (
+            patch.object(
+                checks_ratchet, "_evaluate_merge_tree_backstop", return_value=0
+            ),
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=999),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.memory_index_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
+        ):
+            passed = checks_ratchet.validate_count_ratchets(repo)
+
+        assert passed is False
+        err = capsys.readouterr().err
+        assert "working-tree-ratchets" in err
+
+    def test_a_clean_working_tree_still_passes(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        repo = self._dirty_repo(tmp_path)
+        monkeypatch.setattr(checks_ratchet, "_resolve_default_base_ref", lambda _root: "HEAD")
+        monkeypatch.setattr(checks_ratchet, "is_fast_forward_clean", lambda *_a: False)
+
+        with (
+            patch.object(
+                checks_ratchet, "_evaluate_merge_tree_backstop", return_value=0
+            ),
+            patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.taste_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.type_ignore_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.memory_index_count_ratchet.current_count", return_value=0),
+            patch("scripts.ci.cli_exit_contract_ratchet.current_count", return_value=0),
+        ):
+            passed = checks_ratchet.validate_count_ratchets(repo)
+
+        assert passed is True
+
+    def test_the_fast_forward_case_counts_the_tree_once(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """No duplicate pass: the backstop already counted this exact tree."""
+        repo = self._dirty_repo(tmp_path)
+        monkeypatch.setattr(checks_ratchet, "_resolve_default_base_ref", lambda _root: "HEAD")
+        monkeypatch.setattr(checks_ratchet, "is_fast_forward_clean", lambda *_a: True)
+
+        with (
+            patch.object(
+                checks_ratchet, "_evaluate_merge_tree_backstop", return_value=0
+            ),
+            patch.object(checks_ratchet, "_evaluate_ratchets_against") as again,
+        ):
+            passed = checks_ratchet.validate_count_ratchets(repo)
+
+        assert passed is True
+        again.assert_not_called()
+
+    def test_the_push_side_job_never_runs_the_working_tree_pass(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """--skip-merge-tree keeps this off the budget issue #5441 measured."""
+        repo = self._dirty_repo(tmp_path)
+        monkeypatch.setattr(checks_ratchet, "_resolve_default_base_ref", lambda _root: "HEAD")
+
+        with patch.object(checks_ratchet, "_evaluate_ratchets_against") as again:
+            checks_ratchet.validate_count_ratchets(repo, skip_merge_tree=True)
+
+        again.assert_not_called()
