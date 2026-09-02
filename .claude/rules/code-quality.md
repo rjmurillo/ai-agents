@@ -1,11 +1,28 @@
 ---
-description: Baseline code quality rules merging Clean Code and Code Complete fundamentals. Apply on every code edit.
-alwaysApply: true
+paths:
+  - "**/*.py"
+  - "**/*.cs"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+  - "**/*.go"
+  - "**/*.rs"
+  - "**/*.java"
+  - "**/*.rb"
+  - "**/*.c"
+  - "**/*.h"
+  - "**/*.cpp"
+  - "**/*.ps1"
+  - "**/*.psm1"
+  - "**/*.psd1"
+  - "**/*.sh"
+  - "**/*.sql"
 ---
 
 # Code Quality
 
-This rule sets the baseline quality standard for all code you write or change. It merges the everyday fundamentals from Robert Martin's _Clean Code_ and Steve McConnell's _Code Complete_. Apply these rules on every edit. They override stylistic preferences but defer to project conventions found in `AGENTS.md`, `.editorconfig`, and `.markdownlint-cli2.yaml`.
+Baseline quality standard for code you write or change, merging the everyday fundamentals of Robert Martin's _Clean Code_ and Steve McConnell's _Code Complete_. Apply on every code edit. These rules override stylistic preferences but defer to project conventions in `AGENTS.md`, `.editorconfig`, and `.markdownlint-cli2.yaml`.
 
 ## Naming
 
@@ -19,8 +36,6 @@ Names are documentation. A reader who knows nothing about the change should unde
 - Class names are nouns. Method names are verbs. Boolean methods read as predicates: `isReady`, `hasChildren`, `canCommit`.
 - Avoid disinformation. Do not call something `accountList` if it is a `Set`. Do not name a `boolean` `status`.
 - Mirror the domain. If the team says "tenant," do not write `customer` in code. Ubiquitous language reduces translation cost.
-
-When you find yourself writing a comment to explain a name, rename instead.
 
 ## Functions
 
