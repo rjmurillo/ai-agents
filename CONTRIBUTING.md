@@ -563,8 +563,14 @@ hooks are fine.
 - `Lefthook Installed` runs `uv run --frozen lefthook version` from the active
   checkout. It proves the pinned runtime starts.
 - `Git Hook Health (core.hooksPath)` reads the installed `pre-push` and
-  requires Lefthook's own dispatch line. It proves Git will reach that runtime,
-  which an executable but inert hook would not.
+  requires Lefthook's complete generated dispatch command as the file's final
+  command. It proves Git will run a hook that dispatches Lefthook, which an
+  executable but inert hook would not.
+
+Neither gate proves the shim resolves the binary the first gate started. On
+Windows the generated shim omits the configured `uv run --frozen lefthook`
+runner and resolves through `PATH`, so the two can disagree. See
+`scripts/validation/checks_plugin.py`.
 
 CI skips both local-clone checks because workflows invoke validation directly.
 Run `uv run --frozen lefthook check-install` by hand when you want the checksum

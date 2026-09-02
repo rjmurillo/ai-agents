@@ -24,8 +24,11 @@ linked worktree, so it fails in a sibling whose hooks are fine (issue #4789).
 Two gates cover the ground instead (`scripts/validation/checks_plugin.py`).
 `Lefthook Installed` runs `uv run --frozen lefthook version` from the active
 checkout. `Git Hook Health (core.hooksPath)` reads the installed `pre-push` and
-requires Lefthook's own dispatch line. The first proves the runtime starts; the
-second proves Git will reach it.
+requires Lefthook's complete generated dispatch command as its final command.
+The first proves the pinned runtime starts; the second proves Git will run a
+hook that dispatches Lefthook. Neither proves the shim resolves the same
+binary: on Windows the generated shim omits the configured runner and resolves
+through `PATH`.
 
 ## Respect commit discipline
 
