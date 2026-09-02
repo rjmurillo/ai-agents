@@ -48,7 +48,7 @@ The repository keeps one canonical skill tree and one generated Copilot tree:
 - `src/copilot-cli/skills/agent-harness-reference/` is generated from it.
 - `.github/skills/` is not a repository shipping surface. Do not create it to
   mirror this skill.
-- `AGENTS.md`, `.claude/agents/AGENTS.md`, `.github/AGENTS.md`,
+- `AGENTS.md`, `src/claude/AGENTS.md`, `.github/AGENTS.md`,
   `.github/copilot-instructions.md`, `src/AGENTS.md`, and
   `templates/AGENTS.md` route authoring work here.
 

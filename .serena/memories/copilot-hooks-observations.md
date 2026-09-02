@@ -74,7 +74,7 @@ Do not repeat web research unless the reference skill's refresh rules apply.
 - `src/copilot-cli/skills/agent-harness-reference/` is generated.
 - `.github/skills/` is not a shipping surface in this repository. Do not create
   it as another mirror.
-- Authoring routes live in `AGENTS.md`, `.claude/agents/AGENTS.md`,
+- Authoring routes live in `AGENTS.md`, `src/claude/AGENTS.md`,
   `.github/AGENTS.md`, `.github/copilot-instructions.md`, `src/AGENTS.md`, and
   `templates/AGENTS.md`.
 - Contract changes run through `ai-agents-portability-campaign`.
