@@ -173,3 +173,51 @@ class TestOverrideModesKeepEveryLocalAxis:
         """A caller who names the axis gets it, scanner support or not."""
         result = select(["src/main.rs"], pinned=["taste-lints"])
         assert "taste-lints" in result["local_selected"]
+
+
+class TestExecutableCodeCoversEveryScannerSuffix:
+    """`_CODE_SUFFIXES` must be a superset of what the local scanners read.
+
+    A suffix missing from it never matches `executable-code`, so the row cannot
+    contribute `code-quality` or either scanner. When another row has already
+    classified the path, the run is not fail-closed either, so the shortfall is
+    silent.
+    """
+
+    def test_code_suffixes_cover_every_scanner_suffix(self):
+        """Negative control by construction: enrolling a suffix in either
+        scanner without adding it here reds this test."""
+        scanner_suffixes = mod._ASSESS_SUFFIXES | mod._TASTE_LINT_SUFFIXES
+        # The scanners also read data and doc formats that are not source code;
+        # executable-code speaks for source only.
+        non_source = {".yml", ".yaml", ".md", ".json"}
+        assert (scanner_suffixes - non_source) <= mod._CODE_SUFFIXES
+
+    def test_bash_under_a_toolkit_path_still_reaches_taste_lints(self):
+        """Reported case: toolkit-governance classified it and nothing else ran.
+
+        taste_lints reads `.bash`, so skipping it here lost a real scan without
+        failing the run closed.
+        """
+        result = select(["scripts/setup.bash"])
+        assert result["fail_closed"] is False
+        assert "code-quality" in result["canonical_selected"]
+        assert "taste-lints" in result["local_selected"]
+
+    @pytest.mark.parametrize(
+        "path", [".claude/hooks/thing.mjs", ".claude/skills/demo/helper.cjs"]
+    )
+    def test_mjs_and_cjs_under_an_agent_path_still_reach_assess(self, path):
+        """Reported case: agent-artifacts classified it and assess never ran."""
+        result = select([path])
+        assert result["fail_closed"] is False
+        assert "code-quality" in result["canonical_selected"]
+        assert "code-qualities-assessment" in result["local_selected"]
+
+    def test_bash_does_not_reach_assess(self):
+        """Negative control: widening the row must not widen the scanners."""
+        assert "code-qualities-assessment" not in select(["scripts/setup.bash"])["local_selected"]
+
+    def test_mjs_does_not_reach_taste_lints(self):
+        """Negative control in the other direction."""
+        assert "taste-lints" not in select([".claude/hooks/thing.mjs"])["local_selected"]

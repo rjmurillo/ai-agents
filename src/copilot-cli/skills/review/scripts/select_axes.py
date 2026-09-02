@@ -54,8 +54,18 @@ ALWAYS_ON_CANONICAL = ("analyst",)
 # Sibling skills invoked with Skill(skill=...), not references/{stem}.md.
 LOCAL_AXES = ("code-qualities-assessment", "doc-accuracy", "golden-principles", "taste-lints")
 
+# Every suffix either local scanner reads, plus the ones only the canonical
+# code-quality subagent covers (.rs, .rb). A suffix missing here never matches
+# executable-code, so the row cannot contribute code-quality or either scanner,
+# and a file that another row already classified is silently reviewed by less
+# than it should be: scripts/setup.bash matched toolkit-governance alone and
+# skipped taste-lints, which reads .bash, and an .mjs or .cjs hook matched
+# agent-artifacts alone and skipped code-qualities-assessment, which reads both.
 _CODE_SUFFIXES = frozenset(
-    {".py", ".ts", ".tsx", ".js", ".jsx", ".cs", ".ps1", ".psm1", ".sh", ".go", ".rs", ".rb", ".java"}
+    {
+        ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".cs",
+        ".ps1", ".psm1", ".sh", ".bash", ".go", ".rs", ".rb", ".java",
+    }
 )
 
 _DEPENDENCY_MANIFESTS = frozenset(
