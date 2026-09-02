@@ -304,6 +304,54 @@ def test_fix_ignores_an_ambient_git_dir(tmp_path: Path, monkeypatch: pytest.Monk
     assert _porcelain(decoy) == ""
 
 
+def _loose_objects(repo: Path) -> int:
+    """Count the loose objects in the repository's own object store."""
+    objects = Path(_git(repo, "rev-parse", "--git-path", "objects").stdout.strip())
+    return sum(1 for path in objects.rglob("*") if path.is_file())
+
+
+def test_a_read_only_scan_writes_nothing_into_the_repository(tmp_path: Path) -> None:
+    """The index scope builds a tree, and MUST-7 says not into the target.
+
+    `_index_env` has to make git read attributes from the index, and read-only
+    mode runs before any worktree-identity check, so it must do that without
+    writing. It points `GIT_WORK_TREE` at an empty directory rather than
+    building a tree object. The index here differs from HEAD, which is when a
+    `write-tree` mechanism would have had something new to store.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    (repo / "later.md").write_text("added after the commit\n", newline="\n")
+    _git(repo, "add", "later.md")
+    before = _loose_objects(repo)
+
+    violations, _ = checker.check_repository(repo)
+
+    assert [v.scope for v in violations] == ["HEAD"]  # the scan still answered
+    assert _loose_objects(repo) == before
+
+
+def test_the_index_scope_answers_the_same_way_twice(tmp_path: Path) -> None:
+    """A second scan must not go quiet, which is the safe-looking failure.
+
+    The rejected mechanism for this scope, `git write-tree` into a scratch
+    object directory, records a cache-tree in the index. The next run returns
+    that id without writing the object, `GIT_ATTR_SOURCE` cannot resolve it,
+    and every blob reports as exempt. Two identical scans is the cheapest way
+    to catch a scope that answers correctly once.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    (repo / ".gitattributes").write_text(
+        "* text=auto eol=lf\n*.md text\nhandoff.md -text\n", newline="\n"
+    )
+
+    first, _ = checker.check_repository(repo)
+    second, _ = checker.check_repository(repo)
+
+    assert [(v.path, v.scope) for v in first] == [("handoff.md", "index")]
+    assert [(v.path, v.scope) for v in second] == [("handoff.md", "index")]
+
+
 # --- the GIT_ATTR_SOURCE capability floor ---------------------------------
 
 

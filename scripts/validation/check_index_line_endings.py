@@ -281,31 +281,50 @@ def _require_attr_source(repo_root: Path) -> None:
     )
 
 
-def _index_env(repo_root: Path) -> dict[str, str]:
-    """Environment pinning attributes to the tree the next commit would create.
+def _index_env(repo_root: Path, empty_worktree: Path) -> dict[str, str]:
+    """Environment that makes git read attributes from the index, not the disk.
 
     The index scope asks what the next commit will store, and a commit stores
     the staged `.gitattributes` along with the staged blobs. Git answers from
-    the working tree instead: with an unstaged `handoff.md -text` edit and
-    `*.md text` staged, `git ls-files --eol` reports `attr/-text` for a staged
-    CRLF blob, so the scope that exists to catch the next commit calls it
-    clean, and the commit lands the contradiction anyway. The inverse spelling
-    of the same edit invents a violation that committing would not produce.
+    the working tree instead: with `*.md text` staged and an unstaged
+    `handoff.md -text` edit on disk, `git ls-files --eol` reports `attr/-text`
+    for a staged CRLF blob, so the scope that exists to catch the next commit
+    calls it clean and the commit lands the contradiction anyway. The inverse
+    spelling of the same edit invents a violation committing would not produce.
     Both measured on git 2.51.0.
 
-    This is the identical hazard `_head_env` pins with `GIT_ATTR_SOURCE=HEAD`,
-    one scope over. `write-tree` is git's name for the tree the index would
-    commit, so it is the tree-ish that makes the two scopes symmetric.
+    Git falls back to the index when the working tree holds no `.gitattributes`,
+    so pointing `GIT_WORK_TREE` at an empty directory is enough to ask the
+    question the scope means. Two properties follow, and both matter.
 
-    `write-tree` does write. It adds a tree object and nothing else: no ref, no
-    index change, nothing a later reader trips over, and it is a no-op whenever
-    the index already matches a stored tree (measured: `git count-objects -v`
-    reports the same count before and after on an index equal to HEAD). That is
-    why it is not gated behind `refuses_write_from_outside`, whose subject is
-    the staged change `--fix` leaves in a checkout nobody was looking at.
+    It writes nothing. `.claude/rules/ci-scripts.md` MUST-7 governs a script
+    that resolves a root and then writes to it, and read-only mode runs before
+    any worktree-identity check, so the index scope must not write at all.
+    Measured: the object count under the git directory is unchanged across
+    repeated scans.
+
+    It is also stable, which the obvious alternative is not. `git write-tree`
+    names the tree the index would commit and looks like the symmetric partner
+    to `_head_env`, but it records a cache-tree in the index as a side effect.
+    Measured on git 2.51.0: with the tree written into a scratch object
+    directory that is then discarded, the next `write-tree` returns the same id
+    out of that cache-tree and writes nothing, `GIT_ATTR_SOURCE` cannot resolve
+    it, and git reports `attr/text` with no `eol=lf`. Every blob then looks
+    exempt and the scan reports zero violations. A second run answering
+    differently from the first, in the safe direction, is the exact silent pass
+    this gate exists to prevent.
+
+    `GIT_DIR` is asked for rather than assembled: `repo_root / ".git"` is a
+    file, not a directory, in a linked worktree.
+
+    The caller must also run git from `empty_worktree`. Measured: with
+    `GIT_WORK_TREE` set but the current directory still inside the real
+    checkout, git reads that checkout's `.gitattributes` and the isolation does
+    nothing.
     """
     env = _git_environment()
-    env["GIT_ATTR_SOURCE"] = _git(repo_root, ["write-tree"]).stdout.strip()
+    env["GIT_DIR"] = _git(repo_root, ["rev-parse", "--absolute-git-dir"]).stdout.strip()
+    env["GIT_WORK_TREE"] = str(empty_worktree)
     return env
 
 
@@ -345,9 +364,14 @@ def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
             )
 
     seen = {violation.path for violation in violations}
-    staged, staged_examined = parse_violations(
-        _ls_files_eol(repo_root, env=_index_env(repo_root)), scope="index"
-    )
+    # The empty directory is the whole mechanism, and git has to be run from
+    # inside it: `GIT_WORK_TREE` alone does not stop git reading a
+    # `.gitattributes` it can still see from the current directory.
+    with tempfile.TemporaryDirectory() as empty_worktree:
+        index_env = _index_env(repo_root, Path(empty_worktree))
+        staged, staged_examined = parse_violations(
+            _ls_files_eol(Path(empty_worktree), env=index_env), scope="index"
+        )
     violations.extend(v for v in staged if v.path not in seen)
     return violations, max(examined, staged_examined)
 
@@ -395,23 +419,36 @@ def _print_paste_command(violations: list[Violation]) -> None:
 
 
 def refuses_write_from_outside(repo_root: Path) -> bool:
-    """True when the process is not standing inside ``repo_root``.
+    """True when the process is not standing inside the tree git will write to.
 
     ``.claude/rules/ci-scripts.md`` MUST-7: a script that resolves the
     repository root and then writes to it MUST confirm the current directory
-    is inside the resolved root before the first write. ``--fix`` stages into
-    whatever ``--repo-root`` names, so without this a mistyped root
-    renormalizes a checkout nobody was looking at and leaves staged changes
-    there for someone else to find.
+    is inside the resolved root before the first write, and the rule names the
+    comparison verbatim as ``Path.cwd().resolve().is_relative_to(top_level)``.
+    ``--fix`` stages into whatever tree git decides on, so without this a
+    mistyped root renormalizes a checkout nobody was looking at and leaves
+    staged changes there for someone else to find.
+
+    The comparison is against ``git rev-parse --show-toplevel``, not against
+    ``--repo-root``. Those are two different claims and they can disagree: a
+    repository-local ``core.worktree`` value redirects git while the typed root
+    still looks right. Measured on git 2.51.0, with ``core.worktree`` set to a
+    sibling directory, ``git rev-parse --show-toplevel`` run from inside the
+    checkout returned the sibling, so a guard comparing the current directory
+    to ``--repo-root`` passes while git writes somewhere else entirely. The
+    same rule warns about ``GIT_WORK_TREE``; ``_git_environment`` already
+    strips that one, which is why the probe below is run through it.
     """
     cwd = Path.cwd().resolve()
-    if cwd.is_relative_to(repo_root):
+    top_level = Path(_git(repo_root, ["rev-parse", "--show-toplevel"]).stdout.strip()).resolve()
+    if cwd.is_relative_to(top_level):
         return False
     print(
-        f"Refusing to renormalize {repo_root} while running from {cwd}. "
-        "--fix stages into the resolved root, and a root that is not an "
+        f"Refusing to renormalize {top_level} while running from {cwd}. "
+        "--fix stages into the tree git resolves, and a tree that is not an "
         "ancestor of the current directory means the two disagree about "
-        "which tree is being changed (.claude/rules/ci-scripts.md MUST-7).",
+        "which checkout is being changed (.claude/rules/ci-scripts.md MUST-7). "
+        f"Requested root: {repo_root}.",
         file=sys.stderr,
     )
     return True

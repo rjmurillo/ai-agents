@@ -123,6 +123,33 @@ def test_fix_refuses_to_write_a_repo_the_process_is_not_inside(
     assert _staged_against_head(repo) == []
 
 
+def test_fix_refuses_when_core_worktree_redirects_git_elsewhere(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """`--repo-root` is a claim about the tree; `--show-toplevel` is the answer.
+
+    A repository-local `core.worktree` redirects git while the typed root still
+    looks right, so a guard that compares the current directory to `--repo-root`
+    passes and `--fix` stages into a checkout the operator is not standing in.
+    Measured on git 2.51.0: with `core.worktree` set to a sibling directory,
+    `git rev-parse --show-toplevel` run from inside the checkout returns the
+    sibling.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    _git(repo, "config", "core.worktree", str(elsewhere))
+    monkeypatch.chdir(repo)  # standing in the root the operator typed
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 2
+
+    err = capsys.readouterr().err
+    assert "Refusing to renormalize" in err
+    assert str(elsewhere) in err  # the tree git chose, not the one typed
+    assert _staged_against_head(repo) == []
+
+
 def test_read_only_mode_still_works_from_outside_the_repo(tmp_path: Path, monkeypatch) -> None:
     """The guard covers --fix only; reporting from anywhere stays allowed."""
     repo = _repo_with_crlf_blob(tmp_path)
