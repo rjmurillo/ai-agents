@@ -79,7 +79,8 @@ def _load_predicate(repo_root: Path) -> Callable[[Path, list[str] | None], bool]
     # that table raises AttributeError on the first dataclass it defines.
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
-    return module.is_agent_definition
+    predicate: Callable[[Path, list[str] | None], bool] = module.is_agent_definition
+    return predicate
 
 
 def find_non_agent_files(repo_root: Path) -> list[tuple[Path, str]]:
