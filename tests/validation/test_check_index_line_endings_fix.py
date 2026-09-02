@@ -157,6 +157,30 @@ def test_fix_mode_then_commit_clears_the_gate(tmp_path: Path, monkeypatch) -> No
     assert checker.main(["--repo-root", str(repo)]) == 0
 
 
+def test_fix_skips_a_head_only_path_the_index_no_longer_holds(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """A staged deletion clears the gate on commit; `git add` cannot help it.
+
+    Measured on git 2.51.0: `git add --renormalize -- h.md` on a path staged
+    for deletion exits 128 with `fatal: pathspec 'h.md' did not match any
+    files`. Passing the reported violations to git therefore fails both
+    advertised remediations on a repository whose staged removal would have
+    cleared the gate on its own.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    _git(repo, "rm", "--quiet", "--cached", "handoff.md")
+    (repo / "handoff.md").unlink()
+    monkeypatch.chdir(repo)
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 1  # HEAD still bad
+
+    out = capsys.readouterr().out
+    assert "[CRLF] handoff.md: HEAD blob is i/crlf" in out
+    assert "renormalized" not in out  # nothing to add, so nothing is claimed
+
+
 def test_fix_mode_on_a_clean_repository_is_a_no_op(tmp_path: Path, monkeypatch) -> None:
     repo = _repo_with_crlf_blob(tmp_path)
     _git(repo, "add", "--renormalize", "handoff.md")

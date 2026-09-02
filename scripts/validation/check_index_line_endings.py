@@ -249,22 +249,26 @@ def _report(violations: list[Violation], examined: int) -> None:
 
 
 def _print_paste_command(violations: list[Violation]) -> None:
-    """Print the copy-paste renormalize command, or say why there is none.
+    """Print a copy-paste renormalize command that works for every path.
 
-    A command is only worth printing when it would work. `display_path`
-    escapes bytes and control characters that have no safe text spelling, and
-    `shlex.quote` then quotes that escaped spelling, so for such a path the
-    printed command names a file that does not exist: it would exit non-zero
-    or, worse, match something else. Promising an exact command and handing
-    over one that cannot remediate the violation is the failure this branch
-    avoids. `--fix` has no such limit; it passes the real bytes as argv.
+    `shell_argument` picks the spelling per path. Anything with a text
+    spelling gets `shlex.quote`, which is what POSIX `sh` understands. A path
+    carrying bytes that have none gets bash and zsh's `$'...'` form, which
+    re-encodes the real bytes rather than the escaped display spelling; a
+    command built from the display spelling would name a file the repository
+    does not hold, which is why an earlier revision withheld the command
+    entirely rather than print one that could not remediate anything. Do not
+    restore that: `display_path` is for reading, `shell_argument` is for
+    running, and the two are different renderings of the same path.
 
-    For the spellable paths the quoting still matters. A tracked path may
-    carry shell syntax or a leading dash, and an unquoted join would print a
-    command that runs attacker-controlled text if a maintainer pasted it
-    (CWE-78). `--` stops a leading-dash path from parsing as a git option.
-    The quoting is POSIX-shell specific, which is the other reason `--fix`
-    exists: it never builds a string.
+    The quoting is load-bearing either way. A tracked path may carry shell
+    syntax or a leading dash, and an unquoted join would print a command that
+    runs attacker-controlled text if a maintainer pasted it (CWE-78). `--`
+    stops a leading-dash path from parsing as a git option.
+
+    The note about bash and zsh is printed only when a path needs that form,
+    and it names `--fix` as the portable route: `--fix` passes an argument
+    list to git and never builds a string, so it needs no shell at all.
     """
     paths = " ".join(shell_argument(v.path) for v in violations)
     print(f"  git add --renormalize -- {paths}")
@@ -313,8 +317,17 @@ def refuses_write_from_outside(repo_root: Path) -> bool:
     return True
 
 
-def renormalize(repo_root: Path, violations: list[Violation]) -> None:
-    """Run `git add --renormalize` on the violating paths, then check it worked.
+def renormalize(repo_root: Path) -> None:
+    """Renormalize the paths the index is still wrong about, then check it worked.
+
+    The targets come from the index scope, not from the reported violations.
+    Those include HEAD-only paths, and a path can be bad in HEAD while absent
+    from the index because it was staged for deletion or renamed. Measured on
+    git 2.51.0: `git add --renormalize -- h.md` on such a path exits 128 with
+    `fatal: pathspec 'h.md' did not match any files`, so passing the reported
+    set to git makes both advertised remediations fail on a repository whose
+    staged removal would have cleared the gate on its own. A HEAD-only path
+    needs a commit, not an add, so there is nothing here to hand git.
 
     Paths reach git as argv entries, so a filename carrying shell syntax is
     inert. `--` stops a leading-dash filename from parsing as an option.
@@ -326,16 +339,13 @@ def renormalize(repo_root: Path, violations: list[Violation]) -> None:
     `handoff.md -text` on disk: the gate reports the staged CRLF blob, `git add
     --renormalize` exits 0, and the index blob is still `i/crlf`. Without this
     check the run would print "renormalized 1 path(s); commit the result" over
-    a blob it did not change, which is a worse outcome than not offering `--fix`
-    at all: the operator commits and pushes believing it is fixed.
-
-    The scope checked is the index alone. `check_repository` folds a path bad
-    in both scopes into one HEAD entry, so its output cannot distinguish a
-    renormalize that worked from one that did nothing.
+    a blob it did not change, which is worse than not offering `--fix` at all:
+    the operator commits and pushes believing it is fixed.
     """
-    if not violations:
+    staged, _ = index_violations(repo_root)
+    paths = sorted({violation.path for violation in staged})
+    if not paths:
         return
-    paths = sorted({violation.path for violation in violations})
     run_git(repo_root, ["add", "--renormalize", "--", *paths])
     remaining, _ = index_violations(repo_root)
     unfixed = sorted(set(paths) & {violation.path for violation in remaining})
@@ -396,7 +406,7 @@ def main(argv: list[str] | None = None) -> int:
         violations, examined = check_repository(repo_root)
         _report(violations, examined)
         if args.fix:
-            renormalize(repo_root, violations)
+            renormalize(repo_root)
     except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
         print(f"[FAIL] index line endings: {exc}", file=sys.stderr)
         return 2
