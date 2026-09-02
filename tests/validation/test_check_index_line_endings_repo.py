@@ -27,6 +27,7 @@ from tests.validation.index_line_endings_helpers import (
     _git,
     _porcelain,
     _repo_with_crlf_blob,
+    _staged_against_head,
 )
 
 # --- the live repository --------------------------------------------------
@@ -298,8 +299,8 @@ def test_fix_ignores_an_ambient_git_dir(tmp_path: Path, monkeypatch: pytest.Monk
 
     assert checker.main(["--repo-root", str(subject), "--fix"]) == 1
 
-    violations, _ = checker.check_repository(subject)
-    assert [v.scope for v in violations] == ["HEAD"]  # index fixed, HEAD awaits commit
+    assert _staged_against_head(subject) == ["handoff.md"]  # written here,
+    assert _staged_against_head(decoy) == []  # and not there
     assert _porcelain(decoy) == ""
 
 

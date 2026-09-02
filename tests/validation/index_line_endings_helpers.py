@@ -18,6 +18,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Run git against `repo`, immune to the ambient `GIT_*` set.
+
+    Tests that redirect `GIT_DIR` or `GIT_INDEX_FILE` to prove the gate ignores
+    them would otherwise redirect their own fixtures and assertions too. Same
+    rule the gate applies in
+    `scripts/validation/check_index_line_endings.py::_git_environment`.
+    """
     return subprocess.run(
         ["git", *args],
         cwd=repo,
@@ -26,7 +33,21 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
         errors="replace",
         timeout=60,
         check=True,
+        env={k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")},
     )
+
+
+def _staged_against_head(repo: Path) -> list[str]:
+    """Paths whose staged blob differs from HEAD's: what `--fix` actually wrote.
+
+    `check_repository` reports a path bad in both scopes once, under HEAD, so
+    `[v.scope for v in violations] == ["HEAD"]` reads identically before a
+    renormalize and after one. It cannot witness a write, which is what a test
+    of the write-target guard has to do. This can: the fixtures stage the CRLF
+    blob and commit it, so the index and HEAD agree until `--fix` runs.
+    """
+    output = _git(repo, "diff", "--cached", "--name-only").stdout
+    return [line for line in output.split("\n") if line]
 
 
 def _repo_with_crlf_blob(tmp_path: Path, name: str = "handoff.md") -> Path:

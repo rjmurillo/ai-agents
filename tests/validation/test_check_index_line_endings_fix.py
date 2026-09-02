@@ -24,6 +24,7 @@ from tests.validation.index_line_endings_helpers import (
     _git,
     _repo_with_crlf_blob,
     _repo_with_undecodable_crlf_blob,
+    _staged_against_head,
 )
 
 
@@ -55,8 +56,7 @@ def test_fix_mode_renormalizes_without_building_a_shell_string(
     assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
 
     assert not (repo / "pwned").exists()
-    violations, _ = checker.check_repository(repo)
-    assert [v.scope for v in violations] == ["HEAD"]  # index fixed, HEAD awaits commit
+    assert _staged_against_head(repo) == ["a;$(touch pwned).md"]  # the blob was renormalized
 
 
 def test_fix_mode_renormalizes_a_leading_dash_filename(
@@ -76,8 +76,7 @@ def test_fix_mode_renormalizes_a_leading_dash_filename(
     assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
 
     assert "git add --renormalize -- --intent-to-add.md" in capsys.readouterr().out
-    violations, _ = checker.check_repository(repo)
-    assert [v.scope for v in violations] == ["HEAD"]  # index fixed, HEAD awaits commit
+    assert _staged_against_head(repo) == ["--intent-to-add.md"]  # the blob was renormalized
 
 
 def test_fix_mode_then_commit_clears_the_gate(tmp_path: Path, monkeypatch) -> None:
@@ -117,9 +116,11 @@ def test_fix_refuses_to_write_a_repo_the_process_is_not_inside(
     assert checker.main(["--repo-root", str(repo), "--fix"]) == 2
 
     assert "Refusing to renormalize" in capsys.readouterr().err
-    # The refusal must happen before the first write, not after a partial one.
-    violations, _ = checker.check_repository(repo)
-    assert [v.scope for v in violations] == ["HEAD"]
+    # The refusal must land before the first write, not after a partial one.
+    # A violation-scope assertion cannot say that: `check_repository` reports a
+    # path bad in both scopes once under HEAD, which is also what it reports
+    # after a renormalize. An empty staged diff is the write itself, absent.
+    assert _staged_against_head(repo) == []
 
 
 def test_read_only_mode_still_works_from_outside_the_repo(tmp_path: Path, monkeypatch) -> None:
