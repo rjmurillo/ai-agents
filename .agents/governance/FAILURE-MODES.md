@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size  canonical failure-mode catalog; one entry per mode, splitting breaks cross-references -->
 # Agent Failure Modes
 
 > **Status**: Canonical Source of Truth
@@ -89,7 +90,7 @@ Context window approaches its limit. The harness compacts prior messages. Compre
 - Display `Commit X/20`, or `X/40` once the branch merges main, every turn so the counter survives compaction visibly. Thresholds live in `scripts/validation/pr_commit_count.py`.
 - On resume, require the agent to read the latest per-issue handoff before taking any mutating action.
 
-See ADR-008 (protocol automation lifecycle hooks) and `.agents/HANDOFF.md`.
+See ADR-008 (protocol automation lifecycle hooks).
 
 ---
 

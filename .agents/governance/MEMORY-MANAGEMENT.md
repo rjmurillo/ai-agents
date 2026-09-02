@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size  single memory-management policy; splitting scatters one decision procedure -->
 # Memory Management Workflow
 
 > **Status**: Operational Guidance
@@ -59,7 +60,7 @@ This document describes the unified memory management workflow across three memo
 2. `mcp__serena__initial_instructions`
 
 ### Phase 2: Context Retrieval (BLOCKING)
-1. Read `.agents/HANDOFF.md` (read-only reference)
+1. Read the current per-issue handoff under `.agents/sessions/handoffs/`, when one exists
 2. Read `memory-index` from Serena
 3. Load task-relevant Serena memories
 
