@@ -44,10 +44,21 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Python 3.10 compatibility (issue #4764), same reasoning as `new_pr.py`:
+# `datetime.UTC` is an alias CPython added in 3.11, so `from datetime import
+# UTC` raises `ImportError: cannot import name 'UTC' from 'datetime'` on 3.10.
+# `.claude/commands/pr-review-config.yaml` and `.claude/commands/pr-autofix.md`
+# both invoke this script with a bare `python3`, so it runs on the HOST's
+# ambient interpreter rather than the repository's 3.14 development one, and
+# `_SUPPORT_FLOOR` in `scripts/validation/validate_python_syntax.py` puts that
+# host floor at 3.10. `timezone.utc` is the same object at every version this
+# repository targets, so it is the portable spelling, not a shim.
+_UTC = timezone.utc
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -1090,7 +1101,7 @@ def _disposition_unexpired(entry: dict[str, object], now: datetime) -> bool:
     except ValueError:
         return False
     if deadline.tzinfo is None:
-        deadline = deadline.replace(tzinfo=UTC)
+        deadline = deadline.replace(tzinfo=_UTC)
     return deadline > now
 
 
@@ -1175,7 +1186,7 @@ def _check_nonrequired_dispositions(
     if not failed_non_required:
         return []
     dispositions = _load_dispositions(dispositions_file)
-    now = datetime.now(UTC)
+    now = datetime.now(_UTC)
     return [
         name for name in failed_non_required
         if not _disposition_accepts(dispositions.get(name), pr_number, now)

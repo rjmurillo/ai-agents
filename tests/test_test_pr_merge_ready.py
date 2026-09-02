@@ -1381,7 +1381,11 @@ class TestShippedDispositionsFile:
 
     def test_every_entry_carries_both_bounds(self):
         entries = json.loads(self._PATH.read_text(encoding="utf-8"))
-        assert entries, "the shipped file must not be empty"
+        # An empty object is the correct end state, not a failure. Issue #5480
+        # closes by deleting the one entry, and `_load_dispositions` reads `{}`
+        # as "nothing is disposed", which blocks every non-required failure.
+        # Asserting non-empty here would make that cleanup break this test.
+        assert isinstance(entries, dict), "the registry must be a JSON object"
         for name, entry in entries.items():
             assert "expires" in entry, f"{name} has no expires"
             assert "pull_requests" in entry, (

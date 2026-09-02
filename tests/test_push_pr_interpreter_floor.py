@@ -56,7 +56,34 @@ FLOOR_MODULES = (
     Path("src/copilot-cli/skills/github/scripts/pr/pr_validations.py"),
 )
 
-ALL_FLOOR_FILES = FLOOR_SCRIPTS + FLOOR_MODULES
+# Host-executed scripts that get the static guard but not the runtime one,
+# because something they import already breaks at 3.10 for a reason outside
+# this module's scope.
+#
+# `test_pr_merge_ready.py` is invoked with a bare `python3` by both
+# `.claude/commands/pr-review-config.yaml` and `.claude/commands/pr-autofix.md`,
+# so it runs on the host interpreter exactly as `new_pr.py` does, and a draft
+# of PR #5481 shipped `from datetime import UTC` into it. The syntax gate
+# parsed that clean, because the name is 3.11+ stdlib rather than 3.11+ syntax,
+# which is the gap this module exists to close, so the static guard below is
+# what would have caught it.
+#
+# It cannot join FLOOR_SCRIPTS yet. Measured with CPython 3.10.20 against this
+# tree: it imports `github_core.api`, which imports `github_core.review_threads`,
+# whose `FetchStatus` subclasses `enum.StrEnum`, added in 3.11:
+#
+#     AttributeError: module 'enum' has no attribute 'StrEnum'
+#
+# That predates PR #5481 and belongs to the shared library rather than to any
+# one script; `new_pr.py` passes the runtime test only because it imports no
+# `github_core` module at all. Move these two entries into FLOOR_SCRIPTS once
+# `FetchStatus` is spelled for the floor.
+FLOOR_STATIC_ONLY = (
+    Path(".claude/skills/github/scripts/pr/test_pr_merge_ready.py"),
+    Path("src/copilot-cli/skills/github/scripts/pr/test_pr_merge_ready.py"),
+)
+
+ALL_FLOOR_FILES = FLOOR_SCRIPTS + FLOOR_MODULES + FLOOR_STATIC_ONLY
 
 
 def _discover_python310() -> str | None:
