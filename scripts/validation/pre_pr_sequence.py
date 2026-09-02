@@ -49,6 +49,7 @@ from check_doc_interpreter_portability import (
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_generated_staleness import validate_generated_staleness
 from check_git_hook_health import validate_git_hook_health
+from check_index_line_endings import validate_index_line_endings
 from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
 from check_subprocess_encoding import validate_subprocess_encoding
@@ -232,6 +233,13 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
+    # Blocks an index blob whose line endings contradict its gitattributes. Two
+    # CRLF blobs under `* text=auto eol=lf` reached main and aborted every merge
+    # that touched their paths, in worktrees nobody had edited. Both arrived via
+    # the GraphQL createCommitOnBranch API, which uploads bytes verbatim and runs
+    # neither the clean filter nor any local hook, so the index is the only place
+    # the defect is visible and no upstream gate can be relied on instead.
+    _Gate("Index Line Endings", _root_only(validate_index_line_endings)),
     # Blocks a tracked prescription that tells a reader to create a worktree
     # under /tmp or inside the checkout, against universal.md MUST NOT 6. Issue
     # #5111: the rule, a Serena memory, and a prior incident all already
