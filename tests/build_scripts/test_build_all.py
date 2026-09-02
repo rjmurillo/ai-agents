@@ -3346,6 +3346,63 @@ def test_snapshot_strict_skips_files_under_an_ignored_directory(
     )
 
 
+def test_run_check_keeps_a_nested_checkout_when_the_first_scan_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One transient scan failure must not let restore delete a nested repo.
+
+    The asymmetry this pins: `_git_boundaries_under` walks with
+    `_iter_tree_skip_git_boundaries`, whose `except OSError: continue`
+    swallows a directory-scan failure and yields nothing under it, so the
+    recorded boundary set comes back short. The strict snapshot walk reads
+    the directory on a later attempt, sees the nested repository's `.git`
+    entry, and skips it by shape, so its files are correctly absent from the
+    snapshot. Restore then received the short set, `_is_opaque_boundary`
+    answered False by membership, `_enumerate_files_under` descended, and
+    case 3 unlinked every file in the checkout as generator-created.
+
+    `run` now takes the restore set from the strict traversal itself, so the
+    two cannot disagree. Only `Path.iterdir` is denied here, which
+    `_strict_owned_children` does not use, so the failure lands on the
+    boundary walk exactly as the report describes and the strict walk is
+    unaffected.
+    """
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    owned = repo / "owned"
+    nested = owned / "worktrees" / "wt"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: ../../../../.git/worktrees/wt\n")
+    protected = nested / "tracked.py"
+    protected.write_text("z = 3\n")
+    kept = owned / "real.py"
+    kept.write_text("y = 2\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
+
+    real_iterdir = Path.iterdir
+    denied = False
+
+    def scan_fails_once(self: Path) -> Iterator[Path]:
+        nonlocal denied
+        if self == owned and not denied:
+            denied = True
+            raise PermissionError(13, "denied")
+        return real_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", scan_fails_once)
+    monkeypatch.setattr(build_all, "_run_generators", lambda *_a, **_k: 0)
+
+    build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert protected.read_text() == "z = 3\n", (
+        "--check deleted a file inside a nested git checkout"
+    )
+    assert kept.read_text() == "y = 2\n"
+
+
 def test_snapshot_non_strict_skips_owned_path_when_stat_fails(
     tmp_path: Path,
 ) -> None:

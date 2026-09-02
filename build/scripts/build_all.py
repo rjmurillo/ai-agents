@@ -1189,7 +1189,7 @@ def _strict_owned_children(path: Path) -> list[Path]:
 
 
 def _queue_strict_owned_path(
-    pending: list[Path], path: Path
+    pending: list[Path], path: Path, boundaries_seen: set[Path] | None
 ) -> Path | None:
     """Queue child directories and return child files for strict snapshots."""
     metadata = _strict_owned_stat(path, missing_root_ok=False)
@@ -1197,7 +1197,10 @@ def _queue_strict_owned_path(
         "missing_root_ok=False guarantees a non-None result or a raise"
     )
     if stat.S_ISDIR(metadata.st_mode):
-        if not _is_opaque_boundary(path, None):
+        if _is_opaque_boundary(path, None):
+            if boundaries_seen is not None:
+                boundaries_seen.add(path)
+        else:
             pending.append(path)
         return None
     if stat.S_ISREG(metadata.st_mode):
@@ -1205,7 +1208,9 @@ def _queue_strict_owned_path(
     return None
 
 
-def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
+def _iter_strict_owned_files(
+    root: Path, *, boundaries_seen: set[Path] | None = None
+) -> Iterable[Path]:
     """Yield owned files while surfacing strict metadata and scan failures.
 
     Stops at nested git repository boundaries, the same trees
@@ -1225,6 +1230,15 @@ def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
     entry yet, and there is no recorded set to consult. The post-build
     passes take the recorded set instead (see :func:`_is_opaque_boundary`).
 
+    ``boundaries_seen`` collects what this walk refused to enter, and
+    :func:`run` hands that same set to :func:`_restore_owned_prefixes`.
+    Deriving it from a separate :func:`_git_boundaries_under` pass would let
+    the two disagree, because that helper's walker swallows directory-scan
+    errors while this one raises on them: one transient failure returns a
+    short set, this walk succeeds on a later attempt and skips the repository
+    by shape, and restore then descends into a tree the snapshot never read
+    and deletes it. One traversal, one set, no disagreement to test for.
+
     Neither this function nor :func:`_queue_strict_owned_path` re-tests
     ``Path.is_symlink()``. :func:`_strict_owned_stat` stats with
     ``follow_symlinks=False`` and raises on ``S_ISLNK`` before returning, so
@@ -1243,7 +1257,7 @@ def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
     while pending:
         current = pending.pop()
         for child in _strict_owned_children(current):
-            child_file = _queue_strict_owned_path(pending, child)
+            child_file = _queue_strict_owned_path(pending, child, boundaries_seen)
             if child_file is not None:
                 yield child_file
 
@@ -1255,6 +1269,7 @@ def _snapshot_owned_prefixes(
     exclude_ignored: bool = False,
     opaque_boundaries: set[Path] | None = None,
     strict: bool = False,
+    boundaries_seen: set[Path] | None = None,
 ) -> dict[Path, bytes]:
     """Snapshot every file under ``prefixes`` into an in-memory dict.
 
@@ -1348,7 +1363,9 @@ def _snapshot_owned_prefixes(
         # dead, which is an argument no mutation can distinguish (measured:
         # rewriting the forward to ``strict=False`` left all 137 tests green).
         if strict:
-            for path in _iter_strict_owned_files(root):
+            for path in _iter_strict_owned_files(
+                root, boundaries_seen=boundaries_seen
+            ):
                 if _is_ignored_path(path, ignored) or (
                     exclude_ignored and _is_bytecode_artifact(path)
                 ):
@@ -1704,13 +1721,23 @@ def run(
     snapshot: dict[Path, bytes] | None = None
     boundaries: set[Path] | None = None
     if check:
-        # Record boundaries first. A generator that creates a .git entry
-        # during the build must not be mistaken for a pre-existing nested
-        # checkout when the restore pass decides what to delete.
-        boundaries = _git_boundaries_under(repo_root, OWNED_PREFIXES)
+        # Restore's boundary set comes from this same traversal, not from a
+        # separate _git_boundaries_under pass. Two passes could disagree: that
+        # helper's walker swallows every directory-scan OSError, so one
+        # transient failure returns an incomplete set while the strict walk,
+        # which fails closed on the same error, succeeds on a later attempt
+        # and skips the nested repository by shape. Restore would then receive
+        # the short set, descend into a repository the snapshot never read,
+        # and delete its files as generator-created: issue #4632's data loss
+        # reopened one level out. Collecting here makes the two agree by
+        # construction, and a scan failure aborts the run instead.
+        boundaries = set()
         try:
             snapshot = _snapshot_owned_prefixes(
-                repo_root, OWNED_PREFIXES, strict=True
+                repo_root,
+                OWNED_PREFIXES,
+                strict=True,
+                boundaries_seen=boundaries,
             )
         except SnapshotIncompleteError as exc:
             print(
