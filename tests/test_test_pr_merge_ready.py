@@ -1395,69 +1395,128 @@ class TestDispositionPullRequestAllowlist:
         ) == ["Scan"]
 
 
-class TestShippedCallersPassTheRegistry:
-    """Every shipped caller must pass `--dispositions-file`.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SCRIPT_NAME = "test_pr_merge_ready.py"
+_FLAG = "--dispositions-file"
+_SHIPPED_PATH = ".agents/pr-checks/dispositions.json"
 
-    The registry is inert without the flag: `_load_dispositions(None)` returns
-    `{}`, so every failing non-required check reads as undisposed. The
-    completion gate config passed it from the start; the pr-autofix tier
-    dispatch did not, which left the PRs this file exists to unblock
-    classifying as T2 or T5 before the gate ever ran.
+# Everything a plugin installation can carry. Discovered rather than listed,
+# because a hard-coded inventory cannot fail on the call site nobody added to
+# it, which is the only call site the guard below actually needs to catch.
+_SHIPPED_ROOTS = (
+    ".claude/commands",
+    ".claude/skills",
+    ".github/prompts",
+    "src/copilot-cli/commands",
+    "src/copilot-cli/skills",
+)
 
-    Asserts on the invocation line rather than on the file as a whole, so a
-    new call site that omits the flag fails even while an existing one carries
-    it.
+
+def _gate_criterion_commands() -> list[tuple[str, str]]:
+    """`(relative path, command)` for every completion-gate criterion.
+
+    Parsed out of the YAML rather than grepped, so a criterion that is
+    commented out is absent here. A text scan counts a commented line as
+    present, which would let the real wiring disappear under a green test.
+    """
+    found: list[tuple[str, str]] = []
+    for root in _SHIPPED_ROOTS:
+        for path in sorted((_REPO_ROOT / root).rglob("*.y*ml")):
+            try:
+                doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+            except yaml.YAMLError:
+                continue
+            if not isinstance(doc, dict):
+                continue
+            for criterion in doc.get("completion_criteria") or []:
+                command = (criterion or {}).get("command", "")
+                if isinstance(command, str) and _SCRIPT_NAME in command:
+                    found.append((path.relative_to(_REPO_ROOT).as_posix(), command))
+    return found
+
+
+def _text_invocations() -> list[tuple[str, str]]:
+    """`(relative path, line)` for every non-YAML invocation of the script.
+
+    A trailing backslash continuation is joined first, because both pr-autofix
+    call sites wrap and a line-at-a-time scan would read their flags wrong.
+    Requiring `--pull-request` on the line keeps prose mentions of the script
+    name out; requiring the name keeps unrelated commands out. The two shapes
+    quote differently, `"$SCRIPTS_DIR/test_pr_merge_ready.py"` with a closing
+    quote against a bare path, so the two markers are matched separately.
+    """
+    found: list[tuple[str, str]] = []
+    for root in _SHIPPED_ROOTS:
+        for path in sorted((_REPO_ROOT / root).rglob("*")):
+            if not path.is_file() or path.suffix in {".yml", ".yaml"}:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            if _SCRIPT_NAME not in text:
+                continue
+            for line in text.replace("\\\n", " ").splitlines():
+                if _SCRIPT_NAME in line and "--pull-request" in line:
+                    found.append((path.relative_to(_REPO_ROOT).as_posix(), line))
+    return found
+
+
+class TestDispositionRegistryWiring:
+    """Where the registry may be read, and where it must not be.
+
+    Not "every caller passes the flag". The two callers sit on opposite sides
+    of a trust boundary.
+
+    The completion gate byte-compares every tracked file its criteria name
+    against the trusted ref before running them, so a PR that edits the
+    registry halts the gate rather than being believed by it. That is the one
+    place a disposition can be honored.
+
+    The pr-autofix tier probe has no such comparison. It runs against the
+    checked-out PR branch, and its verdict reaches `TIER_TRUSTED_T1` in
+    `pr-autofix.md`, which decides whether an already-armed auto-merge is
+    disarmed. Passing the registry there lets a PR dispose its own failing
+    security check, classify as T1, keep auto-merge armed, and merge red
+    before the gate ever runs (CWE-829, CWE-284). PR #5481 added the flag
+    there, review caught it, and it came back out.
+
+    So the guard is a positive on the gate and a negative everywhere else.
+    Both sides discover their inputs, because the call site that breaks this
+    is the one nobody remembered to add to a list.
     """
 
-    _REPO_ROOT = Path(__file__).resolve().parents[1]
-    _CALLERS = (
-        ".claude/commands/pr-autofix.md",
-        "src/copilot-cli/skills/pr-autofix/SKILL.md",
-        ".claude/commands/pr-review-config.yaml",
-        "src/copilot-cli/commands/pr-review-config.yaml",
-    )
-    _SCRIPT = "test_pr_merge_ready.py"
-    _FLAG = "--dispositions-file"
+    def test_a_gate_criterion_exists_to_check(self):
+        """Negative control: the positive case below must not pass vacuously."""
+        assert _gate_criterion_commands(), (
+            "no completion_criteria command invokes the readiness script, so "
+            "the wiring assertion below would pass against nothing"
+        )
 
-    @staticmethod
-    def _invocations(text: str) -> list[str]:
-        """Invocation lines, joined across a trailing backslash continuation.
-
-        Both pr-autofix call sites wrap, so a line-at-a-time scan would read
-        the flag as absent on the very lines this class exists to pin.
-
-        The two callers quote differently: the shell sites interpolate
-        ``"$SCRIPTS_DIR/test_pr_merge_ready.py"`` with a closing quote before
-        the first flag, while the YAML config writes a bare path. Matching the
-        script name and ``--pull-request`` separately covers both, where a
-        single adjacent-substring match silently found neither shell site.
-        """
-        joined = text.replace("\\\n", " ")
-        script = TestShippedCallersPassTheRegistry._SCRIPT
-        return [
-            line for line in joined.splitlines()
-            if script in line and "--pull-request" in line
-        ]
-
-    @pytest.mark.parametrize("relative", _CALLERS)
-    def test_every_invocation_passes_the_flag(self, relative):
-        text = (self._REPO_ROOT / relative).read_text(encoding="utf-8")
-        invocations = self._invocations(text)
-        assert invocations, f"{relative} invokes {self._SCRIPT} nowhere"
-        for line in invocations:
-            assert self._FLAG in line, (
-                f"{relative} invokes {self._SCRIPT} without {self._FLAG}, so "
-                f"the shipped registry is inert for that call: {line.strip()}"
+    def test_gate_criteria_pass_the_shipped_registry(self):
+        for relative, command in _gate_criterion_commands():
+            assert _FLAG in command, (
+                f"{relative} runs the readiness script as a completion "
+                f"criterion without {_FLAG}, so the registry is inert there: "
+                f"{command}"
+            )
+            assert _SHIPPED_PATH in command, (
+                f"{relative} passes {_FLAG} with an unexpected path, which "
+                f"would read an empty registry: {command}"
             )
 
-    @pytest.mark.parametrize("relative", _CALLERS)
-    def test_the_path_passed_is_the_shipped_one(self, relative):
-        """A caller pointing at some other path would read an empty registry."""
-        text = (self._REPO_ROOT / relative).read_text(encoding="utf-8")
-        for line in self._invocations(text):
-            assert ".agents/pr-checks/dispositions.json" in line, (
-                f"{relative} passes {self._FLAG} with an unexpected path: "
-                f"{line.strip()}"
+    def test_no_other_caller_reads_the_registry(self):
+        """The security half. Any non-gate caller with the flag fails here.
+
+        This is what catches a call site added later, in a file this test has
+        never heard of, anywhere under the shipped roots.
+        """
+        for relative, line in _text_invocations():
+            assert _FLAG not in line, (
+                f"{relative} passes {_FLAG} outside a completion-gate "
+                f"criterion. That caller reads the checked-out PR branch with "
+                f"no trusted-ref comparison, so a PR could dispose its own "
+                f"failing check: {line.strip()}"
             )
 
 

@@ -285,13 +285,16 @@ def test_a_flag_lookalike_is_not_the_is_bot_token(tmp_path: Path, doc: str) -> N
 def test_every_dispatch_call_targets_its_current_pr(tmp_path: Path, doc: str) -> None:
     """The two-PR queue must not reuse one PR number.
 
-    The expected argv also pins ``--dispositions-file``, added in PR #5481.
-    Without it the tier producer reads an empty registry, so a disposed
-    non-required failure still classifies as T2 or T5. This assertion is the
-    runtime half of that guarantee, since it captures what the dispatch block
-    really executes; ``TestShippedCallersPassTheRegistry`` in
-    ``tests/test_test_pr_merge_ready.py`` is the static half and covers the
-    two ``pr-review-config.yaml`` callers this harness does not run.
+    The exact argv also pins the absence of ``--dispositions-file``. This
+    probe runs against the checked-out PR branch with no trusted-ref
+    comparison, and its verdict gates the auto-merge disarm through
+    ``TIER_TRUSTED_T1``, so a registry the PR can edit would let that PR
+    dispose its own failing security check, reach T1, and keep auto-merge
+    armed (CWE-829, CWE-284). PR #5481 added the flag here and took it back
+    out for that reason. ``TestDispositionRegistryWiring`` in
+    ``tests/test_test_pr_merge_ready.py`` states the same boundary
+    repository-wide; this equality is the runtime evidence for these two
+    call sites.
     """
     run = run_dispatch(
         tmp_path,
@@ -301,10 +304,9 @@ def test_every_dispatch_call_targets_its_current_pr(tmp_path: Path, doc: str) ->
         author_is_bot="true",
     )
 
-    dispositions = ["--dispositions-file", ".agents/pr-checks/dispositions.json"]
     assert run.merge_ready_calls == [
-        ["--pull-request", "5176", *dispositions, "--is-bot"],
-        ["--pull-request", "5177", *dispositions, "--is-bot"],
+        ["--pull-request", "5176", "--is-bot"],
+        ["--pull-request", "5177", "--is-bot"],
     ]
     assert run.context_calls == [
         ["--pull-request", "5176", "--field", "author_is_bot", "--output-format", "json"],
