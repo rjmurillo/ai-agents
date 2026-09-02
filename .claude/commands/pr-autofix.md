@@ -515,7 +515,8 @@ fi
 # empty string, and quoting it would pass an empty argument that argparse
 # rejects. It is never attacker-influenced; both values are written above.
 # shellcheck disable=SC2086
-if MERGE_READY=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" $IS_BOT_FLAG 2>/dev/null); then
+if MERGE_READY=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" \
+        --dispositions-file .agents/pr-checks/dispositions.json $IS_BOT_FLAG 2>/dev/null); then
     MERGE_READY_RC=0
 else
     MERGE_READY_RC=$?
@@ -1009,7 +1010,8 @@ else
     IS_BOT_FLAG="--is-bot"
 fi
 # shellcheck disable=SC2086
-python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr} $IS_BOT_FLAG
+python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr} \
+    --dispositions-file .agents/pr-checks/dispositions.json $IS_BOT_FLAG
 
 # Per-PR live-state gate (BLOCKING per Phase 2; issue #2455). Returns
 # exit 0 + Data.action=ACT when safe to proceed, exit 1 + Data.action=SKIP when

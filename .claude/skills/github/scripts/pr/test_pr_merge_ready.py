@@ -1092,12 +1092,21 @@ def _disposition_unexpired(entry: dict[str, object], now: datetime) -> bool:
     an ISO 8601 date-time both work. A bare date means midnight on that date,
     and a timestamp with no offset is read as UTC. A missing, non-string,
     unparseable, or already-passed value returns False.
+
+    A trailing ``Z`` is rewritten to ``+00:00`` before parsing, the same
+    normalization ``_parse_rfc3339_utc`` in ``pr_autofix_lease.py`` applies.
+    ``fromisoformat`` only learned the zulu suffix in CPython 3.11, so
+    ``2026-12-01T00:00:00Z`` would otherwise parse on a newer host and raise
+    ``ValueError`` on a 3.10 one, silently expiring the entry there. Only a
+    trailing ``Z`` is rewritten, not every ``Z`` in the string, so a value
+    that is malformed some other way still fails rather than being repaired.
     """
     expires = entry.get("expires")
     if not isinstance(expires, str):
         return False
+    normalized = expires[:-1] + "+00:00" if expires.endswith("Z") else expires
     try:
-        deadline = datetime.fromisoformat(expires)
+        deadline = datetime.fromisoformat(normalized)
     except ValueError:
         return False
     if deadline.tzinfo is None:

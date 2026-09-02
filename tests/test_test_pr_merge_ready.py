@@ -1244,6 +1244,41 @@ class TestDispositionExpiry:
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
 
+    def test_future_zulu_expiry_is_disposed(self, tmp_path):
+        """The `Z` suffix must work, and on the 3.10 host floor it needs help.
+
+        `datetime.fromisoformat` only learned the zulu suffix in CPython 3.11.
+        Measured with CPython 3.10.20:
+
+            ValueError: Invalid isoformat string: '2026-12-01T00:00:00Z'
+
+        Without normalization this entry would be honored on a 3.11+ host and
+        silently treated as expired on a 3.10 one, which is the worst shape a
+        disagreement between hosts can take.
+        """
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="2999-01-01T12:30:00Z")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
+
+    def test_past_zulu_expiry_is_undisposed(self, tmp_path):
+        """Negative half: normalizing `Z` must not also stop expiry working."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="2000-01-01T00:00:00Z")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    def test_interior_z_is_not_repaired(self, tmp_path):
+        """Only a trailing `Z` is rewritten, so a malformed value still fails.
+
+        A blanket `.replace("Z", "+00:00")` would turn this into something
+        that parses, which would accept a value nobody wrote on purpose.
+        """
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="2999Z01Z01")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
     def test_past_expiry_is_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
             tmp_path, {"Scan": _entry(expires=_PAST_EXPIRY)},
@@ -1358,6 +1393,72 @@ class TestDispositionPullRequestAllowlist:
         assert _check_nonrequired_dispositions(
             ["Scan"], disp_file, 5481,
         ) == ["Scan"]
+
+
+class TestShippedCallersPassTheRegistry:
+    """Every shipped caller must pass `--dispositions-file`.
+
+    The registry is inert without the flag: `_load_dispositions(None)` returns
+    `{}`, so every failing non-required check reads as undisposed. The
+    completion gate config passed it from the start; the pr-autofix tier
+    dispatch did not, which left the PRs this file exists to unblock
+    classifying as T2 or T5 before the gate ever ran.
+
+    Asserts on the invocation line rather than on the file as a whole, so a
+    new call site that omits the flag fails even while an existing one carries
+    it.
+    """
+
+    _REPO_ROOT = Path(__file__).resolve().parents[1]
+    _CALLERS = (
+        ".claude/commands/pr-autofix.md",
+        "src/copilot-cli/skills/pr-autofix/SKILL.md",
+        ".claude/commands/pr-review-config.yaml",
+        "src/copilot-cli/commands/pr-review-config.yaml",
+    )
+    _SCRIPT = "test_pr_merge_ready.py"
+    _FLAG = "--dispositions-file"
+
+    @staticmethod
+    def _invocations(text: str) -> list[str]:
+        """Invocation lines, joined across a trailing backslash continuation.
+
+        Both pr-autofix call sites wrap, so a line-at-a-time scan would read
+        the flag as absent on the very lines this class exists to pin.
+
+        The two callers quote differently: the shell sites interpolate
+        ``"$SCRIPTS_DIR/test_pr_merge_ready.py"`` with a closing quote before
+        the first flag, while the YAML config writes a bare path. Matching the
+        script name and ``--pull-request`` separately covers both, where a
+        single adjacent-substring match silently found neither shell site.
+        """
+        joined = text.replace("\\\n", " ")
+        script = TestShippedCallersPassTheRegistry._SCRIPT
+        return [
+            line for line in joined.splitlines()
+            if script in line and "--pull-request" in line
+        ]
+
+    @pytest.mark.parametrize("relative", _CALLERS)
+    def test_every_invocation_passes_the_flag(self, relative):
+        text = (self._REPO_ROOT / relative).read_text(encoding="utf-8")
+        invocations = self._invocations(text)
+        assert invocations, f"{relative} invokes {self._SCRIPT} nowhere"
+        for line in invocations:
+            assert self._FLAG in line, (
+                f"{relative} invokes {self._SCRIPT} without {self._FLAG}, so "
+                f"the shipped registry is inert for that call: {line.strip()}"
+            )
+
+    @pytest.mark.parametrize("relative", _CALLERS)
+    def test_the_path_passed_is_the_shipped_one(self, relative):
+        """A caller pointing at some other path would read an empty registry."""
+        text = (self._REPO_ROOT / relative).read_text(encoding="utf-8")
+        for line in self._invocations(text):
+            assert ".agents/pr-checks/dispositions.json" in line, (
+                f"{relative} passes {self._FLAG} with an unexpected path: "
+                f"{line.strip()}"
+            )
 
 
 class TestShippedDispositionsFile:
