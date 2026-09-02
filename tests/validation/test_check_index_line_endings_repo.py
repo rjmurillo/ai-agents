@@ -42,6 +42,61 @@ def test_this_repository_has_no_contradicting_blobs() -> None:
     assert examined > 0
 
 
+def test_this_repository_holds_no_crlf_blob_at_all() -> None:
+    """Stronger than the gate, and true of this repository today.
+
+    The gate reports a contradiction: a CRLF blob whose attributes promise LF.
+    A `-text` or `eol=crlf` path is exempt by declaration and the gate leaves
+    it alone, which is deliberate and is why a contributor whose editor writes
+    CRLF locally does not get their push failed.
+
+    This repository declares `* text=auto eol=lf` and stores no CRLF blob
+    under any attribute: measured over the tracked tree, the index states are
+    `i/lf` (9629), `i/none` (34), `i/-text` (26) and one empty. So the
+    stronger claim is assertable here, and it catches a CRLF blob arriving
+    under an exemption the gate would pass.
+    """
+    output = subprocess.run(
+        ["git", "ls-files", "--eol"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+        check=True,
+        env={k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")},
+    ).stdout
+
+    crlf = [line for line in output.split("\n") if line.startswith(("i/crlf", "i/mixed"))]
+
+    assert crlf == []
+
+
+@pytest.mark.parametrize("path", INCIDENT_PATHS)
+def test_touching_an_incident_path_reports_no_modification(path: str) -> None:
+    """The operator-visible symptom, asserted on the paths that had it.
+
+    `test_a_crlf_blob_reports_a_modification_nobody_made` proves the mechanism
+    in a built repository. This proves it is gone from the two files it
+    actually happened to. `touch` changes only the modification time, so the
+    check is non-destructive: git re-reads the file and compares content.
+    """
+    (REPO_ROOT / path).touch()
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--", path],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+        check=True,
+        env={k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")},
+    ).stdout
+
+    assert status.strip() == ""
+
+
 def test_git_ls_files_eol_still_emits_the_parsed_shape() -> None:
     """Pin the producer's format so a git change cannot silently blind the check."""
     result = subprocess.run(
