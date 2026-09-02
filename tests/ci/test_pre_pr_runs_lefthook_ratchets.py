@@ -80,12 +80,6 @@ _EXPECTED_RATCHETS = (
         False,
     ),
     ("merge-tree-ratchet", "scripts/ci/merge_tree_ratchet_check.py", True, True),
-    (
-        "subprocess-encoding-count-ratchet",
-        "scripts/ci/subprocess_encoding_count_ratchet.py",
-        False,
-        True,
-    ),
 )
 
 
