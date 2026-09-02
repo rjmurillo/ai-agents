@@ -171,12 +171,29 @@ def parse_violations(output: str, scope: str = "HEAD") -> tuple[list[Violation],
     records = output.split("\0") if nul_terminated else output.splitlines()
     for record in records:
         line = record if nul_terminated else record.rstrip("\n")
-        if "\t" not in line:
+        # `-z` terminates rather than separates, so the split always yields a
+        # trailing empty string. That is the one record with nothing in it and
+        # the only one worth passing over.
+        if not line:
             continue
+        # Everything else must be a row this parser understands. Skipping a
+        # malformed row would let a producer change turn a broken scan into
+        # "0 violations" and exit 0, which is the failure ci-scripts.md MUST-12
+        # names: a run that did nothing must not report the same way as a run
+        # that succeeded. Raising here reaches the exit-2 path in `main` and
+        # the False verdict in the gate, so a format change fails loudly.
+        if "\t" not in line:
+            raise RuntimeError(
+                f"git ls-files --eol emitted a row with no tab: {line!r}. "
+                "The parser expects `i/<state> w/<state> attr/<attrs><TAB><path>`."
+            )
         head, path = line.split("\t", 1)
         fields = head.split()
         if len(fields) < 3:
-            continue
+            raise RuntimeError(
+                f"git ls-files --eol emitted a row with {len(fields)} field(s) "
+                f"before the tab, expected at least 3: {line!r}."
+            )
         examined += 1
         index_state = fields[0]
         attributes = " ".join(fields[2:])

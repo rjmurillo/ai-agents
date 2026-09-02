@@ -107,23 +107,45 @@ def test_multi_valued_attributes_are_reported_whole() -> None:
     assert "diff=markdown" in violations[0].attributes
 
 
-def test_rows_without_a_tab_are_skipped() -> None:
-    """git emits nothing like this, but a partial read must not crash."""
-    violations, examined = checker.parse_violations("i/crlf w/crlf attr/text eol=lf\n")
+def test_a_row_without_a_tab_is_an_error_not_a_skip() -> None:
+    """Skipping it would turn a broken scan into `0 violations` and exit 0.
 
-    assert violations == []
-    assert examined == 0
+    git emits nothing like this today. If it ever does, the parser has stopped
+    understanding the producer, and a checker that reports clean when it can no
+    longer read its input is worse than one that fails (ci-scripts.md MUST-12).
+    """
+    with pytest.raises(RuntimeError, match="no tab"):
+        checker.parse_violations("i/crlf w/crlf attr/text eol=lf\n")
 
 
-def test_short_rows_are_skipped() -> None:
-    violations, examined = checker.parse_violations("i/crlf\tdocs/a.md\n")
+def test_a_row_with_too_few_fields_is_an_error_not_a_skip() -> None:
+    with pytest.raises(RuntimeError, match="field"):
+        checker.parse_violations("i/crlf\tdocs/a.md\n")
 
-    assert violations == []
-    assert examined == 0
+
+def test_a_malformed_row_reaches_the_gate_as_a_failure(monkeypatch) -> None:
+    """The raise has to arrive somewhere that blocks, not somewhere that logs."""
+    monkeypatch.setattr(checker, "_ls_files_eol", lambda *_a, **_k: "garbage\0")
+
+    assert checker.validate_index_line_endings(REPO_ROOT) is False
+    assert checker.main(["--repo-root", str(REPO_ROOT)]) == 2
 
 
 def test_empty_output_is_clean() -> None:
+    """A repository with nothing tracked is the one legitimate empty result."""
     assert checker.parse_violations("") == ([], 0)
+
+
+def test_the_trailing_empty_record_of_z_output_is_not_malformed() -> None:
+    """`-z` terminates rather than separates, so the split always leaves one.
+
+    Treating it as malformed would make every real scan raise.
+    """
+    violations, examined = checker.parse_violations(
+        "i/lf  w/lf  attr/text eol=lf     \tdocs/a.md\0"
+    )
+
+    assert (violations, examined) == ([], 1)
 
 
 def test_examined_counts_every_row_not_just_violations() -> None:

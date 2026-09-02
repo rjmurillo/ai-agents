@@ -26,6 +26,7 @@ the one that runs when Python changed.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -74,10 +75,13 @@ def test_ci_runs_the_index_line_endings_gate() -> None:
 
 
 def test_the_gate_job_is_not_path_filtered() -> None:
-    """The defect's own shape turns the Python path filter false.
+    """A whole-tree gate must not inherit a diff-shaped condition.
 
-    A CRLF blob under a `.md` path leaves `python-changed` false, so any job
-    gated on it is skipped exactly when this gate is needed.
+    Not `.md`: `test_the_filter_gap_this_job_exists_for_is_real` below proves
+    `**/*.md` is in the filter, so a Markdown-only change does run the
+    filtered job. The uncovered text paths are the ones that matter here,
+    `**/*.xml` and 15 of the 16 tracked `.sh` files, and a job gated on
+    `python-changed` is skipped for exactly those.
     """
     for job_id, job in _gate_jobs().items():
         assert "needs" not in job, (
@@ -189,6 +193,7 @@ def _tracked(pattern: str) -> list[str]:
     ]
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 def test_the_filter_gap_this_job_exists_for_is_real() -> None:
     """Pin the rationale so the comment above the job cannot rot into fiction.
 
