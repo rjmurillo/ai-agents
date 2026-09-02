@@ -272,6 +272,22 @@ def has_commits(repo_root: Path) -> bool:
     return False
 
 
+def top_level(repo_root: Path) -> Path:
+    """The root of the whole working tree, whatever directory was named.
+
+    `git ls-files` lists the subtree under its current directory, so a scan
+    started from a subdirectory silently covers only that subtree. Measured on
+    git 2.51.0 in a repository holding one bad blob under `other/`:
+    `git ls-files --eol` returns 2 rows from the top level and 0 from `sub/`.
+    `--repo-root` defaults to `.`, so running the CLI from anywhere but the
+    root would exit 0 over a repository this gate exists to fail.
+
+    This is also the value `refuses_write_from_outside` compares against, so
+    resolving it here keeps the read scope and the write target the same tree.
+    """
+    return Path(run_git(repo_root, ["rev-parse", "--show-toplevel"]).stdout.strip()).resolve()
+
+
 def git_path(repo_root: Path, relative: str) -> Path:
     """Where git keeps `relative`, as an absolute path.
 

@@ -72,6 +72,7 @@ def _repo_with_crlf_blob(tmp_path: Path, name: str = "handoff.md") -> Path:
     _git(repo, "add", ".gitattributes")
 
     crlf = repo / name
+    crlf.parent.mkdir(parents=True, exist_ok=True)
     crlf.write_bytes(b"line one\r\nline two\r\n")
     blob = _git(repo, "hash-object", "-w", "--no-filters", str(crlf)).stdout.strip()
     _git(repo, "update-index", "--add", "--cacheinfo", f"100644,{blob},{name}")

@@ -26,7 +26,11 @@ Two scopes are read, because they answer different questions and can disagree:
   committing it leaves `HEAD` bad, and scanning only the index would call that
   clean.
 
-Exit codes follow ADR-035: 0 clean, 1 violations found, 2 git unavailable.
+Exit codes follow ADR-035: 0 clean, 1 violations found, 2 configuration or
+tooling error. That last one covers more than an absent git: a git too old for
+`GIT_ATTR_SOURCE`, producer output this parser cannot read, a local
+`info/attributes` that outranks the pinned attribute source, a `--fix` target
+the process is not standing in, and a renormalize that did not take effect.
 """
 
 from __future__ import annotations
@@ -61,9 +65,11 @@ from scripts.validation.index_line_endings_git import (  # noqa: E402
     require_attr_source,
     run_git,
     run_git_paths,
+    top_level,
 )
 from scripts.validation.index_line_endings_record import (  # noqa: E402
     Violation,
+    display_path,
     is_spellable,
     parse_violations,
     shell_argument,
@@ -184,7 +190,15 @@ def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
 
     A path bad in both scopes is reported once, under HEAD, because that is the
     scope a push transmits and one remediation fixes both.
+
+    The root is resolved to git's top level here rather than in the callers,
+    because every caller needs it and the failure is silent: `git ls-files`
+    lists the subtree under its working directory, so a HEAD scan rooted at a
+    subdirectory reports that subtree clean and says nothing about the rest.
+    The index scope is already immune, since it points `GIT_DIR` at the
+    repository and runs git from an empty directory outside it.
     """
+    repo_root = top_level(repo_root)
     violations: list[Violation] = []
     examined = 0
     require_attr_source(repo_root)
@@ -200,16 +214,26 @@ def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
             )
 
     seen = {violation.path for violation in violations}
+    staged, staged_examined = index_violations(repo_root)
+    violations.extend(v for v in staged if v.path not in seen)
+    return violations, max(examined, staged_examined)
+
+
+def index_violations(repo_root: Path) -> tuple[list[Violation], int]:
+    """The index scope on its own, judged by the attributes the index stores.
+
+    Separate from `check_repository` because `renormalize` needs this scope
+    alone. `check_repository` reports a path bad in both scopes once, under
+    HEAD, so its output cannot say whether the index half was fixed.
+    """
     # The empty directory is the whole mechanism, and git has to be run from
     # inside it: `GIT_WORK_TREE` alone does not stop git reading a
     # `.gitattributes` it can still see from the current directory.
     with tempfile.TemporaryDirectory() as scratch:
         index_env = _index_env(repo_root, Path(scratch))
-        staged, staged_examined = parse_violations(
+        return parse_violations(
             _ls_files_eol(empty_worktree(Path(scratch)), env=index_env), scope="index"
         )
-    violations.extend(v for v in staged if v.path not in seen)
-    return violations, max(examined, staged_examined)
 
 
 def _report(violations: list[Violation], examined: int) -> None:
@@ -290,20 +314,48 @@ def refuses_write_from_outside(repo_root: Path) -> bool:
 
 
 def renormalize(repo_root: Path, violations: list[Violation]) -> None:
-    """Run `git add --renormalize` on the violating paths, without a shell.
+    """Run `git add --renormalize` on the violating paths, then check it worked.
 
     Paths reach git as argv entries, so a filename carrying shell syntax is
     inert. `--` stops a leading-dash filename from parsing as an option.
+
+    The re-scan is not belt and braces. `git add --renormalize` applies the
+    clean filter according to the *working tree's* `.gitattributes`, while the
+    index scope judged the blob by the *staged* one, and the two can disagree.
+    Measured on git 2.51.0 with `*.md text` staged and an unstaged
+    `handoff.md -text` on disk: the gate reports the staged CRLF blob, `git add
+    --renormalize` exits 0, and the index blob is still `i/crlf`. Without this
+    check the run would print "renormalized 1 path(s); commit the result" over
+    a blob it did not change, which is a worse outcome than not offering `--fix`
+    at all: the operator commits and pushes believing it is fixed.
+
+    The scope checked is the index alone. `check_repository` folds a path bad
+    in both scopes into one HEAD entry, so its output cannot distinguish a
+    renormalize that worked from one that did nothing.
     """
     if not violations:
         return
     paths = sorted({violation.path for violation in violations})
     run_git(repo_root, ["add", "--renormalize", "--", *paths])
+    remaining, _ = index_violations(repo_root)
+    unfixed = sorted(set(paths) & {violation.path for violation in remaining})
+    if unfixed:
+        rendered = ", ".join(display_path(path) for path in unfixed)
+        raise RuntimeError(
+            f"git add --renormalize left {len(unfixed)} of {len(paths)} path(s) "
+            f"still contradicting their staged attributes: {rendered}. "
+            "`git add` applies the clean filter by the working tree's "
+            ".gitattributes and this check judges the blob by the staged one, "
+            "so an uncommitted attribute edit makes the remediation a no-op. "
+            "Stage or revert that edit and re-run."
+        )
     print(f"index-line-endings: renormalized {len(paths)} path(s); commit the result")
 
 
 def validate_index_line_endings(repo_root: Path) -> bool:
-    """Blocking pre-PR gate. Returns False when any blob contradicts its attrs."""
+    """Blocking pre-PR gate. Returns False when any blob contradicts its attrs.
+
+    """
     try:
         violations, examined = check_repository(repo_root)
     except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
@@ -327,13 +379,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    repo_root = Path(args.repo_root).resolve()
+    requested = Path(args.repo_root).resolve()
     # Separate from validate_index_line_endings so a broken git invocation
     # exits 2 (config error) instead of 1 (violations found). Collapsing the
     # two would report "line endings are wrong" when git never ran.
     try:
-        if args.fix and refuses_write_from_outside(repo_root):
+        # The write guard runs against the directory the operator named, before
+        # anything resolves it. Resolving first would hand the guard the tree a
+        # redirecting `core.worktree` chose, which is the disagreement it exists
+        # to report rather than to adopt.
+        if args.fix and refuses_write_from_outside(requested):
             return 2
+        # `git ls-files` lists the subtree under its working directory, so the
+        # scan root has to be the whole tree, not whatever directory was typed.
+        repo_root = top_level(requested)
         violations, examined = check_repository(repo_root)
         _report(violations, examined)
         if args.fix:

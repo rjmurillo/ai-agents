@@ -82,6 +82,70 @@ def test_fix_mode_renormalizes_a_leading_dash_filename(
     assert _staged_against_head(repo) == ["--intent-to-add.md"]  # the blob was renormalized
 
 
+def test_fix_refuses_to_claim_a_renormalize_the_working_tree_prevented(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """`git add` reads the working tree; this gate judges by the staged index.
+
+    Measured on git 2.51.0 with `*.md text` staged and an unstaged
+    `handoff.md -text` on disk: the gate reports the staged CRLF blob,
+    `git add --renormalize` exits 0, and the index blob is still `i/crlf`.
+    Printing "renormalized 1 path(s); commit the result" over that is worse
+    than offering no `--fix` at all, because the operator commits and pushes
+    believing it is fixed.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    (repo / ".gitattributes").write_text(
+        "* text=auto eol=lf\n*.md text\nhandoff.md -text\n", newline="\n"
+    )
+    monkeypatch.chdir(repo)
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 2
+
+    err = capsys.readouterr().err
+    assert "still contradicting their staged attributes" in err
+    assert "handoff.md" in err
+
+
+def test_fix_reports_success_only_when_the_blob_actually_changed(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """Control: with the attributes agreeing, the success line is earned."""
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    monkeypatch.chdir(repo)
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
+
+    assert "renormalized 1 path(s); commit the result" in capsys.readouterr().out
+    assert _staged_against_head(repo) == ["handoff.md"]
+
+
+def test_a_scan_started_from_a_subdirectory_still_sees_the_whole_tree(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """`git ls-files` lists the subtree under its working directory.
+
+    Measured on git 2.51.0 against a repository holding one bad blob under
+    `other/`: `git ls-files --eol` returns 2 rows from the top level and 0 from
+    `sub/`. With `--repo-root` defaulting to `.`, running the CLI from anywhere
+    but the root would exit 0 over a repository this gate exists to fail.
+    """
+    repo = _repo_with_crlf_blob(tmp_path, name="other/bad.md")
+    # Committed, so the HEAD scope runs. The index scope is already immune:
+    # it points `GIT_DIR` at the repository and runs git from an empty
+    # directory outside it, so no working directory scopes it.
+    _commit(repo, "plant a CRLF blob under other/")
+    subdirectory = repo / "sub"
+    subdirectory.mkdir()
+    monkeypatch.chdir(subdirectory)
+
+    violations, _ = checker.check_repository(Path.cwd())
+
+    assert [(v.path, v.scope) for v in violations] == [("other/bad.md", "HEAD")]
+    assert checker.main(["--repo-root", "."]) == 1
+
+
 def test_fix_mode_then_commit_clears_the_gate(tmp_path: Path, monkeypatch) -> None:
     repo = _repo_with_crlf_blob(tmp_path)
     _commit(repo, "plant a CRLF blob")
