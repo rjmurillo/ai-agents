@@ -17,6 +17,8 @@ duplicating the registry while preserving early failure before expensive jobs.
 
 from __future__ import annotations
 
+import concurrent.futures
+import os
 import shutil
 import sys
 import time
@@ -91,6 +93,20 @@ RATCHETS: tuple[Ratchet, ...] = (
         "merge-tree-ratchet",
         "scripts/ci/merge_tree_ratchet_check.py",
         True,
+        True,
+    ),
+    # Issue #5482. This ratchet was the only one CI ran that no local gate did.
+    # Its local twin, check_subprocess_encoding.py, reads
+    # `git ls-files scripts/*.py scripts/**/*.py`: 469 of the 2198 tracked
+    # Python files. The detector was never the difference, the ratchet imports
+    # that module's own find_all_violations and runs it over the whole tree, so
+    # 78% of tracked Python could fail CI after passing every local check.
+    # Measured on PR #5476: a violation in tests/validation/ passed pre-commit,
+    # pre-push and pre_pr, then failed CI at 239 against a baseline of 238.
+    Ratchet(
+        "subprocess-encoding-count-ratchet",
+        "scripts/ci/subprocess_encoding_count_ratchet.py",
+        False,
         True,
     ),
 )
@@ -191,6 +207,63 @@ def _prepare_base_oid(repo_root: Path) -> str | None:
     return _resolve_base_oid(repo_root, base_ref)
 
 
+def _run_ratchets(
+    repo_root: Path,
+    base_oid: str,
+) -> dict[str, tuple[int, str, str]]:
+    """Run every ratchet concurrently; return each result by job name.
+
+    Concurrent rather than sequential because the registry's cost is dominated
+    by a few entries: measured warm on this tree, merge-tree 22.9s,
+    subprocess-encoding 33.7s and cli-exit-contract 15.6s against 0.1s to 2.6s
+    for the other six. One shared deadline over a sequential loop spends that
+    budget in registry order, so the last entry runs on whatever is left and is
+    the one that times out; observed on a cold run, where merge-tree,
+    registered last, reported "Command timed out after 33s" and then passed on
+    retry with no code change.
+
+    Measured A/B over this registry: 84.2s sequential against an 85 second
+    deadline, 51.4s concurrent. Sequential is what made the
+    subprocess-encoding entry unshippable, not the entry itself.
+
+    Every registered ratchet only reads: none of the scripts issues a git
+    command that writes (`add`, `commit`, `checkout`, `reset`, `read-tree`,
+    `update-index`, `stash`, `fetch`), and the one fetch the gate needs happens
+    once in `_prepare_base_oid` before this call. So there is no index lock to
+    contend over.
+
+    The deadline stays absolute. Each ratchet is given the budget remaining
+    when it starts, so a hung entry cannot push the gate past its 90 second
+    lefthook timeout, and an entry that never starts is reported as a failure
+    rather than silently skipped.
+    """
+    deadline = time.monotonic() + _AGGREGATE_TIMEOUT_SECONDS
+    # Threads, not processes: each worker only waits on a subprocess, so the
+    # GIL is released for the whole of it.
+    workers = min(len(RATCHETS), os.cpu_count() or 4)
+    results: dict[str, tuple[int, str, str]] = {}
+
+    def run_one(ratchet: Ratchet) -> tuple[int, str, str]:
+        remaining_seconds = int(deadline - time.monotonic())
+        if remaining_seconds <= 0:
+            return -1, "", "aggregate timeout exhausted before this ratchet started"
+        # Bound before returning: _run_subprocess is untyped to mypy, so
+        # returning its result directly reports no-any-return here, where the
+        # old tuple-unpacking loop happened to hide it.
+        exit_code, stdout, stderr = _run_subprocess(
+            build_command(ratchet, base_oid),
+            cwd=repo_root,
+            timeout=remaining_seconds,
+        )
+        return exit_code, stdout, stderr
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(run_one, r): r for r in RATCHETS}
+        for future in concurrent.futures.as_completed(futures):
+            results[futures[future].job_name] = future.result()
+    return results
+
+
 def validate_count_ratchets(repo_root: Path) -> bool:
     """Run every ratchet in :data:`RATCHETS`; return True when all pass.
 
@@ -222,23 +295,12 @@ def validate_count_ratchets(repo_root: Path) -> bool:
     if base_oid is None:
         return False
 
+    results = _run_ratchets(repo_root, base_oid)
     failures: list[str] = []
-    deadline = time.monotonic() + _AGGREGATE_TIMEOUT_SECONDS
+    # Reported in registry order, not completion order, so the output is stable
+    # across runs and a diff between two runs shows a real change.
     for ratchet in RATCHETS:
-        remaining_seconds = int(deadline - time.monotonic())
-        if remaining_seconds <= 0:
-            failures.append(ratchet.job_name)
-            print(
-                f"[FAIL] {ratchet.job_name} not run: aggregate timeout exhausted.",
-                file=sys.stderr,
-            )
-            continue
-        cmd = build_command(ratchet, base_oid)
-        exit_code, stdout, stderr = _run_subprocess(
-            cmd,
-            cwd=repo_root,
-            timeout=remaining_seconds,
-        )
+        exit_code, stdout, stderr = results[ratchet.job_name]
         if exit_code != 0:
             failures.append(ratchet.job_name)
             _print_output(ratchet.job_name, stdout, stderr)
