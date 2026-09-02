@@ -1,14 +1,10 @@
 # Retrospective: pr5343-round-cap-handoff
 
 ## Session Info
-
 - **Date**: 2026-09-01
 - **Agents**: Claude Code (Claude Sonnet 5)
 - **Task Type**: Bug
-
-Task: take over PR #5343 (`claude/fix-4632-build-all-check-fails-open`) after
-`pr-autofix`'s round-cap breaker tripped (6 rounds recorded, cap 5; 9.3h wall
-clock, cap 4.0h) and explicitly asked for human or session review.
+- **Outcome**: Partial
 
 ## Failure Mode Classification
 
@@ -28,6 +24,10 @@ No new class is proposed. Class 4's detection bullets already cover both, so
 the gap is enforcement, not taxonomy.
 
 ## Phase 0: Data Gathering
+
+Task: take over PR #5343 (`claude/fix-4632-build-all-check-fails-open`) after
+`pr-autofix`'s round-cap breaker tripped (6 rounds recorded, cap 5; 9.3h wall
+clock, cap 4.0h) and explicitly asked for human or session review.
 
 The round-cap breaker comment named no specific failure, only that automated
 work had stopped. `Run Python Tests` was red on the PR's head commit
@@ -131,7 +131,7 @@ than an open question.
 | Negative control per guard-bearing test | Keep | Already proved its worth twice in this session |
 | Mock at the real I/O boundary | Modify | Was "mock the helper"; now "raise the raw error where production catches it" |
 | Run the touched suite before pushing | Add | The pre-push `python-tests` job did not block this commit, and until that is explained an author-run suite is the only check under the author's control |
-| Re-acquire the `pr-autofix` lease immediately before pushing | Add | Neither session held it, and `renew` does not extend `expires_at` |
+| Renew the `pr-autofix` lease immediately before pushing | Add | Neither session held it at push time, and a lease acquired before a long local edit has usually lapsed by then |
 | Derive the fix from the review comment alone | Drop | The comment named a symptom; the handler and its caller had to be read |
 
 ### SMART Validation
@@ -141,9 +141,16 @@ than an open question.
   `test_build_all.py`), relevant (this failure), time-bound (before each push).
   It does not replace the pre-push `python-tests` job; it is the check the
   author controls while that job's miss is unexplained.
-- "Re-acquire the lease immediately before pushing" is specific (an `acquire`
-  call, not `renew`), measurable (the returned action field), achievable (one
-  call), relevant (the concurrent-session finding), time-bound (per push).
+- "Renew the lease immediately before pushing" is specific (a `renew` or
+  `acquire` call, either works), measurable (the returned action field),
+  achievable (one call), relevant (the concurrent-session finding), time-bound
+  (per push). An earlier draft justified this by claiming `renew` does not
+  extend `expires_at`. That is wrong: `renew` writes a fresh expiry when the
+  lease is inside `RENEW_SKIP_MARGIN` (five minutes) and re-claims a free or
+  expired one, and is a deliberate no-op only while the TTL is still ample
+  (issue #5160, `test_renew_on_own_live_lease_extends_ttl` and
+  `test_renew_on_free_lease_re_claims`). The action stands on the timing, not
+  on a defect in `renew`.
 
 ### Action Sequence
 
@@ -175,7 +182,7 @@ than an open question.
 
 - **Statement**: A lease held at first mutation is not held at push time.
 - **Atomicity Score**: 90%
-- **Evidence**: Two concurrent sessions pushed to this branch in one window; the 15 minute TTL lapses during local work and `renew` does not extend `expires_at`.
+- **Evidence**: Two concurrent sessions pushed to this branch in one window, and a 15 minute TTL acquired before a long local edit has lapsed by push time.
 - **Skill Operation**: ADD
 - **Target Skill ID**: n/a
 
@@ -186,7 +193,7 @@ than an open question.
 ```json
 {
   "skill_id": "pr-autofix-lease-at-push-time",
-  "statement": "Re-acquire the pr-autofix lease immediately before pushing, not only before the first mutation.",
+  "statement": "Renew the pr-autofix lease immediately before pushing, not only before the first mutation.",
   "context": "Any pr-autofix session whose local work can outlast the 15 minute lease TTL.",
   "evidence": "PR #5343: two concurrent sessions pushed in one window, one of them red. Issue #5486.",
   "atomicity": 90
@@ -245,7 +252,7 @@ not a retrieval aid.
 #### Delta Change
 
 - Run the suite covering the touched module before pushing, not after.
-- Re-acquire the `pr-autofix` lease immediately before the push.
+- Renew the `pr-autofix` lease immediately before the push.
 
 ### Delta Triage
 
@@ -302,7 +309,7 @@ not a retrieval aid.
 
 #### Hypothesis
 
-- If a session re-acquires the lease immediately before pushing, the two-sessions-one-branch pattern that produced the red commit cannot recur. Issue #5486 is the experiment.
+- If a session renews the lease immediately before pushing, the two-sessions-one-branch pattern that produced the red commit cannot recur. Issue #5486 is the experiment.
 
 ## Process Observation
 
