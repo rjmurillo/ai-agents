@@ -249,8 +249,13 @@ def _report(violations: list[Violation], examined: int, remediable: set[str]) ->
         print(f"  {violation.render()}")
     if violations:
         print(f"index-line-endings: {len(violations)} blob(s) contradict gitattributes")
-        print(f"  Fix: {REMEDIATION}")
-        print("  Or re-run this check with --fix, which calls git directly.")
+        # Both lines describe renormalizing, which is a no-op on a path the
+        # index no longer holds wrong. `_print_paste_command` tells the
+        # operator to commit instead, and two contradictory instructions are
+        # worse than the one that applies.
+        if remediable:
+            print(f"  Fix: {REMEDIATION}")
+            print("  Or re-run this check with --fix, which calls git directly.")
         _print_paste_command(violations, remediable)
     print(f"index-line-endings: {len(violations)} violation(s) in {examined} tracked files")
 

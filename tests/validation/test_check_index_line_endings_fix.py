@@ -21,6 +21,7 @@ import pytest
 
 from scripts.validation import check_index_line_endings as checker
 from scripts.validation import index_line_endings_record as record
+from scripts.validation.check_index_line_endings import REMEDIATION
 from tests.validation.index_line_endings_helpers import (
     _commit,
     _git,
@@ -184,6 +185,9 @@ def test_fix_skips_a_head_only_path_the_index_no_longer_holds(
     assert "git add --renormalize --" not in out
     assert "1 path(s) are wrong in HEAD only" in out
     assert "commit the staged result" in out
+    # And no contradicting advice alongside it: renormalizing is a no-op here.
+    assert REMEDIATION not in out
+    assert "re-run this check with --fix" not in out
 
 
 def test_fix_mode_on_a_clean_repository_is_a_no_op(tmp_path: Path, monkeypatch) -> None:
