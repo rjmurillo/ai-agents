@@ -32,8 +32,6 @@ Exit codes follow ADR-035: 0 clean, 1 violations found, 2 git unavailable.
 from __future__ import annotations
 
 import argparse
-import os
-import re
 import subprocess
 import sys
 import tempfile
@@ -55,6 +53,13 @@ _VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "model
 if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from scripts.validation.index_line_endings_git import (  # noqa: E402
+    git_environment,
+    has_commits,
+    require_attr_source,
+    run_git,
+    run_git_paths,
+)
 from scripts.validation.index_line_endings_record import (  # noqa: E402
     Violation,
     is_spellable,
@@ -63,122 +68,6 @@ from scripts.validation.index_line_endings_record import (  # noqa: E402
 )
 
 REMEDIATION = "git add --renormalize <path>, then commit the result"
-
-_GIT_TIMEOUT_SECONDS = 120
-
-# The git that first documented `GIT_ATTR_SOURCE`. See `_require_attr_source`
-# for the tagged-source evidence and for why 2.40 is not the floor.
-_MINIMUM_GIT_VERSION = (2, 41)
-
-
-def _git_environment() -> dict[str, str]:
-    """The ambient environment with every ``GIT_*`` variable removed.
-
-    ``cwd=repo_root`` does not win against an exported ``GIT_DIR``,
-    ``GIT_WORK_TREE`` or ``GIT_INDEX_FILE``. That matters twice here. The scan
-    would read a repository nobody asked about and report its blobs under this
-    root's name, and ``--fix`` would stage into that other repository after
-    ``refuses_write_from_outside`` had already approved the current directory,
-    which is exactly the disagreement that guard exists to stop. An ambient
-    ``GIT_INDEX_FILE`` also collapses the two scopes: the working-index pass
-    would read whatever index the variable names instead of the repository's.
-
-    This is not hypothetical for this gate. ``git push`` exports ``GIT_DIR``
-    into the pre-push hook from a linked worktree (issue #4914), and pre-push
-    is one of the two places this gate runs.
-
-    Mirrors ``scripts/ci/count_ratchet.py::git_environment``, whose rule is
-    verbatim::
-
-        return {
-            name: value
-            for name, value in os.environ.items()
-            if not name.upper().startswith("GIT_")
-        }
-
-    ``name.upper()`` is kept, so a lowercased ``git_dir`` that a
-    case-insensitive platform folds into ``GIT_DIR`` is stripped here too.
-
-    Stricter/looser/different than canonical: identical in what it strips. The
-    canonical helper's own docstring records the narrowing it already made
-    against ``scripts/ci/merge_tree_materialization.py::isolated_git_environment``,
-    which additionally drops ``GNUPGHOME``, ``HOME``, ``LEFTHOOK``,
-    ``USERPROFILE`` and ``XDG_CONFIG_HOME``. This gate inherits that narrowing
-    for the same reason the ratchet did: it runs git against the real checkout,
-    where a global ``safe.directory`` entry written by ``actions/checkout`` is
-    load-bearing.
-
-    Returns a fresh dict; ``os.environ`` is never mutated.
-    """
-    return {
-        name: value
-        for name, value in os.environ.items()
-        if not name.upper().startswith("GIT_")
-    }
-
-
-def _git(
-    repo_root: Path,
-    args: list[str],
-    env: dict[str, str] | None = None,
-) -> subprocess.CompletedProcess[str]:
-    """Run a git command, raising RuntimeError on a non-zero exit.
-
-    `env=None` means the stripped environment, never the ambient one: see
-    `_git_environment`. A caller that passes its own env has already built it
-    on top of that helper.
-    """
-    result = subprocess.run(
-        ["git", *args],
-        cwd=repo_root,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=_GIT_TIMEOUT_SECONDS,
-        check=False,
-        env=_git_environment() if env is None else env,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"git {' '.join(args)} failed ({result.returncode}): "
-            f"{(result.stderr or '').strip()}"
-        )
-    return result
-
-
-def _git_paths(repo_root: Path, args: list[str], env: dict[str, str] | None = None) -> str:
-    """Run a git command whose stdout carries pathnames, decoded losslessly.
-
-    A pathname is bytes on POSIX, not text. Capturing this output through
-    `encoding="utf-8", errors="replace"` maps every undecodable byte to
-    U+FFFD, and that mapping cannot be reversed: the gate would report a name
-    the repository does not hold, print a renormalize command for it, and hand
-    `--fix` a path git cannot find. So stdout is captured raw and decoded once
-    with `surrogateescape`, which round-trips. Python re-encodes argv with
-    `os.fsencode`, which reverses the same escapes, so a path read here goes
-    back to git as the exact bytes git emitted.
-
-    Bytes mode is also why this call does not carry the repository's
-    `errors="replace"` subprocess convention: there is no text decoding for
-    that keyword to govern. `check_subprocess_encoding.py` scopes itself to
-    calls that pin `encoding="utf-8"`, so this one is out of scope by
-    construction rather than by suppression.
-
-    `env=None` carries the same meaning as in `_git`: the stripped
-    environment, never the ambient one.
-    """
-    result = subprocess.run(
-        ["git", *args],
-        cwd=repo_root,
-        capture_output=True,
-        timeout=_GIT_TIMEOUT_SECONDS,
-        check=False,
-        env=_git_environment() if env is None else env,
-    )
-    if result.returncode != 0:
-        stderr = result.stderr.decode("utf-8", "replace").strip()
-        raise RuntimeError(f"git {' '.join(args)} failed ({result.returncode}): {stderr}")
-    return result.stdout.decode("utf-8", "surrogateescape")
 
 
 def _ls_files_eol(repo_root: Path, env: dict[str, str] | None = None) -> str:
@@ -189,7 +78,7 @@ def _ls_files_eol(repo_root: Path, env: dict[str, str] | None = None) -> str:
     be reported under its display spelling and the remediation would name a file
     that does not exist.
     """
-    return _git_paths(repo_root, ["ls-files", "--eol", "-z"], env=env)
+    return run_git_paths(repo_root, ["ls-files", "--eol", "-z"], env=env)
 
 
 def _head_env(repo_root: Path, index_path: str) -> dict[str, str]:
@@ -200,85 +89,19 @@ def _head_env(repo_root: Path, index_path: str) -> dict[str, str]:
     blobs by rules HEAD does not carry: adding `-text` locally would hide a
     committed violation, and removing it would invent one. `GIT_ATTR_SOURCE`
     pins the attributes to the same tree as the blobs, so the HEAD scope
-    answers one question about one commit. `_require_attr_source` is what
+    answers one question about one commit. `require_attr_source` is what
     makes that pin something the caller can rely on.
 
-    The base is `_git_environment()`, not `os.environ.copy()`. Copying the
+    The base is `git_environment()`, not `os.environ.copy()`. Copying the
     ambient environment would carry an exported `GIT_DIR` into the isolated
     scan, so the two variables set below would isolate the index of a
     repository other than `repo_root`.
     """
-    env = _git_environment()
+    env = git_environment()
     env["GIT_INDEX_FILE"] = index_path
     env["GIT_ATTR_SOURCE"] = "HEAD"
-    _git(repo_root, ["read-tree", "HEAD"], env=env)
+    run_git(repo_root, ["read-tree", "HEAD"], env=env)
     return env
-
-
-def _git_version(repo_root: Path) -> tuple[int, int]:
-    """The running git's `(major, minor)`.
-
-    Only the first two components are read. Distributors append their own:
-    `git version 2.39.5 (Apple Git-154)` and `git version 2.45.1.windows.1`
-    are both real spellings, and neither parses as a plain three-part version.
-    """
-    text = _git(repo_root, ["--version"]).stdout.strip()
-    match = re.match(r"git version (\d+)\.(\d+)", text)
-    if match is None:
-        raise RuntimeError(f"could not read a version out of git --version: {text!r}")
-    return int(match.group(1)), int(match.group(2))
-
-
-def _require_attr_source(repo_root: Path) -> None:
-    """Refuse to answer on a git that does not know `GIT_ATTR_SOURCE`.
-
-    Both scopes pin their attribute source with that variable. A git that does
-    not know it ignores it: no error, no warning, no exit code, just the
-    working tree's `.gitattributes` silently answering for a tree it does not
-    describe. That is the failure `.claude/rules/ci-scripts.md` MUST-12 names,
-    a run that did nothing reporting the same way as a run that succeeded, so
-    this raises and reaches the exit-2 path in `main` and the False verdict in
-    `validate_index_line_endings`.
-
-    The floor is 2.41, read out of the tagged sources rather than recalled.
-    `Documentation/git.txt` at `v2.40.0` contains neither `GIT_ATTR_SOURCE`
-    nor `--attr-source`. At `v2.41.0` it contains both, the option verbatim::
-
-        --attr-source=<tree-ish>::
-            Read gitattributes from <tree-ish> instead of the worktree. See
-            linkgit:gitattributes[5]. This is equivalent to setting the
-            `GIT_ATTR_SOURCE` environment variable.
-
-    and the variable verbatim::
-
-        `GIT_ATTR_SOURCE`::
-            Sets the treeish that gitattributes will be read from.
-
-    2.40 is the wrong floor and an earlier revision of this file said so. Its
-    release notes read "git check-attr" learned to take an optional tree-ish
-    to read the .gitattributes file from, which is `git check-attr` only. The
-    2.41 notes carry the general form, "git --attr-source=<tree> cmd $args" is
-    a new way to have any command to read attributes not from the working tree
-    but from the given tree object, and `git ls-files --eol` is one of those
-    any-commands.
-
-    The repository declares no git floor: no version constraint appears in
-    `AGENTS.md` or `.agents/governance/PROJECT-CONSTRAINTS.md`, and a
-    repository-wide search finds only measurements pinned to a version that
-    was observed, never a minimum. So this gate carries its own.
-    """
-    version = _git_version(repo_root)
-    if version >= _MINIMUM_GIT_VERSION:
-        return
-    running = ".".join(str(part) for part in version)
-    required = ".".join(str(part) for part in _MINIMUM_GIT_VERSION)
-    raise RuntimeError(
-        f"git {running} predates GIT_ATTR_SOURCE, which git {required} added. "
-        "Both scopes of this check pin their attribute source with that "
-        "variable, and an older git ignores it without saying so, judging "
-        "stored blobs by whatever .gitattributes the working tree happens to "
-        f"hold. Upgrade to git {required} or newer."
-    )
 
 
 def _index_env(repo_root: Path, empty_worktree: Path) -> dict[str, str]:
@@ -322,25 +145,10 @@ def _index_env(repo_root: Path, empty_worktree: Path) -> dict[str, str]:
     checkout, git reads that checkout's `.gitattributes` and the isolation does
     nothing.
     """
-    env = _git_environment()
-    env["GIT_DIR"] = _git(repo_root, ["rev-parse", "--absolute-git-dir"]).stdout.strip()
+    env = git_environment()
+    env["GIT_DIR"] = run_git(repo_root, ["rev-parse", "--absolute-git-dir"]).stdout.strip()
     env["GIT_WORK_TREE"] = str(empty_worktree)
     return env
-
-
-def _has_commits(repo_root: Path) -> bool:
-    """Return True when HEAD resolves, False for an unborn branch."""
-    result = subprocess.run(
-        ["git", "rev-parse", "--verify", "--quiet", "HEAD"],
-        cwd=repo_root,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=_GIT_TIMEOUT_SECONDS,
-        check=False,
-        env=_git_environment(),
-    )
-    return result.returncode == 0
 
 
 def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
@@ -351,9 +159,9 @@ def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
     """
     violations: list[Violation] = []
     examined = 0
-    _require_attr_source(repo_root)
+    require_attr_source(repo_root)
 
-    if _has_commits(repo_root):
+    if has_commits(repo_root):
         # NamedTemporaryFile would hand git an existing empty file, which
         # read-tree rejects as a malformed index, so reserve a name instead.
         with tempfile.TemporaryDirectory() as scratch:
@@ -435,11 +243,11 @@ def refuses_write_from_outside(repo_root: Path) -> bool:
     sibling directory, ``git rev-parse --show-toplevel`` run from inside the
     checkout returned the sibling, so a guard comparing the current directory
     to ``--repo-root`` passes while git writes somewhere else entirely. The
-    same rule warns about ``GIT_WORK_TREE``; ``_git_environment`` already
+    same rule warns about ``GIT_WORK_TREE``; ``git_environment`` already
     strips that one, which is why the probe below is run through it.
     """
     cwd = Path.cwd().resolve()
-    top_level = Path(_git(repo_root, ["rev-parse", "--show-toplevel"]).stdout.strip()).resolve()
+    top_level = Path(run_git(repo_root, ["rev-parse", "--show-toplevel"]).stdout.strip()).resolve()
     if cwd.is_relative_to(top_level):
         return False
     print(
@@ -462,7 +270,7 @@ def renormalize(repo_root: Path, violations: list[Violation]) -> None:
     if not violations:
         return
     paths = sorted({violation.path for violation in violations})
-    _git(repo_root, ["add", "--renormalize", "--", *paths])
+    run_git(repo_root, ["add", "--renormalize", "--", *paths])
     print(f"index-line-endings: renormalized {len(paths)} path(s); commit the result")
 
 
