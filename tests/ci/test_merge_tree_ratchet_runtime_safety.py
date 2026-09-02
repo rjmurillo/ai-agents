@@ -111,7 +111,9 @@ def test_a_budget_that_covers_the_reserve_runs_every_counter(tmp_path: Path) -> 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 @pytest.mark.usefixtures("_zero_non_target_aggregate_counts")
 def test_preparation_spends_the_same_deadline_the_counters_do(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Issue #5441 review: the default deadline starts before preparation.
 
@@ -127,31 +129,32 @@ def test_preparation_spends_the_same_deadline_the_counters_do(
     """
     repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
     real_prepare = _m._prepare_merged_tree
+    start = time.monotonic()
 
-    def slow_prepare(root: Path, base_ref: str):
+    def exhausted_clock() -> float:
+        return start + _m._TIMEOUT_SECONDS + 1
+
+    def slow_prepare(
+        root: Path, base_ref: str
+    ) -> tuple[str | None, str | None, int]:
         result = real_prepare(root, base_ref)
         # Burn more than _TIMEOUT_SECONDS of the caller's window without
-        # sleeping: move the clock, not the wall.
-        _m.time.monotonic = lambda _base=start: _base + _m._TIMEOUT_SECONDS + 1
+        # sleeping: move the clock, not the wall. monkeypatch restores it.
+        monkeypatch.setattr(_m.time, "monotonic", exhausted_clock)
         return result
 
-    start = time.monotonic()
-    real_monotonic = _m.time.monotonic
-    try:
-        with (
-            patch.object(_m, "_prepare_merged_tree", side_effect=slow_prepare),
-            # Real values, so the old ordering fails the assertions below
-            # rather than blowing up comparing a MagicMock to a baseline.
-            patch(
-                "scripts.ci.ruff_count_ratchet.current_count", return_value=0
-            ) as ruff_counter,
-            patch(
-                "scripts.ci.taste_count_ratchet.current_count", return_value=0
-            ) as taste_counter,
-        ):
-            rc = _m._evaluate_merged_tree(repo, "HEAD")
-    finally:
-        _m.time.monotonic = real_monotonic
+    with (
+        patch.object(_m, "_prepare_merged_tree", side_effect=slow_prepare),
+        # Real values, so the old ordering fails the assertions below
+        # rather than blowing up comparing a MagicMock to a baseline.
+        patch(
+            "scripts.ci.ruff_count_ratchet.current_count", return_value=0
+        ) as ruff_counter,
+        patch(
+            "scripts.ci.taste_count_ratchet.current_count", return_value=0
+        ) as taste_counter,
+    ):
+        rc = _m._evaluate_merged_tree(repo, "HEAD")
 
     assert rc == _m.EXIT_EXTERNAL
     error = capsys.readouterr().err
