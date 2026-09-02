@@ -57,12 +57,19 @@ pre-PR adapter receives False for the same states.
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+from lefthook_inventory import (
+    CONFIG_REMEDY,
+    RUNTIME_REMEDY,
+    LefthookConfigError,
+    LefthookExecutionError,
+    configured_hook_types,
+)
 
 # The repair below is a lefthook command, so this gate only speaks to a
 # repository that configures lefthook. These are the config names lefthook
@@ -82,19 +89,6 @@ PROBE_HOOK = "pre-push"
 # Every diagnosis reached after the pre-push probe passed starts with this, so
 # the summary line does not claim pre-push is dead when pre-push proved live.
 _POST_PROBE_PREFIX = "pre-push is live, but "
-
-# A hook in `lefthook dump` output is a top-level mapping carrying work; the
-# settings beside it are scalars, and `templates` and `colors` hold strings.
-# Structural rather than an allowlist: the hand-written list this replaces
-# omitted nine of Lefthook's 28 hook types and dropped unlisted names silently,
-# so `reference-transaction` got no shim and no complaint. This cannot go stale.
-HOOK_WORK_KEYS = frozenset({"jobs", "commands", "scripts"})
-
-
-def _is_hook_entry(value: object) -> bool:
-    """True when a top-level dump entry declares hook work rather than a setting."""
-    return isinstance(value, dict) and bool(HOOK_WORK_KEYS & set(value))
-
 
 # Lefthook's generated shim ends by dispatching the hook through its own
 # resolver function, and that line is the one part of the template every
@@ -127,8 +121,6 @@ SYSTEM_REMEDY = f"git config --system --unset-all core.hooksPath && {REMEDY}"
 # with ADR-035 exit 3 because an unreadable hook state is not a verified pass.
 GIT_TIMEOUT_SECONDS = 5
 
-# `lefthook dump` is a local config merge and answers in about 0.1 seconds.
-DUMP_TIMEOUT_SECONDS = 20
 
 
 class GitExecutionError(RuntimeError):
@@ -294,67 +286,25 @@ def _dispatch_failure(hook: Path, hook_name: str) -> str | None:
     return None
 
 
-def _configured_hook_types(repo_root: Path) -> frozenset[str] | None:
-    """Hook types in the merged Lefthook config, or None when Lefthook cannot say.
+def _diagnose_hooks_dir(
+    repo_root: Path, hooks_dir: Path
+) -> tuple[str | None, frozenset[str]]:
+    """Return the failed condition and the hook types examined.
 
-    Asks Lefthook instead of reading its config. ``lefthook dump`` merges every
-    config file, every ``extends``, and all five supported formats. Reading the
-    files here meant reimplementing that, and got it wrong twice: it missed
-    ``-local`` overlays, then returned None for ``.jsonc``, which silently
-    degraded the check to a single ``pre-push`` probe. Both were fail-open.
-
-    None means Lefthook could not answer, which the caller treats as
-    unverifiable rather than healthy.
+    The inventory is obtained once and returned, so the success report names the
+    same set that was validated. Fetching it a second time to build that report
+    let a config edit between the two calls print a hook as live without its
+    shim ever being checked.
     """
-    for command in _dump_commands():
-        try:
-            result = subprocess.run(
-                command,
-                cwd=str(repo_root),
-                capture_output=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=DUMP_TIMEOUT_SECONDS,
-                check=False,
-            )
-        except (OSError, subprocess.SubprocessError):
-            continue
-        if result.returncode != 0:
-            continue
-        try:
-            data = json.loads(result.stdout)
-        except ValueError:
-            continue
-        if isinstance(data, dict):
-            return frozenset(str(k) for k, v in data.items() if _is_hook_entry(v))
-    return None
-
-
-def _dump_commands() -> list[list[str]]:
-    """Ways to print the merged config as JSON, pinned runtime first.
-
-    ``uv run --frozen`` matches how this repo pins Lefthook, but fails outside a
-    uv project, so a bare ``lefthook`` on PATH is tried after it.
-    """
-    commands = []
-    uv = shutil.which("uv")
-    if uv:
-        commands.append([uv, "run", "--frozen", "lefthook", "dump", "--format", "json"])
-    lefthook = shutil.which("lefthook")
-    if lefthook:
-        commands.append([lefthook, "dump", "--format", "json"])
-    return commands
-
-
-def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
-    """Diagnose the already-resolved hooks directory without querying git again."""
+    probed = frozenset({PROBE_HOOK})
     hook = hooks_dir / PROBE_HOOK
     if not (hook.is_file() and os.access(hook, os.X_OK)):
-        return _failed_condition(repo_root, hooks_dir)
+        return _failed_condition(repo_root, hooks_dir), probed
     probe_failure = _dispatch_failure(hook, PROBE_HOOK)
     if probe_failure is not None:
-        return probe_failure
-    return _missing_hook_types(repo_root, hooks_dir)
+        return probe_failure, probed
+    configured = configured_hook_types(repo_root)
+    return _missing_hook_types(hooks_dir, configured), configured | probed
 
 
 def _is_live_hook(hook: Path, hook_name: str) -> bool:
@@ -369,7 +319,7 @@ def _is_live_hook(hook: Path, hook_name: str) -> bool:
     return _dispatch_failure(hook, hook_name) is None
 
 
-def _missing_hook_types(repo_root: Path, hooks_dir: Path) -> str | None:
+def _missing_hook_types(hooks_dir: Path, configured: frozenset[str]) -> str | None:
     """Report configured hook types whose shim is absent or does not dispatch.
 
     ``no_auto_install: true`` stops one worktree re-syncing the shims every
@@ -378,13 +328,6 @@ def _missing_hook_types(repo_root: Path, hooks_dir: Path) -> str | None:
     hook it has no file for and prints no warning, so probing ``pre-push``
     alone reports healthy while the hook type someone just added is inert.
     """
-    configured = _configured_hook_types(repo_root)
-    if configured is None:
-        return (
-            f"{_POST_PROBE_PREFIX}the merged Lefthook configuration could not "
-            "be read, so which hook types need a shim is unverifiable; run: "
-            "uv sync --frozen --extra dev"
-        )
     missing = sorted(
         name
         for name in configured - {PROBE_HOOK}
@@ -407,7 +350,9 @@ def diagnose(repo_root: Path) -> str | None:
         hooks_dir = _hooks_dir(repo_root)
     except NotGitRepositoryError:
         return None
-    return _diagnose_hooks_dir(repo_root, hooks_dir)
+    except (LefthookConfigError, LefthookExecutionError) as exc:
+        return f"{_POST_PROBE_PREFIX}{exc}"
+    return _diagnose_hooks_dir(repo_root, hooks_dir)[0]
 
 
 def _evaluate(repo_root: Path) -> int:
@@ -427,7 +372,7 @@ def _evaluate(repo_root: Path) -> int:
 
     try:
         hooks_dir = _hooks_dir(repo_root)
-        reason = _diagnose_hooks_dir(repo_root, hooks_dir)
+        reason, probed = _diagnose_hooks_dir(repo_root, hooks_dir)
         remedy = _remedy(repo_root) if reason is not None else None
     except NotGitRepositoryError:
         print(
@@ -438,10 +383,20 @@ def _evaluate(repo_root: Path) -> int:
     except GitExecutionError as exc:
         print(f"[ERROR] Git hook health could not be verified: {exc}", file=sys.stderr)
         return 3
+    # ADR-035 separates these deliberately, and so do their repairs: syncing
+    # dependencies does not fix invalid YAML, and editing YAML does not install
+    # a missing runtime.
+    except LefthookConfigError as exc:
+        print(f"[ERROR] Lefthook configuration is unusable: {exc}", file=sys.stderr)
+        print(f"Fix: {CONFIG_REMEDY}", file=sys.stderr)
+        return 2
+    except LefthookExecutionError as exc:
+        print(f"[ERROR] Lefthook could not be run: {exc}", file=sys.stderr)
+        print(f"Fix: {RUNTIME_REMEDY}", file=sys.stderr)
+        return 3
 
     if reason is None:
-        probed = sorted((_configured_hook_types(repo_root) or frozenset()) | {PROBE_HOOK})
-        names, count = ", ".join(probed), len(probed)
+        names, count = ", ".join(sorted(probed)), len(probed)
         print(f"git hook health: {names} live in {hooks_dir} ({count} of {count} found)")
         return 0
 

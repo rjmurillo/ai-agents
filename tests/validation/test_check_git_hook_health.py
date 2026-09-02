@@ -35,8 +35,9 @@ Coverage:
   closed through the OSError branch and reports the read failure rather than a
   wrong command; a configured hook type with no shim, a non-executable one, and
   one declared only in a `-local` overlay each fail, and that failure does not
-  claim pre-push is dead; a linked worktree
-  inherits the broken config; removing the gate fails the wiring test.
+  claim pre-push is dead; an unusable Lefthook config exits 2 and an unreachable
+  Lefthook exits 3, per ADR-035; a linked worktree inherits the broken config;
+  removing the gate fails the wiring test.
 - edge: no lefthook config, non-repositories, and CI exit 0; missing Git and
   timeouts exit 3; the failure report stays inside a line budget.
 """
@@ -62,6 +63,7 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import check_git_hook_health
+import lefthook_inventory
 import pre_pr_sequence
 
 GATE_NAME = "Git Hook Health (core.hooksPath)"
@@ -159,10 +161,16 @@ def _run_cli(repo: Path, guard: Path = GUARD) -> subprocess.CompletedProcess[str
     The environment is built from scratch rather than inherited so no CI-only
     variable can change the branch under test (testing.md SHOULD 12).
     """
+    env = _git_test_env()
+    # The guard imports its sibling `lefthook_inventory` by bare name, the way
+    # production does (issue #2223). The negative control runs a mutated copy
+    # from tmp_path, which has no such sibling, so the real directory has to be
+    # importable or that test fails on the import rather than on the mutation.
+    env["PYTHONPATH"] = str(_VALIDATION_DIR)
     return subprocess.run(
         [sys.executable, str(guard), str(repo)],
         cwd=str(repo),
-        env=_git_test_env(),
+        env=env,
         capture_output=True,
         text=True,
         check=False,
@@ -477,9 +485,12 @@ class TestDeadHooks:
 
         result = _run_cli(repo)
 
-        assert result.returncode == 1
-        assert "could not be read" in result.stderr
-        assert "pre-push does not run" not in result.stderr
+        # ADR-035: a config error is 2, not a generic logic failure, and the
+        # repair is to fix the config rather than to sync dependencies.
+        assert result.returncode == 2
+        assert "Lefthook configuration is unusable" in result.stderr
+        assert check_git_hook_health.CONFIG_REMEDY in result.stderr
+        assert check_git_hook_health.RUNTIME_REMEDY not in result.stderr
 
     def test_validation_reuses_the_resolved_hooks_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -687,6 +698,42 @@ class TestOutOfScope:
         assert check_git_hook_health.main([str(tmp_path / "nope")]) == 2
 
 
+class TestInventoryFailures:
+    """An inventory that cannot be obtained is unverifiable, and typed."""
+
+    def test_an_unreachable_lefthook_is_an_external_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No runnable candidate is exit 3, not a config error.
+
+        ADR-035 separates these because the repairs do: syncing dependencies
+        installs a missing runtime and does nothing for invalid YAML.
+        """
+        repo = _make_repo(tmp_path, "no_lefthook")
+        _install_prepush(repo / ".git" / "hooks")
+        monkeypatch.setattr(lefthook_inventory, "dump_commands", list)
+
+        assert check_git_hook_health._evaluate(repo) == 3
+
+    def test_dump_output_that_is_not_a_mapping_is_a_config_error(self) -> None:
+        """Lefthook ran and produced something unusable: exit 2."""
+        with pytest.raises(lefthook_inventory.LefthookConfigError):
+            lefthook_inventory._parse_dump("[]")
+
+    def test_dump_output_that_is_not_json_is_a_config_error(self) -> None:
+        with pytest.raises(lefthook_inventory.LefthookConfigError):
+            lefthook_inventory._parse_dump("not json at all")
+
+    def test_a_hook_entry_needs_work_not_just_a_mapping(self) -> None:
+        """`templates` and `colors` are mappings too, and are not hooks."""
+        assert lefthook_inventory._is_hook_entry({"jobs": []})
+        assert lefthook_inventory._is_hook_entry({"commands": {}})
+        assert lefthook_inventory._is_hook_entry({"scripts": {}})
+        assert not lefthook_inventory._is_hook_entry({"some": "template"})
+        assert not lefthook_inventory._is_hook_entry("doublestar")
+        assert not lefthook_inventory._is_hook_entry(True)
+
+
 class TestNegativeControl:
     """Prove these tests fail if the gate stops detecting."""
 
@@ -700,16 +747,13 @@ class TestNegativeControl:
         # gate now has two failing conditions, unreachable hook and inert hook,
         # and neutering only the first leaves the second still failing this
         # repository, which would make the control pass for the wrong reason.
-        target = (
-            '    """Diagnose the already-resolved hooks directory'
-            ' without querying git again."""\n'
-        )
+        target = "    probed = frozenset({PROBE_HOOK})\n"
         assert original.count(target) == 1, (
             "mutation target moved; the control did not apply"
         )
         neutered = tmp_path / "neutered_gate.py"
         neutered.write_text(
-            original.replace(target, target + "    return None\n"),
+            original.replace(target, target + "    return None, probed\n"),
             encoding="utf-8",
         )
         assert neutered.read_text(encoding="utf-8") != original
