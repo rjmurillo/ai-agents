@@ -94,7 +94,7 @@ Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` bo
 Useful flags, verified against source:
 
 - `build/generate_agents.py`: `--validate` (CI compare mode), `--what-if` (dry run, writes nothing), `--templates-path`, `--output-root`. Exit codes: 0 ok, 1 logic error or drift, 2 config error (docstring, generate_agents.py:13-16).
-- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness or (under `--check`) an unreadable file under `OWNED_PREFIXES`, 3 audit blocklist violation or (under `--check`) unreadable git state (docstring, build_all.py:16-23). Only the staleness producer of exit 2 is cleared by regenerating and committing. Git is external, so every git-read failure (launch, timeout, nonzero exit) is 3 per the `AGENTS.md` contract, which keeps "you are missing git" out of the same code as "your tree is stale" (issue #4632).
+- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness or (under `--check`) a path under `OWNED_PREFIXES` that cannot be read or is a symlink or a generator write under `.claude/` (REQ-003-010), 3 audit blocklist violation or (under `--check`) unreadable git state (the `EXIT CODES` block in the `build/scripts/build_all.py` module docstring). Only the staleness producer of exit 2 is cleared by regenerating and committing; the REQ-003-010 producer is a generator policy violation, so regenerating reproduces it. Git is external, so every git-read failure (launch, timeout, nonzero exit) is 3 per the `AGENTS.md` contract, which keeps "you are missing git" out of the same code as "your tree is stale" (issue #4632).
 - `scripts/sync_plugin_lib.py`: no flag syncs, `--check` is the CI dry run (exit 1 when out of sync). It also rewrites `from scripts.x import` to relative imports; do not "fix" those imports in `.claude/lib/` by hand.
 
 ### Phase 3: Run the Drift Gates Locally Before Pushing
@@ -195,7 +195,7 @@ Rollback is roll-FORWARD: npm unpublish is restricted; fix, bump patch, retag (R
 Run this checklist before pushing any change that touched a canonical or generated surface:
 
 - [ ] `uv run python build/generate_agents.py --validate` exits 0
-- [ ] `uv run python build/scripts/build_all.py --check` exits 0 (if it returns 2, read stderr first: regenerate only for staleness, not for an unreadable owned file)
+- [ ] `uv run python build/scripts/build_all.py --check` exits 0 (if it returns 2, read stderr first: regenerate only for staleness, not for an unreadable or symlinked owned path and not for a REQ-003-010 generator write)
 - [ ] `python3 scripts/sync_plugin_lib.py --check` exits 0 (only relevant if `scripts/` packages changed)
 - [ ] `python3 build/scripts/check_plugin_manifest_parity.py` exits 0
 - [ ] `python3 build/scripts/validate_plugin_version_bump.py` exits 0 (no manifest or marketplace entry carries a `version`)
@@ -208,10 +208,10 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| 7 generators and their order | build/scripts/build_all.py:435-443 | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
-| OWNED_PREFIXES trio | build/scripts/build_all.py:765 | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
-| .claude/ no-write invariant | build/scripts/build_all.py:674 (rule), :1013 (snapshot), :1076-1081 (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
-| build_all exit codes 0/1/2/3 | build/scripts/build_all.py:16-30 | `sed -n '16,30p' build/scripts/build_all.py` |
+| 8 generators and their order | the `GENERATORS` list in build/scripts/build_all.py | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
+| `OWNED_PREFIXES`, four entries | the `OWNED_PREFIXES` tuple in build/scripts/build_all.py | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
+| .claude/ no-write invariant | build/scripts/build_all.py: `CLAUDE_GUARD_PREFIX` (rule), the `claude_baseline` snapshot in `run` (snapshot), `assert_no_claude_writes` called from `_run_generators` (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
+| build_all exit codes 0/1/2/3, four exit-2 producers | the `EXIT CODES` block in the build/scripts/build_all.py module docstring | `grep -n -A20 "^EXIT CODES" build/scripts/build_all.py` |
 | generate_agents flags and exit codes | build/generate_agents.py:13-16,460-487 | `uv run python build/generate_agents.py --help` |
 | sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:27-31 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
 | Plugin manifest locations, all version-free | the three plugin.json files | `python3 build/scripts/validate_plugin_version_bump.py` |
