@@ -22,6 +22,7 @@ from unittest.mock import patch
 import pytest
 
 from scripts.ci import merge_tree_ratchet_preparation as _prep
+from scripts.validation import checks_common as _common
 
 
 def _git(repo: Path, *argv: str) -> subprocess.CompletedProcess[str]:
@@ -173,3 +174,153 @@ class TestRefreshBaseRef:
         with patch.object(_prep, "_git") as fetch:
             assert _prep._refresh_base_ref(repo, "refs/heads/main") is True
         fetch.assert_not_called()
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+class TestIsFastForwardCleanAgainstRealGit:
+    """The predicate that decides whether the working tree needs its own pass.
+
+    Issue #5441 review: the working-tree tests mock ``is_fast_forward_clean``
+    and their fixture adds only an untracked file, which ``git diff HEAD --``
+    ignores. A regression that returned True for a staged or unstaged tracked
+    edit would pass those tests and silently drop pre_pr's working-tree
+    coverage, which is the exact bug the working-tree pass exists to close.
+    These drive real git instead.
+    """
+
+    def _repo_ahead_of_base(self, tmp_path: Path) -> tuple[Path, str]:
+        repo = tmp_path / "repo"
+        _init_repo(repo)
+        base = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        (repo / "b.txt").write_text("y\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-qm", "second")
+        return repo, base
+
+    def test_clean_tree_ahead_of_base_is_fast_forward_clean(
+        self, tmp_path: Path
+    ) -> None:
+        repo, base = self._repo_ahead_of_base(tmp_path)
+        assert _prep.is_fast_forward_clean(repo, base) is True
+
+    def test_an_unstaged_tracked_edit_is_not_clean(self, tmp_path: Path) -> None:
+        repo, base = self._repo_ahead_of_base(tmp_path)
+        (repo / "a.txt").write_text("modified\n", encoding="utf-8")
+        assert _prep.is_fast_forward_clean(repo, base) is False
+
+    def test_a_staged_tracked_edit_is_not_clean(self, tmp_path: Path) -> None:
+        repo, base = self._repo_ahead_of_base(tmp_path)
+        (repo / "a.txt").write_text("staged\n", encoding="utf-8")
+        _git(repo, "add", "a.txt")
+        assert _prep.is_fast_forward_clean(repo, base) is False
+
+    def test_a_staged_new_file_is_not_clean(self, tmp_path: Path) -> None:
+        repo, base = self._repo_ahead_of_base(tmp_path)
+        (repo / "added.txt").write_text("new\n", encoding="utf-8")
+        _git(repo, "add", "added.txt")
+        assert _prep.is_fast_forward_clean(repo, base) is False
+
+    def test_an_untracked_file_alone_stays_clean(self, tmp_path: Path) -> None:
+        """Documents the boundary: git diff HEAD does not see untracked files.
+
+        This is why the working-tree tests' untracked-only fixture could not
+        have caught a regression in this predicate.
+        """
+        repo, base = self._repo_ahead_of_base(tmp_path)
+        (repo / "untracked.txt").write_text("new\n", encoding="utf-8")
+        assert _prep.is_fast_forward_clean(repo, base) is True
+
+    def test_a_base_that_is_not_an_ancestor_is_not_clean(
+        self, tmp_path: Path
+    ) -> None:
+        """The ordinary state of a branch main has moved past."""
+        repo, _ = self._repo_ahead_of_base(tmp_path)
+        _git(repo, "checkout", "-q", "-b", "side")
+        (repo / "c.txt").write_text("z\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-qm", "diverge")
+        diverged = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "checkout", "-q", "main")
+        assert _prep.is_fast_forward_clean(repo, diverged) is False
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+class TestStackedBaseIsFetchedBeforeResolution:
+    """A stacked PR base must not degrade to origin/main just for being unfetched.
+
+    Issue #5441 review: ``checks_common._resolve_default_base_ref`` validates
+    each candidate with ``git rev-parse --verify --quiet`` and takes the first
+    that resolves. On a checkout that never fetched ``origin/feat/parent`` the
+    PR's own base fails that check, so the resolver falls through to
+    ``origin/main`` and the whole evaluation measures against the wrong target
+    without saying so.
+    """
+
+    def _clone_without_the_nested_branch(self, tmp_path: Path) -> Path:
+        origin = tmp_path / "origin"
+        _init_repo(origin)
+        _git(origin, "branch", "feat/parent")
+        work = tmp_path / "work"
+        subprocess.run(
+            ["git", "clone", "-q", "--single-branch", "--branch", "main",
+             str(origin), str(work)],
+            check=True,
+        )
+        # Precondition: the nested base is genuinely absent locally.
+        assert _git(work, "rev-parse", "--verify", "--quiet",
+                    "origin/feat/parent").returncode != 0
+        return work
+
+    def test_the_pr_base_is_fetched_and_then_resolves(self, tmp_path: Path) -> None:
+        work = self._clone_without_the_nested_branch(tmp_path)
+
+        # Both readers see one answer, as they do in production where
+        # checks_common._gh_base_ref caches it.
+        with (
+            patch.object(_prep, "_gh_base_ref", return_value="origin/feat/parent"),
+            patch.object(_common, "_gh_base_ref", return_value="origin/feat/parent"),
+        ):
+            resolved = _prep.resolve_default_base_ref(work)
+
+        assert resolved == "origin/feat/parent"
+        assert _git(work, "rev-parse", "--verify", "--quiet",
+                    "origin/feat/parent").returncode == 0
+
+    def test_no_pr_base_fetches_nothing(self, tmp_path: Path) -> None:
+        work = self._clone_without_the_nested_branch(tmp_path)
+
+        with (
+            patch.object(_prep, "_gh_base_ref", return_value=None),
+            patch.object(_prep, "_refresh_base_ref") as fetch,
+        ):
+            _prep.resolve_default_base_ref(work)
+
+        fetch.assert_not_called()
+
+    def test_an_already_present_base_is_not_refetched(self, tmp_path: Path) -> None:
+        origin = tmp_path / "origin"
+        _init_repo(origin)
+        work = tmp_path / "work"
+        subprocess.run(["git", "clone", "-q", str(origin), str(work)], check=True)
+
+        with (
+            patch.object(_prep, "_gh_base_ref", return_value="origin/main"),
+            patch.object(_prep, "_refresh_base_ref") as fetch,
+        ):
+            _prep.resolve_default_base_ref(work)
+
+        fetch.assert_not_called()
+
+    def test_a_failed_fetch_falls_back_rather_than_blocking(
+        self, tmp_path: Path
+    ) -> None:
+        """Best effort: offline, the resolver behaves as it did before."""
+        work = self._clone_without_the_nested_branch(tmp_path)
+
+        with (
+            patch.object(_prep, "_gh_base_ref", return_value="origin/feat/absent"),
+            patch.object(_common, "_gh_base_ref", return_value="origin/feat/absent"),
+        ):
+            resolved = _prep.resolve_default_base_ref(work)
+
+        assert resolved == "origin/main"

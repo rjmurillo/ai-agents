@@ -19,7 +19,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from scripts.ci.merge_tree_materialization import run_git as _git
-from scripts.validation.checks_common import _resolve_default_base_ref
+from scripts.validation.checks_common import _gh_base_ref, _resolve_default_base_ref
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -28,6 +28,31 @@ if TYPE_CHECKING:
 def _sanitize_diagnostic(text: str) -> str:
     cleaned = " ".join(text.replace("\x00", "").split())
     return cleaned[:500]
+
+
+def _fetch_pr_base_if_absent(repo_root: Path) -> None:
+    """Fetch the PR's base ref when its remote-tracking ref is not local yet.
+
+    Issue #5441 review. ``checks_common._resolve_default_base_ref`` validates
+    each candidate with ``git rev-parse --verify --quiet`` and takes the first
+    that resolves. A stacked PR whose base is ``origin/feat/parent`` fails that
+    check on any checkout that never fetched the nested branch, so the resolver
+    falls through to ``origin/main`` and the whole merge-tree evaluation
+    silently measures against the wrong target. The fallback is the correct
+    behaviour when there is no PR base; it is wrong when there is one and it is
+    merely unfetched.
+
+    Best effort by design: a failed fetch leaves the resolver to fall back as
+    before rather than blocking the gate offline. The fetch is skipped when the
+    ref already resolves, so the common case costs one rev-parse.
+    """
+    pr_base = _gh_base_ref(repo_root)
+    if not pr_base:
+        return
+    present = _git(repo_root, "rev-parse", "--verify", "--quiet", pr_base)
+    if present.returncode == 0:
+        return
+    _refresh_base_ref(repo_root, pr_base)
 
 
 def resolve_default_base_ref(repo_root: Path) -> str | None:
@@ -44,6 +69,7 @@ def resolve_default_base_ref(repo_root: Path) -> str | None:
     version of the dynamic-base-ref fix skipped this and broke the fetch on
     every checkout where ``gh pr view`` found no PR).
     """
+    _fetch_pr_base_if_absent(repo_root)
     base_ref = _resolve_default_base_ref(repo_root)
     if base_ref != "refs/remotes/origin/HEAD":
         return base_ref
