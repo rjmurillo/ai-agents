@@ -1299,6 +1299,21 @@ def _strict_is_git_boundary(directory: Path) -> bool:
     return True
 
 
+def _reject_nested_repository(directory: Path) -> None:
+    """Refuse a directory that holds its own ``.git`` entry.
+
+    Called on every directory the strict walk is about to enter, the prefix
+    root included. Checking only children left the root itself unguarded: a
+    prefix such as ``src/`` holding its own ``.git`` was queued directly and
+    traversed, and generators then wrote into that repository.
+    """
+    if _strict_is_git_boundary(directory):
+        raise SnapshotIncompleteError(
+            f"owned prefix contains a nested git repository, and --check "
+            f"cannot keep its promise over one: {directory}"
+        )
+
+
 def _queue_strict_owned_path(pending: list[Path], path: Path) -> Path | None:
     """Queue child directories and return child files for strict snapshots."""
     metadata = _strict_owned_stat(path, missing_root_ok=False)
@@ -1306,11 +1321,7 @@ def _queue_strict_owned_path(pending: list[Path], path: Path) -> Path | None:
         "missing_root_ok=False guarantees a non-None result or a raise"
     )
     if stat.S_ISDIR(metadata.st_mode):
-        if _strict_is_git_boundary(path):
-            raise SnapshotIncompleteError(
-                f"owned prefix contains a nested git repository, and --check "
-                f"cannot keep its promise over one: {path}"
-            )
+        _reject_nested_repository(path)
         pending.append(path)
         return None
     if stat.S_ISREG(metadata.st_mode):
@@ -1358,6 +1369,7 @@ def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
     if not stat.S_ISDIR(root_metadata.st_mode):
         return
 
+    _reject_nested_repository(root)
     pending = [root]
     while pending:
         current = pending.pop()

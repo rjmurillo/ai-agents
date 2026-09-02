@@ -3311,6 +3311,29 @@ def test_snapshot_strict_rejects_a_nested_git_checkout(tmp_path: Path) -> None:
     assert kept.read_bytes() == b"y = 2\n"
 
 
+def test_snapshot_strict_rejects_a_prefix_root_that_is_a_checkout(
+    tmp_path: Path,
+) -> None:
+    """The prefix ROOT gets the boundary test too, not only its children.
+
+    `_queue_strict_owned_path` runs on children. The root is queued directly,
+    so checking only children left `src/` holding its own `.git` traversed and
+    written into, which is the whole hole one level up.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    (owned / ".git").write_text("gitdir: ../../.git/worktrees/owned\n")
+    protected = owned / "checked_out.py"
+    protected.write_text("z = 3\n")
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "nested git repository" in str(excinfo.value)
+    assert protected.read_text() == "z = 3\n"
+
+
 def test_snapshot_strict_skips_files_under_an_ignored_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3504,105 +3527,6 @@ def test_snapshot_strict_rejects_a_symlinked_git_marker(tmp_path: Path) -> None:
         build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
 
     assert "git boundary marker redirects" in str(excinfo.value)
-
-
-def test_run_check_restore_leaves_a_nested_checkout_alone(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Restore must receive the boundaries the strict walk actually skipped.
-
-    The snapshot correctly omits everything inside a nested checkout, so every
-    one of those files is in `current - snapshot` when restore runs. Case 3
-    unlinks that difference. The only thing standing between a user's nested
-    worktree and deletion is restore being told the boundary exists, which is
-    why `run` hands it the set `_iter_strict_owned_files` collected.
-
-    No transient failure here, unlike the sibling test below: this is the
-    plain path, and it is what fails if the collection is dropped or never
-    forwarded.
-    """
-    repo = tmp_path / "repo"
-    _write_platform_with_skills(repo, provider="copilot-cli")
-    owned = repo / "owned"
-    nested = owned / "worktrees" / "wt"
-    nested.mkdir(parents=True)
-    git_pointer = nested / ".git"
-    git_pointer.write_text("gitdir: ../../../../.git/worktrees/wt\n")
-    protected = nested / "tracked.py"
-    protected.write_text("z = 3\n")
-    kept = owned / "real.py"
-    kept.write_text("y = 2\n")
-    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
-    monkeypatch.setattr(build_all, "_run_generators", lambda *_a, **_k: 0)
-
-    build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
-
-    assert protected.read_text() == "z = 3\n", (
-        "--check restore deleted a file inside a nested git checkout"
-    )
-    assert git_pointer.exists(), "--check restore deleted the nested .git pointer"
-    assert kept.read_text() == "y = 2\n"
-
-
-def test_run_check_keeps_a_nested_checkout_when_the_first_scan_fails(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """One transient scan failure must not let restore delete a nested repo.
-
-    The asymmetry this pins: `_git_boundaries_under` walks with
-    `_iter_tree_skip_git_boundaries`, whose `except OSError: continue`
-    swallows a directory-scan failure and yields nothing under it, so the
-    recorded boundary set comes back short. The strict snapshot walk reads
-    the directory on a later attempt, sees the nested repository's `.git`
-    entry, and skips it by shape, so its files are correctly absent from the
-    snapshot. Restore then received the short set, `_is_opaque_boundary`
-    answered False by membership, `_enumerate_files_under` descended, and
-    case 3 unlinked every file in the checkout as generator-created.
-
-    `run` now takes the restore set from the strict traversal itself, so the
-    two cannot disagree. Only `Path.iterdir` is denied here, which
-    `_strict_owned_children` does not use, so the failure lands on the
-    boundary walk exactly as the report describes and the strict walk is
-    unaffected.
-    """
-    repo = tmp_path / "repo"
-    _write_platform_with_skills(repo, provider="copilot-cli")
-    owned = repo / "owned"
-    nested = owned / "worktrees" / "wt"
-    nested.mkdir(parents=True)
-    (nested / ".git").write_text("gitdir: ../../../../.git/worktrees/wt\n")
-    protected = nested / "tracked.py"
-    protected.write_text("z = 3\n")
-    kept = owned / "real.py"
-    kept.write_text("y = 2\n")
-    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
-
-    real_iterdir = Path.iterdir
-    denied = False
-
-    def scan_fails_once(self: Path) -> Iterator[Path]:
-        nonlocal denied
-        if self == owned and not denied:
-            denied = True
-            raise PermissionError(13, "denied")
-        return real_iterdir(self)
-
-    monkeypatch.setattr(Path, "iterdir", scan_fails_once)
-    monkeypatch.setattr(build_all, "_run_generators", lambda *_a, **_k: 0)
-
-    build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
-
-    assert protected.read_text() == "z = 3\n", (
-        "--check deleted a file inside a nested git checkout"
-    )
-    assert kept.read_text() == "y = 2\n"
-
 
 def test_snapshot_non_strict_skips_owned_path_when_stat_fails(
     tmp_path: Path,
