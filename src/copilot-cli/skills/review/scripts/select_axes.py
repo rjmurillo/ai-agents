@@ -361,6 +361,16 @@ _TASTE_LINT_SUFFIXES = frozenset(
 # tests/skills/review/test_select_axes_scanner_capability.py, so widening the
 # canonical list reds that test instead of silently drifting from this one.
 _DOC_ACCURACY_SUFFIXES = frozenset({".md"})
+# Same file, `EXCLUDE_DIRS`, quoted verbatim. The inventory walk skips any path
+# under one of these, so a Markdown file inside one is never read even though
+# its suffix matches. This repository tracks `build/AGENTS.md`, which is
+# exactly that case.
+_DOC_ACCURACY_EXCLUDED_DIRS = frozenset(
+    {
+        ".git", "node_modules", "__pycache__", ".venv", "venv",
+        "target", "dist", "build", "bin", "obj", ".doc-accuracy",
+    }
+)
 # scan_principles._is_applicable compares these two names literally. The
 # classifier above matches them lowercased; this mirror keeps the real casing.
 _GP_SCANNER_SKILL_FILENAME = "SKILL.md"
@@ -399,11 +409,16 @@ def _taste_lints_reads(path: str) -> bool:
 def _doc_accuracy_reads(path: str) -> bool:
     """Return True when doc_accuracy.py would inventory *path*.
 
-    Mirrors `DOC_GLOBS` in
-    `.claude/skills/doc-accuracy/scripts/doc_accuracy.py`; see the constant
-    above for the quoted contract and the divergence note.
+    Mirrors `DOC_GLOBS` and `EXCLUDE_DIRS` in
+    `.claude/skills/doc-accuracy/scripts/doc_accuracy.py`; see the constants
+    above for the quoted contracts and the divergence notes. The suffix alone
+    is not enough: the inventory walk prunes excluded directories first, so a
+    tracked file like `build/AGENTS.md` matches the glob and is still never
+    read.
     """
-    return _suffix(path) in _DOC_ACCURACY_SUFFIXES
+    if _suffix(path) not in _DOC_ACCURACY_SUFFIXES:
+        return False
+    return not (_DOC_ACCURACY_EXCLUDED_DIRS & set(_segments(path)[:-1]))
 
 
 def _golden_principles_reads(path: str) -> bool:

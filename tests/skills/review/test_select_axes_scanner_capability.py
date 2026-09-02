@@ -71,6 +71,29 @@ class TestMirrorsMatchTheScannerSources:
         """Widening DOC_GLOBS must force the routing predicate to widen too."""
         assert doc_accuracy.DOC_GLOBS == ["docs/**/*.md", "**/*.md"]
 
+    def test_doc_accuracy_excluded_dirs_match_the_scanner(self):
+        """The inventory walk prunes these, so a matching suffix is not enough."""
+        assert mod._DOC_ACCURACY_EXCLUDED_DIRS == frozenset(doc_accuracy.EXCLUDE_DIRS)
+
+    @pytest.mark.parametrize("excluded", sorted(doc_accuracy.EXCLUDE_DIRS))
+    def test_markdown_under_an_excluded_dir_is_not_routed(self, excluded):
+        """Parity for every excluded directory, not just the reported one.
+
+        This repository tracks `build/AGENTS.md`, which matches `**/*.md` and is
+        still never inventoried, so routing it produced an empty scan and an
+        UNKNOWN the review could not finish on.
+        """
+        assert not mod._doc_accuracy_reads(f"{excluded}/AGENTS.md")
+
+    def test_markdown_outside_an_excluded_dir_is_still_routed(self):
+        """Negative control: the exclusion must not swallow ordinary docs."""
+        assert mod._doc_accuracy_reads("docs/guide.md")
+        assert mod._doc_accuracy_reads("README.md")
+
+    def test_excluded_name_as_the_file_is_not_an_excluded_dir(self):
+        """The walk prunes directories, so only parent segments count."""
+        assert mod._doc_accuracy_reads("docs/build.md")
+
     @pytest.mark.parametrize(
         "path",
         [
