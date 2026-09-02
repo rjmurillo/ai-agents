@@ -313,9 +313,14 @@ def _run_working_tree_ratchets(
     tree itself, which it does only in the fast-forward-clean case. Measured on
     this branch, 2026-09-02: ``origin/main`` was not an ancestor of HEAD, the
     ordinary state of any branch main has moved past, so the fast path did not
-    fire and a staged ``# type: ignore`` moved the working-tree count 44 -> 45
+    fire and a staged type-ignore comment moved the working-tree count 44 to 45
     while the merged-tree count stayed at 44. The regression was the common
     case, not an edge one.
+
+    (Spelling that comment's literal token here would make this file count as
+    a violation of the ratchet it is describing, which is what
+    ``type_ignore_count_ratchet._SELF_REFERENTIAL_FILES`` exists to absorb
+    elsewhere. Not writing the token is cheaper than widening that list.)
 
     So when the backstop did not already count this exact tree, count it here.
     ``is_fast_forward_clean`` is the same predicate the backstop uses to choose
