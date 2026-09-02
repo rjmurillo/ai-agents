@@ -374,3 +374,33 @@ def test_a_crlf_blob_reports_a_modification_nobody_made(tmp_path: Path) -> None:
     assert _porcelain(after) == ""
     (after / "handoff.md").touch()
     assert _porcelain(after) == ""
+
+
+# The two blobs this incident was about. Named explicitly, not just covered by
+# the whole-tree guard above, so a reintroduction of these exact paths fails
+# with the incident's own name attached rather than as an anonymous count.
+INCIDENT_PATHS = (
+    ".agents/sessions/handoffs/2026-09-01-4789-handoff.md",
+    ".agents/sessions/handoffs/2026-09-01-5361-handoff.md",
+)
+
+
+@pytest.mark.parametrize("path", INCIDENT_PATHS)
+def test_the_two_incident_handoffs_hold_lf_index_blobs(path: str) -> None:
+    """Pin the exact paths that aborted merges, on this repository."""
+    result = subprocess.run(
+        ["git", "ls-files", "--eol", "--", path],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=True,
+    )
+
+    rows = result.stdout.splitlines()
+    # An archived or renamed handoff is not a regression, but a tracked one
+    # holding CRLF is exactly the defect, so only assert when it is present.
+    if not rows:
+        pytest.skip(f"{path} is no longer tracked")
+    assert rows[0].split()[0] == "i/lf", rows[0]
