@@ -2119,10 +2119,22 @@ def test_git_diff_paths_raises_when_git_times_out(
 
 
 
-def test_git_diff_paths_decodes_non_ascii_output_with_utf8_replacement(
+def test_git_diff_paths_decodes_non_ascii_git_output_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """UTF-8 Git output bytes must round-trip through `_git_diff_paths`."""
+    """Non-ASCII git output round-trips, and the subprocess call stays binary.
+
+    The fixture is valid UTF-8 and :func:`_git_diff_paths` decodes with
+    ``os.fsdecode``, so nothing here exercises ``errors="replace"``; the name
+    used to claim otherwise.
+
+    What it does pin is the binary contract. ``text=True``, its
+    ``universal_newlines`` alias, or an ``encoding=`` argument would send
+    git's bytes through the locale codec, which is the Windows cp1252 failure
+    this NUL-delimited read exists to avoid. The returned-path assertion alone
+    left that mutation green, because the stub returns bytes whatever it is
+    called with.
+    """
 
     class _Result:
         returncode = 0
@@ -2141,6 +2153,12 @@ def test_git_diff_paths_decodes_non_ascii_output_with_utf8_replacement(
         "src/copilot-cli/skills/ā/SKILL.md"
     ]
     assert len(calls) == 2
+    for _args, kwargs in calls:
+        for decoding_kwarg in ("text", "encoding", "universal_newlines"):
+            assert decoding_kwarg not in kwargs, (
+                f"subprocess.run got {decoding_kwarg}=; git output must stay "
+                "bytes so a non-UTF-8 locale cannot mangle paths"
+            )
 
 
 def test_git_diff_paths_raises_when_git_exits_nonzero(

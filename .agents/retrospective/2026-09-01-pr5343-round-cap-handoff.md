@@ -7,6 +7,23 @@
 - **Task Type**: Take over PR #5343 (`claude/fix-4632-build-all-check-fails-open`) after `pr-autofix`'s round-cap breaker tripped (6 rounds recorded, cap 5; 9.3h wall clock, cap 4.0h) and explicitly asked for human/session review.
 - **Outcome**: Success
 
+## Failure Mode Classification
+
+`.agents/governance/FAILURE-MODES.md` class 4, **False Completion Markers**
+(High). Both findings below are the same shape that class names: "PR
+description asserts behavior the test suite does not exercise" and success
+reported without verification against an artifact.
+
+- The signature mismatch shipped in a commit whose message claimed the fix,
+  pushed without running the suite it broke.
+- The two boundary-mocking tests advertised coverage of the `except OSError`
+  translation in `_strict_owned_stat` and `_strict_owned_children` while
+  never reaching either handler, so the PR's stated regression evidence did
+  not hold.
+
+No new class is proposed. Class 4's detection bullets already cover both, so
+the gap is enforcement, not taxonomy.
+
 ## Phase 0: Data Gathering
 
 The round-cap breaker comment named no specific failure, only that automated
@@ -80,7 +97,16 @@ mid-flight from a different concurrent `pr-autofix` session, without
 either session holding a lease at push time. The round-cap breaker is a
 useful backstop (it stopped automated work rather than looping past the
 cap), but nothing prevented the commit that tripped it from shipping a
-real CI regression in the first place. Issue #5447, filed independently
-during this same window against a different PR (#5344), proposes exactly
-the kind of unpushed/unverified-commit safeguard that would generalize
-here; worth linking from a follow-up if #5343's own history is reviewed.
+real CI regression in the first place.
+
+Issue #5447 does not cover this. Its scope is commits an escalated session
+left **unpushed**; the commits here **were** pushed, by a session whose
+lease had lapsed.
+
+## Follow-up Actions
+
+| Action | Owner | Tracking |
+|---|---|---|
+| Re-acquire the `pr-autofix` lease immediately before `git push` and abort when another session holds it; document the step in `.claude/commands/pr-autofix.md` | `pr-autofix` maintainers | Issue #5486 |
+| Verify orphaned local commits from an escalated round-cap session before reusing them | `pr-autofix` maintainers | Issue #5447 |
+| Rewrite boundary-mocking tests to fail at the real I/O boundary, with a negative control per test | this PR (#5343) | Done in `ac38db323` |
