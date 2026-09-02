@@ -3,7 +3,8 @@
 
 `.claude/rules/universal.md` MUST NOT 6 states the binding rule verbatim:
 
-    6. Git worktrees MUST be external.
+    Worktrees MUST be external: a sibling of the checkout or
+    `~/worktrees/`, never under the clone, never under `/tmp`.
 
 Two destinations break it, and this repository has paid for both:
 

@@ -1180,3 +1180,144 @@ class TestRestRetryOnBlocked:
         assert rc == 0
         # Only two calls: state fetch and gh pr merge; no REST retry
         assert len(calls) == 2
+
+
+# ---------------------------------------------------------------------------
+# Tests: REST retry on stacked PRs (issue #5473)
+# ---------------------------------------------------------------------------
+
+
+_STACK_ERROR = (
+    "GraphQL: This pull request is part of a stack and must be merged using the "
+    "asynchronous merge REST API. For more information, see "
+    "https://docs.github.com/rest/pulls/pulls#merge-a-pull-request-asynchronously "
+    "(mergePullRequest)\n"
+)
+
+
+class TestRestRetryOnStack:
+    """A stack refusal routes to the REST merge path (issue #5473).
+
+    GraphQL refuses a stacked PR outright and GitHub also refuses to retarget
+    the child, so REST is the only merge path. The refusal text contains none
+    of the BLOCKED keywords, so before this change the retry never ran.
+    """
+
+    _STATE = json.dumps({
+        "state": "OPEN", "mergeable": "MERGEABLE",
+        "mergeStateStatus": "CLEAN", "headRefName": "feature",
+        "headRefOid": "abc123def456",
+    })
+
+    def _make_side_effect(self, rest_rc, rest_stdout="", view_state=None, view_rc=0):
+        """Sequence the state fetch, the GraphQL refusal, REST, and the state re-read."""
+        calls = []
+
+        def _side(cmd, **kwargs):
+            calls.append(cmd)
+            if len(calls) == 1:
+                return _completed(stdout=self._STATE, rc=0)
+            if len(calls) == 2:
+                return _completed(rc=1, stderr=_STACK_ERROR)
+            if len(calls) == 3:
+                return _completed(rc=rest_rc, stdout=rest_stdout)
+            # call 4: gh pr view --json state, the merged-state confirmation
+            return _completed(rc=view_rc, stdout=view_state or "")
+
+        return _side, calls
+
+    def _run(self, side, argv):
+        with patch("merge_pr.assert_gh_authenticated"), \
+             patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")), \
+             patch("merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED), \
+             patch("subprocess.run", side_effect=side):
+            return main(argv)
+
+    def test_stack_error_retries_rest_and_succeeds(self, capsys):
+        """REST reporting merged=true needs no state confirmation."""
+        side, calls = self._make_side_effect(
+            rest_rc=0, rest_stdout=json.dumps({"merged": True, "sha": "abc123def456"}),
+        )
+        rc = self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["state"] == "MERGED"
+        # State fetch, GraphQL merge, REST PUT. No confirmation call needed.
+        assert len(calls) == 3
+
+    def test_stack_error_routes_to_rest_put_endpoint(self):
+        """The retry must hit the REST endpoint the GraphQL error names."""
+        side, calls = self._make_side_effect(
+            rest_rc=0, rest_stdout=json.dumps({"merged": True}),
+        )
+        self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
+        rest_cmd = [str(part) for part in calls[2]]
+        assert "PUT" in rest_cmd
+        assert any("pulls/5470/merge" in part for part in rest_cmd)
+        assert any("abc123def456" in part for part in rest_cmd)
+
+    def test_async_response_without_merged_flag_confirms_state(self, capsys):
+        """An async accept omits merged=true; the PR state settles it."""
+        side, calls = self._make_side_effect(
+            rest_rc=0,
+            rest_stdout=json.dumps({"sha": "abc123def456"}),
+            view_state=json.dumps({"state": "MERGED"}),
+        )
+        rc = self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
+        assert rc == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["Data"]["state"] == "MERGED"
+        # The fourth call is the merged-state confirmation.
+        assert len(calls) == 4
+
+    def test_async_response_with_unparseable_body_confirms_state(self):
+        """A non-JSON body is not evidence of failure; confirm the state."""
+        side, calls = self._make_side_effect(
+            rest_rc=0,
+            rest_stdout="Accepted",
+            view_state=json.dumps({"state": "MERGED"}),
+        )
+        assert self._run(side, ["--pull-request", "5470", "--strategy", "squash"]) == 0
+        assert len(calls) == 4
+
+    def test_async_accept_that_did_not_merge_exits_6(self, capsys):
+        """REST accepted but the PR is still open: report failure, not success."""
+        side, _ = self._make_side_effect(
+            rest_rc=0,
+            rest_stdout=json.dumps({"sha": "abc123def456"}),
+            view_state=json.dumps({"state": "OPEN"}),
+        )
+        with pytest.raises(SystemExit) as exc:
+            self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
+        assert exc.value.code == 6
+        assert "part of a stack" in capsys.readouterr().out
+
+    def test_state_confirmation_failure_is_not_a_merge(self):
+        """A failed confirmation query must never be read as merged."""
+        side, _ = self._make_side_effect(
+            rest_rc=0,
+            rest_stdout=json.dumps({"sha": "abc123def456"}),
+            view_rc=1,
+        )
+        with pytest.raises(SystemExit) as exc:
+            self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
+        assert exc.value.code == 6
+
+    def test_stack_rest_failure_exits_6_and_names_the_stack(self, capsys):
+        """A failed REST retry surfaces the stack cause, not a protection hint."""
+        side, _ = self._make_side_effect(rest_rc=1, rest_stdout="")
+        with pytest.raises(SystemExit) as exc:
+            self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
+        assert exc.value.code == 6
+        out = capsys.readouterr().out
+        assert "part of a stack" in out
+        assert "branch protection policy" not in out
+
+    def test_auto_does_not_retry_rest_on_stack_error(self):
+        """--auto keeps its existing no-retry behavior for stack errors too."""
+        side, calls = self._make_side_effect(rest_rc=0, rest_stdout="")
+        with pytest.raises(SystemExit) as exc:
+            self._run(side, ["--pull-request", "5470", "--auto"])
+        assert exc.value.code == 3
+        # State fetch and gh pr merge only; no REST retry.
+        assert len(calls) == 2
