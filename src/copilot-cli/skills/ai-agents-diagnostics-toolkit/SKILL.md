@@ -7,7 +7,7 @@ description: Catalog of this repo's measurement instruments, each with command, 
 
 # ai-agents Diagnostics Toolkit
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, .claude/lib, scripts/, build/, build/audit/GENERATION-AUDIT.md) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Measure instead of eyeball. Every instrument below is a read-only command that turns a vague worry ("are skills getting bloated?", "did generation drift?") into a number you can compare against a baseline. The Instrument Index gives you, per instrument, the question it answers and the exact command; [`references/instrument-guides.md`](references/instrument-guides.md) gives the healthy and unhealthy reading, the current repo baseline (as of 2026-07-29), and the trap that has already cost someone time.
 
 Vocabulary, defined once: an "instrument" is a script whose output you read, not a gate you must pass. A "drift gate" is a CI check that fails when a generated tree stops matching its canonical source. A "baseline" is the number the instrument reports on a clean checkout of main; you measure your delta against it.
