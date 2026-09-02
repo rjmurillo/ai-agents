@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import check_index_line_endings as checker
+from scripts.validation import index_line_endings_record as record
 from tests.validation.index_line_endings_helpers import (
     _commit,
     _git,
@@ -248,18 +249,18 @@ def test_fix_renormalizes_an_undecodable_filename(
 
 def test_display_path_leaves_ordinary_names_alone() -> None:
     """Control: escaping applies to bytes with no safe text spelling, nothing else."""
-    assert checker.display_path("docs/café.md") == "docs/café.md"
-    assert checker.display_path("a;$(id).md") == "a;$(id).md"
-    assert checker.is_spellable("docs/café.md")
-    assert checker.is_spellable("a;$(id).md")
+    assert record.display_path("docs/café.md") == "docs/café.md"
+    assert record.display_path("a;$(id).md") == "a;$(id).md"
+    assert record.is_spellable("docs/café.md")
+    assert record.is_spellable("a;$(id).md")
 
 
 def test_display_path_escapes_every_control_class() -> None:
     """C0, DEL and C1 all reach a log verbatim without this escaping."""
-    assert checker.display_path("a\nb") == "a\\nb"
-    assert checker.display_path("a\tb") == "a\\tb"
-    assert checker.display_path("a\rb") == "a\\rb"
-    assert checker.display_path("a\x1bb") == "a\\x1bb"
-    assert checker.display_path("a\x7fb") == "a\\x7fb"
-    assert checker.display_path("a\x9bb") == "a\\x9bb"
-    assert not checker.is_spellable("a\nb")
+    assert record.display_path("a\nb") == "a\\nb"
+    assert record.display_path("a\tb") == "a\\tb"
+    assert record.display_path("a\rb") == "a\\rb"
+    assert record.display_path("a\x1bb") == "a\\x1bb"
+    assert record.display_path("a\x7fb") == "a\\x7fb"
+    assert record.display_path("a\x9bb") == "a\\x9bb"
+    assert not record.is_spellable("a\nb")
