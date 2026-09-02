@@ -271,6 +271,7 @@ def test_the_paste_command_stays_plain_when_every_path_is_spellable(
     assert "bash and zsh" not in out
 
 
+@posix_only_paths
 def test_a_newline_in_a_path_cannot_forge_a_log_line(tmp_path: Path, capsys) -> None:
     """CWE-117: a contributor picks the filename, and this output is a CI log.
 
@@ -308,6 +309,7 @@ def test_a_bidi_override_in_a_path_cannot_disguise_it(tmp_path: Path, capsys) ->
     assert "$'handoff\\xe2\\x80\\xaedm.txt'" in out
 
 
+@posix_only_paths
 def test_an_escape_sequence_in_a_path_cannot_repaint_the_terminal(
     tmp_path: Path, capsys
 ) -> None:
