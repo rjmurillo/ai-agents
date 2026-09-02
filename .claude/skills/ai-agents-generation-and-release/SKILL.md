@@ -54,22 +54,23 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `.claude/lib/` | mirrored copy (relative imports) | `scripts/` packages | `scripts/sync_plugin_lib.py` |
 | `src/claude/` | MANUAL hand-synced exception (ADR-036, superseded in governance by ADR-052 2026-08-25, procedure still operative and unimplemented) | edited by hand | no generator; semantic drift CI only |
 
-Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, build_all.py:435, order is load-bearing per the comment at build_all.py:429):
+Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; order is load-bearing per the `Order matters` comment above it):
 
 | # | Generator | Reads | Writes |
 |---|-----------|-------|--------|
 | 1 | agents | `templates/agents/*.shared.md` + `templates/platforms/*.yaml` | `src/copilot-cli/agents/*.agent.md`, `src/vs-code-agents/*.agent.md` |
 | 2 | agent-catalog | `templates/agents/*.shared.md` | `docs/agent-catalog.md` |
-| 3 | skills | `.claude/skills/*/SKILL.md` | `src/copilot-cli/skills/` |
-| 4 | commands | `.claude/commands/*.md` (top level, not CLAUDE.md) | `src/copilot-cli/skills/` (command-bridge skills) |
-| 5 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
-| 6 | lib | `.claude/lib/` | `src/copilot-cli/lib/` (must land before hooks) |
-| 7 | hooks | `.claude/settings.json` + `.claude/hooks/` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` |
+| 3 | adr-index | `.agents/architecture/ADR-*.md` | `.agents/architecture/README.md` |
+| 4 | skills | `.claude/skills/*/SKILL.md` | `src/copilot-cli/skills/` |
+| 5 | commands | `.claude/commands/*.md` (top level, not CLAUDE.md) | `src/copilot-cli/skills/` (command-bridge skills) |
+| 6 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
+| 7 | lib | `.claude/lib/` | `src/copilot-cli/lib/` (must land before hooks) |
+| 8 | hooks | `.claude/settings.json` + `.claude/hooks/` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` |
 
 Facts that prevent confusion:
 
 - `build_all.py` enforces a no-write invariant on `.claude/` (REQ-003-010): if any generator writes there, the run exits 2 with `REQ-003-010 VIOLATION`. `.claude/` is input only.
-- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md")` (build_all.py:765). `--check` only flags staleness inside those prefixes.
+- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md", ".agents/architecture/README.md")`, four entries, in the `OWNED_PREFIXES` tuple. `--check` only flags staleness inside those prefixes, and the adr-index generator is why the last one is there.
 - The hooks generator maps Stop, SubagentStop, PermissionRequest, and
   PreCompact to their PascalCase compatibility names. Stop and SubagentStop
   remain direct host registrations because their structured decisions require

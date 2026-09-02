@@ -77,11 +77,25 @@ describes: "prove the wiring, not only the guard".
 2. Why did the author not see it? The suite was not run before the push.
 3. Why was it not run? The session pushed under time pressure near the
    round-cap wall clock.
-4. Why did the push succeed anyway? Pre-push runs lint and ratchets, not the
-   full Python suite, so nothing local blocked it.
+4. Why did the push succeed anyway? Not established. A pre-push
+   `python-tests` job does exist and is not diff-scoped by a `glob`
+   (`lefthook.yml`, `name: python-tests`, running
+   `git_hook_policy.py pytest`), and `git show a8784605e:lefthook.yml`
+   confirms it was already wired at that commit, so "pre-push does not run
+   the suite" is false. What the available artifacts do not show is why it
+   did not block. Two candidates: `run_pytest` narrows through
+   `_resolve_pytest_commands(repo_root, changed_files)`, which is the local
+   selector disagreement issue #5318 tracks, or the hook did not run in that
+   session's environment. This session had neither the push transcript nor
+   the hook log, so the mechanism is named as open rather than guessed.
 5. Why did a second session not catch it first? Neither session held the
    `pr-autofix` lease at push time, so both were editing the same branch
    without knowing.
+
+Why 4 is deliberately left unresolved. An earlier draft of this retro
+asserted that pre-push runs only lint and ratchets. That was wrong, and a
+prevention aimed at a mechanism that does not exist would have been worse
+than an open question.
 
 ## Phase 2: Diagnosis
 
@@ -97,7 +111,7 @@ describes: "prove the wiring, not only the guard".
 
 | Strategy | Error Type | Root Cause | Prevention | Atomicity |
 |----------|------------|------------|------------|-----------|
-| Push without running the suite the change touched | False completion | Time pressure near the round-cap wall clock; pre-push does not run the Python suite | Run the touched suite before every push, not only before the PR | 90% |
+| Push without running the suite the change touched | False completion | Time pressure near the round-cap wall clock. The pre-push `python-tests` job exists and should have caught it, so why it did not is an open question, not a known absence | Run the touched suite yourself before every push, and treat a green pre-push as corroboration rather than proof | 85% |
 | Replace the function under test with a stub that raises the wrapped error | Test proves nothing | Mocking above the I/O boundary, so production's translation never runs | Raise the raw error at the real boundary and let production wrap it | 95% |
 | Change a signature without grepping for stand-ins of the same function | Contract drift | Callers were checked, test doubles were not | Treat a test double as a caller when a signature changes | 90% |
 
@@ -116,7 +130,7 @@ describes: "prove the wiring, not only the guard".
 |--------|----------------|--------|
 | Negative control per guard-bearing test | Keep | Already proved its worth twice in this session |
 | Mock at the real I/O boundary | Modify | Was "mock the helper"; now "raise the raw error where production catches it" |
-| Run the touched suite before pushing | Add | Nothing local enforced this, and the gap produced the red commit |
+| Run the touched suite before pushing | Add | The pre-push `python-tests` job did not block this commit, and until that is explained an author-run suite is the only check under the author's control |
 | Re-acquire the `pr-autofix` lease immediately before pushing | Add | Neither session held it, and `renew` does not extend `expires_at` |
 | Derive the fix from the review comment alone | Drop | The comment named a symptom; the handler and its caller had to be read |
 
@@ -125,6 +139,8 @@ describes: "prove the wiring, not only the guard".
 - "Run the touched suite before pushing" is specific (the suite covering the
   changed module), measurable (exit code), achievable (2 to 5 seconds for
   `test_build_all.py`), relevant (this failure), time-bound (before each push).
+  It does not replace the pre-push `python-tests` job; it is the check the
+  author controls while that job's miss is unexplained.
 - "Re-acquire the lease immediately before pushing" is specific (an `acquire`
   call, not `renew`), measurable (the returned action field), achievable (one
   call), relevant (the concurrent-session finding), time-bound (per push).
@@ -239,7 +255,7 @@ not a retrieval aid.
 |------------|----------|----------|-------------|-----------|
 | Lease not held at push time, two sessions pushed to one branch | Process | P1 | Issue #5486 | <https://github.com/rjmurillo/ai-agents/issues/5486> |
 | Unpushed commits from an escalated round-cap session reused unverified | Process | P1 | Issue #5447 | <https://github.com/rjmurillo/ai-agents/issues/5447> |
-| Suite covering the touched module not run before push | Process | P2 | Skip | Covered by the existing pre-PR gate |
+| Pre-push `python-tests` did not block a red commit, mechanism unestablished | Process | P1 | Issue #5318 | <https://github.com/rjmurillo/ai-agents/issues/5318> |
 
 #### Issues Created
 
@@ -257,7 +273,7 @@ not a retrieval aid.
 
 | Item | Reason |
 |------|--------|
-| Run the touched suite before pushing | Already addressed. `pre_pr.py` and the PR gates cover it, and the failure was bypassing the practice, not a missing check |
+| none | The earlier draft skipped the pre-push question on the grounds that `pre_pr.py` covered it. It does not: its own success path prints that it "has no visibility into sibling jobs (python-tests, ratchets)" when it runs as a lefthook job. The row is now open against issue #5318 |
 
 ### ROTI Assessment
 
