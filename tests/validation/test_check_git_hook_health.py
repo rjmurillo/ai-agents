@@ -1,3 +1,9 @@
+# taste-lint: ignore file-size, crossed 500 lines adding the inert-hook and
+# unreadable-hook cases to the dead-hooks class. This file is one gate's
+# contract, and its classes define each other: the healthy path only means
+# something read beside the dead-hook path it excludes. The split this file
+# already supports is by environment, and those cases live in
+# test_check_git_hook_health_environment.py. Issue #3779.
 """The pre-PR sequence refuses a push git would not gate (issue #5090).
 
 Two claims, separable, both pinned.
