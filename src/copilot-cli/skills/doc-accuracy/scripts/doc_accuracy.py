@@ -1393,7 +1393,7 @@ def main(argv: list[str] | None = None) -> int:
         # liable to be truncated in transit, which turns a completed scan into
         # a parse failure. 'gate' drops the index and nothing else.
         payload_assessment = assessment
-        if args.format == "gate":
+        if args.format == "gate" and assessment is not None:
             payload_assessment = {k: v for k, v in assessment.items() if k != "source_symbols"}
         print(
             json.dumps(
