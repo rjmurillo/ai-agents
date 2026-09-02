@@ -109,9 +109,15 @@ def test_fix_ignores_an_ambient_git_dir(tmp_path: Path, monkeypatch: pytest.Monk
 
 
 def _loose_objects(repo: Path) -> int:
-    """Count the loose objects in the repository's own object store."""
-    objects = Path(_git(repo, "rev-parse", "--git-path", "objects").stdout.strip())
-    return sum(1 for path in objects.rglob("*") if path.is_file())
+    """Count the loose objects in `repo`'s own object store.
+
+    `git rev-parse --git-path objects` answers relative to the git invocation's
+    working directory, which is `repo`. Resolving it against this process's
+    directory instead counts the ai-agents checkout, and the before/after
+    comparison then cannot fail no matter what the scan writes.
+    """
+    objects = repo / Path(_git(repo, "rev-parse", "--git-path", "objects").stdout.strip())
+    return sum(1 for path in objects.resolve().rglob("*") if path.is_file())
 
 
 def test_a_read_only_scan_writes_nothing_into_the_repository(tmp_path: Path) -> None:
