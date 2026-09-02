@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import shlex
+import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1097,10 +1098,44 @@ _FUTURE_EXPIRY = "2999-01-01"
 _PAST_EXPIRY = "2000-01-01"
 
 
-def _write_dispositions(tmp_path, entries, name="dispositions.json"):
-    """Write a dispositions file and return its path as a string."""
-    disp_file = tmp_path / name
+def _git(repo, *args):
+    subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+    )
+
+
+def _tracked_repo(tmp_path):
+    """A git repository at `tmp_path`, initialised once per test."""
+    if not (tmp_path / ".git").is_dir():
+        _git(tmp_path, "init", "-q")
+        _git(tmp_path, "config", "user.email", "test@example.invalid")
+        _git(tmp_path, "config", "user.name", "test")
+    return tmp_path
+
+
+def _write_dispositions(tmp_path, entries, name="dispositions.json", track=True):
+    """Write a dispositions file and return its path as a string.
+
+    Tracked by default, because `_load_dispositions` refuses an untracked
+    registry: an untracked file at that path is something a prompt-injected
+    agent could have written, and the completion gate deliberately skips
+    comparing untracked files. Writing these fixtures into a real repository
+    exercises the real `git ls-files` probe rather than a stub of it, so the
+    tests below measure the shipped guard.
+
+    `track=False` produces the untracked case on purpose.
+    """
+    repo = _tracked_repo(tmp_path)
+    disp_file = repo / name
     disp_file.write_text(json.dumps(entries), encoding="utf-8")
+    if track:
+        _git(repo, "add", "--", name)
     return str(disp_file)
 
 
@@ -1200,12 +1235,51 @@ class TestNonRequiredDispositions:
     # -- Edge cases --
 
     def test_malformed_json_returns_all_failures(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text("not json{{{")
+        """Tracked but unparseable. Tracking matters: an untracked file is
+        refused before the JSON is ever read, so writing this one loose would
+        pass for the wrong reason and stop testing the parse at all."""
+        repo = _tracked_repo(tmp_path)
+        disp_file = repo / "dispositions.json"
+        disp_file.write_text("not json{{{", encoding="utf-8")
+        _git(repo, "add", "--", "dispositions.json")
         result = _check_nonrequired_dispositions(
             ["Run Tests"], str(disp_file),
         )
         assert result == ["Run Tests"]
+
+    def test_untracked_registry_is_refused(self, tmp_path):
+        """An untracked registry disposes nothing, however valid it looks.
+
+        The consumer attack this closes: the shipped path does not exist in an
+        installed-plugin workspace, so a PR that prompt-injects the review
+        agent into writing one would be authoring its own dispositions. The
+        completion gate skips comparing untracked files by design, so the
+        reader has to refuse them.
+        """
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": _entry()}, track=False,
+        )
+        assert _check_nonrequired_dispositions(["Run Tests"], disp_file) == [
+            "Run Tests",
+        ]
+
+    def test_the_same_registry_tracked_is_honored(self, tmp_path):
+        """Positive control for the pair above.
+
+        Identical bytes, identical entry, only the tracking differs. Without
+        this, a guard that refused every registry would satisfy the case above
+        while disabling the feature.
+        """
+        disp_file = _write_dispositions(tmp_path, {"Run Tests": _entry()})
+        assert _check_nonrequired_dispositions(["Run Tests"], disp_file) == []
+
+    def test_a_registry_outside_any_repository_is_refused(self, tmp_path):
+        """No repository at all means no way to establish tracking."""
+        loose = tmp_path / "loose.json"
+        loose.write_text(json.dumps({"Run Tests": _entry()}), encoding="utf-8")
+        assert _check_nonrequired_dispositions(
+            ["Run Tests"], str(loose),
+        ) == ["Run Tests"]
 
     def test_non_dict_entry_treated_as_undisposed(self, tmp_path):
         disp_file = _write_dispositions(

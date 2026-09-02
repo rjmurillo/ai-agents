@@ -1075,6 +1075,51 @@ _VALID_DISPOSITIONS = frozenset({
 })
 
 
+def _dispositions_file_is_tracked(dispositions_file: str) -> bool:
+    """True when git tracks the registry file, which is what makes it trusted.
+
+    An untracked registry is refused rather than read, and the reason is not
+    tidiness. In an installed-plugin consumer the shipped path does not exist
+    at all, so a PR that gets the review agent to write one, by prompt
+    injection into a file that agent reads, would be authoring its own
+    dispositions and could then waive its own failing security check
+    (CWE-829, CWE-284).
+
+    The completion gate does not stop that on its own. Its command-trust check
+    records untracked work-tree files in ``skipped_untracked_files`` and does
+    not compare them, precisely because an untracked file is normally the
+    operator's own state. That carve-out is right for the gate and wrong for
+    this reader, so the reader refuses what the gate declines to verify. The
+    two together give the property that matters: a registry is honored only
+    when it is tracked, and a tracked one is byte-compared against the trusted
+    ref before any criterion runs.
+
+    The path is passed as an explicit ``:(literal)`` pathspec, matching
+    ``_tracked_subset`` in ``run_completion_gate.py``: git reads pathspec
+    magic from a leading ``:`` even after ``--``, so a file literally named
+    ``:(glob)evil.json`` would otherwise never match its own path.
+
+    Fails closed. A nonzero exit, a timeout, a missing git, or a path outside
+    any repository all return False, which loads an empty registry and leaves
+    every non-required failure blocking.
+    """
+    absolute = os.path.abspath(dispositions_file)
+    directory = os.path.dirname(absolute) or "."
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", "--", f":(literal){absolute}"],
+            cwd=directory,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
 def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
     """Load per-check dispositions from a JSON file.
 
@@ -1093,9 +1138,14 @@ def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
     ``pull_requests`` is optional. ``_disposition_accepts`` is the authority
     on what each field has to hold and on what happens when one does not.
 
-    Returns an empty dict when the file is absent or unreadable.
+    Returns an empty dict when the file is absent, unreadable, or untracked.
+    ``_dispositions_file_is_tracked`` explains why an untracked registry is
+    refused rather than read; an empty dict disposes nothing, so every
+    non-required failure keeps blocking.
     """
     if not dispositions_file:
+        return {}
+    if not _dispositions_file_is_tracked(dispositions_file):
         return {}
     try:
         with open(dispositions_file, encoding="utf-8") as fh:
