@@ -1086,6 +1086,38 @@ _load_dispositions = _mod._load_dispositions
 _check_nonrequired_dispositions = _mod._check_nonrequired_dispositions
 _VALID_DISPOSITIONS = _mod._VALID_DISPOSITIONS
 
+# `expires` is required on every entry, so the shared fixtures below carry one.
+# A date far enough out that the suite does not start failing on a calendar
+# boundary, and a past one for the expiry negatives.
+_FUTURE_EXPIRY = "2999-01-01"
+_PAST_EXPIRY = "2000-01-01"
+
+
+def _write_dispositions(tmp_path, entries, name="dispositions.json"):
+    """Write a dispositions file and return its path as a string."""
+    disp_file = tmp_path / name
+    disp_file.write_text(json.dumps(entries), encoding="utf-8")
+    return str(disp_file)
+
+
+def _entry(**overrides):
+    """Build an entry that clears every bound, then apply overrides.
+
+    A key set to None is deleted rather than set, so a test can drop a
+    required field.
+    """
+    entry = {
+        "disposition": "known-flaky",
+        "reason": "Flaky network test tracked in #1234",
+        "expires": _FUTURE_EXPIRY,
+    }
+    for key, value in overrides.items():
+        if value is None:
+            entry.pop(key, None)
+        else:
+            entry[key] = value
+    return entry
+
 
 class TestNonRequiredDispositions:
     """Issue #4902: require evidence before accepting nonrequired failures."""
@@ -1096,15 +1128,9 @@ class TestNonRequiredDispositions:
         assert _check_nonrequired_dispositions([], None) == []
 
     def test_all_failures_disposed_returns_empty(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Tests": {
-                "disposition": "known-flaky",
-                "reason": "Flaky network test tracked in #1234",
-            },
-        }))
+        disp_file = _write_dispositions(tmp_path, {"Run Tests": _entry()})
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], str(disp_file),
+            ["Run Tests"], disp_file,
         )
         assert result == []
 
@@ -1123,41 +1149,47 @@ class TestNonRequiredDispositions:
         assert result == ["Run Tests"]
 
     def test_partial_disposition_returns_undisposed(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Tests": {
-                "disposition": "known-flaky",
-                "reason": "Tracked in #1234",
-            },
-        }))
+        disp_file = _write_dispositions(tmp_path, {"Run Tests": _entry()})
         result = _check_nonrequired_dispositions(
-            ["Run Tests", "Lint"], str(disp_file),
+            ["Run Tests", "Lint"], disp_file,
         )
         assert result == ["Lint"]
 
     def test_invalid_disposition_value_treated_as_undisposed(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Tests": {
-                "disposition": "yolo",
-                "reason": "I want to merge",
-            },
-        }))
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": _entry(disposition="yolo")},
+        )
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], str(disp_file),
+            ["Run Tests"], disp_file,
+        )
+        assert result == ["Run Tests"]
+
+    def test_non_string_disposition_treated_as_undisposed(self, tmp_path):
+        """An unhashable value must reject, not raise on the set membership."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": _entry(disposition=["known-flaky"])},
+        )
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], disp_file,
         )
         assert result == ["Run Tests"]
 
     def test_empty_reason_treated_as_undisposed(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Tests": {
-                "disposition": "known-flaky",
-                "reason": "",
-            },
-        }))
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": _entry(reason="   ")},
+        )
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], str(disp_file),
+            ["Run Tests"], disp_file,
+        )
+        assert result == ["Run Tests"]
+
+    def test_non_string_reason_treated_as_undisposed(self, tmp_path):
+        """A numeric reason must reject, not raise on `.strip()`."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": _entry(reason=1234)},
+        )
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], disp_file,
         )
         assert result == ["Run Tests"]
 
@@ -1172,24 +1204,207 @@ class TestNonRequiredDispositions:
         assert result == ["Run Tests"]
 
     def test_non_dict_entry_treated_as_undisposed(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Tests": "just a string",
-        }))
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": "just a string"},
+        )
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], str(disp_file),
+            ["Run Tests"], disp_file,
         )
         assert result == ["Run Tests"]
 
     def test_all_valid_disposition_values_accepted(self, tmp_path):
         for disp_val in _VALID_DISPOSITIONS:
-            disp_file = tmp_path / f"d_{disp_val}.json"
-            disp_file.write_text(json.dumps({
-                "Check": {"disposition": disp_val, "reason": "valid"},
-            }))
+            disp_file = _write_dispositions(
+                tmp_path,
+                {"Check": _entry(disposition=disp_val, reason="valid")},
+                name=f"d_{disp_val}.json",
+            )
             assert _check_nonrequired_dispositions(
-                ["Check"], str(disp_file),
+                ["Check"], disp_file,
             ) == [], f"Failed for disposition={disp_val}"
+
+
+class TestDispositionExpiry:
+    """PR #5481 review: an entry scoped only to a check name never expires.
+
+    Without `expires`, one recorded acceptance of `semgrep-cloud-platform/scan`
+    would swallow every later failure of that check, including a new
+    exploitable finding. `expires` is required so an entry has to be renewed
+    on purpose rather than surviving by neglect.
+    """
+
+    def test_future_expiry_is_disposed(self, tmp_path):
+        disp_file = _write_dispositions(tmp_path, {"Scan": _entry()})
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
+
+    def test_future_datetime_expiry_is_disposed(self, tmp_path):
+        """A full ISO 8601 timestamp with an offset parses, not just a date."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="2999-01-01T12:30:00+00:00")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
+
+    def test_past_expiry_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires=_PAST_EXPIRY)},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    def test_missing_expiry_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires=None)},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    def test_unparseable_expiry_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="whenever")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    def test_non_string_expiry_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires=20991231)},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+
+class TestDispositionPullRequestAllowlist:
+    """PR #5481 review: bound an entry to the PRs that carry the failure.
+
+    `pull_requests` is optional because a genuinely repo-wide infrastructure
+    failure has no PR list to give. Omitting it has to be a deliberate choice,
+    so an entry that names the key is held to it exactly.
+    """
+
+    def test_listed_pr_is_disposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[5433, 5481])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == []
+
+    def test_unlisted_pr_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[5433, 5460])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+    def test_absent_allowlist_applies_to_any_pr(self, tmp_path):
+        disp_file = _write_dispositions(tmp_path, {"Scan": _entry()})
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == []
+
+    def test_allowlist_without_pr_number_is_undisposed(self, tmp_path):
+        """Membership cannot be shown, so the entry fails closed."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[5481])},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    def test_non_list_allowlist_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=5481)},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+    def test_non_integer_member_is_undisposed(self, tmp_path):
+        """A string member rejects the whole list, matching int or not."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[5481, "5460"])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+    def test_bool_member_is_undisposed(self, tmp_path):
+        """`isinstance(True, int)` is True in Python, so bools need the guard."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[True])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 1,
+        ) == ["Scan"]
+
+    def test_empty_allowlist_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+    # -- The two bounds compose as AND --
+
+    def test_listed_pr_on_expired_entry_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path,
+            {"Scan": _entry(expires=_PAST_EXPIRY, pull_requests=[5481])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+    def test_unexpired_entry_scoped_to_other_prs_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[5433])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+
+class TestShippedDispositionsFile:
+    """The committed file has to satisfy the validator that reads it.
+
+    `.claude/commands/pr-review-config.yaml` passes this exact path to the
+    readiness check, so a file that fails its own bounds is a silent no-op.
+
+    Stricter than the validator on one point: `_disposition_accepts` treats
+    `pull_requests` as optional, and an entry that omits it applies to any
+    PR. This class requires it on every shipped entry. The validator has to
+    keep the unscoped form for a genuinely repo-wide infrastructure failure,
+    but the committed file has no such entry today, and adding one should
+    cost an argued edit to this test rather than a quiet line in a JSON file.
+    """
+
+    _PATH = (
+        Path(__file__).resolve().parents[1]
+        / ".agents" / "pr-checks" / "dispositions.json"
+    )
+
+    def test_every_entry_carries_both_bounds(self):
+        entries = json.loads(self._PATH.read_text(encoding="utf-8"))
+        assert entries, "the shipped file must not be empty"
+        for name, entry in entries.items():
+            assert "expires" in entry, f"{name} has no expires"
+            assert "pull_requests" in entry, (
+                f"{name} has no pull_requests allowlist, so it would apply to "
+                "every PR. If that is really intended, change this test and "
+                "say why in the commit."
+            )
+
+    def test_shipped_entries_accept_their_listed_prs(self):
+        entries = json.loads(self._PATH.read_text(encoding="utf-8"))
+        for name, entry in entries.items():
+            for pr_number in entry["pull_requests"]:
+                assert _check_nonrequired_dispositions(
+                    [name], str(self._PATH), pr_number,
+                ) == [], f"{name} rejects its own listed PR {pr_number}"
+
+    def test_shipped_entries_reject_an_unlisted_pr(self):
+        entries = json.loads(self._PATH.read_text(encoding="utf-8"))
+        for name, entry in entries.items():
+            unlisted = max(entry["pull_requests"]) + 1_000_000
+            assert _check_nonrequired_dispositions(
+                [name], str(self._PATH), unlisted,
+            ) == [name], f"{name} accepts unlisted PR {unlisted}"
 
 
 class TestMergeReadinessWithDispositions:
@@ -1227,20 +1442,63 @@ class TestMergeReadinessWithDispositions:
     def test_disposed_nonrequired_failure_allows_merge(self, tmp_path):
         """With valid disposition file, UNSTABLE PR can merge."""
         pr_data = self._pr_with_failed_nonrequired()
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Python Tests": {
-                "disposition": "known-flaky",
-                "reason": "Tracked in issue #9999",
-            },
-        }))
+        disp_file = _write_dispositions(tmp_path, {
+            "Run Python Tests": _entry(reason="Tracked in issue #9999"),
+        })
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness(
                 "o", "r", 42,
-                dispositions_file=str(disp_file),
+                dispositions_file=disp_file,
             )
         assert result["CanMerge"] is True
         assert result["UndisposedNonRequiredFailures"] == []
+
+    def test_allowlisted_pr_number_reaches_the_validator(self, tmp_path):
+        """check_merge_readiness must hand its pr_number to the guard.
+
+        Positive half: the PR under test is on the allowlist, so the entry
+        applies and the failure clears.
+        """
+        pr_data = self._pr_with_failed_nonrequired()
+        disp_file = _write_dispositions(tmp_path, {
+            "Run Python Tests": _entry(pull_requests=[42]),
+        })
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness(
+                "o", "r", 42, dispositions_file=disp_file,
+            )
+        assert result["UndisposedNonRequiredFailures"] == []
+        assert result["CanMerge"] is True
+
+    def test_unlisted_pr_number_still_blocks_merge(self, tmp_path):
+        """Negative half of the pair above: a wired-through number can block.
+
+        Same entry, same failing check, only the allowlist differs. If
+        pr_number were dropped on the way to the guard this would still pass.
+        """
+        pr_data = self._pr_with_failed_nonrequired()
+        disp_file = _write_dispositions(tmp_path, {
+            "Run Python Tests": _entry(pull_requests=[99]),
+        })
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness(
+                "o", "r", 42, dispositions_file=disp_file,
+            )
+        assert result["UndisposedNonRequiredFailures"] == ["Run Python Tests"]
+        assert result["CanMerge"] is False
+
+    def test_expired_entry_still_blocks_merge(self, tmp_path):
+        """An expired entry blocks exactly as an absent one does."""
+        pr_data = self._pr_with_failed_nonrequired()
+        disp_file = _write_dispositions(tmp_path, {
+            "Run Python Tests": _entry(expires=_PAST_EXPIRY),
+        })
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness(
+                "o", "r", 42, dispositions_file=disp_file,
+            )
+        assert result["UndisposedNonRequiredFailures"] == ["Run Python Tests"]
+        assert result["CanMerge"] is False
 
     def test_zero_required_base_absent_check_blocks(self):
         """Zero required checks + failed non-required = blocked (no evidence)."""
@@ -1723,17 +1981,14 @@ class TestUnsupportedMergeStatesNeverReachT1:
             "conclusion": "FAILURE",
             "isRequired": False,
         })
-        dispositions = {
-            "flaky-extra": {
-                "disposition": "known-flaky",
-                "reason": "tracked in issue #4899",
-            },
-        }
-        dispositions_path = tmp_path / "dispositions.json"
-        dispositions_path.write_text(json.dumps(dispositions), encoding="utf-8")
+        dispositions_path = _write_dispositions(tmp_path, {
+            "flaky-extra": _entry(
+                reason="tracked in issue #4899", pull_requests=[42],
+            ),
+        })
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness(
-                "o", "r", 42, dispositions_file=str(dispositions_path),
+                "o", "r", 42, dispositions_file=dispositions_path,
             )
         assert result["FailedNonRequiredChecks"] != []
         assert result["UndisposedNonRequiredFailures"] == []

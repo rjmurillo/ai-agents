@@ -44,6 +44,7 @@ import subprocess
 import sys
 import time
 from collections import defaultdict
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -1049,9 +1050,15 @@ def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
         {
           "Check Name": {
             "disposition": "known-flaky|infrastructure|unrelated-to-pr|tracked-issue",
-            "reason": "human explanation"
+            "reason": "human explanation",
+            "expires": "2026-12-01",
+            "pull_requests": [5433, 5460]
           }
         }
+
+    ``disposition``, ``reason``, and ``expires`` are required on every entry.
+    ``pull_requests`` is optional. ``_disposition_accepts`` is the authority
+    on what each field has to hold and on what happens when one does not.
 
     Returns an empty dict when the file is absent or unreadable.
     """
@@ -1067,29 +1074,112 @@ def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
     return data
 
 
+def _disposition_unexpired(entry: dict[str, object], now: datetime) -> bool:
+    """Return True when ``entry`` carries an ``expires`` still ahead of ``now``.
+
+    The value parses with ``datetime.fromisoformat``, so an ISO 8601 date and
+    an ISO 8601 date-time both work. A bare date means midnight on that date,
+    and a timestamp with no offset is read as UTC. A missing, non-string,
+    unparseable, or already-passed value returns False.
+    """
+    expires = entry.get("expires")
+    if not isinstance(expires, str):
+        return False
+    try:
+        deadline = datetime.fromisoformat(expires)
+    except ValueError:
+        return False
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=UTC)
+    return deadline > now
+
+
+def _disposition_covers_pr(entry: dict[str, object], pr_number: int | None) -> bool:
+    """Return True when ``entry`` applies to the PR under test.
+
+    An entry with no ``pull_requests`` key applies to every PR. When the key
+    is present the value must be a list of ints that holds ``pr_number``.
+    Anything else returns False: a non-list value, a list holding a non-int
+    (``bool`` included, since ``isinstance(True, int)`` is True in Python),
+    a list that omits the PR, and a ``pr_number`` of None, which cannot be
+    shown to be a member of anything.
+    """
+    if "pull_requests" not in entry:
+        return True
+    allowed = entry["pull_requests"]
+    if not isinstance(allowed, list):
+        return False
+    if any(isinstance(n, bool) or not isinstance(n, int) for n in allowed):
+        return False
+    return pr_number in allowed
+
+
+def _disposition_accepts(
+    entry: object,
+    pr_number: int | None,
+    now: datetime,
+) -> bool:
+    """Return True when one disposition entry clears every bound.
+
+    Four bounds. All must hold. Any one that fails rejects the entry, and a
+    rejected entry leaves its check undisposed exactly as if the file carried
+    no entry for that check at all.
+
+    - ``disposition`` is a string in ``_VALID_DISPOSITIONS``.
+    - ``reason`` is a non-empty string.
+    - ``expires`` is an ISO 8601 date or date-time still in the future.
+      Required on every entry rather than optional, because an optional
+      expiry is the one a future entry silently omits, and an entry bound
+      only to a check name accepts every later failure of that check
+      forever, including a real one.
+    - ``pull_requests``, when present, holds ``pr_number``. Absent means the
+      entry applies to any PR, which stays useful for a genuinely repo-wide
+      infrastructure failure but has to be a deliberate choice rather than
+      the accidental default.
+
+    ``expires`` gates every entry and ``pull_requests`` narrows an entry
+    further, so the two compose as AND: an unexpired entry scoped to other
+    PRs rejects, and so does a listed PR on an expired entry.
+
+    Nothing here binds an entry to a specific upstream finding. This script
+    sees a check name from GitHub's check rollup and never the finding a
+    scanner reported under that name, so a finding id written into ``reason``
+    is an audit trail for a human reader, not a bound this function enforces.
+    """
+    if not isinstance(entry, dict):
+        return False
+    disposition = entry.get("disposition")
+    if not isinstance(disposition, str) or disposition not in _VALID_DISPOSITIONS:
+        return False
+    reason = entry.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        return False
+    return (
+        _disposition_unexpired(entry, now)
+        and _disposition_covers_pr(entry, pr_number)
+    )
+
+
 def _check_nonrequired_dispositions(
     failed_non_required: list[str],
     dispositions_file: str | None,
+    pr_number: int | None = None,
 ) -> list[str]:
-    """Return failed non-required check names without valid dispositions.
+    """Return failed non-required check names without an accepted disposition.
 
-    A disposition entry must have a ``disposition`` key with a value from
-    ``_VALID_DISPOSITIONS`` and a non-empty ``reason`` string.
+    ``_disposition_accepts`` decides each entry and documents the four bounds.
+    ``pr_number`` is the PR under test; leaving it None rejects every entry
+    that carries a ``pull_requests`` allowlist, because membership in that
+    list cannot be shown without it.
     """
     if not failed_non_required:
         return []
     dispositions = _load_dispositions(dispositions_file)
-    undisposed: list[str] = []
-    for name in failed_non_required:
-        entry = dispositions.get(name)
-        if not isinstance(entry, dict):
-            undisposed.append(name)
-            continue
-        disp = entry.get("disposition", "")
-        reason = entry.get("reason", "")
-        if disp not in _VALID_DISPOSITIONS or not reason.strip():
-            undisposed.append(name)
-    return undisposed
+    now = datetime.now(UTC)
+    return [
+        name for name in failed_non_required
+        if not _disposition_accepts(dispositions.get(name), pr_number, now)
+    ]
 
 
 def check_merge_readiness(
@@ -1120,7 +1210,7 @@ def check_merge_readiness(
     )
     # Non-required disposition check: undisposed failures block merge
     undisposed = _check_nonrequired_dispositions(
-        failed_non_required, dispositions_file,
+        failed_non_required, dispositions_file, pr_number,
     )
     if undisposed:
         reasons.append(
