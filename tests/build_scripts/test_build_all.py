@@ -3512,26 +3512,36 @@ def test_run_check_preserves_owned_root_after_transient_enoent_stat(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A root that still has a directory entry must not be treated as absent."""
+    """A root that still has a directory entry must not be treated as absent.
+
+    The `FileNotFoundError` is raised from `Path.stat`, the real I/O boundary,
+    not from a stub standing in for `_strict_owned_stat`. Stubbing the helper
+    with an already-wrapped `SnapshotIncompleteError` skipped both branches
+    this test exists to cover: the `FileNotFoundError` handler and the
+    `_missing_owned_root` parent scan that decides whether a missing root is
+    genuinely absent. Deleting either left the old version green.
+
+    `owned.txt` is still listed by its parent, so `_missing_owned_root`
+    answers False even under `missing_root_ok=True`, and the helper raises
+    rather than treating the prefix as one a generator may create.
+    """
     repo = tmp_path / "repo"
     _write_platform_with_skills(repo, provider="copilot-cli")
     protected = repo / "owned.txt"
     protected.write_text("x = 1\n")
     monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned.txt",))
 
-    real_strict_owned_stat = build_all._strict_owned_stat
+    real_stat = Path.stat
     failed = False
 
-    def flaky_strict_owned_stat(
-        path: Path, *, missing_root_ok: bool
-    ) -> os.stat_result | None:
+    def vanishes_once(
+        self: Path, *, follow_symlinks: bool = True
+    ) -> os.stat_result:
         nonlocal failed
-        if path == protected and not failed:
+        if self == protected and not failed:
             failed = True
-            raise build_all.SnapshotIncompleteError(
-                f"owned path disappeared during snapshot {path}: [Errno 2] vanished"
-            )
-        return real_strict_owned_stat(path, missing_root_ok=missing_root_ok)
+            raise FileNotFoundError(2, "vanished", str(self))
+        return real_stat(self, follow_symlinks=follow_symlinks)
 
     generation_called = False
 
@@ -3540,7 +3550,7 @@ def test_run_check_preserves_owned_root_after_transient_enoent_stat(
         generation_called = True
         return 0
 
-    monkeypatch.setattr(build_all, "_strict_owned_stat", flaky_strict_owned_stat)
+    monkeypatch.setattr(Path, "stat", vanishes_once)
     monkeypatch.setattr(build_all, "_run_generators", record_generation)
 
     rc = build_all.run(
