@@ -451,7 +451,7 @@ them: one run cannot distinguish a real equivalence from noise, and the noise
 floor here spans most of the usable range.
 
 The last row is the common case and the easy one to skip. As of 2026-09-02,
-`code-quality.md` (14,174 bytes) already has a scenario file carrying four
+`code-quality.md` (14,402 bytes) already has a scenario file carrying four
 scenarios, added by PR #4017, and no scored result anywhere in
 `evals/reports/`. No **book-derived** rule is always-on now: issue #4871 found
 this one scoped with `alwaysApply:`, a key Claude Code ignores, and rescoped it
