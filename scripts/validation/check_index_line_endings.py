@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -48,6 +49,10 @@ from scripts.validation.index_line_endings_record import (
 REMEDIATION = "git add --renormalize <path>, then commit the result"
 
 _GIT_TIMEOUT_SECONDS = 120
+
+# The git that first documented `GIT_ATTR_SOURCE`. See `_require_attr_source`
+# for the tagged-source evidence and for why 2.40 is not the floor.
+_MINIMUM_GIT_VERSION = (2, 41)
 
 
 def _git_environment() -> dict[str, str]:
@@ -178,8 +183,9 @@ def _head_env(repo_root: Path, index_path: str) -> dict[str, str]:
     from the working tree, so an uncommitted attribute edit would judge HEAD's
     blobs by rules HEAD does not carry: adding `-text` locally would hide a
     committed violation, and removing it would invent one. `GIT_ATTR_SOURCE`
-    (git 2.40+) pins the attributes to the same tree as the blobs, so the HEAD
-    scope answers one question about one commit.
+    pins the attributes to the same tree as the blobs, so the HEAD scope
+    answers one question about one commit. `_require_attr_source` is what
+    makes that pin something the caller can rely on.
 
     The base is `_git_environment()`, not `os.environ.copy()`. Copying the
     ambient environment would carry an exported `GIT_DIR` into the isolated
@@ -190,6 +196,100 @@ def _head_env(repo_root: Path, index_path: str) -> dict[str, str]:
     env["GIT_INDEX_FILE"] = index_path
     env["GIT_ATTR_SOURCE"] = "HEAD"
     _git(repo_root, ["read-tree", "HEAD"], env=env)
+    return env
+
+
+def _git_version(repo_root: Path) -> tuple[int, int]:
+    """The running git's `(major, minor)`.
+
+    Only the first two components are read. Distributors append their own:
+    `git version 2.39.5 (Apple Git-154)` and `git version 2.45.1.windows.1`
+    are both real spellings, and neither parses as a plain three-part version.
+    """
+    text = _git(repo_root, ["--version"]).stdout.strip()
+    match = re.match(r"git version (\d+)\.(\d+)", text)
+    if match is None:
+        raise RuntimeError(f"could not read a version out of git --version: {text!r}")
+    return int(match.group(1)), int(match.group(2))
+
+
+def _require_attr_source(repo_root: Path) -> None:
+    """Refuse to answer on a git that does not know `GIT_ATTR_SOURCE`.
+
+    Both scopes pin their attribute source with that variable. A git that does
+    not know it ignores it: no error, no warning, no exit code, just the
+    working tree's `.gitattributes` silently answering for a tree it does not
+    describe. That is the failure `.claude/rules/ci-scripts.md` MUST-12 names,
+    a run that did nothing reporting the same way as a run that succeeded, so
+    this raises and reaches the exit-2 path in `main` and the False verdict in
+    `validate_index_line_endings`.
+
+    The floor is 2.41, read out of the tagged sources rather than recalled.
+    `Documentation/git.txt` at `v2.40.0` contains neither `GIT_ATTR_SOURCE`
+    nor `--attr-source`. At `v2.41.0` it contains both, the option verbatim::
+
+        --attr-source=<tree-ish>::
+            Read gitattributes from <tree-ish> instead of the worktree. See
+            linkgit:gitattributes[5]. This is equivalent to setting the
+            `GIT_ATTR_SOURCE` environment variable.
+
+    and the variable verbatim::
+
+        `GIT_ATTR_SOURCE`::
+            Sets the treeish that gitattributes will be read from.
+
+    2.40 is the wrong floor and an earlier revision of this file said so. Its
+    release notes read "git check-attr" learned to take an optional tree-ish
+    to read the .gitattributes file from, which is `git check-attr` only. The
+    2.41 notes carry the general form, "git --attr-source=<tree> cmd $args" is
+    a new way to have any command to read attributes not from the working tree
+    but from the given tree object, and `git ls-files --eol` is one of those
+    any-commands.
+
+    The repository declares no git floor: no version constraint appears in
+    `AGENTS.md` or `.agents/governance/PROJECT-CONSTRAINTS.md`, and a
+    repository-wide search finds only measurements pinned to a version that
+    was observed, never a minimum. So this gate carries its own.
+    """
+    version = _git_version(repo_root)
+    if version >= _MINIMUM_GIT_VERSION:
+        return
+    running = ".".join(str(part) for part in version)
+    required = ".".join(str(part) for part in _MINIMUM_GIT_VERSION)
+    raise RuntimeError(
+        f"git {running} predates GIT_ATTR_SOURCE, which git {required} added. "
+        "Both scopes of this check pin their attribute source with that "
+        "variable, and an older git ignores it without saying so, judging "
+        "stored blobs by whatever .gitattributes the working tree happens to "
+        f"hold. Upgrade to git {required} or newer."
+    )
+
+
+def _index_env(repo_root: Path) -> dict[str, str]:
+    """Environment pinning attributes to the tree the next commit would create.
+
+    The index scope asks what the next commit will store, and a commit stores
+    the staged `.gitattributes` along with the staged blobs. Git answers from
+    the working tree instead: with an unstaged `handoff.md -text` edit and
+    `*.md text` staged, `git ls-files --eol` reports `attr/-text` for a staged
+    CRLF blob, so the scope that exists to catch the next commit calls it
+    clean, and the commit lands the contradiction anyway. The inverse spelling
+    of the same edit invents a violation that committing would not produce.
+    Both measured on git 2.51.0.
+
+    This is the identical hazard `_head_env` pins with `GIT_ATTR_SOURCE=HEAD`,
+    one scope over. `write-tree` is git's name for the tree the index would
+    commit, so it is the tree-ish that makes the two scopes symmetric.
+
+    `write-tree` does write. It adds a tree object and nothing else: no ref, no
+    index change, nothing a later reader trips over, and it is a no-op whenever
+    the index already matches a stored tree (measured: `git count-objects -v`
+    reports the same count before and after on an index equal to HEAD). That is
+    why it is not gated behind `refuses_write_from_outside`, whose subject is
+    the staged change `--fix` leaves in a checkout nobody was looking at.
+    """
+    env = _git_environment()
+    env["GIT_ATTR_SOURCE"] = _git(repo_root, ["write-tree"]).stdout.strip()
     return env
 
 
@@ -216,6 +316,7 @@ def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
     """
     violations: list[Violation] = []
     examined = 0
+    _require_attr_source(repo_root)
 
     if _has_commits(repo_root):
         # NamedTemporaryFile would hand git an existing empty file, which
@@ -229,7 +330,7 @@ def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
 
     seen = {violation.path for violation in violations}
     staged, staged_examined = parse_violations(
-        _ls_files_eol(repo_root), scope="index"
+        _ls_files_eol(repo_root, env=_index_env(repo_root)), scope="index"
     )
     violations.extend(v for v in staged if v.path not in seen)
     return violations, max(examined, staged_examined)

@@ -301,3 +301,103 @@ def test_fix_ignores_an_ambient_git_dir(tmp_path: Path, monkeypatch: pytest.Monk
     violations, _ = checker.check_repository(subject)
     assert [v.scope for v in violations] == ["HEAD"]  # index fixed, HEAD awaits commit
     assert _porcelain(decoy) == ""
+
+
+# --- the GIT_ATTR_SOURCE capability floor ---------------------------------
+
+
+def test_a_git_without_attr_source_support_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """An older git ignores `GIT_ATTR_SOURCE` silently, so the gate must not.
+
+    Both scopes pin their attribute source with that variable. Ignored, the
+    working tree's `.gitattributes` answers for a tree it does not describe,
+    and the run reports the same way as a run that measured what it claimed.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    monkeypatch.setattr(checker, "_git_version", lambda _repo_root: (2, 40))
+
+    assert checker.main(["--repo-root", str(repo)]) == 2
+
+    err = capsys.readouterr().err
+    assert "git 2.40 predates GIT_ATTR_SOURCE" in err
+    assert "git 2.41" in err
+    assert checker.validate_index_line_endings(repo) is False
+
+
+def test_the_supported_floor_itself_is_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Control for the test above: 2.41 is the floor, not the first refusal."""
+    repo = _repo_with_crlf_blob(tmp_path)
+    monkeypatch.setattr(checker, "_git_version", lambda _repo_root: (2, 41))
+
+    assert checker.main(["--repo-root", str(repo)]) == 1  # violations, not a config error
+
+
+def test_git_version_reads_the_distributor_spellings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Apple and Git for Windows both append their own build to the version."""
+    captured = {"stdout": ""}
+
+    def fake_git(_repo_root: Path, args: list[str], env: dict[str, str] | None = None):
+        return subprocess.CompletedProcess(args, 0, stdout=captured["stdout"], stderr="")
+
+    monkeypatch.setattr(checker, "_git", fake_git)
+
+    for text, expected in (
+        ("git version 2.51.0", (2, 51)),
+        ("git version 2.39.5 (Apple Git-154)", (2, 39)),
+        ("git version 2.45.1.windows.1", (2, 45)),
+    ):
+        captured["stdout"] = text
+        assert checker._git_version(tmp_path) == expected
+
+    captured["stdout"] = "not a version at all"
+    with pytest.raises(RuntimeError, match="could not read a version"):
+        checker._git_version(tmp_path)
+
+
+# --- index scope: attributes as staged, not as edited ---------------------
+#
+# `_head_env` pins HEAD's attributes for the same reason. Without the matching
+# pin on this scope, an uncommitted `.gitattributes` edit decides the verdict
+# for blobs the next commit will store under the staged attributes instead.
+
+
+def _stage_attributes(repo: Path, text: str) -> None:
+    (repo / ".gitattributes").write_text(text, newline="\n")
+    _git(repo, "add", ".gitattributes")
+
+
+def test_index_scope_reads_staged_attributes_not_an_unstaged_exemption(
+    tmp_path: Path,
+) -> None:
+    """An unstaged `-text` must not hide a blob the next commit stores as `eol=lf`."""
+    repo = _repo_with_crlf_blob(tmp_path)
+    # Edited on disk, deliberately not staged: the commit will carry `*.md text`.
+    (repo / ".gitattributes").write_text(
+        "* text=auto eol=lf\n*.md text\nhandoff.md -text\n", newline="\n"
+    )
+
+    violations, _ = checker.check_repository(repo)
+
+    assert [(v.path, v.scope) for v in violations] == [("handoff.md", "index")]
+
+
+def test_index_scope_honours_a_staged_exemption_over_an_unstaged_removal(
+    tmp_path: Path,
+) -> None:
+    """The inverse: an unstaged removal must not invent a violation either."""
+    repo = _repo_with_crlf_blob(tmp_path)
+    _stage_attributes(repo, "* text=auto eol=lf\n*.md text\nhandoff.md -text\n")
+    # The exemption is staged, so the next commit carries it. Removing it only
+    # on disk changes nothing about what that commit will store.
+    (repo / ".gitattributes").write_text("* text=auto eol=lf\n*.md text\n", newline="\n")
+
+    violations, _ = checker.check_repository(repo)
+
+    assert violations == []
