@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size, this file is the single runtime harness suite
+# for pr-autofix tier dispatch and keeping the matrix in one place preserves
+# the shell block contract it exercises.
 """Runtime behavior of `/pr-autofix`'s tier-dispatch block.
 
 Refs #5094. The static contract gate proves each `jq` read names a field its
@@ -128,6 +131,19 @@ def test_unreadable_auto_merge_state_skips_instead_of_guessing(tmp_path: Path, d
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_schema_invalid_auto_merge_state_skips_instead_of_laundering_false(
+    tmp_path: Path, doc: str
+) -> None:
+    run = run_dispatch(tmp_path, doc, tier="T3", auto_merge="RAW:false")
+
+    assert "Cannot read auto-merge state" in run.stdout
+    assert run.cleaned_up
+    assert not run.disarmed, "a schema-invalid auto-merge value was treated as unarmed"
+    assert not run.reached_end
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
 def test_a_skipped_mutation_is_not_reported_as_a_failure(tmp_path: Path, doc: str) -> None:
     run = run_dispatch(
         tmp_path,
@@ -162,7 +178,9 @@ def test_a_failed_mutation_is_reported(tmp_path: Path, doc: str) -> None:
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-@pytest.mark.parametrize("failure", ["CRASH", "MALFORMED", "ERROR_OBJECT"])
+@pytest.mark.parametrize(
+    "failure", ["CRASH", "MALFORMED", "PREFIX_MALFORMED", "ERROR_OBJECT"]
+)
 def test_a_producer_that_names_no_tier_disarms_then_skips(
     tmp_path: Path, doc: str, failure: str
 ) -> None:
@@ -190,7 +208,9 @@ def test_a_producer_that_names_no_tier_disarms_then_skips(
         tier=failure,
         auto_merge="SQUASH",
         round_action="ACT",
-        expected_stderr="jq: parse error" if failure == "MALFORMED" else None,
+        expected_stderr=(
+            "jq: parse error" if failure in {"MALFORMED", "PREFIX_MALFORMED"} else None
+        ),
     )
 
     assert "Cannot determine tier" in run.stdout
@@ -200,6 +220,22 @@ def test_a_producer_that_names_no_tier_disarms_then_skips(
     assert not run.round_cap_called
     assert not run.reached_end, "the loop kept acting without a valid tier"
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_t1_payload_with_nonzero_status_is_not_trusted(tmp_path: Path, doc: str) -> None:
+    """A success payload and failure exit cannot jointly authorize merge."""
+    run = run_dispatch(
+        tmp_path,
+        doc,
+        tier="T1",
+        auto_merge="SQUASH",
+        merge_ready_rc="1",
+    )
+
+    assert "Cannot determine tier" in run.stdout
+    assert run.disarmed
+    assert not run.reached_end
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -228,11 +264,11 @@ def test_an_unknown_tier_with_no_auto_merge_armed_calls_nothing(tmp_path: Path, 
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
-@pytest.mark.parametrize("tier", ["T2", "T5", "BEHIND", "BLOCKED", "DIRTY"])
+@pytest.mark.parametrize("tier", ["T2", "BEHIND", "BLOCKED", "DIRTY"])
 def test_a_valid_tier_exiting_nonzero_is_still_dispatched(
     tmp_path: Path, doc: str, tier: str
 ) -> None:
-    """Every declared tier is dispatched, and exit status is not the discriminator.
+    """Every dispatched tier is dispatched, and exit status is not the discriminator.
 
     Two things this pins. `test_pr_merge_ready.py` exits 1 for any PR that is
     not merge-ready, so these tiers legitimately arrive with a non-zero status,
@@ -242,8 +278,14 @@ def test_a_valid_tier_exiting_nonzero_is_still_dispatched(
     command's prose describes. BEHIND, BLOCKED, and DIRTY are declared return
     values; the guard first shipped rejecting them, which turned a healthy
     classification into "producer failed" and stopped the documented BEHIND and
-    DIRTY handling. SKIP is declared too but is not dispatched, so it has its
-    own test below rather than a row here.
+    DIRTY handling.
+
+    Two declared tiers are recognized without being dispatched, and each has its
+    own case rather than a row here. SKIP is a draft, merged, or closed PR. T5 is
+    a bot-authored PR with a failure or unresolved threads, which the tier table
+    hands to a human; it sat in this row while `--is-bot` was never forwarded and
+    the tier was therefore unreachable, and it moved out in the same change that
+    made it reachable (issue #5208, `test_pr_autofix_bot_tier_forwarding.py`).
     """
     run = run_dispatch(tmp_path, doc, tier=tier, auto_merge="null")
 
@@ -298,6 +340,7 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     # fails on a fake that has stopped matching that contract.
     env["FAKE_TIER"] = "T1"
     env["FAKE_PAGES_COMPLETE"] = "true"
+    env["MERGE_READY_LOG"] = str(tmp_path / "merge-ready")
     process = subprocess.run(
         ["python3", str(scripts_dir / "test_pr_merge_ready.py")],
         env=env,
@@ -324,6 +367,22 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     assert '"fetched_pages_complete": fetched_pages_complete,' in real
     assert "print(json.dumps(result, indent=2))" in real
     assert "write_skill_output" not in real, "the real producer started using the Data emitter"
+    # The flag the block forwards. If the producer drops it, the block starts
+    # passing an argument argparse rejects, and the whole loop breaks on every
+    # bot PR. That must fail here rather than in production (issue #5208).
+    assert '"--is-bot", action="store_true",' in real, (
+        "the real producer no longer declares --is-bot, which the tier-dispatch "
+        "block forwards for bot-authored PRs"
+    )
+
+    # The other end of the same contract: get_pr_context.py must still emit the
+    # field the block reads the author state from. Without this the block's
+    # type-checked read would silently fall to its fail-closed branch and every
+    # PR, human or not, would classify as a bot.
+    context = (REPO_ROOT / ".claude/skills/github/scripts/pr/get_pr_context.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"author_is_bot": author_is_bot(author),' in context
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
@@ -345,6 +404,39 @@ def test_skip_terminates_instead_of_reaching_the_disarm_gate(tmp_path: Path, doc
     assert not run.disarmed, "auto-merge was stripped from a non-actionable PR"
     assert not run.round_cap_called
     assert not run.reached_end
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_unsupported_disarms_first_then_terminates(tmp_path: Path, doc: str) -> None:
+    """UNSUPPORTED terminates, but one gate later than SKIP, and that is the point.
+
+    Both are recognized and non-actionable, and they differ on exactly one
+    thing: whether auto-merge survives. SKIP names a state the author chose
+    (draft, merged, closed), so stripping it would destroy that choice. This
+    one names a `mergeStateStatus` with no verified merge path, so "armed but
+    not provably T1" is exactly true of it and the arm must fall through to the
+    disarm gate before stopping. Read against
+    `test_skip_terminates_instead_of_reaching_the_disarm_gate` above, which
+    asserts the opposite `disarmed` value on the same harness.
+
+    `round_cap_called` is the other half. Before this tier existed the same PR
+    classified T4, which dispatches into the round-cap thread-fix loop with no
+    threads to fix and no CI to repair, so it terminated only by burning the
+    cap and posting an escalation comment (issue #4899 reopen).
+    """
+    run = run_dispatch(
+        tmp_path, doc, tier="UNSUPPORTED", auto_merge="SQUASH", round_action="ACT"
+    )
+
+    assert "Cannot determine tier" not in run.stdout, (
+        "UNSUPPORTED is declared in _TIER_ORDER, not a producer failure"
+    )
+    assert "no verified merge path" in run.stdout
+    assert run.disarmed, "auto-merge survived on a PR with no verified merge path"
+    assert not run.round_cap_called, "the round-cap breaker fired on a PR with no work"
+    assert not run.reached_end
+    assert run.cleaned_up
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
 
 

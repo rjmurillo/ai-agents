@@ -9,7 +9,7 @@ Pin the contract the skill must honor:
   semantic).
 - DRY: the skill references voice.md as the banned-word source of truth and does
   NOT re-encode the banned vocabulary list.
-- The skill body carries no em-dash or en-dash (universal.md MUST NOT 5).
+- The skill body carries no em-dash or en-dash (universal.md MUST NOT 4).
 - The copilot mirror SKILL.md is byte-identical to the canonical one.
 
 Tests follow Arrange/Act/Assert, one behavior per test.
@@ -214,7 +214,7 @@ def test_no_em_or_en_dash_in_body() -> None:
     # Arrange
     body = _read_skill()
 
-    # Act / Assert: universal.md MUST NOT 5. Skill prose carries no em/en dashes.
+    # Act / Assert: universal.md MUST NOT 4. Skill prose carries no em/en dashes.
     assert _EM_DASH not in body, "SKILL.md must not contain em-dashes (U+2014)"
     assert _EN_DASH not in body, "SKILL.md must not contain en-dashes (U+2013)"
 

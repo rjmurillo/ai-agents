@@ -98,11 +98,33 @@ def _read(repo_root: Path, relative: str) -> str | None:
 
 
 def uncovered_scripts(repo_root: Path) -> list[str] | None:
-    """Script paths that define ``main`` with no test proving a nonzero exit."""
-    scripts = tracked_files(repo_root, _SCRIPT_GLOBS)
+    """Script paths that define ``main`` with no test proving a nonzero exit.
+
+    Three index reads, and only the first announces. This ratchet is the one
+    consumer that counts from two disjoint scopes rather than one, so the
+    "counting read announces, diagnostic re-read stays silent" split the other
+    five use does not describe it: both scoped reads below are counting reads,
+    and leaving both announcing printed one note per scope for a single run.
+    That is the duplicate output issue #4746 exists to remove, reintroduced at
+    a different shape.
+
+    Passing ``announce_unmerged=False`` to just the second read would be wrong
+    in the other direction: a merge conflicted only under ``tests/`` would then
+    announce nothing at all. So the union of both pathspecs is read first and
+    owns the announcement, and both scoped reads stay silent. One run, one
+    caveat, naming every unmerged path either scope would have counted.
+
+    The union read is also the git-health probe for the pair: git either
+    answers for both scopes or the whole enumeration is unusable, so its None
+    short-circuits before either scoped read runs.
+    """
+    merge_state = tracked_files(repo_root, (*_SCRIPT_GLOBS, *_TEST_GLOBS))
+    if merge_state is None:
+        return None
+    scripts = tracked_files(repo_root, _SCRIPT_GLOBS, announce_unmerged=False)
     if scripts is None:
         return None
-    tests = tracked_files(repo_root, _TEST_GLOBS)
+    tests = tracked_files(repo_root, _TEST_GLOBS, announce_unmerged=False)
     if tests is None:
         return None
 

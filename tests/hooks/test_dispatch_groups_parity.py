@@ -208,6 +208,9 @@ AUTHORIZED_HOOKS = {
     "persists memory confidence scores, dogfood-only",
     "invoke_checkout_freshness_check.py": "#4689: state how many commits HEAD "
     "is behind origin/main before triage begins, fail-open, dogfood-only",
+    "invoke_plugin_hook_drift_check.py": "#5085 KEEP: name installed plugin "
+    "copies that register hooks this checkout does not, read-only, fail-open, "
+    "dogfood-only",
 }
 
 

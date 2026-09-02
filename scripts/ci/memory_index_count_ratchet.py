@@ -179,9 +179,21 @@ def _warning_lines(repo_root: Path) -> list[str] | None:
     return warnings
 
 
-def _tracked_relative_paths(repo_root: Path) -> set[str] | None:
-    """Tracked memory files as paths relative to the memories directory."""
-    files = tracked_files(repo_root, (f"{_MEMORIES_DIR}/**",))
+def _tracked_relative_paths(
+    repo_root: Path, *, announce_unmerged: bool = True
+) -> set[str] | None:
+    """Tracked memory files as paths relative to the memories directory.
+
+    The set comprehension below already collapsed a path git listed once per
+    merge stage, so this ratchet never double-counted one the way its siblings
+    did (issue #4746). It still reads the shared enumeration, so it still
+    carries the mid-merge note, and ``announce_unmerged`` is threaded through
+    for the reason the other ratchets need it: ``run`` reads the index twice on
+    a regression and the note belongs to the counting read alone.
+    """
+    files = tracked_files(
+        repo_root, (f"{_MEMORIES_DIR}/**",), announce_unmerged=announce_unmerged
+    )
     if files is None:
         return None
     prefix = f"{_MEMORIES_DIR}/"
@@ -213,12 +225,12 @@ def _is_tracked(warning: str, tracked: set[str]) -> bool:
     return _subject(warning) in tracked
 
 
-def _collect(repo_root: Path) -> list[str] | None:
+def _collect(repo_root: Path, *, announce_unmerged: bool = True) -> list[str] | None:
     """Tracked-file warnings from one healthy scan, or None when unusable."""
     warnings = _warning_lines(repo_root)
     if warnings is None:
         return None
-    tracked = _tracked_relative_paths(repo_root)
+    tracked = _tracked_relative_paths(repo_root, announce_unmerged=announce_unmerged)
     if tracked is None:
         return None
     return [w for w in warnings if _is_tracked(w, tracked)]
@@ -242,8 +254,13 @@ def list_violations(
     ``priority_paths`` holds repository-relative paths while a warning names a
     path relative to the memories directory, so the subject is re-prefixed
     before the comparison.
+
+    ``announce_unmerged=False`` because this is the run's second index read.
+    ``run`` calls ``current_count`` before it calls this, and that read already
+    emitted the mid-merge note. Without the suppression a contributor mid-merge
+    saw the identical caveat twice for one regression (issue #4746).
     """
-    warnings = _collect(repo_root)
+    warnings = _collect(repo_root, announce_unmerged=False)
     if warnings is None:
         return None
     hot: list[str] = []

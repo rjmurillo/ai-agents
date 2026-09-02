@@ -64,8 +64,9 @@ flock "$HOME/src/scratch/locks/push-lock-$SLUG.lock" git push origin "$BR"
 
 A `ps` census or a retrospective that records what the old schemes looked like
 is evidence, not a recipe, and must not be rewritten to match this rule. Mark
-such a fenced block with the token `push-lock-historical` on a line inside the
-fence so `scripts/validation/check_push_lock_paths.py` skips it. The checker
+such a fenced block, or such a paragraph of prose, with the token
+`push-lock-historical` on a line inside it so
+`scripts/validation/check_push_lock_paths.py` skips it. The checker
 scans prescriptive surfaces only and leaves `.agents/retrospective/`,
 `.agents/audits/`, and `.agents/archive/` alone.
 
@@ -116,7 +117,7 @@ uv run python scripts/validation/check_push_lock_paths.py
 Exits 0 and prints the examined file count when every prescription agrees.
 Exits 1 and names file, line, and offending path otherwise.
 
-The unit is the fenced block, not the line. A recipe reaches its lock four
+The unit is the block, not the line. A recipe reaches its lock four
 ways and only the first keeps `flock` and the path on one line: inline,
 through a variable (`LOCK=...` then `flock "$LOCK"`), through a file
 descriptor (`exec 9>...` then `flock -n 9`), and across a `\` continuation.
@@ -125,6 +126,41 @@ Every lock a block opens must be canonical, read from its `.lock` tokens, its
 catches a lock written without the `.lock` suffix, and what keeps a dead scheme
 visible when it shares a fence with the canonical recipe. The inventory comes
 from the index, so a staged but uncommitted file is checked.
+
+A variable resolves to the assignment live before the `flock` that reads it, the
+way shell binds names. Ordering is by position, not by line, so a reassignment
+placed after a `flock` describes the next call and not that one, whether it sits
+on a later line or later on the same one. It can therefore neither launder a bad
+path nor condemn a canonical one.
+
+A recipe does not become canonical by losing its fence, so unfenced prose is
+read the same way, one Markdown paragraph at a time: a blank line bounds the
+unit, so a variable set in one paragraph never resolves a `flock` in another.
+The one asymmetry is that a whole unfenced run is not reported for naming no
+canonical path, because prose discusses `flock` without prescribing anything
+(issue #4635).
+
+That asymmetry covers prose *about* `flock`, not a real call, so one case
+overrides it: `flock "$VAR"` where the variable reaches no path the checker can
+read is reported wherever it appears, fenced or not. Both shapes count, the
+variable nothing in the unit assigns and the variable that resolves only to
+another name:
+
+```bash
+# push-lock-historical: specimens of what gets rejected, not recipes to copy.
+flock "$LOCK" git push                    # LOCK assigned in another paragraph
+LOCK=$SOME_EXTERNAL_ENV ; flock "$LOCK"   # resolves to a name, not a path
+```
+
+A lock this checker cannot read is a lock nobody can confirm agrees with anyone
+else's, which is the state issue #4366 was measured in. Keep an assignment and
+the `flock` that reads it in one paragraph, or fence them.
+
+One limit remains, uncovered: a tight list or table is one paragraph, so a dead
+path in one item and a `flock` in another read as a single recipe. That
+over-reports rather than under-reports and `push-lock-historical` clears it, so
+it is left alone. Fixing it wants Markdown structure this checker does not
+parse. Fence any recipe you want read exactly.
 
 ## References
 

@@ -40,6 +40,9 @@ if not os.path.isdir(_lib_dir):
 
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
+_script_dir = os.path.dirname(__file__)
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
 
 from github_core.api import (
     assert_gh_authenticated,
@@ -53,11 +56,21 @@ from github_core.output import (
     get_output_format,
     write_skill_output,
 )
+from pr_context_helpers import (
+    FOCUSED_JSON_FIELDS,
+    author_is_bot,
+    focused_context,
+    record_context_fetch_failure,
+    requested_json_fields,
+)
+from pr_context_helpers import (
+    selected_fields as select_context_fields,
+)
 
 JsonObject: TypeAlias = dict[str, Any]
 _MAX_REVIEW_THREAD_PAGES = 50
 
-_JSON_FIELDS = (
+_FULL_JSON_FIELDS = (
     "number,title,body,headRefName,headRefOid,baseRefName,baseRefOid,state,author,labels,"
     "reviewRequests,reviews,reviewDecision,commits,additions,deletions,changedFiles,"
     "mergeable,mergeStateStatus,statusCheckRollup,autoMergeRequest,isDraft,"
@@ -133,9 +146,9 @@ def _review_threads_page(
     return cast(JsonObject, review_threads)
 
 
-def _load_pr_data(repo_flag: str, pr: int) -> JsonObject:
+def _load_pr_data(repo_flag: str, pr: int, json_fields: str) -> JsonObject:
     pr_result = subprocess.run(
-        ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", _JSON_FIELDS],
+        ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", json_fields],
         capture_output=True,
         text=True,
         timeout=30,
@@ -322,38 +335,26 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="With --include-diff, return stat format instead of full diff",
     )
+    parser.add_argument(
+        "--field",
+        action="append",
+        choices=sorted(FOCUSED_JSON_FIELDS),
+        default=[],
+        help="Fetch only specific context fields with a reduced API query",
+    )
     add_output_format_arg(parser)
     return parser
 
 
-def _context_fetch_failure_message(
-    result: subprocess.CompletedProcess[str],
-    command: str,
-) -> str:
-    message = (result.stderr or result.stdout).strip()
-    if message:
-        return message
-    return f"{command} exited with return code {result.returncode} and no error output"
-
-
-def _record_context_fetch_failure(
-    data: dict[str, object],
-    field: str,
-    result: subprocess.CompletedProcess[str],
-    command: str,
-) -> None:
-    failures = data.get("context_fetch_failures")
-    if not isinstance(failures, list):
-        failures = []
-        data["context_fetch_failures"] = failures
-    failures.append({
-        "field": field,
-        "message": _context_fetch_failure_message(result, command),
-    })
-
-
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    selected_fields = select_context_fields(args.field)
+
+    if selected_fields and (args.include_diff or args.include_changed_files or args.diff_stat):
+        error_and_exit(
+            "--field cannot be combined with --include-diff, --include-changed-files, or --diff-stat",
+            1,
+        )
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
@@ -362,7 +363,17 @@ def main(argv: list[str] | None = None) -> int:
     repo_flag = f"{owner}/{repo}"
     fmt = get_output_format(args.output_format)
 
-    pr_data = _load_pr_data(repo_flag, pr)
+    pr_data = _load_pr_data(repo_flag, pr, requested_json_fields(selected_fields, _FULL_JSON_FIELDS))
+    if selected_fields:
+        write_skill_output(
+            focused_context(pr_data, selected_fields),
+            output_format=fmt,
+            human_summary=f"PR #{pr}: fetched {', '.join(selected_fields)}",
+            status="PASS",
+            script_name="get_pr_context.py",
+        )
+        return 0
+
     labels = [label.get("name", "") for label in pr_data.get("labels", [])]
     author = pr_data.get("author")
     merged_by = pr_data.get("mergedBy")
@@ -385,6 +396,8 @@ def main(argv: list[str] | None = None) -> int:
         "state": pr_data.get("state"),
         "is_draft": pr_data.get("isDraft", False),
         "author": author.get("login") if isinstance(author, dict) else None,
+        # Three-state; see pr_context_helpers.author_is_bot. Forwarded as --is-bot (issue #5208).
+        "author_is_bot": author_is_bot(author),
         "head_branch": pr_data.get("headRefName"),
         "head_sha": pr_data.get("headRefOid"),
         "head_repo": head_repo.get("nameWithOwner"),
@@ -439,7 +452,7 @@ def main(argv: list[str] | None = None) -> int:
         if diff_result.returncode == 0:
             data["diff"] = diff_result.stdout
         else:
-            _record_context_fetch_failure(data, "diff", diff_result, "gh pr diff")
+            record_context_fetch_failure(data, "diff", diff_result, "gh pr diff")
 
     if args.include_changed_files:
         files_result = subprocess.run(
@@ -452,7 +465,7 @@ def main(argv: list[str] | None = None) -> int:
         if files_result.returncode == 0:
             data["files"] = [f for f in files_result.stdout.splitlines() if f.strip()]
         else:
-            _record_context_fetch_failure(
+            record_context_fetch_failure(
                 data,
                 "files",
                 files_result,

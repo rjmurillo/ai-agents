@@ -565,14 +565,40 @@ def _merge_state_status(pr: dict) -> str:
     return "" if value is None else str(value)
 
 
+# The merge states the caller knows how to execute.  Quoted verbatim from
+# `.claude/commands/pr-autofix.md`, "Ready-to-Merge Definition" item 4:
+#
+#     4. `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with
+#        documented non-required failures).
+#
+# `HAS_HOOKS` belongs there on GitHub's own definition of the enum value in the
+# GraphQL `MergeStateStatus` reference: "Mergeable with passing commit status
+# and pre-receive hooks."  That is CLEAN plus pre-receive hooks, so the CLEAN
+# merge path executes it unchanged, and this repository already read it that
+# way before this script existed: `scripts/ci/check_pr_merge_state.py:27-28`
+# carries `PASS_STATES = {"BEHIND", "BLOCKED", "CLEAN", "HAS_HOOKS",
+# "UNSTABLE"}` against `FAIL_STATES = {"DIRTY"}`.  The "Merge path by
+# `mergeStateStatus`" table in `pr-autofix.md` names the CLEAN scripts for
+# `HAS_HOOKS` for the same reason, so the two definitions of the enum value in
+# this repository agree.
+#
+# Everything outside this set is refused rather than attempted.  BEHIND, DIRTY,
+# and BLOCKED route to their own repair tiers; any other value (UNKNOWN, a
+# missing value, or one GitHub adds later) reaches the terminal `UNSUPPORTED`
+# tier.  That refusal is deliberately conservative, not a claim that GitHub
+# would reject the merge: pr-autofix has no verified path for those states, so
+# it hands the PR back instead of guessing.  Issue #4899 reopen: before this
+# allowlist the code enumerated blockers instead, so any value nobody listed
+# reached `CanMerge=True` and through it `Tier=T1`, the auto-merge path.
+_SUPPORTED_MERGE_STATES = frozenset({"CLEAN", "HAS_HOOKS", "UNSTABLE"})
+
+
 def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     """Append draft/state/merge-conflict reasons; return mergeable string.
 
     Also gates on ``mergeStateStatus == BEHIND`` (issue #2157): a branch
     behind its base cannot land, and this repo does not auto-update it on
-    auto-merge (issue #2048 concrete failure), so it must block. ``DRAFT``,
-    ``DIRTY``, and ``UNKNOWN`` are already covered by the ``isDraft`` and
-    ``mergeable`` checks.
+    auto-merge (issue #2048 concrete failure), so it must block.
 
     ``mergeStateStatus == BLOCKED`` blocks (issue #2326). A BLOCKED state
     means GitHub's branch protection still refuses the merge: a missing
@@ -584,25 +610,73 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     own four-condition merge gate (``.claude/commands/pr-autofix.md``,
     ``.claude/commands/pr-review-config.yaml``), which both require
     ``mergeStateStatus in ('CLEAN', 'UNSTABLE')``.
+
+    Every ``mergeStateStatus`` outside :data:`_SUPPORTED_MERGE_STATES` also
+    blocks, by allowlist rather than by enumeration (issue #4899 reopen).
+    Enumerating blockers fails open on each value nobody listed, and that is
+    how ``DIRTY`` used to reach ``CanMerge=True``: only the separate
+    ``mergeable`` field was checked, so a response that reported the conflict
+    in ``mergeStateStatus`` while leaving ``mergeable`` at something other than
+    ``CONFLICTING`` produced no reason at all. The allowlist closes that and
+    every future value GitHub adds, because a state this script has never heard
+    of is exactly a state the caller has no verified path for.
+
+    Blocking a ``DIRTY`` that carries no ``CONFLICTING`` is the documented safe
+    fallback, not a verdict that a real conflict exists. The comment on
+    :data:`_STALE_DIRTY_STATE` below reads ``mergeStateStatus == DIRTY`` as a
+    stale status cache, and :func:`stale_dirty_suspected` already promised this
+    outcome ("absent a local refresh, ``CanMerge`` stays False"); the old code
+    did not deliver it. The caller confirms against local git before treating
+    the conflict as stale.
+
+    An empty ``mergeStateStatus`` (the field absent or null in the API
+    response) blocks for the same reason. GitHub declares the field non-null,
+    so an empty value means the probe did not return the state rather than that
+    the state is benign, and the caller selects its merge path by that value.
+
+    Stricter than canonical: ``pr-autofix.md`` describes the merge path a human
+    or agent takes once ready. This function refuses to report ready at all for
+    a state that document names no path for, so the two agree on CLEAN,
+    HAS_HOOKS, and UNSTABLE and this one is strictly narrower everywhere else.
     """
     if pr["state"] != "OPEN":
         reasons.append(f"PR is {pr['state'].lower()}, not open")
     if pr.get("isDraft"):
         reasons.append("PR is in draft state")
-    mergeable = pr.get("mergeable", "")
+    # Normalized the same way as `_merge_state_status`: `.get(key, default)`
+    # returns None, not the default, when the key is present and explicitly
+    # null, which GraphQL payloads do emit. Collapsing it here is what lets
+    # this function honor its declared `-> str`.
+    raw_mergeable = pr.get("mergeable")
+    mergeable = "" if raw_mergeable is None else str(raw_mergeable)
     if mergeable == "CONFLICTING":
         reasons.append("PR has merge conflicts")
     elif mergeable == "UNKNOWN":
         reasons.append("Merge status is being calculated")
-    merge_state = _merge_state_status(pr)
+    _append_merge_state_reason(_merge_state_status(pr), reasons)
+    return mergeable
+
+
+def _append_merge_state_reason(merge_state: str, reasons: list[str]) -> None:
+    """Append the blocking reason for ``merge_state``, if it blocks.
+
+    Silent only for the states in :data:`_SUPPORTED_MERGE_STATES`.
+    """
+    if merge_state in _SUPPORTED_MERGE_STATES:
+        return
     if merge_state == "BEHIND":
         reasons.append("Branch is behind base; update against the base branch before merging")
-    elif merge_state == "BLOCKED":
+        return
+    if merge_state == "BLOCKED":
         reasons.append(
             "Merge blocked by branch protection (missing review decision or "
             "unmet protection rule)"
         )
-    return mergeable
+        return
+    reasons.append(
+        f"Merge state {merge_state or '<missing>'} has no supported merge path "
+        f"(supported: {', '.join(sorted(_SUPPORTED_MERGE_STATES))})"
+    )
 
 
 # GitHub reports conflicts in two places:
@@ -1097,10 +1171,13 @@ def check_merge_readiness(
 # ---------------------------------------------------------------------------
 
 # Total classifier: every PR maps to exactly one tier.  Merge-path states
-# (BEHIND, BLOCKED, DIRTY, SKIP) are separated from work-needed tiers
-# (T1-T5) so callers never invent ad-hoc buckets.
+# (BEHIND, BLOCKED, DIRTY, SKIP, UNSUPPORTED) are separated from work-needed
+# tiers (T1-T5) so callers never invent ad-hoc buckets.
 
-_TIER_ORDER = ("T1", "T2", "T3", "T4", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP")
+_TIER_ORDER = (
+    "T1", "T2", "T3", "T4", "T5",
+    "BEHIND", "BLOCKED", "DIRTY", "SKIP", "UNSUPPORTED",
+)
 
 # Merge-path states resolved by lookup (no branching needed).
 _MERGE_STATE_TIERS: dict[str, str] = {
@@ -1124,6 +1201,26 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     -------
     str
         One of the values in :data:`_TIER_ORDER`.
+
+    Totality
+    --------
+    Every ``mergeStateStatus`` GitHub can report reaches exactly one tier, and
+    no value reaches ``T1`` unless the caller has a merge path for it (issue
+    #4899 reopen). ``BEHIND``, ``BLOCKED``, and ``DIRTY`` take their own
+    merge-path tiers from :data:`_MERGE_STATE_TIERS`. The three states
+    ``pr-autofix.md`` names a merge script for, :data:`_SUPPORTED_MERGE_STATES`
+    (``CLEAN``, ``HAS_HOOKS``, ``UNSTABLE``), reach ``T1`` when ``CanMerge`` is
+    true and a work tier (``T2``, ``T3``, ``T4``, ``T5``) otherwise. Every
+    other value, ``UNKNOWN`` and a missing value today plus anything GitHub
+    adds later, returns the terminal ``UNSUPPORTED`` tier.
+
+    ``UNSUPPORTED`` is its own tier rather than a fall-through to ``T4``
+    because the work tiers name work the caller can do and there is none here.
+    Such a PR routinely carries zero unresolved threads and zero CI failures,
+    and ``pr-autofix.md`` routes ``T3`` and ``T4`` into the round-cap thread-fix
+    loop, which would then have no action to take and would terminate only by
+    burning the round cap and posting an escalation comment. Its own arm in
+    that document disarms auto-merge and stops.
     """
     # --- Non-actionable states (SKIP) ---
     if result.get("IsDraft") or (result.get("State") or "").upper() in ("CLOSED", "MERGED"):
@@ -1133,6 +1230,15 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     merge_state = result.get("MergeStateStatus") or ""
     if merge_state in _MERGE_STATE_TIERS:
         return _MERGE_STATE_TIERS[merge_state]
+
+    # --- States with no merge path (terminal) ---
+    # Outside both the executable allowlist and the merge-path table above:
+    # UNKNOWN, a missing value, or a value GitHub adds later.  Returned before
+    # the work tiers, so an unsupported state with threads does not classify T3
+    # ("Walk full thread lifecycle, then merge") for a state this script has no
+    # merge path for, and one with CI failures does not classify T2.
+    if merge_state not in _SUPPORTED_MERGE_STATES:
+        return "UNSUPPORTED"
 
     # --- Work-needed tiers ---
     has_ci_failures = (
@@ -1145,7 +1251,8 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     if is_bot and (has_ci_failures or has_threads):
         return "T5"
 
-    # T1: merge-ready (CanMerge covers CLEAN and UNSTABLE-with-dispositions)
+    # T1: merge-ready.  Only _SUPPORTED_MERGE_STATES reach this far, so this
+    # arm covers CLEAN, HAS_HOOKS, and UNSTABLE-with-dispositions.
     if result.get("CanMerge"):
         return "T1"
 
@@ -1161,8 +1268,10 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     if len(result.get("PendingRequiredChecks") or []) > 0:
         return "T2"
 
-    # Edge: all checks pass, no threads, but CanMerge is False for another
-    # reason (e.g. UNKNOWN merge state).  Treat as T4 (needs investigation).
+    # Edge: the merge state is executable and all checks pass with no threads,
+    # yet CanMerge is False for another reason (draft handled above, so this is
+    # a non-OPEN state, an UNKNOWN/CONFLICTING mergeable, or a reason a later
+    # gate appended).  T4 means investigate; it is deliberately not T1.
     return "T4"
 
 

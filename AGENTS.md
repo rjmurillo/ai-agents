@@ -13,10 +13,10 @@
 
 ## Gates
 
-**Start**:Init Serena|Read HANDOFF+latest issue handoff|Resume check|Search mem|Verify git
+**Start**:Init Serena|Read latest issue handoff|Resume check|Search mem|Verify git
 **Mid**: `git rev-list --count HEAD ^origin/main` notice 10; alert 15 (advisory; issue #5233)
 **Pre-PR**: `uv run python scripts/validation/pre_pr.py`|No BLOCKING|Security scan|Style `.gemini/styleguide.md`
-**End**:Keep HANDOFF|Issue handoff if open|Update Serena|Lint|Commit|Check
+**End**:Issue handoff if open|Update Serena|Lint|Commit|Check
 
 ## Boundaries
 
@@ -24,7 +24,7 @@
 **Always**: Python (ADR-042)|Verify branch|Check skills|Assign issues|PR template|Atomic commits <=5 files|Scoped lint|Pin Actions SHA|Run changed workflows pre-push|No manifest version (ADR-092)
 **Ask First**: Architecture|New ADRs|Breaking|Security
 **Autonomy Guardrail**: Internal+reversible: act|External/irreversible: confirm|Ambiguous: act minimal, flag rest
-**Never**: Commit secrets|Edit HANDOFF.md|New bash scripts|Logic in YAML (ADR-006)|Raw gh if skill exists|Force push|Skip hooks|Internal refs in src|Scratch in tree|Resolve security threads w/o fix|Ship unrun gen artifact|Report PR blocked/conflicted w/o fix
+**Never**: Commit secrets|New bash scripts|Logic in YAML (ADR-006)|Raw gh if skill exists|Force push|Skip hooks|Internal refs in src|Scratch in tree|Resolve security threads w/o fix|Ship unrun gen artifact|Report PR blocked/conflicted w/o fix
 
 ## Context
 

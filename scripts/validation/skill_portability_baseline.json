@@ -60,7 +60,7 @@
     "skills/memory/scripts/search_memory.py": 1,
     "skills/memory/scripts/test_memory_health.py": 2,
     "skills/memory/tests/test_memory_health.py": 7,
-    "skills/merge-resolver/scripts/resolve_pr_conflicts.py": 7,
+    "skills/merge-resolver/scripts/resolve_pr_conflicts.py": 6,
     "skills/merge-resolver/tests/test_resolve_pr_conflicts.py": 2,
     "skills/orphan-ref-validator/scripts/counts.py": 1,
     "skills/orphan-ref-validator/scripts/scan.py": 4,
