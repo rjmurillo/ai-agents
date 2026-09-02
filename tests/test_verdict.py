@@ -387,23 +387,39 @@ def lint_payload(
     )
 
 
+
+def _scored(value: float = 8.0, confidence: float = 0.9) -> dict:
+    return {"value": value, "confidence": confidence, "reasons": []}
+
+
+def cq_file(path: str = "a.py", category: str = "authored", *, scored: bool = True) -> dict:
+    """One assess.py `files` entry, carrying the five quality metrics.
+
+    `_unreadable_assessment` keeps the real category while zeroing every
+    confidence, so a test payload without the metrics cannot tell a scored file
+    from one the scanner gave up on.
+    """
+    quality = _scored() if scored else _scored(10.0, 0.0)
+    entry = {"path": path, "category": category}
+    for field in ("cohesion", "coupling", "encapsulation", "testability", "non_redundancy"):
+        entry[field] = dict(quality)
+    return entry
+
+
+def cq_payload(files: list[dict]) -> str:
+    return json.dumps(
+        {"files": files, "summary": {"file_count": len(files)}, "comparisons": []}
+    )
+
+
 class TestAdaptLocalAxisVerdict:
     def test_code_quality_pass_requires_an_assessed_file(self):
-        payload = (
-            '{"files": [{"path": "a.py", "category": "authored"}],'
-            ' "summary": {"file_count": 1}, "comparisons": []}'
-        )
+        payload = cq_payload([cq_file()])
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
 
     @pytest.mark.parametrize("category", ["authored", "test"])
     def test_code_quality_pass_accepts_either_scored_category(self, category):
-        payload = json.dumps(
-            {
-                "files": [{"path": "a.py", "category": category}],
-                "summary": {"file_count": 1},
-                "comparisons": [],
-            }
-        )
+        payload = cq_payload([cq_file(category=category)])
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
 
     def test_generated_only_assessment_is_not_a_pass(self):
@@ -415,26 +431,18 @@ class TestAdaptLocalAxisVerdict:
         review, and `/review` says generated artifacts create no local quality
         finding.
         """
-        payload = (
-            '{"files": [{"path": "gen.ts", "category": "generated"}],'
-            ' "summary": {"file_count": 1}, "comparisons": []}'
-        )
+        payload = cq_payload([cq_file("gen.ts", "generated", scored=False)])
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
 
     def test_one_authored_file_beside_generated_ones_still_passes(self):
         """Negative control: the gate needs one scored file, not all of them."""
-        payload = (
-            '{"files": [{"path": "gen.ts", "category": "generated"},'
-            ' {"path": "a.py", "category": "authored"}],'
-            ' "summary": {"file_count": 2}, "comparisons": []}'
+        payload = cq_payload(
+            [cq_file("gen.ts", "generated", scored=False), cq_file()]
         )
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
 
     def test_missing_category_field_stays_unknown(self):
-        payload = (
-            '{"files": [{"path": "a.py"}], "summary": {"file_count": 1},'
-            ' "comparisons": []}'
-        )
+        payload = '{"files": [{"path": "a.py"}], "summary": {"file_count": 1}, "comparisons": []}'
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
 
     def test_code_quality_empty_assessment_is_unknown_not_pass(self):
@@ -496,6 +504,48 @@ class TestAdaptLocalAxisVerdict:
         of a pass.
         """
         assert adapt_local_axis_verdict(axis, output, 0) == "UNKNOWN"
+
+    def test_unscored_eligible_file_is_not_a_pass(self):
+        """`_unreadable_assessment` keeps the category and zeroes confidence.
+
+        Reading only the category let a file the scanner explicitly gave up on
+        stand in as evidence of a review.
+        """
+        payload = cq_payload([cq_file(scored=False)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_one_unscored_eligible_file_blocks_the_pass(self):
+        """A hole in the evidence is not covered by a scored sibling.
+
+        assess.py records a file that raised as all-unscored, so a partly
+        failed run reaches here as a scored entry beside an unscored one.
+        """
+        payload = cq_payload([cq_file("a.py"), cq_file("b.py", scored=False)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_unscored_generated_file_does_not_block_a_pass(self):
+        """Negative control: generated entries are never scored by design."""
+        payload = cq_payload([cq_file(), cq_file("gen.ts", "generated", scored=False)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_one_scored_quality_is_enough(self):
+        """Negative control: the gate needs evidence, not five metrics."""
+        entry = cq_file(scored=False)
+        entry["testability"] = _scored()
+        payload = cq_payload([entry])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_boolean_confidence_is_not_a_score(self):
+        entry = cq_file(scored=False)
+        entry["cohesion"] = {"value": 8.0, "confidence": True, "reasons": []}
+        payload = cq_payload([entry])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_non_mapping_quality_is_not_a_score(self):
+        entry = cq_file(scored=False)
+        entry["cohesion"] = "great"
+        payload = cq_payload([entry])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
 
     def test_code_quality_unexpected_exit_stays_unknown(self):
         payload = '{"files": [], "summary": {"file_count": 0}, "comparisons": []}'

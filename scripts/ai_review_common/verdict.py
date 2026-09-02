@@ -213,6 +213,28 @@ def _coerce_nonnegative_int(value: object) -> int | None:
 # artifacts are generator-owned and create no local quality finding.
 _ASSESSED_CATEGORIES = frozenset({"authored", "test"})
 
+# The five quality metrics on each entry. `_unreadable_assessment` keeps the
+# file's real category while setting every one of them to confidence 0.0:
+#
+#     Every quality is confidence 0.0 so ``check_thresholds`` skips the file
+#     rather than passing it on meaningless scores derived from empty content.
+#
+# so category alone never proves the scanner scored anything.
+_QUALITY_FIELDS = ("cohesion", "coupling", "encapsulation", "testability", "non_redundancy")
+
+
+def _is_scored(entry: dict[str, object]) -> bool:
+    """Return True when at least one quality on *entry* carries confidence."""
+    for field in _QUALITY_FIELDS:
+        quality = entry.get(field)
+        if not isinstance(quality, dict):
+            continue
+        confidence = quality.get("confidence")
+        if isinstance(confidence, int | float) and not isinstance(confidence, bool):
+            if confidence > 0:
+                return True
+    return False
+
 
 def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool:
     """Return True when the assessment actually evaluated at least one file.
@@ -221,19 +243,23 @@ def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool
     ``files``. A disagreement means the two halves of the payload describe
     different runs, which is not evidence of a pass.
 
-    Requires at least one entry whose ``category`` was actually scored. A diff
-    of nothing but generated artifacts yields a positive count of unscored
-    entries, which is a file list, not a review.
+    Requires every eligible entry to carry a scored metric, and at least one
+    eligible entry to exist. A diff of nothing but generated artifacts yields a
+    positive count of unscored entries, which is a file list, not a review, and
+    an eligible file that failed to score is a hole in the evidence rather than
+    a pass. Generated entries are exempt because the scanner never scores them.
     """
     file_count = summary.get("file_count")
     if isinstance(file_count, bool) or not isinstance(file_count, int):
         return False
     if not (file_count > 0 and file_count == len(files)):
         return False
-    return any(
-        isinstance(entry, dict) and entry.get("category") in _ASSESSED_CATEGORIES
+    eligible = [
+        entry
         for entry in files
-    )
+        if isinstance(entry, dict) and entry.get("category") in _ASSESSED_CATEGORIES
+    ]
+    return bool(eligible) and all(_is_scored(entry) for entry in eligible)
 
 
 def _has_inventoried_docs(payload: dict[str, object]) -> bool:
