@@ -236,19 +236,26 @@ def index_violations(repo_root: Path) -> tuple[list[Violation], int]:
         )
 
 
-def _report(violations: list[Violation], examined: int) -> None:
-    """Print each violation, and a runnable command only when one exists."""
+def _report(violations: list[Violation], examined: int, remediable: set[str]) -> None:
+    """Print each violation, and a command only for what `git add` can act on.
+
+    `remediable` is the set of paths the index scope still reports. A path
+    outside it is wrong in HEAD only, and `git add --renormalize` cannot touch
+    it: the index already holds what the next commit will store, which for a
+    path staged for deletion is nothing at all. Advertising the command for
+    those paths prints one that fails.
+    """
     for violation in violations:
         print(f"  {violation.render()}")
     if violations:
         print(f"index-line-endings: {len(violations)} blob(s) contradict gitattributes")
         print(f"  Fix: {REMEDIATION}")
         print("  Or re-run this check with --fix, which calls git directly.")
-        _print_paste_command(violations)
+        _print_paste_command(violations, remediable)
     print(f"index-line-endings: {len(violations)} violation(s) in {examined} tracked files")
 
 
-def _print_paste_command(violations: list[Violation]) -> None:
+def _print_paste_command(violations: list[Violation], remediable: set[str]) -> None:
     """Print a copy-paste renormalize command that works for every path.
 
     `shell_argument` picks the spelling per path. Anything with a text
@@ -261,6 +268,11 @@ def _print_paste_command(violations: list[Violation]) -> None:
     restore that: `display_path` is for reading, `shell_argument` is for
     running, and the two are different renderings of the same path.
 
+    Only the paths in `remediable` get a command. The rest are wrong in HEAD
+    alone, where `git add --renormalize` fails with `pathspec ... did not match
+    any files` if the index no longer holds them, so they get a line telling
+    the operator to commit instead.
+
     The quoting is load-bearing either way. A tracked path may carry shell
     syntax or a leading dash, and an unquoted join would print a command that
     runs attacker-controlled text if a maintainer pasted it (CWE-78). `--`
@@ -270,14 +282,23 @@ def _print_paste_command(violations: list[Violation]) -> None:
     and it names `--fix` as the portable route: `--fix` passes an argument
     list to git and never builds a string, so it needs no shell at all.
     """
-    paths = " ".join(shell_argument(v.path) for v in violations)
-    print(f"  git add --renormalize -- {paths}")
-    unspellable = [v for v in violations if not is_spellable(v.path)]
-    if unspellable:
+    targets = [v for v in violations if v.path in remediable]
+    committed_only = [v for v in violations if v.path not in remediable]
+    if targets:
+        paths = " ".join(shell_argument(v.path) for v in targets)
+        print(f"  git add --renormalize -- {paths}")
+        unspellable = [v for v in targets if not is_spellable(v.path)]
+        if unspellable:
+            print(
+                f"  {len(unspellable)} of {len(targets)} path(s) carry bytes with no "
+                "text spelling, so the command above uses bash and zsh's $'...' form. "
+                "POSIX sh cannot express those bytes; --fix needs no shell at all."
+            )
+    if committed_only:
         print(
-            f"  {len(unspellable)} of {len(violations)} path(s) carry bytes with no "
-            "text spelling, so the command above uses bash and zsh's $'...' form. "
-            "POSIX sh cannot express those bytes; --fix needs no shell at all."
+            f"  {len(committed_only)} path(s) are wrong in HEAD only. The index "
+            "already holds what the next commit will store, so commit the staged "
+            "result rather than renormalizing again."
         )
 
 
@@ -368,10 +389,11 @@ def validate_index_line_endings(repo_root: Path) -> bool:
     """
     try:
         violations, examined = check_repository(repo_root)
+        staged, _ = index_violations(top_level(repo_root))
     except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
         print(f"[FAIL] index line endings: {exc}", file=sys.stderr)
         return False
-    _report(violations, examined)
+    _report(violations, examined, {v.path for v in staged})
     return not violations
 
 
@@ -404,7 +426,8 @@ def main(argv: list[str] | None = None) -> int:
         # scan root has to be the whole tree, not whatever directory was typed.
         repo_root = top_level(requested)
         violations, examined = check_repository(repo_root)
-        _report(violations, examined)
+        staged, _ = index_violations(repo_root)
+        _report(violations, examined, {v.path for v in staged})
         if args.fix:
             renormalize(repo_root)
     except (OSError, RuntimeError, subprocess.SubprocessError) as exc:

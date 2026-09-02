@@ -228,7 +228,20 @@ def test_validate_returns_false_when_git_fails(tmp_path: Path) -> None:
 
 
 def test_validate_prints_the_renormalize_command(monkeypatch, capsys) -> None:
-    """The operator gets a runnable fix, not just a diagnosis."""
+    """The operator gets a runnable fix, not just a diagnosis.
+
+    Both scopes are stubbed. The command covers only paths the index scope
+    still reports, because those are the ones `git add --renormalize` can act
+    on, so a report test has to say what each scope saw.
+    """
+    staged = [
+        checker.Violation(
+            path="docs/a.md",
+            index_state="i/crlf",
+            attributes="attr/text eol=lf",
+            scope="index",
+        )
+    ]
     monkeypatch.setattr(
         checker,
         "check_repository",
@@ -243,6 +256,7 @@ def test_validate_prints_the_renormalize_command(monkeypatch, capsys) -> None:
             1,
         ),
     )
+    monkeypatch.setattr(checker, "index_violations", lambda _root: (staged, 1))
 
     assert checker.validate_index_line_endings(REPO_ROOT) is False
     out = capsys.readouterr().out

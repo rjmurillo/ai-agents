@@ -179,6 +179,11 @@ def test_fix_skips_a_head_only_path_the_index_no_longer_holds(
     out = capsys.readouterr().out
     assert "[CRLF] handoff.md: HEAD blob is i/crlf" in out
     assert "renormalized" not in out  # nothing to add, so nothing is claimed
+    # The printed command has the same limit as `--fix`: `git add` would fail
+    # with `pathspec ... did not match any files` on a path the index dropped.
+    assert "git add --renormalize --" not in out
+    assert "1 path(s) are wrong in HEAD only" in out
+    assert "commit the staged result" in out
 
 
 def test_fix_mode_on_a_clean_repository_is_a_no_op(tmp_path: Path, monkeypatch) -> None:
