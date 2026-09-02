@@ -250,7 +250,7 @@ def adapt_local_axis_verdict(
             return "UNKNOWN"
         # The skill documents both as gate failures that fail the PR: exit 10
         # is a regressed comparable, exit 11 a new file below thresholds
-        # (code-qualities-assessment/SKILL.md:377-378). WARN let a failing
+        # (.claude/skills/code-qualities-assessment/SKILL.md:376-377). WARN let a failing
         # gate be acknowledged and shipped instead of blocking the merge.
         if exit_code in {10, 11}:
             return "FAIL"
