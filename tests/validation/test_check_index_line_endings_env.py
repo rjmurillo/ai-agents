@@ -297,3 +297,58 @@ def test_a_bytes_mode_git_failure_escapes_the_same_way(tmp_path: Path) -> None:
         gitmod.run_git_paths(repo, ["cat-file", "-e", "missing.md\nforged"])
 
     assert "missing.md\\nforged" in str(failure.value)
+
+
+# --- attribute sources the pinned one does not outrank ---------------------
+
+
+def _info_attributes(repo: Path) -> Path:
+    git_dir = Path(_git(repo, "rev-parse", "--absolute-git-dir").stdout.strip())
+    (git_dir / "info").mkdir(exist_ok=True)
+    return git_dir / "info" / "attributes"
+
+
+def test_a_local_info_attributes_file_stops_the_scan(tmp_path: Path, capsys) -> None:
+    """It outranks `GIT_ATTR_SOURCE`, so answering would answer a changed question.
+
+    Measured on git 2.51.0: with `GIT_ATTR_SOURCE=HEAD` alone the planted blob
+    reports `attr/text eol=lf` and is a violation; adding `handoff.md -text` to
+    `.git/info/attributes` turns the row into `attr/-text` and it disappears.
+    That file is local and unversioned, so pre-push would report clean on a
+    blob a fresh CI clone still fails.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    _info_attributes(repo).write_text("handoff.md -text\n", newline="\n")
+
+    assert checker.main(["--repo-root", str(repo)]) == 2
+
+    assert "outranks the attribute source" in capsys.readouterr().err
+
+
+def test_an_empty_info_attributes_file_is_allowed(tmp_path: Path) -> None:
+    """Control: an empty file changes no attribute, so it must not block."""
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    _info_attributes(repo).write_text("", newline="\n")
+
+    assert checker.main(["--repo-root", str(repo)]) == 1  # the violation, not a refusal
+
+
+def test_a_global_attributes_file_cannot_invent_a_violation(tmp_path: Path) -> None:
+    """`core.attributesFile` is redirected at an empty file for both scopes.
+
+    It is lower precedence than the pinned tree source, so it cannot hide a
+    violation the tree states. It can invent one where the tree is silent, and
+    the verdict must be a function of the repository alone either way.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    _git(repo, "config", "core.attributesFile", str(tmp_path / "globalattrs"))
+    (tmp_path / "globalattrs").write_text("* eol=lf\n", newline="\n")
+    (repo / ".gitattributes").write_text("", newline="\n")
+    _git(repo, "add", ".gitattributes")
+    _commit(repo, "no attributes of its own")
+
+    violations, _ = checker.check_repository(repo)
+
+    assert violations == []

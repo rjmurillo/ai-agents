@@ -54,8 +54,10 @@ if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.validation.index_line_endings_git import (  # noqa: E402
+    attribute_isolation,
     git_environment,
     has_commits,
+    refuse_local_attribute_overrides,
     require_attr_source,
     run_git,
     run_git_paths,
@@ -81,7 +83,19 @@ def _ls_files_eol(repo_root: Path, env: dict[str, str] | None = None) -> str:
     return run_git_paths(repo_root, ["ls-files", "--eol", "-z"], env=env)
 
 
-def _head_env(repo_root: Path, index_path: str) -> dict[str, str]:
+def _empty_file(path: Path) -> Path:
+    """Create an empty file and return it, for a config value that must find nothing.
+
+    `core.attributesFile` pointed at a path git can read and that says nothing
+    is the only spelling that works everywhere. `/dev/null` is not portable and
+    an unset value falls back to the host's own file, which is the thing being
+    removed from the answer.
+    """
+    path.write_text("", encoding="utf-8")
+    return path
+
+
+def _head_env(repo_root: Path, scratch: Path) -> dict[str, str]:
     """Environment pointing git at a scratch index and attributes from HEAD.
 
     `GIT_INDEX_FILE` isolates the blobs, but git still reads `.gitattributes`
@@ -98,13 +112,26 @@ def _head_env(repo_root: Path, index_path: str) -> dict[str, str]:
     repository other than `repo_root`.
     """
     env = git_environment()
-    env["GIT_INDEX_FILE"] = index_path
+    env.update(attribute_isolation(_empty_file(scratch / "attributes")))
+    env["GIT_INDEX_FILE"] = str(scratch / "head.index")
     env["GIT_ATTR_SOURCE"] = "HEAD"
     run_git(repo_root, ["read-tree", "HEAD"], env=env)
     return env
 
 
-def _index_env(repo_root: Path, empty_worktree: Path) -> dict[str, str]:
+def empty_worktree(scratch: Path) -> Path:
+    """The directory git is pointed at so it finds no `.gitattributes`.
+
+    A subdirectory rather than `scratch` itself, because `scratch` also holds
+    the empty file `core.attributesFile` is redirected to, and a work tree the
+    gate put a file in is not the empty one the mechanism describes.
+    """
+    tree = scratch / "tree"
+    tree.mkdir(exist_ok=True)
+    return tree
+
+
+def _index_env(repo_root: Path, scratch: Path) -> dict[str, str]:
     """Environment that makes git read attributes from the index, not the disk.
 
     The index scope asks what the next commit will store, and a commit stores
@@ -140,14 +167,15 @@ def _index_env(repo_root: Path, empty_worktree: Path) -> dict[str, str]:
     `GIT_DIR` is asked for rather than assembled: `repo_root / ".git"` is a
     file, not a directory, in a linked worktree.
 
-    The caller must also run git from `empty_worktree`. Measured: with
+    The caller must also run git from `empty_worktree(scratch)`. Measured: with
     `GIT_WORK_TREE` set but the current directory still inside the real
     checkout, git reads that checkout's `.gitattributes` and the isolation does
     nothing.
     """
     env = git_environment()
+    env.update(attribute_isolation(_empty_file(scratch / "attributes")))
     env["GIT_DIR"] = run_git(repo_root, ["rev-parse", "--absolute-git-dir"]).stdout.strip()
-    env["GIT_WORK_TREE"] = str(empty_worktree)
+    env["GIT_WORK_TREE"] = str(empty_worktree(scratch))
     return env
 
 
@@ -160,13 +188,13 @@ def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
     violations: list[Violation] = []
     examined = 0
     require_attr_source(repo_root)
+    refuse_local_attribute_overrides(repo_root)
 
     if has_commits(repo_root):
         # NamedTemporaryFile would hand git an existing empty file, which
         # read-tree rejects as a malformed index, so reserve a name instead.
         with tempfile.TemporaryDirectory() as scratch:
-            index_path = str(Path(scratch) / "head.index")
-            env = _head_env(repo_root, index_path)
+            env = _head_env(repo_root, Path(scratch))
             violations, examined = parse_violations(
                 _ls_files_eol(repo_root, env=env), scope="HEAD"
             )
@@ -175,10 +203,10 @@ def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
     # The empty directory is the whole mechanism, and git has to be run from
     # inside it: `GIT_WORK_TREE` alone does not stop git reading a
     # `.gitattributes` it can still see from the current directory.
-    with tempfile.TemporaryDirectory() as empty_worktree:
-        index_env = _index_env(repo_root, Path(empty_worktree))
+    with tempfile.TemporaryDirectory() as scratch:
+        index_env = _index_env(repo_root, Path(scratch))
         staged, staged_examined = parse_violations(
-            _ls_files_eol(Path(empty_worktree), env=index_env), scope="index"
+            _ls_files_eol(empty_worktree(Path(scratch)), env=index_env), scope="index"
         )
     violations.extend(v for v in staged if v.path not in seen)
     return violations, max(examined, staged_examined)

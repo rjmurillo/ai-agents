@@ -226,3 +226,65 @@ def has_commits(repo_root: Path) -> bool:
         env=git_environment(),
     )
     return result.returncode == 0
+
+
+def refuse_local_attribute_overrides(repo_root: Path) -> None:
+    """Refuse when `$GIT_DIR/info/attributes` can outrank the pinned source.
+
+    Git's attribute precedence puts `$GIT_DIR/info/attributes` above the
+    per-tree `.gitattributes`, and `GIT_ATTR_SOURCE` replaces only the tree
+    source. Measured on git 2.51.0 against a repository holding a committed
+    CRLF blob under `*.md text`: with `GIT_ATTR_SOURCE=HEAD` alone the row
+    reads `attr/text eol=lf` and the blob is a violation; adding
+    `h.md -text` to `.git/info/attributes` turns the same row into
+    `attr/-text` and the violation disappears. `docs/autonomous-pr-monitor.md`
+    records the same precedence for the merge attribute, naming
+    "`.gitattributes`, `.git/info/attributes`, or a global attributes file".
+
+    That file is local and unversioned, so pre-push would report clean on a
+    blob a fresh CI clone still fails on: the split-verdict this gate exists
+    to prevent, pointed the other way. Git offers no environment override for
+    it, so the honest move is to stop rather than answer a question the local
+    checkout has already changed. An empty file changes nothing and is
+    allowed.
+
+    `actions/checkout` writes no such file, so CI never reaches this.
+    """
+    git_dir = Path(run_git(repo_root, ["rev-parse", "--absolute-git-dir"]).stdout.strip())
+    attributes = git_dir / "info" / "attributes"
+    if not attributes.is_file() or attributes.stat().st_size == 0:
+        return
+    raise RuntimeError(
+        f"{attributes} outranks the attribute source this check pins. Git reads "
+        "$GIT_DIR/info/attributes above the per-tree .gitattributes, and "
+        "GIT_ATTR_SOURCE replaces only the tree source, so a `-text` line there "
+        "hides a committed violation from this run while a fresh clone still "
+        "carries it. Move or empty that file and re-run."
+    )
+
+
+def attribute_isolation(empty_attributes: Path) -> dict[str, str]:
+    """Environment entries that take the global and system files out of the answer.
+
+    Both are lower precedence than the pinned tree source, so neither can hide
+    a violation whose attributes the tree already states. Measured on git
+    2.51.0: a global `core.attributesFile` saying `h.md -text` does not change
+    a row the tree already marks `text`. They are reachable in the other
+    direction, where the tree says nothing about `text` or `eol` for a path and
+    a local file supplies `eol=lf`, which invents a violation the commit does
+    not carry. Removing both leaves the verdict a function of the repository
+    alone.
+
+    `core.attributesFile` is redirected through `GIT_CONFIG_COUNT` rather than
+    `-c`, which keeps every isolation knob in the environment dict instead of
+    splitting them across argv. `git_environment` has already stripped any
+    ambient `GIT_CONFIG_*`, so index 0 is free. `tests/conftest.py` uses the
+    same mechanism for `commit.gpgsign` and records why: it "gives it
+    command-line precedence over host config".
+    """
+    return {
+        "GIT_ATTR_NOSYSTEM": "1",
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "core.attributesFile",
+        "GIT_CONFIG_VALUE_0": str(empty_attributes),
+    }
