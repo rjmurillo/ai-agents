@@ -19,6 +19,10 @@ appended instruction context; score by compiler + test outcomes (no LLM judge)
 - **Hard gates change behavior; passive prose does not.** The repo's
   false-completion PreToolUse gate blocked an unverified commit this session,
   while 252KB of always-on prose rules changed nothing measurable.
+- **Closed 2026-09-02 by issue #4871.** Every `.claude/rules/*.md` now declares
+  `paths:`, and `scripts/validation/check_rule_scope_keys.py` fails the build on
+  `applyTo:`, `globs:`, or `alwaysApply:` in that tree. Read the next finding as
+  the history that motivated the gate, not as the current state.
 - **252KB of `.claude/rules` load unconditionally because of a frontmatter-key
   mismatch, not a harness bug.** The rules carry `applyTo`/`alwaysApply` (GitHub
   Copilot and Cursor keys). Claude Code's conditional-load key is `paths` (a YAML

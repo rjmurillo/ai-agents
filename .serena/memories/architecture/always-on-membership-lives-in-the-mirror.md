@@ -9,25 +9,32 @@ forbids hand-editing a mirror at all.
 
 For exactly one question that convention is backwards.
 
-The question is which rules load on every agent turn. A rule is always-on when
-its **generated** `applyTo` resolves to `**`, so the answer lives in the
-generated tree. Parsing `.claude/rules/*.md` gives a wrong answer, wrong in both
-directions.
+The question is which rules load on every agent turn for a Copilot consumer. A
+rule is always-on there when its **generated** `applyTo` resolves to `**`, so
+the answer lives in the generated tree. Parsing `.claude/rules/*.md` for that
+question gives a wrong answer, wrong in both directions.
+
+Claude is the other half, and it reads the source: `paths:` alone, ignoring
+`applyTo:`, `globs:`, and `alwaysApply:`. That split is what made issue #4871
+possible. Two rules declared a code-only scope under a key Claude ignores, so
+the mirror looked correct while 25,527 bytes loaded on every doc-only session.
+`scripts/validation/check_rule_scope_keys.py` now rejects every scope key but
+`paths:`, so the source-side and mirror-side answers cannot diverge again.
 
 There is also no single answer per tree by default, so always name the tree with
-the number. The two destination trees agree today, measured on this branch after `session-logs` dropped its optional-session-log mention from `knowledge-persistence`:
+the number. The two destination trees agree today, measured on this branch after issue #4871 rescoped `code-quality` to code files:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 7 rules, 70,469 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,469 bytes |
+| `.github/instructions` | Copilot in this repository | 6 rules, 56,321 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 6 rules, 56,321 bytes |
 
-Membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`,
+Membership is identical: `builder-ethos`, `claude-model-patches`,
 `knowledge-persistence`, `search-before-building`, `universal`, `voice`.
 
-Those bytes are whole generated files, frontmatter included. The same seven
-rules measure 70,585 bytes at `.claude/rules/`, 116 more, because the generator
-drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. Name the
+Those bytes are whole generated files, frontmatter included. The same six
+rules measure 56,433 bytes at `.claude/rules/`, 112 more, because the generator
+drops `priority:` and turns `paths:` into `applyTo:`. Name the
 tree whenever you quote a figure; a gap of about that size is a basis mismatch,
 not staleness.
 
