@@ -10,10 +10,9 @@ defect.
 
 This module covers the parser and the reporting contract: which rows are
 violations, which rows are malformed, what `render` says, and the ADR-035 exit
-codes. Real-repository behavior lives in
-`test_check_index_line_endings_repo.py`; `--fix` and path encoding live in
-`test_check_index_line_endings_fix.py`; their shared repository builders live
-in `index_line_endings_helpers.py`.
+codes. Nothing here builds a repository; every input is a string the test
+wrote. `index_line_endings_helpers.py` carries the roster of what the other
+modules cover.
 """
 
 from __future__ import annotations

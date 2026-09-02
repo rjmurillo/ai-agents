@@ -1,17 +1,14 @@
 """The gate measured against real git repositories (issue #5475).
 
-Split from `test_check_index_line_endings.py` at the 500-line `file-size`
-ceiling, along the seam that matters: everything here builds or reads a real
-repository, so it exercises what `git ls-files --eol` actually emits rather
-than a string the test wrote. The parser's own contract is covered there, and
-`--fix` plus path encoding in `test_check_index_line_endings_fix.py`.
+Everything here builds or reads a real repository, so it exercises what
+`git ls-files --eol` actually emits rather than a string the test wrote.
+`index_line_endings_helpers.py` carries the roster of what the other modules
+cover.
 
 Covered here: the negative control on a planted CRLF blob, the historical one
 against the commit the incident shipped, the operator-visible phantom
 modification and its disappearance, the two incident paths by name, and the
-HEAD and index scopes and their precedence. Environment isolation, the git
-capability floor and the attribute sources live in
-`test_check_index_line_endings_env.py`.
+HEAD and index scopes with their precedence.
 """
 
 from __future__ import annotations

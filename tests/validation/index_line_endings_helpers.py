@@ -1,9 +1,34 @@
-"""Shared fixtures for the index line-ending gate's tests (issue #5475).
+"""Shared fixtures for the index line-ending gate's tests (issue #5475), and
+the roster of which module covers what.
 
-Split out when the single test module crossed the 500-line `file-size`
-ceiling. Everything here builds real git repositories, because the defect only
-exists in a real index: `git add` would clean the CRLF away, which is the whole
-reason it took a hook-free path to arrive.
+Everything here builds real git repositories, because the defect only exists in
+a real index: `git add` would clean the CRLF away, which is the whole reason it
+took a hook-free path to arrive.
+
+The suite is split across six modules, all of them at the 500-line `file-size`
+ceiling rather than by design. Every module imports this one, so the roster
+lives here and each module's own docstring says only what that module covers.
+Four review rounds were spent on docstrings that named the previous split, so
+the list is in one place on purpose:
+
+- `test_check_index_line_endings.py`: the parser and the reporting contract,
+  against strings the test wrote rather than a repository.
+- `test_check_index_line_endings_repo.py`: real repositories. The negative
+  controls, the operator-visible phantom modification, the two incident paths,
+  and the HEAD and index scopes with their precedence.
+- `test_check_index_line_endings_env.py`: what the gate reads that is not a
+  blob. Ambient `GIT_*` isolation, the git capability floor, each scope's
+  attribute source, and the three states an unresolvable HEAD can mean.
+- `test_check_index_line_endings_fix.py`: what `--fix` does, and every guard
+  that runs before it writes.
+- `test_check_index_line_endings_paths.py`: the bytes of a tracked path. What
+  the report may print for one and what a shell may be handed.
+- `index_line_endings_helpers.py`: this module.
+
+Two more live outside `tests/validation/`:
+`tests/ci/test_index_line_endings_ci_wiring.py` covers the workflow wiring, and
+`tests/validation/test_pre_pr_index_line_endings_wiring.py` the gate's
+registration in the pre-PR sequence.
 """
 
 from __future__ import annotations

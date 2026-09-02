@@ -1,13 +1,12 @@
 """Everything the gate reads that is not a blob: environment, git, attributes.
 
-Split from `test_check_index_line_endings_repo.py` at the 500-line `file-size`
-ceiling, along the seam the gate itself has. The sibling module asks whether a
-tracked blob contradicts its attributes. This one asks whether the gate is
-looking at the repository it was given, judging by the attributes that repository
-stores, on a git that can answer at all.
-
-Every test here builds a real repository, because none of these failures exist
+Covered here: whether the gate is looking at the repository it was given,
+judging by the attributes that repository stores, on a git that can answer at
+all. Every test builds a real repository, because none of these failures exist
 against a mock.
+
+`index_line_endings_helpers.py` carries the roster of what the other modules
+cover.
 """
 
 from __future__ import annotations
