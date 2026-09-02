@@ -190,10 +190,13 @@ What is classified, and why:
     passes, so there it is tracked and compared, and a PR that edits it
     halts the gate until the change is approved. That is the posture to
     want for a file whose contents can wave a red check through. In an
-    installed-plugin consumer it is not the same file: the plugin ships
-    ``.claude`` and ``src/copilot-cli``, not ``.agents``, so a consumer
-    workspace has no such path until someone writes one, and a file
-    written there is untracked and skipped exactly as before.
+    installed-plugin consumer it is not the same file. Each marketplace
+    maps ``project-toolkit`` to one root and only one, ``./.claude`` in
+    ``.claude-plugin/marketplace.json`` and ``./src/copilot-cli`` in
+    ``.github/plugin/marketplace.json``, and neither root contains the
+    upstream ``.agents`` tree, so a consumer workspace has no such path
+    until someone writes one, and a file written there is untracked and
+    skipped exactly as before.
   * A repo-local path whose resolution leaves the work tree (a
     PR-committed symlink) or cannot be resolved fails closed as
     untrusted: the link is PR content and its target has no trusted-ref
