@@ -85,6 +85,33 @@ now pinned by a test. The branch-order result stays recorded as a Linux observat
 An unverifiable premise does not have to be verified before shipping. It has to stop
 carrying weight, or the work stops.
 
+## Failure Mode Classification
+
+Against `.agents/governance/FAILURE-MODES.md`. No new class proposed; all four
+findings land in existing ones.
+
+| Finding | Class | Severity | Why |
+|---|---|---|---|
+| 1. Regression test passed with and without the fix | 4, False completion markers | High | The test reported coverage it did not have. It would have merged as evidence for AC-3 while pinning nothing. |
+| 1. Mechanism asserted before measurement | 9, Confident-incorrectness recurrence | High | The mtime trigger was modeled from memory, not read. |
+| 2. Two gates jointly fail-open | 10, Silent defaults and guard-clause suppression | High | Each gate's docstring cited the other as covering the difference; neither read the hook. The `exit 0` fixture made every positive assertion vacuous. |
+| 4. Linux probe stated as general | 9, Confident-incorrectness recurrence | High | A single-platform result was written as a platform-independent conclusion. |
+| 5. "Not load-sensitive" posted to #5441 | 9, Confident-incorrectness recurrence | High | A profiling harness that was itself the dominant load; load rose 4.84 to 15.02 during the run and I recorded both numbers without drawing the inference. Retracted in the same thread. |
+
+Class 9 accounts for three of five. The common shape is not carelessness about
+evidence, it is drawing a general conclusion from a measurement whose scope was
+narrower than the claim. Each time the scope was visible in my own output.
+
+## Remediation
+
+| Action | Owner or issue |
+|---|---|
+| Make the pre-push ratchet budget hold under concurrent agent sessions, with the acceptance criterion that the fix must not assume a retry succeeds | Issue #5441, PR #5466 |
+| Stop `Refs #n` disarming the required `Validate Spec Coverage` judge, which `.claude/rules/universal.md` MUST-3 mandates for unsupported claims | Issue #5489, filed from this session |
+| Record the replacement linked-worktree policy in ADR-086 and correct its wrong #2374 citation. Accepted-record edit, so `adr-review` plus the Ask First boundary | Unassigned. Needs the issue owner for #4789; the exact sentence is named in `.agents/critique/ADR-086-amendment-2026-08-31-debate-log.md` |
+| Decide whether AC-1 of issue #4789 is amended to the reachability wording or stays unmet | Issue #4789, proposal posted 2026-09-02 |
+| Windows two-worktree probe with the uv runtime present and the `PATH` binary absent | Unassigned. Stated as an uncovered gap in the `validate_lefthook_installed` docstring |
+
 ## Phase 2: What To Keep
 
 - Falsify every new regression test against the absence of the thing it pins, before
@@ -94,6 +121,8 @@ carrying weight, or the work stops.
   it actually accepts.
 - When a finding and your own position rest on the same measurement, reconcile them in
   writing rather than choosing.
+- Before publishing a measurement, check whether the act of measuring changed the thing
+  measured. The load numbers were in my own output on both sides of the run.
 
 ## Phase 3: What Changed
 
