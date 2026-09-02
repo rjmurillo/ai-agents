@@ -25,6 +25,7 @@ from tests.validation.index_line_endings_helpers import (
     _repo_with_crlf_blob,
     _repo_with_undecodable_crlf_blob,
     _staged_against_head,
+    posix_only_paths,
 )
 
 
@@ -171,6 +172,7 @@ def test_non_ascii_paths_are_reported_raw_not_c_quoted(tmp_path: Path) -> None:
     assert [v.path for v in violations] == ["ハンドオフ.md"]
 
 
+@posix_only_paths
 def test_an_undecodable_filename_is_reported_as_the_byte_sequence_git_gave(
     tmp_path: Path,
 ) -> None:
@@ -189,6 +191,7 @@ def test_an_undecodable_filename_is_reported_as_the_byte_sequence_git_gave(
     assert "�" not in violations[0].path
 
 
+@posix_only_paths
 def test_an_undecodable_filename_is_still_printable(tmp_path: Path, capsys) -> None:
     """Surrogates cannot be written to a UTF-8 stream; the report must not raise.
 
@@ -203,6 +206,7 @@ def test_an_undecodable_filename_is_still_printable(tmp_path: Path, capsys) -> N
     assert "bad\\xff.md" in out
 
 
+@posix_only_paths
 def test_no_paste_command_is_offered_for_a_path_that_needed_escaping(
     tmp_path: Path, capsys
 ) -> None:
@@ -272,6 +276,7 @@ def test_an_escape_sequence_in_a_path_cannot_repaint_the_terminal(
     assert "handoff\\x1b[2K.md" in out
 
 
+@posix_only_paths
 def test_fix_renormalizes_an_undecodable_filename(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

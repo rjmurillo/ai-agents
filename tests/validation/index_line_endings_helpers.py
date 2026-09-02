@@ -12,6 +12,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # --- negative control: a real repository carrying the defect ---------------
@@ -77,10 +79,21 @@ def _repo_with_crlf_blob(tmp_path: Path, name: str = "handoff.md") -> Path:
 
 
 def _commit(repo: Path, message: str) -> None:
+    """Commit without an identity or a signer the host happens to configure.
+
+    `commit.gpgsign=false` is passed explicitly because `_git` strips `GIT_*`,
+    and the suite's own defence against a host signer is the `GIT_CONFIG_COUNT`
+    injection in `tests/conftest.py`, which that strip removes. On a machine
+    with global signing enabled these fixture commits would otherwise reach the
+    host signer and fail for a reason that has nothing to do with the test.
+    `tests/conftest.py` writes the same setting the same way for its own
+    fixtures: `git(main, "config", "commit.gpgsign", "false")`.
+    """
     _git(
         repo,
         "-c", "user.email=test@example.invalid",
         "-c", "user.name=Test",
+        "-c", "commit.gpgsign=false",
         "commit", "--quiet", "--no-verify", "-m", message,
     )
 
@@ -101,11 +114,22 @@ INCIDENT_PATHS = (
 # --- a pathname is bytes, and some byte sequences are not text -------------
 
 
+#: The undecodable-filename fixtures below are POSIX-only, and callers apply
+#: this to say so. A pathname is bytes on POSIX and UTF-16 on NT, so
+#: `os.fsdecode(b"bad\\xff.md")` has no NT spelling and the fixture raises
+#: before the gate under test ever runs. Skipping is honest here: the defect
+#: those tests cover cannot exist on a platform whose paths are Unicode.
+posix_only_paths = pytest.mark.skipif(
+    os.name == "nt", reason="pathnames are bytes on POSIX and Unicode on NT"
+)
+
+
 def _repo_with_undecodable_crlf_blob(tmp_path: Path) -> tuple[Path, bytes]:
     """Track a CRLF blob under a filename that is not valid UTF-8.
 
     Git stores pathnames as bytes and imposes no encoding, so `b"bad\\xff.md"`
     is a legal tracked name on POSIX. It is the case a lossy decode destroys.
+    POSIX-only; see `posix_only_paths`.
     """
     repo = tmp_path / "repo"
     repo.mkdir()
