@@ -1341,6 +1341,12 @@ def _snapshot_owned_prefixes(
     snapshot: dict[Path, bytes] = {}
     for prefix in prefixes:
         root = repo_root / prefix
+        # Every branch below this one runs only when ``strict`` is false: the
+        # strict branch handles single-file and directory prefixes alike and
+        # ``continue``s. So they pass ``strict=False`` literally rather than
+        # forwarding the parameter. Forwarding read as live wiring while being
+        # dead, which is an argument no mutation can distinguish (measured:
+        # rewriting the forward to ``strict=False`` left all 137 tests green).
         if strict:
             for path in _iter_strict_owned_files(root):
                 if _is_ignored_path(path, ignored) or (
@@ -1352,7 +1358,7 @@ def _snapshot_owned_prefixes(
         if root.is_file() and not root.is_symlink():
             if root in ignored:
                 continue
-            _read_into_snapshot(snapshot, root, strict=strict)
+            _read_into_snapshot(snapshot, root, strict=False)
             continue
         if root.exists() and not root.is_dir():
             continue
@@ -1367,7 +1373,7 @@ def _snapshot_owned_prefixes(
                 exclude_ignored and _is_bytecode_artifact(path)
             ):
                 continue
-            _read_into_snapshot(snapshot, path, strict=strict)
+            _read_into_snapshot(snapshot, path, strict=False)
     return snapshot
 
 

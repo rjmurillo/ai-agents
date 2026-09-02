@@ -3310,6 +3310,42 @@ def test_snapshot_strict_stops_at_a_nested_git_checkout(tmp_path: Path) -> None:
     )
 
 
+def test_snapshot_strict_skips_files_under_an_ignored_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`_ignored_paths` can return a directory, so membership is not enough.
+
+    `git ls-files` reports an embedded checkout as one ignored directory, not
+    one entry per file inside it (issue #5370). The strict branch therefore
+    has to ask `_is_ignored_path`, which treats each entry as a prefix, the
+    same question the non-strict walk asks. Plain `path in ignored` reads
+    every file under such a directory.
+
+    No production caller pairs `strict` with `exclude_ignored` today, so
+    without this test the two spellings are indistinguishable and the strict
+    branch could drift back to membership unnoticed. Both are public keyword
+    arguments, so the combination is contract, not a hypothetical.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    ignored_dir = owned / "runtime"
+    ignored_dir.mkdir(parents=True)
+    (ignored_dir / "cache.bin").write_bytes(b"noise\n")
+    kept = owned / "real.py"
+    kept.write_bytes(b"y = 2\n")
+    monkeypatch.setattr(
+        build_all, "_ignored_paths", lambda _root, _prefixes: {ignored_dir}
+    )
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        repo, ("owned/",), exclude_ignored=True, strict=True
+    )
+
+    assert set(snapshot) == {kept}, (
+        "strict discovery read a file nested under an ignored directory"
+    )
+
+
 def test_snapshot_non_strict_skips_owned_path_when_stat_fails(
     tmp_path: Path,
 ) -> None:
