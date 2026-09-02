@@ -546,12 +546,25 @@ uv run --frozen lefthook check-install
 ```
 
 Lefthook installs shims under Git's hook directory. Linked worktrees share
-those shims through the common Git directory. Lefthook reads `lefthook.yml` at
-runtime, so configuration edits do not require another install.
+those shims, and the config checksum, through the common Git directory.
+Lefthook reads `lefthook.yml` at runtime, so configuration edits do not require
+another install. `lefthook.yml` sets `no_auto_install: true` so that running
+Lefthook from one worktree cannot re-sync the shims every other worktree reads.
 
-`pre_pr.py` runs `lefthook check-install` as a local gate. It verifies that the
-pinned binary, `lefthook.yml`, and installed shims are available. CI skips this
-local-clone check because workflows invoke validation directly.
+`pre_pr.py` runs two local gates here, and neither one is
+`lefthook check-install`. That command compares the single checksum the last
+installing worktree wrote, so it reports a failure in a sibling worktree whose
+hooks are fine.
+
+- `Lefthook Installed` runs `uv run --frozen lefthook version` from the active
+  checkout. It proves the pinned runtime starts.
+- `Git Hook Health (core.hooksPath)` reads the installed `pre-push` and
+  requires Lefthook's own dispatch line. It proves Git will reach that runtime,
+  which an executable but inert hook would not.
+
+CI skips both local-clone checks because workflows invoke validation directly.
+Run `uv run --frozen lefthook check-install` by hand when you want the checksum
+compared; it stays the right tool for confirming your own install.
 
 Lefthook filters staged files and runs the named pre-commit validators declared
 in `lefthook.yml`. That file is the authoritative list of local Git hook jobs.
