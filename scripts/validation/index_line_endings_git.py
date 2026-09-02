@@ -214,8 +214,31 @@ def require_attr_source(repo_root: Path) -> None:
 
 
 def has_commits(repo_root: Path) -> bool:
-    """Return True when HEAD resolves, False for an unborn branch."""
-    result = subprocess.run(
+    """True when HEAD resolves. False only for a repository with no commits.
+
+    `git rev-parse --verify --quiet HEAD` answers non-zero and empty for three
+    different repositories: one that has never been committed to, one whose
+    HEAD names a branch somebody deleted, and one whose HEAD is unreadable.
+    Reading that single answer as "no commits" skips the HEAD scope silently,
+    which halves the gate on a repository that does have commits to check.
+
+    Mirrors `scripts/validation/portability_git.py::_no_commits_or_refuse`,
+    whose reasoning is verbatim::
+
+        Refs are only the reachable half of the answer. Deleting every ref
+        leaves the commits sitting in the object database, where a pseudoref
+        such as `ORIG_HEAD` still names them, so no refs is not yet proof that
+        nothing was committed. The object database is the question with an
+        answer, and it is only asked in the state no healthy repository
+        reaches.
+
+    Stricter/looser/different than canonical: same two probes in the same
+    order, different failure channel. That function returns a reason string to
+    a caller that decides; this raises, because `check_repository`'s callers
+    already turn a `RuntimeError` into the ADR-035 exit 2 and the False gate
+    verdict, and there is no third outcome for this gate to report.
+    """
+    resolved = subprocess.run(
         ["git", "rev-parse", "--verify", "--quiet", "HEAD"],
         cwd=repo_root,
         capture_output=True,
@@ -225,7 +248,41 @@ def has_commits(repo_root: Path) -> bool:
         check=False,
         env=git_environment(),
     )
-    return result.returncode == 0
+    if resolved.returncode == 0:
+        return True
+
+    refs = run_git(repo_root, ["for-each-ref", "--format=%(objectname)", "--count=1"])
+    if refs.stdout.strip():
+        raise RuntimeError(
+            "HEAD does not resolve but the repository has refs, so it holds "
+            "commits this check cannot read. Refusing rather than reporting "
+            "the committed scope clean."
+        )
+
+    objects = run_git(
+        repo_root, ["cat-file", "--batch-check=%(objecttype)", "--batch-all-objects"]
+    )
+    if "commit" in objects.stdout.split():
+        raise RuntimeError(
+            "HEAD does not resolve and no ref survives it, but the object "
+            "database still holds commits, so this is a repository whose refs "
+            "were removed rather than one that was never committed to. "
+            "Refusing rather than reporting the committed scope clean."
+        )
+    return False
+
+
+def git_path(repo_root: Path, relative: str) -> Path:
+    """Where git keeps `relative`, as an absolute path.
+
+    `git rev-parse --git-path` is the only thing that knows. It routes the
+    per-worktree names to the worktree-private directory and the shared ones,
+    `objects` and `info/attributes` among them, to the common directory. Its
+    answer can be relative, and it is relative to the git invocation's working
+    directory, which is `repo_root` and not this process's.
+    """
+    answer = Path(run_git(repo_root, ["rev-parse", "--git-path", relative]).stdout.strip())
+    return (repo_root / answer).resolve()
 
 
 def refuse_local_attribute_overrides(repo_root: Path) -> None:
@@ -248,10 +305,18 @@ def refuse_local_attribute_overrides(repo_root: Path) -> None:
     checkout has already changed. An empty file changes nothing and is
     allowed.
 
+    The path is asked for with `--git-path`, not assembled from
+    `--absolute-git-dir`. In a linked worktree those differ and only the first
+    is right: measured in this repository's own worktree,
+    `--absolute-git-dir` returns `.git/worktrees/claude-fix-crlf-renormalize`
+    while `--git-path info/attributes` returns the main checkout's
+    `.git/info/attributes`. Git routes that file through the common directory,
+    so a check that looked in the worktree-private directory would never find
+    the file git actually reads, in exactly the setup this repository works in.
+
     `actions/checkout` writes no such file, so CI never reaches this.
     """
-    git_dir = Path(run_git(repo_root, ["rev-parse", "--absolute-git-dir"]).stdout.strip())
-    attributes = git_dir / "info" / "attributes"
+    attributes = git_path(repo_root, "info/attributes")
     if not attributes.is_file() or attributes.stat().st_size == 0:
         return
     raise RuntimeError(

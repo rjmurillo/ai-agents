@@ -12,6 +12,7 @@ against a mock.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -309,9 +310,15 @@ def test_a_bytes_mode_git_failure_escapes_the_same_way(tmp_path: Path) -> None:
 
 
 def _info_attributes(repo: Path) -> Path:
-    git_dir = Path(_git(repo, "rev-parse", "--absolute-git-dir").stdout.strip())
-    (git_dir / "info").mkdir(exist_ok=True)
-    return git_dir / "info" / "attributes"
+    """Where git actually reads `info/attributes` for `repo`.
+
+    Asked with `--git-path`, not assembled: in a linked worktree that file
+    lives in the common directory while `--absolute-git-dir` names the
+    worktree-private one.
+    """
+    path = repo / Path(_git(repo, "rev-parse", "--git-path", "info/attributes").stdout.strip())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path.resolve()
 
 
 def test_a_local_info_attributes_file_stops_the_scan(tmp_path: Path, capsys) -> None:
@@ -358,3 +365,70 @@ def test_a_global_attributes_file_cannot_invent_a_violation(tmp_path: Path) -> N
     violations, _ = checker.check_repository(repo)
 
     assert violations == []
+
+
+def test_a_linked_worktree_finds_the_attributes_file_git_reads(tmp_path: Path) -> None:
+    """`info/attributes` is a common-directory path, not a worktree-private one.
+
+    Measured in this repository's own worktree: `--absolute-git-dir` returns
+    `.git/worktrees/<name>` while `--git-path info/attributes` returns the main
+    checkout's `.git/info/attributes`. A check built on the first would never
+    find the file git reads, in exactly the setup this repository works in.
+    """
+    main = _repo_with_crlf_blob(tmp_path)
+    _commit(main, "plant a CRLF blob")
+    linked = tmp_path / "linked"
+    _git(main, "worktree", "add", "--quiet", "--detach", str(linked))
+    _info_attributes(main).write_text("handoff.md -text\n", newline="\n")
+
+    private = Path(_git(linked, "rev-parse", "--absolute-git-dir").stdout.strip())
+    assert not (private / "info" / "attributes").is_file()  # the wrong place is empty
+
+    with pytest.raises(RuntimeError, match="outranks the attribute source"):
+        checker.check_repository(linked)
+
+
+# --- HEAD that does not resolve is three repositories, not one -------------
+
+
+def test_an_unborn_repository_still_scans_its_index(tmp_path: Path) -> None:
+    """The one state where skipping the HEAD scope is correct."""
+    repo = _repo_with_crlf_blob(tmp_path)
+
+    violations, _ = checker.check_repository(repo)
+
+    assert [(v.path, v.scope) for v in violations] == [("handoff.md", "index")]
+
+
+def test_a_head_pointing_at_a_deleted_branch_fails_closed(tmp_path: Path) -> None:
+    """Same `rev-parse` answer as an unborn branch, opposite correct verdict.
+
+    Treating it as unborn skips the committed scope on a repository that does
+    have commits, which halves the gate and reports the rest clean.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/gone")
+
+    with pytest.raises(RuntimeError, match="the repository has refs"):
+        checker.check_repository(repo)
+
+
+def test_a_repository_whose_refs_were_removed_fails_closed(tmp_path: Path) -> None:
+    """No refs either, but the object database still holds the commits."""
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    git_dir = Path(_git(repo, "rev-parse", "--absolute-git-dir").stdout.strip())
+    _git(repo, "symbolic-ref", "HEAD", "refs/heads/gone")
+    # Read the git directory before removing anything: git stops answering
+    # `--absolute-git-dir` once `refs/` is gone.
+    for name in ("logs",):
+        if (git_dir / name).is_dir():
+            shutil.rmtree(git_dir / name)
+    (git_dir / "packed-refs").unlink(missing_ok=True)
+    for entry in (git_dir / "refs").rglob("*"):
+        if entry.is_file():
+            entry.unlink()
+
+    with pytest.raises(RuntimeError, match="object database still holds commits"):
+        checker.check_repository(repo)
