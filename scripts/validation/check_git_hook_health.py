@@ -108,27 +108,10 @@ DISPATCH_COMMAND = f'{DISPATCH_MARKER} "$@"'
 _MISSING_TYPES_PREFIX = "has no live shim for configured hook"
 
 GIT_HOOK_NAMES = frozenset(
-    {
-        "applypatch-msg",
-        "commit-msg",
-        "post-applypatch",
-        "post-checkout",
-        "post-commit",
-        "post-merge",
-        "post-rewrite",
-        "post-update",
-        "pre-applypatch",
-        "pre-auto-gc",
-        "pre-commit",
-        "pre-merge-commit",
-        "pre-push",
-        "pre-rebase",
-        "pre-receive",
-        "prepare-commit-msg",
-        "push-to-checkout",
-        "sendemail-validate",
-        "update",
-    }
+    "applypatch-msg commit-msg post-applypatch post-checkout post-commit "
+    "post-merge post-rewrite post-update pre-applypatch pre-auto-gc "
+    "pre-commit pre-merge-commit pre-push pre-rebase pre-receive "
+    "prepare-commit-msg push-to-checkout sendemail-validate update".split()
 )
 
 
