@@ -19,10 +19,25 @@ appended instruction context; score by compiler + test outcomes (no LLM judge)
 - **Hard gates change behavior; passive prose does not.** The repo's
   false-completion PreToolUse gate blocked an unverified commit this session,
   while 252KB of always-on prose rules changed nothing measurable.
-- **Closed 2026-09-02 by issue #4871.** Every `.claude/rules/*.md` now declares
-  `paths:`, and `scripts/validation/check_rule_scope_keys.py` fails the build on
-  `applyTo:`, `globs:`, or `alwaysApply:` in that tree. Read the next finding as
-  the history that motivated the gate, not as the current state.
+- **Frontmatter-key finding fixed 2026-09-02 (PR #5496, Refs #4871).** Every
+  `.claude/rules/*.md` now declares `paths:`, and
+  `scripts/validation/check_rule_scope_keys.py` fails the build on `applyTo:`,
+  `globs:`, or `alwaysApply:` in that tree. Read the next finding as the history
+  that motivated the gate, not as the current state. Scope of that fix is the
+  frontmatter key alone. Issue #4871 stays open for its remaining criteria: the
+  effective-context inventory across harnesses, always-on skill and agent
+  accounting, and the frozen real-CLI before/after evaluation. None were done.
+  Measured through the real CLI, not inferred from docs. Same prompt, same
+  model, file tools disabled so the model could not read the rules, no code
+  file touched, 3 trials per tree, identical output every trial:
+  `claude -p "List the file paths under .claude/rules/ whose full text is
+  present in your system prompt..." --model haiku --disallowed-tools
+  "Read,Bash,Glob,Grep,Edit,Write,Task,WebFetch,WebSearch"`. Pre-fix tree: 8
+  rules, including `code-quality.md` (`alwaysApply: true`) and
+  `pragmatic-programmer.md` (`applyTo:` with 18 code globs). Post-fix tree: 6
+  rules; both of those are absent. 14,152 + 11,375 = 25,527 source bytes that
+  stopped loading. That is both halves at once: `applyTo:`/`alwaysApply:` do
+  not scope the Claude source, and `paths:` does.
 - **252KB of `.claude/rules` load unconditionally because of a frontmatter-key
   mismatch, not a harness bug.** The rules carry `applyTo`/`alwaysApply` (GitHub
   Copilot and Cursor keys). Claude Code's conditional-load key is `paths` (a YAML
