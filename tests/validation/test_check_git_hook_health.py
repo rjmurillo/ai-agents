@@ -30,10 +30,10 @@ Coverage:
   a linked worktree resolving to the common directory's hooks is healthy.
 - negative: a missing hooksPath directory, a directory with no pre-push, an
   unset hooksPath with no pre-push, an executable hook that dispatches nothing,
-  one whose marker is commented out, and an undecodable one all exit 1 and name
-  the remedy; an unreadable hook fails closed through the OSError branch; a
-  linked worktree inherits the broken config; removing the gate fails the wiring
-  test.
+  one whose marker is commented out, one that echoes the marker, and an
+  undecodable one all exit 1 and name the remedy; an unreadable hook fails
+  closed through the OSError branch; a linked worktree inherits the broken
+  config; removing the gate fails the wiring test.
 - edge: no lefthook config, non-repositories, and CI exit 0; missing Git and
   timeouts exit 3; the failure report stays inside a line budget.
 """
@@ -120,6 +120,12 @@ DISPATCHING_PREPUSH = (
     '  lefthook "$@"\n'
     "}\n"
     'call_lefthook run "pre-push" "$@"\n'
+)
+# Executable, final command, contains the marker, dispatches nothing. Refused
+# only by matching the complete generated command rather than a substring.
+ECHOED_MARKER_PREPUSH = (
+    "#!/bin/sh\n"
+    "echo 'call_lefthook run \"pre-push\"'\n"
 )
 INERT_PREPUSH = "#!/bin/sh\nexit 0\n"
 # Executable, mentions the marker, dispatches nothing. A whole-file substring
@@ -266,6 +272,24 @@ class TestDeadHooks:
         """
         repo = _make_repo(tmp_path, "commented")
         _install_prepush(repo / ".git" / "hooks", body=COMMENTED_MARKER_PREPUSH)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "does not dispatch Lefthook" in result.stderr
+
+    def test_an_echoed_marker_does_not_count_as_dispatch(
+        self, tmp_path: Path
+    ) -> None:
+        """Printing the dispatch is not running it.
+
+        The prior version anchored to the final command but matched a
+        substring, so `echo 'call_lefthook run "pre-push"'` passed: an
+        executable final command that dispatches nothing. The check now
+        compares against the complete generated command.
+        """
+        repo = _make_repo(tmp_path, "echoed")
+        _install_prepush(repo / ".git" / "hooks", body=ECHOED_MARKER_PREPUSH)
 
         result = _run_cli(repo)
 

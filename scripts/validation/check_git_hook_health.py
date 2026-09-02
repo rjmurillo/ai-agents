@@ -89,6 +89,12 @@ PROBE_HOOK = "pre-push"
 # keeps the gate on Lefthook's own output rather than reimplementing a shell
 # reader, which the ADR-086 amendment debate rejected.
 DISPATCH_MARKER = f'call_lefthook run "{PROBE_HOOK}"'
+# The complete generated command, matched exactly. A containment test on the
+# final line still accepts `echo 'call_lefthook run "pre-push"'`, which is an
+# executable final command that dispatches nothing (CWE-693). Including `"$@"`
+# also pins argument forwarding, which the Windows template asserts separately
+# in `tests/test_lefthook_integration.py`.
+DISPATCH_COMMAND = f'{DISPATCH_MARKER} "$@"'
 
 REMEDY = "uv run --frozen lefthook install --reset-hooks-path"
 WORKTREE_REMEDY = f"git config --worktree --unset-all core.hooksPath && {REMEDY}"
@@ -238,11 +244,12 @@ def _final_command(text: str) -> str:
 def _dispatches_lefthook(hook: Path) -> bool:
     """True when the hook's final command is Lefthook's own dispatch.
 
-    Anchored to the final command rather than matched anywhere in the file.
-    A substring search over the whole text accepts an inert hook that merely
-    mentions the marker in a comment, for example ``# call_lefthook run
-    "pre-push"`` followed by ``exit 0``, which is executable, reports healthy,
-    and runs no guard (CWE-693, PR #5358 review).
+    The final command must equal ``DISPATCH_COMMAND``, not contain it. Two
+    weaker versions of this check were fail-open in the same way (CWE-693, PR
+    #5358 review). A whole-file substring accepts an inert hook mentioning the
+    marker in a comment above ``exit 0``. A containment test on the final line
+    accepts ``echo 'call_lefthook run "pre-push"'``. Both are executable, both
+    report healthy, and neither runs a guard.
 
     An unreadable hook returns False: the gate fails closed rather than
     treating an unverifiable hook as installed.
@@ -251,7 +258,7 @@ def _dispatches_lefthook(hook: Path) -> bool:
         text = hook.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return False
-    return DISPATCH_MARKER in _final_command(text)
+    return _final_command(text) == DISPATCH_COMMAND
 
 
 def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
@@ -262,8 +269,8 @@ def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
     if not _dispatches_lefthook(hook):
         return (
             f"{hook} is executable but does not dispatch Lefthook: its final "
-            f"command is not '{DISPATCH_MARKER}', so git runs no repository "
-            "guardrail"
+            f"command is not exactly '{DISPATCH_COMMAND}', so git runs no "
+            "repository guardrail"
         )
     return None
 
