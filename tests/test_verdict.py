@@ -9,6 +9,8 @@ emoji). Moved verbatim; behavior unchanged.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from scripts.ai_review_common import (
@@ -362,6 +364,29 @@ class TestExtractVerdict:
         assert extract_verdict("Verdict: WARN_LATER") == "UNKNOWN"
 
 
+def lint_payload(
+    *,
+    error_count: int = 0,
+    warning_count: int = 0,
+    files_scanned: int = 3,
+    applicable_files: int = 3,
+) -> str:
+    """One golden-principles or taste-lints JSON payload.
+
+    Carries the shape both scanners really emit, `files_scanned` included, so a
+    test cannot pass on a payload the adapter would refuse in production.
+    `applicable_files` is golden-principles only; taste-lints ignores it.
+    """
+    return json.dumps(
+        {
+            "files_scanned": files_scanned,
+            "applicable_files": applicable_files,
+            "error_count": error_count,
+            "warning_count": warning_count,
+        }
+    )
+
+
 class TestAdaptLocalAxisVerdict:
     def test_code_quality_pass_requires_an_assessed_file(self):
         payload = (
@@ -455,18 +480,53 @@ class TestAdaptLocalAxisVerdict:
 
     @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
     def test_local_lint_error_maps_to_fail(self, axis):
-        payload = '{"error_count": 1, "warning_count": 0}'
+        payload = lint_payload(error_count=1)
         assert adapt_local_axis_verdict(axis, payload, 10) == "FAIL"
 
     @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
     def test_local_lint_warning_maps_to_warn(self, axis):
-        payload = '{"error_count": 0, "warning_count": 1}'
+        payload = lint_payload(warning_count=1)
         assert adapt_local_axis_verdict(axis, payload, 0) == "WARN"
 
     @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
     def test_local_lint_clean_maps_to_pass(self, axis):
-        payload = '{"error_count": 0, "warning_count": 0}'
+        payload = lint_payload()
         assert adapt_local_axis_verdict(axis, payload, 0) == "PASS"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_scanning_nothing_is_not_a_pass(self, axis):
+        """A deletion-only diff exits 0 with every count at zero.
+
+        Both scanners take their file list from a diff, which names deleted
+        paths, then skip anything that is no longer a file before incrementing
+        `files_scanned`. Reading only the counts called that silence a PASS.
+        """
+        payload = lint_payload(files_scanned=0, applicable_files=0)
+        assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_missing_files_scanned_stays_unknown(self, axis):
+        """No `files_scanned` field is output the adapter cannot vouch for."""
+        payload = '{"error_count": 0, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
+
+    def test_golden_principles_needs_an_applicable_file(self):
+        """Opening files a GP rule does not govern is not a reviewed design.
+
+        Its axis note says a clean result on a non-toolkit repo "means no rule
+        applied, not that design was reviewed".
+        """
+        payload = lint_payload(files_scanned=9, applicable_files=0)
+        assert adapt_local_axis_verdict("golden-principles", payload, 0) == "UNKNOWN"
+
+    def test_taste_lints_has_no_applicable_files_gate(self):
+        """Negative control: the extra gate is golden-principles only.
+
+        taste-lints emits no `applicable_files`, so gating both axes on it
+        would make every taste-lints run UNKNOWN.
+        """
+        payload = '{"files_scanned": 9, "error_count": 0, "warning_count": 0}'
+        assert adapt_local_axis_verdict("taste-lints", payload, 0) == "PASS"
 
     @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
     def test_bool_counts_stay_unknown(self, axis):
@@ -517,13 +577,13 @@ class TestAdaptLocalAxisVerdict:
         (scan_principles.py:455-457, taste_lints.py:1122-1124), so this pair
         cannot come from one run.
         """
-        payload = '{"error_count": 0, "warning_count": 2}'
+        payload = lint_payload(warning_count=2)
         assert adapt_local_axis_verdict(axis, payload, 10) == "UNKNOWN"
 
     @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
     def test_lint_errors_under_clean_exit_stays_unknown(self, axis):
         """The mirror contradiction: errors reported under exit 0."""
-        payload = '{"error_count": 1, "warning_count": 0}'
+        payload = lint_payload(error_count=1)
         assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
 
     def test_malformed_output_stays_unknown(self):

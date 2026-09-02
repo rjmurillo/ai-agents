@@ -297,6 +297,24 @@ def adapt_local_axis_verdict(
     warning_count = _coerce_nonnegative_int(payload.get("warning_count"))
     if error_count is None or warning_count is None:
         return "UNKNOWN"
+    # A clean exit over nothing scanned is silence, not a pass, the same way
+    # `_has_assessed_files` reads an empty code-quality assessment. Both
+    # scanners take their file list from a diff, which names deleted paths, and
+    # then skip whatever is no longer a file: `if not os.path.isfile(filepath):
+    # continue` guards the `files_scanned += 1` in both
+    # (scan_principles.py:281-285, taste_lints.py:962-969). A deletion-only
+    # diff therefore exits 0 with files_scanned 0 and zero counts.
+    if not _coerce_nonnegative_int(payload.get("files_scanned")):
+        return "UNKNOWN"
+    # golden-principles narrows itself once more: files_scanned counts what it
+    # opened, applicable_files what a GP rule actually governs. Its own axis
+    # note in SKILL.md says a clean result on a non-toolkit repo "means no rule
+    # applied, not that design was reviewed", so zero applicable files is that
+    # same silence. taste-lints has no such field and needs no such gate.
+    if axis == "golden-principles" and not _coerce_nonnegative_int(
+        payload.get("applicable_files")
+    ):
+        return "UNKNOWN"
     # Both scanners derive that status from this very field: `if
     # result.error_count > 0: return EXIT_VIOLATIONS` then `return
     # EXIT_SUCCESS` (scan_principles.py:455-457, taste_lints.py:1122-1124).
