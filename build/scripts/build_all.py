@@ -16,15 +16,19 @@ CLI:
 EXIT CODES:
     0 - success
     1 - generator logic error
-    2 - configuration error; staleness detected (--check); a file under
-        OWNED_PREFIXES that cannot be read (--check, aborts before
-        generation)
+    2 - configuration error; staleness detected (--check); a path under
+        OWNED_PREFIXES that cannot be read or is a symlink (--check,
+        aborts before generation); a generator wrote under .claude/
+        (REQ-003-010)
     3 - audit blocklist violation (REQ-003-011); git state unreadable
         (--check)
 
-Exit 2 has three producers and only the staleness one is fixed by
-regenerating and committing. The unreadable-owned-file producer arrived with
-issue #4632.
+Exit 2 has four producers and only the staleness one is fixed by
+regenerating and committing. The unreadable-or-symlinked-owned-path producer
+arrived with issue #4632. The fourth is the REQ-003-010 no-write violation,
+set in :func:`_run_generators` when :func:`assert_no_claude_writes` reports a
+write under ``.claude/``: that is a generator policy failure, and regenerating
+reproduces it, because the offending generator runs again.
 
 Exit 3 covers the two failures that are not a stale tree: an audit blocklist
 violation, and a git that could not answer. Git is an external tool and

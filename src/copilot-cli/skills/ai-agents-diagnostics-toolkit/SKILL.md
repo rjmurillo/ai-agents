@@ -53,14 +53,14 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 - Run from the repo root. All commands above assume it.
 - Use `uv run python`, not bare `python3`, for anything that imports repo modules (PyYAML lives in the venv; bare `python3` gives `ModuleNotFoundError: No module named 'yaml'`).
-- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:1005-1033`), so its log prints `Mode: Generate` and a nonzero `Written:` count even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
+- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `_snapshot_owned_prefixes` and `_restore_owned_prefixes` in `build/scripts/build_all.py`), so its log prints `Mode: Generate` and a nonzero `Written:` count even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
 - Read the exit code, not just the prose. It is the machine signal:
 
 | Exit code | Convention (ADR-035 / AGENTS.md) | Exceptions |
 |---|---|---|
 | 0 | Healthy or within limits | `skill_size.py` prints FAIL lines but exits 0 unless `--ci` |
 | 1 | Logic finding (budget exceeded, CRITICAL_FAIL, over limit in `--ci`) | |
-| 2 | Config error (bad path, bad args); for `build_all.py --check`, staleness OR an unreadable file under `OWNED_PREFIXES` (read stderr; only the staleness case is fixed by regenerating) | |
+| 2 | Config error (bad path, bad args); for `build_all.py --check`, staleness, an unreadable or symlinked path under `OWNED_PREFIXES`, or a generator writing under `.claude/` (REQ-003-010). Read stderr: only the staleness producer is fixed by regenerating | |
 | 3 | External failure; for `build_all.py --check`, git state unreadable (launch failure, timeout, nonzero exit), not fixed by regenerating | |
 | 10 | Violations found | `scan_principles.py` only |
 
