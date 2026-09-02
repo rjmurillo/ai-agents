@@ -71,7 +71,7 @@ def test_git_ls_files_eol_still_emits_the_parsed_shape() -> None:
 PRE_FIX_COMMIT = "12bea5f5990086f9d1a83dce5bc1ed57757f00c7"
 
 
-def _violations_at(revision: str) -> list[object]:
+def _violations_at(revision: str) -> list[checker.Violation]:
     """Scan one historical commit the way the HEAD scope scans HEAD.
 
     An isolated index holds that commit's blobs and `GIT_ATTR_SOURCE` pins its
