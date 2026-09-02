@@ -88,8 +88,8 @@ contributes its axes.
 | `agent-artifacts` | a file named `SKILL.md`, or a whole path segment of `skills/`, `agents/`, `hooks/`, `prompts/`, or `commands/` | `agent-safety` | |
 | `decision-records` | an `ADR-*` file, or a whole `architecture/` or `decisions/` path segment | `decision-rigor` | |
 | `roadmap-or-spec-docs` | a whole `roadmap/`, `planning/`, or `specs/` path segment | `roadmap` | |
-| `docs-and-instructions` | `*.md`, `*.mdx`, `*.rst`, `*.txt` | | `doc-accuracy` |
-| `executable-code` | a source file in a supported language | `code-quality` | `code-qualities-assessment`, `taste-lints` |
+| `docs-and-instructions` | `*.md` | | `doc-accuracy` |
+| `executable-code` | a source file in a supported language | `code-quality` | `code-qualities-assessment`, `taste-lints`, each only where its own scanner reads the file |
 | `toolkit-governance` | a file at least one golden-principle rule can fire on: `.sh` or `.bash` anywhere (GP-001), `SKILL.md` under `.claude/skills/` (GP-003), `.md` under `.claude/agents/` except `CLAUDE.md` (GP-004), or `.yml`/`.yaml` under `.github/workflows/` (GP-005, GP-006) | | `golden-principles` |
 
 `docs-and-instructions` routes to the `doc-accuracy` skill, which verifies
@@ -97,6 +97,32 @@ documentation claims against the code they describe. A docs-only change still
 runs far fewer axes than a code change: `spec-compliance`, the always-on
 `analyst`, and `doc-accuracy`, which is the "low-risk changes run fewer axes"
 case, 2 Stage-2 axes instead of 15.
+
+## Local axes are limited by their scanner
+
+A local axis is one scanner, and a scanner reads only the files its own source
+accepts. Selecting an axis for a file its scanner skips produces a scan over
+zero files, which the verdict adapter reports as UNKNOWN, so the axis can never
+reach PASS. The risk rows are coarser than the scanners behind them, so a
+routed local axis is dropped unless some changed file is one its scanner reads,
+and its skip reason says so.
+
+| Local axis | Reads |
+|---|---|
+| `code-qualities-assessment` | the suffixes in `assess.py`'s language map, matched case-insensitively. No PowerShell, shell, Rust, or Ruby. |
+| `taste-lints` | the suffixes in `taste_lints.py`'s scannable set, matched case-sensitively. No TypeScript, JavaScript, C#, Go, Rust, Ruby, or Java. |
+| `doc-accuracy` | the Markdown its `DOC_GLOBS` inventories, matched case-sensitively. |
+| `golden-principles` | what `scan_principles._is_applicable` accepts, which compares `SKILL.md`, `CLAUDE.md`, and its suffixes literally rather than lowercased. |
+
+Two consequences worth knowing. A `.rs` or `.rb` change selects no local axis
+at all, because neither scanner scores it; the canonical `code-quality`
+subagent still reviews it. A `.txt`, `.rst`, or `.mdx` change is not classified
+at all, so the run fails closed onto the full set rather than handing the file
+to a scanner that would not open it.
+
+`--deep` and a fail-closed run skip this narrowing. Both are explicit
+run-everything modes, and a fail-closed run has no trustworthy path list to
+narrow by. A `--pin` also overrides it: a caller who names the axis gets it.
 
 `golden-principles` is scoped to toolkit artifacts because that is the surface
 its GP rules govern; a clean result elsewhere means no rule applied, not that
