@@ -66,8 +66,8 @@ class Violation:
 
     def render(self) -> str:
         return (
-            f"[CRLF] {self.path}: {self.scope} blob is {self.index_state} "
-            f"but attributes say {self.attributes}"
+            f"[CRLF] {display_path(self.path)}: {self.scope} blob is "
+            f"{self.index_state} but attributes say {self.attributes}"
         )
 
 
@@ -95,6 +95,50 @@ def _git(
     return result
 
 
+def _git_paths(repo_root: Path, args: list[str], env: dict[str, str] | None = None) -> str:
+    """Run a git command whose stdout carries pathnames, decoded losslessly.
+
+    A pathname is bytes on POSIX, not text. Capturing this output through
+    `encoding="utf-8", errors="replace"` maps every undecodable byte to
+    U+FFFD, and that mapping cannot be reversed: the gate would report a name
+    the repository does not hold, print a renormalize command for it, and hand
+    `--fix` a path git cannot find. So stdout is captured raw and decoded once
+    with `surrogateescape`, which round-trips. Python re-encodes argv with
+    `os.fsencode`, which reverses the same escapes, so a path read here goes
+    back to git as the exact bytes git emitted.
+
+    Bytes mode is also why this call does not carry the repository's
+    `errors="replace"` subprocess convention: there is no text decoding for
+    that keyword to govern. `check_subprocess_encoding.py` scopes itself to
+    calls that pin `encoding="utf-8"`, so this one is out of scope by
+    construction rather than by suppression.
+    """
+    result = subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        capture_output=True,
+        timeout=_GIT_TIMEOUT_SECONDS,
+        check=False,
+        env=env,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", "replace").strip()
+        raise RuntimeError(f"git {' '.join(args)} failed ({result.returncode}): {stderr}")
+    return result.stdout.decode("utf-8", "surrogateescape")
+
+
+def display_path(path: str) -> str:
+    """A path rendered for a UTF-8 stream, with undecodable bytes escaped.
+
+    The surrogates that keep a path reversible cannot be written to stdout:
+    `print` raises `UnicodeEncodeError` on them. Only the human-facing output
+    is escaped. `--fix` still receives the reversible form, so the path the
+    operator reads and the path git receives can differ by exactly the bytes
+    that have no text spelling.
+    """
+    return path.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
+
+
 def _ls_files_eol(repo_root: Path, env: dict[str, str] | None = None) -> str:
     """Return NUL-terminated `git ls-files --eol` output.
 
@@ -103,7 +147,7 @@ def _ls_files_eol(repo_root: Path, env: dict[str, str] | None = None) -> str:
     be reported under its display spelling and the remediation would name a file
     that does not exist.
     """
-    return _git(repo_root, ["ls-files", "--eol", "-z"], env=env).stdout
+    return _git_paths(repo_root, ["ls-files", "--eol", "-z"], env=env)
 
 
 def parse_violations(output: str, scope: str = "HEAD") -> tuple[list[Violation], int]:
@@ -222,7 +266,7 @@ def _report(violations: list[Violation], examined: int) -> None:
         # command that runs attacker-controlled text if a maintainer pasted it
         # (CWE-78). The quoting is POSIX-shell specific, which is why --fix
         # exists: it passes an argument list to git and never builds a string.
-        paths = " ".join(shlex.quote(v.path) for v in violations)
+        paths = " ".join(shlex.quote(display_path(v.path)) for v in violations)
         print(f"  git add --renormalize -- {paths}")
     print(f"index-line-endings: {len(violations)} violation(s) in {examined} tracked files")
 

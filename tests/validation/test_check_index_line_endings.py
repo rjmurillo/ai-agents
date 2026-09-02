@@ -11,6 +11,7 @@ defect.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -627,3 +628,91 @@ def test_read_only_mode_still_works_from_outside_the_repo(tmp_path: Path, monkey
     monkeypatch.chdir(elsewhere)
 
     assert checker.main(["--repo-root", str(repo)]) == 1
+
+
+# --- a pathname is bytes, and some byte sequences are not text -------------
+
+
+def _repo_with_undecodable_crlf_blob(tmp_path: Path) -> tuple[Path, bytes]:
+    """Track a CRLF blob under a filename that is not valid UTF-8.
+
+    Git stores pathnames as bytes and imposes no encoding, so `b"bad\\xff.md"`
+    is a legal tracked name on POSIX. It is the case a lossy decode destroys.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "--quiet")
+    (repo / ".gitattributes").write_text("* text=auto eol=lf\n*.md text\n", newline="\n")
+    _git(repo, "add", ".gitattributes")
+
+    raw_name = b"bad\xff.md"
+    (repo / os.fsdecode(raw_name)).write_bytes(b"line one\r\nline two\r\n")
+    blob = _git(
+        repo, "hash-object", "-w", "--no-filters", os.fsdecode(raw_name)
+    ).stdout.strip()
+    _git(
+        repo,
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        f"100644,{blob},{os.fsdecode(raw_name)}",
+    )
+    return repo, raw_name
+
+
+def test_an_undecodable_filename_is_reported_as_the_byte_sequence_git_gave(
+    tmp_path: Path,
+) -> None:
+    """`errors="replace"` would map the bad byte to U+FFFD, irreversibly.
+
+    The gate would then name a file the repository does not hold. Decoding the
+    path stream with `surrogateescape` keeps the bytes recoverable, which is
+    what lets the reported path still identify the tracked file.
+    """
+    repo, raw_name = _repo_with_undecodable_crlf_blob(tmp_path)
+
+    violations, _ = checker.check_repository(repo)
+
+    assert len(violations) == 1
+    assert violations[0].path.encode("utf-8", "surrogateescape") == raw_name
+    assert "�" not in violations[0].path
+
+
+def test_an_undecodable_filename_is_still_printable(tmp_path: Path, capsys) -> None:
+    """Surrogates cannot be written to a UTF-8 stream; the report must not raise.
+
+    Reporting is the gate's whole output path, so a crash here turns a
+    detected violation into an unhandled traceback.
+    """
+    repo, _raw_name = _repo_with_undecodable_crlf_blob(tmp_path)
+
+    assert checker.validate_index_line_endings(repo) is False
+
+    out = capsys.readouterr().out
+    assert "bad\\xff.md" in out
+    assert "git add --renormalize --" in out
+
+
+def test_fix_renormalizes_an_undecodable_filename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The end the display escaping must not reach: what git actually receives.
+
+    `--fix` passes the surrogate-escaped path, and Python re-encodes argv with
+    `os.fsencode`, so git gets the original bytes back. A displayed
+    `bad\\xff.md` handed to git would name nothing and the violation would
+    survive its own remediation.
+    """
+    repo, _raw_name = _repo_with_undecodable_crlf_blob(tmp_path)
+    monkeypatch.chdir(repo)
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
+
+    violations, _ = checker.check_repository(repo)
+    assert violations == []
+
+
+def test_display_path_leaves_ordinary_names_alone() -> None:
+    """Control: escaping applies to bytes with no text spelling, nothing else."""
+    assert checker.display_path("docs/café.md") == "docs/café.md"
+    assert checker.display_path("a;$(id).md") == "a;$(id).md"
