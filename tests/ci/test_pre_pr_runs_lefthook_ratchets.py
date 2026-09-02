@@ -160,7 +160,7 @@ class TestAggregateLefthookDelegation:
         monkeypatch.setattr(
             checks_ratchet, "validate_count_ratchets", lambda _root, **_kw: False
         )
-        assert checks_ratchet.main() == 1
+        assert checks_ratchet.main([]) == 1
 
     def test_main_returns_zero_when_every_ratchet_passes(
         self, monkeypatch: pytest.MonkeyPatch
@@ -168,7 +168,7 @@ class TestAggregateLefthookDelegation:
         monkeypatch.setattr(
             checks_ratchet, "validate_count_ratchets", lambda _root, **_kw: True
         )
-        assert checks_ratchet.main() == 0
+        assert checks_ratchet.main([]) == 0
 
     def test_main_returns_config_error_when_uv_is_missing(
         self, monkeypatch: pytest.MonkeyPatch
@@ -177,7 +177,7 @@ class TestAggregateLefthookDelegation:
             raise checks_ratchet.MissingScriptSkip("uv missing")
 
         monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", unavailable)
-        assert checks_ratchet.main() == 2
+        assert checks_ratchet.main([]) == 2
 
     def test_main_passes_skip_merge_tree_flag_through(
         self, monkeypatch: pytest.MonkeyPatch

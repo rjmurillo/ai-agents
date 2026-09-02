@@ -181,3 +181,66 @@ class TestMergeTreeBackstopDelegation:
 
         backstop.assert_called_once()
         assert "deadline" not in backstop.call_args.kwargs
+
+
+class TestArgvContract:
+    """``main`` must reject an unknown option, not silently ignore it.
+
+    Issue #5441 review: the flag was read with ``"--skip-merge-tree" in
+    sys.argv[1:]``, so a typo such as ``--skip-merge-tre`` evaluated False and
+    ran the full merge-tree path the flag exists to skip, restoring the
+    duplicate work and the timeout this change fixes. Nothing reported the
+    typo.
+    """
+
+    def test_the_flag_skips_the_backstop(self, tmp_path: Path, monkeypatch) -> None:
+        repo = _repo(tmp_path)
+        _stub_standalone_ratchets(repo)
+        monkeypatch.chdir(repo)
+
+        with patch.object(checks_ratchet, "_evaluate_merge_tree_backstop") as backstop:
+            assert checks_ratchet.main(["--skip-merge-tree"]) == 0
+
+        backstop.assert_not_called()
+
+    def test_no_flag_runs_the_backstop(self, tmp_path: Path, monkeypatch) -> None:
+        repo = _repo(tmp_path)
+        _stub_standalone_ratchets(repo)
+        monkeypatch.chdir(repo)
+        monkeypatch.setattr(checks_ratchet, "_resolve_default_base_ref", lambda _root: "HEAD")
+
+        with patch.object(
+            checks_ratchet, "_evaluate_merge_tree_backstop", return_value=0
+        ) as backstop:
+            assert checks_ratchet.main([]) == 0
+
+        backstop.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["--skip-merge-tre"],
+            ["--skip_merge_tree"],
+            ["--skip-merge-tree-please"],
+            ["--unknown"],
+            ["positional"],
+        ],
+    )
+    def test_an_unknown_argument_exits_2(
+        self, argv: list[str], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        with pytest.raises(SystemExit) as exit_info:
+            checks_ratchet.main(argv)
+
+        assert exit_info.value.code == 2
+        assert "usage:" in capsys.readouterr().err
+
+    def test_an_unknown_argument_never_reaches_the_ratchets(self) -> None:
+        """Exit 2 must happen before any counting work starts."""
+        with (
+            patch.object(checks_ratchet, "validate_count_ratchets") as validate,
+            pytest.raises(SystemExit),
+        ):
+            checks_ratchet.main(["--skip-merge-tre"])
+
+        validate.assert_not_called()

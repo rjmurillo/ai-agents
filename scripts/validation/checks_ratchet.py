@@ -8,17 +8,25 @@ pass, pushed, and learned about a 0.21 second failure 674 seconds later.
 
 Running the fast ratchets here converts that 674 second round trip into a
 local one. Five of the ratchets are also registered in
-``scripts/ci/merge_tree_ratchet_registry.py``: their local baseline check is
-subsumed by ``scripts/ci/merge_tree_ratchet_check.py``, which the docstring on
-``_verdict_for_move`` in ``count_ratchet.py`` already documents as the real
-gate for a merge-tree-backed ratchet. Issue #5441: this module used to ALSO
-run each of those five individually before handing them to the merge-tree
-check a second time, so a push paid for the same five counts twice inside one
-85 second budget and could not finish. This module now runs each of them
-exactly once, through ``validate_count_ratchets`` below, which delegates to
+``scripts/ci/merge_tree_ratchet_registry.py``. Issue #5441: this module used
+to run each of those five individually and then hand them to the merge-tree
+check, which counted the same five again, so a push paid for the same counts
+twice inside one 85 second budget and could not finish. What is eliminated is
+exactly that second count pass, nothing else. Each of the five is now counted
+once, through ``validate_count_ratchets`` below, which delegates to
 ``scripts/ci/merge_tree_ratchet_check.py``'s ``_evaluate_merged_tree``, the
 same function a ``uv run --frozen`` caller of that script reaches directly
 when it is run as its own Lefthook job.
+
+Removing the duplicate count does NOT remove the one-directional baseline
+guard. ``scripts/ci/merge_tree_ratchet_baseline_direction.py`` is
+complementary to the merge-tree comparison, not subsumed by it: the merge-tree
+check takes ``min(base, merged)``, which a branch can satisfy while still
+raising its own baseline, and the direction check reads the fork point between
+the base ref and HEAD to catch exactly that. ``_evaluate_registered_ratchets``
+calls it for every registered ratchet, with the count already in hand so no
+second scan is paid. Do not read the deduplication above as a licence to drop
+it; doing so reopens raised-baseline acceptance (issue #5441 review).
 
 The pre-push hook and pre-PR runner both delegate to this module. Keeping the
 ratchet set and command construction here avoids parallel hook jobs
@@ -27,9 +35,11 @@ duplicating the registry while preserving early failure before expensive jobs.
 
 from __future__ import annotations
 
+import argparse
 import shutil
 import sys
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -343,15 +353,48 @@ def validate_count_ratchets(repo_root: Path, *, skip_merge_tree: bool = False) -
     return True
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """Argv contract for this script.
+
+    argparse rather than a membership test on ``sys.argv`` (issue #5441
+    review): a membership test accepts every unknown argument silently, so
+    ``--skip-merge-tre`` would read as False and run the full merge-tree path
+    the flag exists to skip, restoring the duplicate work and the timeout this
+    change fixes. argparse exits 2 on an unknown option, which is this
+    repository's config-error code.
+
+    ``allow_abbrev=False`` because argparse's default is prefix matching, which
+    would accept that same ``--skip-merge-tre`` as an unambiguous abbreviation
+    and report no error. The Lefthook job spells the flag in full, so nothing
+    needs abbreviations, and an exact-spelling contract is one a test can pin.
+    """
+    parser = argparse.ArgumentParser(
+        description="Run the count ratchets for the current repository.",
+        allow_abbrev=False,
+    )
+    parser.add_argument(
+        "--skip-merge-tree",
+        action="store_true",
+        help=(
+            "Skip the merge-tree backstop and run only the ratchets with no "
+            "merge-tree registration. What the count-ratchets Lefthook job "
+            "passes; the merge-tree-ratchet job owns the rest."
+        ),
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
     """Run registered ratchets for the current repository.
 
     ``--skip-merge-tree`` is what the ``count-ratchets`` Lefthook job passes;
     see :func:`validate_count_ratchets`.
     """
-    skip_merge_tree = "--skip-merge-tree" in sys.argv[1:]
+    args = build_parser().parse_args(sys.argv[1:] if argv is None else argv)
     try:
-        passed = validate_count_ratchets(Path.cwd(), skip_merge_tree=skip_merge_tree)
+        passed = validate_count_ratchets(
+            Path.cwd(), skip_merge_tree=args.skip_merge_tree
+        )
     except MissingScriptSkip as exc:
         print(f"[ERROR] count ratchets: {exc}", file=sys.stderr)
         return 2
