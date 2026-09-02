@@ -103,6 +103,10 @@ DISPATCH_COMMAND = f'{DISPATCH_MARKER} "$@"'
 # Every git hook Lefthook can install. Used to tell hook types apart from the
 # settings that share the config's top level (`min_version`, `lefthook`,
 # `no_auto_install`, `glob_matcher`).
+# Identifies the missing-hook-type diagnosis so the summary line below does not
+# claim pre-push is dead when pre-push is what proved live.
+_MISSING_TYPES_PREFIX = "has no live shim for configured hook"
+
 GIT_HOOK_NAMES = frozenset(
     {
         "applypatch-msg",
@@ -306,33 +310,54 @@ def _dispatch_failure(hook: Path, hook_name: str) -> str | None:
     return None
 
 
-def _configured_hook_types(repo_root: Path) -> frozenset[str] | None:
-    """Hook types declared in the Lefthook config, or None when unreadable.
+def _parse_hook_types(path: Path) -> frozenset[str] | None:
+    """Hook types declared in one config file, or None when unreadable."""
+    name = path.name
+    try:
+        raw = path.read_bytes()
+        if name.endswith((".yml", ".yaml")):
+            data = yaml.safe_load(raw.decode("utf-8"))
+        elif name.endswith(".json"):
+            data = json.loads(raw)
+        elif name.endswith(".toml"):
+            data = tomllib.loads(raw.decode("utf-8"))
+        else:
+            return None
+    except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return frozenset(str(key) for key in data) & GIT_HOOK_NAMES
 
-    Returns None rather than an empty set when the config cannot be parsed, so
+
+def _configured_hook_types(repo_root: Path) -> frozenset[str] | None:
+    """Hook types declared across every Lefthook config, or None if unreadable.
+
+    Every config file is read, not the first match. ``LEFTHOOK_CONFIG_NAMES``
+    includes the ``-local`` overlays, and a local file that adds a hook type
+    installs a shim for it, so stopping at the base file reports healthy while
+    the overlay's hook type has none.
+
+    The union is the safe direction here. This gate asks which hook types could
+    be installed, not which jobs win a merge, and a type present in any config
+    needs a shim.
+
+    Returns None rather than an empty set when any config cannot be parsed, so
     the caller keeps the single-probe behavior instead of reporting every hook
     type as missing. ``.jsonc`` has no stdlib parser and lands there.
     """
+    found: set[str] = set()
+    seen_any = False
     for name in LEFTHOOK_CONFIG_NAMES:
         path = repo_root / name
         if not path.is_file():
             continue
-        try:
-            raw = path.read_bytes()
-            if name.endswith((".yml", ".yaml")):
-                data = yaml.safe_load(raw.decode("utf-8"))
-            elif name.endswith(".json"):
-                data = json.loads(raw)
-            elif name.endswith(".toml"):
-                data = tomllib.loads(raw.decode("utf-8"))
-            else:
-                return None
-        except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError):
+        seen_any = True
+        parsed = _parse_hook_types(path)
+        if parsed is None:
             return None
-        if not isinstance(data, dict):
-            return None
-        return frozenset(str(key) for key in data) & GIT_HOOK_NAMES
-    return None
+        found |= parsed
+    return frozenset(found) if seen_any else None
 
 
 def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
@@ -344,6 +369,18 @@ def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
     if probe_failure is not None:
         return probe_failure
     return _missing_hook_types(repo_root, hooks_dir)
+
+
+def _is_live_hook(hook: Path, hook_name: str) -> bool:
+    """True when git will run ``hook`` and it dispatches Lefthook.
+
+    Both halves, in the same order the ``pre-push`` probe applies them. Text
+    alone is not enough: on POSIX a shim carrying the exact dispatch line at
+    mode 0644 is ignored by git.
+    """
+    if not (hook.is_file() and os.access(hook, os.X_OK)):
+        return False
+    return _dispatch_failure(hook, hook_name) is None
 
 
 def _missing_hook_types(repo_root: Path, hooks_dir: Path) -> str | None:
@@ -361,12 +398,12 @@ def _missing_hook_types(repo_root: Path, hooks_dir: Path) -> str | None:
     missing = sorted(
         name
         for name in configured - {PROBE_HOOK}
-        if _dispatch_failure(hooks_dir / name, name) is not None
+        if not _is_live_hook(hooks_dir / name, name)
     )
     if not missing:
         return None
     return (
-        f"{hooks_dir} has no dispatching shim for configured hook "
+        f"{hooks_dir} {_MISSING_TYPES_PREFIX} "
         f"{'types' if len(missing) > 1 else 'type'} {', '.join(missing)}, so "
         "git runs nothing for them; run install again after any hook-type change"
     )
@@ -420,10 +457,19 @@ def _evaluate(repo_root: Path) -> int:
         return 0
 
     print(f"[FAIL] {reason}.", file=sys.stderr)
-    print(
-        "Pushes are not locally gated: pre-push does not run.",
-        file=sys.stderr,
-    )
+    # Only claim the push is ungated when the pre-push probe is what failed.
+    # A missing commit-msg shim reaches here with a working pre-push, and the
+    # blanket line sent contributors after the wrong hook.
+    if _MISSING_TYPES_PREFIX in reason:
+        print(
+            "Those hook types run nothing locally. pre-push itself is live.",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            "Pushes are not locally gated: pre-push does not run.",
+            file=sys.stderr,
+        )
     print(f"Fix: {remedy}", file=sys.stderr)
     return 1
 

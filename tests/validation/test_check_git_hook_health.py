@@ -33,7 +33,9 @@ Coverage:
   one whose marker is commented out, one that echoes the marker, and an
   undecodable one all exit 1 and name the remedy; an unreadable hook fails
   closed through the OSError branch and reports the read failure rather than a
-  wrong command; a configured hook type with no shim fails; a linked worktree
+  wrong command; a configured hook type with no shim, a non-executable one, and
+  one declared only in a `-local` overlay each fail, and that failure does not
+  claim pre-push is dead; a linked worktree
   inherits the broken config; removing the gate fails the wiring test.
 - edge: no lefthook config, non-repositories, and CI exit 0; missing Git and
   timeouts exit 3; the failure report stays inside a line budget.
@@ -361,7 +363,7 @@ class TestDeadHooks:
 
         assert result.returncode == 1
         assert "commit-msg" in result.stderr
-        assert "no dispatching shim for configured hook" in result.stderr
+        assert check_git_hook_health._MISSING_TYPES_PREFIX in result.stderr
 
     def test_every_configured_hook_type_installed_passes(self, tmp_path: Path) -> None:
         """The positive control for the check above."""
@@ -377,6 +379,72 @@ class TestDeadHooks:
         commit_msg.chmod(0o755)
 
         assert _run_cli(repo).returncode == 0
+
+    def test_a_local_overlay_hook_type_is_checked(self, tmp_path: Path) -> None:
+        """A `-local` overlay adds hook types, and Lefthook installs them.
+
+        Stopping at the first matching config filename read only the base file,
+        so an overlay's hook type could have no shim while the gate reported
+        healthy.
+        """
+        repo = _make_repo(tmp_path, "overlay")
+        (repo / "lefthook-local.yml").write_text(
+            "commit-msg:\n  commands:\n    noop:\n      run: true\n",
+            encoding="utf-8",
+        )
+        _install_prepush(repo / ".git" / "hooks")
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "commit-msg" in result.stderr
+
+    def test_a_non_executable_configured_hook_fails(self, tmp_path: Path) -> None:
+        """Text alone is not installation: git ignores a non-executable shim."""
+        repo = _make_repo(tmp_path, "not_executable_type")
+        (repo / "lefthook.yml").write_text(TWO_HOOK_CONFIG, encoding="utf-8")
+        hooks_dir = repo / ".git" / "hooks"
+        _install_prepush(hooks_dir)
+        commit_msg = hooks_dir / "commit-msg"
+        commit_msg.write_text(
+            DISPATCHING_PREPUSH.replace('"pre-push"', '"commit-msg"'),
+            encoding="utf-8",
+        )
+        commit_msg.chmod(0o644)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "commit-msg" in result.stderr
+
+    def test_a_missing_hook_type_does_not_claim_pre_push_is_dead(
+        self, tmp_path: Path
+    ) -> None:
+        """The summary must match the condition that was detected.
+
+        `_evaluate` used to append "pre-push does not run" to every failure,
+        including one reached only after the pre-push probe passed.
+        """
+        repo = _make_repo(tmp_path, "summary")
+        (repo / "lefthook.yml").write_text(TWO_HOOK_CONFIG, encoding="utf-8")
+        _install_prepush(repo / ".git" / "hooks")
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "pre-push itself is live" in result.stderr
+        assert "pre-push does not run" not in result.stderr
+
+    def test_a_dead_pre_push_still_says_pushes_are_ungated(
+        self, tmp_path: Path
+    ) -> None:
+        """The positive control for the branch above."""
+        repo = _make_repo(tmp_path, "dead_prepush")
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "pre-push does not run" in result.stderr
 
     def test_an_unparseable_config_keeps_the_single_probe(self, tmp_path: Path) -> None:
         """A config the gate cannot parse must not fail every hook type."""

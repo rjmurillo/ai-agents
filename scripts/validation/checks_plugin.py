@@ -220,8 +220,11 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     What each of the two adjacent gates proves, so neither is read as covering
     the other. This one proves the configured runtime starts. ``Git Hook
     Health`` proves git will run the shim and that the shim dispatches Lefthook,
-    by requiring Lefthook's own dispatch line as the installed ``pre-push``
-    file's final command (``check_git_hook_health.DISPATCH_MARKER``), because an
+    by requiring Lefthook's complete generated dispatch line, including
+    ``"$@"``, as the installed ``pre-push`` file's final command
+    (``check_git_hook_health.DISPATCH_COMMAND``, not the shorter
+    ``DISPATCH_MARKER`` substring, which is what the containment check this PR
+    removed matched), because an
     executable ``#!/bin/sh`` plus ``exit 0`` satisfies both a runtime-start check
     and an executability check while running no job at all.
 
