@@ -98,7 +98,7 @@ class TestCheckAgentsWithoutSession:
             "sha1",
             "session work",
             [
-                ".agents/HANDOFF.md",
+                ".agents/governance/PROJECT-CONSTRAINTS.md",
                 ".agents/sessions/2026-01-01-session-01.json",
             ],
         )
