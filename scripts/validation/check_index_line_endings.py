@@ -55,6 +55,52 @@ REMEDIATION = "git add --renormalize <path>, then commit the result"
 _GIT_TIMEOUT_SECONDS = 120
 
 
+def _git_environment() -> dict[str, str]:
+    """The ambient environment with every ``GIT_*`` variable removed.
+
+    ``cwd=repo_root`` does not win against an exported ``GIT_DIR``,
+    ``GIT_WORK_TREE`` or ``GIT_INDEX_FILE``. That matters twice here. The scan
+    would read a repository nobody asked about and report its blobs under this
+    root's name, and ``--fix`` would stage into that other repository after
+    ``refuses_write_from_outside`` had already approved the current directory,
+    which is exactly the disagreement that guard exists to stop. An ambient
+    ``GIT_INDEX_FILE`` also collapses the two scopes: the working-index pass
+    would read whatever index the variable names instead of the repository's.
+
+    This is not hypothetical for this gate. ``git push`` exports ``GIT_DIR``
+    into the pre-push hook from a linked worktree (issue #4914), and pre-push
+    is one of the two places this gate runs.
+
+    Mirrors ``scripts/ci/count_ratchet.py::git_environment``, whose rule is
+    verbatim::
+
+        return {
+            name: value
+            for name, value in os.environ.items()
+            if not name.upper().startswith("GIT_")
+        }
+
+    ``name.upper()`` is kept, so a lowercased ``git_dir`` that a
+    case-insensitive platform folds into ``GIT_DIR`` is stripped here too.
+
+    Stricter/looser/different than canonical: identical in what it strips. The
+    canonical helper's own docstring records the narrowing it already made
+    against ``scripts/ci/merge_tree_materialization.py::isolated_git_environment``,
+    which additionally drops ``GNUPGHOME``, ``HOME``, ``LEFTHOOK``,
+    ``USERPROFILE`` and ``XDG_CONFIG_HOME``. This gate inherits that narrowing
+    for the same reason the ratchet did: it runs git against the real checkout,
+    where a global ``safe.directory`` entry written by ``actions/checkout`` is
+    load-bearing.
+
+    Returns a fresh dict; ``os.environ`` is never mutated.
+    """
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if not name.upper().startswith("GIT_")
+    }
+
+
 @dataclass(frozen=True)
 class Violation:
     """One tracked path whose stored blob contradicts its attributes."""
@@ -76,7 +122,12 @@ def _git(
     args: list[str],
     env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run a git command, raising RuntimeError on a non-zero exit."""
+    """Run a git command, raising RuntimeError on a non-zero exit.
+
+    `env=None` means the stripped environment, never the ambient one: see
+    `_git_environment`. A caller that passes its own env has already built it
+    on top of that helper.
+    """
     result = subprocess.run(
         ["git", *args],
         cwd=repo_root,
@@ -85,7 +136,7 @@ def _git(
         errors="replace",
         timeout=_GIT_TIMEOUT_SECONDS,
         check=False,
-        env=env,
+        env=_git_environment() if env is None else env,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -112,6 +163,9 @@ def _git_paths(repo_root: Path, args: list[str], env: dict[str, str] | None = No
     that keyword to govern. `check_subprocess_encoding.py` scopes itself to
     calls that pin `encoding="utf-8"`, so this one is out of scope by
     construction rather than by suppression.
+
+    `env=None` carries the same meaning as in `_git`: the stripped
+    environment, never the ambient one.
     """
     result = subprocess.run(
         ["git", *args],
@@ -119,7 +173,7 @@ def _git_paths(repo_root: Path, args: list[str], env: dict[str, str] | None = No
         capture_output=True,
         timeout=_GIT_TIMEOUT_SECONDS,
         check=False,
-        env=env,
+        env=_git_environment() if env is None else env,
     )
     if result.returncode != 0:
         stderr = result.stderr.decode("utf-8", "replace").strip()
@@ -221,8 +275,13 @@ def _head_env(repo_root: Path, index_path: str) -> dict[str, str]:
     committed violation, and removing it would invent one. `GIT_ATTR_SOURCE`
     (git 2.40+) pins the attributes to the same tree as the blobs, so the HEAD
     scope answers one question about one commit.
+
+    The base is `_git_environment()`, not `os.environ.copy()`. Copying the
+    ambient environment would carry an exported `GIT_DIR` into the isolated
+    scan, so the two variables set below would isolate the index of a
+    repository other than `repo_root`.
     """
-    env = os.environ.copy()
+    env = _git_environment()
     env["GIT_INDEX_FILE"] = index_path
     env["GIT_ATTR_SOURCE"] = "HEAD"
     _git(repo_root, ["read-tree", "HEAD"], env=env)
@@ -239,6 +298,7 @@ def _has_commits(repo_root: Path) -> bool:
         errors="replace",
         timeout=_GIT_TIMEOUT_SECONDS,
         check=False,
+        env=_git_environment(),
     )
     return result.returncode == 0
 

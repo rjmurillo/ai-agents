@@ -220,3 +220,84 @@ def test_head_scope_honours_a_committed_exemption(tmp_path: Path) -> None:
     violations, _ = checker.check_repository(repo)
 
     assert violations == []
+
+
+# --- ambient GIT_* overrides (review thread on the git helpers) ------------
+#
+# Every test below plants the defect in one repository and points an ambient
+# variable at a second, clean one. Without the stripping in `_git_environment`
+# git answers about the decoy, so the gate reports a clean scan for a
+# repository that is not clean, and `--fix` writes where nobody approved.
+
+
+def _decoy_repo(tmp_path: Path) -> Path:
+    """A second, clean repository for an ambient variable to point at."""
+    decoy = tmp_path / "decoy"
+    decoy.mkdir()
+    _git(decoy, "init", "--quiet")
+    (decoy / ".gitattributes").write_text("* text=auto eol=lf\n*.md text\n", newline="\n")
+    _git(decoy, "add", ".gitattributes")
+    _commit(decoy, "a repository with nothing wrong in it")
+    return decoy
+
+
+def _subject_with_crlf_blob(tmp_path: Path) -> Path:
+    """The repository under test, in its own directory beside the decoy."""
+    subject_root = tmp_path / "subject"
+    subject_root.mkdir()
+    return _repo_with_crlf_blob(subject_root)
+
+
+def test_scan_ignores_an_ambient_git_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`cwd=repo_root` does not win against an exported `GIT_DIR`.
+
+    Both scopes would follow the variable: `read-tree HEAD` resolves the
+    decoy's HEAD and the index pass lists the decoy's index. The subject's
+    violation then goes unreported and the gate exits 0.
+    """
+    subject = _subject_with_crlf_blob(tmp_path)
+    _commit(subject, "plant a CRLF blob")
+    decoy = _decoy_repo(tmp_path)
+    monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
+
+    violations, _ = checker.check_repository(subject)
+
+    assert [(v.path, v.scope) for v in violations] == [("handoff.md", "HEAD")]
+
+
+def test_scan_ignores_an_ambient_git_index_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An ambient `GIT_INDEX_FILE` would replace the index scope's subject.
+
+    The subject here has no commit, so only the index scope runs and the
+    variable's effect on that scope is isolated.
+    """
+    subject = _subject_with_crlf_blob(tmp_path)
+    decoy = _decoy_repo(tmp_path)
+    monkeypatch.setenv("GIT_INDEX_FILE", str(decoy / ".git" / "index"))
+
+    violations, _ = checker.check_repository(subject)
+
+    assert [(v.path, v.scope) for v in violations] == [("handoff.md", "index")]
+
+
+def test_fix_ignores_an_ambient_git_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The write half: `--fix` must stage into the root the guard approved.
+
+    `refuses_write_from_outside` compares the current directory against
+    `--repo-root` and passes here, because both name the subject. A leaked
+    `GIT_DIR` makes git write somewhere neither of them names, which is the
+    disagreement that guard exists to stop.
+    """
+    subject = _subject_with_crlf_blob(tmp_path)
+    _commit(subject, "plant a CRLF blob")
+    decoy = _decoy_repo(tmp_path)
+    monkeypatch.chdir(subject)
+    monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
+
+    assert checker.main(["--repo-root", str(subject), "--fix"]) == 1
+
+    violations, _ = checker.check_repository(subject)
+    assert [v.scope for v in violations] == ["HEAD"]  # index fixed, HEAD awaits commit
+    assert _porcelain(decoy) == ""
