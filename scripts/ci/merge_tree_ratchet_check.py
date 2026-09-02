@@ -321,9 +321,9 @@ def _evaluate_registered_ratchets(
     ``deadline`` (absolute ``time.monotonic()``) reports a clear "not run"
     verdict for a ratchet whose turn arrives after it, instead of risking an
     outer-timeout kill with no diagnostic (issue #5441). ``base_ref`` is the
-    original ref string and is used only in diagnostics; every comparison below
-    reads ``base_oid``, so a concurrent fetch cannot move what this evaluation
-    is judged against.
+    original ref string and is used only in diagnostics, the direction guard's
+    remediation included; every comparison below reads ``base_oid``, so a
+    concurrent fetch cannot move what this evaluation is judged against.
 
     A ratchet starts only when ``_COUNTER_RESERVE_SECONDS`` of that budget is
     still unspent; see that constant for the measurements behind it.
@@ -352,7 +352,7 @@ def _evaluate_registered_ratchets(
             # this count against a different commit than the tree above was
             # pinned to. git merge-base takes either form (issue #5441 review).
             direction = _one_directional_baseline_failure(
-                repo_root, base_oid, ratchet, count
+                repo_root, base_oid, ratchet, count, display_ref=base_ref
             )
             if direction is not None:
                 # It printed its own diagnostic, so the "OK" below would

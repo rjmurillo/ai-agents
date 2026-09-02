@@ -142,6 +142,34 @@ class TestOneDirectionalBaselineGuard:
         assert "BASELINE ABOVE BASE" in error
         assert "restore 10 and fix the violations" in error
 
+    def test_the_remediation_names_the_ref_not_the_pinned_oid(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Issue #5441 review: pinning the base must not leak into the advice.
+
+        The guard reads the fork point from the pinned OID so a concurrent
+        fetch cannot move the comparison, but the OID is also what the message
+        used to name: "it is behind 371806558..." tells a contributor to merge
+        from 40 hex characters. The ref the OID was resolved from is the only
+        form that is also a command.
+        """
+        repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+        base_oid = _git(repo, "rev-parse", "HEAD").stdout.strip()
+        _git(repo, "checkout", "-b", "pr-branch")
+        (repo / "scripts" / "ci" / "cli_exit_contract_baseline.txt").write_text(
+            "20\n", encoding="utf-8"
+        )
+        _commit_all(repo, "widen cli exit contract baseline for no reason")
+
+        counters = _zero_five_counters()
+        with counters[0], counters[1], counters[2], counters[3], counters[4]:
+            rc = _m.main(["--repo-root", str(repo), "--base-ref", "main"])
+
+        assert rc == _m.EXIT_REGRESSION
+        error = capsys.readouterr().err
+        assert "main records 10" in error
+        assert base_oid not in error
+
 
 @_REQUIRES_GIT
 class TestDirectionVerdictExitCodes:

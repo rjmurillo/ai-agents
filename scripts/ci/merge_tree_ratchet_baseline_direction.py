@@ -41,6 +41,8 @@ def raised_baseline(
     base_ref: str,
     ratchet: MergeTreeRatchet,
     count: int | None,
+    *,
+    display_ref: str | None = None,
 ) -> int | None:
     """``_base_ref_verdict``'s exit code for ``ratchet``, or None when it passes.
 
@@ -57,6 +59,11 @@ def raised_baseline(
     reads the fork point between it and HEAD, and ``git merge-base`` accepts
     either; callers evaluating against a materialized tree pass the OID that
     tree was pinned to, so a concurrent fetch cannot move the comparison.
+
+    ``display_ref`` is what the diagnostics name. A caller passing an OID
+    above passes the ref it resolved that OID from here, so the remediation
+    reads "Merge or rebase from origin/main" rather than from 40 hex
+    characters (issue #5441 review).
     """
     baseline_path = repo_root / ratchet.baseline_path
     recorded = count_ratchet.read_baseline(baseline_path)
@@ -69,4 +76,5 @@ def raised_baseline(
         baseline=recorded,
         count=count if count is not None else recorded,
         merge_tree_backed=True,
+        display_ref=display_ref,
     )

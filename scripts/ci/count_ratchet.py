@@ -420,6 +420,8 @@ class _BaseRefFacts:
     """
 
     base_ref: str
+    """The ref NAME every message shows, never the pinned OID git reads."""
+
     label: str
     baseline: int
     base: int
@@ -767,8 +769,17 @@ def _base_ref_verdict(
     baseline: int,
     count: int,
     merge_tree_backed: bool,
+    display_ref: str | None = None,
 ) -> int | None:
     """Exit code when ``--base-ref`` blocks the run, or None to keep going.
+
+    ``display_ref`` is the name every message below shows, defaulting to
+    ``args.base_ref``. The two are the same string for a CLI run. They differ
+    for a caller that pinned an immutable OID so a concurrent fetch cannot
+    move the comparison: that caller hands the OID in ``args.base_ref``, which
+    every git read here uses, and the original ``origin/...`` ref here, because
+    "Merge or rebase from" followed by 40 hex characters is not an instruction
+    a contributor can act on (issue #5441 review).
 
     A baseline above the one at the base ref blocks when this branch is what
     moved it, in either direction, and when git cannot say. ``count`` has to be
@@ -814,21 +825,22 @@ def _base_ref_verdict(
     the lower of the two ceilings.
     """
     root = args.repo_root.resolve()
+    shown = display_ref or args.base_ref
     if baseline_absent_at_ref(root, args.base_ref, args.baseline):
         print(
-            f"{label}: bootstrap. {args.base_ref} records no baseline yet, "
+            f"{label}: bootstrap. {shown} records no baseline yet, "
             f"so there is no earlier value to raise. The one-directional "
             f"check starts once this baseline lands."
         )
         return None
     base = baseline_at_ref(root, args.base_ref, args.baseline)
     if base is None:
-        print(f"error: could not read the baseline at {args.base_ref}", file=sys.stderr)
+        print(f"error: could not read the baseline at {shown}", file=sys.stderr)
         return EXIT_EXTERNAL
     if baseline <= base:
         return None
     facts = _BaseRefFacts(
-        base_ref=args.base_ref, label=label, baseline=baseline, base=base, count=count
+        base_ref=shown, label=label, baseline=baseline, base=base, count=count
     )
     move = baseline_move(root, args.base_ref, args.baseline, baseline)
     return _verdict_for_move(
