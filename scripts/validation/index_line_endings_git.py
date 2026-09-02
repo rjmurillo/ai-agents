@@ -164,11 +164,14 @@ def git_version(repo_root: Path) -> tuple[int, int]:
 def require_attr_source(repo_root: Path) -> None:
     """Refuse to answer on a git that does not know `GIT_ATTR_SOURCE`.
 
-    Both scopes pin their attribute source with that variable. A git that does
-    not know it ignores it: no error, no warning, no exit code, just the
-    working tree's `.gitattributes` silently answering for a tree it does not
-    describe. That is the failure `.claude/rules/ci-scripts.md` MUST-12 names,
-    a run that did nothing reporting the same way as a run that succeeded, so
+    The HEAD scope pins its attribute source with that variable, and only that
+    scope: the index scope points `GIT_WORK_TREE` at an empty directory
+    instead, so git falls back to the staged attributes with no variable
+    involved. A git that does not know `GIT_ATTR_SOURCE` ignores it: no error,
+    no warning, no exit code, just the working tree's `.gitattributes` silently
+    answering for the committed tree it does not describe. That is the failure
+    `.claude/rules/ci-scripts.md` MUST-12 names, a run that did nothing
+    reporting the same way as a run that succeeded, so
     this raises and reaches the exit-2 path in `main` and the False verdict in
     `validate_index_line_endings`.
 
@@ -206,10 +209,10 @@ def require_attr_source(repo_root: Path) -> None:
     required = ".".join(str(part) for part in _MINIMUM_GIT_VERSION)
     raise RuntimeError(
         f"git {running} predates GIT_ATTR_SOURCE, which git {required} added. "
-        "Both scopes of this check pin their attribute source with that "
+        "The HEAD scope of this check pins its attribute source with that "
         "variable, and an older git ignores it without saying so, judging "
-        "stored blobs by whatever .gitattributes the working tree happens to "
-        f"hold. Upgrade to git {required} or newer."
+        "committed blobs by whatever .gitattributes the working tree happens "
+        f"to hold. Upgrade to git {required} or newer."
     )
 
 
