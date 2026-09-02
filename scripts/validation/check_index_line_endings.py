@@ -34,7 +34,6 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import shlex
 import subprocess
 import sys
 import tempfile
@@ -60,6 +59,7 @@ from scripts.validation.index_line_endings_record import (  # noqa: E402
     Violation,
     is_spellable,
     parse_violations,
+    shell_argument,
 )
 
 REMEDIATION = "git add --renormalize <path>, then commit the result"
@@ -406,16 +406,15 @@ def _print_paste_command(violations: list[Violation]) -> None:
     The quoting is POSIX-shell specific, which is the other reason `--fix`
     exists: it never builds a string.
     """
+    paths = " ".join(shell_argument(v.path) for v in violations)
+    print(f"  git add --renormalize -- {paths}")
     unspellable = [v for v in violations if not is_spellable(v.path)]
     if unspellable:
         print(
-            f"  No copy-paste command: {len(unspellable)} of {len(violations)} path(s) "
-            "carry bytes or control characters that no shell spelling reproduces. "
-            "Use --fix, which hands git the exact bytes."
+            f"  {len(unspellable)} of {len(violations)} path(s) carry bytes with no "
+            "text spelling, so the command above uses bash and zsh's $'...' form. "
+            "POSIX sh cannot express those bytes; --fix needs no shell at all."
         )
-        return
-    paths = " ".join(shlex.quote(v.path) for v in violations)
-    print(f"  git add --renormalize -- {paths}")
 
 
 def refuses_write_from_outside(repo_root: Path) -> bool:

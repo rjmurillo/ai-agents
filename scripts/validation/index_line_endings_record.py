@@ -14,6 +14,7 @@ the gate against real repositories.
 
 from __future__ import annotations
 
+import shlex
 import unicodedata
 from dataclasses import dataclass
 
@@ -91,11 +92,35 @@ def display_path(path: str) -> str:
 def is_spellable(path: str) -> bool:
     """True when the displayed path is the path, byte for byte.
 
-    A path that survives `display_path` unchanged can be quoted into a command
-    an operator can paste. One that does not cannot: `shlex.quote` would quote
-    the escaped spelling, which names a different file or no file at all.
+    A path that survives `display_path` unchanged can go through
+    `shlex.quote`. One that does not cannot: `shlex.quote` would quote the
+    escaped spelling, which names a different file or no file at all.
+    `shell_argument` is what decides between the two.
     """
     return display_path(path) == path
+
+
+def shell_argument(path: str) -> str:
+    """One shell argument that reaches git as the exact bytes of `path`.
+
+    `shlex.quote` handles anything with a text spelling, which is nearly every
+    path and the only form POSIX `sh` can express. It cannot express a byte
+    with no text spelling, and quoting the escaped display form would name a
+    different file, so those paths get bash and zsh's ANSI-C form instead:
+    `$'bad\\xff.md'` puts byte 0xff into argv. Every byte outside printable
+    ASCII is escaped, and so are `'` and `\\`, which are the two characters
+    that would otherwise end or alter the quoting.
+
+    A caller that prints this has to say which shells the second form needs.
+    `_print_paste_command` does.
+    """
+    if is_spellable(path):
+        return shlex.quote(path)
+    body = "".join(
+        chr(byte) if 0x20 <= byte < 0x7F and chr(byte) not in "'\\" else f"\\x{byte:02x}"
+        for byte in path.encode("utf-8", "surrogateescape")
+    )
+    return f"$'{body}'"
 
 
 @dataclass(frozen=True)

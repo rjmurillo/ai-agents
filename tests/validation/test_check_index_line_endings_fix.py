@@ -13,6 +13,8 @@ the only code path in the gate that writes anything.
 
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -207,25 +209,66 @@ def test_an_undecodable_filename_is_still_printable(tmp_path: Path, capsys) -> N
 
 
 @posix_only_paths
-def test_no_paste_command_is_offered_for_a_path_that_needed_escaping(
+def test_the_paste_command_for_an_undecodable_path_actually_remediates_it(
     tmp_path: Path, capsys
 ) -> None:
-    """A command built from the escaped spelling would remediate nothing.
+    """The command is printed for every path, and this one is run to prove it.
 
-    `display_path` renders the undecodable byte as the literal characters
-    `\\xff`, and `shlex.quote` would then quote that different name. Pasting
-    it names a file the repository does not hold, so the promise of an exact
-    command is withdrawn and the operator is pointed at `--fix`, which passes
-    the real bytes as argv.
+    `shlex.quote` cannot express a byte with no text spelling: quoting the
+    escaped display form `bad\\xff.md` names a file the repository does not
+    hold. bash and zsh can, through `$'...'`, so that is what gets printed and
+    what this test executes. Running the printed command is the only assertion
+    that distinguishes a command from a plausible string.
     """
     repo, _raw_name = _repo_with_undecodable_crlf_blob(tmp_path)
 
     assert checker.validate_index_line_endings(repo) is False
 
+    command = next(
+        line.strip()
+        for line in capsys.readouterr().out.split("\n")
+        if line.strip().startswith("git add --renormalize --")
+    )
+    assert "$'bad\\xff.md'" in command
+    subprocess.run(
+        ["bash", "-c", command],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        timeout=60,
+        env={k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")},
+    )
+
+    violations, _ = checker.check_repository(repo)
+    assert violations == []  # the printed command cleared the gate
+
+
+@posix_only_paths
+def test_the_paste_command_names_the_shells_its_second_form_needs(
+    tmp_path: Path, capsys
+) -> None:
+    """POSIX sh has no escape for those bytes, so the note is not decoration."""
+    repo, _raw_name = _repo_with_undecodable_crlf_blob(tmp_path)
+
+    assert checker.validate_index_line_endings(repo) is False
+
     out = capsys.readouterr().out
-    assert "git add --renormalize --" not in out
-    assert "No copy-paste command: 1 of 1 path(s)" in out
-    assert "Use --fix" in out
+    assert "1 of 1 path(s) carry bytes with no text spelling" in out
+    assert "bash and zsh" in out
+
+
+def test_the_paste_command_stays_plain_when_every_path_is_spellable(
+    tmp_path: Path, capsys
+) -> None:
+    """Control: an ordinary name must not acquire a shell-specific spelling."""
+    repo = _repo_with_crlf_blob(tmp_path, name="a handoff.md")
+
+    assert checker.validate_index_line_endings(repo) is False
+
+    out = capsys.readouterr().out
+    assert "git add --renormalize -- 'a handoff.md'" in out
+    assert "$'" not in out
+    assert "bash and zsh" not in out
 
 
 def test_a_newline_in_a_path_cannot_forge_a_log_line(tmp_path: Path, capsys) -> None:
@@ -243,8 +286,9 @@ def test_a_newline_in_a_path_cannot_forge_a_log_line(tmp_path: Path, capsys) -> 
     out = capsys.readouterr().out
     assert f"\n{forged}\n" not in out
     assert "handoff.md\\n" in out
-    # The same path is unspellable, so no command is offered for it either.
-    assert "git add --renormalize --" not in out
+    # The command carries the same path, and must not un-escape it there: the
+    # `$'...'` body is where the newline would otherwise become a real one.
+    assert "$'handoff.md\\x0a" in out
 
 
 def test_a_bidi_override_in_a_path_cannot_disguise_it(tmp_path: Path, capsys) -> None:
@@ -260,7 +304,8 @@ def test_a_bidi_override_in_a_path_cannot_disguise_it(tmp_path: Path, capsys) ->
     out = capsys.readouterr().out
     assert "\u202e" not in out
     assert "handoff\\u202edm.txt" in out
-    assert "git add --renormalize --" not in out
+    # Escaped in the command too, as the UTF-8 bytes of U+202E.
+    assert "$'handoff\\xe2\\x80\\xaedm.txt'" in out
 
 
 def test_an_escape_sequence_in_a_path_cannot_repaint_the_terminal(
