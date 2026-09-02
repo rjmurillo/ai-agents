@@ -171,9 +171,16 @@ def test_a_git_without_attr_source_support_fails_closed(
 ) -> None:
     """An older git ignores `GIT_ATTR_SOURCE` silently, so the gate must not.
 
-    Both scopes pin their attribute source with that variable. Ignored, the
-    working tree's `.gitattributes` answers for a tree it does not describe,
-    and the run reports the same way as a run that measured what it claimed.
+    The HEAD scope pins its attribute source with that variable, and only that
+    scope: the index scope points `GIT_WORK_TREE` at an empty directory and
+    reads the staged attributes with no variable involved. Ignored, the working
+    tree's `.gitattributes` answers for the committed tree it does not
+    describe, and the run reports the same way as one that measured what it
+    claimed.
+
+    The refusal is still whole-gate rather than HEAD-only, and deliberately so.
+    A run that can answer one of its two questions is not a run that answered,
+    which is why this asserts exit 2 rather than a partial verdict.
     """
     repo = _repo_with_crlf_blob(tmp_path)
     _commit(repo, "plant a CRLF blob")
