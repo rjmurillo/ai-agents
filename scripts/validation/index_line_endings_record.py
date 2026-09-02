@@ -188,6 +188,12 @@ def parse_violations(output: str, scope: str = "HEAD") -> tuple[list[Violation],
                 "The parser expects `i/<state> w/<state> attr/<attrs><TAB><path>`."
             )
         head, path = line.split("\t", 1)
+        if not path:
+            raise RuntimeError(
+                f"git ls-files --eol emitted a row with an empty path: {line!r}. "
+                "Git cannot track one, so this row means the parser has stopped "
+                "understanding the producer."
+            )
         fields = head.split()
         if len(fields) < 3:
             raise RuntimeError(

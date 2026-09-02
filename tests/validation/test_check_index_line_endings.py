@@ -126,6 +126,16 @@ def test_a_row_with_too_few_fields_is_an_error_not_a_skip() -> None:
         checker.parse_violations("i/crlf\tdocs/a.md\n")
 
 
+def test_a_row_with_an_empty_path_is_an_error_not_a_skip() -> None:
+    """Git cannot track an empty path, so such a row is malformed by definition.
+
+    It parsed as one examined file and zero violations, which is a clean
+    verdict over a row the parser could not read.
+    """
+    with pytest.raises(RuntimeError, match="an empty path"):
+        checker.parse_violations("i/lf w/lf attr/text eol=lf\t\0")
+
+
 @pytest.mark.parametrize(
     ("output", "position"),
     [
