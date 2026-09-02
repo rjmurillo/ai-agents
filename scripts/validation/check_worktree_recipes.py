@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Fail when a tracked prescription tells a reader to create a worktree in a bad place.
 
-`.claude/rules/universal.md` MUST NOT 6 states the binding rule; its opening
-sentence, verbatim:
+`.claude/rules/universal.md` MUST NOT 6 states the binding rule verbatim:
 
-    Worktrees MUST go in a sibling of the checkout or another external
-    directory; never under it, never under `/tmp`.
+    Worktrees MUST be external: a sibling of the checkout or
+    `~/worktrees/`, never under the clone, never under `/tmp`.
 
 Two destinations break it, and this repository has paid for both:
 
