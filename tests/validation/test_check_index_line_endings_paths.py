@@ -21,9 +21,11 @@ import pytest
 from scripts.validation import check_index_line_endings as checker
 from scripts.validation import index_line_endings_record as record
 from tests.validation.index_line_endings_helpers import (
+    _commit,
     _git,
     _repo_with_crlf_blob,
     _repo_with_undecodable_crlf_blob,
+    _staged_against_head,
     posix_only_paths,
 )
 
@@ -91,7 +93,7 @@ def test_the_paste_command_for_an_undecodable_path_actually_remediates_it(
     command = next(
         line.strip()
         for line in capsys.readouterr().out.split("\n")
-        if line.strip().startswith("git add --renormalize --")
+        if line.strip().startswith("git -C ")
     )
     assert "$'bad\\xff.md'" in command
     subprocess.run(
@@ -130,7 +132,7 @@ def test_the_paste_command_stays_plain_when_every_path_is_spellable(
     assert checker.validate_index_line_endings(repo) is False
 
     out = capsys.readouterr().out
-    assert "git add --renormalize -- 'a handoff.md'" in out
+    assert "--literal-pathspecs add --renormalize -- 'a handoff.md'" in out
     assert "$'" not in out
     assert "bash and zsh" not in out
 
@@ -237,3 +239,51 @@ def test_display_path_escapes_every_unsafe_category() -> None:
     ):
         assert record.display_path(path) == expected
         assert not record.is_spellable(path)
+
+
+def test_a_glob_shaped_filename_does_not_broaden_what_fix_stages(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A tracked name is a path to this gate and a pathspec to git.
+
+    Measured on git 2.51.0 against a repository holding a file literally named
+    `*.md` plus an unrelated `other.md` carrying an uncommitted edit,
+    `git add --renormalize -- '*.md'` staged both. `--` stops option parsing
+    and does nothing about pathspec magic; `GIT_LITERAL_PATHSPECS` does.
+    """
+    repo = _repo_with_crlf_blob(tmp_path, name="*.md")
+    (repo / "other.md").write_text("clean\n", newline="\n")
+    _git(repo, "add", "other.md")
+    _commit(repo, "plant a CRLF blob under a glob-shaped name")
+    (repo / "other.md").write_text("clean\nUNRELATED EDIT\n", newline="\n")
+    monkeypatch.chdir(repo)
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
+
+    assert _staged_against_head(repo) == ["*.md"]  # not other.md
+
+
+def test_the_printed_command_runs_from_a_subdirectory(tmp_path: Path, capsys) -> None:
+    """These paths are relative to the root, so the command names it with `-C`."""
+    repo = _repo_with_crlf_blob(tmp_path, name="docs/a.md")
+    _commit(repo, "plant a CRLF blob under docs/")
+
+    assert checker.validate_index_line_endings(repo) is False
+
+    command = next(
+        line.strip()
+        for line in capsys.readouterr().out.split("\n")
+        if line.strip().startswith("git -C ")
+    )
+    subdirectory = repo / "docs"
+    subprocess.run(
+        ["bash", "-c", command],
+        cwd=subdirectory,
+        check=True,
+        capture_output=True,
+        timeout=60,
+        env={k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")},
+    )
+
+    violations, _ = checker.index_violations(repo)
+    assert violations == []

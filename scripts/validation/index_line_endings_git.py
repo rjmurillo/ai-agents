@@ -20,6 +20,16 @@ from scripts.validation.index_line_endings_record import display_path
 
 _GIT_TIMEOUT_SECONDS = 120
 
+# Windows CreateProcess caps a command line at 32767 characters; POSIX raises
+# E2BIG well above that. Mirrors `scripts/ci/count_ratchet.py`, whose comment
+# and value are verbatim::
+#
+#     # Windows CreateProcess caps a command line at 32767 characters; POSIX
+#     # raises E2BIG well above that. Batching at 24000 bytes keeps a single
+#     # scan below both without needing a platform check.
+#     ARGV_BUDGET_BYTES = 24000
+ARGV_BUDGET_BYTES = 24000
+
 # The git that first documented `GIT_ATTR_SOURCE`. See `require_attr_source`
 # for the tagged-source evidence and for why 2.40 is not the floor.
 _MINIMUM_GIT_VERSION = (2, 41)
@@ -96,7 +106,18 @@ def run_git(
     `env=None` means the stripped environment, never the ambient one: see
     `git_environment`. A caller that passes its own env has already built it
     on top of that helper.
+
+    Every call sets `GIT_LITERAL_PATHSPECS`. A tracked filename is a path, and
+    git reads a trailing argument as a pathspec: `*.md` globs and
+    `:(exclude)handoff.md` is magic. `--` stops option parsing and does nothing
+    about either. Measured on git 2.51.0 against a repository holding a file
+    literally named `*.md` plus an unrelated `other.md` with an uncommitted
+    edit, `git add --renormalize -- '*.md'` staged both. Setting it here rather
+    than at the two call sites that pass pathspecs means a third one cannot
+    forget.
     """
+    resolved = dict(git_environment() if env is None else env)
+    resolved["GIT_LITERAL_PATHSPECS"] = "1"
     result = subprocess.run(
         ["git", *args],
         cwd=repo_root,
@@ -105,7 +126,7 @@ def run_git(
         errors="replace",
         timeout=_GIT_TIMEOUT_SECONDS,
         check=False,
-        env=git_environment() if env is None else env,
+        env=resolved,
     )
     if result.returncode != 0:
         raise _failure(args, result.returncode, result.stderr or "")
@@ -131,15 +152,18 @@ def run_git_paths(repo_root: Path, args: list[str], env: dict[str, str] | None =
     construction rather than by suppression.
 
     `env=None` carries the same meaning as in `run_git`: the stripped
-    environment, never the ambient one.
+    environment, never the ambient one, and `GIT_LITERAL_PATHSPECS` is set for
+    the same reason.
     """
+    resolved = dict(git_environment() if env is None else env)
+    resolved["GIT_LITERAL_PATHSPECS"] = "1"
     result = subprocess.run(
         ["git", *args],
         cwd=repo_root,
         capture_output=True,
         timeout=_GIT_TIMEOUT_SECONDS,
         check=False,
-        env=git_environment() if env is None else env,
+        env=resolved,
     )
     if result.returncode != 0:
         raise _failure(args, result.returncode, result.stderr.decode("utf-8", "replace"))
@@ -372,3 +396,69 @@ def attribute_isolation(empty_attributes: Path) -> dict[str, str]:
         "GIT_CONFIG_KEY_0": "core.attributesFile",
         "GIT_CONFIG_VALUE_0": str(empty_attributes),
     }
+
+
+def argv_batches(paths: list[str], budget: int | None = None) -> list[list[str]]:
+    """Split `paths` into batches sized in UTF-8 bytes.
+
+    Every path the gate hands git goes on one command line, and the violating
+    set has no bound: a repository that took a hook-free path once can take it
+    for a thousand files. Mirrors `scripts/ci/count_ratchet.py::chunk`, whose
+    rule is verbatim::
+
+        A batch holding more than one path stays under ``budget``. A single
+        path that exceeds the budget on its own gets a batch to itself and is
+        still scanned, because dropping it would silently shrink the count.
+
+    Stricter/looser/different than canonical: the same rule, including the
+    over-budget single path. Dropping one here would leave a violation
+    unremediated while the run reported the rest fixed, which is the same
+    silent shrink under a different name. One mechanical difference: the
+    canonical binds the budget as a default argument, and this reads the module
+    constant at call time, so a test that lowers `ARGV_BUDGET_BYTES` actually
+    reaches the batching. Bound as a default, a monkeypatched constant does not,
+    and the integration test for this was inert until the mutation check caught
+    it.
+    """
+    limit = ARGV_BUDGET_BYTES if budget is None else budget
+    batches: list[list[str]] = []
+    current: list[str] = []
+    size = 0
+    for path in paths:
+        cost = len(path.encode("utf-8", "surrogateescape")) + 1
+        if current and size + cost > limit:
+            batches.append(current)
+            current = []
+            size = 0
+        current.append(path)
+        size += cost
+    if current:
+        batches.append(current)
+    return batches
+
+
+def worktree_edits(repo_root: Path, paths: list[str]) -> list[str]:
+    """Targets whose working copy differs from the index by more than CR.
+
+    `git add --renormalize <path>` stages the working copy, not a normalized
+    copy of the index blob, so any other uncommitted change to that file rides
+    along into the index. Measured on git 2.51.0: with an unstaged
+    `UNRELATED EDIT` line added to a violating file, `--fix` exits 0 and the
+    staged blob then contains that line. A file deleted from the working tree
+    is worse: `git add --renormalize` exits 128 with `unable to stat`.
+
+    `--numstat -z --ignore-cr-at-eol` is the predicate that separates the two
+    cases, and `--name-only` is not. Measured on the same git: for a working
+    copy that differs from the index only in CR at end of line, which is every
+    legitimate target of this gate, `--name-only --ignore-cr-at-eol` still
+    lists the path while `--numstat --ignore-cr-at-eol` emits nothing. The
+    unrelated edit emits `1\t0\thandoff.md` and the local deletion
+    `0\t2\thandoff.md`.
+    """
+    edited: list[str] = []
+    for batch in argv_batches(paths):
+        output = run_git_paths(
+            repo_root, ["diff", "--numstat", "-z", "--ignore-cr-at-eol", "--", *batch]
+        )
+        edited.extend(record.split("\t", 2)[2] for record in output.split("\0") if record)
+    return edited

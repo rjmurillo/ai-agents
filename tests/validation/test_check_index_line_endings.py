@@ -284,7 +284,7 @@ def test_validate_prints_the_renormalize_command(monkeypatch, capsys) -> None:
 
     assert checker.validate_index_line_endings(REPO_ROOT) is False
     out = capsys.readouterr().out
-    assert "git add --renormalize -- docs/a.md" in out
+    assert "--literal-pathspecs add --renormalize -- docs/a.md" in out
 
 
 def test_validate_passes_on_a_clean_repository(monkeypatch) -> None:

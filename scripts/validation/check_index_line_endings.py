@@ -58,6 +58,7 @@ if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.validation.index_line_endings_git import (  # noqa: E402
+    argv_batches,
     attribute_isolation,
     git_environment,
     has_commits,
@@ -66,6 +67,7 @@ from scripts.validation.index_line_endings_git import (  # noqa: E402
     run_git,
     run_git_paths,
     top_level,
+    worktree_edits,
 )
 from scripts.validation.index_line_endings_record import (  # noqa: E402
     Violation,
@@ -236,7 +238,9 @@ def index_violations(repo_root: Path) -> tuple[list[Violation], int]:
         )
 
 
-def _report(violations: list[Violation], examined: int, remediable: set[str]) -> None:
+def _report(
+    violations: list[Violation], examined: int, remediable: set[str], repo_root: Path
+) -> None:
     """Print each violation, and a command only for what `git add` can act on.
 
     `remediable` is the set of paths the index scope still reports. A path
@@ -256,11 +260,13 @@ def _report(violations: list[Violation], examined: int, remediable: set[str]) ->
         if remediable:
             print(f"  Fix: {REMEDIATION}")
             print("  Or re-run this check with --fix, which calls git directly.")
-        _print_paste_command(violations, remediable)
+        _print_paste_command(violations, remediable, repo_root)
     print(f"index-line-endings: {len(violations)} violation(s) in {examined} tracked files")
 
 
-def _print_paste_command(violations: list[Violation], remediable: set[str]) -> None:
+def _print_paste_command(
+    violations: list[Violation], remediable: set[str], repo_root: Path
+) -> None:
     """Print a copy-paste renormalize command that works for every path.
 
     `shell_argument` picks the spelling per path. Anything with a text
@@ -278,6 +284,15 @@ def _print_paste_command(violations: list[Violation], remediable: set[str]) -> N
     any files` if the index no longer holds them, so they get a line telling
     the operator to commit instead.
 
+    The command names the repository with `-C` and sets `--literal-pathspecs`.
+    Without the first it fails from a subdirectory, because these paths are
+    relative to the root. Without the second git reads the trailing arguments
+    as pathspecs, so a tracked name such as `*.md` globs: measured on git
+    2.51.0, `git add --renormalize -- '*.md'` against a repository holding a
+    file literally named `*.md` also staged an unrelated `other.md` that had
+    an uncommitted edit. `run_git` sets the same variable for the executed
+    path.
+
     The quoting is load-bearing either way. A tracked path may carry shell
     syntax or a leading dash, and an unquoted join would print a command that
     runs attacker-controlled text if a maintainer pasted it (CWE-78). `--`
@@ -291,7 +306,11 @@ def _print_paste_command(violations: list[Violation], remediable: set[str]) -> N
     committed_only = [v for v in violations if v.path not in remediable]
     if targets:
         paths = " ".join(shell_argument(v.path) for v in targets)
-        print(f"  git add --renormalize -- {paths}")
+        # `-C` because these paths are relative to the repository root and the
+        # operator may be anywhere; `--literal-pathspecs` because a tracked
+        # name such as `*.md` is a path to this gate and a glob to git.
+        root = shell_argument(str(repo_root))
+        print(f"  git -C {root} --literal-pathspecs add --renormalize -- {paths}")
         unspellable = [v for v in targets if not is_spellable(v.path)]
         if unspellable:
             print(
@@ -343,30 +362,6 @@ def refuses_write_from_outside(repo_root: Path) -> bool:
     return True
 
 
-def _worktree_edits(repo_root: Path, paths: list[str]) -> list[str]:
-    """Targets whose working copy differs from the index by more than CR.
-
-    `git add --renormalize <path>` stages the working copy, not a normalized
-    copy of the index blob, so any other uncommitted change to that file rides
-    along into the index. Measured on git 2.51.0: with an unstaged
-    `UNRELATED EDIT` line added to a violating file, `--fix` exits 0 and the
-    staged blob then contains that line. A file deleted from the working tree
-    is worse: `git add --renormalize` exits 128 with `unable to stat`.
-
-    `--numstat -z --ignore-cr-at-eol` is the predicate that separates the two
-    cases, and `--name-only` is not. Measured on the same git: for a working
-    copy that differs from the index only in CR at end of line, which is every
-    legitimate target of this gate, `--name-only --ignore-cr-at-eol` still
-    lists the path while `--numstat --ignore-cr-at-eol` emits nothing. The
-    unrelated edit emits `1\t0\thandoff.md` and the local deletion
-    `0\t2\thandoff.md`.
-    """
-    output = run_git_paths(
-        repo_root, ["diff", "--numstat", "-z", "--ignore-cr-at-eol", "--", *paths]
-    )
-    return [record.split("\t", 2)[2] for record in output.split("\0") if record]
-
-
 def renormalize(repo_root: Path) -> None:
     """Renormalize the paths the index is still wrong about, then check it worked.
 
@@ -383,7 +378,7 @@ def renormalize(repo_root: Path) -> None:
     inert. `--` stops a leading-dash filename from parsing as an option.
 
     The working-tree check ahead of the add is not belt and braces either; see
-    `_worktree_edits` for what `git add --renormalize` would otherwise stage.
+    `worktree_edits` for what `git add --renormalize` would otherwise stage.
 
     The re-scan is not belt and braces. `git add --renormalize` applies the
     clean filter according to the *working tree's* `.gitattributes`, while the
@@ -399,7 +394,7 @@ def renormalize(repo_root: Path) -> None:
     paths = sorted({violation.path for violation in staged})
     if not paths:
         return
-    edited = _worktree_edits(repo_root, paths)
+    edited = worktree_edits(repo_root, paths)
     if edited:
         rendered = ", ".join(display_path(path) for path in sorted(edited))
         raise RuntimeError(
@@ -409,7 +404,8 @@ def renormalize(repo_root: Path) -> None:
             "changes too, or fail outright on a file deleted locally. Commit, "
             "stash or revert them and re-run."
         )
-    run_git(repo_root, ["add", "--renormalize", "--", *paths])
+    for batch in argv_batches(paths):
+        run_git(repo_root, ["add", "--renormalize", "--", *batch])
     remaining, _ = index_violations(repo_root)
     unfixed = sorted(set(paths) & {violation.path for violation in remaining})
     if unfixed:
@@ -431,11 +427,12 @@ def validate_index_line_endings(repo_root: Path) -> bool:
     """
     try:
         violations, examined = check_repository(repo_root)
-        staged, _ = index_violations(top_level(repo_root))
+        resolved_root = top_level(repo_root)
+        staged, _ = index_violations(resolved_root)
     except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
         print(f"[FAIL] index line endings: {exc}", file=sys.stderr)
         return False
-    _report(violations, examined, {v.path for v in staged})
+    _report(violations, examined, {v.path for v in staged}, resolved_root)
     return not violations
 
 
@@ -469,7 +466,7 @@ def main(argv: list[str] | None = None) -> int:
         repo_root = top_level(requested)
         violations, examined = check_repository(repo_root)
         staged, _ = index_violations(repo_root)
-        _report(violations, examined, {v.path for v in staged})
+        _report(violations, examined, {v.path for v in staged}, repo_root)
         if args.fix:
             renormalize(repo_root)
     except (OSError, RuntimeError, subprocess.SubprocessError) as exc:

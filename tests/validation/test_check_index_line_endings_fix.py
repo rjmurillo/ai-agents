@@ -31,7 +31,7 @@ def test_remediation_command_quotes_paths_with_spaces(tmp_path: Path, capsys) ->
     assert checker.validate_index_line_endings(repo) is False
 
     out = capsys.readouterr().out
-    assert "git add --renormalize -- 'a handoff.md'" in out
+    assert "--literal-pathspecs add --renormalize -- 'a handoff.md'" in out
 
 
 # --- --fix mode (review thread on the advertised command, CWE-78) ----------
@@ -71,7 +71,10 @@ def test_fix_mode_renormalizes_a_leading_dash_filename(
 
     assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
 
-    assert "git add --renormalize -- --intent-to-add.md" in capsys.readouterr().out
+    assert (
+        "--literal-pathspecs add --renormalize -- --intent-to-add.md"
+        in capsys.readouterr().out
+    )
     assert _staged_against_head(repo) == ["--intent-to-add.md"]  # the blob was renormalized
 
 
@@ -233,7 +236,7 @@ def test_fix_skips_a_head_only_path_the_index_no_longer_holds(
     assert "renormalized" not in out  # nothing to add, so nothing is claimed
     # The printed command has the same limit as `--fix`: `git add` would fail
     # with `pathspec ... did not match any files` on a path the index dropped.
-    assert "git add --renormalize --" not in out
+    assert "add --renormalize --" not in out  # matches the printed shape, not the old one
     assert "1 path(s) are wrong in HEAD only" in out
     assert "commit the staged result" in out
     # And no contradicting advice alongside it: renormalizing is a no-op here.
