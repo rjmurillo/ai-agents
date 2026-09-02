@@ -3679,9 +3679,7 @@ def test_pushed_semgrep_scan_rejects_non_regular_type_change(
     monkeypatch.setattr(
         policy,
         "_run_semgrep_tree",
-        lambda *_args, **_kwargs: pytest.fail(
-            "Semgrep must not run on a non-regular snapshot"
-        ),
+        lambda *_args, **_kwargs: pytest.fail("Semgrep must not run on a non-regular snapshot"),
     )
 
     assert policy.scan_pushed_heads(stream, repo) == 2
@@ -3706,9 +3704,7 @@ def test_pushed_semgrep_validates_all_paths_before_suffix_selection(
     monkeypatch.setattr(
         policy,
         "_scan_pushed_head",
-        lambda *_args, **_kwargs: pytest.fail(
-            "invalid pushed paths must not reach Semgrep"
-        ),
+        lambda *_args, **_kwargs: pytest.fail("invalid pushed paths must not reach Semgrep"),
     )
 
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
@@ -3732,9 +3728,7 @@ def test_pushed_semgrep_detects_collision_with_unchanged_head_path(
     monkeypatch.setattr(
         policy,
         "_scan_pushed_head",
-        lambda *_args, **_kwargs: pytest.fail(
-            "colliding pushed trees must not reach Semgrep"
-        ),
+        lambda *_args, **_kwargs: pytest.fail("colliding pushed trees must not reach Semgrep"),
     )
 
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
@@ -11185,45 +11179,116 @@ def test_root_scratch_policy_is_wired_into_pre_commit() -> None:
     assert job["skip"] == ["merge"]
 
 
-@pytest.mark.skipif(SEMGREP is None, reason="semgrep executable is unavailable")
-def test_semgrep_excludes_python36_compatibility_on_real_file() -> None:
-    """Run the real security scan on the file issue #4725 names and assert zero
-    findings from the excluded rule ids.
+# ---------------------------------------------------------------------------
+# Issue #4725: --exclude-rule needs full rule ids, proved against real semgrep
+# ---------------------------------------------------------------------------
 
-    A prefix like "python.lang.compatibility.python36" in --exclude-rule does not
-    suppress anything on semgrep 1.159.0; only the full rule id does. This test
-    executes semgrep against run_workflow_local_test.py (which calls
-    subprocess.Popen(encoding=, errors=)) so a regression to prefix matching fails
-    the test instead of passing on an argv string check alone.
+# Popen1 flags errors=, Popen2 flags encoding=, matching the two registry rules
+# quoted in issue #4725. The python37 family repeats the python36 pair.
+_COMPAT_RULES: tuple[tuple[str, str], ...] = (
+    ("python.lang.compatibility.python36.python36-compatibility-Popen1", "errors"),
+    ("python.lang.compatibility.python36.python36-compatibility-Popen2", "encoding"),
+    ("python.lang.compatibility.python37.python37-compatibility-Popen1", "errors"),
+    ("python.lang.compatibility.python37.python37-compatibility-Popen2", "encoding"),
+)
+
+_COMPAT_RULE_IDS: tuple[str, ...] = tuple(rule_id for rule_id, _ in _COMPAT_RULES)
+
+_COMPAT_FAMILY_PREFIXES: tuple[str, ...] = (
+    "python.lang.compatibility.python36",
+    "python.lang.compatibility.python37",
+)
+
+
+def _write_compat_ruleset(directory: Path) -> None:
+    """Write a local stand-in for the four python3{6,7} compatibility rules.
+
+    The production command passes ``--config auto``, which downloads a ruleset
+    from the Semgrep registry. A test that did the same would fail offline and
+    drift whenever the registry re-rolls its packs, so this reproduces only the
+    four rules under test, under their exact production ids.
+
+    The file must be named ``rules.yml`` and read from the process cwd. Semgrep
+    namespaces ids from a config file by that file's path, so
+    ``--config /tmp/x/rules.yml`` reports
+    ``tmp.x.python.lang.compatibility.python36...`` and no ``--exclude-rule``
+    value in ``_semgrep_command`` could ever match. A bare relative filename
+    resolved from the cwd keeps the id verbatim, which is why every caller runs
+    semgrep with ``cwd=directory``.
     """
-    test_file = policy.REPO_ROOT / "scripts" / "validation" / "run_workflow_local_test.py"
-    assert test_file.exists(), f"Test file not found: {test_file}"
+    rules = "".join(
+        f"  - id: {rule_id}\n"
+        f"    languages: [python]\n"
+        f"    severity: ERROR\n"
+        f"    message: the {keyword} argument to Popen needs a newer Python\n"
+        f"    pattern: subprocess.Popen(..., {keyword}=..., ...)\n"
+        for rule_id, keyword in _COMPAT_RULES
+    )
+    (directory / "rules.yml").write_text(f"rules:\n{rules}", encoding="utf-8")
 
-    command = policy._semgrep_command("auto", [str(test_file)])
+
+def _scan_compat_target(directory: Path, exclude_rules: Sequence[str] | None) -> set[str]:
+    """Scan the file issue #4725 names and return the check ids semgrep reports.
+
+    ``exclude_rules=None`` runs ``_semgrep_command`` exactly as the
+    ``semgrep-push`` hook builds it. Any sequence replaces the command's own
+    ``--exclude-rule`` pairs instead, so ``[]`` is the unexcluded control.
+    """
     assert SEMGREP is not None
+    _write_compat_ruleset(directory)
+    target = policy.REPO_ROOT / "scripts" / "validation" / "run_workflow_local_test.py"
+    assert target.exists(), f"target named by issue #4725 is missing: {target}"
+
+    command = policy._semgrep_command("rules.yml", [str(target)])
     command[0] = SEMGREP
+    if exclude_rules is not None:
+        stripped = [
+            argument
+            for index, argument in enumerate(command)
+            if argument != "--exclude-rule" and command[index - 1] != "--exclude-rule"
+        ]
+        replacement: list[str] = []
+        for rule in exclude_rules:
+            replacement += ["--exclude-rule", rule]
+        separator = stripped.index("--")
+        command = stripped[:separator] + replacement + stripped[separator:]
 
     result = subprocess.run(
         command,
-        cwd=policy.REPO_ROOT,
+        cwd=directory,
         text=True,
         encoding="utf-8",
         errors="replace",
         capture_output=True,
         check=False,
     )
+    assert result.returncode in {0, 1}, f"semgrep exited {result.returncode}: {result.stderr}"
+    return {finding["check_id"] for finding in json.loads(result.stdout)["results"]}
 
-    assert result.returncode in {0, 1}, result.stderr
-    payload = json.loads(result.stdout)
-    excluded_prefixes = (
-        "python.lang.compatibility.python36",
-        "python.lang.compatibility.python37",
-    )
-    compat_findings = [
-        finding["check_id"]
-        for finding in payload["results"]
-        if finding["check_id"].startswith(excluded_prefixes)
-    ]
-    assert compat_findings == [], (
-        f"python36/37 compatibility findings survived exclusion: {compat_findings}"
-    )
+
+@pytest.mark.skipif(SEMGREP is None, reason="semgrep executable is unavailable")
+def test_semgrep_compat_rules_fire_on_the_target_without_exclusion(tmp_path: Path) -> None:
+    """Control: the target emits all four findings when nothing is excluded.
+
+    Without this, a green exclusion test proves nothing. It would pass just as
+    well against a target that never triggered the rules, or against a ruleset
+    that stopped matching.
+    """
+    assert _scan_compat_target(tmp_path, []) == set(_COMPAT_RULE_IDS)
+
+
+@pytest.mark.skipif(SEMGREP is None, reason="semgrep executable is unavailable")
+def test_semgrep_family_prefix_exclusion_suppresses_nothing(tmp_path: Path) -> None:
+    """The broken form: --exclude-rule does not match on a family prefix.
+
+    This restores the defect issue #4725 hit, which is what proves the full ids
+    in ``_semgrep_command`` are load-bearing rather than a longer spelling of
+    the same thing. Both prefixes are passed and all four findings survive.
+    """
+    assert _scan_compat_target(tmp_path, _COMPAT_FAMILY_PREFIXES) == set(_COMPAT_RULE_IDS)
+
+
+@pytest.mark.skipif(SEMGREP is None, reason="semgrep executable is unavailable")
+def test_semgrep_command_exclusions_suppress_every_compat_rule(tmp_path: Path) -> None:
+    """The production command, unmodified, reports none of the four rules."""
+    assert _scan_compat_target(tmp_path, None) == set()
