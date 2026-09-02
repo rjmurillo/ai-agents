@@ -126,16 +126,16 @@ Everything above says the canonical source is authoritative and a generated mirr
 
 The question is whether a rule loads on every agent turn. A rule is always-on when its **generated** `applyTo` resolves to `**`, so the answer lives in the generated tree.
 
-The two destination trees now agree, measured on this branch after issue #4871 rescoped `code-quality` to code files:
+The two destination trees now agree, measured on this branch after issue #4871 rescoped `code-quality` to code files and `voice` dropped its jargon gloss list:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot working in this repository | 6 rules, 56,319 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 6 rules, 56,319 bytes |
+| `.github/instructions` | Copilot working in this repository | 6 rules, 56,088 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 6 rules, 56,088 bytes |
 
 The membership is identical: `builder-ethos`, `claude-model-patches`, `knowledge-persistence`, `search-before-building`, `universal`, `voice`.
 
-Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same six rules measure 56,431 bytes at `.claude/rules/`, 112 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
+Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same six rules measure 56,200 bytes at `.claude/rules/`, 112 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
 
 The Claude side answers the same question from the source, and it reads `paths:` alone. It ignores `applyTo:`, `globs:`, and `alwaysApply:`, all three of which `generate_rules.py` accepts, so a rule written with one of those scoped the mirror and left the Claude source unscoped: `pragmatic-programmer` and `code-quality` loaded on every doc-only session at 25,527 bytes a turn (issue #4871). `check_rule_scope_keys.py`, under the validation-scripts tree, now fails the build on any scope key but `paths:`, which is what keeps the source-side and mirror-side answers the same. The directory prefix is omitted for the same reason the citation-freshness gate's is above: this rule ships in the plugin instruction mirrors, where an upstream-only path would dangle.
 
