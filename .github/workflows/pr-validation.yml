@@ -236,6 +236,22 @@ jobs:
       - name: Check bare-python3 documentation entrypoints
         run: uv run --frozen python3 scripts/validation/check_python3_entrypoints.py
 
+      # Issue #4871: a `.claude/rules/*.md` scoped with `applyTo:`, `globs:`, or
+      # `alwaysApply:` generates a correctly scoped Copilot mirror while the
+      # Claude source declares nothing, so the rule loads on every session.
+      # instruction_budget.py and the always-on corpus gates both read the
+      # generated .github/instructions/ tree, where the leak is invisible; only
+      # a source-tree check sees it.
+      #
+      # Unconditional and hosted here for the same reason as the ratchets below.
+      # The pre-push `pre-pr-validation` lefthook job already runs this via
+      # pre_pr.py, but no workflow invokes pre_pr.py, so the hook was the only
+      # enforcement. A push from a clone without `lefthook install`, the web
+      # editor, or the API could regress a rule back to `applyTo:` with nothing
+      # on the remote to catch it. A gate that only fires locally is not a gate.
+      - name: Check rule scope declarations (paths:)
+        run: uv run --frozen python3 scripts/validation/check_rule_scope_keys.py
+
       # Issue #2967: ADR-006 forbids business logic in workflow `run:` blocks.
       # The burn-down count started at 93 at audit time and reached zero. The
       # ratchet ceiling is now fixed at 0: the scanner exits 1 when the count
