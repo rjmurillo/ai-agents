@@ -741,11 +741,14 @@ jobs:
       - zero-collection-guard
       # Issue #5475: this is the leg that reports the required check on
       # exactly the change the line-ending guard exists for. A commit adding
-      # only a CRLF `.md` or `.csv` leaves `python-changed` false, so
+      # only a CRLF `.xml` or `.csv` leaves `python-changed` false, so
       # `test-result` is skipped and this job answers for `Run Python Tests`
-      # instead. Wiring the guard into `test-result` alone left it red beside
-      # a green required check, because the guard's own context is not in the
-      # repository's required-checks list.
+      # instead. Not `.md`: the `python` filter carries `**/*.md`, as the
+      # `line-endings-guard` comment above records and
+      # `test_the_filter_gap_this_job_exists_for_is_real` asserts. Wiring the
+      # guard into `test-result` alone left it red beside a green required
+      # check, because the guard's own context is not in the repository's
+      # required-checks list.
       - line-endings-guard
     # !cancelled() so this job still runs (and can fail loudly) when
     # zero-collection-guard failed, rather than being implicitly skipped by
