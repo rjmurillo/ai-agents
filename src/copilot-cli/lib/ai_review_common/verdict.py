@@ -202,23 +202,14 @@ def _coerce_nonnegative_int(value: object) -> int | None:
     return None
 
 
-# assess.py labels each file before scoring it, and short-circuits one label:
-#
-#     category = classify_file_category(file_path, content)
-#     if category == "generated":
-#         return _unscored_generated_assessment(file_path)
-#
-# so a generated entry lands in `files` with every quality unscored. It is
-# counted, never assessed. `/review` says the same thing in prose: generated
-# artifacts are generator-owned and create no local quality finding.
+# assess.py short-circuits one label before scoring: `if category ==
+# "generated": return _unscored_generated_assessment(file_path)`, so a
+# generated entry is counted in `files` and never assessed. `/review` says the
+# same in prose: generated artifacts create no local quality finding.
 _ASSESSED_CATEGORIES = frozenset({"authored", "test"})
 
-# The five quality metrics on each entry. `_unreadable_assessment` keeps the
-# file's real category while setting every one of them to confidence 0.0:
-#
-#     Every quality is confidence 0.0 so ``check_thresholds`` skips the file
-#     rather than passing it on meaningless scores derived from empty content.
-#
+# `_unreadable_assessment` keeps the file's real category while setting every
+# one of these to confidence 0.0, "so ``check_thresholds`` skips the file",
 # so category alone never proves the scanner scored anything.
 _QUALITY_FIELDS = ("cohesion", "coupling", "encapsulation", "testability", "non_redundancy")
 
@@ -229,10 +220,9 @@ def _is_scored(entry: dict[str, object]) -> bool:
         quality = entry.get(field)
         if not isinstance(quality, dict):
             continue
-        confidence = quality.get("confidence")
-        if isinstance(confidence, int | float) and not isinstance(confidence, bool):
-            if confidence > 0:
-                return True
+        score = quality.get("confidence")
+        if isinstance(score, int | float) and not isinstance(score, bool) and score > 0:
+            return True
     return False
 
 
@@ -243,11 +233,10 @@ def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool
     ``files``. A disagreement means the two halves of the payload describe
     different runs, which is not evidence of a pass.
 
-    Requires every eligible entry to carry a scored metric, and at least one
-    eligible entry to exist. A diff of nothing but generated artifacts yields a
-    positive count of unscored entries, which is a file list, not a review, and
-    an eligible file that failed to score is a hole in the evidence rather than
-    a pass. Generated entries are exempt because the scanner never scores them.
+    Requires at least one eligible entry, and every eligible entry to carry a
+    scored metric. Generated-only output is a file list, not a review, and an
+    eligible file that failed to score is a hole in the evidence. Generated
+    entries are exempt; the scanner never scores them.
     """
     file_count = summary.get("file_count")
     if isinstance(file_count, bool) or not isinstance(file_count, int):
@@ -265,8 +254,7 @@ def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool
 def _has_inventoried_docs(payload: dict[str, object]) -> bool:
     """Return True when doc-accuracy actually inventoried a documentation file.
 
-    ``assessment.documentation_files`` is the list the scanner built from
-    ``DOC_GLOBS``; ``doc_accuracy.py`` reports its length as the doc count.
+    ``assessment.documentation_files`` is the list built from ``DOC_GLOBS``.
     Empty means the gate had nothing to check, so its PASS is silence.
     """
     assessment = payload.get("assessment")
@@ -368,20 +356,16 @@ def adapt_local_axis_verdict(
     warning_count = _coerce_nonnegative_int(payload.get("warning_count"))
     if error_count is None or warning_count is None:
         return "UNKNOWN"
-    # A clean exit over nothing scanned is silence, not a pass, the same way
-    # `_has_assessed_files` reads an empty code-quality assessment. Both
-    # scanners take their file list from a diff, which names deleted paths, and
-    # then skip whatever is no longer a file: `if not os.path.isfile(filepath):
-    # continue` guards the `files_scanned += 1` in both
-    # (scan_principles.py:281-285, taste_lints.py:962-969). A deletion-only
-    # diff therefore exits 0 with files_scanned 0 and zero counts.
+    # A clean exit over nothing scanned is silence, not a pass. Both scanners
+    # take their file list from a diff, which names deleted paths, then guard
+    # the `files_scanned += 1` with `if not os.path.isfile(filepath):
+    # continue`, so a deletion-only diff exits 0 with every count at zero.
     if not _coerce_nonnegative_int(payload.get("files_scanned")):
         return "UNKNOWN"
-    # golden-principles narrows itself once more: files_scanned counts what it
-    # opened, applicable_files what a GP rule actually governs. Its own axis
-    # note in SKILL.md says a clean result on a non-toolkit repo "means no rule
-    # applied, not that design was reviewed", so zero applicable files is that
-    # same silence. taste-lints has no such field and needs no such gate.
+    # golden-principles narrows once more: applicable_files counts what a GP
+    # rule governs. Its axis note says a clean result on a non-toolkit repo
+    # "means no rule applied, not that design was reviewed". taste-lints has no
+    # such field and needs no such gate.
     if axis == "golden-principles" and not _coerce_nonnegative_int(
         payload.get("applicable_files")
     ):
