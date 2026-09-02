@@ -146,21 +146,24 @@ def _local_env_vars() -> tuple[str, ...]:
 
     Falls back to the hand-written set if git is unavailable, since an
     environment with no git cannot run the tests this protects anyway. Only a
-    successful discovery is memoized; the fallback is recomputed on every
-    call. A transient subprocess failure (a fork failure under load, a
-    30-second timeout) is not "git is not installed", and caching it would
-    pin the six-name fallback for the rest of the worker process even after
-    git starts answering again, silently dropping GIT_CONFIG and the other
-    five names the fallback lacks for every remaining test item in that
+    successful discovery is memoized; every fallback path is recomputed on the
+    next call. That covers all three triggers: git missing (``OSError``), git
+    erroring (``CalledProcessError``), and git exiting 0 with empty stdout.
+    None of the three is "git will never answer again", and caching any of
+    them would pin the six-name fallback for the rest of the worker process
+    even after git starts answering, silently dropping GIT_CONFIG and the
+    other five names the fallback lacks for every remaining test item in that
     worker. Refs #5379.
 
     Cached because the result depends only on the installed git version, not
     on per-test state: the variable *names* git honors do not change between
     test items, only the *values* the caller reads from ``os.environ`` do
     (still re-read fresh on every test, see ``_sanitize_git_environment``).
-    Uncached, this spawned one ``git rev-parse`` subprocess per test item,
-    roughly 30,000 short-lived processes across a full run, multiplied across
-    xdist workers. Refs #5379.
+    Uncached, this spawned one ``git rev-parse`` subprocess per test item.
+    xdist splits items across workers rather than repeating them on each, so
+    the uncached total is the item count, roughly 30,000 short-lived processes
+    across a full run, however many workers share them. Cached, it is one per
+    worker process. Refs #5379.
 
     Call ``_local_env_vars_cache_clear()`` to force rediscovery. This is the
     supported seam for tests that need to change the installed git's reported
@@ -179,9 +182,10 @@ def _local_env_vars() -> tuple[str, ...]:
     except (OSError, subprocess.SubprocessError):
         return _GIT_POINTER_VARS
     names = tuple(line.strip() for line in result.stdout.splitlines() if line.strip())
-    discovered = names or _GIT_POINTER_VARS
-    _LOCAL_ENV_VARS_CACHE.append(discovered)
-    return discovered
+    if not names:
+        return _GIT_POINTER_VARS
+    _LOCAL_ENV_VARS_CACHE.append(names)
+    return names
 
 
 _local_env_vars_cache_clear = _LOCAL_ENV_VARS_CACHE.clear

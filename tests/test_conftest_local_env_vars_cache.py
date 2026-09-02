@@ -15,8 +15,9 @@ must not break:
    with empty stdout) still return the hand-written pointer-var tuple, and
    the documented ``_local_env_vars_cache_clear()`` seam lets a test force rediscovery of a
    memoized successful result.
-4. A failed discovery is never memoized, so a transient subprocess failure
-   does not permanently pin the fallback for the rest of the worker process.
+4. No fallback is ever memoized, so neither a transient subprocess failure
+   nor a one-off empty answer from git pins the six-name hand-written set for
+   the rest of the worker process.
 
 Test approach mirrors ``tests/test_conftest_git_isolation.py``: load
 ``tests/conftest.py`` as a standalone module per test so each test starts
@@ -103,9 +104,10 @@ class TestLocalEnvVarsCachedAcrossItems:
     def test_result_is_cached_object_identity(self) -> None:
         """Repeated calls return the cached tuple, not a freshly built one.
 
-        ``lru_cache`` returns the exact same object on a cache hit. Asserting
-        identity (not just equality) confirms the cache path is taken rather
-        than a coincidentally-equal recomputation.
+        The cache is a module-level list holding the discovered tuple, so a
+        hit returns that exact object. Asserting identity (not just equality)
+        confirms the cache path is taken rather than a coincidentally-equal
+        recomputation.
         """
         module = _load_tests_conftest()
         with patch.object(
@@ -222,6 +224,32 @@ class TestGitUnavailableFallback:
             result = module._local_env_vars()
 
         assert result == module._GIT_POINTER_VARS
+
+    def test_empty_stdout_is_not_cached(self) -> None:
+        """An empty-stdout answer does not pin the fallback either.
+
+        Empty stdout is a fallback, not a discovery, so memoizing it would
+        keep the six-name hand-written set for the rest of the worker process
+        and silently drop ``GIT_CONFIG`` and the other five discovered-only
+        names for every remaining item. Proven without ``cache_clear()``: an
+        empty call followed directly by a normal one must return the
+        discovered names.
+        """
+        module = _load_tests_conftest()
+
+        with patch.object(
+            module.subprocess, "run", return_value=SimpleNamespace(stdout="")
+        ):
+            fallback_result = module._local_env_vars()
+        assert fallback_result == module._GIT_POINTER_VARS
+
+        with patch.object(
+            module.subprocess,
+            "run",
+            return_value=SimpleNamespace(stdout="GIT_DIR\nGIT_CONFIG\n"),
+        ):
+            recovered_result = module._local_env_vars()
+        assert recovered_result == ("GIT_DIR", "GIT_CONFIG")
 
     def test_transient_failure_is_not_cached(self) -> None:
         """A failed call does not pin the fallback for the next call.
