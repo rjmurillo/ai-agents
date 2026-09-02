@@ -16,9 +16,19 @@ axis to `canonical_candidates` with no change to `select_axes.py`. However,
 selection in risk mode depends on `_RISK_TABLE` and `_EFFECT_TABLE`, which
 hard-code every axis that can be selected. A new axis that appears only in
 `canonical_candidates` but not in either table will show as `skipped` on every
-normally classified run. Enrolling an axis is the prompt file, a risk/effect
-table entry, and a prose update: the axis names and counts stated in SKILL.md
-document the directory rather than drive it, and
+normally classified run.
+
+What enrollment costs therefore depends on how the axis is meant to be reached.
+An axis intended for risk mode needs the prompt file and a `_RISK_TABLE` or
+`_EFFECT_TABLE` entry. An axis intended to be reachable only through `--deep`
+or `--pin` needs the prompt file alone: both routes select straight from
+`canonical_candidates`, so `skipped` on a classified run is the intended
+result, and no unrelated risk rule is invented to force one.
+`tests/skills/review/test_select_axes_enrollment.py::TestDeepOnlyAxisNeedsNoTableEntry`
+holds that route open.
+
+Either way, finish with a prose update: the axis names and counts stated in
+SKILL.md document the directory rather than drive it, and
 `tests/skills/review/test_select_axes_contract.py::TestSkillCountClaimsMatchTheCode`
 reds when they drift.
 
@@ -48,8 +58,8 @@ JSON on stdout:
 
 | Field | Meaning |
 |-------|---------|
-| `canonical_selected` | Axes to run with `Task(subagent_type="{stem}")` and `references/{stem}.md`. Contains `analyst` whenever `references/analyst.md` exists; if that prompt is absent, `analyst` is reported in `unresolved_axes` and the run fails closed instead. |
-| `local_selected` | Local-only skill axes to run with `Skill(skill="{name}")`. Never overlaps `canonical_selected`. |
+| `canonical_selected` | Axes to dispatch as subagents, each loading `references/{stem}.md` as its prompt. Process step 4 of SKILL.md carries the dispatch form for the harness you are running; this file names the field, not the syntax. Contains `analyst` whenever `references/analyst.md` exists; if that prompt is absent, `analyst` is reported in `unresolved_axes` and the run fails closed instead. |
+| `local_selected` | Local-only sibling skills to invoke by name, per Process step 4b of SKILL.md. Never overlaps `canonical_selected`. |
 | `selection_reasons` | Per axis, why it was selected: the risk categories, the effects, `always-on`, `caller-pinned`, `deep review`, or `fail-closed`. |
 | `skipped` | Per unselected axis, the skip reason. Copy it into the output table verbatim. A skipped axis is never PASS. |
 | `unresolved_axes` | Axes a matched risk category or diff effect demanded that have no `references/{stem}.md` prompt to load. Non-empty sets `fail_closed`. Report each as UNKNOWN; an axis the change demanded is never silently absent from both `canonical_selected` and `skipped`. |
