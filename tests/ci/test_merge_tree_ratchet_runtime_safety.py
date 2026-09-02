@@ -135,9 +135,9 @@ def test_preparation_spends_the_same_deadline_the_counters_do(
         return start + _m._TIMEOUT_SECONDS + 1
 
     def slow_prepare(
-        root: Path, base_ref: str
+        root: Path, base_ref: str, base_oid: str | None = None
     ) -> tuple[str | None, str | None, int]:
-        result = real_prepare(root, base_ref)
+        result = real_prepare(root, base_ref, base_oid)
         # Burn more than _TIMEOUT_SECONDS of the caller's window without
         # sleeping: move the clock, not the wall. monkeypatch restores it.
         monkeypatch.setattr(_m.time, "monotonic", exhausted_clock)

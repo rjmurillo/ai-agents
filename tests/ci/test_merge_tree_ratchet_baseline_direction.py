@@ -25,6 +25,7 @@ reasoning).
 
 from __future__ import annotations
 
+import shutil
 from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
@@ -33,6 +34,13 @@ import pytest
 
 from scripts.ci import merge_tree_ratchet_check as _m
 from tests.ci.test_merge_tree_ratchet_check import _commit_all, _git, _make_repo_with_baselines
+
+# Both classes below drive git through _make_repo_with_baselines and _git, so
+# without git they would fail rather than skip (same pattern as
+# tests/ci/test_merge_tree_materialization.py:138).
+_REQUIRES_GIT = pytest.mark.skipif(
+    shutil.which("git") is None, reason="git is not installed"
+)
 
 
 def _zero_five_counters():
@@ -45,6 +53,7 @@ def _zero_five_counters():
     )
 
 
+@_REQUIRES_GIT
 @pytest.mark.usefixtures("_zero_non_target_aggregate_counts")
 class TestOneDirectionalBaselineGuard:
     def test_raised_baseline_blocks_on_the_fast_forward_path(self, tmp_path: Path) -> None:
@@ -134,6 +143,7 @@ class TestOneDirectionalBaselineGuard:
         assert "restore 10 and fix the violations" in error
 
 
+@_REQUIRES_GIT
 class TestDirectionVerdictExitCodes:
     """The guard's exit code reaches the caller instead of collapsing to 1.
 

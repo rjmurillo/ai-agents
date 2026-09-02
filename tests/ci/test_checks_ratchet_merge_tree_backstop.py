@@ -13,6 +13,7 @@ under the taste-lints file-size ceiling.
 
 from __future__ import annotations
 
+import shutil
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -24,6 +25,14 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import checks_ratchet  # noqa: E402
+
+# Every class below builds a temporary git repository through _repo, so without
+# git they would fail rather than skip. Matches the pattern in
+# tests/ci/test_merge_tree_materialization.py:138 and
+# tests/ci/test_count_ratchet_concurrent_merge.py:90.
+_REQUIRES_GIT = pytest.mark.skipif(
+    shutil.which("git") is None, reason="git is not installed"
+)
 
 
 def _repo(tmp_path: Path) -> Path:
@@ -47,6 +56,7 @@ def _stub_standalone_ratchets(repo: Path) -> None:
             script.write_text("", encoding="utf-8")
 
 
+@_REQUIRES_GIT
 class TestMergeTreeBackstopDelegation:
     def test_each_shared_counter_runs_exactly_once_per_invocation(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -183,6 +193,7 @@ class TestMergeTreeBackstopDelegation:
         assert "deadline" not in backstop.call_args.kwargs
 
 
+@_REQUIRES_GIT
 class TestArgvContract:
     """``main`` must reject an unknown option, not silently ignore it.
 
@@ -246,6 +257,7 @@ class TestArgvContract:
         validate.assert_not_called()
 
 
+@_REQUIRES_GIT
 class TestWorkingTreeCoverage:
     """pre_pr must still see an uncommitted violation.
 

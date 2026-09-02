@@ -86,23 +86,16 @@ EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 EXIT_CONFLICT = 100
 
-# Measured 2026-09-01 (issue #5441): the slowest of the five registered
-# ratchets, the CLI exit-contract scan, alone took ~27s on a warm checkout;
-# the full materialize-and-recount path (the non-fast-forward fallback) took
-# ~64s. 90s leaves real headroom over that without being open-ended; a
-# ratchet that cannot finish inside it reports "not run" instead of leaving
-# the caller to be killed by the outer Lefthook timeout with no diagnostic.
+# Measured 2026-09-01 (issue #5441): the CLI exit-contract scan alone took
+# ~27s warm, and the full materialize-and-recount path (the non-fast-forward
+# fallback) ~64s. 90s leaves headroom without being open-ended, and a ratchet
+# that cannot finish inside it reports "not run" instead of leaving the caller
+# to be killed by the outer Lefthook timeout with no diagnostic.
 #
-# Pinned to 90s rather than a larger number that would fit a slower machine
-# with more room to spare: the standalone merge-tree-ratchet Lefthook job's
-# outer timeout is capped at the fast parallel group's existing 2m ceiling
-# (scripts/validation/checks_ratchet.py's sibling job docstring explains why
-# tests/ci/test_lefthook_declared_budget.py forbids raising it), which needs
-# _MINIMUM_MARGIN_SECONDS (30s, tests/test_lefthook_integration.py) of
-# headroom over this constant. A machine too slow to finish inside 90s hits
-# this deadline and reports a clear per-ratchet "not run" instead of Lefthook
-# silently killing the process, which is strictly better than the pre-#5441
-# behavior even though it does not raise the ceiling further.
+# Not larger: the standalone merge-tree-ratchet job's outer timeout is capped
+# at the fast parallel group's 2m ceiling (tests/ci/test_lefthook_declared_
+# budget.py forbids raising it), which needs _MINIMUM_MARGIN_SECONDS (30s,
+# tests/test_lefthook_integration.py) of headroom over this constant.
 _TIMEOUT_SECONDS = 90
 
 _COUNTER_RESERVE_SECONDS = 25
@@ -125,12 +118,11 @@ on the repository root:
     -------------------------------------------------------
     total                26.72s
 
-The slowest is the one a subprocess timeout cannot touch. So the bound goes on
+The slowest is the one a subprocess timeout cannot touch, so the bound goes on
 the decision to start: a counter begins only when the remaining budget covers
-this reserve, which is the slowest measured counter (21.19s) plus 18% headroom.
-The last counter therefore finishes by the deadline at measured speed, and a
-counter running up to ``_MINIMUM_MARGIN_SECONDS`` (30s) slower than measured
-still lands inside Lefthook's outer cap.
+this reserve, the slowest measured counter (21.19s) plus 18% headroom. The last
+counter then finishes by the deadline at measured speed, and one running up to
+``_MINIMUM_MARGIN_SECONDS`` (30s) slower still lands inside the outer cap.
 """
 
 
@@ -290,10 +282,16 @@ def _check_one(
 
 
 def _prepare_merged_tree(
-    repo_root: Path, base_ref: str
+    repo_root: Path, base_ref: str, base_oid: str | None = None
 ) -> tuple[str | None, str | None, int]:
-    """Pin the base and construct a conflict-free merged tree."""
-    base_oid = _resolve_base_oid(repo_root, base_ref)
+    """Pin the base and construct a conflict-free merged tree.
+
+    ``base_oid`` lets a caller that already pinned the base hand that OID in,
+    so its evaluations share one snapshot instead of re-resolving a ref that
+    may have advanced in between (issue #5441 review).
+    """
+    if base_oid is None:
+        base_oid = _resolve_base_oid(repo_root, base_ref)
     if base_oid is None:
         return None, None, EXIT_EXTERNAL
     tree_oid, conflicts = _merge_tree_oid(repo_root, base_oid)
@@ -375,6 +373,7 @@ def _evaluate_merged_tree(
     base_ref: str,
     *,
     deadline: float | None = None,
+    base_oid: str | None = None,
 ) -> int:
     """Extract merged tree, run counters, compare. Returns an EXIT_* code.
 
@@ -394,7 +393,9 @@ def _evaluate_merged_tree(
     (issue #5441 review).
     """
     effective_deadline = deadline if deadline is not None else time.monotonic() + _TIMEOUT_SECONDS
-    base_oid, tree_oid, preparation_exit = _prepare_merged_tree(repo_root, base_ref)
+    base_oid, tree_oid, preparation_exit = _prepare_merged_tree(
+        repo_root, base_ref, base_oid
+    )
     if preparation_exit != EXIT_OK:
         return preparation_exit
     assert base_oid is not None and tree_oid is not None

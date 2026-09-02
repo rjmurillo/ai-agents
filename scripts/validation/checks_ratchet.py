@@ -277,7 +277,9 @@ def _run_individual_ratchets(
     return failures
 
 
-def _run_merge_tree_backstop(repo_root: Path, base_ref: str, deadline: float) -> str | None:
+def _run_merge_tree_backstop(
+    repo_root: Path, base_ref: str, base_oid: str, deadline: float
+) -> str | None:
     """Run the merge-tree backstop; return its failure label, or None on pass.
 
     ``deadline`` gates only whether the backstop starts at all: a fast exit if
@@ -294,12 +296,17 @@ def _run_merge_tree_backstop(repo_root: Path, base_ref: str, deadline: float) ->
             file=sys.stderr,
         )
         return "merge-tree-ratchet"
-    if _evaluate_merge_tree_backstop(repo_root, base_ref) != _MERGE_TREE_EXIT_OK:
+    if (
+        _evaluate_merge_tree_backstop(repo_root, base_ref, base_oid=base_oid)
+        != _MERGE_TREE_EXIT_OK
+    ):
         return "merge-tree-ratchet"
     return None
 
 
-def _run_working_tree_ratchets(repo_root: Path, base_ref: str) -> str | None:
+def _run_working_tree_ratchets(
+    repo_root: Path, base_ref: str, base_oid: str
+) -> str | None:
     """Count the registered ratchets against the working tree, when needed.
 
     Issue #5441 review. The merge-tree backstop counts the MERGED tree, which
@@ -330,22 +337,14 @@ def _run_working_tree_ratchets(repo_root: Path, base_ref: str) -> str | None:
     ``--skip-merge-tree`` and never reaches this function, so nothing here
     lands on the budget that issue measured.
 
-    The base OID is resolved here through the merge-tree module's own
-    ``_resolve_base_oid`` rather than reusing the one ``_prepare_base_oid``
-    pinned earlier, so both evaluations judge against the same commit. The two
-    resolvers do not agree on stacked bases: ``checks_common``'s refresh skips
-    a remote name containing a slash while the merge-tree module's fetches it,
-    so reusing the earlier OID would compare the working tree against a stale
-    base, or skip on an ancestor test the backstop had already moved past
-    (issue #5441 review). This call lands after the backstop's fetch, so the
-    refresh it repeats is already up to date and costs a no-op fetch.
+    ``base_oid`` is the single snapshot both evaluations judge against; the
+    caller pins it once through the merge-tree module's own resolver and hands
+    the same value to the backstop. Neither re-resolves, so the base cannot
+    advance between the two passes, and the two resolvers' disagreement on
+    stacked bases cannot surface either: ``checks_common``'s refresh skips a
+    remote name containing a slash while the merge-tree module's fetches it
+    (issue #5441 review).
     """
-    base_oid = _resolve_merge_tree_base_oid(repo_root, base_ref)
-    if base_oid is None:
-        # _resolve_base_oid wrote its own diagnostic. Fail closed: an
-        # unresolvable base means this pass did not happen, and a gate that
-        # did not run must not read as a gate that passed.
-        return "working-tree-ratchets"
     if is_fast_forward_clean(repo_root, base_oid):
         return None
     deadline = time.monotonic() + _MERGE_TREE_TIMEOUT_SECONDS
@@ -410,12 +409,25 @@ def validate_count_ratchets(repo_root: Path, *, skip_merge_tree: bool = False) -
     if not skip_merge_tree:
         assert base_ref is not None, "needs_base_ref forces resolution above"
         assert base_oid is not None, "needs_base_ref forces resolution above"
-        backstop_failure = _run_merge_tree_backstop(repo_root, base_ref, deadline)
-        if backstop_failure is not None:
-            failures.append(backstop_failure)
-        working_tree_failure = _run_working_tree_ratchets(repo_root, base_ref)
-        if working_tree_failure is not None:
-            failures.append(working_tree_failure)
+        # One snapshot for both evaluations. The merge-tree resolver, not the
+        # one above: they disagree on stacked bases, and this is the value the
+        # merged tree is built from (issue #5441 review).
+        pinned = _resolve_merge_tree_base_oid(repo_root, base_ref)
+        if pinned is None:
+            # It wrote its own diagnostic. Fail closed: a gate that could not
+            # run must not read as a gate that passed.
+            failures.append("merge-tree-ratchet")
+        else:
+            backstop_failure = _run_merge_tree_backstop(
+                repo_root, base_ref, pinned, deadline
+            )
+            if backstop_failure is not None:
+                failures.append(backstop_failure)
+            working_tree_failure = _run_working_tree_ratchets(
+                repo_root, base_ref, pinned
+            )
+            if working_tree_failure is not None:
+                failures.append(working_tree_failure)
 
     if failures:
         print(
