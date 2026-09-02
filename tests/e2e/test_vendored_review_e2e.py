@@ -536,5 +536,16 @@ def test_vendored_local_axis_adapter_loads_and_maps_doc_accuracy(tmp_path: Path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    payload = json.dumps({"gate_result": {"verdict": "PASS"}})
+    # The assessment block is required evidence: a doc-accuracy PASS over zero
+    # inventoried files means the gate found no docs, not that the docs hold up.
+    payload = json.dumps(
+        {
+            "gate_result": {"verdict": "PASS"},
+            "assessment": {"documentation_files": [{"path": "README.md"}]},
+        }
+    )
     assert module.adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
+    empty = json.dumps(
+        {"gate_result": {"verdict": "PASS"}, "assessment": {"documentation_files": []}}
+    )
+    assert module.adapt_local_axis_verdict("doc-accuracy", empty, 0) == "UNKNOWN"
