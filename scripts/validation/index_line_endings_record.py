@@ -158,13 +158,23 @@ def parse_violations(output: str, scope: str = "HEAD") -> tuple[list[Violation],
     # strip here would report a path that does not exist and hand it to --fix.
     nul_terminated = "\0" in output
     records = output.split("\0") if nul_terminated else output.splitlines()
-    for record in records:
+    for position, record in enumerate(records):
         line = record if nul_terminated else record.rstrip("\n")
-        # `-z` terminates rather than separates, so the split always yields a
-        # trailing empty string. That is the one record with nothing in it and
-        # the only one worth passing over.
+        # `-z` terminates rather than separates, so the split always yields one
+        # trailing empty string. That is the only record with nothing in it
+        # that this producer can legitimately emit, and only in last position.
+        # A leading or interior empty record means the producer emitted a row
+        # this parser cannot read, and passing over it turns malformed output
+        # into a clean scan: `parse_violations("\0")` returned zero violations
+        # in zero files, which is what an empty repository returns too.
         if not line:
-            continue
+            if position == len(records) - 1:
+                continue
+            raise RuntimeError(
+                f"git ls-files --eol emitted an empty record at position "
+                f"{position} of {len(records)}. Only the trailing record after "
+                "the final NUL may be empty."
+            )
         # Everything else must be a row this parser understands. Skipping a
         # malformed row would let a producer change turn a broken scan into
         # "0 violations" and exit 0, which is the failure ci-scripts.md MUST-12

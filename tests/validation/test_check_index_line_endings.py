@@ -127,6 +127,27 @@ def test_a_row_with_too_few_fields_is_an_error_not_a_skip() -> None:
 
 
 @pytest.mark.parametrize(
+    ("output", "position"),
+    [
+        ("\0", 0),
+        ("\0i/crlf w/crlf attr/text eol=lf\tdocs/a.md\0", 0),
+        ("i/lf w/lf attr/text\tdocs/a.md\0\0i/crlf w/crlf attr/text eol=lf\tb.md\0", 1),
+    ],
+)
+def test_an_empty_record_that_is_not_the_terminator_is_an_error(
+    output: str, position: int
+) -> None:
+    """`-z` terminates, so exactly one empty record is legitimate: the last.
+
+    Passing over the others turns malformed producer output into a clean scan.
+    `parse_violations("\\0")` used to return zero violations in zero files,
+    which is what an empty repository returns.
+    """
+    with pytest.raises(RuntimeError, match=f"empty record at position {position}"):
+        checker.parse_violations(output)
+
+
+@pytest.mark.parametrize(
     "row",
     [
         "x/crlf w/crlf attr/text eol=lf\tdocs/a.md",
