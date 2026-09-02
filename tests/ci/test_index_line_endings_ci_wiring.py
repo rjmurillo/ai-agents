@@ -8,15 +8,25 @@ that path, so the local wiring test is necessary and not sufficient.
 
 Step-level assertions alone are not sufficient either. The gate first lived in
 the `test` job, whose `if:` is `needs.check-paths.outputs.python-changed ==
-'true'`. A CRLF blob under a `.md` path, which is exactly the incident, turns
-that false and the whole job is skipped, so a step-level `if:` with no path
-predicate still measured nothing. These tests pin the job as well: it carries
-no `needs:` and no `if:`, and its result is required by the aggregator that
-branch protection actually watches.
+'true'`, so a step-level `if:` with no path predicate still measured nothing
+whenever that job was skipped.
+
+`.md` is not the example, and the earlier version of this docstring was wrong
+to use it: the `python` filter carries `**/*.md`, so the two incident handoffs
+would have turned `python-changed` true. The gap is the text paths the filter
+omits. `.gitattributes` applies `* text=auto eol=lf` to every tracked file;
+measured against the filter, `**/*.xml` has no glob at all (7 tracked files),
+and of the 16 tracked `.sh` files only `scripts/bootstrap-vm.sh` is listed
+while `.gitattributes` declares `*.sh text eol=lf`.
+
+These tests pin the job as well: it carries no `needs:` and no `if:`, and its
+result is required by every job that publishes the required check, not only
+the one that runs when Python changed.
 """
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -152,3 +162,51 @@ def test_every_required_check_leg_asserts_the_gate_result(job_id: str) -> None:
         assert f"--check {name} success" in str(step["run"]), (
             f"{name} is passed to {job_id} but never checked"
         )
+
+
+def _python_filter() -> set[str]:
+    """The `python` path filter this workflow's `check-paths` job publishes."""
+    for step in _jobs()["check-paths"]["steps"]:
+        raw = step.get("with", {}).get("filters")
+        if raw:
+            return set(yaml.safe_load(raw)["python"])
+    raise AssertionError("check-paths publishes no `filters` input")
+
+
+def _tracked(pattern: str) -> list[str]:
+    return [
+        line
+        for line in subprocess.run(
+            ["git", "ls-files", pattern],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=True,
+        ).stdout.splitlines()
+        if line
+    ]
+
+
+def test_the_filter_gap_this_job_exists_for_is_real() -> None:
+    """Pin the rationale so the comment above the job cannot rot into fiction.
+
+    An earlier version of this rationale used `.md` as the example. The filter
+    carries `**/*.md`, so that was wrong and the review caught it. The gap is
+    the text paths the filter omits, and `.gitattributes` applies
+    `* text=auto eol=lf` to all of them.
+
+    If this ever fails because the filter widened, the guard job is still
+    correct: a whole-tree gate must not depend on a diff. Update the rationale
+    to name whatever remains uncovered, or state that nothing does.
+    """
+    python_filter = _python_filter()
+
+    assert "**/*.md" in python_filter, "the .md counter-example no longer holds"
+    assert not [glob for glob in python_filter if "xml" in glob]
+    assert len(_tracked("*.xml")) > 0, "no tracked .xml left to demonstrate the gap"
+
+    shell_globs = [glob for glob in python_filter if glob.endswith(".sh")]
+    assert shell_globs == ["scripts/bootstrap-vm.sh"]
+    assert len(_tracked("*.sh")) > len(shell_globs)

@@ -262,10 +262,17 @@ jobs:
     name: Check index line endings (blocking)
     # Issue #5475. Same reasoning as zero-collection-guard above, and the same
     # deliberate absence of `needs:`/`if:`. This guard reads every tracked
-    # blob, so a path filter can report green without measuring. It also has
-    # to survive a change that touches no Python at all: a CRLF blob under a
-    # `.md` path is exactly the incident this gate exists for, and the `test`
-    # job is skipped whenever check-paths reports no Python-relevant diff.
+    # blob, so a path filter can report green without measuring.
+    #
+    # `.md` is NOT the example: the `python` filter carries `**/*.md`, so the
+    # two incident handoffs would have set `python-changed` true and run the
+    # `test` job. The gap is the text paths the filter omits. `.gitattributes`
+    # applies `* text=auto eol=lf` to every tracked file; measured against the
+    # filter, `**/*.xml` has no glob at all (7 tracked files) and only
+    # `scripts/bootstrap-vm.sh` of the 16 tracked `.sh` files is listed, while
+    # `.gitattributes` declares `*.sh text eol=lf`. A CRLF blob under any of
+    # those leaves `python-changed` false and skips a filtered job.
+    #
     # Both offending blobs arrived through the GraphQL createCommitOnBranch
     # API, which runs no local hook, so CI is the only place that producer is
     # observed.
