@@ -63,11 +63,15 @@ def resolve_default_base_ref(repo_root: Path) -> str | None:
     ``_refresh_base_ref`` below treats the segment after ``origin/`` as one,
     and a fetch for a remote branch literally named ``HEAD`` fails. Resolving
     the symbolic ref to its real target (``origin/main``, typically) before
-    returning is what ``scripts/validation/checks_ratchet.py``'s own
-    ``_normalize_remote_head`` does for that module's callers; this repeats
-    the same normalization for this module's (issue #5441 review: an earlier
-    version of the dynamic-base-ref fix skipped this and broke the fetch on
-    every checkout where ``gh pr view`` found no PR).
+    returning is therefore part of this function's contract (issue #5441
+    review: an earlier version of the dynamic-base-ref fix skipped this and
+    broke the fetch on every checkout where ``gh pr view`` found no PR).
+
+    This is the only implementation of that normalization.
+    ``scripts/validation/checks_ratchet.py`` carried a second copy,
+    ``_normalize_remote_head``, until it switched to calling this resolver;
+    the copy was deleted with the switch, so a caller that needs the
+    normalization calls here rather than reimplementing it.
     """
     _fetch_pr_base_if_absent(repo_root)
     base_ref = _resolve_default_base_ref(repo_root)
