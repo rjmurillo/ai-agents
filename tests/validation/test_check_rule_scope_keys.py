@@ -1,9 +1,13 @@
 """Tests for scripts/validation/check_rule_scope_keys.py (issue #4871).
 
 Guards the gate that refuses a `.claude/rules/*.md` scope key Claude Code
-ignores. Claude Code honors `paths:`; `applyTo:`, `globs:`, and `alwaysApply:`
-generate a correctly scoped Copilot mirror while leaving the Claude source
-unscoped, so the rule loads on every session including doc-only ones.
+ignores. Claude Code honors `paths:` alone. The three keys the generator also
+accepts fail differently, verified by running one rule per shape through
+`generate_rules.py`: `applyTo:` is remapped, so the mirror is scoped and only
+the Claude source leaks; `globs:` is preserved verbatim and never becomes
+`applyTo:`, so neither tree is scoped; `alwaysApply:` is dropped and
+`applyTo: '**'` is synthesized, so both trees load universally. All three leave
+the rule loading on every Claude session, which is what this gate refuses.
 
 - pos: a rules tree where every rule declares `paths:` -> exit 0, no findings
 - neg/applyTo: the exact `pragmatic-programmer.md` shape -> exit 1, names the file
@@ -272,6 +276,59 @@ def test_the_gate_is_wired_into_the_pre_pr_sequence() -> None:
 
     names = [gate.name for gate in _SEQUENCE]
     assert "Rule Scope Declarations (paths:)" in names, names
+
+
+def test_the_gate_verdict_reaches_the_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Drive run_all_validations twice, differing only in the gate's verdict.
+
+    The name assertion above still passes if the gate keeps its name but is
+    wired to the wrong callable or to a constant-true stub. Calling the real
+    runner with the validator monkeypatched proves the by-name resolution in
+    `_root_only` reaches THIS validator's verdict, with the passing run as the
+    control. Same shape as
+    `tests/validation/test_check_citation_freshness_wiring.py`.
+    """
+    import argparse
+    from types import SimpleNamespace
+
+    import pre_pr_sequence
+
+    gate_name = "Rule Scope Declarations (paths:)"
+    verdicts: dict[str, bool] = {}
+
+    def fake_run_validation(
+        name: str, _state: object, callback: object, skip: bool = False
+    ) -> bool:
+        if name == gate_name and callable(callback):
+            verdicts["gate"] = bool(callback())
+        return True
+
+    state = SimpleNamespace(total=0, passed=0, failed=0, skipped=0)
+    args = argparse.Namespace(quick=True, skip_tests=False, verbose=False)
+
+    monkeypatch.setattr(pre_pr_sequence, "validate_rule_scope_declarations", lambda _r: False)
+    pre_pr_sequence.run_all_validations(REPO_ROOT, args, state, fake_run_validation)
+    assert verdicts["gate"] is False
+
+    monkeypatch.setattr(pre_pr_sequence, "validate_rule_scope_declarations", lambda _r: True)
+    pre_pr_sequence.run_all_validations(REPO_ROOT, args, state, fake_run_validation)
+    assert verdicts["gate"] is True
+
+
+def test_the_gate_runs_as_a_remote_check_not_only_a_local_hook() -> None:
+    """A gate that only fires in a pre-push hook is not enforced on the remote.
+
+    A push from a clone without `lefthook install`, from the web editor, or
+    from the API bypasses the hook entirely. Deleting the workflow step would
+    silently restore that gap, and no other test would notice.
+    """
+    workflow = REPO_ROOT / ".github" / "workflows" / "pr-validation.yml"
+    body = workflow.read_text(encoding="utf-8")
+
+    assert "scripts/validation/check_rule_scope_keys.py" in body, (
+        f"{workflow.relative_to(REPO_ROOT).as_posix()} no longer invokes the rule "
+        "scope gate; the check is back to being local-hook-only."
+    )
 
 
 def test_the_gate_skips_rather_than_fails_without_a_rules_tree(tmp_path: Path) -> None:
