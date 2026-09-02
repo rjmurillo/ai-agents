@@ -1126,6 +1126,73 @@ def _missing_owned_root(path: Path) -> bool:
         ) from exc
 
 
+# stat.IO_REPARSE_TAG_MOUNT_POINT exists only on Windows builds, so reading it
+# through getattr with a sentinel default made the junction arm inert wherever
+# the attribute is missing: a check that cannot fire is not a check. The value
+# is a fixed Windows constant, and CPython's own os.path.isjunction compares
+# against exactly it, so pinning the literal makes the predicate answer the
+# same question on every platform. Non-Windows stat results carry no
+# st_reparse_tag at all, so the arm is unreachable there by data, not by a
+# missing name.
+_MOUNT_POINT_REPARSE_TAG = 0xA0000003
+
+
+def _is_redirecting(metadata: os.stat_result) -> bool:
+    """Return whether a no-follow stat names a link or a Windows junction.
+
+    ``S_ISLNK`` alone is not enough. A Windows directory junction is reported
+    as a directory carrying a reparse tag, so it passes every symlink test and
+    is then traversed, which is the same escape a symlink gives. The
+    repository already draws the line at both shapes: see `_is_redirecting_link`
+    in ``scripts/validation/portability_baseline.py``, which asks
+    ``path.is_symlink() or path.is_junction()``.
+
+    This reads the tag off an lstat result the caller already has, rather than
+    calling ``Path.is_junction()``. That helper delegates to
+    ``os.path.isjunction``, which swallows ``OSError`` and answers False, and a
+    strict probe that answers False on a metadata failure is the fail-open this
+    whole path exists to remove.
+    """
+    if stat.S_ISLNK(metadata.st_mode):
+        return True
+    return getattr(metadata, "st_reparse_tag", 0) == _MOUNT_POINT_REPARSE_TAG
+
+
+def _reject_redirecting_ancestors(repo_root: Path, path: Path) -> None:
+    """Fail the strict snapshot when a component above ``path`` redirects.
+
+    ``stat(follow_symlinks=False)`` only declines to follow the FINAL
+    component. Every directory above it is resolved by the kernel on the way
+    there, so a redirecting parent is followed before any per-path check runs.
+    Concretely: ``docs/agent-catalog.md`` is a single-file owned prefix, and a
+    ``docs`` symlink or junction pointing outside the repository sends the
+    generated catalog to the link target, where restore cannot reach it.
+
+    A missing ancestor ends the walk without complaint. Nothing exists below
+    it to protect, and generators may create the tree.
+    """
+    try:
+        relative = path.relative_to(repo_root)
+    except ValueError:
+        return
+    current = repo_root
+    for part in relative.parts[:-1]:
+        current = current / part
+        try:
+            metadata = current.stat(follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            raise SnapshotIncompleteError(
+                f"cannot inspect owned path ancestor {current}: {exc}"
+            ) from exc
+        if _is_redirecting(metadata):
+            raise SnapshotIncompleteError(
+                f"owned path ancestor redirects, so --check cannot restore a "
+                f"write through it: {current}"
+            )
+
+
 def _strict_owned_stat(
     path: Path, *, missing_root_ok: bool
 ) -> os.stat_result | None:
@@ -1169,10 +1236,10 @@ def _strict_owned_stat(
         raise SnapshotIncompleteError(
             f"cannot inspect owned path {path}: {exc}"
         ) from exc
-    if stat.S_ISLNK(metadata.st_mode):
+    if _is_redirecting(metadata):
         raise SnapshotIncompleteError(
-            f"owned path is a symlink, and --check cannot restore a write "
-            f"through it: {path}"
+            f"owned path redirects (symlink or junction), and --check cannot "
+            f"restore a write through it: {path}"
         )
     return metadata
 
@@ -1217,10 +1284,10 @@ def _strict_is_git_boundary(directory: Path) -> bool:
         raise SnapshotIncompleteError(
             f"cannot inspect git boundary marker {marker}: {exc}"
         ) from exc
-    if stat.S_ISLNK(metadata.st_mode):
+    if _is_redirecting(metadata):
         raise SnapshotIncompleteError(
-            f"git boundary marker is a symlink, so it cannot be trusted to "
-            f"say whether {directory} is a nested repository: {marker}"
+            f"git boundary marker redirects, so it cannot be trusted to say "
+            f"whether {directory} is a nested repository: {marker}"
         )
     return True
 
@@ -1403,6 +1470,7 @@ def _snapshot_owned_prefixes(
         # dead, which is an argument no mutation can distinguish (measured:
         # rewriting the forward to ``strict=False`` left all 137 tests green).
         if strict:
+            _reject_redirecting_ancestors(repo_root, root)
             for path in _iter_strict_owned_files(
                 root, boundaries_seen=boundaries_seen
             ):
@@ -1509,9 +1577,15 @@ def _restore_owned_prefixes(
     pre-run state. Pre-existing dirty state (uncommitted edits, untracked
     files) is preserved exactly because the snapshot captured it.
 
-    ``preexisting_boundaries`` is the set :func:`_git_boundaries_under`
-    recorded before the generators ran. Pass it whenever the caller holds
-    one. Detecting boundaries by shape here instead would read the
+    ``preexisting_boundaries`` is the set of git repository boundaries recorded
+    before the generators ran. ``--check`` collects it during the strict
+    snapshot traversal itself (``boundaries_seen``), which is what keeps the
+    snapshot and this pass from disagreeing; do not reintroduce a second
+    :func:`_git_boundaries_under` walk to build it, because that helper's
+    walker swallows directory-scan errors and can return a short set. Other
+    callers, such as the ``.claude/`` guard, do use
+    :func:`_git_boundaries_under`, whose walk is the whole pass. Pass a set
+    whenever the caller holds one. Detecting boundaries by shape here instead would read the
     post-generation tree, so a tree the generator created with a ``.git``
     entry inside it would look like a nested checkout and case 3 would
     skip its files. Measured before this argument existed: a generator

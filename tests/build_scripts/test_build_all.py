@@ -9,6 +9,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -3204,7 +3205,7 @@ def test_snapshot_strict_rejects_owned_directory_symlink(
     with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
         build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
 
-    assert "owned path is a symlink" in str(excinfo.value)
+    assert "owned path redirects" in str(excinfo.value)
     assert protected.read_text() == "x = 1\n"
 
 
@@ -3225,7 +3226,7 @@ def test_snapshot_strict_rejects_owned_file_symlink(tmp_path: Path) -> None:
     with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
         build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
 
-    assert "owned path is a symlink" in str(excinfo.value)
+    assert "owned path redirects" in str(excinfo.value)
     assert target.read_text() == "x = 1\n"
 
 
@@ -3249,7 +3250,7 @@ def test_snapshot_strict_rejects_owned_prefix_root_symlink(
     with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
         build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
 
-    assert "owned path is a symlink" in str(excinfo.value)
+    assert "owned path redirects" in str(excinfo.value)
     assert protected.read_text() == "x = 1\n"
 
 
@@ -3346,6 +3347,106 @@ def test_snapshot_strict_skips_files_under_an_ignored_directory(
     )
 
 
+def test_snapshot_strict_rejects_a_redirecting_ancestor(tmp_path: Path) -> None:
+    """A link ABOVE an owned path is followed before any per-path check.
+
+    `stat(follow_symlinks=False)` declines to follow only the final component.
+    `docs/agent-catalog.md` is a real single-file owned prefix, so a `docs`
+    link pointing outside the repository sends the generated catalog to the
+    link target, where restore cannot reach it, while every per-path symlink
+    check still passes.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    external = tmp_path / "external-docs"
+    external.mkdir()
+    protected = external / "agent-catalog.md"
+    protected.write_text("# catalog\n")
+    _directory_symlink_or_skip(repo / "docs", external)
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(
+            repo, ("docs/agent-catalog.md",), strict=True
+        )
+
+    assert "owned path ancestor redirects" in str(excinfo.value)
+    assert protected.read_text() == "# catalog\n"
+
+
+def test_snapshot_strict_aborts_when_an_ancestor_cannot_be_stat_ed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable ancestor is not a readable one.
+
+    The ancestor walk's `except OSError` arm. Returning early there would
+    reintroduce the whole point of this change one directory up: a metadata
+    failure read as "no redirect here", the walk continues, and generation
+    reaches whatever the unreadable component points at.
+    """
+    repo = tmp_path / "repo"
+    docs = repo / "docs"
+    docs.mkdir(parents=True)
+    (docs / "agent-catalog.md").write_text("# catalog\n")
+
+    real_stat = Path.stat
+
+    def ancestor_denied(
+        self: Path, *, follow_symlinks: bool = True
+    ) -> os.stat_result:
+        if self == docs:
+            raise PermissionError(13, "denied")
+        return real_stat(self, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "stat", ancestor_denied)
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(
+            repo, ("docs/agent-catalog.md",), strict=True
+        )
+
+    assert "cannot inspect owned path ancestor" in str(excinfo.value)
+
+
+def test_snapshot_strict_tolerates_a_missing_ancestor(tmp_path: Path) -> None:
+    """Inverse control: an absent ancestor is not a redirect.
+
+    Generators may create the tree, and the pre-existing contract skips a
+    prefix root that is absent before discovery. The ancestor walk must not
+    turn that into an abort.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    assert build_all._snapshot_owned_prefixes(
+        repo, ("docs/agent-catalog.md",), strict=True
+    ) == {}
+
+
+def test_is_redirecting_flags_a_windows_junction(tmp_path: Path) -> None:
+    """A junction is a directory carrying a reparse tag, not an `S_ISLNK`.
+
+    Junctions cannot be created on this platform, so the predicate is driven
+    directly. Without the reparse-tag arm a junction under an owned prefix
+    passes every symlink test and is then traversed, which is the same escape
+    a symlink gives.
+
+    The tag is read from the module rather than from `stat`, because
+    `stat.IO_REPARSE_TAG_MOUNT_POINT` exists only on Windows builds and a test
+    that silently degrades to comparing a sentinel proves nothing.
+    """
+    directory = tmp_path / "plain"
+    directory.mkdir()
+    plain = directory.stat(follow_symlinks=False)
+
+    assert not build_all._is_redirecting(plain)
+
+    class _JunctionStat:
+        st_mode = plain.st_mode
+        st_reparse_tag = build_all._MOUNT_POINT_REPARSE_TAG
+
+    assert build_all._is_redirecting(cast("os.stat_result", _JunctionStat()))
+
+
 def test_snapshot_strict_aborts_when_the_git_marker_cannot_be_stat_ed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3402,7 +3503,7 @@ def test_snapshot_strict_rejects_a_symlinked_git_marker(tmp_path: Path) -> None:
     with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
         build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
 
-    assert "git boundary marker is a symlink" in str(excinfo.value)
+    assert "git boundary marker redirects" in str(excinfo.value)
 
 
 def test_run_check_restore_leaves_a_nested_checkout_alone(
@@ -3829,7 +3930,7 @@ def test_run_check_aborts_before_a_generator_writes_through_a_symlink(
     assert protected.read_text() == "x = 1\n", (
         "--check let a generator overwrite a file outside the repository"
     )
-    assert "owned path is a symlink" in capsys.readouterr().err
+    assert "owned path redirects" in capsys.readouterr().err
 
 
 
