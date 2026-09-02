@@ -212,12 +212,18 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
 
     CI skips this local-clone check because workflows invoke validation directly.
 
-    The adjacent ``Git Hook Health`` gate proves Git can read the installed
-    pre-push hook. This gate must not call ``lefthook check-install``: that
-    command compares the shared checksum written by the last installing branch,
-    so a sibling branch with different hook config makes another worktree fail
-    even though the native shim resolves Lefthook from the active worktree.
-    Issue #4789.
+    This gate must not call ``lefthook check-install``: that command compares
+    the shared checksum written by the last installing branch, so a sibling
+    branch with different hook config makes another worktree fail even though
+    the native shim resolves Lefthook from the active worktree. Issue #4789.
+
+    What each of the two adjacent gates proves, so neither is read as covering
+    the other. This one proves the configured runtime starts. ``Git Hook
+    Health`` proves git will reach it: it reads the installed ``pre-push`` and
+    requires Lefthook's own dispatch line
+    (``check_git_hook_health.DISPATCH_MARKER``), because an executable
+    ``#!/bin/sh`` plus ``exit 0`` satisfies both a runtime-start check and an
+    executability check while running no job at all.
     """
     if (
         os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")

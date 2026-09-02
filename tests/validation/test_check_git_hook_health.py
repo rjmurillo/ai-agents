@@ -22,9 +22,10 @@ Coverage:
 
 - positive: healthy repo exits 0 and prints the probed hook and its directory;
   a linked worktree resolving to the common directory's hooks is healthy.
-- negative: a missing hooksPath directory, a directory with no pre-push, and an
-  unset hooksPath with no pre-push all exit 1 and name the remedy; a linked
-  worktree inherits the broken config; removing the gate fails the wiring test.
+- negative: a missing hooksPath directory, a directory with no pre-push, an
+  unset hooksPath with no pre-push, an executable hook that dispatches nothing,
+  and an unreadable hook all exit 1 and name the remedy; a linked worktree
+  inherits the broken config; removing the gate fails the wiring test.
 - edge: no lefthook config, non-repositories, and CI exit 0; missing Git and
   timeouts exit 3; the failure report stays inside a line budget.
 """
@@ -100,10 +101,25 @@ def _make_repo(root: Path, name: str, *, lefthook: bool = True) -> Path:
     return repo
 
 
-def _install_prepush(hooks_dir: Path) -> None:
+# The shape Lefthook installs, reduced to the line this gate matches. The old
+# fixture here was `#!/bin/sh\nexit 0`, an executable hook that dispatches
+# nothing, so every "healthy" assertion in this file was satisfied by exactly
+# the fail-open state the gate is meant to refuse (issue #4789).
+DISPATCHING_PREPUSH = (
+    "#!/bin/sh\n"
+    "call_lefthook()\n"
+    "{\n"
+    '  lefthook "$@"\n'
+    "}\n"
+    'call_lefthook run "pre-push" "$@"\n'
+)
+INERT_PREPUSH = "#!/bin/sh\nexit 0\n"
+
+
+def _install_prepush(hooks_dir: Path, body: str = DISPATCHING_PREPUSH) -> None:
     hooks_dir.mkdir(parents=True, exist_ok=True)
     hook = hooks_dir / "pre-push"
-    hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    hook.write_text(body, encoding="utf-8")
     hook.chmod(0o755)
 
 
@@ -204,6 +220,38 @@ class TestDeadHooks:
         assert result.returncode == 1
         assert "core.hooksPath is unset" in result.stderr
         assert check_git_hook_health.REMEDY in result.stderr
+
+    def test_an_executable_hook_that_dispatches_nothing_fails(
+        self, tmp_path: Path
+    ) -> None:
+        """The fail-open case: executable, readable by git, and inert.
+
+        Before this assertion existed, `#!/bin/sh` plus `exit 0` passed here,
+        and it also passes the adjacent `Lefthook Installed` gate, which only
+        proves the configured runtime starts. Together the two gates reported a
+        gated push for a clone that runs no job at all (issue #4789).
+        """
+        repo = _make_repo(tmp_path, "inert")
+        _install_prepush(repo / ".git" / "hooks", body=INERT_PREPUSH)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "does not dispatch Lefthook" in result.stderr
+        assert check_git_hook_health.REMEDY in result.stderr
+
+    def test_an_unreadable_hook_fails_closed(self, tmp_path: Path) -> None:
+        """An undecodable hook is unverified, so it is not a pass."""
+        repo = _make_repo(tmp_path, "unreadable")
+        hooks_dir = repo / ".git" / "hooks"
+        _install_prepush(hooks_dir)
+        (hooks_dir / "pre-push").write_bytes(b"\x00\xff\xfe binary payload")
+        (hooks_dir / "pre-push").chmod(0o755)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "does not dispatch Lefthook" in result.stderr
 
     def test_validation_reuses_the_resolved_hooks_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -420,16 +468,20 @@ class TestNegativeControl:
         repo = _make_repo(tmp_path, "missing_dir")
         _git(repo, "config", "core.hooksPath", str(repo / ".githooks"))
         original = GUARD.read_text(encoding="utf-8")
+        # Short-circuit the whole diagnosis rather than one of its guards. The
+        # gate now has two failing conditions, unreachable hook and inert hook,
+        # and neutering only the first leaves the second still failing this
+        # repository, which would make the control pass for the wrong reason.
         target = (
-            "    if hook.is_file() and os.access(hook, os.X_OK):\n"
-            "        return None\n"
+            '    """Diagnose the already-resolved hooks directory'
+            ' without querying git again."""\n'
         )
         assert original.count(target) == 1, (
             "mutation target moved; the control did not apply"
         )
         neutered = tmp_path / "neutered_gate.py"
         neutered.write_text(
-            original.replace(target, "    if True:\n        return None\n"),
+            original.replace(target, target + "    return None\n"),
             encoding="utf-8",
         )
         assert neutered.read_text(encoding="utf-8") != original

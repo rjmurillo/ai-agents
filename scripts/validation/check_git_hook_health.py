@@ -25,11 +25,18 @@ relative), and in a linked worktree it resolves to the common directory's
 installs and where a worktree push really looks. Verified on git 2.51.0
 against a scratch repository with a linked worktree: a marker pre-push under
 the common directory fired on a push from the worktree, and stopped firing
-once removed. So ``--git-common-dir`` is unnecessary, and the whole health
-test is whether ``<git-path hooks>/pre-push`` is an executable file, which
-also covers the "directory exists but holds no pre-push" and "hook exists but
-Git will ignore it" cases. ``core.hooksPath`` is read only on the unhealthy
-path, to name which condition failed.
+once removed. So ``--git-common-dir`` is unnecessary, and the health test is
+whether ``<git-path hooks>/pre-push`` is an executable file that dispatches
+Lefthook, which also covers the "directory exists but holds no pre-push" and
+"hook exists but Git will ignore it" cases. ``core.hooksPath`` is read only on
+the unhealthy path, to name which condition failed.
+
+Executability alone is not installation evidence. ``#!/bin/sh`` followed by
+``exit 0`` is an executable ``pre-push`` that runs no job, so a clone in that
+state passes an executability-only probe while every local guardrail is off.
+The adjacent ``Lefthook Installed`` gate cannot cover the difference either: it
+proves the configured runtime starts, not that git will reach it. So this gate
+reads the hook and requires Lefthook's own dispatch line (issue #4789).
 
 Scope: the remedy is a lefthook command, so this gate passes silently in any
 repository that does not configure lefthook. A repository with no hooks and no
@@ -70,6 +77,18 @@ LEFTHOOK_CONFIG_NAMES = tuple(
 # the remote, and lefthook installs it alongside every other shim: its absence
 # means the install never ran or was overridden.
 PROBE_HOOK = "pre-push"
+
+# Lefthook's generated shim ends by dispatching the hook through its own
+# resolver function, and that line is the one part of the template every
+# supported platform shares. Measured on the shim Lefthook 2.1.11 installed
+# into this repository: the last line is `call_lefthook run "pre-commit" "$@"`.
+# `tests/test_lefthook_integration.py::test_install_resets_legacy_hooks_path`
+# asserts the same line for the Windows template, which differs from the POSIX
+# one everywhere else: it omits the configured runner, the `LEFTHOOK_BIN`
+# override, and the PATH fallback. Matching this instead of parsing the shim
+# keeps the gate on Lefthook's own output rather than reimplementing a shell
+# reader, which the ADR-086 amendment debate rejected.
+DISPATCH_MARKER = f'call_lefthook run "{PROBE_HOOK}"'
 
 REMEDY = "uv run --frozen lefthook install --reset-hooks-path"
 WORKTREE_REMEDY = f"git config --worktree --unset-all core.hooksPath && {REMEDY}"
@@ -202,12 +221,30 @@ def _failed_condition(repo_root: Path, hooks_dir: Path) -> str:
     )
 
 
+def _dispatches_lefthook(hook: Path) -> bool:
+    """True when the hook file carries Lefthook's own dispatch line.
+
+    An unreadable hook returns False: the gate fails closed rather than
+    treating an unverifiable hook as installed.
+    """
+    try:
+        text = hook.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return DISPATCH_MARKER in text
+
+
 def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
     """Diagnose the already-resolved hooks directory without querying git again."""
     hook = hooks_dir / PROBE_HOOK
-    if hook.is_file() and os.access(hook, os.X_OK):
-        return None
-    return _failed_condition(repo_root, hooks_dir)
+    if not (hook.is_file() and os.access(hook, os.X_OK)):
+        return _failed_condition(repo_root, hooks_dir)
+    if not _dispatches_lefthook(hook):
+        return (
+            f"{hook} is executable but does not dispatch Lefthook: it carries "
+            f"no '{DISPATCH_MARKER}' line, so git runs no repository guardrail"
+        )
+    return None
 
 
 def diagnose(repo_root: Path) -> str | None:
