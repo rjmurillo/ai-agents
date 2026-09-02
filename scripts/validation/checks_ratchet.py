@@ -7,12 +7,13 @@ contributor whose change raised a ratchet count therefore saw ``pre_pr.py``
 pass, pushed, and learned about a 0.21 second failure 674 seconds later.
 
 Running them here converts that 674 second round trip into a local one that
-finishes before the suite starts. The registry has grown since: measured warm
-on this tree it is about 51 seconds concurrently, dominated by
-subprocess-encoding at 33.7s, merge-tree at 22.9s and cli-exit-contract at
-15.6s, with the other six between 0.1s and 2.6s. Still far inside the 674
-seconds it replaces, and inside the 90 second lefthook budget, but no
-longer the "about three seconds" this paragraph used to claim.
+finishes before the suite starts. The registry has grown since, and the "about
+three seconds" this paragraph used to claim is long gone: the eight entries are
+dominated by merge-tree at 22.9s and cli-exit-contract at 15.6s, with the other
+six between 0.1s and 2.6s. That is 42.4s run one after another and about 23s
+run together on an idle machine, where the floor is the slowest single entry
+rather than the sum. Still far inside the 674 seconds it replaces, and inside
+the 90 second lefthook cap.
 
 The pre-push hook and pre-PR runner both delegate to this module. Keeping the
 ratchet set and command construction here avoids eight parallel hook jobs
@@ -104,8 +105,10 @@ RATCHETS: tuple[Ratchet, ...] = (
 # deadline is what fires and names the offending ratchet, rather than lefthook
 # killing the job with no attribution.
 #
-# Not raised, deliberately. Concurrency is what buys the headroom for the
-# ninth ratchet: 84.2s sequential against this deadline, 51.4s concurrent.
+# Not raised, deliberately. Concurrency is what buys headroom for a ninth
+# entry, the subprocess-encoding ratchet of issue #5482, which is NOT
+# registered above: measured with it, 84.2s sequential against this
+# deadline and 51.4s concurrent.
 # Raising the lefthook cap to buy more would cost 90s of the pre-push declared
 # budget, which `tests/ci/test_lefthook_declared_budget.py` ratchets at 3450s
 # for the whole hook; that budget is paid for by measuring a job and cutting
