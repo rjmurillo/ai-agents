@@ -1,0 +1,175 @@
+"""Local-axis routing must match what each scanner actually reads.
+
+A local axis is one scanner. Routing it at a change whose files that scanner
+skips produces a run over zero files, which `adapt_local_axis_verdict` reports
+as UNKNOWN, so the axis can never reach PASS and the review cannot finish. That
+is not hypothetical: `executable-code` covered `.rs` and `.rb`, which neither
+scanner scores, and `docs-and-instructions` covered `.mdx`, `.rst`, and `.txt`,
+which `doc-accuracy` never inventories.
+
+The parity tests here compare the selector's mirrors against the scanner
+sources themselves rather than against a copied literal, so widening either
+scanner reds this module instead of silently re-opening the gap.
+
+Kept out of ``test_select_axes.py`` and ``test_select_axes_contract.py``
+because both are already over the 500-line taste limit.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if TESTS_SKILLS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_SKILLS_DIR)
+
+from claude_skills_import import import_skill_script
+
+mod = import_skill_script(
+    ".claude/skills/review/scripts/select_axes.py",
+    module_name="review_select_axes_capability",
+)
+assess = import_skill_script(
+    ".claude/skills/code-qualities-assessment/scripts/assess.py",
+    module_name="capability_assess",
+)
+taste = import_skill_script(
+    ".claude/skills/taste-lints/scripts/taste_lints.py",
+    module_name="capability_taste_lints",
+)
+doc_accuracy = import_skill_script(
+    ".claude/skills/doc-accuracy/scripts/doc_accuracy.py",
+    module_name="capability_doc_accuracy",
+)
+scan_principles = import_skill_script(
+    ".claude/skills/golden-principles/scripts/scan_principles.py",
+    module_name="capability_scan_principles",
+)
+
+REFERENCES_DIR = PROJECT_ROOT / ".claude" / "skills" / "review" / "references"
+CANDIDATES = tuple(mod.discover_canonical_axes(REFERENCES_DIR))
+
+
+def select(paths: list[str], **kwargs: object) -> dict:
+    return mod.select_axes(changed_paths=paths, canonical_candidates=CANDIDATES, **kwargs)
+
+
+class TestMirrorsMatchTheScannerSources:
+    """The selector's copies must equal the scanners' own acceptance sets."""
+
+    def test_assess_suffixes_match_language_map(self):
+        assert mod._ASSESS_SUFFIXES == frozenset(assess._LANGUAGE_BY_SUFFIX)
+
+    def test_taste_lint_suffixes_match_scannable_extensions(self):
+        assert mod._TASTE_LINT_SUFFIXES == frozenset(taste.SCANNABLE_EXTENSIONS)
+
+    def test_doc_accuracy_globs_are_still_markdown_only(self):
+        """Widening DOC_GLOBS must force the routing predicate to widen too."""
+        assert doc_accuracy.DOC_GLOBS == ["docs/**/*.md", "**/*.md"]
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            ".claude/skills/review/SKILL.md",
+            ".CLAUDE/SKILLS/review/SKILL.MD",
+            ".claude/skills/review/skill.md",
+            ".claude/agents/architect.md",
+            ".claude/agents/CLAUDE.md",
+            ".claude/agents/Claude.md",
+            ".github/workflows/ci.yml",
+            ".github/workflows/CI.YML",
+            "scripts/setup.sh",
+            "scripts/setup.SH",
+            "src/app.py",
+            "docs/guide.md",
+        ],
+    )
+    def test_golden_principles_mirror_matches_is_applicable(self, path):
+        """Behavioral parity with the scanner's own guard, casing included."""
+        assert mod._golden_principles_reads(path) is scan_principles._is_applicable(path)
+
+
+class TestLocalRoutingFollowsScannerSupport:
+    """One supported and one unsupported language per scanner."""
+
+    @pytest.mark.parametrize("path", ["src/app.ts", "src/App.java", "src/main.go"])
+    def test_assess_only_languages_skip_taste_lints(self, path):
+        local = set(select([path])["local_selected"])
+        assert "code-qualities-assessment" in local
+        assert "taste-lints" not in local
+
+    @pytest.mark.parametrize("path", ["scripts/deploy.ps1", "scripts/setup.sh"])
+    def test_taste_lint_only_languages_skip_assess(self, path):
+        local = set(select([path])["local_selected"])
+        assert "taste-lints" in local
+        assert "code-qualities-assessment" not in local
+
+    @pytest.mark.parametrize("path", ["src/main.rs", "lib/widget.rb"])
+    def test_languages_neither_scanner_reads_select_no_local_axis(self, path):
+        """The reported case: both selected, both scanned nothing, both UNKNOWN."""
+        result = select([path])
+        assert result["local_selected"] == []
+        assert result["fail_closed"] is False
+
+    @pytest.mark.parametrize("path", ["src/main.rs", "lib/widget.rb"])
+    def test_canonical_code_quality_still_reviews_them(self, path):
+        """Negative control: the narrowing touches local axes only.
+
+        A subagent reads Rust and Ruby fine, so dropping the scanners must not
+        leave the change unreviewed.
+        """
+        assert "code-quality" in select([path])["canonical_selected"]
+
+    def test_python_still_selects_both_scanners(self):
+        """Negative control: .py is the one suffix both scanners accept."""
+        local = set(select(["src/service.py"])["local_selected"])
+        assert {"code-qualities-assessment", "taste-lints"} <= local
+
+    def test_skip_reason_names_the_scanner_gap(self):
+        result = select(["src/main.rs"])
+        assert "scanner reads" in result["skipped"]["taste-lints"]
+
+
+class TestCaseSensitivityFollowsEachScanner:
+    """The classifier lowercases; the scanners do not all agree with that."""
+
+    def test_uppercase_markdown_is_not_routed_to_doc_accuracy(self):
+        """DOC_GLOBS matches case-sensitively, so `.MD` is never inventoried."""
+        assert "doc-accuracy" not in select(["README.MD"])["local_selected"]
+
+    def test_uppercase_skill_path_is_not_routed_to_golden_principles(self):
+        """The reported case: selected, zero applicable files, UNKNOWN."""
+        assert "golden-principles" not in select([".CLAUDE/SKILLS/review/SKILL.MD"])[
+            "local_selected"
+        ]
+
+    def test_real_cased_skill_path_is_still_routed(self):
+        """Negative control: the fix must not stop routing the real path."""
+        assert "golden-principles" in select([".claude/skills/review/SKILL.md"])[
+            "local_selected"
+        ]
+
+    def test_uppercase_suffix_still_reaches_assess(self):
+        """assess.py folds case (`suffix.lower()`), so the mirror must too."""
+        assert "code-qualities-assessment" in select(["src/App.PY"])["local_selected"]
+
+
+class TestOverrideModesKeepEveryLocalAxis:
+    """Deep and fail-closed are explicit run-everything modes."""
+
+    def test_deep_keeps_every_local_axis(self):
+        assert set(select(["src/main.rs"], deep=True)["local_selected"]) == set(mod.LOCAL_AXES)
+
+    def test_fail_closed_keeps_every_local_axis(self):
+        result = select(["some/unclassifiable/blob.bin"])
+        assert result["fail_closed"] is True
+        assert set(result["local_selected"]) == set(mod.LOCAL_AXES)
+
+    def test_pin_overrides_the_scanner_narrowing(self):
+        """A caller who names the axis gets it, scanner support or not."""
+        result = select(["src/main.rs"], pinned=["taste-lints"])
+        assert "taste-lints" in result["local_selected"]

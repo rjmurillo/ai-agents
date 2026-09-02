@@ -349,15 +349,20 @@ class TestLocalAxisSelection:
         result = select(["docs/guide.md"])
         assert result["local_selected"] == ["doc-accuracy"]
 
-    def test_plain_text_change_selects_doc_accuracy_not_an_empty_specialist_set(
+    def test_plain_text_change_fails_closed_rather_than_faking_a_docs_review(
         self,
     ) -> None:
-        # Negative control for the defect this replaced: the docs category
-        # matched every text-shaped path and contributed no axis at all, so a
-        # .txt change was classified (no fail-closed) and reviewed by nobody.
+        # Two defects meet here. The docs category once matched every
+        # text-shaped path and contributed no axis, so a .txt change was
+        # classified and reviewed by nobody. Routing it to doc-accuracy fixed
+        # that by claiming a scanner that cannot read it: DOC_GLOBS is
+        # ["docs/**/*.md", "**/*.md"], so the scan found nothing and gated
+        # PASS on a file it never opened. Unclassified is the honest answer,
+        # and it still gets the file reviewed, by the whole set.
         result = select(["CHANGELOG.txt"])
-        assert result["local_selected"] == ["doc-accuracy"]
-        assert result["fail_closed"] is False
+        assert result["unclassified_paths"] == ["CHANGELOG.txt"]
+        assert result["fail_closed"] is True
+        assert "doc-accuracy" in result["local_selected"]
 
     def test_code_change_does_not_select_doc_accuracy(self) -> None:
         result = select(["src/service.py"])

@@ -43,7 +43,7 @@ import json
 import re
 import sys
 from collections.abc import Callable, Iterable, Sequence
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 # The Stage-1 gate. Runs unconditionally; never a Stage-2 candidate.
 STAGE1_AXIS = "spec-compliance"
@@ -266,11 +266,112 @@ def _is_roadmap_doc_path(path: str) -> bool:
 
 
 def _is_docs_path(path: str) -> bool:
-    return path.endswith((".md", ".mdx", ".rst", ".txt"))
+    """Match what doc-accuracy actually inventories: Markdown.
+
+    Its DOC_GLOBS is ["docs/**/*.md", "**/*.md"], so .mdx, .rst, and .txt are
+    never read. Claiming them here selected the axis for a file it would not
+    open, and the resulting empty scan gated PASS. Leaving them out drops them
+    through to unclassified, which fails the run closed onto the full axis set
+    rather than handing a text change to nobody.
+    """
+    return path.endswith(".md")
 
 
 def _is_code_path(path: str) -> bool:
     return any(path.endswith(suffix) for suffix in _CODE_SUFFIXES)
+
+
+# Every local axis is one scanner, and a scanner reads only the files its own
+# source accepts. Routing an axis at a change whose files that scanner skips
+# gives a run over zero files, which adapt_local_axis_verdict reports as
+# UNKNOWN, so the axis can never reach PASS and the review cannot finish. The
+# predicates below mirror each scanner's acceptance test, casing included,
+# against the path as git reports it rather than the lowercased form the
+# category predicates match.
+
+# assess.py resolves a language with _LANGUAGE_BY_SUFFIX.get(suffix.lower()),
+# so its match ignores case. Missing here on purpose, because that map has no
+# entry for them: .ps1, .psm1, .sh, .rs, .rb.
+_ASSESS_SUFFIXES = frozenset(
+    {".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".cs", ".java", ".go"}
+)
+# taste_lints.py tests `Path(filepath).suffix in SCANNABLE_EXTENSIONS` with no
+# case folding, so its match is case-sensitive. It has no entry for TypeScript,
+# JavaScript, C#, Go, Rust, Ruby, or Java.
+_TASTE_LINT_SUFFIXES = frozenset(
+    {".py", ".ps1", ".psm1", ".sh", ".bash", ".yml", ".yaml", ".md", ".json"}
+)
+# doc_accuracy.py inventories DOC_GLOBS, which is ["docs/**/*.md", "**/*.md"].
+# Markdown only, matched case-sensitively, so .mdx, .rst, and .txt are not read.
+_DOC_ACCURACY_SUFFIXES = frozenset({".md"})
+# scan_principles._is_applicable compares these two names literally. The
+# classifier above matches them lowercased; this mirror keeps the real casing.
+_GP_SCANNER_SKILL_FILENAME = "SKILL.md"
+_GP_SCANNER_EXCLUDED_FILENAME = "CLAUDE.md"
+
+
+def _posix(path: str) -> str:
+    """Normalize separators without folding case, unlike ``_norm``."""
+    return path.replace("\\", "/").strip()
+
+
+def _suffix(path: str) -> str:
+    return PurePosixPath(path).suffix
+
+
+def _assess_reads(path: str) -> bool:
+    """Mirror assess.py: suffix looked up in _LANGUAGE_BY_SUFFIX, case-folded."""
+    return _suffix(path).lower() in _ASSESS_SUFFIXES
+
+
+def _taste_lints_reads(path: str) -> bool:
+    """Mirror taste_lints.py: suffix tested against SCANNABLE_EXTENSIONS as-is."""
+    return _suffix(path) in _TASTE_LINT_SUFFIXES
+
+
+def _doc_accuracy_reads(path: str) -> bool:
+    """Mirror doc_accuracy.py: DOC_GLOBS covers Markdown and nothing else."""
+    return _suffix(path) in _DOC_ACCURACY_SUFFIXES
+
+
+def _golden_principles_reads(path: str) -> bool:
+    """Mirror scan_principles._is_applicable, including its literal casing."""
+    segments = _segments(_posix(path))
+    if not segments:
+        return False
+    name = segments[-1]
+    if name.endswith(_GP_SCRIPT_SUFFIXES):
+        return True
+    if name == _GP_SCANNER_SKILL_FILENAME and _has_contiguous_segments(
+        segments, _GP_SKILLS_MARKER
+    ):
+        return True
+    if (
+        name.endswith(".md")
+        and name != _GP_SCANNER_EXCLUDED_FILENAME
+        and _has_contiguous_segments(segments, _GP_AGENTS_MARKER)
+    ):
+        return True
+    return name.endswith(_GP_WORKFLOW_SUFFIXES) and _has_contiguous_segments(
+        segments, _GP_WORKFLOWS_MARKER
+    )
+
+
+_LOCAL_SCANNER_READS: dict[str, Callable[[str], bool]] = {
+    "code-qualities-assessment": _assess_reads,
+    "doc-accuracy": _doc_accuracy_reads,
+    "golden-principles": _golden_principles_reads,
+    "taste-lints": _taste_lints_reads,
+}
+
+
+def scannable_local_axes(paths: Sequence[str]) -> set[str]:
+    """Local axes whose scanner can read at least one of *paths*."""
+    return {
+        axis
+        for axis, reads in _LOCAL_SCANNER_READS.items()
+        if any(reads(_posix(path)) for path in paths)
+    }
 
 
 # Ordered risk table. Each row is (category, predicate, canonical axes, local
@@ -311,6 +412,7 @@ _EFFECT_TABLE: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
 }
 
 _SKIP_REASON = "skipped - no changed path or diff effect matched this axis"
+_UNREADABLE_REASON = "skipped - no changed file this axis's scanner reads"
 _FAIL_CLOSED_REASON = "selected - fail-closed: change could not be classified"
 _UNRESOLVED_REASON = "selected - fail-closed: a demanded axis has no prompt to load"
 _DEEP_REASON = "selected - deep review requested"
@@ -418,6 +520,7 @@ def select_axes(
 
     fail_closed = bool(unclassified or unknown_effects or unresolved_axes) or not usable_paths
     reasons: dict[str, str] = {}
+    skip_overrides: dict[str, str] = {}
 
     if deep or fail_closed:
         blanket = _blanket_reason(deep, unclassified, unknown_effects, usable_paths)
@@ -431,11 +534,24 @@ def select_axes(
         # unresolved_axes is empty on this branch (a demanded axis with no
         # prompt fails closed above), so every demanded axis is a candidate.
         canonical_selected = set(canonical_sources)
-        local_selected = set(local_sources) & set(LOCAL_AXES)
+        # A routed local axis still needs a file its own scanner reads. The
+        # risk rows are coarser than the scanners behind them: executable-code
+        # covers .rs and .rb that neither scanner scores, and
+        # docs-and-instructions covers .mdx, .rst, and .txt that doc-accuracy
+        # never inventories. Selecting those anyway yields a scan over zero
+        # files, which reports UNKNOWN, and an UNKNOWN axis blocks a PASS just
+        # as a skipped one does without saying why. Skipping names the reason.
+        # Deep and fail-closed runs skip this narrowing on purpose: both are
+        # explicit "run everything" modes, and fail-closed has no trustworthy
+        # path list to narrow by.
+        routed_local = set(local_sources) & set(LOCAL_AXES)
+        local_selected = routed_local & scannable_local_axes(usable_paths)
+        unreadable_local = routed_local - local_selected
         for axis in canonical_selected:
             reasons[axis] = "selected - " + ", ".join(canonical_sources[axis])
         for axis in local_selected:
             reasons[axis] = "selected - " + ", ".join(local_sources[axis])
+        skip_overrides.update(dict.fromkeys(unreadable_local, _UNREADABLE_REASON))
         for axis in ALWAYS_ON_CANONICAL:
             canonical_selected.add(axis)
             reasons[axis] = _ALWAYS_ON_REASON
@@ -448,7 +564,7 @@ def select_axes(
         reasons[axis] = _PINNED_REASON
 
     skipped = {
-        axis: _SKIP_REASON
+        axis: skip_overrides.get(axis, _SKIP_REASON)
         for axis in list(canonical_candidates) + list(LOCAL_AXES)
         if axis not in canonical_selected and axis not in local_selected
     }
