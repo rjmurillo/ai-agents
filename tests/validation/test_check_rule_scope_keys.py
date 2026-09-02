@@ -19,6 +19,11 @@ the rule loading on every Claude session, which is what this gate refuses.
 - neg/reports-every-rule: two bad rules produce two findings, not one
 - edge/block-and-inline: both YAML forms of `paths:` pass (a line regex would
   fail the block form, which is how an earlier audit miscounted)
+- neg/hollow-paths: `paths:` present but empty, wrong-typed, or holding an
+  empty entry, in nine shapes; key presence is not scope
+- neg/duplicate-key: `paths: []` then `paths: ["**"]` -> exit 1. A last-wins
+  parse would certify the second; Claude Code may resolve the duplicate the
+  other way, and that divergence is what this gate exists to prevent
 - edge/no-frontmatter: a rule with no frontmatter is unscoped -> exit 1
 - edge/malformed-yaml: unparsable frontmatter is unscoped -> exit 1
 - edge/empty-rules-dir: a directory with no rules -> exit 2, never a vacuous pass
@@ -226,6 +231,33 @@ def test_a_rule_with_no_frontmatter_fails(tmp_path: Path) -> None:
     rules_dir = tmp_path / ".claude" / "rules"
     rules_dir.mkdir(parents=True)
     (rules_dir / "bare.md").write_text("# Bare\n\nNo frontmatter.\n", encoding="utf-8")
+
+    assert _run_cli(tmp_path).returncode == 1
+
+
+def test_a_duplicate_top_level_key_fails(tmp_path: Path) -> None:
+    """`yaml.safe_load` keeps the last value; that would certify the wrong one.
+
+    `paths: []` then `paths: ["**"]` passes a last-wins parse on the second
+    entry. Nothing guarantees Claude Code resolves the duplicate the same way,
+    and if it takes the first the rule is unscoped while the gate reports it
+    clean. Reuses the duplicate-rejecting loader the mirror-side budget parser
+    already ships (`instruction_budget_globs._UniqueKeySafeLoader`).
+    """
+    _rule(tmp_path, "twice", 'paths: []\npaths: ["**"]\n')
+
+    findings = find_scope_key_violations(tmp_path)
+    assert len(findings) == 1
+    assert "cannot be resolved to one scope" in findings[0][1]
+
+    result = _run_cli(tmp_path)
+    assert result.returncode == 1
+    assert "twice.md" in result.stderr
+
+
+def test_a_duplicate_of_an_ignored_key_also_fails(tmp_path: Path) -> None:
+    """A trailing `paths:` must not launder a leading `applyTo:` past the gate."""
+    _rule(tmp_path, "laundered", "applyTo: '**'\napplyTo: '**/*.py'\n")
 
     assert _run_cli(tmp_path).returncode == 1
 

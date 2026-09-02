@@ -59,11 +59,39 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
+import yaml  # noqa: E402
+from instruction_budget_globs import (  # noqa: E402
+    _FRONTMATTER_RE,
+    UnsupportedApplyToError,
+    _UniqueKeySafeLoader,
+)
 
 RULES_SUBDIR = Path(".claude") / "rules"
 SCOPE_KEY = "paths"
 IGNORED_SCOPE_KEYS = ("applyTo", "globs", "alwaysApply")
+
+
+def _frontmatter(text: str) -> dict[str, object]:
+    """Parse rule frontmatter, rejecting duplicate top-level keys.
+
+    Deliberately not `yaml.safe_load`. PyYAML keeps the LAST value when a key
+    repeats, so `paths: []` followed by `paths: ["**"]` would be certified on
+    the second one. Nothing guarantees Claude Code's own loader resolves the
+    duplicate the same way, and if it takes the first the rule is unscoped
+    while this gate reports it clean. That is the exact source-versus-loader
+    divergence the gate exists to prevent, so a duplicate key is a violation
+    rather than a coin flip. Reuses `_UniqueKeySafeLoader` from the
+    mirror-side budget parser, which already rejects this class; a second
+    implementation would be a second thing to keep in step.
+
+    Raises `UnsupportedApplyToError` for a duplicate key and `yaml.YAMLError`
+    for unparsable YAML. The caller turns both into a finding, not a crash.
+    """
+    match = _FRONTMATTER_RE.match(text)
+    if match is None:
+        return {}
+    data = yaml.load(match.group(1), Loader=_UniqueKeySafeLoader)
+    return data if isinstance(data, dict) else {}
 
 
 def _scope_value_defect(value: object) -> str | None:
@@ -111,7 +139,11 @@ def find_scope_key_violations(repo_root: Path) -> list[tuple[Path, str]]:
     """
     findings: list[tuple[Path, str]] = []
     for path in rule_files(repo_root):
-        front = _parse_yaml_frontmatter(path.read_text(encoding="utf-8")) or {}
+        try:
+            front = _frontmatter(path.read_text(encoding="utf-8"))
+        except (UnsupportedApplyToError, yaml.YAMLError) as exc:
+            findings.append((path, f"frontmatter cannot be resolved to one scope: {exc}"))
+            continue
         ignored = [key for key in IGNORED_SCOPE_KEYS if key in front]
         if ignored:
             keys = ", ".join(f"`{key}:`" for key in ignored)
