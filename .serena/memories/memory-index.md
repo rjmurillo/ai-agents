@@ -18,6 +18,7 @@
 [GitHub and PR Operations]
 |premise verification git log -S git grep reviewer-findings pr-comment-responder refuted: [pr-review/decision-premise-verification-reused-reviewer-findings](pr-review/decision-premise-verification-reused-reviewer-findings.md) (798)
 |self-assessment ready-to-push refuted independent review negative control inert: [decision-agent-self-assessment-does-not-survive-review](decision-agent-self-assessment-does-not-survive-review.md) (1149)
+|dispositions registry trust boundary tier probe auto-merge bypass TIER_TRUSTED_T1 CWE-284 completion gate trusted ref: [pr-review/decision-dispositions-registry-trust-boundary](pr-review/decision-dispositions-registry-trust-boundary.md) (675)
 |merge invalidates open PRs stale baseline ratchet strict: [decision-every-merge-invalidates-every-open-pr](decision-every-merge-invalidates-every-open-pr.md) (3635)
 |injected instructions stale snapshot always-on context lags repo: [decision-injected-instructions-lag-the-repo](decision-injected-instructions-lag-the-repo.md) (785)
 |gh graphql rest rate limit budget separate exhaustion: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
