@@ -244,6 +244,7 @@ def test_git_ls_files_eol_still_emits_the_parsed_shape() -> None:
         cwd=REPO_ROOT,
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         timeout=60,
         check=True,
     )
@@ -254,3 +255,77 @@ def test_git_ls_files_eol_still_emits_the_parsed_shape() -> None:
     assert head[0].startswith("i/")
     assert head[1].startswith("w/")
     assert head[2].startswith("attr/")
+
+
+# --- negative control: a real repository carrying the defect ---------------
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=True,
+    )
+
+
+def _repo_with_crlf_blob(tmp_path: Path, name: str = "handoff.md") -> Path:
+    """Build a repo holding a CRLF blob under `eol=lf`, as the API produces one.
+
+    `git add` would clean the CRLF away, which is the whole reason the defect
+    needs a hook-free path to exist. `git hash-object -w` writes the blob
+    without the filter and `update-index --cacheinfo` stages it, reproducing
+    what `createCommitOnBranch` uploads.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "--quiet")
+    (repo / ".gitattributes").write_text("* text=auto eol=lf\n", newline="\n")
+    _git(repo, "add", ".gitattributes")
+
+    crlf = repo / name
+    crlf.write_bytes(b"line one\r\nline two\r\n")
+    blob = _git(repo, "hash-object", "-w", "--no-filters", str(crlf)).stdout.strip()
+    _git(repo, "update-index", "--add", "--cacheinfo", f"100644,{blob},{name}")
+    return repo
+
+
+def test_negative_control_gate_fails_on_a_real_crlf_blob(tmp_path: Path) -> None:
+    """The control the manual pre-fix run stood in for, now executable.
+
+    Without this the suite proves the gate passes on a clean tree and never
+    proves it fails on a dirty one, which is the only claim that matters.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+
+    violations, examined = checker.check_repository(repo)
+
+    assert [v.path for v in violations] == ["handoff.md"]
+    assert violations[0].index_state == "i/crlf"
+    assert examined >= 2
+    assert checker.main(["--repo-root", str(repo)]) == 1
+
+
+def test_negative_control_passes_after_renormalize(tmp_path: Path) -> None:
+    """The documented fix must actually clear the gate, not just quiet it."""
+    repo = _repo_with_crlf_blob(tmp_path)
+    assert checker.main(["--repo-root", str(repo)]) == 1
+
+    _git(repo, "add", "--renormalize", "handoff.md")
+
+    violations, _ = checker.check_repository(repo)
+    assert violations == []
+    assert checker.main(["--repo-root", str(repo)]) == 0
+
+
+def test_remediation_command_quotes_paths_with_spaces(tmp_path: Path, capsys) -> None:
+    """An unquoted join would print a command that renormalizes the wrong files."""
+    repo = _repo_with_crlf_blob(tmp_path, name="a handoff.md")
+
+    assert checker.validate_index_line_endings(repo) is False
+
+    out = capsys.readouterr().out
+    assert "git add --renormalize 'a handoff.md'" in out

@@ -24,6 +24,7 @@ Exit codes follow ADR-035: 0 clean, 1 violations found, 2 git unavailable.
 from __future__ import annotations
 
 import argparse
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -118,7 +119,10 @@ def _report(violations: list[Violation], examined: int) -> None:
     if violations:
         print(f"index-line-endings: {len(violations)} blob(s) contradict gitattributes")
         print(f"  Fix: {REMEDIATION}")
-        paths = " ".join(v.path for v in violations)
+        # shlex.quote per path: a tracked path may contain spaces or shell
+        # metacharacters, and an unquoted join would print a command that
+        # renormalizes the wrong files or nothing at all.
+        paths = " ".join(shlex.quote(v.path) for v in violations)
         print(f"  git add --renormalize {paths}")
     print(f"index-line-endings: {len(violations)} violation(s) in {examined} tracked files")
 
