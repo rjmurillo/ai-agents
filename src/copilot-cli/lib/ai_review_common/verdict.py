@@ -202,6 +202,19 @@ def _coerce_nonnegative_int(value: object) -> int | None:
     return None
 
 
+def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool:
+    """Return True when the assessment actually evaluated at least one file.
+
+    Requires a positive ``summary.file_count`` that agrees with the length of
+    ``files``. A disagreement means the two halves of the payload describe
+    different runs, which is not evidence of a pass.
+    """
+    file_count = summary.get("file_count")
+    if isinstance(file_count, bool) or not isinstance(file_count, int):
+        return False
+    return file_count > 0 and file_count == len(files)
+
+
 def adapt_local_axis_verdict(
     axis: str,
     output: str,
@@ -231,16 +244,23 @@ def adapt_local_axis_verdict(
     if axis == "code-qualities-assessment":
         if payload is None:
             return "UNKNOWN"
-        if (
-            not isinstance(payload.get("files"), list)
-            or not isinstance(payload.get("summary"), dict)
-        ):
+        files = payload.get("files")
+        summary = payload.get("summary")
+        if not isinstance(files, list) or not isinstance(summary, dict):
             return "UNKNOWN"
-        if exit_code == 0:
-            return "PASS"
+        # The skill documents both as gate failures that fail the PR: exit 10
+        # is a regressed comparable, exit 11 a new file below thresholds
+        # (code-qualities-assessment/SKILL.md:377-378). WARN let a failing
+        # gate be acknowledged and shipped instead of blocking the merge.
         if exit_code in {10, 11}:
-            return "WARN"
-        return "UNKNOWN"
+            return "FAIL"
+        if exit_code != 0:
+            return "UNKNOWN"
+        # A clean exit over zero files is silence, not a pass. In regression
+        # mode assess.py emits files: [] with file_count: 0 when the diff has
+        # no assessable head files, such as a deletion-only change, so the
+        # axis evaluated nothing and has no verdict to report.
+        return "PASS" if _has_assessed_files(files, summary) else "UNKNOWN"
 
     if axis == "doc-accuracy":
         gate_verdict: object | None = None

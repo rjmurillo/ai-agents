@@ -363,13 +363,46 @@ class TestExtractVerdict:
 
 
 class TestAdaptLocalAxisVerdict:
-    def test_code_quality_pass_requires_parseable_json(self):
-        payload = '{"files": [], "summary": {"file_count": 0}, "comparisons": []}'
+    def test_code_quality_pass_requires_an_assessed_file(self):
+        payload = (
+            '{"files": [{"path": "a.py"}], "summary": {"file_count": 1},'
+            ' "comparisons": []}'
+        )
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
 
-    def test_code_quality_threshold_breach_maps_to_warn(self):
+    def test_code_quality_empty_assessment_is_unknown_not_pass(self):
+        """A clean exit over zero files is silence, not a verdict.
+
+        assess.py emits this shape in regression mode when the diff has no
+        assessable head files, such as a deletion-only change.
+        """
+        payload = '{"files": [], "summary": {"file_count": 0}, "comparisons": []}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_code_quality_file_count_disagreeing_with_files_is_unknown(self):
+        """Two halves describing different runs are not evidence of a pass."""
+        payload = '{"files": [], "summary": {"file_count": 2}, "comparisons": []}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_code_quality_non_integer_file_count_is_unknown(self):
+        payload = (
+            '{"files": [{"path": "a.py"}], "summary": {"file_count": "1"},'
+            ' "comparisons": []}'
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_code_quality_regressed_comparable_maps_to_fail(self):
+        """SKILL.md:377 documents exit 10 as a gate failure that fails the PR."""
+        payload = (
+            '{"files": [{"path": "a.py"}], "summary": {"file_count": 1},'
+            ' "comparisons": []}'
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 10) == "FAIL"
+
+    def test_code_quality_threshold_breach_maps_to_fail(self):
+        """SKILL.md:378 documents exit 11 as a gate failure that fails the PR."""
         payload = '{"files": [], "summary": {"file_count": 1}, "comparisons": []}'
-        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 11) == "WARN"
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 11) == "FAIL"
 
     def test_code_quality_malformed_json_shape_stays_unknown(self):
         payload = '{"files": null, "summary": null}'
