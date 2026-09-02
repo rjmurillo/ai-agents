@@ -679,11 +679,11 @@ mcp__cloudmcp-manager__memory-add_observations
 
 ### PowerShell Security Review
 
-For `.ps1`/`.psm1` review, apply the input-validation, command-injection (CWE-77/78), path-traversal (CWE-22), secrets, error-handling, and code-execution (CWE-94/95) checklist in `.claude/skills/security-scan/references/powershell-security-checklist.md`. Load it only when the diff touches PowerShell.
+For `.ps1`/`.psm1` review, apply the input-validation, command-injection (CWE-77/78), path-traversal (CWE-22), secrets, error-handling, and code-execution (CWE-94/95) checklist in the bundled `powershell-security-checklist.md` reference. Load it only when the diff touches PowerShell.
 
 ## Threat Model Format
 
-Save threat models to `.agents/security/TM-NNN-[feature].md`. Use the Assets / Threat Actors / Attack Vectors / STRIDE / Data Flow / Controls template in `.claude/skills/security-scan/references/threat-model-template.md`.
+Save threat models to `.agents/security/TM-NNN-[feature].md`. Use the Assets / Threat Actors / Attack Vectors / STRIDE / Data Flow / Controls template in the bundled `threat-model-template.md` reference.
 
 ## Security Report Length Bounds
 
@@ -745,7 +745,7 @@ When security review is complete:
 
 ## Dependency Risk Scoring
 
-Score new external dependencies with the weighted matrix (Maintenance 25%, Popularity 15%, Security History 30%, Lock-in 20%, License 10%) and thresholds in `.claude/skills/security-scan/references/dependency-risk-scoring.md`. Include the score in any review that adds a package.
+Score new external dependencies with the weighted matrix (Maintenance 25%, Popularity 15%, Security History 30%, Lock-in 20%, License 10%) and thresholds in the bundled `dependency-risk-scoring.md` reference. Include the score in any review that adds a package.
 
 ## Execution Mindset
 
