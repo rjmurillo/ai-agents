@@ -542,19 +542,21 @@ pre-push:
           # executable.
           #
           # Splitting also moves this work off count-ratchets' critical path.
-          # The two jobs run concurrently in this parallel group, so the added
-          # wall time is the difference between this job and the longest other
-          # job in the group, not this job's full runtime. It is not zero: the
-          # group's jobs contend for CPU and disk.
+          # Do not compute the added wall time by subtracting job durations:
+          # the group is parallel: true, so adding a job can slow its siblings
+          # through CPU and disk contention, and the group's added duration is
+          # not the difference between two of its jobs (issue #5441 review).
+          # The measured whole-hook totals below are the figure to reason from.
           #
           # The 2m cap is sized from real pushes, not standalone runs, per
-          # .claude/rules/ci-scripts.md MUST-16. Three consecutive `git push`
+          # .claude/rules/ci-scripts.md MUST-16. Consecutive `git push`
           # runs through this hook on 2026-09-02, WSL ext4 external worktree,
           # load average 7.15 with three other agent sessions running pytest
           # suites concurrently, reported by lefthook's own summary:
           #
-          #   merge-tree-ratchet   44.19s   48.72s   34.96s
-          #   count-ratchets        0.81s    0.93s    0.79s
+          #   merge-tree-ratchet  44.19 48.72 34.96 31.49 26.50 22.57 26.27
+          #   count-ratchets       0.81  0.93  0.79  0.70  0.51  0.49  0.54
+          #   whole pre-push        197   278   241   227   301   190   198
           #
           # Worst observed 48.72s against a 120s cap, so 71s of margin, and
           # 41s under the 90s internal deadline. Those are one machine on one
