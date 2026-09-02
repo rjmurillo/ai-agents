@@ -460,7 +460,7 @@ def test_an_unborn_branch_scans_the_index_without_crashing(tmp_path: Path) -> No
 
 
 def test_fix_mode_renormalizes_without_building_a_shell_string(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch
 ) -> None:
     """A filename carrying shell syntax must be inert, not executed.
 
@@ -469,6 +469,7 @@ def test_fix_mode_renormalizes_without_building_a_shell_string(
     """
     repo = _repo_with_crlf_blob(tmp_path, name="a;$(touch pwned).md")
     _commit(repo, "plant a CRLF blob under a hostile name")
+    monkeypatch.chdir(repo)
 
     assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
 
@@ -477,9 +478,10 @@ def test_fix_mode_renormalizes_without_building_a_shell_string(
     assert [v.scope for v in violations] == ["HEAD"]  # index fixed, HEAD awaits commit
 
 
-def test_fix_mode_then_commit_clears_the_gate(tmp_path: Path) -> None:
+def test_fix_mode_then_commit_clears_the_gate(tmp_path: Path, monkeypatch) -> None:
     repo = _repo_with_crlf_blob(tmp_path)
     _commit(repo, "plant a CRLF blob")
+    monkeypatch.chdir(repo)
 
     assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
     _commit(repo, "renormalize")
@@ -487,10 +489,11 @@ def test_fix_mode_then_commit_clears_the_gate(tmp_path: Path) -> None:
     assert checker.main(["--repo-root", str(repo)]) == 0
 
 
-def test_fix_mode_on_a_clean_repository_is_a_no_op(tmp_path: Path) -> None:
+def test_fix_mode_on_a_clean_repository_is_a_no_op(tmp_path: Path, monkeypatch) -> None:
     repo = _repo_with_crlf_blob(tmp_path)
     _git(repo, "add", "--renormalize", "handoff.md")
     _commit(repo, "clean from the start")
+    monkeypatch.chdir(repo)
 
     assert checker.main(["--repo-root", str(repo), "--fix"]) == 0
 
@@ -527,3 +530,100 @@ def test_non_ascii_paths_are_reported_raw_not_c_quoted(tmp_path: Path) -> None:
     violations, _ = checker.check_repository(repo)
 
     assert [v.path for v in violations] == ["ハンドオフ.md"]
+
+
+# --- review round 2: parsing, attribute source, write target ---------------
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["\ndocs/leading.md", "docs/trailing.md\n", "\ndocs/both.md\n"],
+)
+def test_a_nul_record_keeps_leading_and_trailing_newlines(path: str) -> None:
+    """`-z` exists so these survive; stripping them invents a missing file.
+
+    The gate would report, and hand `--fix`, a path git does not know.
+    """
+    output = f"i/crlf  w/crlf  attr/text eol=lf     \t{path}\0"
+
+    violations, _ = checker.parse_violations(output)
+
+    assert [v.path for v in violations] == [path]
+
+
+def test_newline_split_fallback_still_trims_its_own_terminator() -> None:
+    """The non-`-z` path must not grow a stray newline in the reported path."""
+    output = "i/crlf  w/crlf  attr/text eol=lf     \tdocs/a.md\n"
+
+    violations, _ = checker.parse_violations(output)
+
+    assert [v.path for v in violations] == ["docs/a.md"]
+
+
+def test_head_scope_uses_head_attributes_not_the_working_tree(
+    tmp_path: Path,
+) -> None:
+    """An uncommitted `-text` edit must not hide a committed violation.
+
+    GIT_INDEX_FILE isolates the blobs, but git reads `.gitattributes` from the
+    working tree unless GIT_ATTR_SOURCE pins it, so without that the HEAD scope
+    would be judged by rules HEAD does not carry.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+
+    # Locally exempt the path without committing the exemption.
+    (repo / ".gitattributes").write_text(
+        "* text=auto eol=lf\n*.md text\nhandoff.md -text\n", newline="\n"
+    )
+
+    violations, _ = checker.check_repository(repo)
+
+    assert [(v.path, v.scope) for v in violations] == [("handoff.md", "HEAD")]
+
+
+def test_head_scope_honours_a_committed_exemption(tmp_path: Path) -> None:
+    """The control for the test above: a committed `-text` really does exempt."""
+    repo = _repo_with_crlf_blob(tmp_path)
+    (repo / ".gitattributes").write_text(
+        "* text=auto eol=lf\n*.md text\nhandoff.md -text\n", newline="\n"
+    )
+    _git(repo, "add", ".gitattributes")
+    _commit(repo, "plant a CRLF blob under a committed exemption")
+
+    violations, _ = checker.check_repository(repo)
+
+    assert violations == []
+
+
+def test_fix_refuses_to_write_a_repo_the_process_is_not_inside(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """ci-scripts.md MUST-7: confirm cwd is inside the root before writing.
+
+    Otherwise a mistyped --repo-root stages changes in a checkout nobody was
+    looking at and leaves them for someone else to find.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 2
+
+    assert "Refusing to renormalize" in capsys.readouterr().err
+    # The refusal must happen before the first write, not after a partial one.
+    violations, _ = checker.check_repository(repo)
+    assert [v.scope for v in violations] == ["HEAD"]
+
+
+def test_read_only_mode_still_works_from_outside_the_repo(tmp_path: Path, monkeypatch) -> None:
+    """The guard covers --fix only; reporting from anywhere stays allowed."""
+    repo = _repo_with_crlf_blob(tmp_path)
+    _commit(repo, "plant a CRLF blob")
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    assert checker.main(["--repo-root", str(repo)]) == 1

@@ -120,9 +120,13 @@ def parse_violations(output: str, scope: str = "HEAD") -> tuple[list[Violation],
     """
     violations: list[Violation] = []
     examined = 0
-    records = output.split("\0") if "\0" in output else output.splitlines()
+    # Do not strip newlines from a NUL record. A tracked path may legally
+    # begin or end with one, and `-z` exists precisely so those survive; a
+    # strip here would report a path that does not exist and hand it to --fix.
+    nul_terminated = "\0" in output
+    records = output.split("\0") if nul_terminated else output.splitlines()
     for record in records:
-        line = record.strip("\n")
+        line = record if nul_terminated else record.rstrip("\n")
         if "\t" not in line:
             continue
         head, path = line.split("\t", 1)
@@ -148,9 +152,18 @@ def parse_violations(output: str, scope: str = "HEAD") -> tuple[list[Violation],
 
 
 def _head_env(repo_root: Path, index_path: str) -> dict[str, str]:
-    """Environment pointing git at a scratch index loaded from HEAD."""
+    """Environment pointing git at a scratch index and attributes from HEAD.
+
+    `GIT_INDEX_FILE` isolates the blobs, but git still reads `.gitattributes`
+    from the working tree, so an uncommitted attribute edit would judge HEAD's
+    blobs by rules HEAD does not carry: adding `-text` locally would hide a
+    committed violation, and removing it would invent one. `GIT_ATTR_SOURCE`
+    (git 2.40+) pins the attributes to the same tree as the blobs, so the HEAD
+    scope answers one question about one commit.
+    """
     env = os.environ.copy()
     env["GIT_INDEX_FILE"] = index_path
+    env["GIT_ATTR_SOURCE"] = "HEAD"
     _git(repo_root, ["read-tree", "HEAD"], env=env)
     return env
 
@@ -214,6 +227,29 @@ def _report(violations: list[Violation], examined: int) -> None:
     print(f"index-line-endings: {len(violations)} violation(s) in {examined} tracked files")
 
 
+def refuses_write_from_outside(repo_root: Path) -> bool:
+    """True when the process is not standing inside ``repo_root``.
+
+    ``.claude/rules/ci-scripts.md`` MUST-7: a script that resolves the
+    repository root and then writes to it MUST confirm the current directory
+    is inside the resolved root before the first write. ``--fix`` stages into
+    whatever ``--repo-root`` names, so without this a mistyped root
+    renormalizes a checkout nobody was looking at and leaves staged changes
+    there for someone else to find.
+    """
+    cwd = Path.cwd().resolve()
+    if cwd.is_relative_to(repo_root):
+        return False
+    print(
+        f"Refusing to renormalize {repo_root} while running from {cwd}. "
+        "--fix stages into the resolved root, and a root that is not an "
+        "ancestor of the current directory means the two disagree about "
+        "which tree is being changed (.claude/rules/ci-scripts.md MUST-7).",
+        file=sys.stderr,
+    )
+    return True
+
+
 def renormalize(repo_root: Path, violations: list[Violation]) -> None:
     """Run `git add --renormalize` on the violating paths, without a shell.
 
@@ -257,6 +293,8 @@ def main(argv: list[str] | None = None) -> int:
     # exits 2 (config error) instead of 1 (violations found). Collapsing the
     # two would report "line endings are wrong" when git never ran.
     try:
+        if args.fix and refuses_write_from_outside(repo_root):
+            return 2
         violations, examined = check_repository(repo_root)
         _report(violations, examined)
         if args.fix:
