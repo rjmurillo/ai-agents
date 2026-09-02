@@ -397,9 +397,12 @@ class TestAdaptLocalAxisVerdict:
 
     @pytest.mark.parametrize("category", ["authored", "test"])
     def test_code_quality_pass_accepts_either_scored_category(self, category):
-        payload = (
-            '{"files": [{"path": "a.py", "category": "%s"}],'
-            ' "summary": {"file_count": 1}, "comparisons": []}' % category
+        payload = json.dumps(
+            {
+                "files": [{"path": "a.py", "category": category}],
+                "summary": {"file_count": 1},
+                "comparisons": [],
+            }
         )
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
 
