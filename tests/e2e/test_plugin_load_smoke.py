@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -106,6 +107,18 @@ _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 # set is the load contract for both CLIs. The always-on unit checks below pin
 # this set against the on-disk trees so a rename fails without a real CLI.
 EXPECTED_SKILLS = frozenset({"build", "plan", "ship", "test", "review", "spec", "sync"})
+
+# The five frontmatter-less documents issue #5493 removed from `.claude/agents/`.
+# Stems, because the loader names an agent by its file stem.
+NON_AGENT_DOCUMENT_STEMS = frozenset(
+    {
+        "AGENTS",
+        "CLAUDE",
+        "dependency-risk-scoring",
+        "powershell-security-checklist",
+        "threat-model-template",
+    }
+)
 
 _COPILOT_PLUGIN_DIR = REPO_ROOT / "src" / "copilot-cli"
 _CLAUDE_PLUGIN_DIR = REPO_ROOT / ".claude"
@@ -523,6 +536,115 @@ def _read_manifest_name(manifest_path: Path) -> str:
     if not isinstance(name, str) or not name:
         raise ValueError(f"manifest {manifest_path} has no string name: {data!r}")
     return name
+
+
+def _parse_component_inventory(text: str, label: str) -> set[str]:
+    """Names from one `plugin details` component-inventory row.
+
+    The row reads ``  Agents (31)  analyst, architect, ...`` on a single line.
+    Returns an empty set when the label is absent, so a caller that expects a
+    populated inventory fails on a missing row rather than passing vacuously.
+    """
+    # [ \t] rather than \s: \s spans newlines, so a zero-count row such as
+    # "LSP servers (0)" would swallow the line break and return the NEXT row's
+    # names under this label.
+    pattern = re.compile(rf"^[ \t]*{re.escape(label)}[ \t]*\(\d+\)[ \t]*(.*)$", re.MULTILINE)
+    match = pattern.search(text)
+    if match is None:
+        return set()
+    return {name.strip() for name in match.group(1).split(",") if name.strip()}
+
+
+@pytest.mark.smoke
+@requires_claude
+def test_claude_agent_inventory_excludes_the_non_agent_documents(tmp_path: Path) -> None:
+    """The loader's own agent listing carries none of the #5493 documents.
+
+    This is the loader-level proof that the file-level gate
+    (``scripts/validation/check_agent_tree_frontmatter.py``) cannot give: it asks
+    the real CLI what it registered, rather than asking the repository's own
+    predicate what it would have registered.
+
+    Measured while writing this test, on the same machine and CLI build:
+    ``origin/main`` reported ``Agents (33)`` including ``AGENTS`` and ``CLAUDE``;
+    this branch reports ``Agents (31)`` with neither. The three documents that
+    lived under ``agents/security/references/`` did not appear in either listing,
+    so the loader registered two of the five, not five.
+
+    Positive control: ``security`` must be present. Without it a CLI that stopped
+    emitting the inventory row, or emitted an empty one, would satisfy the
+    absence assertion for the wrong reason.
+    """
+    try:
+        details = _run_cli(
+            [
+                resolve_executable("claude"),
+                "--plugin-dir",
+                str(_CLAUDE_PLUGIN_DIR),
+                "plugin",
+                "details",
+                "project-toolkit",
+            ],
+            cwd=tmp_path,
+            timeout=_CLI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.skip(f"claude plugin details exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
+
+    assert details.returncode == 0, (
+        f"claude plugin details failed (rc={details.returncode}). "
+        f"stdout={details.stdout[-600:]!r} stderr={details.stderr[-600:]!r}"
+    )
+
+    combined = details.stdout + details.stderr
+    agents = _parse_component_inventory(combined, "Agents")
+
+    assert "security" in agents, (
+        "claude reported no agent inventory containing a known agent, so the "
+        f"absence check below would pass vacuously. parsed={sorted(agents)}. "
+        f"stdout={details.stdout[-600:]!r}"
+    )
+
+    registered_non_agents = agents & NON_AGENT_DOCUMENT_STEMS
+    assert not registered_non_agents, (
+        "claude registered non-agent documents as dispatchable agents: "
+        f"{sorted(registered_non_agents)} (issue #5493)."
+    )
+
+
+def test_parse_component_inventory_reads_a_populated_row() -> None:
+    text = "Component inventory\n  Skills (2)  a, b\n  Agents (3)  analyst, critic, security\n"
+
+    assert _parse_component_inventory(text, "Agents") == {"analyst", "critic", "security"}
+
+
+def test_parse_component_inventory_returns_empty_for_a_missing_label() -> None:
+    text = "Component inventory\n  Skills (2)  a, b\n"
+
+    assert _parse_component_inventory(text, "Agents") == set()
+
+
+def test_parse_component_inventory_does_not_match_a_label_prefix() -> None:
+    """`Agents` must not be read off an `MCP servers` or `LSP servers` row."""
+    text = "  LSP servers (0)  \n  Agents (1)  analyst\n"
+
+    assert _parse_component_inventory(text, "LSP servers") == set()
+    assert _parse_component_inventory(text, "Agents") == {"analyst"}
+
+
+def test_non_agent_document_stems_are_absent_from_the_agent_tree() -> None:
+    """The always-on half: no file under the agent tree carries those stems.
+
+    Pins the same contract as the opt-in CLI test above without a CLI, so a
+    machine with no `claude` on PATH still fails when a stub returns.
+    """
+    tree = REPO_ROOT / ".claude" / "agents"
+    stems = {path.stem for path in tree.rglob("*.md")}
+
+    assert not (stems & NON_AGENT_DOCUMENT_STEMS), (
+        f"non-agent documents are back under {tree}: "
+        f"{sorted(stems & NON_AGENT_DOCUMENT_STEMS)} (issue #5493)."
+    )
 
 
 @pytest.mark.smoke

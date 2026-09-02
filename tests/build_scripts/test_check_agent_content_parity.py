@@ -10,6 +10,7 @@ Tests:
 - Negative: file missing from src/claude fails (exit 1).
 - Negative: file missing from .claude/agents fails (exit 1).
 - Edge: exempt files do not trigger failures.
+- Negative: a returning .claude/agents/CLAUDE.md stub fails (issue #5493).
 - Edge: JSON output format is parseable and accurate.
 """
 
@@ -111,6 +112,12 @@ def test_missing_from_claude_fails(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def test_allowed_only_in_claude_no_failure(tmp_path: Path) -> None:
+    if not ALLOWED_ONLY_IN_CLAUDE:
+        pytest.skip(
+            "ALLOWED_ONLY_IN_CLAUDE is empty since issue #5493. An empty set "
+            "would make this loop iterate zero times and pass vacuously; "
+            "test_claude_md_stub_is_not_exempt pins the contract instead."
+        )
     claude, src = _make_trees(tmp_path)
     for name in ALLOWED_ONLY_IN_CLAUDE:
         (claude / name).write_bytes(b"# Claude-only\n")
@@ -128,6 +135,26 @@ def test_allowed_only_in_src_no_failure(tmp_path: Path) -> None:
 
     rc = main(["--repo-root", str(tmp_path)])
     assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# Negative: the claude-mem stub is no longer exempt (issue #5493)
+# ---------------------------------------------------------------------------
+
+def test_claude_md_stub_is_not_exempt(tmp_path: Path) -> None:
+    """A returning .claude/agents/CLAUDE.md fails, it is not skipped.
+
+    Issue #5493 removed "CLAUDE.md" from ALLOWED_ONLY_IN_CLAUDE so the
+    claude-mem stub cannot come back silently. This pins that removal
+    directly rather than through the now-empty exemption set.
+    """
+    claude, _src = _make_trees(tmp_path)
+    (claude / "CLAUDE.md").write_bytes(
+        b"<claude-mem-context>\n*No recent activity*\n</claude-mem-context>\n"
+    )
+
+    rc = main(["--repo-root", str(tmp_path)])
+    assert rc == 1
 
 
 # ---------------------------------------------------------------------------

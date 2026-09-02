@@ -35,17 +35,23 @@ import sys
 from pathlib import Path
 
 # Files that legitimately exist only in .claude/agents/ and have no sibling
-# in src/claude/. These serve Claude Code self-host purposes only.
-ALLOWED_ONLY_IN_CLAUDE: frozenset[str] = frozenset(
-    {
-        "CLAUDE.md",
-    }
-)
+# in src/claude/. Empty since issue #5493: the sole entry was CLAUDE.md, a
+# claude-mem stub that the Claude Code plugin loader registered as a
+# dispatchable subagent. It was deleted rather than exempted. Leaving the
+# exemption in place would have let the stub return silently, so an empty set
+# is the point, not an oversight.
+ALLOWED_ONLY_IN_CLAUDE: frozenset[str] = frozenset()
 
 # Files that legitimately exist only in src/claude/ and have no sibling
 # in .claude/agents/. These are plugin-specific resources.
+#
+# AGENTS.md is here for the same reason CLAUDE.md is not above. The two copies
+# were byte-identical, and the .claude/agents/ one registered as the agent
+# named `project-toolkit:AGENTS` (issue #5493). src/claude/ has no agents/
+# subdirectory, so the surviving copy is never scanned by the loader.
 ALLOWED_ONLY_IN_SRC: frozenset[str] = frozenset(
     {
+        "AGENTS.md",
         "claude-instructions.template.md",
     }
 )
