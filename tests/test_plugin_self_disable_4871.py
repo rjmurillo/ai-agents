@@ -5,9 +5,12 @@ with `"source": "./.claude"`. When cwd is this repository, Claude Code loads
 `.claude/agents`, `.claude/skills`, and `.claude/commands` natively at project
 scope AND a second time as the installed plugin, so every agent, skill, and
 command reaches the system prompt twice: bare (`analyst`) and prefixed
-(`project-toolkit:analyst`). Measured duplicate frontmatter payload: 33 agents
-(10,138 B) + 95 skills (40,269 B) + 26 commands (3,132 B) = 53,539 B, about
-13,385 tokens per session, all of it redundant here.
+(`project-toolkit:analyst`). Measured duplicate frontmatter payload, counting
+`name` plus `description` across the files that carry frontmatter: 31 agents
+(10,534 B) + 95 skills (42,182 B) + 25 commands (3,132 B) = 55,848 B, about
+13,962 tokens per session, all of it redundant here. The file counts are lower
+than a raw glob (33 agent files, 26 command files) because `AGENTS.md` and
+`CLAUDE.md` carry no frontmatter and load nothing.
 
 `.claude/settings.json` turns the plugin off at project scope, which is exactly
 the shape `.github/copilot/settings.json` already carries for the Copilot CLI
