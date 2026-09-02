@@ -1731,14 +1731,27 @@ def test_ignored_paths_excludes_tracked_files(tmp_path: Path) -> None:
     assert tracked not in ignored
 
 
-def test_ignored_paths_empty_when_not_a_git_repo(tmp_path: Path) -> None:
-    """Outside a git repo, ls-files fails and the set is empty (safe fallback)."""
+def test_ignored_paths_empty_when_not_a_git_repo(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Outside a git repo, ls-files fails and the set is empty (safe fallback).
+
+    The stderr assertion is load-bearing. Measured: deleting the
+    ``proc.returncode != 0`` warning in ``_ignored_paths`` and leaving the
+    bare ``continue`` left all 99 tests green when this case checked only
+    the empty set. A silent empty set reads downstream as "nothing is
+    gitignored", which is how the REQ-003-010 guard starts reporting a
+    hook's own log write as a generator violation (issue #2992). The
+    diagnostic is the only signal that the query failed rather than
+    matched nothing, so it needs an assertion of its own.
+    """
     claude = tmp_path / ".claude" / "hooks"
     claude.mkdir(parents=True)
     (claude / "audit.log").write_text("noise\n", encoding="utf-8")
 
     ignored = build_all._ignored_paths(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
     assert ignored == set()
+    assert "WARN: git ls-files exited" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
@@ -1976,6 +1989,60 @@ def test_snapshot_owned_prefixes_excludes_every_file_under_ignored_worktree(
         nested_worktree in path.parents or path == nested_worktree
         for path in snapshot
     )
+    assert sibling in snapshot
+
+
+def test_snapshot_owned_prefixes_excludes_children_of_a_plain_ignored_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pin the prefix match at its call site, not just in the helper.
+
+    ``build/scripts/build_all.py:1055`` reads::
+
+        if _is_ignored_path(path, ignored) or (
+
+    The sibling worktree test above cannot protect that line. Its nested
+    checkout comes from a real ``git worktree add``, so it carries a
+    ``.git`` file and ``_iter_tree_skip_git_boundaries`` drops it two
+    lines earlier, at ``if is_dir or not path.is_file():``, before
+    ``ignored`` is ever consulted. Measured: replacing the call above with
+    ``path in ignored`` (exact set membership, the pre-#5370 behavior)
+    left all 99 tests green. The helper unit test cannot catch it either,
+    because it calls ``_is_ignored_path`` directly and never exercises the
+    wiring.
+
+    So this case removes the boundary marker. ``_ignored_paths`` is
+    stubbed to report one plain ancestor directory, the shape git uses for
+    any ignored directory that is not a nested checkout: a build output
+    tree, a cache directory, any ``.gitignore`` line ending in ``/``. With
+    exact membership the directory itself is never yielded as a file, so
+    every descendant is snapshotted and the first assertion fails.
+    """
+    repo = tmp_path / "repo"
+    ignored_dir = repo / ".claude" / "cache"
+    ignored_dir.mkdir(parents=True)
+    assert not (ignored_dir / ".git").exists()
+    child = ignored_dir / "blob.bin"
+    child.write_text("cached\n", encoding="utf-8")
+    grandchild = ignored_dir / "sub" / "deep.bin"
+    grandchild.parent.mkdir(parents=True)
+    grandchild.write_text("deep cached\n", encoding="utf-8")
+    sibling = repo / ".claude" / "agents" / "real.md"
+    sibling.parent.mkdir(parents=True)
+    sibling.write_text("# real agent\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        build_all,
+        "_ignored_paths",
+        lambda repo_root, prefixes: {ignored_dir},
+    )
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+
+    assert child not in snapshot
+    assert grandchild not in snapshot
     assert sibling in snapshot
 
 
