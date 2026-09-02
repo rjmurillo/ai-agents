@@ -105,6 +105,35 @@ EXIT_CONFLICT = 100
 # behavior even though it does not raise the ceiling further.
 _TIMEOUT_SECONDS = 90
 
+_COUNTER_RESERVE_SECONDS = 25
+"""Budget one counter must be able to claim before it is allowed to start.
+
+Checking the deadline only on entry bounds when a counter STARTS, never how
+long it runs (issue #5441 review). A counter that begins one second before the
+deadline still runs to completion, so the deadline alone promises a per-ratchet
+verdict it cannot keep, and the overrun lands on Lefthook's outer cap as an
+opaque kill.
+
+No timeout argument can fix that generically: three of the five registered
+counters spawn no subprocess at all. Measured on this repository, warm
+checkout, 2026-09-02, via ``current_count`` on the repository root:
+
+    ruff count            0.65s   (subprocess: ruff)
+    taste count           4.46s   (subprocess: taste_lints.py)
+    type-ignore count     0.08s   (pure Python, file reads)
+    memory-index count    0.34s   (pure Python)
+    cli exit contract    21.19s   (pure Python, no subprocess)
+    -------------------------------------------------------
+    total                26.72s
+
+The slowest is the one a subprocess timeout cannot touch. So the bound goes on
+the decision to start: a counter begins only when the remaining budget covers
+this reserve, which is the slowest measured counter (21.19s) plus 18% headroom.
+The last counter therefore finishes by the deadline at measured speed, and a
+counter running up to ``_MINIMUM_MARGIN_SECONDS`` (30s) slower than measured
+still lands inside Lefthook's outer cap.
+"""
+
 
 class BaselineState(Enum):
     VALUE = auto()
@@ -296,10 +325,15 @@ def _evaluate_registered_ratchets(
     outer-timeout kill with no diagnostic (issue #5441). ``base_ref`` is the
     original ref string, not ``base_oid``: ``raised_baseline`` below reads the
     fork point between it and HEAD.
+
+    A ratchet starts only when ``_COUNTER_RESERVE_SECONDS`` of that budget is
+    still unspent, so no counter is launched that cannot finish by the deadline
+    at its measured speed. See that constant for the per-counter measurements
+    and for why a subprocess timeout could not carry this bound.
     """
     exit_code = EXIT_OK
     for ratchet in RATCHETS:
-        if deadline is not None and time.monotonic() >= deadline:
+        if deadline is not None and time.monotonic() + _COUNTER_RESERVE_SECONDS >= deadline:
             exit_code = max(exit_code, EXIT_EXTERNAL)
             print(
                 f"merge-tree-ratchet: {ratchet.label}: FAIL. Not run: aggregate "

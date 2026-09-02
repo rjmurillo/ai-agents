@@ -19,6 +19,7 @@ from tests.ci.test_merge_tree_ratchet_check import (
     _git,
     _make_repo_with_baselines,
 )
+from tests.test_lefthook_integration import _MINIMUM_MARGIN_SECONDS
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
@@ -50,6 +51,74 @@ def test_every_ratchet_reports_a_verdict_before_the_outer_cap_fires(
     ruff_counter.assert_not_called()
     taste_counter.assert_not_called()
     ignore_counter.assert_not_called()
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+@pytest.mark.usefixtures("_zero_non_target_aggregate_counts")
+def test_a_counter_does_not_start_on_a_budget_too_small_to_finish_it(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Issue #5441 review: an unexpired deadline is not enough to start a counter.
+
+    Checking only ``now >= deadline`` bounds when a counter starts, never how
+    long it runs, so one that begins a second before the deadline still runs to
+    completion and the overrun reaches Lefthook's outer cap as an opaque kill.
+    Three of the five registered counters spawn no subprocess, so no timeout
+    argument can carry this bound. The start decision carries it instead.
+    """
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    # Unexpired, but far below _COUNTER_RESERVE_SECONDS: the old check passed.
+    deadline = time.monotonic() + 1
+
+    with (
+        patch("scripts.ci.ruff_count_ratchet.current_count") as ruff_counter,
+        patch("scripts.ci.taste_count_ratchet.current_count") as taste_counter,
+        patch("scripts.ci.type_ignore_count_ratchet.current_count") as ignore_counter,
+    ):
+        rc = _m._evaluate_merged_tree(repo, "HEAD", deadline=deadline)
+
+    assert rc == _m.EXIT_EXTERNAL
+    error = capsys.readouterr().err
+    for ratchet in _m.RATCHETS:
+        assert f"{ratchet.label}: FAIL. Not run: aggregate timeout exhausted." in error
+    ruff_counter.assert_not_called()
+    taste_counter.assert_not_called()
+    ignore_counter.assert_not_called()
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+@pytest.mark.usefixtures("_zero_non_target_aggregate_counts")
+def test_a_budget_that_covers_the_reserve_runs_every_counter(tmp_path: Path) -> None:
+    """The reserve must not refuse a run with room: the happy path still runs."""
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    deadline = time.monotonic() + _m._COUNTER_RESERVE_SECONDS + 60
+
+    with (
+        patch("scripts.ci.ruff_count_ratchet.current_count", return_value=0) as ruff,
+        patch("scripts.ci.taste_count_ratchet.current_count", return_value=0) as taste,
+        patch(
+            "scripts.ci.type_ignore_count_ratchet.current_count", return_value=0
+        ) as ignore,
+    ):
+        rc = _m._evaluate_merged_tree(repo, "HEAD", deadline=deadline)
+
+    assert rc == _m.EXIT_OK
+    ruff.assert_called_once()
+    taste.assert_called_once()
+    ignore.assert_called_once()
+
+
+def test_the_reserve_fits_inside_the_deadline_and_the_outer_margin() -> None:
+    """The two claims _COUNTER_RESERVE_SECONDS' docstring makes, as assertions.
+
+    A reserve at or above the deadline would refuse every counter outright. A
+    reserve above the outer Lefthook margin would let a counter that starts at
+    the last allowed moment and runs the full reserve overrun that cap.
+    ``_MINIMUM_MARGIN_SECONDS`` is the margin tests/test_lefthook_integration.py
+    already enforces between a job's outer timeout and its inner deadline.
+    """
+    assert 0 < _m._COUNTER_RESERVE_SECONDS < _m._TIMEOUT_SECONDS
+    assert _m._COUNTER_RESERVE_SECONDS <= _MINIMUM_MARGIN_SECONDS
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
