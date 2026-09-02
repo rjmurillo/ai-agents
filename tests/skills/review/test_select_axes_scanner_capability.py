@@ -299,3 +299,49 @@ class TestUnreviewablePathsFailClosed:
         assert result["fail_closed"] is True
         assert "build/AGENTS.md" in result["unclassified_paths"]
         assert "docs/guide.md" not in result["unclassified_paths"]
+
+
+class TestLocalAxisNeedsThePathThatRoutedIt:
+    """A selected local axis must read a path that actually selected it.
+
+    Asking whether the scanner reads any changed path conflates two files. With
+    `README.md` and `src/main.rs`, only the Rust file routes taste-lints
+    (through `executable-code`) and only the README is readable by it, so a
+    whole-list question kept the axis: taste-lints then scanned the README,
+    skipped the Rust file, and a clean result was adapted to PASS. The report
+    said the axis passed without scanning the path that selected it.
+    """
+
+    def test_effect_table_routes_no_local_axis(self):
+        """The premise: local selections come only from paths.
+
+        If an effect ever routes a local axis it has no path to check, and the
+        path filter would drop it. This reds first so that change is deliberate.
+        """
+        assert not any(local for _canonical, local in mod._EFFECT_TABLE.values())
+
+    def test_axis_dropped_when_only_an_unreadable_path_routed_it(self):
+        result = select(["README.md", "src/main.rs"])
+        assert result["fail_closed"] is False
+        assert "taste-lints" not in result["local_selected"]
+        assert "scanner reads" in result["skipped"]["taste-lints"]
+
+    def test_readable_router_keeps_the_axis(self):
+        """Negative control: the same README beside a Python file.
+
+        Now `src/app.py` routes taste-lints and taste-lints reads it, so the
+        axis is kept. Without this the fix above would look like "any mixed
+        diff drops the axis".
+        """
+        result = select(["README.md", "src/app.py"])
+        local = set(result["local_selected"])
+        assert {"doc-accuracy", "taste-lints", "code-qualities-assessment"} <= local
+
+    def test_doc_accuracy_survives_the_same_diff(self):
+        """Negative control: the README still routes and feeds doc-accuracy."""
+        assert "doc-accuracy" in select(["README.md", "src/main.rs"])["local_selected"]
+
+    def test_routed_paths_are_tracked_per_axis(self):
+        routed = mod.routed_local_paths(["README.md", "src/main.rs"])
+        assert routed["doc-accuracy"] == ["README.md"]
+        assert routed["taste-lints"] == ["src/main.rs"]

@@ -468,12 +468,34 @@ _LOCAL_SCANNER_READS: dict[str, Callable[[str], bool]] = {
 }
 
 
+def routed_local_paths(paths: Sequence[str]) -> dict[str, list[str]]:
+    """Map each local axis to the changed paths whose category routed it."""
+    routed: dict[str, list[str]] = {}
+    for raw in paths:
+        normalized = _norm(raw)
+        if not normalized:
+            continue
+        for _category, predicate, _canonical, local_axes in _RISK_TABLE:
+            if predicate(normalized):
+                for axis in local_axes:
+                    routed.setdefault(axis, []).append(raw)
+    return routed
+
+
 def scannable_local_axes(paths: Sequence[str]) -> set[str]:
-    """Local axes whose scanner can read at least one of *paths*."""
+    """Local axes whose scanner reads a path that actually routed them.
+
+    Asking whether the scanner reads any changed path is not enough. With
+    `README.md` and `src/main.rs`, only the Rust file routes taste-lints, and
+    only the README is readable by it, so a whole-list question keeps the axis
+    and it reports PASS over a file that never selected it while skipping the
+    one that did. `_EFFECT_TABLE` routes no local axis, so paths are the only
+    source of a local selection; a contract test holds that.
+    """
     return {
         axis
-        for axis, reads in _LOCAL_SCANNER_READS.items()
-        if any(reads(_posix(path)) for path in paths)
+        for axis, axis_paths in routed_local_paths(paths).items()
+        if any(_LOCAL_SCANNER_READS[axis](_posix(path)) for path in axis_paths)
     }
 
 
