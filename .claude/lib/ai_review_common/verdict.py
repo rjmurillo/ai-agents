@@ -262,12 +262,14 @@ def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool
     # category this adapter does not know, is output it cannot vouch for, and
     # letting a valid sibling carry it would be the partial-evidence pass this
     # function exists to refuse.
-    if not all(
-        isinstance(entry, dict) and entry.get("category") in _KNOWN_CATEGORIES
-        for entry in files
-    ):
+    entries: list[dict[str, object]] = [
+        entry for entry in files if isinstance(entry, dict)
+    ]
+    if len(entries) != len(files):
         return False
-    eligible = [entry for entry in files if entry.get("category") in _ASSESSED_CATEGORIES]
+    if not all(entry.get("category") in _KNOWN_CATEGORIES for entry in entries):
+        return False
+    eligible = [entry for entry in entries if entry.get("category") in _ASSESSED_CATEGORIES]
     return bool(eligible) and all(_is_scored(entry) for entry in eligible)
 
 
