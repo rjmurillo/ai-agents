@@ -2442,11 +2442,19 @@ def test_read_into_snapshot_non_strict_skips_a_path_that_vanished(
     assert snapshot == {}
 
 
-def _directory_symlink_or_skip(link: Path, target: Path) -> None:
+def _symlink_or_skip(link: Path, target: Path, *, directory: bool) -> None:
     try:
-        link.symlink_to(target, target_is_directory=True)
+        link.symlink_to(target, target_is_directory=directory)
     except (OSError, NotImplementedError) as exc:
         pytest.skip(f"symlink creation unavailable; issue #4632: {exc}")
+
+
+def _directory_symlink_or_skip(link: Path, target: Path) -> None:
+    _symlink_or_skip(link, target, directory=True)
+
+
+def _file_symlink_or_skip(link: Path, target: Path) -> None:
+    _symlink_or_skip(link, target, directory=False)
 
 
 def _unstattable_unreadable_path(tmp_path: Path) -> Path:
@@ -2512,10 +2520,16 @@ def test_read_into_snapshot_skips_a_stat_failure_when_not_strict(
     assert snapshot == {}
 
 
-def test_snapshot_strict_skips_owned_directory_symlink(
+def test_snapshot_strict_rejects_owned_directory_symlink(
     tmp_path: Path,
 ) -> None:
-    """Strict owned-prefix discovery must not traverse directory symlinks."""
+    """Strict discovery must reject a directory symlink, not skip it.
+
+    Skipping was fail-open. The link stays out of the snapshot, but
+    ``generate_skills._copy_skill_tree`` writes ``target / rel``, which the
+    filesystem resolves through the link, so generation reaches the external
+    directory and restore cannot follow it back.
+    """
     repo = tmp_path / "repo"
     owned = repo / "owned"
     owned.mkdir(parents=True)
@@ -2525,12 +2539,80 @@ def test_snapshot_strict_skips_owned_directory_symlink(
     protected.write_text("x = 1\n")
     _directory_symlink_or_skip(owned / "linked", target)
 
-    snapshot = build_all._snapshot_owned_prefixes(
-        repo, ("owned/",), strict=True
-    )
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
 
-    assert snapshot == {}
+    assert "owned path is a symlink" in str(excinfo.value)
     assert protected.read_text() == "x = 1\n"
+
+
+def test_snapshot_strict_rejects_owned_file_symlink(tmp_path: Path) -> None:
+    """A file symlink is rejected too: restore would overwrite its target.
+
+    The directory case is the one that escapes the repository, but a file
+    link is the same fail-open one level down. Restore writes snapshot bytes
+    to the link path, and the filesystem sends them to the target.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    target = tmp_path / "external.py"
+    target.write_text("x = 1\n")
+    _file_symlink_or_skip(owned / "linked.py", target)
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "owned path is a symlink" in str(excinfo.value)
+    assert target.read_text() == "x = 1\n"
+
+
+def test_snapshot_strict_rejects_owned_prefix_root_symlink(
+    tmp_path: Path,
+) -> None:
+    """A prefix root that is itself a link takes the same branch.
+
+    ``_iter_strict_owned_files`` stats the root with ``missing_root_ok=True``,
+    a different call site from the per-child one, so the rejection has to hold
+    on both or a linked root walks straight past it.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    target = tmp_path / "external"
+    target.mkdir()
+    protected = target / "keep.py"
+    protected.write_text("x = 1\n")
+    _directory_symlink_or_skip(repo / "owned", target)
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "owned path is a symlink" in str(excinfo.value)
+    assert protected.read_text() == "x = 1\n"
+
+
+def test_snapshot_non_strict_still_skips_an_owned_directory_symlink(
+    tmp_path: Path,
+) -> None:
+    """Inverse control: the .claude/ guard must keep skipping, not start failing.
+
+    Same input as the strict case. The guard only compares snapshots and never
+    deletes, so a link there costs a missed report, not data, and failing a
+    pre-push gate on it would buy nothing.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    kept = owned / "real.py"
+    kept.write_bytes(b"y = 2\n")
+    target = tmp_path / "external"
+    target.mkdir()
+    (target / "keep.py").write_text("x = 1\n")
+    _directory_symlink_or_skip(owned / "linked", target)
+
+    snapshot = build_all._snapshot_owned_prefixes(repo, ("owned/",))
+
+    assert snapshot == {kept: b"y = 2\n"}
 
 
 def test_snapshot_non_strict_skips_owned_path_when_stat_fails(
@@ -2729,6 +2811,55 @@ def test_run_check_aborts_before_generation_when_owned_directory_scan_fails(
     assert not generation_called
     assert protected.read_text() == "x = 1\n"
     assert "cannot enumerate owned directory" in capsys.readouterr().err
+
+
+
+def test_run_check_aborts_before_a_generator_writes_through_a_symlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--check`` must not let generation reach a link target outside the repo.
+
+    The run-level proof for the symlink rejection. The stand-in generator
+    writes exactly what ``generate_skills._copy_skill_tree`` writes, a path
+    built as ``<owned dir> / <relative name>``, which the filesystem resolves
+    through the link. If the snapshot goes back to skipping links, this
+    generator runs, ``leaked.md`` appears in the external directory, and
+    restore never sees it: ``_enumerate_files_under`` skips symlinks and
+    ``Path.rglob`` does not descend into a symlinked directory, so case 3
+    cannot delete it.
+    """
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    external = tmp_path / "external"
+    external.mkdir()
+    protected = external / "keep.py"
+    protected.write_text("x = 1\n")
+    _directory_symlink_or_skip(owned / "linked", external)
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
+
+    def leaky_generation(*_args: object, **_kwargs: object) -> int:
+        (owned / "linked" / "leaked.md").write_text("leaked\n")
+        (owned / "linked" / "keep.py").write_text("x = 2\n")
+        return 0
+
+    monkeypatch.setattr(build_all, "_run_generators", leaky_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not (external / "leaked.md").exists(), (
+        "--check let a generator create a file outside the repository"
+    )
+    assert protected.read_text() == "x = 1\n", (
+        "--check let a generator overwrite a file outside the repository"
+    )
+    assert "owned path is a symlink" in capsys.readouterr().err
 
 
 
