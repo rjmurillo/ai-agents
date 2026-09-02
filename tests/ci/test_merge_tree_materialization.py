@@ -190,11 +190,23 @@ def test_init_scratch_repo_reports_deadline_already_exhausted(
 
 
 def test_run_git_timeout_returns_exit_124(capsys: pytest.CaptureFixture[str]) -> None:
-    """``run_git``'s own timeout handling, isolated from the callers above."""
-    with patch.object(
-        _mat.subprocess,
-        "run",
-        side_effect=subprocess.TimeoutExpired(cmd=["git"], timeout=0.01),
+    """``run_git``'s own timeout handling, isolated from the callers above.
+
+    ``resolve_executable`` is mocked alongside ``subprocess.run`` rather than
+    guarding this test with the module's ``shutil.which("git")`` skip. It runs
+    before the mocked ``run``, and on a machine with no git it raises, so
+    ``run_git`` would return 127 from its OSError arm and this assertion would
+    fail rather than exercise the timeout arm (issue #5441 review). Mocking
+    both keeps the timeout arm covered where a skip would drop it: nothing in
+    this test needs a real git.
+    """
+    with (
+        patch.object(_mat, "resolve_executable", return_value="git"),
+        patch.object(
+            _mat.subprocess,
+            "run",
+            side_effect=subprocess.TimeoutExpired(cmd=["git"], timeout=0.01),
+        ),
     ):
         proc = _mat.run_git(Path("."), "status", timeout=0.01)
     assert proc.returncode == 124
