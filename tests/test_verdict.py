@@ -479,14 +479,52 @@ class TestAdaptLocalAxisVerdict:
         assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
 
     @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
-    def test_lint_nonzero_exit_with_empty_stderr_stays_unknown(self, axis):
+    @pytest.mark.parametrize("exit_code", [1, 2, 127])
+    def test_lint_undefined_exit_status_stays_unknown(self, axis, exit_code):
+        """Only 0 and 10 are defined; every other status is a crashed run.
+
+        Exit 1 is the documented script error. The counts a dying scanner
+        printed are not a verdict, so the status is read before them.
+        """
         payload = '{"error_count": 0, "warning_count": 0}'
-        assert adapt_local_axis_verdict(axis, payload, 2, "") == "UNKNOWN"
+        assert adapt_local_axis_verdict(axis, payload, exit_code) == "UNKNOWN"
 
     @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
-    def test_lint_nonzero_exit_with_stderr_stays_unknown(self, axis):
-        payload = '{"error_count": 0, "warning_count": 0}'
-        assert adapt_local_axis_verdict(axis, payload, 2, "parse failed") == "UNKNOWN"
+    def test_lint_script_error_does_not_downgrade_to_warn(self, axis):
+        """A crashed scan carrying warnings is UNKNOWN, never an ack-able WARN.
+
+        Reading warning_count before the status let exit 1 report WARN, which
+        made a failed scan mergeable on an acknowledgement.
+        """
+        payload = '{"error_count": 0, "warning_count": 3}'
+        assert adapt_local_axis_verdict(axis, payload, 1) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_lint_errors_under_undefined_exit_do_not_report_fail(self, axis):
+        """An error payload under an undefined status is UNKNOWN, not FAIL.
+
+        FAIL is a claim the scanner ran and found violations. Exit 3 says it
+        did not run the way the contract describes.
+        """
+        payload = '{"error_count": 4, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 3) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_lint_violations_exit_without_errors_stays_unknown(self, axis):
+        """Exit 10 with no errors contradicts the scanner's own gate.
+
+        Both scanners return EXIT_VIOLATIONS from `error_count > 0` alone
+        (scan_principles.py:455-457, taste_lints.py:1122-1124), so this pair
+        cannot come from one run.
+        """
+        payload = '{"error_count": 0, "warning_count": 2}'
+        assert adapt_local_axis_verdict(axis, payload, 10) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_lint_errors_under_clean_exit_stays_unknown(self, axis):
+        """The mirror contradiction: errors reported under exit 0."""
+        payload = '{"error_count": 1, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
 
     def test_malformed_output_stays_unknown(self):
         assert adapt_local_axis_verdict("taste-lints", "not json", 0) == "UNKNOWN"

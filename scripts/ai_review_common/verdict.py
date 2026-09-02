@@ -219,7 +219,6 @@ def adapt_local_axis_verdict(
     axis: str,
     output: str,
     exit_code: int,
-    stderr: str = "",
 ) -> str:
     """Normalize local-axis outputs into review verdict tokens.
 
@@ -230,7 +229,7 @@ def adapt_local_axis_verdict(
     - `doc-accuracy` emits `gate_result.verdict` JSON, or `Gate:` in summary
       mode for older callers.
     - `golden-principles` and `taste-lints` emit JSON with `error_count` and
-      `warning_count`.
+      `warning_count`, and gate by the exit code quoted below.
 
     The adapter returns one of PASS, WARN, FAIL, or UNKNOWN so the caller can
     merge the local-axis result with canonical-axis verdicts. Unknown or
@@ -279,6 +278,18 @@ def adapt_local_axis_verdict(
             return "UNKNOWN"
         return "UNKNOWN"
 
+    # golden-principles and taste-lints ship one exit-code contract, stated
+    # identically in .claude/skills/golden-principles/SKILL.md:90-96 and
+    # .claude/skills/taste-lints/SKILL.md:100-106:
+    #   | 0 | No violations found |
+    #   | 1 | Script error (bad arguments, file not found) |
+    #   | 10 | Violations detected |
+    # Read the status before the counts. A scanner that died mid-run still
+    # prints whatever counts it had accumulated, so trusting the payload first
+    # lets a script error be acknowledged as a WARN, and lets a status the
+    # contract never defined be reported as a FAIL.
+    if exit_code not in {0, 10}:
+        return "UNKNOWN"
     if payload is None:
         return "UNKNOWN"
 
@@ -286,15 +297,17 @@ def adapt_local_axis_verdict(
     warning_count = _coerce_nonnegative_int(payload.get("warning_count"))
     if error_count is None or warning_count is None:
         return "UNKNOWN"
+    # Both scanners derive that status from this very field: `if
+    # result.error_count > 0: return EXIT_VIOLATIONS` then `return
+    # EXIT_SUCCESS` (scan_principles.py:455-457, taste_lints.py:1122-1124).
+    # Exit 10 and a positive error_count are therefore one condition, so a
+    # disagreement means the status and the payload describe different runs
+    # and neither is evidence.
+    if exit_code == 10:
+        return "FAIL" if error_count > 0 else "UNKNOWN"
     if error_count > 0:
-        return "FAIL"
-    if warning_count > 0:
-        return "WARN"
-    if exit_code == 0:
-        return "PASS"
-    if stderr.strip():
         return "UNKNOWN"
-    return "UNKNOWN"
+    return "WARN" if warning_count > 0 else "PASS"
 
 
 _INFRA_PATTERNS = re.compile(
