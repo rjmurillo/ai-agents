@@ -343,6 +343,30 @@ def refuses_write_from_outside(repo_root: Path) -> bool:
     return True
 
 
+def _worktree_edits(repo_root: Path, paths: list[str]) -> list[str]:
+    """Targets whose working copy differs from the index by more than CR.
+
+    `git add --renormalize <path>` stages the working copy, not a normalized
+    copy of the index blob, so any other uncommitted change to that file rides
+    along into the index. Measured on git 2.51.0: with an unstaged
+    `UNRELATED EDIT` line added to a violating file, `--fix` exits 0 and the
+    staged blob then contains that line. A file deleted from the working tree
+    is worse: `git add --renormalize` exits 128 with `unable to stat`.
+
+    `--numstat -z --ignore-cr-at-eol` is the predicate that separates the two
+    cases, and `--name-only` is not. Measured on the same git: for a working
+    copy that differs from the index only in CR at end of line, which is every
+    legitimate target of this gate, `--name-only --ignore-cr-at-eol` still
+    lists the path while `--numstat --ignore-cr-at-eol` emits nothing. The
+    unrelated edit emits `1\t0\thandoff.md` and the local deletion
+    `0\t2\thandoff.md`.
+    """
+    output = run_git_paths(
+        repo_root, ["diff", "--numstat", "-z", "--ignore-cr-at-eol", "--", *paths]
+    )
+    return [record.split("\t", 2)[2] for record in output.split("\0") if record]
+
+
 def renormalize(repo_root: Path) -> None:
     """Renormalize the paths the index is still wrong about, then check it worked.
 
@@ -358,6 +382,9 @@ def renormalize(repo_root: Path) -> None:
     Paths reach git as argv entries, so a filename carrying shell syntax is
     inert. `--` stops a leading-dash filename from parsing as an option.
 
+    The working-tree check ahead of the add is not belt and braces either; see
+    `_worktree_edits` for what `git add --renormalize` would otherwise stage.
+
     The re-scan is not belt and braces. `git add --renormalize` applies the
     clean filter according to the *working tree's* `.gitattributes`, while the
     index scope judged the blob by the *staged* one, and the two can disagree.
@@ -372,6 +399,16 @@ def renormalize(repo_root: Path) -> None:
     paths = sorted({violation.path for violation in staged})
     if not paths:
         return
+    edited = _worktree_edits(repo_root, paths)
+    if edited:
+        rendered = ", ".join(display_path(path) for path in sorted(edited))
+        raise RuntimeError(
+            f"{len(edited)} of {len(paths)} path(s) have uncommitted working-tree "
+            f"changes beyond line endings: {rendered}. `git add --renormalize` "
+            "stages the working copy, so running it here would stage those "
+            "changes too, or fail outright on a file deleted locally. Commit, "
+            "stash or revert them and re-run."
+        )
     run_git(repo_root, ["add", "--renormalize", "--", *paths])
     remaining, _ = index_violations(repo_root)
     unfixed = sorted(set(paths) & {violation.path for violation in remaining})
