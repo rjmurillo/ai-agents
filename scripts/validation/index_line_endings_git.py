@@ -16,6 +16,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from scripts.validation.index_line_endings_record import display_path
+
 _GIT_TIMEOUT_SECONDS = 120
 
 # The git that first documented `GIT_ATTR_SOURCE`. See `require_attr_source`
@@ -68,6 +70,22 @@ def git_environment() -> dict[str, str]:
     }
 
 
+def _failure(args: list[str], returncode: int, stderr: str) -> RuntimeError:
+    """The error a failed git call raises, with nothing raw left in it.
+
+    Both halves are contributor-controlled. `args` carries the tracked path
+    `--fix` is renormalizing, and git echoes that path back in `stderr`. This
+    message reaches a maintainer's terminal and a CI log through `main`, so a
+    newline in a filename forges a line here exactly as it would in the report
+    (CWE-117) and a bidi control disguises one (CWE-451). `display_path` is
+    the same escaping the report uses, applied at the other end of the gate.
+    """
+    rendered = " ".join(display_path(arg) for arg in args)
+    return RuntimeError(
+        f"git {rendered} failed ({returncode}): {display_path(stderr.strip())}"
+    )
+
+
 def run_git(
     repo_root: Path,
     args: list[str],
@@ -90,10 +108,7 @@ def run_git(
         env=git_environment() if env is None else env,
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            f"git {' '.join(args)} failed ({result.returncode}): "
-            f"{(result.stderr or '').strip()}"
-        )
+        raise _failure(args, result.returncode, result.stderr or "")
     return result
 
 
@@ -127,8 +142,7 @@ def run_git_paths(repo_root: Path, args: list[str], env: dict[str, str] | None =
         env=git_environment() if env is None else env,
     )
     if result.returncode != 0:
-        stderr = result.stderr.decode("utf-8", "replace").strip()
-        raise RuntimeError(f"git {' '.join(args)} failed ({result.returncode}): {stderr}")
+        raise _failure(args, result.returncode, result.stderr.decode("utf-8", "replace"))
     return result.stdout.decode("utf-8", "surrogateescape")
 
 

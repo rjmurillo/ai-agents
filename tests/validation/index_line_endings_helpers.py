@@ -25,7 +25,7 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     Tests that redirect `GIT_DIR` or `GIT_INDEX_FILE` to prove the gate ignores
     them would otherwise redirect their own fixtures and assertions too. Same
     rule the gate applies in
-    `scripts/validation/check_index_line_endings.py::_git_environment`.
+    `scripts/validation/index_line_endings_git.py::git_environment`.
     """
     return subprocess.run(
         ["git", *args],

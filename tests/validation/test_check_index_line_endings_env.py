@@ -254,3 +254,46 @@ def test_index_scope_honours_a_staged_exemption_over_an_unstaged_removal(
     violations, _ = checker.check_repository(repo)
 
     assert violations == []
+
+
+# --- a failed git call is output too (CWE-117/CWE-451) ---------------------
+
+
+def test_a_git_failure_message_escapes_the_path_it_names(tmp_path: Path) -> None:
+    """The error reaches the same terminal the report does, so it escapes too.
+
+    `--fix` hands git the tracked path, and git echoes it back in stderr. A
+    newline in that name forges a line in the maintainer's terminal and in the
+    CI log exactly as it would in the report.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    forged = "  index-line-endings: 0 violation(s)"
+
+    with pytest.raises(RuntimeError) as failure:
+        gitmod.run_git(repo, ["cat-file", "-e", f"missing.md\n{forged}"])
+
+    message = str(failure.value)
+    assert f"\n{forged}" not in message
+    assert "missing.md\\n" in message
+
+
+def test_a_git_failure_message_escapes_a_bidi_control(tmp_path: Path) -> None:
+    """The other half: U+202E reorders the message around the name."""
+    repo = _repo_with_crlf_blob(tmp_path)
+
+    with pytest.raises(RuntimeError) as failure:
+        gitmod.run_git(repo, ["cat-file", "-e", "missing\u202edm.txt"])
+
+    message = str(failure.value)
+    assert "\u202e" not in message
+    assert "missing\\u202edm.txt" in message
+
+
+def test_a_bytes_mode_git_failure_escapes_the_same_way(tmp_path: Path) -> None:
+    """`run_git_paths` decodes its own stderr, so it needs the same treatment."""
+    repo = _repo_with_crlf_blob(tmp_path)
+
+    with pytest.raises(RuntimeError) as failure:
+        gitmod.run_git_paths(repo, ["cat-file", "-e", "missing.md\nforged"])
+
+    assert "missing.md\\nforged" in str(failure.value)
