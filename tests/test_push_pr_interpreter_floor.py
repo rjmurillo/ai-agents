@@ -336,6 +336,7 @@ def test_accepted_expiries_parse_identically_on_the_floor() -> None:
         [PYTHON310, "-c", probe],
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -379,6 +380,7 @@ def test_rejected_expiries_are_the_ones_the_floor_cannot_parse() -> None:
         [PYTHON310, "-c", probe],
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
