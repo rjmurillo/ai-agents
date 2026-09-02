@@ -56,7 +56,15 @@ def load_open_prs(repo: str, head_ref: str) -> tuple[int, list[PullRequest]]:
                 "--head",
                 head_ref,
                 "--json",
-                "number,title,url,mergeStateStatus,headRefName,baseRefName",
+                # `mergeable` is requested and never parsed, on purpose. GitHub
+                # computes mergeability lazily and asking for mergeStateStatus
+                # alone does not trigger that computation, so a query without
+                # `mergeable` can report UNKNOWN indefinitely and no amount of
+                # retrying converges. Measured on this repository: 46 open PRs
+                # read seconds apart returned UNKNOWN=40 without the field and a
+                # decided verdict for all 46 with it. See
+                # .serena/memories/ci/ci-mergeability-is-not-computed-until-you-ask.md
+                "number,title,url,mergeable,mergeStateStatus,headRefName,baseRefName",
             ]
         )
     except (FileNotFoundError, OSError) as exc:

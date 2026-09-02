@@ -92,6 +92,29 @@ def test_gh_malformed_pr_item_is_external_error(monkeypatch, capsys):
     assert "malformed PR item" in captured.err
 
 
+def test_pr_list_requests_mergeable_so_github_computes_the_verdict(monkeypatch):
+    """The retry loop is inert unless the query forces the lazy computation.
+
+    GitHub computes mergeability on demand. `mergeStateStatus` alone does not
+    ask for it, so every retry re-reads the same UNKNOWN. `mergeable` is the
+    field that triggers the computation, so it is pinned at the argv level:
+    dropping it from the --json list fails here, not three retries later in
+    production.
+    """
+    seen = {}
+
+    def fake_run_gh(argv):
+        seen["argv"] = list(argv)
+        return subprocess.CompletedProcess(args=["gh"], returncode=0, stdout="[]", stderr="")
+
+    monkeypatch.setattr(checker, "run_gh", fake_run_gh)
+    checker.load_open_prs("rjmurillo/ai-agents", "feature")
+
+    json_fields = seen["argv"][seen["argv"].index("--json") + 1].split(",")
+    assert "mergeable" in json_fields
+    assert "mergeStateStatus" in json_fields
+
+
 def test_python_workflow_runs_merge_state_on_branch_pushes():
     workflow = Path(".github/workflows/pytest.yml").read_text(encoding="utf-8")
     assert "pr-merge-state:" in workflow
