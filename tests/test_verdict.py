@@ -411,6 +411,25 @@ class TestAdaptLocalAxisVerdict:
     def test_code_quality_invalid_json_stays_unknown(self):
         assert adapt_local_axis_verdict("code-qualities-assessment", "{", 0) == "UNKNOWN"
 
+    @pytest.mark.parametrize(
+        "axis",
+        [
+            "code-qualities-assessment",
+            "doc-accuracy",
+            "golden-principles",
+            "taste-lints",
+        ],
+    )
+    @pytest.mark.parametrize("output", ["", "   \n\t  "])
+    def test_silent_stdout_stays_unknown(self, axis, output):
+        """A skill that printed nothing reported nothing, on every axis.
+
+        Empty or whitespace-only stdout is the shape a skill leaves when it
+        dies before its first write, so a clean exit beside it is not evidence
+        of a pass.
+        """
+        assert adapt_local_axis_verdict(axis, output, 0) == "UNKNOWN"
+
     def test_code_quality_unexpected_exit_stays_unknown(self):
         payload = '{"files": [], "summary": {"file_count": 0}, "comparisons": []}'
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 3) == "UNKNOWN"
