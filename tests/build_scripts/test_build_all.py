@@ -3623,6 +3623,68 @@ def test_run_check_preserves_owned_root_after_transient_enoent_stat(
 
 
 
+def test_run_check_aborts_when_a_missing_root_cannot_be_verified(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`_missing_owned_root`'s own scan failure must abort, not escape.
+
+    A distinct path from the directory-scan test beside it. There the root
+    stat succeeds and `os.scandir` fails on the root. Here the root stat
+    raises `FileNotFoundError`, so `missing_root_ok=True` sends the question
+    to `_missing_owned_root`, and scanning the PARENT fails. Without the
+    translation that helper does, the raw `PermissionError` leaves `run`
+    uncaught and the CLI reports a traceback instead of exit 2.
+
+    "Absent" and "cannot tell whether it is absent" are the same distinction
+    this whole change is about, one directory up.
+    """
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "owned.txt"
+    protected.write_text("x = 1\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned.txt",))
+
+    real_stat = Path.stat
+
+    def root_vanished(
+        self: Path, *, follow_symlinks: bool = True
+    ) -> os.stat_result:
+        if self == protected:
+            raise FileNotFoundError(2, "vanished", str(self))
+        return real_stat(self, follow_symlinks=follow_symlinks)
+
+    real_scandir = os.scandir
+
+    def parent_scan_denied(
+        path: str | os.PathLike[str],
+    ) -> Iterator[os.DirEntry[str]]:
+        if Path(path) == repo:
+            raise PermissionError(13, "denied")
+        return real_scandir(path)
+
+    generation_called = False
+
+    def record_generation(*_args: object, **_kwargs: object) -> int:
+        nonlocal generation_called
+        generation_called = True
+        return 0
+
+    monkeypatch.setattr(Path, "stat", root_vanished)
+    monkeypatch.setattr(build_all.os, "scandir", parent_scan_denied)
+    monkeypatch.setattr(build_all, "_run_generators", record_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not generation_called
+    assert protected.read_text() == "x = 1\n"
+    assert "cannot verify missing owned path" in capsys.readouterr().err
+
+
 def test_run_check_preserves_file_after_transient_enoent_read(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

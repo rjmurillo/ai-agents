@@ -1445,9 +1445,13 @@ def _read_into_snapshot(
     the branch that handles them is exactly as exposed to the delete-on-
     unreadable bug as the walk is.
 
-    Only :class:`FileNotFoundError` from the read itself counts as "vanished".
-    Under ``strict`` every other :class:`OSError` raises, because restore CAN
-    delete a file that is still on disk.
+    Under ``strict`` every :class:`OSError` raises, :class:`FileNotFoundError`
+    included, because restore CAN delete a file that is still on disk. An
+    earlier version of this sentence carved out `FileNotFoundError` as
+    "vanished" and skipped it. That contradicted the code below and the
+    post-discovery contract: a path that disappears and returns before restore
+    would be absent from the snapshot and deleted as generator-created. Only
+    the non-strict caller skips, and it skips every :class:`OSError` alike.
 
     The narrower ``strict and path.exists()`` guard this replaces was
     fail-open. ``Path.exists()`` reports a boolean over two different
