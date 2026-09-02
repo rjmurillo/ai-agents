@@ -117,6 +117,12 @@ def _run_child_pytest(root: Path, count_dir: Path, extra_args: list[str]) -> Non
         env=env,
         capture_output=True,
         text=True,
+        # Pinned rather than left to the locale codec: on Windows the ANSI
+        # codepage rejects UTF-8 bytes that pytest and its plugins emit, and the
+        # decode failure would destroy the very output this assertion reports.
+        # Mirrors tests/test_lefthook_integration.py.
+        encoding="utf-8",
+        errors="replace",
         timeout=300,
     )
     assert completed.returncode == 0, (
