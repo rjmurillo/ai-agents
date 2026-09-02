@@ -467,19 +467,20 @@ worse signal than reading `evals/reports/`.
 
 Note that always-on status is declared **three** different ways: `applyTo:
 '**'` (five rules), `alwaysApply: true` (one, `code-quality.md`), and `paths:`
-carrying `**` (one, `knowledge-persistence.md`, which uses the block-list form
-rather than the inline `paths: ["**"]`). A survey that greps for one convention
+carrying `**` (zero, since issue #5492 narrowed `knowledge-persistence.md`,
+which used the block-list form rather than the inline `paths: ["**"]`). The
+form is still live in the generator, so a survey that greps for one convention
 misses the others, and a regex written for the inline form misses the block
 list. That is how an earlier draft got the ranking wrong and then, after a
 correction that added only the second form, still undercounted. Enumerate by
 parsing frontmatter.
 
-Seven rules is the corpus. Do not hardcode its size; it changes on every rule
+Six rules is the corpus. Do not hardcode its size; it changes on every rule
 edit. Regenerate it below, and say which basis you mean: this gate reads the
-generated `.github/instructions/` mirrors, which total 116 bytes less than the
+generated `.github/instructions/` mirrors, which total 99 bytes less than the
 `.claude/rules/` sources. Two separate frontmatter rewrites produce that delta,
-not one. `generate_rules.py` strips `priority:` from the six rules that carry
-it, worth 112 bytes, and it converts `code-quality.md` from `alwaysApply: true`
+not one. `generate_rules.py` strips `priority:` from the five rules that carry
+it, worth 95 bytes, and it converts `code-quality.md` from `alwaysApply: true`
 to `applyTo: '**'`, worth the remaining 4 bytes.
 
 ```bash

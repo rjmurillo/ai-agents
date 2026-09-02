@@ -41,6 +41,7 @@ AUDIT_PROCEDURE = (
 RULES_DIR = REPO_ROOT / ".claude" / "rules"
 
 _NUMBER_WORDS = {
+    "zero": 0,
     "one": 1,
     "two": 2,
     "three": 3,
