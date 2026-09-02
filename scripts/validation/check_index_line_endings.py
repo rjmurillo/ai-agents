@@ -40,7 +40,23 @@ import sys
 import tempfile
 from pathlib import Path
 
-from scripts.validation.index_line_endings_record import (
+# Bootstrap: CI runs this file by path
+# (`uv run --frozen python scripts/validation/check_index_line_endings.py`),
+# and a bare-script invocation puts only this file's own directory on
+# sys.path, so `scripts.validation` does not resolve without help. Mirrors the
+# identical block at `scripts/validation/check_skill_portability.py:50-53`,
+# verbatim::
+#
+#     _PROJECT_ROOT = Path(__file__).resolve().parents[2]
+#     _VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+#     if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
+#         sys.path.insert(0, str(_PROJECT_ROOT))
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
+if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.index_line_endings_record import (  # noqa: E402
     Violation,
     is_spellable,
     parse_violations,
