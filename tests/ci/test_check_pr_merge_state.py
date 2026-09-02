@@ -265,6 +265,34 @@ def test_invalid_max_attempts_is_rejected_before_any_read(monkeypatch, budget):
     assert reads == []
 
 
+def test_a_single_attempt_budget_reads_once_and_never_waits(monkeypatch):
+    """Pin the documented valid lower bound, not only the rejected values.
+
+    Every case in the parametrization above is invalid, so none of them passes
+    1. Tightening the guard from `< 1` to `< 2` would reject this legitimate
+    budget while that suite stayed green. One read, no wait, first payload
+    returned unchanged.
+    """
+    clock = _RetryClock()
+    clock.install(monkeypatch)
+    reads = []
+
+    def fake_load_open_prs(repo, head_ref):
+        reads.append(head_ref)
+        return checker.EXIT_OK, [_pr("UNKNOWN")]
+
+    monkeypatch.setattr(checker, "load_open_prs", fake_load_open_prs)
+
+    rc, prs = checker.load_open_prs_with_retry(
+        "rjmurillo/ai-agents", "feature", max_attempts=1
+    )
+
+    assert rc == checker.EXIT_OK
+    assert reads == ["feature"]
+    assert clock.sleeps == []
+    assert [pr.merge_state_status for pr in prs] == ["UNKNOWN"]
+
+
 def test_an_unlisted_status_is_retried_the_same_as_unknown(monkeypatch):
     """The retry predicate must match the predicate that fails the run.
 
