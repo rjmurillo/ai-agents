@@ -18,6 +18,10 @@ generated `.github/instructions/` tree, where both rules look correctly scoped.
 The check is therefore on the source tree only:
 
   - a rule MUST declare `paths:`
+  - `paths:` MUST hold a non-empty list of non-empty glob strings. `paths:`
+    with no value parses as `None`, and `paths: []` parses as an empty list;
+    both declare a key with no usable scope, which is the same leak the key
+    name was supposed to close.
   - a rule MUST NOT declare `applyTo:`, `globs:`, or `alwaysApply:`
 
 Exit codes (ADR-035):
@@ -41,6 +45,22 @@ from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
 RULES_SUBDIR = Path(".claude") / "rules"
 SCOPE_KEY = "paths"
 IGNORED_SCOPE_KEYS = ("applyTo", "globs", "alwaysApply")
+
+
+def _scope_value_defect(value: object) -> str | None:
+    """Return why `paths:` declares no usable scope, or None when it does.
+
+    Key presence is not scope. `paths:` (empty), `paths: []`, `paths: {}`, and
+    `paths: [""]` all satisfy a `key in frontmatter` test while telling the
+    loader nothing, so the rule falls back to loading everywhere.
+    """
+    if not isinstance(value, list):
+        return f"declares `paths:` as {type(value).__name__}, not a list of globs"
+    if not value:
+        return "declares an empty `paths:` list, so it declares no scope"
+    if not all(isinstance(entry, str) and entry.strip() for entry in value):
+        return "declares a `paths:` entry that is empty or not a string"
+    return None
 
 
 class RulesDirectoryError(Exception):
@@ -79,6 +99,10 @@ def find_scope_key_violations(repo_root: Path) -> list[tuple[Path, str]]:
             findings.append((path, f"declares {keys}, which Claude Code ignores; use `paths:`"))
         elif SCOPE_KEY not in front:
             findings.append((path, "declares no `paths:` key, so it loads on every session"))
+        else:
+            defect = _scope_value_defect(front[SCOPE_KEY])
+            if defect:
+                findings.append((path, defect))
     return findings
 
 

@@ -67,6 +67,7 @@ def _run_cli(repo_root: Path) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
@@ -177,6 +178,35 @@ def test_every_bad_rule_is_reported_not_just_the_first(tmp_path: Path) -> None:
     assert "three.md" not in result.stderr
 
 
+@pytest.mark.parametrize(
+    ("frontmatter", "expected"),
+    [
+        ("paths:\n", "not a list"),
+        ('paths: ""\n', "not a list"),
+        ("paths: {}\n", "not a list"),
+        ('paths: "**"\n', "not a list"),
+        ("paths: []\n", "empty `paths:` list"),
+        ('paths:\n  - ""\n', "empty or not a string"),
+        ('paths:\n  - "   "\n', "empty or not a string"),
+        ("paths:\n  - 42\n", "empty or not a string"),
+        ('paths:\n  - "**/*.py"\n  - ""\n', "empty or not a string"),
+    ],
+)
+def test_a_paths_key_with_no_usable_scope_fails(
+    tmp_path: Path, frontmatter: str, expected: str
+) -> None:
+    """Key presence is not scope. An empty or wrong-typed value is the same leak."""
+    _rule(tmp_path, "hollow", frontmatter)
+
+    findings = find_scope_key_violations(tmp_path)
+    assert len(findings) == 1
+    assert expected in findings[0][1]
+
+    result = _run_cli(tmp_path)
+    assert result.returncode == 1
+    assert "hollow.md" in result.stderr
+
+
 # --- Edge -----------------------------------------------------------------
 
 
@@ -222,14 +252,7 @@ def test_a_missing_rules_directory_is_a_config_error(tmp_path: Path) -> None:
 def test_an_invalid_repository_root_is_a_config_error(tmp_path: Path) -> None:
     missing = tmp_path / "does-not-exist"
 
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), str(missing)],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        check=False,
-    )
-    assert result.returncode == 2
+    assert _run_cli(missing).returncode == 2
 
 
 def test_a_non_markdown_file_is_not_a_rule(tmp_path: Path) -> None:
