@@ -401,6 +401,16 @@ jobs:
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
+      # Issue #5475. The local pre-push and pre-PR registration cannot cover
+      # the producer this gate exists for: both CRLF blobs that broke merges
+      # on main arrived through the GraphQL createCommitOnBranch API, which
+      # runs no local hook at all. CI is the only place that path is observed,
+      # so the gate has to run here too. No path filter and no base-ref
+      # comparison: it reads the whole tree and is absolute, not a ratchet.
+      - name: Check index line endings (whole tree)
+        if: matrix.partition == 'bulk'
+        run: uv run --frozen python scripts/validation/check_index_line_endings.py
+
       - name: Run subprocess encoding count ratchet (whole tree, pull request)
         if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
         env:
