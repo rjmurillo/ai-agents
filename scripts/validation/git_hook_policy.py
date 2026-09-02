@@ -2463,15 +2463,6 @@ def check_branch_context(repo_root: Path) -> int:
         return 0
 
 
-def check_handoff(paths: Sequence[str], repo_root: Path) -> int:
-    del repo_root
-    normalized = {_safe_relative_path(path) for path in paths}
-    if ".agents/HANDOFF.md" not in normalized:
-        return 0
-    print("ERROR: .agents/HANDOFF.md is read-only", file=sys.stderr)
-    return 1
-
-
 def _repo_root_entry(path: str) -> str:
     return PurePosixPath(path).parts[0]
 
@@ -8029,10 +8020,6 @@ def _handle_branch_context(args: argparse.Namespace) -> int:
     return check_branch_context(_repo_root(args))
 
 
-def _handle_handoff(args: argparse.Namespace) -> int:
-    return check_handoff(args.paths, _repo_root(args))
-
-
 def _handle_root_hygiene(args: argparse.Namespace) -> int:
     return check_root_hygiene(args.paths, _repo_root(args))
 
@@ -8401,7 +8388,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     subparsers = parser.add_subparsers(required=True)
     path_commands = (
-        ("handoff", _handle_handoff),
         ("root-hygiene", _handle_root_hygiene),
         ("session", _handle_session),
         ("staged-dashes", _handle_staged_dashes),

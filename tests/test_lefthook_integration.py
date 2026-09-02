@@ -726,7 +726,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "repair-packed-refs",
         "branch-policy",
         "push-lock-commit-guard",
-        "handoff-protection",
         "root-hygiene-policy",
         "session-policy",
         "staged-dash-policy",
@@ -2442,12 +2441,6 @@ def test_commit_message_policy_handles_clean_dirty_and_missing(tmp_path: Path) -
     message.write_bytes("fix: bad \N{EM DASH} message\n".encode() + b"\xff")
     assert policy.check_commit_message(message) == 1
     assert policy.check_commit_message(tmp_path / "missing") == 0
-
-
-def test_handoff_policy_blocks_only_the_read_only_path(tmp_path: Path) -> None:
-    assert policy.check_handoff(["README.md"], tmp_path) == 0
-    assert policy.check_handoff([".agents/HANDOFF.md"], tmp_path) == 1
-    assert policy.check_handoff(["../.agents/HANDOFF.md"], tmp_path) == 0
 
 
 def test_root_hygiene_allowlist_matches_current_tracked_root(
@@ -8571,7 +8564,6 @@ def test_old_bot_review_does_not_warn(
     ("command", "arguments", "target"),
     [
         ("branch", [], "check_branch"),
-        ("handoff", ["README.md"], "check_handoff"),
         ("root-hygiene", ["scratch.txt"], "check_root_hygiene"),
         ("session", ["session.json"], "check_sessions"),
         ("staged-dashes", ["doc.md"], "check_staged_dashes"),

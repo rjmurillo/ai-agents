@@ -840,7 +840,7 @@ class TestProseStringExemption:
         _write(
             fake_repo,
             ".claude/skills/foo/bad.py",
-            'cmd = f"cat .agents/HANDOFF.md {mode}"\n',
+            'cmd = f"cat .agents/AGENT-INSTRUCTIONS.md {mode}"\n',
         )
 
         offenders = cvp.collect_offenders(fake_repo)
@@ -874,7 +874,7 @@ class TestTestsDirectoryExclusion:
         _write(
             fake_repo,
             ".claude/skills/foo/tests/test_bar.py",
-            'assert is_valid(".agents/HANDOFF.md")\n',
+            'assert is_valid(".agents/AGENT-INSTRUCTIONS.md")\n',
         )
         assert cvp.collect_offenders(fake_repo) == []
 

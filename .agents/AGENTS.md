@@ -12,7 +12,6 @@ The `.agents/` directory is the central repository for all agent-generated artif
 flowchart TD
     subgraph Sessions["Session Management"]
         SL[sessions/]
-        HP[HANDOFF.md]
     end
 
     subgraph Artifacts["Agent Outputs"]
@@ -55,7 +54,6 @@ flowchart TD
 | Directory/File | Purpose | Automated Actor |
 |----------------|---------|-----------------|
 | `sessions/` | Historical JSON logs (creation discontinued) and per-issue handoffs | Per-issue handoffs: all agents |
-| `HANDOFF.md` | Cross-session context bridge | All agents (on session end) |
 | `AGENT-SYSTEM.md` | System documentation | Architect/Orchestrator |
 
 ### Agent Output Directories
@@ -150,13 +148,12 @@ flowchart TD
 sequenceDiagram
     participant Agent
     participant Session as sessions/
-    participant Handoff as HANDOFF.md
     participant Output as artifacts/*
     participant Validation as Validators
 
-    Agent->>Handoff: Read context (session start)
+    Agent->>Session: Read latest per-issue handoff (session start)
     Agent->>Output: Write artifacts (analysis, plans, etc.)
-    Agent->>Handoff: Update summary (session end)
+    Agent->>Session: Update per-issue handoff (session end)
 
     Validation->>Session: Validate protocol compliance
     Validation->>Output: Validate consistency
@@ -209,16 +206,15 @@ Source: `skill-usage-mandatory` memory
 | Source | Location | Purpose |
 |--------|----------|---------|
 | Serena memories | `.serena/memories/` | Technical patterns, skills |
-| HANDOFF.md | `.agents/HANDOFF.md` | Session context |
 | Session logs (historical only) | `.agents/sessions/*.json` | Past decision history; creation discontinued |
 | Per-issue handoffs | `.agents/sessions/handoffs/` | Active cross-session continuity |
 | Skills | `.agents/skills/` | Learned strategies |
 
 **Agent Memory Protocol**:
 
-1. Session start: Read HANDOFF.md, query Serena memories
+1. Session start: Read the latest per-issue handoff, query Serena memories
 2. During work: Reference prior decisions
-3. Session end: Update HANDOFF.md, store learnings
+3. Session end: Update the per-issue handoff, store learnings
 
 ## Security Considerations
 
@@ -233,7 +229,6 @@ Source: `skill-usage-mandatory` memory
 | Scenario | Behavior |
 |----------|----------|
 | Missing session log | No error; session log creation is discontinued |
-| HANDOFF.md not updated | Validation warning |
 | Naming convention violation | Consistency check fails |
 | Orphan artifact | Logged for manual review |
 

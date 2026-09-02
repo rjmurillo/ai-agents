@@ -89,8 +89,8 @@ class TestGetSafeWorktreePath:
 class TestIsAutoResolvable:
     """Tests for auto-resolvable file detection."""
 
-    def test_handoff_is_resolvable(self) -> None:
-        assert is_auto_resolvable(".agents/HANDOFF.md") is True
+    def test_governance_docs_are_resolvable(self) -> None:
+        assert is_auto_resolvable(".agents/governance/PROJECT-CONSTRAINTS.md") is True
 
     def test_session_files_resolvable(self) -> None:
         assert is_auto_resolvable(".agents/sessions/2025-01-01.json") is True
@@ -450,9 +450,9 @@ class TestResolveConflictedFileDispatch:
         result = self._result()
         ok = MagicMock(returncode=0)
         with patch.object(mod, "_run_git", return_value=ok) as run_git:
-            status = _resolve_conflicted_file(".agents/HANDOFF.md", result)
+            status = _resolve_conflicted_file(".agents/governance/PROJECT-CONSTRAINTS.md", result)
         assert status == "resolved"
-        assert result["files_resolved"] == [".agents/HANDOFF.md"]
+        assert result["files_resolved"] == [".agents/governance/PROJECT-CONSTRAINTS.md"]
         assert run_git.call_args_list[0].args[:2] == ("checkout", "--theirs")
 
     def test_unknown_file_blocks(self) -> None:
@@ -465,7 +465,7 @@ class TestResolveConflictedFileDispatch:
         result = self._result()
         fail = MagicMock(returncode=1)
         with patch.object(mod, "_run_git", return_value=fail):
-            status = _resolve_conflicted_file(".agents/HANDOFF.md", result)
+            status = _resolve_conflicted_file(".agents/governance/PROJECT-CONSTRAINTS.md", result)
         assert status == "error"
         assert "checkout --theirs" in result["message"]
 

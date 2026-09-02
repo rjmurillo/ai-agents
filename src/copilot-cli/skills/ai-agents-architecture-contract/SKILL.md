@@ -50,7 +50,7 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 | Decision | ADR | Status (as of 2026-07-30 except where a row states its own later date) | Why it exists |
 |---|---|---|---|
 | Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`) canonical, Forgetful supplementary | ADR-007 | Accepted (revised 2026-01-01) | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
-| HANDOFF.md read-only, distributed handoffs | ADR-014 | Accepted | Single-file write target caused merge-conflict storms |
+| Distributed handoffs; HANDOFF.md deleted (was read-only) | ADR-014 | Accepted | Single-file write target caused merge-conflict storms |
 | Two-source agent templates (shared templates plus hand-written `src/claude/`) | ADR-036 | Superseded in governance by ADR-052 (2026-08-25); procedure still operative, ADR-052 unimplemented | Claude prompts need harness-specific depth; 3 full sources would drift |
 | Claude-first template strategy (target state, not yet implemented) | ADR-052 | Accepted (2026-08-25), `implemented: false` | The template layer today does synchronize both generated agent trees and feed `build/generate_agent_catalog.py`'s `docs/agent-catalog.md`; the case for Claude-first is cost, not lost value: a direct Claude-to-platform generation preserves all three outputs while removing the intermediate `templates/agents/` source tree |
 | Python-only new scripts, bash prohibited | ADR-042 | Accepted | One toolchain, testable, cross-platform |
@@ -129,8 +129,7 @@ belong to `ai-agents-generation-and-release`.
 | `.claude/lib/` matches `scripts/` packages | `sync_plugin_lib.py --check` | Plugin-distributed hooks import different code than the tested originals |
 | No `version` field in any manifest or marketplace entry | push hook plus `validate-plugin-version-bump.yml` | Freshness pins to a hand-bumped string instead of the commit SHA, and the line conflicts across every concurrent plugin PR (ADR-092, issue #4080) |
 | Generated hooks anchor to repo root, never cwd | `scripts/validation/validate_hook_anchoring.py`, runtime-contract tests | #2205 class: hooks silently no-op in every customer install |
-| HANDOFF.md is read-only | ADR-014, AGENTS.md Never list | Merge-conflict storm returns |
-| No em/en dashes, block-style YAML arrays, no generated-file headers | `universal.md` MUST NOT 5/6, dash guards, bot reviewers | One review thread per violation, every PR |
+| No em/en dashes, block-style YAML arrays, no generated-file headers | `universal.md` MUST NOT 4/5, dash guards, bot reviewers | One review thread per violation, every PR |
 | Hand-synced siblings change together | `validate_install_parity.py` (co-change, one direction: a solo `src/claude/` edit is exempt) | Self-hosted copies diverge from shipped ones |
 | Retrieval precedes reasoning | ADR-007, session-protocol gates | Agents re-fight settled battles (see `ai-agents-failure-archaeology`) |
 

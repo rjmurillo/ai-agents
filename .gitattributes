@@ -399,8 +399,9 @@
 # memory link. The index already allows one memory to appear under multiple
 # keyword rows, so row-content equality is the safe repair key.
 #
-# ADR-014 still holds: HANDOFF.md is read-only on feature branches, enforced by
-# the pre-commit hook rather than by a merge driver. Refs #3625, #4605.
+# HANDOFF.md is deleted; ADR-014's read-only policy has no file left to
+# protect, and the pre-commit hook and CI check that enforced it are removed.
+# Refs #3625, #4605, #5168.
 #
 .serena/memories/memory-index.md merge=union
 

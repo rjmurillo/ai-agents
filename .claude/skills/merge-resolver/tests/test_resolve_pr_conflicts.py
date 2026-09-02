@@ -118,8 +118,8 @@ class TestSafeWorktreePath:
 class TestAutoResolvable:
     """Test auto-resolvable file classification."""
 
-    def test_handoff_md_is_auto_resolvable(self) -> None:
-        assert is_auto_resolvable(".agents/HANDOFF.md") is True
+    def test_governance_docs_are_auto_resolvable(self) -> None:
+        assert is_auto_resolvable(".agents/governance/PROJECT-CONSTRAINTS.md") is True
 
     def test_session_files_are_auto_resolvable(self) -> None:
         assert is_auto_resolvable(".agents/sessions/2026-01-01.json") is True
