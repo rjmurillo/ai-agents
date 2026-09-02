@@ -74,11 +74,12 @@ def display_path(path: str) -> str:
     into a required CI log. Both classes come out as their `\\x`, `\\n` or
     `\\u` spelling.
 
-    Only the human-facing output is escaped. `--fix` still receives the
-    reversible form, so the path the operator reads and the path git receives
-    can differ by exactly the characters that have no safe text spelling.
-    `_report` is what keeps that difference from being handed out as a
-    runnable command.
+    This is the display spelling and nothing else. It is deliberately not
+    reversible, so it never reaches git: `--fix` passes the surrogate-escaped
+    path as argv, and the printed command goes through `shell_argument`, which
+    re-encodes the real bytes in a form a shell turns back into them. So one
+    path has three renderings on purpose: what the operator reads here, what
+    a shell is given, and what git receives.
     """
     escaped = path.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
     return "".join(
