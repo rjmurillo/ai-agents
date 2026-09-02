@@ -108,6 +108,59 @@ def test_a_budget_that_covers_the_reserve_runs_every_counter(tmp_path: Path) -> 
     ignore.assert_called_once()
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+@pytest.mark.usefixtures("_zero_non_target_aggregate_counts")
+def test_preparation_spends_the_same_deadline_the_counters_do(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Issue #5441 review: the default deadline starts before preparation.
+
+    Taking it afterwards made the job's true ceiling ``preparation +
+    _TIMEOUT_SECONDS``. Preparation runs git fetch, rev-parse, and merge-tree,
+    so preparation slower than the 30s outer margin pushed the total past
+    Lefthook's 2m cap, which is the opaque kill the deadline exists to replace
+    with a verdict.
+
+    Modelled by a preparation that burns the whole window: if the clock starts
+    before it, every counter is out of budget and reports its own FAIL. If the
+    clock started after, each counter would get a fresh 90s and run.
+    """
+    repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+    real_prepare = _m._prepare_merged_tree
+
+    def slow_prepare(root: Path, base_ref: str):
+        result = real_prepare(root, base_ref)
+        # Burn more than _TIMEOUT_SECONDS of the caller's window without
+        # sleeping: move the clock, not the wall.
+        _m.time.monotonic = lambda _base=start: _base + _m._TIMEOUT_SECONDS + 1
+        return result
+
+    start = time.monotonic()
+    real_monotonic = _m.time.monotonic
+    try:
+        with (
+            patch.object(_m, "_prepare_merged_tree", side_effect=slow_prepare),
+            # Real values, so the old ordering fails the assertions below
+            # rather than blowing up comparing a MagicMock to a baseline.
+            patch(
+                "scripts.ci.ruff_count_ratchet.current_count", return_value=0
+            ) as ruff_counter,
+            patch(
+                "scripts.ci.taste_count_ratchet.current_count", return_value=0
+            ) as taste_counter,
+        ):
+            rc = _m._evaluate_merged_tree(repo, "HEAD")
+    finally:
+        _m.time.monotonic = real_monotonic
+
+    assert rc == _m.EXIT_EXTERNAL
+    error = capsys.readouterr().err
+    for ratchet in _m.RATCHETS:
+        assert f"{ratchet.label}: FAIL. Not run: aggregate timeout exhausted." in error
+    ruff_counter.assert_not_called()
+    taste_counter.assert_not_called()
+
+
 def test_the_reserve_fits_inside_the_deadline_and_the_outer_margin() -> None:
     """The two claims _COUNTER_RESERVE_SECONDS' docstring makes, as assertions.
 

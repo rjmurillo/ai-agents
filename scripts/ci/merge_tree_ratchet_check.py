@@ -374,12 +374,21 @@ def _evaluate_merged_tree(
     instead of this function measuring a fresh ``_TIMEOUT_SECONDS`` on top of
     it. Standalone callers, including ``main()``, leave it unset and get the
     module default.
+
+    The default deadline is taken BEFORE ``_prepare_merged_tree``, not after.
+    Preparation runs ``git fetch``, ``rev-parse``, and ``merge-tree``, and
+    starting the clock afterwards made the job's true ceiling
+    ``preparation + _TIMEOUT_SECONDS``: preparation slower than the 30s outer
+    margin would push the total past Lefthook's 2m cap and reproduce the
+    opaque kill this deadline exists to replace with a verdict (issue #5441
+    review). Measured against one clock, preparation and the counters now
+    share the single 90s window.
     """
+    effective_deadline = deadline if deadline is not None else time.monotonic() + _TIMEOUT_SECONDS
     base_oid, tree_oid, preparation_exit = _prepare_merged_tree(repo_root, base_ref)
     if preparation_exit != EXIT_OK:
         return preparation_exit
     assert base_oid is not None and tree_oid is not None
-    effective_deadline = deadline if deadline is not None else time.monotonic() + _TIMEOUT_SECONDS
 
     if is_fast_forward_clean(repo_root, base_oid):
         # The working tree IS the merged tree (see is_fast_forward_clean), so
