@@ -4,16 +4,26 @@
 Claude Code reads `paths:` from rule frontmatter. It ignores `applyTo:`,
 `globs:`, and `alwaysApply:`. `build/scripts/generate_rules.py` accepts all of
 them (`_SCOPE_KEYS = ("paths", "applyTo", "globs")` plus an `alwaysApply:` drop),
-so a rule written with the wrong key generates a correctly scoped Copilot mirror
-while the Claude source silently declares nothing. An unscoped rule loads on
-every turn.
+and each wrong key fails in its own way. Measured by generating one rule per
+shape through the real generator:
+
+  - `paths: '**/*.py'`         -> mirror `applyTo: '**/*.py'`. Both trees scoped.
+  - `applyTo: '**/*.py'`       -> mirror `applyTo: '**/*.py'`. Only the mirror is
+    scoped; the Claude source declares nothing and the rule loads every turn.
+  - `globs: '**/*.py'`         -> mirror `globs: '**/*.py'`, preserved verbatim.
+    `templates/platforms/copilot-cli.yaml` remaps only `paths`, so no `applyTo:`
+    is ever produced and NEITHER tree is scoped.
+  - `alwaysApply: true`        -> mirror `applyTo: '**'`. The key is dropped and
+    the universal scope is synthesized, so both trees load on every turn and a
+    code-only rule has no way to state its scope.
 
 That is not a hypothetical. `pragmatic-programmer.md` declared 18 code globs
 under `applyTo:` and loaded on doc-only sessions anyway; `code-quality.md`
 declared `alwaysApply: true` and did the same. Together they cost 25,527 bytes
 (about 6,381 tokens) on every session that touched no code (issue #4871).
-`scripts/validation/instruction_budget.py` cannot see this: it measures the
-generated `.github/instructions/` tree, where both rules look correctly scoped.
+`scripts/validation/instruction_budget.py` cannot see the `applyTo:` case: it
+measures the generated `.github/instructions/` tree, where that rule looks
+correctly scoped.
 
 The check is therefore on the source tree only:
 
@@ -23,6 +33,15 @@ The check is therefore on the source tree only:
     both declare a key with no usable scope, which is the same leak the key
     name was supposed to close.
   - a rule MUST NOT declare `applyTo:`, `globs:`, or `alwaysApply:`
+
+This gate is deliberately stricter than `generate_rules.py`, which still
+accepts all four shapes. Why the generator is not the place to fix it: it has
+downstream consumers that pass it frontmatter this repository does not own, and
+tightening it would fail their builds on a key that is merely useless here
+rather than wrong everywhere. The narrow fix is a source-tree gate over
+`.claude/rules/` alone, which is the only tree whose loader semantics this
+repository controls. The generator keeps accepting `applyTo:` so that its
+contract with those consumers is unchanged.
 
 Exit codes (ADR-035):
     0 - Success (every rule scopes itself with `paths:` and nothing else)

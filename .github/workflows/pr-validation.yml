@@ -236,12 +236,18 @@ jobs:
       - name: Check bare-python3 documentation entrypoints
         run: uv run --frozen python3 scripts/validation/check_python3_entrypoints.py
 
-      # Issue #4871: a `.claude/rules/*.md` scoped with `applyTo:`, `globs:`, or
-      # `alwaysApply:` generates a correctly scoped Copilot mirror while the
-      # Claude source declares nothing, so the rule loads on every session.
-      # instruction_budget.py and the always-on corpus gates both read the
-      # generated .github/instructions/ tree, where the leak is invisible; only
-      # a source-tree check sees it.
+      # Issue #4871: a `.claude/rules/*.md` scoped with a key Claude Code does
+      # not read loads on every session. The three wrong keys fail differently,
+      # measured by running one rule per shape through generate_rules.py:
+      #   applyTo:      remapped, so the Copilot mirror IS correctly scoped and
+      #                 only the Claude source declares nothing. This is the
+      #                 case instruction_budget.py cannot see, because it reads
+      #                 the generated tree where the rule looks fine.
+      #   globs:        preserved verbatim, never becomes applyTo:, so NEITHER
+      #                 tree is scoped.
+      #   alwaysApply:  dropped, applyTo: '**' synthesized, so both trees load
+      #                 universally and a code-only rule cannot state its scope.
+      # Only a source-tree check catches the first; this gate catches all three.
       #
       # Unconditional and hosted here for the same reason as the ratchets below.
       # The pre-push `pre-pr-validation` lefthook job already runs this via
