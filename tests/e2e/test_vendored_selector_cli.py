@@ -32,9 +32,12 @@ CLAUDE_SKILL = REPO_ROOT / ".claude" / "skills" / "review"
 COPILOT_SKILL = REPO_ROOT / "src" / "copilot-cli" / "skills" / "review"
 
 # A path that matches ci-deploy-artifacts and executable-code, so a correct run
-# selects a known, non-trivial set rather than only the always-on axes.
+# selects a known, non-trivial set rather than only the always-on axes. The
+# sets are exact, not a subset: a generated selector that dropped one of these
+# routes would still satisfy a containment check on the others.
 CLASSIFIED_PATH = "scripts/deploy.py"
-EXPECTED_FROM_CLASSIFIED = {"analyst", "devops", "security"}
+EXPECTED_CANONICAL = {"analyst", "code-quality", "devops", "security"}
+EXPECTED_LOCAL = {"code-qualities-assessment", "taste-lints"}
 
 _TIMEOUT_S = 60
 
@@ -102,7 +105,11 @@ def test_selector_emits_parseable_json_on_stdout(
     assert isinstance(payload, dict)
     for field in ("canonical_selected", "local_selected", "skipped", "fail_closed"):
         assert field in payload, f"{field} missing from selector output"
-    assert EXPECTED_FROM_CLASSIFIED <= set(payload["canonical_selected"])
+    assert set(payload["canonical_selected"]) == EXPECTED_CANONICAL
+    # local_selected is asserted too: it carries the scanner-capability
+    # narrowing, so a generated selector that lost it would route
+    # code-qualities-assessment and taste-lints at files neither scanner reads.
+    assert set(payload["local_selected"]) == EXPECTED_LOCAL
     assert payload["fail_closed"] is False
     assert payload["skipped"], "a risk-mode run skipped nothing, so nothing was classified"
 

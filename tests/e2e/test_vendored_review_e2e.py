@@ -341,14 +341,28 @@ def test_review_runs_end_to_end_in_vendored_checkout(tmp_path: Path) -> None:
     # 2. a verdict row for every discovered axis, by name.
     # Naming each one is what proves a newly enrolled axis actually reported;
     # a count alone lets an unexpected row stand in for a missing one.
+    # Equality, not containment: a subset check passes an extra row for an axis
+    # that does not exist, and the contract is exactly one row per axis.
     distinct_axes = extract_distinct_verdict_axes(output)
     missing = sorted(expected_axes - distinct_axes)
-    assert not missing, (
-        f"missing {len(missing)} axis verdict row(s): {missing}. "
-        f"Expected every canonical axis and chained skill: {sorted(expected_axes)}. "
-        f"Found: {sorted(distinct_axes)}. "
-        f"A missing row means that axis failed to load or chain in the vendored install. "
-        f"output_tail={output[-1500:]!r}"
+    unexpected = sorted(distinct_axes - expected_axes)
+    assert distinct_axes == expected_axes, (
+        f"axis verdict rows do not match the discovered axis set. "
+        f"missing={missing} unexpected={unexpected}. "
+        f"Expected every canonical axis and chained skill, and nothing else: "
+        f"{sorted(expected_axes)}. Found: {sorted(distinct_axes)}. "
+        f"A missing row means that axis failed to load or chain in the vendored "
+        f"install; an unexpected one means the report named an axis the install "
+        f"does not ship. output_tail={output[-1500:]!r}"
+    )
+
+    # One row per axis. Distinct names alone cannot see a duplicated row, and a
+    # second row for one axis can carry a conflicting verdict.
+    row_count = count_verdict_rows(output)
+    assert row_count == len(expected_axes), (
+        f"expected exactly one verdict row per axis, got {row_count} rows for "
+        f"{len(expected_axes)} axes. A duplicate row makes the merged verdict "
+        f"ambiguous. output_tail={output[-1500:]!r}"
     )
 
     # 3. merged verdict parseable by the vendored extract_verdict.
