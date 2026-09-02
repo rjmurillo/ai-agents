@@ -860,12 +860,18 @@ def test_snapshot_owned_prefixes_skips_git_boundary_directory(
     """The snapshot pass, not just the enumerate pass, must skip a nested
     git repository boundary, with ``exclude_ignored`` left at its default
     (``False``): that is the exact flag value ``run()`` passes for the
-    ``--check`` snapshot. ``build/scripts/build_all.py:1345`` reads::
+    ``--check`` snapshot. ``run()`` in ``build/scripts/build_all.py``
+    reads::
 
         snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES)
 
     with no ``exclude_ignored`` argument, so a gitignore-only guard
     (``_is_ignored_path``) would not cover it.
+
+    The quote is the anchor, not a line number. That call has moved five
+    times inside this one pull request as docstrings grew above it, and
+    ``check_citation_freshness.py`` failed the build on the stale number
+    twice. Grep the quoted line instead.
 
     Without routing this walk through
     :func:`_iter_tree_skip_git_boundaries`, a nested worktree under an
@@ -2099,7 +2105,8 @@ def test_snapshot_owned_prefixes_excludes_children_of_a_plain_ignored_dir(
 ) -> None:
     """Pin the prefix match at its call site, not just in the helper.
 
-    ``build/scripts/build_all.py:1055`` reads::
+    The walk inside ``_snapshot_owned_prefixes`` in
+    ``build/scripts/build_all.py`` reads::
 
         if _is_ignored_path(path, ignored) or (
 
@@ -2210,6 +2217,167 @@ def test_assert_no_claude_writes_still_flags_real_write_in_git_repo(
     assert build_all.assert_no_claude_writes(repo, baseline) == [
         ".claude/agents/leak.md"
     ]
+
+
+def test_assert_no_claude_writes_flags_a_write_behind_a_generated_git_marker(
+    tmp_path: Path,
+) -> None:
+    """A generator cannot hide a .claude/ write behind a ``.git`` it wrote.
+
+    Both walks the guard compares stop at git repository boundaries. When
+    each one detects those by shape independently, a generator that writes
+    ``.claude/out/.git`` alongside its output takes that whole tree out of
+    the post-generation walk, and the baseline walk never saw it either,
+    so the diff is empty. Measured before ``preexisting_boundaries``
+    existed: this exact sequence returned ``[]`` with
+    ``.claude/out/leaked.md`` still on disk, so REQ-003-010 passed and the
+    build could exit successfully with an undetected write.
+
+    Recording the boundary set once with ``_git_boundaries_under`` and
+    passing it to both walks makes them skip exactly the same trees, so a
+    boundary that appeared during the build is walked and reported.
+
+    The inverse is asserted in the same run. A live nested worktree that
+    existed before the build must stay invisible to the guard even when
+    its own owner edits a file inside it mid-build, which is the
+    false-positive REQ-003-010 was tuned against (issue #2992) and the
+    tree issue #5370 exists to keep out of these walks. Reporting the new
+    write is worthless if it also reports the neighbouring checkout.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "--allow-empty", "-m", "init"],
+        check=True,
+    )
+    live_worktree = repo / ".claude" / "worktrees" / "wt-1"
+    live_worktree.mkdir(parents=True)
+    (live_worktree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    live_file = live_worktree / "live.txt"
+    live_file.write_text("before the build\n", encoding="utf-8")
+
+    boundaries = build_all._git_boundaries_under(
+        repo, build_all.CLAUDE_GUARD_PREFIX
+    )
+    assert boundaries == {live_worktree}
+    baseline = build_all._snapshot_owned_prefixes(
+        repo,
+        build_all.CLAUDE_GUARD_PREFIX,
+        exclude_ignored=True,
+        opaque_boundaries=boundaries,
+    )
+
+    # A generator writes output and a .git marker to shield it.
+    generated_tree = repo / ".claude" / "out"
+    generated_tree.mkdir()
+    (generated_tree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    (generated_tree / "leaked.md").write_text(
+        "generator wrote this\n", encoding="utf-8"
+    )
+    # The live worktree's own owner edits a file mid-build.
+    live_file.write_text("edited by the worktree owner\n", encoding="utf-8")
+
+    violations = build_all.assert_no_claude_writes(
+        repo, baseline, preexisting_boundaries=boundaries
+    )
+
+    assert violations == [".claude/out/.git", ".claude/out/leaked.md"]
+    assert not any(v.startswith(".claude/worktrees/") for v in violations)
+
+
+def test_run_flags_a_generator_write_hidden_behind_a_git_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Drive the guard through ``run()``, not by calling it directly.
+
+    The sibling test above passes ``preexisting_boundaries`` itself, so it
+    proves the guard honours the argument but not that anything supplies
+    it. Measured: dropping the argument at the one real call site, in
+    ``_run_generators``, left the sibling test and all 102 others green.
+    That is the same helper-tested-but-unwired gap the reviewer flagged
+    twice on this PR, so the wiring gets its own end-to-end case.
+
+    A stubbed generator writes ``.claude/out/leaked.md`` next to a
+    ``.git`` marker it also writes. ``run()`` must return 2 and name the
+    file, which only happens if the boundary set recorded before
+    generation reaches :func:`assert_no_claude_writes`.
+    """
+    monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    def leaking_agents(
+        repo_root: Path, cfg: object, platform: object
+    ) -> build_all.GeneratorResult:
+        hidden = repo_root / ".claude" / "out"
+        hidden.mkdir(parents=True, exist_ok=True)
+        (hidden / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+        (hidden / "leaked.md").write_text("generator wrote this\n", encoding="utf-8")
+        return build_all.GeneratorResult(
+            artifact="agents", platform="*", outputs=0, exit_code=0
+        )
+
+    monkeypatch.setattr(build_all, "_build_agents", leaking_agents)
+
+    rc = build_all.run(
+        repo, platform=None, check=False, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert "REQ-003-010 VIOLATION: generator wrote to .claude/out/leaked.md" in (
+        capsys.readouterr().err
+    )
+
+
+def test_run_check_removes_a_generated_tree_behind_a_git_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Drive the restore path through ``run()``, not by calling it directly.
+
+    ``test_restore_owned_prefixes_removes_a_boundary_tree_created_mid_build``
+    passes ``preexisting_boundaries`` itself, so it holds the helper but
+    not the one real call site in ``run()``. Measured: dropping that
+    argument from the ``run()`` restore call left that test and all 103
+    others green, the same helper-tested-but-unwired shape the reviewer
+    flagged twice on this PR.
+
+    A stubbed generator writes ``src/out/generated.txt`` next to a
+    ``.git`` marker under an owned prefix. ``--check`` must leave the
+    working tree as it found it, so both paths and the directory must be
+    gone once ``run()`` returns.
+    """
+    monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    def boundary_writing_agents(
+        repo_root: Path, cfg: object, platform: object
+    ) -> build_all.GeneratorResult:
+        hidden = repo_root / "src" / "out"
+        hidden.mkdir(parents=True, exist_ok=True)
+        (hidden / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+        (hidden / "generated.txt").write_text("output\n", encoding="utf-8")
+        return build_all.GeneratorResult(
+            artifact="agents", platform="*", outputs=0, exit_code=0
+        )
+
+    monkeypatch.setattr(build_all, "_build_agents", boundary_writing_agents)
+
+    build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert not (repo / "src" / "out" / "generated.txt").exists()
+    assert not (repo / "src" / "out" / ".git").exists()
+    assert not (repo / "src" / "out").exists()
 
 
 # --- #3856: bytecode written inside the guard's snapshot window -----------

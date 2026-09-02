@@ -716,7 +716,10 @@ def _git_scrubbed_env() -> dict[str, str]:
 
 
 def assert_no_claude_writes(
-    repo_root: Path, baseline: dict[Path, bytes]
+    repo_root: Path,
+    baseline: dict[Path, bytes],
+    *,
+    preexisting_boundaries: set[Path] | None = None,
 ) -> list[str]:
     """REQ-003-010: generators MUST NOT write under .claude/.
 
@@ -724,6 +727,20 @@ def assert_no_claude_writes(
     generator ran (see :func:`_snapshot_owned_prefixes`). This function
     re-reads the tree and returns the repo-relative paths the generators
     created, modified, or deleted relative to that baseline.
+
+    ``preexisting_boundaries`` is the set :func:`_git_boundaries_under`
+    recorded before the generators ran, and it MUST be the same set the
+    baseline snapshot used. Both walks stop at git repository boundaries.
+    Detecting those by shape at each end independently means a generator
+    can write a ``.git`` entry of its own and take the whole tree it
+    created out of the second walk, while the first walk never saw it
+    either, so the diff is empty and REQ-003-010 reports nothing.
+    Measured before this argument existed: a generator creating
+    ``.claude/out/.git`` plus ``.claude/out/leaked.md`` produced
+    ``violations reported: []`` with the file still on disk. Passing one
+    recorded set makes the two walks skip exactly the same trees, so a
+    boundary that appeared during the build is walked and reported like
+    any other generator write.
 
     Scoping to generator-attributable writes (not raw git diff) lets a
     legitimate pre-build sync of .claude/lib pass while still tripping on
@@ -741,7 +758,10 @@ def assert_no_claude_writes(
     ``.claude/lib/`` throughout (issue #3773).
     """
     current = _snapshot_owned_prefixes(
-        repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
+        repo_root,
+        CLAUDE_GUARD_PREFIX,
+        exclude_ignored=True,
+        opaque_boundaries=preexisting_boundaries,
     )
     offending: set[Path] = set()
     for path, content in current.items():
@@ -995,6 +1015,7 @@ def _snapshot_owned_prefixes(
     prefixes: tuple[str, ...],
     *,
     exclude_ignored: bool = False,
+    opaque_boundaries: set[Path] | None = None,
 ) -> dict[Path, bytes]:
     """Snapshot every file under ``prefixes`` into an in-memory dict.
 
@@ -1025,6 +1046,11 @@ def _snapshot_owned_prefixes(
     cache-eviction that makes the next run recompile inside the guard
     window: the exact race issue #3856 closes.
 
+    ``opaque_boundaries`` forwards to :func:`_iter_tree_skip_git_boundaries`;
+    see :func:`_is_opaque_boundary` for why a caller comparing two
+    snapshots must pass one recorded set to both rather than letting each
+    walk detect boundaries by shape.
+
     The walk always skips nested git repository boundaries (see
     :func:`_iter_tree_skip_git_boundaries`), regardless of
     ``exclude_ignored``. ``--check`` calls this with ``exclude_ignored=False``,
@@ -1049,7 +1075,9 @@ def _snapshot_owned_prefixes(
             continue
         if not root.is_dir():
             continue
-        for path, is_dir in _iter_tree_skip_git_boundaries(root):
+        for path, is_dir in _iter_tree_skip_git_boundaries(
+            root, opaque_boundaries=opaque_boundaries
+        ):
             if is_dir or not path.is_file():
                 continue
             if _is_ignored_path(path, ignored) or (
@@ -1347,6 +1375,19 @@ def run(
     # REQ-003-010 (issue #2613): snapshot the .claude/ tree before any
     # generator runs so the no-write guard attributes only writes the
     # generators made, not pre-build drift such as a .claude/lib sync.
+    # Record the boundaries the baseline walk is about to skip, so the
+    # post-generation re-read in assert_no_claude_writes skips that same
+    # set instead of re-deriving it from the post-generation tree. Without
+    # it, a generator can hide a .claude/ write behind a .git entry it
+    # wrote itself: the second walk skips a tree the first one never saw,
+    # so the diff is empty.
+    #
+    # The baseline below is deliberately NOT given the set. It runs on the
+    # same filesystem state _git_boundaries_under just read, so shape
+    # detection and set membership return the same answer here by
+    # construction. Passing it would be an argument no mutation can
+    # distinguish, which is an argument with no test holding it.
+    claude_boundaries = _git_boundaries_under(repo_root, CLAUDE_GUARD_PREFIX)
     claude_baseline = _snapshot_owned_prefixes(
         repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
     )
@@ -1358,6 +1399,7 @@ def run(
             check=check,
             audit_format=audit_format,
             claude_baseline=claude_baseline,
+            claude_boundaries=claude_boundaries,
         )
     finally:
         # #2440: ALWAYS restore on --check, including on exception paths.
@@ -1379,6 +1421,7 @@ def _run_generators(
     check: bool,
     audit_format: str,
     claude_baseline: dict[Path, bytes],
+    claude_boundaries: set[Path] | None = None,
 ) -> int:
     """Execute the generator pipeline and emit the audit log.
 
@@ -1414,7 +1457,9 @@ def _run_generators(
     audit.duration_s = time.monotonic() - started
 
     # REQ-003-010: enforce .claude/ no-write invariant.
-    claude_writes = assert_no_claude_writes(repo_root, claude_baseline)
+    claude_writes = assert_no_claude_writes(
+        repo_root, claude_baseline, preexisting_boundaries=claude_boundaries
+    )
     if claude_writes:
         for p in claude_writes:
             print(f"REQ-003-010 VIOLATION: generator wrote to {p}", file=sys.stderr)
