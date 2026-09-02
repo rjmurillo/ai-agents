@@ -87,16 +87,18 @@ carrying weight, or the work stops.
 
 ## Failure Mode Classification
 
-Against `.agents/governance/FAILURE-MODES.md`. No new class proposed; all four
-findings land in existing ones.
+Against `.agents/governance/FAILURE-MODES.md`. No new class proposed. Every
+finding below is classified, including Finding 5, which was added after the
+first version of this retro was written.
 
 | Finding | Class | Severity | Why |
 |---|---|---|---|
 | 1. Regression test passed with and without the fix | 4, False completion markers | High | The test reported coverage it did not have. It would have merged as evidence for AC-3 while pinning nothing. |
 | 1. Mechanism asserted before measurement | 9, Confident-incorrectness recurrence | High | The mtime trigger was modeled from memory, not read. |
 | 2. Two gates jointly fail-open | 10, Silent defaults and guard-clause suppression | High | Each gate's docstring cited the other as covering the difference; neither read the hook. The `exit 0` fixture made every positive assertion vacuous. |
+| 3. One measurement, two conclusions | None. Not a failure | n/a | Recorded as a resolution, not an incident: both readings were correct and the outcome was to record both rather than choose. Listed here so the mapping has no silent gap. |
 | 4. Linux probe stated as general | 9, Confident-incorrectness recurrence | High | A single-platform result was written as a platform-independent conclusion. |
-| 5. "Not load-sensitive" posted to #5441 | 9, Confident-incorrectness recurrence | High | A profiling harness that was itself the dominant load; load rose 4.84 to 15.02 during the run and I recorded both numbers without drawing the inference. Retracted in the same thread. |
+| 5. "Not load-sensitive" posted to #5441 | 9, Confident-incorrectness recurrence | High | See Finding 5 below. |
 
 Class 9 accounts for three of five. The common shape is not carelessness about
 evidence, it is drawing a general conclusion from a measurement whose scope was
@@ -108,9 +110,34 @@ narrower than the claim. Each time the scope was visible in my own output.
 |---|---|
 | Make the pre-push ratchet budget hold under concurrent agent sessions, with the acceptance criterion that the fix must not assume a retry succeeds | Issue #5441, PR #5466 |
 | Stop `Refs #n` disarming the required `Validate Spec Coverage` judge, which `.claude/rules/universal.md` MUST-3 mandates for unsupported claims | Issue #5489, filed from this session |
-| Record the replacement linked-worktree policy in ADR-086 and correct its wrong #2374 citation. Accepted-record edit, so `adr-review` plus the Ask First boundary | Unassigned. Needs the issue owner for #4789; the exact sentence is named in `.agents/critique/ADR-086-amendment-2026-08-31-debate-log.md` |
+| Record the replacement linked-worktree policy in ADR-086 and correct its wrong #2374 citation. Accepted-record edit, so `adr-review` plus the Ask First boundary | Issue #5490, filed from this session |
 | Decide whether AC-1 of issue #4789 is amended to the reachability wording or stays unmet | Issue #4789, proposal posted 2026-09-02 |
-| Windows two-worktree probe with the uv runtime present and the `PATH` binary absent | Unassigned. Stated as an uncovered gap in the `validate_lefthook_installed` docstring |
+| Windows probe with the uv runtime present and the `PATH` binary absent, where both local gates can pass while hooks are inert | Issue #5491, filed from this session |
+
+### Finding 5: A profiling harness that was itself the load it was measuring
+
+Added after the rest of this retro. Four push attempts had failed on a loaded
+machine, so I timed the eight ratchet entries individually and reported
+155.4 seconds against an 85 second budget, concluding in a comment on issue
+#5441 that the failure was "not load-sensitive, 83 percent over budget at rest."
+
+A later push succeeded at one-minute load average 2.42, and another at 4.66. The
+conclusion was false and I retracted it in the same thread.
+
+The measurement started at load 4.84 and ended at 15.02. I printed both numbers
+and did not draw the inference: `merge_tree_ratchet_check.py` re-runs the whole
+registry, so the run was generating the load under which its own later entries
+were timed. The two expensive entries are measurements of a contended machine.
+
+I then made the same class of error a second time in the retraction, giving a
+threshold of "between 2.42 and 4.19" that a success at 4.66 falsified. The
+correct statement has no threshold in it: the suite has no headroom, and a
+pre-push load reading does not predict the outcome.
+
+**Root cause**: same as Finding 1, one level up. Finding 1 was a test that could
+not observe what it claimed to test. This was a measurement that could not
+observe what it claimed to measure, for the same reason: the instrument was
+inside the system.
 
 ## Phase 2: What To Keep
 
