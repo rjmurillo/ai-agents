@@ -1,9 +1,13 @@
 """Tests for the .claude-mem/scripts/ memory EXPORT scripts.
 
-Importer resolution and exit codes live in
-tests/claude_mem/test_importer_resolution.py. This module must not load the
-importer: both modules register into sys.modules under the same key, so a load
-here would overwrite the one the importer tests rely on.
+Importer resolution and exit codes live in tests/claude_mem/, spread across
+several modules rather than one: resolution, CLI contract, main integration,
+separators, containment limits, and subprocess errors each own a slice. Point
+new importer coverage at that directory.
+
+This module must not load the importer. Every module there registers it into
+sys.modules under the same key, so a load here would overwrite the one they
+rely on.
 """
 
 from __future__ import annotations
