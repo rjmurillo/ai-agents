@@ -77,6 +77,21 @@ def test_crlf_blob_without_an_lf_promise_is_not_a_violation(attributes: str) -> 
     assert examined == 1
 
 
+@pytest.mark.parametrize("attribute", ["eol=lfx", "eol=lfoo", "xeol=lf", "noeol=lf"])
+def test_a_near_miss_attribute_is_not_an_lf_promise(attribute: str) -> None:
+    """`eol=lf` is matched as a whole token, never as a substring.
+
+    A substring test reports a violation for an attribute the repository never
+    declared, which blocks a push over a promise nobody made.
+    """
+    output = f"i/crlf  w/crlf  attr/text {attribute}     \tdocs/a.md\n"
+
+    violations, examined = checker.parse_violations(output)
+
+    assert violations == []
+    assert examined == 1
+
+
 def test_worktree_state_alone_never_triggers_a_violation() -> None:
     """A CRLF worktree copy over an LF blob is local noise, not a tracked defect.
 

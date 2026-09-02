@@ -25,8 +25,10 @@ _BAD_INDEX_STATES = frozenset({"i/crlf", "i/mixed"})
 
 # Only these attribute values promise LF in the blob. A path marked `-text` is
 # exempt by declaration, and `eol=crlf` asks for CRLF on purpose, so neither is
-# a contradiction.
-_LF_ATTRIBUTES = ("eol=lf",)
+# a contradiction. Matched as whole tokens, never as substrings: `eol=lfx` is
+# not a promise of LF and reporting it as one blocks a push over an attribute
+# the repository never made.
+_LF_ATTRIBUTES = frozenset({"eol=lf"})
 
 # The producer's row contract, one prefix per leading field:
 # `i/<state> w/<state> attr/<attrs>`. Checked, not assumed.
@@ -218,7 +220,10 @@ def parse_violations(output: str, scope: str = "HEAD") -> tuple[list[Violation],
         attributes = " ".join(fields[2:])
         if index_state not in _BAD_INDEX_STATES:
             continue
-        if not any(token in attributes for token in _LF_ATTRIBUTES):
+        # `attr/` prefixes the first attribute only, so it comes off before the
+        # comparison. The rest are already bare tokens.
+        declared = {fields[2].removeprefix("attr/"), *fields[3:]}
+        if not declared & _LF_ATTRIBUTES:
             continue
         violations.append(
             Violation(
