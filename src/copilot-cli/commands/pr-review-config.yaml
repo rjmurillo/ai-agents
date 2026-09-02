@@ -120,13 +120,24 @@ completion_criteria:
     command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr} --dispositions-file .agents/pr-checks/dispositions.json"
     # pr-autofix readiness is a four-condition gate: GitHub says the PR can
     # merge, required checks pass, review threads are resolved, and the merge
-    # state is CLEAN or UNSTABLE. Keep these fields explicit here so a future
-    # upstream CanMerge regression cannot make this completion gate fail open.
+    # state is CLEAN, HAS_HOOKS, or UNSTABLE. Keep these fields explicit here so
+    # a future upstream CanMerge regression cannot make this gate fail open.
+    #
+    # The state tuple must stay equal to _SUPPORTED_MERGE_STATES in
+    # test_pr_merge_ready.py, which is the allowlist that decides which states
+    # reach tier T1. A state accepted there and rejected here reaches the
+    # merge tier and then fails this mandatory gate with nothing left to fix.
+    # HAS_HOOKS was in that shape until issue #4899's review round; GitHub
+    # defines it as "Mergeable with passing commit status and pre-receive
+    # hooks", so pr-autofix.md routes it down the CLEAN merge path.
+    # TestSupportedStatesClearTheCompletionGate in
+    # tests/test_test_pr_merge_ready.py drives a real producer verdict through
+    # this real predicate and fails when the two sets drift apart.
     #
     # fetched_pages_complete is a separate data-integrity guard: a truncated
     # GraphQL page can hide a failing required check, so the gate fails closed
     # on partial fetches per the PR #1887 retrospective.
-    pass_when_python: "lambda d: d.get('CanMerge') is True and d.get('CIPassing') is True and d.get('fetched_pages_complete') is True and d.get('UnresolvedThreads') == 0 and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE') and d.get('UndisposedNonRequiredFailures', ['x']) == []"
+    pass_when_python: "lambda d: d.get('CanMerge') is True and d.get('CIPassing') is True and d.get('fetched_pages_complete') is True and d.get('UnresolvedThreads') == 0 and d.get('MergeStateStatus') in ('CLEAN', 'HAS_HOOKS', 'UNSTABLE') and d.get('UndisposedNonRequiredFailures', ['x']) == []"
     fail_open: false
   - name: "PR is not already merged"
     verification: "command"

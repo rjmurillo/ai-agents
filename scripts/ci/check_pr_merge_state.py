@@ -16,6 +16,14 @@ EXIT_REGRESSION = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
+# This script answers "can this PR still reach a merge?", so BEHIND and BLOCKED
+# pass: both are repairable without a force-push or a conflict resolution.
+# `_SUPPORTED_MERGE_STATES` in the `github` skill's `test_pr_merge_ready.py`
+# answers the narrower "can pr-autofix merge it right now?", so it holds only
+# CLEAN, HAS_HOOKS, and UNSTABLE. The two sets differ by question, not by
+# disagreement about the enum: both read HAS_HOOKS as mergeable, per GitHub's
+# GraphQL MergeStateStatus reference ("Mergeable with passing commit status and
+# pre-receive hooks").
 PASS_STATES = {"BEHIND", "BLOCKED", "CLEAN", "HAS_HOOKS", "UNSTABLE"}
 FAIL_STATES = {"DIRTY"}
 

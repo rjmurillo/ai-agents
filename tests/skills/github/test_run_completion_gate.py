@@ -23,6 +23,7 @@ from typing import cast
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _SCRIPT_PATH = (
@@ -34,6 +35,8 @@ _SCRIPT_PATH = (
     / "pr"
     / "run_completion_gate.py"
 )
+_PR_REVIEW_CONFIG_PATH = _REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+_MERGE_READY_CRITERION = "PR is ready to merge (CI green, no conflicts)"
 
 
 def _import_dispatcher():
@@ -50,6 +53,27 @@ def _import_dispatcher():
 
 
 _dispatcher = _import_dispatcher()
+
+
+def _shipped_merge_ready_predicate() -> str:
+    """The `pass_when_python` string for the merge-ready criterion, as shipped.
+
+    Read from `.claude/commands/pr-review-config.yaml` rather than transcribed.
+    A transcribed copy is a paraphrase the moment the config moves, and the
+    tests then certify a predicate nobody runs: the hand-copied version this
+    replaced had already lost the `UndisposedNonRequiredFailures` clause, so
+    every case below exercised a four-condition gate while pr-autofix ran a
+    five-condition one.
+    """
+    config = yaml.safe_load(_PR_REVIEW_CONFIG_PATH.read_text(encoding="utf-8"))
+    for criterion in config["completion_criteria"]:
+        if criterion.get("name") == _MERGE_READY_CRITERION:
+            return criterion["pass_when_python"]
+    raise AssertionError(
+        f"no criterion named {_MERGE_READY_CRITERION!r} in "
+        f"{_PR_REVIEW_CONFIG_PATH}; the gate this suite tests has been renamed "
+        f"or removed",
+    )
 
 
 def _make_proc(stdout: str = "", stderr: str = "", returncode: int = 0):
@@ -1300,16 +1324,7 @@ class TestMergeReadyFourConditionGate:
     fetch integrity so a verifier regression cannot fail open.
     """
 
-    # The exact predicate shipped in .claude/commands/pr-review-config.yaml
-    # for the "PR is ready to merge" criterion. Kept verbatim so this test
-    # exercises the real contract, not a paraphrase.
-    _MERGE_READY_PASS_WHEN = (
-        "lambda d: d.get('CanMerge') is True "
-        "and d.get('CIPassing') is True "
-        "and d.get('fetched_pages_complete') is True "
-        "and d.get('UnresolvedThreads') == 0 "
-        "and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE')"
-    )
+    _MERGE_READY_PASS_WHEN = _shipped_merge_ready_predicate()
 
     def _merge_ready_config(self, tmp_path: Path) -> Path:
         return _write_config(
@@ -1336,33 +1351,34 @@ class TestMergeReadyFourConditionGate:
             )
         return rc, json.loads(capsys.readouterr().out)
 
-    def test_clean_ready_pr_passes(self, repo_root, tmp_path, capsys):
-        rc, result = self._run_gate(
-            tmp_path,
-            capsys,
-            {
-                "CanMerge": True,
-                "CIPassing": True,
-                "UnresolvedThreads": 0,
-                "MergeStateStatus": "CLEAN",
-                "fetched_pages_complete": True,
-            },
-        )
-        assert rc == 0
-        assert result["criteria"][0]["passed"] is True
+    @staticmethod
+    def _ready_payload(merge_state: str = "CLEAN") -> dict:
+        """A merge-ready verifier verdict, every gate condition satisfied."""
+        return {
+            "CanMerge": True,
+            "CIPassing": True,
+            "UnresolvedThreads": 0,
+            "MergeStateStatus": merge_state,
+            "fetched_pages_complete": True,
+            "UndisposedNonRequiredFailures": [],
+        }
 
-    def test_unstable_ready_pr_passes(self, repo_root, tmp_path, capsys):
-        rc, result = self._run_gate(
-            tmp_path,
-            capsys,
-            {
-                "CanMerge": True,
-                "CIPassing": True,
-                "UnresolvedThreads": 0,
-                "MergeStateStatus": "UNSTABLE",
-                "fetched_pages_complete": True,
-            },
-        )
+    @pytest.mark.parametrize("merge_state", ["CLEAN", "HAS_HOOKS", "UNSTABLE"])
+    def test_every_supported_merge_state_passes(
+        self, repo_root, tmp_path, capsys, merge_state,
+    ):
+        """The three states `test_pr_merge_ready.py` routes to T1 clear the gate.
+
+        `HAS_HOOKS` is here because the producer's `_SUPPORTED_MERGE_STATES`
+        allowlists it while this gate's tuple did not, so a green `HAS_HOOKS`
+        PR reached the auto-merge tier and then failed a mandatory gate with no
+        work left to do (issue #4899 review round). The two sets have to move
+        together; `TestSupportedStatesClearTheCompletionGate` in
+        `tests/test_test_pr_merge_ready.py` drives the real producer verdict
+        into this real predicate and fails when they drift apart.
+        """
+        rc, result = self._run_gate(tmp_path, capsys, self._ready_payload(merge_state))
+
         assert rc == 0
         assert result["criteria"][0]["passed"] is True
 
@@ -1374,20 +1390,24 @@ class TestMergeReadyFourConditionGate:
             ({"UnresolvedThreads": 1}, "unresolved thread"),
             ({"MergeStateStatus": "BLOCKED"}, "blocked merge state"),
             ({"MergeStateStatus": "BEHIND"}, "behind merge state"),
+            ({"MergeStateStatus": "DIRTY"}, "conflicted merge state"),
+            ({"MergeStateStatus": "UNKNOWN"}, "unsupported merge state"),
+            (
+                {"MergeStateStatus": "A_STATE_GITHUB_ADDS_LATER"},
+                "merge state GitHub has not defined yet",
+            ),
             ({"fetched_pages_complete": False}, "partial fetch"),
             ({"CanMerge": None}, "missing CanMerge"),
+            (
+                {"UndisposedNonRequiredFailures": ["flaky-lint"]},
+                "undisposed non-required failure",
+            ),
         ],
     )
     def test_any_missing_condition_fails_closed(
         self, repo_root, tmp_path, capsys, override, reason,
     ):
-        data = {
-            "CanMerge": True,
-            "CIPassing": True,
-            "UnresolvedThreads": 0,
-            "MergeStateStatus": "CLEAN",
-            "fetched_pages_complete": True,
-        }
+        data = self._ready_payload()
         data.update(override)
 
         rc, result = self._run_gate(tmp_path, capsys, data)
