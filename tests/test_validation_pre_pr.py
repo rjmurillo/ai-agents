@@ -55,6 +55,17 @@ def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # mock artifact here, not a real empty corpus: real-filesystem-
         # dependent noise the same way the other corpus gates above are.
         "ADR Link Resolution",
+        # `check_index_line_endings.py` captures `git ls-files --eol -z` in
+        # bytes, because a pathname is bytes and `errors="replace"` destroys
+        # undecodable ones irreversibly (issue #5475). `_healthy_git_run`
+        # answers every call with a `str` stdout, so the gate's `.decode` gets
+        # an object that has no such method and the gate reports a mock
+        # artifact rather than a line-ending verdict. The gate's own behavior
+        # against real git output, including the undecodable-filename case, is
+        # covered in tests/validation/test_check_index_line_endings.py; its
+        # registration is covered in
+        # tests/validation/test_pre_pr_index_line_endings_wiring.py.
+        "Index Line Endings",
     }
     return tuple(
         replace(gate, run=lambda _repo_root, _args: True)
