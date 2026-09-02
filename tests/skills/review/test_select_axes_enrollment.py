@@ -58,8 +58,8 @@ def select(candidates: tuple[str, ...] = CANDIDATES, **kwargs: object) -> dict:
 def _risk_table_axes() -> set[str]:
     """Every axis name reachable through `_RISK_TABLE`, canonical or local.
 
-    Rows are `(category, predicate, canonical_axes, local_axes)`
-    (select_axes.py:279-285).
+    Rows of `_RISK_TABLE` are `(category, predicate, canonical_axes,
+    local_axes)`.
     """
     return {axis for row in mod._RISK_TABLE for axis in (*row[2], *row[3])}
 
@@ -67,7 +67,7 @@ def _risk_table_axes() -> set[str]:
 def _effect_table_axes() -> set[str]:
     """Every axis name reachable through `_EFFECT_TABLE`, canonical or local.
 
-    Values are `(canonical_axes, local_axes)` (select_axes.py:298-304).
+    Values of `_EFFECT_TABLE` are `(canonical_axes, local_axes)`.
     """
     return {
         axis for canonical, local in mod._EFFECT_TABLE.values() for axis in (*canonical, *local)
