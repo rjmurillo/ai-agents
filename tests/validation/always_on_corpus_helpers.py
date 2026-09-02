@@ -93,6 +93,12 @@ def parse_doctrine_table(text: str) -> set[str]:
     return names
 
 
+# Either group can be legitimately empty. No book rule loads on every turn
+# since issue #4871 rescoped `code-quality` to code files, so the sentence says
+# "none", which must parse as the empty set and not as a rule named "none".
+_NO_RULES = frozenset({"none", "no rule", "no book rule"})
+
+
 def parse_library_sentence(text: str) -> tuple[set[str], set[str]]:
     """Return (always-on, code-files) rule ids named by the library skill."""
     match = _LIBRARY_SENTENCE.search(text)
@@ -102,10 +108,13 @@ def parse_library_sentence(text: str) -> tuple[set[str], set[str]]:
             "update the sentence and this guard together"
         )
     split = re.compile(r"\s*,\s*|\s+and\s+")
-    return (
-        {p for p in split.split(match.group("always")) if p},
-        {p for p in split.split(match.group("code")) if p},
-    )
+
+    def names(raw: str) -> set[str]:
+        if raw.strip().lower() in _NO_RULES:
+            return set()
+        return {part for part in split.split(raw) if part}
+
+    return names(match.group("always")), names(match.group("code"))
 
 
 _EIGHT_KB = 8192
