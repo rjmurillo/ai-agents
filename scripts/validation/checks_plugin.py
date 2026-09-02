@@ -215,7 +215,12 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     This gate must not call ``lefthook check-install``: that command compares
     the shared checksum written by the last installing branch, so a sibling
     branch with different hook config makes another worktree fail even though
-    the native shim resolves Lefthook from the active worktree. Issue #4789.
+    the installed shim is healthy and dispatches Lefthook. Issue #4789.
+
+    The failure is the checksum comparison, not the shim, and that holds on
+    every platform. Saying the shim resolves Lefthook "from the active
+    worktree" would be the Linux behavior stated as general, which is the
+    overclaim the Windows note below exists to remove.
 
     What each of the two adjacent gates proves, so neither is read as covering
     the other. This one proves the configured runtime starts. ``Git Hook

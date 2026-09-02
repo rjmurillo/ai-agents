@@ -107,11 +107,16 @@ DISPATCH_COMMAND = f'{DISPATCH_MARKER} "$@"'
 # claim pre-push is dead when pre-push is what proved live.
 _MISSING_TYPES_PREFIX = "has no live shim for configured hook"
 
+# Read from the JSON schema Lefthook 2.1.11 embeds in its own binary, not from
+# memory: the hand-written version omitted nine names, and a hook type this set
+# does not know is silently dropped and never checked for a shim.
 GIT_HOOK_NAMES = frozenset(
-    "applypatch-msg commit-msg post-applypatch post-checkout post-commit "
-    "post-merge post-rewrite post-update pre-applypatch pre-auto-gc "
-    "pre-commit pre-merge-commit pre-push pre-rebase pre-receive "
-    "prepare-commit-msg push-to-checkout sendemail-validate update".split()
+    "applypatch-msg commit-msg fsmonitor-watchman p4-changelist p4-post-changelist "
+    "p4-pre-submit p4-prepare-changelist post-applypatch post-checkout post-commit "
+    "post-index-change post-merge post-receive post-rewrite post-update pre-applypatch "
+    "pre-auto-gc pre-commit pre-merge-commit pre-push pre-rebase pre-receive "
+    "prepare-commit-msg proc-receive push-to-checkout reference-transaction "
+    "sendemail-validate update".split()
 )
 
 
@@ -433,10 +438,9 @@ def _evaluate(repo_root: Path) -> int:
         return 3
 
     if reason is None:
-        print(
-            f"git hook health: {PROBE_HOOK} present in {hooks_dir} "
-            "(1 of 1 probed hook found)"
-        )
+        probed = sorted((_configured_hook_types(repo_root) or frozenset()) | {PROBE_HOOK})
+        names, count = ", ".join(probed), len(probed)
+        print(f"git hook health: {names} live in {hooks_dir} ({count} of {count} found)")
         return 0
 
     print(f"[FAIL] {reason}.", file=sys.stderr)

@@ -188,8 +188,8 @@ class TestHealthy:
 
         out = _run_cli(repo).stdout
 
-        assert "1 of 1 probed hook found" in out
-        assert "pre-push present in" in out
+        assert "1 of 1 found" in out
+        assert "pre-push live in" in out
 
     def test_a_healthy_repo_diagnoses_as_none(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path, "healthy")
@@ -378,7 +378,13 @@ class TestDeadHooks:
         )
         commit_msg.chmod(0o755)
 
-        assert _run_cli(repo).returncode == 0
+        result = _run_cli(repo)
+
+        assert result.returncode == 0
+        # The count must track what was examined. It was hard-coded `1 of 1`,
+        # which made the multi-hook check read as the old single probe.
+        assert "2 of 2 found" in result.stdout
+        assert "commit-msg" in result.stdout
 
     def test_a_local_overlay_hook_type_is_checked(self, tmp_path: Path) -> None:
         """A `-local` overlay adds hook types, and Lefthook installs them.
@@ -399,8 +405,16 @@ class TestDeadHooks:
         assert result.returncode == 1
         assert "commit-msg" in result.stderr
 
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Git for Windows does not use POSIX execute bits"
+    )
     def test_a_non_executable_configured_hook_fails(self, tmp_path: Path) -> None:
-        """Text alone is not installation: git ignores a non-executable shim."""
+        """Text alone is not installation: git ignores a non-executable shim.
+
+        Same platform skip as the `pre-push` case above: `chmod(0o644)` cannot
+        create this state on Windows, so the test could not establish its own
+        precondition there.
+        """
         repo = _make_repo(tmp_path, "not_executable_type")
         (repo / "lefthook.yml").write_text(TWO_HOOK_CONFIG, encoding="utf-8")
         hooks_dir = repo / ".git" / "hooks"
@@ -603,7 +617,7 @@ class TestLinkedWorktrees:
 
         repaired = _run_cli(worktree)
         assert repaired.returncode == 0
-        assert "pre-push present" in repaired.stdout
+        assert "pre-push live in" in repaired.stdout
 
 
 class TestOutOfScope:
