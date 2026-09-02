@@ -400,7 +400,7 @@ def cq_file(path: str = "a.py", category: str = "authored", *, scored: bool = Tr
     from one the scanner gave up on.
     """
     quality = _scored() if scored else _scored(10.0, 0.0)
-    entry = {"path": path, "category": category}
+    entry: dict[str, object] = {"path": path, "category": category}
     for field in ("cohesion", "coupling", "encapsulation", "testability", "non_redundancy"):
         entry[field] = dict(quality)
     return entry
