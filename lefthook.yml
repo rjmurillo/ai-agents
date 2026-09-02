@@ -545,10 +545,25 @@ pre-push:
           # The two jobs run concurrently in this parallel group, so the added
           # wall time is the difference between this job and the longest other
           # job in the group, not this job's full runtime. It is not zero: the
-          # group's jobs contend for CPU and disk, and the five counters
-          # measure 26.7s together on a warm checkout.
+          # group's jobs contend for CPU and disk.
           #
-          # 2m outer matches branch-context-policy below, the group's existing
+          # The 2m cap is sized from real pushes, not standalone runs, per
+          # .claude/rules/ci-scripts.md MUST-16. Three consecutive `git push`
+          # runs through this hook on 2026-09-02, WSL ext4 external worktree,
+          # load average 7.15 with three other agent sessions running pytest
+          # suites concurrently, reported by lefthook's own summary:
+          #
+          #   merge-tree-ratchet   44.19s   48.72s   34.96s
+          #   count-ratchets        0.81s    0.93s    0.79s
+          #
+          # Worst observed 48.72s against a 120s cap, so 71s of margin, and
+          # 41s under the 90s internal deadline. Those are one machine on one
+          # date; re-measure during a real push before moving either number,
+          # and do not carry the ratio forward as a planning figure. For
+          # contrast, the standalone counter total on a warm checkout is
+          # 26.7s, which MUST-16 says not to size a cap from.
+          #
+          # 2m also matches branch-context-policy below, the group's existing
           # ceiling, so this job does not raise the declared pre-push worst
           # case tests/ci/test_lefthook_declared_budget.py ratchets against; it
           # leaves the required 30s margin over
