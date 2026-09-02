@@ -258,6 +258,39 @@ jobs:
       - name: Check for zero-collection test files (blocking)
         run: uv run --frozen python scripts/validation/check_zero_collection_tests.py
 
+  line-endings-guard:
+    name: Check index line endings (blocking)
+    # Issue #5475. Same reasoning as zero-collection-guard above, and the same
+    # deliberate absence of `needs:`/`if:`. This guard reads every tracked
+    # blob, so a path filter can report green without measuring. It also has
+    # to survive a change that touches no Python at all: a CRLF blob under a
+    # `.md` path is exactly the incident this gate exists for, and the `test`
+    # job is skipped whenever check-paths reports no Python-relevant diff.
+    # Both offending blobs arrived through the GraphQL createCommitOnBranch
+    # API, which runs no local hook, so CI is the only place that producer is
+    # observed.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Check index line endings (blocking)
+        run: uv run --frozen python scripts/validation/check_index_line_endings.py
+
   test:
     name: "pytest (${{ matrix.partition }})"
     needs: check-paths
@@ -400,16 +433,6 @@ jobs:
           # No --depth=1: see the pull_request leg above.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
-
-      # Issue #5475. The local pre-push and pre-PR registration cannot cover
-      # the producer this gate exists for: both CRLF blobs that broke merges
-      # on main arrived through the GraphQL createCommitOnBranch API, which
-      # runs no local hook at all. CI is the only place that path is observed,
-      # so the gate has to run here too. No path filter and no base-ref
-      # comparison: it reads the whole tree and is absolute, not a ratchet.
-      - name: Check index line endings (whole tree)
-        if: matrix.partition == 'bulk'
-        run: uv run --frozen python scripts/validation/check_index_line_endings.py
 
       - name: Run subprocess encoding count ratchet (whole tree, pull request)
         if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
@@ -585,6 +608,7 @@ jobs:
       - test
       - coverage
       - zero-collection-guard
+      - line-endings-guard
     # !cancelled() rather than always(): a superseded run leaves its
     # dependencies 'cancelled', and always() would turn that into a red
     # required check on the PR head (Issue #5097). !cancelled() still runs on
@@ -610,12 +634,14 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
           ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
+          LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
           --check PATH_RESULT success "path detection failed or was cancelled: {value}"
           --check TEST_RESULT success "test job failed or was cancelled: {value}"
           --check COVERAGE_RESULT success "coverage job failed or was cancelled: {value}"
           --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
+          --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
 
   security:
     name: Python Security Checks
