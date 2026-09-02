@@ -109,14 +109,13 @@ _COUNTER_RESERVE_SECONDS = 25
 """Budget one counter must be able to claim before it is allowed to start.
 
 Checking the deadline only on entry bounds when a counter STARTS, never how
-long it runs (issue #5441 review). A counter that begins one second before the
-deadline still runs to completion, so the deadline alone promises a per-ratchet
-verdict it cannot keep, and the overrun lands on Lefthook's outer cap as an
+long it runs (issue #5441 review), so a counter beginning one second before it
+still runs to completion and the overrun lands on Lefthook's outer cap as an
 opaque kill.
 
-No timeout argument can fix that generically: three of the five registered
-counters spawn no subprocess at all. Measured on this repository, warm
-checkout, 2026-09-02, via ``current_count`` on the repository root:
+No timeout argument fixes that generically: three of the five registered
+counters spawn no subprocess. Measured warm, 2026-09-02, via ``current_count``
+on the repository root:
 
     ruff count            0.65s   (subprocess: ruff)
     taste count           4.46s   (subprocess: taste_lints.py)
@@ -324,19 +323,17 @@ def _evaluate_registered_ratchets(
     ``deadline`` (absolute ``time.monotonic()``) reports a clear "not run"
     verdict for a ratchet whose turn arrives after it, instead of risking an
     outer-timeout kill with no diagnostic (issue #5441). ``base_ref`` is the
-    original ref string, not ``base_oid``: ``raised_baseline`` below reads the
-    fork point between it and HEAD.
+    original ref string and is used only in diagnostics; every comparison below
+    reads ``base_oid``, so a concurrent fetch cannot move what this evaluation
+    is judged against.
 
     A ratchet starts only when ``_COUNTER_RESERVE_SECONDS`` of that budget is
-    still unspent, so no counter is launched that cannot finish by the deadline
-    at its measured speed. See that constant for the per-counter measurements
-    and for why a subprocess timeout could not carry this bound.
+    still unspent; see that constant for the measurements behind it.
 
     ``label`` names the caller in every diagnostic. ``checks_ratchet.py`` passes
     ``working-tree-ratchets`` when it counts the working tree rather than a
-    merged tree (issue #5441 review), because a reader told
-    ``merge-tree-ratchet`` about a violation that exists only in an uncommitted
-    edit would look for it in the merge and not find it.
+    merged tree, so a breach that exists only in an uncommitted edit does not
+    send the reader looking for it in the merge (issue #5441 review).
     """
     exit_code = EXIT_OK
     for ratchet in RATCHETS:
@@ -352,14 +349,19 @@ def _evaluate_registered_ratchets(
         merged = _read_baseline_in_tree(scratch_root, ratchet.baseline_path)
         count = ratchet.current_count(scratch_root)
         code, msg = _check_one(ratchet.label, count, base, merged)
-        if code == EXIT_OK and _one_directional_baseline_failure(
-            repo_root, base_ref, ratchet, count
-        ):
-            # _one_directional_baseline_failure already printed its own
-            # diagnostic (count_ratchet's _base_ref_verdict does), so the
-            # merge-tree "OK" message below would contradict it; skip it.
-            exit_code = max(exit_code, EXIT_REGRESSION)
-            continue
+        if code == EXIT_OK:
+            # base_oid, not base_ref: a concurrent fetch could otherwise judge
+            # this count against a different commit than the tree above was
+            # pinned to. git merge-base takes either form (issue #5441 review).
+            direction = _one_directional_baseline_failure(
+                repo_root, base_oid, ratchet, count
+            )
+            if direction is not None:
+                # It printed its own diagnostic, so the "OK" below would
+                # contradict it. Its code is propagated, not flattened: 2 and 3
+                # are a config and an external failure, not a regression.
+                exit_code = max(exit_code, direction)
+                continue
         exit_code = max(exit_code, code)
         if code != EXIT_OK:
             print(f"{label}: {msg}", file=sys.stderr)
@@ -376,20 +378,20 @@ def _evaluate_merged_tree(
 ) -> int:
     """Extract merged tree, run counters, compare. Returns an EXIT_* code.
 
-    ``deadline`` lets a caller that already spent part of its own budget (for
-    example ``checks_ratchet.py``'s aggregate) hand down the remaining share
-    instead of this function measuring a fresh ``_TIMEOUT_SECONDS`` on top of
-    it. Standalone callers, including ``main()``, leave it unset and get the
-    module default.
+    ``deadline`` is for a caller whose own budget exceeds ``_TIMEOUT_SECONDS``
+    and wants this path held inside it. Every caller today leaves it unset and
+    gets the module default, ``main()`` and ``checks_ratchet.py``'s
+    ``_run_merge_tree_backstop`` included; the latter omits it deliberately,
+    because its 60s aggregate is below this path's 64s worst case and a
+    regression test pins that omission. Do not read the parameter as an
+    invitation to reconnect that one.
 
-    The default deadline is taken BEFORE ``_prepare_merged_tree``, not after.
-    Preparation runs ``git fetch``, ``rev-parse``, and ``merge-tree``, and
-    starting the clock afterwards made the job's true ceiling
-    ``preparation + _TIMEOUT_SECONDS``: preparation slower than the 30s outer
-    margin would push the total past Lefthook's 2m cap and reproduce the
-    opaque kill this deadline exists to replace with a verdict (issue #5441
-    review). Measured against one clock, preparation and the counters now
-    share the single 90s window.
+    The default deadline is taken BEFORE ``_prepare_merged_tree``. Preparation
+    runs git fetch, rev-parse, and merge-tree, so starting the clock after it
+    made the true ceiling ``preparation + _TIMEOUT_SECONDS``, and preparation
+    slower than the 30s outer margin then pushed the total past Lefthook's 2m
+    cap, reproducing the opaque kill this deadline replaces with a verdict
+    (issue #5441 review).
     """
     effective_deadline = deadline if deadline is not None else time.monotonic() + _TIMEOUT_SECONDS
     base_oid, tree_oid, preparation_exit = _prepare_merged_tree(repo_root, base_ref)

@@ -25,6 +25,7 @@ reasoning).
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
@@ -131,3 +132,70 @@ class TestOneDirectionalBaselineGuard:
         error = capsys.readouterr().err
         assert "BASELINE ABOVE BASE" in error
         assert "restore 10 and fix the violations" in error
+
+
+class TestDirectionVerdictExitCodes:
+    """The guard's exit code reaches the caller instead of collapsing to 1.
+
+    Issue #5441 review: ``raised_baseline`` returned a bool, so
+    ``_evaluate_registered_ratchets`` raised the result to EXIT_REGRESSION for
+    every non-None verdict. ``_base_ref_verdict`` distinguishes 1 (a baseline
+    move), 2 (a fork point recording no baseline) and 3 (git or a fork baseline
+    that could not be read), and those three share no remedy, so a config or
+    external failure printed its own exit-2 or exit-3 diagnostic and then made
+    the process exit 1.
+    """
+
+    @staticmethod
+    def _evaluate(repo: Path, base_oid: str, verdict: int | None, base_ref: str = "HEAD"):
+        with ExitStack() as stack:
+            for counter in _zero_five_counters():
+                stack.enter_context(counter)
+            guard = stack.enter_context(
+                patch.object(
+                    _m, "_one_directional_baseline_failure", return_value=verdict
+                )
+            )
+            code = _m._evaluate_registered_ratchets(
+                repo, base_oid, repo, base_ref=base_ref
+            )
+        return code, guard
+
+    @pytest.mark.parametrize(
+        ("verdict", "expected"),
+        [
+            (1, _m.EXIT_REGRESSION),
+            (2, _m.EXIT_CONFIG),
+            (3, _m.EXIT_EXTERNAL),
+        ],
+    )
+    def test_the_verdict_code_is_propagated(
+        self, tmp_path: Path, verdict: int, expected: int
+    ) -> None:
+        repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+        base_oid = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+        code, _ = self._evaluate(repo, base_oid, verdict)
+
+        assert code == expected
+
+    def test_a_passing_verdict_leaves_the_run_ok(self, tmp_path: Path) -> None:
+        repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+        base_oid = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+        code, _ = self._evaluate(repo, base_oid, None)
+
+        assert code == _m.EXIT_OK
+
+    def test_the_guard_is_pinned_to_the_oid_not_the_ref(self, tmp_path: Path) -> None:
+        """A concurrent fetch must not move what the count is judged against."""
+        repo = _make_repo_with_baselines(tmp_path, ruff=10, taste=10, ignore=10)
+        base_oid = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+        _, guard = self._evaluate(
+            repo, base_oid, None, base_ref="refs/remotes/origin/main"
+        )
+
+        assert guard.call_args_list, "the guard must run for each ratchet"
+        for call in guard.call_args_list:
+            assert call.args[1] == base_oid

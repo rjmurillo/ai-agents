@@ -71,6 +71,9 @@ from merge_tree_ratchet_check import (  # noqa: E402
 from merge_tree_ratchet_check import (  # noqa: E402
     _evaluate_registered_ratchets as _evaluate_ratchets_against,
 )
+from merge_tree_ratchet_check import (  # noqa: E402
+    _resolve_base_oid as _resolve_merge_tree_base_oid,
+)
 from merge_tree_ratchet_preparation import is_fast_forward_clean  # noqa: E402
 
 
@@ -296,9 +299,7 @@ def _run_merge_tree_backstop(repo_root: Path, base_ref: str, deadline: float) ->
     return None
 
 
-def _run_working_tree_ratchets(
-    repo_root: Path, base_ref: str, base_oid: str
-) -> str | None:
+def _run_working_tree_ratchets(repo_root: Path, base_ref: str) -> str | None:
     """Count the registered ratchets against the working tree, when needed.
 
     Issue #5441 review. The merge-tree backstop counts the MERGED tree, which
@@ -328,7 +329,23 @@ def _run_working_tree_ratchets(
     what issue #5441 is about. The push-side ``count-ratchets`` job passes
     ``--skip-merge-tree`` and never reaches this function, so nothing here
     lands on the budget that issue measured.
+
+    The base OID is resolved here through the merge-tree module's own
+    ``_resolve_base_oid`` rather than reusing the one ``_prepare_base_oid``
+    pinned earlier, so both evaluations judge against the same commit. The two
+    resolvers do not agree on stacked bases: ``checks_common``'s refresh skips
+    a remote name containing a slash while the merge-tree module's fetches it,
+    so reusing the earlier OID would compare the working tree against a stale
+    base, or skip on an ancestor test the backstop had already moved past
+    (issue #5441 review). This call lands after the backstop's fetch, so the
+    refresh it repeats is already up to date and costs a no-op fetch.
     """
+    base_oid = _resolve_merge_tree_base_oid(repo_root, base_ref)
+    if base_oid is None:
+        # _resolve_base_oid wrote its own diagnostic. Fail closed: an
+        # unresolvable base means this pass did not happen, and a gate that
+        # did not run must not read as a gate that passed.
+        return "working-tree-ratchets"
     if is_fast_forward_clean(repo_root, base_oid):
         return None
     deadline = time.monotonic() + _MERGE_TREE_TIMEOUT_SECONDS
@@ -396,7 +413,7 @@ def validate_count_ratchets(repo_root: Path, *, skip_merge_tree: bool = False) -
         backstop_failure = _run_merge_tree_backstop(repo_root, base_ref, deadline)
         if backstop_failure is not None:
             failures.append(backstop_failure)
-        working_tree_failure = _run_working_tree_ratchets(repo_root, base_ref, base_oid)
+        working_tree_failure = _run_working_tree_ratchets(repo_root, base_ref)
         if working_tree_failure is not None:
             failures.append(working_tree_failure)
 

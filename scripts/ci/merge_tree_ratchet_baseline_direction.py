@@ -41,18 +41,32 @@ def raised_baseline(
     base_ref: str,
     ratchet: MergeTreeRatchet,
     count: int | None,
-) -> bool:
-    """True when this branch itself raised ``ratchet``'s baseline."""
+) -> int | None:
+    """``_base_ref_verdict``'s exit code for ``ratchet``, or None when it passes.
+
+    The code is returned rather than a boolean because ``_base_ref_verdict``
+    distinguishes three failures and this repository's exit contract keeps them
+    apart: 1 a baseline move, 2 a fork point that records no baseline, 3 git or
+    a fork baseline that could not be read. An earlier version collapsed every
+    non-None verdict to True and the caller reported EXIT_REGRESSION for all
+    three, so a config or external failure printed an exit-2 or exit-3
+    diagnostic and then exited 1 (issue #5441 review). The three share no
+    remedy, which is why ``count_ratchet``'s own docstring separates them.
+
+    ``base_ref`` may be a ref name or an immutable OID. ``_base_ref_verdict``
+    reads the fork point between it and HEAD, and ``git merge-base`` accepts
+    either; callers evaluating against a materialized tree pass the OID that
+    tree was pinned to, so a concurrent fetch cannot move the comparison.
+    """
     baseline_path = repo_root / ratchet.baseline_path
     recorded = count_ratchet.read_baseline(baseline_path)
     if recorded is None:
-        return False  # _check_one already reported the missing/malformed file
+        return None  # _check_one already reported the missing/malformed file
     args = argparse.Namespace(repo_root=repo_root, base_ref=base_ref, baseline=baseline_path)
-    verdict = count_ratchet._base_ref_verdict(
+    return count_ratchet._base_ref_verdict(
         args,
         label=ratchet.label,
         baseline=recorded,
         count=count if count is not None else recorded,
         merge_tree_backed=True,
     )
-    return verdict is not None
