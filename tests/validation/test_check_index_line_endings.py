@@ -126,6 +126,25 @@ def test_a_row_with_too_few_fields_is_an_error_not_a_skip() -> None:
         checker.parse_violations("i/crlf\tdocs/a.md\n")
 
 
+@pytest.mark.parametrize(
+    "row",
+    [
+        "x/crlf w/crlf attr/text eol=lf\tdocs/a.md",
+        "i/crlf y/crlf attr/text eol=lf\tdocs/a.md",
+        "i/crlf w/crlf z/text eol=lf\tdocs/a.md",
+    ],
+)
+def test_a_row_with_a_wrong_field_prefix_is_an_error_not_a_skip(row: str) -> None:
+    """Three fields is not the contract. `i/ w/ attr/` is.
+
+    A row that is counted but not read passes the length check, then fails to
+    match `_BAD_INDEX_STATES` and is passed over as clean. That is the same
+    silent pass the tab and length checks exist to stop, one layer further in.
+    """
+    with pytest.raises(RuntimeError, match="does not start with"):
+        checker.parse_violations(f"{row}\0")
+
+
 def test_a_malformed_row_reaches_the_gate_as_a_failure(monkeypatch) -> None:
     """The raise has to arrive somewhere that blocks, not somewhere that logs."""
     monkeypatch.setattr(checker, "_ls_files_eol", lambda *_a, **_k: "garbage\0")

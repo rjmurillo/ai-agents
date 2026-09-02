@@ -14,7 +14,7 @@ the gate against real repositories.
 
 from __future__ import annotations
 
-import re
+import unicodedata
 from dataclasses import dataclass
 
 # `git ls-files --eol` prefixes the stored state with `i/`. `mixed` is included
@@ -27,34 +27,64 @@ _BAD_INDEX_STATES = frozenset({"i/crlf", "i/mixed"})
 # a contradiction.
 _LF_ATTRIBUTES = ("eol=lf",)
 
-# Control characters that must never reach a log line verbatim: C0 including
-# newline, tab, carriage return and ESC, DEL, and the C1 block. A tracked
-# pathname may legally contain any of them on POSIX, and a contributor chooses
-# the name. Emitted unchanged into a required CI log, a newline forges a log
-# line and an ESC sequence rewrites what the reader sees (CWE-117).
-_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+# The producer's row contract, one prefix per leading field:
+# `i/<state> w/<state> attr/<attrs>`. Checked, not assumed.
+_FIELD_PREFIXES = ("i/", "w/", "attr/")
+
+# Unicode categories that must never reach a log line verbatim. A tracked
+# pathname may legally carry any of them on POSIX, and a contributor chooses
+# the name, so each is contributor-controlled input to a required CI log.
+#
+# `Cc` is the control category: C0 including newline, tab, carriage return and
+# ESC, plus DEL and the C1 block. A newline forges a log line and an ESC
+# sequence repaints the terminal around one (CWE-117).
+#
+# `Cf` is the format category: the bidi controls, zero-width space, ZWNJ, ZWJ,
+# soft hyphen, the BOM. Every one renders as nothing or reorders what follows,
+# so `handoff‮dm.txt` reads as a different filename than it is (CWE-451).
+# The class framing is deliberate, not a list of the variants reported so far:
+# `scripts/validation/git_hook_policy.py` reaches the same conclusion for
+# placeholder text and states it verbatim as
+# `DEBATE_LOG_PLACEHOLDER_FORMAT_CATEGORY = "Cf"`, with the reasoning that its
+# own check "was defeated four times on this PR, by invalid bytes, ASCII
+# spaces, U+00A0, and markdown escapes. Each fix targeted the variant in front
+# of it and the next variant was cheaper than the last."
+#
+# `Zl` and `Zp` are the line and paragraph separators, U+2028 and U+2029. They
+# are not in `Cc`, and a renderer that honours them breaks the line just as a
+# newline does.
+#
+# Stricter/looser/different than canonical: `git_hook_policy.py` normalizes
+# `Cf` away before matching, because its subject is whether two strings are the
+# same placeholder. This escapes instead, because the path has to stay
+# readable and the operator has to see that something invisible is there.
+_UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
 
 
 def display_path(path: str) -> str:
     """A path rendered for a UTF-8 log stream, with nothing left that can lie.
 
-    Two classes of byte are escaped, for two different reasons.
+    Two classes of character are escaped, for two different reasons.
 
     The surrogates that keep a path reversible cannot be written to stdout:
-    `print` raises `UnicodeEncodeError` on them. Control characters can be
-    written, which is the problem: a tracked path may carry a newline or an
-    ESC sequence, and this gate prints paths into a required CI log, so an
-    unescaped one forges a log line or repaints the terminal around it
-    (CWE-117). Both classes come out as their `\\x` or `\\n` spelling.
+    `print` raises `UnicodeEncodeError` on them. Everything in
+    `_UNSAFE_CATEGORIES` can be written, which is the problem: it renders as
+    something other than itself, and this gate prints contributor-chosen paths
+    into a required CI log. Both classes come out as their `\\x`, `\\n` or
+    `\\u` spelling.
 
     Only the human-facing output is escaped. `--fix` still receives the
     reversible form, so the path the operator reads and the path git receives
-    can differ by exactly the bytes that have no safe text spelling. `_report`
-    is what keeps that difference from being handed out as a runnable command.
+    can differ by exactly the characters that have no safe text spelling.
+    `_report` is what keeps that difference from being handed out as a
+    runnable command.
     """
     escaped = path.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
-    return _CONTROL_CHARACTERS.sub(
-        lambda match: match.group().encode("unicode_escape").decode("ascii"), escaped
+    return "".join(
+        character.encode("unicode_escape").decode("ascii")
+        if unicodedata.category(character) in _UNSAFE_CATEGORIES
+        else character
+        for character in escaped
     )
 
 
@@ -66,7 +96,6 @@ def is_spellable(path: str) -> bool:
     the escaped spelling, which names a different file or no file at all.
     """
     return display_path(path) == path
-
 
 
 @dataclass(frozen=True)
@@ -129,6 +158,19 @@ def parse_violations(output: str, scope: str = "HEAD") -> tuple[list[Violation],
                 f"git ls-files --eol emitted a row with {len(fields)} field(s) "
                 f"before the tab, expected at least 3: {line!r}."
             )
+        # Counting the fields is not reading them. A row spelled
+        # `x/crlf y/crlf z/text eol=lf` has three fields and no meaning here:
+        # `index_state` would never match `_BAD_INDEX_STATES` and the row would
+        # be passed over as clean, which is the same MUST-12 silent pass the
+        # tab and field-count checks above exist to prevent. The prefixes are
+        # the producer's contract, so they are what gets checked.
+        for field, prefix in zip(fields[:3], _FIELD_PREFIXES, strict=True):
+            if not field.startswith(prefix):
+                raise RuntimeError(
+                    f"git ls-files --eol emitted a row whose field {field!r} does "
+                    f"not start with {prefix!r}: {line!r}. The parser expects "
+                    "`i/<state> w/<state> attr/<attrs><TAB><path>`."
+                )
         examined += 1
         index_state = fields[0]
         attributes = " ".join(fields[2:])

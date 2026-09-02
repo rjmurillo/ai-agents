@@ -216,6 +216,22 @@ def test_a_newline_in_a_path_cannot_forge_a_log_line(tmp_path: Path, capsys) -> 
     assert "git add --renormalize --" not in out
 
 
+def test_a_bidi_override_in_a_path_cannot_disguise_it(tmp_path: Path, capsys) -> None:
+    """CWE-451: U+202E reverses what follows, so the log names a different file.
+
+    It is not a control character, so an ASCII-only escape class lets it
+    through into the same required CI log.
+    """
+    repo = _repo_with_crlf_blob(tmp_path, name="handoff\u202edm.txt")
+
+    assert checker.validate_index_line_endings(repo) is False
+
+    out = capsys.readouterr().out
+    assert "\u202e" not in out
+    assert "handoff\\u202edm.txt" in out
+    assert "git add --renormalize --" not in out
+
+
 def test_an_escape_sequence_in_a_path_cannot_repaint_the_terminal(
     tmp_path: Path, capsys
 ) -> None:
@@ -256,12 +272,25 @@ def test_display_path_leaves_ordinary_names_alone() -> None:
     assert record.is_spellable("a;$(id).md")
 
 
-def test_display_path_escapes_every_control_class() -> None:
-    """C0, DEL and C1 all reach a log verbatim without this escaping."""
-    assert record.display_path("a\nb") == "a\\nb"
-    assert record.display_path("a\tb") == "a\\tb"
-    assert record.display_path("a\rb") == "a\\rb"
-    assert record.display_path("a\x1bb") == "a\\x1bb"
-    assert record.display_path("a\x7fb") == "a\\x7fb"
-    assert record.display_path("a\x9bb") == "a\\x9bb"
-    assert not record.is_spellable("a\nb")
+def test_display_path_escapes_every_unsafe_category() -> None:
+    """Cc, Cf, Zl and Zp all reach a log looking like something else.
+
+    Cc forges or repaints a line. Cf is invisible, and the bidi controls
+    reorder what follows, so the reader sees a filename the repository does
+    not hold (CWE-451). Zl and Zp break the line without being Cc.
+    """
+    for path, expected in (
+        ("a\nb", "a\\nb"),  # Cc
+        ("a\tb", "a\\tb"),  # Cc
+        ("a\rb", "a\\rb"),  # Cc
+        ("a\x1bb", "a\\x1bb"),  # Cc, ESC
+        ("a\x7fb", "a\\x7fb"),  # Cc, DEL
+        ("a\x9bb", "a\\x9bb"),  # Cc, C1
+        ("a\u202eb", "a\\u202eb"),  # Cf, right-to-left override
+        ("a\u200bb", "a\\u200bb"),  # Cf, zero-width space
+        ("a\ufeffb", "a\\ufeffb"),  # Cf, byte order mark
+        ("a\u2028b", "a\\u2028b"),  # Zl
+        ("a\u2029b", "a\\u2029b"),  # Zp
+    ):
+        assert record.display_path(path) == expected
+        assert not record.is_spellable(path)
