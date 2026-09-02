@@ -55,6 +55,21 @@ def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # mock artifact here, not a real empty corpus: real-filesystem-
         # dependent noise the same way the other corpus gates above are.
         "ADR Link Resolution",
+        # validate_count_ratchets() reaches the merge-tree backstop through an
+        # in-process call to merge_tree_ratchet_check._evaluate_merged_tree
+        # (issue #5441), not through the single mocked `uv run` subprocess it
+        # used before. _healthy_git_run's blanket `else: stdout = ""` branch
+        # answers the backstop's `git merge-tree` with no tree OID, which the
+        # backstop correctly reports as "no merged tree to evaluate". Modelling
+        # that path would mean faking a tree OID and then a materialized
+        # worktree this mock never writes to disk, so every count read back
+        # from it would be fiction. The gate's own behaviour against real git
+        # is covered by tests/ci/test_pre_pr_runs_lefthook_ratchets.py and
+        # tests/ci/test_checks_ratchet_merge_tree_backstop.py, and its place in
+        # the sequence by tests/validation/test_pre_pr_sequence_registry.py.
+        # Here it is real-git-state-dependent noise the same way the other
+        # corpus gates above are real-filesystem-dependent noise.
+        "Count Ratchets",
     }
     return tuple(
         replace(gate, run=lambda _repo_root, _args: True)
