@@ -25,7 +25,13 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/pytest.yml"
 SCRIPT = "scripts/validation/check_index_line_endings.py"
-AGGREGATOR_JOB = "test-result"
+
+# Two jobs carry this name and they are mutually exclusive: `test-result` when
+# the change touched Python, `skip-tests` when it did not. Branch protection
+# watches the name, so whichever one runs is the required check, and both have
+# to gate on the guard. Selected by name rather than by id, so a third leg
+# added later is covered the day it appears.
+REQUIRED_CHECK_NAME = "Run Python Tests"
 
 
 def _jobs() -> dict[str, dict]:
@@ -91,21 +97,49 @@ def test_the_workflow_still_triggers_on_the_events_that_matter(event: str) -> No
     assert event in triggers
 
 
-def test_the_aggregator_requires_the_gate_job() -> None:
-    """Branch protection watches the aggregator, not the guard job directly.
+def _required_check_jobs() -> dict[str, dict]:
+    """Every job reporting the required status check, by id."""
+    jobs = {
+        job_id: job
+        for job_id, job in _jobs().items()
+        if job.get("name") == REQUIRED_CHECK_NAME
+    }
+    assert jobs, f"no job renders as {REQUIRED_CHECK_NAME!r} in {WORKFLOW.name}"
+    return jobs
 
-    Without this the guard could go red while `Run Python Tests` stayed green,
-    which is a required check reporting success over a failed guard.
+
+@pytest.mark.parametrize("job_id", sorted(_required_check_jobs()))
+def test_every_required_check_leg_requires_the_gate_job(job_id: str) -> None:
+    """The guard's own context is not required; the aggregator's is.
+
+    So a leg that reports `Run Python Tests` without waiting on the guard
+    reports success over a red guard. `test-result` and `skip-tests` are
+    mutually exclusive on `python-changed`, and `skip-tests` is the leg that
+    runs on exactly the change this gate exists for: a CRLF blob under a
+    non-Python path. Gating only `test-result` therefore left the reported
+    bypass open one level up from where it was found.
     """
     gate_ids = set(_gate_jobs())
-    aggregator = _jobs()[AGGREGATOR_JOB]
+    job = _required_check_jobs()[job_id]
 
-    assert gate_ids <= set(aggregator["needs"]), (
-        f"{AGGREGATOR_JOB} needs {aggregator['needs']}, missing {gate_ids}"
+    assert gate_ids <= set(job["needs"]), (
+        f"{job_id} needs {job['needs']}, missing {gate_ids}"
     )
 
+
+@pytest.mark.parametrize("job_id", sorted(_required_check_jobs()))
+def test_every_required_check_leg_asserts_the_gate_result(job_id: str) -> None:
+    """`needs` alone is not enough under `!cancelled()`.
+
+    Both legs run even when a dependency failed, by design, so that the
+    required context reports failed rather than going missing. That makes the
+    explicit result assertion the thing that actually fails the check.
+    """
+    gate_ids = set(_gate_jobs())
+    job = _required_check_jobs()[job_id]
+
     step = next(
-        s for s in aggregator["steps"] if "require_job_results.py" in str(s.get("run", ""))
+        s for s in job["steps"] if "require_job_results.py" in str(s.get("run", ""))
     )
     env = step["env"]
     result_vars = [
@@ -113,8 +147,8 @@ def test_the_aggregator_requires_the_gate_job() -> None:
         for name, value in env.items()
         if any(f"needs.{job_id}.result" in str(value) for job_id in gate_ids)
     ]
-    assert result_vars, f"no env var carries the guard's result: {env}"
+    assert result_vars, f"no env var in {job_id} carries the guard's result: {env}"
     for name in result_vars:
         assert f"--check {name} success" in str(step["run"]), (
-            f"{name} is passed to the job but never checked"
+            f"{name} is passed to {job_id} but never checked"
         )

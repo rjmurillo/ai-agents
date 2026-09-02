@@ -732,6 +732,14 @@ jobs:
     needs:
       - check-paths
       - zero-collection-guard
+      # Issue #5475: this is the leg that reports the required check on
+      # exactly the change the line-ending guard exists for. A commit adding
+      # only a CRLF `.md` or `.csv` leaves `python-changed` false, so
+      # `test-result` is skipped and this job answers for `Run Python Tests`
+      # instead. Wiring the guard into `test-result` alone left it red beside
+      # a green required check, because the guard's own context is not in the
+      # repository's required-checks list.
+      - line-endings-guard
     # !cancelled() so this job still runs (and can fail loudly) when
     # zero-collection-guard failed, rather than being implicitly skipped by
     # GitHub's default success()-over-needs gate, which would leave the
@@ -756,12 +764,14 @@ jobs:
           persist-credentials: false
           sparse-checkout: scripts/ci/require_job_results.py
 
-      - name: Require zero-collection-guard success
+      - name: Require blocking guards succeeded
         env:
           ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
+          LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
           --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
+          --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
 
       - name: Skip tests (no Python test inputs changed)
         run: |
