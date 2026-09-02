@@ -30,8 +30,10 @@ Coverage:
   a linked worktree resolving to the common directory's hooks is healthy.
 - negative: a missing hooksPath directory, a directory with no pre-push, an
   unset hooksPath with no pre-push, an executable hook that dispatches nothing,
-  and an unreadable hook all exit 1 and name the remedy; a linked worktree
-  inherits the broken config; removing the gate fails the wiring test.
+  one whose marker is commented out, and an undecodable one all exit 1 and name
+  the remedy; an unreadable hook fails closed through the OSError branch; a
+  linked worktree inherits the broken config; removing the gate fails the wiring
+  test.
 - edge: no lefthook config, non-repositories, and CI exit 0; missing Git and
   timeouts exit 3; the failure report stays inside a line budget.
 """
@@ -120,6 +122,13 @@ DISPATCHING_PREPUSH = (
     'call_lefthook run "pre-push" "$@"\n'
 )
 INERT_PREPUSH = "#!/bin/sh\nexit 0\n"
+# Executable, mentions the marker, dispatches nothing. A whole-file substring
+# search accepts this; anchoring to the final command refuses it (CWE-693).
+COMMENTED_MARKER_PREPUSH = (
+    "#!/bin/sh\n"
+    '# call_lefthook run "pre-push" "$@"\n'
+    "exit 0\n"
+)
 
 
 def _install_prepush(hooks_dir: Path, body: str = DISPATCHING_PREPUSH) -> None:
@@ -246,9 +255,30 @@ class TestDeadHooks:
         assert "does not dispatch Lefthook" in result.stderr
         assert check_git_hook_health.REMEDY in result.stderr
 
-    def test_an_unreadable_hook_fails_closed(self, tmp_path: Path) -> None:
-        """An undecodable hook is unverified, so it is not a pass."""
-        repo = _make_repo(tmp_path, "unreadable")
+    def test_a_commented_out_marker_does_not_count_as_dispatch(
+        self, tmp_path: Path
+    ) -> None:
+        """Mentioning the marker is not dispatching it.
+
+        The first version of this gate matched the marker anywhere in the file,
+        so an inert hook carrying it in a comment above `exit 0` passed while
+        running no guard. The check is anchored to the final command instead.
+        """
+        repo = _make_repo(tmp_path, "commented")
+        _install_prepush(repo / ".git" / "hooks", body=COMMENTED_MARKER_PREPUSH)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "does not dispatch Lefthook" in result.stderr
+
+    def test_an_undecodable_hook_fails(self, tmp_path: Path) -> None:
+        """A binary payload decodes under errors="replace" and has no marker.
+
+        Named for what it actually exercises. It does not reach the OSError
+        branch, which the test below covers.
+        """
+        repo = _make_repo(tmp_path, "undecodable")
         hooks_dir = repo / ".git" / "hooks"
         _install_prepush(hooks_dir)
         (hooks_dir / "pre-push").write_bytes(b"\x00\xff\xfe binary payload")
@@ -258,6 +288,24 @@ class TestDeadHooks:
 
         assert result.returncode == 1
         assert "does not dispatch Lefthook" in result.stderr
+
+    def test_an_unreadable_hook_fails_closed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A hook the gate cannot read is unverified, so it is not a pass.
+
+        Drives the `except OSError` branch, which no on-disk payload reaches:
+        production reads with `errors="replace"`, so decoding always succeeds.
+        """
+        repo = _make_repo(tmp_path, "unreadable")
+        _install_prepush(repo / ".git" / "hooks")
+
+        def deny(self: Path, *args: object, **kwargs: object) -> str:
+            raise PermissionError(f"denied: {self}")
+
+        monkeypatch.setattr(check_git_hook_health.Path, "read_text", deny)
+
+        assert check_git_hook_health.diagnose(repo) is not None
 
     def test_validation_reuses_the_resolved_hooks_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

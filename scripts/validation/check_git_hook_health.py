@@ -221,8 +221,28 @@ def _failed_condition(repo_root: Path, hooks_dir: Path) -> str:
     )
 
 
+def _final_command(text: str) -> str:
+    """Return the last line that a shell would execute, ignoring comments.
+
+    Not a shell parser: the ADR-086 amendment debate rejected one. This reads
+    the last non-blank, non-comment line, which is where Lefthook's generated
+    shim puts its dispatch on every platform.
+    """
+    for line in reversed(text.splitlines()):
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            return stripped
+    return ""
+
+
 def _dispatches_lefthook(hook: Path) -> bool:
-    """True when the hook file carries Lefthook's own dispatch line.
+    """True when the hook's final command is Lefthook's own dispatch.
+
+    Anchored to the final command rather than matched anywhere in the file.
+    A substring search over the whole text accepts an inert hook that merely
+    mentions the marker in a comment, for example ``# call_lefthook run
+    "pre-push"`` followed by ``exit 0``, which is executable, reports healthy,
+    and runs no guard (CWE-693, PR #5358 review).
 
     An unreadable hook returns False: the gate fails closed rather than
     treating an unverifiable hook as installed.
@@ -231,7 +251,7 @@ def _dispatches_lefthook(hook: Path) -> bool:
         text = hook.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return False
-    return DISPATCH_MARKER in text
+    return DISPATCH_MARKER in _final_command(text)
 
 
 def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
@@ -241,8 +261,9 @@ def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
         return _failed_condition(repo_root, hooks_dir)
     if not _dispatches_lefthook(hook):
         return (
-            f"{hook} is executable but does not dispatch Lefthook: it carries "
-            f"no '{DISPATCH_MARKER}' line, so git runs no repository guardrail"
+            f"{hook} is executable but does not dispatch Lefthook: its final "
+            f"command is not '{DISPATCH_MARKER}', so git runs no repository "
+            "guardrail"
         )
     return None
 

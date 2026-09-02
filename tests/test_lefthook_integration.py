@@ -1291,10 +1291,13 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
     assert hooks_path.returncode == 1
     assert os.access(repo / ".git/hooks/pre-push", os.X_OK)
     # The `Git Hook Health` gate refuses an executable but inert hook by
-    # matching this line, so the gate's constant must keep agreeing with what
-    # Lefthook actually installs. If a future Lefthook renames the dispatch
-    # function, this fails here rather than blocking every local push.
+    # requiring this line as the shim's final command, so the gate must keep
+    # agreeing with what Lefthook actually installs. Driving the real predicate
+    # rather than a substring also pins the final-command anchoring: if a future
+    # Lefthook renames the dispatch or appends a trailing command, this fails
+    # here rather than blocking every local push.
     assert check_git_hook_health.DISPATCH_MARKER in hook_shim
+    assert check_git_hook_health._dispatches_lefthook(repo / ".git/hooks/pre-push")
 
     if sys.platform == "win32":
         # Dear future maintainer: this branch is not a shortcut. lefthook 2.1.10
