@@ -283,7 +283,12 @@ def _repo_with_crlf_blob(tmp_path: Path, name: str = "handoff.md") -> Path:
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init", "--quiet")
-    (repo / ".gitattributes").write_text("* text=auto eol=lf\n", newline="\n")
+    # `*.md text` matches this repository: an explicit `text` always applies
+    # the clean filter, while `text=auto` alone leaves an already-CRLF blob
+    # untouched and the defect never surfaces.
+    (repo / ".gitattributes").write_text(
+        "* text=auto eol=lf\n*.md text\n", newline="\n"
+    )
     _git(repo, "add", ".gitattributes")
 
     crlf = repo / name
@@ -329,3 +334,43 @@ def test_remediation_command_quotes_paths_with_spaces(tmp_path: Path, capsys) ->
 
     out = capsys.readouterr().out
     assert "git add --renormalize 'a handoff.md'" in out
+
+
+def _commit(repo: Path, message: str) -> None:
+    _git(
+        repo,
+        "-c", "user.email=test@example.invalid",
+        "-c", "user.name=Test",
+        "commit", "--quiet", "--no-verify", "-m", message,
+    )
+
+
+def _porcelain(worktree: Path) -> str:
+    return _git(worktree, "status", "--porcelain").stdout.strip()
+
+
+def test_a_crlf_blob_reports_a_modification_nobody_made(tmp_path: Path) -> None:
+    """The operator-visible symptom, reproduced and then shown fixed.
+
+    A fresh checkout of the CRLF blob reads back through the clean filter as
+    LF, so its hash never matches its own blob and git reports a modification
+    nobody made. That is what aborts a merge touching the path. Renormalizing
+    removes it, and the checkout stays clean even after the file is touched.
+    """
+    repo = _repo_with_crlf_blob(tmp_path)
+    _git(repo, "config", "core.autocrlf", "input")
+    _commit(repo, "plant a CRLF blob the way the API does")
+
+    before = tmp_path / "before"
+    _git(repo, "worktree", "add", "--detach", "--quiet", str(before), "HEAD")
+    (before / "handoff.md").touch()
+    assert "handoff.md" in _porcelain(before)
+
+    _git(repo, "add", "--renormalize", "handoff.md")
+    _commit(repo, "renormalize")
+
+    after = tmp_path / "after"
+    _git(repo, "worktree", "add", "--detach", "--quiet", str(after), "HEAD")
+    assert _porcelain(after) == ""
+    (after / "handoff.md").touch()
+    assert _porcelain(after) == ""
