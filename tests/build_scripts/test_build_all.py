@@ -3346,6 +3346,65 @@ def test_snapshot_strict_skips_files_under_an_ignored_directory(
     )
 
 
+def test_snapshot_strict_aborts_when_the_git_marker_cannot_be_stat_ed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A metadata failure on `<dir>/.git` must abort, not read as "no boundary".
+
+    `_is_opaque_boundary`'s shape branch asks `(entry / ".git").exists()`, which
+    answers "absent" and "could not be stat'ed" with the same False. Used from
+    the strict walk that would have descended into the checkout, read every
+    file in it, and handed restore a boundary set missing that entry: issue
+    #5370 reached through the exact metadata failure the strict contract
+    exists to reject.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    nested = owned / "worktrees" / "wt"
+    nested.mkdir(parents=True)
+    marker = nested / ".git"
+    marker.write_text("gitdir: ../../../../.git/worktrees/wt\n")
+    (nested / "checked_out.py").write_text("z = 3\n")
+    (owned / "real.py").write_bytes(b"y = 2\n")
+
+    real_stat = Path.stat
+
+    def marker_stat_denied(
+        self: Path, *, follow_symlinks: bool = True
+    ) -> os.stat_result:
+        if self == marker:
+            raise PermissionError(13, "denied")
+        return real_stat(self, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "stat", marker_stat_denied)
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "cannot inspect git boundary marker" in str(excinfo.value)
+
+
+def test_snapshot_strict_rejects_a_symlinked_git_marker(tmp_path: Path) -> None:
+    """A symlinked `.git` marker cannot be trusted to answer the question.
+
+    Following it would let a link decide whether a directory counts as a
+    nested repository, which is the same trust the symlink rejection in
+    `_strict_owned_stat` refuses for the paths themselves.
+    """
+    repo = tmp_path / "repo"
+    nested = repo / "owned" / "worktrees" / "wt"
+    nested.mkdir(parents=True)
+    elsewhere = tmp_path / "elsewhere-git"
+    elsewhere.write_text("gitdir: /somewhere/else\n")
+    _file_symlink_or_skip(nested / ".git", elsewhere)
+    (nested / "checked_out.py").write_text("z = 3\n")
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "git boundary marker is a symlink" in str(excinfo.value)
+
+
 def test_run_check_restore_leaves_a_nested_checkout_alone(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

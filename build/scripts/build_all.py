@@ -1188,6 +1188,43 @@ def _strict_owned_children(path: Path) -> list[Path]:
         ) from exc
 
 
+def _strict_is_git_boundary(directory: Path) -> bool:
+    """Return whether ``directory`` holds its own ``.git`` entry, failing closed.
+
+    :func:`_is_opaque_boundary`'s shape branch asks ``(entry / ".git").exists()``,
+    and that is fail-open in strict mode for the reason this file spends a
+    docstring on elsewhere: ``Path.exists()`` answers "absent" and "could not
+    be stat'ed" with the same ``False``. A permission error or a stale handle
+    on ``<directory>/.git`` would read as "not a boundary", the strict walk
+    would descend into the checkout, and the nested-worktree read that issue
+    #5370 closed would be back, this time reached through the very metadata
+    failure this branch was added to reject.
+
+    So the marker gets the same treatment every other strict probe gets. Only
+    :class:`FileNotFoundError` means absent. A symlinked marker is rejected
+    rather than followed, matching :func:`_strict_owned_stat`. Every other
+    :class:`OSError` aborts the snapshot.
+
+    Both marker shapes count: ``git worktree add`` writes ``.git`` as a file
+    holding a ``gitdir:`` pointer, a normal clone writes it as a directory.
+    """
+    marker = directory / ".git"
+    try:
+        metadata = marker.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        raise SnapshotIncompleteError(
+            f"cannot inspect git boundary marker {marker}: {exc}"
+        ) from exc
+    if stat.S_ISLNK(metadata.st_mode):
+        raise SnapshotIncompleteError(
+            f"git boundary marker is a symlink, so it cannot be trusted to "
+            f"say whether {directory} is a nested repository: {marker}"
+        )
+    return True
+
+
 def _queue_strict_owned_path(
     pending: list[Path], path: Path, boundaries_seen: set[Path] | None
 ) -> Path | None:
@@ -1197,7 +1234,7 @@ def _queue_strict_owned_path(
         "missing_root_ok=False guarantees a non-None result or a raise"
     )
     if stat.S_ISDIR(metadata.st_mode):
-        if _is_opaque_boundary(path, None):
+        if _strict_is_git_boundary(path):
             if boundaries_seen is not None:
                 boundaries_seen.add(path)
         else:
@@ -1224,11 +1261,14 @@ def _iter_strict_owned_files(
     discovery deliberately avoids ``Path.rglob`` and the shared walk, so the
     boundary test is repeated here rather than reused.
 
-    Shape detection (``opaque=None``) is correct at this call site for the
-    same reason it is correct for the pre-build ``.claude/`` baseline: this
-    runs before any generator, so nothing can have manufactured a ``.git``
-    entry yet, and there is no recorded set to consult. The post-build
-    passes take the recorded set instead (see :func:`_is_opaque_boundary`).
+    Shape detection is correct at this call site for the same reason it is
+    correct for the pre-build ``.claude/`` baseline: this runs before any
+    generator, so nothing can have manufactured a ``.git`` entry yet, and
+    there is no recorded set to consult. The post-build passes take the
+    recorded set instead (see :func:`_is_opaque_boundary`). The probe is
+    :func:`_strict_is_git_boundary`, not :func:`_is_opaque_boundary`, because
+    the latter's shape branch uses ``Path.exists()`` and would swallow a
+    metadata failure on the marker.
 
     ``boundaries_seen`` collects what this walk refused to enter, and
     :func:`run` hands that same set to :func:`_restore_owned_prefixes`.
