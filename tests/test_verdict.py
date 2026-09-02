@@ -370,17 +370,23 @@ def lint_payload(
     warning_count: int = 0,
     files_scanned: int = 3,
     applicable_files: int = 3,
+    files_by_category: dict[str, int] | None = None,
 ) -> str:
     """One golden-principles or taste-lints JSON payload.
 
-    Carries the shape both scanners really emit, `files_scanned` included, so a
-    test cannot pass on a payload the adapter would refuse in production.
-    `applicable_files` is golden-principles only; taste-lints ignores it.
+    Carries the shape both scanners really emit, so a test cannot pass on a
+    payload the adapter would refuse in production. `applicable_files` is
+    golden-principles only; `files_by_category` is taste-lints only, and it is
+    where a generated-only run shows up, because taste-lints counts a generated
+    file into `files_scanned` and then skips it without running a rule.
     """
+    if files_by_category is None:
+        files_by_category = {"authored": files_scanned}
     return json.dumps(
         {
             "files_scanned": files_scanned,
             "applicable_files": applicable_files,
+            "files_by_category": files_by_category,
             "error_count": error_count,
             "warning_count": warning_count,
         }
@@ -645,7 +651,14 @@ class TestAdaptLocalAxisVerdict:
         taste-lints emits no `applicable_files`, so gating both axes on it
         would make every taste-lints run UNKNOWN.
         """
-        payload = '{"files_scanned": 9, "error_count": 0, "warning_count": 0}'
+        payload = json.dumps(
+            {
+                "files_scanned": 9,
+                "files_by_category": {"authored": 9},
+                "error_count": 0,
+                "warning_count": 0,
+            }
+        )
         assert adapt_local_axis_verdict("taste-lints", payload, 0) == "PASS"
 
     @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
@@ -705,6 +718,49 @@ class TestAdaptLocalAxisVerdict:
         """The mirror contradiction: errors reported under exit 0."""
         payload = lint_payload(error_count=1)
         assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
+
+    def test_taste_lints_generated_only_scan_is_not_a_pass(self):
+        """taste-lints counts a generated file then skips it without linting.
+
+        `run_lint` does `result.files_scanned += 1` inside the
+        `_generated_by_path` branch and then continues, so files_scanned alone
+        cannot separate a linted run from a skipped one. A generated-only diff,
+        such as a changed shipped mirror, reached PASS with no rule run.
+        """
+        payload = lint_payload(files_by_category={"generated": 3})
+        assert adapt_local_axis_verdict("taste-lints", payload, 0) == "UNKNOWN"
+
+    def test_taste_lints_generated_beside_authored_still_passes(self):
+        """Negative control: one linted file is enough."""
+        payload = lint_payload(files_by_category={"generated": 2, "authored": 1})
+        assert adapt_local_axis_verdict("taste-lints", payload, 0) == "PASS"
+
+    def test_taste_lints_test_category_counts_as_linted(self):
+        payload = lint_payload(files_by_category={"test": 2})
+        assert adapt_local_axis_verdict("taste-lints", payload, 0) == "PASS"
+
+    def test_taste_lints_missing_category_map_stays_unknown(self):
+        payload = json.dumps(
+            {"files_scanned": 3, "error_count": 0, "warning_count": 0}
+        )
+        assert adapt_local_axis_verdict("taste-lints", payload, 0) == "UNKNOWN"
+
+    def test_golden_principles_needs_no_category_map(self):
+        """Negative control: the category gate is taste-lints only.
+
+        golden-principles emits applicable_files instead and no
+        files_by_category, so gating both axes on it would make every
+        golden-principles run UNKNOWN.
+        """
+        payload = json.dumps(
+            {
+                "files_scanned": 3,
+                "applicable_files": 2,
+                "error_count": 0,
+                "warning_count": 0,
+            }
+        )
+        assert adapt_local_axis_verdict("golden-principles", payload, 0) == "PASS"
 
     def test_malformed_output_stays_unknown(self):
         assert adapt_local_axis_verdict("taste-lints", "not json", 0) == "UNKNOWN"

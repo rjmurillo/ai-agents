@@ -1,5 +1,17 @@
 """Verdict parsing, local-axis adaptation, and failure categorization."""
 
+# taste-lint: ignore file-size
+# The ceiling wants this split, and the obvious seam is real: the local-axis
+# adapter and its payload-evidence helpers are a separate concern from verdict
+# parsing. The split is blocked by a packaging contract, not by taste. The
+# vendored plugin probe loads this module standalone by file path
+# (importlib.util.spec_from_file_location in tests/e2e/test_vendored_review_e2e.py),
+# which any sibling import would break, and the 100% branch gate in
+# .github/workflows/pytest.yml pins this exact path. Roughly 120 of these lines
+# are contract quotations that .claude/rules/canonical-source-mirror.md
+# requires verbatim, which is documentation density, not the reasoning burden
+# the rule targets. Revisit together with the vendored loader and the pin.
+
 from __future__ import annotations
 
 import json
@@ -251,11 +263,25 @@ def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool
     return bool(eligible) and all(_is_scored(entry) for entry in eligible)
 
 
-def _has_inventoried_docs(payload: dict[str, object]) -> bool:
-    """Return True when doc-accuracy actually inventoried a documentation file.
+def _has_linted_category(payload: dict[str, object]) -> bool:
+    """Return True when taste-lints linted a file, not just counted one.
 
-    ``assessment.documentation_files`` is the list built from ``DOC_GLOBS``.
-    Empty means the gate had nothing to check, so its PASS is silence.
+    Its ``classify_file_category`` returns the same three labels assess.py
+    uses, and only authored and test reach a rule.
+    """
+    by_category = payload.get("files_by_category")
+    if not isinstance(by_category, dict):
+        return False
+    return any(
+        _coerce_nonnegative_int(by_category.get(name)) for name in _ASSESSED_CATEGORIES
+    )
+
+
+def _has_inventoried_docs(payload: dict[str, object]) -> bool:
+    """Return True when doc-accuracy inventoried a documentation file.
+
+    ``assessment.documentation_files`` is built from ``DOC_GLOBS``; empty means
+    the gate had nothing to check, so its PASS is silence.
     """
     assessment = payload.get("assessment")
     if not isinstance(assessment, dict):
@@ -304,10 +330,8 @@ def adapt_local_axis_verdict(
             return "FAIL"
         if exit_code != 0:
             return "UNKNOWN"
-        # A clean exit over zero files is silence, not a pass. In regression
-        # mode assess.py emits files: [] with file_count: 0 when the diff has
-        # no assessable head files, such as a deletion-only change, so the
-        # axis evaluated nothing and has no verdict to report.
+        # A clean exit over zero files is silence, not a pass: in regression
+        # mode assess.py emits `files: []` for a deletion-only diff.
         return "PASS" if _has_assessed_files(files, summary) else "UNKNOWN"
 
     if axis == "doc-accuracy":
@@ -320,15 +344,13 @@ def adapt_local_axis_verdict(
             inventoried_docs = _has_inventoried_docs(payload)
         if gate_verdict is None:
             # Summary mode prints no examined-file count, so a clean Gate line
-            # there cannot distinguish "checked the docs and they hold up" from
-            # "found no docs to check". Only the JSON contract carries the
-            # evidence, so summary output can report FAIL but never PASS.
+            # cannot separate "checked the docs" from "found no docs". It can
+            # report FAIL, which needs no such evidence, but never PASS.
             matches = _DOC_ACCURACY_GATE_PATTERN.findall(output)
             gate_verdict = matches[-1] if matches else None
-        # check_gate returns PASS whenever no claim contradicts the code, and a
-        # run that inventoried zero documentation files has no claims to
-        # contradict. A deletion-only Markdown diff, or one under an
-        # EXCLUDE_DIRS path, passes that way without opening a changed file.
+        # check_gate passes whenever no claim contradicts the code, and a run
+        # that inventoried nothing has no claims. A deletion-only Markdown diff,
+        # or one under EXCLUDE_DIRS, passes without opening a changed file.
         if gate_verdict == "PASS" and exit_code == 0 and inventoried_docs:
             return "PASS"
         if gate_verdict == "FAIL" and exit_code == 10:
@@ -356,19 +378,22 @@ def adapt_local_axis_verdict(
     warning_count = _coerce_nonnegative_int(payload.get("warning_count"))
     if error_count is None or warning_count is None:
         return "UNKNOWN"
-    # A clean exit over nothing scanned is silence, not a pass. Both scanners
-    # take their file list from a diff, which names deleted paths, then guard
-    # the `files_scanned += 1` with `if not os.path.isfile(filepath):
-    # continue`, so a deletion-only diff exits 0 with every count at zero.
+    # Both scanners take their file list from a diff, which names deleted
+    # paths, then guard `files_scanned += 1` with `if not
+    # os.path.isfile(filepath): continue`, so a deletion-only diff exits 0
+    # with every count at zero.
     if not _coerce_nonnegative_int(payload.get("files_scanned")):
         return "UNKNOWN"
     # golden-principles narrows once more: applicable_files counts what a GP
-    # rule governs. Its axis note says a clean result on a non-toolkit repo
-    # "means no rule applied, not that design was reviewed". taste-lints has no
-    # such field and needs no such gate.
+    # rule governs, and its axis note says a clean result on a non-toolkit repo
+    # "means no rule applied, not that design was reviewed".
     if axis == "golden-principles" and not _coerce_nonnegative_int(
         payload.get("applicable_files")
     ):
+        return "UNKNOWN"
+    # taste-lints counts a generated file into files_scanned then skips it
+    # without running a rule, so it reports the split in files_by_category.
+    if axis == "taste-lints" and not _has_linted_category(payload):
         return "UNKNOWN"
     # Both scanners derive that status from this very field: `if
     # result.error_count > 0: return EXIT_VIOLATIONS` then `return
