@@ -21,6 +21,9 @@ EXIT_EXTERNAL = 3
 PASS_STATES = {"BEHIND", "BLOCKED", "CLEAN", "HAS_HOOKS", "UNSTABLE"}
 FAIL_STATES = {"DIRTY"}
 
+RETRY_DELAY_MIN_SECONDS = 10
+RETRY_DELAY_MAX_SECONDS = 20
+
 
 @dataclass(frozen=True, slots=True)
 class PullRequest:
@@ -99,43 +102,62 @@ def load_open_prs(repo: str, head_ref: str) -> tuple[int, list[PullRequest]]:
     return EXIT_OK, prs
 
 
+def has_no_verdict(merge_state_status: str) -> bool:
+    """True when GitHub gave no authoritative merge verdict for this status.
+
+    UNKNOWN is what GitHub reports while mergeability is still being computed,
+    but it is not the only status outside the decided sets: an unlisted or
+    newly-added status lands here too. check_prs and load_open_prs_with_retry
+    share this predicate so that every status which can fail the run is also a
+    status the retry will wait on. A stricter retry predicate would let an
+    unlisted status skip the wait and still exit 3.
+    """
+    return merge_state_status not in PASS_STATES | FAIL_STATES
+
+
 def load_open_prs_with_retry(
     repo: str, head_ref: str, max_attempts: int = 3
 ) -> tuple[int, list[PullRequest]]:
-    """Load open PRs, retrying if merge state is UNKNOWN.
+    """Load open PRs, re-reading while GitHub reports no merge verdict yet.
 
-    GitHub computes mergeability lazily. On the first query after a push,
-    mergeStateStatus may be UNKNOWN. This function retries the query up to
-    max_attempts times with random delays (10-20 seconds) between attempts,
-    allowing GitHub time to compute mergeability.
+    GitHub computes mergeability lazily, so the first read after a push can
+    come back without a verdict. This makes up to max_attempts reads, sleeping
+    a random RETRY_DELAY_MIN_SECONDS to RETRY_DELAY_MAX_SECONDS between them,
+    and never sleeps after the final read.
 
-    Returns whatever load_open_prs last returned: an early non-EXIT_OK on a
-    gh failure, or EXIT_OK with the PR list on the final attempt, UNKNOWN
-    merge state included if every attempt stayed UNKNOWN. Deciding whether
-    UNKNOWN should fail the run is check_prs's job, not this function's.
+    Returns whatever load_open_prs last returned: an early non-EXIT_OK on a gh
+    failure, or EXIT_OK with the PR list from the last read, a verdict-less
+    merge state included if every read stayed that way. Deciding whether a
+    missing verdict should fail the run is check_prs's job, not this one's.
+
+    Raises ValueError when max_attempts is not an integer of 1 or more. A zero
+    or negative budget previously skipped the loop and then read unassigned
+    locals; a non-integer raised out of range().
+
+    Canonical bound, scripts/validate_pr_review_config.py:284-290, quoted:
+
+        retries = il.get("completion_gate_max_retries")
+        if retries is not None and (
+            not isinstance(retries, int) or isinstance(retries, bool) or retries < 0
+        ):
+            errors.append(
+                "invocation_limits.completion_gate_max_retries must be an integer >= 0"
+            )
+
+    Stricter than canonical: the floor here is 1, not 0, because this counts
+    attempts rather than retries and zero attempts reads nothing. The bool
+    exclusion is carried over unchanged, so max_attempts=True is rejected rather
+    than silently meaning one attempt.
     """
-    retry_delay_min = 10
-    retry_delay_max = 20
+    if not isinstance(max_attempts, int) or isinstance(max_attempts, bool) or max_attempts < 1:
+        raise ValueError(f"max_attempts must be an integer >= 1, got {max_attempts!r}")
 
-    for attempt in range(max_attempts):
+    rc, prs = load_open_prs(repo, head_ref)
+    for _ in range(max_attempts - 1):
+        if rc != EXIT_OK or not any(has_no_verdict(pr.merge_state_status) for pr in prs):
+            return rc, prs
+        time.sleep(random.randint(RETRY_DELAY_MIN_SECONDS, RETRY_DELAY_MAX_SECONDS))
         rc, prs = load_open_prs(repo, head_ref)
-
-        # If the call failed (not EXIT_OK), return immediately
-        if rc != EXIT_OK:
-            return rc, prs
-
-        # Check if any PR has UNKNOWN status
-        has_unknown = any(pr.merge_state_status == "UNKNOWN" for pr in prs)
-
-        # If no UNKNOWN or this is the last attempt, return
-        if not has_unknown or attempt == max_attempts - 1:
-            return rc, prs
-
-        # Wait before retrying (random between 10-20 seconds)
-        wait_time = random.randint(retry_delay_min, retry_delay_max)
-        time.sleep(wait_time)
-
-    # Should not reach here, but return the last result just in case
     return rc, prs
 
 
@@ -145,7 +167,7 @@ def check_prs(prs: Sequence[PullRequest]) -> int:
         return EXIT_OK
 
     blocked = [pr for pr in prs if pr.merge_state_status in FAIL_STATES]
-    unknown = [pr for pr in prs if pr.merge_state_status not in PASS_STATES | FAIL_STATES]
+    unknown = [pr for pr in prs if has_no_verdict(pr.merge_state_status)]
     if blocked:
         for pr in blocked:
             print(
