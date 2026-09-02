@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1084,6 +1085,8 @@ class TestQuerySelectsDetailsUrl:
 
 _load_dispositions = _mod._load_dispositions
 _check_nonrequired_dispositions = _mod._check_nonrequired_dispositions
+_disposition_accepts = _mod._disposition_accepts
+_EXPIRES_PATTERN = _mod._EXPIRES_PATTERN
 _VALID_DISPOSITIONS = _mod._VALID_DISPOSITIONS
 
 # `expires` is required on every entry, so the shared fixtures below carry one.
@@ -1265,6 +1268,63 @@ class TestDispositionExpiry:
         """Negative half: normalizing `Z` must not also stop expiry working."""
         disp_file = _write_dispositions(
             tmp_path, {"Scan": _entry(expires="2000-01-01T00:00:00Z")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    # -- One grammar on every supported interpreter --
+    #
+    # `datetime.fromisoformat` is not one parser. CPython 3.11 widened it to
+    # most of ISO 8601, so a value can be honored on a new host and rejected
+    # on the 3.10 host floor, where the rejection reads as the entry having
+    # expired. Measured with CPython 3.10.20 against 3.14.3 on this tree:
+    #
+    #     29990101    -> 3.10 ValueError, 3.14 2999-01-01 00:00:00
+    #     2999-W01-1  -> 3.10 ValueError, 3.14 2998-12-31 00:00:00
+    #
+    # `_EXPIRES_PATTERN` accepts only the subset both parse identically, so
+    # these reject everywhere rather than somewhere. The list below is
+    # wider than the divergence: the two short time forms and the ordinal
+    # date agree across versions and are excluded to keep one grammar
+    # rather than because they disagree. `2999-001` is refused by both.
+
+    @pytest.mark.parametrize("value", [
+        "29990101",                  # basic-format calendar date, 3.11+ only
+        "2999-W01-1",                # week date, 3.11+ only
+        "2999-001",                  # ordinal date, rejected on both
+        "2999-01-01T12",             # hour-only time, parses on both
+        "2999-01-01T12:30",          # no seconds, parses on both
+        "2999-01-01T12:30:00+0000",  # basic-format offset, 3.11+ only
+    ])
+    def test_forms_only_newer_hosts_parse_are_undisposed(self, tmp_path, value):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires=value)},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    @pytest.mark.parametrize("value", [
+        "2999-01-01",
+        "2999-01-01T12:30:00",
+        "2999-01-01T12:30:00Z",
+        "2999-01-01T12:30:00+00:00",
+        "2999-01-01T12:30:00-08:00",
+        "2999-01-01T12:30:00.123456+00:00",
+        "2999-01-01 12:30:00+00:00",
+    ])
+    def test_forms_every_supported_host_parses_are_disposed(self, tmp_path, value):
+        """The positive control on the grammar.
+
+        Without it, a pattern that matched nothing at all would satisfy every
+        rejection case above and quietly disable the whole feature.
+        """
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires=value)},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
+
+    def test_the_grammar_is_anchored_at_both_ends(self, tmp_path):
+        """A value with trailing garbage must not match on its prefix."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="2999-01-01ignored")},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
 
@@ -1554,13 +1614,55 @@ class TestShippedDispositionsFile:
                 "say why in the commit."
             )
 
+    @staticmethod
+    def _just_before_expiry(entry):
+        """A clock one hour before this entry's own recorded expiry.
+
+        Derived from the entry rather than read off the wall clock, on
+        purpose. `_check_nonrequired_dispositions` calls `datetime.now`, so
+        asserting through it here would make these cases start failing on the
+        shipped expiry date and turn the whole suite red on every unrelated
+        PR until someone edited the registry. An expiry is meant to make one
+        check undisposed, never to break the build. `TestDispositionExpiry`
+        covers rejection past the boundary, against fixed dates, so nothing
+        is lost by keeping this class off the calendar.
+        """
+        expires = entry["expires"]
+        normalized = expires[:-1] + "+00:00" if expires.endswith("Z") else expires
+        deadline = datetime.fromisoformat(normalized)
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=timezone.utc)
+        return deadline - timedelta(hours=1)
+
     def test_shipped_entries_accept_their_listed_prs(self):
         entries = json.loads(self._PATH.read_text(encoding="utf-8"))
         for name, entry in entries.items():
+            now = self._just_before_expiry(entry)
             for pr_number in entry["pull_requests"]:
-                assert _check_nonrequired_dispositions(
-                    [name], str(self._PATH), pr_number,
-                ) == [], f"{name} rejects its own listed PR {pr_number}"
+                assert _disposition_accepts(entry, pr_number, now), (
+                    f"{name} rejects its own listed PR {pr_number}"
+                )
+
+    def test_shipped_entries_are_rejected_once_expired(self):
+        """The same entries, one hour the other side of their own deadline."""
+        entries = json.loads(self._PATH.read_text(encoding="utf-8"))
+        for name, entry in entries.items():
+            now = self._just_before_expiry(entry) + timedelta(hours=2)
+            for pr_number in entry["pull_requests"]:
+                assert not _disposition_accepts(entry, pr_number, now), (
+                    f"{name} still applies to PR {pr_number} after its expiry"
+                )
+
+    def test_shipped_expiries_parse_on_the_host_floor_grammar(self):
+        """A shipped value off the cross-version subset would read differently
+        on a 3.10 host than on a 3.14 one, so pin the grammar, not just the
+        parse."""
+        entries = json.loads(self._PATH.read_text(encoding="utf-8"))
+        for name, entry in entries.items():
+            assert _EXPIRES_PATTERN.match(entry["expires"]), (
+                f"{name} has an expires outside the accepted grammar: "
+                f"{entry['expires']}"
+            )
 
     def test_shipped_entries_reject_an_unlisted_pr(self):
         entries = json.loads(self._PATH.read_text(encoding="utf-8"))

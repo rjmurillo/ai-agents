@@ -40,6 +40,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -1045,6 +1046,16 @@ def _script_commit() -> str:
 # Non-required failure dispositions
 # ---------------------------------------------------------------------------
 
+# The one `expires` grammar every interpreter this script runs on parses the
+# same way: an extended-format calendar date, optionally an extended-format
+# time, optionally fractional seconds, optionally `Z` or a numeric offset.
+# Anchored at both ends. `_disposition_unexpired` explains why the subset is
+# narrower than `datetime.fromisoformat` will accept on any single version.
+_EXPIRES_PATTERN = re.compile(
+    r"\d{4}-\d{2}-\d{2}"
+    r"(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?)?\Z"
+)
+
 _VALID_DISPOSITIONS = frozenset({
     "known-flaky",
     "infrastructure",
@@ -1088,21 +1099,29 @@ def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
 def _disposition_unexpired(entry: dict[str, object], now: datetime) -> bool:
     """Return True when ``entry`` carries an ``expires`` still ahead of ``now``.
 
-    The value parses with ``datetime.fromisoformat``, so an ISO 8601 date and
-    an ISO 8601 date-time both work. A bare date means midnight on that date,
-    and a timestamp with no offset is read as UTC. A missing, non-string,
-    unparseable, or already-passed value returns False.
+    The accepted grammar is ``_EXPIRES_PATTERN``: an extended-format calendar
+    date, optionally followed by an extended-format time and an optional
+    ``Z`` or numeric offset. A bare date means midnight on that date, and a
+    timestamp with no offset is read as UTC. A missing, non-string,
+    off-grammar, or already-passed value returns False.
 
-    A trailing ``Z`` is rewritten to ``+00:00`` before parsing, the same
-    normalization ``_parse_rfc3339_utc`` in ``pr_autofix_lease.py`` applies.
-    ``fromisoformat`` only learned the zulu suffix in CPython 3.11, so
-    ``2026-12-01T00:00:00Z`` would otherwise parse on a newer host and raise
-    ``ValueError`` on a 3.10 one, silently expiring the entry there. Only a
-    trailing ``Z`` is rewritten, not every ``Z`` in the string, so a value
-    that is malformed some other way still fails rather than being repaired.
+    The regex runs first, and it is the point of the function rather than
+    belt-and-braces. ``datetime.fromisoformat`` is not the same parser across
+    the versions this script runs on: CPython 3.11 widened it to most of ISO
+    8601, so measured against 3.10.20 and 3.14.3, ``29990101`` and
+    ``2999-W01-1`` parse on the newer one and raise ``ValueError`` on the
+    older. Handing it the raw value would let one registry produce different
+    merge verdicts depending on the host that read it, silently, in the
+    direction of treating a live entry as expired. Anchoring to a subset both
+    versions parse identically makes the answer the same everywhere, and
+    rejects the ambiguous spellings on every host rather than on some.
+
+    A trailing ``Z`` is rewritten to ``+00:00`` after the match, the same
+    normalization ``_parse_rfc3339_utc`` in ``pr_autofix_lease.py`` applies,
+    because ``fromisoformat`` only learned the zulu suffix in 3.11 as well.
     """
     expires = entry.get("expires")
-    if not isinstance(expires, str):
+    if not isinstance(expires, str) or not _EXPIRES_PATTERN.match(expires):
         return False
     normalized = expires[:-1] + "+00:00" if expires.endswith("Z") else expires
     try:
