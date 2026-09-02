@@ -61,14 +61,10 @@ def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # answers every call with a `str` stdout, so the gate's `.decode` gets
         # an object that has no such method and the gate reports a mock
         # artifact rather than a line-ending verdict. The gate's own behavior
-        # against real git output is covered in
-        # tests/validation/test_check_index_line_endings_repo.py, and the
-        # undecodable-filename case in
-        # tests/validation/test_check_index_line_endings_fix.py, which is
-        # where both landed when the original module was split at the
-        # file-size ceiling. The parser's contract stayed in
-        # tests/validation/test_check_index_line_endings.py, and the gate's
-        # registration is covered in
+        # is covered across tests/validation/test_check_index_line_endings*.py,
+        # whose roster lives in
+        # tests/validation/index_line_endings_helpers.py rather than being
+        # restated here, and the gate's registration is covered in
         # tests/validation/test_pre_pr_index_line_endings_wiring.py.
         "Index Line Endings",
     }

@@ -8,8 +8,8 @@ turns a tracked pathname into something a UTF-8 log can carry. The gate that
 invokes git, decides, reports and remediates is the other module.
 
 The seam is also the test seam. `tests/validation/test_check_index_line_endings.py`
-covers this module against strings the test wrote; the two sibling modules cover
-the gate against real repositories.
+covers this module against strings the test wrote; the roster of what covers the
+rest is in `tests/validation/index_line_endings_helpers.py`.
 """
 
 from __future__ import annotations

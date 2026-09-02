@@ -1,15 +1,13 @@
 """Remediation and path encoding for the line-ending gate (issue #5475).
 
-Split from `test_check_index_line_endings.py` at the 500-line `file-size`
-ceiling. These two concerns share a subject: the exact bytes of a tracked path.
-`--fix` has to hand git the path git gave, and the report has to render that
-path for a human without changing it, which is why a filename carrying shell
-syntax, a leading dash, a non-ASCII name under `core.quotePath`, and a byte
-sequence that is not valid UTF-8 all land in one module.
+Covered here: what `--fix` does, and every guard that runs before it writes.
+The write target, the working tree it would stage, the paths it may act on, and
+whether the renormalize it claims actually happened.
 
-The write-target guard is here for the same reason: it is the precondition on
-the only code path in the gate that writes anything. The path bytes themselves
-moved to `test_check_index_line_endings_paths.py` at the file-size ceiling.
+The bytes of those paths are a different subject and live in
+`test_check_index_line_endings_paths.py`.
+`index_line_endings_helpers.py` carries the roster of what the other modules
+cover.
 """
 
 from __future__ import annotations

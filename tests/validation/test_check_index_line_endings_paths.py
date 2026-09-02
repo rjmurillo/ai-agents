@@ -1,13 +1,13 @@
 """What a tracked pathname is, and what the gate may print or run for it.
 
-Split from `test_check_index_line_endings_fix.py` at the 500-line `file-size`
-ceiling. That module covers what `--fix` does; this one covers the bytes of the
-path it does it to: a name git C-quotes under `core.quotePath`, a name that is
-not valid UTF-8, control characters and Unicode format controls that would
-change what a CI log says, and the three renderings one path has on purpose,
-for reading, for a shell, and for git's argv.
+Covered here: a name git C-quotes under `core.quotePath`, a name that is not
+valid UTF-8, control characters and Unicode format controls that would change
+what a CI log says, and the three renderings one path has on purpose, for
+reading, for a shell, and for git's argv.
 
 `posix_only_paths` marks the cases a pathname made of bytes only exists in.
+`index_line_endings_helpers.py` carries the roster of what the other modules
+cover.
 """
 
 from __future__ import annotations
