@@ -99,6 +99,7 @@ from checks_tooling import (
     validate_markdown_lint,
     validate_path_normalization,
     validate_planning_artifacts,
+    validate_rule_scope_declarations,
     validate_session_end,
     validate_workflow_yaml,
     validate_yaml_style,
@@ -417,6 +418,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # rule growing by 400 bytes surfaces locally in under 0.5 seconds instead of
     # 17 minutes later in CI. Issue #4285.
     _Gate("Always-on Corpus Claims", _root_only(validate_always_on_corpus_claims)),
+    # The two gates above read the generated .github/instructions/ tree, where a
+    # rule scoped with a key Claude Code ignores still looks correctly scoped.
+    # This one reads .claude/rules/ and refuses applyTo:, globs:, or
+    # alwaysApply:, the source-side leak that put 25,527 bytes of code-only rule
+    # into every doc-only session. Issue #4871.
+    _Gate("Rule Scope Declarations (paths:)", _root_only(validate_rule_scope_declarations)),
 )
 
 
