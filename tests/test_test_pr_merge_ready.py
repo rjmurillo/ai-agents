@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shlex
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1294,8 +1295,16 @@ class TestDispositionExpiry:
         "2999-01-01T12",             # hour-only time, parses on both
         "2999-01-01T12:30",          # no seconds, parses on both
         "2999-01-01T12:30:00+0000",  # basic-format offset, 3.11+ only
+        # Fractional seconds are 3 or 6 digits on both hosts and any width on
+        # 3.11+. Measured with 3.10.20 against 3.14.3 using
+        # `2999-01-01T12:30:00.<n digits>+00:00`:
+        #   digits 1 2 3 4 5 6 -> 3.10 err err ok err err ok, 3.14 all ok
+        "2999-01-01T12:30:00.1+00:00",       # 1 digit, 3.11+ only
+        "2999-01-01T12:30:00.12+00:00",      # 2 digits, 3.11+ only
+        "2999-01-01T12:30:00.1234+00:00",    # 4 digits, 3.11+ only
+        "2999-01-01T12:30:00.12345+00:00",   # 5 digits, 3.11+ only
     ])
-    def test_forms_only_newer_hosts_parse_are_undisposed(self, tmp_path, value):
+    def test_off_grammar_forms_are_undisposed(self, tmp_path, value):
         disp_file = _write_dispositions(
             tmp_path, {"Scan": _entry(expires=value)},
         )
@@ -1307,6 +1316,7 @@ class TestDispositionExpiry:
         "2999-01-01T12:30:00Z",
         "2999-01-01T12:30:00+00:00",
         "2999-01-01T12:30:00-08:00",
+        "2999-01-01T12:30:00.123+00:00",
         "2999-01-01T12:30:00.123456+00:00",
         "2999-01-01 12:30:00+00:00",
     ])
@@ -1472,6 +1482,37 @@ _SHIPPED_ROOTS = (
 )
 
 
+def _yaml_string_scalars(node, path=()):
+    """Every string scalar in a parsed YAML document, with its key path.
+
+    Walks the whole document rather than one key. The negative half of the
+    guard below used to skip YAML entirely, which left a command under any
+    key other than `completion_criteria` invisible to both halves: it would
+    have been neither an approved criterion nor a scanned text line.
+    """
+    if isinstance(node, str):
+        yield path, node
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            yield from _yaml_string_scalars(value, (*path, str(key)))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            yield from _yaml_string_scalars(value, (*path, str(index)))
+
+
+def _shipped_yaml_documents() -> list[tuple[str, object]]:
+    """`(relative path, parsed document)` for every shipped YAML file."""
+    found: list[tuple[str, object]] = []
+    for root in _SHIPPED_ROOTS:
+        for path in sorted((_REPO_ROOT / root).rglob("*.y*ml")):
+            try:
+                doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+            except (yaml.YAMLError, OSError, UnicodeDecodeError):
+                continue
+            found.append((path.relative_to(_REPO_ROOT).as_posix(), doc))
+    return found
+
+
 def _gate_criterion_commands() -> list[tuple[str, str]]:
     """`(relative path, command)` for every completion-gate criterion.
 
@@ -1480,18 +1521,28 @@ def _gate_criterion_commands() -> list[tuple[str, str]]:
     present, which would let the real wiring disappear under a green test.
     """
     found: list[tuple[str, str]] = []
-    for root in _SHIPPED_ROOTS:
-        for path in sorted((_REPO_ROOT / root).rglob("*.y*ml")):
-            try:
-                doc = yaml.safe_load(path.read_text(encoding="utf-8"))
-            except yaml.YAMLError:
-                continue
-            if not isinstance(doc, dict):
-                continue
-            for criterion in doc.get("completion_criteria") or []:
-                command = (criterion or {}).get("command", "")
-                if isinstance(command, str) and _SCRIPT_NAME in command:
-                    found.append((path.relative_to(_REPO_ROOT).as_posix(), command))
+    for relative, doc in _shipped_yaml_documents():
+        if not isinstance(doc, dict):
+            continue
+        for criterion in doc.get("completion_criteria") or []:
+            command = (criterion or {}).get("command", "")
+            if isinstance(command, str) and _SCRIPT_NAME in command:
+                found.append((relative, command))
+    return found
+
+
+def _yaml_invocations() -> list[tuple[str, tuple[str, ...], str]]:
+    """`(relative path, key path, scalar)` for YAML scalars invoking the script.
+
+    Every scalar in every shipped YAML, not only `completion_criteria`. The
+    key path comes back so the caller can tell an approved criterion from a
+    command hiding under some other key.
+    """
+    found: list[tuple[str, tuple[str, ...], str]] = []
+    for relative, doc in _shipped_yaml_documents():
+        for key_path, scalar in _yaml_string_scalars(doc):
+            if _SCRIPT_NAME in scalar and "--pull-request" in scalar:
+                found.append((relative, key_path, scalar))
     return found
 
 
@@ -1520,6 +1571,32 @@ def _text_invocations() -> list[tuple[str, str]]:
                 if _SCRIPT_NAME in line and "--pull-request" in line:
                     found.append((path.relative_to(_REPO_ROOT).as_posix(), line))
     return found
+
+
+def _registry_arguments(command: str) -> list[str]:
+    """The value that follows each `--dispositions-file` in `command`.
+
+    Tokenized with `shlex` and read positionally. A substring test cannot tell
+    `--dispositions-file .agents/pr-checks/dispositions.json` from
+    `--dispositions-file /tmp/other.json --note .agents/pr-checks/dispositions.json`,
+    and the second reads the wrong registry while satisfying every substring
+    assertion about the flag and the path.
+
+    A flag in `--dispositions-file=VALUE` form is read from the token itself.
+    A trailing flag with no following token yields the empty string, which
+    fails the caller's equality check rather than being skipped.
+    """
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    values: list[str] = []
+    for index, token in enumerate(tokens):
+        if token.startswith(f"{_FLAG}="):
+            values.append(token.split("=", 1)[1])
+        elif token == _FLAG:
+            values.append(tokens[index + 1] if index + 1 < len(tokens) else "")
+    return values
 
 
 class TestDispositionRegistryWiring:
@@ -1554,15 +1631,20 @@ class TestDispositionRegistryWiring:
         )
 
     def test_gate_criteria_pass_the_shipped_registry(self):
+        """The flag must carry the shipped path as its own value.
+
+        Asserted positionally rather than by substring. A command reading
+        `--dispositions-file /tmp/other.json --note <shipped path>` contains
+        both the flag and the path, satisfies any substring test, and reads
+        the wrong registry.
+        """
         for relative, command in _gate_criterion_commands():
-            assert _FLAG in command, (
+            values = _registry_arguments(command)
+            assert values == [_SHIPPED_PATH], (
                 f"{relative} runs the readiness script as a completion "
-                f"criterion without {_FLAG}, so the registry is inert there: "
-                f"{command}"
-            )
-            assert _SHIPPED_PATH in command, (
-                f"{relative} passes {_FLAG} with an unexpected path, which "
-                f"would read an empty registry: {command}"
+                f"criterion but its {_FLAG} values are {values!r}, not "
+                f"exactly [{_SHIPPED_PATH!r}], so it reads the wrong registry "
+                f"or none: {command}"
             )
 
     def test_no_other_caller_reads_the_registry(self):
@@ -1570,7 +1652,21 @@ class TestDispositionRegistryWiring:
 
         This is what catches a call site added later, in a file this test has
         never heard of, anywhere under the shipped roots.
+
+        YAML is scanned in full, not skipped. Only `completion_criteria`
+        commands are exempt, and the exemption is keyed on where the scalar
+        sits in the document, so an invocation under any other key is treated
+        like any other untrusted caller. Skipping YAML wholesale left exactly
+        that shape invisible to both halves of this guard.
         """
+        for relative, key_path, scalar in _yaml_invocations():
+            if key_path[:1] == ("completion_criteria",) and key_path[-1] == "command":
+                continue
+            assert _FLAG not in scalar, (
+                f"{relative} passes {_FLAG} from YAML key "
+                f"{'.'.join(key_path)}, which is not a completion-gate "
+                f"criterion: {scalar}"
+            )
         for relative, line in _text_invocations():
             assert _FLAG not in line, (
                 f"{relative} passes {_FLAG} outside a completion-gate "
@@ -1578,6 +1674,24 @@ class TestDispositionRegistryWiring:
                 f"no trusted-ref comparison, so a PR could dispose its own "
                 f"failing check: {line.strip()}"
             )
+
+    def test_the_yaml_scan_reaches_the_shipped_criteria(self):
+        """Negative control for the YAML half of the scan above.
+
+        The exemption is what makes that loop pass on the shipped tree, so a
+        walker that found no YAML invocation at all would also pass it, while
+        seeing nothing. This fails in that case.
+        """
+        exempt = [
+            (relative, key_path)
+            for relative, key_path, _ in _yaml_invocations()
+            if key_path[:1] == ("completion_criteria",) and key_path[-1] == "command"
+        ]
+        assert exempt, (
+            "the YAML walk found no completion-criteria invocation, so the "
+            "exemption in the guard above is covering nothing and the walk "
+            "may not be reaching the shipped configs at all"
+        )
 
 
 class TestShippedDispositionsFile:

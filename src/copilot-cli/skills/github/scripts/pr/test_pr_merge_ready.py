@@ -1051,9 +1051,20 @@ def _script_commit() -> str:
 # time, optionally fractional seconds, optionally `Z` or a numeric offset.
 # Anchored at both ends. `_disposition_unexpired` explains why the subset is
 # narrower than `datetime.fromisoformat` will accept on any single version.
+#
+# Fractional seconds are exactly 3 or 6 digits, not 1 to 6. CPython 3.10 reads
+# that field as milliseconds or microseconds and nothing else, while 3.11+
+# accepts any width. Measured with 3.10.20 against 3.14.3 on this tree, using
+# `2999-01-01T12:30:00.<n digits>+00:00`:
+#
+#     digits  1     2     3     4     5     6
+#     3.10    err   err   ok    err   err   ok
+#     3.14    ok    ok    ok    ok    ok    ok
+#
+# so `.1` is precisely the host-dependent verdict this pattern exists to stop.
 _EXPIRES_PATTERN = re.compile(
     r"\d{4}-\d{2}-\d{2}"
-    r"(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?)?\Z"
+    r"(?:[T ]\d{2}:\d{2}:\d{2}(?:\.(?:\d{3}|\d{6}))?(?:Z|[+-]\d{2}:\d{2})?)?\Z"
 )
 
 _VALID_DISPOSITIONS = frozenset({

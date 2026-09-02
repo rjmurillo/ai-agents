@@ -268,6 +268,7 @@ _ACCEPTED_EXPIRIES = (
     "2999-01-01T12:30:00Z",
     "2999-01-01T12:30:00+00:00",
     "2999-01-01T12:30:00-08:00",
+    "2999-01-01T12:30:00.123+00:00",
     "2999-01-01T12:30:00.123456+00:00",
     "2999-01-01 12:30:00+00:00",
 )
@@ -359,7 +360,13 @@ def test_rejected_expiries_are_the_ones_the_floor_cannot_parse() -> None:
     # grammar excludes them for strictness rather than for portability and
     # they would fail the 3.10 half of this assertion.
     assert PYTHON310 is not None
-    diverging = ["29990101", "2999-W01-1", "2999-01-01T12:30:00+0000"]
+    diverging = [
+        "29990101",
+        "2999-W01-1",
+        "2999-01-01T12:30:00+0000",
+        "2999-01-01T12:30:00.1+00:00",
+        "2999-01-01T12:30:00.1234+00:00",
+    ]
     pattern = re.compile(_expires_pattern_source())
     for value in diverging:
         assert not pattern.match(value), f"grammar admits {value}"
