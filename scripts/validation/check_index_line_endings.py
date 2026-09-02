@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -181,16 +182,45 @@ def _git_paths(repo_root: Path, args: list[str], env: dict[str, str] | None = No
     return result.stdout.decode("utf-8", "surrogateescape")
 
 
+# Control characters that must never reach a log line verbatim: C0 including
+# newline, tab, carriage return and ESC, DEL, and the C1 block. A tracked
+# pathname may legally contain any of them on POSIX, and a contributor chooses
+# the name. Emitted unchanged into a required CI log, a newline forges a log
+# line and an ESC sequence rewrites what the reader sees (CWE-117).
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
 def display_path(path: str) -> str:
-    """A path rendered for a UTF-8 stream, with undecodable bytes escaped.
+    """A path rendered for a UTF-8 log stream, with nothing left that can lie.
+
+    Two classes of byte are escaped, for two different reasons.
 
     The surrogates that keep a path reversible cannot be written to stdout:
-    `print` raises `UnicodeEncodeError` on them. Only the human-facing output
-    is escaped. `--fix` still receives the reversible form, so the path the
-    operator reads and the path git receives can differ by exactly the bytes
-    that have no text spelling.
+    `print` raises `UnicodeEncodeError` on them. Control characters can be
+    written, which is the problem: a tracked path may carry a newline or an
+    ESC sequence, and this gate prints paths into a required CI log, so an
+    unescaped one forges a log line or repaints the terminal around it
+    (CWE-117). Both classes come out as their `\\x` or `\\n` spelling.
+
+    Only the human-facing output is escaped. `--fix` still receives the
+    reversible form, so the path the operator reads and the path git receives
+    can differ by exactly the bytes that have no safe text spelling. `_report`
+    is what keeps that difference from being handed out as a runnable command.
     """
-    return path.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
+    escaped = path.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
+    return _CONTROL_CHARACTERS.sub(
+        lambda match: match.group().encode("unicode_escape").decode("ascii"), escaped
+    )
+
+
+def is_spellable(path: str) -> bool:
+    """True when the displayed path is the path, byte for byte.
+
+    A path that survives `display_path` unchanged can be quoted into a command
+    an operator can paste. One that does not cannot: `shlex.quote` would quote
+    the escaped spelling, which names a different file or no file at all.
+    """
+    return display_path(path) == path
 
 
 def _ls_files_eol(repo_root: Path, env: dict[str, str] | None = None) -> str:
@@ -331,21 +361,45 @@ def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
 
 
 def _report(violations: list[Violation], examined: int) -> None:
-    """Print each violation plus the exact renormalize command that fixes it."""
+    """Print each violation, and a runnable command only when one exists."""
     for violation in violations:
         print(f"  {violation.render()}")
     if violations:
         print(f"index-line-endings: {len(violations)} blob(s) contradict gitattributes")
         print(f"  Fix: {REMEDIATION}")
         print("  Or re-run this check with --fix, which calls git directly.")
-        # shlex.quote per path, and `--` before them. A tracked path may carry
-        # shell syntax or a leading dash, and an unquoted join would print a
-        # command that runs attacker-controlled text if a maintainer pasted it
-        # (CWE-78). The quoting is POSIX-shell specific, which is why --fix
-        # exists: it passes an argument list to git and never builds a string.
-        paths = " ".join(shlex.quote(display_path(v.path)) for v in violations)
-        print(f"  git add --renormalize -- {paths}")
+        _print_paste_command(violations)
     print(f"index-line-endings: {len(violations)} violation(s) in {examined} tracked files")
+
+
+def _print_paste_command(violations: list[Violation]) -> None:
+    """Print the copy-paste renormalize command, or say why there is none.
+
+    A command is only worth printing when it would work. `display_path`
+    escapes bytes and control characters that have no safe text spelling, and
+    `shlex.quote` then quotes that escaped spelling, so for such a path the
+    printed command names a file that does not exist: it would exit non-zero
+    or, worse, match something else. Promising an exact command and handing
+    over one that cannot remediate the violation is the failure this branch
+    avoids. `--fix` has no such limit; it passes the real bytes as argv.
+
+    For the spellable paths the quoting still matters. A tracked path may
+    carry shell syntax or a leading dash, and an unquoted join would print a
+    command that runs attacker-controlled text if a maintainer pasted it
+    (CWE-78). `--` stops a leading-dash path from parsing as a git option.
+    The quoting is POSIX-shell specific, which is the other reason `--fix`
+    exists: it never builds a string.
+    """
+    unspellable = [v for v in violations if not is_spellable(v.path)]
+    if unspellable:
+        print(
+            f"  No copy-paste command: {len(unspellable)} of {len(violations)} path(s) "
+            "carry bytes or control characters that no shell spelling reproduces. "
+            "Use --fix, which hands git the exact bytes."
+        )
+        return
+    paths = " ".join(shlex.quote(v.path) for v in violations)
+    print(f"  git add --renormalize -- {paths}")
 
 
 def refuses_write_from_outside(repo_root: Path) -> bool:

@@ -58,6 +58,27 @@ def test_fix_mode_renormalizes_without_building_a_shell_string(
     assert [v.scope for v in violations] == ["HEAD"]  # index fixed, HEAD awaits commit
 
 
+def test_fix_mode_renormalizes_a_leading_dash_filename(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """The `--` terminator is the only thing this case depends on.
+
+    `--intent-to-add` is a real `git add` option, so without the terminator
+    git rejects the argument as an unknown option and the run exits 2 with the
+    violating blob untouched. The printed command carries the terminator for
+    the same reason: pasted without it, it does not remediate either.
+    """
+    repo = _repo_with_crlf_blob(tmp_path, name="--intent-to-add.md")
+    _commit(repo, "plant a CRLF blob under a leading-dash name")
+    monkeypatch.chdir(repo)
+
+    assert checker.main(["--repo-root", str(repo), "--fix"]) == 1
+
+    assert "git add --renormalize -- --intent-to-add.md" in capsys.readouterr().out
+    violations, _ = checker.check_repository(repo)
+    assert [v.scope for v in violations] == ["HEAD"]  # index fixed, HEAD awaits commit
+
+
 def test_fix_mode_then_commit_clears_the_gate(tmp_path: Path, monkeypatch) -> None:
     repo = _repo_with_crlf_blob(tmp_path)
     _commit(repo, "plant a CRLF blob")
@@ -151,7 +172,59 @@ def test_an_undecodable_filename_is_still_printable(tmp_path: Path, capsys) -> N
 
     out = capsys.readouterr().out
     assert "bad\\xff.md" in out
-    assert "git add --renormalize --" in out
+
+
+def test_no_paste_command_is_offered_for_a_path_that_needed_escaping(
+    tmp_path: Path, capsys
+) -> None:
+    """A command built from the escaped spelling would remediate nothing.
+
+    `display_path` renders the undecodable byte as the literal characters
+    `\\xff`, and `shlex.quote` would then quote that different name. Pasting
+    it names a file the repository does not hold, so the promise of an exact
+    command is withdrawn and the operator is pointed at `--fix`, which passes
+    the real bytes as argv.
+    """
+    repo, _raw_name = _repo_with_undecodable_crlf_blob(tmp_path)
+
+    assert checker.validate_index_line_endings(repo) is False
+
+    out = capsys.readouterr().out
+    assert "git add --renormalize --" not in out
+    assert "No copy-paste command: 1 of 1 path(s)" in out
+    assert "Use --fix" in out
+
+
+def test_a_newline_in_a_path_cannot_forge_a_log_line(tmp_path: Path, capsys) -> None:
+    """CWE-117: a contributor picks the filename, and this output is a CI log.
+
+    A tracked path may legally contain a newline on POSIX. Printed unchanged
+    it splits one report line into two, and the second one is whatever the
+    contributor wrote.
+    """
+    forged = "  index-line-endings: 0 violation(s)"
+    repo = _repo_with_crlf_blob(tmp_path, name=f"handoff.md\n{forged}")
+
+    assert checker.validate_index_line_endings(repo) is False
+
+    out = capsys.readouterr().out
+    assert f"\n{forged}\n" not in out
+    assert "handoff.md\\n" in out
+    # The same path is unspellable, so no command is offered for it either.
+    assert "git add --renormalize --" not in out
+
+
+def test_an_escape_sequence_in_a_path_cannot_repaint_the_terminal(
+    tmp_path: Path, capsys
+) -> None:
+    """The other half of CWE-117: ESC rewrites what the reader sees."""
+    repo = _repo_with_crlf_blob(tmp_path, name="handoff\x1b[2K.md")
+
+    assert checker.validate_index_line_endings(repo) is False
+
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "handoff\\x1b[2K.md" in out
 
 
 def test_fix_renormalizes_an_undecodable_filename(
@@ -174,6 +247,19 @@ def test_fix_renormalizes_an_undecodable_filename(
 
 
 def test_display_path_leaves_ordinary_names_alone() -> None:
-    """Control: escaping applies to bytes with no text spelling, nothing else."""
+    """Control: escaping applies to bytes with no safe text spelling, nothing else."""
     assert checker.display_path("docs/café.md") == "docs/café.md"
     assert checker.display_path("a;$(id).md") == "a;$(id).md"
+    assert checker.is_spellable("docs/café.md")
+    assert checker.is_spellable("a;$(id).md")
+
+
+def test_display_path_escapes_every_control_class() -> None:
+    """C0, DEL and C1 all reach a log verbatim without this escaping."""
+    assert checker.display_path("a\nb") == "a\\nb"
+    assert checker.display_path("a\tb") == "a\\tb"
+    assert checker.display_path("a\rb") == "a\\rb"
+    assert checker.display_path("a\x1bb") == "a\\x1bb"
+    assert checker.display_path("a\x7fb") == "a\\x7fb"
+    assert checker.display_path("a\x9bb") == "a\\x9bb"
+    assert not checker.is_spellable("a\nb")
