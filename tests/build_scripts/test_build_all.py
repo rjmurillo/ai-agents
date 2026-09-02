@@ -3346,6 +3346,47 @@ def test_snapshot_strict_skips_files_under_an_ignored_directory(
     )
 
 
+def test_run_check_restore_leaves_a_nested_checkout_alone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Restore must receive the boundaries the strict walk actually skipped.
+
+    The snapshot correctly omits everything inside a nested checkout, so every
+    one of those files is in `current - snapshot` when restore runs. Case 3
+    unlinks that difference. The only thing standing between a user's nested
+    worktree and deletion is restore being told the boundary exists, which is
+    why `run` hands it the set `_iter_strict_owned_files` collected.
+
+    No transient failure here, unlike the sibling test below: this is the
+    plain path, and it is what fails if the collection is dropped or never
+    forwarded.
+    """
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    owned = repo / "owned"
+    nested = owned / "worktrees" / "wt"
+    nested.mkdir(parents=True)
+    git_pointer = nested / ".git"
+    git_pointer.write_text("gitdir: ../../../../.git/worktrees/wt\n")
+    protected = nested / "tracked.py"
+    protected.write_text("z = 3\n")
+    kept = owned / "real.py"
+    kept.write_text("y = 2\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
+    monkeypatch.setattr(build_all, "_run_generators", lambda *_a, **_k: 0)
+
+    build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert protected.read_text() == "z = 3\n", (
+        "--check restore deleted a file inside a nested git checkout"
+    )
+    assert git_pointer.exists(), "--check restore deleted the nested .git pointer"
+    assert kept.read_text() == "y = 2\n"
+
+
 def test_run_check_keeps_a_nested_checkout_when_the_first_scan_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
