@@ -7,7 +7,7 @@ license: MIT
 
 # ai-agents Generation and Release
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/architecture, .agents/retrospective, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, and templates/platforms because its audience is repo contributors, not plugin consumers. Issue #2050. -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/architecture, .agents/retrospective, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, templates/platforms, and AGENTS.md because its audience is repo contributors, not plugin consumers. Issue #2050. -->
 Runbook for the build, generation, mirroring, versioning, and release machinery of this repo. Every command below was executed or read from source on 2026-07-02/03 and re-verified against the working tree on 2026-07-29; re-verify with the one-liners in Provenance before trusting a volatile number.
 
 Jargon, defined once:
@@ -60,7 +60,7 @@ Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; 
 |---|-----------|-------|--------|
 | 1 | agents | `templates/agents/*.shared.md` + `templates/platforms/*.yaml` | `src/copilot-cli/agents/*.agent.md`, `src/vs-code-agents/*.agent.md` |
 | 2 | agent-catalog | `templates/agents/*.shared.md` | `docs/agent-catalog.md` |
-| 3 | adr-index | `.agents/architecture/ADR-*.md` | `.agents/architecture/README.md` |
+| 3 | adr-index | the ADR corpus under `.agents/architecture/` | `.agents/architecture/README.md` |
 | 4 | skills | `.claude/skills/*/SKILL.md` | `src/copilot-cli/skills/` |
 | 5 | commands | `.claude/commands/*.md` (top level, not CLAUDE.md) | `src/copilot-cli/skills/` (command-bridge skills) |
 | 6 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
