@@ -56,7 +56,6 @@ if str(_CI_DIR) not in sys.path:
 from checks_common import (  # noqa: E402
     MissingScriptSkip,
     _refresh_remote_base,
-    _resolve_default_base_ref,
     _run_subprocess,
 )
 from merge_tree_ratchet_check import (  # noqa: E402
@@ -75,6 +74,16 @@ from merge_tree_ratchet_check import (  # noqa: E402
     _resolve_base_oid as _resolve_merge_tree_base_oid,
 )
 from merge_tree_ratchet_preparation import is_fast_forward_clean  # noqa: E402
+
+# Deliberately shadows the checks_common resolver of the same name. This one
+# fetches a PR base that is merely unfetched before resolving, and normalizes
+# refs/remotes/origin/HEAD to its target. Both base-pinning paths must resolve
+# the same way; otherwise pre_pr measures a stacked PR against origin/main
+# while the merge-tree job measures it against the real base (issue #5441
+# review).
+from merge_tree_ratchet_preparation import (  # noqa: E402
+    resolve_default_base_ref as _resolve_default_base_ref,
+)
 
 
 @dataclass(frozen=True)
@@ -186,34 +195,22 @@ def _resolve_base_oid(repo_root: Path, base_ref: str) -> str | None:
     return None
 
 
-def _normalize_remote_head(repo_root: Path, base_ref: str) -> str | None:
-    if base_ref != "refs/remotes/origin/HEAD":
-        return base_ref
-    exit_code, stdout, stderr = _run_subprocess(
-        [
-            "git",
-            "-C",
-            str(repo_root),
-            "symbolic-ref",
-            "--short",
-            base_ref,
-        ],
-        timeout=10,
-    )
-    resolved = str(stdout).strip()
-    if exit_code == 0 and resolved.startswith("origin/"):
-        return resolved
-    detail = str(stderr).strip() or f"git symbolic-ref exit {exit_code}"
-    print(f"[ERROR] count ratchets: cannot resolve remote HEAD: {detail}", file=sys.stderr)
-    return None
-
-
 def _prepare_base_oid(repo_root: Path) -> tuple[str | None, str | None]:
     """Resolve the base ref once, returning ``(base_ref, base_oid)``.
 
     Returns ``(None, None)`` on any failure to resolve; both values must be
     checked for None by the same test, so the base ref is reported so the
     merge-tree backstop can also be pointed at it without re-resolving.
+
+    The resolver is ``merge_tree_ratchet_preparation.resolve_default_base_ref``,
+    the one ``merge_tree_ratchet_check`` already uses. ``checks_common``'s
+    resolver validates each candidate with ``git rev-parse --verify --quiet``
+    and takes the first that resolves, so a stacked PR base that no local
+    fetch has ever named is discarded for ``origin/main`` and every ratchet
+    here is judged against the wrong target. The shared resolver fetches that
+    base first, and normalizes ``refs/remotes/origin/HEAD`` to its target,
+    which is why this module no longer carries its own normalization
+    (issue #5441 review).
     """
     base_ref = _resolve_default_base_ref(repo_root)
     if not base_ref:
@@ -222,9 +219,6 @@ def _prepare_base_oid(repo_root: Path) -> tuple[str | None, str | None]:
             "to invoke a ratchet without an explicit --base-ref.",
             file=sys.stderr,
         )
-        return None, None
-    base_ref = _normalize_remote_head(repo_root, base_ref)
-    if base_ref is None:
         return None, None
     fetch_result = _refresh_remote_base(base_ref, repo_root)
     if fetch_result:

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -23,6 +24,7 @@ import pytest
 
 from scripts.ci import merge_tree_ratchet_preparation as _prep
 from scripts.validation import checks_common as _common
+from scripts.validation import checks_ratchet
 
 
 def _git(repo: Path, *argv: str) -> subprocess.CompletedProcess[str]:
@@ -324,3 +326,78 @@ class TestStackedBaseIsFetchedBeforeResolution:
             resolved = _prep.resolve_default_base_ref(work)
 
         assert resolved == "origin/main"
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+class TestChecksRatchetResolvesTheSameBase:
+    """The twin path must pin the same base this module's resolver returns.
+
+    Issue #5441 review. ``scripts/validation/checks_ratchet.py`` pins its own
+    base OID for the individual ratchets and the merge-tree backstop, and it
+    resolved that base through ``checks_common._resolve_default_base_ref``
+    directly. That resolver discards an unfetched stacked base, so ``pre_pr``
+    and a bare ``checks_ratchet.py`` run measured a stacked PR against
+    ``origin/main`` while the standalone merge-tree job measured it against
+    the real base. A fix on one path and not its twin leaves the defect.
+
+    ``checks_ratchet`` imports its dependencies by bare name off ``sys.path``,
+    which is a second module object for the same file, so the patches below
+    target the module that its resolver actually closes over rather than the
+    package-path copy the tests above use.
+    """
+
+    def _stacked_clone(self, tmp_path: Path) -> tuple[Path, str, str]:
+        """A clone with ``origin/feat/parent`` absent and ahead of ``main``."""
+        origin = tmp_path / "origin"
+        _init_repo(origin)
+        _git(origin, "checkout", "-q", "-b", "feat/parent")
+        (origin / "b.txt").write_text("y\n", encoding="utf-8")
+        _git(origin, "add", "-A")
+        _git(origin, "commit", "-qm", "the parent branch moves ahead of main")
+        parent_oid = _git(origin, "rev-parse", "HEAD").stdout.strip()
+        _git(origin, "checkout", "-q", "main")
+        main_oid = _git(origin, "rev-parse", "HEAD").stdout.strip()
+
+        work = tmp_path / "work"
+        subprocess.run(
+            ["git", "clone", "-q", "--single-branch", "--branch", "main",
+             str(origin), str(work)],
+            check=True,
+        )
+        assert _git(work, "rev-parse", "--verify", "--quiet",
+                    "origin/feat/parent").returncode != 0
+        assert parent_oid != main_oid
+        return work, parent_oid, main_oid
+
+    def test_an_unfetched_stacked_base_is_pinned_not_replaced_by_main(
+        self, tmp_path: Path
+    ) -> None:
+        work, parent_oid, main_oid = self._stacked_clone(tmp_path)
+        bare_prep = sys.modules[checks_ratchet._resolve_default_base_ref.__module__]
+
+        with (
+            patch.object(bare_prep, "_gh_base_ref", return_value="origin/feat/parent"),
+            patch.object(_common, "_gh_base_ref", return_value="origin/feat/parent"),
+        ):
+            base_ref, base_oid = checks_ratchet._prepare_base_oid(work)
+
+        assert base_ref == "origin/feat/parent"
+        assert base_oid == parent_oid
+        # The pre-fix answer, stated so a regression cannot pass quietly.
+        assert base_oid != main_oid
+
+    def test_no_pr_base_still_falls_back_to_the_default_branch(
+        self, tmp_path: Path
+    ) -> None:
+        """Edge: the fallback is correct when there is no PR base to fetch."""
+        work, _parent_oid, main_oid = self._stacked_clone(tmp_path)
+        bare_prep = sys.modules[checks_ratchet._resolve_default_base_ref.__module__]
+
+        with (
+            patch.object(bare_prep, "_gh_base_ref", return_value=None),
+            patch.object(_common, "_gh_base_ref", return_value=None),
+        ):
+            base_ref, base_oid = checks_ratchet._prepare_base_oid(work)
+
+        assert base_ref in ("origin/main", "refs/remotes/origin/HEAD")
+        assert base_oid == main_oid
