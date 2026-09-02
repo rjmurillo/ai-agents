@@ -14,6 +14,7 @@ PR to read a base branch from.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -44,10 +45,13 @@ def _init_repo(repo: Path) -> None:
     _git(repo, "commit", "-qm", "init")
 
 
-@pytest.mark.skipif(
-    subprocess.run(["git", "--version"], capture_output=True, check=False).returncode != 0,
-    reason="git is not installed",
-)
+# shutil.which, not `git --version`: subprocess.run raises FileNotFoundError
+# when the executable is absent, and check=False does not suppress that. A
+# decorator argument is evaluated at import, so the raise would fail collection
+# of this whole module instead of skipping this class. Matches the pattern in
+# tests/ci/test_merge_tree_materialization.py:138 and
+# tests/ci/test_count_ratchet_concurrent_merge.py:90.
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 class TestResolveDefaultBaseRef:
     def test_passes_through_a_non_symbolic_ref(self, tmp_path: Path) -> None:
         """A resolved ref that is already concrete needs no git call."""
@@ -86,3 +90,86 @@ class TestResolveDefaultBaseRef:
         _init_repo(repo)
         with patch.object(_prep, "_resolve_default_base_ref", return_value=None):
             assert _prep.resolve_default_base_ref(repo) is None
+
+
+class TestRemoteBranch:
+    """``_remote_branch`` decides whether ``_refresh_base_ref`` fetches at all.
+
+    Issue #5441 review: returning None means "not a remote branch, nothing to
+    refresh", so a name that reaches None is never fetched and the ratchet then
+    reads a stale local tracking ref.
+    """
+
+    @pytest.mark.parametrize(
+        ("base_ref", "expected"),
+        [
+            ("origin/main", "main"),
+            ("refs/remotes/origin/main", "main"),
+            # The stacked-PR shape checks_common's `gh pr view` branch emits.
+            ("origin/feat/parent", "feat/parent"),
+            ("refs/remotes/origin/feat/parent", "feat/parent"),
+            ("origin/a/b/c/d", "a/b/c/d"),
+        ],
+    )
+    def test_names_a_remote_branch(self, base_ref: str, expected: str) -> None:
+        assert _prep._remote_branch(base_ref) == expected
+
+    @pytest.mark.parametrize(
+        "base_ref",
+        [
+            "main",
+            "refs/heads/main",
+            "upstream/main",
+            # Prefix present but nothing follows it: no branch is named.
+            "origin/",
+            "refs/remotes/origin/",
+            "",
+        ],
+    )
+    def test_names_no_remote_branch(self, base_ref: str) -> None:
+        assert _prep._remote_branch(base_ref) is None
+
+    def test_a_malformed_name_is_fetched_not_skipped(self) -> None:
+        """A name this function cannot vouch for must reach git, not skip.
+
+        git rejects a component starting with a dot. Returning None here would
+        report "already up to date" for a ref that was never refreshed, which
+        is the silent failure this function exists to avoid.
+        """
+        assert _prep._remote_branch("origin/.hidden") == ".hidden"
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+class TestRefreshBaseRef:
+    """``_refresh_base_ref`` must attempt the fetch for a nested branch name."""
+
+    def test_fetches_a_nested_branch(self, tmp_path: Path) -> None:
+        origin = tmp_path / "origin"
+        _init_repo(origin)
+        _git(origin, "branch", "feat/parent")
+        work = tmp_path / "work"
+        subprocess.run(["git", "clone", "-q", str(origin), str(work)], check=True)
+
+        assert _prep._refresh_base_ref(work, "origin/feat/parent") is True
+        listed = _git(work, "rev-parse", "--verify", "refs/remotes/origin/feat/parent")
+        assert listed.returncode == 0, listed.stderr
+
+    def test_reports_a_fetch_that_fails(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A branch the remote does not carry fails loudly, and returns False."""
+        origin = tmp_path / "origin"
+        _init_repo(origin)
+        work = tmp_path / "work"
+        subprocess.run(["git", "clone", "-q", str(origin), str(work)], check=True)
+
+        assert _prep._refresh_base_ref(work, "origin/feat/absent") is False
+        assert "failed to refresh origin/feat/absent" in capsys.readouterr().err
+
+    def test_skips_a_ref_that_names_no_remote_branch(self, tmp_path: Path) -> None:
+        """A local ref has nothing to refresh, so no fetch is attempted."""
+        repo = tmp_path / "repo"
+        _init_repo(repo)
+        with patch.object(_prep, "_git") as fetch:
+            assert _prep._refresh_base_ref(repo, "refs/heads/main") is True
+        fetch.assert_not_called()

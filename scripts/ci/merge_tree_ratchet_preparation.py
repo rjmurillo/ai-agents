@@ -57,10 +57,27 @@ def resolve_default_base_ref(repo_root: Path) -> str | None:
 
 
 def _remote_branch(base_ref: str) -> str | None:
+    """The branch name under ``origin/``, or None when ``base_ref`` is not one.
+
+    None is the "nothing to refresh" answer, and ``_refresh_base_ref`` turns it
+    into a silent skip. So only a ref that genuinely names no remote branch may
+    return None. An earlier version also returned None whenever the remainder
+    held a ``/``, which sent every nested branch name down that silent-skip
+    path: ``origin/feat/parent``, the shape ``checks_common``'s ``gh pr view``
+    branch produces for a stacked PR, then evaluated a local tracking ref that
+    was never refreshed (issue #5441 review).
+
+    Slashes are valid in a branch name, and the caller interpolates this value
+    into ``+refs/heads/{branch}:refs/remotes/origin/{branch}``, one argv token,
+    so a malformed name cannot be read as a git option. It reaches ``git
+    fetch``, which rejects it, and ``_refresh_base_ref`` reports that refusal.
+    Failing loudly there is the point: a name this function cannot vouch for
+    must not take the silent-skip path that means "already up to date".
+    """
     for prefix in ("origin/", "refs/remotes/origin/"):
         if base_ref.startswith(prefix):
             branch = base_ref[len(prefix) :]
-            return branch if branch and "/" not in branch else None
+            return branch or None
     return None
 
 
