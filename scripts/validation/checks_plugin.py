@@ -219,11 +219,21 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
 
     What each of the two adjacent gates proves, so neither is read as covering
     the other. This one proves the configured runtime starts. ``Git Hook
-    Health`` proves git will reach it: it reads the installed ``pre-push`` and
-    requires Lefthook's own dispatch line
-    (``check_git_hook_health.DISPATCH_MARKER``), because an executable
-    ``#!/bin/sh`` plus ``exit 0`` satisfies both a runtime-start check and an
-    executability check while running no job at all.
+    Health`` proves git will run the shim and that the shim dispatches Lefthook,
+    by requiring Lefthook's own dispatch line as the installed ``pre-push``
+    file's final command (``check_git_hook_health.DISPATCH_MARKER``), because an
+    executable ``#!/bin/sh`` plus ``exit 0`` satisfies both a runtime-start check
+    and an executability check while running no job at all.
+
+    Neither gate proves the shim resolves the same binary this one starts, and
+    on Windows they demonstrably differ.
+    ``tests/test_lefthook_integration.py::test_install_resets_legacy_hooks_path``
+    records that Lefthook 2.1.10 generates the default Windows template, which
+    omits the configured ``uv run --frozen lefthook`` runner and resolves
+    Lefthook through ``PATH``. So on Windows ``lefthook version`` through uv can
+    pass while the shim resolves a different binary, or none. Closing that needs
+    a Windows probe with the uv runtime present and the ``PATH`` binary absent,
+    which is not covered here. Issue #4789, PR #5358 review.
     """
     if (
         os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")

@@ -547,9 +547,13 @@ uv run --frozen lefthook check-install
 
 Lefthook installs shims under Git's hook directory. Linked worktrees share
 those shims, and the config checksum, through the common Git directory.
-Lefthook reads `lefthook.yml` at runtime, so configuration edits do not require
-another install. `lefthook.yml` sets `no_auto_install: true` so that running
-Lefthook from one worktree cannot re-sync the shims every other worktree reads.
+Lefthook reads `lefthook.yml` at runtime, so editing the jobs under a hook type
+you already have installed needs no reinstall. Adding or removing a hook type
+does. `lefthook.yml` sets `no_auto_install: true` so that running Lefthook from
+one worktree cannot re-sync the shims every other worktree reads, and the same
+setting means a newly configured hook type has no shim until you install again.
+Rerun `uv run --frozen lefthook install --reset-hooks-path` after any hook-type
+change.
 
 `pre_pr.py` runs two local gates here, and neither one is
 `lefthook check-install`. That command compares the single checksum the last
