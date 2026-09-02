@@ -1297,7 +1297,12 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
     # Lefthook renames the dispatch or appends a trailing command, this fails
     # here rather than blocking every local push.
     assert check_git_hook_health.DISPATCH_MARKER in hook_shim
-    assert check_git_hook_health._dispatches_lefthook(repo / ".git/hooks/pre-push")
+    assert (
+        check_git_hook_health._dispatch_failure(
+            repo / ".git/hooks/pre-push", "pre-push"
+        )
+        is None
+    )
 
     if sys.platform == "win32":
         # Dear future maintainer: this branch is not a shortcut. lefthook 2.1.10

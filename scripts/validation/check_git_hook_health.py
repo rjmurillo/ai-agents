@@ -57,11 +57,15 @@ pre-PR adapter receives False for the same states.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+import tomllib
+import yaml
 
 # The repair below is a lefthook command, so this gate only speaks to a
 # repository that configures lefthook. These are the config names lefthook
@@ -95,6 +99,38 @@ DISPATCH_MARKER = f'call_lefthook run "{PROBE_HOOK}"'
 # also pins argument forwarding, which the Windows template asserts separately
 # in `tests/test_lefthook_integration.py`.
 DISPATCH_COMMAND = f'{DISPATCH_MARKER} "$@"'
+
+# Every git hook Lefthook can install. Used to tell hook types apart from the
+# settings that share the config's top level (`min_version`, `lefthook`,
+# `no_auto_install`, `glob_matcher`).
+GIT_HOOK_NAMES = frozenset(
+    {
+        "applypatch-msg",
+        "commit-msg",
+        "post-applypatch",
+        "post-checkout",
+        "post-commit",
+        "post-merge",
+        "post-rewrite",
+        "post-update",
+        "pre-applypatch",
+        "pre-auto-gc",
+        "pre-commit",
+        "pre-merge-commit",
+        "pre-push",
+        "pre-rebase",
+        "pre-receive",
+        "prepare-commit-msg",
+        "push-to-checkout",
+        "sendemail-validate",
+        "update",
+    }
+)
+
+
+def _dispatch_command(hook_name: str) -> str:
+    """The complete line Lefthook generates as ``hook_name``'s final command."""
+    return f'call_lefthook run "{hook_name}" "$@"'
 
 REMEDY = "uv run --frozen lefthook install --reset-hooks-path"
 WORKTREE_REMEDY = f"git config --worktree --unset-all core.hooksPath && {REMEDY}"
@@ -241,24 +277,62 @@ def _final_command(text: str) -> str:
     return ""
 
 
-def _dispatches_lefthook(hook: Path) -> bool:
-    """True when the hook's final command is Lefthook's own dispatch.
+def _dispatch_failure(hook: Path, hook_name: str) -> str | None:
+    """Return why ``hook`` does not dispatch Lefthook, or None when it does.
 
-    The final command must equal ``DISPATCH_COMMAND``, not contain it. Two
+    The final command must equal the generated dispatch, not contain it. Two
     weaker versions of this check were fail-open in the same way (CWE-693, PR
     #5358 review). A whole-file substring accepts an inert hook mentioning the
     marker in a comment above ``exit 0``. A containment test on the final line
     accepts ``echo 'call_lefthook run "pre-push"'``. Both are executable, both
     report healthy, and neither runs a guard.
 
-    An unreadable hook returns False: the gate fails closed rather than
-    treating an unverifiable hook as installed.
+    A read failure is reported separately from a wrong command. Collapsing them
+    into one boolean made the caller say the final command was wrong when no
+    command had been read, hiding the permission or I/O fault behind a
+    misleading diagnosis. Both still fail the gate: an unverifiable hook is not
+    a verified pass.
     """
     try:
         text = hook.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return False
-    return _final_command(text) == DISPATCH_COMMAND
+    except OSError as exc:
+        return f"{hook} could not be read ({exc}), so its state is unverifiable"
+    if _final_command(text) != _dispatch_command(hook_name):
+        return (
+            f"{hook} is executable but does not dispatch Lefthook: its final "
+            f"command is not exactly '{_dispatch_command(hook_name)}', so git "
+            "runs no repository guardrail"
+        )
+    return None
+
+
+def _configured_hook_types(repo_root: Path) -> frozenset[str] | None:
+    """Hook types declared in the Lefthook config, or None when unreadable.
+
+    Returns None rather than an empty set when the config cannot be parsed, so
+    the caller keeps the single-probe behavior instead of reporting every hook
+    type as missing. ``.jsonc`` has no stdlib parser and lands there.
+    """
+    for name in LEFTHOOK_CONFIG_NAMES:
+        path = repo_root / name
+        if not path.is_file():
+            continue
+        try:
+            raw = path.read_bytes()
+            if name.endswith((".yml", ".yaml")):
+                data = yaml.safe_load(raw.decode("utf-8"))
+            elif name.endswith(".json"):
+                data = json.loads(raw)
+            elif name.endswith(".toml"):
+                data = tomllib.loads(raw.decode("utf-8"))
+            else:
+                return None
+        except (OSError, UnicodeDecodeError, ValueError, yaml.YAMLError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        return frozenset(str(key) for key in data) & GIT_HOOK_NAMES
+    return None
 
 
 def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
@@ -266,13 +340,36 @@ def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
     hook = hooks_dir / PROBE_HOOK
     if not (hook.is_file() and os.access(hook, os.X_OK)):
         return _failed_condition(repo_root, hooks_dir)
-    if not _dispatches_lefthook(hook):
-        return (
-            f"{hook} is executable but does not dispatch Lefthook: its final "
-            f"command is not exactly '{DISPATCH_COMMAND}', so git runs no "
-            "repository guardrail"
-        )
-    return None
+    probe_failure = _dispatch_failure(hook, PROBE_HOOK)
+    if probe_failure is not None:
+        return probe_failure
+    return _missing_hook_types(repo_root, hooks_dir)
+
+
+def _missing_hook_types(repo_root: Path, hooks_dir: Path) -> str | None:
+    """Report configured hook types whose shim is absent or does not dispatch.
+
+    ``no_auto_install: true`` stops one worktree re-syncing the shims every
+    other worktree reads (issue #4789), and the same setting means a newly
+    configured hook type keeps no shim until install runs again. Git runs no
+    hook it has no file for and prints no warning, so probing ``pre-push``
+    alone reports healthy while the hook type someone just added is inert.
+    """
+    configured = _configured_hook_types(repo_root)
+    if configured is None:
+        return None
+    missing = sorted(
+        name
+        for name in configured - {PROBE_HOOK}
+        if _dispatch_failure(hooks_dir / name, name) is not None
+    )
+    if not missing:
+        return None
+    return (
+        f"{hooks_dir} has no dispatching shim for configured hook "
+        f"{'types' if len(missing) > 1 else 'type'} {', '.join(missing)}, so "
+        "git runs nothing for them; run install again after any hook-type change"
+    )
 
 
 def diagnose(repo_root: Path) -> str | None:

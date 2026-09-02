@@ -32,8 +32,9 @@ Coverage:
   unset hooksPath with no pre-push, an executable hook that dispatches nothing,
   one whose marker is commented out, one that echoes the marker, and an
   undecodable one all exit 1 and name the remedy; an unreadable hook fails
-  closed through the OSError branch; a linked worktree inherits the broken
-  config; removing the gate fails the wiring test.
+  closed through the OSError branch and reports the read failure rather than a
+  wrong command; a configured hook type with no shim fails; a linked worktree
+  inherits the broken config; removing the gate fails the wiring test.
 - edge: no lefthook config, non-repositories, and CI exit 0; missing Git and
   timeouts exit 3; the failure report stays inside a line budget.
 """
@@ -65,6 +66,12 @@ GATE_NAME = "Git Hook Health (core.hooksPath)"
 GUARD = _VALIDATION_DIR / "check_git_hook_health.py"
 
 LEFTHOOK_CONFIG = "pre-push:\n  commands:\n    noop:\n      run: true\n"
+# Two hook types configured. With `no_auto_install: true` a newly added type
+# keeps no shim until install runs again, and git runs nothing for it silently.
+TWO_HOOK_CONFIG = (
+    "pre-push:\n  commands:\n    noop:\n      run: true\n"
+    "commit-msg:\n  commands:\n    noop:\n      run: true\n"
+)
 
 
 def _git_test_env() -> dict[str, str]:
@@ -313,13 +320,16 @@ class TestDeadHooks:
         assert result.returncode == 1
         assert "does not dispatch Lefthook" in result.stderr
 
-    def test_an_unreadable_hook_fails_closed(
+    def test_an_unreadable_hook_reports_the_read_failure_not_a_wrong_command(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A hook the gate cannot read is unverified, so it is not a pass.
+        """A hook the gate cannot read is unverified, and says so.
 
         Drives the `except OSError` branch, which no on-disk payload reaches:
         production reads with `errors="replace"`, so decoding always succeeds.
+        The earlier version collapsed this into the same boolean as a wrong
+        final command, so the gate blamed the command when nothing had been
+        read and the real permission fault was hidden.
         """
         repo = _make_repo(tmp_path, "unreadable")
         _install_prepush(repo / ".git" / "hooks")
@@ -328,8 +338,53 @@ class TestDeadHooks:
             raise PermissionError(f"denied: {self}")
 
         monkeypatch.setattr(check_git_hook_health.Path, "read_text", deny)
+        reason = check_git_hook_health.diagnose(repo)
 
-        assert check_git_hook_health.diagnose(repo) is not None
+        assert reason is not None
+        assert "could not be read" in reason
+        assert "state is unverifiable" in reason
+        assert "does not dispatch Lefthook" not in reason
+
+    def test_a_configured_hook_type_with_no_shim_fails(self, tmp_path: Path) -> None:
+        """Probing pre-push alone misses the hook type someone just added.
+
+        `no_auto_install: true` is what keeps one worktree from re-syncing the
+        shims every other worktree reads, and the same setting leaves a newly
+        configured hook type with no shim until install runs again. Git runs no
+        hook it has no file for and prints no warning.
+        """
+        repo = _make_repo(tmp_path, "missing_type")
+        (repo / "lefthook.yml").write_text(TWO_HOOK_CONFIG, encoding="utf-8")
+        _install_prepush(repo / ".git" / "hooks")
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "commit-msg" in result.stderr
+        assert "no dispatching shim for configured hook" in result.stderr
+
+    def test_every_configured_hook_type_installed_passes(self, tmp_path: Path) -> None:
+        """The positive control for the check above."""
+        repo = _make_repo(tmp_path, "all_types")
+        (repo / "lefthook.yml").write_text(TWO_HOOK_CONFIG, encoding="utf-8")
+        hooks_dir = repo / ".git" / "hooks"
+        _install_prepush(hooks_dir)
+        commit_msg = hooks_dir / "commit-msg"
+        commit_msg.write_text(
+            DISPATCHING_PREPUSH.replace('"pre-push"', '"commit-msg"'),
+            encoding="utf-8",
+        )
+        commit_msg.chmod(0o755)
+
+        assert _run_cli(repo).returncode == 0
+
+    def test_an_unparseable_config_keeps_the_single_probe(self, tmp_path: Path) -> None:
+        """A config the gate cannot parse must not fail every hook type."""
+        repo = _make_repo(tmp_path, "unparseable")
+        (repo / "lefthook.yml").write_text("pre-push: [unclosed\n", encoding="utf-8")
+        _install_prepush(repo / ".git" / "hooks")
+
+        assert _run_cli(repo).returncode == 0
 
     def test_validation_reuses_the_resolved_hooks_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
