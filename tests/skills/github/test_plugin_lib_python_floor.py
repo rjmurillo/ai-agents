@@ -22,13 +22,43 @@ _project_root = Path(__file__).resolve().parents[3]
 _LIB = _project_root / ".claude" / "lib"
 _COPILOT_LIB = _project_root / "src" / "copilot-cli" / "lib"
 
-# Runtime stdlib names newer than the 3.10 floor. Names, not syntax: the
-# floor gate already covers syntax.
+# Runtime stdlib names newer than the 3.10 floor. Names, not syntax: the floor
+# gate already covers syntax, and every name below parses clean at 3.10.
+#
+# Split in two because precision differs by shape. A `from <module> import
+# <name>` names its own module, so the pair is unambiguous and the table can
+# hold ordinary words. A bare `Self` or an `x.timeout` attribute does not, so
+# the second table holds only names distinctive enough that a false positive is
+# implausible; `timeout`, `walk`, and `override` are deliberately absent from
+# it because each is a plausible local in code that is already floor-clean, and
+# a gate that fails a push for the wrong reason teaches people to bypass it.
+_TOO_NEW_FROM_IMPORT = {
+    "datetime": {"UTC": "3.11"},
+    "enum": {"StrEnum": "3.11", "ReprEnum": "3.11"},
+    "typing": {
+        "Self": "3.11",
+        "Never": "3.11",
+        "LiteralString": "3.11",
+        "assert_never": "3.11",
+        "override": "3.12",
+        "TypeAliasType": "3.12",
+    },
+    "asyncio": {"TaskGroup": "3.11", "timeout": "3.11"},
+    "itertools": {"batched": "3.12"},
+    "hashlib": {"file_digest": "3.11"},
+}
+
 _TOO_NEW = {
     "StrEnum": "3.11",
+    "ReprEnum": "3.11",
     "ExceptionGroup": "3.11",
+    "BaseExceptionGroup": "3.11",
     "tomllib": "3.11",
     "TaskGroup": "3.11",
+    "Self": "3.11",
+    "LiteralString": "3.11",
+    "assert_never": "3.11",
+    "TypeAliasType": "3.12",
 }
 
 
@@ -79,11 +109,12 @@ def _violations(path: Path) -> list[str]:
     found = []
     tree = ast.parse(path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "datetime":
+        if isinstance(node, ast.ImportFrom) and node.module in _TOO_NEW_FROM_IMPORT:
+            table = _TOO_NEW_FROM_IMPORT[node.module]
             found += [
-                f"{path.name}: datetime.UTC (3.11)"
+                f"{path.name}: {node.module}.{alias.name} ({table[alias.name]})"
                 for alias in node.names
-                if alias.name == "UTC"
+                if alias.name in table
             ]
         if isinstance(node, ast.Attribute) and node.attr in _TOO_NEW:
             found.append(f"{path.name}: {node.attr} ({_TOO_NEW[node.attr]})")
@@ -112,13 +143,38 @@ class TestBundledLibStaysAtTheFloor:
         )
         assert not offenders, f"{lib.name} mirror is not floor-clean: {offenders}"
 
-    def test_the_scan_detects_a_planted_violation(self):
-        """Negative control: a scan that cannot fail proves nothing."""
-        planted = _project_root / "tests" / "skills" / "github" / "_floor_probe.py"
-        planted.write_text(
-            "import enum\n\n\nclass X(enum.StrEnum):\n    A = 'a'\n", encoding="utf-8"
+    @pytest.mark.parametrize(
+        ("source", "expected"),
+        [
+            ("import enum\n\n\nclass X(enum.StrEnum):\n    A = 'a'\n", "StrEnum"),
+            ("from datetime import UTC\n", "datetime.UTC"),
+            ("from typing import Self\n", "typing.Self"),
+            ("from asyncio import timeout\n", "asyncio.timeout"),
+        ],
+    )
+    def test_the_scan_detects_a_planted_violation(self, tmp_path, source, expected):
+        """Negative control: a scan that cannot fail proves nothing.
+
+        Written under tmp_path, not into the repository. An earlier version
+        planted the probe beside this file, which leaves a stray module in the
+        working tree whenever the assertion fails before the unlink
+        (`.claude/rules/testing.md` MUST NOT 4).
+
+        `asyncio.timeout` is the case the anywhere-table deliberately cannot
+        see, so it also proves the from-import table is doing work of its own.
+        """
+        planted = tmp_path / "floor_probe.py"
+        planted.write_text(source, encoding="utf-8")
+        assert any(expected in v for v in _violations(planted)), (
+            f"the scan missed a planted {expected}"
         )
-        try:
-            assert _violations(planted), "the scan missed a planted StrEnum"
-        finally:
-            planted.unlink()
+
+    def test_the_scan_passes_a_floor_clean_module(self):
+        """Inverted control: the scan must not fail on everything it reads.
+
+        Without it, a defect that reports a violation unconditionally reads as
+        a clean sweep of the parametrized cases above.
+        """
+        clean = _LIB / "github_core" / "api.py"
+        assert clean.is_file()
+        assert not _violations(clean)
