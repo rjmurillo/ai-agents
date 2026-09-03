@@ -19,6 +19,7 @@ module is that guard.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -105,3 +106,80 @@ def test_relocated_statement_survives_in_every_universal_tree(tree: Path, phrase
 def test_relocated_evidence_survives_in_every_universal_tree(tree: Path, citation: str) -> None:
     """Edge case: the prose can survive while the citation that proves it is cut."""
     assert citation in tree.read_text(encoding="utf-8")
+
+
+# Live surfaces: prose a session actually loads and obeys. Historical trees
+# under `.agents/` are deliberately excluded. Those documents cite the number
+# an item carried when they were written, with a "when written" parenthetical,
+# and rewriting them to the current number would falsify the record they exist
+# to keep.
+LIVE_PROSE_ROOTS = [
+    REPO_ROOT / ".claude" / "rules",
+    REPO_ROOT / ".claude" / "skills",
+    REPO_ROOT / ".github" / "instructions",
+    REPO_ROOT / "src" / "copilot-cli" / "instructions",
+    REPO_ROOT / "src" / "copilot-cli" / "skills",
+]
+
+# `knowledge-persistence.md` keeps exactly one MUST NOT item after the
+# relocation. Any live citation of items 2 and up is a dangling pointer into
+# a list that no longer has that many entries.
+_STALE_MUST_NOT = re.compile(
+    r"knowledge-persistence(?:\.md)?[^.\n]{0,40}?MUST[- ]NOT[- ]?(\d+)",
+    re.IGNORECASE,
+)
+
+SURVIVING_MUST_NOT_COUNT = 1
+
+
+def _live_markdown_files() -> list[Path]:
+    files: list[Path] = []
+    for root in LIVE_PROSE_ROOTS:
+        if root.is_dir():
+            files.extend(sorted(root.rglob("*.md")))
+    return files
+
+
+def test_surviving_must_not_list_has_the_expected_length() -> None:
+    """Anchor the count the staleness scan below depends on.
+
+    If a future change adds a MUST NOT item back, this fails first and names
+    the reason, instead of the scan silently permitting a wider number range.
+    """
+    text = KNOWLEDGE_PERSISTENCE.read_text(encoding="utf-8")
+    section = text.split("## MUST NOT", 1)[1].split("## References", 1)[0]
+    items = re.findall(r"^\d+\. ", section, re.MULTILINE)
+    assert len(items) == SURVIVING_MUST_NOT_COUNT
+
+
+def test_no_live_prose_cites_a_relocated_must_not_number() -> None:
+    """Repo-wide: no loaded instruction points at a MUST NOT that moved.
+
+    Criterion 3 of issue #5492. A citation left at its old number does not
+    fail loudly; it silently sends a reader to a different rule than the one
+    the author meant, which is worse than a broken link.
+    """
+    offenders: list[str] = []
+    for path in _live_markdown_files():
+        for line_no, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            for match in _STALE_MUST_NOT.finditer(line):
+                if int(match.group(1)) > SURVIVING_MUST_NOT_COUNT:
+                    rel = path.relative_to(REPO_ROOT)
+                    offenders.append(f"{rel}:{line_no}: {match.group(0)}")
+    assert not offenders, "stale knowledge-persistence MUST NOT citations: " + "; ".join(
+        offenders
+    )
+
+
+def test_the_staleness_scan_can_actually_fail() -> None:
+    """Negative control: the regex matches the shape it is meant to catch.
+
+    Without this, a regex that never matches anything would leave the test
+    above vacuously green forever.
+    """
+    sample = "see `.claude/rules/knowledge-persistence.md` MUST NOT 4 for the bar"
+    match = _STALE_MUST_NOT.search(sample)
+    assert match is not None
+    assert int(match.group(1)) > SURVIVING_MUST_NOT_COUNT
