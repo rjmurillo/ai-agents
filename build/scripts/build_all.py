@@ -1852,9 +1852,11 @@ def run(
         # Restore's boundary set comes from this same traversal, not from a
         # separate _git_boundaries_under pass. Two passes could disagree: that
         # helper's walker swallows every directory-scan OSError, so one
-        # transient failure returns an incomplete set while the strict walk,
-        # which fails closed on the same error, succeeds on a later attempt
-        # and skips the nested repository by shape. Restore would then receive
+        # transient failure returns an incomplete set while a separate strict
+        # pass, run again later, hits no transient failure and correctly
+        # rejects the nested repository outright (SnapshotIncompleteError),
+        # never merely skipping it by shape the way the non-strict
+        # _is_opaque_boundary fallback would. Restore would then receive
         # the short set, descend into a repository the snapshot never read,
         # and delete its files as generator-created: issue #4632's data loss
         # reopened one level out. Collecting here makes the two agree by
