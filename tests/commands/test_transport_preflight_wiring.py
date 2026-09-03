@@ -78,16 +78,109 @@ class TestReviewPreflightWiring:
         ), f"{path.name} reaches Step 1 before deciding transport"
 
 
-class TestMcpNamespaceIsGranted:
-    """MCP mode is inert if the command cannot call the operations it names."""
+# The reads every MCP-mode consumer needs: PR context and threads, issue
+# bodies, one check run's output, and CI logs.
+_MCP_READS = frozenset(
+    {
+        "pull_request_read",
+        "issue_read",
+        "get_check_run",
+        "get_job_logs",
+    }
+)
+# pr-review also replies and resolves. pr-autofix does neither: without the
+# lease helper it runs read-only, so granting a write there would contradict
+# its own Phase 0 rule 3.
+_MCP_REVIEW_WRITES = frozenset(
+    {
+        "add_issue_comment",
+        "add_reply_to_pull_request_comment",
+        "resolve_review_thread",
+        "unresolve_review_thread",
+    }
+)
+# Never granted on either surface. A blanket `github/*` carries all of these,
+# which is why ADR-003 names that grant an anti-pattern outright rather than
+# only a context cost.
+_MCP_FORBIDDEN = frozenset(
+    {
+        "merge_pull_request",
+        "enable_pr_auto_merge",
+        "push_files",
+        "create_or_update_file",
+        "delete_file",
+        "update_pull_request",
+        "issue_write",
+        "create_pull_request",
+    }
+)
+
+
+def _granted(path):
+    body = path.read_text(encoding="utf-8")
+    allowed = next(
+        line for line in body.splitlines() if line.startswith("allowed-tools:")
+    ).split(":", 1)[1]
+    return {t.strip() for t in allowed.split(",")}
+
+
+class TestMcpGrantsAreEnumerated:
+    """MCP mode is inert without a grant, and unsafe with a blanket one.
+
+    `.agents/architecture/ADR-003-agent-tool-selection-criteria.md:318` reads
+    "DO NOT: Use blanket `github/*` allocation" and puts the server at roughly
+    59 operations. Both commands consume untrusted PR content, so the grant is
+    the operations each one actually uses and nothing that mutates a
+    repository.
+    """
 
     @pytest.mark.parametrize("path", [AUTOFIX, REVIEW])
-    def test_commands_grant_the_mcp_namespace(self, path):
-        body = path.read_text(encoding="utf-8")
-        allowed = next(
-            line for line in body.splitlines() if line.startswith("allowed-tools:")
+    def test_the_reads_mcp_mode_depends_on_are_granted(self, path):
+        granted = _granted(path)
+        missing = sorted(
+            op for op in _MCP_READS if f"mcp__github__{op}" not in granted
         )
-        assert "mcp__github__*" in allowed, f"{path.name} cannot call MCP operations"
+        assert not missing, f"{path.name} cannot call MCP operations it names: {missing}"
+
+    def test_pr_review_is_granted_its_reply_and_resolve_operations(self):
+        granted = _granted(REVIEW)
+        missing = sorted(
+            op for op in _MCP_REVIEW_WRITES if f"mcp__github__{op}" not in granted
+        )
+        assert not missing, f"pr-review cannot answer or resolve a thread: {missing}"
+
+    def test_pr_autofix_is_granted_no_write_operation(self):
+        """Phase 0 rule 3 makes MCP mode read-only, so the grant must be too.
+
+        Prose saying "do not push" is not a permission boundary. If the grant
+        carries the write, a single misread of the rule is enough to take it.
+        """
+        granted = _granted(AUTOFIX)
+        writes = sorted(
+            op
+            for op in _MCP_REVIEW_WRITES | _MCP_FORBIDDEN
+            if f"mcp__github__{op}" in granted
+        )
+        assert not writes, f"pr-autofix is read-only but grants: {writes}"
+
+    @pytest.mark.parametrize("path", [AUTOFIX, REVIEW])
+    def test_no_repository_mutation_is_granted(self, path):
+        granted = _granted(path)
+        forbidden = sorted(
+            op for op in _MCP_FORBIDDEN if f"mcp__github__{op}" in granted
+        )
+        assert not forbidden, f"{path.name} grants a repository mutation: {forbidden}"
+
+    @pytest.mark.parametrize("path", [AUTOFIX, REVIEW])
+    def test_no_github_namespace_wildcard_survives(self, path):
+        """The control for every assertion above: `mcp__github__*` satisfies them.
+
+        A wildcard contains each read as a substring only if you match loosely,
+        but it also carries every forbidden operation while naming none of
+        them, so the forbidden checks pass on it too. Asserting its absence
+        directly is what makes those checks mean anything.
+        """
+        assert "mcp__github__*" not in _granted(path)
 
     @pytest.mark.parametrize("path", [AUTOFIX, REVIEW])
     def test_allowed_tools_carries_no_unscoped_wildcard(self, path):
@@ -97,16 +190,19 @@ class TestMcpNamespaceIsGranted:
         meaningless to Claude. The Copilot surface takes its grant through the
         prompt's own `tools` list instead.
         """
-        body = path.read_text(encoding="utf-8")
-        allowed = next(
-            line for line in body.splitlines() if line.startswith("allowed-tools:")
-        ).split(":", 1)[1]
-        for tool in (t.strip() for t in allowed.split(",")):
+        for tool in _granted(path):
             if "*" in tool:
-                assert tool.startswith("mcp__") or tool.startswith("Bash("), (
+                assert tool.startswith("Bash("), (
                     f"{path.name} has an unscoped wildcard: {tool}"
                 )
 
-    def test_the_copilot_prompt_grants_its_own_namespace(self):
+    def test_the_copilot_prompt_grants_the_same_operations_its_own_way(self):
+        """Same set, Copilot's spelling, and no blanket grant there either."""
         config = yaml.safe_load(PROMPT.read_text(encoding="utf-8").split("---")[1])
-        assert "github/*" in config["tools"]
+        tools = set(config["tools"])
+
+        assert "github/*" not in tools
+        expected = {f"github/{op}" for op in _MCP_READS | _MCP_REVIEW_WRITES}
+        assert expected <= tools, f"prompt is missing {sorted(expected - tools)}"
+        forbidden = sorted(f"github/{op}" for op in _MCP_FORBIDDEN if f"github/{op}" in tools)
+        assert not forbidden, f"prompt grants a repository mutation: {forbidden}"

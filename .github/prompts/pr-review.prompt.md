@@ -8,8 +8,19 @@ tools:
   - agent
   # MCP mode routes GitHub work through these when gh is refused for the
   # session. Without them the transport fallback names operations the agent
-  # has no permission to call (Copilot review on PR #5509).
-  - github/*
+  # has no permission to call. Enumerated rather than `github/*`: that grant
+  # is ~59 operations, and ADR-003 names blanket `github/*` allocation as an
+  # anti-pattern outright. This prompt consumes untrusted PR content, so the
+  # set is the reads, the two reply forms, and thread resolution, and nothing
+  # that can push, merge, or arm auto-merge (Copilot review on PR #5509).
+  - github/pull_request_read
+  - github/issue_read
+  - github/get_check_run
+  - github/get_job_logs
+  - github/add_issue_comment
+  - github/add_reply_to_pull_request_comment
+  - github/resolve_review_thread
+  - github/unresolve_review_thread
   - edit
   - search
   - web

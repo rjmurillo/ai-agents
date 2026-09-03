@@ -1,7 +1,7 @@
 ---
 description: Fix PRs autonomously. Triage open PRs by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes.
 argument-hint: "[pull-request|mode]"
-allowed-tools: Bash, Read, Edit, Write, Skill, mcp__github__*
+allowed-tools: Bash, Read, Edit, Write, Skill, mcp__github__pull_request_read, mcp__github__issue_read, mcp__github__get_check_run, mcp__github__get_job_logs
 size-exception: true
 ---
 
@@ -47,7 +47,7 @@ to run the command is here.
 
 ## Process
 
-Three phases. Tier-based dispatch decides which actions apply per PR.
+Four phases. Tier-based dispatch decides which actions apply per PR.
 
 ### Phase 0: Transport preflight (BLOCKING, runs once)
 
@@ -76,10 +76,14 @@ the per-harness spelling for the operation names. On top of it:
 
 1. Read operations (triage, CI status, check logs, review threads, PR and
    issue bodies) all have MCP equivalents. Use them freely.
-   Write operations (replies, resolving threads, arming auto-merge, merging,
-   pushing) also have MCP equivalents, but rule 3 governs whether you may use
-   them at all. Do not read this row as permission: it says the tool exists,
-   not that the operation is allowed.
+   Write operations (replies, resolving threads, arming auto-merge, merging)
+   also have MCP equivalents, but rule 3 governs whether you may use them at
+   all, and the grant in this file's frontmatter does not include any of them.
+   Do not read this row as permission: it says the tool exists, not that the
+   operation is allowed here.
+   Pushing is not on that list and has no MCP equivalent. `push_files` builds
+   a new remote commit out of file contents you supply; it does not transfer
+   local commits or branch history, so it cannot stand in for `git push`.
 2. `test_pr_merge_ready.py`, `check_pr_live_state.py`, `why_pr_blocked.py`,
    `triage_red_check.py`, `run_completion_gate.py`, `check_pr_round_cap.py`,
    and `pr_autofix_lease.py` have no MCP equivalent, because each computes a
