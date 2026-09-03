@@ -174,7 +174,7 @@ The single new convention, stated as a MUST NOT item:
 
 ### Action Sequence
 
-1. Add MUST NOT 4 to `.claude/rules/knowledge-persistence.md`. No dependencies.
+1. Add MUST NOT 4 to `.claude/rules/knowledge-persistence.md` (relocated to `universal.md` MUST NOT 9 by issue #5492). No dependencies.
 2. Regenerate both instruction mirrors with `build/scripts/generate_rules.py`, per MUST-2.
    Depends on 1.
 3. Re-run `scripts/validation/instruction_budget.py`. The rule applies to `**`, so the
@@ -263,7 +263,7 @@ The single new convention, stated as a MUST NOT item:
 | New Skill | Most Similar | Similarity | Decision |
 |-----------|--------------|------------|----------|
 | knowledge-absence-claim-evidence-bar | `.serena/memories/git/git-absence-and-case-in-plumbing.md` | Low | Keep both. That memory covers two specific git plumbing commands that cannot prove absence. This learning covers the reasoning step, in any tool, and belongs in a rule rather than a memory because it binds every harness. |
-| knowledge-absence-claim-evidence-bar | `.claude/rules/knowledge-persistence.md` MUST NOT 3 | High | Add as a sibling item in the same rule rather than a new file, per SHOULD-1. MUST NOT 3 bars unverified presence claims about rules; this bars unverified absence claims about the repository. |
+| knowledge-absence-claim-evidence-bar | `.claude/rules/universal.md` MUST NOT 8 (`knowledge-persistence.md` MUST NOT 3 when written) | High | Add as a sibling item in the same rule rather than a new file, per SHOULD-1. That item bars unverified presence claims about rules; this bars unverified absence claims about the repository. |
 | ci-read-the-gate-criterion-before-claiming-exemption | `.serena/memories/python/python-lint-ratchet-is-not-a-ratchet.md` | High | Already committed in `65ccf3b20`. No duplicate written. |
 | push-ls-remote-ordering | `.serena/memories/git/git-empty-hook-run-means-an-empty-push.md` | High | Augmented that memory rather than writing a new one, per SHOULD-1. It already warned that in-flight absence proves nothing; what it lacked was the sequencing against the competing "verify with `ls-remote`" rule, plus the `cannot lock ref` tell. |
 | push-ls-remote-ordering | `.serena/memories/git/git-hooks-observations.md` line 78 | High | Corrected in place. That line was a contributing cause: it correctly says the log tail lies, then recommends `git ls-remote` with no precondition, which is the probe that misled me. |
