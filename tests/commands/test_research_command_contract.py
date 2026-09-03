@@ -39,6 +39,23 @@ def _allowed_tools_line(text: str) -> str:
     raise AssertionError("research command declares no allowed-tools line")
 
 
+# Each harness spells the same MCP server differently: Claude Code uses
+# `mcp__<server>__<op>`, Copilot CLI uses `<server>/<op>`
+# (`templates/toolsets.yaml`). The generator respells the grant on the way into
+# the mirror, so a test that expects one spelling in both files is asserting
+# that half the tree is misgranted.
+_MCP_SPELLING = {
+    "claude": ("mcp__serena__*", "mcp__forgetful__*"),
+    "copilot": ("serena/*", "forgetful/*"),
+}
+
+
+@pytest.fixture
+def mcp_grants(request: pytest.FixtureRequest) -> tuple[str, ...]:
+    """The MCP grants expected in whichever tree `research_text` resolved to."""
+    return _MCP_SPELLING[request.node.callspec.id]
+
+
 @pytest.fixture(params=[COMMAND_PATH, COMMAND_MIRROR_PATH], ids=["claude", "copilot"])
 def research_text(request: pytest.FixtureRequest) -> str:
     return Path(request.param).read_text(encoding="utf-8")
@@ -121,13 +138,35 @@ def test_allowed_tools_bash_is_not_wildcarded(research_text: str) -> None:
         assert entry.startswith("Bash(python3"), entry
 
 
-def test_research_still_prefers_web_tools_for_non_github_sources(research_text: str) -> None:
+def test_research_still_prefers_web_tools_for_non_github_sources(
+    research_text: str, mcp_grants: tuple[str, ...]
+) -> None:
     allowed = _allowed_tools_line(research_text)
 
     assert "WebSearch" in allowed
     assert "WebFetch" in allowed
-    assert "mcp__serena__*" in allowed
-    assert "mcp__forgetful__*" in allowed
+    for grant in mcp_grants:
+        assert grant in allowed
+
+
+def test_each_tree_carries_only_its_own_mcp_spelling(
+    research_text: str, mcp_grants: tuple[str, ...]
+) -> None:
+    """Control: asserting presence alone accepts a file carrying both spellings.
+
+    Without this, the grant line could keep the Claude names beside the Copilot
+    ones and every assertion above would still pass, which is the state the
+    respelling was added to end.
+    """
+    allowed = _allowed_tools_line(research_text)
+    foreign = next(
+        spellings
+        for harness, spellings in _MCP_SPELLING.items()
+        if spellings != mcp_grants
+    )
+
+    for grant in foreign:
+        assert grant not in allowed, f"{grant} is the other harness's spelling"
 
 
 # The skill is invocable on its own, so `.claude/commands/research.md` may never
