@@ -580,6 +580,59 @@ def _is_session_wide_refusal(rest_text: str, graphql_text: str) -> bool:
     )
 
 
+def _resolve_policy_refused_probe(
+    rest_text: str, probe: GhAuthResult
+) -> GhAuthResult:
+    """Decide the verdict when GraphQL refused the query by policy.
+
+    Extracted from :func:`check_gh_auth` so that function stays inside the
+    repository's complexity ceiling; the branches and their order are
+    unchanged, and the classification tests cover this path through the
+    caller exactly as before.
+
+    A policy refusal on GraphQL is evidence about the policy and none at all
+    about the credential, so the confirmation ``check_gh_auth`` exists to make
+    did not happen. ``INVALID_CREDENTIALS`` here is only
+    :func:`classify_gh_failure_text`'s unrecognized-text fallback, and
+    returning it reports REST's unconfirmed verdict as if it had been
+    confirmed, which is the #3139 and #4344 shape.
+    """
+    if not (
+        probe.status is GhAuthStatus.INVALID_CREDENTIALS
+        and _SESSION_POLICY_REFUSAL.search(probe.detail)
+    ):
+        return probe
+
+    # A REST failure that classifies as anything but the fallback said
+    # something real. A 5xx is still retryable and a quota window still has
+    # a reset, so neither is overwritten (Copilot review on PR #5509).
+    rest_status = classify_gh_failure_text(rest_text)
+    if rest_status is not GhAuthStatus.INVALID_CREDENTIALS:
+        return GhAuthResult(rest_status, sanitize_failure_detail(rest_text))
+
+    # Both narrators are unreliable here, so ask the one question that has
+    # a decisive answer: does the credential authenticate at all?
+    #
+    # A credential that works, with `gh auth status` failed and GraphQL
+    # refused by policy, is not "authenticated" for any caller's purpose:
+    # every `gh pr` and `gh issue` command goes through GraphQL. Returning
+    # AUTHENTICATED here would report success for a session that cannot
+    # read a PR, and assert_gh_authenticated would pass on it.
+    #
+    # The step from that evidence to TRANSPORT_BLOCKED is an inference, and
+    # it is worth naming as one: `/user` is account-scoped, so its success
+    # says nothing about repository REST, which the observed session
+    # refused separately. What is measured is a valid credential plus a
+    # policy-refused GraphQL transport. Whether a session in that state
+    # deserves its own status, rather than being folded in here, is a
+    # taxonomy question for the repository owner (Copilot review on
+    # PR #5509).
+    confirmation = _rest_credential_probe()
+    if confirmation.is_authenticated:
+        return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
+    return confirmation
+
+
 def check_gh_auth() -> GhAuthResult:
     """Classify GitHub CLI auth across the REST and GraphQL transports.
 
@@ -653,42 +706,7 @@ def check_gh_auth() -> GhAuthResult:
     ):
         return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
 
-    # A policy refusal on GraphQL is evidence about the policy and none at all
-    # about the credential, so the confirmation this function exists to make did
-    # not happen. INVALID_CREDENTIALS here is only classify_gh_failure_text's
-    # unrecognized-text fallback, and returning it reports REST's unconfirmed
-    # verdict as if it had been confirmed, which is the #3139 and #4344 shape.
-    if probe.status is GhAuthStatus.INVALID_CREDENTIALS and _SESSION_POLICY_REFUSAL.search(
-        probe.detail
-    ):
-        # A REST failure that classifies as anything but the fallback said
-        # something real. A 5xx is still retryable and a quota window still has
-        # a reset, so neither is overwritten (Copilot review on PR #5509).
-        rest_status = classify_gh_failure_text(rest_text)
-        if rest_status is not GhAuthStatus.INVALID_CREDENTIALS:
-            return GhAuthResult(rest_status, sanitize_failure_detail(rest_text))
-        # Both narrators are unreliable here, so ask the one question that has
-        # a decisive answer: does the credential authenticate at all?
-        #
-        # A credential that works, with `gh auth status` failed and GraphQL
-        # refused by policy, is not "authenticated" for any caller's purpose:
-        # every `gh pr` and `gh issue` command goes through GraphQL. Returning
-        # AUTHENTICATED here would report success for a session that cannot
-        # read a PR, and assert_gh_authenticated would pass on it.
-        #
-        # The step from that evidence to TRANSPORT_BLOCKED is an inference, and
-        # it is worth naming as one: `/user` is account-scoped, so its success
-        # says nothing about repository REST, which the observed session
-        # refused separately. What is measured is a valid credential plus a
-        # policy-refused GraphQL transport. Whether a session in that state
-        # deserves its own status, rather than being folded in here, is a
-        # taxonomy question for the repository owner (Copilot review on
-        # PR #5509).
-        confirmation = _rest_credential_probe()
-        if confirmation.is_authenticated:
-            return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
-        return confirmation
-    return probe
+    return _resolve_policy_refused_probe(rest_text, probe)
 
 
 def is_gh_authenticated() -> bool:
