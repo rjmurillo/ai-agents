@@ -15,8 +15,10 @@ Runtime contract verified empirically against GitHub Copilot CLI 1.0.66-1
   - `Skill(skill="X")`         -> NOT callable; real tool is `skill` (param `skill`)
   - `Task(subagent_type="Y")`  -> NOT callable; real tool is `task`
                                   (param `agent_type`, persona `<plugin>:Y`)
+  - `mcp__github__<op>`        -> not a Copilot tool name; Copilot spells the
+                                  same server `github/<op>` (`templates/toolsets.yaml`)
 
-The translation applies three transforms, all in place:
+The translation applies four transforms, all in place:
 
   1. `@file` includes -> a Copilot note (instructions load via the plugin tree).
   2. `$ARGUMENTS`      -> a conversation instruction (no argument vector).
@@ -24,6 +26,11 @@ The translation applies three transforms, all in place:
      `Skill(skill="X")`        -> `` `skill: "X"` ``
      `Task(subagent_type="Y")` -> `` `agent_type: "<plugin>:Y"` ``
      A `prompt="Z"` argument is preserved as ` with prompt "Z"`.
+  4. `allowed-tools` frontmatter -> MCP names respelled for Copilot:
+     `mcp__github__*` -> `github/*`, `mcp__serena__find_symbol` ->
+     `serena/find_symbol`. Transforms 1 to 3 skip frontmatter, so before this
+     a Claude-only namespace was copied verbatim into the Copilot mirror and
+     the grant named nothing the harness exposes (Copilot review on PR #5509).
 
 Transform 3 rewrites each call where it sits (structural rework, #2743). The
 earlier design appended a reference table to sidestep the Step 0 / Step 9
@@ -51,6 +58,14 @@ _FENCED_CODE_BLOCK_RE = re.compile(r"(```.*?```)", re.DOTALL)
 _INLINE_CODE_SPAN_RE = re.compile(r"(`+[^`\n]*`+)")
 
 _FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
+
+# The `allowed-tools` value, which may wrap onto continuation lines in a YAML
+# block or list. Anchored at the key so no other frontmatter value is touched.
+_ALLOWED_TOOLS_LINE_RE = re.compile(
+    r"^allowed-tools:.*(?:\n[ \t-].*)*$", re.MULTILINE
+)
+# `mcp__<server>__<op>`; `<op>` is `*` for a whole-namespace grant.
+_MCP_TOOL_NAME_RE = re.compile(r"mcp__([A-Za-z0-9_]+?)__([A-Za-z0-9_]+|\*)")
 
 # Locate the start of a `Skill(` / `Task(` call. The matching close paren is
 # found by a quote-aware balanced scan (a `prompt="..."` argument can contain
@@ -240,15 +255,45 @@ def translate_body(body: str, skills_output_dir: Path) -> str:
     return _translate_invocations(translated, plugin_name)
 
 
+def respell_mcp_tool_names(value: str) -> str:
+    """Rewrite `mcp__<server>__<op>` to the Copilot CLI spelling `<server>/<op>`.
+
+    Claude Code names an MCP tool `mcp__github__pull_request_read`; Copilot CLI
+    names the same tool `github/pull_request_read`, which
+    `templates/toolsets.yaml` uses throughout (`github/*`, `serena/*`). A grant
+    copied across unchanged names nothing the harness exposes, so the tool is
+    not granted and any workflow depending on it is inert in the mirror.
+
+    Takes a tool-list value, not a document. The same token appears in body
+    prose that deliberately contrasts the two spellings, and rewriting it there
+    would turn a per-harness table into two identical rows.
+    """
+    return _MCP_TOOL_NAME_RE.sub(r"\1/\2", value)
+
+
+def translate_allowed_tools(frontmatter: str) -> str:
+    """Apply :func:`respell_mcp_tool_names` to the `allowed-tools` value only.
+
+    `generate_skills.py` mirrors a whole `SKILL.md` as text, so its frontmatter
+    arrives as a string. `generate_commands.py` builds frontmatter as a dict and
+    calls the helper above on the value directly; both paths have to respell or
+    only half the Copilot tree is fixed.
+    """
+    return _ALLOWED_TOOLS_LINE_RE.sub(
+        lambda line: respell_mcp_tool_names(line.group(0)),
+        frontmatter,
+    )
+
+
 def translate_skill_file(content: str, skills_output_dir: Path) -> str:
     """Translate a full SKILL.md (frontmatter + body), preserving frontmatter.
 
-    Frontmatter is left untouched; only the body after the closing `---`
-    fence is translated. When no frontmatter is present, the whole content is
-    treated as body.
+    Only the `allowed-tools` line of the frontmatter is rewritten (transform 4);
+    every other key is passed through. When no frontmatter is present, the
+    whole content is treated as body.
     """
     match = _FRONTMATTER_RE.match(content)
     if match is None:
         return translate_body(content, skills_output_dir)
     frontmatter, body = match.group(1), match.group(2)
-    return frontmatter + translate_body(body, skills_output_dir)
+    return translate_allowed_tools(frontmatter) + translate_body(body, skills_output_dir)

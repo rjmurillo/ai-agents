@@ -189,7 +189,11 @@ def test_plugin_name_falls_back_when_manifest_absent(tmp_path: Path) -> None:
 
 
 def test_translate_skill_file_preserves_frontmatter(tmp_path: Path) -> None:
-    """translate_skill_file leaves frontmatter untouched, translates the body."""
+    """translate_skill_file passes frontmatter through, translates the body.
+
+    Every key but `allowed-tools` is untouched; that one is respelled by the
+    MCP-name transform covered below.
+    """
     content = (
         "---\n"
         "name: demo\n"
@@ -218,6 +222,85 @@ def test_translate_skill_file_preserves_crlf_frontmatter(tmp_path: Path) -> None
     assert "$ARGUMENTS" not in out
     assert '`agent_type: "project-toolkit:critic"`' in out
     assert "## Copilot CLI invocation reference" not in out
+
+
+def test_allowed_tools_mcp_names_respelled_for_copilot(tmp_path: Path) -> None:
+    """`mcp__github__*` names nothing Copilot exposes; it spells it `github/*`.
+
+    Copied across unchanged, the grant is inert and every MCP-routed step in
+    the mirror fails for a reason that has nothing to do with the PR
+    (Copilot review on PR #5509). `templates/toolsets.yaml` is the canonical
+    spelling: `github/pull_request_read`, `serena/*`.
+    """
+    content = (
+        "---\n"
+        "name: demo\n"
+        "allowed-tools: Bash, Read, mcp__github__*, mcp__serena__find_symbol\n"
+        "---\n"
+        "body\n"
+    )
+
+    out = copilot_body_translation.translate_skill_file(content, tmp_path)
+
+    assert "allowed-tools: Bash, Read, github/*, serena/find_symbol\n" in out
+    assert "mcp__" not in out
+
+
+def test_allowed_tools_respelling_handles_the_yaml_list_form(tmp_path: Path) -> None:
+    """The key also takes a block list, which a single-line pattern would miss."""
+    content = (
+        "---\n"
+        "allowed-tools:\n"
+        "  - Read\n"
+        "  - mcp__github__issue_read\n"
+        "---\n"
+        "body\n"
+    )
+
+    out = copilot_body_translation.translate_skill_file(content, tmp_path)
+
+    assert "  - github/issue_read\n" in out
+
+
+def test_mcp_names_outside_allowed_tools_are_left_alone(tmp_path: Path) -> None:
+    """Control: the transform must not rewrite every occurrence of the token.
+
+    Body prose and the `description` deliberately contrast the two spellings so
+    a reader on either harness knows which one is theirs. Rewriting those turns
+    a per-harness table into two identical rows, and no assertion above would
+    fail. Without this case the transform could drop its `allowed-tools` anchor
+    and still pass.
+    """
+    content = (
+        "---\n"
+        "description: routes through mcp__github__get_me\n"
+        "allowed-tools: Read\n"
+        "---\n"
+        "Claude Code spells it mcp__github__pull_request_read.\n"
+    )
+
+    out = copilot_body_translation.translate_skill_file(content, tmp_path)
+
+    assert "description: routes through mcp__github__get_me\n" in out
+    assert "Claude Code spells it mcp__github__pull_request_read." in out
+
+
+def test_committed_skill_frontmatter_grants_no_claude_mcp_names() -> None:
+    """Gate the shipped artifact, not only the generator.
+
+    A hand-edit or a merge can put the Claude spelling back into a committed
+    mirror without the generator ever running (`.claude/rules/generated-artifacts.md`
+    MUST 3). Frontmatter only: the bodies carry the per-harness tables.
+    """
+    offenders = []
+    for path in sorted(_COPILOT_SKILLS.glob("*/SKILL.md")):
+        content = path.read_text(encoding="utf-8")
+        match = copilot_body_translation._FRONTMATTER_RE.match(content)
+        if match is None:
+            continue
+        if "mcp__" in match.group(1):
+            offenders.append(path.parent.name)
+    assert not offenders, f"Claude MCP tool names in Copilot frontmatter: {offenders}"
 
 
 def test_translate_skill_file_matches_call_with_extra_args(tmp_path: Path) -> None:
