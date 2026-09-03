@@ -128,7 +128,7 @@ Execution can satisfy the request and keep going: a later optional refinement ge
 
 ### Forming the contract
 
-Before non-trivial execution, derive the smallest observable task contract from, in order: the explicit current user goal and requested deliverables; explicit constraints and acceptance criteria; mandatory system/harness, safety, and repository policy; and minimum inferred success criteria an otherwise bounded request needs to be observable. Routine, low-risk work does not need the user to confirm obvious inferred criteria. Record or carry the contract before broad execution (TODO list, stated plan, or per-issue handoff). Once execution starts, criteria stay fixed unless the user changes them or a mandatory policy was previously omitted.
+Before non-trivial execution, derive the smallest task contract, in order: current user goal and deliverables; explicit constraints and acceptance criteria; mandatory system/safety/repository policy; minimum inferred success criteria a bounded request needs to be observable. Routine, low-risk work skips user confirmation of obvious inferred criteria. Record the contract before broad execution (TODO list, stated plan, or per-issue handoff); once started, criteria stay fixed unless the user changes them or a mandatory policy was omitted.
 
 ### Precedence
 
@@ -155,7 +155,7 @@ Retry limits, review rounds, TODO exhaustion, delegation budgets, and circuit br
 
 ### Reactivation
 
-A terminal task reopens only when: evidence falsifies a named frozen criterion; a mandatory policy adds a blocker; or the user reopens the task or makes a new request. Reviewer preference, optional hardening, a new context, remaining budget, or a generic desire for improvement cannot reactivate it. A child task's completion does not terminate its parent, and a new request is new work unless it explicitly reopens the prior task. A consumer holding task identity and completion evidence must not reopen it without one of these events.
+A terminal task reopens only when evidence falsifies a named frozen criterion, a mandatory policy adds a blocker, or the user reopens it or makes a new request. Reviewer preference, optional hardening, a new context, or remaining budget cannot reactivate it. A child task's completion does not terminate its parent; a new request is new work unless it explicitly reopens the prior one. A consumer holding task identity and completion evidence must not reopen it without one of these events.
 
 ---
 

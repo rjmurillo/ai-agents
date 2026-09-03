@@ -327,7 +327,7 @@ def main(argv: list[str] | None = None) -> int:
             print()
             print("Action Required:")
             print("  1. Move situational or book-derived rules to task-invoked skills (#3419).")
-            print("  2. Scope rules with a narrower applyTo instead of '**' or '**/*.<ext>'.")
+            print("  2. Narrow the rule's `paths:` in .claude/rules/ instead of '**'.")
             print("  3. If a raise is truly justified, edit DEFAULT_CEILINGS_BYTES and say why.")
         elif any_under_reserve:
             print()
@@ -343,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
             print()
             print("Action Required:")
             print("  1. Deduplicate restated guidance across instruction files.")
-            print("  2. Scope rules with a narrower applyTo instead of '**' or '**/*.<ext>'.")
+            print("  2. Narrow the rule's `paths:` in .claude/rules/ instead of '**'.")
             print("  3. Move situational or book-derived rules to task-invoked skills (#3419).")
         else:
             print()

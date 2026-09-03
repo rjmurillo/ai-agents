@@ -567,6 +567,30 @@ def validate_instruction_budget(repo_root: Path) -> bool:
     return bool(exit_code == 0)
 
 
+def validate_rule_scope_declarations(repo_root: Path) -> bool:
+    """Refuse a `.claude/rules/*.md` scope key Claude Code ignores (issue #4871).
+
+    Claude Code honors `paths:` only, and the three other keys the generator
+    accepts each fail differently. `applyTo:` is remapped, so the Copilot
+    mirror is correctly scoped while the Claude source declares nothing.
+    `globs:` is preserved verbatim and never becomes `applyTo:`, so neither
+    tree is scoped. `alwaysApply:` is dropped and the generator synthesizes
+    `applyTo: '**'`, so both trees load universally and a code-only rule
+    cannot state its scope at all. The instruction budget gate measures the
+    generated mirror tree, so it cannot see the first case and reads the
+    third as intended.
+    SKIP when the rules tree is absent, which is a downstream install rather
+    than a violation.
+    """
+    if not (repo_root / ".claude" / "rules").is_dir():
+        raise MissingScriptSkip(
+            ".claude/rules not present (downstream install); no rule scopes to check"
+        )
+    from check_rule_scope_keys import validate_rule_scope_keys
+
+    return validate_rule_scope_keys(repo_root)
+
+
 def validate_always_on_corpus_claims(repo_root: Path) -> bool:
     """Pin the numeric claims in model-context-doctrine.md to live measurements.
 

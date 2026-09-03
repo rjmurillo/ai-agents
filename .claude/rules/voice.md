@@ -1,5 +1,5 @@
 ---
-applyTo: "**"
+paths: ["**"]
 priority: critical
 ---
 
