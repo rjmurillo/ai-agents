@@ -105,10 +105,30 @@ def _closure_files(lib_root: Path) -> list[Path]:
     return files
 
 
+# Whole modules that do not exist at the floor. `import tomllib` binds the name,
+# so bare-name usage is caught by the ast.Name arm below, but an aliased import
+# (`import tomllib as t`) binds a different name and was invisible to every arm
+# (Copilot review on PR #5509).
+_TOO_NEW_MODULES = {
+    "tomllib": "3.11",
+    "asyncio.taskgroups": "3.11",
+}
+
+
 def _violations(path: Path) -> list[str]:
     found = []
     tree = ast.parse(path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            found += [
+                f"{path.name}: import {alias.name} ({_TOO_NEW_MODULES[alias.name]})"
+                for alias in node.names
+                if alias.name in _TOO_NEW_MODULES
+            ]
+        if isinstance(node, ast.ImportFrom) and node.module in _TOO_NEW_MODULES:
+            found.append(
+                f"{path.name}: from {node.module} ({_TOO_NEW_MODULES[node.module]})"
+            )
         if isinstance(node, ast.ImportFrom) and node.module in _TOO_NEW_FROM_IMPORT:
             table = _TOO_NEW_FROM_IMPORT[node.module]
             found += [
@@ -150,6 +170,11 @@ class TestBundledLibStaysAtTheFloor:
             ("from datetime import UTC\n", "datetime.UTC"),
             ("from typing import Self\n", "typing.Self"),
             ("from asyncio import timeout\n", "asyncio.timeout"),
+            ("import tomllib\n", "import tomllib"),
+            # The alias is the case no arm saw: it binds `t`, so the bare-name
+            # arm that catches plain `import tomllib` never fires.
+            ("import tomllib as t\n", "import tomllib"),
+            ("from tomllib import loads\n", "from tomllib"),
         ],
     )
     def test_the_scan_detects_a_planted_violation(self, tmp_path, source, expected):
