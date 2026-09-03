@@ -283,7 +283,19 @@ def test_a_flag_lookalike_is_not_the_is_bot_token(tmp_path: Path, doc: str) -> N
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
 def test_every_dispatch_call_targets_its_current_pr(tmp_path: Path, doc: str) -> None:
-    """The two-PR queue must not reuse one PR number."""
+    """The two-PR queue must not reuse one PR number.
+
+    The exact argv also pins the absence of ``--dispositions-file``. This
+    probe runs against the checked-out PR branch with no trusted-ref
+    comparison, and its verdict gates the auto-merge disarm through
+    ``TIER_TRUSTED_T1``, so a registry the PR can edit would let that PR
+    dispose its own failing security check, reach T1, and keep auto-merge
+    armed (CWE-829, CWE-284). PR #5481 added the flag here and took it back
+    out for that reason. ``TestDispositionRegistryWiring`` in
+    ``tests/test_test_pr_merge_ready.py`` states the same boundary
+    repository-wide; this equality is the runtime evidence for these two
+    call sites.
+    """
     run = run_dispatch(
         tmp_path,
         doc,
