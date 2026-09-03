@@ -68,6 +68,7 @@ here as "the script only touches git under ``--check``".
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 import re
@@ -1165,6 +1166,92 @@ def _is_redirecting(metadata: os.stat_result) -> bool:
     return getattr(metadata, "st_reparse_tag", 0) == _MOUNT_POINT_REPARSE_TAG
 
 
+# Force binary mode on Windows, where os.open() without O_BINARY inherits the
+# C runtime's text-mode default: CRLF translation and truncation at a 0x1A
+# byte, either of which would corrupt a snapshot read or a restored write.
+# The flag does not exist off Windows, so getattr's fallback of 0 is a no-op
+# there. os.O_NOFOLLOW is POSIX-only for the same reason; see
+# _read_bytes_no_redirect and _write_bytes_no_redirect for what covers a
+# Windows junction, which os.O_NOFOLLOW never catches on any platform.
+_O_BINARY = getattr(os, "O_BINARY", 0)
+_O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+
+
+def _read_bytes_no_redirect(path: Path) -> bytes:
+    """Read ``path``'s bytes, refusing at open time if it currently redirects.
+
+    ``_read_into_snapshot`` and the "already matches" check in
+    ``_restore_owned_prefixes`` both call this instead of
+    ``Path.read_bytes()``, which follows a symlink to wherever it points.
+    Every caller here already validated ``path`` earlier (strict discovery
+    stats it with ``follow_symlinks=False``, or the restore loop just
+    checked ``not path.is_symlink()``), but a symlink or Windows junction can
+    still be swapped in between that check and this read: PR #5343 review
+    threads at build_all.py:1562 and :1843 named exactly this gap (CWE-367).
+
+    ``os.O_NOFOLLOW`` makes the ``os.open`` call itself fail (``ELOOP``) on a
+    symlinked final path component, so the swap is refused at the syscall
+    boundary instead of silently followed. It is POSIX-only; on Windows
+    ``getattr`` falls back to ``0`` (a no-op bit) and a symlink there would
+    still be opened. The ``fstat`` check right after open covers the other
+    redirect shape :func:`_is_redirecting` already treats as equivalent, a
+    Windows directory junction, on every platform.
+
+    This narrows the window between validation and read to the gap between
+    this function's own ``os.open`` and ``os.fstat`` calls. It does not close
+    that gap to zero, and it does not close the POSIX-symlink gap on Windows
+    at all. The wider remedy considered on those review threads, generating
+    into an isolated tree so a redirect at any point cannot reach a path
+    ``--check`` would restore, was not chosen; see the threads for why.
+    """
+    fd = os.open(path, os.O_RDONLY | _O_BINARY | _O_NOFOLLOW)
+    try:
+        metadata = os.fstat(fd)
+        if _is_redirecting(metadata):
+            raise OSError(
+                errno.ELOOP,
+                f"{path} redirects (symlink or junction) at open time",
+            )
+        with os.fdopen(fd, "rb", closefd=False) as handle:
+            return handle.read()
+    finally:
+        os.close(fd)
+
+
+def _write_bytes_no_redirect(path: Path, content: bytes) -> None:
+    """Create ``path`` fresh and write ``content``, refusing a raced redirect.
+
+    Only ``_restore_owned_prefixes`` calls this, and only after it has
+    already removed whatever was at ``path`` (``shutil.rmtree`` for a
+    directory, ``Path.unlink`` for a file or a symlink), so this call is
+    always meant to create a brand new inode. ``os.O_EXCL`` makes the open
+    fail if anything, a real file or a symlink, already exists at ``path``:
+    that closes the classic unlink-then-recreate race, because nothing that
+    lands at ``path`` between the caller's removal and this open can be
+    written through. ``os.O_NOFOLLOW`` adds nothing over ``O_EXCL`` for a
+    symlink specifically (``O_EXCL`` already refuses any existing entry,
+    link or not), but costs nothing and keeps this call symmetric with
+    :func:`_read_bytes_no_redirect`.
+
+    Raises ``OSError`` (``FileExistsError`` when the race fires) instead of
+    writing through whatever reappeared. The caller's existing per-path
+    ``try/except OSError`` turns that into a ``WARN`` and moves on to the
+    next snapshot entry, the same best-effort behavior restore already had
+    for any other write failure; it does not retry or unlink the racing
+    entry, which could itself be adversarial.
+    """
+    fd = os.open(
+        path,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_BINARY | _O_NOFOLLOW,
+        0o644,
+    )
+    try:
+        with os.fdopen(fd, "wb", closefd=False) as handle:
+            handle.write(content)
+    finally:
+        os.close(fd)
+
+
 def _reject_redirecting_ancestors(repo_root: Path, path: Path) -> None:
     """Fail the strict snapshot when a component above ``path`` redirects.
 
@@ -1556,9 +1643,14 @@ def _read_into_snapshot(
     Under ``strict`` every :class:`OSError` raises because the path was already
     discovered and statted. A path that disappears and returns before restore
     would otherwise be absent from the snapshot and deleted as generator-created.
+
+    Reads through :func:`_read_bytes_no_redirect`, not ``Path.read_bytes()``,
+    so a symlink or junction swapped in after discovery and before this read
+    is refused rather than followed (CWE-367, PR #5343 review thread at
+    build_all.py:1562).
     """
     try:
-        snapshot[path] = path.read_bytes()
+        snapshot[path] = _read_bytes_no_redirect(path)
     except OSError as exc:
         if strict:
             raise SnapshotIncompleteError(
@@ -1609,12 +1701,19 @@ def _restore_owned_prefixes(
     )
 
     # Cases 1 & 2: restore every file that was in the snapshot.
+    #
+    # Both the "already matches" read and the write below go through
+    # _read_bytes_no_redirect / _write_bytes_no_redirect rather than
+    # Path.read_bytes() / Path.write_bytes(), so a symlink or junction raced
+    # in after the is_symlink() checks here and before the actual I/O is
+    # refused instead of written through (CWE-367, PR #5343 review thread at
+    # build_all.py:1843).
     for path, content in snapshot.items():
         try:
             if (
                 path.is_file()
                 and not path.is_symlink()
-                and path.read_bytes() == content
+                and _read_bytes_no_redirect(path) == content
             ):
                 continue  # already matches snapshot
             if path.is_dir() and not path.is_symlink():
@@ -1622,7 +1721,7 @@ def _restore_owned_prefixes(
             elif path.exists() or path.is_symlink():
                 path.unlink()
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(content)
+            _write_bytes_no_redirect(path, content)
         except OSError as exc:
             # Best-effort restore; surface so CI logs show what was missed.
             print(

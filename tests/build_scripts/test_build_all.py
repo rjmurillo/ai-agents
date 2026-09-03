@@ -2727,20 +2727,32 @@ def _subprocess_stub(run: Callable[..., object]) -> object:
 def _fail_read_bytes_for(
     monkeypatch: pytest.MonkeyPatch, target: Path, exc: OSError
 ) -> None:
-    """Make ``target.read_bytes()`` raise ``exc``; every other path stays real.
+    """Make reading ``target`` raise ``exc``; every other path stays real.
 
-    Mocks at the I/O boundary rather than with ``chmod 000`` because this
-    suite runs as root in CI, where mode bits do not deny a read, so a
-    permission-based fixture would pass without ever exercising the failure.
+    Patches ``os.open`` rather than ``Path.read_bytes()``: production code
+    reads owned files through :func:`build_all._read_bytes_no_redirect`,
+    which opens the path itself (``os.open``, ``O_NOFOLLOW`` included) to
+    close the read-side TOCTOU window rather than calling
+    ``Path.read_bytes()``, so patching the latter would no longer intercept
+    anything. Mocks at the I/O boundary rather than with ``chmod 000``
+    because this suite runs as root in CI, where mode bits do not deny a
+    read, so a permission-based fixture would pass without ever exercising
+    the failure.
     """
-    real_read_bytes = Path.read_bytes
+    real_open = os.open
 
-    def fake_read_bytes(self: Path) -> bytes:
-        if self == target:
+    def fake_open(
+        path: str | os.PathLike[str],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if Path(os.fspath(path)) == target:
             raise exc
-        return real_read_bytes(self)
+        return real_open(path, flags, mode, dir_fd=dir_fd)
 
-    monkeypatch.setattr(Path, "read_bytes", fake_read_bytes)
+    monkeypatch.setattr(os, "open", fake_open)
 
 
 def test_git_diff_paths_raises_when_git_cannot_be_launched(
@@ -3252,6 +3264,141 @@ def test_snapshot_strict_rejects_owned_prefix_root_symlink(
 
     assert "owned path redirects" in str(excinfo.value)
     assert protected.read_text() == "x = 1\n"
+
+
+def test_read_bytes_no_redirect_refuses_a_symlink(tmp_path: Path) -> None:
+    """The read-side TOCTOU guard refuses a symlink instead of following it.
+
+    ``Path.read_bytes()`` follows a symlink to wherever it points, which is
+    exactly the read-side gap PR #5343 review thread
+    ``PRRT_kwDOQoWRls6epz-C`` (build_all.py:1562) named: a path validated as
+    a regular file earlier can be swapped for a symlink before the read.
+    This is the unit-level proof that :func:`_read_bytes_no_redirect`, not
+    just the strict-discovery walk that calls it, is the thing refusing.
+    """
+    target = tmp_path / "external.py"
+    target.write_text("secret\n", encoding="utf-8")
+    link = tmp_path / "owned.py"
+    _file_symlink_or_skip(link, target)
+
+    with pytest.raises(OSError):
+        build_all._read_bytes_no_redirect(link)
+
+
+def test_read_bytes_no_redirect_reads_a_regular_file(tmp_path: Path) -> None:
+    """Positive control: a real file still reads, unlike a mutant that always raises."""
+    real = tmp_path / "owned.py"
+    real.write_text("x = 1\n", encoding="utf-8")
+
+    assert build_all._read_bytes_no_redirect(real) == b"x = 1\n"
+
+
+def test_read_into_snapshot_refuses_a_path_swapped_for_a_symlink(
+    tmp_path: Path,
+) -> None:
+    """Strict mode must refuse a path raced into a symlink before the read.
+
+    Simulates the exact window review thread ``PRRT_kwDOQoWRls6epz-C``
+    flagged: ``_iter_strict_owned_files`` validated this path as a regular
+    file during discovery (not reproduced here; that part is
+    ``test_snapshot_strict_rejects_owned_file_symlink``), and the swap to a
+    symlink happens between discovery and the call this test makes directly,
+    the same gap :func:`_read_into_snapshot` cannot see across.
+    """
+    target = tmp_path / "external.py"
+    target.write_text("secret\n", encoding="utf-8")
+    link = tmp_path / "owned.py"
+    _file_symlink_or_skip(link, target)
+
+    snapshot: dict[Path, bytes] = {}
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._read_into_snapshot(snapshot, link, strict=True)
+
+    assert "cannot read owned file" in str(excinfo.value)
+    assert link not in snapshot
+    assert b"secret" not in b"".join(snapshot.values())
+
+
+def test_write_bytes_no_redirect_refuses_an_existing_symlink(
+    tmp_path: Path,
+) -> None:
+    """The write-side TOCTOU guard refuses to create over an existing symlink.
+
+    ``_restore_owned_prefixes`` always removes whatever is at a path before
+    calling :func:`build_all._write_bytes_no_redirect`, so this call site
+    normally finds nothing there. Review thread ``PRRT_kwDOQoWRls6epgus``
+    (build_all.py:1843) named the race where something, a symlink included,
+    reappears in that gap. ``os.O_EXCL`` must refuse rather than write
+    through it, whether or not the caller's removal ran first; this test
+    skips straight to "something is already there" rather than reproducing
+    the timing.
+    """
+    target = tmp_path / "external.py"
+    target.write_text("original\n", encoding="utf-8")
+    link = tmp_path / "owned.py"
+    _file_symlink_or_skip(link, target)
+
+    with pytest.raises(OSError):
+        build_all._write_bytes_no_redirect(link, b"restored\n")
+
+    assert target.read_text(encoding="utf-8") == "original\n"
+
+
+def test_write_bytes_no_redirect_creates_a_new_file(tmp_path: Path) -> None:
+    """Positive control: writing to a genuinely absent path still works."""
+    dest = tmp_path / "owned.py"
+
+    build_all._write_bytes_no_redirect(dest, b"x = 1\n")
+
+    assert dest.read_bytes() == b"x = 1\n"
+    assert not dest.is_symlink()
+
+
+def test_restore_owned_prefixes_refuses_a_symlink_raced_in_before_the_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """End-to-end: a redirect planted between removal and write is refused.
+
+    Monkeypatches ``Path.unlink`` so the moment ``_restore_owned_prefixes``
+    removes the pre-existing file at ``owned/frozen.py``, this test plants a
+    symlink to an external file at that exact path before the function's
+    own write runs, reproducing review thread ``PRRT_kwDOQoWRls6epgus``
+    (build_all.py:1843) without needing real concurrency. Restore must
+    refuse the write (WARN, keep going) rather than send the snapshot's
+    original bytes through the link to the external target.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    protected = owned / "frozen.py"
+    protected.write_text("x = 1\n", encoding="utf-8")
+    snapshot = build_all._snapshot_owned_prefixes(repo, ("owned/",))
+    assert snapshot[protected] == b"x = 1\n"
+
+    external = tmp_path / "external.py"
+    external.write_text("do not touch\n", encoding="utf-8")
+
+    real_unlink = Path.unlink
+    raced = False
+
+    def racing_unlink(self: Path, missing_ok: bool = False) -> None:
+        nonlocal raced
+        real_unlink(self, missing_ok=missing_ok)
+        if self == protected and not raced:
+            raced = True
+            self.symlink_to(external)
+
+    # The generator "changed" the file so restore's already-matches
+    # shortcut does not skip straight past the removal-and-write path.
+    protected.write_text("generator output\n", encoding="utf-8")
+    monkeypatch.setattr(Path, "unlink", racing_unlink)
+
+    build_all._restore_owned_prefixes(repo, ("owned/",), snapshot)
+
+    assert external.read_text(encoding="utf-8") == "do not touch\n"
+    assert "WARN: failed to restore" in capsys.readouterr().err
 
 
 def test_snapshot_non_strict_still_skips_an_owned_directory_symlink(
@@ -3786,15 +3933,21 @@ def test_run_check_preserves_file_after_transient_enoent_read(
     protected.write_text("x = 1\n")
     monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
 
-    real_read_bytes = Path.read_bytes
+    real_open = os.open
     failed = False
 
-    def flaky_read_bytes(self: Path) -> bytes:
+    def flaky_open(
+        path: str | os.PathLike[str],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
         nonlocal failed
-        if self == protected and not failed:
+        if Path(os.fspath(path)) == protected and not failed:
             failed = True
-            raise FileNotFoundError(2, "vanished", str(self))
-        return real_read_bytes(self)
+            raise FileNotFoundError(2, "vanished", str(path))
+        return real_open(path, flags, mode, dir_fd=dir_fd)
 
     generation_called = False
 
@@ -3803,7 +3956,7 @@ def test_run_check_preserves_file_after_transient_enoent_read(
         generation_called = True
         return 0
 
-    monkeypatch.setattr(Path, "read_bytes", flaky_read_bytes)
+    monkeypatch.setattr(os, "open", flaky_open)
     monkeypatch.setattr(build_all, "_run_generators", record_generation)
 
     rc = build_all.run(
