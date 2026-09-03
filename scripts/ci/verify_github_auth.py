@@ -72,13 +72,16 @@ def _report_failure(stage: str, result: CommandResult, scope_hint: str) -> int:
     print(f"::warning::{stage} could not complete: {status.value}")
     if status is GhAuthStatus.TRANSPORT_BLOCKED:
         # A refused session never clears on its own, so "retry shortly" would
-        # send the operator to wait out a condition that has no reset.
+        # send the operator to wait out a condition that has no reset. Exit 2
+        # (config) rather than 3: exit 3 is the retry signal, and an earlier
+        # version printed the right words while still returning it, so callers
+        # kept retrying a permanent refusal (Copilot review on PR #5509).
         print(
             "::warning::This environment refuses GitHub for gh; the token is "
             "not the fault and retrying will not clear it."
         )
-    else:
-        print("::warning::This is not an authentication failure. Retry shortly.")
+        return EXIT_CONFIG
+    print("::warning::This is not an authentication failure. Retry shortly.")
     return EXIT_EXTERNAL
 
 

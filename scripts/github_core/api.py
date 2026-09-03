@@ -361,10 +361,28 @@ _RATE_LIMIT_REMAINING_HEADER = re.compile(
 # GraphQL refuses separately, with its own body: "This GraphQL query is not
 # enabled for this session [...]" followed by a steer back to REST.
 #
-# Both bodies share "not enabled for this session", which is the discriminator
-# matched here. The documentation_url both carry is listed as a second marker
-# so a reworded body still classifies while the URL holds.
+# The two bodies do NOT mean the same thing, and an earlier version of this
+# matcher treated them as if they did (Copilot review on PR #5509). The REST
+# body refuses GitHub for the session as a whole. The GraphQL body refuses one
+# query shape and says in the same breath that REST is still served, so on its
+# own it is not evidence that gh is unusable. Because this classifier also runs
+# on individual operation failures, the broad reading let one refused GraphQL
+# query suppress retries and declare the whole transport dead while other gh
+# calls still worked.
+#
+# So the global verdict requires the global wording. Anything narrower is
+# matched by _SESSION_POLICY_REFUSAL below and only counts as evidence once
+# BOTH transports have been observed failing, which only the auth preflight
+# can establish.
 _TRANSPORT_BLOCKED_SIGNATURE = re.compile(
+    r"github access is not enabled for this session",
+    re.IGNORECASE,
+)
+
+# Any session-policy refusal, query-scoped ones included. Never sufficient on
+# its own: :func:`check_gh_auth` pairs it with the fact that REST and GraphQL
+# both failed before returning TRANSPORT_BLOCKED.
+_SESSION_POLICY_REFUSAL = re.compile(
     r"not enabled for this session"
     r"|docs\.anthropic\.com/en/docs/claude-code/github-actions",
     re.IGNORECASE,
@@ -514,7 +532,21 @@ def check_gh_auth() -> GhAuthResult:
 
     # REST status failed. Do not trust its verdict (it may relabel a 5xx or a
     # quota refusal as an invalid token); confirm the real state over GraphQL.
-    return _graphql_viewer_probe()
+    rest_text = f"{result.stdout}\n{result.stderr}"
+    probe = _graphql_viewer_probe()
+    if probe.is_authenticated or probe.status is GhAuthStatus.MISSING_GH:
+        return probe
+
+    # Both transports failed. That is the only evidence that proves a refusal
+    # is session-wide rather than scoped to one query shape, so a policy
+    # refusal seen on either transport is promoted to TRANSPORT_BLOCKED only
+    # here (Copilot review on PR #5509).
+    if probe.status is not GhAuthStatus.TRANSPORT_BLOCKED and (
+        _SESSION_POLICY_REFUSAL.search(rest_text)
+        or _SESSION_POLICY_REFUSAL.search(probe.detail)
+    ):
+        return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
+    return probe
 
 
 def is_gh_authenticated() -> bool:
@@ -612,7 +644,8 @@ _TRANSPORT_BLOCKED_MESSAGE = (
     "This session's environment refuses GitHub for the gh CLI, so every gh "
     "call fails with HTTP 403 regardless of the token. The credential is not "
     "the fault: 'gh auth login' and retrying both cannot clear it. Use the "
-    "GitHub MCP tools (mcp__github__*) for this work, or run it where gh has "
+    "GitHub MCP operations for this work (spelled mcp__github__* in Claude "
+    "Code, github/* in Copilot CLI), or run it where gh has "
     "direct GitHub access, such as CI. If an org admin must connect the "
     "Claude GitHub App for this organization, that is the environment fix."
 )

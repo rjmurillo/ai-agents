@@ -492,17 +492,34 @@ class TestTransportBlockedClassification:
     is the environment's, and the credential is not what is being refused.
     """
 
-    @pytest.mark.parametrize("body", [PROXY_REST_403, PROXY_GRAPHQL_403])
-    def test_proxy_refusal_is_transport_blocked(self, body):
-        assert classify_gh_failure_text(body) is GhAuthStatus.TRANSPORT_BLOCKED
+    def test_global_refusal_is_transport_blocked(self):
+        """Only the session-wide wording earns the session-wide verdict."""
+        assert (
+            classify_gh_failure_text(PROXY_REST_403)
+            is GhAuthStatus.TRANSPORT_BLOCKED
+        )
 
-    def test_documentation_url_alone_still_classifies(self):
-        """The URL is the second marker, so a reworded body still lands."""
+    def test_query_scoped_refusal_is_not_transport_blocked(self):
+        """A refused GraphQL query is not proof that gh is unusable.
+
+        That body says in the same breath that REST is still served. Because
+        this classifier also runs on individual operation failures, treating
+        it as a whole-session verdict let one refused query suppress retries
+        and declare the transport dead while other gh calls still worked
+        (Copilot review on PR #5509).
+        """
+        assert (
+            classify_gh_failure_text(PROXY_GRAPHQL_403)
+            is not GhAuthStatus.TRANSPORT_BLOCKED
+        )
+
+    def test_documentation_url_alone_is_not_enough(self):
+        """The docs URL rides on both bodies, so it cannot be a global marker."""
         body = (
             "gh: refused (HTTP 403) see "
             "https://docs.anthropic.com/en/docs/claude-code/github-actions"
         )
-        assert classify_gh_failure_text(body) is GhAuthStatus.TRANSPORT_BLOCKED
+        assert classify_gh_failure_text(body) is not GhAuthStatus.TRANSPORT_BLOCKED
 
     def test_a_real_bad_token_is_still_invalid_credentials(self):
         """Negative control: the fallback bucket must keep its own cases."""
@@ -524,6 +541,18 @@ class TestTransportBlockedClassification:
             "connection timed out"
         )
         assert classify_gh_failure_text(body) is GhAuthStatus.TRANSPORT_BLOCKED
+
+    def test_a_legitimate_body_reusing_the_phrase_is_not_blocked(self):
+        """Negative control the review asked for: the phrase is not the marker.
+
+        A GitHub body that happens to contain the narrower wording must not
+        trip the session-wide verdict; only the global phrase does.
+        """
+        body = (
+            "gh: Advanced Security is not enabled for this session's "
+            "repository (HTTP 403)"
+        )
+        assert classify_gh_failure_text(body) is not GhAuthStatus.TRANSPORT_BLOCKED
 
     def test_ordinary_permission_denial_is_untouched(self):
         """Negative control: an integration 403 is not a session refusal."""
@@ -586,3 +615,37 @@ class TestTransportBlockedIsNotRetried:
     def test_a_5xx_is_still_retried(self):
         """Negative control: the retry ladder still fires for real transients."""
         assert _is_transient_graphql_error("HTTP 503 Service Unavailable") is True
+
+
+class TestBothTransportsProveASessionRefusal:
+    """A session-wide verdict needs both transports refused, not one body.
+
+    ``check_gh_auth`` is the only caller that observes REST and GraphQL
+    together, so it is the only place a narrower refusal is promoted.
+    """
+
+    def test_rest_and_graphql_both_refused_is_transport_blocked(self):
+        calls = [
+            _completed(stderr="gh: not enabled for this session", rc=1),
+            _completed(stderr=PROXY_GRAPHQL_403, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().status is GhAuthStatus.TRANSPORT_BLOCKED
+
+    def test_graphql_success_after_rest_refusal_is_authenticated(self):
+        """Negative control: one transport working is not a blocked session."""
+        calls = [
+            _completed(stderr="gh: not enabled for this session", rc=1),
+            _completed(stdout='{"data":{"viewer":{"login":"x"}}}', rc=0),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().status is GhAuthStatus.AUTHENTICATED
+
+    def test_a_plain_bad_token_on_both_is_still_invalid_credentials(self):
+        """Negative control: no policy wording, so no promotion."""
+        calls = [
+            _completed(stderr="gh: Bad credentials", rc=1),
+            _completed(stderr="gh: Bad credentials (HTTP 401)", rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().status is GhAuthStatus.INVALID_CREDENTIALS

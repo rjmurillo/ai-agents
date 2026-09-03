@@ -12,7 +12,8 @@ Three environments produce three different answers:
   gh-backed scripts under this skill are the fastest path.
 - An agent sandbox that proxies egress: ``gh`` is installed and ``GH_TOKEN``
   is set, but GitHub is refused for the whole session (HTTP 403). The GitHub
-  MCP tools still work, so the caller routes to ``mcp__github__*``.
+  MCP operations still work, so the caller routes there (spelled
+  ``mcp__github__*`` in Claude Code, ``github/*`` in Copilot CLI).
 - No ``gh`` at all: same routing as above, for a different reason.
 
 Exit codes follow ADR-035:
@@ -58,17 +59,27 @@ SCRIPT_NAME = "check_github_transport.py"
 VERSION = "1.0.0"
 
 TRANSPORT_GH = "gh"
-TRANSPORT_MCP = "mcp"
+# Named for what was measured. "mcp" would assert an alternative this script
+# never probed; the caller verifies that before relying on it.
+TRANSPORT_MCP = "gh_unusable"
 
 # Statuses that mean gh cannot serve this session no matter what the operator
 # does to the token, and that a second transport is expected to cover.
 _ROUTE_TO_MCP = frozenset({GhAuthStatus.TRANSPORT_BLOCKED, GhAuthStatus.MISSING_GH})
 
+# This script can only observe gh. It cannot see whether a GitHub MCP server
+# is configured, nor whether the operations a workflow needs are among the
+# tools that server exposes: a read-only toolset would still leave a PR
+# workflow unable to reply, resolve, or merge. So the verdict is scoped to
+# what was measured, gh being unusable, and verifying the alternative is
+# named as the caller's job (Copilot review on PR #5509).
 _MCP_GUIDANCE = (
-    "Route GitHub work through the mcp__github__* tools for this session. "
-    "The gh-backed scripts under the github skill cannot reach GitHub here, "
-    "so calling them wastes a round trip per operation and reports a failure "
-    "that is the environment's, not the PR's."
+    "gh cannot reach GitHub for this session, so the gh-backed scripts under "
+    "the github skill will fail on every call. Before routing work through the "
+    "GitHub MCP tools, confirm the operations you need are actually exposed: "
+    "this check cannot see the MCP server and does not assert one is present. "
+    "If the needed tools are missing, report the operation as unavailable "
+    "rather than reporting a failure that is the environment's, not the PR's."
 )
 
 

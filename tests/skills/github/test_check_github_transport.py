@@ -117,8 +117,10 @@ class TestCliContract:
         assert code == 0
         payload = json.loads(out)
         assert payload["Success"] is True
-        assert payload["Data"]["Transport"] == "mcp"
-        assert "mcp__github__" in payload["Data"]["Guidance"]
+        assert payload["Data"]["Transport"] == "gh_unusable"
+        assert "MCP" in payload["Data"]["Guidance"]
+        # The verdict must not assert an alternative it never probed.
+        assert "does not assert one is present" in payload["Data"]["Guidance"]
 
     def test_rate_limited_exits_three_with_error_envelope(self):
         code, out = _run(GhAuthStatus.RATE_LIMITED)
@@ -139,4 +141,92 @@ class TestCliContract:
             GhAuthStatus.TRANSPORT_BLOCKED, argv=["--output-format", "human"]
         )
         assert code == 0
-        assert "Transport: mcp" in out
+        assert "Transport: gh_unusable" in out
+
+
+class TestShippedArtifactRuntimeContract:
+    """Execute the artifact consumers actually get, not the canonical module.
+
+    The tests above import the `.claude` copy and mock its auth probe, which
+    proves the routing logic and nothing about whether the shipped file can
+    locate its bundled library from an install path. Those are different
+    failures: a bootstrap regression leaves the logic correct and the script
+    unrunnable (Copilot review on PR #5509).
+    """
+
+    SHIPPED = (
+        _project_root
+        / "src"
+        / "copilot-cli"
+        / "skills"
+        / "github"
+        / "scripts"
+        / "utils"
+        / "check_github_transport.py"
+    )
+
+    def _run(self, cwd, env_extra):
+        import os
+        import subprocess
+
+        env = dict(os.environ)
+        env.pop("COPILOT_PLUGIN_ROOT", None)
+        env.pop("CLAUDE_PLUGIN_ROOT", None)
+        env.update(env_extra)
+        return subprocess.run(
+            [sys.executable, str(self.SHIPPED), "--output-format", "json"],
+            cwd=str(cwd),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    def test_shipped_copy_exists(self):
+        assert self.SHIPPED.is_file(), f"{self.SHIPPED} is not in the tree"
+
+    def test_resolves_its_library_from_a_foreign_cwd_via_plugin_root(self, tmp_path):
+        """The install case: run from elsewhere, with the host root exported."""
+        plugin_root = _project_root / "src" / "copilot-cli"
+        result = self._run(tmp_path, {"COPILOT_PLUGIN_ROOT": str(plugin_root)})
+        # Exit 2 is the bootstrap failure this test exists to catch.
+        assert result.returncode != 2, (
+            f"shipped script could not find its lib: {result.stdout}{result.stderr}"
+        )
+        assert "Plugin lib directory not found" not in result.stderr
+
+    def test_claude_plugin_root_resolves_the_same_way(self, tmp_path):
+        """Both host variables are honored, not just the Copilot one."""
+        result = self._run(
+            tmp_path, {"CLAUDE_PLUGIN_ROOT": str(_project_root / "src" / "copilot-cli")}
+        )
+        assert result.returncode != 2
+        assert "Plugin lib directory not found" not in result.stderr
+
+    def test_bare_relative_path_from_a_foreign_cwd_is_the_failing_control(
+        self, tmp_path
+    ):
+        """Negative control: without a root, a relative invocation cannot resolve.
+
+        This is what the bare `.claude/skills/...` form the review flagged
+        would do in a plugin install. If this ever starts passing, the
+        positive cases above have stopped proving anything.
+        """
+        import os
+        import subprocess
+
+        env = dict(os.environ)
+        env.pop("COPILOT_PLUGIN_ROOT", None)
+        env.pop("CLAUDE_PLUGIN_ROOT", None)
+        result = subprocess.run(
+            [
+                sys.executable,
+                ".claude/skills/github/scripts/utils/check_github_transport.py",
+            ],
+            cwd=str(tmp_path),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode != 0
