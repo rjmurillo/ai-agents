@@ -9,7 +9,7 @@
 ## Corrections recorded 2026-09-03
 
 The body below is the 2026-04-26 record, left as authored so it still shows what
-was believed when the plan derived from it was written. Eight of its claims are
+was believed when the plan derived from it was written. Nine of its claims are
 wrong. They are corrected here by quotation rather than edited in place.
 
 1. **The Flow A translator was already Python.** Every mention of
@@ -74,6 +74,14 @@ wrong. They are corrected here by quotation rather than edited in place.
    2025-10-28. 2026-01-05 is the Claude Opus 3 (`claude-3-opus-20240229`)
    retirement date. Source: [Model
    deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations).
+9. **"Weights preserved indefinitely" overstates the commitment.** Anthropic
+   commits to "preserving the weights of all publicly released models, and all
+   models that are deployed for significant internal use moving forward for, at
+   minimum, the lifetime of Anthropic as a company". That is a floor tied to the
+   company's existence, not a permanent guarantee. Source: [Commitments on model
+   deprecation and
+   preservation](https://www.anthropic.com/research/deprecation-commitments),
+   which the sentence already cites.
 
 ## Problem
 
