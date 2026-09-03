@@ -1,4 +1,4 @@
-"""Tests for build/sync_slim_agents.py (Refs #5282).
+"""Behavior tests for build/sync_slim_agents.py (Refs #5282).
 
 The script copies an agent body from `src/claude/{name}.md` into two
 hand-maintained mirrors, preserving each mirror's own frontmatter. Default mode
@@ -20,19 +20,19 @@ Tests:
 - Edge: --write is idempotent; the second run reports zero changed files.
 - Edge: a mirror with no frontmatter receives the body verbatim.
 - Edge: non-ASCII bodies survive the round trip (explicit UTF-8 encoding).
-- Edge: split_frontmatter handles absent, unterminated, empty, and
-  end-of-file frontmatter delimiters.
 - Edge: an I/O failure exits 3, not 1.
 - CLI: --check is accepted, matches the default, and excludes --write.
-- Platform: reported paths use forward slashes, proved with PureWindowsPath so
-  the assertion is not vacuous on a POSIX host.
+
+The frontmatter parsing contract and the shipped-constant checks live in
+`test_sync_slim_agents_contract.py`; every case here drives the `tree` fixture.
+- Platform: reported paths use forward slashes.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import sys
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 
 import pytest
 
@@ -139,22 +139,6 @@ def test_check_and_write_are_mutually_exclusive(tree: Path) -> None:
 def test_relative_paths_use_forward_slashes(tree: Path) -> None:
     reported = sync_slim_agents._relative(
         tree / "templates" / "agents" / f"{AGENT}.shared.md"
-    )
-
-    assert reported == "templates/agents/analyst.shared.md"
-
-
-def test_relative_paths_use_forward_slashes_on_windows(monkeypatch) -> None:
-    """A POSIX-only assertion cannot see this: str() and as_posix() agree there.
-
-    PureWindowsPath does the path arithmetic Windows would do, on any host, so
-    reverting the cast to str() fails here instead of passing everywhere.
-    """
-    root = PureWindowsPath("C:/repo")
-    monkeypatch.setattr(sync_slim_agents, "REPO_ROOT", root)
-
-    reported = sync_slim_agents._relative(
-        root / "templates" / "agents" / f"{AGENT}.shared.md"
     )
 
     assert reported == "templates/agents/analyst.shared.md"
@@ -444,60 +428,6 @@ def test_non_ascii_body_survives_the_round_trip(tree: Path) -> None:
     assert target.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + body
 
 
-def test_split_frontmatter_returns_whole_text_when_absent() -> None:
-    assert sync_slim_agents.split_frontmatter("no frontmatter\n") == (
-        "",
-        "no frontmatter\n",
-    )
-
-
-def test_split_frontmatter_returns_whole_text_when_unterminated() -> None:
-    text = "---\nname: analyst\nstill open\n"
-    assert sync_slim_agents.split_frontmatter(text) == ("", text)
-
-
-def test_split_frontmatter_keeps_both_delimiters_in_the_frontmatter() -> None:
-    frontmatter, body = sync_slim_agents.split_frontmatter(
-        CLAUDE_FRONTMATTER + SOURCE_BODY
-    )
-    assert frontmatter == CLAUDE_FRONTMATTER
-    assert body == SOURCE_BODY
-
-
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        ("---\nname: analyst\nstill open\n", True),
-        (UNTERMINATED_FRONTMATTER, True),
-        (CLAUDE_FRONTMATTER + SOURCE_BODY, False),
-        ("no frontmatter\n", False),
-        ("", False),
-        ("---\n", True),
-        ("---", True),
-        ("---abc\n", False),
-        ("---\n---\n" + SOURCE_BODY, False),
-        ("---\nname: analyst\n---", False),
-        ("---\n---", False),
-    ],
-)
-def test_has_unterminated_frontmatter(text: str, expected: bool) -> None:
-    assert sync_slim_agents.has_unterminated_frontmatter(text) is expected
-
-
-def test_split_frontmatter_accepts_an_empty_block() -> None:
-    """`---` on one line and `---` on the next is empty frontmatter, not broken."""
-    assert sync_slim_agents.split_frontmatter("---\n---\n" + SOURCE_BODY) == (
-        "---\n---\n",
-        SOURCE_BODY,
-    )
-
-
-def test_split_frontmatter_accepts_a_closer_at_end_of_file() -> None:
-    """A closing `---` with no trailing newline still closes the block."""
-    text = "---\nname: analyst\n---"
-    assert sync_slim_agents.split_frontmatter(text) == (text, "")
-
-
 def test_mirror_with_an_empty_frontmatter_block_keeps_it(tree: Path) -> None:
     """The whole path, not just the parser: an empty block must survive --write."""
     target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
@@ -505,31 +435,3 @@ def test_mirror_with_an_empty_frontmatter_block_keeps_it(tree: Path) -> None:
 
     assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
     assert target.read_text(encoding="utf-8") == "---\n---\n" + SOURCE_BODY
-
-
-def test_shipped_source_is_the_canonical_claude_tree() -> None:
-    """`src/claude/` is the edit-here source; `.claude/agents/` is the runtime copy.
-
-    The fixture above monkeypatches AGENT_SOURCE and DESTINATIONS, so no test
-    that uses it can see an inverted shipped direction. This one reads the
-    shipped constants directly, which is the only place the inversion shows.
-    """
-    directories = {destination.directory for destination in sync_slim_agents.DESTINATIONS}
-
-    assert sync_slim_agents.AGENT_SOURCE == _REPO_ROOT / "src" / "claude"
-    assert _REPO_ROOT / ".claude" / "agents" not in directories
-    assert sync_slim_agents.AGENT_SOURCE not in directories
-
-
-def test_shipped_slimmed_agents_all_exist_in_every_tree() -> None:
-    """The real declared list must not name an agent that no tree has.
-
-    An earlier draft carried `spec-generator`, which is a skill, not an agent.
-    """
-    assert sync_slim_agents.find_missing_paths(sync_slim_agents.SLIMMED_AGENTS) == []
-
-
-def test_shipped_trees_carry_no_unsafe_or_malformed_paths() -> None:
-    """The live tree passes the two guards, so the gate is not shipping red."""
-    assert sync_slim_agents.find_unsafe_paths(sync_slim_agents.SLIMMED_AGENTS) == []
-    assert sync_slim_agents.find_malformed_paths(sync_slim_agents.SLIMMED_AGENTS) == []
