@@ -212,7 +212,14 @@ def find_malformed_paths(agents: tuple[str, ...]) -> list[str]:
 def rendered_content(source_body: str, target_text: str) -> str:
     """Return what `target_text` becomes once it carries `source_body`."""
     frontmatter, _ = split_frontmatter(target_text)
-    return frontmatter + source_body if frontmatter else source_body
+    if not frontmatter:
+        return source_body
+    if not frontmatter.endswith("\n"):
+        # A closing `---` that ended the file carries no newline of its own.
+        # Concatenating straight onto it yields `---# Analyst`, which is no
+        # longer a standalone YAML delimiter, so the block would not parse.
+        frontmatter += "\n"
+    return frontmatter + source_body
 
 
 def collect_drift(agents: tuple[str, ...]) -> list[str]:

@@ -348,6 +348,19 @@ def test_write_names_both_follow_up_steps(tree: Path, capsys) -> None:
     assert "check_agent_content_parity.py" in out
 
 
+def test_mirror_whose_frontmatter_ends_the_file_keeps_a_separator(tree: Path) -> None:
+    """End to end, not just the parser: `---` plus a body must stay two lines.
+
+    A closing delimiter at end of file carries no newline of its own, so a
+    straight concatenation produces `---# Analyst` and the block stops parsing.
+    """
+    target = tree / ".github" / "agents" / f"{AGENT}.agent.md"
+    _write(target, "---\nname: analyst\n---")
+
+    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
+    assert target.read_text(encoding="utf-8") == "---\nname: analyst\n---\n" + SOURCE_BODY
+
+
 def test_mirror_without_frontmatter_receives_the_body_verbatim(tree: Path) -> None:
     target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     _write(target, STALE_BODY)
