@@ -85,7 +85,7 @@ override the executable and the default 900s timeout.
 
 | Script | Purpose | ADR |
 |--------|---------|-----|
-| `eval-suite.py` | Orchestrator. Detects changes, routes to correct evaluator. | ADR-023 + ADR-057 |
+| `eval-suite.py` | Orchestrator. Detects changes, routes to correct evaluator via the ordered `ROUTING_RULES` table. `--dry-run` prints the routing plan and invokes no evaluator. | ADR-023 + ADR-057 |
 | `eval-prompt-change.py` | Before/after behavioral comparison for prompt changes. | ADR-057 |
 | `eval-agents.py` | Agent definition quality assessment (standalone). | Complementary |
 | `eval-knowledge-integration.py` | Skill context value measurement (baseline vs enhanced). | Complementary |
@@ -1388,7 +1388,7 @@ All scripts that call the API support `--dry-run` (validate inputs, no API calls
 | `--runs N` | eval-agents, eval-knowledge-integration | Multi-run flakiness detection |
 | `--security-critical` | eval-prompt-change | 5 runs, 100% pass required |
 | `--base-ref REF` | eval-prompt-change, eval-suite | Git ref for comparison (default: main) |
-| `--scope` | eval-suite | Limit to prompts, agents, or skills |
+| `--scope` | eval-suite | Limit to prompts, agents, skills, or rules |
 | `--pairs FILE` | eval-skill-overlap | cluster.json with explicit `[skillA, skillB]` pairs and prompts |
 | `--run-id ID` | eval-skill-overlap | Override the report directory name (`overlap-<ID>`) |
 
