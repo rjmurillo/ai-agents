@@ -6,6 +6,10 @@ tools:
   - execute
   - read
   - agent
+  # MCP mode routes GitHub work through these when gh is refused for the
+  # session. Without them the transport fallback names operations the agent
+  # has no permission to call (Copilot review on PR #5509).
+  - github/*
   - edit
   - search
   - web

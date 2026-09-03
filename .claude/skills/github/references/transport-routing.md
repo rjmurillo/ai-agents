@@ -31,7 +31,7 @@ The table below names bare MCP operations. Prefix them for your harness:
 | Harness | Spelling |
 |---------|----------|
 | Claude Code | `mcp__github__pull_request_read` |
-| Copilot CLI | `github/pull_request_read` (see `templates/toolsets.yaml`) |
+| Copilot CLI | `github/pull_request_read` |
 
 ## Why gh can be installed and still unusable
 
@@ -64,7 +64,7 @@ Read operations:
 | `get_pr_context.py` | `pull_request_read` method `get` | |
 | `get_pr_context.py --include-diff` | `pull_request_read` method `get_diff` | |
 | `get_pull_requests.py` | `list_pull_requests`, or `search_pull_requests` for filters | |
-| `get_pr_checks.py` | `pull_request_read` method `get_check_runs` | `get_check_run` fetches one run's output text |
+| `get_pr_checks.py` | `pull_request_read` method `get_check_runs` | For one run's output text, `get_check_run` where the harness exposes it; otherwise `get_job_logs`. Check your toolset before relying on it. |
 | `get_pr_check_logs.py` | `get_job_logs` | Set `failed_only` to skip green jobs |
 | `get_pr_review_comments.py` | `pull_request_read` method `get_review_comments` | Returns threads with `isResolved` |
 | `get_pr_reviews.py` | `pull_request_read` method `get_reviews` | |
