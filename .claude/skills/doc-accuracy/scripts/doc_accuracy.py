@@ -1248,8 +1248,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--format", "-f", type=str, default="json",
-        choices=["json", "summary", "markdown"],
-        help="Output format (default: json)",
+        choices=["json", "gate", "summary", "markdown"],
+        help=(
+            "Output format (default: json). 'gate' emits the same JSON without "
+            "the repository-wide source_symbols index, for callers that only "
+            "consume the gate result."
+        ),
     )
     return parser
 
@@ -1379,7 +1383,30 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # Output report
-    if args.format == "summary":
+    if args.format in ("json", "gate"):
+        # `source_symbols` is the whole tracked-source index, and it is built
+        # even for a diff-scoped run because claim checking needs it. Measured
+        # on this repository with --diff-base origin/main: 8,561,547 bytes of
+        # JSON, of which source_symbols is 8,456,923 (98.8%, 36,975 entries),
+        # against 43,513 bytes of documentation_files. A caller that only reads
+        # the gate result pays that whole cost, and a payload that large is
+        # liable to be truncated in transit, which turns a completed scan into
+        # a parse failure. 'gate' drops the index and nothing else.
+        payload_assessment = assessment
+        if args.format == "gate" and assessment is not None:
+            payload_assessment = {k: v for k, v in assessment.items() if k != "source_symbols"}
+        print(
+            json.dumps(
+                {
+                    "assessment": payload_assessment,
+                    "claims_data": claims_data,
+                    "compilability_data": compilability_data,
+                    "gate_result": gate_result,
+                },
+                indent=2,
+            )
+        )
+    elif args.format == "summary":
         _print_summary(
             assessment, claims_data, compilability_data, gate_result
         )
