@@ -6,6 +6,24 @@ tools:
   - execute
   - read
   - agent
+  # MCP mode routes GitHub work through these when gh is refused for the
+  # session. Without them the transport fallback names operations the agent
+  # has no permission to call. Enumerated rather than `github/*`: that grant
+  # is ~59 operations, and ADR-003 names blanket `github/*` allocation as an
+  # anti-pattern outright. This prompt consumes untrusted PR content, so the
+  # set is the reads, the two reply forms, and thread resolution, and nothing
+  # that can push, merge, or arm auto-merge (Copilot review on PR #5509).
+  - github/pull_request_read
+  # all-open enumerates the queue before Step 1; without this the command
+  # cannot get past parsing in gh_unusable mode.
+  - github/list_pull_requests
+  - github/issue_read
+  - github/get_check_run
+  - github/get_job_logs
+  - github/add_issue_comment
+  - github/add_reply_to_pull_request_comment
+  - github/resolve_review_thread
+  - github/unresolve_review_thread
   - edit
   - search
   - web
@@ -28,8 +46,7 @@ Load configuration from `.claude/commands/pr-review-config.yaml` for scripts (us
 ## Context
 
 - Current branch: !`git branch --show-current`
-- Repository: !`gh repo view --json nameWithOwner -q '.nameWithOwner'`
-- Authenticated as: !`gh api user -q '.login'`
+- Repository: !`git remote get-url origin`
 
 ## Arguments
 
@@ -41,6 +58,19 @@ Load configuration from `.claude/commands/pr-review-config.yaml` for scripts (us
 | `--dry-run` | Preview planned actions without executing | false |
 
 ## Workflow
+
+### Step 0: Transport Preflight (BLOCKING, runs once)
+
+Run `transport_preflight` from config before Step 1. Run its `verify_trust`
+command BEFORE `command_key`: every command in the config is PR-controlled
+after a PR checkout, and the completion gate verifies only
+`completion_criteria`, which runs at the end. A non-zero `verify_trust` exit
+means execute nothing from the config, surface the diff, and stop (Refs #5520).
+
+Then branch on the transport verdict. `gh` can be installed, hold a token, and
+still be refused for the whole session, in which case every script below fails
+with HTTP 403 for a reason that has nothing to do with the PR. Never turn a
+transport failure into a PR verdict.
 
 ### Step 1: Parse and Validate PRs
 
@@ -65,16 +95,26 @@ the repository, which turns fast checks into slow ones and can block pushes. A
 worktree under `/tmp` holds the only copy of its unpushed commits until a push
 lands, so a temp-filesystem reclaim or a full temp filesystem destroys them.
 
+In `gh` mode:
+
 ```bash
 branch=$(gh pr view {number} --json headRefName -q '.headRefName')
 git worktree add "../wt-pr-{number}" "$branch"
 ```
 
+In `gh_unusable` mode this `gh` call fails like every other, so read `head.ref`
+from `pull_request_read` method `get` instead and pass it to the same
+`git worktree add`. Git itself needs no GitHub access.
+
 ### Step 4: Launch Agents
 
 **Sequential**: Invoke `pr-comment-responder` skill for each PR with session context at `.agents/pr-comments/PR-{pr}/`.
 
+In `gh_unusable` mode the Step 0 verdict does not reach this skill: its workflow calls the `gh`-backed scripts unconditionally and has no MCP branch, so delegating there walks straight into the 403 the preflight exists to avoid. Do not delegate. Carry out the responder's steps yourself against the github skill's `references/transport-routing.md`, and record in the verdict that the phase was derived rather than delegated. Refs #5518.
+
 **Parallel**: Launch background agents per PR. Wait for all to complete.
+
+In `gh_unusable` mode this mode is unavailable, for the same reason the sequential one is: a child agent inherits none of the Step 0 verdict and runs the same `gh`-backed responder workflow, so parallelism multiplies the 403 rather than avoiding it. Refuse `--parallel` in that mode, say the transport is why, and derive the PRs one at a time. Refs #5518.
 
 ### Step 5: Verify, Push, and Cleanup
 

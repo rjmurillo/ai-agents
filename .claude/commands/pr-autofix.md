@@ -1,7 +1,7 @@
 ---
 description: Fix PRs autonomously. Triage open PRs by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes.
 argument-hint: "[pull-request|mode]"
-allowed-tools: Bash, Read, Edit, Write, Skill
+allowed-tools: Bash, Read, Edit, Write, Skill, mcp__github__pull_request_read, mcp__github__issue_read, mcp__github__get_check_run, mcp__github__get_job_logs
 size-exception: true
 ---
 
@@ -30,8 +30,10 @@ vendor-portability: upstream-only. Test paths reference rjmurillo/ai-agents cont
 -->
 
 Autonomous PR monitor and fixer. This file carries the whole protocol,
-including the Ready-to-Merge definition below. Nothing outside it is needed
-to run the command.
+including the Ready-to-Merge definition below. Two bundled dependencies are
+required beyond it, both from the github skill: Phase 0 runs its transport
+preflight, and MCP mode reads its routing reference. Everything else needed
+to run the command is here.
 
 ## Triggers
 
@@ -45,7 +47,87 @@ to run the command.
 
 ## Process
 
-Three phases. Tier-based dispatch decides which actions apply per PR.
+Four phases. Tier-based dispatch decides which actions apply per PR.
+
+### Phase 0: Transport preflight (BLOCKING, runs once)
+
+Every script this command calls reaches GitHub through `gh`. An agent sandbox
+that proxies egress leaves `gh` installed and `GH_TOKEN` set while refusing
+GitHub for the whole session, so each script fails with HTTP 403 and none of
+those failures says anything about the PR. Decide the transport once, before
+triage:
+
+```bash
+# CLAUDE_PLUGIN_ROOT is set in a vendored install; falls back to .claude in-repo.
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils"
+python3 "$SCRIPTS_DIR/check_github_transport.py"
+```
+
+Non-POSIX hosts do not run the block above. The authoritative, per-harness
+launcher for this one command is `check_transport` in the `scripts` map of
+`pr-review-config.yaml`: the `copilot` entry runs it under PowerShell and
+resolves the interpreter (`python3`, then `py -3`, then `python`), because a
+Windows host may expose only the launcher. Read it from the map for the harness
+you are on rather than transcribing a second copy here, which would drift.
+
+| Verdict | Action |
+|---------|--------|
+| `Transport: gh` | Continue. Every script below works as written. |
+| `Transport: gh_unusable` | Continue in MCP mode; see the rule block below. |
+| exit 3 | A quota window or a transport wobble, not a transport change. Stop and retry later. |
+| exit 4 | A credential fault. Stop and report it; do not switch transports around a fixable token. |
+
+**MCP mode rules.** The mapping from each script to its GitHub MCP operation
+is in the github skill's `references/transport-routing.md`, which also gives
+the per-harness spelling for the operation names. On top of it:
+
+1. Read operations (triage, CI status, check logs, review threads, PR and
+   issue bodies) all have MCP equivalents. Use them freely.
+   Write operations (replies, resolving threads, arming auto-merge, merging)
+   also have MCP equivalents, but rule 3 governs whether you may use them at
+   all, and the grant in this file's frontmatter does not include any of them.
+   Do not read this row as permission: it says the tool exists, not that the
+   operation is allowed here.
+   Pushing is not on that list and has no MCP equivalent. `push_files` builds
+   a new remote commit out of file contents you supply; it does not transfer
+   local commits or branch history, so it cannot stand in for `git push`.
+2. `test_pr_merge_ready.py`, `check_pr_live_state.py`, `why_pr_blocked.py`,
+   `triage_red_check.py`, `run_completion_gate.py`, `check_pr_round_cap.py`,
+   and `pr_autofix_lease.py` have no MCP equivalent, because each computes a
+   verdict from several `gh` calls plus local logic. `triage_red_check.py` is
+   named explicitly because the CI-failure triage step below makes it
+   mandatory before any log reading, and a blocked session must derive that
+   verdict by hand rather than falling back to `gh`. Most of their inputs are
+   reachable: gather the same fields with `pull_request_read` and apply the gate
+   definitions in this file by hand. Record in the PR handoff that the verdict
+   was derived, not scripted.
+   One input is not reachable, and it is load-bearing. No exposed MCP operation
+   reads a branch ruleset, so the required-context set is unavailable, which is
+   exactly the case where a check-run list reads clean on a PR that cannot
+   merge. `test_pr_merge_ready.py` therefore cannot be reconstructed as a PASS
+   at all. Report the checks and merge state you did read, say the
+   required-context set was not read, and treat merge readiness as unknown.
+3. The lease and the round cap protect against two sessions fighting over one
+   branch, and single-PR mode does not replace them: two sessions can each be
+   handed the same PR explicitly and still race toward the same branch, which
+   is the case `pr_autofix_lease.py` exists to stop. So without a lease, MCP
+   mode is read-only. Triage, read threads, and report, but do not push, reply,
+   resolve, arm auto-merge, or merge. If a mutation is genuinely needed, either
+   implement acquire, renew, and release against the same marker-comment
+   protocol using MCP operations first, or hand the PR back and say a lease
+   could not be held. Do not sweep the open queue either way.
+   This rule is not enforced by the tool grant and cannot be. The frontmatter
+   withholds every MCP write, but `allowed-tools` is one static list for both
+   modes, and `gh` mode legitimately pushes, so `Bash` stays unrestricted and
+   `git push` remains available here. Git is also a separate transport from the
+   GitHub API: issue #3139 records a push succeeding while the API was failing,
+   so a refused session does not stop one. The read-only constraint is
+   therefore yours to keep, and pushing in this mode races a branch no lease
+   protects. Enforcing it needs a per-mode permission profile, which is #5519
+   (Copilot review on PR #5509).
+4. A transport failure is an unknown, never a verdict. Never classify a PR as
+   T2 (CI fix), BLOCKED, or DIRTY because a call failed. Report the PR as
+   untriaged with the transport as the reason.
 
 ### Phase 1: Triage
 

@@ -1403,6 +1403,65 @@ def _first_symlinked_component(candidate: Path, root: Path) -> Path | None:
     return None
 
 
+# The plugin-root form every shipped invocation uses. Expanding it is not
+# general shell emulation: it is the one documented, deterministic
+# indirection in this repo's command strings, and the shell resolves it
+# the same way at dispatch. Leaving it literal made the token resolve to
+# no file on disk, so the preflight script the scripts map actually runs
+# was classified as nothing-to-verify and the verdict read "trusted"
+# without ever comparing it (issue #5520).
+_PLUGIN_ROOT_FORMS = (
+    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}",
+    "${CLAUDE_PLUGIN_ROOT:-${COPILOT_PLUGIN_ROOT:-.claude}}",
+    "${COPILOT_PLUGIN_ROOT:-.claude}",
+    "${CLAUDE_PLUGIN_ROOT:-.claude}",
+)
+
+
+def _expand_plugin_root(token: str) -> str:
+    """Resolve the documented plugin-root indirection, or return as-is.
+
+    Mirrors the shell's ``${VAR:-default}``: the environment wins when
+    set and non-empty, otherwise the literal default. Only the exact
+    forms in :data:`_PLUGIN_ROOT_FORMS` are expanded. Anything else
+    keeps its ``$`` and is reported by :func:`_unverifiable_argv`
+    instead of being quietly resolved to the wrong thing.
+    """
+    for form in _PLUGIN_ROOT_FORMS:
+        if form not in token:
+            continue
+        root = (
+            os.environ.get("COPILOT_PLUGIN_ROOT")
+            or os.environ.get("CLAUDE_PLUGIN_ROOT")
+            or ".claude"
+        )
+        return token.replace(form, root)
+    return token
+
+
+def _unverifiable_argv(argv: list[str]) -> list[str]:
+    """Tokens naming a script that static classification cannot resolve.
+
+    A token still carrying ``$`` or ``$env:`` after plugin-root
+    expansion reaches its target through shell or PowerShell evaluation
+    this function does not perform, so no byte comparison is possible.
+    Such a token is REPORTED rather than skipped: skipping it is what let
+    a command read as verified while its target was never examined.
+    Reporting keeps the verdict's scope honest without inventing a
+    blocker, because the command string itself is covered by the config
+    byte comparison that runs before this.
+    """
+    found: list[str] = []
+    for token in argv:
+        if "$" not in token:
+            continue
+        if not any(ext in token for ext in (".py", ".ps1", ".sh")):
+            continue
+        if token not in found:
+            found.append(token)
+    return found
+
+
 def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
     """Classify one argv element for trust verification.
 
@@ -1513,7 +1572,8 @@ def _collect_command_paths(
             raise ConfigError(
                 f"command is not a parseable command line: {exc}",
             ) from exc
-        for token in argv:
+        for raw_token in argv:
+            token = _expand_plugin_root(raw_token)
             embedded = _split_long_option_value(token)
             candidates = (token, embedded) if embedded is not None else (token,)
             for candidate in candidates:
@@ -2138,6 +2198,18 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--verify-config-only",
+        action="store_true",
+        help=(
+            "Verify the config and the files its scripts-map commands name "
+            "against the trusted ref, then exit without running any "
+            "criterion. This is what a workflow calls BEFORE dispatching its "
+            "first command-map entry, so a PR-rewritten command never reaches "
+            "execution. Exit 0 trusted, 2 untrusted, 3 verification "
+            "impossible"
+        ),
+    )
+    parser.add_argument(
         "--approve-untrusted-config",
         action="store_true",
         help=(
@@ -2624,6 +2696,105 @@ def _resolve_and_read_config(config_arg: str) -> ResolvedConfig:
         return ResolvedConfig(None, None, None, 2)
 
 
+def _scripts_map_criteria(config: dict[str, Any]) -> list[Any]:
+    """Render every ``scripts.<harness>`` entry as a synthetic criterion.
+
+    Step 0 dispatches from the ``scripts`` map, not from
+    ``completion_criteria``, so the #5072 and #5099 machinery covered the
+    wrong half of the config for the first command a workflow runs
+    (issue #5520). Rather than write a second verifier, this reshapes the
+    map into the criterion dicts :func:`_verify_command_trust` already
+    understands, so both halves are checked by one implementation and a
+    fix to that implementation reaches both.
+
+    Every harness map is included, not just the caller's. Which map a
+    consumer selects is decided in prose the gate cannot read, and a
+    verdict that depended on guessing it would be trusted for the wrong
+    set. Verifying the union costs a few extra path comparisons.
+
+    A non-mapping ``scripts``, or a non-mapping harness entry, yields
+    nothing rather than raising: those are config-shape problems the
+    schema validator owns, and failing closed here would refuse to
+    verify a config whose only fault is an unrelated typo.
+    """
+    scripts = config.get("scripts")
+    if not isinstance(scripts, dict):
+        return []
+    criteria: list[Any] = []
+    for harness, commands in sorted(scripts.items()):
+        if not isinstance(commands, dict):
+            continue
+        for key, command in sorted(commands.items()):
+            if not isinstance(command, str) or not command.strip():
+                continue
+            criteria.append(
+                {
+                    "name": f"scripts.{harness}.{key}",
+                    "verification": "command",
+                    "command": command,
+                    "pass_when": "true",
+                },
+            )
+    return criteria
+
+
+def _report_verify_only(
+    trust_status: str,
+    command_trust: CommandTrustCheck,
+    trust_anchor_ref: str,
+    as_json: bool,
+    unverifiable: list[str],
+) -> None:
+    """Print the verify-only verdict. Called only on the trusted path.
+
+    ``unverifiable`` is stated, never omitted. The config comparison
+    already covers every command STRING, so a token whose target cannot
+    be resolved statically is a gap in the file-level defense in depth
+    rather than in the boundary itself. Saying so is the difference
+    between a verdict a reader can size and one that implies coverage it
+    does not have.
+    """
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "verified": True,
+                    "config_trust": trust_status,
+                    "command_trust": command_trust.status,
+                    "trusted_ref": trust_anchor_ref,
+                    "checked_files": command_trust.checked_files,
+                    "unverifiable_command_tokens": unverifiable,
+                    "skipped_external_files": (
+                        command_trust.skipped_external_files
+                    ),
+                    "skipped_untracked_files": (
+                        command_trust.skipped_untracked_files
+                    ),
+                },
+                indent=2,
+            ),
+        )
+    else:
+        print(
+            f"Config and scripts-map commands verified against "
+            f"{trust_anchor_ref}: config {trust_status}, commands "
+            f"{command_trust.status}, {len(command_trust.checked_files)} "
+            f"file(s) compared.",
+        )
+    if unverifiable:
+        listing = _escape_terminal_controls(
+            "\n".join(f"  {token}" for token in unverifiable),
+        )
+        print(
+            f"NOTE: {len(unverifiable)} command token(s) reach their target "
+            f"through shell or PowerShell evaluation, so no file comparison "
+            f"was possible for them. Their command strings are covered by "
+            f"the config comparison above; the files they name are "
+            f"not:\n{listing}",
+            file=sys.stderr,
+        )
+
+
 def _extract_criteria(config: dict[str, Any]) -> list[Any] | None:
     """Return the completion_criteria list, or None (with stderr) if invalid.
 
@@ -2685,6 +2856,51 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as exc:
         print(f"Failed to load config {config_path}: {exc}", file=sys.stderr)
         return 2
+
+    if args.verify_config_only:
+        # The config passed its own trust check above. Now verify the
+        # files the scripts-map commands name, which is what Step 0 is
+        # about to dispatch, and stop. Nothing is executed on this path:
+        # the point is to answer "is it safe to run a command from this
+        # config" before anything runs (issue #5520).
+        try:
+            command_trust, halt_code = _enforce_command_trust(
+                _scripts_map_criteria(config),
+                args.pull_request,
+                args.trust_anchor_ref,
+                args.approve_untrusted_config,
+            )
+        except ConfigError as exc:
+            print(f"Config error in scripts map: {exc}", file=sys.stderr)
+            return 2
+        if halt_code is not None:
+            return halt_code
+        unverifiable: list[str] = []
+        for criterion in _scripts_map_criteria(config):
+            try:
+                argv = _format_command(criterion["command"], args.pull_request)
+            except ValueError:
+                # A command line this cannot even split is a config-shape
+                # fault the schema validator owns. It executes nothing
+                # here, so record it as unverifiable rather than halting.
+                unverifiable.append(criterion["name"])
+                continue
+            # Expanded first, exactly as _collect_command_paths does, so a
+            # token the plugin-root form resolved is not reported as
+            # unresolvable when it was in fact compared.
+            for token in _unverifiable_argv(
+                [_expand_plugin_root(t) for t in argv]
+            ):
+                if token not in unverifiable:
+                    unverifiable.append(token)
+        _report_verify_only(
+            trust.status,
+            command_trust,
+            args.trust_anchor_ref,
+            args.json,
+            unverifiable,
+        )
+        return 0
 
     criteria = _extract_criteria(config)
     if criteria is None:

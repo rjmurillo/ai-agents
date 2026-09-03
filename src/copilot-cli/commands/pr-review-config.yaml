@@ -23,16 +23,94 @@ scripts:
     add_thread_reply: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request {number} --thread-id {thread_id} --body {body}"
     add_thread_reply_resolve: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request {number} --thread-id {thread_id} --body {body} --resolve"
     resolve_thread: "python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --expected-pull-request {number} --thread-id {thread_id}"
+    check_transport: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils/check_github_transport.py" --output-format json'
   copilot:
-    get_pr_context: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}"
-    test_pr_merged: "pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}"
-    get_review_threads: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewThreads.ps1 -PullRequest {number}"
-    get_unresolved_threads: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest {number}"
-    cluster_threads: 'pwsh -NoProfile -Command "python3 .claude/skills/pr-comment-responder/scripts/cluster_threads.py --pull-request {number}"'
-    get_unaddressed_comments: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest {number}"
-    get_pr_checks: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest {number}"
-    add_thread_reply: "pwsh -NoProfile .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest {number} -ThreadId {thread_id} -Body {body}"
-    resolve_thread: "pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId {thread_id}"
+    # Every command here names a shipped Python script, anchored on the plugin
+    # root. The previous entries named PowerShell files (Get-PRContext.ps1 and
+    # eight siblings) that exist in neither this repository nor the standalone
+    # plugin, under bare `.claude/...` paths that do not resolve in a vendored
+    # install either. Nothing selected this map until the pr-review workflow
+    # stopped hardcoding `scripts.claude_code`, so the breakage was dormant
+    # rather than absent; selecting it then made Step 1 fail before review
+    # (Copilot review on PR #5509).
+    #
+    # `python3` rather than a resolved launcher, matching every other entry in
+    # this file. Only `check_transport` resolves the interpreter, because it is
+    # the blocking Step 0 and a failure there stops the workflow instead of one
+    # step of it. Refs #5521.
+    get_pr_context: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_context.py" --pull-request {number}'
+    test_pr_merged: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/test_pr_merged.py" --pull-request {number}'
+    get_review_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_review_threads.py" --pull-request {number}'
+    get_unresolved_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_unresolved_review_threads.py" --pull-request {number}'
+    cluster_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/scripts/cluster_threads.py" --pull-request {number}'
+    get_unaddressed_comments: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_unaddressed_comments.py" --pull-request {number}'
+    get_pr_checks: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_checks.py" --pull-request {number}'
+    wait_for_settled_zero: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/wait_for_unresolved_zero.py" --pull-request {number}'
+    add_thread_reply: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/add_pr_review_thread_reply.py" --pull-request {number} --thread-id {thread_id} --body {body}'
+    add_thread_reply_resolve: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/add_pr_review_thread_reply.py" --pull-request {number} --thread-id {thread_id} --body {body} --resolve'
+    resolve_thread: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/resolve_pr_review_thread.py" --expected-pull-request {number} --thread-id {thread_id}'
+    # transport_preflight resolves command_key against the harness map, so the
+    # Copilot map needs its own entry or Step 0 cannot dispatch at all. The
+    # POSIX ${VAR:-default} form used in the claude_code map does not expand in
+    # PowerShell, which is what this map targets, so a Windows install would
+    # fail before the preflight ran (Copilot review on PR #5509).
+    #
+    # The -Command payload is single-quoted, not double-quoted. A double-quoted
+    # payload is expanded by the POSIX parent shell before pwsh is executed:
+    # `$root` and `$env:` are unset there, so pwsh receives
+    # `= if (:COPILOT_PLUGIN_ROOT) { ... } ...` and fails on a parse error
+    # rather than on anything about the transport. Measured under bash 5 by
+    # printing the expanded argument (Copilot review on PR #5509).
+    #
+    # The interpreter is resolved rather than hardcoded to python3. A Windows
+    # Copilot host may expose only python.exe or the py launcher
+    # (REQ-003-multi-tool-artifact-build.md:442), and the repo's own PowerShell
+    # hook launchers use `py -3` for that reason (same file, lines 150 and 326;
+    # ADR-068:302). This is the blocking Step 0, so a missing python3 stops the
+    # workflow before it can pick a transport. python3 is tried first because
+    # pwsh also runs on Linux and macOS, where py does not exist.
+    check_transport: "pwsh -NoProfile -Command '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/utils/check_github_transport.py\") --output-format json'"
+
+# Transport preflight. Run check_transport once, before Step 1, and branch on
+# Data.Transport.
+#
+# Every script above reaches GitHub through gh. An agent sandbox that proxies
+# egress leaves gh installed and GH_TOKEN set while refusing GitHub for the
+# whole session, so each script fails with HTTP 403 and none of those failures
+# says anything about the PR. Discovering that per call costs one failed round
+# trip per operation and invites a retry of a condition that has no reset.
+transport_preflight:
+  # BEFORE reading command_key below, run verify_trust. Every command in
+  # this file is PR-controlled when /pr-review runs after `gh pr checkout`,
+  # and the completion gate's trusted-ref verification covers
+  # completion_criteria only, which runs at the END. Without this step the
+  # first thing the workflow executes is a command a PR author can rewrite
+  # (issue #5520, CWE-829).
+  verify_trust: "uv run python .claude/skills/github/scripts/pr/run_completion_gate.py --config .claude/commands/pr-review-config.yaml --pull-request {number} --verify-config-only --json"
+  verify_trust_exits:
+    - exit_code: 0
+      meaning: "Config and the files its scripts-map commands name match the trusted ref. Proceed to check_transport. Read unverifiable_command_tokens: a token listed there reaches its target through shell evaluation, so its file was not compared."
+    - exit_code: 2
+      meaning: "The config or a named script diverges from the trusted ref. STOP. Do not run any command from this file. Surface the diff to the human and stop; do not pass --approve-untrusted-config on your own initiative."
+    - exit_code: 3
+      meaning: "Verification is impossible (no work tree, trusted ref missing). STOP. --approve-untrusted-config does not apply; there is nothing a human could have inspected."
+  command_key: "check_transport"
+  blocking: true
+  verdicts:
+    - transport: "gh"
+      action: "Run this workflow as written. This is CI and a normal developer machine."
+    - transport: "gh_unusable"
+      action: "Run it through the GitHub MCP operations. Script-to-operation map and per-harness tool spelling: the github skill's references/transport-routing.md"
+  non_transport_exits:
+    - exit_code: 3
+      meaning: "Quota window or transport wobble. Not a transport change; stop and retry later."
+    - exit_code: 4
+      meaning: "Credential fault the operator can fix. Stop and report; do not route around it."
+  mcp_mode_constraints:
+    - "cluster_threads, wait_for_settled_zero, and the completion gate are local logic over fetched data. Fetch threads with pull_request_read method get_review_comments, run the same procedure by hand, and record in the verdict that it was derived rather than scripted."
+    - "resolve_review_thread resolves one thread per call. There is no --all equivalent, so resolve explicitly and count what you resolved."
+    - "A transport failure is an unknown, never a verdict. Never emit a PASS or a '0 unresolved' result from a call that failed; report the PR as unreviewed with the transport as the reason."
+    - "Step 3 (--parallel) shells out to `gh pr view` for head.ref. That call fails in gh_unusable mode like every other, so read head.ref from pull_request_read method get instead and pass it to the same `git worktree add`. Git itself needs no GitHub access, so only the lookup changes."
 
 check_failure_actions:
   - check_type: "Session validation"

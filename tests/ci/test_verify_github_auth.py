@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 
 from scripts.ci.verify_github_auth import (
+    EXIT_CONFIG,
     EXIT_EXTERNAL,
     EXIT_LOGIC,
     EXIT_OK,
@@ -26,6 +27,11 @@ LOST_NETWORK = (
     "check your internet connection or https://githubstatus.com"
 )
 BAD_TOKEN = "HTTP 401: Bad credentials (https://api.github.com/user)"
+# Captured from a Claude Code remote session proxy on 2026-09-03, gh 2.98.0.
+SESSION_REFUSAL = (
+    "gh: GitHub access is not enabled for this session. An org admin must "
+    "connect the Claude GitHub App for this organization. (HTTP 403)"
+)
 
 
 def _runner(*results: CommandResult):
@@ -83,3 +89,40 @@ class TestApiAccessStage:
         out = capsys.readouterr().out
         assert rc == EXIT_EXTERNAL
         assert "bot-pat" not in out
+
+
+class TestSessionRefusalIsNotRetryable:
+    """A refused session has no reset, so it must not carry the retry signal.
+
+    The branch printed the right words while still returning EXIT_EXTERNAL,
+    which is exactly the signal that tells a caller to try again (Copilot
+    review on PR #5509). Exit code and wording have to agree.
+    """
+
+    def test_session_refusal_exits_config_not_external(self, capsys):
+        rc = verify_github_auth(_runner(_failed(SESSION_REFUSAL)))
+
+        out = capsys.readouterr().out
+        assert rc == EXIT_CONFIG
+        assert "retrying will not clear it" in out
+        # The warning must not assert the token is sound: an org-level denial
+        # and an expired token can both be present, and only the denial has no
+        # operator remedy (Copilot review on PR #5509).
+        assert "not the fault" not in out
+        assert "Retry shortly" not in out
+        assert "bot-pat" not in out
+
+    def test_api_access_stage_refusal_also_exits_config(self, capsys):
+        """The second entry path reaches the same classifier."""
+        rc = verify_github_auth(_runner(_ok(), _failed(SESSION_REFUSAL)))
+
+        assert rc == EXIT_CONFIG
+        assert "retrying will not clear it" in capsys.readouterr().out
+
+    def test_a_quota_refusal_keeps_the_retry_signal(self, capsys):
+        """Negative control: the retryable path is unchanged."""
+        rc = verify_github_auth(_runner(_failed(QUOTA_403)))
+
+        out = capsys.readouterr().out
+        assert rc == EXIT_EXTERNAL
+        assert "Retry shortly" in out

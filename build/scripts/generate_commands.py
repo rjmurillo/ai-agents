@@ -48,7 +48,10 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR.parent))
 
-from copilot_body_translation import translate_body  # noqa: E402
+from copilot_body_translation import (  # noqa: E402
+    respell_mcp_tool_names,
+    translate_body,
+)
 from generate_agents_common import (  # noqa: E402
     format_frontmatter_yaml,
     parse_simple_frontmatter,
@@ -390,6 +393,15 @@ def generate_commands(
             body = match["body"]
 
         merged = _merge_frontmatter(source_fm, append, name=name, body=body)
+        if is_copilot:
+            # translate_body never sees frontmatter, and this generator builds
+            # frontmatter as a dict rather than mirroring it as text, so the
+            # tool grant needs respelling here or the Copilot skill is granted
+            # a namespace its harness does not expose (Copilot review on
+            # PR #5509).
+            granted = merged.get("allowed-tools")
+            if granted:
+                merged["allowed-tools"] = respell_mcp_tool_names(granted)
         out_body = translate_body(body, output_dir) if is_copilot else body
         target_md = output_dir / name / "SKILL.md"
         if _write_skill(target_md, merged, out_body, what_if=what_if):

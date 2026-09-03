@@ -48,6 +48,16 @@ FLOOR_SCRIPTS = (
     Path(".claude/skills/github/scripts/pr/validate_pr_description.py"),
     Path("src/copilot-cli/skills/github/scripts/pr/new_pr.py"),
     Path("src/copilot-cli/skills/github/scripts/pr/validate_pr_description.py"),
+    # Promoted from FLOOR_STATIC_ONLY: the `enum.StrEnum` in
+    # `github_core.review_threads` that blocked these is spelled for the floor
+    # now, so the runtime guard applies (PR #5509).
+    Path(".claude/skills/github/scripts/pr/test_pr_merge_ready.py"),
+    Path("src/copilot-cli/skills/github/scripts/pr/test_pr_merge_ready.py"),
+    # The transport preflight is host-executed with a bare `python3` from
+    # Phase 0 of pr-autofix and Step 0 of pr-review, so a floor break here
+    # takes the whole workflow before it can pick a transport.
+    Path(".claude/skills/github/scripts/utils/check_github_transport.py"),
+    Path("src/copilot-cli/skills/github/scripts/utils/check_github_transport.py"),
 )
 
 # Bundle members that are libraries, not CLIs. They have no --help, so they are
@@ -70,20 +80,19 @@ FLOOR_MODULES = (
 # which is the gap this module exists to close, so the static guard below is
 # what would have caught it.
 #
-# It cannot join FLOOR_SCRIPTS yet. Measured with CPython 3.10.20 against this
-# tree: it imports `github_core.api`, which imports `github_core.review_threads`,
-# whose `FetchStatus` subclasses `enum.StrEnum`, added in 3.11:
+# `test_pr_merge_ready.py` used to sit here because it imports
+# `github_core.api`, which imports `github_core.review_threads`, whose
+# `FetchStatus` subclassed `enum.StrEnum` (3.11+) and raised
+# `AttributeError: module 'enum' has no attribute 'StrEnum'` on 3.10. That
+# note asked for the entries to move once `FetchStatus` was spelled for the
+# floor. PR #5509 did that, along with the `datetime.UTC` aliases in
+# `github_core.output` and `github_core.recovery_manifest`, so both entries are
+# in FLOOR_SCRIPTS above and get the runtime guard.
 #
-#     AttributeError: module 'enum' has no attribute 'StrEnum'
-#
-# That predates PR #5481 and belongs to the shared library rather than to any
-# one script; `new_pr.py` passes the runtime test only because it imports no
-# `github_core` module at all. Move these two entries into FLOOR_SCRIPTS once
-# `FetchStatus` is spelled for the floor.
-FLOOR_STATIC_ONLY = (
-    Path(".claude/skills/github/scripts/pr/test_pr_merge_ready.py"),
-    Path("src/copilot-cli/skills/github/scripts/pr/test_pr_merge_ready.py"),
-)
+# Nothing is static-only today. Keep the tuple rather than deleting it: it is
+# the documented place for the next script whose import closure breaks at the
+# floor for a reason outside its own file.
+FLOOR_STATIC_ONLY: tuple[Path, ...] = ()
 
 ALL_FLOOR_FILES = FLOOR_SCRIPTS + FLOOR_MODULES + FLOOR_STATIC_ONLY
 
@@ -277,11 +286,22 @@ _ACCEPTED_EXPIRIES = (
 def _expires_pattern_source() -> str:
     """The regex literal `_EXPIRES_PATTERN` compiles, read from the source.
 
-    Read out of the AST rather than imported, because the script cannot be
-    imported under 3.10 at all: it pulls in `github_core.review_threads`,
-    whose `FetchStatus` subclasses `enum.StrEnum`, added in 3.11. Reading the
-    literal keeps this test measuring the shipped pattern rather than a copy
-    that can drift away from it.
+    Read out of the AST rather than imported. The original reason was that the
+    script could not be imported under 3.10 at all, because
+    `github_core.review_threads` subclassed `enum.StrEnum` (3.11); that is
+    fixed on this branch and the script now runs on the floor, which is why
+    `test_pr_merge_ready.py` moved into FLOOR_SCRIPTS above.
+
+    Extraction stays for two reasons that outlive the import fault, neither of
+    which is the one an earlier revision of this docstring gave. That revision
+    claimed `re.Pattern.pattern` round-trips through the regex engine rather
+    than reporting the shipped literal. It does not: `.pattern` returns the
+    exact string passed to `re.compile`, verified on this interpreter
+    (Copilot review on PR #5509). The real reasons are that reading the source
+    executes none of the script's imports, so this measures the file rather
+    than whatever the import machinery resolves, and that it keeps working if
+    the import closure reacquires a floor-breaking dependency later, which is
+    the fault this module exists to catch.
     """
     tree = ast.parse((REPO_ROOT / _MERGE_READY).read_text(encoding="utf-8"))
     for node in ast.walk(tree):

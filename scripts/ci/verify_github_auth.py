@@ -60,8 +60,10 @@ def _report_failure(stage: str, result: CommandResult, scope_hint: str) -> int:
     A nonzero `gh` exit is a quota refusal or a 5xx as often as it is a bad
     token, and "Ensure bot-pat has valid token with required scopes" sends the
     operator to rotate a working secret during a GitHub outage (issue #3139).
-    Rate limits and transport failures are external (exit 3) and clear on their
-    own; only a credential problem earns the scope advice.
+    Rate limits and transient transport failures are external (exit 3) and
+    clear on their own; only a credential problem earns the scope advice. A
+    session-wide refusal is neither: it never clears, so it exits 2 (config)
+    rather than carrying the retry signal.
     """
     status = classify_gh_failure_text(f"{result.stdout}\n{result.stderr}")
     if status is GhAuthStatus.INVALID_CREDENTIALS:
@@ -70,6 +72,17 @@ def _report_failure(stage: str, result: CommandResult, scope_hint: str) -> int:
         return EXIT_LOGIC
 
     print(f"::warning::{stage} could not complete: {status.value}")
+    if status is GhAuthStatus.TRANSPORT_BLOCKED:
+        # A refused session never clears on its own, so "retry shortly" would
+        # send the operator to wait out a condition that has no reset. Exit 2
+        # (config) rather than 3: exit 3 is the retry signal, and an earlier
+        # version printed the right words while still returning it, so callers
+        # kept retrying a permanent refusal (Copilot review on PR #5509).
+        print(
+            "::warning::This environment refuses GitHub for gh; repairing the "
+            "token is the wrong remedy and retrying will not clear it."
+        )
+        return EXIT_CONFIG
     print("::warning::This is not an authentication failure. Retry shortly.")
     return EXIT_EXTERNAL
 
