@@ -65,6 +65,13 @@ SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/githu
 python3 "$SCRIPTS_DIR/check_github_transport.py"
 ```
 
+Non-POSIX hosts do not run the block above. The authoritative, per-harness
+launcher for this one command is `check_transport` in the `scripts` map of
+`pr-review-config.yaml`: the `copilot` entry runs it under PowerShell and
+resolves the interpreter (`python3`, then `py -3`, then `python`), because a
+Windows host may expose only the launcher. Read it from the map for the harness
+you are on rather than transcribing a second copy here, which would drift.
+
 | Verdict | Action |
 |---------|--------|
 | `Transport: gh` | Continue. Every script below works as written. |
@@ -92,9 +99,16 @@ the per-harness spelling for the operation names. On top of it:
    verdict from several `gh` calls plus local logic. `triage_red_check.py` is
    named explicitly because the CI-failure triage step below makes it
    mandatory before any log reading, and a blocked session must derive that
-   verdict by hand rather than falling back to `gh`. Their inputs are still reachable: gather the same
-   fields with `pull_request_read` and apply the gate definitions in this file
-   by hand. Record in the PR handoff that the verdict was derived, not scripted.
+   verdict by hand rather than falling back to `gh`. Most of their inputs are
+   reachable: gather the same fields with `pull_request_read` and apply the gate
+   definitions in this file by hand. Record in the PR handoff that the verdict
+   was derived, not scripted.
+   One input is not reachable, and it is load-bearing. No exposed MCP operation
+   reads a branch ruleset, so the required-context set is unavailable, which is
+   exactly the case where a check-run list reads clean on a PR that cannot
+   merge. `test_pr_merge_ready.py` therefore cannot be reconstructed as a PASS
+   at all. Report the checks and merge state you did read, say the
+   required-context set was not read, and treat merge readiness as unknown.
 3. The lease and the round cap protect against two sessions fighting over one
    branch, and single-PR mode does not replace them: two sessions can each be
    handed the same PR explicitly and still race toward the same branch, which
@@ -104,6 +118,15 @@ the per-harness spelling for the operation names. On top of it:
    implement acquire, renew, and release against the same marker-comment
    protocol using MCP operations first, or hand the PR back and say a lease
    could not be held. Do not sweep the open queue either way.
+   This rule is not enforced by the tool grant and cannot be. The frontmatter
+   withholds every MCP write, but `allowed-tools` is one static list for both
+   modes, and `gh` mode legitimately pushes, so `Bash` stays unrestricted and
+   `git push` remains available here. Git is also a separate transport from the
+   GitHub API: issue #3139 records a push succeeding while the API was failing,
+   so a refused session does not stop one. The read-only constraint is
+   therefore yours to keep, and pushing in this mode races a branch no lease
+   protects. Enforcing it needs a per-mode permission profile, which is #5519
+   (Copilot review on PR #5509).
 4. A transport failure is an unknown, never a verdict. Never classify a PR as
    T2 (CI fix), BLOCKED, or DIRTY because a call failed. Report the PR as
    untriaged with the transport as the reason.
