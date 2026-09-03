@@ -57,7 +57,7 @@
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .serena/memories/usage-mandatory.md in the parent session (skill-first incident log; ADR-085 retired the blocking hook but the MUST-level convention stands). Recorded honestly under skillScriptsListed above: ai-agents-debugging-playbook covers this CI-red triage and was not invoked. Not claiming no skill applied, which would be an absence asserted without searching, forbidden by knowledge-persistence.md MUST NOT 4."
+        "Evidence": "Read .serena/memories/usage-mandatory.md in the parent session (skill-first incident log; ADR-085 retired the blocking hook but the MUST-level convention stands). Recorded honestly under skillScriptsListed above: ai-agents-debugging-playbook covers this CI-red triage and was not invoked. Not claiming no skill applied, which would be an absence asserted without searching, forbidden by universal.md MUST NOT 9 (knowledge-persistence.md MUST NOT 4 when written)."
       },
       "serenaInstructions": {
         "level": "MUST",

@@ -61,11 +61,21 @@ __all__ = [
     "EXIT_EXTERNAL",
     "EXIT_OK",
     "EXIT_REGRESSION",
+    "MERGE_TREE_BACKED",
     "current_count",
     "main",
 ]
 
 _BASELINE_PATH = Path(__file__).with_name("taste_count_baseline.txt")
+
+MERGE_TREE_BACKED = True
+"""This baseline is registered in ``merge_tree_ratchet_registry.py::RATCHETS``.
+
+Registration is what lets ``count_ratchet.run`` pass a branch that merely holds
+a number ``main`` lowered underneath it: the merged result is measured by
+``scripts/ci/merge_tree_ratchet_check.py`` instead. Pinned against the registry
+by ``tests/ci/test_merge_tree_backing_declarations.py``.
+"""
 
 _LINTER = Path(".claude/skills/taste-lints/scripts/taste_lints.py")
 
@@ -249,8 +259,13 @@ def list_violations(
 
     None means the scan could not be read, which is not the same as a clean
     tree and never renders as one. Every leg that returns it says why.
+
+    ``announce_unmerged=False`` because this is the run's second index read.
+    ``run`` calls ``current_count`` before it calls this, and that read
+    already emitted the mid-merge note. Without the suppression a contributor
+    mid-merge saw the identical caveat twice for one regression (issue #4746).
     """
-    files = tracked_files(repo_root, ("*",))
+    files = tracked_files(repo_root, ("*",), announce_unmerged=False)
     if files is None:
         return None
     if not files:
@@ -291,6 +306,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "of the file explaining why the rule does not apply (issue #3779)."
         ),
         lister=list_violations,
+        merge_tree_backed=MERGE_TREE_BACKED,
     )
 
 

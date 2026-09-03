@@ -20,7 +20,9 @@ untracked scratch, nested worktrees, and vendored caches that a contributor
 happens to have on disk, which inflated a local ruff run to 767 against a real
 tracked count of 361 and made that gate report a phantom regression outside CI.
 Tracked files are the only thing a PR can change, so they are the only thing a
-baseline should freeze.
+baseline should freeze. That enumeration lists INDEX ENTRIES, so an unmerged
+path arrives once per merge stage and must be deduplicated before it reaches a
+linter (issue #4746); see ``deduplicate_index_entries``.
 
 The baseline is a committed absolute number, so two branches can each remove one
 violation and write the same lowered value. Git merges the identical one-line
@@ -48,9 +50,15 @@ from here would put the project's import graph behind every ratchet.
 
 Exit codes (AGENTS.md contract):
     0 - ok (count <= baseline, or --update records a decrease)
-    1 - regression (count > baseline, or baseline raised vs --base-ref)
-    2 - config error (baseline missing or malformed, bad args)
-    3 - external error (the underlying linter could not run)
+    1 - regression (count > baseline, or this branch moved the baseline above
+        the one at --base-ref; a branch merely behind the base ref is reported
+        and not blocked, but only for a ratchet whose caller declares
+        ``merge_tree_backed=True``, issue #5065)
+    2 - config error (baseline missing or malformed, bad args, or the fork
+        point tracks no baseline file)
+    3 - external error (the underlying linter could not run, or a git read
+        behind the --base-ref comparison could not answer: no fork point, or
+        an unreadable baseline at one)
 """
 
 from __future__ import annotations
@@ -60,6 +68,7 @@ import os
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 EXIT_OK = 0
@@ -158,15 +167,118 @@ def _git_rc(repo_root: Path, argv: Sequence[str]) -> int | None:
     return None if proc is None else proc.returncode
 
 
-def tracked_files(repo_root: Path, globs: Sequence[str]) -> list[str] | None:
-    """Git-tracked paths matching ``globs``, or None when git could not run."""
+MAX_NAMED_UNMERGED = 5
+"""How many unmerged paths the mid-merge note lists before summarising.
+
+A merge that conflicts on one file needs the name. A merge that conflicts on
+two hundred needs the count and nothing else, and printing two hundred paths
+above a capped violation list buries the thing the reader came for.
+"""
+
+
+def deduplicate_index_entries(entries: Sequence[str]) -> tuple[list[str], list[str]]:
+    """Split ``git ls-files`` output into unique paths and repeated ones.
+
+    ``git ls-files`` prints one line per INDEX ENTRY, and an unmerged path
+    holds one entry per merge stage. Measured on git 2.43.0 against a scratch
+    repository whose only conflict is ``a.txt``::
+
+        $ git status --porcelain
+        UU a.txt
+        $ git ls-files -z | tr '\\0' '\\n'
+        a.txt
+        a.txt
+        a.txt
+        keep.txt
+        $ git ls-files -u
+        100644 df967b96... 1   a.txt
+        100644 ba2906d0... 2   a.txt
+        100644 c7747099... 3   a.txt
+
+    Handing that list to a linter scans the same file on disk once per stage
+    and counts its violations that many times, so a single conflicted path
+    reports a regression that exists in no tree (issue #4746). Reproduced end
+    to end: a 601-line file conflicted content-versus-content measured 4
+    violations mid-merge against 2 after ``git add`` of byte-identical content,
+    the exact ``+2`` in that issue. Not every conflict has three stages, so the
+    inflation is not a fixed multiple: add/add and the delete/modify pair carry
+    two, which is why this deduplicates rather than dividing by three.
+
+    First occurrence wins and the rest of the order is preserved, so a run over
+    a clean index returns exactly what git printed. That matters because the
+    fix must be a no-op outside a merge: every ratchet in ``scripts/ci`` reads
+    its file list through ``tracked_files``, and a reordering here would move
+    which violations survive the 40-line cap in ``run``.
+
+    The repeated list is what the caller reports, not a separate git call. A
+    duplicate index entry is what an unmerged path IS, so the enumeration
+    already carries the answer.
+    """
+    unique: list[str] = []
+    repeated: list[str] = []
+    seen: set[str] = set()
+    for entry in entries:
+        if entry in seen:
+            if entry not in repeated:
+                repeated.append(entry)
+            continue
+        seen.add(entry)
+        unique.append(entry)
+    return unique, repeated
+
+
+def _unmerged_note(paths: Sequence[str]) -> str:
+    """The stderr note naming paths that are unmerged in the index.
+
+    The count is now right, and the reader still needs to know the tree is
+    mid-merge: the linter reads content off disk, so conflict markers left in
+    the working copy add lines and can push a file over a size threshold on
+    their own. Issue #4746 records the cost of a number with no such hint. Its
+    author diffed violation sets against a clean tree, diffed per-file counts,
+    and checked whether test files had crossed 500 lines, because the count and
+    the file list were internally consistent and nothing pointed at the index.
+    """
+    named = ", ".join(paths[:MAX_NAMED_UNMERGED])
+    if len(paths) > MAX_NAMED_UNMERGED:
+        named += f", and {len(paths) - MAX_NAMED_UNMERGED} more"
+    return (
+        f"note: {len(paths)} path(s) unmerged in the index, counted once each "
+        f"rather than once per merge stage: {named}. The count measures the "
+        f"working tree, so any conflict markers still on disk count with it. "
+        f"Finish the merge before trusting this verdict.\n"
+    )
+
+
+def tracked_files(
+    repo_root: Path, globs: Sequence[str], *, announce_unmerged: bool = True
+) -> list[str] | None:
+    """Git-tracked paths matching ``globs``, or None when git could not run.
+
+    Each path appears once even mid-merge. See ``deduplicate_index_entries``
+    for why git repeats an unmerged one and what that cost (issue #4746).
+
+    ``announce_unmerged=False`` returns the same paths without the mid-merge
+    note. One ratchet run reads the index twice: ``run`` calls the counter,
+    and then on a regression calls the lister, which enumerates again to
+    render the violations. Both reads see the same unmerged index, so both
+    emitted the identical note and a contributor mid-merge read the same
+    caveat twice for one run. The counting read owns the announcement because
+    it happens on every run; the diagnostic re-read passes False because the
+    count already said it. The returned paths are identical either way, so
+    this suppresses an emission and never changes a count.
+    """
     proc = _git_run(repo_root, ["ls-files", "-z", "--", *globs])
     if proc is None:
         return None
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr)
         return None
-    return [path for path in proc.stdout.split("\0") if path]
+    unique, unmerged = deduplicate_index_entries(
+        [path for path in proc.stdout.split("\0") if path]
+    )
+    if unmerged and announce_unmerged:
+        sys.stderr.write(_unmerged_note(unmerged))
+    return unique
 
 
 def _diff_paths(repo_root: Path, spec: str, scope: str) -> frozenset[str]:
@@ -395,54 +507,416 @@ def build_parser(description: str, default_baseline: Path) -> argparse.ArgumentP
     parser.add_argument(
         "--base-ref",
         help=(
-            "Git ref to compare the baseline against. Fails when the working "
-            "baseline is higher than the one at this ref, which is what keeps "
-            "the ratchet one-directional."
+            "Git ref used to order baseline changes. A higher working baseline "
+            "fails when the fork-point comparison proves this branch raised "
+            "it. An unchanged stale value may pass for a ratchet with a "
+            "merge-tree backstop."
         ),
     )
     return parser
 
 
-def _above_base_message(base_ref: str, *, label: str, baseline: int, base: int, count: int) -> str:
-    """Report a baseline above the base ref without guessing who raised it.
+@dataclass(frozen=True, slots=True)
+class _BaseRefFacts:
+    """The four numbers and two names every ``--base-ref`` message reports.
 
-    Two histories land on identical numbers here: a branch cut before the base
-    ref lowered its baseline, and a branch that raised the baseline itself. A
-    branch behind a base ref that dropped three violations reads
-    ``baseline 334, base 331, count 334``, and so does a branch that added
-    three violations and widened the allowance to cover them. Telling either
-    author which one they are needs the fork point, and two endpoint reads
-    cannot supply it. This function is handed a ref name and three counts, so
-    no fetch depth would let it read a fork point. Naming a cause anyway is the
-    defect issue #4066 was filed for, so this states what was measured and
-    carries both remedies.
+    Bundled because five message builders take the same set, and a five-argument
+    signature repeated five times drifts one argument at a time.
+    """
+
+    base_ref: str
+    label: str
+    baseline: int
+    base: int
+    count: int
+
+    @property
+    def excess(self) -> int:
+        """How far the recorded baseline sits above the one at the base ref."""
+        return self.baseline - self.base
+
+
+def _above_base_message(facts: _BaseRefFacts) -> str:
+    """Report a baseline this branch itself raised above the base ref.
+
+    Reached only when ``baseline_move`` reports ``BASELINE_RAISED``, so the
+    raise is measured rather than guessed. Both remedies stay in the text
+    because both can apply at once: a branch that raised its own baseline can
+    also be behind a base ref that lowered one, and merging is what makes the
+    restore value meaningful. What issue #4066 forbids is naming a cause the
+    code did not measure, not offering a second remedy the reader may need.
 
     The count is worth stating on its own: when it is one the base ref already
     allows, nothing in this tree added a violation, and that much IS measured.
     """
-    measured = f"The measured count is {count}. "
-    if count <= base:
+    measured = f"The measured count is {facts.count}. "
+    if facts.count <= facts.base:
         measured = (
-            f"The measured count is {count}, which {base_ref} already allows, "
-            f"so nothing in this tree added a violation. "
+            f"The measured count is {facts.count}, which {facts.base_ref} "
+            f"already allows, so nothing in this tree added a violation. "
         )
     return (
-        f"{label}: BASELINE ABOVE BASE. This tree records {baseline}, "
-        f"{base_ref} records {base} (+{baseline - base}). {measured}"
+        f"{facts.label}: BASELINE ABOVE BASE. This tree records "
+        f"{facts.baseline}, {facts.base_ref} records {facts.base} "
+        f"(+{facts.excess}). {measured}"
         f"The baseline may only fall. If this branch did not edit the "
-        f"baseline, it is behind {base_ref}: merge or rebase to pick up the "
-        f"lowered value. If it did raise the baseline, restore {base} and fix "
-        f"the violations instead of widening the allowance."
+        f"baseline, it is behind {facts.base_ref}: merge or rebase to pick up "
+        f"the lowered value. If it did raise the baseline, restore "
+        f"{facts.base} and fix the violations instead of widening the "
+        f"allowance."
     )
 
 
+def _fork_point(repo_root: Path, base_ref: str) -> str | None:
+    """Commit where this branch left ``base_ref``, or None when git cannot say."""
+    proc = _git_run(repo_root, ["merge-base", "--", base_ref, "HEAD"])
+    if proc is None or proc.returncode != 0:
+        return None
+    return proc.stdout.strip() or None
+
+
+def is_shallow_repository(repo_root: Path) -> bool:
+    """True when ``repo_root`` is a shallow clone, per git's own answer.
+
+    ``git rev-parse --is-shallow-repository`` prints ``true`` or ``false`` and
+    exits 0 in a repository. Only used to pick which remedy an unreadable fork
+    point prints, so an unlaunchable git degrades to the unrelated-history
+    wording rather than raising: the verdict is already decided by then.
+    """
+    proc = _git_run(repo_root, ["rev-parse", "--is-shallow-repository"])
+    if proc is None or proc.returncode != 0:
+        return False
+    return proc.stdout.strip() == "true"
+
+
+BASELINE_RAISED = "raised"
+BASELINE_LOWERED = "lowered"
+BASELINE_UNCHANGED = "unchanged"
+
+FORK_POINT_UNREADABLE = "fork-point-unreadable"
+FORK_BASELINE_ABSENT = "fork-baseline-absent"
+FORK_BASELINE_UNREADABLE = "fork-baseline-unreadable"
+
+
+@dataclass(frozen=True, slots=True)
+class BaselineMove:
+    """Which way this checkout moved the baseline, and from what value."""
+
+    direction: str
+    at_fork: int
+
+
+@dataclass(frozen=True, slots=True)
+class BaselineMoveFailure:
+    """Which of the two git reads failed, so the message can say which.
+
+    ``baseline_move`` performs two reads and either can fail for reasons that
+    share no remedy. Returning a bare None collapsed them, and the single
+    message that answered for all of them told the reader "this checkout's
+    history is unrelated to <base>: fetch the real base branch", which is an
+    unverified accusation in every case except the one it was written for, and
+    routes the reader to a `git fetch` that cannot fix their problem.
+
+    ``fork`` is the commit ``_fork_point`` named, present for every reason that
+    got past that read and None for ``FORK_POINT_UNREADABLE``. Carrying it lets
+    the message quote the commit whose baseline it could not read, which is the
+    one fact that separates "git cannot reach your history" from "git reached
+    it and the file there is missing or malformed".
+    """
+
+    reason: str
+    fork: str | None = None
+
+
+def baseline_move(
+    repo_root: Path, base_ref: str, baseline: Path, recorded: int
+) -> BaselineMove | BaselineMoveFailure:
+    """How this checkout moved the baseline number, or why git could not say.
+
+    ``recorded`` comes from ``read_baseline`` on the working tree, so a staged
+    or unstaged edit counts exactly like a committed one: the pre-push hook
+    scans whatever is on disk.
+
+    Direction matters, not merely difference. An earlier version returned a
+    bare ``recorded != at_fork``, which collapsed two opposite histories: a
+    branch that widened the allowance, and a cleanup branch that lowered the
+    baseline while the base ref lowered it further. The second was then told to
+    "restore" the base value, a number it never recorded, and to stop widening
+    an allowance it had just narrowed. That is the same
+    accusation-without-measurement defect issue #4066 was filed for, one level
+    down: the fork point was in hand and the direction was thrown away.
+
+    Failure is a named reason rather than a direction so the caller fails
+    closed. A gate that read an unlaunchable git as "this branch changed
+    nothing" would wave through the widened allowance it exists to catch. The
+    reason is measured, not inferred: which read failed is known here, and
+    ``baseline_absent_at_ref`` separates a fork commit that tracks no baseline
+    at all from one whose recorded value would not parse. The same defect one
+    level down again, and the reason this function no longer returns None.
+    """
+    fork = _fork_point(repo_root, base_ref)
+    if fork is None:
+        return BaselineMoveFailure(FORK_POINT_UNREADABLE)
+    at_fork = baseline_at_ref(repo_root, fork, baseline)
+    if at_fork is None and baseline_absent_at_ref(repo_root, fork, baseline):
+        return BaselineMoveFailure(FORK_BASELINE_ABSENT, fork)
+    if at_fork is None:
+        return BaselineMoveFailure(FORK_BASELINE_UNREADABLE, fork)
+    if recorded > at_fork:
+        return BaselineMove(BASELINE_RAISED, at_fork)
+    if recorded < at_fork:
+        return BaselineMove(BASELINE_LOWERED, at_fork)
+    return BaselineMove(BASELINE_UNCHANGED, at_fork)
+
+
+def _lowered_here_message(facts: _BaseRefFacts, *, at_fork: int) -> str:
+    """Report a branch that lowered the baseline while the base ref went lower.
+
+    Blocks, deliberately. The recorded value is still above the base ref's, so
+    passing it would install a ceiling the base branch has already fallen
+    below. The one-line baseline file conflicts on merge anyway, so blocking
+    here costs the author nothing beyond the merge they already owe, and it
+    keeps the recorded scalar one-directional against the base.
+
+    Names all three numbers it measured. It never says "restore", because this
+    branch lowered the value: there is nothing to undo, only a merge to take.
+    """
+    return (
+        f"{facts.label}: BASELINE LOWERED BEHIND BASE. The fork point records "
+        f"{at_fork}, this tree records {facts.baseline}, and {facts.base_ref} "
+        f"records {facts.base}. This branch lowered {at_fork} to "
+        f"{facts.baseline} while {facts.base_ref} lowered it further to "
+        f"{facts.base}, so the recorded value still sits {facts.excess} above "
+        f"the base. The measured count is {facts.count}. Merge or rebase from "
+        f"{facts.base_ref} and re-run with --update so the recorded value is "
+        f"measured against the current tree."
+    )
+
+
+def _fork_baseline_absent_message(facts: _BaseRefFacts, *, fork: str) -> str:
+    """Report a fork point git named that tracks no baseline file, and block.
+
+    Distinct from ``_unreadable_fork_message`` because the history is readable:
+    git resolved the fork point without trouble, so "fetch the real base
+    branch" and "run `git fetch --unshallow`" are both wrong, and following
+    either leaves the reader exactly where they started.
+    """
+    return (
+        f"{facts.label}: FORK POINT RECORDS NO BASELINE. This tree records "
+        f"{facts.baseline}, {facts.base_ref} records {facts.base} "
+        f"(+{facts.excess}). The measured count is {facts.count}. git named "
+        f"the fork point ({fork}) and that commit tracks no baseline file, so "
+        f"there is no earlier value to compare this tree's against and the "
+        f"ratchet blocks rather than guess. The history is readable, so "
+        f"fetching more of it changes nothing. Probable cause: the baseline "
+        f"was added to {facts.base_ref} after this branch was cut. Merge or "
+        f"rebase from {facts.base_ref} so the fork point lands on a commit "
+        f"that records it."
+    )
+
+
+def _fork_baseline_unreadable_message(facts: _BaseRefFacts, *, fork: str) -> str:
+    """Report a fork point whose recorded baseline would not read, and block.
+
+    The third way the fork-point comparison fails, and the one with no remedy
+    in git plumbing: the commit is reachable and does track the file, so what
+    failed is reading a value out of it. ``baseline_at_ref`` has already
+    written git's own stderr when the read itself failed, which is why this
+    message points at the line above rather than restating it.
+    """
+    return (
+        f"{facts.label}: FORK POINT BASELINE UNREADABLE. This tree records "
+        f"{facts.baseline}, {facts.base_ref} records {facts.base} "
+        f"(+{facts.excess}). The measured count is {facts.count}. git named "
+        f"the fork point ({fork}) and that commit does track a baseline file, "
+        f"but its value could not be read, so whether this tree moved the "
+        f"number cannot be determined and the ratchet blocks rather than "
+        f"guess. The history is readable, so fetching more of it changes "
+        f"nothing. Probable cause: the value recorded at that commit is not an "
+        f"integer, or the git read failed; any git error is printed above this "
+        f"line."
+    )
+
+
+def _unreadable_fork_message(facts: _BaseRefFacts, *, shallow: bool) -> str:
+    """Report that git could not name a fork point at all, and block.
+
+    Its own state, never ``_above_base_message``. That message offers "if it
+    did raise the baseline, restore {base}", an accusation this branch of the
+    code explicitly could not verify: with no fork point there is no evidence
+    about who moved the number. Reusing it told contributors who never touched
+    the baseline to restore a value they never held.
+
+    Narrower than it was. This message now answers only for a failed
+    ``_fork_point`` read, the one state where reachability really is the
+    problem, so its shallow-clone and unrelated-history remedies are the
+    measured ones. A baseline that is merely absent or malformed at a fork
+    point git named without trouble gets its own message above.
+    """
+    cause = (
+        "this is a shallow clone, so there is no common history to read: run "
+        "`git fetch --unshallow` (or re-checkout at full depth) and re-run"
+        if shallow
+        else f"this checkout's history is unrelated to {facts.base_ref}: fetch "
+        f"the real base branch and re-run"
+    )
+    return (
+        f"{facts.label}: FORK POINT UNREADABLE. This tree records "
+        f"{facts.baseline}, {facts.base_ref} records {facts.base} "
+        f"(+{facts.excess}). The measured count is {facts.count}. git could "
+        f"not name the commit where this branch left {facts.base_ref}, so "
+        f"whether this tree moved the baseline cannot be determined and the "
+        f"ratchet blocks rather than guess. Probable cause: {cause}."
+    )
+
+
+def _behind_base_message(facts: _BaseRefFacts) -> str:
+    """Report a stale branch that never moved the number, without blocking it.
+
+    Only printed for a caller that declared ``merge_tree_backed=True``, which
+    is what makes the closing sentence true rather than decorative.
+    """
+    return (
+        f"{facts.label}: BEHIND BASE (not blocking). This tree records "
+        f"{facts.baseline}, {facts.base_ref} records {facts.base} "
+        f"(+{facts.excess}), and the fork point records {facts.baseline} as "
+        f"well, so this branch never moved the number: it is behind "
+        f"{facts.base_ref}. The measured count is {facts.count}. "
+        f"Merge or rebase from {facts.base_ref} to clear this notice. This "
+        f"ratchet's baseline is registered in "
+        f"scripts/ci/merge_tree_ratchet_registry.py, so what the merged result "
+        f"would measure is gated by scripts/ci/merge_tree_ratchet_check.py, "
+        f"not by this comparison."
+    )
+
+
+def _behind_base_unbacked_message(facts: _BaseRefFacts) -> str:
+    """Report a stale branch on a ratchet with no merge-tree backstop, blocking.
+
+    The relaxation above trades this comparison for the merge-tree gate. A
+    ratchet whose baseline is absent from
+    ``scripts/ci/merge_tree_ratchet_registry.py`` has no such gate, so trading
+    it away leaves nothing measuring the merged result: the branch's stale
+    ceiling absorbs violations that land above the base's real one.
+    """
+    return (
+        f"{facts.label}: BEHIND BASE. This tree records {facts.baseline}, "
+        f"{facts.base_ref} records {facts.base} (+{facts.excess}), and the "
+        f"fork point records {facts.baseline} as well, so this branch never "
+        f"moved the number: it is behind {facts.base_ref}. The measured count "
+        f"is {facts.count}. Merge or rebase from {facts.base_ref} and re-run. "
+        f"This is blocking because this ratchet's baseline is NOT registered "
+        f"in scripts/ci/merge_tree_ratchet_registry.py: nothing else would "
+        f"measure the merged result, so the stale ceiling cannot be waived "
+        f"here."
+    )
+
+
+def _verdict_for_fork_failure(
+    failure: BaselineMoveFailure, facts: _BaseRefFacts, *, shallow: bool
+) -> int:
+    """Block on a fork-point read that could not answer, naming which one failed.
+
+    Every branch here blocks; what differs is the diagnostic and the exit code
+    it reports under, per the AGENTS.md contract this module's header quotes.
+    A baseline absent at the fork point is a config error (2), the same class
+    ``run`` already reports for a missing working-tree baseline. A malformed
+    fork-point baseline, a fork point git could not name, and a git read that
+    failed outright are external (3), the same class ``_base_ref_verdict``
+    already reports for an unreadable baseline at the base ref itself. Neither
+    is a regression: nothing measured says this branch widened an allowance,
+    which is exactly the claim ``EXIT_REGRESSION`` makes.
+
+    The ``fork is not None`` guards narrow the type and fail closed together:
+    a future reason that forgets to carry its fork point falls through to the
+    most conservative message rather than rendering a commit it does not have.
+    """
+    fork = failure.fork
+    if fork is not None and failure.reason == FORK_BASELINE_ABSENT:
+        print(_fork_baseline_absent_message(facts, fork=fork), file=sys.stderr)
+        return EXIT_CONFIG
+    if fork is not None and failure.reason == FORK_BASELINE_UNREADABLE:
+        print(_fork_baseline_unreadable_message(facts, fork=fork), file=sys.stderr)
+        return EXIT_EXTERNAL
+    print(_unreadable_fork_message(facts, shallow=shallow), file=sys.stderr)
+    return EXIT_EXTERNAL
+
+
+def _verdict_for_move(
+    move: BaselineMove | BaselineMoveFailure,
+    facts: _BaseRefFacts,
+    *,
+    shallow: bool,
+    merge_tree_backed: bool,
+) -> int | None:
+    """Pick the message and exit code for one measured fork-point outcome."""
+    if isinstance(move, BaselineMoveFailure):
+        return _verdict_for_fork_failure(move, facts, shallow=shallow)
+    if move.direction == BASELINE_RAISED:
+        print(_above_base_message(facts), file=sys.stderr)
+        return EXIT_REGRESSION
+    if move.direction == BASELINE_LOWERED:
+        print(_lowered_here_message(facts, at_fork=move.at_fork), file=sys.stderr)
+        return EXIT_REGRESSION
+    if not merge_tree_backed:
+        print(_behind_base_unbacked_message(facts), file=sys.stderr)
+        return EXIT_REGRESSION
+    print(_behind_base_message(facts))
+    return None
+
+
 def _base_ref_verdict(
-    args: argparse.Namespace, *, label: str, baseline: int, count: int
+    args: argparse.Namespace,
+    *,
+    label: str,
+    baseline: int,
+    count: int,
+    merge_tree_backed: bool,
 ) -> int | None:
     """Exit code when ``--base-ref`` blocks the run, or None to keep going.
 
-    A baseline above the one at the base ref always blocks. ``count`` has to be
+    A baseline above the one at the base ref blocks when this branch is what
+    moved it, in either direction, and when git cannot say. ``count`` has to be
     measured before this runs so the verdict can report it (issue #4066).
+
+    "When git cannot say" is three states, not one, and each names the read
+    that failed rather than the one the message used to blame: no fork point
+    (external), a fork point that tracks no baseline (config), and a fork point
+    whose baseline would not read (external). See ``_verdict_for_fork_failure``.
+
+    Issue #5065. The check used to block on ``baseline > base`` alone, which is
+    a property of the base ref moving rather than of anything the branch
+    authored: the moment ``main`` lowers a baseline, every branch cut before
+    that lowering fails. Measured 2026-08-03 against
+    ``scripts/ci/taste_count_baseline.txt`` at 598 on ``main``: 31 of 33 open
+    non-draft PRs recorded a higher number, and the queue was blocked on a
+    bookkeeping value none of those branches had touched.
+
+    ``merge_tree_backed`` is what makes passing that branch safe, and it is a
+    per-caller fact rather than a property of this module. The relaxation
+    trades this endpoint comparison for a gate that measures the merged tree,
+    so it may only be taken by a ratchet that HAS that gate:
+    ``scripts/ci/merge_tree_ratchet_check.py::_effective_baseline`` takes the
+    lower of the two sides, verbatim::
+
+        if base_value is None or merged_value is None:
+            return None
+        return min(base_value, merged_value)
+
+    That gate evaluates exactly the ratchets listed in
+    ``scripts/ci/merge_tree_ratchet_registry.py::RATCHETS``, which at the time
+    of writing is five of the six count ratchets in ``scripts/ci``; the
+    subprocess-encoding ratchet is not among them. A caller that is not
+    registered passes ``merge_tree_backed=False`` and keeps the old blocking
+    behaviour, because for it this comparison was the whole guard.
+    ``tests/ci/test_merge_tree_backing_declarations.py`` pins each caller's
+    declaration against the registry so the two cannot drift.
+
+    Stricter/looser/different than canonical: this check reads the fork point,
+    which the merge-tree gate never does, and it evaluates the branch's own
+    tree rather than the merged one. Neither subsumes the other. This one keeps
+    the recorded scalar one-directional; that one keeps the merged count under
+    the lower of the two ceilings.
     """
     root = args.repo_root.resolve()
     if baseline_absent_at_ref(root, args.base_ref, args.baseline):
@@ -458,11 +932,16 @@ def _base_ref_verdict(
         return EXIT_EXTERNAL
     if baseline <= base:
         return None
-    print(
-        _above_base_message(args.base_ref, label=label, baseline=baseline, base=base, count=count),
-        file=sys.stderr,
+    facts = _BaseRefFacts(
+        base_ref=args.base_ref, label=label, baseline=baseline, base=base, count=count
     )
-    return EXIT_REGRESSION
+    move = baseline_move(root, args.base_ref, args.baseline, baseline)
+    return _verdict_for_move(
+        move,
+        facts,
+        shallow=is_shallow_repository(root),
+        merge_tree_backed=merge_tree_backed,
+    )
 
 
 def run(
@@ -473,6 +952,7 @@ def run(
     scan_error: str,
     regression_advice: str,
     lister: Callable[[Path, frozenset[str]], list[str] | None] | None = None,
+    merge_tree_backed: bool = False,
 ) -> int:
     """Evaluate one ratchet. ``counter`` returns the current count, or None.
 
@@ -482,6 +962,13 @@ def run(
     contributors can see what needs fixing without a separate run (issue #3902).
     A lister is expected to order branch-touched files first so the 40-line cap
     cannot hide the violation that caused the regression.
+
+    ``merge_tree_backed`` states whether this ratchet's baseline is listed in
+    ``scripts/ci/merge_tree_ratchet_registry.py::RATCHETS``. Only a registered
+    ratchet may pass a branch that is merely behind the base ref, because only
+    a registered ratchet has a gate measuring the merged result. It defaults to
+    False so a ratchet added without thinking about this gets the strict, safe
+    behaviour rather than a silent hole; see ``_base_ref_verdict``.
     """
     baseline = read_baseline(args.baseline)
     if baseline is None:
@@ -494,7 +981,13 @@ def run(
         return EXIT_EXTERNAL
 
     if args.base_ref:
-        verdict = _base_ref_verdict(args, label=label, baseline=baseline, count=count)
+        verdict = _base_ref_verdict(
+            args,
+            label=label,
+            baseline=baseline,
+            count=count,
+            merge_tree_backed=merge_tree_backed,
+        )
         if verdict is not None:
             return verdict
 

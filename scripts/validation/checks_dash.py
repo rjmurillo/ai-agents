@@ -137,7 +137,7 @@ def _print_dash_violations(violations: list[tuple[str, int]]) -> None:
     print("       U+2013 with hyphen in numeric ranges;")
     print("       or restructure the sentence.")
     print(
-        "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Refs #1923).",
+        "  Rule: .claude/rules/universal.md MUST NOT entry 4 (Refs #1923).",
     )
 
 

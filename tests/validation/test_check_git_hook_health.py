@@ -1,3 +1,9 @@
+# taste-lint: ignore file-size, crossed 500 lines adding the inert-hook and
+# unreadable-hook cases to the dead-hooks class. This file is one gate's
+# contract, and its classes define each other: the healthy path only means
+# something read beside the dead-hook path it excludes. The split this file
+# already supports is by environment, and those cases live in
+# test_check_git_hook_health_environment.py. Issue #3779.
 """The pre-PR sequence refuses a push git would not gate (issue #5090).
 
 Two claims, separable, both pinned.
@@ -22,9 +28,16 @@ Coverage:
 
 - positive: healthy repo exits 0 and prints the probed hook and its directory;
   a linked worktree resolving to the common directory's hooks is healthy.
-- negative: a missing hooksPath directory, a directory with no pre-push, and an
-  unset hooksPath with no pre-push all exit 1 and name the remedy; a linked
-  worktree inherits the broken config; removing the gate fails the wiring test.
+- negative: a missing hooksPath directory, a directory with no pre-push, an
+  unset hooksPath with no pre-push, an executable hook that dispatches nothing,
+  one whose marker is commented out, one that echoes the marker, and an
+  undecodable one all exit 1 and name the remedy; an unreadable hook fails
+  closed through the OSError branch and reports the read failure rather than a
+  wrong command; a configured hook type with no shim, a non-executable one, and
+  one declared only in a `-local` overlay each fail, and that failure does not
+  claim pre-push is dead; an unusable Lefthook config exits 2 and an unreachable
+  Lefthook exits 3, per ADR-035; a linked worktree inherits the broken config;
+  removing the gate fails the wiring test.
 - edge: no lefthook config, non-repositories, and CI exit 0; missing Git and
   timeouts exit 3; the failure report stays inside a line budget.
 """
@@ -50,12 +63,19 @@ _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import check_git_hook_health
+import lefthook_inventory
 import pre_pr_sequence
 
 GATE_NAME = "Git Hook Health (core.hooksPath)"
 GUARD = _VALIDATION_DIR / "check_git_hook_health.py"
 
 LEFTHOOK_CONFIG = "pre-push:\n  commands:\n    noop:\n      run: true\n"
+# Two hook types configured. With `no_auto_install: true` a newly added type
+# keeps no shim until install runs again, and git runs nothing for it silently.
+TWO_HOOK_CONFIG = (
+    "pre-push:\n  commands:\n    noop:\n      run: true\n"
+    "commit-msg:\n  commands:\n    noop:\n      run: true\n"
+)
 
 
 def _git_test_env() -> dict[str, str]:
@@ -100,10 +120,38 @@ def _make_repo(root: Path, name: str, *, lefthook: bool = True) -> Path:
     return repo
 
 
-def _install_prepush(hooks_dir: Path) -> None:
+# The shape Lefthook installs, reduced to the line this gate matches. The old
+# fixture here was `#!/bin/sh\nexit 0`, an executable hook that dispatches
+# nothing, so every "healthy" assertion in this file was satisfied by exactly
+# the fail-open state the gate is meant to refuse (issue #4789).
+DISPATCHING_PREPUSH = (
+    "#!/bin/sh\n"
+    "call_lefthook()\n"
+    "{\n"
+    '  lefthook "$@"\n'
+    "}\n"
+    'call_lefthook run "pre-push" "$@"\n'
+)
+# Executable, final command, contains the marker, dispatches nothing. Refused
+# only by matching the complete generated command rather than a substring.
+ECHOED_MARKER_PREPUSH = (
+    "#!/bin/sh\n"
+    "echo 'call_lefthook run \"pre-push\"'\n"
+)
+INERT_PREPUSH = "#!/bin/sh\nexit 0\n"
+# Executable, mentions the marker, dispatches nothing. A whole-file substring
+# search accepts this; anchoring to the final command refuses it (CWE-693).
+COMMENTED_MARKER_PREPUSH = (
+    "#!/bin/sh\n"
+    '# call_lefthook run "pre-push" "$@"\n'
+    "exit 0\n"
+)
+
+
+def _install_prepush(hooks_dir: Path, body: str = DISPATCHING_PREPUSH) -> None:
     hooks_dir.mkdir(parents=True, exist_ok=True)
     hook = hooks_dir / "pre-push"
-    hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    hook.write_text(body, encoding="utf-8")
     hook.chmod(0o755)
 
 
@@ -113,10 +161,16 @@ def _run_cli(repo: Path, guard: Path = GUARD) -> subprocess.CompletedProcess[str
     The environment is built from scratch rather than inherited so no CI-only
     variable can change the branch under test (testing.md SHOULD 12).
     """
+    env = _git_test_env()
+    # The guard imports its sibling `lefthook_inventory` by bare name, the way
+    # production does (issue #2223). The negative control runs a mutated copy
+    # from tmp_path, which has no such sibling, so the real directory has to be
+    # importable or that test fails on the import rather than on the mutation.
+    env["PYTHONPATH"] = str(_VALIDATION_DIR)
     return subprocess.run(
         [sys.executable, str(guard), str(repo)],
         cwd=str(repo),
-        env=_git_test_env(),
+        env=env,
         capture_output=True,
         text=True,
         check=False,
@@ -142,8 +196,8 @@ class TestHealthy:
 
         out = _run_cli(repo).stdout
 
-        assert "1 of 1 probed hook found" in out
-        assert "pre-push present in" in out
+        assert "1 of 1 found" in out
+        assert "pre-push live in" in out
 
     def test_a_healthy_repo_diagnoses_as_none(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path, "healthy")
@@ -204,6 +258,239 @@ class TestDeadHooks:
         assert result.returncode == 1
         assert "core.hooksPath is unset" in result.stderr
         assert check_git_hook_health.REMEDY in result.stderr
+
+    def test_an_executable_hook_that_dispatches_nothing_fails(
+        self, tmp_path: Path
+    ) -> None:
+        """The fail-open case: executable, readable by git, and inert.
+
+        Before this assertion existed, `#!/bin/sh` plus `exit 0` passed here,
+        and it also passes the adjacent `Lefthook Installed` gate, which only
+        proves the configured runtime starts. Together the two gates reported a
+        gated push for a clone that runs no job at all (issue #4789).
+        """
+        repo = _make_repo(tmp_path, "inert")
+        _install_prepush(repo / ".git" / "hooks", body=INERT_PREPUSH)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "does not dispatch Lefthook" in result.stderr
+        assert check_git_hook_health.REMEDY in result.stderr
+
+    def test_a_commented_out_marker_does_not_count_as_dispatch(
+        self, tmp_path: Path
+    ) -> None:
+        """Mentioning the marker is not dispatching it.
+
+        The first version of this gate matched the marker anywhere in the file,
+        so an inert hook carrying it in a comment above `exit 0` passed while
+        running no guard. The check is anchored to the final command instead.
+        """
+        repo = _make_repo(tmp_path, "commented")
+        _install_prepush(repo / ".git" / "hooks", body=COMMENTED_MARKER_PREPUSH)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "does not dispatch Lefthook" in result.stderr
+
+    def test_an_echoed_marker_does_not_count_as_dispatch(
+        self, tmp_path: Path
+    ) -> None:
+        """Printing the dispatch is not running it.
+
+        The prior version anchored to the final command but matched a
+        substring, so `echo 'call_lefthook run "pre-push"'` passed: an
+        executable final command that dispatches nothing. The check now
+        compares against the complete generated command.
+        """
+        repo = _make_repo(tmp_path, "echoed")
+        _install_prepush(repo / ".git" / "hooks", body=ECHOED_MARKER_PREPUSH)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "does not dispatch Lefthook" in result.stderr
+
+    def test_an_undecodable_hook_fails(self, tmp_path: Path) -> None:
+        """A binary payload decodes under errors="replace" and has no marker.
+
+        Named for what it actually exercises. It does not reach the OSError
+        branch, which the test below covers.
+        """
+        repo = _make_repo(tmp_path, "undecodable")
+        hooks_dir = repo / ".git" / "hooks"
+        _install_prepush(hooks_dir)
+        (hooks_dir / "pre-push").write_bytes(b"\x00\xff\xfe binary payload")
+        (hooks_dir / "pre-push").chmod(0o755)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "does not dispatch Lefthook" in result.stderr
+
+    def test_an_unreadable_hook_reports_the_read_failure_not_a_wrong_command(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A hook the gate cannot read is unverified, and says so.
+
+        Drives the `except OSError` branch, which no on-disk payload reaches:
+        production reads with `errors="replace"`, so decoding always succeeds.
+        The earlier version collapsed this into the same boolean as a wrong
+        final command, so the gate blamed the command when nothing had been
+        read and the real permission fault was hidden.
+        """
+        repo = _make_repo(tmp_path, "unreadable")
+        _install_prepush(repo / ".git" / "hooks")
+
+        def deny(self: Path, *args: object, **kwargs: object) -> str:
+            raise PermissionError(f"denied: {self}")
+
+        monkeypatch.setattr(check_git_hook_health.Path, "read_text", deny)
+        reason = check_git_hook_health.diagnose(repo)
+
+        assert reason is not None
+        assert "could not be read" in reason
+        assert "state is unverifiable" in reason
+        assert "does not dispatch Lefthook" not in reason
+
+    def test_a_configured_hook_type_with_no_shim_fails(self, tmp_path: Path) -> None:
+        """Probing pre-push alone misses the hook type someone just added.
+
+        `no_auto_install: true` is what keeps one worktree from re-syncing the
+        shims every other worktree reads, and the same setting leaves a newly
+        configured hook type with no shim until install runs again. Git runs no
+        hook it has no file for and prints no warning.
+        """
+        repo = _make_repo(tmp_path, "missing_type")
+        (repo / "lefthook.yml").write_text(TWO_HOOK_CONFIG, encoding="utf-8")
+        _install_prepush(repo / ".git" / "hooks")
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "commit-msg" in result.stderr
+        assert check_git_hook_health._POST_PROBE_PREFIX in result.stderr
+
+    def test_every_configured_hook_type_installed_passes(self, tmp_path: Path) -> None:
+        """The positive control for the check above."""
+        repo = _make_repo(tmp_path, "all_types")
+        (repo / "lefthook.yml").write_text(TWO_HOOK_CONFIG, encoding="utf-8")
+        hooks_dir = repo / ".git" / "hooks"
+        _install_prepush(hooks_dir)
+        commit_msg = hooks_dir / "commit-msg"
+        commit_msg.write_text(
+            DISPATCHING_PREPUSH.replace('"pre-push"', '"commit-msg"'),
+            encoding="utf-8",
+        )
+        commit_msg.chmod(0o755)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 0
+        # The count must track what was examined. It was hard-coded `1 of 1`,
+        # which made the multi-hook check read as the old single probe.
+        assert "2 of 2 found" in result.stdout
+        assert "commit-msg" in result.stdout
+
+    def test_a_local_overlay_hook_type_is_checked(self, tmp_path: Path) -> None:
+        """A `-local` overlay adds hook types, and Lefthook installs them.
+
+        Stopping at the first matching config filename read only the base file,
+        so an overlay's hook type could have no shim while the gate reported
+        healthy.
+        """
+        repo = _make_repo(tmp_path, "overlay")
+        (repo / "lefthook-local.yml").write_text(
+            "commit-msg:\n  commands:\n    noop:\n      run: true\n",
+            encoding="utf-8",
+        )
+        _install_prepush(repo / ".git" / "hooks")
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "commit-msg" in result.stderr
+
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Git for Windows does not use POSIX execute bits"
+    )
+    def test_a_non_executable_configured_hook_fails(self, tmp_path: Path) -> None:
+        """Text alone is not installation: git ignores a non-executable shim.
+
+        Same platform skip as the `pre-push` case above: `chmod(0o644)` cannot
+        create this state on Windows, so the test could not establish its own
+        precondition there.
+        """
+        repo = _make_repo(tmp_path, "not_executable_type")
+        (repo / "lefthook.yml").write_text(TWO_HOOK_CONFIG, encoding="utf-8")
+        hooks_dir = repo / ".git" / "hooks"
+        _install_prepush(hooks_dir)
+        commit_msg = hooks_dir / "commit-msg"
+        commit_msg.write_text(
+            DISPATCHING_PREPUSH.replace('"pre-push"', '"commit-msg"'),
+            encoding="utf-8",
+        )
+        commit_msg.chmod(0o644)
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "commit-msg" in result.stderr
+
+    def test_a_missing_hook_type_does_not_claim_pre_push_is_dead(
+        self, tmp_path: Path
+    ) -> None:
+        """The summary must match the condition that was detected.
+
+        `_evaluate` used to append "pre-push does not run" to every failure,
+        including one reached only after the pre-push probe passed.
+        """
+        repo = _make_repo(tmp_path, "summary")
+        (repo / "lefthook.yml").write_text(TWO_HOOK_CONFIG, encoding="utf-8")
+        _install_prepush(repo / ".git" / "hooks")
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "pre-push itself is live" in result.stderr
+        assert check_git_hook_health._POST_PROBE_PREFIX in result.stderr
+        assert "pre-push does not run" not in result.stderr
+
+    def test_a_dead_pre_push_still_says_pushes_are_ungated(
+        self, tmp_path: Path
+    ) -> None:
+        """The positive control for the branch above."""
+        repo = _make_repo(tmp_path, "dead_prepush")
+
+        result = _run_cli(repo)
+
+        assert result.returncode == 1
+        assert "pre-push does not run" in result.stderr
+
+    def test_an_unreadable_config_fails_instead_of_degrading(
+        self, tmp_path: Path
+    ) -> None:
+        """An inventory the gate cannot obtain is unverifiable, not healthy.
+
+        The first version returned None here and fell back to probing only
+        `pre-push`, so a `.jsonc` overlay adding `commit-msg` left that shim
+        absent while this gate passed. Unverifiable is not a pass, the same rule
+        the unreadable-hook case follows.
+        """
+        repo = _make_repo(tmp_path, "unparseable")
+        (repo / "lefthook.yml").write_text("pre-push: [unclosed\n", encoding="utf-8")
+        _install_prepush(repo / ".git" / "hooks")
+
+        result = _run_cli(repo)
+
+        # ADR-035: a config error is 2, not a generic logic failure, and the
+        # repair is to fix the config rather than to sync dependencies.
+        assert result.returncode == 2
+        assert "Lefthook configuration is unusable" in result.stderr
+        assert check_git_hook_health.CONFIG_REMEDY in result.stderr
+        assert check_git_hook_health.RUNTIME_REMEDY not in result.stderr
 
     def test_validation_reuses_the_resolved_hooks_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -354,7 +641,7 @@ class TestLinkedWorktrees:
 
         repaired = _run_cli(worktree)
         assert repaired.returncode == 0
-        assert "pre-push present" in repaired.stdout
+        assert "pre-push live in" in repaired.stdout
 
 
 class TestOutOfScope:
@@ -411,6 +698,141 @@ class TestOutOfScope:
         assert check_git_hook_health.main([str(tmp_path / "nope")]) == 2
 
 
+class TestInventoryFailures:
+    """An inventory that cannot be obtained is unverifiable, and typed."""
+
+    def test_diagnose_reports_an_inventory_failure_instead_of_raising(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`diagnose()`'s `str | None` contract holds when the dump step fails.
+
+        `LefthookConfigError`/`LefthookExecutionError` can only come from
+        `configured_hook_types`, called inside `_diagnose_hooks_dir` after the
+        PROBE_HOOK check passes, not from `_hooks_dir`. That call used to sit
+        outside `diagnose()`'s try block, so its except clause for these two
+        exceptions was unreachable and a failing dump crashed the caller
+        instead of returning the documented string.
+        """
+        repo = _make_repo(tmp_path, "dump_fails")
+        _install_prepush(repo / ".git" / "hooks")
+        monkeypatch.setattr(lefthook_inventory, "dump_commands", list)
+
+        reason = check_git_hook_health.diagnose(repo)
+
+        assert reason is not None
+        assert reason.startswith(check_git_hook_health._POST_PROBE_PREFIX)
+
+    def test_an_unreachable_lefthook_is_an_external_failure(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No runnable candidate is exit 3, not a config error.
+
+        ADR-035 separates these because the repairs do: syncing dependencies
+        installs a missing runtime and does nothing for invalid YAML.
+        """
+        repo = _make_repo(tmp_path, "no_lefthook")
+        _install_prepush(repo / ".git" / "hooks")
+        monkeypatch.setattr(lefthook_inventory, "dump_commands", list)
+
+        assert check_git_hook_health._evaluate(repo) == 3
+
+    def test_dump_output_that_is_not_a_mapping_is_a_config_error(self) -> None:
+        """Lefthook ran and produced something unusable: exit 2."""
+        with pytest.raises(lefthook_inventory.LefthookConfigError):
+            lefthook_inventory._parse_dump("[]")
+
+    def test_dump_output_that_is_not_json_is_a_config_error(self) -> None:
+        with pytest.raises(lefthook_inventory.LefthookConfigError):
+            lefthook_inventory._parse_dump("not json at all")
+
+    def test_a_hook_entry_needs_work_not_just_a_mapping(self) -> None:
+        """`templates` and `colors` are mappings too, and are not hooks.
+
+        `setup` (https://lefthook.dev/configuration/setup/) is its own key,
+        separate from jobs/commands/scripts: a hook declaring only setup
+        instructions is still real, dispatching work. Omitting it dropped
+        such a hook from the inventory entirely, so an absent shim for it
+        was never flagged and Git Hook Health reported success on a hook
+        that never ran (CWE-693).
+        """
+        assert lefthook_inventory._is_hook_entry({"jobs": []})
+        assert lefthook_inventory._is_hook_entry({"commands": {}})
+        assert lefthook_inventory._is_hook_entry({"scripts": {}})
+        assert lefthook_inventory._is_hook_entry({"setup": []})
+        assert not lefthook_inventory._is_hook_entry({"some": "template"})
+        assert not lefthook_inventory._is_hook_entry("doublestar")
+        assert not lefthook_inventory._is_hook_entry(True)
+
+    def test_a_timeout_is_an_execution_error(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The lone candidate timing out is unreachable, not a config error."""
+        monkeypatch.setattr(
+            lefthook_inventory, "dump_commands", lambda: [["fake-lefthook", "dump"]]
+        )
+        monkeypatch.setattr(
+            lefthook_inventory.subprocess,
+            "run",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                lefthook_inventory.subprocess.TimeoutExpired("fake-lefthook", 20)
+            ),
+        )
+
+        with pytest.raises(lefthook_inventory.LefthookExecutionError, match="timed out"):
+            lefthook_inventory.configured_hook_types(tmp_path)
+
+    def test_a_launch_failure_is_an_execution_error(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The lone candidate failing to start (missing binary) is unreachable."""
+        monkeypatch.setattr(
+            lefthook_inventory, "dump_commands", lambda: [["fake-lefthook", "dump"]]
+        )
+        monkeypatch.setattr(
+            lefthook_inventory.subprocess,
+            "run",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                OSError("no such file or directory: fake-lefthook")
+            ),
+        )
+
+        with pytest.raises(
+            lefthook_inventory.LefthookExecutionError, match="could not run"
+        ):
+            lefthook_inventory.configured_hook_types(tmp_path)
+
+    def test_a_launch_failure_falls_back_to_the_next_candidate(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Mixed outcomes: the first candidate fails to start, the second runs.
+
+        `dump_commands` can return up to two candidates (`uv run --frozen
+        lefthook` then a bare `lefthook`); a launch failure on the first must
+        not stop the second from being tried.
+        """
+        monkeypatch.setattr(
+            lefthook_inventory,
+            "dump_commands",
+            lambda: [["uv", "run", "lefthook", "dump"], ["lefthook", "dump"]],
+        )
+        calls: list[list[str]] = []
+
+        def fake_run(command, **_kwargs):
+            calls.append(command)
+            if command[0] == "uv":
+                raise OSError("no such file or directory: uv")
+            return subprocess.CompletedProcess(
+                command, 0, stdout='{"pre-push": {"commands": {}}}', stderr=""
+            )
+
+        monkeypatch.setattr(lefthook_inventory.subprocess, "run", fake_run)
+
+        result = lefthook_inventory.configured_hook_types(tmp_path)
+
+        assert result == frozenset({"pre-push"})
+        assert len(calls) == 2, "the second candidate must still be tried"
+
+
 class TestNegativeControl:
     """Prove these tests fail if the gate stops detecting."""
 
@@ -420,16 +842,17 @@ class TestNegativeControl:
         repo = _make_repo(tmp_path, "missing_dir")
         _git(repo, "config", "core.hooksPath", str(repo / ".githooks"))
         original = GUARD.read_text(encoding="utf-8")
-        target = (
-            "    if hook.is_file() and os.access(hook, os.X_OK):\n"
-            "        return None\n"
-        )
+        # Short-circuit the whole diagnosis rather than one of its guards. The
+        # gate now has two failing conditions, unreachable hook and inert hook,
+        # and neutering only the first leaves the second still failing this
+        # repository, which would make the control pass for the wrong reason.
+        target = "    probed = frozenset({PROBE_HOOK})\n"
         assert original.count(target) == 1, (
             "mutation target moved; the control did not apply"
         )
         neutered = tmp_path / "neutered_gate.py"
         neutered.write_text(
-            original.replace(target, "    if True:\n        return None\n"),
+            original.replace(target, target + "    return None, probed\n"),
             encoding="utf-8",
         )
         assert neutered.read_text(encoding="utf-8") != original
@@ -494,3 +917,53 @@ class TestSequenceWiring:
         names, _seen = _drive(monkeypatch)
 
         assert names.index(GATE_NAME) + 1 == names.index("Lefthook Installed")
+
+
+class TestPackageImport:
+    """The module has to import on its own, not by riding another import.
+
+    Every test above imports ``check_git_hook_health`` the same way production
+    does per the module comment at the top of this file: prepend
+    ``scripts/validation`` to ``sys.path`` first, then import by bare name.
+    That side effect is what let ``from lefthook_inventory import (...)``
+    resolve inside the module itself. It never runs for a caller that reaches
+    this file as the package member ``scripts.validation.check_git_hook_health``
+    instead. ``pre_pr_sequence.py`` does not hit this: it also inserts
+    ``scripts/validation`` onto ``sys.path`` before importing this module by
+    the same bare name. ``tests/test_lefthook_integration.py`` does hit it,
+    importing this file as the package member directly, and that broke inside
+    the mutation-testing harness's isolated worktree copy with
+    ``ModuleNotFoundError: No module named 'lefthook_inventory'``, because the
+    harness's own subprocess never ran this file's sys.path insert before
+    reaching the package import.
+
+    A fresh subprocess is required rather than reloading the module in-process:
+    this test file's own module-level sys.path insert (needed to import
+    `check_git_hook_health` for every other test above) would otherwise mask
+    the exact condition being tested.
+    """
+
+    def test_the_module_imports_as_a_package_member_with_no_prior_path_setup(self) -> None:
+        """The import itself does insert `scripts/validation`; that is the fix.
+
+        What must hold with no help from the caller is only the absence of a
+        *prior* insert: no sys.path setup runs before this subprocess's own
+        `-c` import, matching how `tests/test_lefthook_integration.py` reaches
+        this module with no earlier collection having primed the path.
+        """
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from scripts.validation import check_git_hook_health",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "lefthook_inventory" not in result.stderr

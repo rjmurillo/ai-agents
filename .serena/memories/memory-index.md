@@ -31,6 +31,7 @@
 |pr autofix batch merge conflict lease contention hook: [pr-autofix/batch-d-2026-08-11](pr-autofix/batch-d-2026-08-11.md) (1048)
 |pr autofix fleet lease renewal live-state QA evidence: [pr-autofix/fleet-operations](pr-autofix/fleet-operations.md) (406)
 |pr autofix lease renewal comment spam PR-AUTOFIX-LEASE post throttle self-renew noop concurrent session fleet: [pr-autofix/lease-renewal-comment-spam](pr-autofix/lease-renewal-comment-spam.md) (762)
+|pr autofix orphaned local commits round-cap escalation verification reuse: [pr-autofix/pr-autofix-orphaned-commit-verification](pr-autofix/pr-autofix-orphaned-commit-verification.md) (380)
 |github pr issue cli gh api review comment: [skills-github-cli-index](skills-github-cli-index.md) (627), [skills-pr-review-index](skills-pr-review-index.md) (1100), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (699), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |review axes full rerun cost ship marker amplifier scoped adr-094: [review/review-full-rerun-cost-and-ship-marker-amplifier](review/review-full-rerun-cost-and-ship-marker-amplifier.md) (662)
 |gist githubusercontent raw revision file selector content integrity: [github/gist-routing-content-integrity](github/gist-routing-content-integrity.md) (402)
@@ -49,12 +50,15 @@
 |zsh bash associative array bad substitution shell iteration: [pr-review/zsh-associative-array-bad-substitution](pr-review/zsh-associative-array-bad-substitution.md) (343)
 |ruleset required contexts scheduled drift second baseline duplicate source contract: [decision-ruleset-drift-must-not-create-a-second-baseline](decision-ruleset-drift-must-not-create-a-second-baseline.md) (258)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
+|stacked pull request async merge endpoint merge-async stack GraphQL refusal: [github/stacked-pr-async-merge-endpoint](github/stacked-pr-async-merge-endpoint.md) (1084)
 
 [Scripting and Testing]
 |repo-root default script REPO_ROOT __file__ scratch clone cwd: [testing/repo-root-default-measures-the-wrong-repository](testing/repo-root-default-measures-the-wrong-repository.md) (719)
 |portability git timeout diagnostics fail closed operation context: [portability/git-timeout-diagnostics](portability/git-timeout-diagnostics.md) (951)
 |portability single traversal scan_all extra scan roots files_by_root required vendor-portability marker path drift declaration fenced code: [validation/validation-portability-scan-contract](validation/validation-portability-scan-contract.md) (753)
 |portability descendant symlink file directory escape repo root: [validation/descendant-symlink-portability-containment](validation/descendant-symlink-portability-containment.md) (210)
+|detector widening corpus probe measure before design count newly flagged gate false positive: [validation/measure-a-detector-widening-before-designing-it](validation/measure-a-detector-widening-before-designing-it.md) (409)
+|shared resolver latent defect inherited second caller granularity shell comment variable binding order: [validation/reusing-a-resolver-inherits-its-latent-defects](validation/reusing-a-resolver-inherits-its-latent-defects.md) (460)
 |eval harness enumerate scripts naming underscore hyphen glob: [eval-harness-surface-enumeration](eval-harness-surface-enumeration.md) (681)
 |powershell ps1 psm1 module pester test discovery isolation: [skills-powershell-index](skills-powershell-index.md) (443), [skills-pester-testing-index](skills-pester-testing-index.md) (181), [powershell/pester-variable-scoping](powershell/pester-variable-scoping.md) (497), [powershell/powershell-variable-shadowing-detection](powershell/powershell-variable-shadowing-detection.md) (665), [patterns/pattern-thin-workflows](patterns/pattern-thin-workflows.md) (1373)
 |bash exit code cross-language contract AUTOFIX pre-commit hook: [skills-bash-integration-index](skills-bash-integration-index.md) (110)
@@ -75,7 +79,7 @@
 |architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (588)
 |adr decision record active proposed superseded rationale artifact: [adr-reference-index](adr-reference-index.md) (673), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (824), [adr/adr-review-observations](adr/adr-review-observations.md) (749)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
-|always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (2165)
+|always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (2477)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
 
 [Implementation and Quality]
@@ -109,7 +113,7 @@
 |spec coverage acceptance criteria checkbox observe signal non-blocking: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
 |mutation harness restore failure truncate empty target sibling: [ci/mutation-harness-restore-failure-safe-writes](ci/mutation-harness-restore-failure-safe-writes.md) (360)
 |BOT_PAT github.token runner token AI review read calls: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
-|count ratchet baseline branch freshness behind main stale: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (864)
+|count ratchet baseline branch freshness behind main stale: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (1604)
 |taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (875)
 |pre-push wall clock duration python-tests partitions mutation contention DORA: [ci/ci-pre-push-wall-clock-is-python-tests](ci/ci-pre-push-wall-clock-is-python-tests.md) (1014)
 |taste baseline slack MAX_BASELINE_SLACK drift enforced by pytest: [ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet](ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet.md) (839)
@@ -118,6 +122,8 @@
 |tracking branch push retry fleet CPU load pre-pr-validation timeout SIGKILL: [ci/tracking-branch-push-retries-under-fleet-cpu-load](ci/tracking-branch-push-retries-under-fleet-cpu-load.md) (1649)
 |stuck subagent SendMessage nudge git checkout stale local branch GH007 private email gc_worktrees rescue branch: [agent-behavior/stuck-subagent-and-worktree-recovery](agent-behavior/stuck-subagent-and-worktree-recovery.md) (1368)
 |validate PR check red advisory blocking signal DESCRIPTION_RESULT: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (3126)
+|workspace WSL native worktree uv network handshake mutation harness /mnt/c: [workspace/wsl-native-worktree-for-uv-network-access](workspace/wsl-native-worktree-for-uv-network-access.md) (352)
+|validate PR check red advisory blocking signal DESCRIPTION_RESULT: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (2960)
 |linking an issue Closes Fixes Resolves Implements Refs: [ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff](ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md) (1302)
 |QA report filename issue-N pr-N rename first push glob: [ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr](ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr.md) (1221)
 |job name collision duplicate check name ambiguous red: [ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous](ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous.md) (1490)
@@ -166,7 +172,7 @@
 
 [Retrospective and Learning]
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
-|skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (924)
+|skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (1674)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
 |implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (632), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
 
@@ -192,7 +198,7 @@
 |25+ years distinguished: [distinguished-engineer-knowledge-index](distinguished-engineer-knowledge-index.md) (283)
 
 [User Constraints (MUST READ)]
-|no auto-generated headers timestamps do-not-edit: <a href="../../.claude/rules/universal.md">universal.md</a> MUST NOT 6 (canonical)
+|no auto-generated headers timestamps do-not-edit: <a href="../../.claude/rules/universal.md">universal.md</a> MUST NOT 5 (canonical)
 |user-facing content internal refs prohibited: [user-preferences/user-facing-content-restrictions](user-preferences/user-facing-content-restrictions.md) (456)
 
 [Related]

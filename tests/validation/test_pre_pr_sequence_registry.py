@@ -31,6 +31,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Import the way production imports (issue #2223): prepend ``scripts/validation``
@@ -52,6 +54,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Subprocess Encoding Convention',
     'Test Working Tree Writes',
     'Push Lock Path Agreement',
+    'Index Line Endings',
     'Worktree Recipe Destinations',
     'Temp-filesystem Worktrees (advisory)',
     'Session End Validation',
@@ -65,6 +68,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Design Review Frontmatter',
     'Build Command Exit Gates',
     'Stale Script References',
+    'Citation Freshness (added lines)',
     'Documented Interpreter Portability',
     'Orphaned Build Deferrals',
     'Generated Artifact Staleness',
@@ -93,6 +97,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Agent Drift Detection',
     'Install Parity (agents and rules)',
     'Agent Content Parity (.claude/agents vs src/claude)',
+    'Agent Tree Frontmatter (.claude/agents)',
     'Plugin Version Bump',
     'Hook Anchoring (Claude + Copilot)',
     'Copilot Agent Frontmatter',
@@ -103,6 +108,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Review Marker (SHA-bound /review)',
     'Instruction Budget (always-on)',
     'Always-on Corpus Claims',
+    'Rule Scope Declarations (paths:)',
 )
 
 QUICK_SKIPPED: frozenset[str] = frozenset(
@@ -113,6 +119,19 @@ QUICK_SKIPPED: frozenset[str] = frozenset(
         'Agent Drift Detection',
     }
 )
+FAST_STAGE_DUPLICATES = frozenset(
+    {
+        "Count Ratchets",
+        "Unreachable Code Detection",
+        "Path Normalization",
+        "Planning Artifacts",
+    }
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_fast_stage_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, raising=False)
 
 
 def _record(**flags: bool) -> tuple[list[tuple[str, bool]], SimpleNamespace, str]:
@@ -185,6 +204,37 @@ class TestSkipTestsFlag:
     def test_default_run_leaves_the_totals_to_the_runner(self) -> None:
         _recorded, state, out = _record()
         assert (state.total, state.skipped, out) == (0, 0, "")
+
+
+class TestFastStageDeferral:
+    def test_flag_defers_exactly_the_duplicate_gates(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "1")
+        recorded, state, out = _record()
+
+        emitted = {name for name, _skip in recorded}
+        assert set(EXPECTED_ORDER) - emitted == FAST_STAGE_DUPLICATES
+        assert state.total == state.skipped == len(FAST_STAGE_DUPLICATES)
+        assert "count-ratchets" in out
+
+    def test_other_flag_values_run_every_gate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "true")
+        recorded, state, _out = _record()
+
+        assert tuple(name for name, _ in recorded) == EXPECTED_ORDER
+        assert (state.total, state.skipped) == (0, 0)
+
+    def test_quick_mode_does_not_double_count_deferred_gates(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, "1")
+        recorded, state, _out = _record(quick=True)
+
+        assert set(name for name, _ in recorded).isdisjoint(FAST_STAGE_DUPLICATES)
+        assert state.total == state.skipped == len(FAST_STAGE_DUPLICATES)
 
 
 class TestPrePrReexportsTheAdrValidators:

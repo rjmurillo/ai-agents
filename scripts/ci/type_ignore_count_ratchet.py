@@ -51,12 +51,22 @@ __all__ = [
     "EXIT_EXTERNAL",
     "EXIT_OK",
     "EXIT_REGRESSION",
+    "MERGE_TREE_BACKED",
     "_SELF_REFERENTIAL_FILES",
     "current_count",
     "main",
 ]
 
 _BASELINE_PATH = Path(__file__).with_name("type_ignore_count_baseline.txt")
+
+MERGE_TREE_BACKED = True
+"""This baseline is registered in ``merge_tree_ratchet_registry.py::RATCHETS``.
+
+Registration is what lets ``count_ratchet.run`` pass a branch that merely holds
+a number ``main`` lowered underneath it: the merged result is measured by
+``scripts/ci/merge_tree_ratchet_check.py`` instead. Pinned against the registry
+by ``tests/ci/test_merge_tree_backing_declarations.py``.
+"""
 
 # Match ``# type: ignore`` with optional bracket qualifier, allowing whitespace
 # variations. Only Python (.py) files are counted; other extensions do not use
@@ -128,6 +138,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "or if suppression is genuinely required, coordinate a baseline "
             "update with a reasoned explanation (issue #4039)."
         ),
+        merge_tree_backed=MERGE_TREE_BACKED,
     )
 
 

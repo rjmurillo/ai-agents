@@ -113,6 +113,65 @@ parent issue. Apply these rules:
 If no `## Incremental Scope Declaration` is present, treat all criteria as
 in-scope and apply the normal verdict guidelines below.
 
+## Non-Executable Criteria (fix #5366)
+
+You review a diff. You have no shell, so you cannot re-run a command someone
+else already ran. A criterion that reports how such a run turned out is
+unverifiable by construction, not unmet. Marking it `[~] PARTIALLY SATISFIED`
+fails the whole gate closed on every re-run no matter how correct the
+implementation is, because `PARTIAL` is a failure token in
+`scripts/ai_review_common/verdict.py`.
+
+The exemption is narrow. It covers **historical run evidence** and nothing
+else: a claim that a named command was executed and produced a result.
+Examples: "`uv run python scripts/validation/pre_pr.py` passes", "`pytest`
+exits 0", "`ruff check .` is green", "`make build` completes successfully",
+"manually verified locally". Each reports a run. None of them says what the
+code must do.
+
+A **behavioral contract** stays in scope even when it is phrased with a
+command, because the diff establishes it and you can check it. Keep in scope:
+
+- A required exit code: "the wrapper exits 2 on a malformed config".
+- A required output shape: "`--json` emits one object per finding".
+- Required error handling for a named input: "an empty ref is rejected with a
+  non-zero exit".
+- Required behavior of a command the diff adds or changes: "the new `--strict`
+  flag fails on a warning".
+- A conditional whose subject is the code under review: "the wrapper returns
+  zero when `pytest` passes" asserts what the wrapper must do.
+
+The discriminator: does the criterion report **a run that already happened**,
+or state **behavior this diff must establish**? Only the first is `N/A`. When
+both readings stay open, keep the criterion in scope and evaluate it from the
+diff. A criterion wrongly marked `N/A` is measured by nothing.
+
+Apply these rules:
+
+1. An explicitly unchecked criterion stays in scope as `NOT SATISFIED`. The
+   run-evidence exemption does not erase an admitted gap.
+2. Otherwise, mark a historical-run-evidence claim `N/A`, never `PARTIALLY SATISFIED` and never `NOT SATISFIED`.
+   State the reason in one line: the claim reports a run you cannot perform.
+3. Evaluate completeness only over the non-N/A criteria, exactly as the
+   Incremental Scope rules above do.
+4. Do NOT emit `PARTIAL` or `FAIL` because a historical-run-evidence claim
+   could not be re-executed.
+5. If the additional context carries a `## Non-Executable Criteria
+   Declaration`, its entries were classified by
+   `scripts/ci/spec_nonexecutable_criteria.py`, which fires only when a named
+   command is the subject of the result verb. Mark each listed criterion `N/A`
+   unless it reads as a behavioral contract on code this diff changes; in that
+   case keep it in scope and say why. The declaration is a hint, not an
+   override, and it is deliberately narrower than rule 2, so rule 2 still
+   applies to a claim it does not name.
+
+This covers only the claim that a command ran and produced a result. It does
+not excuse an unimplemented behavior. "The validator rejects an empty ref" is
+verifiable from the diff and stays in scope even when the PR also claims a test
+run proves it. This repo's PR template puts command evidence under `## Testing`
+and `## Author Pre-flight`; a run-evidence line under `## Acceptance criteria`
+is misfiled evidence, not a gap in the implementation.
+
 ## Ontology Coverage (issue #1925)
 
 The specification may carry a domain ontology. The canonical OntologyFragment lives

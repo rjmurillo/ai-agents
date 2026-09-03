@@ -22,6 +22,7 @@ from unittest import mock
 import pytest
 import yaml
 
+from scripts.validation import check_git_hook_health
 from scripts.validation import git_hook_policy as policy
 
 pytestmark = pytest.mark.windows_path
@@ -52,8 +53,15 @@ HOOK_PAYLOADS = (
     PROJECT_ROOT / "scripts/hooks/pre-push",
     PROJECT_ROOT / "scripts/hooks/commit-msg",
 )
+# Every file a job under test imports, not only the file the job names. The
+# fixture repository holds nothing else, so a script that grows a sibling import
+# fails here with ModuleNotFoundError until that sibling is listed. That is the
+# roster working: it caught `check_repo_health_report.py` on the commit that
+# split it out.
 POLICY_SUPPORT_FILES = (
     "scripts/maintenance/repair_packed_refs.py",
+    "scripts/validation/check_repo_health.py",
+    "scripts/validation/check_repo_health_report.py",
     "scripts/validation/git_hook_policy.py",
     "scripts/validation/push_ref_staleness.py",
     "scripts/validation/sha_pinning.py",
@@ -715,10 +723,10 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert "commands" not in config["pre-push"]
     assert set(_job_map(config, "commit-msg")) == {"commit-message-policy"}
     expected_pre_commit = {
+        "repo-health",
         "repair-packed-refs",
         "branch-policy",
         "push-lock-commit-guard",
-        "handoff-protection",
         "root-hygiene-policy",
         "session-policy",
         "staged-dash-policy",
@@ -756,6 +764,7 @@ def test_configuration_uses_named_native_jobs() -> None:
         "commit-file-count",
     }
     expected_pre_push = {
+        "repo-health",
         "repair-packed-refs",
         "push-ref-policy",
         "retrospective-policy",
@@ -791,7 +800,11 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert str(pre_commit["push-lock-commit-guard"]["run"]).endswith(
         "check_push_lock_before_commit.py"
     )
-    assert pre_commit["push-lock-commit-guard"]["timeout"] == "30s"
+    # 20s, not the original 30s: repo-health's 10s cap is funded from this job's
+    # slack so the pre-commit declared worst case does not rise against the base
+    # ref (tests/ci/test_lefthook_declared_budget.py). The guard's own bound is a
+    # `timeout=10` subprocess plus a non-blocking flock probe, so 20s is twice it.
+    assert pre_commit["push-lock-commit-guard"]["timeout"] == "20s"
     assert str(pre_push["retrospective-policy"]["run"]).endswith("git_hook_policy.py retrospective")
     assert pre_push["retrospective-policy"]["use_stdin"] is True
     pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
@@ -899,8 +912,16 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert pre_commit["piped"] is True
     assert pre_push["piped"] is True
     assert "files" not in pre_push
-    assert pre_commit["jobs"][0]["name"] == "repair-packed-refs"
-    assert pre_push["jobs"][0]["name"] == "repair-packed-refs"
+    # Issue #4698: repo-health precedes repair-packed-refs because a bare-flagged
+    # checkout makes later jobs fail for reasons that name the wrong component.
+    assert [job["name"] for job in pre_commit["jobs"][:2]] == [
+        "repo-health",
+        "repair-packed-refs",
+    ]
+    assert [job["name"] for job in pre_push["jobs"][:2]] == [
+        "repo-health",
+        "repair-packed-refs",
+    ]
     assert pre_commit_jobs["markdown-autofix"]["stage_fixed"] is True
     markdown_autofix_run = pre_commit_jobs["markdown-autofix"]["run"]
     markdown_check_run = pre_commit_jobs["markdown-check"]["run"]
@@ -957,6 +978,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     assert "glob" not in pre_push_jobs["pre-pr-validation"]
     assert "glob" not in pre_push_jobs["python-tests"]
     assert pre_push_jobs["pre-pr-validation"]["env"] == {
+        "AI_AGENTS_PRE_PR_FAST_STAGE_RAN": "1",
         "SKIP_AUTOFIX": "1",
         # The job's own timeout in seconds, consumed by the
         # generated-staleness gate's outer-cap clamp; the cross-check
@@ -1194,7 +1216,7 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     )
 
     assert config["lefthook"] == "uv run --frozen lefthook"
-    assert version.stdout.splitlines()[0] == "2.1.10"
+    assert version.stdout.splitlines()[0] == "2.1.11"
     assert validated.returncode == 0
     assert "All good" in validated.stdout
 
@@ -1267,6 +1289,19 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
 
     assert hooks_path.returncode == 1
     assert os.access(repo / ".git/hooks/pre-push", os.X_OK)
+    # The `Git Hook Health` gate refuses an executable but inert hook by
+    # requiring this line as the shim's final command, so the gate must keep
+    # agreeing with what Lefthook actually installs. Driving the real predicate
+    # rather than a substring also pins the final-command anchoring: if a future
+    # Lefthook renames the dispatch or appends a trailing command, this fails
+    # here rather than blocking every local push.
+    assert check_git_hook_health._dispatch_command("pre-push") in hook_shim
+    assert (
+        check_git_hook_health._dispatch_failure(
+            repo / ".git/hooks/pre-push", "pre-push"
+        )
+        is None
+    )
 
     if sys.platform == "win32":
         # Dear future maintainer: this branch is not a shortcut. lefthook 2.1.10
@@ -1297,7 +1332,73 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
-def test_packed_refs_repair_runs_as_a_native_first_job(
+def test_repo_health_runs_as_a_native_job(hook_name: str, tmp_path: Path) -> None:
+    """The healthy control for the bare-flagged case below (issue #4698)."""
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    head_sha = _commit_file(repo, "tracked.txt", "content\n")
+    push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {head_sha}\n"
+
+    result = _run_lefthook(
+        repo,
+        "run",
+        hook_name,
+        "--job",
+        "repo-health",
+        "--force",
+        stdin=push_input if hook_name == "pre-push" else None,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "repo-health" in result.stdout
+
+
+@pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
+def test_repo_health_blocks_a_hook_when_the_shared_config_is_poisoned(
+    hook_name: str,
+    tmp_path: Path,
+) -> None:
+    """Issue #4698: the gate must stop the hook, not merely print a diagnosis.
+
+    The fixture is the mixed state, not a plainly bare-flagged checkout, and
+    that is not a softer case. Measured on lefthook 2.1.10: from a checkout
+    that resolves bare, lefthook runs ``git rev-parse --path-format=absolute
+    --show-toplevel ...`` before its first job and exits 128 on ``fatal: this
+    operation must be run in a work tree``, so no job of any kind runs there
+    and no hook can report anything. The worktree carrying the worktree-scoped
+    ``false`` that ``.agents/governance/GOTCHAS.md`` prescribes is the one
+    lefthook still runs in, and it is the one that has to raise the alarm for
+    the siblings the shared value has already killed.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    head_sha = _commit_file(repo, "tracked.txt", "content\n")
+    push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {head_sha}\n"
+    _git(repo, "config", "extensions.worktreeConfig", "true")
+    _git(repo, "worktree", "add", "-q", str(tmp_path / "linked"), "-b", "linked")
+    _git(repo, "config", "--worktree", "core.bare", "false")
+    _git(repo, "config", "core.bare", "true")
+
+    result = _run_lefthook(
+        repo,
+        "run",
+        hook_name,
+        "--job",
+        "repo-health",
+        "--force",
+        stdin=push_input if hook_name == "pre-push" else None,
+        check=False,
+    )
+
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "core.bare" in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
+def test_packed_refs_repair_runs_as_a_native_job(
     hook_name: str,
     tmp_path: Path,
 ) -> None:
@@ -1763,6 +1864,123 @@ def test_installed_hooks_work_from_linked_worktree(tmp_path: Path) -> None:
         "--force",
     )
     assert result.returncode == 0
+
+
+def _shared_hooks_dir(repo: Path) -> Path:
+    """Return the hooks directory git reads, which every worktree shares.
+
+    ``--git-path hooks`` resolves to the common directory's ``hooks/`` from a
+    linked worktree, not ``.git/worktrees/<name>/hooks``, which is why one
+    worktree's install is visible to all of them.
+    """
+    raw = _git(repo, "rev-parse", "--git-path", "hooks").stdout.strip()
+    path = Path(raw)
+    if not path.is_absolute():
+        path = repo / path
+    return path
+
+
+def test_a_sibling_worktree_run_does_not_rewrite_the_shared_hooks(
+    tmp_path: Path,
+) -> None:
+    """``no_auto_install: true`` stops a stale checksum reinstalling shared shims.
+
+    Lefthook keeps one checksum for the whole clone, at
+    ``<common git dir>/info/lefthook.checksum``, and every linked worktree
+    shares it along with ``<common git dir>/hooks``. Without
+    ``no_auto_install``, running Lefthook from a worktree whose ``lefthook.yml``
+    no longer matches that checksum makes Lefthook reinstall before running,
+    rewriting the shims and the checksum for every other worktree. That churn is
+    the false ``lefthook check-install`` failure reported in issue #4789.
+
+    The sibling here adds a ``post-checkout`` hook the primary never configured,
+    so a reinstall from the sibling is directly observable: it would leave a
+    ``post-checkout`` shim in the shared directory. Delete ``no_auto_install``
+    from ``lefthook.yml`` and this test fails on all three assertions.
+
+    The checksum file holds an md5 and a unix timestamp, and Lefthook re-syncs
+    only when the config's mtime is newer than that timestamp. A write alone can
+    land inside the same second as the install and read as not-newer, so the
+    mtime is pushed forward explicitly rather than left to wall-clock luck.
+    Measured against Lefthook 2.1.11: without ``no_auto_install`` the sibling run
+    prints ``sync hooks: (pre-commit, post-checkout)`` and creates the shared
+    ``post-checkout`` shim; with it, neither happens.
+    """
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "worktree"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    _commit_file(repo, "tracked.txt", "initial\n")
+    _git(repo, "add", "lefthook.yml", "scripts", "build")
+    _git(repo, "commit", "-qm", "test: add hook configuration")
+    _git(repo, "worktree", "add", "-q", str(worktree), "-b", "feature/worktree")
+    _run_lefthook(repo, "install", "--reset-hooks-path")
+    hooks_dir = _shared_hooks_dir(repo)
+    checksum = hooks_dir.parent / "info" / "lefthook.checksum"
+    installed_shim = (hooks_dir / "pre-commit").read_bytes()
+    installed_checksum = checksum.read_bytes()
+
+    sibling_config = yaml.safe_load(
+        (worktree / "lefthook.yml").read_text(encoding="utf-8")
+    )
+    sibling_config["post-checkout"] = {"jobs": [{"name": "noop", "run": "true"}]}
+    sibling_path = worktree / "lefthook.yml"
+    _write_lf(sibling_path, yaml.safe_dump(sibling_config, sort_keys=False))
+    stale_after = time.time() + 3600
+    os.utime(sibling_path, (stale_after, stale_after))
+
+    _run_lefthook(
+        worktree, "run", "pre-commit", "--job", "branch-policy", "--force"
+    )
+
+    assert (hooks_dir / "pre-commit").read_bytes() == installed_shim
+    assert checksum.read_bytes() == installed_checksum
+    assert not (hooks_dir / "post-checkout").exists()
+
+
+def test_the_primary_hook_still_dispatches_after_a_sibling_install(
+    tmp_path: Path,
+) -> None:
+    """A real ``git commit`` in the primary works after the sibling installed.
+
+    Issue #4789 reported the poisoning direction: a linked worktree installs,
+    the shared shim gains that worktree's absolute path, and the primary clone
+    is said to lose its hooks. This drives that exact order and then invokes the
+    hook through git rather than through ``lefthook run``, so the assertion
+    covers the shim git actually executes.
+
+    The fixture configures no ``lefthook:`` runner, so the generated shim
+    resolves Lefthook from ``PATH`` on every platform. That keeps the test
+    honest about what it proves: the shared shim survives a sibling install and
+    dispatches, not that any particular fallback branch was taken.
+    """
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "worktree"
+    _init_repo(repo)
+    _write_lf(
+        repo / "marker.py",
+        "from pathlib import Path\n"
+        "Path('marker.txt').write_text('ran\\n', encoding='utf-8')\n",
+    )
+    config = {
+        "min_version": "2.1.10",
+        "no_auto_install": True,
+        "pre-commit": {
+            "jobs": [{"name": "marker", "run": f'"{PYTHON_POSIX}" marker.py'}]
+        },
+    }
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
+    _git(repo, "add", "lefthook.yml", "marker.py")
+    _git(repo, "commit", "-qm", "test: add marker hook configuration")
+    _git(repo, "worktree", "add", "-q", str(worktree), "-b", "feature/worktree")
+
+    _run_lefthook(worktree, "install", "--reset-hooks-path")
+
+    _write_file(repo, "tracked.txt", "content\n")
+    _git(repo, "add", "tracked.txt")
+    _git(repo, "commit", "-qm", "test: commit through the shared hook")
+
+    assert (repo / "marker.txt").read_text(encoding="utf-8") == "ran\n"
 
 
 def test_stage_fixed_restages_only_the_formatted_input(tmp_path: Path) -> None:
@@ -2354,12 +2572,6 @@ def test_commit_message_policy_handles_clean_dirty_and_missing(tmp_path: Path) -
     message.write_bytes("fix: bad \N{EM DASH} message\n".encode() + b"\xff")
     assert policy.check_commit_message(message) == 1
     assert policy.check_commit_message(tmp_path / "missing") == 0
-
-
-def test_handoff_policy_blocks_only_the_read_only_path(tmp_path: Path) -> None:
-    assert policy.check_handoff(["README.md"], tmp_path) == 0
-    assert policy.check_handoff([".agents/HANDOFF.md"], tmp_path) == 1
-    assert policy.check_handoff(["../.agents/HANDOFF.md"], tmp_path) == 0
 
 
 def test_root_hygiene_allowlist_matches_current_tracked_root(
@@ -3591,9 +3803,7 @@ def test_pushed_semgrep_scan_rejects_non_regular_type_change(
     monkeypatch.setattr(
         policy,
         "_run_semgrep_tree",
-        lambda *_args, **_kwargs: pytest.fail(
-            "Semgrep must not run on a non-regular snapshot"
-        ),
+        lambda *_args, **_kwargs: pytest.fail("Semgrep must not run on a non-regular snapshot"),
     )
 
     assert policy.scan_pushed_heads(stream, repo) == 2
@@ -3618,9 +3828,7 @@ def test_pushed_semgrep_validates_all_paths_before_suffix_selection(
     monkeypatch.setattr(
         policy,
         "_scan_pushed_head",
-        lambda *_args, **_kwargs: pytest.fail(
-            "invalid pushed paths must not reach Semgrep"
-        ),
+        lambda *_args, **_kwargs: pytest.fail("invalid pushed paths must not reach Semgrep"),
     )
 
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
@@ -3644,9 +3852,7 @@ def test_pushed_semgrep_detects_collision_with_unchanged_head_path(
     monkeypatch.setattr(
         policy,
         "_scan_pushed_head",
-        lambda *_args, **_kwargs: pytest.fail(
-            "colliding pushed trees must not reach Semgrep"
-        ),
+        lambda *_args, **_kwargs: pytest.fail("colliding pushed trees must not reach Semgrep"),
     )
 
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
@@ -8483,7 +8689,6 @@ def test_old_bot_review_does_not_warn(
     ("command", "arguments", "target"),
     [
         ("branch", [], "check_branch"),
-        ("handoff", ["README.md"], "check_handoff"),
         ("root-hygiene", ["scratch.txt"], "check_root_hygiene"),
         ("session", ["session.json"], "check_sessions"),
         ("staged-dashes", ["doc.md"], "check_staged_dashes"),
@@ -10962,6 +11167,38 @@ def test_semgrep_command_excludes_python37_compat_family() -> None:
     )
 
 
+def test_semgrep_command_excludes_full_rule_ids_not_family_prefix() -> None:
+    """--exclude-rule must carry the full rule id, not a family prefix.
+
+    Semgrep 1.159.0 does not suppress findings on a prefix like
+    "python.lang.compatibility.python36": passing that value still reports
+    both Popen findings when scanned directly. Only the full rule id
+    ("...python36.python36-compatibility-Popen1") drops the count to zero.
+    A regression back to the family prefix would keep this test's exact
+    list check red even though the two substring checks above stay green.
+    """
+    cmd = policy._semgrep_command("auto", ["path/to/file.py"])
+    exclude_values = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"]
+    assert exclude_values == [
+        "python.lang.compatibility.python36.python36-compatibility-Popen1",
+        "python.lang.compatibility.python36.python36-compatibility-Popen2",
+        "python.lang.compatibility.python37.python37-compatibility-Popen1",
+        "python.lang.compatibility.python37.python37-compatibility-Popen2",
+    ], f"Expected full rule ids, got family-prefix or altered values: {exclude_values}"
+
+
+def test_semgrep_command_family_prefix_alone_is_insufficient(tmp_path: Path) -> None:
+    """Edge case: a bare family prefix must not appear as its own exclude value.
+
+    Guards against a partial fix that adds the full rule ids alongside the
+    broken prefix instead of replacing it.
+    """
+    cmd = policy._semgrep_command("auto", [str(tmp_path / "file.py")])
+    exclude_values = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--exclude-rule"]
+    assert "python.lang.compatibility.python36" not in exclude_values
+    assert "python.lang.compatibility.python37" not in exclude_values
+
+
 _ROOT_SCRATCH_CASES: tuple[tuple[str, list[str], list[str]], ...] = (
     ("investigation_dump", ["pr4147_threads.json"], ["pr4147_threads.json"]),
     ("timestamped_report", ["report.20260804.000717.json"], ["report.20260804.000717.json"]),
@@ -11063,3 +11300,118 @@ def test_root_scratch_policy_is_wired_into_pre_commit() -> None:
 
     assert str(job["run"]).endswith("git_hook_policy.py root-scratch {staged_files}")
     assert job["skip"] == ["merge"]
+
+
+# ---------------------------------------------------------------------------
+# Issue #4725: --exclude-rule needs full rule ids, proved against real semgrep
+# ---------------------------------------------------------------------------
+
+# Popen1 flags errors=, Popen2 flags encoding=, matching the two registry rules
+# quoted in issue #4725. The python37 family repeats the python36 pair.
+_COMPAT_RULES: tuple[tuple[str, str], ...] = (
+    ("python.lang.compatibility.python36.python36-compatibility-Popen1", "errors"),
+    ("python.lang.compatibility.python36.python36-compatibility-Popen2", "encoding"),
+    ("python.lang.compatibility.python37.python37-compatibility-Popen1", "errors"),
+    ("python.lang.compatibility.python37.python37-compatibility-Popen2", "encoding"),
+)
+
+_COMPAT_RULE_IDS: tuple[str, ...] = tuple(rule_id for rule_id, _ in _COMPAT_RULES)
+
+_COMPAT_FAMILY_PREFIXES: tuple[str, ...] = (
+    "python.lang.compatibility.python36",
+    "python.lang.compatibility.python37",
+)
+
+
+def _write_compat_ruleset(directory: Path) -> None:
+    """Write a local stand-in for the four python3{6,7} compatibility rules.
+
+    The production command passes ``--config auto``, which downloads a ruleset
+    from the Semgrep registry. A test that did the same would fail offline and
+    drift whenever the registry re-rolls its packs, so this reproduces only the
+    four rules under test, under their exact production ids.
+
+    The file must be named ``rules.yml`` and read from the process cwd. Semgrep
+    namespaces ids from a config file by that file's path, so
+    ``--config /tmp/x/rules.yml`` reports
+    ``tmp.x.python.lang.compatibility.python36...`` and no ``--exclude-rule``
+    value in ``_semgrep_command`` could ever match. A bare relative filename
+    resolved from the cwd keeps the id verbatim, which is why every caller runs
+    semgrep with ``cwd=directory``.
+    """
+    rules = "".join(
+        f"  - id: {rule_id}\n"
+        f"    languages: [python]\n"
+        f"    severity: ERROR\n"
+        f"    message: the {keyword} argument to Popen needs a newer Python\n"
+        f"    pattern: subprocess.Popen(..., {keyword}=..., ...)\n"
+        for rule_id, keyword in _COMPAT_RULES
+    )
+    (directory / "rules.yml").write_text(f"rules:\n{rules}", encoding="utf-8")
+
+
+def _scan_compat_target(directory: Path, exclude_rules: Sequence[str] | None) -> set[str]:
+    """Scan the file issue #4725 names and return the check ids semgrep reports.
+
+    ``exclude_rules=None`` runs ``_semgrep_command`` exactly as the
+    ``semgrep-push`` hook builds it. Any sequence replaces the command's own
+    ``--exclude-rule`` pairs instead, so ``[]`` is the unexcluded control.
+    """
+    assert SEMGREP is not None
+    _write_compat_ruleset(directory)
+    target = policy.REPO_ROOT / "scripts" / "validation" / "run_workflow_local_test.py"
+    assert target.exists(), f"target named by issue #4725 is missing: {target}"
+
+    command = policy._semgrep_command("rules.yml", [str(target)])
+    command[0] = SEMGREP
+    if exclude_rules is not None:
+        stripped = [
+            argument
+            for index, argument in enumerate(command)
+            if argument != "--exclude-rule" and command[index - 1] != "--exclude-rule"
+        ]
+        replacement: list[str] = []
+        for rule in exclude_rules:
+            replacement += ["--exclude-rule", rule]
+        separator = stripped.index("--")
+        command = stripped[:separator] + replacement + stripped[separator:]
+
+    result = subprocess.run(
+        command,
+        cwd=directory,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode in {0, 1}, f"semgrep exited {result.returncode}: {result.stderr}"
+    return {finding["check_id"] for finding in json.loads(result.stdout)["results"]}
+
+
+@pytest.mark.skipif(SEMGREP is None, reason="semgrep executable is unavailable")
+def test_semgrep_compat_rules_fire_on_the_target_without_exclusion(tmp_path: Path) -> None:
+    """Control: the target emits all four findings when nothing is excluded.
+
+    Without this, a green exclusion test proves nothing. It would pass just as
+    well against a target that never triggered the rules, or against a ruleset
+    that stopped matching.
+    """
+    assert _scan_compat_target(tmp_path, []) == set(_COMPAT_RULE_IDS)
+
+
+@pytest.mark.skipif(SEMGREP is None, reason="semgrep executable is unavailable")
+def test_semgrep_family_prefix_exclusion_suppresses_nothing(tmp_path: Path) -> None:
+    """The broken form: --exclude-rule does not match on a family prefix.
+
+    This restores the defect issue #4725 hit, which is what proves the full ids
+    in ``_semgrep_command`` are load-bearing rather than a longer spelling of
+    the same thing. Both prefixes are passed and all four findings survive.
+    """
+    assert _scan_compat_target(tmp_path, _COMPAT_FAMILY_PREFIXES) == set(_COMPAT_RULE_IDS)
+
+
+@pytest.mark.skipif(SEMGREP is None, reason="semgrep executable is unavailable")
+def test_semgrep_command_exclusions_suppress_every_compat_rule(tmp_path: Path) -> None:
+    """The production command, unmodified, reports none of the four rules."""
+    assert _scan_compat_target(tmp_path, None) == set()

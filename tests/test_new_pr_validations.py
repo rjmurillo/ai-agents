@@ -267,7 +267,7 @@ class TestRunValidations:
 
     def test_agents_changed_no_session_log_does_not_warn(self, tmp_path, capsys):
         """Session log creation is discontinued; absence is expected, not a warning."""
-        changed = ".agents/HANDOFF.md\n"
+        changed = ".agents/governance/PROJECT-CONSTRAINTS.md\n"
         with patch(
             "subprocess.run",
             return_value=_completed(stdout=changed, rc=0),

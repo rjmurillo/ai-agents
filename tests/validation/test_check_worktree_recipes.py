@@ -1,6 +1,6 @@
 """Worktree destinations in tracked prescriptions (issue #5111).
 
-`.claude/rules/universal.md` MUST NOT 7 says worktrees must be external. The
+`.claude/rules/universal.md` MUST NOT 6 says worktrees must be external. The
 rule, a Serena memory, and a documented prior incident all existed while six
 worktrees accumulated under `/tmp` and filled a 16G tmpfs. Nothing read the
 recipes, so nothing caught them.

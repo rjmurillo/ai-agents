@@ -48,9 +48,11 @@ The repository keeps one canonical skill tree and one generated Copilot tree:
 - `src/copilot-cli/skills/agent-harness-reference/` is generated from it.
 - `.github/skills/` is not a repository shipping surface. Do not create it to
   mirror this skill.
-- `AGENTS.md`, `.claude/agents/AGENTS.md`, `.github/AGENTS.md`,
-  `.github/copilot-instructions.md`, `src/AGENTS.md`, and
-  `templates/AGENTS.md` route authoring work here.
+- In the `rjmurillo/ai-agents` repository, `AGENTS.md`, `src/claude/AGENTS.md`,
+  `.github/AGENTS.md`, `.github/copilot-instructions.md`, `src/AGENTS.md`, and
+  `templates/AGENTS.md` route authoring work here. An installed plugin ships
+  none of them and does not need to; they are maintainer routing, not a
+  runtime dependency of this skill.
 
 Individual agent prompts do not copy the vendor contract. Repository
 instructions route agents to this skill so one source owns refresh rules,
@@ -99,16 +101,17 @@ that hangs is a gate that passes the call through.
 
 ### Shipped registrations
 
-Re-verified 2026-08-19 against the tree, not carried forward from a prior count:
+Re-verified 2026-09-01 against the tree, not carried forward from a prior count:
 
 - Vendored Claude plugin source, `.claude/hooks/hooks.json`: zero registrations
   (ADR-097 retired all four).
 - Generated Copilot plugin, `src/copilot-cli/hooks/hooks.json`: zero
   registrations (ADR-097 retired the dispatcher itself; no `_dispatch.py`
   ships).
-- Local repository settings, `.claude/settings.json`: six registrations across
-  four events, SessionStart (3), UserPromptSubmit (1), SessionEnd (1), and
-  PreCompact (1). ADR-097 retired the two repo-local per-call registrations
+- Local repository settings, `.claude/settings.json`: seven registrations across
+  four events, SessionStart (4), UserPromptSubmit (1), SessionEnd (1), and
+  PreCompact (1). The fourth SessionStart entry is the plugin hook drift check
+  added for issue #5085. ADR-097 retired the two repo-local per-call registrations
   this file used to carry (PostToolUse `observation_sync`, PostToolUseFailure
   `memory_capture`).
   These do not feed the vendored Copilot plugin generator.

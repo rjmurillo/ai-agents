@@ -1,0 +1,330 @@
+#!/usr/bin/env python3
+"""Contract tests for the fix-markdown-fences scanner.
+
+Contracts against things outside this module, listed rather than counted
+because the count still said two after a third class landed.
+`TestCommonMarkOracle` checks the list-container model against `markdown-it-py`,
+a CommonMark reference implementation. `TestScannerParity` holds the two
+duplicated scanners to one behaviour and one source, and pins the curated case
+inventory. `TestVendoredInvocation` used to be named here and is not: it moved
+to test_fix_fences_vendoring.py when this file crossed the size ceiling, and
+naming it here described coverage this module does not have.
+
+The detector and repair unit tests live in test_fix_fences.py; these are split
+out because they answer to external contracts rather than to this module's own
+behavior.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
+if TESTS_SKILLS_DIR not in sys.path:
+    sys.path.insert(0, TESTS_SKILLS_DIR)
+
+
+from claude_skills_import import import_skill_script
+from commonmark_fence_cases import CASES as FENCE_CASES
+from commonmark_fence_cases import (
+    MISTAKEN_CLOSER_CASES,
+    oracle_fence_lines,
+    reference_lines,
+)
+from markdown_it import MarkdownIt
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+mod = import_skill_script(".claude/skills/fix-markdown-fences/scripts/fix_fences.py")
+repair_markdown_fences = mod.repair_markdown_fences
+find_fence_defects = mod.find_fence_defects
+
+_REFERENCE = MarkdownIt("commonmark")
+
+
+def _has_unclosed_fence(text: str) -> bool:
+    """Return True when the reference parser leaves a fence open at EOF.
+
+    Read from the token rather than guessed from the string. A fence token
+    spans its opener, its body, and its closing marker when one exists, while
+    `content` holds the body alone, so a span exceeding opener plus body by a
+    line was closed by a marker.
+
+    No marker is not the same as open at EOF, and conflating them was the
+    second bug in this helper. A fence can also end because its list item
+    ended: `- ``` ` then a dedented line has no closing marker, and the
+    reference parser still closes the token before the end. Calling that
+    unclosed made the public no-op assertion skip the container-close
+    behaviour it exists to guard. The first bug was cruder, asking whether the
+    text ended in a fence character, which called two genuinely unclosed
+    documents balanced.
+
+    The third bug counted the body with `content.count("\n")`, which is one
+    short whenever the document does not end in a newline: the last body line
+    contributes no terminator. A genuinely unclosed fence running to such a
+    final line then looked marked, and the document looked balanced. Found by
+    sweeping every tracked Markdown file in this repository:
+    `.serena/memories/process/maintenance-003-homework-automation-justification.md`
+    ends without a trailing newline, and this helper called it balanced while
+    the reference parser leaves its last fence open across twelve lines.
+    Counting the body the way the parser counts lines fixes it, and is the
+    same correction `reference_lines` exists to make everywhere else.
+    """
+    # Reference numbering, not `str.splitlines()`: `token.map` is indexed the
+    # way the parser counts lines, so a splitlines length can exceed it and
+    # make an unclosed block look closed.
+    source = reference_lines(text)
+    for token in _REFERENCE.parse(text):
+        if token.type != "fence" or not token.map:
+            continue
+        span = token.map[1] - token.map[0]
+        body = len(reference_lines(token.content))
+        marked = span - 1 - body >= 1
+        if not marked and token.map[1] >= len(source):
+            return True
+    return False
+
+
+class TestCommonMarkOracle:
+    """Fence tracking matches `markdown-it-py` on every list-container case.
+
+    A repair tool that misplaces a list item's content column can append a
+    closing fence into literal indented code, so the container model is checked
+    against a reference implementation rather than against expectations.
+    """
+
+    @staticmethod
+    def _inside_fence(text: str) -> set[int]:
+        """Return 0-indexed non-blank lines the scanner treats as fenced.
+
+        This mirrors the loop in `fix_fences.find_fence_defects`, including its
+        container-close branch:
+
+            if open_fence is not None and _container_closed(line.text, fence_base):
+                open_fence = None  # the item holding the block ended
+
+        its valid-close test, which is `_is_blank` and NOT `str.strip()`,
+        because a closing fence may be followed only by spaces and tabs, and
+        the malformed-closer transition that follows it:
+
+            if _is_blank(match.group("info")):
+                open_fence = None
+                continue
+
+            defects.append(...)
+            open_fence = _scan_open(line.text, containers)
+            fence_base = containers.base() if open_fence is not None else 0
+
+        A hand-written mirror can drift from what it mirrors, which is the
+        whole reason this comment names the branches. It drifted twice. It
+        kept `str.strip()` for one commit after production moved to
+        `_is_blank`. And it omitted the re-scan above entirely, so on a
+        malformed closer it left the OLD opener active where production opens
+        a new one. That second drift is the more dangerous shape, because it
+        made this mirror AGREE with the reference parser on documents where
+        production deliberately does not: the mirror was passing by not
+        mirroring. See `test_a_malformed_closer_reopens_at_its_own_length`.
+
+        `test_repair_is_a_no_op_on_balanced_documents` guards the direction
+        that matters by driving the public repair path instead.
+        """
+        lines = mod._split_lines(text)
+        containers = mod._ListContainers()
+        open_fence = None
+        fence_base = 0
+        inside: set[int] = set()
+        for index, line in enumerate(lines):
+            if open_fence is not None and mod._container_closed(line.text, fence_base):
+                open_fence = None  # the item holding the block ended
+            if open_fence is None:
+                open_fence = mod._scan_open(line.text, containers)
+                fence_base = containers.base() if open_fence is not None else 0
+                if open_fence is not None and line.text != "":
+                    inside.add(index)
+                continue
+            if line.text != "":
+                inside.add(index)
+            match = mod._closes(line.text, open_fence, containers)
+            if match is None:
+                continue
+            if mod._is_blank(match.group("info")):
+                open_fence = None
+                continue
+            open_fence = mod._scan_open(line.text, containers)
+            fence_base = containers.base() if open_fence is not None else 0
+        return inside
+
+    @pytest.mark.parametrize("name", sorted(FENCE_CASES))
+    def test_fenced_lines_match_the_reference_parser(self, name: str) -> None:
+        text = FENCE_CASES[name]
+        assert self._inside_fence(text) == oracle_fence_lines(text), name
+
+    @pytest.mark.parametrize("name", sorted(FENCE_CASES))
+    def test_repair_is_idempotent_on_every_case(self, name: str) -> None:
+        once = repair_markdown_fences(FENCE_CASES[name])
+        assert repair_markdown_fences(once) == once, name
+
+    @pytest.mark.parametrize("name", sorted(FENCE_CASES))
+    def test_repair_is_a_no_op_on_balanced_documents(self, name: str) -> None:
+        # Public path, no mirrored state machine. Where the reference parser
+        # reads every fence as closed, `--write` must change nothing. This is
+        # the assertion that would catch `_inside_fence` drifting from the
+        # loops it mirrors, and it is how three separate corruption paths were
+        # found: a fence on a marker line, a block outliving its list item, and
+        # five-column padding before a marker-line fence.
+        text = FENCE_CASES[name]
+        if _has_unclosed_fence(text):
+            pytest.skip("document is genuinely unclosed; repair should act")
+        repaired = repair_markdown_fences(text)
+        if name in MISTAKEN_CLOSER_CASES:
+            # The shared module's Scope paragraph states this divergence: "a
+            # fence carrying an info string inside an open block is content to
+            # CommonMark but a mistaken closer to `fix_fences.py`, which is the
+            # defect that tool exists to repair." Balanced therefore does not
+            # imply no-op for this family.
+            #
+            # Membership is DATA, not a question put to the scanner. Asking
+            # `find_fence_defects` whether it had found a mistaken closer let
+            # a regression that invents one exempt its own document from the
+            # assertion below, which is the round 17 mistake at the test layer:
+            # the tool reporting a defect is not evidence of one.
+            assert repaired != text, f"{name} no longer exercises the divergence"
+            assert not repaired.startswith(text), (
+                f"{name}: the repair APPENDED to a balanced document. The "
+                "divergence inserts a closer above the mistaken one; growing "
+                "at the end is the corruption this suite exists to prevent."
+            )
+            return
+        assert repaired == text, name
+
+    def test_a_mistaken_closer_is_repaired_not_appended_to(self) -> None:
+        """A closing fence may be followed only by spaces and tabs.
+
+        `str.strip()` accepted U+00A0 there, so the block closed two lines
+        early, the real closer read as a fresh opener, and `--write` appended a
+        stray fence at EOF. That is the corruption class this suite exists to
+        prevent, and no ratchet reached it: the corpus has no such document and
+        the generator emitted no Unicode whitespace at all.
+
+        The repair now inserts a bare closer above the mistaken one, which is
+        the same treatment a ` ```python ` closer gets. Both assertions matter:
+        the document must gain a closer in the right PLACE, and must not grow
+        one at the end.
+        """
+        for text in (
+            "```\nx\n```\u00a0\ny\n```\n",
+            "```\nx\n```\u3000\ny\n```\n",
+            "~~~\nx\n~~~\u00a0\ny\n~~~\n",
+        ):
+            marker = text.splitlines()[0]
+            repaired = repair_markdown_fences(text)
+            assert repaired.splitlines()[2] == marker, text
+            assert not repaired.endswith(marker + "\n" + marker + "\n"), text
+            assert repair_markdown_fences(repaired) == repaired, text
+
+    def test_balance_is_decided_without_a_trailing_newline(self) -> None:
+        """The balance predicate is the ground truth for every corruption claim.
+
+        `_has_unclosed_fence` counted the body with `content.count("\\n")`,
+        which is one short when the document does not end in a newline: the
+        last body line contributes no terminator, so a genuinely unclosed
+        fence looked marked and the document looked balanced.
+
+        That predicate decides what counts as a corruption in this suite and in
+        every measurement quoted on this PR, so a false "balanced" is the worst
+        direction for it to fail in: it excuses a write instead of reporting
+        one. It survived two earlier corrections of this same helper and was
+        found by sweeping the repository, not by any test.
+
+        The pair below differs only in the final newline, and the answer must
+        not.
+        """
+        body = "```\nx\ny"
+        assert _has_unclosed_fence(body), "no trailing newline"
+        assert _has_unclosed_fence(body + "\n"), "trailing newline"
+        closed = "```\nx\n```"
+        assert not _has_unclosed_fence(closed), "closed, no trailing newline"
+        assert not _has_unclosed_fence(closed + "\n"), "closed, trailing newline"
+
+    def test_the_oracle_numbers_lines_the_way_the_reference_parser_does(self) -> None:
+        """The ground truth must not disagree with itself depending on how it is asked.
+
+        `markdown-it-py` normalizes CRLF and CR and then splits on newlines, so
+        a token's `map` is indexed in that numbering. The oracle used to run its
+        blank filter over `str.splitlines()`, which also breaks on U+000B,
+        U+000C, U+001C to U+001E, U+0085, U+2028 and U+2029. Every entry after
+        such a character shifts, so the filter read a different line than the
+        token named.
+
+        This matters more than a scanner bug: every measurement in this change
+        is taken against this oracle. The two splitters give different answers
+        on documents carrying those characters, which is what the second
+        assertion pins.
+        """
+        text = "```\n\u0085\n\nz\n```\nafter\n"
+
+        assert oracle_fence_lines(text) == {0, 1, 3, 4}
+
+        # Teeth: recompute with the splitter the oracle used to use. If this
+        # ever stops differing, the document no longer exercises the bug and
+        # the assertion above has quietly stopped guarding anything.
+        naive: set[int] = set()
+        source = text.splitlines()
+        for token in _REFERENCE.parse(text):
+            if token.type == "fence" and token.map:
+                start, stop = token.map
+                naive.update(
+                    i for i in range(start, min(stop, len(source))) if source[i] != ""
+                )
+        assert naive != oracle_fence_lines(text)
+
+    def test_a_malformed_closer_reopens_at_its_own_length(self) -> None:
+        """A mistaken closer becomes the next opener, at ITS fence length.
+
+        This is the branch `_inside_fence` used to omit, and omitting it was
+        not harmless: without the re-scan the mirror kept the ORIGINAL opener
+        alive, so a later shorter bare fence appeared to close the block. That
+        made the mirror agree with the reference parser on exactly the family
+        where production deliberately disagrees, which is the worst way for a
+        mirror to be wrong. It passes by not mirroring, and the fence suite's
+        oracle assertion and fuzz baseline then describe a state machine the
+        shipped scanner never runs.
+
+        The `unclosed_block` text is the evidence: four fence characters, not
+        the three the block opened with.
+        """
+        for text, reopened in (
+            ("```\nx\n````py\ny\n```\nz\n", "````"),
+            ("~~~\nx\n~~~~info\ny\n~~~\nz\n", "~~~~"),
+        ):
+            kinds = [(d.kind, d.text) for d in find_fence_defects(text)]
+            assert (mod.MALFORMED_CLOSING, text.splitlines()[2]) in kinds, text
+            assert (mod.UNCLOSED_BLOCK, reopened) in kinds, text
+            repaired = repair_markdown_fences(text)
+            assert repair_markdown_fences(repaired) == repaired, text
+
+        # And the divergence is deliberate, so it is stated rather than left
+        # for a future reader to discover by breaking it. The shared module's
+        # Scope paragraph owns this boundary; these documents are the reason
+        # they are NOT in the curated table, which asserts oracle agreement.
+        divergent = "```\nx\n````py\ny\n```\nz\n"
+        assert TestCommonMarkOracle._inside_fence(divergent) != oracle_fence_lines(divergent)
+
+    def test_a_real_space_or_tab_still_closes_a_fence(self) -> None:
+        """The inverse. Widening the predicate must not reject a valid closer."""
+        for text in ("```\nx\n``` \n", "```\nx\n```\t\n"):
+            assert find_fence_defects(text) == [], text
+            assert repair_markdown_fences(text) == text, text
+
+    def test_write_never_invents_a_fence_in_indented_code(self) -> None:
+        # Rules 1 and 2: a marker that is itself indented code, or padding of
+        # five or more columns, both used to move the content column and let
+        # the repair append a closing fence into literal code.
+        for name in ("marker over indented is code", "padding of five columns"):
+            text = FENCE_CASES[name]
+            assert oracle_fence_lines(text) == set(), name
+            assert repair_markdown_fences(text) == text, name
+

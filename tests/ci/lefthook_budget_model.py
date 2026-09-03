@@ -56,26 +56,21 @@ LEFTHOOK = REPO_ROOT / "lefthook.yml"
 # `test_the_roster_matches_what_the_config_actually_routes` requires the two to
 # agree in both directions, so a job crossing the boundary fails a test that
 # names it instead of changing a number quietly. At the time of writing they
-# agree exactly, 14 clamped and 20 not.
+# agree exactly, 14 clamped and 21 not.
 CONTAINER_UNCLAMPED_JOBS = frozenset(
     {
+        "repo-health",
         "repair-packed-refs",
         "mutation-safety",
         "push-ref-staleness",
         "pre-pr-validation",
-        "python-lint-ratchet",
-        "python-lint-count-ratchet",
-        "taste-count-ratchet",
-        "type-ignore-count-ratchet",
-        "memory-index-count-ratchet",
-        "cli-exit-contract-ratchet",
-        "memory-index-token-ratchet",
-        "merge-tree-ratchet",
+        "count-ratchets",
         "python-unreachable-statements",
         "path-normalization",
         "planning-artifacts",
         "branch-scope",
         "review-axis-drift",
+        "zero-collection-tests",
         "worktree-gc-report",
         "python-lint-advisory",
         "infrastructure-advisory",

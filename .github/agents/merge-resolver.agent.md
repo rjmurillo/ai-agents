@@ -154,7 +154,6 @@ After shell-backed conflict resolution completes, generate a report with:
 ## Constraints
 
 - Session files from main are immutable audit records
-- HANDOFF.md is read-only (main is canonical)
 - Lock files: accept base, regenerate with package manager
 - Generated files: resolve in source, regenerate outputs
 - Do not alter files outside the conflict scope

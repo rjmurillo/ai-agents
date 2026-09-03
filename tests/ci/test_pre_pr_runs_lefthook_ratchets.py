@@ -28,6 +28,7 @@ Coverage:
 from __future__ import annotations
 
 import sys
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -50,6 +51,36 @@ import checks_ratchet  # noqa: E402
 import pre_pr_sequence  # noqa: E402
 
 _GATE_NAME = "Count Ratchets"
+_EXPECTED_RATCHETS = (
+    ("python-lint-ratchet", "scripts/ci/ruff_ratchet.py", True, False),
+    ("python-lint-count-ratchet", "scripts/ci/ruff_count_ratchet.py", True, True),
+    ("taste-count-ratchet", "scripts/ci/taste_count_ratchet.py", False, True),
+    (
+        "type-ignore-count-ratchet",
+        "scripts/ci/type_ignore_count_ratchet.py",
+        False,
+        True,
+    ),
+    (
+        "memory-index-count-ratchet",
+        "scripts/ci/memory_index_count_ratchet.py",
+        False,
+        True,
+    ),
+    (
+        "cli-exit-contract-ratchet",
+        "scripts/ci/cli_exit_contract_ratchet.py",
+        False,
+        True,
+    ),
+    (
+        "memory-index-token-ratchet",
+        "scripts/ci/memory_index_token_ratchet.py",
+        False,
+        False,
+    ),
+    ("merge-tree-ratchet", "scripts/ci/merge_tree_ratchet_check.py", True, True),
+)
 
 
 def _walk_jobs(jobs: object, out: list[dict]) -> None:
@@ -67,100 +98,100 @@ def _walk_jobs(jobs: object, out: list[dict]) -> None:
         _walk_jobs(job.get("jobs"), out)
 
 
-def collect_ratchet_jobs(data: object) -> dict[str, str]:
-    """Map ``pre-push`` job name to ``run`` string for every ``*-ratchet`` job.
-
-    Takes parsed YAML rather than reading the file so the negative controls can
-    feed synthetic trees through the same code path the positive test uses.
-    """
+def collect_count_ratchets_job(data: object) -> dict | None:
+    """Return the aggregate pre-push ratchet job from parsed YAML."""
     if not isinstance(data, dict):
-        return {}
+        return None
     pre_push = data.get("pre-push")
     if not isinstance(pre_push, dict):
-        return {}
+        return None
     found: list[dict] = []
     _walk_jobs(pre_push.get("jobs"), found)
-    return {
-        job["name"]: str(job.get("run", ""))
-        for job in found
-        if str(job["name"]).endswith("-ratchet")
-    }
+    return next((job for job in found if job.get("name") == "count-ratchets"), None)
 
 
-def _real_ratchet_jobs() -> dict[str, str]:
-    return collect_ratchet_jobs(yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8")))
+def _real_count_ratchets_job() -> dict | None:
+    data = yaml.safe_load(_LEFTHOOK.read_text(encoding="utf-8"))
+    return collect_count_ratchets_job(data)
 
 
-def _declared_commands() -> dict[str, str]:
-    """Map job name to the command string ``checks_ratchet`` would run."""
-    return {
-        ratchet.job_name: " ".join(checks_ratchet.build_command(ratchet, "origin/main"))
-        for ratchet in checks_ratchet.RATCHETS
-    }
+class TestAggregateLefthookDelegation:
+    """Lefthook delegates the full ratchet set to this module."""
 
+    def test_aggregate_job_exists(self) -> None:
+        assert _real_count_ratchets_job() is not None
 
-class TestParityWithLefthook:
-    """The two definitions of "which ratchets gate a push" must agree."""
-
-    def test_lefthook_declares_ratchet_jobs(self) -> None:
-        """Guard the guard: an empty parse would make every parity test vacuous."""
-        assert _real_ratchet_jobs(), (
-            "No *-ratchet jobs found under pre-push in lefthook.yml. Either the "
-            "jobs were removed or the traversal broke; every parity assertion "
-            "below passes vacuously until this does."
+    def test_aggregate_job_invokes_the_registry_runner(self) -> None:
+        job = _real_count_ratchets_job()
+        assert job is not None
+        assert str(job.get("run")) == (
+            "uv run --frozen python scripts/validation/checks_ratchet.py"
         )
 
-    def test_job_names_match(self) -> None:
-        """Positive: lefthook's ratchet set equals the set the pre-PR gate runs."""
-        assert set(_real_ratchet_jobs()) == {r.job_name for r in checks_ratchet.RATCHETS}
+    def test_aggregate_job_is_unconditional(self) -> None:
+        job = _real_count_ratchets_job()
+        assert job is not None
+        assert job.get("glob") is None
 
-    def test_commands_match(self) -> None:
-        """Positive: each command matches its job string flag for flag.
+    def test_registry_contains_every_registered_ratchet(self) -> None:
+        assert tuple(
+            (ratchet.job_name, ratchet.script, ratchet.extra_dev, ratchet.uses_base_ref)
+            for ratchet in checks_ratchet.RATCHETS
+        ) == _EXPECTED_RATCHETS
 
-        Catches the subtler half of the drift. Both sides can name the same four
-        jobs while one drops ``--extra dev`` (the ruff ratchets shell out to a
-        bare ``ruff``, so without it the gate reports "command not found", a
-        false failure) or ``--base-ref`` (which silently changes what the count
-        is measured against).
+    def test_command_builder_adds_dev_extra_when_required(self) -> None:
+        ratchet = next(r for r in checks_ratchet.RATCHETS if r.extra_dev)
+        assert "--extra" in checks_ratchet.build_command(ratchet, "origin/main")
+
+    def test_command_builder_adds_base_ref_when_required(self) -> None:
+        ratchet = next(r for r in checks_ratchet.RATCHETS if r.uses_base_ref)
+        command = checks_ratchet.build_command(ratchet, "origin/main")
+        assert command[-2:] == ["--base-ref", "origin/main"]
+
+    def test_missing_aggregate_job_is_detected(self) -> None:
+        synthetic = {"pre-push": {"jobs": [{"name": "other", "run": "true"}]}}
+        assert collect_count_ratchets_job(synthetic) is None
+
+    def test_aggregate_deadline_leaves_headroom_under_the_lefthook_cap(self) -> None:
+        """A YAML cap at or below the internal deadline restores the hard kill.
+
+        ``checks_ratchet._AGGREGATE_TIMEOUT_SECONDS`` only protects the
+        remaining ratchets from Lefthook's SIGKILL when the outer ``timeout``
+        in ``lefthook.yml`` leaves headroom above it. Pinning the internal
+        constant alone (see
+        ``test_each_ratchet_uses_the_remaining_aggregate_time`` above) stays
+        green even if the YAML cap is lowered to match or fall below it.
         """
-        assert _declared_commands() == _real_ratchet_jobs()
+        job = _real_count_ratchets_job()
+        assert job is not None
+        raw_timeout = job.get("timeout")
+        assert isinstance(raw_timeout, (str, int))
+        if isinstance(raw_timeout, str) and raw_timeout.endswith("s"):
+            lefthook_cap_seconds = int(raw_timeout[:-1])
+        else:
+            lefthook_cap_seconds = int(raw_timeout)
+        assert lefthook_cap_seconds > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS
 
-    def test_detects_a_ratchet_added_to_lefthook_only(self) -> None:
-        """Negative control: the exact drift this parity test exists to catch."""
-        synthetic = {
-            "pre-push": {
-                "jobs": [{"name": name, "run": run} for name, run in _real_ratchet_jobs().items()]
-                + [{"name": "new-count-ratchet", "run": "uv run --frozen python x.py"}]
-            }
-        }
-        assert set(collect_ratchet_jobs(synthetic)) != {r.job_name for r in checks_ratchet.RATCHETS}
+    def test_main_returns_nonzero_when_a_ratchet_fails(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", lambda _root: False)
+        assert checks_ratchet.main() == 1
 
-    def test_detects_a_ratchet_dropped_from_lefthook(self) -> None:
-        """Negative control: drift in the other direction is caught too."""
-        jobs = list(_real_ratchet_jobs().items())[1:]
-        synthetic = {"pre-push": {"jobs": [{"name": n, "run": r} for n, r in jobs]}}
-        assert set(collect_ratchet_jobs(synthetic)) != {r.job_name for r in checks_ratchet.RATCHETS}
+    def test_main_returns_zero_when_every_ratchet_passes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", lambda _root: True)
+        assert checks_ratchet.main() == 0
 
-    def test_detects_a_changed_flag_set(self) -> None:
-        """Negative control: same names, different flags, still caught."""
-        mutated = {
-            name: run.replace(" --extra dev", "").replace(" --base-ref origin/main", "")
-            for name, run in _real_ratchet_jobs().items()
-        }
-        assert _declared_commands() != mutated
+    def test_main_returns_config_error_when_uv_is_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def unavailable(_root: Path) -> bool:
+            raise checks_ratchet.MissingScriptSkip("uv missing")
 
-    def test_a_commented_out_job_is_not_counted(self) -> None:
-        """Edge: YAML parsing, not text search, so a commented job disappears.
-
-        A substring search over raw YAML treats a commented-out job as present.
-        Parsing means the key is simply gone, which is what parity should see.
-        """
-        text = _LEFTHOOK.read_text(encoding="utf-8")
-        assert "taste-count-ratchet" in text
-        commented = "\n".join(
-            f"# {line}" if "taste-count-ratchet" in line else line for line in text.splitlines()
-        )
-        assert "taste-count-ratchet" not in collect_ratchet_jobs(yaml.safe_load(commented))
+        monkeypatch.setattr(checks_ratchet, "validate_count_ratchets", unavailable)
+        assert checks_ratchet.main() == 2
 
 
 class TestWiredIntoTheSequence:
@@ -225,11 +256,138 @@ class TestValidatorBehaviour:
 
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", record)
         checks_ratchet.validate_count_ratchets(REPO_ROOT)
-        expected = [
+        expected = {
             " ".join(checks_ratchet.build_command(ratchet, base_oid))
             for ratchet in checks_ratchet.RATCHETS
-        ]
-        assert [" ".join(a) for a in seen] == expected
+        }
+        # Compared as sets: the ratchets run concurrently, so completion order
+        # is not registry order. Every command must still be issued exactly
+        # once, which the length check below pins alongside membership.
+        assert {" ".join(a) for a in seen} == expected
+        assert len(seen) == len(checks_ratchet.RATCHETS)
+
+    def test_each_ratchet_gets_the_budget_left_when_it_starts(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The deadline stays absolute, but is no longer spent in registry order.
+
+        The sequential loop this replaced handed ratchet N the budget minus
+        everything the first N-1 had consumed, so the last entry ran on the
+        remainder and was the one that timed out. Observed on a cold run:
+        merge-tree, registered last, reported "Command timed out after 33s"
+        and then passed on retry with no code change. Concurrently every
+        ratchet starts near the same instant, so each sees nearly the whole
+        budget and none is starved by its position in the registry.
+        """
+        monkeypatch.setattr(
+            checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
+        )
+        monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
+        timeouts: list[int] = []
+
+        def record_timeout(_args: list[str], **kwargs: object) -> tuple[int, str, str]:
+            timeout = kwargs["timeout"]
+            assert isinstance(timeout, int)
+            timeouts.append(timeout)
+            return 0, "", ""
+
+        monkeypatch.setattr(checks_ratchet, "_run_subprocess", record_timeout)
+
+        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
+        assert len(timeouts) == len(checks_ratchet.RATCHETS)
+        # Every ratchet, not just the first, gets essentially the full budget.
+        assert all(t > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS - 5 for t in timeouts), timeouts
+        assert all(t <= checks_ratchet._AGGREGATE_TIMEOUT_SECONDS for t in timeouts), timeouts
+
+    def test_the_ratchets_actually_overlap(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Prove concurrency, which a timeout assertion alone cannot.
+
+        A stub that returns immediately gives every call nearly the whole
+        budget under a serial implementation too, so asserting on the timeout
+        values does not discriminate. A barrier does: it only clears once every
+        ratchet is inside the call at the same time, so a serial loop blocks on
+        the first one and raises BrokenBarrierError when the timeout expires.
+        """
+        monkeypatch.setattr(
+            checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
+        )
+        monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
+
+        barrier = threading.Barrier(len(checks_ratchet.RATCHETS), timeout=30)
+        broke = threading.Event()
+
+        def wait_for_all(_args: list[str], **_k: object) -> tuple[int, str, str]:
+            try:
+                barrier.wait()
+            except threading.BrokenBarrierError:
+                broke.set()
+                return 1, "", "ratchets did not overlap"
+            return 0, "", ""
+
+        monkeypatch.setattr(checks_ratchet, "_run_subprocess", wait_for_all)
+
+        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
+        assert not broke.is_set(), "the ratchets ran serially, not concurrently"
+
+    def test_the_pool_is_sized_to_the_registry_not_the_core_count(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A cpu_count cap would hand a one-core host the sequential loop back.
+
+        The workers only wait on subprocesses, so the core count does not
+        measure the resource they consume. Capping by it would silently restore
+        the starvation this change removes, on exactly the smallest machines.
+        Asserted through the pool the code actually builds rather than by
+        reading the source, which a comment mentioning cpu_count would defeat.
+        """
+        monkeypatch.setattr(
+            checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
+        )
+        monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
+        monkeypatch.setattr(checks_ratchet, "_run_subprocess", lambda *_a, **_k: (0, "", ""))
+
+        sizes: list[int | None] = []
+        real_pool = checks_ratchet.concurrent.futures.ThreadPoolExecutor
+
+        def recording_pool(max_workers: int | None = None, **kwargs: object):
+            """Record the requested size, then build the real pool.
+
+            A factory rather than a subclass: subclassing ThreadPoolExecutor
+            needs type-ignore comments for its untyped __init__, and those
+            raise the type-ignore count ratchet that runs beside this one.
+            """
+            sizes.append(max_workers)
+            return real_pool(max_workers=max_workers, **kwargs)
+
+        monkeypatch.setattr(
+            checks_ratchet.concurrent.futures, "ThreadPoolExecutor", recording_pool
+        )
+
+        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
+        assert sizes == [len(checks_ratchet.RATCHETS)], sizes
+
+    def test_a_ratchet_starting_after_the_deadline_is_a_failure_not_a_skip(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An exhausted budget must fail loudly; a silent skip is a false green."""
+        monkeypatch.setattr(
+            checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
+        )
+        monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
+        monkeypatch.setattr(checks_ratchet, "_AGGREGATE_TIMEOUT_SECONDS", -1)
+
+        def unreachable(*_a: object, **_k: object) -> tuple[int, str, str]:
+            raise AssertionError("no ratchet may run once the deadline has passed")
+
+        monkeypatch.setattr(checks_ratchet, "_run_subprocess", unreachable)
+
+        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is False
 
     def test_fails_when_one_ratchet_exits_nonzero(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -391,4 +549,3 @@ class TestNormalizeRemoteHead:
                 is None
             )
         assert "ref not usable" in capsys.readouterr().err
-

@@ -71,6 +71,7 @@ from active_plan_closeout import validate_active_plan_closeout
 # module docstring above).
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
+from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
@@ -100,7 +101,6 @@ from checks_dash import (
     validate_dash_prohibition,
 )
 from checks_plugin import (
-    _is_linked_worktree,
     validate_colocated_skill_tests,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,

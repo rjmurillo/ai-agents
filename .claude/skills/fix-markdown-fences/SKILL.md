@@ -92,7 +92,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/fix-markd
 
 Options: `--write` repairs in place, `--json` emits machine-readable output,
 `--pattern` sets the glob for directory scans (default `*.md`). Paths default
-to the current directory. `.git`, `node_modules`, `.venv`, and `__pycache__`
+to the current directory. `.git`, `node_modules`, `.venv`, `venv`, and `__pycache__`
 are skipped.
 
 Fence matching follows CommonMark, which is what keeps the tool from damaging
@@ -104,15 +104,81 @@ documentation:
   stays literal text.
 - A backtick opening fence whose info string contains a backtick is not a
   fence.
-- A marker indented four or more spaces is an indented code block, not a
-  fence. That is what stops a repair from appending a fence to a document
-  that shows a bare fence inside an indented block. The cost is that a fence
-  nested that deep inside a list item is invisible here: the tool declines to
-  see a fence rather than inventing one, so it misses rather than corrupts.
+- A marker more than three spaces past its containing block is an indented
+  code block, not a fence. That is what stops a repair from appending a fence
+  to a document that shows a bare fence inside an indented block. The three
+  spaces are counted from the innermost open list item, not from column zero,
+  so a fence indented four spaces inside a list item is still a fence.
+- A list item's content column is not always the marker plus its padding. Five
+  or more spaces after the marker means the content column is the marker plus
+  one; an item with no content on its line is the same. A marker that is itself
+  indented code opens no item, a thematic break is never an item even though
+  `* * *` matches the bullet grammar, and a list may interrupt a paragraph only
+  when the item is non-empty and, if ordered, starts at 1 (leading zeros do not
+  change that start). That last veto is scoped to the item the paragraph lives
+  in: a marker indented below the content column closes the item, the paragraph
+  closes with it, and the marker is then judged at the outer level where no
+  paragraph is open. A link reference definition (`[foo]: /url`) is its own
+  block and leaves no paragraph open, so a list may start after one; but a
+  definition cannot interrupt a paragraph that is already open, its
+  destination and title must be complete (`[foo]: <broken` is prose), its
+  destination balances parentheses at any depth and may escape either
+  angle delimiter while a title may escape its own and may run across
+  lines until that delimiter arrives, a continuation belongs to the same
+  leaf block and so keeps its meaning at any indent, and
+  either the destination or a bare title may sit on the following line, and
+  a blank line, a fenced block, a list marker or an indented code block
+  cancels a definition still waiting for one, while a line that does
+  continue one is a lazy continuation and does not close the item holding
+  it. A label of only whitespace is not a definition at all. A blank line
+  directly after an empty marker closes the item, and a paragraph
+  continuation line may dedent without closing it.
+  Getting any of these wrong moves the content column, which moves what counts
+  as a fence.
+- A marker line's remainder is re-parsed inside the item it opens, so a fence
+  marker after a bullet opens a block whose indent is the item's content
+  column, and `- - a` opens two items. A block also ends when the item holding
+  it ends, with no closing marker, so a line that dedents below it closes it.
+  Without either rule the tool kept a block open past its real end, and
+  `--write` appended a closing fence to documents already well formed.
+- Known gaps, each measured and none counted. A raw HTML block swallows a
+  following fence, so a fence inside one is read as a fence here and as HTML
+  by CommonMark. That one is DESTRUCTIVE, not merely a disagreement, and it is
+  the worst gap on this list: the reference parser sees no fence at all, so the
+  document is balanced, and `--write` appends a closer anyway. Measured across
+  all seven CommonMark HTML block types, opener terminated and unterminated,
+  20 of 20 shapes are written to. Do not run `--write` unattended over
+  documents containing raw HTML blocks. A blockquote prefix is never stripped,
+  and that costs two different things. A fence inside `>` is invisible, which is a miss: six
+  shapes diverge and `--write` changes none. A blockquote INTERRUPTING a
+  paragraph is worse: CommonMark ends the paragraph and lazily continues the
+  quote, so a following `2.` opens a list, while we keep the paragraph open
+  and `--write` appends a closer to a balanced document. Two of twelve
+  measured shapes do that. A backslash in a link destination escapes whatever
+  follows it, where CommonMark escapes only ASCII punctuation, so an escaped
+  space and an escaped tab are read wrongly: 62 of 64 shapes agree. The spec
+  rule was measured before being believed and is worse, 34 of 64 with 30
+  `--write` corruptions, so the permissive rule stays. The escaped-TAB half is
+  destructive on its own account, because tabs are expanded to four-column
+  stops before the grammar sees them, so what the permissive rule eats depends
+  on the label's length: nine of eleven single-line label lengths turn a
+  balanced document into an unclosed one, and the two that do not are the two
+  that land on a tab stop. Escaped space and the next-line destination path
+  corrupt none of eleven. And a setext `===`
+  underline
+  directly under a list item, followed by a lazy continuation and then an
+  indented fence, leaves that fence unseen. This one is DESTRUCTIVE too, and
+  it was recorded here as a miss on a measurement that did not hold: over nine
+  shapes, seven are rewritten and six go in balanced and come out unclosed.
+  The smallest is five lines, `- item` / `===` / `lazy` / two-space fence /
+  `out`, where the list item ending closes the fence for CommonMark and
+  `--write` appends a second one at top level. `---` under
+  the same item already agrees. The scanners' agreement with a CommonMark
+  reference is measured by the fuzz baselines in the repository's test suite.
 
 Files are read and written as bytes, so CRLF and CR endings survive, a UTF-8
-BOM survives, and the Unicode separators `str.splitlines` would swallow (form
-feed, U+0085, U+2028, U+2029) stay put. Each line keeps its own terminator, so
+BOM survives, and every separator `str.splitlines` would swallow (U+000B,
+U+000C, U+001C, U+001D, U+001E, U+0085, U+2028, U+2029) stays put. Each line keeps its own terminator, so
 a mixed-ending file is not normalized. Repair is idempotent.
 
 Exit codes (ADR-035):
@@ -127,15 +193,24 @@ Kept so a reader can audit the script, not so the agent can run it by hand.
 
 Track fence state while scanning line by line:
 
-1. **Detect opening fence**: outside a block, a line of three or more
-   backticks or tildes opens one. Record the character, the length, and the
-   indent.
-2. **Detect malformed closing fence**: inside a block, a line using the same
+1. **Track list containers**: outside a block, close any list item the line
+   has dedented out of, and close any paragraph those items held, then open one
+   if the line starts an item. The stack of open content columns is what the
+   indent test below measures against. Closing the paragraph with its item is
+   what lets a marker that cannot interrupt a paragraph still open a list after
+   a dedent.
+2. **Detect opening fence**: outside a block, a line of three or more
+   backticks or tildes, indented no more than three columns past the innermost
+   open list item, opens one. Record the character, the length, and the indent.
+3. **Detect the end of the containing item**: inside a block that opened
+   inside a list item, a line indented below that item's content column ends
+   the block, with no closing marker and nothing inserted.
+4. **Detect malformed closing fence**: inside a block, a line using the same
    character at the same length or longer, carrying a non-empty info string.
    Insert a bare closing fence before it.
-3. **Detect valid closing fence**: the same character at the same length or
+5. **Detect valid closing fence**: the same character at the same length or
    longer with an empty info string. Exit the block.
-4. **At end of file**: a still-open block gets a bare closing fence appended.
+6. **At end of file**: a still-open block gets a bare closing fence appended.
 
 ## Verification
 
@@ -156,14 +231,16 @@ echo "exit=$?"   # 0 = clean, 1 = defects found, 2 = bad input
 | Manually searching for bad fences | Error-prone in large files, and the agent cannot track fence length by eye | Run `fix_fences.py` |
 | Simulating the state machine in-context | The script already does it, exactly and for free | Read the script's report |
 | Running `--write` across a whole repo unreviewed | A repair inside nested documentation is often the wrong fix | Report first, review, then write per path |
-| Copying opening fence line to close a block | Creates the exact bug this skill fixes | Always use plain ` ``` ` for closing |
-| Fixing fences without tracking block state | Misidentifies nested vs sequential blocks | Use the stateful line-by-line algorithm |
+| Copying opening fence line to close a block | Creates the exact bug this skill fixes | Close with the opener's character, no info string, at least the opener's length |
+| Fixing fences without tracking block state | Misidentifies nested vs sequential blocks | Run `fix_fences.py`, which tracks it |
 
 ## Prevention
 
 When generating markdown with code blocks:
 
-1. Always use plain \`\`\` for closing fences
+1. Close with the opener's fence character and no info string, at a length
+   at least the opener's. A four-backtick container needs four to close it,
+   which is what lets it hold a three-backtick example.
 2. Never copy the opening fence line to close
 3. Track block state when programmatically generating markdown
 
@@ -180,62 +257,20 @@ than fixed: a second copy of a parser drifts from the one that ships.
 
 ```bash
 # Find files with potential issues
-grep -rEn --include="*.md" -- '```\w+' . | grep -vE "^[^:]*:[0-9]*:[[:space:]]*```\w+[[:space:]]*$"
+# Single quotes throughout: a backtick inside DOUBLE quotes opens command
+# substitution, and this line used to fail `bash -n` for that reason.
+grep -rEn --include="*.md" -- '```\w+' . | grep -vE '^[^:]*:[0-9]*:[[:space:]]*```\w+[[:space:]]*$'
 ```
 
 </details>
 
-<details>
-<summary><strong>Implementation: PowerShell</strong></summary>
-
-```powershell
-$directories = @('docs', 'src')
-
-foreach ($dir in $directories) {
-    Get-ChildItem -Path $dir -Filter '*.md' -Recurse | ForEach-Object {
-        $file = $_.FullName
-        $content = Get-Content $file -Raw
-        $lines = $content -split "`r?`n"
-        $result = @()
-        $inCodeBlock = $false
-        $codeBlockIndent = ""
-
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            $line = $lines[$i]
-
-            if ($line -match '^(\s*)```(\w+)') {
-                if ($inCodeBlock) {
-                    $result += $codeBlockIndent + '```'
-                    $result += $line
-                    $codeBlockIndent = $Matches[1]
-                } else {
-                    $result += $line
-                    $codeBlockIndent = $Matches[1]
-                    $inCodeBlock = $true
-                }
-            }
-            elseif ($line -match '^(\s*)```\s*$') {
-                $result += $line
-                $inCodeBlock = $false
-                $codeBlockIndent = ""
-            }
-            else {
-                $result += $line
-            }
-        }
-
-        if ($inCodeBlock) {
-            $result += $codeBlockIndent + '```'
-        }
-
-        $newContent = $result -join "`n"
-        Set-Content -Path $file -Value $newContent -NoNewline
-        Write-Host "Fixed: $file"
-    }
-}
-```
-
-</details>
+An earlier revision also inlined a PowerShell rewriter here. It is gone for
+the same reason, and measurement is why rather than symmetry: run on a CRLF
+file it rewrote every ending to LF, which the Edge Cases list below
+explicitly promises it does not do, and a `~~~python` block left unclosed
+was invisible to it because it matched backticks only. The shipped script
+closes that tilde block and preserves the CRLF. A copy that drifts this far
+while sitting under the same heading is worse than no example.
 
 <details>
 <summary><strong>Edge Cases Handled</strong></summary>

@@ -227,6 +227,77 @@ jobs:
             echo "Python test inputs changed: $PYTHON_CHANGED"
           fi
 
+  zero-collection-guard:
+    name: Check for zero-collection test files (blocking)
+    # Copilot review round 3, PR #5344: this whole-tree guard examines every
+    # file under testpaths regardless of diff, so it must not sit behind a
+    # path filter (`.claude/rules/ci-scripts.md`: "The whole tree ... MUST
+    # run"). It used to live inside the `test` job's `bulk` partition, which
+    # is skipped whenever check-paths reports no Python-relevant diff,
+    # letting a mainline push publish a stale green tick without measuring
+    # the current tree. No `needs:`/`if:` here on purpose.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Check for zero-collection test files (blocking)
+        run: uv run --frozen python scripts/validation/check_zero_collection_tests.py
+
+  line-endings-guard:
+    name: Check index line endings (blocking)
+    # Issue #5475. Same reasoning as zero-collection-guard above, and the same
+    # deliberate absence of `needs:`/`if:`. This guard reads every tracked
+    # blob, so a path filter can report green without measuring.
+    #
+    # `.md` is NOT the example: the `python` filter carries `**/*.md`, so the
+    # two incident handoffs would have set `python-changed` true and run the
+    # `test` job. The gap is the text paths the filter omits. `.gitattributes`
+    # applies `* text=auto eol=lf` to every tracked file; measured against the
+    # filter, `**/*.xml` has no glob at all (7 tracked files) and only
+    # `scripts/bootstrap-vm.sh` of the 16 tracked `.sh` files is listed, while
+    # `.gitattributes` declares `*.sh text eol=lf`. A CRLF blob under any of
+    # those leaves `python-changed` false and skips a filtered job.
+    #
+    # Both offending blobs arrived through the GraphQL createCommitOnBranch
+    # API, which runs no local hook, so CI is the only place that producer is
+    # observed.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Check index line endings (blocking)
+        run: uv run --frozen python scripts/validation/check_index_line_endings.py
+
   test:
     name: "pytest (${{ matrix.partition }})"
     needs: check-paths
@@ -339,15 +410,25 @@ jobs:
         run: |
           # No --depth=1. The checkout above already used fetch-depth: 0, so a
           # depth-limited fetch saves nothing and writes .git/shallow, grafting
-          # the fetched tip parentless. This ratchet does need a merge base:
-          # count_ratchet.changed_files diffs `base_ref...HEAD` (three-dot) to
-          # sort branch-touched files first. That leg fails open, so a graft
-          # degrades the diagnostic instead of failing the step, which is the
-          # buried-violation problem the ordering exists to prevent, not a red
-          # check. The graft is written by whichever fetch runs first and a
-          # plain undepthed fetch does not clear it, only --unshallow does.
-          # In pr-validation.yml the same graft hits merge_tree_ratchet_check,
-          # which fails closed, and that is what cost a red required check.
+          # the fetched tip parentless. The graft is written by whichever fetch
+          # runs first and a plain undepthed fetch does not clear it; only
+          # --unshallow does.
+          #
+          # count_ratchet.py reads a merge base on two legs, and they fail in
+          # opposite directions. changed_files diffs `base_ref...HEAD`
+          # (three-dot) to sort branch-touched files first: that leg fails
+          # OPEN, so a graft degrades the diagnostic instead of failing the
+          # step, which is the buried-violation problem the ordering exists to
+          # prevent, not a red check. _base_ref_verdict reads `git merge-base`
+          # to decide whether THIS tree moved the baseline (issue #5065): that
+          # leg fails CLOSED. Under a graft it cannot name a fork point, the
+          # behind-base relief goes inert, and a legitimately-behind branch
+          # blocks again with a message that says the fork point is
+          # unreadable. So the no-shallow-fetch requirement here is
+          # load-bearing for the verdict, not only for the diagnostic, the
+          # same way it is at the merge-tree step in pr-validation.yml, where
+          # a graft hitting merge_tree_ratchet_check cost a red required
+          # check.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/ruff_count_ratchet.py --base-ref FETCH_HEAD
 
@@ -365,6 +446,12 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
+          # No --depth=1: see the ruff count ratchet leg above. This ratchet
+          # is the one that needs it most. Its baseline is absent from
+          # scripts/ci/merge_tree_ratchet_registry.py, so it declares
+          # MERGE_TREE_BACKED = False and this --base-ref comparison is its
+          # only stale-branch guard; a graft turns that guard into a hard
+          # block rather than degrading it.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
 
@@ -373,6 +460,7 @@ jobs:
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
+          # No --depth=1: see the pull_request leg above.
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --base-ref FETCH_HEAD
 
@@ -526,6 +614,8 @@ jobs:
       - check-paths
       - test
       - coverage
+      - zero-collection-guard
+      - line-endings-guard
     # !cancelled() rather than always(): a superseded run leaves its
     # dependencies 'cancelled', and always() would turn that into a red
     # required check on the PR head (Issue #5097). !cancelled() still runs on
@@ -545,16 +635,20 @@ jobs:
           persist-credentials: false
           sparse-checkout: scripts/ci/require_job_results.py
 
-      - name: Require test and coverage success
+      - name: Require test, coverage, and zero-collection-guard success
         env:
           PATH_RESULT: ${{ needs.check-paths.result }}
           TEST_RESULT: ${{ needs.test.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
+          ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
+          LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
           --check PATH_RESULT success "path detection failed or was cancelled: {value}"
           --check TEST_RESULT success "test job failed or was cancelled: {value}"
           --check COVERAGE_RESULT success "coverage job failed or was cancelled: {value}"
+          --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
+          --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
 
   security:
     name: Python Security Checks
@@ -624,7 +718,7 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28  # v4
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938  # v4
         with:
           sarif_file: bandit.sarif
           category: bandit
@@ -642,8 +736,28 @@ jobs:
   # See: Issue #1168
   skip-tests:
     name: Run Python Tests
-    needs: check-paths
-    if: needs.check-paths.result == 'success' && needs.check-paths.outputs.python-changed != 'true'
+    needs:
+      - check-paths
+      - zero-collection-guard
+      # Issue #5475: this is the leg that reports the required check on
+      # exactly the change the line-ending guard exists for. A commit adding
+      # only a CRLF `.xml` or `.csv` leaves `python-changed` false, so
+      # `test-result` is skipped and this job answers for `Run Python Tests`
+      # instead. Not `.md`: the `python` filter carries `**/*.md`, as the
+      # `line-endings-guard` comment above records and
+      # `test_the_filter_gap_this_job_exists_for_is_real` asserts. Wiring the
+      # guard into `test-result` alone left it red beside a green required
+      # check, because the guard's own context is not in the repository's
+      # required-checks list.
+      - line-endings-guard
+    # !cancelled() so this job still runs (and can fail loudly) when
+    # zero-collection-guard failed, rather than being implicitly skipped by
+    # GitHub's default success()-over-needs gate, which would leave the
+    # required "Run Python Tests" context missing instead of failed.
+    if: >-
+      !cancelled() &&
+      needs.check-paths.result == 'success' &&
+      needs.check-paths.outputs.python-changed != 'true'
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 2
@@ -654,6 +768,20 @@ jobs:
         uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci/require_job_results.py
+
+      - name: Require blocking guards succeeded
+        env:
+          ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
+          LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
+        run: >-
+          python scripts/ci/require_job_results.py
+          --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
+          --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
 
       - name: Skip tests (no Python test inputs changed)
         run: |

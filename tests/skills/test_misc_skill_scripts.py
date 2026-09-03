@@ -340,9 +340,9 @@ class TestResolvePrConflicts:
         with pytest.raises(ValueError, match="Invalid PR number"):
             mod.get_safe_worktree_path(str(tmp_path), 0)
 
-    def test_is_auto_resolvable_handoff(self):
+    def test_is_auto_resolvable_governance_doc(self):
         mod = self._import()
-        assert mod.is_auto_resolvable(".agents/HANDOFF.md") is True
+        assert mod.is_auto_resolvable(".agents/governance/PROJECT-CONSTRAINTS.md") is True
 
     def test_is_auto_resolvable_package_lock(self):
         mod = self._import()

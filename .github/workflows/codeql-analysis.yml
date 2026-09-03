@@ -149,7 +149,7 @@ jobs:
 
       - name: Initialize CodeQL
         if: needs.check-paths.outputs.should-run-analysis == 'true'
-        uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           languages: ${{ matrix.language }}
           config-file: .github/codeql/codeql-config.yml
@@ -157,7 +157,7 @@ jobs:
 
       - name: Perform CodeQL Analysis
         if: needs.check-paths.outputs.should-run-analysis == 'true'
-        uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           category: '/language:${{ matrix.language }}'
           upload: true
@@ -223,7 +223,14 @@ jobs:
   check-blocking-issues:
     name: Check for Blocking Issues
     needs: [check-paths, analyze]
-    if: always() && needs.check-paths.outputs.should-run-analysis == 'true'
+    # `!cancelled()` rather than `always()` (issue #5104). This job consumes the
+    # SARIF artifacts the analyze legs upload. When a push supersedes the run,
+    # concurrency cancels those legs before they upload, and an `always()` gate
+    # runs this job anyway; the download step then errors on the missing
+    # artifacts and publishes a red check against a head nobody is waiting on.
+    # `!cancelled()` still runs the job when analyze FAILED or was SKIPPED, so a
+    # live run with real findings fails exactly as before.
+    if: ${{ !cancelled() && needs.check-paths.outputs.should-run-analysis == 'true' }}
     # ADR-055: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
     permissions:

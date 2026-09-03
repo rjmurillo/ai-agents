@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -107,6 +108,18 @@ _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 # this set against the on-disk trees so a rename fails without a real CLI.
 EXPECTED_SKILLS = frozenset({"build", "plan", "ship", "test", "review", "spec", "sync"})
 
+# The five frontmatter-less documents issue #5493 removed from `.claude/agents/`.
+# Stems, because the loader names an agent by its file stem.
+NON_AGENT_DOCUMENT_STEMS = frozenset(
+    {
+        "AGENTS",
+        "CLAUDE",
+        "dependency-risk-scoring",
+        "powershell-security-checklist",
+        "threat-model-template",
+    }
+)
+
 _COPILOT_PLUGIN_DIR = REPO_ROOT / "src" / "copilot-cli"
 _CLAUDE_PLUGIN_DIR = REPO_ROOT / ".claude"
 _CLAUDE_MANIFEST = _CLAUDE_PLUGIN_DIR / ".claude-plugin" / "plugin.json"
@@ -137,6 +150,37 @@ _CLAUDE_ANALYST_TOOLS = frozenset(
         "mcp__serena__read_memory",
     }
 )
+# The reviewed security-agent grant (issue #4781, PR #5356). `Bash` and `Edit`
+# are deliberately absent: the agent enumerates a review from a pinned GitHub
+# diff or a caller-supplied artifact, never from a local command. That absence
+# is the enforcement for the acceptance criterion "commit, push, and
+# branch-mutation capabilities remain unavailable", because a settings-file deny
+# rule cannot substitute for it (it matches command text case-sensitively while
+# git config keys are case-insensitive, so `git -c Diff.External=` slips it).
+_CLAUDE_SECURITY_TOOLS = frozenset(
+    {
+        "Read",
+        "Grep",
+        "Glob",
+        "WebSearch",
+        "WebFetch",
+        "TodoWrite",
+        "Write",
+        "mcp__github__pull_request_read",
+        "mcp__github__get_commit",
+        "mcp__github__list_commits",
+        "mcp__github__get_file_contents",
+        "mcp__github__search_code",
+        "mcp__github__issue_read",
+        "mcp__serena__list_memories",
+        "mcp__serena__read_memory",
+        "mcp__serena__write_memory",
+        "mcp__serena__edit_memory",
+    }
+)
+_CLAUDE_SECURITY_FORBIDDEN_TOOLS = frozenset({"Bash", "Edit"})
+_SECURITY_AGENT_FILE = REPO_ROOT / ".claude" / "agents" / "security.md"
+
 _COPILOT_ANALYST_TOOLS = frozenset(
     {
         "cognitionai/deepwiki/*",
@@ -494,6 +538,115 @@ def _read_manifest_name(manifest_path: Path) -> str:
     return name
 
 
+def _parse_component_inventory(text: str, label: str) -> set[str]:
+    """Names from one `plugin details` component-inventory row.
+
+    The row reads ``  Agents (31)  analyst, architect, ...`` on a single line.
+    Returns an empty set when the label is absent, so a caller that expects a
+    populated inventory fails on a missing row rather than passing vacuously.
+    """
+    # [ \t] rather than \s: \s spans newlines, so a zero-count row such as
+    # "LSP servers (0)" would swallow the line break and return the NEXT row's
+    # names under this label.
+    pattern = re.compile(rf"^[ \t]*{re.escape(label)}[ \t]*\(\d+\)[ \t]*(.*)$", re.MULTILINE)
+    match = pattern.search(text)
+    if match is None:
+        return set()
+    return {name.strip() for name in match.group(1).split(",") if name.strip()}
+
+
+@pytest.mark.smoke
+@requires_claude
+def test_claude_agent_inventory_excludes_the_non_agent_documents(tmp_path: Path) -> None:
+    """The loader's own agent listing carries none of the #5493 documents.
+
+    This is the loader-level proof that the file-level gate
+    (``scripts/validation/check_agent_tree_frontmatter.py``) cannot give: it asks
+    the real CLI what it registered, rather than asking the repository's own
+    predicate what it would have registered.
+
+    Measured while writing this test, on the same machine and CLI build:
+    ``origin/main`` reported ``Agents (33)`` including ``AGENTS`` and ``CLAUDE``;
+    this branch reports ``Agents (31)`` with neither. The three documents that
+    lived under ``agents/security/references/`` did not appear in either listing,
+    so the loader registered two of the five, not five.
+
+    Positive control: ``security`` must be present. Without it a CLI that stopped
+    emitting the inventory row, or emitted an empty one, would satisfy the
+    absence assertion for the wrong reason.
+    """
+    try:
+        details = _run_cli(
+            [
+                resolve_executable("claude"),
+                "--plugin-dir",
+                str(_CLAUDE_PLUGIN_DIR),
+                "plugin",
+                "details",
+                "project-toolkit",
+            ],
+            cwd=tmp_path,
+            timeout=_CLI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.skip(f"claude plugin details exceeded {_CLI_TIMEOUT_SECONDS}s (CLI/infra latency)")
+
+    assert details.returncode == 0, (
+        f"claude plugin details failed (rc={details.returncode}). "
+        f"stdout={details.stdout[-600:]!r} stderr={details.stderr[-600:]!r}"
+    )
+
+    combined = details.stdout + details.stderr
+    agents = _parse_component_inventory(combined, "Agents")
+
+    assert "security" in agents, (
+        "claude reported no agent inventory containing a known agent, so the "
+        f"absence check below would pass vacuously. parsed={sorted(agents)}. "
+        f"stdout={details.stdout[-600:]!r}"
+    )
+
+    registered_non_agents = agents & NON_AGENT_DOCUMENT_STEMS
+    assert not registered_non_agents, (
+        "claude registered non-agent documents as dispatchable agents: "
+        f"{sorted(registered_non_agents)} (issue #5493)."
+    )
+
+
+def test_parse_component_inventory_reads_a_populated_row() -> None:
+    text = "Component inventory\n  Skills (2)  a, b\n  Agents (3)  analyst, critic, security\n"
+
+    assert _parse_component_inventory(text, "Agents") == {"analyst", "critic", "security"}
+
+
+def test_parse_component_inventory_returns_empty_for_a_missing_label() -> None:
+    text = "Component inventory\n  Skills (2)  a, b\n"
+
+    assert _parse_component_inventory(text, "Agents") == set()
+
+
+def test_parse_component_inventory_does_not_match_a_label_prefix() -> None:
+    """`Agents` must not be read off an `MCP servers` or `LSP servers` row."""
+    text = "  LSP servers (0)  \n  Agents (1)  analyst\n"
+
+    assert _parse_component_inventory(text, "LSP servers") == set()
+    assert _parse_component_inventory(text, "Agents") == {"analyst"}
+
+
+def test_non_agent_document_stems_are_absent_from_the_agent_tree() -> None:
+    """The always-on half: no file under the agent tree carries those stems.
+
+    Pins the same contract as the opt-in CLI test above without a CLI, so a
+    machine with no `claude` on PATH still fails when a stub returns.
+    """
+    tree = REPO_ROOT / ".claude" / "agents"
+    stems = {path.stem for path in tree.rglob("*.md")}
+
+    assert not (stems & NON_AGENT_DOCUMENT_STEMS), (
+        f"non-agent documents are back under {tree}: "
+        f"{sorted(stems & NON_AGENT_DOCUMENT_STEMS)} (issue #5493)."
+    )
+
+
 @pytest.mark.smoke
 @requires_copilot
 def test_copilot_plugin_loads_expected_skills(tmp_path: Path) -> None:
@@ -732,6 +885,71 @@ def test_claude_analyst_runtime_uses_exact_allowlist_with_executor_control() -> 
 
 
 @pytest.mark.smoke
+@requires_claude
+def test_claude_security_runtime_grants_no_shell_with_executor_control() -> None:
+    """Claude resolves the security agent to the reviewed read-and-report set.
+
+    PR #5356's review found the contract tests only parsed frontmatter and
+    searched prose, so nothing observed what the harness actually hands the
+    agent. This probes the live loader. The implementer probe is the defective
+    tool path control: it proves this probe CAN see `Bash` and `Edit` when an
+    agent declares them, so their absence from the security set is a real
+    boundary and not a probe that reports nothing.
+    """
+    security_tools = _claude_init_tools("security")
+    implementer_tools = _claude_init_tools("implementer")
+
+    assert {"Glob", "Grep", "Read", "Write"} <= security_tools
+    assert not security_tools - _CLAUDE_SECURITY_TOOLS, (
+        f"Claude exposed unreviewed security tools: "
+        f"{sorted(security_tools - _CLAUDE_SECURITY_TOOLS)}"
+    )
+    assert not security_tools & _CLAUDE_SECURITY_FORBIDDEN_TOOLS, (
+        f"Claude granted the security agent "
+        f"{sorted(security_tools & _CLAUDE_SECURITY_FORBIDDEN_TOOLS)}. A shell "
+        f"reopens `git commit`, `git push`, and `git -c Diff.External=<cmd>`, "
+        f"which the case-sensitive deny rules do not catch (issue #4781)."
+    )
+    assert {"Bash", "Edit", "Write"} <= implementer_tools, (
+        "negative control failed: Claude did not report execution and write tools "
+        "for implementer, so the security allowlist cannot prove the grant was read"
+    )
+
+
+@pytest.mark.smoke
+@requires_copilot
+def test_copilot_security_runtime_has_no_shell_with_executor_control() -> None:
+    """Copilot's security agent cannot execute a command, and says so.
+
+    The exact-allowlist half is covered by the manifest; this half observes the
+    runtime refusing an execution request. The implementer probe is the control:
+    the same prompt against an agent that does hold a shell must run.
+    """
+    security_events = _run_copilot_agent(
+        "security",
+        (
+            "Use the shell tool to execute exactly: printf COPILOT_SHELL_CONTROL. "
+            "Do not use a substitute. If unavailable reply exactly SHELL_UNAVAILABLE."
+        ),
+    )
+    implementer_events = _run_copilot_agent(
+        "implementer",
+        (
+            "Use the shell tool to execute exactly: printf COPILOT_SHELL_CONTROL. "
+            "Do not use a substitute. Then reply exactly READY."
+        ),
+    )
+
+    assert not {"bash", "shell", "execute"} & set(_copilot_tool_names(security_events))
+    assert "SHELL_UNAVAILABLE" in _copilot_assistant_text(security_events)
+    assert "bash" in _copilot_tool_names(implementer_events), (
+        "negative control failed: implementer did not execute the shell command, "
+        "so the security refusal proves nothing about the security agent"
+    )
+    assert "COPILOT_SHELL_CONTROL" in _copilot_tool_result_text(implementer_events)
+
+
+@pytest.mark.smoke
 @requires_copilot
 def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() -> None:
     """Copilot resolves only reviewed analyst tools, with an execution control."""
@@ -781,6 +999,29 @@ def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() ->
 # ships in BOTH plugin trees, and the fired-hook detector has a working positive
 # and negative control. A break here means the gated smoke is asserting a skill
 # set that cannot load, or a load signal that cannot fail.
+
+
+def test_security_agent_file_declares_the_probed_allowlist() -> None:
+    """The gated smoke must not assert a tool set the agent file cannot produce.
+
+    Same role as the skill-set pins below: this runs without a CLI, so a grant
+    edited on disk fails here in bare CI rather than silently making the gated
+    probe assert a set nothing will ever load.
+    """
+    frontmatter = yaml.safe_load(
+        _SECURITY_AGENT_FILE.read_text(encoding="utf-8").split("---", 2)[1]
+    )
+    declared = set(frontmatter["tools"])
+
+    assert declared == set(_CLAUDE_SECURITY_TOOLS), (
+        f"{_SECURITY_AGENT_FILE.relative_to(REPO_ROOT)} declares {sorted(declared)}, "
+        f"but the runtime probe asserts {sorted(_CLAUDE_SECURITY_TOOLS)}. Update both."
+    )
+    assert not declared & set(_CLAUDE_SECURITY_FORBIDDEN_TOOLS), (
+        f"{_SECURITY_AGENT_FILE.relative_to(REPO_ROOT)} declares "
+        f"{sorted(declared & set(_CLAUDE_SECURITY_FORBIDDEN_TOOLS))}; the security "
+        f"agent gets no shell and no editor (issue #4781)"
+    )
 
 
 def test_expected_skills_ship_in_copilot_plugin_tree() -> None:

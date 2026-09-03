@@ -363,6 +363,7 @@ class TestAggregateJob:
     def test_skip_job_requires_successful_path_detection(self) -> None:
         condition = _job("skip-tests")["if"]
         assert condition == (
+            "!cancelled() && "
             "needs.check-paths.result == 'success' && "
             "needs.check-paths.outputs.python-changed != 'true'"
         )

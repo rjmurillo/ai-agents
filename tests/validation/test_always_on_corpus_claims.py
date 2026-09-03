@@ -124,6 +124,21 @@ def test_library_sentence_parser_splits_both_groups() -> None:
     assert parsed == ({"alpha"}, {"beta", "gamma"})
 
 
+def test_library_sentence_parser_reads_none_as_an_empty_group() -> None:
+    """`none` is the empty set, not a rule named `none` (issue #4871).
+
+    No book rule loads on every turn since `code-quality` was rescoped, so the
+    sentence has an empty side. Parsing it as a one-element set would make
+    `test_library_skill_loading_sentence_matches_reality` fail for the wrong
+    reason and hide the membership it is meant to check.
+    """
+    parsed = parse_library_sentence(
+        "For the everyday default, none loads on every turn and alpha and "
+        "beta load on code files; open a reference here only when needed."
+    )
+    assert parsed == (set(), {"alpha", "beta"})
+
+
 # --- Numeric claims -------------------------------------------------------
 #
 # The membership guards above catch a rule joining or leaving the always-on

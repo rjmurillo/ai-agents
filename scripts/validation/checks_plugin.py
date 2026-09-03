@@ -202,17 +202,45 @@ def validate_plugin_version_bump(repo_root: Path) -> bool:
 def _lefthook_check_command() -> list[str] | None:
     uv = shutil.which("uv")
     if uv:
-        return [uv, "run", "--frozen", "lefthook", "check-install"]
+        return [uv, "run", "--frozen", "lefthook", "version"]
 
     return None
 
 
 def validate_lefthook_installed(repo_root: Path) -> bool:
-    """Fail when uv or Lefthook is unavailable, unconfigured, or not installed.
+    """Fail when the configured Lefthook runtime cannot start.
 
     CI skips this local-clone check because workflows invoke validation directly.
-    A linked worktree keeps the existing warning policy because its hook storage
-    is shared with the primary clone and may be outside the current change scope.
+
+    This gate must not call ``lefthook check-install``: that command compares
+    the shared checksum written by the last installing branch, so a sibling
+    branch with different hook config makes another worktree fail even though
+    the installed shim is healthy and dispatches Lefthook. Issue #4789.
+
+    The failure is the checksum comparison, not the shim, and that holds on
+    every platform. Saying the shim resolves Lefthook "from the active
+    worktree" would be the Linux behavior stated as general, which is the
+    overclaim the Windows note below exists to remove.
+
+    What each of the two adjacent gates proves, so neither is read as covering
+    the other. This one proves the configured runtime starts. ``Git Hook
+    Health`` proves git will run the shim and that the shim dispatches Lefthook,
+    by requiring Lefthook's complete generated dispatch line, including
+    ``"$@"``, as the installed ``pre-push`` file's final command
+    (``check_git_hook_health._dispatch_command``, matched exactly rather than by
+    containment, which is what the check this PR removed did), because an
+    executable ``#!/bin/sh`` plus ``exit 0`` satisfies both a runtime-start check
+    and an executability check while running no job at all.
+
+    Neither gate proves the shim resolves the same binary this one starts, and
+    on Windows they demonstrably differ.
+    ``tests/test_lefthook_integration.py::test_install_resets_legacy_hooks_path``
+    records that Lefthook 2.1.10 generates the default Windows template, which
+    omits the configured ``uv run --frozen lefthook`` runner and resolves
+    Lefthook through ``PATH``. So on Windows ``lefthook version`` through uv can
+    pass while the shim resolves a different binary, or none. Closing that needs
+    a Windows probe with the uv runtime present and the ``PATH`` binary absent,
+    which is not covered here. Issue #4789, PR #5358 review.
     """
     if (
         os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
@@ -242,59 +270,13 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
         print(stdout.strip())
     if stderr.strip():
         print(stderr.strip(), file=sys.stderr)
-    if exit_code == 0:
-        return True
-    if _is_linked_worktree(repo_root):
-        print(
-            "[WARNING] Lefthook is not installed in this linked worktree. "
-            "Install it from the primary clone with:\n"
-            "  uv run --frozen lefthook install --reset-hooks-path\n"
-            "  uv run --frozen lefthook check-install\n"
-            "(non-blocking here, Issue #2374)."
-        )
-        return True
-    print(
-        "[FAIL] Lefthook is not installed. Run:\n"
-        "  uv run --frozen lefthook install --reset-hooks-path\n"
-        "  uv run --frozen lefthook check-install"
-    )
-    return False
-
-
-def _is_linked_worktree(repo_root: Path) -> bool:
-    """True when ``repo_root`` is a linked git worktree, not the primary clone.
-
-    A linked worktree has a ``--git-dir`` that differs from its
-    ``--git-common-dir``; the primary clone has the two equal. Returns False
-    when git is unavailable or the paths cannot be resolved, so the caller
-    keeps its default hard-fail behavior rather than silently downgrading.
-    """
-    if not shutil.which("git"):
-        return False
-    exit_code, stdout, _ = _run_subprocess(
-        [
-            "git",
-            "-C",
-            str(repo_root),
-            "rev-parse",
-            "--git-dir",
-            "--git-common-dir",
-        ],
-        timeout=10,
-    )
     if exit_code != 0:
+        print(
+            "[FAIL] Lefthook runtime is unavailable. Run: "
+            "uv sync --frozen --extra dev"
+        )
         return False
-    lines = [line.strip() for line in stdout.splitlines() if line.strip()]
-    if len(lines) != 2:
-        return False
-    git_dir, git_common_dir = lines
-    git_dir_path = Path(git_dir)
-    git_common_dir_path = Path(git_common_dir)
-    if not git_dir_path.is_absolute():
-        git_dir_path = repo_root / git_dir_path
-    if not git_common_dir_path.is_absolute():
-        git_common_dir_path = repo_root / git_common_dir_path
-    return git_dir_path.resolve() != git_common_dir_path.resolve()
+    return True
 
 
 def _add_workflow_paths(repo_root: Path, diff_out: str, changed: list[str]) -> None:
