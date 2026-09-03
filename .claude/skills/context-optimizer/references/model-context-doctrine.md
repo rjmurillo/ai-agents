@@ -207,7 +207,7 @@ corpus has taken. The biggest always-on file is `voice.md` at 17,911 bytes.
 
 | Rule | Bytes | Loading | Scenario file | Scored result |
 |---|---|---|---|---|
-| `code-quality.md` | 14,174 | code files only | 3 positive, 1 negative | none |
+| `code-quality.md` | 14,402 | code files only | 3 positive, 1 negative | none |
 | `pragmatic-programmer.md` | 11,479 | code files only | 3 positive, 1 negative | none |
 | `unified-software-engineering.md` | 7,469 | code files only | 3 positive, 1 negative | yes |
 
