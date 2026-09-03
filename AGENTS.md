@@ -26,6 +26,15 @@
 **Autonomy Guardrail**: Internal+reversible: act|External/irreversible: confirm|Ambiguous: act minimal, flag rest
 **Never**: Commit secrets|New bash scripts|Logic in YAML (ADR-006)|Raw gh if skill exists|Force push|Skip hooks|Internal refs in src|Scratch in tree|Resolve security threads w/o fix|Ship unrun gen artifact|Report PR blocked/conflicted w/o fix
 
+## Token Economy
+
+Rework is the largest leak: a wrong edit bills the edit, the review, the fix, and the re-review. The gates above are the cheap rehearsal of that loop.
+
+**Right first time**:Read `paths`-matching rules before the edit, not after review flags it|Read the span you change; never edit from memory or a summary|Check the API (Context7/DeepWiki/source), do not guess|Fix root cause; a symptom fix bills again next run
+**Read narrow**:LSP symbol query > grep + full read (`lsp-first.md`)|`sed -n 'A,Bp'` > `cat` a large file|GitHub URLs via github-url-intercept (API 1-50KB, HTML 5-10MB)|Stop after 3 unhelpful searches, then reason (`search-before-building.md`)|Wide fan-out -> subagent; keep the conclusion, not the dumps
+**Spend narrow**:Batch independent tool calls in one message|Report is telemetry, not essay (`voice.md`)|State each fact once
+**Never cut for tokens**:gates|tests|reading before editing|evidence in a report|scope the user asked for
+
 ## Context
 
 Knowledge -> context. Actions -> skills.
