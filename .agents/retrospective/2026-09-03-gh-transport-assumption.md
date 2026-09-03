@@ -141,6 +141,24 @@ for a third cause.
 Classification first, because the preflight and both commands read its verdict. Prose last,
 because the routing table can only be honest once the tool coverage is known.
 
+### Remediation (open, with owners)
+
+`.claude/rules/retros.md` MUST 4 wants follow-ups with owners or issues, not a
+list of commits already made. The table above is the completed work. These are
+the actions still open, all surfaced by review on PR #5509 after this retro was
+first written.
+
+| Action | Type | Owner / tracking |
+|--------|------|------------------|
+| Wire `check_skill_md_exec_portability.py` into `pre_pr.py` | Governance | Unassigned. CI-only today, so a bare-path invocation is undiscoverable locally; it cost one review cycle on PR #5509. |
+| Wire `validate-slash-commands` into `pre_pr.py` | Governance | Unassigned. Same shape, cost a second cycle on the same PR. |
+| Decide MCP-mode write policy for `/pr-autofix` | Instruction | Repo owner. MCP mode is triage-only because no lease can be held; either implement the marker-comment lease over MCP operations or narrow the command's documented scope. |
+| Correct the `issue #2223` citation in `tests/validation/test_check_git_hook_health.py:60,166` | Docs | Unassigned. That issue is about splitting oversized modules; it was copied into new code from there before being caught. |
+| Split `tests/test_github_auth_classification.py` | Tech debt | Unassigned. Past the advisory taste-lint file-size threshold; natural seams are classification, remedy, retry, preflight. |
+
+The first two are the same governance gap in two places: a gate that runs only
+in CI teaches contributors nothing until after they push. Both are cheap.
+
 ## Phase 4: Extracted Learnings
 
 ### Learning 1
@@ -177,6 +195,25 @@ credentials) and #4344 (a quota refusal read as missing gh). Running the classif
 against this session's failure produced a third false answer, and the fix is the same
 shape as the first two: give the condition its own member and its own remedy.
 
+### Learning 4
+
+**Statement**: An absence claim about a tool surface needs the schema read, not
+an inference from a repository search.
+
+**Context**: Writing that an operation is unavailable, in any routing table,
+capability matrix, or fallback document.
+
+**Evidence**: Review on PR #5509 found five absence claims made without
+checking: an ADR path, an import closure asserted out of scope twice, and two
+routing rows saying no reactions or milestone tool exists. All five were false.
+`add_issue_comment` takes a `reaction`, `issue_write` takes a `milestone`, and
+the ADR paragraph said exactly what the citation claimed. A repository grep
+cannot see an MCP surface, because that surface is not defined in the
+repository. The instrument has to match the claim: read the tool schema, or
+scan the import closure, rather than searching a tree that never held the
+answer. A false "unavailable" is worse than silence, because it disables a
+path that works.
+
 ## Skillbook Updates
 
 ### ADD
@@ -188,6 +225,16 @@ shape as the first two: give the condition its own member and its own remedy.
   "context": "Any 'X is not available' report where one tool's failure is the only evidence.",
   "evidence": "2026-09-03: gh REST and GraphQL both returned HTTP 403 while mcp__github__get_me returned real data, inverting the diagnosis and the fix.",
   "atomicity": 80
+}
+```
+
+```json
+{
+  "skill_id": "absence-claims-need-the-matching-instrument",
+  "statement": "Verify an absence with the instrument that can see the thing: read the tool schema for a tool, scan the import closure for an import, open the file for a path.",
+  "context": "Writing that an operation, module, file, or rule does not exist.",
+  "evidence": "2026-09-03 PR #5509: five absence claims, all false. Two routing rows said no reactions or milestone tool exists while add_issue_comment takes a reaction and issue_write takes a milestone; a repo grep cannot see an MCP surface.",
+  "atomicity": 85
 }
 ```
 
