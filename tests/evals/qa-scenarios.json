@@ -1,0 +1,43 @@
+{
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Fails a change that claims coverage without running the coverage tool",
+      "input": "Implementation report: added retry logic to the payment client. Tests: 3 unit tests for the happy path. No test for a permanent 4xx failure, no test for retry exhaustion, and no coverage-tool output was pasted into the report; the report just says 'coverage looks good'. Verify this.",
+      "expected_verdict": "FAIL",
+      "verdict_options": [
+        "PASS",
+        "FAIL",
+        "NEEDS WORK"
+      ],
+      "expected_reason_contains": "coverage",
+      "rationale": "A5 requires a pasted coverage-tool output line before any coverage claim counts. An assertion with no tool run is a guess and QA must FAIL it, plus flag the missing retry-exhaustion and permanent-failure negative tests."
+    },
+    {
+      "id": "S2",
+      "desc": "Fails on an incomplete promised scope even though the delivered subset is correct",
+      "input": "The issue asked to add input validation to all 6 public API endpoints. The diff adds validation to 2 of them, with correct tests for those 2. Verify this against the original issue.",
+      "expected_verdict": "FAIL",
+      "verdict_options": [
+        "PASS",
+        "FAIL",
+        "NEEDS WORK"
+      ],
+      "expected_reason_contains": "promised",
+      "rationale": "Completeness Verification requires comparing promised scope to delivered scope. 2 of 6 endpoints correct is still FAIL on completeness, independent of the correctness of the 2 that shipped."
+    },
+    {
+      "id": "S3",
+      "desc": "Passes a genuinely complete verification without padding the report with manufactured issues",
+      "input": "The issue asked to add a null check to auth.ts:47 covering expired-session handling. The diff adds the check with tests for null, expired, valid, and malformed-token inputs; the coverage tool reports 100% line and 92% branch coverage on the changed file, pasted verbatim in the report; the promised/delivered/gap reconciliation shows no gap. Verify this and give a verdict.",
+      "expected_verdict": "PASS",
+      "verdict_options": [
+        "PASS",
+        "FAIL",
+        "NEEDS WORK"
+      ],
+      "expected_reason_contains": "no gap",
+      "rationale": "Every acceptance criterion has test evidence and the coverage claim is backed by a real tool run. QA must not invent an issue to avoid a one-line report; state what was checked and issue PASS."
+    }
+  ]
+}

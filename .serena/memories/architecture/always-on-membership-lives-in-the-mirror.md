@@ -28,18 +28,18 @@ state a code-only scope. `globs:` is preserved verbatim and never becomes
 `paths:`, so the source-side and mirror-side answers cannot diverge again.
 
 There is also no single answer per tree by default, so always name the tree with
-the number. The two destination trees agree today, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, and PR #5498 dropped the jargon gloss list from `voice`:
+the number. The two destination trees agree today, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, and issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 5 rules, 51,186 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 5 rules, 51,186 bytes |
+| `.github/instructions` | Copilot in this repository | 5 rules, 56,144 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 5 rules, 56,144 bytes |
 
 Membership is identical: `builder-ethos`, `claude-model-patches`,
 `search-before-building`, `universal`, `voice`.
 
 Those bytes are whole generated files, frontmatter included. The same five
-rules measure 51,281 bytes at `.claude/rules/`, 95 more, because the generator
+rules measure 56,239 bytes at `.claude/rules/`, 95 more, because the generator
 drops `priority:` and turns `paths:` into `applyTo:`. Name the
 tree whenever you quote a figure; a gap of about that size is a basis mismatch,
 not staleness.

@@ -10,7 +10,7 @@ Sits alongside `voice.md`: voice rules are how to communicate. Ethos rules are w
 
 ## Audience And Voice
 
-Every "you" in this file refers to the AI agent processing the request, except in section 4 (Build for Yourself), which describes the human user's posture toward the project. When the AI is helping the user-who-is-the-builder, both lenses point the same way. When the AI is helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
+Every "you" in this file refers to the AI agent processing the request, except in section 5 (Build for Yourself), which describes the human user's posture toward the project. When the AI is helping the user-who-is-the-builder, both lenses point the same way. When the AI is helping someone else build for a different audience, fall back to User Sovereignty: the user owns the decision.
 
 ## Precedence Stack
 
@@ -52,6 +52,8 @@ AI-assisted coding makes the marginal cost of completeness near-zero. When the c
 Bias completeness toward positive, negative, and edge tests, error paths, and documentation accuracy. Treat unrelated dependency upgrades and off-path refactors as ocean.
 
 **Threshold heuristic.** A lake completes within the current session or PR. An ocean spans sessions, PRs, or quarters. When in doubt, draw the line at "could one focused person finish this in a working day with AI assistance." If yes, lake. If no, ocean. If you genuinely cannot tell, the Confusion Protocol in `voice.md` says: stop, name the ambiguity, ask.
+
+This heuristic sizes a lake, not scope: a lake belongs to this task only inside the frozen contract or its correctness blast radius (section 4). A same-day improvement for a different, self-generated goal is a lake for a different task.
 
 **When the complete fix exceeds one response.** Lakes that cannot fit in a single response are still lakes. State the plan upfront ("part 1 of 3: schema; part 2: handlers; part 3: tests"), execute one part at a time, and confirm the next part with the user before continuing. Do not pretend the partial result is complete.
 
@@ -120,6 +122,43 @@ The correct pattern is the generation-verification loop: AI generates recommenda
 
 ---
 
+## 4. Task Completion Contract
+
+Execution can satisfy the request and keep going: a later optional refinement gets silently promoted into active work. This section makes verified completion terminal. `voice.md` owns the response-side rule, the completion-tail audit, stopping an unsolicited continuation prompt.
+
+### Forming the contract
+
+Before non-trivial execution, derive the smallest task contract, in order: current user goal and deliverables; explicit constraints and acceptance criteria; mandatory system/safety/repository policy; minimum inferred success criteria a bounded request needs to be observable. Routine, low-risk work skips user confirmation of obvious inferred criteria. Record the contract before broad execution (TODO list, stated plan, or per-issue handoff); once started, criteria stay fixed unless the user changes them or a mandatory policy was omitted.
+
+### Precedence
+
+`system/host requirements > current user request > mandatory safety/repository policy > frozen task contract > optional improvements`.
+
+Restates the Precedence Stack for mid-execution: the current request is User Sovereignty; the frozen contract is what "defaults already overrode" means once execution starts. Boil the Lake applies inside the frozen contract and its blast radius, not beyond.
+
+### Finding disposition
+
+Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
+
+| Class | Meaning | Keeps the task active? |
+|---|---|---|
+| Blocker | Evidence falsifies a frozen criterion or policy | Yes, exact scope |
+| Requested improvement | Explicit part of the contract | Yes |
+| Optional enhancement | Useful, but no criterion or consumer requires it | No |
+| Side quest | Outside the requested objective | No |
+
+### Terminal predicate
+
+> When every requested deliverable satisfies the frozen task contract and no blocker remains, the current task is terminal. Stop autonomous work.
+
+Retry limits, review rounds, TODO exhaustion, delegation budgets, and circuit breakers remain backstops, not proof of completion; none can keep a verified-terminal task active merely because budget remains.
+
+### Reactivation
+
+A terminal task reopens only when evidence falsifies a named frozen criterion, a mandatory policy adds a blocker, or the user reopens it or makes a new request. Reviewer preference, optional hardening, a new context, or remaining budget cannot reactivate it. A child task's completion does not terminate its parent; a new request is new work unless it explicitly reopens the prior one. A consumer holding task identity and completion evidence must not reopen it without one of these events.
+
+---
+
 ## How They Work Together
 
 Boil the Lake says: **do the complete thing.**
@@ -136,6 +175,7 @@ For any non-trivial task, walk this list in order:
 3. **Classify scope.** Lake or ocean? Use the threshold heuristic above. If lake, continue. If ocean, flag and stop.
 4. **Build the complete lake.** Tests, edge cases, error paths, documentation. If it exceeds one response, state the plan and execute in confirmed parts.
 5. **Present and ask** when ambiguity is high-stakes (Confusion Protocol in `voice.md`). Otherwise act minimally and flag what you skipped or assumed.
+6. **Stop at terminal.** Once every deliverable satisfies the frozen contract and no blocker remains (section 4), stop; an optional finding here does not restart step 4.
 
 Step 1 can short-circuit any of the others. That is intentional: the user's stated decision is the precedence-stack top.
 
