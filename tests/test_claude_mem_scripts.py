@@ -1,10 +1,21 @@
-"""Tests for .claude-mem/scripts/ memory export/import scripts."""
+"""Tests for the .claude-mem/scripts/ memory EXPORT scripts.
+
+Importer resolution and exit codes live in tests/claude_mem/, spread across
+several modules rather than one: resolution, CLI contract, main integration,
+separators, containment limits, and subprocess errors each own a slice. Point
+new importer coverage at that directory.
+
+This module must not load the importer. Every module there registers it into
+sys.modules under the same key, so a load here would overwrite the one they
+rely on.
+"""
 
 from __future__ import annotations
 
 import importlib.util
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -19,6 +30,9 @@ def _load(name: str, filename: str):
     assert spec is not None, f"Failed to find {filename}"
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None, f"Module spec for {filename} has no loader"
+    # dataclasses resolves a class's module through sys.modules, so a module
+    # executed without registration raises AttributeError at class creation.
+    sys.modules[name] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -26,7 +40,6 @@ def _load(name: str, filename: str):
 _export_direct = _load("export_claude_mem_direct", "export_claude_mem_direct.py")
 _export_memories = _load("export_claude_mem_memories", "export_claude_mem_memories.py")
 _export_backup = _load("export_claude_mem_full_backup", "export_claude_mem_full_backup.py")
-_import_mem = _load("import_claude_mem_memories", "import_claude_mem_memories.py")
 
 
 class TestExportDirectValidateOutputPath:
@@ -123,10 +136,3 @@ class TestExportMemoriesMain:
     def test_exits_1_with_invalid_query(self) -> None:
         result = _export_memories.main(["query with $pecial; chars"])
         assert result == 1
-
-
-class TestImportMemoriesMain:
-    def test_exits_1_when_plugin_missing(self) -> None:
-        result = _import_mem.main([])
-        # Plugin script almost certainly does not exist in test env
-        assert result in (0, 1)

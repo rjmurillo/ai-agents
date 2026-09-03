@@ -64,10 +64,71 @@ class TestAggregateRatchetWiring:
             "scripts/ci/type_ignore_count_ratchet.py"
         )
 
-    def test_registry_retains_all_eight_ratchets(self) -> None:
-        assert len(checks_ratchet.RATCHETS) == 8
+    def test_registry_retains_every_consolidated_ratchet(self) -> None:
+        """Floor against silent deletion, by name rather than by count.
+
+        This was `len(RATCHETS) == 8`. A bare count also fails on an addition,
+        which is not the loss it exists to catch, and it names nothing when it
+        does fail. The exact registry contents, additions included, are pinned
+        by `_EXPECTED_RATCHETS` in test_pre_pr_runs_lefthook_ratchets.py, so
+        this one only has to hold the floor.
+        """
+        consolidated = {
+            "python-lint-ratchet",
+            "python-lint-count-ratchet",
+            "taste-count-ratchet",
+            "type-ignore-count-ratchet",
+            "memory-index-count-ratchet",
+            "cli-exit-contract-ratchet",
+            "memory-index-token-ratchet",
+            "merge-tree-ratchet",
+        }
+        registered = {ratchet.job_name for ratchet in checks_ratchet.RATCHETS}
+
+        assert consolidated <= registered, consolidated - registered
 
     def test_base_ref_contracts_stay_explicit(self) -> None:
         by_name = {ratchet.job_name: ratchet for ratchet in checks_ratchet.RATCHETS}
         assert by_name["taste-count-ratchet"].uses_base_ref is True
         assert by_name["type-ignore-count-ratchet"].uses_base_ref is True
+
+
+class TestAggregateBudgetIsConsistentWithLefthook:
+    """The gate's own deadline must fire before lefthook kills the job (#5482).
+
+    If lefthook's timeout were the smaller of the two, it would kill the gate
+    mid-run with no attribution: the operator sees the job fail and not which
+    ratchet was responsible. The gate's deadline fires first precisely so the
+    failure names the offending entry.
+    """
+
+    def _count_ratchets_timeout_seconds(self) -> int:
+        config = yaml.safe_load((REPO_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+        found: list[str] = []
+
+        def walk(node: object) -> None:
+            if isinstance(node, dict):
+                if node.get("name") == "count-ratchets":
+                    found.append(str(node.get("timeout", "")))
+                for value in node.values():
+                    walk(value)
+            elif isinstance(node, list):
+                for item in node:
+                    walk(item)
+
+        walk(config)
+        assert len(found) == 1, f"expected one count-ratchets job, found {found}"
+        return int(found[0].removesuffix("s"))
+
+    def test_lefthook_allows_more_time_than_the_aggregate_deadline(self) -> None:
+        assert (
+            self._count_ratchets_timeout_seconds()
+            > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS
+        )
+
+    def test_the_module_declares_the_lefthook_budget_it_assumes(self) -> None:
+        """Keep the two numbers from drifting apart silently."""
+        assert (
+            checks_ratchet._LEFTHOOK_TIMEOUT_SECONDS
+            == self._count_ratchets_timeout_seconds()
+        )

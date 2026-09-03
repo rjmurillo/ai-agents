@@ -142,6 +142,10 @@ jobs:
         env:
           SPEC_FILE: ${{ steps.load-spec.outputs.spec_file }}
           INCREMENTAL_SCOPE: ${{ steps.spec-ref.outputs.incremental_scope }}
+          # Issue #5366: the body carries the acceptance-criteria list the
+          # reviewer is graded against. Passed through env, never interpolated
+          # into a run block, because it is author-controlled (CWE-78).
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: python3 scripts/ci/spec_prepare_context.py
 
       - name: 🔗 Requirements Traceability Check (Analyst Agent)

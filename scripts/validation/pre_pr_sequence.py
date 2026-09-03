@@ -42,6 +42,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 from active_plan_closeout import validate_active_plan_closeout
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
+from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
@@ -99,6 +100,7 @@ from checks_tooling import (
     validate_markdown_lint,
     validate_path_normalization,
     validate_planning_artifacts,
+    validate_rule_scope_declarations,
     validate_session_end,
     validate_workflow_yaml,
     validate_yaml_style,
@@ -373,6 +375,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
         "Agent Content Parity (.claude/agents vs src/claude)",
         _root_only(validate_agent_content_parity),
     ),
+    # The Claude Code plugin loader registers every .md under .claude/agents/ as
+    # a dispatchable subagent, frontmatter or not. Issue #4813 answered the same
+    # five files by narrowing our own validator globs, which taught CI to look
+    # away and left the loader untouched. This gate fails instead. Issue #5493.
+    _Gate(
+        "Agent Tree Frontmatter (.claude/agents)",
+        _root_only(validate_agent_tree_frontmatter),
+    ),
     # A source change requires a plugin.json bump (issue #2118).
     _Gate("Plugin Version Bump", _root_only(validate_plugin_version_bump)),
     # Claude and Copilot plugin hooks.json must anchor to the plugin root. Bare
@@ -417,6 +427,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # rule growing by 400 bytes surfaces locally in under 0.5 seconds instead of
     # 17 minutes later in CI. Issue #4285.
     _Gate("Always-on Corpus Claims", _root_only(validate_always_on_corpus_claims)),
+    # The two gates above read the generated .github/instructions/ tree, where a
+    # rule scoped with a key Claude Code ignores still looks correctly scoped.
+    # This one reads .claude/rules/ and refuses applyTo:, globs:, or
+    # alwaysApply:, the source-side leak that put 25,527 bytes of code-only rule
+    # into every doc-only session. Issue #4871.
+    _Gate("Rule Scope Declarations (paths:)", _root_only(validate_rule_scope_declarations)),
 )
 
 
