@@ -79,8 +79,8 @@ def _report_failure(stage: str, result: CommandResult, scope_hint: str) -> int:
         # version printed the right words while still returning it, so callers
         # kept retrying a permanent refusal (Copilot review on PR #5509).
         print(
-            "::warning::This environment refuses GitHub for gh; the token is "
-            "not the fault and retrying will not clear it."
+            "::warning::This environment refuses GitHub for gh; repairing the "
+            "token is the wrong remedy and retrying will not clear it."
         )
         return EXIT_CONFIG
     print("::warning::This is not an authentication failure. Retry shortly.")

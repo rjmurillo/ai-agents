@@ -292,12 +292,16 @@ def _expires_pattern_source() -> str:
     fixed on this branch and the script now runs on the floor, which is why
     `test_pr_merge_ready.py` moved into FLOOR_SCRIPTS above.
 
-    Extraction stays, for the reason that outlives the import fault: importing
-    binds a compiled `re.Pattern` object, and `.pattern` on it round-trips
-    through the regex engine rather than reporting the literal the file ships.
-    Reading the literal keeps this measuring the shipped pattern rather than a
-    copy that can drift away from it, and it keeps working if the closure
-    reacquires a floor-breaking import later.
+    Extraction stays for two reasons that outlive the import fault, neither of
+    which is the one an earlier revision of this docstring gave. That revision
+    claimed `re.Pattern.pattern` round-trips through the regex engine rather
+    than reporting the shipped literal. It does not: `.pattern` returns the
+    exact string passed to `re.compile`, verified on this interpreter
+    (Copilot review on PR #5509). The real reasons are that reading the source
+    executes none of the script's imports, so this measures the file rather
+    than whatever the import machinery resolves, and that it keeps working if
+    the import closure reacquires a floor-breaking dependency later, which is
+    the fault this module exists to catch.
     """
     tree = ast.parse((REPO_ROOT / _MERGE_READY).read_text(encoding="utf-8"))
     for node in ast.walk(tree):

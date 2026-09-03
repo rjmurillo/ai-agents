@@ -105,6 +105,10 @@ class TestSessionRefusalIsNotRetryable:
         out = capsys.readouterr().out
         assert rc == EXIT_CONFIG
         assert "retrying will not clear it" in out
+        # The warning must not assert the token is sound: an org-level denial
+        # and an expired token can both be present, and only the denial has no
+        # operator remedy (Copilot review on PR #5509).
+        assert "not the fault" not in out
         assert "Retry shortly" not in out
         assert "bot-pat" not in out
 
