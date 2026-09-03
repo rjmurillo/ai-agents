@@ -63,7 +63,23 @@ import subprocess
 import sys
 from pathlib import Path
 
-from lefthook_inventory import (
+# This guard runs two ways: as a script, and imported as
+# ``scripts.validation.check_git_hook_health``. Its sibling is imported by bare
+# name on purpose (issue #2223), because one module object has to be shared:
+# ``configured_hook_types`` resolves ``dump_commands`` from its own module
+# globals at call time, and tests monkeypatch that attribute on the bare-name
+# module. A package import here would create a second object and the patch
+# would silently stop binding.
+#
+# Script mode puts this directory on sys.path automatically; package-mode
+# import does not. It resolved anyway only when some earlier collection had
+# already inserted the path, so the bare import carried a hidden dependency on
+# import order. Anchoring the path here removes it.
+_GUARD_DIR = str(Path(__file__).resolve().parent)
+if _GUARD_DIR not in sys.path:
+    sys.path.insert(0, _GUARD_DIR)
+
+from lefthook_inventory import (  # noqa: E402
     CONFIG_REMEDY,
     RUNTIME_REMEDY,
     LefthookConfigError,
