@@ -1,3 +1,5 @@
+# taste-lint: ignore file-size
+# Verdict parsing, local-axis adapters, and legacy helpers share one contract surface.
 """Tests for verdict parsing, merging, and presentation mapping.
 
 Split from test_ai_review.py (issue #1963). Covers get_verdict, merge_verdicts,
@@ -7,9 +9,12 @@ emoji). Moved verbatim; behavior unchanged.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from scripts.ai_review_common import (
+    adapt_local_axis_verdict,
     get_verdict,
     get_verdict_alert_type,
     get_verdict_emoji,
@@ -357,6 +362,508 @@ class TestExtractVerdict:
 
         assert extract_verdict("Verdict: PASS_THROUGH") == "UNKNOWN"
         assert extract_verdict("Verdict: WARN_LATER") == "UNKNOWN"
+
+
+def lint_payload(
+    *,
+    error_count: int = 0,
+    warning_count: int = 0,
+    files_scanned: int = 3,
+    applicable_files: int = 3,
+    files_by_category: dict[str, int] | None = None,
+) -> str:
+    """One golden-principles or taste-lints JSON payload.
+
+    Carries the shape both scanners really emit, so a test cannot pass on a
+    payload the adapter would refuse in production. `applicable_files` is
+    golden-principles only; `files_by_category` is taste-lints only, and it is
+    where a generated-only run shows up, because taste-lints counts a generated
+    file into `files_scanned` and then skips it without running a rule.
+    """
+    if files_by_category is None:
+        files_by_category = {"authored": files_scanned}
+    return json.dumps(
+        {
+            "files_scanned": files_scanned,
+            "applicable_files": applicable_files,
+            "files_by_category": files_by_category,
+            "error_count": error_count,
+            "warning_count": warning_count,
+        }
+    )
+
+
+
+def _scored(value: float = 8.0, confidence: float = 0.9) -> dict:
+    return {"value": value, "confidence": confidence, "reasons": []}
+
+
+def cq_file(path: str = "a.py", category: str = "authored", *, scored: bool = True) -> dict:
+    """One assess.py `files` entry, carrying the five quality metrics.
+
+    The identity key is `file_path`, the dataclass field `asdict` serializes.
+    An earlier version of this helper used `path`, which assess.py never emits,
+    so every PASS test here was pinning a payload the producer cannot produce.
+
+    `_unreadable_assessment` keeps the real category while zeroing every
+    confidence, so a test payload without the metrics cannot tell a scored file
+    from one the scanner gave up on.
+    """
+    quality = _scored() if scored else _scored(10.0, 0.0)
+    entry: dict[str, object] = {"file_path": path, "category": category}
+    for field in ("cohesion", "coupling", "encapsulation", "testability", "non_redundancy"):
+        entry[field] = dict(quality)
+    return entry
+
+
+def cq_payload(files: list[dict]) -> str:
+    return json.dumps(
+        {"files": files, "summary": {"file_count": len(files)}, "comparisons": []}
+    )
+
+
+class TestAdaptLocalAxisVerdict:
+    def test_code_quality_pass_requires_an_assessed_file(self):
+        payload = cq_payload([cq_file()])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    @pytest.mark.parametrize("category", ["authored", "test"])
+    def test_code_quality_pass_accepts_either_scored_category(self, category):
+        payload = cq_payload([cq_file(category=category)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_generated_only_assessment_is_not_a_pass(self):
+        """assess.py returns an unscored assessment for a generated file.
+
+        `classify_file_category` short-circuits to
+        `_unscored_generated_assessment`, so the entry is counted but never
+        scored. A diff of nothing but generated artifacts is a file list, not a
+        review, and `/review` says generated artifacts create no local quality
+        finding.
+        """
+        payload = cq_payload([cq_file("gen.ts", "generated", scored=False)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_one_authored_file_beside_generated_ones_still_passes(self):
+        """Negative control: the gate needs one scored file, not all of them."""
+        payload = cq_payload(
+            [cq_file("gen.ts", "generated", scored=False), cq_file()]
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_missing_category_field_stays_unknown(self):
+        payload = '{"files": [{"path": "a.py"}], "summary": {"file_count": 1}, "comparisons": []}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_code_quality_empty_assessment_is_unknown_not_pass(self):
+        """A clean exit over zero files is silence, not a verdict.
+
+        assess.py emits this shape in regression mode when the diff has no
+        assessable head files, such as a deletion-only change.
+        """
+        payload = '{"files": [], "summary": {"file_count": 0}, "comparisons": []}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_code_quality_file_count_disagreeing_with_files_is_unknown(self):
+        """Two halves describing different runs are not evidence of a pass."""
+        payload = '{"files": [], "summary": {"file_count": 2}, "comparisons": []}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_code_quality_non_integer_file_count_is_unknown(self):
+        payload = (
+            '{"files": [{"path": "a.py"}], "summary": {"file_count": "1"},'
+            ' "comparisons": []}'
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_code_quality_regressed_comparable_maps_to_fail(self):
+        """SKILL.md:377 documents exit 10 as a gate failure that fails the PR."""
+        payload = (
+            '{"files": [{"path": "a.py"}], "summary": {"file_count": 1},'
+            ' "comparisons": []}'
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 10) == "FAIL"
+
+    def test_code_quality_threshold_breach_maps_to_fail(self):
+        """SKILL.md:378 documents exit 11 as a gate failure that fails the PR."""
+        payload = '{"files": [], "summary": {"file_count": 1}, "comparisons": []}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 11) == "FAIL"
+
+    def test_code_quality_malformed_json_shape_stays_unknown(self):
+        payload = '{"files": null, "summary": null}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_code_quality_invalid_json_stays_unknown(self):
+        assert adapt_local_axis_verdict("code-qualities-assessment", "{", 0) == "UNKNOWN"
+
+    @pytest.mark.parametrize(
+        "axis",
+        [
+            "code-qualities-assessment",
+            "doc-accuracy",
+            "golden-principles",
+            "taste-lints",
+        ],
+    )
+    @pytest.mark.parametrize("output", ["", "   \n\t  "])
+    def test_silent_stdout_stays_unknown(self, axis, output):
+        """A skill that printed nothing reported nothing, on every axis.
+
+        Empty or whitespace-only stdout is the shape a skill leaves when it
+        dies before its first write, so a clean exit beside it is not evidence
+        of a pass.
+        """
+        assert adapt_local_axis_verdict(axis, output, 0) == "UNKNOWN"
+
+    def test_unscored_eligible_file_is_not_a_pass(self):
+        """`_unreadable_assessment` keeps the category and zeroes confidence.
+
+        Reading only the category let a file the scanner explicitly gave up on
+        stand in as evidence of a review.
+        """
+        payload = cq_payload([cq_file(scored=False)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_one_unscored_eligible_file_blocks_the_pass(self):
+        """A hole in the evidence is not covered by a scored sibling.
+
+        assess.py records a file that raised as all-unscored, so a partly
+        failed run reaches here as a scored entry beside an unscored one.
+        """
+        payload = cq_payload([cq_file("a.py"), cq_file("b.py", scored=False)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_unscored_generated_file_does_not_block_a_pass(self):
+        """Negative control: generated entries are never scored by design."""
+        payload = cq_payload([cq_file(), cq_file("gen.ts", "generated", scored=False)])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_one_scored_quality_is_enough(self):
+        """Negative control: the gate needs evidence, not five metrics."""
+        entry = cq_file(scored=False)
+        entry["testability"] = _scored()
+        payload = cq_payload([entry])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_boolean_confidence_is_not_a_score(self):
+        entry = cq_file(scored=False)
+        entry["cohesion"] = {"value": 8.0, "confidence": True, "reasons": []}
+        payload = cq_payload([entry])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_non_mapping_quality_is_not_a_score(self):
+        entry = cq_file(scored=False)
+        entry["cohesion"] = "great"
+        payload = cq_payload([entry])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_malformed_entry_beside_a_valid_one_stays_unknown(self):
+        """A valid sibling must not carry an entry the adapter cannot read.
+
+        Letting it through is the partial-evidence pass this gate exists to
+        refuse, and the adapter contract says malformed output fails closed.
+        """
+        payload = cq_payload([cq_file(), "not-an-object"])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_unknown_category_beside_a_valid_one_stays_unknown(self):
+        payload = cq_payload([cq_file(), cq_file("x.py", "vendored")])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_every_known_category_is_accepted(self):
+        """Negative control: the three labels assess.py emits all parse."""
+        payload = cq_payload(
+            [cq_file("a.py"), cq_file("b.py", "test"), cq_file("g.ts", "generated", scored=False)]
+        )
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_entry_without_a_file_path_stays_unknown(self):
+        """`file_path` is the identity assess.py emits; without it there is no
+        evidence which file was assessed."""
+        entry = cq_file()
+        del entry["file_path"]
+        payload = cq_payload([entry])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_blank_file_path_stays_unknown(self):
+        assert (
+            adapt_local_axis_verdict("code-qualities-assessment", cq_payload([cq_file("  ")]), 0)
+            == "UNKNOWN"
+        )
+
+    def test_duplicate_file_paths_stay_unknown(self):
+        """A repeated survivor can pad `file_count` past the length check.
+
+        assess.py assesses each path once, so a duplicate is a payload padded
+        to look complete while an assessment is missing.
+        """
+        payload = cq_payload([cq_file("a.py"), cq_file("a.py")])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
+
+    def test_distinct_file_paths_pass(self):
+        """Negative control: two real files still pass."""
+        payload = cq_payload([cq_file("a.py"), cq_file("b.py")])
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
+
+    def test_code_quality_unexpected_exit_stays_unknown(self):
+        payload = '{"files": [], "summary": {"file_count": 0}, "comparisons": []}'
+        assert adapt_local_axis_verdict("code-qualities-assessment", payload, 3) == "UNKNOWN"
+
+    def test_doc_accuracy_json_pass_maps_to_pass(self):
+        payload = (
+            '{"gate_result": {"verdict": "PASS"},'
+            ' "assessment": {"documentation_files": [{"path": "README.md"}]}}'
+        )
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
+
+    def test_doc_accuracy_partial_inventory_is_unknown(self):
+        """A changed Markdown file the walk pruned is not covered by its peers.
+
+        `changed_files` names both; `documentation_files` holds only the one
+        that survived EXCLUDE_DIRS, and check_gate still reports PASS.
+        """
+        payload = json.dumps(
+            {
+                "gate_result": {"verdict": "PASS"},
+                "assessment": {
+                    "documentation_files": [{"path": "docs/guide.md"}],
+                    "changed_files": ["docs/guide.md", "build/notes.md"],
+                },
+            }
+        )
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "UNKNOWN"
+
+    def test_doc_accuracy_complete_inventory_passes(self):
+        """Negative control: every changed document accounted for."""
+        payload = json.dumps(
+            {
+                "gate_result": {"verdict": "PASS"},
+                "assessment": {
+                    "documentation_files": [{"path": "docs/guide.md"}],
+                    "changed_files": ["docs/guide.md", "src/app.py"],
+                },
+            }
+        )
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
+
+    def test_doc_accuracy_without_a_diff_scope_needs_no_completeness(self):
+        """`changed_files` is null on a full-repo run, so there is no set to
+        be complete against."""
+        payload = json.dumps(
+            {
+                "gate_result": {"verdict": "PASS"},
+                "assessment": {
+                    "documentation_files": [{"path": "README.md"}],
+                    "changed_files": None,
+                },
+            }
+        )
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
+
+    def test_doc_accuracy_pass_over_zero_documents_is_unknown(self):
+        """check_gate passes when no claim contradicts the code.
+
+        A run that inventoried nothing has no claims, so its PASS says only
+        that it found no docs. A deletion-only Markdown diff, or one under an
+        EXCLUDE_DIRS path, reaches that state without opening a changed file.
+        """
+        payload = (
+            '{"gate_result": {"verdict": "PASS"},'
+            ' "assessment": {"documentation_files": []}}'
+        )
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "UNKNOWN"
+
+    def test_doc_accuracy_pass_without_an_assessment_block_is_unknown(self):
+        payload = '{"gate_result": {"verdict": "PASS"}}'
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "UNKNOWN"
+
+    def test_doc_accuracy_summary_pass_is_unknown(self):
+        """Summary mode prints no examined-file count, so it cannot prove a PASS.
+
+        It can still report a FAIL, which needs no such evidence.
+        """
+        output = "--- Documentation Accuracy Summary ---\nGate: PASS (threshold: high)\n"
+        assert adapt_local_axis_verdict("doc-accuracy", output, 0) == "UNKNOWN"
+
+    def test_doc_accuracy_summary_fail_maps_to_fail(self):
+        output = "--- Documentation Accuracy Summary ---\nGate: FAIL (threshold: high)\n"
+        assert adapt_local_axis_verdict("doc-accuracy", output, 10) == "FAIL"
+
+    def test_doc_accuracy_did_not_run_maps_to_unknown(self):
+        payload = '{"gate_result": {"verdict": "DID_NOT_RUN"}}'
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 1) == "UNKNOWN"
+
+    def test_doc_accuracy_non_object_json_stays_unknown(self):
+        assert adapt_local_axis_verdict("doc-accuracy", "[]", 0) == "UNKNOWN"
+
+    def test_doc_accuracy_non_mapping_gate_result_stays_unknown(self):
+        payload = '{"gate_result": []}'
+        assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_local_lint_error_maps_to_fail(self, axis):
+        payload = lint_payload(error_count=1)
+        assert adapt_local_axis_verdict(axis, payload, 10) == "FAIL"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_local_lint_warning_maps_to_warn(self, axis):
+        payload = lint_payload(warning_count=1)
+        assert adapt_local_axis_verdict(axis, payload, 0) == "WARN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_local_lint_clean_maps_to_pass(self, axis):
+        payload = lint_payload()
+        assert adapt_local_axis_verdict(axis, payload, 0) == "PASS"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_scanning_nothing_is_not_a_pass(self, axis):
+        """A deletion-only diff exits 0 with every count at zero.
+
+        Both scanners take their file list from a diff, which names deleted
+        paths, then skip anything that is no longer a file before incrementing
+        `files_scanned`. Reading only the counts called that silence a PASS.
+        """
+        payload = lint_payload(files_scanned=0, applicable_files=0)
+        assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_missing_files_scanned_stays_unknown(self, axis):
+        """No `files_scanned` field is output the adapter cannot vouch for."""
+        payload = '{"error_count": 0, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
+
+    def test_golden_principles_needs_an_applicable_file(self):
+        """Opening files a GP rule does not govern is not a reviewed design.
+
+        Its axis note says a clean result on a non-toolkit repo "means no rule
+        applied, not that design was reviewed".
+        """
+        payload = lint_payload(files_scanned=9, applicable_files=0)
+        assert adapt_local_axis_verdict("golden-principles", payload, 0) == "UNKNOWN"
+
+    def test_taste_lints_has_no_applicable_files_gate(self):
+        """Negative control: the extra gate is golden-principles only.
+
+        taste-lints emits no `applicable_files`, so gating both axes on it
+        would make every taste-lints run UNKNOWN.
+        """
+        payload = json.dumps(
+            {
+                "files_scanned": 9,
+                "files_by_category": {"authored": 9},
+                "error_count": 0,
+                "warning_count": 0,
+            }
+        )
+        assert adapt_local_axis_verdict("taste-lints", payload, 0) == "PASS"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_bool_counts_stay_unknown(self, axis):
+        payload = '{"error_count": false, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_missing_lint_counts_stay_unknown(self, axis):
+        payload = '{"error_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    @pytest.mark.parametrize("exit_code", [1, 2, 127])
+    def test_lint_undefined_exit_status_stays_unknown(self, axis, exit_code):
+        """Only 0 and 10 are defined; every other status is a crashed run.
+
+        Exit 1 is the documented script error. The counts a dying scanner
+        printed are not a verdict, so the status is read before them.
+        """
+        payload = '{"error_count": 0, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, exit_code) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_lint_script_error_does_not_downgrade_to_warn(self, axis):
+        """A crashed scan carrying warnings is UNKNOWN, never an ack-able WARN.
+
+        Reading warning_count before the status let exit 1 report WARN, which
+        made a failed scan mergeable on an acknowledgement.
+        """
+        payload = '{"error_count": 0, "warning_count": 3}'
+        assert adapt_local_axis_verdict(axis, payload, 1) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_lint_errors_under_undefined_exit_do_not_report_fail(self, axis):
+        """An error payload under an undefined status is UNKNOWN, not FAIL.
+
+        FAIL is a claim the scanner ran and found violations. Exit 3 says it
+        did not run the way the contract describes.
+        """
+        payload = '{"error_count": 4, "warning_count": 0}'
+        assert adapt_local_axis_verdict(axis, payload, 3) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_lint_violations_exit_without_errors_stays_unknown(self, axis):
+        """Exit 10 with no errors contradicts the scanner's own gate.
+
+        Both scanners return EXIT_VIOLATIONS from `error_count > 0` alone
+        (scan_principles.py:455-457, taste_lints.py:1122-1124), so this pair
+        cannot come from one run.
+        """
+        payload = lint_payload(warning_count=2)
+        assert adapt_local_axis_verdict(axis, payload, 10) == "UNKNOWN"
+
+    @pytest.mark.parametrize("axis", ["golden-principles", "taste-lints"])
+    def test_lint_errors_under_clean_exit_stays_unknown(self, axis):
+        """The mirror contradiction: errors reported under exit 0."""
+        payload = lint_payload(error_count=1)
+        assert adapt_local_axis_verdict(axis, payload, 0) == "UNKNOWN"
+
+    def test_taste_lints_generated_only_scan_is_not_a_pass(self):
+        """taste-lints counts a generated file then skips it without linting.
+
+        `run_lint` does `result.files_scanned += 1` inside the
+        `_generated_by_path` branch and then continues, so files_scanned alone
+        cannot separate a linted run from a skipped one. A generated-only diff,
+        such as a changed shipped mirror, reached PASS with no rule run.
+        """
+        payload = lint_payload(files_by_category={"generated": 3})
+        assert adapt_local_axis_verdict("taste-lints", payload, 0) == "UNKNOWN"
+
+    def test_taste_lints_generated_beside_authored_still_passes(self):
+        """Negative control: one linted file is enough."""
+        payload = lint_payload(files_by_category={"generated": 2, "authored": 1})
+        assert adapt_local_axis_verdict("taste-lints", payload, 0) == "PASS"
+
+    def test_taste_lints_test_category_counts_as_linted(self):
+        payload = lint_payload(files_by_category={"test": 2})
+        assert adapt_local_axis_verdict("taste-lints", payload, 0) == "PASS"
+
+    def test_taste_lints_missing_category_map_stays_unknown(self):
+        payload = json.dumps(
+            {"files_scanned": 3, "error_count": 0, "warning_count": 0}
+        )
+        assert adapt_local_axis_verdict("taste-lints", payload, 0) == "UNKNOWN"
+
+    def test_golden_principles_needs_no_category_map(self):
+        """Negative control: the category gate is taste-lints only.
+
+        golden-principles emits applicable_files instead and no
+        files_by_category, so gating both axes on it would make every
+        golden-principles run UNKNOWN.
+        """
+        payload = json.dumps(
+            {
+                "files_scanned": 3,
+                "applicable_files": 2,
+                "error_count": 0,
+                "warning_count": 0,
+            }
+        )
+        assert adapt_local_axis_verdict("golden-principles", payload, 0) == "PASS"
+
+    def test_malformed_output_stays_unknown(self):
+        assert adapt_local_axis_verdict("taste-lints", "not json", 0) == "UNKNOWN"
+
+    def test_unknown_axis_raises_value_error(self):
+        with pytest.raises(ValueError):
+            adapt_local_axis_verdict("invented-axis", "{}", 0)
 
 
 # ---------------------------------------------------------------------------

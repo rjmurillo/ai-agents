@@ -7,8 +7,8 @@ description: Catalog of this repo's measurement instruments, each with command, 
 
 # ai-agents Diagnostics Toolkit
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
-Measure instead of eyeball. Every instrument below is a read-only command that turns a vague worry ("are skills getting bloated?", "did generation drift?") into a number you can compare against a baseline. The Instrument Index gives you, per instrument, the question it answers and the exact command; [`references/instrument-guides.md`](references/instrument-guides.md) gives the healthy and unhealthy reading, the current repo baseline (as of 2026-07-29), and the trap that has already cost someone time.
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, .claude/lib, scripts/, build/, build/audit/GENERATION-AUDIT.md) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+Measure instead of eyeball. Every instrument below leaves the trees it measures unchanged, turning a vague worry ("are skills getting bloated?", "did generation drift?") into a number you can compare against a baseline; `build_all.py --check`'s one exception, a gitignored audit file outside those trees, is covered below. The Instrument Index gives you, per instrument, the question it answers and the exact command; [`references/instrument-guides.md`](references/instrument-guides.md) gives the healthy and unhealthy reading, the current repo baseline (as of 2026-07-29), and the trap that has already cost someone time.
 
 Vocabulary, defined once: an "instrument" is a script whose output you read, not a gate you must pass. A "drift gate" is a CI check that fails when a generated tree stops matching its canonical source. A "baseline" is the number the instrument reports on a clean checkout of main; you measure your delta against it.
 
@@ -53,14 +53,15 @@ Match the worry to the row in the Instrument Index. Two routing rules:
 
 - Run from the repo root. All commands above assume it.
 - Use `uv run python`, not bare `python3`, for anything that imports repo modules (PyYAML lives in the venv; bare `python3` gives `ModuleNotFoundError: No module named 'yaml'`).
-- All instruments here are read-only in the modes shown. `build_all.py --check` runs its generators and then restores the owned trees from a snapshot (issue #2440, `build/scripts/build_all.py:1005-1033`), so its log prints `Mode: Generate` and a nonzero `Written:` count even though nothing changes on disk. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
+- Every instrument here leaves the owned trees it reads unchanged in the modes shown, `build_all.py --check` included, but that one is not a no-write run overall: it runs its generators and then restores the owned trees from a snapshot (issue #2440, `_snapshot_owned_prefixes` and `_restore_owned_prefixes` in `build/scripts/build_all.py`), so its log prints `Mode: Generate` and a nonzero `Written:` count even though the owned trees end the run as they started, and separately `write_audit` creates or overwrites `build/audit/GENERATION-AUDIT.md` on every invocation, a path outside the snapshot that restore never touches. It is gitignored (`/build/audit/`), which is why `git status --porcelain` still comes back clean over the owned trees. Confirm with `git status --porcelain` if suspicious, and see the trap in the Drift gates section of [`references/instrument-guides.md`](references/instrument-guides.md).
 - Read the exit code, not just the prose. It is the machine signal:
 
 | Exit code | Convention (ADR-035 / AGENTS.md) | Exceptions |
 |---|---|---|
 | 0 | Healthy or within limits | `skill_size.py` prints FAIL lines but exits 0 unless `--ci` |
 | 1 | Logic finding (budget exceeded, CRITICAL_FAIL, over limit in `--ci`) | |
-| 2 | Config error (bad path, bad args) or staleness for `build_all.py --check` | |
+| 2 | Config error (bad path, bad args); for `build_all.py --check`, staleness, a path under `OWNED_PREFIXES` that cannot be read or redirects (symlink or junction) or holds a nested git repository, or a generator writing under `.claude/` (REQ-003-010). Read stderr: only the staleness producer is fixed by regenerating | |
+| 3 | External failure; for `build_all.py --check`, git state unreadable (launch failure, timeout, nonzero exit), not fixed by regenerating | |
 | 10 | Violations found | `scan_principles.py` only |
 
 ### Phase 3: Read the number against the baseline

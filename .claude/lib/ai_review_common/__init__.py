@@ -25,6 +25,7 @@ from .issue_triage import (
 from .quality_gate import (
     FAIL_VERDICTS,
     SAFE_NAME_PATTERN,
+    adapt_local_axis_verdict,
     assert_environment_variables,
     extract_verdict,
     get_concurrency_group_from_run,
@@ -47,6 +48,7 @@ __all__ = [
     "FAIL_VERDICTS",
     "SAFE_NAME_PATTERN",
     "VALID_RECOMMENDATIONS",
+    "adapt_local_axis_verdict",
     "get_feature_review_assignees",
     "get_feature_review_labels",
     "get_feature_review_recommendation",
