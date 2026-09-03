@@ -73,6 +73,17 @@ GH_DNS_FAILURE = "dial tcp: lookup api.github.com: no such host"
 PERMISSION_DENIED = "HTTP 403: Resource not accessible by integration"
 BAD_CREDENTIALS = "HTTP 401: Bad credentials (https://api.github.com/user)"
 
+# Captured from gh 2.98.0 in a Claude Code remote session on 2026-09-03, where
+# `gh api user` succeeded against the same token in the same second. gh renders
+# any failure of its own status call this way, so the wording is about gh's
+# error handling and not about the credential.
+GH_AUTH_STATUS_INVALID = (
+    "github.com\n"
+    "  X Failed to log in to github.com using token (GH_TOKEN)\n"
+    "  - Active account: true\n"
+    "  - The token in GH_TOKEN is invalid."
+)
+
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(
@@ -641,20 +652,91 @@ class TestBothTransportsProveASessionRefusal:
         with patch("subprocess.run", side_effect=calls):
             assert check_gh_auth().status is GhAuthStatus.AUTHENTICATED
 
-    def test_a_transient_rest_failure_is_not_promoted(self):
+    def test_a_transient_rest_failure_keeps_its_retryable_verdict(self):
         """The mixed-failure case: 503 plus a query-scoped refusal.
 
         Both probes fail, but neither proves the session is refused: REST may
         recover, and the GraphQL body scopes itself to one query. Promoting
         this suppressed the REST retry ladder for a condition that clears
         (Copilot review on PR #5509).
+
+        Asserting only "not TRANSPORT_BLOCKED" passed while the pair returned
+        INVALID_CREDENTIALS at exit 4, which is the same wrong remedy the whole
+        status exists to stop: `gh auth login` for a token nothing measured.
+        The GraphQL refusal carries no credential evidence, so the verdict has
+        to be the one REST actually reported.
         """
         calls = [
             _completed(stderr="HTTP 503: Service unavailable", rc=1),
             _completed(stderr=PROXY_GRAPHQL_403, rc=1),
         ]
         with patch("subprocess.run", side_effect=calls):
-            assert check_gh_auth().status is not GhAuthStatus.TRANSPORT_BLOCKED
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.TRANSIENT_ERROR
+        _, exit_code, _ = describe_gh_auth_failure(result)
+        assert exit_code == 3
+
+    def test_gh_auth_status_calling_the_token_invalid_is_not_evidence(self):
+        """The live shape on 2026-09-03, and the one that still exited 4.
+
+        `gh auth status` renders any failure of its own call as "The token in
+        GH_TOKEN is invalid", so a proxy refusing one endpoint by policy reads
+        as a bad token. Measured in the same session: `gh api user` returned
+        the real account while `gh auth status` said the token was invalid and
+        both `gh api repos/{owner}/{repo}` and GraphQL were refused 403.
+
+        With GraphQL refused by policy, the confirmation check_gh_auth exists
+        to make did not happen, so the REST probe is the only decisive question
+        left. A credential that authenticates means the refusal is the session
+        policy, which is exit 2 and the MCP transport, not exit 4 and
+        `gh auth login`.
+        """
+        calls = [
+            _completed(stderr=GH_AUTH_STATUS_INVALID, rc=1),
+            _completed(stderr=PROXY_GRAPHQL_403, rc=1),
+            _completed(stdout='{"login": "rjmurillo"}', rc=0),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.TRANSPORT_BLOCKED
+        _, exit_code, _ = describe_gh_auth_failure(result)
+        assert exit_code == 2
+
+    def test_a_credential_that_fails_the_rest_probe_is_still_invalid(self):
+        """The negative control for the case above, same first two calls.
+
+        The two cases differ only in what `gh api user` returns, which is the
+        whole point: without this one the REST confirmation could return
+        TRANSPORT_BLOCKED unconditionally and no test would fail. A real 401
+        there has to keep exit 4, or a genuinely expired token is routed to a
+        transport that cannot fix it either.
+        """
+        calls = [
+            _completed(stderr=GH_AUTH_STATUS_INVALID, rc=1),
+            _completed(stderr=PROXY_GRAPHQL_403, rc=1),
+            _completed(stderr=BAD_CREDENTIALS, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.INVALID_CREDENTIALS
+        _, exit_code, _ = describe_gh_auth_failure(result)
+        assert exit_code == 4
+
+    def test_a_graphql_credential_failure_never_reaches_the_rest_probe(self):
+        """GraphQL answered the credential question, so nothing needs confirming.
+
+        Pinning the call count is what keeps the probe on its narrow path: a
+        third gh invocation on every auth check would cost one round trip per
+        call site for a case that is already decided.
+        """
+        calls = [
+            _completed(stderr=GH_AUTH_STATUS_INVALID, rc=1),
+            _completed(stderr=BAD_CREDENTIALS, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls) as run:
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.INVALID_CREDENTIALS
+        assert run.call_count == 2
 
     def test_rest_global_refusal_alone_is_enough(self):
         """The account-level denial closes the session whatever GraphQL says."""

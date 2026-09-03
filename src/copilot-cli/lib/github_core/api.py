@@ -510,6 +510,40 @@ def _graphql_viewer_probe() -> GhAuthResult:
     )
 
 
+def _rest_credential_probe() -> GhAuthResult:
+    """Ask REST whether the credential itself works, via ``gh api user``.
+
+    ``gh auth status`` is not that question. It renders any failure of its own
+    call as "The token in GH_TOKEN is invalid", so a proxy that refuses one
+    endpoint by policy reads as a bad token. Measured on gh 2.98.0 in a Claude
+    Code remote session on 2026-09-03: ``gh auth status`` reported the token
+    invalid while ``gh api user`` returned the real account, and the same
+    session refused ``gh api repos/{owner}/{repo}`` and every GraphQL query.
+
+    ``/user`` is authenticated and repository-independent, so a success proves
+    the credential and a 401 disproves it. It is reached only when the GraphQL
+    confirmation was refused by session policy and so tested nothing.
+    """
+    try:
+        result = _run_gh(["api", "user"])
+    except FileNotFoundError:
+        logger.debug("GitHub CLI (gh) not found on PATH")
+        return GhAuthResult(GhAuthStatus.MISSING_GH)
+    except subprocess.TimeoutExpired:
+        logger.debug("gh api user credential probe timed out")
+        return GhAuthResult(
+            GhAuthStatus.TRANSIENT_ERROR, "REST credential probe timed out"
+        )
+
+    if result.returncode == 0:
+        return GhAuthResult(GhAuthStatus.AUTHENTICATED)
+
+    combined = f"{result.stdout}\n{result.stderr}"
+    return GhAuthResult(
+        classify_gh_failure_text(combined), sanitize_failure_detail(combined)
+    )
+
+
 # Quota refusals clear on their own, so they must survive the promotion below.
 _RETRYABLE_REFUSAL_STATUSES = frozenset(
     {GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED}
@@ -593,6 +627,27 @@ def check_gh_auth() -> GhAuthResult:
         rest_text, probe.detail
     ):
         return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
+
+    # A policy refusal on GraphQL is evidence about the policy and none at all
+    # about the credential, so the confirmation this function exists to make did
+    # not happen. INVALID_CREDENTIALS here is only classify_gh_failure_text's
+    # unrecognized-text fallback, and returning it reports REST's unconfirmed
+    # verdict as if it had been confirmed, which is the #3139 and #4344 shape.
+    if probe.status is GhAuthStatus.INVALID_CREDENTIALS and _SESSION_POLICY_REFUSAL.search(
+        probe.detail
+    ):
+        # A REST failure that classifies as anything but the fallback said
+        # something real. A 5xx is still retryable and a quota window still has
+        # a reset, so neither is overwritten (Copilot review on PR #5509).
+        rest_status = classify_gh_failure_text(rest_text)
+        if rest_status is not GhAuthStatus.INVALID_CREDENTIALS:
+            return GhAuthResult(rest_status, sanitize_failure_detail(rest_text))
+        # Both narrators are unreliable here, so ask the one question that has
+        # a decisive answer: does the credential authenticate at all?
+        confirmation = _rest_credential_probe()
+        if confirmation.is_authenticated:
+            return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
+        return confirmation
     return probe
 
 
