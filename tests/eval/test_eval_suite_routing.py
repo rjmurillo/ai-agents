@@ -302,6 +302,8 @@ SHADOWED_ENTRYPOINTS = [
     ".claude/skills/memory/CLAUDE.md",
     "src/copilot-cli/skills/adr-review/CLAUDE.md",
     "src/copilot-cli/skills/github/CLAUDE.md",
+    ".claude/agents/AGENTS.md",
+    ".claude/agents/CLAUDE.md",
 ]
 
 # The subset of SHADOWED_ENTRYPOINTS that still exists in the tree, for the
