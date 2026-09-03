@@ -65,6 +65,19 @@ after both transports have failed, or after a credential probe shows the token
 is fine and the refusal is policy. Read "both transports" as the rule for the
 narrow body alone (ADR-100, "Two different 403s").
 
+Which command carries which body decides where each check can live.
+`check_gh_auth` runs `gh auth status` and a GraphQL viewer query, and neither
+is repository-scoped: measured on gh 2.98.0 on 2026-09-03, `gh auth status`
+reports "The token in GH_TOKEN is invalid" while the account-level body appears
+only on `gh api repos/{owner}/{repo}`. So a session that answers the viewer
+query and denies every repository call authenticates, and `check_gh_auth` says
+so correctly for the question it answers, "does any transport authenticate".
+"Can this workflow run" is a different question, and the preflight asks it with
+one repository call of its own before it selects `gh`. Only the session-wide
+refusal on that call changes the transport; a 5xx, a 404, or a quota window
+keeps `gh`, because a transient failure on one repository must not disable a
+working session.
+
 `gh` stays the default everywhere it works, notably CI, where Actions supplies
 a working token. Nothing here removes `gh` from those environments.
 
