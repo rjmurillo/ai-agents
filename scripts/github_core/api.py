@@ -374,6 +374,12 @@ _RATE_LIMIT_REMAINING_HEADER = re.compile(
 # matched by _SESSION_POLICY_REFUSAL below and only counts as evidence once
 # BOTH transports have been observed failing, which only the auth preflight
 # can establish.
+#
+# This taxonomy was already measured and written down before this classifier
+# existed: ADR-100 ("Retire PR size ceilings"), the "Two different 403s"
+# paragraph, records that the GraphQL body is a query allowlist naming a
+# working alternative while the REST body is the account-level denial that
+# closes it. Read that before widening this pattern again.
 _TRANSPORT_BLOCKED_SIGNATURE = re.compile(
     r"github access is not enabled for this session",
     re.IGNORECASE,
