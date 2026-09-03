@@ -21,8 +21,6 @@ When two rules in this file disagree, apply them in this order:
 2. **Search Before Building** runs before Boil the Lake. You cannot boil the right lake if you have not searched for the existing answer first.
 3. **Boil the Lake** is the default when the user has not constrained scope. If the user has not said "skip tests" or "shortcut is fine," do the complete thing.
 
-Section 4 (Task Completion Contract) refines item 3 once execution is underway: the frozen contract, not remaining agent capacity, bounds what "complete" means for this task, and a verified-terminal task is not reopened by an optional finding.
-
 Read the rest of this file with that order in mind.
 
 ---
@@ -56,7 +54,7 @@ Bias completeness toward positive, negative, and edge tests, error paths, and do
 
 **Threshold heuristic.** A lake completes within the current session or PR. An ocean spans sessions, PRs, or quarters. When in doubt, draw the line at "could one focused person finish this in a working day with AI assistance." If yes, lake. If no, ocean. If you genuinely cannot tell, the Confusion Protocol in `voice.md` says: stop, name the ambiguity, ask.
 
-This heuristic sizes a lake; it does not by itself authorize scope. A lake belongs to the current task only when it sits inside the frozen task contract or its direct correctness blast radius (section 4, Task Completion Contract). A cheap, same-day improvement that serves a different, self-generated goal is a lake for a different task, not license to widen this one.
+This heuristic sizes a lake, not scope: a lake belongs to this task only inside the frozen contract or its correctness blast radius (section 4). A same-day improvement for a different, self-generated goal is a lake for a different task.
 
 **When the complete fix exceeds one response.** Lakes that cannot fit in a single response are still lakes. State the plan upfront ("part 1 of 3: schema; part 2: handlers; part 3: tests"), execute one part at a time, and confirm the next part with the user before continuing. Do not pretend the partial result is complete.
 
@@ -127,52 +125,38 @@ The correct pattern is the generation-verification loop: AI generates recommenda
 
 ## 4. Task Completion Contract
 
-AI-assisted execution can satisfy the user's request and then keep going: later critique finds an optional refinement, an adjacent cleanup, or a reviewer surfaces a new preference, and any of them can get silently promoted into active work. This section makes verified completion a terminal state rather than an invitation to keep searching for a new objective. `voice.md` owns the matching response-side rule, the completion-tail audit, which stops a finished response from appending an unsolicited continuation prompt.
+Execution can satisfy the request and keep going: a later optional refinement gets silently promoted into active work. This section makes verified completion terminal. `voice.md` owns the response-side rule, the completion-tail audit, stopping an unsolicited continuation prompt.
 
 ### Forming the contract
 
-Before non-trivial execution, derive the smallest observable task contract from, in this order: the explicit current user goal; explicit requested deliverables; explicit constraints and acceptance criteria; mandatory system/harness, safety, and repository policy; and the minimum inferred success criteria required to make an otherwise bounded request observable. Routine, low-risk work does not need the user to confirm obvious inferred criteria. Record or carry the contract before broad execution (a TODO list, the plan you state per the Claude model patch "Think Before Heavy Actions", or the per-issue handoff). Once execution starts, criteria stay fixed unless the user changes them or a mandatory policy was previously omitted.
+Before non-trivial execution, derive the smallest observable task contract from, in order: the explicit current user goal and requested deliverables; explicit constraints and acceptance criteria; mandatory system/harness, safety, and repository policy; and minimum inferred success criteria an otherwise bounded request needs to be observable. Routine, low-risk work does not need the user to confirm obvious inferred criteria. Record or carry the contract before broad execution (TODO list, stated plan, or per-issue handoff). Once execution starts, criteria stay fixed unless the user changes them or a mandatory policy was previously omitted.
 
 ### Precedence
 
-```text
-system / host requirements
-    > explicit current user request
-    > mandatory safety and repository policy
-    > frozen task contract
-    > optional improvements and preferences
-```
+`system/host requirements > current user request > mandatory safety/repository policy > frozen task contract > optional improvements`.
 
-This is the Precedence Stack above, restated for mid-execution decisions: the explicit current user request is User Sovereignty; the frozen task contract is what "the other rules become defaults the user already overrode" means once execution is underway, until the user changes it. Boil the Lake applies *inside* the frozen contract and its direct correctness blast radius (the tests, mirrors, and callers a correct implementation of the contract requires), not beyond it.
+Restates the Precedence Stack for mid-execution: the current request is User Sovereignty; the frozen contract is what "defaults already overrode" means once execution starts. Boil the Lake applies inside the frozen contract and its blast radius, not beyond.
 
 ### Finding disposition
 
-Every post-satisfaction finding is one of four classes. Use the `avoiding-manufactured-work` skill's consumer/disposition procedure to classify it; do not invent a second classification doctrine.
+Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
 
 | Class | Meaning | Keeps the task active? |
 |---|---|---|
-| Blocker | Concrete evidence falsifies a frozen criterion or mandatory policy | Yes, exact affected scope |
-| Requested improvement | Explicit part of the task contract | Yes |
-| Optional enhancement | Useful, but no current criterion or consumer requires it | No |
+| Blocker | Evidence falsifies a frozen criterion or policy | Yes, exact scope |
+| Requested improvement | Explicit part of the contract | Yes |
+| Optional enhancement | Useful, but no criterion or consumer requires it | No |
 | Side quest | Outside the requested objective | No |
 
 ### Terminal predicate
 
 > When every requested deliverable satisfies the frozen task contract and no blocker remains, the current task is terminal. Stop autonomous work.
 
-Retry limits, review rounds, TODO exhaustion, delegation budgets, and circuit breakers (for example the Orchestration Budget in `templates/agents/orchestrator.shared.md`) remain backstops. They are not proof of completion and cannot keep a verified-terminal task active merely because budget remains.
+Retry limits, review rounds, TODO exhaustion, delegation budgets, and circuit breakers remain backstops, not proof of completion; none can keep a verified-terminal task active merely because budget remains.
 
 ### Reactivation
 
-A terminal task reopens only when: concrete evidence falsifies a named frozen criterion; a mandatory safety or repository policy adds a blocker; or the user explicitly reopens the named task or creates a new request. Reviewer preference, optional hardening, a new agent or context, remaining budget, or a generic desire for improvement cannot reactivate it. A child task becoming terminal does not terminate an active parent task, and a new user request is new work unless it explicitly reopens the prior task.
-
-A consumer that receives task identity and verified completion evidence (a handoff, a synthesis, a delegated return) must not reopen the task without one of the reactivation events above.
-
-**Anti-patterns:**
-
-- "While I was in there, I also improved X." (Optional enhancement found after satisfaction. Name it, do not implement it, per the disposition table.)
-- "The reviewer would probably want Y too." (Reviewer preference is not a frozen criterion. It does not reactivate a terminal task; raise it as a separate request.)
-- "I still have budget left, so let me look for more." (Remaining budget is a backstop, not a reason to keep working past the terminal predicate.)
+A terminal task reopens only when: evidence falsifies a named frozen criterion; a mandatory policy adds a blocker; or the user reopens the task or makes a new request. Reviewer preference, optional hardening, a new context, remaining budget, or a generic desire for improvement cannot reactivate it. A child task's completion does not terminate its parent, and a new request is new work unless it explicitly reopens the prior task. A consumer holding task identity and completion evidence must not reopen it without one of these events.
 
 ---
 
@@ -192,7 +176,7 @@ For any non-trivial task, walk this list in order:
 3. **Classify scope.** Lake or ocean? Use the threshold heuristic above. If lake, continue. If ocean, flag and stop.
 4. **Build the complete lake.** Tests, edge cases, error paths, documentation. If it exceeds one response, state the plan and execute in confirmed parts.
 5. **Present and ask** when ambiguity is high-stakes (Confusion Protocol in `voice.md`). Otherwise act minimally and flag what you skipped or assumed.
-6. **Stop at terminal.** Once every requested deliverable satisfies the frozen task contract and no blocker remains (section 4, Terminal Predicate), stop. An optional enhancement or side quest discovered here does not restart step 4.
+6. **Stop at terminal.** Once every deliverable satisfies the frozen contract and no blocker remains (section 4), stop; an optional finding here does not restart step 4.
 
 Step 1 can short-circuit any of the others. That is intentional: the user's stated decision is the precedence-stack top.
 

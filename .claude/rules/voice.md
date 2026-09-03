@@ -167,9 +167,9 @@ Rules:
 
 - **Flag anything that looks wrong.** Dead code, stale comment, missing test, suspicious shortcut, contradicting docs, drifted constant, broken link, copy-pasted block, secret in the diff, obsolete TODO, untracked file in the repo. One sentence: what you noticed and the impact.
 - **Investigate before reporting.** A flag without a hypothesis is noise. Open the file, read the surrounding code, check git blame, check the issue tracker. Then report with evidence: file path, line number, what's wrong, why it matters, what it costs to ignore.
-- **Act while active; report declaratively once terminal.** Two modes, distinguished by the task's state (`.claude/rules/builder-ethos.md`, Task Completion Contract), not by size alone:
-  - **Inline, while the task is still active**: if the fix is one or two lines on a path you already touched and sits inside the current task's contract or its direct correctness blast radius, do it in the same PR. Mention it in the description so the reviewer sees the scope expansion.
-  - **Separate, or found once the task is terminal**: if the fix needs its own PR, its own conversation, or you noticed it only after already reporting the requested result, name it and stop. State it declaratively, what you saw, where, why it matters, rather than as an opt-in question. A terminal report does not get a new continuation edge; see the Completion-Tail Audit below.
+- **Act while active; report declaratively once terminal.** Two modes, by the task's state (builder-ethos.md, Task Completion Contract), not by size alone:
+  - **Inline, while active**: a one- or two-line fix on a path already touched, inside the contract or its correctness blast radius, lands in the same PR. Mention the scope expansion in the description.
+  - **Separate, or found once terminal**: name it and stop, declaratively (what, where, why), not as an opt-in question. A terminal report gets no new continuation edge; see the Completion-Tail Audit below.
 - **Never pretend you did not see it.** If you noticed and skipped, that is a choice you owe the user. Write it down: `Noticed: file:line has X. Skipped because Y. Worth a follow-up issue.`
 
 Flag format, one sentence each, declarative rather than an opt-in question (see Completion-Tail Audit below):
@@ -188,7 +188,7 @@ What this is not:
 
 > After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction.
 
-This is semantic, not a phrase blacklist, but these phrases are useful negative-control fixtures: a response that still carries one of them right after a completed result has very likely reopened the interaction anyway.
+Semantic, not a phrase blacklist; these remain useful negative-control fixtures, since a response carrying one right after completion has likely reopened the interaction.
 
 ```text
 Want me to ...?
@@ -198,28 +198,11 @@ Let me know if you want ...
 Happy to ...
 ```
 
-Allowed questions, even at the end of a terminal response:
+Allowed even at the end of a terminal response: a required blocking clarification or decision; a question the user explicitly requested; a bounded choice that is itself the deliverable; an interaction system, host, safety, or repository policy requires.
 
-- a required clarification or decision that blocks the requested work;
-- a question explicitly requested by the user;
-- a bounded choice that is itself the requested deliverable;
-- an interaction required by system, host, safety, or repository policy.
+State optional information declaratively when policy requires it or it materially changes the user's decision (a residual risk, a monitoring note, a `NEXT` line in `/ship`). Never as an opt-in continuation prompt.
 
-State optional information declaratively when policy requires it or it materially changes the user's decision, a residual risk, a monitoring note, a `NEXT` line in a `/ship` report. Do not turn it into an opt-in continuation prompt.
-
-This rule governs the response. `.claude/rules/builder-ethos.md` (Task Completion Contract) governs whether the underlying task is actually terminal:
-
-```text
-ACTIVE task + relevant issue inside contract
-    -> act when authorized, or ask only for a real blocking decision
-
-TERMINAL task + optional finding
-    -> report declaratively only when useful/required
-    -> no opt-in continuation edge
-    -> stop
-```
-
-A response can state real remaining work declaratively (see Ownership above) without soliciting a decision on it. This precedence wins over any narrower guidance elsewhere in this file or in an agent template that reads as an invitation to keep the conversation open once the task is terminal.
+This rule governs the response; builder-ethos.md's Task Completion Contract governs whether the task is terminal: active plus an in-contract issue may act or ask a real blocking question; terminal plus an optional finding gets a declarative report, no opt-in continuation edge, then stop. This wins over narrower guidance elsewhere in this file or an agent template.
 
 ## Clear The Gate Or Drop The Claim
 
