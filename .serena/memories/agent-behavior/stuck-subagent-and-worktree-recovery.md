@@ -48,6 +48,12 @@ only the overlay, so reach for it only when the status output is pure
 pollution. When it also lists work you want, restore just the polluted paths
 with `git checkout HEAD -- <path>...` and leave the rest alone.
 
+That is still whole-file. `git checkout HEAD -- <path>` replaces the file in
+both the index and the working tree, so a file that holds overlay pollution and
+your own edits together loses the edits. For those, pick hunks with `git
+checkout -p HEAD -- <path>` and accept only the pollution, or read your own
+hunks out of `git diff HEAD -- <path>` first and reapply them after.
+
 Do not stash here. This repository runs many worktrees off one `.git`, so
 `refs/stash` is shared: a `git stash pop` can restore a sibling worktree's
 entry. That is recorded in

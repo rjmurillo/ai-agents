@@ -241,9 +241,11 @@ not tried first. The trick is faster and preserves the precise path.
 
 Insert the cue immediately before the backticked path, not at the head of the
 sentence. `_INLINE_CITATION_PATTERN` allows only spaces, tabs, colons, and
-opening parentheses between the cue and the path, so `see: the token counts in
-`scripts/update_memory_index_tokens.py`` does not match and stays red. Write
-`token counts, see `scripts/update_memory_index_tokens.py`` instead.
+opening parentheses between the cue and the path. So a line reading "see: the
+token counts in `scripts/update_memory_index_tokens.py`" does not match, and
+the path is still collected as a change claim. A line reading "token counts,
+see `scripts/update_memory_index_tokens.py`" does match, because nothing but a
+space sits between the cue and the path.
 
 ## Related
 

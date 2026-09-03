@@ -1,25 +1,38 @@
-# The AI-Spec-Validator's verdict flip-flops across reruns of the same disclosed gap
+# `Validate Spec Coverage` verdicts differed across reruns on one PR's commits
 
 ## Observation
 
-On two different PRs (#5350, #5356), successive re-runs of the `Validate Spec
-Coverage` check against the same or adjacent commits produced different
-top-line verdicts (PASS, then FAIL, then PARTIAL) for the identical
-underlying, already-disclosed gap: an unverified live-CLI probe on #5350, a
-prompt-only versus enforced-control distinction on #5356. The gap itself never
-changed. Only the validator's characterization of its severity did.
+On two PRs (#5350, #5356), successive runs of the `Validate Spec Coverage`
+check reported different top-line results for a gap that never changed: an
+unverified live-CLI probe on #5350, a prompt-only versus enforced-control
+distinction on #5356. Measured 2026-08-27.
 
-Measured 2026-08-27.
+## What this evidence does and does not show
 
-## What to do with that
+It does not show that the validator is nondeterministic, and this file used to
+say that it did. Two limits on the observation:
 
-The flip-flop is evidence that this validator is nondeterministic. It is not
-license to dismiss it.
+1. The runs were on adjacent commits, not on one commit. #5350 carried six
+   commits, and its final head `b301b39e2` has exactly one `Validate Spec
+   Coverage` check-run. So the validator's inputs changed between the runs
+   whose verdicts differed, which is enough on its own to explain them.
+2. The recorded sequence was PASS, then FAIL, then PARTIAL, which mixes two
+   vocabularies. `.github/scripts/generate_spec_report.py` assigns the final
+   verdict from `spec_validation_failed(...)` and can only emit FAIL, WARN, or
+   PASS. PARTIAL is a trace or completeness component verdict, not a final one.
+
+Establishing nondeterminism needs two runs against one identical head SHA with
+one identical body. Nothing in this incident produced that pair.
+
+## What to do anyway
+
+The operating rule does not depend on the nondeterminism claim.
 
 `.claude/rules/universal.md` requires equivalent evidence before calling a red
 remote check cleared, so bind each verdict to the head SHA it ran against and
 read that run's own report before concluding it describes the same
-already-disclosed gap.
+already-disclosed gap. Compare the component verdicts, not just the top line,
+since only one of them drives the final result.
 
 When the report does describe that gap, comment once on the PR naming the gap
 and its tracking issue, and do not chase every re-verdict with a new comment.
