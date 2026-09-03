@@ -61,8 +61,14 @@ _FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
 
 # The `allowed-tools` value, which may wrap onto continuation lines in a YAML
 # block or list. Anchored at the key so no other frontmatter value is touched.
+#
+# The continuation class is indentation only. Allowing a leading `-` also
+# matched the closing `---` fence, and from there every following list line, so
+# a call on a whole document respelled the body too and broke the promise to
+# touch one key. A YAML list under a key is indented, so nothing legitimate is
+# lost (Copilot review on PR #5509).
 _ALLOWED_TOOLS_LINE_RE = re.compile(
-    r"^allowed-tools:.*(?:\n[ \t-].*)*$", re.MULTILINE
+    r"^allowed-tools:.*(?:\n[ \t].*)*$", re.MULTILINE
 )
 # `mcp__<server>__<op>`; `<op>` is `*` for a whole-namespace grant.
 _MCP_TOOL_NAME_RE = re.compile(r"mcp__([A-Za-z0-9_]+?)__([A-Za-z0-9_]+|\*)")

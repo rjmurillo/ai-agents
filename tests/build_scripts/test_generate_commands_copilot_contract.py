@@ -262,6 +262,28 @@ def test_allowed_tools_respelling_handles_the_yaml_list_form(tmp_path: Path) -> 
     assert "  - github/issue_read\n" in out
 
 
+def test_the_allowed_tools_match_stops_at_the_closing_fence(tmp_path: Path) -> None:
+    """Control: the continuation class must not swallow `---` and keep going.
+
+    A leading `-` in that class matched the closing fence, and from there every
+    following list line, so a call on a whole document respelled body prose and
+    broke the one-key promise. The body line here starts with `-` and shares no
+    blank line with the fence, which is the shape that reproduced it.
+    """
+    document = (
+        "---\n"
+        "allowed-tools:\n"
+        "  - mcp__github__issue_read\n"
+        "---\n"
+        "- Claude Code spells it mcp__github__get_me.\n"
+    )
+
+    out = copilot_body_translation.translate_allowed_tools(document)
+
+    assert "  - github/issue_read\n" in out
+    assert "- Claude Code spells it mcp__github__get_me.\n" in out
+
+
 def test_mcp_names_outside_allowed_tools_are_left_alone(tmp_path: Path) -> None:
     """Control: the transform must not rewrite every occurrence of the token.
 
