@@ -23,6 +23,7 @@ scripts:
     add_thread_reply: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request {number} --thread-id {thread_id} --body {body}"
     add_thread_reply_resolve: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request {number} --thread-id {thread_id} --body {body} --resolve"
     resolve_thread: "python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --expected-pull-request {number} --thread-id {thread_id}"
+    check_transport: "python3 .claude/skills/github/scripts/utils/check_github_transport.py --output-format json"
   copilot:
     get_pr_context: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}"
     test_pr_merged: "pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}"
@@ -33,6 +34,32 @@ scripts:
     get_pr_checks: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest {number}"
     add_thread_reply: "pwsh -NoProfile .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest {number} -ThreadId {thread_id} -Body {body}"
     resolve_thread: "pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId {thread_id}"
+
+# Transport preflight. Run check_transport once, before Step 1, and branch on
+# Data.Transport.
+#
+# Every script above reaches GitHub through gh. An agent sandbox that proxies
+# egress leaves gh installed and GH_TOKEN set while refusing GitHub for the
+# whole session, so each script fails with HTTP 403 and none of those failures
+# says anything about the PR. Discovering that per call costs one failed round
+# trip per operation and invites a retry of a condition that has no reset.
+transport_preflight:
+  command_key: "check_transport"
+  blocking: true
+  verdicts:
+    - transport: "gh"
+      action: "Run this workflow as written. This is CI and a normal developer machine."
+    - transport: "mcp"
+      action: "Run it through the mcp__github__* tools. Script-to-tool map: .claude/skills/github/references/transport-routing.md"
+  non_transport_exits:
+    - exit_code: 3
+      meaning: "Quota window or transport wobble. Not a transport change; stop and retry later."
+    - exit_code: 4
+      meaning: "Credential fault the operator can fix. Stop and report; do not route around it."
+  mcp_mode_constraints:
+    - "cluster_threads, wait_for_settled_zero, and the completion gate are local logic over fetched data. Fetch threads with pull_request_read method get_review_comments, run the same procedure by hand, and record in the verdict that it was derived rather than scripted."
+    - "resolve_review_thread resolves one thread per call. There is no --all equivalent, so resolve explicitly and count what you resolved."
+    - "A transport failure is an unknown, never a verdict. Never emit a PASS or a '0 unresolved' result from a call that failed; report the PR as unreviewed with the transport as the reason."
 
 check_failure_actions:
   - check_type: "Session validation"

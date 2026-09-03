@@ -47,6 +47,44 @@ to run the command.
 
 Three phases. Tier-based dispatch decides which actions apply per PR.
 
+### Phase 0: Transport preflight (BLOCKING, runs once)
+
+Every script this command calls reaches GitHub through `gh`. An agent sandbox
+that proxies egress leaves `gh` installed and `GH_TOKEN` set while refusing
+GitHub for the whole session, so each script fails with HTTP 403 and none of
+those failures says anything about the PR. Decide the transport once, before
+triage:
+
+```bash
+uv run python .claude/skills/github/scripts/utils/check_github_transport.py
+```
+
+| Verdict | Action |
+|---------|--------|
+| `Transport: gh` | Continue. Every script below works as written. |
+| `Transport: mcp` | Continue in MCP mode; see the rule block below. |
+| exit 3 | A quota window or a transport wobble, not a transport change. Stop and retry later. |
+| exit 4 | A credential fault. Stop and report it; do not switch transports around a fixable token. |
+
+**MCP mode rules.** The mapping from each script to its `mcp__github__*` tool
+is in `.claude/skills/github/references/transport-routing.md`. On top of it:
+
+1. Read and comment operations (triage, CI status, check logs, review threads,
+   replies, resolving threads, auto-merge, merge) all have MCP tools. Use them.
+2. `test_pr_merge_ready.py`, `check_pr_live_state.py`, `why_pr_blocked.py`,
+   `run_completion_gate.py`, `check_pr_round_cap.py`, and `pr_autofix_lease.py`
+   have no MCP equivalent, because each computes a verdict from several `gh`
+   calls plus local logic. Their inputs are still reachable: gather the same
+   fields with `pull_request_read` and apply the gate definitions in this file
+   by hand. Record in the PR handoff that the verdict was derived, not scripted.
+3. The lease and the round cap protect against two sessions fighting over one
+   branch. Without `pr_autofix_lease.py` you cannot hold a lease, so in MCP
+   mode run single-PR mode only, on a PR you were explicitly given, and do not
+   sweep the open queue.
+4. A transport failure is an unknown, never a verdict. Never classify a PR as
+   T2 (CI fix), BLOCKED, or DIRTY because a call failed. Report the PR as
+   untriaged with the transport as the reason.
+
 ### Phase 1: Triage
 
 Run `test_pr_merge_ready.py` for every open PR. Classify each into a tier (T1-T5) using the table below. Sort the queue by tier ascending.
