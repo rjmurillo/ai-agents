@@ -23,7 +23,10 @@ byte-for-byte and runs on every PR through `pre_pr.py`.
 
 It does NOT regenerate the derived trees. After a `--write` run, run
 `uv run python build/generate_agents.py` to refresh `src/copilot-cli/` and
-`src/vs-code-agents/`.
+`src/vs-code-agents/`. It also does not touch `.claude/agents/`, so an edit
+that started in `src/claude/` still has to reach that installed copy by its own
+route; `check_agent_content_parity.py` compares the two byte-for-byte and fails
+the PR until it does. Both steps are printed after a write.
 
 Default mode is `--check`: report drift and exit non-zero, mutating nothing.
 `--write` performs the copy. The asymmetry is deliberate. Four of the nine
@@ -36,6 +39,7 @@ Exit codes follow ADR-035:
     2 - configuration error: a declared file is missing, is a symlink or escapes
         the checkout, or opens a `---` block it never closes; or `--write` was
         invoked from outside the checkout that holds this script
+    3 - external failure: a read or write raised OSError or UnicodeDecodeError
 """
 
 from __future__ import annotations
@@ -54,6 +58,7 @@ AGENT_SOURCE = REPO_ROOT / "src" / "claude"
 EXIT_OK = 0
 EXIT_DRIFT = 1
 EXIT_CONFIG = 2
+EXIT_EXTERNAL = 3
 
 
 class UnsafePathError(Exception):
@@ -297,9 +302,7 @@ def _preflight() -> int:
     return EXIT_OK
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-
+def _run(args: argparse.Namespace) -> int:
     preflight = _preflight()
     if preflight != EXIT_OK:
         return preflight
@@ -328,6 +331,11 @@ def main(argv: list[str] | None = None) -> int:
             "Next: run `uv run python build/generate_agents.py` to refresh"
             " src/copilot-cli/ and src/vs-code-agents/."
         )
+        print(
+            "Then mirror any src/claude/ edit into .claude/agents/. This tool"
+            " does not touch the installed copy, and"
+            " check_agent_content_parity.py compares the two byte-for-byte."
+        )
         return EXIT_OK
 
     drifted = collect_drift(SLIMMED_AGENTS)
@@ -336,6 +344,19 @@ def main(argv: list[str] | None = None) -> int:
         print("Run with --write to propagate the src/claude/ bodies.")
         return EXIT_DRIFT
     return EXIT_OK
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        return _run(args)
+    except (OSError, UnicodeDecodeError) as exc:
+        # AGENTS.md reserves 3 for an external failure. Letting these escape
+        # would exit 1, which this script's own contract reads as "drift
+        # found", so a caller would report a drift that was never measured.
+        # Same boundary and same pair as build/scripts/generate_adr_index.py.
+        print(f"sync-slim-agents: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL
 
 
 if __name__ == "__main__":

@@ -277,6 +277,32 @@ def test_symlinked_source_outside_the_root_is_a_config_error(tree: Path,
     assert template.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + SOURCE_BODY
 
 
+def test_undecodable_file_is_an_external_failure(tree: Path, capsys) -> None:
+    """AGENTS.md reserves 3 for external failures. Exit 1 would read as drift.
+
+    UnicodeDecodeError is the deterministic half of the pair the CLI boundary
+    catches; OSError reaches the same handler and needs no separate case.
+    """
+    target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
+    target.write_bytes(b"---\nname: analyst\n---\n\xff\xfe not utf-8\n")
+
+    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_EXTERNAL
+    assert "sync-slim-agents:" in capsys.readouterr().err
+
+
+def test_write_names_both_follow_up_steps(tree: Path, capsys) -> None:
+    """The installed copy is not synced here, so the output must say so."""
+    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
+           TEMPLATE_FRONTMATTER + STALE_BODY)
+
+    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
+
+    out = capsys.readouterr().out
+    assert "build/generate_agents.py" in out
+    assert ".claude/agents/" in out
+    assert "check_agent_content_parity.py" in out
+
+
 def test_mirror_without_frontmatter_receives_the_body_verbatim(tree: Path) -> None:
     target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     _write(target, STALE_BODY)
