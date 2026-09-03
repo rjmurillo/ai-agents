@@ -174,6 +174,20 @@ class GhAuthStatus(Enum):
     to a bool sent operators to ``gh auth login`` for a GitHub 5xx (issue #3139)
     and for an exhausted GraphQL quota (issue #4344). Each cause needs a
     different remedy, so each gets its own member.
+
+    ``TRANSPORT_BLOCKED`` is the agent-sandbox case: ``gh`` is installed and
+    carries a credential, but the session's egress policy refuses GitHub, so
+    ``gh`` cannot do repository or pull-request work no matter how the token is
+    repaired. ``gh auth login`` is the wrong remedy and retrying is wasted
+    work; the remedy is a different transport.
+    See :data:`_TRANSPORT_BLOCKED_SIGNATURE`.
+
+    Scoped to repository and pull-request work on purpose, because "no ``gh``
+    invocation can succeed" is measurably too strong. A session was observed
+    on 2026-09-03 refusing ``gh api repos/{owner}/{repo}`` and every GraphQL
+    query while ``gh api user`` returned the real account. An account-scoped
+    endpoint surviving does not make the session usable for anything this
+    repository's workflows do, and it is not grounds for reporting success.
     """
 
     AUTHENTICATED = "authenticated"
@@ -182,10 +196,14 @@ class GhAuthStatus(Enum):
     TRANSIENT_ERROR = "transient_error"
     RATE_LIMITED = "rate_limited"
     SECONDARY_RATE_LIMITED = "secondary_rate_limited"
+    TRANSPORT_BLOCKED = "transport_blocked"
 
 
 # Statuses that are a token problem the operator can fix (exit 4). Everything
-# else that is not AUTHENTICATED is an upstream condition (exit 3).
+# else that is not AUTHENTICATED is an upstream condition (exit 3), with one
+# exception: TRANSPORT_BLOCKED is an environment configuration fault and maps
+# to exit 2, because exit 3 is the retry signal and a refused session has no
+# reset. See describe_gh_auth_failure.
 _AUTH_FAILURE_STATUSES = frozenset(
     {GhAuthStatus.MISSING_GH, GhAuthStatus.INVALID_CREDENTIALS}
 )
@@ -339,6 +357,54 @@ _RATE_LIMIT_REMAINING_HEADER = re.compile(
     r"(?im)^x-ratelimit-remaining:\s*(\d+)\s*$"
 )
 
+# An agent sandbox that proxies egress can refuse GitHub for the whole session
+# while leaving `gh` installed and a GH_TOKEN set. The refusal arrives as HTTP
+# 403 with no rate-limit and no transport wording, so it used to fall through
+# to INVALID_CREDENTIALS and tell the operator to run `gh auth login`, which
+# cannot fix it: the credential is not the thing being refused.
+#
+# Wording captured from the running proxy on 2026-09-03 rather than guessed
+# (gh 2.98.0, Claude Code remote session). REST:
+#
+#     GitHub access is not enabled for this session. An org admin must connect
+#     the Claude GitHub App for this organization. (HTTP 403)
+#
+# GraphQL refuses separately, with its own body: "This GraphQL query is not
+# enabled for this session [...]" followed by a steer back to REST.
+#
+# The two bodies do NOT mean the same thing, and an earlier version of this
+# matcher treated them as if they did (Copilot review on PR #5509). The REST
+# body refuses GitHub for the session as a whole. The GraphQL body refuses one
+# query shape and says in the same breath that REST is still served, so on its
+# own it is not evidence that gh is unusable. Because this classifier also runs
+# on individual operation failures, the broad reading let one refused GraphQL
+# query suppress retries and declare the whole transport dead while other gh
+# calls still worked.
+#
+# So the global verdict requires the global wording. Anything narrower is
+# matched by _SESSION_POLICY_REFUSAL below and only counts as evidence once
+# BOTH transports have been observed failing, which only the auth preflight
+# can establish.
+#
+# This taxonomy was already measured and written down before this classifier
+# existed: ADR-100 ("Retire PR size ceilings"), the "Two different 403s"
+# paragraph, records that the GraphQL body is a query allowlist naming a
+# working alternative while the REST body is the account-level denial that
+# closes it. Read that before widening this pattern again.
+_TRANSPORT_BLOCKED_SIGNATURE = re.compile(
+    r"github access is not enabled for this session",
+    re.IGNORECASE,
+)
+
+# Any session-policy refusal, query-scoped ones included. Never sufficient on
+# its own: :func:`check_gh_auth` pairs it with the fact that REST and GraphQL
+# both failed before returning TRANSPORT_BLOCKED.
+_SESSION_POLICY_REFUSAL = re.compile(
+    r"not enabled for this session"
+    r"|docs\.anthropic\.com/en/docs/claude-code/github-actions",
+    re.IGNORECASE,
+)
+
 
 def sanitize_failure_detail(text: object, limit: int = 200) -> str:
     """Redact tokens and collapse whitespace so detail is envelope/log safe.
@@ -365,6 +431,11 @@ def classify_gh_failure_text(text: str) -> GhAuthStatus:
     Rate-limit wording wins over the transient signature because a quota
     refusal is often delivered as ``HTTP 403 ... API rate limit exceeded`` and
     the 403 alone would otherwise read as a permission denial.
+
+    A sandbox refusal is checked after the quota buckets and before the
+    transient signature: it is neither, and it must not reach the
+    ``INVALID_CREDENTIALS`` fallback, whose remedy tells the operator to
+    re-authenticate a token that is not the problem.
     """
     haystack = text or ""
     if _SECONDARY_RATE_LIMIT_SIGNATURE.search(haystack):
@@ -374,6 +445,8 @@ def classify_gh_failure_text(text: str) -> GhAuthStatus:
         if remaining is not None and int(remaining.group(1)) > 0:
             return GhAuthStatus.SECONDARY_RATE_LIMITED
         return GhAuthStatus.RATE_LIMITED
+    if _TRANSPORT_BLOCKED_SIGNATURE.search(haystack):
+        return GhAuthStatus.TRANSPORT_BLOCKED
     if _TRANSIENT_SIGNATURE.search(haystack):
         return GhAuthStatus.TRANSIENT_ERROR
     return GhAuthStatus.INVALID_CREDENTIALS
@@ -445,6 +518,121 @@ def _graphql_viewer_probe() -> GhAuthResult:
     )
 
 
+def _rest_credential_probe() -> GhAuthResult:
+    """Ask REST whether the credential itself works, via ``gh api user``.
+
+    ``gh auth status`` is not that question. It renders any failure of its own
+    call as "The token in GH_TOKEN is invalid", so a proxy that refuses one
+    endpoint by policy reads as a bad token. Measured on gh 2.98.0 in a Claude
+    Code remote session on 2026-09-03: ``gh auth status`` reported the token
+    invalid while ``gh api user`` returned the real account, and the same
+    session refused ``gh api repos/{owner}/{repo}`` and every GraphQL query.
+
+    ``/user`` is authenticated and repository-independent, so a success proves
+    the credential and a 401 disproves it. It is reached only when the GraphQL
+    confirmation was refused by session policy and so tested nothing.
+    """
+    try:
+        result = _run_gh(["api", "user"])
+    except FileNotFoundError:
+        logger.debug("GitHub CLI (gh) not found on PATH")
+        return GhAuthResult(GhAuthStatus.MISSING_GH)
+    except subprocess.TimeoutExpired:
+        logger.debug("gh api user credential probe timed out")
+        return GhAuthResult(
+            GhAuthStatus.TRANSIENT_ERROR, "REST credential probe timed out"
+        )
+
+    if result.returncode == 0:
+        return GhAuthResult(GhAuthStatus.AUTHENTICATED)
+
+    combined = f"{result.stdout}\n{result.stderr}"
+    return GhAuthResult(
+        classify_gh_failure_text(combined), sanitize_failure_detail(combined)
+    )
+
+
+
+def _is_session_wide_refusal(rest_text: str, graphql_text: str) -> bool:
+    """Return True when the pair of failures proves the session is refused.
+
+    "Both probes failed" is not that proof, and an earlier version of this
+    logic accepted it (Copilot review on PR #5509). A transient REST 503
+    alongside a query-scoped GraphQL refusal satisfies "either transport
+    mentions a policy refusal", so it was promoted to TRANSPORT_BLOCKED and
+    suppressed the REST retry ladder even though REST would have recovered.
+
+    Two shapes qualify:
+
+    1. REST returns the account-level denial. That closes the session on its
+       own, whatever GraphQL said.
+    2. Both transports report a policy refusal. Neither body alone proves more
+       than its own scope; together they leave no transport unrefused.
+
+    ADR-100's "Two different 403s" paragraph is the measurement behind the
+    distinction between the two bodies.
+    """
+    if _TRANSPORT_BLOCKED_SIGNATURE.search(rest_text):
+        return True
+    return bool(
+        _SESSION_POLICY_REFUSAL.search(rest_text)
+        and _SESSION_POLICY_REFUSAL.search(graphql_text)
+    )
+
+
+def _resolve_policy_refused_probe(
+    rest_text: str, probe: GhAuthResult
+) -> GhAuthResult:
+    """Decide the verdict when GraphQL refused the query by policy.
+
+    Extracted from :func:`check_gh_auth` so that function stays inside the
+    repository's complexity ceiling; the branches and their order are
+    unchanged, and the classification tests cover this path through the
+    caller exactly as before.
+
+    A policy refusal on GraphQL is evidence about the policy and none at all
+    about the credential, so the confirmation ``check_gh_auth`` exists to make
+    did not happen. ``INVALID_CREDENTIALS`` here is only
+    :func:`classify_gh_failure_text`'s unrecognized-text fallback, and
+    returning it reports REST's unconfirmed verdict as if it had been
+    confirmed, which is the #3139 and #4344 shape.
+    """
+    if not (
+        probe.status is GhAuthStatus.INVALID_CREDENTIALS
+        and _SESSION_POLICY_REFUSAL.search(probe.detail)
+    ):
+        return probe
+
+    # A REST failure that classifies as anything but the fallback said
+    # something real. A 5xx is still retryable and a quota window still has
+    # a reset, so neither is overwritten (Copilot review on PR #5509).
+    rest_status = classify_gh_failure_text(rest_text)
+    if rest_status is not GhAuthStatus.INVALID_CREDENTIALS:
+        return GhAuthResult(rest_status, sanitize_failure_detail(rest_text))
+
+    # Both narrators are unreliable here, so ask the one question that has
+    # a decisive answer: does the credential authenticate at all?
+    #
+    # A credential that works, with `gh auth status` failed and GraphQL
+    # refused by policy, is not "authenticated" for any caller's purpose:
+    # every `gh pr` and `gh issue` command goes through GraphQL. Returning
+    # AUTHENTICATED here would report success for a session that cannot
+    # read a PR, and assert_gh_authenticated would pass on it.
+    #
+    # The step from that evidence to TRANSPORT_BLOCKED is an inference, and
+    # it is worth naming as one: `/user` is account-scoped, so its success
+    # says nothing about repository REST, which the observed session
+    # refused separately. What is measured is a valid credential plus a
+    # policy-refused GraphQL transport. Whether a session in that state
+    # deserves its own status, rather than being folded in here, is a
+    # taxonomy question for the repository owner (Copilot review on
+    # PR #5509).
+    confirmation = _rest_credential_probe()
+    if confirmation.is_authenticated:
+        return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
+    return confirmation
+
+
 def check_gh_auth() -> GhAuthResult:
     """Classify GitHub CLI auth across the REST and GraphQL transports.
 
@@ -457,9 +645,12 @@ def check_gh_auth() -> GhAuthResult:
 
     Returns:
         A :class:`GhAuthResult`. ``MISSING_GH`` and ``INVALID_CREDENTIALS`` map
-        to auth exit 4; every other non-authenticated status maps to external
-        exit 3.
+        to auth exit 4; ``TRANSPORT_BLOCKED`` maps to config exit 2; every
+        other non-authenticated status maps to external exit 3.
     """
+    # Empty when REST said nothing at all, which is the timeout case below.
+    # Every branch after this point reads it, so it has to exist either way.
+    rest_text = ""
     try:
         result = _run_gh(["auth", "status"])
     except FileNotFoundError:
@@ -467,16 +658,55 @@ def check_gh_auth() -> GhAuthResult:
         return GhAuthResult(GhAuthStatus.MISSING_GH)
     except subprocess.TimeoutExpired:
         logger.debug("gh auth status timed out")
-        # A REST status timeout is not proof of an invalid token; confirm via
-        # the GraphQL transport before failing.
-        return _graphql_viewer_probe()
+        # A REST status timeout is not proof of an invalid token, and it is not
+        # proof of anything else either. Fall through with empty REST text so
+        # the confirmation below still runs: returning the GraphQL probe
+        # directly here skipped it, so a timeout paired with a query-scoped
+        # policy refusal exited 4 recommending `gh auth login` on no credential
+        # evidence at all (Copilot review on PR #5509).
+        pass
+    else:
+        if result.returncode == 0:
+            return GhAuthResult(GhAuthStatus.AUTHENTICATED)
+        # REST status failed. Do not trust its verdict (it may relabel a 5xx or
+        # a quota refusal as an invalid token); confirm over GraphQL below.
+        rest_text = f"{result.stdout}\n{result.stderr}"
 
-    if result.returncode == 0:
-        return GhAuthResult(GhAuthStatus.AUTHENTICATED)
+    probe = _graphql_viewer_probe()
+    if probe.status is GhAuthStatus.MISSING_GH:
+        return probe
 
-    # REST status failed. Do not trust its verdict (it may relabel a 5xx or a
-    # quota refusal as an invalid token); confirm the real state over GraphQL.
-    return _graphql_viewer_probe()
+    # A quota verdict clears on its own and outranks every verdict below it.
+    # Checked before the account-level denial so a throttled session is not
+    # relabelled as a refused one.
+    if probe.status in _RETRYABLE_REFUSAL_STATUSES:
+        return probe
+
+    # The account-level denial closes the session whatever GraphQL managed, so
+    # it has to be read before a successful probe can return. A viewer query is
+    # not repository-scoped and can succeed against a session that denies every
+    # repository call, and returning AUTHENTICATED there selects gh for a
+    # workflow whose next call is a 403. This is the "the account-level wording
+    # stands alone" rule; without it that rule held only when GraphQL also
+    # failed (Copilot review on PR #5509).
+    if _TRANSPORT_BLOCKED_SIGNATURE.search(rest_text):
+        return GhAuthResult(
+            GhAuthStatus.TRANSPORT_BLOCKED, sanitize_failure_detail(rest_text)
+        )
+
+    if probe.is_authenticated:
+        return probe
+
+    # Both transports failed. That is the only evidence that proves a refusal
+    # is session-wide rather than scoped to one query shape, so a policy
+    # refusal seen on either transport is promoted to TRANSPORT_BLOCKED only
+    # here (Copilot review on PR #5509).
+    if probe.status is not GhAuthStatus.TRANSPORT_BLOCKED and _is_session_wide_refusal(
+        rest_text, probe.detail
+    ):
+        return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
+
+    return _resolve_policy_refused_probe(rest_text, probe)
 
 
 def is_gh_authenticated() -> bool:
@@ -567,6 +797,27 @@ _MISSING_OR_INVALID_MESSAGE = (
     "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first."
 )
 
+# Named remedy for a session-wide refusal. Says what is actually wrong, what
+# will not fix it, and which transport still works, because the agent reading
+# this decides its next call from this string alone.
+# Deliberately says repairing the credential cannot clear this, not that the
+# credential is sound. Both can be true at once: an org-level denial and an
+# expired token produce a REST session refusal beside a GraphQL 401, and the
+# denial still dominates because no token clears it. Claiming the credential is
+# fine would be false in exactly that pair (Copilot review on PR #5509).
+_TRANSPORT_BLOCKED_MESSAGE = (
+    "This session's environment refuses GitHub for the gh CLI, so its "
+    "repository and pull-request calls fail with HTTP 403 regardless of the "
+    "token. An account-scoped endpoint such as `gh api user` can still "
+    "answer, and that does not make the session usable. Repairing the "
+    "credential cannot clear it: 'gh auth login' and retrying are both the "
+    "wrong remedy, whatever else is also wrong. Use the "
+    "GitHub MCP operations for this work (spelled mcp__github__* in Claude "
+    "Code, github/* in Copilot CLI), or run it where gh has "
+    "direct GitHub access, such as CI. If an org admin must connect the "
+    "Claude GitHub App for this organization, that is the environment fix."
+)
+
 
 def describe_gh_auth_failure(result: GhAuthResult) -> tuple[str, int, str]:
     """Message, ADR-035 exit code, and error type for a non-authenticated result.
@@ -585,12 +836,19 @@ def describe_gh_auth_failure(result: GhAuthResult) -> tuple[str, int, str]:
         ``(message, exit_code, error_type)``. Missing ``gh`` and confirmed
         invalid credentials map to exit 4 / ``AuthError``; quota refusals and
         transport failures map to exit 3 / ``ApiError`` (the envelope vocabulary
-        in ADR-056 has no rate-limit member).
+        in ADR-056 has no rate-limit member). A session-wide refusal maps to
+        exit 2 / ``ApiError``: it is an environment configuration fault, and
+        exit 3 would advertise it as worth retrying.
     """
     if result.status in _AUTH_FAILURE_STATUSES:
         return _MISSING_OR_INVALID_MESSAGE, 4, "AuthError"
 
     detail = f" ({result.detail})" if result.detail else ""
+    if result.status is GhAuthStatus.TRANSPORT_BLOCKED:
+        # Exit 2 (config), not 3 (external): 3 invites the caller's retry
+        # ladder, and no number of retries makes a refused session succeed.
+        return f"{_TRANSPORT_BLOCKED_MESSAGE}{detail}", 2, "ApiError"
+
     remedy = _RATE_LIMIT_REMEDY.get(result.status)
     if remedy is None:
         return (
@@ -609,8 +867,10 @@ def assert_gh_authenticated() -> None:
 
     Quota refusals and transient transport failures (5xx, timeouts) exit 3
     (external) and name the observed condition without leaking credentials;
-    missing ``gh`` and confirmed invalid credentials exit 4 (auth). See
-    :func:`check_gh_auth`, issue #3139, and issue #4344.
+    missing ``gh`` and confirmed invalid credentials exit 4 (auth); a session
+    whose environment refuses GitHub outright exits 2 (config) and names the
+    MCP transport that still works. See :func:`check_gh_auth`, issue #3139,
+    and issue #4344.
     """
     result = check_gh_auth()
     if result.status is GhAuthStatus.AUTHENTICATED:
@@ -747,6 +1007,14 @@ REFUSAL_BACKOFF_SECONDS = (15.0, 30.0)
 # Quota and secondary-limit refusals clear on their own, so a bounded retry
 # recovers them (issue #4326). 5xx and 429 keep their existing coverage through
 # _TRANSIENT_HTTP_PATTERN; nothing else becomes retryable here.
+#
+# check_gh_auth reads the same set for a different question: a quota verdict
+# must survive promotion to TRANSPORT_BLOCKED, because quota has a reset and a
+# refused session does not. Both call sites want "this clears on its own", so
+# they share one definition. A second copy was added next to check_gh_auth and
+# was silently overwritten by this one at import; the values matched, so
+# nothing broke, and an edit to either would have moved both behaviors at once
+# (Copilot review on PR #5509).
 _RETRYABLE_REFUSAL_STATUSES = frozenset(
     {GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED}
 )

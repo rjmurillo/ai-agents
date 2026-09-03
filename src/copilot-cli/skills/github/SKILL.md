@@ -40,9 +40,47 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 
 ---
 
+## Transport Preflight
+
+`gh` can be installed, hold a token, and still be refused for a whole session
+(agent sandboxes that proxy egress do this). Decide the transport once, before
+the first GitHub call:
+
+```bash
+# CLAUDE_PLUGIN_ROOT is set in a vendored install; falls back to .claude in-repo.
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils"
+python3 "$SCRIPTS_DIR/check_github_transport.py"
+```
+
+Non-POSIX hosts do not run the block above. The authoritative, per-harness
+launcher for this one command is `check_transport` in the `scripts` map of
+`pr-review-config.yaml`: the `copilot` entry runs it under PowerShell and
+resolves the interpreter (`python3`, then `py -3`, then `python`), because a
+Windows host may expose only the launcher. Read it from the map for the harness
+you are on rather than transcribing a second copy here, which would drift.
+
+- `Transport: gh` (exit 0). Use the scripts below. This is CI and a normal
+  developer machine.
+- `Transport: gh_unusable` (exit 0). `gh` cannot reach GitHub here. Route the
+  work through the GitHub MCP operations and do not re-try the scripts to
+  confirm. The verdict names only what was measured: confirm the operations you
+  need are exposed before relying on them. Tool spelling differs by harness
+  (`mcp__github__<op>` in Claude Code, `github/<op>` in Copilot CLI).
+- Exit 3 or 4. Not a transport problem: a quota window or a fixable token.
+
+Script-to-tool mapping, the operations with no MCP equivalent, and the rules
+for reporting one: `references/transport-routing.md`.
+
+A transport failure is an unknown, never a verdict. Do not report a PR as
+blocked, red, or unmergeable because the API was unreachable.
+
+---
+
 ## Decision Tree
 
 ```text
+Which transport? → check_github_transport.py (run once, before the rest)
+
 Need GitHub data?
 ├─ List PRs (filtered) → get_pull_requests.py
 ├─ PR info/diff → get_pr_context.py
@@ -190,6 +228,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
 | `extract_github_context.py` | Extract issue/PR references from text | `--text`, `--require-pr`, `--require-issue` |
+| `check_github_transport.py` | Report whether this session should use gh or the MCP tools | `--output-format` |
 
 ### Workflow Testing (`scripts/`)
 
@@ -321,6 +360,8 @@ Closes #123
 | Ignoring exit codes | Missing error handling | Check exit codes per ADR-035 |
 | Skipping idempotency markers | Duplicate comments | Use `--marker` parameter |
 | Raw `gh notify` or notifications API | 403 with app tokens | Use `get_actionable_items.py` |
+| Retrying `gh` after a session refusal | The refusal has no reset; retries only burn the budget | Run the transport preflight, then use the GitHub MCP operations |
+| Reporting a PR blocked because a call failed | An unreachable API is an unknown, not a verdict | Name the transport failure as the cause |
 | Treating `mergeable_state`/`mergeStateStatus: blocked` as self-explanatory (e.g. guessing "pending approval" without checking) | It is a cached, frequently-stale field. `why_pr_blocked.py` decomposes it into required checks, review threads, and merge conflicts, but does not query `reviewDecision` or the required-approving-review count, so a repo that requires approvals can still be blocked on that even when the script reports no cause | Run `why_pr_blocked.py` first. GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them (`resolve_pr_review_thread.py`). If the script reports no cause but the PR is still blocked, also check `get_pr_context.py`'s `review_decision` field against the target branch's required-approving-review count before reporting nothing to act on |
 
 ---
@@ -334,6 +375,7 @@ Closes #123
 | [copilot-prompts.md](references/copilot-prompts.md) | Creating @copilot directives |
 | [copilot-synthesis-guide.md](references/copilot-synthesis-guide.md) | Copilot context synthesis |
 | [api-reference.md](references/api-reference.md) | Exit codes, API endpoints, troubleshooting |
+| [transport-routing.md](references/transport-routing.md) | Picking gh or the MCP tools, and the script-to-tool map |
 | `scripts/github_core/` | Shared Python helper functions |
 
 ---
