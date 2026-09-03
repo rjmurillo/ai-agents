@@ -176,10 +176,10 @@ as an implementer.
 
 ## Where this repo stands
 
-Measured on this branch after issue #4871 rescoped `code-quality` to code files. Two numbers, and they are not interchangeable. The
-**always-on corpus is 6 rules, 56,088 bytes**: the ones that load regardless
-of what you touch. The **effective context on a `.py` edit is 98,313 bytes
-across 11 files**, which is the always-on corpus plus the path-scoped rules
+Measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, and PR #5498 dropped the jargon gloss list from `voice`. Two numbers, and they are not interchangeable. The
+**always-on corpus is 5 rules, 51,186 bytes**: the ones that load regardless
+of what you touch. The **effective context on a `.py` edit is 93,411 bytes
+across 10 files**, which is the always-on corpus plus the path-scoped rules
 that a Python file activates. Use the first when arguing about what every
 session pays. Use the second when arguing about what a specific edit pays.
 
@@ -192,7 +192,7 @@ uv run --frozen python scripts/validation/instruction_budget.py --format table
 
 **State the basis whenever you quote a number.** That command measures the
 generated `.github/instructions/` mirrors. The `.claude/rules/` sources are
-112 bytes larger in total (56,200 always-on) because `generate_rules.py`
+95 bytes larger in total (51,281 always-on) because `generate_rules.py`
 strips the `priority:` frontmatter key that the Copilot tree does not use.
 An earlier draft of this document mixed the two bases in one paragraph and
 published a corpus size that matched neither. If a figure here disagrees with
@@ -211,7 +211,7 @@ corpus has taken. The biggest always-on file is `voice.md` at 17,911 bytes.
 | `unified-software-engineering.md` | 7,469 | code files only | 3 positive, 1 negative | yes |
 
 That leaves 0 always-on bytes of book-derived rule, 0% of the
-56,200-byte always-on corpus measured at source. `code-quality` and
+51,281-byte always-on corpus measured at source. `code-quality` and
 `pragmatic-programmer` had no scenario file at all until PR #4017 added one to
 each on 2026-08-03, which is how they grew unchallenged for four months.
 
@@ -230,31 +230,37 @@ there:
 
 | Form | Rules |
 |---|---|
-| `paths: ["**"]` | `builder-ethos`, `claude-model-patches`, `knowledge-persistence`, `search-before-building`, `universal`, `voice` |
+| `applyTo: '**'` | none today |
+| `alwaysApply: true` | none today |
+| `paths: ["**"]` | `builder-ethos`, `claude-model-patches`, `search-before-building`, `universal`, `voice` |
 
 Three forms used to be legal, which was the trap. A survey that greps one
 convention misses the others: the first audit of this corpus grepped two and
 reported 8 of the 9 that were always-on at the time, and
-`knowledge-persistence.md` loaded on every file while absent from the count for
+`knowledge-persistence.md` used the third form while absent from the count for
 a full review cycle. The second cost was larger. Claude Code honors `paths:`
 and ignores `applyTo:`, `globs:`, and `alwaysApply:`. The three fail
 differently, so do not describe them as one defect. `applyTo:` is remapped to
 `applyTo:` in the mirror, which scopes Copilot correctly and leaves the Claude
-source declaring nothing; that is `pragmatic-programmer`. `globs:` is preserved
+source declaring nothing; that was `pragmatic-programmer`. `globs:` is preserved
 verbatim and never becomes `applyTo:`, so neither tree is scoped. `alwaysApply:`
 is dropped and the generator synthesizes `applyTo: '**'`, so both trees load
 universally and a code-only rule cannot state its scope in that key at all; that
-is `code-quality`. Between them, 25,527 bytes loaded on every doc-only session
+was `code-quality`. Between them, 25,527 bytes loaded on every doc-only session
 for months (issue #4871).
 `scripts/validation/check_rule_scope_keys.py` now fails on any scope key but
-`paths:`. Enumerate by parsing frontmatter, never by grep.
+`paths:`, which is why the first two rows of the table above are empty.
+Enumerate by parsing frontmatter, never by grep.
 
 Parse the **generated** mirrors, not the `.claude/rules/` sources.
 `generate_rules.py` drops `alwaysApply:`, renames `paths:` to `applyTo:`, and
-synthesizes `applyTo: "**"` for a rule that declares no scope at all or whose
-globs are all filtered out as internal-only. Neither of those reaches the corpus
-through a source line a grep could find, so the mirror is the authority for
-membership even though the source is the authority for content.
+synthesizes `applyTo: "**"` for a rule that declares no scope at all. A rule
+whose globs are all filtered out as internal-only takes the opposite path: the
+generator skips it entirely rather than universalizing it
+(`build/scripts/generate_rules.py:349-350`, issue #4317). Neither outcome
+reaches the corpus through a source line a grep could find, so the mirror is
+the authority for membership even though the source is the authority for
+content.
 
 Name the tree with the number, because the two mirror trees used to disagree.
 `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions` under
@@ -270,7 +276,7 @@ product, which is the worst direction for a scope error to fail.
 
 The generator now skips an all-internal rule for any tree outside
 `keepInternalGlobsFor` and prunes the artifact it previously emitted, so
-`src/copilot-cli/instructions` carries 6 rules and 56,088 bytes, matching
+`src/copilot-cli/instructions` carries 5 rules and 51,186 bytes, matching
 `.github/instructions` exactly. Every figure in this document is now both
 numbers. That convergence is the invariant worth guarding: a future remap that
 re-widens an internal glob would show up here as the plugin tree growing past
@@ -294,7 +300,7 @@ It was real. Commit `77edc827` (PR #1022, 2026-01-31) adopted the Vercel
 strategy and wrote "Total passive context: ~4.5KB (well under Vercel's 8KB
 threshold)".
 
-The always-on corpus is 6.9x that threshold and a Python edit sees 12.1x,
+The always-on corpus is 6.3x that threshold and a Python edit sees 11.5x,
 measured at source. The enforced budget ceiling in
 `scripts/validation/instruction_budget_constants.py` ratcheted upward to track
 measured size instead of holding at the goal, which made every increase look
@@ -335,4 +341,4 @@ lands.
 | PR #1022, commit `77edc827` | 2026-01-31 | This repo |
 | ADR-088 | see `.agents/architecture/` | This repo |
 
-<!-- vendor-portability: declared, mixed kinds. Two paths are citations (AGENTS.md, scripts/validation/instruction_budget_constants.py), named as historical provenance for the 8KB budget figure so a future reader does not re-investigate a settled question. One is not: the command under "Measuring the corpus" invokes scripts/validation/instruction_budget.py, and scripts/ ships in no plugin root, so that command cannot run in a vendored install. The surrounding doctrine still applies without it; only the local re-measurement is lost. SKILL.md labels the routing trigger contributor-only because this file and rule-audit-procedure.md both assume a full checkout. Two more are citations added for the two-tree divergence: templates/platforms/copilot-cli.yaml is the generator config whose keepInternalGlobsFor line is the sole cause of the divergence, and the .agents/ reference names the very paths a vendored install lacks, which is the point of that sentence. Neither is executable; both are provenance a reader would otherwise have to re-derive. One more citation names scripts/validation/check_rule_scope_keys.py, the gate that keeps the declaration table above true; it is upstream-only like the budget scripts, and a vendored install loses the ability to run it, not the reason it exists. Issue #2050. -->
+<!-- vendor-portability: declared, mixed kinds. Two paths are citations (AGENTS.md, scripts/validation/instruction_budget_constants.py), named as historical provenance for the 8KB budget figure so a future reader does not re-investigate a settled question. One is not: the command under "Measuring the corpus" invokes scripts/validation/instruction_budget.py, and scripts/ ships in no plugin root, so that command cannot run in a vendored install. The surrounding doctrine still applies without it; only the local re-measurement is lost. SKILL.md labels the routing trigger contributor-only because this file and rule-audit-procedure.md both assume a full checkout. Two more are citations added for the two-tree divergence: templates/platforms/copilot-cli.yaml is the generator config whose keepInternalGlobsFor line is the sole cause of the divergence, and the .agents/ reference names the very paths a vendored install lacks, which is the point of that sentence. Neither is executable; both are provenance a reader would otherwise have to re-derive. One citation names build/scripts/generate_rules.py, the generator whose skip branch is the sole authority for what happens to a fully internal-only scope, so naming the line lets a reader check the claim instead of trusting it. One more names scripts/validation/check_rule_scope_keys.py, the gate that keeps the declaration table above true; it is upstream-only like the budget scripts, and a vendored install loses the ability to run it, not the reason it exists. Issue #2050. -->

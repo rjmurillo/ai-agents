@@ -28,18 +28,18 @@ state a code-only scope. `globs:` is preserved verbatim and never becomes
 `paths:`, so the source-side and mirror-side answers cannot diverge again.
 
 There is also no single answer per tree by default, so always name the tree with
-the number. The two destination trees agree today, measured on this branch after issue #4871 rescoped `code-quality` to code files:
+the number. The two destination trees agree today, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, and PR #5498 dropped the jargon gloss list from `voice`:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 6 rules, 56,088 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 6 rules, 56,088 bytes |
+| `.github/instructions` | Copilot in this repository | 5 rules, 51,186 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 5 rules, 51,186 bytes |
 
 Membership is identical: `builder-ethos`, `claude-model-patches`,
-`knowledge-persistence`, `search-before-building`, `universal`, `voice`.
+`search-before-building`, `universal`, `voice`.
 
 Those bytes are whole generated files, frontmatter included. The same six
-rules measure 56,200 bytes at `.claude/rules/`, 112 more, because the generator
+rules measure 51,281 bytes at `.claude/rules/`, 95 more, because the generator
 drops `priority:` and turns `paths:` into `applyTo:`. Name the
 tree whenever you quote a figure; a gap of about that size is a basis mismatch,
 not staleness.
@@ -126,11 +126,13 @@ A scope key may be an inline string or a YAML block list.
 
 ```yaml
 paths:
-  - "**"
+  - ".claude/rules/**"
+  - ".serena/memories/**"
 ```
 
-`^applyTo:\s*(.+)$` returns nothing for that file and reports it as unscoped,
-which is the exact opposite of the truth. Use `yaml.safe_load` on the
+`^applyTo:\s*(.+)$` returns nothing for that file and reports it as unscoped.
+Until issue #5492 the same block held a single `"**"` entry, so that answer was
+the exact opposite of the truth. Use `yaml.safe_load` on the
 frontmatter block. This produced a wrong always-on count during the audit that
 wrote this memory, and the wrong count looked plausible enough to act on.
 

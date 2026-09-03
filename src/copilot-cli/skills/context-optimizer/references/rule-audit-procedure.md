@@ -468,21 +468,22 @@ while the gap stays open, which is why reading the scenario directory is a
 worse signal than reading `evals/reports/`.
 
 Always-on status used to be declared three different ways, and only one of them
-is legal now: `applyTo: '**'` (zero rules), `alwaysApply: true` (zero, since
+survives: `applyTo: '**'` (zero rules), `alwaysApply: true` (zero, since
 `scripts/validation/check_rule_scope_keys.py` fails the build on either key),
-and `paths:` carrying `**` (six, in the block-list form or the inline
-`paths: ["**"]`). Both surviving forms still matter to a survey: a regex written
-for the inline form misses the block list. That is how an earlier draft got the
-ranking wrong and then, after a correction that added only the second form,
-still undercounted. Enumerate by parsing frontmatter.
+and `paths:` carrying `**` (five, in the block-list form or the inline
+`paths: ["**"]`). Both shapes of the surviving form still matter to a survey:
+a regex written for the inline form misses the block list. That is how an
+earlier draft got the ranking wrong and then, after a correction that added
+only the second form, still undercounted. Enumerate by parsing frontmatter.
 
-Six rules is the corpus. Do not hardcode its size; it changes on every rule
+Five rules is the corpus. Do not hardcode its size; it changes on every rule
 edit. Regenerate it below, and say which basis you mean: this gate reads the
-generated `.github/instructions/` mirrors, which total 112 bytes less than the
-`.claude/rules/` sources. `generate_rules.py` strips `priority:` from the six
-rules that carry it, worth 112 bytes. The second rewrite it used to perform,
-turning `alwaysApply: true` into `applyTo: '**'`, is worth the remaining 0 bytes
-now that no rule declares that key.
+generated `.github/instructions/` mirrors, which total 95 bytes less than the
+`.claude/rules/` sources. One frontmatter rewrite produces that delta now, not
+two. `generate_rules.py` strips `priority:` from the five rules that carry it,
+worth 95 bytes, and its second rewrite, turning `alwaysApply: true` into
+`applyTo: '**'`, is worth the remaining 0 bytes because issue #4871 retyped the
+last rule that declared that key.
 
 ```bash
 uv run --frozen python scripts/validation/instruction_budget.py --format table

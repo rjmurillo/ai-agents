@@ -292,7 +292,7 @@ code does." A rule item is such a component, and the failure here was reading it
 name and number rather than its body. Guidance a reviewer enforces, not a check.
 
 **This paragraph first cited the wrong rule, and the wrongness is the same one.**
-It named `knowledge-persistence.md` MUST NOT 3. That item is about a different
+It named `universal.md` MUST NOT 8 (`knowledge-persistence.md` MUST NOT 3 when written). That item is about a different
 failure: presenting an *operator preference* as a repository rule, where the
 remedy is to "grep the rule tree for X and cite the file and item number, or drop
 the attribution". Here a real repository rule was misread, and the original
