@@ -81,9 +81,9 @@ Run `transport_preflight` from config first (BLOCKING, once): `gh` can be instal
 
 For `all-open`, query open PRs. Cap the list to `invocation_limits.all_open_max_prs` from config (default: 5). If more open PRs exist, report the overflow count and execute `invocation_limits.all_open_overflow_action`.
 
-For each PR number, validate using `scripts.claude_code.get_pr_context` from config.
+For each PR number, validate using the `get_pr_context` command from config, read from the `scripts` map for the harness you are running on.
 
-Verify PR merge state using `scripts.claude_code.test_pr_merged`. Exit code 0 = not merged (safe), 1 = merged (skip). This avoids stale state from `gh pr view`.
+Verify PR merge state using `test_pr_merged` from that same harness map. Exit code 0 = not merged (safe), 1 = merged (skip). This avoids stale state from `gh pr view`.
 
 ### Step 2: Comprehensive PR Status Check
 
