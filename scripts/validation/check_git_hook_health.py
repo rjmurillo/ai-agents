@@ -348,11 +348,17 @@ def diagnose(repo_root: Path) -> str | None:
         return None
     try:
         hooks_dir = _hooks_dir(repo_root)
+        return _diagnose_hooks_dir(repo_root, hooks_dir)[0]
     except NotGitRepositoryError:
         return None
     except (LefthookConfigError, LefthookExecutionError) as exc:
+        # configured_hook_types(), called inside _diagnose_hooks_dir, is the
+        # only source of either exception; _hooks_dir() above cannot raise
+        # them. The call was outside this try until this fix, so this branch
+        # was unreachable and diagnose() propagated an uncaught exception
+        # instead of the documented str | None on an invalid config or an
+        # unavailable Lefthook runtime.
         return f"{_POST_PROBE_PREFIX}{exc}"
-    return _diagnose_hooks_dir(repo_root, hooks_dir)[0]
 
 
 def _evaluate(repo_root: Path) -> int:

@@ -701,6 +701,27 @@ class TestOutOfScope:
 class TestInventoryFailures:
     """An inventory that cannot be obtained is unverifiable, and typed."""
 
+    def test_diagnose_reports_an_inventory_failure_instead_of_raising(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`diagnose()`'s `str | None` contract holds when the dump step fails.
+
+        `LefthookConfigError`/`LefthookExecutionError` can only come from
+        `configured_hook_types`, called inside `_diagnose_hooks_dir` after the
+        PROBE_HOOK check passes, not from `_hooks_dir`. That call used to sit
+        outside `diagnose()`'s try block, so its except clause for these two
+        exceptions was unreachable and a failing dump crashed the caller
+        instead of returning the documented string.
+        """
+        repo = _make_repo(tmp_path, "dump_fails")
+        _install_prepush(repo / ".git" / "hooks")
+        monkeypatch.setattr(lefthook_inventory, "dump_commands", list)
+
+        reason = check_git_hook_health.diagnose(repo)
+
+        assert reason is not None
+        assert reason.startswith(check_git_hook_health._POST_PROBE_PREFIX)
+
     def test_an_unreachable_lefthook_is_an_external_failure(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -725,13 +746,91 @@ class TestInventoryFailures:
             lefthook_inventory._parse_dump("not json at all")
 
     def test_a_hook_entry_needs_work_not_just_a_mapping(self) -> None:
-        """`templates` and `colors` are mappings too, and are not hooks."""
+        """`templates` and `colors` are mappings too, and are not hooks.
+
+        `setup` (https://lefthook.dev/configuration/setup/) is its own key,
+        separate from jobs/commands/scripts: a hook declaring only setup
+        instructions is still real, dispatching work. Omitting it dropped
+        such a hook from the inventory entirely, so an absent shim for it
+        was never flagged and Git Hook Health reported success on a hook
+        that never ran (CWE-693).
+        """
         assert lefthook_inventory._is_hook_entry({"jobs": []})
         assert lefthook_inventory._is_hook_entry({"commands": {}})
         assert lefthook_inventory._is_hook_entry({"scripts": {}})
+        assert lefthook_inventory._is_hook_entry({"setup": []})
         assert not lefthook_inventory._is_hook_entry({"some": "template"})
         assert not lefthook_inventory._is_hook_entry("doublestar")
         assert not lefthook_inventory._is_hook_entry(True)
+
+    def test_a_timeout_is_an_execution_error(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The lone candidate timing out is unreachable, not a config error."""
+        monkeypatch.setattr(
+            lefthook_inventory, "dump_commands", lambda: [["fake-lefthook", "dump"]]
+        )
+        monkeypatch.setattr(
+            lefthook_inventory.subprocess,
+            "run",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                lefthook_inventory.subprocess.TimeoutExpired("fake-lefthook", 20)
+            ),
+        )
+
+        with pytest.raises(lefthook_inventory.LefthookExecutionError, match="timed out"):
+            lefthook_inventory.configured_hook_types(tmp_path)
+
+    def test_a_launch_failure_is_an_execution_error(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """The lone candidate failing to start (missing binary) is unreachable."""
+        monkeypatch.setattr(
+            lefthook_inventory, "dump_commands", lambda: [["fake-lefthook", "dump"]]
+        )
+        monkeypatch.setattr(
+            lefthook_inventory.subprocess,
+            "run",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                OSError("no such file or directory: fake-lefthook")
+            ),
+        )
+
+        with pytest.raises(
+            lefthook_inventory.LefthookExecutionError, match="could not run"
+        ):
+            lefthook_inventory.configured_hook_types(tmp_path)
+
+    def test_a_launch_failure_falls_back_to_the_next_candidate(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Mixed outcomes: the first candidate fails to start, the second runs.
+
+        `dump_commands` can return up to two candidates (`uv run --frozen
+        lefthook` then a bare `lefthook`); a launch failure on the first must
+        not stop the second from being tried.
+        """
+        monkeypatch.setattr(
+            lefthook_inventory,
+            "dump_commands",
+            lambda: [["uv", "run", "lefthook", "dump"], ["lefthook", "dump"]],
+        )
+        calls: list[list[str]] = []
+
+        def fake_run(command, **_kwargs):
+            calls.append(command)
+            if command[0] == "uv":
+                raise OSError("no such file or directory: uv")
+            return subprocess.CompletedProcess(
+                command, 0, stdout='{"pre-push": {"commands": {}}}', stderr=""
+            )
+
+        monkeypatch.setattr(lefthook_inventory.subprocess, "run", fake_run)
+
+        result = lefthook_inventory.configured_hook_types(tmp_path)
+
+        assert result == frozenset({"pre-push"})
+        assert len(calls) == 2, "the second candidate must still be tried"
 
 
 class TestNegativeControl:

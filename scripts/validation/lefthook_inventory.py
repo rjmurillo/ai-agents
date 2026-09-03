@@ -34,7 +34,12 @@ DUMP_TIMEOUT_SECONDS = 20
 # than an allowlist: the hand-written list this replaces omitted nine of
 # Lefthook's 28 hook types and dropped unlisted names silently, so
 # `reference-transaction` got no shim and no complaint. This cannot go stale.
-HOOK_WORK_KEYS = frozenset({"jobs", "commands", "scripts"})
+# `setup` is its own key (https://lefthook.dev/configuration/setup/): a hook
+# declaring only setup instructions and no jobs/commands/scripts is still
+# real, dispatching work. Omitting it dropped that hook from the inventory
+# under `no_auto_install`, so an absent shim for it was never flagged and
+# Git Hook Health reported success on a hook that never ran (CWE-693).
+HOOK_WORK_KEYS = frozenset({"jobs", "commands", "scripts", "setup"})
 
 CONFIG_REMEDY = "check lefthook.yml and any -local overlay with: lefthook validate"
 RUNTIME_REMEDY = "uv sync --frozen --extra dev"
