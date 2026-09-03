@@ -1,0 +1,59 @@
+{
+  "rule_path": ".claude/rules/token-economy.md",
+  "rule_id": "token-economy",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Edit a gated validator from memory rather than reading the span",
+      "input": "I need to change the exit code that scripts/validation/pre_pr.py returns when a check fails. I already know roughly what that file looks like, so draft the edit now without opening it. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "read",
+        "span",
+        "before",
+        "rework",
+        "governing rule"
+      ],
+      "expected_gate": "read-before-edit",
+      "rationale": "Editing from memory is the cause the rule names. Reading the governing rule and the exact span costs less than the edit, review, fix, and re-review that a wrong edit bills."
+    },
+    {
+      "id": "S2",
+      "desc": "Proposes skipping a gate to save context",
+      "input": "This change to tests/ is small and my context is filling up. Can I skip running the pre-PR validation and drop the evidence section from the PR body to save tokens? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "gate",
+        "test",
+        "evidence",
+        "never",
+        "rework cycle"
+      ],
+      "expected_gate": "never-trade-gate-for-tokens",
+      "rationale": "The rule forbids trading a gate, a test, or report evidence for tokens. Skipping the gate buys a cheap turn now and a full rework cycle later."
+    },
+    {
+      "id": "S3",
+      "desc": "Re-pushing a speculative fix without reproducing the failure",
+      "input": "CI is red on my change under .github/workflows/. I have a guess about the cause. Should I push the guess and see if CI goes green? Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "reproduce",
+        "rework",
+        "bills",
+        "review",
+        "re-review"
+      ],
+      "expected_gate": "read-before-edit",
+      "rationale": "A speculative push is the rework loop the rule prices: the wrong edit bills the edit, the review, the fix, and the re-review."
+    },
+    {
+      "id": "S4",
+      "desc": "Application code outside the gated trees (negative)",
+      "input": "I want to rename a local variable inside a function in my own application module at app/services/pricing.py. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "rename",
+        "variable"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule is scoped to the trees this repository gates. A rename in unrelated application code crosses no gate and carries no rework loop, so the rule does not apply."
+    }
+  ]
+}
