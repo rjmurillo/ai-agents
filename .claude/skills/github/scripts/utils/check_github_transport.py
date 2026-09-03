@@ -64,6 +64,7 @@ if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
 from github_core.api import (
+    GhAuthResult,
     GhAuthStatus,
     check_gh_auth,
     classify_gh_failure_text,
@@ -88,6 +89,18 @@ TRANSPORT_MCP = "gh_unusable"
 # Statuses that mean gh cannot serve this session no matter what the operator
 # does to the token, and that a second transport is expected to cover.
 _ROUTE_TO_MCP = frozenset({GhAuthStatus.TRANSPORT_BLOCKED, GhAuthStatus.MISSING_GH})
+
+# A repository probe landing on one of these says gh is unusable now and usable
+# later. MCP is not the answer to a quota, which is charged to the token rather
+# than to the transport, so these take the documented exit 3 instead of a
+# routing change (Copilot review on PR #5509).
+_RETRYABLE_ON_REPOSITORY_PROBE = frozenset(
+    {
+        GhAuthStatus.RATE_LIMITED,
+        GhAuthStatus.SECONDARY_RATE_LIMITED,
+        GhAuthStatus.TRANSIENT_ERROR,
+    }
+)
 
 # The absent-binary half of MISSING_GH, stated without the auth remedy that
 # shares its status in the library's combined message.
@@ -115,22 +128,22 @@ _MCP_GUIDANCE = (
 )
 
 
-def _repository_capability_probe() -> str:
-    """Return a refusal detail when repository REST is denied, else "".
+def _repository_capability_probe() -> GhAuthResult | None:
+    """Classify one repository call, or ``None`` when the probe cannot answer.
 
     Asks the one question the auth preflight structurally cannot: are
-    repository calls served? Only the session-wide refusal signature reroutes.
-    A 5xx, a 404, or a quota window on this one call keeps the ``gh`` verdict,
-    because a transient repository failure must not disable the transport for
-    the whole session; that inversion is issue #3139 in the other direction.
+    repository calls served? The verdict is the classifier's, not a single
+    signature, because the answers differ in what the caller should do. A
+    session-wide refusal reroutes. A quota window or a 5xx is gh being
+    unusable now and usable later, which is the documented exit 3.
 
-    Degrades to "" whenever the probe cannot be run or read (no inferable
-    repository, gh absent, timeout). An unanswerable probe is not evidence of
-    a denial, and failing closed here would route a working session to MCP.
+    ``None`` covers every way the probe fails to answer: no inferable
+    repository, gh absent, timeout. An unanswerable probe is not evidence of
+    anything, and failing closed here would take a working session off gh.
     """
     info = get_repo_info()
     if info is None:
-        return ""
+        return None
     try:
         result = subprocess.run(
             ["gh", "api", f"repos/{info.owner}/{info.repo}"],
@@ -140,13 +153,13 @@ def _repository_capability_probe() -> str:
             timeout=10,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return ""
+        return None
     if result.returncode == 0:
-        return ""
+        return GhAuthResult(GhAuthStatus.AUTHENTICATED)
     text = f"{result.stdout}\n{result.stderr}"
-    if classify_gh_failure_text(text) is GhAuthStatus.TRANSPORT_BLOCKED:
-        return str(sanitize_failure_detail(text))
-    return ""
+    return GhAuthResult(
+        classify_gh_failure_text(text), str(sanitize_failure_detail(text))
+    )
 
 
 def resolve_transport() -> tuple[str, int, str, str]:
@@ -158,9 +171,23 @@ def resolve_transport() -> tuple[str, int, str, str]:
     """
     result = check_gh_auth()
     if result.status is GhAuthStatus.AUTHENTICATED:
-        refusal = _repository_capability_probe()
-        if refusal:
-            return TRANSPORT_MCP, 0, GhAuthStatus.TRANSPORT_BLOCKED.value, refusal
+        capability = _repository_capability_probe()
+        if capability is not None and not capability.is_authenticated:
+            message, exit_code, _ = describe_gh_auth_failure(capability)
+            if capability.status is GhAuthStatus.TRANSPORT_BLOCKED:
+                return TRANSPORT_MCP, 0, capability.status.value, message
+            if capability.status in _RETRYABLE_ON_REPOSITORY_PROBE:
+                # gh is the right transport and this is the wrong moment.
+                # Returning gh at exit 0 here would send the workflow into a
+                # failure the probe just measured, past the exit-3 path this
+                # script documents for exactly this condition.
+                return "", exit_code, capability.status.value, message
+            # Anything else keeps gh. INVALID_CREDENTIALS in particular is not
+            # a credential verdict when it comes from a repository call:
+            # check_gh_auth already answered that question with AUTHENTICATED,
+            # and a 404 on a private, renamed, or wrongly inferred repository
+            # classifies this way. Telling that operator to re-authenticate is
+            # the misdiagnosis this whole change exists to end.
         return TRANSPORT_GH, 0, result.status.value, ""
 
     message, exit_code, _ = describe_gh_auth_failure(result)

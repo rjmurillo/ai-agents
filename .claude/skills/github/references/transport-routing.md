@@ -73,10 +73,16 @@ only on `gh api repos/{owner}/{repo}`. So a session that answers the viewer
 query and denies every repository call authenticates, and `check_gh_auth` says
 so correctly for the question it answers, "does any transport authenticate".
 "Can this workflow run" is a different question, and the preflight asks it with
-one repository call of its own before it selects `gh`. Only the session-wide
-refusal on that call changes the transport; a 5xx, a 404, or a quota window
-keeps `gh`, because a transient failure on one repository must not disable a
-working session.
+one repository call of its own before it selects `gh`. That call's verdict is
+the classifier's, and the three answers differ in what the caller should do. A
+session-wide refusal routes to MCP at exit 0. A quota window or a 5xx is `gh`
+being unusable now and usable later, so it takes exit 3 and no routing change:
+MCP is not the answer to a quota, which is charged to the token rather than to
+the transport. Everything else keeps `gh`, including a 404, which the shared
+classifier calls a credential fault and which on a repository call is nothing
+of the kind: a private, renamed, or wrongly inferred repository lands there,
+and the credential question was already answered. A probe that cannot run at
+all keeps `gh` too, since absence of an answer is not an answer.
 
 `gh` stays the default everywhere it works, notably CI, where Actions supplies
 a working token. Nothing here removes `gh` from those environments.

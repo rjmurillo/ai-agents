@@ -47,7 +47,7 @@ def _run(
     status: GhAuthStatus,
     detail: str = "",
     argv: list[str] | None = None,
-    repo_refusal: str = "",
+    repo_capability=None,
 ):
     """Run main() with a stubbed preflight, returning (exit_code, stdout).
 
@@ -58,7 +58,7 @@ def _run(
     """
     with patch.object(mod, "check_gh_auth", return_value=_auth(status, detail)):
         with patch.object(
-            mod, "_repository_capability_probe", return_value=repo_refusal
+            mod, "_repository_capability_probe", return_value=repo_capability
         ):
             with patch("sys.stdout") as stdout:
                 code = mod.main(
@@ -73,7 +73,11 @@ class TestTransportRouting:
         with patch.object(
             mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)
         ):
-            with patch.object(mod, "_repository_capability_probe", return_value=""):
+            with patch.object(
+                mod,
+                "_repository_capability_probe",
+                return_value=_auth(GhAuthStatus.AUTHENTICATED),
+            ):
                 transport, code, status, detail = mod.resolve_transport()
         assert transport == mod.TRANSPORT_GH
         assert code == 0
@@ -97,13 +101,78 @@ class TestTransportRouting:
             with patch.object(
                 mod,
                 "_repository_capability_probe",
-                return_value="GitHub access is not enabled for this session.",
+                return_value=_auth(
+                    GhAuthStatus.TRANSPORT_BLOCKED,
+                    "GitHub access is not enabled for this session.",
+                ),
             ):
                 transport, code, status, detail = mod.resolve_transport()
         assert transport == mod.TRANSPORT_MCP
         assert code == 0
         assert status == "transport_blocked"
-        assert "not enabled for this session" in detail
+        assert "mcp__github__" in detail
+
+    @pytest.mark.parametrize(
+        "status",
+        [
+            GhAuthStatus.RATE_LIMITED,
+            GhAuthStatus.SECONDARY_RATE_LIMITED,
+            GhAuthStatus.TRANSIENT_ERROR,
+        ],
+    )
+    def test_a_retryable_repository_probe_does_not_select_gh(self, status):
+        """gh is the right transport and this is the wrong moment.
+
+        Returning gh at exit 0 would send the workflow into a failure the
+        probe just measured, past the exit-3 path this script documents for
+        exactly this condition. MCP is not the answer either: a quota is
+        charged to the token, not to the transport, and it has a reset
+        (Copilot review on PR #5509).
+        """
+        with patch.object(
+            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)
+        ):
+            with patch.object(
+                mod, "_repository_capability_probe", return_value=_auth(status, "x")
+            ):
+                transport, code, reported, _ = mod.resolve_transport()
+        assert transport == ""
+        assert code == 3
+        assert reported == status.value
+
+    def test_a_repository_404_still_selects_gh(self):
+        """Control: the classifier calls a 404 INVALID_CREDENTIALS, and it is not.
+
+        check_gh_auth already answered the credential question with
+        AUTHENTICATED. A private, renamed, or wrongly inferred repository
+        reaches this branch, and routing it to exit 4 would tell that operator
+        to re-authenticate, which is the misdiagnosis this whole change exists
+        to end. This is the one place the probe deliberately does not follow
+        the classifier.
+        """
+        with patch.object(
+            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)
+        ):
+            with patch.object(
+                mod,
+                "_repository_capability_probe",
+                return_value=_auth(GhAuthStatus.INVALID_CREDENTIALS, "Not Found"),
+            ):
+                transport, code, _, _ = mod.resolve_transport()
+        assert transport == mod.TRANSPORT_GH
+        assert code == 0
+
+    def test_an_unanswerable_probe_still_selects_gh(self):
+        """None is not evidence; failing closed takes a working session off gh."""
+        with patch.object(
+            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)
+        ):
+            with patch.object(
+                mod, "_repository_capability_probe", return_value=None
+            ):
+                transport, code, _, _ = mod.resolve_transport()
+        assert transport == mod.TRANSPORT_GH
+        assert code == 0
 
     def test_session_refusal_routes_to_mcp(self):
         """The whole point: a refused session still has a usable transport."""
@@ -283,46 +352,67 @@ class TestRepositoryCapabilityProbe:
                 return mod._repository_capability_probe(), run
 
     def test_a_session_denial_on_the_repository_call_is_reported(self):
-        detail, run = self._probe(
+        capability, run = self._probe(
             _completed(stdout="", stderr=REPO_DENIAL_BODY, rc=1)
         )
-        assert "not enabled for this session" in detail
+        assert capability.status is GhAuthStatus.TRANSPORT_BLOCKED
+        assert "not enabled for this session" in capability.detail
         assert run.call_args.args[0][:2] == ["gh", "api"]
         assert run.call_args.args[0][2] == "repos/rjmurillo/ai-agents"
 
-    def test_a_served_repository_call_keeps_gh(self):
-        detail, _ = self._probe(_completed(stdout='{"id": 1}', stderr="", rc=0))
-        assert detail == ""
+    def test_a_served_repository_call_is_authenticated(self):
+        capability, _ = self._probe(_completed(stdout='{"id": 1}', stderr="", rc=0))
+        assert capability.is_authenticated
 
     @pytest.mark.parametrize(
-        "body",
+        ("body", "expected"),
         [
-            "gh: Internal Server Error (HTTP 500)",
-            "gh: API rate limit exceeded (HTTP 403)",
-            "gh: Not Found (HTTP 404)",
-            AUTH_STATUS_INVALID_BODY,
+            ("gh: Internal Server Error (HTTP 500)", GhAuthStatus.TRANSIENT_ERROR),
+            ("gh: Service Unavailable (HTTP 503)", GhAuthStatus.TRANSIENT_ERROR),
+            ("gh: API rate limit exceeded (HTTP 403)", GhAuthStatus.RATE_LIMITED),
+            (
+                "You have exceeded a secondary rate limit. Please wait a few "
+                "minutes before you try again.",
+                GhAuthStatus.SECONDARY_RATE_LIMITED,
+            ),
         ],
     )
-    def test_any_other_failure_keeps_gh(self, body):
-        """Control: only the session-wide refusal may change the transport.
+    def test_a_retryable_failure_keeps_its_own_status(self, body, expected):
+        """The verdict is the classifier's, not one signature and a fallback.
 
-        A quota window and a 5xx both clear on their own, and a 404 is about
-        one repository. Rerouting on any of them would hide a condition the
-        caller should wait out or fix, and would keep hiding it.
+        Collapsing these into "not a denial, keep gh" reported Transport: gh
+        at exit 0 for a session the probe had just measured as unavailable,
+        past the exit-3 path this script documents (Copilot review on
+        PR #5509).
         """
-        detail, _ = self._probe(_completed(stdout="", stderr=body, rc=1))
-        assert detail == ""
+        capability, _ = self._probe(_completed(stdout="", stderr=body, rc=1))
+        assert capability.status is expected
 
-    def test_no_inferable_repository_is_not_evidence_of_a_denial(self):
-        detail, run = self._probe(repo=None)
-        assert detail == ""
+    @pytest.mark.parametrize(
+        "body", ["gh: Not Found (HTTP 404)", AUTH_STATUS_INVALID_BODY]
+    )
+    def test_a_non_retryable_failure_is_reported_as_classified(self, body):
+        """Control on the split: these must NOT read as retryable.
+
+        Without this, widening the retryable set to "any failure" would pass
+        the cases above while sending a 404 on a private repository to a retry
+        ladder. resolve_transport keeps gh for this class; the probe's job is
+        only to report it faithfully.
+        """
+        capability, _ = self._probe(_completed(stdout="", stderr=body, rc=1))
+        assert capability.status is GhAuthStatus.INVALID_CREDENTIALS
+        assert capability.status not in mod._RETRYABLE_ON_REPOSITORY_PROBE
+
+    def test_no_inferable_repository_cannot_answer(self):
+        capability, run = self._probe(repo=None)
+        assert capability is None
         assert run.call_count == 0
 
     @pytest.mark.parametrize("error", [OSError("no gh"), mod.subprocess.TimeoutExpired("gh", 10)])
-    def test_an_unanswerable_probe_keeps_gh(self, error):
+    def test_an_unanswerable_probe_returns_none(self, error):
         """Failing closed here would route a working session away from gh."""
-        detail, _ = self._probe(side_effect=error)
-        assert detail == ""
+        capability, _ = self._probe(side_effect=error)
+        assert capability is None
 
 
 class TestShippedArtifactRuntimeContract:
