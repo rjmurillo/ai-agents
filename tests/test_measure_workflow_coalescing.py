@@ -666,13 +666,20 @@ class TestPrerequisiteAuthClassification:
         assert "Repairing the credential cannot clear it" in message
         assert "mcp__github__" in message
 
-    def test_a_missing_cli_still_names_the_missing_binary(self):
+    def test_a_missing_cli_is_not_told_to_authenticate(self):
         """Control: delegating the wording must not flatten the statuses.
 
-        Without this, describe_gh_auth_failure could return one message for
-        everything and the assertions above would still pass.
+        The earlier form asserted only that "not installed" appeared, which
+        the shared describer satisfies while also saying "Run 'gh auth login'
+        first". Both of that sentence's clauses are wrong for an absent
+        binary: it is not "not authenticated", and logging in cannot install
+        it. Asserting the substring passed straight through the regression,
+        so this asserts the remedy instead (Copilot review on PR #5509).
         """
         with pytest.raises(RuntimeError) as exc:
             self._run(_GhAuthStatus.MISSING_GH)
 
-        assert "not installed" in str(exc.value)
+        message = str(exc.value)
+        assert "not installed" in message
+        assert "gh auth login" not in message
+        assert "not authenticated" not in message
