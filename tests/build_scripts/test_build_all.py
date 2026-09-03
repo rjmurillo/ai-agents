@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 from collections.abc import Callable, Iterator
@@ -3352,6 +3353,23 @@ def test_write_bytes_no_redirect_creates_a_new_file(tmp_path: Path) -> None:
 
     assert dest.read_bytes() == b"x = 1\n"
     assert not dest.is_symlink()
+
+
+@pytest.mark.skipif(
+    os.name == "nt", reason="POSIX permission bits are not meaningful on Windows"
+)
+def test_write_bytes_no_redirect_creates_with_no_group_or_world_access(
+    tmp_path: Path,
+) -> None:
+    """CodeQL (CWE-732) flagged an explicit ``0o644`` literal on this call as
+    an overly permissive mode passed to ``os.open``. Pin the fix: 0o600, no
+    group or world bits, whatever the process umask happens to be.
+    """
+    dest = tmp_path / "owned.py"
+
+    build_all._write_bytes_no_redirect(dest, b"x = 1\n")
+
+    assert stat.S_IMODE(dest.stat().st_mode) == 0o600
 
 
 def test_restore_owned_prefixes_refuses_a_symlink_raced_in_before_the_write(

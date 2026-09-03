@@ -1239,11 +1239,26 @@ def _write_bytes_no_redirect(path: Path, content: bytes) -> None:
     next snapshot entry, the same best-effort behavior restore already had
     for any other write failure; it does not retry or unlink the racing
     entry, which could itself be adversarial.
+
+    Creates with ``0o600`` (owner read-write only), not a group- or
+    world-readable literal such as ``0o644``: CodeQL flags an explicit
+    permissive mode passed to ``os.open`` (CWE-732), and this call has no
+    reason to grant one. The write is a ``--check`` run reverting its own
+    generator output back to the pre-run snapshot for the remainder of that
+    one process; nothing outside it reads the file in between, and a real
+    ``build_all.py`` run (no ``--check``) writes through the generators'
+    own ``Path.write_text``/``write_bytes`` calls, not this function, so the
+    committed artifact's permissions come from there, unaffected by this
+    literal. The snapshot does not record each file's original mode bits
+    (only its bytes), so this cannot restore an executable owned file's
+    ``+x`` bit either way; :data:`OWNED_PREFIXES` holds no executable file
+    today, and preserving that bit would need snapshotting mode alongside
+    content, out of scope for the redirect fix this function exists for.
     """
     fd = os.open(
         path,
         os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_BINARY | _O_NOFOLLOW,
-        0o644,
+        0o600,
     )
     try:
         with os.fdopen(fd, "wb", closefd=False) as handle:
