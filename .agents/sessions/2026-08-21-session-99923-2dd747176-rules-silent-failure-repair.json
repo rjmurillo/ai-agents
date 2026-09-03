@@ -32,7 +32,7 @@
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .serena/memories/usage-mandatory.md in session 99923. A skill does apply: ai-agents-generation-and-release owns .claude/rules/ mirror regeneration and directs the contributor to build/scripts/build_all.py. The earlier wording claimed no skill applied, which is an absence asserted without searching the skill tree, the shape knowledge-persistence.md MUST NOT 4 forbids. Copilot found it."
+        "Evidence": "Read .serena/memories/usage-mandatory.md in session 99923. A skill does apply: ai-agents-generation-and-release owns .claude/rules/ mirror regeneration and directs the contributor to build/scripts/build_all.py. The earlier wording claimed no skill applied, which is an absence asserted without searching the skill tree, the shape universal.md MUST NOT 9 (knowledge-persistence.md MUST NOT 4 when written) forbids. Copilot found it."
       },
       "skillScriptsListed": {
         "level": "MUST",

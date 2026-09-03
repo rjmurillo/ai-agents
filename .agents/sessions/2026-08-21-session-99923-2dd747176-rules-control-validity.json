@@ -62,7 +62,7 @@
       "usageMandatoryRead": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "Read .serena/memories/usage-mandatory.md in session 99923 (skill-first incident log; ADR-085 retired the blocking hook but the MUST-level convention stands). The earlier wording claimed no skill applies to a rule-text edit. That is an absence asserted without searching the skill tree, which knowledge-persistence.md MUST NOT 4 forbids, and it is false: ai-agents-generation-and-release owns .claude/rules/ mirror regeneration. Copilot found it."
+        "Evidence": "Read .serena/memories/usage-mandatory.md in session 99923 (skill-first incident log; ADR-085 retired the blocking hook but the MUST-level convention stands). The earlier wording claimed no skill applies to a rule-text edit. That is an absence asserted without searching the skill tree, which universal.md MUST NOT 9 (knowledge-persistence.md MUST NOT 4 when written) forbids, and it is false: ai-agents-generation-and-release owns .claude/rules/ mirror regeneration. Copilot found it."
       }
     },
     "sessionEnd": {
