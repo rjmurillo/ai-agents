@@ -45,7 +45,9 @@ scripts:
     cluster_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/scripts/cluster_threads.py" --pull-request {number}'
     get_unaddressed_comments: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_unaddressed_comments.py" --pull-request {number}'
     get_pr_checks: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_checks.py" --pull-request {number}'
+    wait_for_settled_zero: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/wait_for_unresolved_zero.py" --pull-request {number}'
     add_thread_reply: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/add_pr_review_thread_reply.py" --pull-request {number} --thread-id {thread_id} --body {body}'
+    add_thread_reply_resolve: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/add_pr_review_thread_reply.py" --pull-request {number} --thread-id {thread_id} --body {body} --resolve'
     resolve_thread: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/resolve_pr_review_thread.py" --expected-pull-request {number} --thread-id {thread_id}'
     # transport_preflight resolves command_key against the harness map, so the
     # Copilot map needs its own entry or Step 0 cannot dispatch at all. The

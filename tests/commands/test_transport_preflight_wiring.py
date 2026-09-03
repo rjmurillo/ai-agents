@@ -230,6 +230,66 @@ class TestMcpGrantsAreEnumerated:
 
         assert not missing, f"commands name files that do not exist: {missing}"
 
+    def test_both_harness_maps_define_the_same_command_keys(self):
+        """A key one map lacks is a dead reference for that harness's consumer.
+
+        The prose names commands by key and each consumer selects one map, so
+        a key present in only one map fails wherever that consumer runs.
+        `add_thread_reply_resolve` was claude_code-only, and the generated
+        Copilot skill names it at the same time as reading `scripts.copilot`,
+        which the workflow reached only after it stopped hardcoding the Claude
+        map. Same dormant-then-live shape as the PowerShell targets above
+        (Copilot review on PR #5509).
+        """
+        import yaml
+
+        config = yaml.safe_load(
+            (REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        claude_keys = set(config["scripts"]["claude_code"])
+        copilot_keys = set(config["scripts"]["copilot"])
+        assert claude_keys == copilot_keys, (
+            "harness maps disagree; claude_code only: "
+            f"{sorted(claude_keys - copilot_keys)}, copilot only: "
+            f"{sorted(copilot_keys - claude_keys)}"
+        )
+
+    @pytest.mark.parametrize(
+        "consumer",
+        [
+            (".claude/commands/pr-review.md", "claude_code"),
+            ("src/copilot-cli/skills/pr-review/SKILL.md", "copilot"),
+            (".github/prompts/pr-review.prompt.md", "copilot"),
+        ],
+        ids=lambda value: value[0],
+    )
+    def test_every_command_key_a_consumer_names_exists_in_its_own_map(self, consumer):
+        """The parity check above cannot see a key neither map defines."""
+        import re
+
+        import yaml
+
+        path, harness = consumer
+        config = yaml.safe_load(
+            (REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        available = set(config["scripts"][harness])
+        text = (REPO_ROOT / path).read_text(encoding="utf-8")
+        # Backticked snake_case names that read as command references. Only
+        # those that match a key in EITHER map are treated as references, so
+        # ordinary prose in backticks cannot manufacture a failure.
+        known = set(config["scripts"]["claude_code"]) | set(config["scripts"]["copilot"])
+        named = {n for n in re.findall(r"`([a-z][a-z0-9_]+)`", text) if n in known}
+        assert named, f"{path} names no command keys; the scan is inert"
+        assert named <= available, (
+            f"{path} selects scripts.{harness} but names keys it lacks: "
+            f"{sorted(named - available)}"
+        )
+
     def test_pr_review_may_run_the_copilot_launcher(self):
         """The Copilot check_transport entry shells pwsh, so the grant must allow it.
 
