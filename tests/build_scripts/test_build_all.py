@@ -1505,6 +1505,88 @@ def test_run_check_restores_owned_prefix_after_generator_writes(
     assert _git_porcelain(repo) == "", "--check left working tree dirty"
 
 
+def test_restore_owned_prefixes_returns_true_on_a_clean_restore(
+    tmp_path: Path,
+) -> None:
+    """Positive control: a restore with nothing to warn about reports success."""
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    tracked = owned / "frozen.py"
+    tracked.write_text("x = 1\n", encoding="utf-8")
+    snapshot = build_all._snapshot_owned_prefixes(repo, ("owned/",))
+    tracked.write_text("generator output\n", encoding="utf-8")
+
+    assert build_all._restore_owned_prefixes(repo, ("owned/",), snapshot) is True
+
+
+def test_run_check_escalates_to_2_when_restore_reports_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PR #5343 review (build_all.py:1724): a failed restore must not let
+    ``--check`` report success.
+
+    Unit-level test of the wiring in ``run()``: stubs ``_run_generators`` to
+    a clean ``0`` (so the escalation is the only thing that can produce a
+    nonzero result) and ``_restore_owned_prefixes`` to ``False`` (what it
+    now returns when :func:`_write_bytes_no_redirect` correctly refuses to
+    write through a path raced back into existence, per
+    ``test_restore_owned_prefixes_refuses_a_symlink_raced_in_before_the_write``
+    on the underlying primitive). Deliberately does not run the real
+    generator pipeline: that pipeline has its own unrelated failure modes in
+    a minimal fixture repo (a missing ADR directory, an absent skills
+    source), and asserting a specific exit code against its full output
+    would make this test fragile to changes that have nothing to do with
+    the restore-escalation wiring it exists to pin.
+    """
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    monkeypatch.setattr(
+        build_all,
+        "_run_generators",
+        lambda *args, **kwargs: 0,
+    )
+    monkeypatch.setattr(
+        build_all,
+        "_restore_owned_prefixes",
+        lambda *args, **kwargs: False,
+    )
+
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
+
+    assert rc == 2, "a failed restore must escalate an otherwise-clean run"
+
+
+def test_run_check_keeps_a_nonzero_generator_result_over_a_failed_restore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A genuine generator failure keeps its own, more specific exit code.
+
+    Inverse control on the escalation guard's ``exit_code == 0`` condition:
+    without it, a mutant that escalates unconditionally would downgrade a
+    real generator failure (here, 1) to the generic restore-failure code
+    (2), losing the more specific signal.
+    """
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    monkeypatch.setattr(
+        build_all,
+        "_run_generators",
+        lambda *args, **kwargs: 1,
+    )
+    monkeypatch.setattr(
+        build_all,
+        "_restore_owned_prefixes",
+        lambda *args, **kwargs: False,
+    )
+
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
+
+    assert rc == 1, "a real generator failure must not be masked by escalation"
+
+
 def test_restore_preserves_preexisting_bytecode_under_owned_prefixes(
     tmp_path: Path,
 ) -> None:

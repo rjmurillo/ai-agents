@@ -24,7 +24,7 @@ EXIT CODES:
     3 - audit blocklist violation (REQ-003-011); git state unreadable
         (--check)
 
-Exit 2 has four producers and only the staleness one is fixed by
+Exit 2 has five producers and only the staleness one is fixed by
 regenerating and committing. The unreachable-owned-path producer arrived with
 issue #4632 and covers three shapes: a path that cannot be read, one that
 redirects (a symlink or a Windows junction, which is a directory carrying a
@@ -36,6 +36,13 @@ The fourth producer is the REQ-003-010 no-write violation,
 set in :func:`_run_generators` when :func:`assert_no_claude_writes` reports a
 write under ``.claude/``: that is a generator policy failure, and regenerating
 reproduces it, because the offending generator runs again.
+
+The fifth producer is :func:`run` escalating a successful generator result to
+2 when :func:`_restore_owned_prefixes` reports it could not fully restore the
+working tree afterward: a redirect raced in after the strict snapshot, or any
+other ``OSError`` a restore write hit. Regenerating does not fix this one
+either; it means ``--check``'s read-only promise did not fully hold on this
+run, and the ``WARN`` lines on stderr name which paths.
 
 Exit 3 covers the two failures that are not a stale tree: an audit blocklist
 violation, and a git that could not answer. Git is an external tool and
@@ -1679,7 +1686,7 @@ def _restore_owned_prefixes(
     snapshot: dict[Path, bytes],
     *,
     preexisting_boundaries: set[Path] | None = None,
-) -> None:
+) -> bool:
     """Restore the working tree to the snapshot state under ``prefixes``.
 
     Three cases per path:
@@ -1690,7 +1697,21 @@ def _restore_owned_prefixes(
       3. On disk AND not in snapshot → delete it (the generator created
          a new path that did not exist pre-run).
 
-    After this returns, every file under ``prefixes`` matches its
+    Returns ``True`` when every path was restored exactly to its pre-run
+    state, ``False`` when any path could not be restored (a ``WARN`` is
+    printed for each one as it happens). :func:`run` uses this to escalate
+    ``--check``'s exit code: this function has always been best-effort
+    internally (one failed path must not abort the rest of the restore),
+    but the caller silently ignored the outcome, so a raced redirect that
+    :func:`_write_bytes_no_redirect` correctly refused to write through
+    still let ``--check`` exit 0 with the rollback incomplete (PR #5343
+    review, build_all.py:1724). A directory left over after
+    :func:`_prune_empty_dirs` fails is not counted: pruning is cosmetic
+    (an empty directory carries no content to diverge from the snapshot),
+    not a break in the read-only content-restoration contract this return
+    value protects.
+
+    After a ``True`` return, every file under ``prefixes`` matches its
     pre-run state. Pre-existing dirty state (uncommitted edits, untracked
     files) is preserved exactly because the snapshot captured it.
 
@@ -1714,6 +1735,7 @@ def _restore_owned_prefixes(
     current = _enumerate_files_under(
         repo_root, prefixes, opaque_boundaries=preexisting_boundaries
     )
+    fully_restored = True
 
     # Cases 1 & 2: restore every file that was in the snapshot.
     #
@@ -1738,7 +1760,10 @@ def _restore_owned_prefixes(
             path.parent.mkdir(parents=True, exist_ok=True)
             _write_bytes_no_redirect(path, content)
         except OSError as exc:
-            # Best-effort restore; surface so CI logs show what was missed.
+            # Best-effort restore; surface so CI logs show what was missed,
+            # and tell the caller so --check does not report success over an
+            # incomplete rollback.
+            fully_restored = False
             print(
                 f"WARN: failed to restore {path} after --check: {exc}",
                 file=sys.stderr,
@@ -1749,6 +1774,7 @@ def _restore_owned_prefixes(
         try:
             path.unlink()
         except OSError as exc:
+            fully_restored = False
             print(
                 f"WARN: failed to remove generator-created {path} after --check: {exc}",
                 file=sys.stderr,
@@ -1757,6 +1783,7 @@ def _restore_owned_prefixes(
     _prune_empty_dirs(
         repo_root, prefixes, opaque_boundaries=preexisting_boundaries
     )
+    return fully_restored
 
 
 def _is_opaque_boundary(entry: Path, opaque: set[Path] | None) -> bool:
@@ -2013,8 +2040,9 @@ def run(
         repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
     )
 
+    exit_code = 2
     try:
-        return _run_generators(
+        exit_code = _run_generators(
             repo_root,
             configs,
             check=check,
@@ -2026,13 +2054,29 @@ def run(
         # #2440: ALWAYS restore on --check, including on exception paths.
         # Otherwise a generator crash mid-build leaves partial writes
         # in the caller's worktree.
+        #
+        # An exception from _run_generators skips straight to this block
+        # with exit_code still at its pre-try sentinel; restore still runs,
+        # but the escalation below is moot because the "return exit_code"
+        # after this try/finally is never reached on that path. Python
+        # re-raises the original exception once finally completes, matching
+        # the prior behavior of this function exactly.
         if snapshot is not None:
-            _restore_owned_prefixes(
+            restored = _restore_owned_prefixes(
                 repo_root,
                 OWNED_PREFIXES,
                 snapshot,
                 preexisting_boundaries=boundaries,
             )
+            # A raced redirect _write_bytes_no_redirect correctly refused to
+            # write through only prints a WARN, so without this, --check
+            # could still exit 0 over an incomplete rollback (PR #5343
+            # review, build_all.py:1724). Only escalate when generation
+            # itself did not already report a failure: a genuine generator
+            # error keeps its own, more specific exit code.
+            if not restored and exit_code == 0:
+                exit_code = 2
+    return exit_code
 
 
 def _run_generators(
