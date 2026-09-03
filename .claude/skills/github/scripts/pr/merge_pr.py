@@ -34,7 +34,7 @@ import json
 import os
 import subprocess
 import sys
-from typing import Any
+from typing import Any, NoReturn
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -104,6 +104,11 @@ _STRATEGY_TO_REPO_FIELD = {
 _STRATEGY_PREFERENCE = ("squash", "merge", "rebase")
 
 _BLOCKED_KEYWORDS = ("BLOCKED", "branch protection", "required status check")
+
+# Issue #5473: GraphQL refuses outright for a PR GitHub considers part of a
+# stack and names the REST endpoint _rest_merge already calls. Retargeting the
+# child to break the stack is refused too, so REST is the only path.
+_STACK_KEYWORDS = ("part of a stack", "asynchronous merge REST API")
 
 
 def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
@@ -199,8 +204,13 @@ def _emit_error(
     error_type: str,
     output_format: str,
     pr: int,
-) -> None:
-    """Helper: emit envelope, then exit with the code."""
+) -> NoReturn:
+    """Helper: emit envelope, then exit with the code.
+
+    Annotated NoReturn because the body always raises SystemExit. Declaring
+    None made callers look like they fall through, so a narrowed value stayed
+    optional past the call (issue #5473).
+    """
     write_skill_error(
         message,
         code,
@@ -353,6 +363,31 @@ def _rest_merge(
     )
 
 
+def _pr_is_merged(pr: int, repo_flag: str) -> bool:
+    """Return True when GitHub reports the PR as merged.
+
+    Issue #5473: the asynchronous REST merge used for stacked PRs can return
+    success without ``merged: true`` in the body.  Treating a missing flag as
+    failure would report a completed merge as an error, so ask GitHub for the
+    PR's state instead of inferring it.  Any query failure returns False so an
+    unverified merge is never reported as a success.
+    """
+    result = subprocess.run(
+        ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", "state"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+        check=False,
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        return bool(json.loads(result.stdout).get("state") == "MERGED")
+    except (json.JSONDecodeError, AttributeError):
+        return False
+
+
 def _handle_merge_failure(
     merge_result: subprocess.CompletedProcess[str],
     pr: int,
@@ -375,17 +410,30 @@ def _handle_merge_failure(
     output = merge_result.stderr or merge_result.stdout
     if any(kw in output for kw in ("not mergeable", "cannot be merged", "conflicts")):
         _emit_error(f"PR #{pr} is not mergeable: {output}", 6, "General", output_format, pr)
-    if not auto and any(kw in output for kw in _BLOCKED_KEYWORDS):
-        # GraphQL refused with a BLOCKED policy error; retry via REST once.
+    is_stack = any(kw in output for kw in _STACK_KEYWORDS)
+    if not auto and (is_stack or any(kw in output for kw in _BLOCKED_KEYWORDS)):
+        # GraphQL refused with a BLOCKED policy or stack error; retry via REST once.
         rest_result = _rest_merge(pr, repo_flag, strategy, head_sha, subject, body)
         if rest_result.returncode == 0:
             try:
                 rest_data = json.loads(rest_result.stdout)
             except json.JSONDecodeError:
                 rest_data = {}
-            if rest_data.get("merged"):
+            # The asynchronous merge accepts the request without reporting
+            # merged=true, so a missing flag is not a failure. Confirm against
+            # the PR's own merged state instead of assuming either way.
+            if rest_data.get("merged") or _pr_is_merged(pr, repo_flag):
                 return
         # REST also failed; surface the original GraphQL error.
+        if is_stack:
+            _emit_error(
+                f"PR #{pr} is part of a stack and the asynchronous REST merge did "
+                f"not complete it: {output}",
+                6,
+                "General",
+                output_format,
+                pr,
+            )
         _emit_error(
             f"PR #{pr} is blocked by branch protection policy: {output}\n"
             "Hint: use --auto to enable auto-merge when checks pass.",

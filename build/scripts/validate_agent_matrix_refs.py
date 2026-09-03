@@ -58,11 +58,16 @@ as an agent only when it opens with a YAML frontmatter block carrying a
 non-empty string ``description:`` key. Both fences must be complete lines: a
 substring search for ``\n---`` accepted ``---not-a-closing-fence`` and admitted
 a malformed document as an agent. Measured across all six trees that rule keeps
-all 186 agent definitions out of 190 suffix-matching files, excluding exactly
-four sibling documents:
-``.claude/agents/AGENTS.md``, ``.claude/agents/CLAUDE.md``,
-``src/claude/AGENTS.md``, and ``src/claude/claude-instructions.template.md``. It
+all 186 agent definitions out of 188 suffix-matching files, excluding exactly
+two sibling documents:
+``src/claude/AGENTS.md`` and ``src/claude/claude-instructions.template.md``. It
 also fully subsumes the uppercase-stem filter it replaced.
+
+Both numbers were 190 and four until issue #5493 deleted
+``.claude/agents/AGENTS.md`` and ``.claude/agents/CLAUDE.md``. Those two were
+frontmatter-less, which is why they were excluded here, and the Claude Code
+plugin loader registered them as dispatchable subagents anyway. Excluding a
+file from this predicate never stopped the loader from loading it.
 
 GFM RENDERS A TABLE INDENTED UP TO THREE SPACES. Every table pattern here
 therefore tolerates that indent. Anchoring them at column zero made an indented

@@ -1,14 +1,34 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, orchestrator keeps routing and its runners together.
+# taste-lint: ignore naming, hyphenated CLI name is the shipped entrypoint.
 """Eval Suite: Unified test orchestrator for prompt, skill, and command changes.
 
 Detects what changed via git diff, classifies changes, and routes to the
 appropriate evaluator. Single entry point for all eval types.
+
+Routing is table-driven (`ROUTING_RULES`), ordered narrowest first, first match
+wins. See `.claude/rules/code-quality.md`, section "Table-Driven Logic": "When
+branching grows past three or four cases, replace conditional code with a table."
 
 Evaluator routing:
     - Prompt structural changes  -> Pester tests (ADR-023)
     - Prompt behavioral changes  -> eval-prompt-change.py (ADR-057)
     - Agent definition changes   -> eval-agents.py (quality assessment)
     - Skill definition changes   -> eval-knowledge-integration.py (knowledge eval)
+    - Skill reference changes    -> eval-knowledge-integration.py (parent skill)
+    - Canonical rule changes     -> eval-rule-activation.py (scenario-gated)
+    - Instruction mirror changes -> eval-rule-activation.py (via canonical rule)
+    - Command mirror changes     -> not evaluated (evaluate the command instead)
+    - Entrypoint changes         -> not evaluated (no evaluator exists)
+
+Every classified category either names a runner or carries an explicit
+`not_evaluated` reason in the routing plan. No context-bearing category falls
+silently into `other` (issue #4882, required work item 2).
+
+Two rows are identified by something other than a directory prefix, so they run
+before every prefix row: entrypoints, which are named by filename and live
+inside the prompt and skill trees, and command mirrors, which sit in the
+Copilot skills tree but are generated from `.claude/commands/`.
 
 Usage:
     # Auto-detect from git diff against main:
@@ -21,8 +41,9 @@ Usage:
     python3 scripts/eval/eval-suite.py --scope prompts
     python3 scripts/eval/eval-suite.py --scope agents
     python3 scripts/eval/eval-suite.py --scope skills
+    python3 scripts/eval/eval-suite.py --scope rules
 
-    # Dry run (detect and classify only):
+    # Dry run (classify and print the routing plan; no subprocess, no model):
     python3 scripts/eval/eval-suite.py --dry-run
 
     # Output results to file:
@@ -35,9 +56,11 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from _anthropic_api import DEFAULT_MODEL
 
@@ -47,6 +70,7 @@ EXIT_OK = 0
 EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
+EXIT_AUTH = 4
 
 # Security-critical path patterns (ADR-057: 5 runs, 100% pass)
 SECURITY_PATTERNS = [
@@ -120,6 +144,46 @@ def _contains_external_failure(value: object) -> bool:
     return False
 
 
+def _recorded_exit_codes(value: object) -> list[int]:
+    """Every `exit_code` a child runner recorded, at any depth."""
+    codes: list[int] = []
+    if isinstance(value, dict):
+        code = value.get("exit_code")
+        if isinstance(code, int):
+            codes.append(code)
+        for nested in value.values():
+            codes.extend(_recorded_exit_codes(nested))
+    elif isinstance(value, list):
+        for item in value:
+            codes.extend(_recorded_exit_codes(item))
+    return codes
+
+
+def worst_exit_code(results: dict[str, Any], any_failure: bool) -> int:
+    """Reduce child exit codes to one, keeping the most specific.
+
+    Reduced with `max`, mirroring the accumulator in
+    `scripts/eval/eval-rule-activation.py:_process_scenario_file`:
+
+        state.worst_exit = max(state.worst_exit, _classify_verdict(result["summary"]["verdict"]))
+
+    and the reason its main loop gives for that choice:
+
+        # max, not the bare code: a hard refusal stops the run, but an
+        # earlier target may already have recorded something worse. A
+        # config refusal on file 8 must not lower an API failure seen on
+        # file 1, or adding a target could improve the exit.
+
+    Keeping `max` preserves a child's config (2) or auth (4) refusal instead
+    of flattening every failure to logic (1) or external (3). A failure with
+    no recorded code floors at EXIT_LOGIC.
+    """
+    if not any_failure:
+        return EXIT_OK
+    codes = [code for code in _recorded_exit_codes(results) if code != EXIT_OK]
+    return max(codes) if codes else EXIT_LOGIC
+
+
 # ---------------------------------------------------------------------------
 # Change classification
 # ---------------------------------------------------------------------------
@@ -130,73 +194,260 @@ PROMPT_PATTERNS = [
     ".agents/security/prompts/",
 ]
 
+# Agent definition trees. Narrowed from a bare `src/copilot-cli/` prefix, which
+# captured every Markdown file in that tree (issue #4882). `src/copilot-cli/`
+# also holds `instructions/`, `skills/`, `docs/`, and `lib/`, none of which are
+# agents.
 AGENT_PATTERNS = [
     ".claude/agents/",
     "src/claude/",
-    "src/copilot-cli/",
+    "src/copilot-cli/agents/",
     "src/vs-code-agents/",
 ]
 
 SKILL_PATTERNS = [
     ".claude/skills/",
+    "src/copilot-cli/skills/",
 ]
+
+# Canonical rules. `build/scripts/generate_rules.py` mirrors these into the two
+# instruction trees below.
+RULE_PATTERNS = [
+    ".claude/rules/",
+]
+
+INSTRUCTION_PATTERNS = [
+    ".github/instructions/",
+    "src/copilot-cli/instructions/",
+]
+
+INSTRUCTION_SUFFIX = ".instructions.md"
 
 SCENARIO_DIRS = [
     "tests/evals/",
     ".agents/security/benchmarks/",
 ]
 
+# Preserved verbatim from the pre-#4882 agent branch, which read:
+#     skip = ("CLAUDE.md", "README.md", "INDEX.md", "AGENTS.md")
+#     if name not in skip and ".template." not in name:
+AGENT_EXCLUDED_BASENAMES = frozenset({"CLAUDE.md", "README.md", "INDEX.md", "AGENTS.md"})
+AGENT_EXCLUDED_SUBSTRINGS = (".template.",)
+
+# Path-local and root harness entrypoints. Two of the four basenames the agent
+# branch excluded are context-bearing, so they get a category instead of
+# dropping into `other`.
+ENTRYPOINT_BASENAMES = frozenset({"AGENTS.md", "CLAUDE.md"})
+
+REFERENCE_SEGMENT = "references"
+
+
+class RoutingRule(NamedTuple):
+    """One row of the routing table: a path shape mapped to a category.
+
+    A path matches when every constraint set on the row holds. Unset
+    constraints do not filter.
+
+    prefix              path must start with this string
+    suffix              path must end with this string ("" disables)
+    segment             this directory component must appear in the path,
+                        excluding the basename
+    basenames           basename must be one of these
+    exclude_basenames   basename must not be one of these
+    exclude_substrings  basename must contain none of these
+    """
+
+    category: str
+    prefix: str = ""
+    suffix: str = ".md"
+    segment: str | None = None
+    basenames: frozenset[str] = frozenset()
+    exclude_basenames: frozenset[str] = frozenset()
+    exclude_substrings: tuple[str, ...] = ()
+    predicate: Callable[[str], bool] | None = None
+
+    def matches(self, path: str) -> bool:
+        if self.prefix and not path.startswith(self.prefix):
+            return False
+        if self.suffix and not path.endswith(self.suffix):
+            return False
+        parts = path.split("/")
+        name = parts[-1]
+        if self.basenames and name not in self.basenames:
+            return False
+        if name in self.exclude_basenames:
+            return False
+        if any(token in name for token in self.exclude_substrings):
+            return False
+        if self.segment is not None and self.segment not in parts[:-1]:
+            return False
+        if self.predicate is not None and not self.predicate(path):
+            return False
+        return True
+
+
+def is_command_mirror_skill(path: str) -> bool:
+    """Whether a generated Copilot skill mirrors a command, not a Claude skill.
+
+    `src/copilot-cli/skills/` holds two different kinds of artifact. Most
+    entries mirror `.claude/skills/<name>/`. Fourteen instead mirror
+    `.claude/commands/<name>.md` and have no `.claude/skills/<name>/` at all:
+    build, checkpoint, context-hub-setup, plan, pr-autofix, pr-review,
+    push-pr, research, retro, ship, sync, spec, test, validate-pr-description.
+
+    The distinction is load bearing because `eval-knowledge-integration.py`
+    resolves a skill only under `.claude/skills/`. Measured:
+
+        $ eval-knowledge-integration.py --skill spec --dry-run
+        exit=1
+        ERROR: Skill directory not found for 'spec' in .../.claude/skills
+
+    Routing a command mirror there reproduces issue #4882's own failure shape
+    at a new site, so these are reported `not_evaluated` instead.
+
+    Reads the filesystem because the distinction exists only there: nothing in
+    the path spells out which kind a Copilot skill is.
+    """
+    parts = path.split("/")
+    if not path.startswith("src/copilot-cli/skills/") or len(parts) < 4:
+        return False
+    name = parts[3]
+    if (REPO_ROOT / ".claude" / "skills" / name).is_dir():
+        return False
+    return (REPO_ROOT / ".claude" / "commands" / f"{name}.md").is_file()
+
+
+def _rules_for(
+    category: str,
+    prefixes: list[str],
+    suffix: str = ".md",
+    segment: str | None = None,
+    exclude_basenames: frozenset[str] = frozenset(),
+    exclude_substrings: tuple[str, ...] = (),
+) -> tuple[RoutingRule, ...]:
+    """Expand one category across several path prefixes, one row per prefix."""
+    return tuple(
+        RoutingRule(
+            category,
+            prefix=prefix,
+            suffix=suffix,
+            segment=segment,
+            exclude_basenames=exclude_basenames,
+            exclude_substrings=exclude_substrings,
+        )
+        for prefix in prefixes
+    )
+
+
+# Ordered narrowest first; the first matching row wins. Ordering is the whole
+# contract here: issue #4882 was a broad `src/copilot-cli/` agent prefix placed
+# ahead of the skill rows, so Copilot skills, skill references, and instruction
+# mirrors were all sent to `eval-agents.py`, which then exited 1 with empty
+# stdout and turned the suite's dry run into a JSON parse failure.
+#
+# `tests/eval/test_eval_suite_routing.py` pins this order two ways: every row
+# must win for its own representative path (no row may be shadowed), and a
+# negative control replays the broad prefix to prove the tests catch a
+# reintroduction.
+ROUTING_RULES: tuple[RoutingRule, ...] = (
+    # Basename rows first. An entrypoint is identified by its filename, not by
+    # where it sits, and real ones live inside the prompt and skill trees
+    # (`.claude/commands/CLAUDE.md`, `.claude/skills/CLAUDE.md`,
+    # `.claude/skills/adr-review/CLAUDE.md`, `src/copilot-cli/skills/github/
+    # CLAUDE.md`, and 14 more). Behind the prefix rows they were all captured
+    # as prompts or skills.
+    RoutingRule("entrypoints", basenames=ENTRYPOINT_BASENAMES),
+    # Command mirrors before the skill rows: they live under the Copilot skills
+    # tree but the skill evaluator cannot resolve them.
+    RoutingRule(
+        "command_mirrors",
+        prefix="src/copilot-cli/skills/",
+        suffix="",
+        predicate=is_command_mirror_skill,
+    ),
+    *_rules_for("prompts", PROMPT_PATTERNS),
+    # References must precede the trees that contain them.
+    *_rules_for("skill_references", SKILL_PATTERNS, segment=REFERENCE_SEGMENT),
+    *_rules_for("skills", SKILL_PATTERNS, suffix=""),
+    *_rules_for("references", AGENT_PATTERNS, segment=REFERENCE_SEGMENT),
+    *_rules_for("rules", RULE_PATTERNS),
+    *_rules_for("instructions", INSTRUCTION_PATTERNS, suffix=INSTRUCTION_SUFFIX),
+    *_rules_for(
+        "agents",
+        AGENT_PATTERNS,
+        exclude_basenames=AGENT_EXCLUDED_BASENAMES,
+        exclude_substrings=AGENT_EXCLUDED_SUBSTRINGS,
+    ),
+    *_rules_for("scenarios", SCENARIO_DIRS, suffix=""),
+)
+
+CATEGORIES: tuple[str, ...] = (
+    "prompts",
+    "agents",
+    "skills",
+    "skill_references",
+    "command_mirrors",
+    "references",
+    "rules",
+    "instructions",
+    "entrypoints",
+    "scenarios",
+    "structural_test_targets",
+    "other",
+)
+
+# Category -> the evaluator that consumes it. A category absent from this map
+# carries a reason in NOT_EVALUATED_REASONS instead. Every entry in CATEGORIES
+# must appear in exactly one of the two (pinned by the routing tests).
+RUNNER_BY_CATEGORY: dict[str, str] = {
+    "prompts": "eval-prompt-change.py",
+    "agents": "eval-agents.py",
+    "skills": "eval-knowledge-integration.py",
+    "skill_references": "eval-knowledge-integration.py",
+    "rules": "eval-rule-activation.py",
+    "instructions": "eval-rule-activation.py",
+    "structural_test_targets": "Invoke-Pester",
+}
+
+NOT_EVALUATED_REASONS: dict[str, str] = {
+    "command_mirrors": (
+        "generated from a .claude/commands/ file; the skill evaluator resolves "
+        "only .claude/skills/, so evaluate the generating command instead"
+    ),
+    "references": (
+        "reference material for a non-skill artifact; no evaluator consumes it"
+    ),
+    "entrypoints": (
+        "no behavioral evaluator exists for AGENTS.md/CLAUDE.md entrypoints"
+    ),
+    "scenarios": "scenario corpora are eval inputs, not evaluated artifacts",
+    "other": "no routing rule claims this path",
+}
+
+
+def classify_path(path: str) -> str:
+    """Return the routing category for one path via first match in ROUTING_RULES."""
+    for rule in ROUTING_RULES:
+        if rule.matches(path):
+            return rule.category
+    return "other"
+
 
 def classify_changes(files: list[str]) -> dict[str, list[str]]:
-    """Classify changed files into categories for eval routing."""
-    classified: dict[str, list[str]] = {
-        "prompts": [],
-        "agents": [],
-        "skills": [],
-        "scenarios": [],
-        "structural_test_targets": [],
-        "other": [],
-    }
+    """Classify changed files into categories for eval routing.
+
+    Categories are exclusive except `structural_test_targets`, which is an
+    additional tag applied to quality-gate prompts per ADR-023 and which the
+    pre-#4882 code also applied alongside the exclusive category.
+    """
+    classified: dict[str, list[str]] = {category: [] for category in CATEGORIES}
 
     for f in files:
-        matched = False
-
-        for pattern in PROMPT_PATTERNS:
-            if f.startswith(pattern) and f.endswith(".md"):
-                classified["prompts"].append(f)
-                matched = True
-                break
-
-        if not matched:
-            for pattern in AGENT_PATTERNS:
-                if f.startswith(pattern) and f.endswith(".md"):
-                    name = Path(f).name
-                    skip = ("CLAUDE.md", "README.md", "INDEX.md", "AGENTS.md")
-                    if name not in skip and ".template." not in name:
-                        classified["agents"].append(f)
-                        matched = True
-                    break
-
-        if not matched:
-            for pattern in SKILL_PATTERNS:
-                if f.startswith(pattern):
-                    classified["skills"].append(f)
-                    matched = True
-                    break
-
-        if not matched:
-            for pattern in SCENARIO_DIRS:
-                if f.startswith(pattern):
-                    classified["scenarios"].append(f)
-                    matched = True
-                    break
+        classified[classify_path(f)].append(f)
 
         # Structural test targets (quality gate prompts per ADR-023)
         if f.startswith(".github/prompts/pr-quality-gate-"):
             classified["structural_test_targets"].append(f)
-
-        if not matched:
-            classified["other"].append(f)
 
     return classified
 
@@ -223,9 +474,476 @@ def find_scenarios_for_prompt(prompt_path: str) -> str | None:
     return None
 
 
+RULE_SCENARIO_DIR = "tests/evals/rule-scenarios"
+
+
+def rule_id_for_path(path: str) -> str | None:
+    """Map a canonical rule or generated instruction mirror to its rule id.
+
+    The rule id is the canonical rule's file stem. This mirrors
+    `scripts/validation/check_rule_activation_coverage.py`, whose
+    `discover_rules` reads:
+
+        ids = {p.stem for p in rules_dir.glob("*.md") if p.is_file()}
+
+    and whose `_resolve_target` derives the same id from a scenario target:
+
+        if kind == "rule":
+            if resolved.suffix != ".md":
+                raise CoverageConfigError(
+                    f"rule_path must be a .md file: {target_str}"
+                )
+            artifact_id = resolved.stem
+
+    Stricter/looser/different than canonical: the canonical functions read only
+    `.claude/rules/`. This one additionally accepts a generated instruction
+    mirror and strips the `.instructions.md` suffix that
+    `build/scripts/generate_rules.py` appends, because a mirror change is a
+    change to the same rule. It performs no filesystem or traversal
+    validation; the canonical checker owns that.
+    """
+    name = Path(path).name
+    if classify_path(path) == "rules":
+        return name[: -len(".md")] if name.endswith(".md") else None
+    if classify_path(path) == "instructions" and name.endswith(INSTRUCTION_SUFFIX):
+        return name[: -len(INSTRUCTION_SUFFIX)]
+    return None
+
+
+class ScenarioConfigError(RuntimeError):
+    """A scenario file exists but cannot be read as a scenario.
+
+    Separate from "no scenario exists". A broken scenario file is an authoring
+    mistake that must surface, not be silently downgraded to `not_evaluated`.
+    """
+
+
+def find_rule_scenarios() -> dict[str, str]:
+    """Map rule id -> scenario file, read from each scenario's `rule_path`.
+
+    Read rather than inferred from the filename: `tests/evals/rule-scenarios/`
+    also holds skill-targeted scenarios (ADR-088 reference scenarios carry
+    `skill_path` and no `rule_path`), so a stem convention would claim rule ids
+    that do not exist.
+
+    Fails loudly on an unreadable or malformed scenario file, mirroring
+    `scripts/validation/check_rule_activation_coverage.py:_read_scenario_json`:
+
+        try:
+            ...
+        except OSError as exc:
+            raise CoverageConfigError(f"cannot read scenario file {path}: {exc}") from exc
+        ...
+            raise CoverageConfigError(f"invalid JSON in scenario file {path}: {exc}") from exc
+
+    Stricter/looser/different than canonical: the canonical reader also
+    validates scenario entries, target kinds, and traversal, and raises when a
+    file sets neither or both of `rule_path`/`skill_path`. This one validates
+    only readability and JSON object shape, because it is a lookup, not the
+    ratchet; a file carrying `skill_path` and no `rule_path` is a valid
+    ADR-088 scenario here and is skipped rather than refused. The canonical
+    checker owns the rest and runs in pre-PR validation.
+    """
+    scenarios: dict[str, str] = {}
+    scenario_dir = REPO_ROOT / RULE_SCENARIO_DIR
+    if not scenario_dir.is_dir():
+        return scenarios
+
+    for candidate in sorted(scenario_dir.glob("*.json")):
+        try:
+            raw = candidate.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            # UnicodeDecodeError subclasses ValueError, not OSError, so a
+            # binary or mis-encoded scenario file escapes an OSError-only
+            # guard and crashes with a traceback instead of the config exit
+            # this function documents.
+            raise ScenarioConfigError(
+                f"cannot read scenario file {candidate}: {exc}"
+            ) from exc
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ScenarioConfigError(
+                f"invalid JSON in scenario file {candidate}: {exc}"
+            ) from exc
+        if not isinstance(data, dict):
+            raise ScenarioConfigError(
+                f"scenario file must contain an object: {candidate}"
+            )
+        rule_path = data.get("rule_path")
+        has_rule = isinstance(rule_path, str) and bool(rule_path.strip())
+        if not has_rule:
+            # Only the real ADR-088 reference-scenario shape is a legitimate
+            # skip. The canonical test is
+            # `check_rule_activation_coverage.py:_is_reference_scenario`:
+            #
+            #     has_reference = isinstance(reference, str) and bool(reference.strip())
+            #     has_skill = isinstance(skill, str) and bool(skill.strip())
+            #     has_rule = isinstance(rule, str) and bool(rule.strip())
+            #     if not (has_reference and has_skill and not has_rule):
+            #         return False
+            #
+            # An empty object, or a lone skill_path with no reference_path, is
+            # not a reference scenario. Treating it as one turns a malformed
+            # file into a silent absence, which is the failure this function
+            # exists to prevent.
+            reference = data.get("reference_path")
+            skill = data.get("skill_path")
+            has_reference = isinstance(reference, str) and bool(reference.strip())
+            has_skill = isinstance(skill, str) and bool(skill.strip())
+            if has_reference and has_skill:
+                continue
+            raise ScenarioConfigError(
+                f"scenario names no rule_path and is not an ADR-088 reference "
+                f"scenario (needs both skill_path and reference_path): {candidate}"
+            )
+        assert isinstance(rule_path, str)
+        scenarios[Path(rule_path).stem] = str(candidate.relative_to(REPO_ROOT))
+
+    return scenarios
+
+
+# ---------------------------------------------------------------------------
+# Routing plan (issue #4882, required work items 2 and 4)
+# ---------------------------------------------------------------------------
+
+# Three evidence states, kept distinct so a consumer cannot read structural
+# coverage as efficacy. Baseline membership in
+# `scripts/validation/check_rule_activation_coverage.py` is not one of these:
+# that ratchet records whether an artifact has a scenario at all, which is
+# state STRUCTURAL here, never SCORED.
+EVIDENCE_STRUCTURAL = "structurally_covered"
+EVIDENCE_SCENARIO = "scenario_defined_not_scored"
+EVIDENCE_SCORED = "scored"
+EVIDENCE_NONE = "not_evaluated"
+
+
+def _rule_plan_entries(files: list[str]) -> tuple[list[str], list[str]]:
+    """Split rule and instruction paths into (with scenario, without scenario)."""
+    scenarios = find_rule_scenarios()
+    with_scenario: list[str] = []
+    without_scenario: list[str] = []
+    for path in files:
+        rule_id = rule_id_for_path(path)
+        if rule_id is not None and rule_id in scenarios:
+            with_scenario.append(path)
+        else:
+            without_scenario.append(path)
+    return with_scenario, without_scenario
+
+
+# Which --scope value enables each runner-backed category. Mirrors the gates in
+# `_run_evals`, so the dry-run plan cannot promise work the real path skips.
+SCOPE_BY_CATEGORY: dict[str, str] = {
+    "prompts": "prompts",
+    "structural_test_targets": "prompts",
+    "agents": "agents",
+    "skills": "skills",
+    "skill_references": "skills",
+    "rules": "rules",
+    "instructions": "rules",
+}
+
+
+def category_in_scope(category: str, scope: str) -> bool:
+    """Whether `--scope <scope>` runs this category, matching `_run_evals`."""
+    required = SCOPE_BY_CATEGORY.get(category)
+    if required is None:
+        return False
+    return scope in (required, "all")
+
+
+def build_routing_plan(
+    classified: dict[str, list[str]], scope: str = "all"
+) -> list[dict[str, Any]]:
+    """Describe what each classified category routes to, and its evidence state.
+
+    Deterministic: entries follow CATEGORIES order and files are sorted. This
+    is what `--dry-run` prints, and it is produced without invoking any
+    evaluator or parsing any model output.
+
+    Scope-aware: a category the current `--scope` excludes is reported
+    `not_evaluated` with that reason, so the plan describes what this
+    invocation will actually do rather than what some invocation could do.
+    """
+    plan: list[dict[str, Any]] = []
+
+    for category in CATEGORIES:
+        files = sorted(classified.get(category, []))
+        if not files:
+            continue
+
+        runner = RUNNER_BY_CATEGORY.get(category)
+        if runner is None:
+            plan.append({
+                "category": category,
+                "files": files,
+                "runner": None,
+                "evidence": EVIDENCE_NONE,
+                "reason": NOT_EVALUATED_REASONS[category],
+            })
+            continue
+
+        if not category_in_scope(category, scope):
+            plan.append({
+                "category": category,
+                "files": files,
+                "runner": None,
+                "evidence": EVIDENCE_NONE,
+                "reason": f"excluded by --scope {scope}",
+            })
+            continue
+
+        if category in ("rules", "instructions"):
+            with_scenario, without_scenario = _rule_plan_entries(files)
+            if with_scenario:
+                plan.append({
+                    "category": category,
+                    "files": with_scenario,
+                    "runner": runner,
+                    "evidence": EVIDENCE_SCENARIO,
+                    "reason": "activation scenario defined; run without --dry-run to score",
+                })
+            if without_scenario:
+                plan.append({
+                    "category": category,
+                    "files": without_scenario,
+                    "runner": None,
+                    "evidence": EVIDENCE_NONE,
+                    "reason": f"no activation scenario under {RULE_SCENARIO_DIR}/",
+                })
+            continue
+
+        plan.append({
+            "category": category,
+            "files": files,
+            "runner": runner,
+            "evidence": EVIDENCE_STRUCTURAL,
+            "reason": "routed to a runner; scoring requires a non-dry run",
+        })
+
+    return plan
+
+
+def reconcile_routing_plan(
+    plan: list[dict[str, Any]], results: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Promote plan entries to `scored` once an evaluation actually ran.
+
+    `scored` means an evaluation ran and produced a verdict. A failing verdict
+    is still scored: the evidence exists, it is just negative. A timeout or an
+    unreadable result produced no verdict and stays at
+    `scenario_defined_not_scored`.
+
+    Promotion keys on the runner's own `evidence` label, never on `passed`.
+    `passed` is False for a failing verdict, a timeout, and a missing verdict
+    alike, so inferring from it would publish scored efficacy evidence for
+    runs that produced none.
+    """
+    rule_results = results.get("rules", {}).get("rules", {})
+    if not rule_results:
+        return plan
+
+    reconciled: list[dict[str, Any]] = []
+    for entry in plan:
+        if entry["category"] not in ("rules", "instructions"):
+            reconciled.append(entry)
+            continue
+        if entry["evidence"] != EVIDENCE_SCENARIO:
+            reconciled.append(entry)
+            continue
+
+        scored = []
+        unscored = []
+        for path in entry["files"]:
+            rule_id = rule_id_for_path(path)
+            outcome = rule_results.get(rule_id) if rule_id else None
+            if (
+                isinstance(outcome, dict)
+                and outcome.get("evidence") == EVIDENCE_SCORED
+            ):
+                scored.append(path)
+            else:
+                unscored.append(path)
+
+        if scored:
+            reconciled.append({
+                **entry,
+                "files": scored,
+                "evidence": EVIDENCE_SCORED,
+                "reason": "activation evaluated; verdict recorded in results",
+            })
+        if unscored:
+            reconciled.append({**entry, "files": unscored})
+
+    return reconciled
+
+
+def _print_routing_plan(plan: list[dict[str, Any]]) -> None:
+    print("\n--- Routing Plan ---", file=sys.stderr)
+    if not plan:
+        print("  (nothing to route)", file=sys.stderr)
+        return
+    for entry in plan:
+        runner = entry["runner"] or "(none)"
+        print(
+            f"  {entry['category']:<24} {len(entry['files']):>3} file(s)"
+            f"  -> {runner}  [{entry['evidence']}]",
+            file=sys.stderr,
+        )
+        print(f"      reason: {entry['reason']}", file=sys.stderr)
+        for path in entry["files"]:
+            print(f"      - {path}", file=sys.stderr)
+
+
 # ---------------------------------------------------------------------------
 # Individual eval runners
 # ---------------------------------------------------------------------------
+
+def _read_child_json_file(path: Path, context: str) -> tuple[dict[str, Any] | None, str | None]:
+    """Read a child evaluator's `--output` JSON file."""
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return None, f"no results file for {context}: {exc}"
+    return _parse_child_json(raw, context)
+
+
+def _verdict_error(parsed: dict[str, Any] | None, rule_id: str) -> str | None:
+    """Return why `parsed` carries no usable verdict for `rule_id`, or None.
+
+    Parseable is not the same as scored. `{"schema_version": 1, "rules": {}}`
+    is valid JSON and names no verdict, so accepting it would publish scored
+    efficacy evidence for a run that produced none.
+
+    The shape is set by `scripts/eval/eval-rule-activation.py:_process_scenario_file`:
+
+        all_results["rules"][rule_id] = result
+        state.worst_exit = max(state.worst_exit, _classify_verdict(result["summary"]["verdict"]))
+
+    so a scored rule always has a string at `rules.<rule_id>.summary.verdict`.
+    """
+    if not isinstance(parsed, dict):
+        return f"results are not an object for rule {rule_id}"
+    rules = parsed.get("rules")
+    if not isinstance(rules, dict):
+        return f"results carry no rules map for rule {rule_id}"
+    entry = rules.get(rule_id)
+    if entry is None:
+        return f"results carry no entry for rule {rule_id}"
+    if not isinstance(entry, dict):
+        return f"results entry is not an object for rule {rule_id}"
+    summary = entry.get("summary")
+    if not isinstance(summary, dict):
+        return f"results carry no summary for rule {rule_id}"
+    verdict = summary.get("verdict")
+    if not isinstance(verdict, str) or not verdict.strip():
+        return f"results carry no verdict for rule {rule_id}"
+    return None
+
+
+def run_rule_activation(files: list[str], model: str) -> dict[str, Any]:
+    """Score rule and instruction changes via eval-rule-activation.py.
+
+    Reuses the existing activation evaluator rather than adding a parallel
+    harness (issue #4882, required work item 6). A rule with no scenario file
+    is reported `not_evaluated`, never silently passed.
+
+    Results come from `--output`, not stdout. Unlike the other three child
+    evaluators this suite calls, `eval-rule-activation.py` prints a
+    human-readable table to stdout and serializes JSON only to the output
+    path. Verified against the real CLI at
+    `scripts/eval/eval-rule-activation.py:2450-2452`:
+
+        if args.output:
+            Path(args.output).write_text(json.dumps(all_results, indent=2), encoding="utf-8")
+            print(f"\\nWrote results: {args.output}")
+
+    Parsing stdout here would fail on every real run. `--dry-run` is never
+    passed: the child returns at line 2442, before that write, so a dry run
+    produces no results file at all. This suite's own `--dry-run` short
+    circuits before reaching any runner instead.
+    """
+    scenarios = find_rule_scenarios()
+    results: dict[str, Any] = {"rules": {}}
+
+    targets: dict[str, str] = {}
+    for path in files:
+        rule_id = rule_id_for_path(path)
+        if rule_id is None:
+            results["rules"][path] = {
+                "skipped": True,
+                "evidence": EVIDENCE_NONE,
+                "reason": "path carries no resolvable rule id",
+            }
+        elif rule_id not in scenarios:
+            results["rules"][rule_id] = {
+                "skipped": True,
+                "evidence": EVIDENCE_NONE,
+                "reason": f"no activation scenario under {RULE_SCENARIO_DIR}/",
+            }
+        else:
+            targets[rule_id] = scenarios[rule_id]
+
+    for rule_id, scenario_path in sorted(targets.items()):
+        with tempfile.TemporaryDirectory(prefix="eval-suite-rules-") as tmp_dir:
+            output_path = Path(tmp_dir) / f"{rule_id}-activation.json"
+            cmd = [
+                sys.executable, str(SCRIPT_DIR / "eval-rule-activation.py"),
+                "--scenarios", scenario_path, "--model", model,
+                "--output", str(output_path),
+            ]
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=600,
+                    cwd=str(REPO_ROOT),
+                )
+            except subprocess.TimeoutExpired:
+                results["rules"][rule_id] = {
+                    "passed": False,
+                    "exit_code": EXIT_EXTERNAL,
+                    "reason": "timeout (600s)",
+                }
+                continue
+
+            parsed, signal_error = _read_child_json_file(output_path, f"rule {rule_id}")
+            if signal_error is None:
+                signal_error = _verdict_error(parsed, rule_id)
+
+            passed = result.returncode == 0 and signal_error is None
+            if signal_error is None:
+                exit_code = result.returncode
+            else:
+                # Keep the child's own refusal code. It exits 2 on an invalid
+                # scenario and 4 on a missing key, in both cases without
+                # writing the output file, so mapping every missing signal to
+                # EXIT_EXTERNAL would report an API failure for a config or
+                # auth fault. Only a child that claimed success and produced
+                # nothing is an external failure.
+                exit_code = result.returncode if result.returncode != EXIT_OK else EXIT_EXTERNAL
+                print(f"WARNING: {signal_error}", file=sys.stderr)
+                parsed = {"stderr_preview": result.stderr[:500], "error": signal_error}
+
+            # `scored` records that an evaluation ran and produced a verdict.
+            # A failing verdict is scored; a missing one never is.
+            evidence = EVIDENCE_SCENARIO if signal_error is not None else EVIDENCE_SCORED
+            results["rules"][rule_id] = {
+                "passed": passed,
+                "exit_code": exit_code,
+                "evidence": evidence,
+                "scenarios": scenario_path,
+                "results": parsed,
+            }
+
+    scored = [r for r in results["rules"].values() if not r.get("skipped")]
+    results["passed"] = all(r.get("passed", False) for r in scored)
+    return results
+
 
 def run_structural_tests(targets: list[str], dry_run: bool) -> dict[str, Any]:
     """Run Pester structural tests (ADR-023)."""
@@ -258,7 +976,12 @@ def run_structural_tests(targets: list[str], dry_run: bool) -> dict[str, Any]:
     except FileNotFoundError:
         return {"skipped": True, "reason": "pwsh not found", "targets": targets}
     except subprocess.TimeoutExpired:
-        return {"passed": False, "reason": "timeout (60s)", "targets": targets}
+        return {
+            "passed": False,
+            "exit_code": EXIT_EXTERNAL,
+            "reason": "timeout (60s)",
+            "targets": targets,
+        }
 
 
 def run_behavioral_for_prompt(
@@ -310,7 +1033,12 @@ def run_behavioral_for_prompt(
             "results": parsed,
         }
     except subprocess.TimeoutExpired:
-        return {"passed": False, "reason": "timeout (600s)", "prompt": prompt_path}
+        return {
+            "passed": False,
+            "exit_code": EXIT_EXTERNAL,
+            "reason": "timeout (600s)",
+            "prompt": prompt_path,
+        }
 
 
 def run_agent_quality(
@@ -353,7 +1081,11 @@ def run_agent_quality(
                 "results": parsed,
             }
         except subprocess.TimeoutExpired:
-            results["agents"][name] = {"passed": False, "reason": "timeout (300s)"}
+            results["agents"][name] = {
+                "passed": False,
+                "exit_code": EXIT_EXTERNAL,
+                "reason": "timeout (300s)",
+            }
 
     results["passed"] = all(a.get("passed", False) for a in results["agents"].values())
     return results
@@ -407,7 +1139,11 @@ def run_skill_knowledge(
                 "results": parsed,
             }
         except subprocess.TimeoutExpired:
-            results["skills"][name] = {"passed": False, "reason": "timeout (300s)"}
+            results["skills"][name] = {
+                "passed": False,
+                "exit_code": EXIT_EXTERNAL,
+                "reason": "timeout (300s)",
+            }
 
     results["passed"] = all(s.get("passed", False) for s in results["skills"].values())
     return results
@@ -484,10 +1220,26 @@ def _run_evals(
         if not result.get("passed"):
             any_failure = True
 
+    # A skill reference is part of its parent skill, so fold the two lists
+    # together once and leave the dispatch below unchanged. Rebound rather than
+    # mutated: `main` holds the original mapping for the routing plan.
+    classified = {
+        **classified,
+        "skills": classified["skills"] + classified["skill_references"],
+    }
+
     if classified["skills"] and args.scope in ("skills", "all"):
         print("\n--- Skill Knowledge Assessment ---", file=sys.stderr)
         result = run_skill_knowledge(classified["skills"], args.model, args.dry_run)
         results["skills"] = result
+        if not result.get("passed"):
+            any_failure = True
+
+    rule_files = classified["rules"] + classified["instructions"]
+    if rule_files and args.scope in ("rules", "all"):
+        print("\n--- Rule Activation Assessment ---", file=sys.stderr)
+        result = run_rule_activation(rule_files, args.model)
+        results["rules"] = result
         if not result.get("passed"):
             any_failure = True
 
@@ -533,7 +1285,7 @@ def main() -> None:
     parser.add_argument("--base-ref", type=str, default="main",
                         help="Git ref to compare against (default: main)")
     parser.add_argument("--scope", type=str,
-                        choices=["prompts", "agents", "skills", "all"],
+                        choices=["prompts", "agents", "skills", "rules", "all"],
                         default="all", help="Limit to specific scope")
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL,
                         help="Model for LLM-based assessments")
@@ -548,16 +1300,36 @@ def main() -> None:
     except ChangeDetectionError as exc:
         print(f"error: {exc}", file=sys.stderr)
         sys.exit(EXIT_CONFIG)
-    results, any_failure = _run_evals(classified, args)
+    try:
+        plan = build_routing_plan(classified, args.scope)
+    except ScenarioConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(EXIT_CONFIG)
+
+    # A dry run validates routing and planned work only. It invokes no
+    # evaluator and parses no model output (issue #4882, required work item 3).
+    if args.dry_run:
+        _print_routing_plan(plan)
+        results: dict[str, Any] = {}
+        any_failure = False
+    else:
+        try:
+            results, any_failure = _run_evals(classified, args)
+        except ScenarioConfigError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            sys.exit(EXIT_CONFIG)
+        plan = reconcile_routing_plan(plan, results)
 
     elapsed = round(time.time() - start_time, 1)
     output: dict[str, Any] = {
-        "suite_version": "1.0.0",
+        "suite_version": "1.1.0",
         "base_ref": args.base_ref,
         "model": args.model,
         "scope": args.scope,
+        "dry_run": args.dry_run,
         "changed_files": sum(len(v) for v in classified.values()),
         "classification": {k: v for k, v in classified.items() if v},
+        "routing_plan": plan,
         "results": results,
         "elapsed_seconds": elapsed,
         "passed": not any_failure,
@@ -571,9 +1343,7 @@ def main() -> None:
         print(json_output)
 
     _print_summary(output)
-    if not any_failure:
-        sys.exit(EXIT_OK)
-    sys.exit(EXIT_EXTERNAL if _contains_external_failure(results) else EXIT_LOGIC)
+    sys.exit(worst_exit_code(results, any_failure))
 
 
 if __name__ == "__main__":

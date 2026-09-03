@@ -346,7 +346,7 @@ def run_validations(
     # This is the shift-left guard that prevents dashes from being submitted
     # at all. Closes the gap that allowed PR #1930 to ship with em/en-dashes
     # in the description despite local dash checks.
-    # Rule: .claude/rules/universal.md MUST NOT entry 5. Refs Issue #1923.
+    # Rule: .claude/rules/universal.md MUST NOT entry 4. Refs Issue #1923.
     print()
     print("[5/6] Em/en-dash check on title and body...")
     body_content = body or ""
@@ -381,7 +381,7 @@ def run_validations(
             file=sys.stderr,
         )
         print(
-            "  Rule: .claude/rules/universal.md MUST NOT entry 5 (Issue #1923).",
+            "  Rule: .claude/rules/universal.md MUST NOT entry 4 (Issue #1923).",
             file=sys.stderr,
         )
         print(

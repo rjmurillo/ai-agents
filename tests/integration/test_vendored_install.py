@@ -312,11 +312,15 @@ def test_review_skill_names_every_canonical_axis(vendored_root: Path) -> None:
 def test_vendored_implementer_preserves_toolkit_scaffold_blocks(
     vendored_root: Path,
 ) -> None:
-    """Vendored implementer separates consumer-owned and toolkit scaffolds."""
+    """Vendored implementer separates consumer-owned and toolkit scaffolds.
+
+    HANDOFF.md is retired (issue #5168) and its blocking gate is gone from
+    the source prompt; the vendored copy must not resurrect it.
+    """
     implementer = vendored_root / ".claude" / "agents" / "implementer.md"
     text = implementer.read_text(encoding="utf-8")
 
-    assert "[BLOCKED] No prior session context available" in text
+    assert "[BLOCKED] No prior session context available" not in text
     assert "consumer-owned .agents/ without ai-agents session scaffold" in text
 
 

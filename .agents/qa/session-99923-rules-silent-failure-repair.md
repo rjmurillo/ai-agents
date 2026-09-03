@@ -27,7 +27,7 @@ about what some other code or rule does, written without opening it.
 | SHOULD 4 cites "MUST 10 through 12" | `10.` appears twice in this file's MUST section, so the ordinal resolves two ways. The item now names the three headings. |
 
 `canonical-source-mirror.md` has a section for the first three, "Behavioral claims:
-read the body, not the name", and `knowledge-persistence.md` MUST NOT 4 covers the
+read the body, not the name", and `universal.md` MUST NOT 9 (`knowledge-persistence.md` MUST NOT 4 when written) covers the
 third specifically, since "no skill applies" is an absence asserted from no search.
 Both rules were loaded for the whole session.
 
@@ -82,7 +82,7 @@ claim named a real file and a real item number, so every artifact downstream
 inherited its authority without re-deriving it: this log, the extracted episode,
 the PR body, and several commit messages. `canonical-source-mirror.md` states
 the cost directly, that a wrong citation is worse than no citation because it
-weaponizes the next reader's trust, and `knowledge-persistence.md` MUST NOT 3
+weaponizes the next reader's trust, and `universal.md` MUST NOT 8 (`knowledge-persistence.md` MUST NOT 3 when written)
 prescribes the step that would have caught it: grep the rule tree and cite the
 file and item number, or drop the attribution and let the advice stand on its
 own reason.

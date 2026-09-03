@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size  one protocol spec; splitting separates rules from their rationale -->
 # Bot Author Feedback Protocol
 
 ## Overview
@@ -247,8 +248,8 @@ Maintenance tasks are limited to **merge conflict resolution only**.
 
 Files that can be auto-resolved with `--theirs` strategy:
 
-- `.agents/HANDOFF.md`
 - `.agents/sessions/*`
+- `.agents/*`
 
 All other conflicts require manual resolution.
 

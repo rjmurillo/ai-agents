@@ -41,6 +41,11 @@ AUDIT_PROCEDURE = (
 RULES_DIR = REPO_ROOT / ".claude" / "rules"
 
 _NUMBER_WORDS = {
+    # "zero" earns a row: since issue #4871 two of the three declaration forms
+    # the procedure surveys are extinct, and a survey that cannot say zero has
+    # to drop the row instead of counting it, which is how a form count goes
+    # unchecked.
+    "zero": 0,
     "one": 1,
     "two": 2,
     "three": 3,
@@ -294,6 +299,8 @@ def test_number_word_parser_handles_both_forms() -> None:
     assert _to_int("8") == 8
     assert _to_int("70,510") == 70510
     assert _to_int("Eight") == 8
+    assert _to_int("zero") == 0
+    assert _to_int("0") == 0
     with pytest.raises(ValueError, match="unrecognized number"):
         _to_int("several")
 

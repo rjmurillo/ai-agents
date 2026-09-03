@@ -63,11 +63,15 @@ def test_implementer_prompts_name_consumer_owned_agents_state(
 def test_implementer_prompts_keep_partial_toolkit_scaffold_blocking(
     relative_path: str,
 ) -> None:
-    """A partial toolkit scaffold still stops instead of failing open."""
+    """A partial toolkit scaffold still stops instead of failing open.
+
+    HANDOFF.md is retired (issue #5168) and no longer gates anything; the
+    remaining partial-scaffold stop is a missing root AGENTS.md.
+    """
     text = _read(relative_path)
 
-    assert "stop and report `[BLOCKED] No prior session context available`" in text
     assert "stop and report `[BLOCKED] Missing root agent instructions`" in text
+    assert "stop and report `[BLOCKED] No prior session context available`" not in text
 
 
 @pytest.mark.parametrize("relative_path", _IMPLEMENTER_FILES)

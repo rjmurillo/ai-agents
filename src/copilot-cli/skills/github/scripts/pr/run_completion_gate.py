@@ -166,10 +166,14 @@ case as well; there is one approval model, not two.
 
 What is classified, and why:
 
-  * Option flags (leading ``-``), option values, the substituted PR
-    number, and bare interpreter names that are not paths (``python3``
-    resolves under the cwd but no such file exists) are skipped: there
-    is nothing to compare.
+  * Option flags (leading ``-``), the substituted PR number, bare
+    interpreter names that are not paths (``python3`` resolves under
+    the cwd but no such file exists), and directories are skipped:
+    there is nothing to compare. Classification is by token shape and
+    by what is on disk, never by argv position. There is no
+    option-position tracking, so an option VALUE that names an existing
+    file is classified exactly like any other path token. That is how
+    a tracked ``--dispositions-file`` value comes to be compared.
   * Files OUTSIDE the git work tree are recorded in
     ``command_trust.skipped_external_files`` and not compared. An
     absolute interpreter path or an installed-plugin script cannot be
@@ -178,10 +182,25 @@ What is classified, and why:
   * UNTRACKED work-tree files are recorded in
     ``command_trust.skipped_untracked_files`` and not compared. PR
     content arrives through a checkout, so it is always tracked; an
-    untracked file is the operator's own state, such as the
-    ``--dispositions-file`` JSON a reviewer writes during the review.
-    Comparing those would halt every real run against a trusted-ref
-    copy that cannot exist.
+    untracked file is the operator's own state, such as a local scratch
+    fixture a reviewer writes during the review. Comparing those would
+    halt every real run against a trusted-ref copy that cannot exist.
+
+    ``--dispositions-file`` used to be the example here and is no longer
+    a safe one. Classification follows the git state of the workspace
+    this runs in, nothing else, and that answer differs by workspace.
+    In the upstream repository, PR #5481 committed
+    ``.agents/pr-checks/dispositions.json``, the path the shipped config
+    passes, so there it is tracked and compared, and a PR that edits it
+    halts the gate until the change is approved. That is the posture to
+    want for a file whose contents can wave a red check through. In an
+    installed-plugin consumer it is not the same file. Each marketplace
+    maps ``project-toolkit`` to one root and only one, ``./.claude`` in
+    ``.claude-plugin/marketplace.json`` and ``./src/copilot-cli`` in
+    ``.github/plugin/marketplace.json``, and neither root contains the
+    upstream ``.agents`` tree, so a consumer workspace has no such path
+    until someone writes one, and a file written there is untracked and
+    skipped exactly as before.
   * A repo-local path whose resolution leaves the work tree (a
     PR-committed symlink) or cannot be resolved fails closed as
     untrusted: the link is PR content and its target has no trusted-ref
@@ -1295,6 +1314,25 @@ _ARGV_EXTERNAL = "external"
 _ARGV_ESCAPES = "escapes"
 
 
+def _split_long_option_value(token: str) -> str | None:
+    """Return the value half of a ``--flag=value`` long option, or ``None``.
+
+    argparse accepts ``--flag=value`` as equivalent to ``--flag value``.
+    ``_classify_argv_token`` skips any token starting with ``-`` outright, so
+    a value packed into the same token as its flag would escape verification
+    entirely: the embedded path is never compared against the trusted ref,
+    which lets a PR-controlled command waive its own failing check (CWE-284).
+    The two-token space-separated form already works, because the value is
+    its own argv element there. Scoped to ``--`` (long options only):
+    argparse has no ``-f=value`` short form, so a short option is never
+    split, and a token with no ``=`` returns ``None`` unchanged.
+    """
+    if not token.startswith("--") or "=" not in token:
+        return None
+    _, _, value = token.partition("=")
+    return value
+
+
 class CommandTrustCheck(NamedTuple):
     """Outcome of verifying the files a config's commands name.
 
@@ -1371,10 +1409,13 @@ def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
     Returns ``(kind, value)`` where kind is one of the ``_ARGV_*``
     constants:
 
-      * ``_ARGV_SKIP`` -- nothing to verify: an option flag, an option
-        value, a PR number, a bare interpreter name that is not a path
-        (``python3`` resolves under the cwd but no such file exists), or
-        a directory.
+      * ``_ARGV_SKIP`` -- nothing to verify: an option flag, a PR
+        number, a bare interpreter name that is not a path (``python3``
+        resolves under the cwd but no such file exists), or a
+        directory. Only the leading-hyphen test is by shape; every
+        other token is classified by what is on disk. An option value
+        is not skipped for being one, so a value naming an existing
+        file falls through to the cases below like any other path.
       * ``_ARGV_VERIFY`` -- an existing file inside the work tree; the
         value is its work-tree-relative POSIX path. Whether git tracks
         it is decided later, in one batched probe
@@ -1473,10 +1514,13 @@ def _collect_command_paths(
                 f"command is not a parseable command line: {exc}",
             ) from exc
         for token in argv:
-            kind, value = _classify_argv_token(token, toplevel)
-            bucket = buckets.get(kind)
-            if bucket is not None and value not in bucket:
-                bucket.append(value)
+            embedded = _split_long_option_value(token)
+            candidates = (token, embedded) if embedded is not None else (token,)
+            for candidate in candidates:
+                kind, value = _classify_argv_token(candidate, toplevel)
+                bucket = buckets.get(kind)
+                if bucket is not None and value not in bucket:
+                    bucket.append(value)
 
     return to_verify, external, escaping
 
@@ -1624,12 +1668,18 @@ def _tracked_subset(rel_paths: list[str], toplevel: Path) -> tuple[set[str], str
 
     Trust is scoped to tracked files because the threat is PR content,
     and PR content arrives through a checkout, so it is always tracked.
-    An untracked work-tree file is the operator's own state (the
-    ``--dispositions-file`` a reviewer writes during the review, a local
-    scratch fixture); comparing it would halt every real run against a
-    trusted-ref copy that cannot exist, which trains operators to pass
-    the approval flag by reflex. A non-empty ``error`` means the probe
-    itself failed and the caller must halt.
+    An untracked work-tree file is the operator's own state (a local
+    scratch fixture, a reviewer's private copy of a config); comparing
+    it would halt every real run against a trusted-ref copy that cannot
+    exist, which trains operators to pass the approval flag by reflex.
+    ``--dispositions-file`` used to be the example here, and it is a
+    poor one now because the answer depends on the workspace: upstream,
+    PR #5481 committed the path the shipped config passes, so there it
+    is tracked and compared; in an installed-plugin consumer, which
+    receives no ``.agents`` tree, any file written at that path is
+    untracked and skipped. This probe reports the workspace it is given
+    and takes no position beyond it. A non-empty ``error`` means the
+    probe itself failed and the caller must halt.
 
     ``-z`` because paths are not newline-safe and ``core.quotePath``
     would otherwise escape non-ASCII names out of alignment with the

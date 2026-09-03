@@ -1,6 +1,24 @@
 ---
 description: Pragmatic Programmer principles from Hunt and Thomas. Apply as a general engineering overlay on every change. Reinforce DRY at the knowledge level, orthogonality, fast feedback, automation, tracer-bullet delivery, and the broken-windows discipline. Source adapted from ciembor/agent-rules-books (MIT).
-applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.psd1,**/*.sh,**/*.sql'
+paths:
+  - "**/*.py"
+  - "**/*.cs"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+  - "**/*.go"
+  - "**/*.rs"
+  - "**/*.java"
+  - "**/*.rb"
+  - "**/*.c"
+  - "**/*.h"
+  - "**/*.cpp"
+  - "**/*.ps1"
+  - "**/*.psm1"
+  - "**/*.psd1"
+  - "**/*.sh"
+  - "**/*.sql"
 ---
 
 # The Pragmatic Programmer

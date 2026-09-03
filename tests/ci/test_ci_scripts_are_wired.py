@@ -99,6 +99,13 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "tests/ci/test_pytest_non_tmp_policy.py covers it directly and asserts the "
         "workflow routes through the selection runner that calls it."
     ),
+    "spec_nonexecutable_criteria.py": (
+        "Library holding the acceptance-criteria classifier for "
+        "spec_prepare_context.py, which ai-spec-validation.yml invokes. It has "
+        "no main() and no shebang; tests/ci/test_spec_nonexecutable_criteria.py "
+        "drives it directly and tests/ci/test_spec_prepare_context.py covers "
+        "the workflow-invoked integration (issue #5366)."
+    ),
     "ruleset_required_contexts.py": (
         "Library holding the required-context contract shared by "
         "ruleset_context_drift.py and test_merge_group_readiness.py. The "

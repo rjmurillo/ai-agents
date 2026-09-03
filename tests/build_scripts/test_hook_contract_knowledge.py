@@ -110,7 +110,7 @@ CLAUDE_EVENTS = {
 
 ROUTING_FILES = (
     REPO_ROOT / "AGENTS.md",
-    REPO_ROOT / ".claude" / "agents" / "AGENTS.md",
+    REPO_ROOT / "src" / "claude" / "AGENTS.md",
     REPO_ROOT / ".claude" / "skills" / "CLAUDE.md",
     REPO_ROOT / ".github" / "AGENTS.md",
     REPO_ROOT / ".github" / "copilot-instructions.md",

@@ -58,7 +58,7 @@ Create production-ready custom slash commands following ai-agents quality standa
    - `disable-model-invocation` (if pure prompt template)
 4. Dynamic context evaluation:
    - Bash execution (`!git log --oneline -5`)
-   - File references (`@.agents/HANDOFF.md`)
+   - File references (`@AGENTS.md`)
 5. Extended thinking evaluation:
    - Add `ultrathink` keyword for complex reasoning (>5 steps)
    - Token budget consideration (<31,999 tokens)
@@ -271,4 +271,4 @@ python3 "$SCRIPTS_DIR/validate_slash_command.py" <skill-dir>
 - `.agents/archive/planning/slashcommandcreator-skill-spec.md`
 - `.serena/memories/slashcommand-best-practices.md`
 
-<!-- vendor-portability: declared. This skill writes research and analysis notes under .agents/analysis/ and .agents/planning/ and cites .agents/HANDOFF.md and a research doc. The analysis/planning paths are write targets created on demand; the HANDOFF and research references are documentation citations. Issue #2050. -->
+<!-- vendor-portability: declared. This skill writes research and analysis notes under .agents/analysis/ and .agents/planning/ and cites AGENTS.md and a research doc. The analysis/planning paths are write targets created on demand; the AGENTS.md and research references are documentation citations. Issue #2050. -->

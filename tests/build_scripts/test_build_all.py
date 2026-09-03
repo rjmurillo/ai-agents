@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -781,6 +783,288 @@ def test_enumerate_files_under_handles_catalog_file(tmp_path: Path) -> None:
     assert found == {catalog}
 
 
+def test_enumerate_files_under_skips_git_boundary_directory(tmp_path: Path) -> None:
+    """A directory holding its own .git entry is a git repository boundary
+    (the same shape ``git worktree add`` produces) and must never be walked
+    into: it is not the enumerated prefix's own content.
+
+    A sibling file that is not behind a boundary is still found, as a
+    positive control that the skip is scoped to the boundary directory
+    and does not blind the walk to the rest of the prefix.
+    """
+    owned = tmp_path / "owned"
+    nested = owned / "worktrees" / "wt-1"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    nested_file = nested / "inside.txt"
+    nested_file.write_text("nested content\n", encoding="utf-8")
+    nested_subdir_file = nested / "sub" / "deep.txt"
+    nested_subdir_file.parent.mkdir(parents=True)
+    nested_subdir_file.write_text("deep nested content\n", encoding="utf-8")
+    sibling = owned / "real.md"
+    sibling.write_text("# real\n", encoding="utf-8")
+
+    found = build_all._enumerate_files_under(tmp_path, ("owned/",))
+
+    assert nested_file not in found
+    assert nested_subdir_file not in found
+    assert sibling in found
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="os.mkfifo is POSIX only")
+def test_restore_owned_prefixes_never_unlinks_a_pre_existing_fifo(
+    tmp_path: Path,
+) -> None:
+    """A non-regular file is not generator output and must survive --check.
+
+    ``_snapshot_owned_prefixes`` keeps regular files only. In
+    ``build/scripts/build_all.py`` its walk reads::
+
+        if is_dir or not path.is_file():
+            continue
+
+    so a FIFO, a unix socket, or a device node is never in the snapshot.
+    If ``_enumerate_files_under`` counted every non-directory entry, that
+    FIFO would land in ``current - set(snapshot)`` and case 3 of
+    :func:`_restore_owned_prefixes` would unlink it, so a read-only
+    ``--check`` would destroy a path it never created.
+
+    Positive control: a file the generator really did create after the
+    snapshot is still deleted, so a mutant that empties
+    ``_enumerate_files_under`` fails here rather than passing.
+    """
+    owned = tmp_path / "owned"
+    owned.mkdir()
+    fifo = owned / "pipe"
+    os.mkfifo(fifo)
+    pre_existing = owned / "real.md"
+    pre_existing.write_text("# real\n", encoding="utf-8")
+
+    assert fifo not in build_all._enumerate_files_under(tmp_path, ("owned/",))
+
+    snapshot = build_all._snapshot_owned_prefixes(tmp_path, ("owned/",))
+    assert fifo not in snapshot
+    generated = owned / "generated.md"
+    generated.write_text("# generated\n", encoding="utf-8")
+
+    build_all._restore_owned_prefixes(tmp_path, ("owned/",), snapshot)
+
+    assert fifo.is_fifo()
+    assert not generated.exists()
+    assert pre_existing.read_text(encoding="utf-8") == "# real\n"
+
+
+def test_snapshot_owned_prefixes_skips_git_boundary_directory(
+    tmp_path: Path,
+) -> None:
+    """The snapshot pass, not just the enumerate pass, must skip a nested
+    git repository boundary, with ``exclude_ignored`` left at its default
+    (``False``): that is the exact flag value ``run()`` passes for the
+    ``--check`` snapshot. ``run()`` in ``build/scripts/build_all.py``
+    reads::
+
+        snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES)
+
+    with no ``exclude_ignored`` argument, so a gitignore-only guard
+    (``_is_ignored_path``) would not cover it.
+
+    The quote is the anchor, not a line number. That call has moved five
+    times inside this one pull request as docstrings grew above it, and
+    ``check_citation_freshness.py`` failed the build on the stale number
+    twice. Grep the quoted line instead.
+
+    Without routing this walk through
+    :func:`_iter_tree_skip_git_boundaries`, a nested worktree under an
+    owned prefix gets read into the snapshot here while
+    :func:`_enumerate_files_under`'s delete pass skips it, and the
+    asymmetry lets :func:`_restore_owned_prefixes` overwrite the nested
+    worktree's own files with snapshot bytes (issue #5370).
+    """
+    owned = tmp_path / "owned"
+    nested = owned / "worktrees" / "wt-1"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    nested_file = nested / "inside.txt"
+    nested_file.write_text("nested content\n", encoding="utf-8")
+    sibling = owned / "real.md"
+    sibling.write_text("# real\n", encoding="utf-8")
+
+    snapshot = build_all._snapshot_owned_prefixes(tmp_path, ("owned/",))
+
+    assert nested_file not in snapshot
+    assert sibling in snapshot
+
+
+def test_restore_owned_prefixes_never_deletes_git_boundary_contents(
+    tmp_path: Path,
+) -> None:
+    """Defense-in-depth for a future OWNED_PREFIXES entry that covers a
+    directory of nested worktrees: _restore_owned_prefixes's delete pass
+    (case 3: on disk and not in the snapshot -> unlink) must never reach a
+    file inside a directory that is itself a git repository boundary, even
+    in the worst case where the snapshot has nothing for that prefix at
+    all (an empty snapshot, as if the worktree post-dated the baseline).
+
+    Without the .git-boundary skip in _enumerate_files_under and
+    _prune_empty_dirs, this is exactly how a future ``.claude/`` entry in
+    OWNED_PREFIXES would let --check's read-only restore step delete a
+    nested worktree's own working tree (issue #5370).
+
+    Positive control: an ordinary generator-created file under the same
+    prefix, also absent from the snapshot, is still deleted, so the
+    boundary skip does not disable the real cleanup behavior.
+    """
+    owned = tmp_path / "owned"
+    nested = owned / "worktrees" / "wt-1"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    nested_file = nested / "inside.txt"
+    nested_file.write_text("nested content\n", encoding="utf-8")
+    generator_created = owned / "created.md"
+    generator_created.write_text("# generated\n", encoding="utf-8")
+
+    prefixes = ("owned/",)
+    found = build_all._enumerate_files_under(tmp_path, prefixes)
+    assert nested_file not in found
+    assert generator_created in found
+
+    build_all._restore_owned_prefixes(tmp_path, prefixes, snapshot={})
+
+    assert nested_file.is_file()
+    assert nested_file.read_text(encoding="utf-8") == "nested content\n"
+    assert not generator_created.exists()
+
+
+def test_restore_owned_prefixes_removes_a_boundary_tree_created_mid_build(
+    tmp_path: Path,
+) -> None:
+    """A ``.git`` entry a generator writes is output, not a nested checkout.
+
+    Detecting boundaries by shape during the restore pass reads the
+    post-generation tree, so a directory the generator created with a
+    ``.git`` entry inside it looks identical to a pre-existing worktree
+    and case 3 of :func:`_restore_owned_prefixes` skips its files.
+    Measured before ``preexisting_boundaries`` existed: a generator
+    creating ``owned/out/.git`` plus ``owned/out/generated.txt`` left both
+    on disk after the restore, so ``--check`` was no longer read-only
+    (issue #2440).
+
+    :func:`_git_boundaries_under` records the boundary set before the
+    generators run, which separates the two cases by when they appeared
+    rather than by shape.
+
+    Both directions are asserted here on purpose. Removing the new tree is
+    worthless if it also removes a live nested worktree, which is the
+    deletion issue #5370 exists to prevent, so the pre-existing checkout
+    and its file are asserted intact in the same run.
+    """
+    owned = tmp_path / "owned"
+    owned.mkdir()
+    pre_existing_wt = owned / "worktrees" / "wt-1"
+    pre_existing_wt.mkdir(parents=True)
+    (pre_existing_wt / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    live_file = pre_existing_wt / "live.txt"
+    live_file.write_text("live worktree content\n", encoding="utf-8")
+    untouched = owned / "real.md"
+    untouched.write_text("# real\n", encoding="utf-8")
+
+    prefixes = ("owned/",)
+    boundaries = build_all._git_boundaries_under(tmp_path, prefixes)
+    assert boundaries == {pre_existing_wt}
+    snapshot = build_all._snapshot_owned_prefixes(tmp_path, prefixes)
+
+    # The generator now creates a boundary-shaped tree of its own.
+    generated_tree = owned / "out"
+    generated_tree.mkdir()
+    (generated_tree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    generated_file = generated_tree / "generated.txt"
+    generated_file.write_text("generator output\n", encoding="utf-8")
+
+    build_all._restore_owned_prefixes(
+        tmp_path, prefixes, snapshot, preexisting_boundaries=boundaries
+    )
+
+    assert not generated_file.exists()
+    assert not generated_tree.exists()
+    assert live_file.read_text(encoding="utf-8") == "live worktree content\n"
+    assert (pre_existing_wt / ".git").is_file()
+    assert untouched.read_text(encoding="utf-8") == "# real\n"
+
+
+def test_restore_owned_prefixes_prunes_a_generated_repo_shaped_tree(
+    tmp_path: Path,
+) -> None:
+    """Deleting the files is not enough when ``.git`` is a real directory.
+
+    The sibling test above writes ``.git`` as a file, so once case 3
+    unlinks it the tree stops looking like a boundary and shape detection
+    inside :func:`_prune_empty_dirs` would remove the empty directory
+    anyway. A cloned repository does not have that shape: ``.git`` is a
+    directory, and an emptied directory still satisfies
+    ``(entry / ".git").exists()``, so shape detection keeps treating the
+    tree as opaque and never prunes it.
+
+    Measured: dropping ``opaque_boundaries`` from the prune call left
+    ``owned/out`` and ``owned/out/.git`` on disk here while every other
+    test stayed green. Empty directories the run created are still a
+    ``--check`` write (issue #2440), so this case is what holds that
+    argument in place.
+    """
+    owned = tmp_path / "owned"
+    owned.mkdir()
+    untouched = owned / "real.md"
+    untouched.write_text("# real\n", encoding="utf-8")
+
+    prefixes = ("owned/",)
+    boundaries = build_all._git_boundaries_under(tmp_path, prefixes)
+    assert boundaries == set()
+    snapshot = build_all._snapshot_owned_prefixes(tmp_path, prefixes)
+
+    generated_tree = owned / "out"
+    (generated_tree / ".git").mkdir(parents=True)
+    (generated_tree / ".git" / "HEAD").write_text(
+        "ref: refs/heads/main\n", encoding="utf-8"
+    )
+    (generated_tree / "generated.txt").write_text(
+        "generator output\n", encoding="utf-8"
+    )
+
+    build_all._restore_owned_prefixes(
+        tmp_path, prefixes, snapshot, preexisting_boundaries=boundaries
+    )
+
+    assert not generated_tree.exists()
+    assert untouched.read_text(encoding="utf-8") == "# real\n"
+
+
+def test_prune_empty_dirs_never_rmdirs_inside_git_boundary(
+    tmp_path: Path,
+) -> None:
+    """_prune_empty_dirs's own boundary skip, not just the delete pass, must
+    hold: an empty directory inside a nested worktree (a ``build/`` or
+    ``logs/`` dir with nothing tracked in it) must survive
+    _restore_owned_prefixes.
+
+    Swapping ``_iter_tree_skip_git_boundaries`` back to plain
+    ``root.rglob("*")`` in _prune_empty_dirs leaves every other test in
+    this suite green because their fixture worktrees hold only non-empty
+    directories: the prune loop's ``if not any(dirpath.iterdir())`` never
+    fires either way. This fixture adds an empty directory under the
+    nested worktree so the mutation is caught (issue #5370).
+    """
+    owned = tmp_path / "owned"
+    nested = owned / "worktrees" / "wt-1"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    nested_empty_dir = nested / "empty_build_dir"
+    nested_empty_dir.mkdir()
+
+    prefixes = ("owned/",)
+    build_all._restore_owned_prefixes(tmp_path, prefixes, snapshot={})
+
+    assert nested_empty_dir.is_dir()
+
+
 def test_build_agent_catalog_writes_docs_catalog(tmp_path: Path) -> None:
     templates = tmp_path / "templates" / "agents"
     _write_agent_template(templates, "alpha")
@@ -1555,14 +1839,64 @@ def test_ignored_paths_excludes_tracked_files(tmp_path: Path) -> None:
     assert tracked not in ignored
 
 
-def test_ignored_paths_empty_when_not_a_git_repo(tmp_path: Path) -> None:
-    """Outside a git repo, ls-files fails and the set is empty (safe fallback)."""
+def test_ignored_paths_empty_when_not_a_git_repo(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Outside a git repo, ls-files fails and the set is empty (safe fallback).
+
+    The stderr assertion is load-bearing. Measured: deleting the
+    ``proc.returncode != 0`` warning in ``_ignored_paths`` and leaving the
+    bare ``continue`` left all 99 tests green when this case checked only
+    the empty set. A silent empty set reads downstream as "nothing is
+    gitignored", which is how the REQ-003-010 guard starts reporting a
+    hook's own log write as a generator violation (issue #2992). The
+    diagnostic is the only signal that the query failed rather than
+    matched nothing, so it needs an assertion of its own.
+    """
     claude = tmp_path / ".claude" / "hooks"
     claude.mkdir(parents=True)
     (claude / "audit.log").write_text("noise\n", encoding="utf-8")
 
     ignored = build_all._ignored_paths(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
     assert ignored == set()
+    assert "WARN: git ls-files exited" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        OSError("git missing"),
+        subprocess.TimeoutExpired(cmd="git", timeout=30),
+    ],
+    ids=["oserror", "timeout"],
+)
+def test_ignored_paths_warns_and_falls_back_when_git_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    exc: Exception,
+) -> None:
+    """``subprocess.run`` raising must degrade to an empty set plus a warning.
+
+    ``_ignored_paths`` catches ``(OSError, subprocess.SubprocessError)``.
+    The nonzero-exit test covers only the ``returncode != 0`` branch, which
+    a missing ``git`` binary (``OSError``) or a hung ``git`` (a 30 second
+    ``TimeoutExpired``, a ``SubprocessError`` subclass) never reaches. Both
+    arms must fall back rather than crash the build, and both must say so
+    on stderr: a silent empty set reads as "nothing is gitignored" and
+    would let the REQ-003-010 guard report a hook's own log write as a
+    generator violation.
+    """
+
+    def boom(*args: object, **kwargs: object) -> object:
+        raise exc
+
+    monkeypatch.setattr(build_all.subprocess, "run", boom)
+
+    ignored = build_all._ignored_paths(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
+
+    assert ignored == set()
+    assert "WARN: git ls-files failed" in capsys.readouterr().err
 
 
 def test_ignored_paths_ignores_inherited_git_dir_env(
@@ -1670,6 +2004,157 @@ def test_snapshot_excludes_ignored_runtime_artifacts(tmp_path: Path) -> None:
     assert owned_file in snap
 
 
+def test_is_ignored_path_treats_directory_entries_as_prefixes() -> None:
+    """Unit-level pin on the matching rule _snapshot_owned_prefixes relies on.
+
+    ``ignored`` can hold a directory (see :func:`_ignored_paths`), and a
+    path nested under that directory must match even though it is not
+    itself a key in the set. An unrelated path, and a path that merely
+    shares a string prefix without being a real path ancestor, must not.
+    """
+    ignored = {Path("/repo/.claude/worktrees/wt-1")}
+    assert build_all._is_ignored_path(
+        Path("/repo/.claude/worktrees/wt-1"), ignored
+    )  # exact match
+    assert build_all._is_ignored_path(
+        Path("/repo/.claude/worktrees/wt-1/sub/file.txt"), ignored
+    )  # nested under the ignored directory
+    assert not build_all._is_ignored_path(
+        Path("/repo/.claude/worktrees/wt-10/file.txt"), ignored
+    )  # sibling directory, not a real path ancestor
+    assert not build_all._is_ignored_path(
+        Path("/repo/.claude/agents/real.md"), ignored
+    )  # unrelated path
+
+
+def test_snapshot_owned_prefixes_excludes_every_file_under_ignored_worktree(
+    tmp_path: Path,
+) -> None:
+    """A whole ignored directory (a nested worktree) must exclude every file
+    under it, not just a path that matches it exactly.
+
+    ``git ls-files --others --ignored --exclude-standard`` reports a
+    registered git worktree as one ignored *directory* entry, not one entry
+    per file inside it (git's embedded-repository boundary; verified via
+    a real ``git worktree add`` in this fixture). Before this fix,
+    ``_snapshot_owned_prefixes`` matched ``ignored`` with plain set
+    membership, so every file inside the worktree still got read into the
+    snapshot: with dozens of real worktrees that is the OOM in issue #5370.
+
+    Positive control: a non-ignored sibling directory's file is still
+    captured, so the fix is scoped to the ignored directory and does not
+    silently swallow the whole ``.claude/`` prefix.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".gitignore").write_text(
+        ".claude/worktrees/\n", encoding="utf-8"
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "add", ".gitignore"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
+    )
+
+    worktrees = repo / ".claude" / "worktrees"
+    worktrees.mkdir(parents=True)
+    nested_worktree = worktrees / "wt-1"
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "worktree",
+            "add",
+            "-q",
+            str(nested_worktree),
+            "-b",
+            "wt-1-branch",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    nested_file = nested_worktree / "extra.txt"
+    nested_file.write_text("nested worktree content\n", encoding="utf-8")
+    nested_subdir_file = nested_worktree / "sub" / "deep.txt"
+    nested_subdir_file.parent.mkdir(parents=True)
+    nested_subdir_file.write_text("deep nested content\n", encoding="utf-8")
+
+    sibling = repo / ".claude" / "agents" / "real.md"
+    sibling.parent.mkdir(parents=True)
+    sibling.write_text("# real agent\n", encoding="utf-8")
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+
+    assert nested_file not in snapshot
+    assert nested_subdir_file not in snapshot
+    assert not any(
+        nested_worktree in path.parents or path == nested_worktree
+        for path in snapshot
+    )
+    assert sibling in snapshot
+
+
+def test_snapshot_owned_prefixes_excludes_children_of_a_plain_ignored_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pin the prefix match at its call site, not just in the helper.
+
+    The walk inside ``_snapshot_owned_prefixes`` in
+    ``build/scripts/build_all.py`` reads::
+
+        if _is_ignored_path(path, ignored) or (
+
+    The sibling worktree test above cannot protect that line. Its nested
+    checkout comes from a real ``git worktree add``, so it carries a
+    ``.git`` file and ``_iter_tree_skip_git_boundaries`` drops it two
+    lines earlier, at ``if is_dir or not path.is_file():``, before
+    ``ignored`` is ever consulted. Measured: replacing the call above with
+    ``path in ignored`` (exact set membership, the pre-#5370 behavior)
+    left all 99 tests green. The helper unit test cannot catch it either,
+    because it calls ``_is_ignored_path`` directly and never exercises the
+    wiring.
+
+    So this case removes the boundary marker. ``_ignored_paths`` is
+    stubbed to report one plain ancestor directory, the shape git uses for
+    any ignored directory that is not a nested checkout: a build output
+    tree, a cache directory, any ``.gitignore`` line ending in ``/``. With
+    exact membership the directory itself is never yielded as a file, so
+    every descendant is snapshotted and the first assertion fails.
+    """
+    repo = tmp_path / "repo"
+    ignored_dir = repo / ".claude" / "cache"
+    ignored_dir.mkdir(parents=True)
+    assert not (ignored_dir / ".git").exists()
+    child = ignored_dir / "blob.bin"
+    child.write_text("cached\n", encoding="utf-8")
+    grandchild = ignored_dir / "sub" / "deep.bin"
+    grandchild.parent.mkdir(parents=True)
+    grandchild.write_text("deep cached\n", encoding="utf-8")
+    sibling = repo / ".claude" / "agents" / "real.md"
+    sibling.parent.mkdir(parents=True)
+    sibling.write_text("# real agent\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        build_all,
+        "_ignored_paths",
+        lambda repo_root, prefixes: {ignored_dir},
+    )
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
+    )
+
+    assert child not in snapshot
+    assert grandchild not in snapshot
+    assert sibling in snapshot
+
+
 def test_assert_no_claude_writes_ignores_audit_log_churn(tmp_path: Path) -> None:
     """REQ-003-010 false positive fix (#2992): a gitignored audit.log that
     changes DURING the build window must NOT be attributed to a generator.
@@ -1732,6 +2217,167 @@ def test_assert_no_claude_writes_still_flags_real_write_in_git_repo(
     assert build_all.assert_no_claude_writes(repo, baseline) == [
         ".claude/agents/leak.md"
     ]
+
+
+def test_assert_no_claude_writes_flags_a_write_behind_a_generated_git_marker(
+    tmp_path: Path,
+) -> None:
+    """A generator cannot hide a .claude/ write behind a ``.git`` it wrote.
+
+    Both walks the guard compares stop at git repository boundaries. When
+    each one detects those by shape independently, a generator that writes
+    ``.claude/out/.git`` alongside its output takes that whole tree out of
+    the post-generation walk, and the baseline walk never saw it either,
+    so the diff is empty. Measured before ``preexisting_boundaries``
+    existed: this exact sequence returned ``[]`` with
+    ``.claude/out/leaked.md`` still on disk, so REQ-003-010 passed and the
+    build could exit successfully with an undetected write.
+
+    Recording the boundary set once with ``_git_boundaries_under`` and
+    passing it to both walks makes them skip exactly the same trees, so a
+    boundary that appeared during the build is walked and reported.
+
+    The inverse is asserted in the same run. A live nested worktree that
+    existed before the build must stay invisible to the guard even when
+    its own owner edits a file inside it mid-build, which is the
+    false-positive REQ-003-010 was tuned against (issue #2992) and the
+    tree issue #5370 exists to keep out of these walks. Reporting the new
+    write is worthless if it also reports the neighbouring checkout.
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "--allow-empty", "-m", "init"],
+        check=True,
+    )
+    live_worktree = repo / ".claude" / "worktrees" / "wt-1"
+    live_worktree.mkdir(parents=True)
+    (live_worktree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    live_file = live_worktree / "live.txt"
+    live_file.write_text("before the build\n", encoding="utf-8")
+
+    boundaries = build_all._git_boundaries_under(
+        repo, build_all.CLAUDE_GUARD_PREFIX
+    )
+    assert boundaries == {live_worktree}
+    baseline = build_all._snapshot_owned_prefixes(
+        repo,
+        build_all.CLAUDE_GUARD_PREFIX,
+        exclude_ignored=True,
+        opaque_boundaries=boundaries,
+    )
+
+    # A generator writes output and a .git marker to shield it.
+    generated_tree = repo / ".claude" / "out"
+    generated_tree.mkdir()
+    (generated_tree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    (generated_tree / "leaked.md").write_text(
+        "generator wrote this\n", encoding="utf-8"
+    )
+    # The live worktree's own owner edits a file mid-build.
+    live_file.write_text("edited by the worktree owner\n", encoding="utf-8")
+
+    violations = build_all.assert_no_claude_writes(
+        repo, baseline, preexisting_boundaries=boundaries
+    )
+
+    assert violations == [".claude/out/.git", ".claude/out/leaked.md"]
+    assert not any(v.startswith(".claude/worktrees/") for v in violations)
+
+
+def test_run_flags_a_generator_write_hidden_behind_a_git_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Drive the guard through ``run()``, not by calling it directly.
+
+    The sibling test above passes ``preexisting_boundaries`` itself, so it
+    proves the guard honours the argument but not that anything supplies
+    it. Measured: dropping the argument at the one real call site, in
+    ``_run_generators``, left the sibling test and all 102 others green.
+    That is the same helper-tested-but-unwired gap the reviewer flagged
+    twice on this PR, so the wiring gets its own end-to-end case.
+
+    A stubbed generator writes ``.claude/out/leaked.md`` next to a
+    ``.git`` marker it also writes. ``run()`` must return 2 and name the
+    file, which only happens if the boundary set recorded before
+    generation reaches :func:`assert_no_claude_writes`.
+    """
+    monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    def leaking_agents(
+        repo_root: Path, cfg: object, platform: object
+    ) -> build_all.GeneratorResult:
+        hidden = repo_root / ".claude" / "out"
+        hidden.mkdir(parents=True, exist_ok=True)
+        (hidden / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+        (hidden / "leaked.md").write_text("generator wrote this\n", encoding="utf-8")
+        return build_all.GeneratorResult(
+            artifact="agents", platform="*", outputs=0, exit_code=0
+        )
+
+    monkeypatch.setattr(build_all, "_build_agents", leaking_agents)
+
+    rc = build_all.run(
+        repo, platform=None, check=False, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert "REQ-003-010 VIOLATION: generator wrote to .claude/out/leaked.md" in (
+        capsys.readouterr().err
+    )
+
+
+def test_run_check_removes_a_generated_tree_behind_a_git_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Drive the restore path through ``run()``, not by calling it directly.
+
+    ``test_restore_owned_prefixes_removes_a_boundary_tree_created_mid_build``
+    passes ``preexisting_boundaries`` itself, so it holds the helper but
+    not the one real call site in ``run()``. Measured: dropping that
+    argument from the ``run()`` restore call left that test and all 103
+    others green, the same helper-tested-but-unwired shape the reviewer
+    flagged twice on this PR.
+
+    A stubbed generator writes ``src/out/generated.txt`` next to a
+    ``.git`` marker under an owned prefix. ``--check`` must leave the
+    working tree as it found it, so both paths and the directory must be
+    gone once ``run()`` returns.
+    """
+    monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    def boundary_writing_agents(
+        repo_root: Path, cfg: object, platform: object
+    ) -> build_all.GeneratorResult:
+        hidden = repo_root / "src" / "out"
+        hidden.mkdir(parents=True, exist_ok=True)
+        (hidden / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+        (hidden / "generated.txt").write_text("output\n", encoding="utf-8")
+        return build_all.GeneratorResult(
+            artifact="agents", platform="*", outputs=0, exit_code=0
+        )
+
+    monkeypatch.setattr(build_all, "_build_agents", boundary_writing_agents)
+
+    build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert not (repo / "src" / "out" / "generated.txt").exists()
+    assert not (repo / "src" / "out" / ".git").exists()
+    assert not (repo / "src" / "out").exists()
 
 
 # --- #3856: bytecode written inside the guard's snapshot window -----------

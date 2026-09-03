@@ -70,6 +70,7 @@ CONTAINER_UNCLAMPED_JOBS = frozenset(
         "planning-artifacts",
         "branch-scope",
         "review-axis-drift",
+        "zero-collection-tests",
         "worktree-gc-report",
         "python-lint-advisory",
         "infrastructure-advisory",

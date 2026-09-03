@@ -13,7 +13,6 @@ This is **Tier 2-per-issue**, complementing (not replacing) the tiers defined in
 | Session log | `.agents/sessions/YYYY-MM-DD-session-NN.json` | Single session | Always. Canonical session record. |
 | **Per-issue handoff** | `.agents/sessions/handoffs/{YYYY-MM-DD}-{NNNN}-handoff.md` | Single issue, across sessions | When an issue spans multiple sessions |
 | Per-branch handoff | `.agents/handoffs/{branch}/{session}.md` | Single branch | Multi-session branch coordination (ADR-014 Tier 2) |
-| Canonical dashboard | `.agents/HANDOFF.md` | Project-wide, read-only | Read-only reference, 5K hard cap |
 
 **Per-issue vs per-branch**: One branch may cover multiple issues; one issue may survive across branches (rebase, rework). The per-issue handoff keeps continuity anchored to the work unit, not the branch name.
 

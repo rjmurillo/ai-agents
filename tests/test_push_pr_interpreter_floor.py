@@ -30,9 +30,11 @@ from __future__ import annotations
 
 import ast
 import os
+import re
 import shutil
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -56,7 +58,34 @@ FLOOR_MODULES = (
     Path("src/copilot-cli/skills/github/scripts/pr/pr_validations.py"),
 )
 
-ALL_FLOOR_FILES = FLOOR_SCRIPTS + FLOOR_MODULES
+# Host-executed scripts that get the static guard but not the runtime one,
+# because something they import already breaks at 3.10 for a reason outside
+# this module's scope.
+#
+# `test_pr_merge_ready.py` is invoked with a bare `python3` by both
+# `.claude/commands/pr-review-config.yaml` and `.claude/commands/pr-autofix.md`,
+# so it runs on the host interpreter exactly as `new_pr.py` does, and a draft
+# of PR #5481 shipped `from datetime import UTC` into it. The syntax gate
+# parsed that clean, because the name is 3.11+ stdlib rather than 3.11+ syntax,
+# which is the gap this module exists to close, so the static guard below is
+# what would have caught it.
+#
+# It cannot join FLOOR_SCRIPTS yet. Measured with CPython 3.10.20 against this
+# tree: it imports `github_core.api`, which imports `github_core.review_threads`,
+# whose `FetchStatus` subclasses `enum.StrEnum`, added in 3.11:
+#
+#     AttributeError: module 'enum' has no attribute 'StrEnum'
+#
+# That predates PR #5481 and belongs to the shared library rather than to any
+# one script; `new_pr.py` passes the runtime test only because it imports no
+# `github_core` module at all. Move these two entries into FLOOR_SCRIPTS once
+# `FetchStatus` is spelled for the floor.
+FLOOR_STATIC_ONLY = (
+    Path(".claude/skills/github/scripts/pr/test_pr_merge_ready.py"),
+    Path("src/copilot-cli/skills/github/scripts/pr/test_pr_merge_ready.py"),
+)
+
+ALL_FLOOR_FILES = FLOOR_SCRIPTS + FLOOR_MODULES + FLOOR_STATIC_ONLY
 
 
 def _discover_python310() -> str | None:
@@ -222,3 +251,145 @@ def test_repository_development_floor_is_unchanged() -> None:
         "only because plugin hosts supply the interpreter"
     )
     assert sys.version_info >= (3, 10)
+
+
+# ---------------------------------------------------------------------------
+# Cross-version parity for the disposition expiry grammar (PR #5481)
+# ---------------------------------------------------------------------------
+
+_MERGE_READY = Path(".claude/skills/github/scripts/pr/test_pr_merge_ready.py")
+
+# The values `_EXPIRES_PATTERN` is meant to accept. Every one must parse on the
+# 3.10 floor as well as on the development interpreter, or the same registry
+# yields different merge verdicts on different hosts.
+_ACCEPTED_EXPIRIES = (
+    "2999-01-01",
+    "2999-01-01T12:30:00",
+    "2999-01-01T12:30:00Z",
+    "2999-01-01T12:30:00+00:00",
+    "2999-01-01T12:30:00-08:00",
+    "2999-01-01T12:30:00.123+00:00",
+    "2999-01-01T12:30:00.123456+00:00",
+    "2999-01-01 12:30:00+00:00",
+)
+
+
+def _expires_pattern_source() -> str:
+    """The regex literal `_EXPIRES_PATTERN` compiles, read from the source.
+
+    Read out of the AST rather than imported, because the script cannot be
+    imported under 3.10 at all: it pulls in `github_core.review_threads`,
+    whose `FetchStatus` subclasses `enum.StrEnum`, added in 3.11. Reading the
+    literal keeps this test measuring the shipped pattern rather than a copy
+    that can drift away from it.
+    """
+    tree = ast.parse((REPO_ROOT / _MERGE_READY).read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
+        if "_EXPIRES_PATTERN" not in targets:
+            continue
+        call = node.value
+        assert isinstance(call, ast.Call), "_EXPIRES_PATTERN must be a re.compile call"
+        return ast.literal_eval(call.args[0])
+    raise AssertionError("_EXPIRES_PATTERN not found in the readiness script")
+
+
+def test_the_expiry_pattern_literal_is_readable() -> None:
+    """Negative control for the extractor.
+
+    The parity test below skips without a 3.10 interpreter, and a broken
+    extractor would then fail loudly here instead of hiding behind that skip.
+    """
+    source = _expires_pattern_source()
+    assert source.startswith(r"\d{4}-\d{2}-\d{2}"), source
+    assert re.match(source, "2999-01-01"), source
+    assert not re.match(source, "29990101"), source
+
+
+@requires_python310
+def test_accepted_expiries_parse_identically_on_the_floor() -> None:
+    """Every value the grammar admits must parse on 3.10, not only on 3.14.
+
+    `datetime.fromisoformat` is not one parser across these versions: 3.11
+    widened it to most of ISO 8601. `_EXPIRES_PATTERN` exists to pin the
+    subset both accept, and this is the half of that claim a single-version
+    test cannot make. Without it, widening the pattern to a 3.11-only form
+    would pass the whole suite on the development interpreter and silently
+    treat a live disposition as expired on a plugin host.
+    """
+    assert PYTHON310 is not None
+    pattern = _expires_pattern_source()
+    probe = (
+        "import re, sys\n"
+        "from datetime import datetime\n"
+        f"pattern = re.compile({pattern!r})\n"
+        f"values = {list(_ACCEPTED_EXPIRIES)!r}\n"
+        "for value in values:\n"
+        "    assert pattern.match(value), 'pattern rejects ' + value\n"
+        "    normalized = value[:-1] + '+00:00' if value.endswith('Z') else value\n"
+        "    datetime.fromisoformat(normalized)\n"
+        "print('ok')\n"
+    )
+
+    result = subprocess.run(
+        [PYTHON310, "-c", probe],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
+
+
+@requires_python310
+def test_rejected_expiries_are_the_ones_the_floor_cannot_parse() -> None:
+    """The inverse: the forms the grammar refuses are refused for a reason.
+
+    Each of these parses on the development interpreter and raises on 3.10,
+    which is the divergence the pattern exists to remove. If a future CPython
+    made them parse everywhere, this test fails and the pattern can widen on
+    evidence rather than on assumption.
+    """
+    # Only the forms that genuinely disagree between the two versions.
+    # `2999-01-01T12` and `2999-01-01T12:30` parse on 3.10 as well, so the
+    # grammar excludes them for strictness rather than for portability and
+    # they would fail the 3.10 half of this assertion.
+    assert PYTHON310 is not None
+    diverging = [
+        "29990101",
+        "2999-W01-1",
+        "2999-01-01T12:30:00+0000",
+        "2999-01-01T12:30:00.1+00:00",
+        "2999-01-01T12:30:00.1234+00:00",
+    ]
+    pattern = re.compile(_expires_pattern_source())
+    for value in diverging:
+        assert not pattern.match(value), f"grammar admits {value}"
+        datetime.fromisoformat(value)  # parses here, on the dev interpreter
+
+    probe = (
+        "from datetime import datetime\n"
+        f"for value in {diverging!r}:\n"
+        "    try:\n"
+        "        datetime.fromisoformat(value)\n"
+        "    except ValueError:\n"
+        "        continue\n"
+        "    raise SystemExit('3.10 now parses ' + value)\n"
+        "print('ok')\n"
+    )
+
+    result = subprocess.run(
+        [PYTHON310, "-c", probe],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr

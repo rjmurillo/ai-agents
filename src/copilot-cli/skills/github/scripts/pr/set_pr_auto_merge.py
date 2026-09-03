@@ -245,10 +245,10 @@ def enable_auto_merge(
                 f"--pull-request {pr_number} --strategy {strategy}"
             )
             error_and_exit(
-                "Cannot enable auto-merge: PR is in CLEAN merge state "
-                "(all required checks pass, no pending reviews, no "
-                "conflicts). GitHub blocks auto-merge for CLEAN PRs "
-                "because there is nothing to wait on.\n"
+                "Cannot enable auto-merge: PR merge state is already "
+                "satisfied (all required checks pass, no pending reviews, "
+                "no conflicts). GitHub blocks auto-merge because there is "
+                "nothing to wait on.\n"
                 "Merge directly:\n"
                 f"  {fallback}",
                 3,

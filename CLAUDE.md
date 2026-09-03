@@ -34,7 +34,7 @@ Start with cheapest option. Escalate only when cheaper option lacks capability.
 
 ## Path-scoped instructions
 
-Before editing any file, read matching rules in `.claude/rules/*.md`. Each file's `applyTo` frontmatter targets a path glob. Universal rules live in `.claude/rules/universal.md`.
+Before editing any file, read matching rules in `.claude/rules/*.md`. Each file's `paths` frontmatter targets a path glob; that is the key Claude Code reads, and `scripts/validation/check_rule_scope_keys.py` refuses any other. Universal rules live in `.claude/rules/universal.md`.
 
 Planned build extension ships Copilot-compatible copies to `.github/instructions/` from same source.
 

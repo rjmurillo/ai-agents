@@ -99,7 +99,15 @@ from scripts.validation.portability_common import (  # noqa: E402
 AUDIT_PATH = ".agents/audits/2026-05-10-agent-skill-classification-audit.md"
 ADR_PATH = ".agents/architecture/ADR-030-skills-pattern-superiority.md"
 
-# Reserved metadata files that are not agents.
+# Reserved metadata filenames that are not agents.
+#
+# No file in .claude/agents/ matches these any more: issue #5493 deleted
+# AGENTS.md and CLAUDE.md from that tree. They stay because this is a
+# predicate over arbitrary paths, not a scan of the current tree, and it is
+# fed diff paths from any commit. What changed is their standing: under
+# #4813 these entries WERE the fix, which is why the loader kept shipping
+# the files. check_agent_tree_frontmatter.py is now the gate that fails on
+# them, so these are defense in depth behind it, never a substitute.
 _NON_AGENT_NAMES: frozenset[str] = frozenset({"AGENTS", "CLAUDE", "README"})
 
 # c2: an agent body counts as skill-shape when this fraction of its content
@@ -377,6 +385,10 @@ def is_agent_path(path: str) -> bool:
     """True when the path is an agent definition (not metadata, not a skill).
 
     Excludes reference documentation under ``agents/*/references/`` (#4813).
+    ``.claude/agents/`` holds no such directory since #5493 moved the three
+    security reference docs into ``.claude/skills/security-scan/references/``.
+    The clause stays as a guard on the predicate, not as the enforcement:
+    ``check_agent_tree_frontmatter.py`` is what fails the build if one returns.
     """
     norm = path.replace("\\", "/")
     name = agent_name_from_path(norm)
