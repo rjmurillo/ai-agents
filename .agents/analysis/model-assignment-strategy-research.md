@@ -9,7 +9,7 @@
 ## Corrections recorded 2026-09-03
 
 The body below is the 2026-04-26 record, left as authored so it still shows what
-was believed when the plan derived from it was written. Nine of its claims are
+was believed when the plan derived from it was written. Ten of its claims are
 wrong. They are corrected here by quotation rather than edited in place.
 
 1. **The Flow A translator was already Python.** Every mention of
@@ -82,6 +82,15 @@ wrong. They are corrected here by quotation rather than edited in place.
    deprecation and
    preservation](https://www.anthropic.com/research/deprecation-commitments),
    which the sentence already cites.
+10. **The Flow B diagram adds an output its source does not have.** The diagram
+    shows `skill-installer` producing both `.claude/agents/*.md` and
+    `.claude/skills/*/SKILL.md` from `src/claude/*.md`, and attributes the two
+    flows to `templates/AGENTS.md`. At `49f05187` that file shows the install
+    path ending at `.claude/agents/*.md`, and `src/claude/AGENTS.md` shows the
+    same single output. `src/claude/` at that commit holds agent markdown only,
+    no skills. The skills surface is real and is the migration target this audit
+    names, but it is not installed output of `src/claude/`, so a successor
+    should not look for a generator that would rewrite it.
 
 ## Problem
 
