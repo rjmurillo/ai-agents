@@ -115,9 +115,51 @@ _TOO_NEW_MODULES = {
 }
 
 
+def _module_bindings(tree: ast.AST) -> dict[str, str]:
+    """Local name -> module, for every plain ``import`` in the file.
+
+    `import datetime` binds `datetime`; `import datetime as dt` binds `dt`.
+    Requiring a binding is what keeps the qualified arm below precise: an
+    `x.timeout` on some local object reaches no entry here, so the gate cannot
+    fail a push for a name that merely looks like a stdlib API.
+    """
+    bindings: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Import):
+            continue
+        for alias in node.names:
+            if alias.asname:
+                bindings[alias.asname] = alias.name
+            else:
+                top = alias.name.split(".")[0]
+                bindings[top] = top
+    return bindings
+
+
+def _attribute_violation(
+    path: Path, node: ast.Attribute, bindings: dict[str, str]
+) -> list[str]:
+    """Report a too-new name reached as ``<module>.<attr>``.
+
+    `from datetime import UTC` was the only shape either table saw, so
+    `import datetime` followed by `datetime.UTC` passed, and so did the
+    aliased form and the qualified `asyncio.timeout`, `itertools.batched`,
+    and `hashlib.file_digest`. Each is the same runtime ImportError one
+    import style over (Copilot review on PR #5509).
+    """
+    module = bindings.get(node.value.id) if isinstance(node.value, ast.Name) else None
+    table = _TOO_NEW_FROM_IMPORT.get(module, {}) if module else {}
+    if node.attr in table:
+        return [f"{path.name}: {module}.{node.attr} ({table[node.attr]})"]
+    if node.attr in _TOO_NEW:
+        return [f"{path.name}: {node.attr} ({_TOO_NEW[node.attr]})"]
+    return []
+
+
 def _violations(path: Path) -> list[str]:
     found = []
     tree = ast.parse(path.read_text(encoding="utf-8"))
+    bindings = _module_bindings(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             found += [
@@ -136,8 +178,8 @@ def _violations(path: Path) -> list[str]:
                 for alias in node.names
                 if alias.name in table
             ]
-        if isinstance(node, ast.Attribute) and node.attr in _TOO_NEW:
-            found.append(f"{path.name}: {node.attr} ({_TOO_NEW[node.attr]})")
+        if isinstance(node, ast.Attribute):
+            found += _attribute_violation(path, node, bindings)
         if isinstance(node, ast.Name) and node.id in _TOO_NEW:
             found.append(f"{path.name}: {node.id} ({_TOO_NEW[node.id]})")
     return found
@@ -175,6 +217,18 @@ class TestBundledLibStaysAtTheFloor:
             # arm that catches plain `import tomllib` never fires.
             ("import tomllib as t\n", "import tomllib"),
             ("from tomllib import loads\n", "from tomllib"),
+            # Qualified access on a plainly imported module. Every one of these
+            # passed before the binding-aware arm: the anywhere-table holds no
+            # `UTC`, `batched`, or `file_digest`, and the from-import table only
+            # ever saw an ImportFrom.
+            ("import datetime\nx = datetime.UTC\n", "datetime.UTC"),
+            ("import datetime as dt\nx = dt.UTC\n", "datetime.UTC"),
+            ("import itertools\nx = itertools.batched(y, 2)\n", "itertools.batched"),
+            (
+                "import hashlib\nx = hashlib.file_digest(f, 'sha256')\n",
+                "hashlib.file_digest",
+            ),
+            ("import asyncio\nx = asyncio.timeout\n", "asyncio.timeout"),
         ],
     )
     def test_the_scan_detects_a_planted_violation(self, tmp_path, source, expected):
@@ -203,3 +257,28 @@ class TestBundledLibStaysAtTheFloor:
         clean = _LIB / "github_core" / "api.py"
         assert clean.is_file()
         assert not _violations(clean)
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            # No import binds `session`, so this attribute names a local object
+            # rather than the stdlib module. The binding requirement is the
+            # whole reason the qualified arm can hold ordinary words like
+            # `timeout` and `batched` without failing a floor-clean push.
+            "def f(session):\n    return session.timeout\n",
+            "import datetime\n\n\ndef f(row):\n    return row.batched\n",
+            # A module the tables do not cover, accessed the same way.
+            "import os\nx = os.timeout\n",
+        ],
+    )
+    def test_a_qualified_name_without_a_module_binding_is_not_reported(
+        self, tmp_path, source
+    ):
+        """Control on the qualified arm: precision, not just recall.
+
+        A gate that fails a push for the wrong reason teaches people to bypass
+        it, which is the cost these cases exist to keep at zero.
+        """
+        planted = tmp_path / "floor_precision.py"
+        planted.write_text(source, encoding="utf-8")
+        assert not _violations(planted)
