@@ -150,14 +150,13 @@ first written.
 
 | Action | Type | Owner / tracking |
 |--------|------|------------------|
-| Wire `check_skill_md_exec_portability.py` into `pre_pr.py` | Governance | Unassigned. CI-only today, so a bare-path invocation is undiscoverable locally; it cost one review cycle on PR #5509. |
-| Wire `validate-slash-commands` into `pre_pr.py` | Governance | Unassigned. Same shape, cost a second cycle on the same PR. |
+| Wire `check_skill_md_exec_portability.py` and `validate-slash-commands` into `pre_pr.py` | Governance | Issue #5515. CI-only today, so a bare-path invocation and a rejected tool grant are both undiscoverable locally; between them they cost two review cycles on PR #5509. |
 | Decide MCP-mode write policy for `/pr-autofix` | Instruction | Repo owner. MCP mode is triage-only because no lease can be held; either implement the marker-comment lease over MCP operations or narrow the command's documented scope. |
-| Correct the `issue #2223` citation in `tests/validation/test_check_git_hook_health.py:60,166` | Docs | Unassigned. That issue is about splitting oversized modules; it was copied into new code from there before being caught. |
-| Split `tests/test_github_auth_classification.py` | Tech debt | Unassigned. Past the advisory taste-lint file-size threshold; natural seams are classification, remedy, retry, preflight. |
+| Correct the `issue #2223` citation in `tests/validation/test_check_git_hook_health.py:60,166` | Docs | Issue #5516. That issue is about splitting oversized modules; it was copied into new code from there before being caught. |
+| Split `tests/test_github_auth_classification.py` | Tech debt | Issue #5517. Past the advisory taste-lint file-size threshold; natural seams are classification, remedy, retry, preflight. |
 
-The first two are the same governance gap in two places: a gate that runs only
-in CI teaches contributors nothing until after they push. Both are cheap.
+The first row is one governance gap in two places: a gate that runs only in CI
+teaches contributors nothing until after they push. Both are cheap.
 
 ## Phase 4: Extracted Learnings
 
