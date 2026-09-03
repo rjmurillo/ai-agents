@@ -199,6 +199,37 @@ class TestMcpGrantsAreEnumerated:
         """
         assert "mcp__github__*" not in _granted(path)
 
+    @pytest.mark.parametrize("harness", ["claude_code", "copilot"])
+    def test_every_command_in_each_harness_map_names_a_file_that_exists(
+        self, harness
+    ):
+        """A map is only selectable if its targets are real.
+
+        The Copilot map named nine PowerShell files that exist in neither this
+        repository nor the standalone plugin. Nothing selected that map while
+        the workflow hardcoded `scripts.claude_code`, so the breakage was
+        dormant rather than absent, and it became live the moment the prose
+        started reading the harness map (Copilot review on PR #5509).
+        """
+        import re
+
+        import yaml
+
+        config = yaml.safe_load(
+            (REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        missing = []
+        for key, command in config["scripts"][harness].items():
+            for token in re.findall(r"[^\s\"']+\.(?:py|ps1)", command):
+                relative = token.split("}/")[-1].strip("\"'")
+                relative = relative.removeprefix(".claude/")
+                if not (REPO_ROOT / ".claude" / relative).is_file():
+                    missing.append(f"{harness}.{key} -> {relative}")
+
+        assert not missing, f"commands name files that do not exist: {missing}"
+
     def test_pr_review_may_run_the_copilot_launcher(self):
         """The Copilot check_transport entry shells pwsh, so the grant must allow it.
 

@@ -25,15 +25,28 @@ scripts:
     resolve_thread: "python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --expected-pull-request {number} --thread-id {thread_id}"
     check_transport: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils/check_github_transport.py" --output-format json'
   copilot:
-    get_pr_context: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}"
-    test_pr_merged: "pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}"
-    get_review_threads: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRReviewThreads.ps1 -PullRequest {number}"
-    get_unresolved_threads: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnresolvedReviewThreads.ps1 -PullRequest {number}"
-    cluster_threads: 'pwsh -NoProfile -Command "python3 .claude/skills/pr-comment-responder/scripts/cluster_threads.py --pull-request {number}"'
-    get_unaddressed_comments: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-UnaddressedComments.ps1 -PullRequest {number}"
-    get_pr_checks: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest {number}"
-    add_thread_reply: "pwsh -NoProfile .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest {number} -ThreadId {thread_id} -Body {body}"
-    resolve_thread: "pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId {thread_id}"
+    # Every command here names a shipped Python script, anchored on the plugin
+    # root. The previous entries named PowerShell files (Get-PRContext.ps1 and
+    # eight siblings) that exist in neither this repository nor the standalone
+    # plugin, under bare `.claude/...` paths that do not resolve in a vendored
+    # install either. Nothing selected this map until the pr-review workflow
+    # stopped hardcoding `scripts.claude_code`, so the breakage was dormant
+    # rather than absent; selecting it then made Step 1 fail before review
+    # (Copilot review on PR #5509).
+    #
+    # `python3` rather than a resolved launcher, matching every other entry in
+    # this file. Only `check_transport` resolves the interpreter, because it is
+    # the blocking Step 0 and a failure there stops the workflow instead of one
+    # step of it. Refs #5521.
+    get_pr_context: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_context.py" --pull-request {number}'
+    test_pr_merged: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/test_pr_merged.py" --pull-request {number}'
+    get_review_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_review_threads.py" --pull-request {number}'
+    get_unresolved_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_unresolved_review_threads.py" --pull-request {number}'
+    cluster_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/scripts/cluster_threads.py" --pull-request {number}'
+    get_unaddressed_comments: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_unaddressed_comments.py" --pull-request {number}'
+    get_pr_checks: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_checks.py" --pull-request {number}'
+    add_thread_reply: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/add_pr_review_thread_reply.py" --pull-request {number} --thread-id {thread_id} --body {body}'
+    resolve_thread: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/resolve_pr_review_thread.py" --expected-pull-request {number} --thread-id {thread_id}'
     # transport_preflight resolves command_key against the harness map, so the
     # Copilot map needs its own entry or Step 0 cannot dispatch at all. The
     # POSIX ${VAR:-default} form used in the claude_code map does not expand in
