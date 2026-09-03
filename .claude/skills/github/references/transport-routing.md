@@ -49,8 +49,14 @@ as the auth status `transport_blocked`.
 
 A narrower refusal exists and does not mean the same thing. A body that says
 one GraphQL query is not served, while REST still is, refuses an operation
-rather than the session. Only a refusal seen on both transports proves the
-session is blocked.
+rather than the session, and it names REST as the way through.
+
+The two bodies therefore take different evidence, which is what the classifier
+implements. The account-level REST wording closes the session on its own and is
+enough by itself. The narrower GraphQL wording is not: it is promoted only
+after both transports have failed, or after a credential probe shows the token
+is fine and the refusal is policy. Read "both transports" as the rule for the
+narrow body alone (ADR-100, "Two different 403s").
 
 `gh` stays the default everywhere it works, notably CI, where Actions supplies
 a working token. Nothing here removes `gh` from those environments.
@@ -64,8 +70,8 @@ Read operations:
 | `get_pr_context.py` | **Composite.** `pull_request_read` method `get`, plus `get_reviews`, `get_check_runs`, and `get_review_comments` | The script returns reviews, the check rollup, and review-thread counts alongside the PR fields. A bare `get` omits all three, so a blocking review or check disappears and the caller reads clean. Gather all four and derive. |
 | `get_pr_context.py --include-diff` | `pull_request_read` method `get_diff`, plus the reads above | `--include-diff` adds the diff, it does not replace the rest of the context. |
 | `get_pull_requests.py` | `list_pull_requests`, or `search_pull_requests` for filters | |
-| `get_pr_checks.py` | **Partial.** `pull_request_read` method `get_check_runs`, plus `get` for merge state. The required-context half has no MCP operation at all. | The script deduplicates runs, evaluates required and missing contexts, accounts for merge state, and polls. `get_check_runs` plus `get` reproduces every part except one: no exposed operation reads a branch ruleset or branch protection, so a required context that never emitted a check is not observable over MCP. That is the case where a bare run list reads clean on a PR that cannot merge, so the full verdict is unavailable here rather than derivable. Report checks and merge state, say the required-context set was not read, and never emit a PASS from this pair. For one run's output text, `get_check_run` where the harness exposes it, otherwise `get_job_logs`. |
-| `get_pr_check_logs.py` | **Composite.** `pull_request_read` method `get_check_runs`, then `get_job_logs` per failed run | Not a direct swap: the script takes a PR number and finds the failed run and job IDs itself, while `get_job_logs` requires an ID it cannot discover. Read the check runs first, derive each failed run or job ID, then fetch. `failed_only` skips green jobs within one run; it does not replace the discovery step. |
+| `get_pr_checks.py` | **Partial.** `pull_request_read` method `get_check_runs`, paginated to the end, plus `get` for merge state. The required-context half has no MCP operation at all. | The script deduplicates runs, evaluates required and missing contexts, accounts for merge state, and polls. Three things have to be reproduced by hand. **Paginate**: the operation returns at most 100 runs per page and a busy PR exceeds that (this PR reached 139), so a single page silently drops checks. **Keep the latest run per context name**: repeated pushes leave superseded runs in the list, so an obsolete failure reads as current. **Do neither and the verdict is wrong in both directions**, missing a live failure and inventing a dead one. The fourth part is not reproducible at all: no exposed operation reads a branch ruleset or branch protection, so a required context that never emitted a check is invisible, which is exactly when a run list reads clean on a PR that cannot merge. Report checks and merge state, say the required-context set was not read, and never emit a PASS from this pair. For one run's output text, `get_check_run` where the harness exposes it, otherwise `get_job_logs`. |
+| `get_pr_check_logs.py` | **Composite.** `pull_request_read` method `get_check_runs`, paginated and reduced as above, then `get_job_logs` per failed run | Not a direct swap: the script takes a PR number and finds the failed run and job IDs itself, while `get_job_logs` requires an ID it cannot discover. Read the check runs first, apply the same pagination and latest-per-context reduction, derive each failed run or job ID, then fetch. Skipping the reduction fetches logs for a superseded run and reports a failure the current head does not have. `failed_only` skips green jobs within one run; it does not replace the discovery step. |
 | `get_pr_review_comments.py` | `pull_request_read` method `get_review_comments` | Returns threads with `isResolved` |
 | `get_pr_reviews.py` | `pull_request_read` method `get_reviews` | |
 | `get_pr_reviewers.py` | union of `get_reviews`, `get_review_comments`, `get_comments`, and `get` | No single-call equivalent. All four are required: the script counts submitted reviews, review-thread authors, PR issue-comment authors, and requested reviewers. Dropping the last two loses reviewers who have not commented, which is the single-bot-blindness case the script exists to catch. |
