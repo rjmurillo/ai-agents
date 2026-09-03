@@ -28,18 +28,18 @@ state a code-only scope. `globs:` is preserved verbatim and never becomes
 `paths:`, so the source-side and mirror-side answers cannot diverge again.
 
 There is also no single answer per tree by default, so always name the tree with
-the number. The two destination trees agree today, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`, and PR #5513 added the token-economy patch to `claude-model-patches` while reclaiming the restated Boil-the-Lake paragraph from `voice` and the search trigger sentence from `builder-ethos`:
+the number. The two destination trees agree today, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, and issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 5 rules, 56,128 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 5 rules, 56,128 bytes |
+| `.github/instructions` | Copilot in this repository | 5 rules, 56,144 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 5 rules, 56,144 bytes |
 
 Membership is identical: `builder-ethos`, `claude-model-patches`,
 `search-before-building`, `universal`, `voice`.
 
 Those bytes are whole generated files, frontmatter included. The same five
-rules measure 56,223 bytes at `.claude/rules/`, 95 more, because the generator
+rules measure 56,239 bytes at `.claude/rules/`, 95 more, because the generator
 drops `priority:` and turns `paths:` into `applyTo:`. Name the
 tree whenever you quote a figure; a gap of about that size is a basis mismatch,
 not staleness.
@@ -50,7 +50,7 @@ a rule whose scope was entirely internal, which made `governance`,
 install 7,532 bytes a turn on three rules pointing at `.agents/` paths the
 installing repository does not have. PR #4426 replaced that fallback with an
 explicit skip, so those rules are absent from the plugin tree rather than
-universalized in it. The plugin ships 23 instruction files against 28 in
+universalized in it. The plugin ships 24 instruction files against 29 in
 `.github/instructions`, and that gap is the fix, not drift.
 
 `tests/validation/test_always_on_corpus_claims.py` pins the two trees together
@@ -96,10 +96,10 @@ first leaves a line in the source file that a grep can find.
    assigned `_UNIVERSAL_SCOPE` instead of returning, which is what made narrowly
    scoped rules always-on for plugin consumers.
 
-Four rules take that skip today: `governance`, `push-lock`,
-`secret-redaction`, and `session-logs` are present in `.github/instructions`
-and absent from `src/copilot-cli/instructions` altogether, which is the whole
-of the 27-against-23 file gap. So the two trees hold different *rule sets*
+Five rules take that skip today: `governance`, `push-lock`,
+`secret-redaction`, `session-logs`, and `tool-use-hook-bar` are present in
+`.github/instructions` and absent from `src/copilot-cli/instructions`
+altogether, which is the whole of the 29-against-24 file gap. So the two trees hold different *rule sets*
 while agreeing on the always-on subset. Membership can still diverge, by a
 rule the filter does not touch gaining or losing a universal scope in one tree
 only.
