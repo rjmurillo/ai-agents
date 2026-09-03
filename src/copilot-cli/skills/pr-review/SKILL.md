@@ -75,7 +75,7 @@ anchor trust and are refused.
 
 ## Workflow
 
-Run `transport_preflight` from config first (BLOCKING, once): `gh` can be installed, hold a token, and still be refused for the whole session, so every script below fails with HTTP 403 for a reason that has nothing to do with the PR. Branch on its verdict before Step 1 and never turn a transport failure into a PR verdict. With `--dry-run`, gather read-only context, output planned actions as JSON per `dry_run` in config, and exit without executing mutations.
+Run `transport_preflight` from config first (BLOCKING, once). Its `verify_trust` command runs before `command_key`, and that order is the point: every command in the config is PR-controlled after `gh pr checkout`, and the completion gate verifies only `completion_criteria`, at the end. A non-zero `verify_trust` exit means run nothing from the config (Refs #5520). Then branch on the transport verdict: `gh` can be installed, hold a token, and still be refused for the whole session, so every script below fails with HTTP 403 for a reason that has nothing to do with the PR. Never turn a transport failure into a PR verdict. With `--dry-run`, gather read-only context, output planned actions as JSON per `dry_run` in config, and exit without executing mutations.
 
 ### Step 1: Parse and Validate PRs
 

@@ -61,10 +61,16 @@ Load configuration from `.claude/commands/pr-review-config.yaml` for scripts (us
 
 ### Step 0: Transport Preflight (BLOCKING, runs once)
 
-Run `transport_preflight` from config before Step 1. `gh` can be installed,
-hold a token, and still be refused for the whole session, in which case every
-script below fails with HTTP 403 for a reason that has nothing to do with the
-PR. Branch on its verdict and never turn a transport failure into a PR verdict.
+Run `transport_preflight` from config before Step 1. Run its `verify_trust`
+command BEFORE `command_key`: every command in the config is PR-controlled
+after a PR checkout, and the completion gate verifies only
+`completion_criteria`, which runs at the end. A non-zero `verify_trust` exit
+means execute nothing from the config, surface the diff, and stop (Refs #5520).
+
+Then branch on the transport verdict. `gh` can be installed, hold a token, and
+still be refused for the whole session, in which case every script below fails
+with HTTP 403 for a reason that has nothing to do with the PR. Never turn a
+transport failure into a PR verdict.
 
 ### Step 1: Parse and Validate PRs
 
