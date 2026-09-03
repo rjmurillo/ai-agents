@@ -72,6 +72,39 @@ class TestTransportRouting:
         assert transport == mod.TRANSPORT_MCP
         assert code == 0
 
+    def test_missing_gh_is_never_told_to_run_gh_auth_login(self):
+        """The library message covers both causes of MISSING_GH in one sentence.
+
+        It ends "Run 'gh auth login' first", which is right for an
+        unauthenticated gh and false for an absent one: logging in cannot
+        install a binary. Routing on that text reproduces the misdiagnosis this
+        script exists to end, one status over (Copilot review on PR #5509).
+        """
+        with patch.object(
+            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.MISSING_GH)
+        ):
+            _, _, _, detail = mod.resolve_transport()
+
+        assert "gh auth login" not in detail
+        assert "not on PATH" in detail
+        assert "mcp__github__" in detail
+
+    def test_a_real_credential_fault_still_says_to_authenticate(self):
+        """Control: the remedy is only wrong for the status it is wrong for.
+
+        Without this, MISSING_GH's detail could be swapped in everywhere and
+        the assertion above would still pass while an operator with a genuinely
+        bad token lost the one instruction that fixes it.
+        """
+        with patch.object(
+            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.INVALID_CREDENTIALS)
+        ):
+            transport, code, _, detail = mod.resolve_transport()
+
+        assert transport == ""
+        assert code == 4
+        assert "gh auth login" in detail
+
     @pytest.mark.parametrize(
         "status",
         [
@@ -278,3 +311,114 @@ class TestShippedArtifactRuntimeContract:
             timeout=60,
         )
         assert result.returncode != 0
+
+
+class TestConfiguredLaunchersRun:
+    """Execute the launcher strings the workflows actually dispatch.
+
+    `TestShippedArtifactRuntimeContract` above runs the shipped file with
+    `sys.executable`, which proves the module resolves its library from a
+    foreign cwd and nothing about the command that reaches it. Broken quoting,
+    the wrong harness map, or a wrong script path inside
+    `pr-review-config.yaml` all leave that class green (Copilot review on
+    PR #5509). These run the config's own value, from a foreign cwd, against
+    the shipped Copilot tree, with a deterministic `gh` first on PATH.
+
+    Known gap: the PowerShell branch resolves `python3` on this runner. The
+    `py -3` rung it falls back to exists only on Windows, so that arm is
+    unexercised here and no Windows runner is available to exercise it.
+    """
+
+    CONFIG = _project_root / ".claude" / "commands" / "pr-review-config.yaml"
+    PLUGIN_ROOT = _project_root / "src" / "copilot-cli"
+
+    @staticmethod
+    def _command(harness):
+        import yaml
+
+        config = yaml.safe_load(
+            TestConfiguredLaunchersRun.CONFIG.read_text(encoding="utf-8")
+        )
+        return config["scripts"][harness]["check_transport"]
+
+    def _env(self, tmp_path, **extra):
+        import os
+
+        env = dict(os.environ)
+        for leaked in (
+            "COPILOT_PLUGIN_ROOT",
+            "CLAUDE_PLUGIN_ROOT",
+            "GH_TOKEN",
+            "GITHUB_TOKEN",
+            "GH_HOST",
+        ):
+            env.pop(leaked, None)
+        stub = TestShippedArtifactRuntimeContract._stub_gh(tmp_path)
+        env["PATH"] = f"{stub}{os.pathsep}{env.get('PATH', '')}"
+        env.update(extra)
+        return env
+
+    def _run(self, harness, tmp_path, **env_extra):
+        import subprocess
+
+        return subprocess.run(
+            ["bash", "-c", self._command(harness)],
+            cwd=str(tmp_path),
+            env=self._env(tmp_path, **env_extra),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+
+    @pytest.mark.parametrize("harness", ["claude_code", "copilot"])
+    def test_the_configured_command_runs_from_a_foreign_cwd(self, harness, tmp_path):
+        import json
+        import shutil
+
+        if harness == "copilot" and shutil.which("pwsh") is None:
+            pytest.skip("pwsh is not installed on this runner")
+
+        result = self._run(
+            harness, tmp_path, COPILOT_PLUGIN_ROOT=str(self.PLUGIN_ROOT)
+        )
+
+        assert result.returncode == 0, (
+            f"{harness} launcher failed: {result.stdout}{result.stderr}"
+        )
+        payload = json.loads(result.stdout)
+        assert payload["Data"]["Transport"] == "gh"
+        assert payload["Metadata"]["Script"] == "check_github_transport.py"
+
+    @pytest.mark.parametrize("harness", ["claude_code", "copilot"])
+    def test_the_configured_command_fails_without_a_plugin_root(
+        self, harness, tmp_path
+    ):
+        """Negative control: the same command, minus the only thing that resolves it.
+
+        Both launchers fall back to a bare `.claude`, which does not exist in a
+        foreign cwd. Without this, a command that hardcoded an absolute path on
+        the developer's machine would pass the case above.
+        """
+        import shutil
+
+        if harness == "copilot" and shutil.which("pwsh") is None:
+            pytest.skip("pwsh is not installed on this runner")
+
+        result = self._run(harness, tmp_path)
+
+        assert result.returncode != 0, (
+            f"{harness} launcher resolved with no plugin root: {result.stdout}"
+        )
+
+    def test_both_harness_maps_define_the_preflight(self):
+        """The key `transport_preflight.command_key` resolves against.
+
+        A map missing it leaves that harness unable to dispatch Step 0 at all,
+        which is how the Copilot entry was absent in an earlier round.
+        """
+        import yaml
+
+        config = yaml.safe_load(self.CONFIG.read_text(encoding="utf-8"))
+        key = config["transport_preflight"]["command_key"]
+        for harness in ("claude_code", "copilot"):
+            assert key in config["scripts"][harness], f"{harness} cannot dispatch {key}"

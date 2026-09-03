@@ -17,10 +17,17 @@ Three environments produce three different answers:
 - No ``gh`` at all: same routing as above, for a different reason.
 
 Exit codes follow ADR-035:
-    0 - A usable transport was identified (read ``transport`` for which)
+    0 - The gh capability check completed; read ``transport`` for the verdict
     2 - Config error (plugin lib missing)
     3 - External error (quota refusal or transport wobble; retry shortly)
     4 - Auth error (a credential fault the operator can fix)
+
+Exit 0 is not a promise that a usable transport exists. It says this check ran
+and reached a verdict about ``gh``. ``gh_unusable`` in particular is a
+statement about gh alone: this script cannot see an MCP server and never
+probes for one, so a caller that reads exit 0 as "the workflow can run" will
+treat an unavailable workflow as runnable. Confirming the operations you need
+are exposed is the caller's job, and ``Data.Guidance`` says so at runtime.
 """
 
 from __future__ import annotations
@@ -67,6 +74,16 @@ TRANSPORT_MCP = "gh_unusable"
 # does to the token, and that a second transport is expected to cover.
 _ROUTE_TO_MCP = frozenset({GhAuthStatus.TRANSPORT_BLOCKED, GhAuthStatus.MISSING_GH})
 
+# The absent-binary half of MISSING_GH, stated without the auth remedy that
+# shares its status in the library's combined message.
+_MISSING_GH_DETAIL = (
+    "The GitHub CLI (gh) is not on PATH, so every gh-backed script under this "
+    "skill will fail to launch. No credential change helps: there is nothing "
+    "to authenticate. Use the GitHub MCP operations for this work (spelled "
+    "mcp__github__* in Claude Code, github/* in Copilot CLI), install gh, or "
+    "run this where gh is present, such as CI."
+)
+
 # This script can only observe gh. It cannot see whether a GitHub MCP server
 # is configured, nor whether the operations a workflow needs are among the
 # tools that server exposes: a read-only toolset would still leave a PR
@@ -96,9 +113,17 @@ def resolve_transport() -> tuple[str, int, str, str]:
 
     message, exit_code, _ = describe_gh_auth_failure(result)
     if result.status in _ROUTE_TO_MCP:
-        # A usable transport exists, so this is not a failure to report as one.
-        # Exit 0 keeps the caller moving instead of aborting the workflow.
-        return TRANSPORT_MCP, 0, result.status.value, message
+        # gh is not an option, so this is not a failure to report as one. Exit
+        # 0 keeps the caller moving instead of aborting the workflow.
+        #
+        # MISSING_GH takes its own detail. describe_gh_auth_failure covers both
+        # of its causes in one sentence ending "Run 'gh auth login' first",
+        # which is the right half for an unauthenticated gh and false for an
+        # absent one: logging in cannot install a binary. Routing on that text
+        # reproduces the misdiagnosis this script exists to end, one status
+        # over (Copilot review on PR #5509).
+        detail = _MISSING_GH_DETAIL if result.status is GhAuthStatus.MISSING_GH else message
+        return TRANSPORT_MCP, 0, result.status.value, detail
     return "", exit_code, result.status.value, message
 
 
