@@ -70,8 +70,25 @@ _FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
 _ALLOWED_TOOLS_LINE_RE = re.compile(
     r"^allowed-tools:.*(?:\n[ \t].*)*$", re.MULTILINE
 )
-# `mcp__<server>__<op>`; `<op>` is `*` for a whole-namespace grant.
-_MCP_TOOL_NAME_RE = re.compile(r"mcp__([A-Za-z0-9_]+?)__([A-Za-z0-9_]+|\*)")
+# `mcp__<server>__<op>`; `<op>` is `*` for a whole-namespace grant. Hyphens are
+# legal in both halves and this repository uses them: `mcp__context7__` names
+# `resolve-library-id`, and `mcp__plugin_claude-mem_mcp-search__` hyphenates the
+# server. Excluding `-` from the server made the pattern fail to match those
+# names at all, so the Claude spelling survived into a Copilot grant that cannot
+# resolve it (Copilot review on PR #5509).
+#
+# A `plugin_`-aliased server is deliberately left alone. Copilot does not spell
+# `mcp__plugin_context-mode_context-mode__ctx_execute` as
+# `plugin_context-mode_context-mode/ctx_execute`; it uses
+# `context-mode_ctx_execute` (`tests/commands/test_research_command_contract.py`
+# records both spellings). That mapping depends on how the plugin is aliased,
+# which this transform cannot know, so guessing would ship a name as wrong as
+# the one it replaced. Skipping leaves `mcp__` in the mirror, which the
+# committed-artifact gate fails on, so the case surfaces to a human instead of
+# shipping silently.
+_MCP_TOOL_NAME_RE = re.compile(
+    r"mcp__(?!plugin_)([A-Za-z0-9_-]+?)__([A-Za-z0-9_-]+|\*)"
+)
 
 # Locate the start of a `Skill(` / `Task(` call. The matching close paren is
 # found by a quote-aware balanced scan (a `prompt="..."` argument can contain

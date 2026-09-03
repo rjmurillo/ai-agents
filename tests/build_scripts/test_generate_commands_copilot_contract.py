@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size -- one contract suite per translation transform;
+# each case pairs a positive with the control that makes it discriminate, and
+# splitting them from the transform they pin loses that pairing (issue #3779).
 """Copilot CLI runtime-contract tests for the command-to-skill bridge.
 
 Issue #2743. Verifies the translation that `generate_commands` applies to
@@ -24,6 +27,8 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
@@ -244,6 +249,53 @@ def test_allowed_tools_mcp_names_respelled_for_copilot(tmp_path: Path) -> None:
 
     assert "allowed-tools: Bash, Read, github/*, serena/find_symbol\n" in out
     assert "mcp__" not in out
+
+
+@pytest.mark.parametrize(
+    ("claude_name", "copilot_name"),
+    [
+        ("mcp__github__pull_request_read", "github/pull_request_read"),
+        ("mcp__github__*", "github/*"),
+        # Hyphens are legal in both halves and this repository uses them in
+        # both positions (Copilot review on PR #5509).
+        ("mcp__context7__resolve-library-id", "context7/resolve-library-id"),
+        ("mcp__claude-mem__search", "claude-mem/search"),
+    ],
+)
+def test_hyphenated_server_and_operation_names_are_respelled(
+    tmp_path: Path, claude_name: str, copilot_name: str
+) -> None:
+    """Excluding `-` from the server made the pattern skip the name entirely.
+
+    A skipped name leaves the Claude spelling in a Copilot grant, which is the
+    inert-grant defect the transform exists to prevent, arriving through a
+    silent non-match rather than a wrong rewrite.
+    """
+    content = f"---\nallowed-tools: Read, {claude_name}\n---\nbody\n"
+
+    out = copilot_body_translation.translate_skill_file(content, tmp_path)
+
+    assert f"allowed-tools: Read, {copilot_name}\n" in out
+
+
+def test_a_plugin_aliased_server_is_left_for_a_human(tmp_path: Path) -> None:
+    """Control: not every `mcp__` name has a mechanical Copilot spelling.
+
+    Copilot names `mcp__plugin_context-mode_context-mode__ctx_execute` as
+    `context-mode_ctx_execute`, not as the server path this transform would
+    build. That mapping depends on plugin aliasing the generator cannot see, so
+    guessing ships a name as wrong as the one it replaced. Leaving it makes the
+    committed-artifact gate fail on the surviving `mcp__`, which surfaces the
+    case instead of shipping it.
+    """
+    content = (
+        "---\nallowed-tools: Read, mcp__plugin_context-mode_context-mode__*\n"
+        "---\nbody\n"
+    )
+
+    out = copilot_body_translation.translate_skill_file(content, tmp_path)
+
+    assert "mcp__plugin_context-mode_context-mode__*" in out
 
 
 def test_allowed_tools_respelling_handles_the_yaml_list_form(tmp_path: Path) -> None:
