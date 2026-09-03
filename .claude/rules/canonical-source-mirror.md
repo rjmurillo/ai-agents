@@ -135,16 +135,18 @@ Everything above says the canonical source is authoritative and a generated mirr
 
 The question is whether a rule loads on every agent turn. A rule is always-on when its **generated** `applyTo` resolves to `**`, so the answer lives in the generated tree.
 
-The two destination trees now agree, measured on this branch after issue #5492 narrowed `knowledge-persistence` out of the always-on set and PR #5498 dropped the jargon gloss list from `voice`:
+The two destination trees now agree, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, and PR #5498 dropped the jargon gloss list from `voice`:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot working in this repository | 6 rules, 65,334 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 6 rules, 65,334 bytes |
+| `.github/instructions` | Copilot working in this repository | 5 rules, 51,186 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 5 rules, 51,186 bytes |
 
-The membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`, `search-before-building`, `universal`, `voice`.
+The membership is identical: `builder-ethos`, `claude-model-patches`, `search-before-building`, `universal`, `voice`.
 
-Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same six rules measure 65,433 bytes at `.claude/rules/`, 99 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
+Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same five rules measure 51,281 bytes at `.claude/rules/`, 95 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
+
+The Claude side answers the same question from the source, and it reads `paths:` alone. It ignores `applyTo:`, `globs:`, and `alwaysApply:`, all three of which `generate_rules.py` accepts, and each fails differently. `applyTo:` is remapped, so the mirror is scoped and only the Claude source leaks (`pragmatic-programmer`). `globs:` is preserved verbatim and never becomes `applyTo:`, so neither tree is scoped. `alwaysApply:` is dropped before the generator synthesizes `applyTo: '**'`, so both trees load universally and a code-only rule cannot state its scope (`code-quality`). Between them, 25,527 bytes loaded on every doc-only session (issue #4871). `check_rule_scope_keys.py`, under the validation-scripts tree, now fails the build on any scope key but `paths:`, which is what keeps the source-side and mirror-side answers the same. The directory prefix is omitted for the same reason the citation-freshness gate's is above: this rule ships in the plugin instruction mirrors, where an upstream-only path would dangle.
 
 That agreement is recent and it is load bearing, so keep naming the tree with the number. Until issue #4317 closed, the generator universalized a rule whose scope was entirely internal, which made `governance`, `secret-redaction`, and `session-logs` always-on in the plugin and cost a vendor install 7,532 bytes a turn on three rules pointing at `.agents/` paths the installing repository does not have. PR #4426 replaced that fallback with an explicit skip, so those rules are now absent from the plugin tree rather than universalized in it. The plugin ships 23 instruction files against 28 in `.github/instructions`, and that gap is the fix rather than drift.
 

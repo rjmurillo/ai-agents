@@ -450,14 +450,16 @@ A single tie is the third row, not the first. Replication is what separates
 them: one run cannot distinguish a real equivalence from noise, and the noise
 floor here spans most of the usable range.
 
-The last row is the common case and the easy one to skip. As of 2026-08-04,
-`code-quality.md` (14,152 bytes) already has a scenario file carrying four
+The last row is the common case and the easy one to skip. As of 2026-09-02,
+`code-quality.md` (14,402 bytes) already has a scenario file carrying four
 scenarios, added by PR #4017, and no scored result anywhere in
-`evals/reports/`. It is the only **book-derived** always-on rule left, rank 2
-in the corpus behind `voice.md` (17,911 bytes). `pragmatic-programmer.md`
-(11,375 bytes) sits on the same footing with four scenarios of its own, and was
-itself always-on until PR #4424 narrowed its `applyTo` to source files, so it
-now loads on a code edit and not otherwise.
+`evals/reports/`. No **book-derived** rule is always-on now: issue #4871 found
+this one scoped with `alwaysApply:`, a key Claude Code ignores, and rescoped it
+to code files, which leaves `voice.md` (17,911 bytes) as the largest rule in the
+corpus. `pragmatic-programmer.md` (11,479 bytes) sits on the same footing with
+four scenarios of its own. PR #4424 narrowed it to source files, but it wrote
+the narrowing under `applyTo:`, so the rule went on loading on every Claude
+session until #4871 moved it to `paths:`.
 
 Written scenarios are not the missing piece for either rule. A scored run is.
 `check_rule_activation_coverage.py` lists both as uncovered and still exits 0,
@@ -465,23 +467,23 @@ because the uncovered set is inside its recorded baseline. Nothing goes red
 while the gap stays open, which is why reading the scenario directory is a
 worse signal than reading `evals/reports/`.
 
-Note that always-on status is declared **three** different ways: `applyTo:
-'**'` (five rules), `alwaysApply: true` (one, `code-quality.md`), and `paths:`
-carrying `**` (zero, since issue #5492 narrowed `knowledge-persistence.md`,
-which used the block-list form rather than the inline `paths: ["**"]`). The
-form is still live in the generator, so a survey that greps for one convention
-misses the others, and a regex written for the inline form misses the block
-list. That is how an earlier draft got the ranking wrong and then, after a
-correction that added only the second form, still undercounted. Enumerate by
-parsing frontmatter.
+Always-on status used to be declared three different ways, and only one of them
+survives: `applyTo: '**'` (zero rules), `alwaysApply: true` (zero, since
+`scripts/validation/check_rule_scope_keys.py` fails the build on either key),
+and `paths:` carrying `**` (five, in the block-list form or the inline
+`paths: ["**"]`). Both shapes of the surviving form still matter to a survey:
+a regex written for the inline form misses the block list. That is how an
+earlier draft got the ranking wrong and then, after a correction that added
+only the second form, still undercounted. Enumerate by parsing frontmatter.
 
-Six rules is the corpus. Do not hardcode its size; it changes on every rule
+Five rules is the corpus. Do not hardcode its size; it changes on every rule
 edit. Regenerate it below, and say which basis you mean: this gate reads the
-generated `.github/instructions/` mirrors, which total 99 bytes less than the
-`.claude/rules/` sources. Two separate frontmatter rewrites produce that delta,
-not one. `generate_rules.py` strips `priority:` from the five rules that carry
-it, worth 95 bytes, and it converts `code-quality.md` from `alwaysApply: true`
-to `applyTo: '**'`, worth the remaining 4 bytes.
+generated `.github/instructions/` mirrors, which total 95 bytes less than the
+`.claude/rules/` sources. One frontmatter rewrite produces that delta now, not
+two. `generate_rules.py` strips `priority:` from the five rules that carry it,
+worth 95 bytes, and its second rewrite, turning `alwaysApply: true` into
+`applyTo: '**'`, is worth the remaining 0 bytes because issue #4871 retyped the
+last rule that declared that key.
 
 ```bash
 uv run --frozen python scripts/validation/instruction_budget.py --format table
@@ -633,4 +635,4 @@ scenario the model handles correctly with an empty system prompt proves
 nothing about the rule. Aim for cases where the rule's specific guidance
 changes the answer.
 
-<!-- vendor-portability: declared, and it covers two different kinds of dependency. The severe one is executable: commands in this file invoke scripts/validation/instruction_budget.py, scripts/eval/eval-rule-activation.py, and build/scripts/generate_rules.py, none of which ships in any plugin root, so a vendored install cannot run this procedure at all. That is intended. The audience is repo contributors working in a full checkout, and SKILL.md's audit always-on rules trigger says so in its own words: "Requires a full rjmurillo/ai-agents checkout". The milder one is a citation: the provenance table points at .agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the archive holding the eight runs behind the published numbers, so a reader can re-derive every cell instead of taking them on faith. A vendored install loses the ability to check those raw artifacts locally; the procedure still reads, it just cannot reproduce our data. Do not resolve either by moving the eval harness under the skill: scripts/eval is large and still growing, three workflows (slash-command-quality.yml, skill-overlap-eval.yml, software-engineering-library-activation.yml) depend on it, check_rule_activation_coverage.py names it in its module docstring, and the parity requirement would ship a second byte-identical copy to every consumer. Issue #2050. -->
+<!-- vendor-portability: declared, and it covers two different kinds of dependency. The severe one is executable: commands in this file invoke scripts/validation/instruction_budget.py, scripts/eval/eval-rule-activation.py, and build/scripts/generate_rules.py, none of which ships in any plugin root, so a vendored install cannot run this procedure at all. That is intended. The audience is repo contributors working in a full checkout, and SKILL.md's audit always-on rules trigger says so in its own words: "Requires a full rjmurillo/ai-agents checkout". The milder one is a citation: the provenance table points at .agents/analysis/eval-artifacts/2026-07-29-unified-software-engineering/ as the archive holding the eight runs behind the published numbers, so a reader can re-derive every cell instead of taking them on faith. A vendored install loses the ability to check those raw artifacts locally; the procedure still reads, it just cannot reproduce our data. Do not resolve either by moving the eval harness under the skill: scripts/eval is large and still growing, three workflows (slash-command-quality.yml, skill-overlap-eval.yml, software-engineering-library-activation.yml) depend on it, check_rule_activation_coverage.py names it in its module docstring, and the parity requirement would ship a second byte-identical copy to every consumer. The form survey in step 3 names one more upstream-only path, scripts/validation/check_rule_scope_keys.py, the gate that keeps two of the three declaration forms extinct; a vendored install cannot run it either. Issue #2050. -->

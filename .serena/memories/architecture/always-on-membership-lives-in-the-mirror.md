@@ -9,25 +9,38 @@ forbids hand-editing a mirror at all.
 
 For exactly one question that convention is backwards.
 
-The question is which rules load on every agent turn. A rule is always-on when
-its **generated** `applyTo` resolves to `**`, so the answer lives in the
-generated tree. Parsing `.claude/rules/*.md` gives a wrong answer, wrong in both
-directions.
+The question is which rules load on every agent turn for a Copilot consumer. A
+rule is always-on there when its **generated** `applyTo` resolves to `**`, so
+the answer lives in the generated tree. Parsing `.claude/rules/*.md` for that
+question gives a wrong answer, wrong in both directions.
+
+Claude is the other half, and it reads the source: `paths:` alone, ignoring
+`applyTo:`, `globs:`, and `alwaysApply:`. That split is what made issue #4871
+possible, and the three keys fail differently. `pragmatic-programmer` declared
+code globs under `applyTo:`, which the generator remaps, so only the mirror was
+scoped and only the Claude source leaked. `code-quality` declared
+`alwaysApply: true`, which the generator drops before synthesizing
+`applyTo: '**'`, so both trees loaded universally and the rule had no way to
+state a code-only scope. `globs:` is preserved verbatim and never becomes
+`applyTo:`, so a rule using it leaves both trees unscoped. Between them,
+25,527 bytes loaded on every doc-only session.
+`scripts/validation/check_rule_scope_keys.py` now rejects every scope key but
+`paths:`, so the source-side and mirror-side answers cannot diverge again.
 
 There is also no single answer per tree by default, so always name the tree with
-the number. The two destination trees agree today, measured on this branch after issue #5492 narrowed `knowledge-persistence` out of the always-on set and PR #5498 dropped the jargon gloss list from `voice`:
+the number. The two destination trees agree today, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, and PR #5498 dropped the jargon gloss list from `voice`:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 6 rules, 65,334 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 6 rules, 65,334 bytes |
+| `.github/instructions` | Copilot in this repository | 5 rules, 51,186 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 5 rules, 51,186 bytes |
 
-Membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`,
+Membership is identical: `builder-ethos`, `claude-model-patches`,
 `search-before-building`, `universal`, `voice`.
 
-Those bytes are whole generated files, frontmatter included. The same six
-rules measure 65,433 bytes at `.claude/rules/`, 99 more, because the generator
-drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. Name the
+Those bytes are whole generated files, frontmatter included. The same five
+rules measure 51,281 bytes at `.claude/rules/`, 95 more, because the generator
+drops `priority:` and turns `paths:` into `applyTo:`. Name the
 tree whenever you quote a figure; a gap of about that size is a basis mismatch,
 not staleness.
 

@@ -66,7 +66,7 @@ Three further MUST NOT items moved to the always-on Universal Rules (items 7, 8,
 
 ## References
 
-- `AGENTS.md`. Directs every harness to read `.claude/rules/*.md` by `applyTo` first; the Codex common denominator.
+- `AGENTS.md`. Directs every harness to read `.claude/rules/*.md` by `paths` first; the Codex common denominator.
 - `build/scripts/generate_rules.py`. Generates both instruction mirrors from `.claude/rules/`.
 - `.claude/rules/generated-artifacts.md`. Regenerate-and-commit-in-the-same-change discipline.
 - `.claude/rules/plugin-version-bump.md`. Why the manifests carry no version field.

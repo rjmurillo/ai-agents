@@ -9,7 +9,7 @@
 |APIs: Context7, DeepWiki, WebSearch|Memory: `memory` skill
 |Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`|ADRs: `.agents/architecture/README.md`->`ADR-*.md`
 |Skills: `.claude/skills/{name}/SKILL.md`
-|Rules: read `.claude/rules/*.md` by `applyTo` first|Book depth: `software-engineering-library`|Generators: `.agents/governance/GENERATOR-FILES.md`
+|Rules: read `.claude/rules/*.md` by `paths` first|Book depth: `software-engineering-library`|Generators: `.agents/governance/GENERATOR-FILES.md`
 
 ## Gates
 
