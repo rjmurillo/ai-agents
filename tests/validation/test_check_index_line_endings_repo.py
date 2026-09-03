@@ -78,10 +78,13 @@ def test_touching_an_incident_path_reports_no_modification(path: str) -> None:
 
     `test_a_crlf_blob_reports_a_modification_nobody_made` proves the mechanism
     in a built repository. This proves it is gone from the two files it
-    actually happened to. `touch` changes only the modification time, so the
-    check is non-destructive: git re-reads the file and compares content.
+    actually happened to. `os.utime(path, None)` is `touch`'s own underlying
+    primitive: it updates only the access/modified timestamps on an existing
+    file and cannot create or write content, so the check stays non-destructive
+    while also being incapable of the working-tree litter that
+    `check_test_tree_writes.py` polices `Path.touch()` for.
     """
-    (REPO_ROOT / path).touch()
+    os.utime(REPO_ROOT / path, None)
 
     status = subprocess.run(
         ["git", "status", "--porcelain", "--", path],
