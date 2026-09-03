@@ -29,7 +29,7 @@ EXPECTED_FIXTURE_IDS = {
 
 
 def test_fixture_corpus_loads_and_controls_discriminate() -> None:
-    """load_fixtures validates every positive control passes and every negative fails at least one assertion."""
+    """Every positive control passes; every negative fails at least one assertion."""
     fixtures = runtime_parity.load_fixtures(FIXTURES_PATH)
 
     assert {f.fixture_id for f in fixtures} == EXPECTED_FIXTURE_IDS
@@ -50,7 +50,7 @@ def test_positive_controls_carry_no_banned_continuation_phrase() -> None:
 
 
 def test_negative_controls_are_the_documented_defect() -> None:
-    """Each negative control must fail because it reopens the interaction, not for an unrelated reason."""
+    """Each negative control must fail because it reopens the interaction, not for anything else."""
     fixtures = runtime_parity.load_fixtures(FIXTURES_PATH)
     banned = ("want me to", "would you like me to", "happy to", "let me know if you want")
 

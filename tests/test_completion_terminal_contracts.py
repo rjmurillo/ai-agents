@@ -171,7 +171,7 @@ def test_zero_finding_scenarios_stay_tied_to_the_prompt_text(
     scenarios_path: Path, scenario_id: str, surface_paths: tuple[Path, ...]
 ) -> None:
     """A scenario that drifts from the shipped rule would grade the wrong behavior."""
-    scenario = _scenario(scenarios_path, scenario_id)
+    _scenario(scenarios_path, scenario_id)  # validates exactly one scenario exists
 
     for path in surface_paths:
         text = _text(path)
