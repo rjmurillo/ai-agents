@@ -97,13 +97,23 @@ SLIMMED_AGENTS: tuple[str, ...] = (
 
 
 def _frontmatter_end(text: str) -> int | None:
-    """Return the index just past the closing `---` line, or None if absent."""
+    """Return the index just past the closing `---` line, or None if absent.
+
+    The search starts at the newline that closes the opening delimiter, not
+    past it, so an empty block (`---` on one line and `---` on the next) is
+    terminated rather than unterminated. A closing delimiter that ends the
+    file with no trailing newline counts too. Both shapes are legal
+    frontmatter, and `main` now rejects an unterminated block outright, so
+    misreading either one would refuse to sync a valid file.
+    """
     if not text.startswith("---\n"):
         return None
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return None
-    return end + len("\n---\n")
+    end = text.find("\n---\n", 3)
+    if end != -1:
+        return end + len("\n---\n")
+    if text.endswith("\n---"):
+        return len(text)
+    return None
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:

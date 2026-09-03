@@ -323,10 +323,36 @@ def test_split_frontmatter_keeps_both_delimiters_in_the_frontmatter() -> None:
         ("no frontmatter\n", False),
         ("", False),
         ("---\n", True),
+        ("---\n---\n" + SOURCE_BODY, False),
+        ("---\nname: analyst\n---", False),
+        ("---\n---", False),
     ],
 )
 def test_has_unterminated_frontmatter(text: str, expected: bool) -> None:
     assert sync_slim_agents.has_unterminated_frontmatter(text) is expected
+
+
+def test_split_frontmatter_accepts_an_empty_block() -> None:
+    """`---` on one line and `---` on the next is empty frontmatter, not broken."""
+    assert sync_slim_agents.split_frontmatter("---\n---\n" + SOURCE_BODY) == (
+        "---\n---\n",
+        SOURCE_BODY,
+    )
+
+
+def test_split_frontmatter_accepts_a_closer_at_end_of_file() -> None:
+    """A closing `---` with no trailing newline still closes the block."""
+    text = "---\nname: analyst\n---"
+    assert sync_slim_agents.split_frontmatter(text) == (text, "")
+
+
+def test_mirror_with_an_empty_frontmatter_block_keeps_it(tree: Path) -> None:
+    """The whole path, not just the parser: an empty block must survive --write."""
+    target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
+    _write(target, "---\n---\n" + STALE_BODY)
+
+    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
+    assert target.read_text(encoding="utf-8") == "---\n---\n" + SOURCE_BODY
 
 
 def test_shipped_source_is_the_canonical_claude_tree() -> None:
