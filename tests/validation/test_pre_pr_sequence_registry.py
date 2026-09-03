@@ -54,6 +54,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Subprocess Encoding Convention',
     'Test Working Tree Writes',
     'Push Lock Path Agreement',
+    'Index Line Endings',
     'Worktree Recipe Destinations',
     'Temp-filesystem Worktrees (advisory)',
     'Session End Validation',
