@@ -60,9 +60,10 @@ Vercel measured 100% pass rate for always-on passive context against 53% to
 79% for skills. Read plainly, that says put everything always-on. This repo
 read it that way and grew its always-on corpus to a peak of 9 rules and
 roughly 84KB. PR #4424 and the `lsp-first` rescope narrowed two of them, and
-issue #4871 moved `code-quality` to code files after finding its scope key was
-one Claude Code ignores. That leaves 6 rules and roughly 56KB, with a Python
-edit pulling in roughly 98KB.
+issue #4871 moved `code-quality` and `pragmatic-programmer` to code files after
+finding their scope keys were ones Claude Code ignores, and issue #5492
+narrowed `knowledge-persistence` to the trees it governs. That leaves 5 rules
+and roughly 51KB, with a Python edit pulling in roughly 93KB.
 
 **What Vercel actually measured was knowledge injection.** The task was
 Next.js 16 APIs that were absent from the model's training data. Passive

@@ -38,7 +38,7 @@ the number. The two destination trees agree today, measured on this branch after
 Membership is identical: `builder-ethos`, `claude-model-patches`,
 `search-before-building`, `universal`, `voice`.
 
-Those bytes are whole generated files, frontmatter included. The same six
+Those bytes are whole generated files, frontmatter included. The same five
 rules measure 51,281 bytes at `.claude/rules/`, 95 more, because the generator
 drops `priority:` and turns `paths:` into `applyTo:`. Name the
 tree whenever you quote a figure; a gap of about that size is a basis mismatch,
