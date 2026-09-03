@@ -64,19 +64,23 @@ python3 "$SCRIPTS_DIR/check_github_transport.py"
 | Verdict | Action |
 |---------|--------|
 | `Transport: gh` | Continue. Every script below works as written. |
-| `Transport: mcp` | Continue in MCP mode; see the rule block below. |
+| `Transport: gh_unusable` | Continue in MCP mode; see the rule block below. |
 | exit 3 | A quota window or a transport wobble, not a transport change. Stop and retry later. |
 | exit 4 | A credential fault. Stop and report it; do not switch transports around a fixable token. |
 
-**MCP mode rules.** The mapping from each script to its `mcp__github__*` tool
-is in `.claude/skills/github/references/transport-routing.md`. On top of it:
+**MCP mode rules.** The mapping from each script to its GitHub MCP operation
+is in the github skill's `references/transport-routing.md`, which also gives
+the per-harness spelling for the operation names. On top of it:
 
 1. Read and comment operations (triage, CI status, check logs, review threads,
    replies, resolving threads, auto-merge, merge) all have MCP tools. Use them.
 2. `test_pr_merge_ready.py`, `check_pr_live_state.py`, `why_pr_blocked.py`,
-   `run_completion_gate.py`, `check_pr_round_cap.py`, and `pr_autofix_lease.py`
-   have no MCP equivalent, because each computes a verdict from several `gh`
-   calls plus local logic. Their inputs are still reachable: gather the same
+   `triage_red_check.py`, `run_completion_gate.py`, `check_pr_round_cap.py`,
+   and `pr_autofix_lease.py` have no MCP equivalent, because each computes a
+   verdict from several `gh` calls plus local logic. `triage_red_check.py` is
+   named explicitly because the CI-failure triage step below makes it
+   mandatory before any log reading, and a blocked session must derive that
+   verdict by hand rather than falling back to `gh`. Their inputs are still reachable: gather the same
    fields with `pull_request_read` and apply the gate definitions in this file
    by hand. Record in the PR handoff that the verdict was derived, not scripted.
 3. The lease and the round cap protect against two sessions fighting over one

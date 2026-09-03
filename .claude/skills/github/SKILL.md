@@ -54,8 +54,11 @@ python3 "$SCRIPTS_DIR/check_github_transport.py"
 
 - `Transport: gh` (exit 0). Use the scripts below. This is CI and a normal
   developer machine.
-- `Transport: mcp` (exit 0). `gh` cannot reach GitHub here. Route the work
-  through the `mcp__github__*` tools and do not re-try the scripts to confirm.
+- `Transport: gh_unusable` (exit 0). `gh` cannot reach GitHub here. Route the
+  work through the GitHub MCP operations and do not re-try the scripts to
+  confirm. The verdict names only what was measured: confirm the operations you
+  need are exposed before relying on them. Tool spelling differs by harness
+  (`mcp__github__<op>` in Claude Code, `github/<op>` in Copilot CLI).
 - Exit 3 or 4. Not a transport problem: a quota window or a fixable token.
 
 Script-to-tool mapping, the operations with no MCP equivalent, and the rules
@@ -350,7 +353,7 @@ Closes #123
 | Ignoring exit codes | Missing error handling | Check exit codes per ADR-035 |
 | Skipping idempotency markers | Duplicate comments | Use `--marker` parameter |
 | Raw `gh notify` or notifications API | 403 with app tokens | Use `get_actionable_items.py` |
-| Retrying `gh` after a session refusal | The refusal has no reset; retries only burn the budget | Run the transport preflight, then use `mcp__github__*` |
+| Retrying `gh` after a session refusal | The refusal has no reset; retries only burn the budget | Run the transport preflight, then use the GitHub MCP operations |
 | Reporting a PR blocked because a call failed | An unreachable API is an unknown, not a verdict | Name the transport failure as the cause |
 | Treating `mergeable_state`/`mergeStateStatus: blocked` as self-explanatory (e.g. guessing "pending approval" without checking) | It is a cached, frequently-stale field. `why_pr_blocked.py` decomposes it into required checks, review threads, and merge conflicts, but does not query `reviewDecision` or the required-approving-review count, so a repo that requires approvals can still be blocked on that even when the script reports no cause | Run `why_pr_blocked.py` first. GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them (`resolve_pr_review_thread.py`). If the script reports no cause but the PR is still blocked, also check `get_pr_context.py`'s `review_decision` field against the target branch's required-approving-review count before reporting nothing to act on |
 

@@ -61,7 +61,6 @@ anchor trust and are refused.
 
 - Current branch: !`git branch --show-current`
 - Repository: !`git remote get-url origin`
-- Transport: !`SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils"; python3 "$SCRIPTS_DIR/check_github_transport.py"`
 
 ## Arguments
 

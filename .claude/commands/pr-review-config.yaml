@@ -23,7 +23,7 @@ scripts:
     add_thread_reply: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request {number} --thread-id {thread_id} --body {body}"
     add_thread_reply_resolve: "python3 .claude/skills/github/scripts/pr/add_pr_review_thread_reply.py --pull-request {number} --thread-id {thread_id} --body {body} --resolve"
     resolve_thread: "python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --expected-pull-request {number} --thread-id {thread_id}"
-    check_transport: "python3 .claude/skills/github/scripts/utils/check_github_transport.py --output-format json"
+    check_transport: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils/check_github_transport.py" --output-format json'
   copilot:
     get_pr_context: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRContext.ps1 -PullRequest {number}"
     test_pr_merged: "pwsh -NoProfile .claude/skills/github/scripts/pr/Test-PRMerged.ps1 -PullRequest {number}"
@@ -49,8 +49,8 @@ transport_preflight:
   verdicts:
     - transport: "gh"
       action: "Run this workflow as written. This is CI and a normal developer machine."
-    - transport: "mcp"
-      action: "Run it through the mcp__github__* tools. Script-to-tool map: .claude/skills/github/references/transport-routing.md"
+    - transport: "gh_unusable"
+      action: "Run it through the GitHub MCP operations. Script-to-operation map and per-harness tool spelling: the github skill's references/transport-routing.md"
   non_transport_exits:
     - exit_code: 3
       meaning: "Quota window or transport wobble. Not a transport change; stop and retry later."
