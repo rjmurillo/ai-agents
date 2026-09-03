@@ -50,7 +50,7 @@ a rule whose scope was entirely internal, which made `governance`,
 install 7,532 bytes a turn on three rules pointing at `.agents/` paths the
 installing repository does not have. PR #4426 replaced that fallback with an
 explicit skip, so those rules are absent from the plugin tree rather than
-universalized in it. The plugin ships 23 instruction files against 28 in
+universalized in it. The plugin ships 24 instruction files against 29 in
 `.github/instructions`, and that gap is the fix, not drift.
 
 `tests/validation/test_always_on_corpus_claims.py` pins the two trees together
@@ -96,10 +96,10 @@ first leaves a line in the source file that a grep can find.
    assigned `_UNIVERSAL_SCOPE` instead of returning, which is what made narrowly
    scoped rules always-on for plugin consumers.
 
-Four rules take that skip today: `governance`, `push-lock`,
-`secret-redaction`, and `session-logs` are present in `.github/instructions`
-and absent from `src/copilot-cli/instructions` altogether, which is the whole
-of the 27-against-23 file gap. So the two trees hold different *rule sets*
+Five rules take that skip today: `governance`, `push-lock`,
+`secret-redaction`, `session-logs`, and `tool-use-hook-bar` are present in
+`.github/instructions` and absent from `src/copilot-cli/instructions`
+altogether, which is the whole of the 29-against-24 file gap. So the two trees hold different *rule sets*
 while agreeing on the always-on subset. Membership can still diverge, by a
 rule the filter does not touch gaining or losing a universal scope in one tree
 only.

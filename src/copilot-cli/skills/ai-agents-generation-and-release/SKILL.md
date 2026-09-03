@@ -7,7 +7,7 @@ license: MIT
 
 # ai-agents Generation and Release
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/architecture, .agents/retrospective, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, and templates/platforms because its audience is repo contributors, not plugin consumers. Issue #2050. -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself. It intentionally references .agents/architecture, .agents/retrospective, .claude/lib, scripts/hook_utilities, scripts/github_core, scripts/ai_review_common, scripts/sync_plugin_lib.py, scripts/validation, build/generate_agents.py, build/scripts, templates/agents, templates/platforms, and AGENTS.md because its audience is repo contributors, not plugin consumers. Issue #2050. -->
 Runbook for the build, generation, mirroring, versioning, and release machinery of this repo. Every command below was executed or read from source on 2026-07-02/03 and re-verified against the working tree on 2026-07-29; re-verify with the one-liners in Provenance before trusting a volatile number.
 
 Jargon, defined once:
@@ -54,22 +54,23 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `.claude/lib/` | mirrored copy (relative imports) | `scripts/` packages | `scripts/sync_plugin_lib.py` |
 | `src/claude/` | MANUAL hand-synced exception (ADR-036, superseded in governance by ADR-052 2026-08-25, procedure still operative and unimplemented) | edited by hand | no generator; semantic drift CI only |
 
-Generator inventory inside `build/scripts/build_all.py` (list `GENERATORS`, build_all.py:435, order is load-bearing per the comment at build_all.py:429):
+Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; order is load-bearing per the `Order matters` comment above it):
 
 | # | Generator | Reads | Writes |
 |---|-----------|-------|--------|
 | 1 | agents | `templates/agents/*.shared.md` + `templates/platforms/*.yaml` | `src/copilot-cli/agents/*.agent.md`, `src/vs-code-agents/*.agent.md` |
 | 2 | agent-catalog | `templates/agents/*.shared.md` | `docs/agent-catalog.md` |
-| 3 | skills | `.claude/skills/*/SKILL.md` | `src/copilot-cli/skills/` |
-| 4 | commands | `.claude/commands/*.md` (top level, not CLAUDE.md) | `src/copilot-cli/skills/` (command-bridge skills) |
-| 5 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
-| 6 | lib | `.claude/lib/` | `src/copilot-cli/lib/` (must land before hooks) |
-| 7 | hooks | `.claude/settings.json` + `.claude/hooks/` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` |
+| 3 | adr-index | the ADR corpus under `.agents/architecture/` | `.agents/architecture/README.md` |
+| 4 | skills | `.claude/skills/*/SKILL.md` | `src/copilot-cli/skills/` |
+| 5 | commands | `.claude/commands/*.md` (top level, not CLAUDE.md) | `src/copilot-cli/skills/` (command-bridge skills) |
+| 6 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
+| 7 | lib | `.claude/lib/` | `src/copilot-cli/lib/` (must land before hooks) |
+| 8 | hooks | `.claude/settings.json` + `.claude/hooks/` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` |
 
 Facts that prevent confusion:
 
 - `build_all.py` enforces a no-write invariant on `.claude/` (REQ-003-010): if any generator writes there, the run exits 2 with `REQ-003-010 VIOLATION`. `.claude/` is input only.
-- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md")` (build_all.py:765). `--check` only flags staleness inside those prefixes.
+- Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md", ".agents/architecture/README.md")`, four entries, in the `OWNED_PREFIXES` tuple. `--check` only flags staleness inside those prefixes, and the adr-index generator is why the last one is there.
 - The hooks generator maps Stop, SubagentStop, PermissionRequest, and
   PreCompact to their PascalCase compatibility names. Stop and SubagentStop
   remain direct host registrations because their structured decisions require
@@ -94,7 +95,7 @@ Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` bo
 Useful flags, verified against source:
 
 - `build/generate_agents.py`: `--validate` (CI compare mode), `--what-if` (dry run, writes nothing), `--templates-path`, `--output-root`. Exit codes: 0 ok, 1 logic error or drift, 2 config error (docstring, generate_agents.py:13-16).
-- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness, 3 audit blocklist violation (docstring, build_all.py:16-20).
+- `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness or (under `--check`) a path under `OWNED_PREFIXES` that cannot be read or redirects (symlink or junction) or holds a nested git repository, or a generator write under `.claude/` (REQ-003-010), 3 audit blocklist violation or (under `--check`) unreadable git state (the `EXIT CODES` block in this script's module docstring). Only the staleness producer of exit 2 is cleared by regenerating and committing; the REQ-003-010 producer is a generator policy violation, so regenerating reproduces it. Git is external, so every git-read failure (launch, timeout, nonzero exit) is 3 per the `AGENTS.md` contract, which keeps "you are missing git" out of the same code as "your tree is stale" (issue #4632).
 - `scripts/sync_plugin_lib.py`: no flag syncs, `--check` is the CI dry run (exit 1 when out of sync). It also rewrites `from scripts.x import` to relative imports; do not "fix" those imports in `.claude/lib/` by hand.
 
 ### Phase 3: Run the Drift Gates Locally Before Pushing
@@ -195,7 +196,7 @@ Rollback is roll-FORWARD: npm unpublish is restricted; fix, bump patch, retag (R
 Run this checklist before pushing any change that touched a canonical or generated surface:
 
 - [ ] `uv run python build/generate_agents.py --validate` exits 0
-- [ ] `uv run python build/scripts/build_all.py --check` exits 0 (2 means staleness: regenerate and stage)
+- [ ] `uv run python build/scripts/build_all.py --check` exits 0 (if it returns 2, read stderr first: regenerate only for staleness, not for an owned path that is unreadable, redirecting, or a nested repository, and not for a REQ-003-010 generator write)
 - [ ] `python3 scripts/sync_plugin_lib.py --check` exits 0 (only relevant if `scripts/` packages changed)
 - [ ] `python3 build/scripts/check_plugin_manifest_parity.py` exits 0
 - [ ] `python3 build/scripts/validate_plugin_version_bump.py` exits 0 (no manifest or marketplace entry carries a `version`)
@@ -208,10 +209,10 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| 7 generators and their order | build/scripts/build_all.py:435-443 | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
-| OWNED_PREFIXES trio | build/scripts/build_all.py:765 | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
-| .claude/ no-write invariant | build/scripts/build_all.py:674 (rule), :1013 (snapshot), :1076-1081 (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
-| build_all exit codes 0/1/2/3 | build/scripts/build_all.py:16-20 | `sed -n '16,20p' build/scripts/build_all.py` |
+| 8 generators and their order | the `GENERATORS` list in build/scripts/build_all.py | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
+| `OWNED_PREFIXES`, four entries | the `OWNED_PREFIXES` tuple in build/scripts/build_all.py | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
+| .claude/ no-write invariant | build/scripts/build_all.py: `CLAUDE_GUARD_PREFIX` (rule), the `claude_baseline` snapshot in `run` (snapshot), `assert_no_claude_writes` called from `_run_generators` (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
+| build_all exit codes 0/1/2/3, four exit-2 producers | the `EXIT CODES` block in the build/scripts/build_all.py module docstring | `grep -n -A20 "^EXIT CODES" build/scripts/build_all.py` |
 | generate_agents flags and exit codes | build/generate_agents.py:13-16,460-487 | `uv run python build/generate_agents.py --help` |
 | sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:27-31 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
 | Plugin manifest locations, all version-free | the three plugin.json files | `python3 build/scripts/validate_plugin_version_bump.py` |

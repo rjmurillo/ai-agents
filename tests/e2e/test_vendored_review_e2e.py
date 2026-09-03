@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+# This end-to-end fixture, parser, and vendored-load coverage belong together.
 """End-to-end /review test inside a vendored checkout (issue #1984, PR #1965 Y13).
 
 `tests/integration/test_vendored_install.py` proves AC5 (REQ-008-06) at the
@@ -15,7 +17,7 @@ a synthetic one-line diff inside that tree. It asserts:
 
   1. `/review` exits without error (returncode 0).
   2. The output carries a verdict row for every axis the vendored install
-     ships (the canonical `references/*.md` set plus the 3 chained-skill axes),
+     ships (the canonical `references/*.md` set plus the 4 chained-skill axes),
      discovered from the vendored copy rather than hardcoded. The issue text
      said "9 verdict rows", which was the 6-canonical + 3-chained era; the current canonical
      set is larger, so the test derives the expected count from the directory
@@ -81,11 +83,12 @@ VENDORED_SUBTREE = (
     "skills",
 )
 
-# The 3 chained skill axes /review layers on top of the canonical axes
+# The 4 chained skill axes /review layers on top of the canonical axes
 # (SKILL.md Process step 5). They are not under references/, so they are not
 # counted by the references/*.md glob; they add to the verdict-row total.
 CHAINED_SKILL_AXES = (
     "code-qualities-assessment",
+    "doc-accuracy",
     "golden-principles",
     "taste-lints",
 )
@@ -211,17 +214,24 @@ def make_synthetic_diff_repo(repo: Path) -> str:
     return "widget.py"
 
 
-def discover_axis_count(plugin_root: Path) -> int:
-    """Total verdict rows /review emits for the vendored install.
+def discover_expected_axes(plugin_root: Path) -> frozenset[str]:
+    """Every axis name /review must emit a verdict row for.
 
     The canonical axes are the stems of `references/*.md` under the vendored
-    review skill (SKILL.md auto-discovers the set from that directory). The 3
-    chained-skill axes layer on top. The total is the number of verdict rows
-    the findings table must carry.
+    review skill (SKILL.md auto-discovers the set from that directory). The
+    chained-skill axes layer on top.
+
+    Returns names, not just a count. A count lets an unexpected row mask a
+    missing one, so enrolling a new axis raises the expected total while the
+    axis itself can still be absent from the table.
     """
     refs = plugin_root / ".claude" / "skills" / "review" / "references"
-    canonical = sorted(p.stem for p in refs.glob("*.md"))
-    return len(canonical) + len(CHAINED_SKILL_AXES)
+    return frozenset(p.stem for p in refs.glob("*.md")) | frozenset(CHAINED_SKILL_AXES)
+
+
+def discover_axis_count(plugin_root: Path) -> int:
+    """Total verdict rows /review emits for the vendored install."""
+    return len(discover_expected_axes(plugin_root))
 
 
 def load_vendored_extract_verdict(plugin_root: Path):
@@ -297,7 +307,7 @@ def test_review_runs_end_to_end_in_vendored_checkout(tmp_path: Path) -> None:
     workdir = tmp_path / "workdir"
     make_synthetic_diff_repo(workdir)
 
-    expected_rows = discover_axis_count(plugin_root)
+    expected_axes = discover_expected_axes(plugin_root)
     extract_verdict = load_vendored_extract_verdict(plugin_root)
 
     # Strip inherited plugin-root vars so the CLI sets its own for the loaded
@@ -328,13 +338,31 @@ def test_review_runs_end_to_end_in_vendored_checkout(tmp_path: Path) -> None:
 
     output = run.stdout
 
-    # 2. one distinct verdict row per discovered axis.
+    # 2. a verdict row for every discovered axis, by name.
+    # Naming each one is what proves a newly enrolled axis actually reported;
+    # a count alone lets an unexpected row stand in for a missing one.
+    # Equality, not containment: a subset check passes an extra row for an axis
+    # that does not exist, and the contract is exactly one row per axis.
     distinct_axes = extract_distinct_verdict_axes(output)
-    assert len(distinct_axes) >= expected_rows, (
-        f"expected at least {expected_rows} distinct axis verdict rows (canonical axes + "
-        f"chained skills), found {len(distinct_axes)} distinct axes: {sorted(distinct_axes)}. "
-        f"A short count means an axis failed to load or chain in the vendored install. "
-        f"output_tail={output[-1500:]!r}"
+    missing = sorted(expected_axes - distinct_axes)
+    unexpected = sorted(distinct_axes - expected_axes)
+    assert distinct_axes == expected_axes, (
+        f"axis verdict rows do not match the discovered axis set. "
+        f"missing={missing} unexpected={unexpected}. "
+        f"Expected every canonical axis and chained skill, and nothing else: "
+        f"{sorted(expected_axes)}. Found: {sorted(distinct_axes)}. "
+        f"A missing row means that axis failed to load or chain in the vendored "
+        f"install; an unexpected one means the report named an axis the install "
+        f"does not ship. output_tail={output[-1500:]!r}"
+    )
+
+    # One row per axis. Distinct names alone cannot see a duplicated row, and a
+    # second row for one axis can carry a conflicting verdict.
+    row_count = count_verdict_rows(output)
+    assert row_count == len(expected_axes), (
+        f"expected exactly one verdict row per axis, got {row_count} rows for "
+        f"{len(expected_axes)} axes. A duplicate row makes the merged verdict "
+        f"ambiguous. output_tail={output[-1500:]!r}"
     )
 
     # 3. merged verdict parseable by the vendored extract_verdict.
@@ -398,7 +426,7 @@ def test_build_vendored_plugin_excludes_runtime_caches(
 def test_discovered_axis_count_matches_canonical_plus_chained(
     tmp_path: Path,
 ) -> None:
-    """Discovered row count = canonical references/*.md + 3 chained skills.
+    """Discovered row count = canonical references/*.md + 4 chained skills.
 
     Cross-checks against the canonical role list the schema test owns, so this
     test tracks the single source of truth and the row-count assertion in the
@@ -498,3 +526,26 @@ def test_vendored_extract_verdict_loads_and_parses(tmp_path: Path) -> None:
     extract_verdict = load_vendored_extract_verdict(root)
     assert extract_verdict("Final verdict: WARN") == "WARN"
     assert extract_verdict("Final verdict: PASS") == "PASS"
+
+
+def test_vendored_local_axis_adapter_loads_and_maps_doc_accuracy(tmp_path: Path) -> None:
+    """Vendored verdict helper exposes local-axis normalization for /review."""
+    root = build_vendored_plugin(tmp_path / "p")
+    verdict_py = root / ".claude" / "lib" / "ai_review_common" / "verdict.py"
+    spec = importlib.util.spec_from_file_location("vendored_verdict_adapter_e2e", verdict_py)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    # The assessment block is required evidence: a doc-accuracy PASS over zero
+    # inventoried files means the gate found no docs, not that the docs hold up.
+    payload = json.dumps(
+        {
+            "gate_result": {"verdict": "PASS"},
+            "assessment": {"documentation_files": [{"path": "README.md"}]},
+        }
+    )
+    assert module.adapt_local_axis_verdict("doc-accuracy", payload, 0) == "PASS"
+    empty = json.dumps(
+        {"gate_result": {"verdict": "PASS"}, "assessment": {"documentation_files": []}}
+    )
+    assert module.adapt_local_axis_verdict("doc-accuracy", empty, 0) == "UNKNOWN"

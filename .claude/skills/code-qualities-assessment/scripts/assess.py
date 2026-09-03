@@ -1577,13 +1577,22 @@ def _assess_files(
     context: str,
     use_serena: bool,
 ) -> list[FileAssessment]:
-    """Assess every readable file and report per-file failures."""
+    """Assess every readable file and report per-file failures.
+
+    A file that raises is recorded as an all-unscored assessment rather than
+    dropped. Dropping it made the failure invisible downstream: `summary`
+    reports `file_count` as the length of this list, so a run that lost four of
+    five files still looked internally consistent, and a consumer could read
+    the survivor as evidence the whole change was assessed. This is the same
+    treatment an unreadable file already gets at the decode site.
+    """
     assessments: list[FileAssessment] = []
     for file_path in files:
         try:
             assessments.append(assess_file(file_path, context, use_serena))
         except Exception as e:
             print(f"Error assessing {file_path}: {e}", file=sys.stderr)
+            assessments.append(_unreadable_assessment(file_path, f"assessment failed: {e}"))
     return assessments
 
 
