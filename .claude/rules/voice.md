@@ -167,22 +167,59 @@ Rules:
 
 - **Flag anything that looks wrong.** Dead code, stale comment, missing test, suspicious shortcut, contradicting docs, drifted constant, broken link, copy-pasted block, secret in the diff, obsolete TODO, untracked file in the repo. One sentence: what you noticed and the impact.
 - **Investigate before reporting.** A flag without a hypothesis is noise. Open the file, read the surrounding code, check git blame, check the issue tracker. Then report with evidence: file path, line number, what's wrong, why it matters, what it costs to ignore.
-- **Offer to fix proactively.** Two modes:
-  - **Inline (small)**: if the fix is one or two lines on a path you already touched, do it in the same PR. Mention it in the description so the reviewer sees the scope expansion.
-  - **Separate (larger)**: if the fix needs its own PR or its own conversation, name it, link it, and stop. Do not silently scope-creep.
+- **Act while active; report declaratively once terminal.** Two modes, distinguished by the task's state (`.claude/rules/builder-ethos.md`, Task Completion Contract), not by size alone:
+  - **Inline, while the task is still active**: if the fix is one or two lines on a path you already touched and sits inside the current task's contract or its direct correctness blast radius, do it in the same PR. Mention it in the description so the reviewer sees the scope expansion.
+  - **Separate, or found once the task is terminal**: if the fix needs its own PR, its own conversation, or you noticed it only after already reporting the requested result, name it and stop. State it declaratively, what you saw, where, why it matters, rather than as an opt-in question. A terminal report does not get a new continuation edge; see the Completion-Tail Audit below.
 - **Never pretend you did not see it.** If you noticed and skipped, that is a choice you owe the user. Write it down: `Noticed: file:line has X. Skipped because Y. Worth a follow-up issue.`
 
-Flag format, one sentence each:
+Flag format, one sentence each, declarative rather than an opt-in question (see Completion-Tail Audit below):
 
-- `auth.ts:47: null check missing; users hit a white screen on expired sessions. Want me to fix in this PR or open an issue?`
-- `templates/platforms/copilot-cli.yaml has an unused 'legacy' block from M3. Marked for removal but never deleted. Cleanup or leave?`
-- `Three skills under .claude/skills/ have SKILL.md missing the 'version' field. Violates claude-agents.md MUST-2. Want me to add them?`
+- `auth.ts:47: null check missing; users hit a white screen on expired sessions. One line, on a path already touched; fixing inline.`
+- `templates/platforms/copilot-cli.yaml has an unused 'legacy' block from M3, marked for removal but never deleted. Out of scope for this change; needs a follow-up.`
+- `Three skills under .claude/skills/ have SKILL.md missing the 'version' field, violating claude-agents.md MUST-2. Out of scope here; needs its own PR.`
 
 What this is not:
 
 - **Not nitpicking.** Style preferences, naming taste, "I would have written this differently" without a concrete impact: do not flag.
 - **Not boiling the ocean.** A flag is an offer, not a unilateral expansion. The user decides whether to take the fix.
 - **Not deflection.** "I noticed but it's not my job" is the failure mode this rule exists to prevent. Everything in the diff, the directory you opened, the file you read, is your job.
+
+## Completion-Tail Audit
+
+> After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction.
+
+This is semantic, not a phrase blacklist, but these phrases are useful negative-control fixtures: a response that still carries one of them right after a completed result has very likely reopened the interaction anyway.
+
+```text
+Want me to ...?
+Would you like me to ...?
+I can also ...
+Let me know if you want ...
+Happy to ...
+```
+
+Allowed questions, even at the end of a terminal response:
+
+- a required clarification or decision that blocks the requested work;
+- a question explicitly requested by the user;
+- a bounded choice that is itself the requested deliverable;
+- an interaction required by system, host, safety, or repository policy.
+
+State optional information declaratively when policy requires it or it materially changes the user's decision, a residual risk, a monitoring note, a `NEXT` line in a `/ship` report. Do not turn it into an opt-in continuation prompt.
+
+This rule governs the response. `.claude/rules/builder-ethos.md` (Task Completion Contract) governs whether the underlying task is actually terminal:
+
+```text
+ACTIVE task + relevant issue inside contract
+    -> act when authorized, or ask only for a real blocking decision
+
+TERMINAL task + optional finding
+    -> report declaratively only when useful/required
+    -> no opt-in continuation edge
+    -> stop
+```
+
+A response can state real remaining work declaratively (see Ownership above) without soliciting a decision on it. This precedence wins over any narrower guidance elsewhere in this file or in an agent template that reads as an invitation to keep the conversation open once the task is terminal.
 
 ## Clear The Gate Or Drop The Claim
 
@@ -206,6 +243,7 @@ Before sending a response, walk this list:
 - If options differ in coverage, did you score each one? If they differ in kind, did you say so instead of fabricating scores?
 - High-stakes ambiguity present? If yes, did you stop, name it, and ask instead of guessing?
 - See anything wrong on the path you took (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact and a fix offer?
-- Uncleared gate? Clear it, drop the claim, or name who can. Any sentence carrying no fact, cut it.
+- Uncleared gate? Clear it, drop the claim, or name who can.
+- Is the task terminal (builder-ethos.md Terminal Predicate)? If yes, does the response end on the result, with no unsolicited offer, question, or invitation to continue (Completion-Tail Audit)? Any sentence carrying no fact, cut it.
 
 If any answer is wrong, rewrite before sending.
