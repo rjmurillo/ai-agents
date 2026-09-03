@@ -153,6 +153,9 @@ first written.
 | Wire `check_skill_md_exec_portability.py` and `validate-slash-commands` into `pre_pr.py` | Governance | Issue #5515. CI-only today, so a bare-path invocation and a rejected tool grant are both undiscoverable locally; between them they cost two review cycles on PR #5509. |
 | Decide MCP-mode write policy for `/pr-autofix` | Instruction | Repo owner. MCP mode is triage-only because no lease can be held; either implement the marker-comment lease over MCP operations or narrow the command's documented scope. |
 | Correct the `issue #2223` citation in `tests/validation/test_check_git_hook_health.py:60,166` | Docs | Issue #5516. That issue is about splitting oversized modules; it was copied into new code from there before being caught. |
+| Give `pr-comment-responder` a transport branch | Instruction | Issue #5518. `/pr-review` Step 4 delegates to it, and its workflow calls the gh-backed scripts across thirteen call sites with no MCP branch, so the Step 0 verdict stops at the delegation boundary. |
+| Verify config-sourced commands before dispatch | Security | Issue #5520. The trusted dispatcher covers `completion_criteria` only; every other command in the `scripts` map runs unverified, and the preflight added here is now the first of them. |
+| Emit per-harness launchers from the build | Portability | Issue #5521. Shipped invocations assume a POSIX shell and a bare `python3`; only `check_transport` resolves the interpreter today. |
 | Split `tests/test_github_auth_classification.py` | Tech debt | Issue #5517. Past the advisory taste-lint file-size threshold; natural seams are classification, remedy, retry, preflight. |
 
 The first row is one governance gap in two places: a gate that runs only in CI
