@@ -75,10 +75,16 @@ the repository, which turns fast checks into slow ones and can block pushes. A
 worktree under `/tmp` holds the only copy of its unpushed commits until a push
 lands, so a temp-filesystem reclaim or a full temp filesystem destroys them.
 
+In `gh` mode:
+
 ```bash
 branch=$(gh pr view {number} --json headRefName -q '.headRefName')
 git worktree add "../wt-pr-{number}" "$branch"
 ```
+
+In `gh_unusable` mode this `gh` call fails like every other, so read `head.ref`
+from `pull_request_read` method `get` instead and pass it to the same
+`git worktree add`. Git itself needs no GitHub access.
 
 ### Step 4: Launch Agents
 

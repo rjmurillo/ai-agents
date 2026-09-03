@@ -35,9 +35,11 @@ scripts:
     add_thread_reply: "pwsh -NoProfile .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest {number} -ThreadId {thread_id} -Body {body}"
     resolve_thread: "pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId {thread_id}"
     # transport_preflight resolves command_key against the harness map, so the
-    # Copilot map needs its own entry or Step 0 cannot dispatch at all
-    # (Copilot review on PR #5509). The preflight is Python on both harnesses.
-    check_transport: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils/check_github_transport.py" --output-format json'
+    # Copilot map needs its own entry or Step 0 cannot dispatch at all. The
+    # POSIX ${VAR:-default} form used in the claude_code map does not expand in
+    # PowerShell, which is what this map targets, so a Windows install would
+    # fail before the preflight ran (Copilot review on PR #5509).
+    check_transport: 'pwsh -NoProfile -Command "$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; python3 (Join-Path $root \"skills/github/scripts/utils/check_github_transport.py\") --output-format json"'
 
 # Transport preflight. Run check_transport once, before Step 1, and branch on
 # Data.Transport.
@@ -64,6 +66,7 @@ transport_preflight:
     - "cluster_threads, wait_for_settled_zero, and the completion gate are local logic over fetched data. Fetch threads with pull_request_read method get_review_comments, run the same procedure by hand, and record in the verdict that it was derived rather than scripted."
     - "resolve_review_thread resolves one thread per call. There is no --all equivalent, so resolve explicitly and count what you resolved."
     - "A transport failure is an unknown, never a verdict. Never emit a PASS or a '0 unresolved' result from a call that failed; report the PR as unreviewed with the transport as the reason."
+    - "Step 3 (--parallel) shells out to `gh pr view` for head.ref. That call fails in gh_unusable mode like every other, so read head.ref from pull_request_read method get instead and pass it to the same `git worktree add`. Git itself needs no GitHub access, so only the lookup changes."
 
 check_failure_actions:
   - check_type: "Session validation"

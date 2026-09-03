@@ -74,8 +74,12 @@ python3 "$SCRIPTS_DIR/check_github_transport.py"
 is in the github skill's `references/transport-routing.md`, which also gives
 the per-harness spelling for the operation names. On top of it:
 
-1. Read and comment operations (triage, CI status, check logs, review threads,
-   replies, resolving threads, auto-merge, merge) all have MCP tools. Use them.
+1. Read operations (triage, CI status, check logs, review threads, PR and
+   issue bodies) all have MCP equivalents. Use them freely.
+   Write operations (replies, resolving threads, arming auto-merge, merging,
+   pushing) also have MCP equivalents, but rule 3 governs whether you may use
+   them at all. Do not read this row as permission: it says the tool exists,
+   not that the operation is allowed.
 2. `test_pr_merge_ready.py`, `check_pr_live_state.py`, `why_pr_blocked.py`,
    `triage_red_check.py`, `run_completion_gate.py`, `check_pr_round_cap.py`,
    and `pr_autofix_lease.py` have no MCP equivalent, because each computes a

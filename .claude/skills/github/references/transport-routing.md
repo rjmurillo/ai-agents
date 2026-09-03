@@ -86,7 +86,7 @@ Write operations:
 | `post_issue_comment.py` | `add_issue_comment` | Works for PRs too |
 | `new_issue.py` | `issue_write` method `create` | |
 | `close_issue.py`, `reopen_issue.py` | `issue_write` method `update` | Set `state_reason` when closing |
-| `set_issue_labels.py` | `issue_write` method `update` with `labels` | Replaces the set, not additive |
+| `set_issue_labels.py` | `issue_write` method `update` with `labels`, but read first | **Not equivalent, and destructive if used as one.** The script preserves unrelated labels, reconciles priority labels, and creates a label that does not exist yet. `issue_write` replaces the entire set and cannot create a missing label. So: read the current labels with `issue_read`, union your change into them, and send the whole result. If a label you need does not already exist on the repo, treat the operation as unavailable rather than dropping it silently. |
 | `merge_pr.py` | `merge_pull_request` | |
 | `set_pr_auto_merge.py` | `enable_pr_auto_merge`, `disable_pr_auto_merge` | |
 | `invoke_copilot_assignment.py` | `assign_copilot_to_issue` | |
