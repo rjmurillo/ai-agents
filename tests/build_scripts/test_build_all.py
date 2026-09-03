@@ -5,9 +5,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
+from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -1502,6 +1505,124 @@ def test_run_check_restores_owned_prefix_after_generator_writes(
     assert _git_porcelain(repo) == "", "--check left working tree dirty"
 
 
+def test_restore_owned_prefixes_returns_true_on_a_clean_restore(
+    tmp_path: Path,
+) -> None:
+    """Positive control: a restore with nothing to warn about reports success."""
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    tracked = owned / "frozen.py"
+    tracked.write_text("x = 1\n", encoding="utf-8")
+    snapshot = build_all._snapshot_owned_prefixes(repo, ("owned/",))
+    tracked.write_text("generator output\n", encoding="utf-8")
+
+    assert build_all._restore_owned_prefixes(repo, ("owned/",), snapshot) is True
+
+
+@pytest.mark.skipif(
+    os.name == "nt", reason="POSIX permission bits are not meaningful on Windows"
+)
+def test_restore_owned_prefixes_preserves_the_files_original_mode(
+    tmp_path: Path,
+) -> None:
+    """PR #5343 review (build_all.py:1261): restore must not downgrade an
+    ordinary file's permissions to the write helper's restrictive create
+    default.
+
+    ``_write_bytes_no_redirect`` creates every file at ``0o600`` (CodeQL,
+    CWE-732) and then, when the caller passed one, ``fchmod``s it to the
+    captured mode. ``_snapshot_owned_prefixes`` captures that mode via
+    ``OwnedSnapshot.modes``, populated by ``_read_into_snapshot``. This is
+    the end-to-end proof: a file that started at the ordinary ``0o644``
+    comes back at ``0o644`` after a restore that actually had to recreate it
+    (content changed, not the already-matches shortcut), not silently
+    downgraded to the create default.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    tracked = owned / "frozen.py"
+    tracked.write_text("x = 1\n", encoding="utf-8")
+    tracked.chmod(0o644)
+    snapshot = build_all._snapshot_owned_prefixes(repo, ("owned/",))
+    assert snapshot.modes[tracked] == 0o644, "precondition: mode was captured"
+
+    tracked.write_text("generator output\n", encoding="utf-8")
+
+    assert build_all._restore_owned_prefixes(repo, ("owned/",), snapshot) is True
+    assert stat.S_IMODE(tracked.stat().st_mode) == 0o644, (
+        "restore downgraded the file's permissions instead of preserving them"
+    )
+
+
+def test_run_check_escalates_to_2_when_restore_reports_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PR #5343 review (build_all.py:1724): a failed restore must not let
+    ``--check`` report success.
+
+    Unit-level test of the wiring in ``run()``: stubs ``_run_generators`` to
+    a clean ``0`` (so the escalation is the only thing that can produce a
+    nonzero result) and ``_restore_owned_prefixes`` to ``False`` (what it
+    now returns when :func:`_write_bytes_no_redirect` correctly refuses to
+    write through a path raced back into existence, per
+    ``test_restore_owned_prefixes_refuses_a_symlink_raced_in_before_the_write``
+    on the underlying primitive). Deliberately does not run the real
+    generator pipeline: that pipeline has its own unrelated failure modes in
+    a minimal fixture repo (a missing ADR directory, an absent skills
+    source), and asserting a specific exit code against its full output
+    would make this test fragile to changes that have nothing to do with
+    the restore-escalation wiring it exists to pin.
+    """
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    monkeypatch.setattr(
+        build_all,
+        "_run_generators",
+        lambda *args, **kwargs: 0,
+    )
+    monkeypatch.setattr(
+        build_all,
+        "_restore_owned_prefixes",
+        lambda *args, **kwargs: False,
+    )
+
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
+
+    assert rc == 2, "a failed restore must escalate an otherwise-clean run"
+
+
+def test_run_check_keeps_a_nonzero_generator_result_over_a_failed_restore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A genuine generator failure keeps its own, more specific exit code.
+
+    Inverse control on the escalation guard's ``exit_code == 0`` condition:
+    without it, a mutant that escalates unconditionally would downgrade a
+    real generator failure (here, 1) to the generic restore-failure code
+    (2), losing the more specific signal.
+    """
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    monkeypatch.setattr(
+        build_all,
+        "_run_generators",
+        lambda *args, **kwargs: 1,
+    )
+    monkeypatch.setattr(
+        build_all,
+        "_restore_owned_prefixes",
+        lambda *args, **kwargs: False,
+    )
+
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
+
+    assert rc == 1, "a real generator failure must not be masked by escalation"
+
+
 def test_restore_preserves_preexisting_bytecode_under_owned_prefixes(
     tmp_path: Path,
 ) -> None:
@@ -1945,7 +2066,7 @@ def test_git_diff_paths_ignores_inherited_git_dir_env(
 ) -> None:
     """An inherited GIT_DIR must not redirect diff/ls-files away from repo_root.
 
-    _git_diff_paths backs both --check (staleness) and the .claude/ guard. It
+    _git_diff_paths backs the --check staleness gate. It
     runs ``git -C repo_root diff`` and ``git ls-files``, which git resolves
     against an inherited GIT_DIR/GIT_WORK_TREE over ``-C`` (issue #2992). The
     scrub in _git_diff_paths removes the git location env vars so the diff is
@@ -2583,7 +2704,7 @@ def test_confirm_ignored_short_circuits_on_no_candidates(
         calls.append(args)
         raise AssertionError("git must not run when there is nothing to confirm")
 
-    monkeypatch.setattr(build_all.subprocess, "run", record)
+    monkeypatch.setattr(build_all, "subprocess", _subprocess_stub(record))
     assert build_all._confirm_ignored(repo, set()) == set()
     assert calls == []
 
@@ -2618,7 +2739,7 @@ def test_confirm_ignored_returns_empty_when_git_cannot_run(
     def boom(*args: object, **kwargs: object) -> object:
         raise OSError("git missing")
 
-    monkeypatch.setattr(build_all.subprocess, "run", boom)
+    monkeypatch.setattr(build_all, "subprocess", _subprocess_stub(boom))
     assert build_all._confirm_ignored(repo, {pyc}) == set()
 
 
@@ -2647,24 +2768,1630 @@ def test_confirm_ignored_is_fail_closed_on_git_error(
         returncode = 128
         stdout = str(pyc).encode()
 
-    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+    monkeypatch.setattr(
+        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
+    )
 
     assert build_all._confirm_ignored(tmp_path, {pyc}) == set()
 
 
-def test_confirm_ignored_survives_non_utf8_paths(
+def test_confirm_ignored_survives_non_ascii_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A non-UTF-8 filename must round-trip rather than raise
-    UnicodeDecodeError and crash the pre-push guard."""
+    """A non-ASCII filename must round-trip rather than crash the guard."""
     import os as _os
 
-    raw = tmp_path / _os.fsdecode(b"caf\xe9.pyc")
+    raw = tmp_path / "café.pyc"
 
     class _Result:
         returncode = 0
         stdout = _os.fsencode(str(raw))
 
-    monkeypatch.setattr(build_all.subprocess, "run", lambda *a, **k: _Result())
+    monkeypatch.setattr(
+        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
+    )
 
     assert build_all._confirm_ignored(tmp_path, {raw}) == {raw}
+
+
+# Regression: #4632, --check must fail closed, never delete ----------------
+#
+# Two fail-open paths let `build_all.py --check` report success over a tree it
+# never examined, and let a run documented as read-only delete a file it could
+# not read. Both are reproduced end to end below. Each end-to-end test fails
+# against the pre-fix code: rc=0 with stale output, and rc=1 with the file
+# gone, which are the two reproductions in the issue.
+
+
+class _NoGit:
+    """Stand-in for the ``subprocess`` module where git cannot be launched.
+
+    Patched into ``build_all``'s own namespace, not onto the real
+    ``subprocess`` module, so only build_all's git calls fail and the
+    generators keep working. This is the in-process equivalent of the issue's
+    ``PATH=/nonexistent`` reproduction.
+    """
+
+    SubprocessError = subprocess.SubprocessError
+    TimeoutExpired = subprocess.TimeoutExpired
+
+    @staticmethod
+    def run(*_args: object, **_kwargs: object) -> object:
+        raise FileNotFoundError(2, "No such file or directory: 'git'")
+
+
+class _TimeoutGit:
+    """Stand-in for the ``subprocess`` module where git times out."""
+
+    SubprocessError = subprocess.SubprocessError
+    TimeoutExpired = subprocess.TimeoutExpired
+
+    @staticmethod
+    def run(*_args: object, **_kwargs: object) -> object:
+        raise subprocess.TimeoutExpired(cmd="git", timeout=30)
+
+
+def _subprocess_stub(run: Callable[..., object]) -> object:
+    class _Stub:
+        SubprocessError = subprocess.SubprocessError
+        TimeoutExpired = subprocess.TimeoutExpired
+
+        @staticmethod
+        def run(*args: object, **kwargs: object) -> object:
+            return run(*args, **kwargs)
+
+    return _Stub
+
+
+def _fail_read_bytes_for(
+    monkeypatch: pytest.MonkeyPatch, target: Path, exc: OSError
+) -> None:
+    """Make reading ``target`` raise ``exc``; every other path stays real.
+
+    Patches ``os.open`` rather than ``Path.read_bytes()``: production code
+    reads owned files through :func:`build_all._read_bytes_no_redirect`,
+    which opens the path itself (``os.open``, ``O_NOFOLLOW`` included) to
+    close the read-side TOCTOU window rather than calling
+    ``Path.read_bytes()``, so patching the latter would no longer intercept
+    anything. Mocks at the I/O boundary rather than with ``chmod 000``
+    because this suite runs as root in CI, where mode bits do not deny a
+    read, so a permission-based fixture would pass without ever exercising
+    the failure.
+    """
+    real_open = os.open
+
+    def fake_open(
+        path: str | os.PathLike[str],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if Path(os.fspath(path)) == target:
+            raise exc
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(os, "open", fake_open)
+
+
+def test_git_diff_paths_raises_when_git_cannot_be_launched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """git failing to start must not read as "nothing changed"."""
+    monkeypatch.setattr(build_all, "subprocess", _NoGit)
+
+    with pytest.raises(build_all.GitStateUnreadableError):
+        build_all._git_diff_paths(tmp_path)
+
+
+def test_git_diff_paths_raises_when_git_times_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A git timeout must fail closed, not escape the external-failure path."""
+    monkeypatch.setattr(build_all, "subprocess", _TimeoutGit)
+
+    with pytest.raises(build_all.GitStateUnreadableError):
+        build_all._git_diff_paths(tmp_path)
+
+
+
+def test_git_diff_paths_decodes_non_ascii_git_output_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-ASCII git output round-trips, and the subprocess call stays binary.
+
+    The fixture is valid UTF-8 and :func:`_git_diff_paths` decodes with
+    ``os.fsdecode``, so nothing here exercises ``errors="replace"``; the name
+    used to claim otherwise.
+
+    What it does pin is the binary contract. ``text=True``, its
+    ``universal_newlines`` alias, or an ``encoding=`` argument would send
+    git's bytes through the locale codec, which is the Windows cp1252 failure
+    this NUL-delimited read exists to avoid. The returned-path assertion alone
+    left that mutation green, because the stub returns bytes whatever it is
+    called with.
+    """
+
+    class _Result:
+        returncode = 0
+        stdout = "src/copilot-cli/skills/ā/SKILL.md\x00".encode()
+        stderr = b""
+
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def record(*args: object, **kwargs: object) -> _Result:
+        calls.append((args, dict(kwargs)))
+        return _Result()
+
+    monkeypatch.setattr(build_all, "subprocess", _subprocess_stub(record))
+
+    assert build_all._git_diff_paths(tmp_path) == [
+        "src/copilot-cli/skills/ā/SKILL.md"
+    ]
+    assert len(calls) == 2
+    for _args, kwargs in calls:
+        for decoding_kwarg in ("text", "encoding", "universal_newlines"):
+            assert decoding_kwarg not in kwargs, (
+                f"subprocess.run got {decoding_kwarg}=; git output must stay "
+                "bytes so a non-UTF-8 locale cannot mangle paths"
+            )
+
+
+def test_git_diff_paths_raises_when_git_exits_nonzero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A nonzero exit must raise, even when stdout carried usable-looking text.
+
+    stdout is non-empty on purpose: with empty output the real code and a
+    mutant that drops the return-code check are indistinguishable, so the test
+    would prove nothing. Same reasoning as
+    ``test_confirm_ignored_is_fail_closed_on_git_error``.
+    """
+
+    class _Result:
+        returncode = 128
+        stdout = b"src/copilot-cli/skills/alpha/SKILL.md\x00"
+        stderr = b"fatal: not a git repository\n"
+
+    monkeypatch.setattr(
+        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
+    )
+
+    with pytest.raises(build_all.GitStateUnreadableError) as excinfo:
+        build_all._git_diff_paths(tmp_path)
+    assert "128" in str(excinfo.value)
+
+
+def test_git_diff_paths_error_keeps_gits_stderr_to_one_line(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The message must stay one line so the pre-PR tail echo keeps it.
+
+    ``git diff --no-index`` prints 128 lines of flag documentation when it
+    refuses to run outside a repository, and
+    ``scripts/validation/check_generated_staleness.py`` echoes only the last
+    ``_MAX_OUTPUT_LINES = 40`` lines (``_echo_tail``) precisely so the
+    diagnosis is last. An unbounded detail pushes the diagnosis into the
+    "earlier line(s) omitted" bucket and shows the operator flag help instead.
+    """
+    diagnosis = "usage: git diff --no-index [<options>] <path> <path>"
+
+    class _Result:
+        returncode = 129
+        stdout = b""
+        stderr = "\n".join([diagnosis] + [f"    --flag-{i}" for i in range(199)]).encode()
+
+    monkeypatch.setattr(
+        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
+    )
+
+    with pytest.raises(build_all.GitStateUnreadableError) as excinfo:
+        build_all._git_diff_paths(tmp_path)
+
+    message = str(excinfo.value)
+    assert len(message.splitlines()) == 1, message
+    assert diagnosis in message
+    assert "--flag-0" not in message
+
+
+def test_first_stderr_line_caps_a_single_unbroken_line() -> None:
+    """A one-line but enormous stderr must still be capped.
+
+    Edge case the line-count assertion above cannot see: git can emit a single
+    line longer than the terminal, and splitting on newlines alone would pass
+    it through whole.
+    """
+    assert (
+        len(build_all._first_stderr_line("x" * 5000))
+        == build_all._GIT_STDERR_DETAIL_CHARS
+    )
+
+
+def test_first_stderr_line_reports_absent_stderr() -> None:
+    """Empty, whitespace-only, and None stderr must all read as "(no stderr)"."""
+    assert build_all._first_stderr_line(None) == "(no stderr)"
+    assert build_all._first_stderr_line("") == "(no stderr)"
+    assert build_all._first_stderr_line("   \n \n") == "(no stderr)"
+
+
+def test_git_diff_paths_returns_paths_on_a_healthy_repo(tmp_path: Path) -> None:
+    """Positive control: the new raising branches left the happy path intact."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / "seed.txt").write_text("seed\n")
+    subprocess.run(["git", "-C", str(repo), "add", "seed.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True
+    )
+    (repo / "seed.txt").write_text("changed\n")
+
+    assert "seed.txt" in build_all._git_diff_paths(repo)
+
+
+def test_run_check_returns_3_when_git_state_is_unreadable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """#4632 reproduction 1: a broken git must fail the gate, not pass it.
+
+    Pre-fix this returned 0 while a stale generated file sat on disk, because
+    ``_git_diff_paths`` swallowed the launch failure and returned ``[]``,
+    which is the same value a clean tree produces. The stale file is asserted
+    unchanged so the #2440 read-only contract is shown to survive the new
+    failure path rather than being traded for it.
+
+    The code is 3, not 2. Git is external and ``AGENTS.md`` reserves 3 for
+    external failures, so a missing git no longer arrives as the same code as
+    staleness, which is the one exit-2 producer a regeneration fixes.
+
+    ``--check`` reaches ``rc == 2`` from three places, so the code alone never
+    pinned this test to the git branch; the stderr assertion did, and it still
+    does now that the code is 3 and shared with the audit blocklist.
+    """
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    stale_text = "# stale, not what the generator would emit\n"
+    stale = repo / "src" / "copilot-cli" / "skills" / "alpha" / "SKILL.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_text(stale_text)
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
+    )
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    monkeypatch.setattr(build_all, "subprocess", _NoGit)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 3, f"expected exit 3 when git state is unreadable, got {rc}"
+    err = capsys.readouterr().err
+    assert "cannot read git state" in err, err
+    assert stale.read_text() == stale_text, (
+        "--check must stay read-only on the git-unreadable path"
+    )
+
+
+def test_cli_exits_3_when_git_state_read_times_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI must report exit 3 when the git read times out."""
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    monkeypatch.setattr(build_all, "subprocess", _TimeoutGit)
+
+    rc = build_all.main(["--repo-root", str(repo), "--check"])
+
+    assert rc == 3, f"expected CLI exit 3 when git times out, got {rc}"
+    assert "cannot read git state" in capsys.readouterr().err
+
+
+
+def test_cli_exits_3_when_git_state_is_unreadable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The CLI, not just ``run()``, must return the external code.
+
+    ``.claude/rules/testing.md`` MUST 8: a test for a gate drives ``main(argv)``
+    and asserts the integer the program returns. Every caller of this script
+    reads a process exit code, and ``run()``'s return value only becomes one
+    because ``main`` passes it through: this asserts the thing callers see.
+
+    Paired with the ``run()`` test above rather than replacing it, because that
+    one carries the read-only assertion on the stale file.
+    """
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    monkeypatch.setattr(build_all, "subprocess", _NoGit)
+
+    rc = build_all.main(["--repo-root", str(repo), "--check"])
+
+    assert rc == 3, f"expected CLI exit 3 when git state is unreadable, got {rc}"
+    assert "cannot read git state" in capsys.readouterr().err
+
+
+def test_snapshot_strict_raises_on_unreadable_owned_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """strict=True must refuse a snapshot missing a file that is on disk."""
+    owned = tmp_path / "src" / "copilot-cli" / "lib" / "frozen.py"
+    owned.parent.mkdir(parents=True)
+    owned.write_text("x = 1\n")
+    _fail_read_bytes_for(monkeypatch, owned, PermissionError(13, "denied"))
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(
+            tmp_path, build_all.OWNED_PREFIXES, strict=True
+        )
+    assert "frozen.py" in str(excinfo.value)
+
+
+def test_snapshot_strict_raises_on_unreadable_single_file_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The single-file prefix branch is as exposed as the directory walk.
+
+    ``docs/agent-catalog.md`` and ``.agents/architecture/README.md`` are
+    single-file entries in ``OWNED_PREFIXES``, so they never reach the
+    ``rglob`` loop. Covering only the walk would leave both of them deletable
+    by restore.
+    """
+    catalog = tmp_path / "docs" / "agent-catalog.md"
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text("# catalog\n")
+    _fail_read_bytes_for(monkeypatch, catalog, PermissionError(13, "denied"))
+
+    with pytest.raises(build_all.SnapshotIncompleteError):
+        build_all._snapshot_owned_prefixes(
+            tmp_path, build_all.OWNED_PREFIXES, strict=True
+        )
+
+
+def test_snapshot_non_strict_skips_unreadable_owned_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The .claude/ guard only compares snapshots, so it must keep skipping.
+
+    Inverse of the strict case: making every caller fail closed would turn a
+    transient unreadable file into a failed build for a guard that cannot
+    delete anything.
+    """
+    owned = tmp_path / "src" / "copilot-cli" / "lib" / "frozen.py"
+    owned.parent.mkdir(parents=True)
+    owned.write_text("x = 1\n")
+    readable = owned.parent / "other.py"
+    readable.write_text("y = 2\n")
+    _fail_read_bytes_for(monkeypatch, owned, PermissionError(13, "denied"))
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        tmp_path, build_all.OWNED_PREFIXES
+    )
+
+    assert owned not in snapshot
+    assert snapshot[readable] == b"y = 2\n"
+
+
+def test_read_into_snapshot_raises_when_a_discovered_path_vanishes(
+    tmp_path: Path,
+) -> None:
+    """Strict mode must abort if a discovered path vanishes before its read."""
+    with pytest.raises(build_all.SnapshotIncompleteError):
+        build_all._read_into_snapshot(
+            {}, tmp_path / "never-existed.py", strict=True
+        )
+
+
+
+def test_read_into_snapshot_non_strict_skips_a_path_that_vanished(
+    tmp_path: Path,
+) -> None:
+    """The comparison-only caller still skips a vanished path."""
+    snapshot: dict[Path, bytes] = {}
+
+    build_all._read_into_snapshot(
+        snapshot, tmp_path / "never-existed.py", strict=False
+    )
+
+    assert snapshot == {}
+
+
+def _symlink_or_skip(link: Path, target: Path, *, directory: bool) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=directory)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symlink creation unavailable; issue #4632: {exc}")
+
+
+def _directory_symlink_or_skip(link: Path, target: Path) -> None:
+    _symlink_or_skip(link, target, directory=True)
+
+
+def _file_symlink_or_skip(link: Path, target: Path) -> None:
+    _symlink_or_skip(link, target, directory=False)
+
+
+def _unstattable_unreadable_path(tmp_path: Path) -> Path:
+    """Return a path whose stat AND read both fail, and not with ENOENT.
+
+    A symlink loop, which needs no mock and no permission bits (this suite runs
+    as root in CI, where mode bits deny nothing). It reproduces the exact shape
+    the old ``strict and path.exists()`` guard read as "vanished": ``os.stat``
+    raises ``ELOOP`` so ``Path.exists()`` is ``False``, while ``read_bytes()``
+    raises ``OSError(ELOOP)`` rather than ``FileNotFoundError``.
+    """
+    loop = tmp_path / "loop"
+    try:
+        loop.symlink_to(loop)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symlink creation unavailable; issue #4632: {exc}")
+    return loop
+
+
+def test_read_into_snapshot_raises_under_strict_when_stat_fails_too(
+    tmp_path: Path,
+) -> None:
+    """A non-ENOENT read failure must abort strict mode, whatever stat says.
+
+    The pre-fix guard asked ``path.exists()``, which cannot separate "gone"
+    from "cannot be stat'ed": it answers both with ``False``. A permission
+    error, a stale handle, or a transient I/O failure therefore skipped the
+    file, left it out of the snapshot, and let ``_restore_owned_prefixes``
+    delete it as generator-created, reopening #4632 reproduction 2.
+
+    The three preconditions are asserted rather than assumed, so this fails
+    loudly on a runtime where the loop stops reproducing the shape instead of
+    passing for the wrong reason.
+    """
+    loop = _unstattable_unreadable_path(tmp_path)
+    assert not loop.exists(), "precondition: the old guard must read this as gone"
+    with pytest.raises(OSError) as read_failure:
+        loop.read_bytes()
+    assert not isinstance(read_failure.value, FileNotFoundError), (
+        "precondition: the read must fail with something other than ENOENT"
+    )
+    assert loop.is_symlink(), "precondition: the path is still on disk"
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._read_into_snapshot({}, loop, strict=True)
+    assert "loop" in str(excinfo.value)
+
+
+def test_read_into_snapshot_skips_a_stat_failure_when_not_strict(
+    tmp_path: Path,
+) -> None:
+    """Inverse control: the .claude/ guard must keep skipping, not start failing.
+
+    Same input as the strict case above. The guard only compares snapshots and
+    cannot delete anything, so widening fail-closed to it would fail a pre-push
+    gate on a transient error for no safety gain.
+    """
+    loop = _unstattable_unreadable_path(tmp_path)
+    snapshot: dict[Path, bytes] = {}
+
+    build_all._read_into_snapshot(snapshot, loop, strict=False)
+
+    assert snapshot == {}
+
+
+def test_snapshot_strict_rejects_owned_directory_symlink(
+    tmp_path: Path,
+) -> None:
+    """Strict discovery must reject a directory symlink, not skip it.
+
+    Skipping was fail-open. The link stays out of the snapshot, but
+    ``generate_skills._copy_skill_tree`` writes ``target / rel``, which the
+    filesystem resolves through the link, so generation reaches the external
+    directory and restore cannot follow it back.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    target = tmp_path / "external"
+    target.mkdir()
+    protected = target / "keep.py"
+    protected.write_text("x = 1\n")
+    _directory_symlink_or_skip(owned / "linked", target)
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "owned path redirects" in str(excinfo.value)
+    assert protected.read_text() == "x = 1\n"
+
+
+def test_snapshot_strict_rejects_owned_file_symlink(tmp_path: Path) -> None:
+    """A file symlink is rejected too: restore would overwrite its target.
+
+    The directory case is the one that escapes the repository, but a file
+    link is the same fail-open one level down. Restore writes snapshot bytes
+    to the link path, and the filesystem sends them to the target.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    target = tmp_path / "external.py"
+    target.write_text("x = 1\n")
+    _file_symlink_or_skip(owned / "linked.py", target)
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "owned path redirects" in str(excinfo.value)
+    assert target.read_text() == "x = 1\n"
+
+
+def test_snapshot_strict_rejects_owned_prefix_root_symlink(
+    tmp_path: Path,
+) -> None:
+    """A prefix root that is itself a link takes the same branch.
+
+    ``_iter_strict_owned_files`` stats the root with ``missing_root_ok=True``,
+    a different call site from the per-child one, so the rejection has to hold
+    on both or a linked root walks straight past it.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    target = tmp_path / "external"
+    target.mkdir()
+    protected = target / "keep.py"
+    protected.write_text("x = 1\n")
+    _directory_symlink_or_skip(repo / "owned", target)
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "owned path redirects" in str(excinfo.value)
+    assert protected.read_text() == "x = 1\n"
+
+
+def test_read_bytes_no_redirect_refuses_a_symlink(tmp_path: Path) -> None:
+    """The read-side TOCTOU guard refuses a symlink instead of following it.
+
+    ``Path.read_bytes()`` follows a symlink to wherever it points, which is
+    exactly the read-side gap PR #5343 review thread
+    ``PRRT_kwDOQoWRls6epz-C`` (build_all.py:1562) named: a path validated as
+    a regular file earlier can be swapped for a symlink before the read.
+    This is the unit-level proof that :func:`_read_bytes_no_redirect`, not
+    just the strict-discovery walk that calls it, is the thing refusing.
+    """
+    target = tmp_path / "external.py"
+    target.write_text("secret\n", encoding="utf-8")
+    link = tmp_path / "owned.py"
+    _file_symlink_or_skip(link, target)
+
+    with pytest.raises(OSError):
+        build_all._read_bytes_no_redirect(link)
+
+
+def test_read_bytes_no_redirect_reads_a_regular_file(tmp_path: Path) -> None:
+    """Positive control: a real file still reads, unlike a mutant that always raises."""
+    real = tmp_path / "owned.py"
+    real.write_text("x = 1\n", encoding="utf-8")
+
+    assert build_all._read_bytes_no_redirect(real) == b"x = 1\n"
+
+
+def test_read_into_snapshot_refuses_a_path_swapped_for_a_symlink(
+    tmp_path: Path,
+) -> None:
+    """Strict mode must refuse a path raced into a symlink before the read.
+
+    Simulates the exact window review thread ``PRRT_kwDOQoWRls6epz-C``
+    flagged: ``_iter_strict_owned_files`` validated this path as a regular
+    file during discovery (not reproduced here; that part is
+    ``test_snapshot_strict_rejects_owned_file_symlink``), and the swap to a
+    symlink happens between discovery and the call this test makes directly,
+    the same gap :func:`_read_into_snapshot` cannot see across.
+    """
+    target = tmp_path / "external.py"
+    target.write_text("secret\n", encoding="utf-8")
+    link = tmp_path / "owned.py"
+    _file_symlink_or_skip(link, target)
+
+    snapshot: dict[Path, bytes] = {}
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._read_into_snapshot(snapshot, link, strict=True)
+
+    assert "cannot read owned file" in str(excinfo.value)
+    assert link not in snapshot
+    assert b"secret" not in b"".join(snapshot.values())
+
+
+def test_write_bytes_no_redirect_refuses_an_existing_symlink(
+    tmp_path: Path,
+) -> None:
+    """The write-side TOCTOU guard refuses to create over an existing symlink.
+
+    ``_restore_owned_prefixes`` always removes whatever is at a path before
+    calling :func:`build_all._write_bytes_no_redirect`, so this call site
+    normally finds nothing there. Review thread ``PRRT_kwDOQoWRls6epgus``
+    (build_all.py:1843) named the race where something, a symlink included,
+    reappears in that gap. ``os.O_EXCL`` must refuse rather than write
+    through it, whether or not the caller's removal ran first; this test
+    skips straight to "something is already there" rather than reproducing
+    the timing.
+    """
+    target = tmp_path / "external.py"
+    target.write_text("original\n", encoding="utf-8")
+    link = tmp_path / "owned.py"
+    _file_symlink_or_skip(link, target)
+
+    with pytest.raises(OSError):
+        build_all._write_bytes_no_redirect(link, b"restored\n")
+
+    assert target.read_text(encoding="utf-8") == "original\n"
+
+
+def test_write_bytes_no_redirect_creates_a_new_file(tmp_path: Path) -> None:
+    """Positive control: writing to a genuinely absent path still works."""
+    dest = tmp_path / "owned.py"
+
+    build_all._write_bytes_no_redirect(dest, b"x = 1\n")
+
+    assert dest.read_bytes() == b"x = 1\n"
+    assert not dest.is_symlink()
+
+
+@pytest.mark.skipif(
+    os.name == "nt", reason="POSIX permission bits are not meaningful on Windows"
+)
+def test_write_bytes_no_redirect_creates_with_no_group_or_world_access(
+    tmp_path: Path,
+) -> None:
+    """CodeQL (CWE-732) flagged an explicit ``0o644`` literal on this call as
+    an overly permissive mode passed to ``os.open``. Pin the fix: 0o600, no
+    group or world bits, whatever the process umask happens to be.
+    """
+    dest = tmp_path / "owned.py"
+
+    build_all._write_bytes_no_redirect(dest, b"x = 1\n")
+
+    assert stat.S_IMODE(dest.stat().st_mode) == 0o600
+
+
+def test_restore_owned_prefixes_refuses_a_symlink_raced_in_before_the_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """End-to-end: a redirect planted between removal and write is refused.
+
+    Monkeypatches ``Path.unlink`` so the moment ``_restore_owned_prefixes``
+    removes the pre-existing file at ``owned/frozen.py``, this test plants a
+    symlink to an external file at that exact path before the function's
+    own write runs, reproducing review thread ``PRRT_kwDOQoWRls6epgus``
+    (build_all.py:1843) without needing real concurrency. Restore must
+    refuse the write (WARN, keep going) rather than send the snapshot's
+    original bytes through the link to the external target.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    protected = owned / "frozen.py"
+    protected.write_text("x = 1\n", encoding="utf-8")
+    snapshot = build_all._snapshot_owned_prefixes(repo, ("owned/",))
+    assert snapshot[protected] == b"x = 1\n"
+
+    external = tmp_path / "external.py"
+    external.write_text("do not touch\n", encoding="utf-8")
+
+    real_unlink = Path.unlink
+    raced = False
+
+    def racing_unlink(self: Path, missing_ok: bool = False) -> None:
+        nonlocal raced
+        real_unlink(self, missing_ok=missing_ok)
+        if self == protected and not raced:
+            raced = True
+            self.symlink_to(external)
+
+    # The generator "changed" the file so restore's already-matches
+    # shortcut does not skip straight past the removal-and-write path.
+    protected.write_text("generator output\n", encoding="utf-8")
+    monkeypatch.setattr(Path, "unlink", racing_unlink)
+
+    build_all._restore_owned_prefixes(repo, ("owned/",), snapshot)
+
+    assert external.read_text(encoding="utf-8") == "do not touch\n"
+    assert "WARN: failed to restore" in capsys.readouterr().err
+
+
+def test_snapshot_non_strict_still_skips_an_owned_directory_symlink(
+    tmp_path: Path,
+) -> None:
+    """Inverse control: the .claude/ guard must keep skipping, not start failing.
+
+    Same input as the strict case. The guard only compares snapshots and never
+    deletes, so a link there costs a missed report, not data, and failing a
+    pre-push gate on it would buy nothing.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    kept = owned / "real.py"
+    kept.write_bytes(b"y = 2\n")
+    target = tmp_path / "external"
+    target.mkdir()
+    (target / "keep.py").write_text("x = 1\n")
+    _directory_symlink_or_skip(owned / "linked", target)
+
+    snapshot = build_all._snapshot_owned_prefixes(repo, ("owned/",))
+
+    assert snapshot == {kept: b"y = 2\n"}
+
+
+def test_snapshot_strict_rejects_a_nested_git_checkout(tmp_path: Path) -> None:
+    """Strict discovery must refuse a nested repository, not skip past it.
+
+    `git worktree add` writes a `.git` FILE holding a `gitdir:` pointer, the
+    shape reproduced here. Skipping it protected restore and nothing else: the
+    checkout stays out of the snapshot (issue #5370, where 24 nested worktrees
+    read into memory exhausted the process), generation still writes into it,
+    and restore skips the same directory, so `--check` returns having modified
+    a tree it promised not to touch.
+
+    Strict discovery does not use `Path.rglob` or
+    `_iter_tree_skip_git_boundaries`, so it inherits nothing from #5464's fix.
+    This test is what holds the boundary test in `_queue_strict_owned_path`.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    nested = owned / "worktrees" / "wt"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: ../../../../.git/worktrees/wt\n")
+    (nested / "checked_out.py").write_text("z = 3\n")
+    (nested / "deeper").mkdir()
+    (nested / "deeper" / "also.py").write_text("z = 4\n")
+    kept = owned / "real.py"
+    kept.write_bytes(b"y = 2\n")
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "nested git repository" in str(excinfo.value)
+    assert (nested / "checked_out.py").read_text() == "z = 3\n"
+    assert kept.read_bytes() == b"y = 2\n"
+
+
+def _fifo_or_skip(path: Path) -> None:
+    try:
+        os.mkfifo(path)
+    except (AttributeError, OSError, NotImplementedError) as exc:
+        pytest.skip(f"FIFO creation unavailable: {exc}")
+
+
+def test_snapshot_strict_rejects_a_special_file(tmp_path: Path) -> None:
+    """A FIFO under an owned prefix must abort, not be quietly omitted.
+
+    `_strict_owned_stat` returned its metadata and both callers dropped it,
+    because it is neither a directory to queue nor a regular file to yield. So
+    it stayed out of the snapshot while generation was allowed to start. Two
+    ways that ends badly: a FIFO sitting at an expected output such as
+    `docs/agent-catalog.md` blocks the generator's write forever, and if
+    generation replaces the entry instead, no snapshot of bytes can put a FIFO
+    back.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    _fifo_or_skip(owned / "pipe")
+    (owned / "real.py").write_bytes(b"y = 2\n")
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "neither a regular file nor a directory" in str(excinfo.value)
+
+
+def test_snapshot_strict_rejects_a_special_file_prefix_root(
+    tmp_path: Path,
+) -> None:
+    """The root takes the same test, on its own `_strict_owned_stat` call.
+
+    `missing_root_ok=True` is a different call site from the per-child one, so
+    a FIFO standing where a single-file prefix belongs has to be rejected
+    there too rather than read as "not a regular file, nothing to do".
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _fifo_or_skip(repo / "owned.txt")
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned.txt",), strict=True)
+
+    assert "neither a regular file nor a directory" in str(excinfo.value)
+
+
+def test_snapshot_non_strict_still_skips_a_special_file(tmp_path: Path) -> None:
+    """Inverse control: the .claude/ guard keeps skipping, not failing."""
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    _fifo_or_skip(owned / "pipe")
+    kept = owned / "real.py"
+    kept.write_bytes(b"y = 2\n")
+
+    assert build_all._snapshot_owned_prefixes(repo, ("owned/",)) == {
+        kept: b"y = 2\n"
+    }
+
+
+def test_snapshot_strict_rejects_a_prefix_root_that_is_a_checkout(
+    tmp_path: Path,
+) -> None:
+    """The prefix ROOT gets the boundary test too, not only its children.
+
+    `_queue_strict_owned_path` runs on children. The root is queued directly,
+    so checking only children left `src/` holding its own `.git` traversed and
+    written into, which is the whole hole one level up.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    (owned / ".git").write_text("gitdir: ../../.git/worktrees/owned\n")
+    protected = owned / "checked_out.py"
+    protected.write_text("z = 3\n")
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "nested git repository" in str(excinfo.value)
+    assert protected.read_text() == "z = 3\n"
+
+
+def test_snapshot_strict_skips_files_under_an_ignored_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`_ignored_paths` can return a directory, so membership is not enough.
+
+    `git ls-files` reports an embedded checkout as one ignored directory, not
+    one entry per file inside it (issue #5370). The strict branch therefore
+    has to ask `_is_ignored_path`, which treats each entry as a prefix, the
+    same question the non-strict walk asks. Plain `path in ignored` reads
+    every file under such a directory.
+
+    No production caller pairs `strict` with `exclude_ignored` today, so
+    without this test the two spellings are indistinguishable and the strict
+    branch could drift back to membership unnoticed. Both are public keyword
+    arguments, so the combination is contract, not a hypothetical.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    ignored_dir = owned / "runtime"
+    ignored_dir.mkdir(parents=True)
+    (ignored_dir / "cache.bin").write_bytes(b"noise\n")
+    kept = owned / "real.py"
+    kept.write_bytes(b"y = 2\n")
+    monkeypatch.setattr(
+        build_all, "_ignored_paths", lambda _root, _prefixes: {ignored_dir}
+    )
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        repo, ("owned/",), exclude_ignored=True, strict=True
+    )
+
+    assert set(snapshot) == {kept}, (
+        "strict discovery read a file nested under an ignored directory"
+    )
+
+
+def test_snapshot_strict_rejects_a_redirecting_ancestor(tmp_path: Path) -> None:
+    """A link ABOVE an owned path is followed before any per-path check.
+
+    `stat(follow_symlinks=False)` declines to follow only the final component.
+    `docs/agent-catalog.md` is a real single-file owned prefix, so a `docs`
+    link pointing outside the repository sends the generated catalog to the
+    link target, where restore cannot reach it, while every per-path symlink
+    check still passes.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    external = tmp_path / "external-docs"
+    external.mkdir()
+    protected = external / "agent-catalog.md"
+    protected.write_text("# catalog\n")
+    _directory_symlink_or_skip(repo / "docs", external)
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(
+            repo, ("docs/agent-catalog.md",), strict=True
+        )
+
+    assert "owned path ancestor redirects" in str(excinfo.value)
+    assert protected.read_text() == "# catalog\n"
+
+
+def test_snapshot_strict_aborts_when_an_ancestor_cannot_be_stat_ed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable ancestor is not a readable one.
+
+    The ancestor walk's `except OSError` arm. Returning early there would
+    reintroduce the whole point of this change one directory up: a metadata
+    failure read as "no redirect here", the walk continues, and generation
+    reaches whatever the unreadable component points at.
+    """
+    repo = tmp_path / "repo"
+    docs = repo / "docs"
+    docs.mkdir(parents=True)
+    (docs / "agent-catalog.md").write_text("# catalog\n")
+
+    real_stat = Path.stat
+
+    def ancestor_denied(
+        self: Path, *, follow_symlinks: bool = True
+    ) -> os.stat_result:
+        if self == docs:
+            raise PermissionError(13, "denied")
+        return real_stat(self, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "stat", ancestor_denied)
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(
+            repo, ("docs/agent-catalog.md",), strict=True
+        )
+
+    assert "cannot inspect owned path ancestor" in str(excinfo.value)
+
+
+def test_snapshot_strict_tolerates_a_missing_ancestor(tmp_path: Path) -> None:
+    """Inverse control: an absent ancestor is not a redirect.
+
+    Generators may create the tree, and the pre-existing contract skips a
+    prefix root that is absent before discovery. The ancestor walk must not
+    turn that into an abort.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    assert build_all._snapshot_owned_prefixes(
+        repo, ("docs/agent-catalog.md",), strict=True
+    ) == {}
+
+
+def test_is_redirecting_flags_a_windows_junction(tmp_path: Path) -> None:
+    """A junction is a directory carrying a reparse tag, not an `S_ISLNK`.
+
+    Junctions cannot be created on this platform, so the predicate is driven
+    directly. Without the reparse-tag arm a junction under an owned prefix
+    passes every symlink test and is then traversed, which is the same escape
+    a symlink gives.
+
+    The tag is read from the module rather than from `stat`, because
+    `stat.IO_REPARSE_TAG_MOUNT_POINT` exists only on Windows builds and a test
+    that silently degrades to comparing a sentinel proves nothing.
+    """
+    directory = tmp_path / "plain"
+    directory.mkdir()
+    plain = directory.stat(follow_symlinks=False)
+
+    assert not build_all._is_redirecting(plain)
+
+    class _JunctionStat:
+        st_mode = plain.st_mode
+        st_reparse_tag = build_all._MOUNT_POINT_REPARSE_TAG
+
+    assert build_all._is_redirecting(cast("os.stat_result", _JunctionStat()))
+
+
+def test_snapshot_strict_aborts_when_the_git_marker_cannot_be_stat_ed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A metadata failure on `<dir>/.git` must abort, not read as "no boundary".
+
+    `_is_opaque_boundary`'s shape branch asks `(entry / ".git").exists()`, which
+    answers "absent" and "could not be stat'ed" with the same False. Used from
+    the strict walk that would have descended into the checkout, read every
+    file in it, and handed restore a boundary set missing that entry: issue
+    #5370 reached through the exact metadata failure the strict contract
+    exists to reject.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    nested = owned / "worktrees" / "wt"
+    nested.mkdir(parents=True)
+    marker = nested / ".git"
+    marker.write_text("gitdir: ../../../../.git/worktrees/wt\n")
+    (nested / "checked_out.py").write_text("z = 3\n")
+    (owned / "real.py").write_bytes(b"y = 2\n")
+
+    real_stat = Path.stat
+
+    def marker_stat_denied(
+        self: Path, *, follow_symlinks: bool = True
+    ) -> os.stat_result:
+        if self == marker:
+            raise PermissionError(13, "denied")
+        return real_stat(self, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "stat", marker_stat_denied)
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "cannot inspect git boundary marker" in str(excinfo.value)
+
+
+def test_snapshot_strict_rejects_a_symlinked_git_marker(tmp_path: Path) -> None:
+    """A symlinked `.git` marker cannot be trusted to answer the question.
+
+    Following it would let a link decide whether a directory counts as a
+    nested repository, which is the same trust the symlink rejection in
+    `_strict_owned_stat` refuses for the paths themselves.
+    """
+    repo = tmp_path / "repo"
+    nested = repo / "owned" / "worktrees" / "wt"
+    nested.mkdir(parents=True)
+    elsewhere = tmp_path / "elsewhere-git"
+    elsewhere.write_text("gitdir: /somewhere/else\n")
+    _file_symlink_or_skip(nested / ".git", elsewhere)
+    (nested / "checked_out.py").write_text("z = 3\n")
+
+    with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
+        build_all._snapshot_owned_prefixes(repo, ("owned/",), strict=True)
+
+    assert "git boundary marker redirects" in str(excinfo.value)
+
+def test_snapshot_non_strict_skips_owned_path_when_stat_fails(
+    tmp_path: Path,
+) -> None:
+    """The comparison-only caller must keep skipping stat failures."""
+    owned = tmp_path / "src" / "copilot-cli" / "lib"
+    owned.mkdir(parents=True)
+    readable = owned / "other.py"
+    readable.write_bytes(b"y = 2\n")
+    loop = _unstattable_unreadable_path(owned)
+
+    snapshot = build_all._snapshot_owned_prefixes(
+        tmp_path, build_all.OWNED_PREFIXES
+    )
+
+    assert loop not in snapshot
+    assert snapshot[readable] == b"y = 2\n"
+
+
+
+def test_run_check_aborts_before_generation_when_owned_file_stat_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A transient file stat failure must not create a partial snapshot."""
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "owned" / "frozen.py"
+    protected.parent.mkdir(parents=True)
+    protected.write_text("x = 1\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
+
+    real_stat = Path.stat
+    failed = False
+
+    def flaky_stat(self: Path, *, follow_symlinks: bool = True) -> os.stat_result:
+        nonlocal failed
+        if self == protected and not failed:
+            failed = True
+            raise PermissionError(13, "denied")
+        return real_stat(self, follow_symlinks=follow_symlinks)
+
+    generation_called = False
+
+    def record_generation(*_args: object, **_kwargs: object) -> int:
+        nonlocal generation_called
+        generation_called = True
+        return 0
+
+    monkeypatch.setattr(Path, "stat", flaky_stat)
+    monkeypatch.setattr(build_all, "_run_generators", record_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not generation_called
+    assert protected.read_text() == "x = 1\n"
+    assert "cannot inspect owned path" in capsys.readouterr().err
+
+
+
+def test_run_check_preserves_owned_root_after_transient_enoent_stat(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A root that still has a directory entry must not be treated as absent.
+
+    The `FileNotFoundError` is raised from `Path.stat`, the real I/O boundary,
+    not from a stub standing in for `_strict_owned_stat`. Stubbing the helper
+    with an already-wrapped `SnapshotIncompleteError` skipped both branches
+    this test exists to cover: the `FileNotFoundError` handler and the
+    `_missing_owned_root` parent scan that decides whether a missing root is
+    genuinely absent. Deleting either left the old version green.
+
+    `owned.txt` is still listed by its parent, so `_missing_owned_root`
+    answers False even under `missing_root_ok=True`, and the helper raises
+    rather than treating the prefix as one a generator may create.
+    """
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "owned.txt"
+    protected.write_text("x = 1\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned.txt",))
+
+    real_stat = Path.stat
+    failed = False
+
+    def vanishes_once(
+        self: Path, *, follow_symlinks: bool = True
+    ) -> os.stat_result:
+        nonlocal failed
+        if self == protected and not failed:
+            failed = True
+            raise FileNotFoundError(2, "vanished", str(self))
+        return real_stat(self, follow_symlinks=follow_symlinks)
+
+    generation_called = False
+
+    def record_generation(*_args: object, **_kwargs: object) -> int:
+        nonlocal generation_called
+        generation_called = True
+        return 0
+
+    monkeypatch.setattr(Path, "stat", vanishes_once)
+    monkeypatch.setattr(build_all, "_run_generators", record_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not generation_called
+    assert protected.read_text() == "x = 1\n"
+    assert "owned path disappeared during snapshot" in capsys.readouterr().err
+
+
+
+def test_run_check_aborts_when_a_missing_root_cannot_be_verified(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`_missing_owned_root`'s own scan failure must abort, not escape.
+
+    A distinct path from the directory-scan test beside it. There the root
+    stat succeeds and `os.scandir` fails on the root. Here the root stat
+    raises `FileNotFoundError`, so `missing_root_ok=True` sends the question
+    to `_missing_owned_root`, and scanning the PARENT fails. Without the
+    translation that helper does, the raw `PermissionError` leaves `run`
+    uncaught and the CLI reports a traceback instead of exit 2.
+
+    "Absent" and "cannot tell whether it is absent" are the same distinction
+    this whole change is about, one directory up.
+    """
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "owned.txt"
+    protected.write_text("x = 1\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned.txt",))
+
+    real_stat = Path.stat
+
+    def root_vanished(
+        self: Path, *, follow_symlinks: bool = True
+    ) -> os.stat_result:
+        if self == protected:
+            raise FileNotFoundError(2, "vanished", str(self))
+        return real_stat(self, follow_symlinks=follow_symlinks)
+
+    real_scandir = os.scandir
+
+    def parent_scan_denied(
+        path: str | os.PathLike[str],
+    ) -> Iterator[os.DirEntry[str]]:
+        if Path(path) == repo:
+            raise PermissionError(13, "denied")
+        return real_scandir(path)
+
+    generation_called = False
+
+    def record_generation(*_args: object, **_kwargs: object) -> int:
+        nonlocal generation_called
+        generation_called = True
+        return 0
+
+    monkeypatch.setattr(Path, "stat", root_vanished)
+    monkeypatch.setattr(build_all.os, "scandir", parent_scan_denied)
+    monkeypatch.setattr(build_all, "_run_generators", record_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not generation_called
+    assert protected.read_text() == "x = 1\n"
+    assert "cannot verify missing owned path" in capsys.readouterr().err
+
+
+def test_run_check_preserves_file_after_transient_enoent_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A file that returns after ENOENT must not be deleted by restore."""
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "owned" / "frozen.py"
+    protected.parent.mkdir(parents=True)
+    protected.write_text("x = 1\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
+
+    real_open = os.open
+    failed = False
+
+    def flaky_open(
+        path: str | os.PathLike[str],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        nonlocal failed
+        if Path(os.fspath(path)) == protected and not failed:
+            failed = True
+            raise FileNotFoundError(2, "vanished", str(path))
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    generation_called = False
+
+    def record_generation(*_args: object, **_kwargs: object) -> int:
+        nonlocal generation_called
+        generation_called = True
+        return 0
+
+    monkeypatch.setattr(os, "open", flaky_open)
+    monkeypatch.setattr(build_all, "_run_generators", record_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not generation_called
+    assert protected.read_text() == "x = 1\n"
+    assert "cannot read owned file" in capsys.readouterr().err
+
+
+
+def test_run_check_aborts_before_generation_when_owned_directory_scan_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A transient directory scan failure must not create a partial snapshot."""
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    owned = repo / "owned"
+    protected = owned / "frozen.py"
+    owned.mkdir()
+    protected.write_text("x = 1\n")
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
+
+    real_scandir = os.scandir
+
+    def failing_scandir(
+        path: str | os.PathLike[str],
+    ) -> Iterator[os.DirEntry[str]]:
+        """Deny every scan of ``owned``, not just the first one.
+
+        ``monkeypatch.setattr(build_all.os, "scandir", ...)`` patches the
+        attribute on the ``os`` module itself, which ``pathlib`` reads too, so
+        a one-shot stub is spent by whichever walk reaches the directory
+        first. Since #5464 that is ``_git_boundaries_under``, which swallows
+        ``OSError`` by design, and the strict walk then succeeded and the run
+        returned 0. Denying every call puts the failure where the assertion
+        expects it; the stderr assertion below is what pins the abort to
+        ``_strict_owned_children`` rather than to the boundary walk.
+        """
+        if Path(path) == owned:
+            raise PermissionError(13, "denied")
+        return real_scandir(path)
+
+    generation_called = False
+
+    def record_generation(*_args: object, **_kwargs: object) -> int:
+        nonlocal generation_called
+        generation_called = True
+        return 0
+
+    monkeypatch.setattr(build_all.os, "scandir", failing_scandir)
+    monkeypatch.setattr(build_all, "_run_generators", record_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not generation_called
+    assert protected.read_text() == "x = 1\n"
+    assert "cannot enumerate owned directory" in capsys.readouterr().err
+
+
+
+def test_run_check_aborts_before_a_generator_writes_through_a_symlink(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``--check`` must not let generation reach a link target outside the repo.
+
+    The run-level proof for the symlink rejection. The stand-in generator
+    writes exactly what ``generate_skills._copy_skill_tree`` writes, a path
+    built as ``<owned dir> / <relative name>``, which the filesystem resolves
+    through the link. If the snapshot goes back to skipping links, this
+    generator runs, ``leaked.md`` appears in the external directory, and
+    restore never sees it: ``_enumerate_files_under`` skips symlinks and
+    ``Path.rglob`` does not descend into a symlinked directory, so case 3
+    cannot delete it.
+    """
+    repo = tmp_path / "repo"
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    external = tmp_path / "external"
+    external.mkdir()
+    protected = external / "keep.py"
+    protected.write_text("x = 1\n")
+    _directory_symlink_or_skip(owned / "linked", external)
+    monkeypatch.setattr(build_all, "OWNED_PREFIXES", ("owned/",))
+
+    def leaky_generation(*_args: object, **_kwargs: object) -> int:
+        (owned / "linked" / "leaked.md").write_text("leaked\n")
+        (owned / "linked" / "keep.py").write_text("x = 2\n")
+        return 0
+
+    monkeypatch.setattr(build_all, "_run_generators", leaky_generation)
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2
+    assert not (external / "leaked.md").exists(), (
+        "--check let a generator create a file outside the repository"
+    )
+    assert protected.read_text() == "x = 1\n", (
+        "--check let a generator overwrite a file outside the repository"
+    )
+    assert "owned path redirects" in capsys.readouterr().err
+
+
+
+def test_run_check_aborts_before_the_real_generator_writes_into_a_checkout(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The real skills generator must never reach a nested checkout.
+
+    No stand-in generator here. `generate_skills` runs for real in this repo
+    shape, and its target for the `alpha` skill is
+    `src/copilot-cli/skills/alpha/SKILL.md`, which is exactly the path a
+    nested checkout would occupy. Recording the checkout as an opaque boundary
+    protected restore and nothing else: the generator overwrote the file, and
+    restore skipped the directory, so `--check` returned having modified a
+    tree it promised not to touch.
+
+    The assertion that matters is the file's content, not the exit code. A
+    version that let the write through and then failed for some other reason
+    would still pass an exit-code check.
+    """
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    nested = repo / "src" / "copilot-cli" / "skills" / "alpha"
+    nested.mkdir(parents=True)
+    (nested / ".git").write_text("gitdir: ../../../../.git/worktrees/alpha\n")
+    protected = nested / "SKILL.md"
+    protected.write_text("# someone else's checkout\n")
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert protected.read_text() == "# someone else's checkout\n", (
+        "--check let a generator overwrite a file inside a nested checkout"
+    )
+    assert rc == 2
+    assert "nested git repository" in capsys.readouterr().err
+
+
+def test_run_check_aborts_without_deleting_an_unreadable_owned_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """#4632 reproduction 2: --check must not delete what it could not read.
+
+    Pre-fix this returned 1 with the file gone: the snapshot skipped it, and
+    ``_restore_owned_prefixes`` then classified an on-disk path absent from
+    the snapshot as generator-created and unlinked it. The surviving-file
+    assertion is the point of the fix; the exit code alone would pass against
+    a version that deleted the file and then failed.
+
+    The stderr assertion pins the exit to the pre-generation abort. ``--check``
+    reaches ``rc == 2`` from three branches, so the code alone cannot say which
+    one fired.
+    """
+    repo = tmp_path / "repo"
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "src" / "copilot-cli" / "lib" / "frozen.py"
+    protected.parent.mkdir(parents=True)
+    protected.write_text("x = 1\n")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
+    )
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    _fail_read_bytes_for(monkeypatch, protected, PermissionError(13, "denied"))
+
+    rc = build_all.run(
+        repo, platform=None, check=True, clean=False, audit_format="md"
+    )
+
+    assert rc == 2, f"expected exit 2 when an owned file is unreadable, got {rc}"
+    err = capsys.readouterr().err
+    assert "aborted before generation" in err, err
+    assert protected.is_file(), (
+        "--check deleted a pre-existing owned file it could not read"
+    )
+
+
+def test_run_without_check_still_builds_when_an_owned_file_is_unreadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A plain build takes no snapshot, so strict mode must not reach it.
+
+    Inverse control for the abort above: fail-closed belongs to ``--check``
+    alone, and widening it would break ordinary regeneration.
+    """
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    protected = repo / "src" / "copilot-cli" / "lib" / "frozen.py"
+    protected.parent.mkdir(parents=True)
+    protected.write_text("x = 1\n")
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    _fail_read_bytes_for(monkeypatch, protected, PermissionError(13, "denied"))
+
+    rc = build_all.run(
+        repo, platform=None, check=False, clean=False, audit_format="md"
+    )
+
+    assert rc == 0, f"plain build must not fail closed on an owned file, got {rc}"
+
+
+def test_plain_build_reads_git_and_survives_because_that_read_fails_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A plain build DOES read git; it survives because that read fails open.
+
+    Pins the corrected module-docstring claim. ``_git_diff_paths`` is the only
+    git read gated on ``--check``. The REQ-003-010 guard reads git on every
+    run, from two call sites: ``run()`` takes the ``claude_baseline`` snapshot
+    with ``exclude_ignored=True``, and ``assert_no_claude_writes`` takes the
+    comparison snapshot the same way. Both route through ``_ignored_paths``,
+    which shells out to ``git ls-files``. So "a plain build succeeds in a
+    broken-git tree" is true, and "because nothing reads git" is not.
+
+    ``rc == 0`` alone cannot tell those apart: it holds under both readings.
+    The argv spy is the discriminating half, and it fails if a future change
+    stops the guard from consulting git at all, which would silently turn the
+    ignore set into "nothing is ignored".
+    """
+    seen_argv: list[list[str]] = []
+
+    class _RecordingNoGit:
+        """``_NoGit`` that records each argv before failing the launch.
+
+        Not a subclass: naming ``argv`` in the signature is what lets the
+        recording be typed, and that is a narrower signature than ``_NoGit.run``.
+        """
+
+        SubprocessError = subprocess.SubprocessError
+        TimeoutExpired = subprocess.TimeoutExpired
+
+        @staticmethod
+        def run(argv: list[str], *_args: object, **_kwargs: object) -> object:
+            seen_argv.append(list(argv))
+            raise FileNotFoundError(2, "No such file or directory: 'git'")
+
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    monkeypatch.setattr(build_all, "subprocess", _RecordingNoGit)
+
+    rc = build_all.run(
+        repo, platform=None, check=False, clean=False, audit_format="md"
+    )
+
+    assert rc == 0, f"a plain build must survive a broken git, got {rc}"
+    assert any("ls-files" in argv for argv in seen_argv), (
+        "a plain build is expected to consult git for the ignore set; "
+        f"recorded git invocations: {seen_argv}"
+    )
