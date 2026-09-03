@@ -6,7 +6,7 @@ applyTo: .claude/rules/**,.serena/memories/**,.github/instructions/**,src/copilo
 
 This rule covers the mechanics of writing to a persistence surface: rule files, the mirrors generated from them, and Serena memories. It fires when you edit one of those trees.
 
-Choosing which surface a fact belongs on binds earlier, before you know which tree you will open, so that decision procedure lives in `.claude/rules/universal.md` under "Choosing a persistence surface". Read it there.
+Choosing which surface a fact belongs on binds earlier, before you know which tree you will open, so that decision procedure lives in the always-on Universal Rules under "Choosing a persistence surface".
 
 ## MUST
 
@@ -62,7 +62,7 @@ Before persisting anything, ask in order:
 
 1. MUST NOT hand-edit a generated mirror under `.github/instructions/` or `src/copilot-cli/instructions/`. Edit the canonical rule and regenerate.
 
-Three further MUST NOT items moved to `.claude/rules/universal.md` (items 7, 8, and 9) because they bind before you open any of these trees: do not rely on Serena or Copilot Memory alone for a cross-harness convention, do not cite an operator preference as a repository rule, and do not assert an absence from a single probe.
+Three further MUST NOT items moved to the always-on Universal Rules (items 7, 8, and 9) because they bind before you open any of these trees: do not rely on Serena or Copilot Memory alone for a cross-harness convention, do not cite an operator preference as a repository rule, and do not assert an absence from a single probe.
 
 ## References
 

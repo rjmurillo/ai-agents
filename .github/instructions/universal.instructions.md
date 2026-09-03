@@ -93,11 +93,10 @@ These rules apply to every change in this repository.
    and cite the search, or narrow the claim to the scope actually searched.
    Measured: a memory asserted "No script regenerates these, and no validator
    checks them" after one probe of a guessed path,
-   `memory/update_memory_index_tokens.py` beneath the scripts tree. The
-   regenerator and its pre-push ratchet both exist one directory up (that is,
-   directly under `scripts`), lefthook runs both, and
-   `.claude/rules/knowledge-persistence.md` MUST 6 names the regenerator by
-   path, so the memory taught the anti-pattern a binding rule forbids
+   `scripts/memory/update_memory_index_tokens.py`. The regenerator and its
+   pre-push ratchet both exist one directory up, lefthook runs both, and the
+   Knowledge Persistence Rule names the regenerator by path in its MUST list,
+   so the memory taught the anti-pattern a binding rule forbids
    (`78e808238`, corrected in `9cd7097f1`).
 
 ## Choosing a persistence surface
@@ -108,7 +107,7 @@ When you learn a durable fact, convention, or decision procedure that future ses
 2. **Retrieval aid, non-binding**: Serena memory (`.serena/memories/`, committed but MCP-gated) or Copilot Memory (the `store_memory` tool, GitHub-scoped and per-user). Use these for "useful to recall," never as the binding for a convention other harnesses must follow. Serena is not guaranteed loaded on every harness; Copilot Memory does not reach Claude or Codex at all.
 3. **Durable convention that binds every contributor and every harness**: a rule file under `.claude/rules/<name>.md`. This is the canonical surface.
 
-Once you know which tree you are writing to, `.claude/rules/knowledge-persistence.md` carries the mechanics: mirror regeneration, memory indexing, and token-count repair.
+Once you know which tree you are writing to, the Knowledge Persistence Rule carries the mechanics: mirror regeneration, memory indexing, and token-count repair.
 
 ## References
 

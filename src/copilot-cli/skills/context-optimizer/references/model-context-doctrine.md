@@ -234,15 +234,18 @@ Always-on status is declared **three** ways in this tree, which is the trap:
 
 A survey that greps one convention misses the others. The first audit of this
 corpus grepped two and reported 8 of the 9 that were always-on at the time;
-`knowledge-persistence.md` loads on every file and was absent from the count
+`knowledge-persistence.md` used the third form and was absent from the count
 for a full review cycle. Enumerate by parsing frontmatter, never by grep.
 
 Parse the **generated** mirrors, not the `.claude/rules/` sources.
 `generate_rules.py` drops `alwaysApply:`, renames `paths:` to `applyTo:`, and
-synthesizes `applyTo: "**"` for a rule that declares no scope at all or whose
-globs are all filtered out as internal-only. Neither of those reaches the corpus
-through a source line a grep could find, so the mirror is the authority for
-membership even though the source is the authority for content.
+synthesizes `applyTo: "**"` for a rule that declares no scope at all. A rule
+whose globs are all filtered out as internal-only takes the opposite path: the
+generator skips it entirely rather than universalizing it
+(`build/scripts/generate_rules.py:349-350`, issue #4317). Neither outcome
+reaches the corpus through a source line a grep could find, so the mirror is
+the authority for membership even though the source is the authority for
+content.
 
 Name the tree with the number, because the two mirror trees used to disagree.
 `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions` under
