@@ -76,7 +76,7 @@ Read more: <https://garryslist.org/posts/boil-the-ocean>
 
 ## 2. Search Before Building
 
-The 1000x engineer's first instinct is "has someone already solved this?" not "let me design it from scratch." The cost of checking is near-zero. The cost of not checking is reinventing something worse.
+The 1000x engineer's first instinct is "has someone already solved this?" not "let me design it from scratch." Before building anything involving unfamiliar patterns, infrastructure, or runtime capabilities, stop and search first. The cost of checking is near-zero. The cost of not checking is reinventing something worse.
 
 ### Three Layers of Knowledge
 

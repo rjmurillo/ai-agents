@@ -47,12 +47,6 @@ The cost of a two-sentence preamble is roughly zero. The cost of a 30-minute rol
 
 **When a heavy action fails midway.** Mark the in-flight task as failed with a one-line reason. If partial changes are reversible (uncommitted edits, unpushed commits), revert them. If not (pushed commits, mutated external state), state what was changed and what was not. Ask the user before retrying; do not retry blindly.
 
-## Token Economy
-
-Rework is the expensive path: a wrong edit bills the edit, the review, the fix, and the re-review. Reading the governing rule and the exact span you are about to change costs less than any one of those four.
-
-Never trade a gate, a test, or evidence in a report for tokens. That buys a cheap turn now and a full rework cycle later.
-
 ## Dedicated Tools Over Bash
 
 Prefer Read, Edit, Write, Glob, Grep over their shell equivalents (`cat`, `sed`, `find`, `grep`).
