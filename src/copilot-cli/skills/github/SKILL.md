@@ -47,7 +47,9 @@ Use these scripts instead of raw `gh` commands for consistent error handling and
 the first GitHub call:
 
 ```bash
-uv run python .claude/skills/github/scripts/utils/check_github_transport.py
+# CLAUDE_PLUGIN_ROOT is set in a vendored install; falls back to .claude in-repo.
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils"
+python3 "$SCRIPTS_DIR/check_github_transport.py"
 ```
 
 - `Transport: gh` (exit 0). Use the scripts below. This is CI and a normal

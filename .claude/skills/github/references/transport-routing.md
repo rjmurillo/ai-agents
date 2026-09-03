@@ -5,7 +5,9 @@ operation. Decide it once per session with the preflight, then stop
 re-deciding it per call.
 
 ```bash
-uv run python .claude/skills/github/scripts/utils/check_github_transport.py
+# CLAUDE_PLUGIN_ROOT is set in a vendored install; falls back to .claude in-repo.
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils"
+python3 "$SCRIPTS_DIR/check_github_transport.py"
 ```
 
 | Verdict | Meaning | What to do |
