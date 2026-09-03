@@ -52,6 +52,13 @@ SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/githu
 python3 "$SCRIPTS_DIR/check_github_transport.py"
 ```
 
+Non-POSIX hosts do not run the block above. The authoritative, per-harness
+launcher for this one command is `check_transport` in the `scripts` map of
+`pr-review-config.yaml`: the `copilot` entry runs it under PowerShell and
+resolves the interpreter (`python3`, then `py -3`, then `python`), because a
+Windows host may expose only the launcher. Read it from the map for the harness
+you are on rather than transcribing a second copy here, which would drift.
+
 - `Transport: gh` (exit 0). Use the scripts below. This is CI and a normal
   developer machine.
 - `Transport: gh_unusable` (exit 0). `gh` cannot reach GitHub here. Route the
