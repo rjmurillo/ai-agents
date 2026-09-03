@@ -109,6 +109,8 @@ When you learn a durable fact, convention, or decision procedure that future ses
 
 Once you know which tree you are writing to, the Knowledge Persistence Rule carries the mechanics: mirror regeneration, memory indexing, and token-count repair.
 
+<!-- vendor-portability: declared. The `scripts/memory/update_memory_index_tokens.py` path in MUST NOT item 9 is not an instruction to run anything. It is the WRONG path a prior memory guessed, quoted verbatim because the whole evidence turns on the guess being wrong. Paraphrasing it or dropping it destroys the claim it supports. `scripts/` ships in no plugin root, so a vendored reader cannot resolve it, and does not need to: the rule is readable and binding without opening the file. Issue #2050. -->
+
 ## References
 
 - `AGENTS.md`. Boundaries and standards
