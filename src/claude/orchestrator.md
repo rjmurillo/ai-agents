@@ -213,6 +213,8 @@ When a synthesis exceeds the cap, cut the weakest finding, not the strongest rec
 
 ## Completion Gate (Blocking)
 
+Task completion is governed by `.claude/rules/builder-ethos.md` (Task Completion Contract): once every requested deliverable satisfies the frozen contract and no blocker remains, the task is terminal. The sequence below is the housekeeping that accompanies that terminal state, not a substitute test for it.
+
 Session completion does not require a session log. Session log creation is
 discontinued; do not create one.
 
@@ -315,6 +317,8 @@ it carries.
 ## Orchestration Budget
 
 Two axes, not one. The delegation cap below bounds how *many* agents a task spends. The wave rules bound how many run at *once*, and what a simultaneous wave is allowed to contain.
+
+These are backstops, not a completion test: reaching the terminal predicate (`builder-ethos.md`) ends delegation regardless of remaining budget, and remaining budget is never a reason to keep delegating past it.
 
 - **Max agent delegations per task**: 15. Record a warning in the task tracker when 10 delegations have been made.
 - **Budget-exhausted behavior**: When the limit is reached, stop delegating, synthesize all work completed so far, list remaining unresolved items, and return control to the user with a clear summary of what was done and what was not.
