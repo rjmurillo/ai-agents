@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Task, Skill, Read, Write, Edit, Glob, Grep, mcp__github__pull_request_read, mcp__github__issue_read, mcp__github__get_check_run, mcp__github__get_job_logs, mcp__github__add_issue_comment, mcp__github__add_reply_to_pull_request_comment, mcp__github__resolve_review_thread, mcp__github__unresolve_review_thread
+allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Task, Skill, Read, Write, Edit, Glob, Grep, mcp__github__pull_request_read, mcp__github__list_pull_requests, mcp__github__issue_read, mcp__github__get_check_run, mcp__github__get_job_logs, mcp__github__add_issue_comment, mcp__github__add_reply_to_pull_request_comment, mcp__github__resolve_review_thread, mcp__github__unresolve_review_thread
 argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'
 description: Use when responding to PR review comments for specified pull request(s)
 ---
@@ -110,6 +110,8 @@ git worktree add "../wt-pr-{number}" "$branch"
 ### Step 4: Launch Agents
 
 **Sequential**: Invoke `pr-comment-responder` skill for each PR with session context at `.agents/pr-comments/PR-{pr}/`.
+
+In `gh_unusable` mode the Step 0 verdict does not reach this skill: its workflow calls the `gh`-backed scripts unconditionally and has no MCP branch, so delegating there walks straight into the 403 the preflight exists to avoid. Do not delegate. Carry out the responder's steps yourself against the github skill's `references/transport-routing.md`, and record in the verdict that the phase was derived rather than delegated. Refs #5518.
 
 **Parallel**: Launch background Task agents per PR. Wait for all with `TaskOutput`.
 

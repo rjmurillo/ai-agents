@@ -99,6 +99,11 @@ _MCP_REVIEW_WRITES = frozenset(
         "unresolve_review_thread",
     }
 )
+# pr-review accepts `all-open` and enumerates the queue in Step 1, which the
+# routing table maps to list_pull_requests. pr-autofix must NOT have it: its
+# Phase 0 rule 3 forbids sweeping the open queue without a lease, so the grant
+# is where that stops being a matter of prose (Copilot review on PR #5509).
+_MCP_QUEUE_READ = "list_pull_requests"
 # Never granted on either surface. A blanket `github/*` carries all of these,
 # which is why ADR-003 names that grant an anti-pattern outright rather than
 # only a context cost.
@@ -148,6 +153,18 @@ class TestMcpGrantsAreEnumerated:
             op for op in _MCP_REVIEW_WRITES if f"mcp__github__{op}" not in granted
         )
         assert not missing, f"pr-review cannot answer or resolve a thread: {missing}"
+
+    def test_pr_review_can_enumerate_the_open_queue(self):
+        """`all-open` is a documented argument, so Step 1 needs the operation.
+
+        Without it the command parses `all-open`, cannot list anything, and
+        stops before the first review in gh_unusable mode.
+        """
+        assert f"mcp__github__{_MCP_QUEUE_READ}" in _granted(REVIEW)
+
+    def test_pr_autofix_cannot_enumerate_the_open_queue(self):
+        """Rule 3 forbids the sweep, so the grant has to forbid it too."""
+        assert f"mcp__github__{_MCP_QUEUE_READ}" not in _granted(AUTOFIX)
 
     def test_pr_autofix_is_granted_no_write_operation(self):
         """Phase 0 rule 3 makes MCP mode read-only, so the grant must be too.
@@ -202,7 +219,10 @@ class TestMcpGrantsAreEnumerated:
         tools = set(config["tools"])
 
         assert "github/*" not in tools
-        expected = {f"github/{op}" for op in _MCP_READS | _MCP_REVIEW_WRITES}
+        expected = {
+            f"github/{op}"
+            for op in _MCP_READS | _MCP_REVIEW_WRITES | {_MCP_QUEUE_READ}
+        }
         assert expected <= tools, f"prompt is missing {sorted(expected - tools)}"
         forbidden = sorted(f"github/{op}" for op in _MCP_FORBIDDEN if f"github/{op}" in tools)
         assert not forbidden, f"prompt grants a repository mutation: {forbidden}"

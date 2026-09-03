@@ -14,6 +14,9 @@ tools:
   # set is the reads, the two reply forms, and thread resolution, and nothing
   # that can push, merge, or arm auto-merge (Copilot review on PR #5509).
   - github/pull_request_read
+  # all-open enumerates the queue before Step 1; without this the command
+  # cannot get past parsing in gh_unusable mode.
+  - github/list_pull_requests
   - github/issue_read
   - github/get_check_run
   - github/get_job_logs
@@ -100,6 +103,8 @@ from `pull_request_read` method `get` instead and pass it to the same
 ### Step 4: Launch Agents
 
 **Sequential**: Invoke `pr-comment-responder` skill for each PR with session context at `.agents/pr-comments/PR-{pr}/`.
+
+In `gh_unusable` mode the Step 0 verdict does not reach this skill: its workflow calls the `gh`-backed scripts unconditionally and has no MCP branch, so delegating there walks straight into the 403 the preflight exists to avoid. Do not delegate. Carry out the responder's steps yourself against the github skill's `references/transport-routing.md`, and record in the verdict that the phase was derived rather than delegated. Refs #5518.
 
 **Parallel**: Launch background agents per PR. Wait for all to complete.
 
