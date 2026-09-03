@@ -665,6 +665,20 @@ class TestBothTransportsProveASessionRefusal:
         with patch("subprocess.run", side_effect=calls):
             assert check_gh_auth().status is GhAuthStatus.TRANSPORT_BLOCKED
 
+    def test_a_graphql_quota_survives_a_rest_session_refusal(self):
+        """Quota outranks promotion: it has a reset, TRANSPORT_BLOCKED does not.
+
+        Overwriting it would convert a condition that clears into a config
+        failure and drop the retry the caller should make (Copilot review on
+        PR #5509).
+        """
+        calls = [
+            _completed(stderr=PROXY_REST_403, rc=1),
+            _completed(stderr=REST_403_QUOTA, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().status is GhAuthStatus.RATE_LIMITED
+
     def test_a_plain_bad_token_on_both_is_still_invalid_credentials(self):
         """Negative control: no policy wording, so no promotion."""
         calls = [

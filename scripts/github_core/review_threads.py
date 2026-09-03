@@ -133,15 +133,23 @@ query($owner: String!, $name: String!, $prNumber: Int!, $cursor: String) {
 }"""
 
 
-class FetchStatus(enum.StrEnum):
+class FetchStatus(str, enum.Enum):
     """Result classification for one reviewThreads page fetch.
 
     The caller distinguishes ``TRANSPORT_ERROR`` (return [] to preserve the
     never-raises contract) from ``STRUCTURAL_MISSING`` (break the loop with
     whatever was collected). ``OK`` means a usable page is returned.
-    Using StrEnum instead of bare strings keeps the type checker honest
-    and makes a typo (``FetchStatus.OK_`` vs ``FetchStatus.OK``) a fail-
-    fast attribute error rather than a silent miss.
+    Subclassing ``str`` keeps the type checker honest and makes a typo
+    (``FetchStatus.OK_`` vs ``FetchStatus.OK``) a fail-fast attribute error
+    rather than a silent miss.
+
+    ``str, enum.Enum`` rather than ``enum.StrEnum``: this module is reached
+    from ``github_core.api``, so it is in the import closure of every bundled
+    skill script, and those run under the host's ambient interpreter, which can
+    be older than the version this project develops against. ``StrEnum`` landed
+    in 3.11 and would fail to import on a host at the 3.10 portability floor.
+    A syntax-level floor check does not catch it: this is a runtime stdlib API,
+    so the file parses clean at 3.10 and breaks on import.
     """
 
     OK = "ok"
