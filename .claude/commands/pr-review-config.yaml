@@ -46,7 +46,15 @@ scripts:
     # `= if (:COPILOT_PLUGIN_ROOT) { ... } ...` and fails on a parse error
     # rather than on anything about the transport. Measured under bash 5 by
     # printing the expanded argument (Copilot review on PR #5509).
-    check_transport: "pwsh -NoProfile -Command '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; python3 (Join-Path $root \"skills/github/scripts/utils/check_github_transport.py\") --output-format json'"
+    #
+    # The interpreter is resolved rather than hardcoded to python3. A Windows
+    # Copilot host may expose only python.exe or the py launcher
+    # (REQ-003-multi-tool-artifact-build.md:442), and the repo's own PowerShell
+    # hook launchers use `py -3` for that reason (same file, lines 150 and 326;
+    # ADR-068:302). This is the blocking Step 0, so a missing python3 stops the
+    # workflow before it can pick a transport. python3 is tried first because
+    # pwsh also runs on Linux and macOS, where py does not exist.
+    check_transport: "pwsh -NoProfile -Command '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/utils/check_github_transport.py\") --output-format json'"
 
 # Transport preflight. Run check_transport once, before Step 1, and branch on
 # Data.Transport.
