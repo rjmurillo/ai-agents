@@ -928,9 +928,10 @@ class TestPackageImport:
     That side effect is what let ``from lefthook_inventory import (...)``
     resolve inside the module itself. It never runs for a caller that reaches
     this file as the package member ``scripts.validation.check_git_hook_health``
-    instead, which is exactly how ``pre_pr_sequence.py`` imports it, and how a
-    test run reaches it when nothing collected before it happened to insert the
-    path first. That gap broke ``tests/test_lefthook_integration.py`` inside
+    instead. ``pre_pr_sequence.py`` does not hit this: it also inserts
+    ``scripts/validation`` onto ``sys.path`` before importing this module by
+    the same bare name. ``tests/test_lefthook_integration.py`` does hit it,
+    importing this file as the package member directly, and that broke inside
     the mutation-testing harness's isolated worktree copy with
     ``ModuleNotFoundError: No module named 'lefthook_inventory'``, because the
     harness's own subprocess never ran this file's sys.path insert before
@@ -942,7 +943,14 @@ class TestPackageImport:
     the exact condition being tested.
     """
 
-    def test_the_module_imports_as_a_package_member_with_no_side_effect(self) -> None:
+    def test_the_module_imports_as_a_package_member_with_no_prior_path_setup(self) -> None:
+        """The import itself does insert `scripts/validation`; that is the fix.
+
+        What must hold with no help from the caller is only the absence of a
+        *prior* insert: no sys.path setup runs before this subprocess's own
+        `-c` import, matching how `tests/test_lefthook_integration.py` reaches
+        this module with no earlier collection having primed the path.
+        """
         result = subprocess.run(
             [
                 sys.executable,
@@ -951,7 +959,8 @@ class TestPackageImport:
             ],
             cwd=str(REPO_ROOT),
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
             check=False,
         )
