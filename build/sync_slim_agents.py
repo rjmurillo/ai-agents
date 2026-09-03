@@ -101,6 +101,17 @@ SLIMMED_AGENTS: tuple[str, ...] = (
 )
 
 
+def _opens_frontmatter(text: str) -> bool:
+    """True when the text starts with a line that is exactly `---`.
+
+    A file whose entire content is `---` opens a block with no newline after
+    it. Requiring the newline would classify that file as having no
+    frontmatter, and `--write` would then replace the whole thing with the
+    source body instead of refusing it.
+    """
+    return text.startswith("---\n") or text == "---"
+
+
 def _frontmatter_end(text: str) -> int | None:
     """Return the index just past the closing `---` line, or None if absent.
 
@@ -111,7 +122,7 @@ def _frontmatter_end(text: str) -> int | None:
     frontmatter, and `main` now rejects an unterminated block outright, so
     misreading either one would refuse to sync a valid file.
     """
-    if not text.startswith("---\n"):
+    if not _opens_frontmatter(text):
         return None
     end = text.find("\n---\n", 3)
     if end != -1:
@@ -138,7 +149,7 @@ def split_frontmatter(text: str) -> tuple[str, str]:
 
 def has_unterminated_frontmatter(text: str) -> bool:
     """True when the text opens a `---` block that never closes."""
-    return text.startswith("---\n") and _frontmatter_end(text) is None
+    return _opens_frontmatter(text) and _frontmatter_end(text) is None
 
 
 def _relative(path: PurePath) -> str:

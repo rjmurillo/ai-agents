@@ -348,6 +348,18 @@ def test_write_names_both_follow_up_steps(tree: Path, capsys) -> None:
     assert "check_agent_content_parity.py" in out
 
 
+def test_mirror_that_is_only_a_bare_delimiter_is_a_config_error(tree: Path,
+                                                                capsys) -> None:
+    """A file that is exactly `---` opens a block with no newline after it."""
+    target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
+    _write(target, "---")
+
+    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_CONFIG
+
+    assert "templates/agents/analyst.shared.md" in capsys.readouterr().err
+    assert target.read_text(encoding="utf-8") == "---"
+
+
 def test_mirror_whose_frontmatter_ends_the_file_keeps_a_separator(tree: Path) -> None:
     """End to end, not just the parser: `---` plus a body must stay two lines.
 
@@ -407,6 +419,8 @@ def test_split_frontmatter_keeps_both_delimiters_in_the_frontmatter() -> None:
         ("no frontmatter\n", False),
         ("", False),
         ("---\n", True),
+        ("---", True),
+        ("---abc\n", False),
         ("---\n---\n" + SOURCE_BODY, False),
         ("---\nname: analyst\n---", False),
         ("---\n---", False),
