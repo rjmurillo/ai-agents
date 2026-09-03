@@ -12,13 +12,22 @@ Current guidance: a repeat `exit -9` or `killed on timeout` on
 and open an issue. Do not retry it away as fleet noise, and do not cite this
 memory as evidence that it is noise.
 
-## Statement (as observed before #5464)
+## The original hypothesis, which turned out to be wrong
 
-When a session runs many concurrent worktree agents (each running its own
-`pre_pr.py`/pytest validation), a push on an unrelated branch can fail its
-own pre-push `pre-pr-validation` lefthook job purely from CPU contention,
-even though nothing about that branch's diff is broken. Retrying once load
-drops usually succeeds with no code change.
+Stated as causality at the time, kept here as the hypothesis it actually was.
+Do not read this paragraph as the diagnosis; #5464 replaced it.
+
+The claim was: when a session runs many concurrent worktree agents (each
+running its own `pre_pr.py`/pytest validation), a push on an unrelated branch
+fails its own pre-push `pre-pr-validation` lefthook job purely from CPU
+contention, even though nothing about that branch's diff is broken, and
+retrying once load drops succeeds with no code change.
+
+What was actually observed was a correlation between heavy fleet load and
+failed pushes. The `exit -9` half of it had a standalone cause with no
+concurrency in it at all, the nested-worktree snapshot walk described further
+down, which PR #5464 fixed. Wall-clock `pre-pr-validation` timeouts on a
+genuinely busy machine are the only part of this hypothesis that survives.
 
 ## Evidence
 

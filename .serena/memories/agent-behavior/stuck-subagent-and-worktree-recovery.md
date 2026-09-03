@@ -44,10 +44,15 @@ revealed a much older commit than expected.
 Recovery, with a precondition that is not optional: read `git status
 --porcelain` first and confirm every listed path is overlay pollution. `git
 reset --hard HEAD` discards all tracked index and working-tree changes, not
-only the overlay, so anything you still want must be committed or stashed
-before you run it. `git stash push --include-untracked` then a selective
-`git checkout HEAD -- <polluted paths>` is the safer form when the status
-output mixes your own work with the overlay.
+only the overlay, so reach for it only when the status output is pure
+pollution. When it also lists work you want, restore just the polluted paths
+with `git checkout HEAD -- <path>...` and leave the rest alone.
+
+Do not stash here. This repository runs many worktrees off one `.git`, so
+`refs/stash` is shared: a `git stash pop` can restore a sibling worktree's
+entry. That is recorded in
+`.agents/sessions/handoffs/2026-09-01-5404-handoff.md`, where a session hit it
+and resolved with a targeted reset instead.
 
 Takeaway: before `git checkout <ref> -- <path>` or any ref-based read in a
 worktree that might have accumulated stale local branches (common in a
@@ -67,20 +72,30 @@ error: GH007: Your push would publish a private email address`.
 
 Fix that avoided any destructive history rewrite (both `git filter-branch`
 and `git reset --soft` were blocked by the classifier as expected): generate
-a combined diff of the mis-authored commits (`git diff
-origin/<branch>...HEAD`), create a fresh branch from `origin/<branch>`, `git
-apply` the diff, set `git config user.name/email` explicitly, and commit once
-under the correct identity. Purely additive: no rewrite of anything that had
+a combined diff of the mis-authored commits (`git diff --binary
+origin/<branch>...HEAD`, and `--binary` is not optional: this repository tracks
+PNG assets, and without it `git apply` fails on any commit that touched one),
+create a fresh branch from `origin/<branch>`, `git apply` the diff, set the
+worktree's identity explicitly, and commit once under it. Purely additive: no rewrite of anything that had
 ever reached the remote, since the original push had never succeeded.
 
-Takeaway: run `git config user.name` and `git config user.email` explicitly as
-the FIRST action in any newly created worktree, before the first commit, rather
-than discovering the gap at push time. Set them to the identity that owns the
-push, using the address GitHub accepts for that account, which is the
+Takeaway: read `git config user.name` and `git config user.email` as the FIRST
+action in any newly created worktree, before the first commit, rather than
+discovering the gap at push time. They must resolve to the identity that owns
+the push, using the address GitHub accepts for that account, which is the
 `users.noreply.github.com` form when the account keeps its email private. Do
 not hard-code an agent identity as the commit author: `.claude/rules/universal.md`
 asks only for a `Co-Authored-By:` trailer for agent attribution, and its
 MUST list states that git identity cannot prove a human acted.
+
+Scope the write. Plain `git config user.email <addr>` writes `.git/config`,
+which every linked worktree shares, so setting it in one worktree changes the
+author identity under all the others mid-session. Use `git config --worktree`,
+which needs `extensions.worktreeConfig` enabled on the clone and otherwise
+exits 128 with `--worktree cannot be used with multiple working trees unless
+the config extension worktreeConfig is enabled`. Enable it once with `git
+config extensions.worktreeConfig true`. `scripts/validation/check_repo_health.py`
+documents the same per-scope distinction for `core.bare`.
 
 ## [MED] The AI-Spec-Validator's verdict flip-flops across reruns of the same disclosed gap
 
