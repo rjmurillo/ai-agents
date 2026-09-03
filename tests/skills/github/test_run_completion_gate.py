@@ -2463,6 +2463,68 @@ class TestCommandTrustBoundary:
         assert rc == 2
         assert not marker.exists(), "no criterion may run on an edited registry"
 
+    def test_an_equals_form_option_value_is_compared_like_any_other_path(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """Positive control: `--flag=value` is one argv token, not two.
+
+        `_classify_argv_token` skips any token starting with a hyphen.
+        `--registry=<path>` packs the flag and its value into that one
+        token, so without `_split_long_option_value` unpacking it first,
+        the embedded path would never reach the classifier's path logic
+        at all and `checked_files` would not contain it (CWE-284): the
+        space-separated form is the only one round 5 proved.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, f"--registry={registry}")],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["command_trust"]["status"] == "trusted"
+        assert payload["command_trust"]["checked_files"] == [
+            "verify.py",
+            "dispositions.json",
+        ], "a --flag=value option value must be compared, not skipped as one hyphen-led token"
+        assert payload["command_trust"]["skipped_untracked_files"] == []
+
+    def test_a_tampered_equals_form_option_value_halts_the_gate(
+        self, git_repo, tmp_path,
+    ):
+        """The half that matters: an edited `--flag=value` registry halts too.
+
+        Mirrors `test_a_tampered_tracked_option_value_halts_the_gate` for the
+        packed-token form. Without the fix, this registry was never in
+        `checked_files` at all, so tampering it could not have been noticed:
+        `rc` would stay 0 and the marker would exist.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, f"--registry={registry}")],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+        registry.write_text('{"some-check": {"disposition": "known-flaky"}}',
+                            encoding="utf-8")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), "no criterion may run on an edited registry"
+
     def test_untracked_script_does_not_mask_a_tampered_tracked_one(
         self, git_repo, tmp_path,
     ):

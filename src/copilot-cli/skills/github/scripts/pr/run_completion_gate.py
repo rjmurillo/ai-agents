@@ -1314,6 +1314,25 @@ _ARGV_EXTERNAL = "external"
 _ARGV_ESCAPES = "escapes"
 
 
+def _split_long_option_value(token: str) -> str | None:
+    """Return the value half of a ``--flag=value`` long option, or ``None``.
+
+    argparse accepts ``--flag=value`` as equivalent to ``--flag value``.
+    ``_classify_argv_token`` skips any token starting with ``-`` outright, so
+    a value packed into the same token as its flag would escape verification
+    entirely: the embedded path is never compared against the trusted ref,
+    which lets a PR-controlled command waive its own failing check (CWE-284).
+    The two-token space-separated form already works, because the value is
+    its own argv element there. Scoped to ``--`` (long options only):
+    argparse has no ``-f=value`` short form, so a short option is never
+    split, and a token with no ``=`` returns ``None`` unchanged.
+    """
+    if not token.startswith("--") or "=" not in token:
+        return None
+    _, _, value = token.partition("=")
+    return value
+
+
 class CommandTrustCheck(NamedTuple):
     """Outcome of verifying the files a config's commands name.
 
@@ -1495,10 +1514,13 @@ def _collect_command_paths(
                 f"command is not a parseable command line: {exc}",
             ) from exc
         for token in argv:
-            kind, value = _classify_argv_token(token, toplevel)
-            bucket = buckets.get(kind)
-            if bucket is not None and value not in bucket:
-                bucket.append(value)
+            embedded = _split_long_option_value(token)
+            candidates = (token, embedded) if embedded is not None else (token,)
+            for candidate in candidates:
+                kind, value = _classify_argv_token(candidate, toplevel)
+                bucket = buckets.get(kind)
+                if bucket is not None and value not in bucket:
+                    bucket.append(value)
 
     return to_verify, external, escaping
 
