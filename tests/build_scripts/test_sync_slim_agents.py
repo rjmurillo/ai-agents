@@ -62,6 +62,14 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _symlink_or_skip(link: Path, target: Path, *, directory: bool = False) -> None:
+    """Follow tests/build_scripts/test_build_all.py: skip where links are denied."""
+    try:
+        link.symlink_to(target, target_is_directory=directory)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symlink creation unavailable; issue #4632: {exc}")
+
+
 @pytest.fixture
 def tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Build a source-plus-mirrors fixture and point the module at it.
@@ -297,7 +305,7 @@ def test_symlinked_mirror_outside_the_root_is_a_config_error(tree: Path,
     external.write_text(TEMPLATE_FRONTMATTER + STALE_BODY, encoding="utf-8")
     template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     template.unlink()
-    template.symlink_to(external)
+    _symlink_or_skip(template, external)
 
     assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_CONFIG
 
@@ -313,7 +321,7 @@ def test_symlinked_source_outside_the_root_is_a_config_error(tree: Path,
     external.write_text(CLAUDE_FRONTMATTER + STALE_BODY, encoding="utf-8")
     source = tree / "src" / "claude" / f"{AGENT}.md"
     source.unlink()
-    source.symlink_to(external)
+    _symlink_or_skip(source, external)
     template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
 
     assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_CONFIG
@@ -371,6 +379,52 @@ def test_mirror_whose_frontmatter_ends_the_file_keeps_a_separator(tree: Path) ->
 
     assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
     assert target.read_text(encoding="utf-8") == "---\nname: analyst\n---\n" + SOURCE_BODY
+
+
+def test_symlinked_mirror_inside_the_root_is_still_refused(tree: Path,
+                                                          capsys) -> None:
+    """Isolates the `is_symlink()` clause: this link stays inside the root.
+
+    Both escaping-symlink tests above also fail containment, so deleting
+    `path.is_symlink()` still leaves them red. This one passes containment and
+    fails only on the symlink test itself.
+    """
+    inside = tree / "elsewhere.md"
+    inside.write_text(TEMPLATE_FRONTMATTER + STALE_BODY, encoding="utf-8")
+    template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
+    template.unlink()
+    _symlink_or_skip(template, inside)
+
+    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_CONFIG
+
+    assert "templates/agents/analyst.shared.md" in capsys.readouterr().err
+    assert inside.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + STALE_BODY
+
+
+def test_mirror_under_a_symlinked_directory_is_refused(tree: Path,
+                                                       capsys) -> None:
+    """Isolates the containment clause: the leaf here is a real file.
+
+    `path.is_symlink()` is false because the link is the parent directory, so
+    only the resolved-path check can catch this one.
+    """
+    external_dir = tree.parent / f"{tree.name}-external-dir"
+    external_dir.mkdir(exist_ok=True)
+    (external_dir / f"{AGENT}.shared.md").write_text(
+        TEMPLATE_FRONTMATTER + STALE_BODY, encoding="utf-8"
+    )
+    agents_dir = tree / "templates" / "agents"
+    (agents_dir / f"{AGENT}.shared.md").unlink()
+    agents_dir.rmdir()
+    _symlink_or_skip(agents_dir, external_dir, directory=True)
+
+    assert not (agents_dir / f"{AGENT}.shared.md").is_symlink()
+    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_CONFIG
+
+    assert "templates/agents/analyst.shared.md" in capsys.readouterr().err
+    assert (external_dir / f"{AGENT}.shared.md").read_text(
+        encoding="utf-8"
+    ) == TEMPLATE_FRONTMATTER + STALE_BODY
 
 
 def test_mirror_without_frontmatter_receives_the_body_verbatim(tree: Path) -> None:

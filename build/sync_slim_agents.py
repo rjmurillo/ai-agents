@@ -45,6 +45,7 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
@@ -54,6 +55,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Source of truth for the body. Every destination below takes its body from here.
 AGENT_SOURCE = REPO_ROOT / "src" / "claude"
+
+# os.O_NOFOLLOW is absent on some platforms, notably Windows, and os.O_BINARY
+# exists only there. Fall back to 0 so the flags compose either way. Follows
+# src/copilot-cli/skills/spec/scripts/metrics_writer.py, whose module docstring
+# records the reasoning: the kernel makes the no-follow decision atomically with
+# the open, closing the CWE-367 window between the containment check and the
+# access. O_BINARY keeps newline handling in the text wrapper alone, where
+# Path.read_text and Path.write_text had it, instead of translating twice.
+_O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+_O_BINARY = getattr(os, "O_BINARY", 0)
 
 EXIT_OK = 0
 EXIT_DRIFT = 1
@@ -165,10 +176,12 @@ def _relative(path: PurePath) -> str:
 def _within_repo(path: Path) -> Path:
     """Return the resolved path, refusing a symlink or an escape from the root.
 
-    `Path.read_text` and `Path.write_text` both follow symlinks, so a mirror
-    file replaced by a link to somewhere else would let `--write` overwrite a
-    file outside the checkout. Every read and write below goes through here and
-    uses the returned resolved path, so the check and the access cannot disagree.
+    A plain open follows symlinks, so a mirror file replaced by a link to
+    somewhere else would let `--write` overwrite a file outside the checkout.
+    Every read and write below goes through here and uses the returned resolved
+    path, so the check and the access cannot disagree. This check is the
+    portable first gate; `_read` and `_write` also pass `O_NOFOLLOW`, which
+    closes the window between this check and the open itself.
     """
     resolved = path.resolve(strict=False)
     if path.is_symlink() or not resolved.is_relative_to(REPO_ROOT.resolve()):
@@ -177,11 +190,17 @@ def _within_repo(path: Path) -> Path:
 
 
 def _read(path: Path) -> str:
-    return _within_repo(path).read_text(encoding="utf-8")
+    descriptor = os.open(_within_repo(path), os.O_RDONLY | _O_NOFOLLOW | _O_BINARY)
+    with open(descriptor, encoding="utf-8") as handle:
+        return handle.read()
 
 
 def _write(path: Path, text: str) -> None:
-    _within_repo(path).write_text(text, encoding="utf-8")
+    descriptor = os.open(
+        _within_repo(path), os.O_WRONLY | os.O_TRUNC | _O_NOFOLLOW | _O_BINARY
+    )
+    with open(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(text)
 
 
 def declared_paths(agents: Iterable[str]) -> Iterator[Path]:
