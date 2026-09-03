@@ -62,6 +62,15 @@
       "verdict_options": ["TRIM", "FULL", "DEFER", "ASK"],
       "expected_reason_contains": "400",
       "rationale": "Output Bounds caps synthesis at 400 words or 4 paragraphs, whichever comes first, and requires cutting the weakest finding rather than the strongest recommendation."
+    },
+    {
+      "id": "S8",
+      "desc": "Stops delegating once the task is terminal, even though delegation budget remains",
+      "input": "Session state: the user asked to fix the null-pointer crash on the checkout page. analyst found the root cause, implementer shipped the fix with a regression test, and qa confirmed the test suite passes and the crash no longer reproduces. 4 of 15 available delegations have been used. No blocker is open. What do you do next?",
+      "expected_verdict": "STOP",
+      "verdict_options": ["STOP", "CONTINUE", "DELEGATE", "ASK"],
+      "expected_reason_contains": "terminal",
+      "rationale": "builder-ethos.md's terminal predicate: every requested deliverable is satisfied and no blocker remains, so the task is terminal. Remaining delegation budget (11 of 15 unused) is a backstop, not a reason to keep delegating; continuing here would be searching for a new objective rather than finishing the requested one."
     }
   ]
 }

@@ -37,7 +37,7 @@
       "type": "commit",
       "content": "Commit: 414513ea4241901b8b572d90a1062d3be5cf7539",
       "caused_by": [
-        "e006"
+        "e005"
       ],
       "leads_to": [
         "e004"
@@ -50,7 +50,8 @@
       "type": "commit",
       "content": "Commit: ea408a48cae4eed3b0e15bc3f8c4c5dfebcea8b4",
       "caused_by": [
-        "e003"
+        "e003",
+        "e006"
       ],
       "leads_to": [
         "e007"
@@ -66,6 +67,7 @@
         "e002"
       ],
       "leads_to": [
+        "e003",
         "e006"
       ],
       "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
@@ -79,7 +81,7 @@
         "e005"
       ],
       "leads_to": [
-        "e003"
+        "e004"
       ],
       "_source_session": "2026-08-21-session-99923-2dd747176-rules-silent-failure-repair"
     },
@@ -231,7 +233,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 17,
-    "files_changed": 6
+    "files_changed": 9
   },
   "lessons": []
 }

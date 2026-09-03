@@ -28,6 +28,7 @@ Coverage:
 from __future__ import annotations
 
 import sys
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -132,7 +133,7 @@ class TestAggregateLefthookDelegation:
         assert job is not None
         assert job.get("glob") is None
 
-    def test_registry_contains_all_eight_ratchets(self) -> None:
+    def test_registry_contains_every_registered_ratchet(self) -> None:
         assert tuple(
             (ratchet.job_name, ratchet.script, ratchet.extra_dev, ratchet.uses_base_ref)
             for ratchet in checks_ratchet.RATCHETS
@@ -255,28 +256,37 @@ class TestValidatorBehaviour:
 
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", record)
         checks_ratchet.validate_count_ratchets(REPO_ROOT)
-        expected = [
+        expected = {
             " ".join(checks_ratchet.build_command(ratchet, base_oid))
             for ratchet in checks_ratchet.RATCHETS
-        ]
-        assert [" ".join(a) for a in seen] == expected
+        }
+        # Compared as sets: the ratchets run concurrently, so completion order
+        # is not registry order. Every command must still be issued exactly
+        # once, which the length check below pins alongside membership.
+        assert {" ".join(a) for a in seen} == expected
+        assert len(seen) == len(checks_ratchet.RATCHETS)
 
-    def test_each_ratchet_uses_the_remaining_aggregate_time(
+    def test_each_ratchet_gets_the_budget_left_when_it_starts(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """The deadline stays absolute, but is no longer spent in registry order.
+
+        The sequential loop this replaced handed ratchet N the budget minus
+        everything the first N-1 had consumed, so the last entry ran on the
+        remainder and was the one that timed out. Observed on a cold run:
+        merge-tree, registered last, reported "Command timed out after 33s"
+        and then passed on retry with no code change. Concurrently every
+        ratchet starts near the same instant, so each sees nearly the whole
+        budget and none is starved by its position in the registry.
+        """
         monkeypatch.setattr(
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
         )
         monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
         monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
-        monotonic_values = iter((100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 107.0, 108.0))
         timeouts: list[int] = []
 
-        monkeypatch.setattr(checks_ratchet.time, "monotonic", lambda: next(monotonic_values))
-
-        def record_timeout(
-            _args: list[str], **kwargs: object
-        ) -> tuple[int, str, str]:
+        def record_timeout(_args: list[str], **kwargs: object) -> tuple[int, str, str]:
             timeout = kwargs["timeout"]
             assert isinstance(timeout, int)
             timeouts.append(timeout)
@@ -285,7 +295,99 @@ class TestValidatorBehaviour:
         monkeypatch.setattr(checks_ratchet, "_run_subprocess", record_timeout)
 
         assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
-        assert timeouts == [84, 83, 82, 81, 80, 79, 78, 77]
+        assert len(timeouts) == len(checks_ratchet.RATCHETS)
+        # Every ratchet, not just the first, gets essentially the full budget.
+        assert all(t > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS - 5 for t in timeouts), timeouts
+        assert all(t <= checks_ratchet._AGGREGATE_TIMEOUT_SECONDS for t in timeouts), timeouts
+
+    def test_the_ratchets_actually_overlap(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Prove concurrency, which a timeout assertion alone cannot.
+
+        A stub that returns immediately gives every call nearly the whole
+        budget under a serial implementation too, so asserting on the timeout
+        values does not discriminate. A barrier does: it only clears once every
+        ratchet is inside the call at the same time, so a serial loop blocks on
+        the first one and raises BrokenBarrierError when the timeout expires.
+        """
+        monkeypatch.setattr(
+            checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
+        )
+        monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
+
+        barrier = threading.Barrier(len(checks_ratchet.RATCHETS), timeout=30)
+        broke = threading.Event()
+
+        def wait_for_all(_args: list[str], **_k: object) -> tuple[int, str, str]:
+            try:
+                barrier.wait()
+            except threading.BrokenBarrierError:
+                broke.set()
+                return 1, "", "ratchets did not overlap"
+            return 0, "", ""
+
+        monkeypatch.setattr(checks_ratchet, "_run_subprocess", wait_for_all)
+
+        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
+        assert not broke.is_set(), "the ratchets ran serially, not concurrently"
+
+    def test_the_pool_is_sized_to_the_registry_not_the_core_count(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A cpu_count cap would hand a one-core host the sequential loop back.
+
+        The workers only wait on subprocesses, so the core count does not
+        measure the resource they consume. Capping by it would silently restore
+        the starvation this change removes, on exactly the smallest machines.
+        Asserted through the pool the code actually builds rather than by
+        reading the source, which a comment mentioning cpu_count would defeat.
+        """
+        monkeypatch.setattr(
+            checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
+        )
+        monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
+        monkeypatch.setattr(checks_ratchet, "_run_subprocess", lambda *_a, **_k: (0, "", ""))
+
+        sizes: list[int | None] = []
+        real_pool = checks_ratchet.concurrent.futures.ThreadPoolExecutor
+
+        def recording_pool(max_workers: int | None = None, **kwargs: object):
+            """Record the requested size, then build the real pool.
+
+            A factory rather than a subclass: subclassing ThreadPoolExecutor
+            needs type-ignore comments for its untyped __init__, and those
+            raise the type-ignore count ratchet that runs beside this one.
+            """
+            sizes.append(max_workers)
+            return real_pool(max_workers=max_workers, **kwargs)
+
+        monkeypatch.setattr(
+            checks_ratchet.concurrent.futures, "ThreadPoolExecutor", recording_pool
+        )
+
+        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
+        assert sizes == [len(checks_ratchet.RATCHETS)], sizes
+
+    def test_a_ratchet_starting_after_the_deadline_is_a_failure_not_a_skip(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An exhausted budget must fail loudly; a silent skip is a false green."""
+        monkeypatch.setattr(
+            checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
+        )
+        monkeypatch.setattr(checks_ratchet, "_refresh_remote_base", lambda *_a: "")
+        monkeypatch.setattr(checks_ratchet, "_resolve_base_oid", lambda *_a: "a" * 40)
+        monkeypatch.setattr(checks_ratchet, "_AGGREGATE_TIMEOUT_SECONDS", -1)
+
+        def unreachable(*_a: object, **_k: object) -> tuple[int, str, str]:
+            raise AssertionError("no ratchet may run once the deadline has passed")
+
+        monkeypatch.setattr(checks_ratchet, "_run_subprocess", unreachable)
+
+        assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is False
 
     def test_fails_when_one_ratchet_exits_nonzero(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
