@@ -54,6 +54,7 @@ An explicit non-repository is out of scope and exits 0. Missing git, timeouts,
 and unexpected command failures are verification failures and exit 3; the
 pre-PR adapter receives False for the same states.
 """
+# ruff: noqa: E402
 
 from __future__ import annotations
 
@@ -62,6 +63,26 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+# ``lefthook_inventory`` is imported below by its bare module name, matching
+# how every sibling script in this directory (e.g. ``git_hook_policy.py``)
+# imports the others. That only resolves when ``scripts/validation`` is on
+# ``sys.path``, which happens as a side effect of running this file directly
+# or of collecting ``tests/validation/test_check_git_hook_health.py`` first,
+# which does the same insert before importing this module. Neither is
+# guaranteed: a caller that imports this file as the package member
+# ``scripts.validation.check_git_hook_health`` (``pre_pr_sequence.py`` does,
+# and so does any isolated test run that reaches it through a different
+# import path first) never runs that side effect, and the bare import then
+# raises ``ModuleNotFoundError: No module named 'lefthook_inventory'``.
+# Measured: this broke ``tests/test_lefthook_integration.py`` inside the
+# mutation-testing harness's isolated worktree copy, where no earlier import
+# had inserted the path. Bootstrapping here, self-contained, removes the
+# dependency on import order.
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_VALIDATION_DIR = _PROJECT_ROOT / "scripts" / "validation"
+if str(_VALIDATION_DIR) not in sys.path:
+    sys.path.insert(0, str(_VALIDATION_DIR))
 
 from lefthook_inventory import (
     CONFIG_REMEDY,

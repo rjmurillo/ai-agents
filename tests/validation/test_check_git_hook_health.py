@@ -917,3 +917,44 @@ class TestSequenceWiring:
         names, _seen = _drive(monkeypatch)
 
         assert names.index(GATE_NAME) + 1 == names.index("Lefthook Installed")
+
+
+class TestPackageImport:
+    """The module has to import on its own, not by riding another import.
+
+    Every test above imports ``check_git_hook_health`` the same way production
+    does per the module comment at the top of this file: prepend
+    ``scripts/validation`` to ``sys.path`` first, then import by bare name.
+    That side effect is what let ``from lefthook_inventory import (...)``
+    resolve inside the module itself. It never runs for a caller that reaches
+    this file as the package member ``scripts.validation.check_git_hook_health``
+    instead, which is exactly how ``pre_pr_sequence.py`` imports it, and how a
+    test run reaches it when nothing collected before it happened to insert the
+    path first. That gap broke ``tests/test_lefthook_integration.py`` inside
+    the mutation-testing harness's isolated worktree copy with
+    ``ModuleNotFoundError: No module named 'lefthook_inventory'``, because the
+    harness's own subprocess never ran this file's sys.path insert before
+    reaching the package import.
+
+    A fresh subprocess is required rather than reloading the module in-process:
+    this test file's own module-level sys.path insert (needed to import
+    `check_git_hook_health` for every other test above) would otherwise mask
+    the exact condition being tested.
+    """
+
+    def test_the_module_imports_as_a_package_member_with_no_side_effect(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from scripts.validation import check_git_hook_health",
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "lefthook_inventory" not in result.stderr
