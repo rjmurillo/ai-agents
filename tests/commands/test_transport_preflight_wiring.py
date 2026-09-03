@@ -290,6 +290,56 @@ class TestMcpGrantsAreEnumerated:
             f"{sorted(named - available)}"
         )
 
+    def test_the_preflight_verifies_trust_before_it_dispatches(self):
+        """Ordering is the fix, so ordering is what gets pinned.
+
+        The completion gate's trusted-ref verification covers
+        `completion_criteria`, which runs at the end, while Step 0
+        dispatches `command_key` from the same PR-controlled config at
+        the start. `verify_trust` closes that window, and only if it is
+        declared and documented as running first (issue #5520).
+        """
+        import yaml
+
+        config = yaml.safe_load(
+            (REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        preflight = config["transport_preflight"]
+        assert "verify_trust" in preflight, (
+            "Step 0 dispatches a PR-controlled command with no trust check"
+        )
+        assert "--verify-config-only" in preflight["verify_trust"]
+        assert "run_completion_gate.py" in preflight["verify_trust"], (
+            "trust must come from the existing verifier, not a second one"
+        )
+        exits = {e["exit_code"] for e in preflight["verify_trust_exits"]}
+        assert exits == {0, 2, 3}, (
+            f"every documented outcome needs a meaning; got {sorted(exits)}"
+        )
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            ".claude/commands/pr-review.md",
+            ".github/prompts/pr-review.prompt.md",
+        ],
+    )
+    def test_every_consumer_states_the_verification_runs_first(self, path):
+        """A config key no consumer reads is not a gate.
+
+        Both surfaces must name `verify_trust` and say it precedes
+        `command_key`; otherwise the check exists in config and nothing
+        invokes it.
+        """
+        text = (REPO_ROOT / path).read_text(encoding="utf-8")
+        assert "verify_trust" in text, f"{path} never mentions the trust check"
+        assert "5520" in text, f"{path} does not cite why the order matters"
+        assert text.index("verify_trust") < text.index("command_key") or (
+            "BEFORE `command_key`" in text or "before `command_key`" in text
+        ), f"{path} does not state the ordering"
+
     def test_pr_review_may_run_the_copilot_launcher(self):
         """The Copilot check_transport entry shells pwsh, so the grant must allow it.
 
