@@ -54,8 +54,9 @@ wrong. They are corrected here by quotation rather than edited in place.
    public source here. Treat them as unverifiable operator notes.
 6. **Q4 names the wrong VS Code convention.** "period for Copilot CLI, hyphen for
    VS Code" is half wrong. At `49f05187`, `templates/platforms/vscode.yaml` maps
-   the tiers to display names such as `Claude Opus 4.6 (copilot)`, which the Flow
-   A table already states correctly. Q4 should read "display names for VS Code".
+   the tiers to display names such as `Claude Opus 4.6 (copilot)`. The paragraph
+   under the Flow A table already says this: "Copilot CLI period, Anthropic API
+   hyphen, VS Code display names". Q4 should read "display names for VS Code".
    A successor acting on Q4 as written would validate the wrong target.
 
 ## Problem
