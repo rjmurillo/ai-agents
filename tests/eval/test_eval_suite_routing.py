@@ -284,8 +284,14 @@ def test_no_routing_row_is_shadowed_by_an_earlier_row(index: int) -> None:
 # Entrypoints are identified by filename, so their row must win over prefixes
 # ---------------------------------------------------------------------------
 
-# Every one of these exists in the tree. Behind the prefix rows they were all
-# captured as prompts or skills.
+# Filename-based classification is a pure function of the string path, so this
+# list is not required to hold real files: it also has to keep asserting the
+# routing behavior for a shadowed name after its one on-disk example is gone.
+# PR #5495 deleted `.claude/agents/AGENTS.md` and `.claude/agents/CLAUDE.md`
+# (frontmatter-less files the plugin loader was silently registering as
+# dispatchable agents), which is a different bug from the one this module
+# pins: if either name reappears under `.claude/agents/` by accident, this
+# still has to classify it as `entrypoints`, not `agents` or `other`.
 SHADOWED_ENTRYPOINTS = [
     ".claude/commands/CLAUDE.md",
     ".claude/skills/CLAUDE.md",
@@ -300,6 +306,17 @@ SHADOWED_ENTRYPOINTS = [
     ".claude/agents/CLAUDE.md",
 ]
 
+# The subset of SHADOWED_ENTRYPOINTS that still exists in the tree, for the
+# negative control below. Excludes the two PR #5495 deleted; asserting they
+# are files would fail for a reason unrelated to routing, and reintroducing
+# either as a real fixture would put them back on the plugin loader's
+# dispatchable-agent scan, which is the exact defect #5495 removed.
+SHADOWED_ENTRYPOINTS_ON_DISK = [
+    path
+    for path in SHADOWED_ENTRYPOINTS
+    if path not in {".claude/agents/AGENTS.md", ".claude/agents/CLAUDE.md"}
+]
+
 
 @pytest.mark.parametrize("path", SHADOWED_ENTRYPOINTS)
 def test_entrypoints_inside_prompt_and_skill_trees_are_not_shadowed(path: str) -> None:
@@ -311,7 +328,7 @@ def test_entrypoints_inside_prompt_and_skill_trees_are_not_shadowed(path: str) -
     assert suite.classify_path(path) == "entrypoints"
 
 
-@pytest.mark.parametrize("path", SHADOWED_ENTRYPOINTS)
+@pytest.mark.parametrize("path", SHADOWED_ENTRYPOINTS_ON_DISK)
 def test_shadowed_entrypoints_exist_in_the_tree(path: str) -> None:
     """Negative control: these must be real, or the test above proves nothing."""
     assert (REPO_ROOT / path).is_file(), f"{path} is not in the tree"
