@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Task, Skill, Read, Write, Edit, Glob, Grep, mcp__github__*, github/*
+allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Task, Skill, Read, Write, Edit, Glob, Grep, mcp__github__*
 argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'
 description: Use when responding to PR review comments for specified pull request(s)
 ---

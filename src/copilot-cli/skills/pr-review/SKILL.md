@@ -2,7 +2,7 @@
 name: pr-review
 description: Use when responding to PR review comments for specified pull request(s)
 argument-hint: <PR_NUMBERS> [--parallel --cleanup --dry-run]
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Task, Skill, Read, Write, Edit, Glob, Grep, mcp__github__*, github/*
+allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Task, Skill, Read, Write, Edit, Glob, Grep, mcp__github__*
 user-invocable: true
 ---
 

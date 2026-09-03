@@ -1,7 +1,7 @@
 ---
 description: Fix PRs autonomously. Triage open PRs by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes.
 argument-hint: "[pull-request|mode]"
-allowed-tools: Bash, Read, Edit, Write, Skill, mcp__github__*, github/*
+allowed-tools: Bash, Read, Edit, Write, Skill, mcp__github__*
 size-exception: true
 ---
 

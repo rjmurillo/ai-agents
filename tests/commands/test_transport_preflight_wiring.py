@@ -88,7 +88,24 @@ class TestMcpNamespaceIsGranted:
             line for line in body.splitlines() if line.startswith("allowed-tools:")
         )
         assert "mcp__github__*" in allowed, f"{path.name} cannot call MCP operations"
-        assert "github/*" in allowed, f"{path.name} mirror cannot call Copilot tools"
+
+    @pytest.mark.parametrize("path", [AUTOFIX, REVIEW])
+    def test_allowed_tools_carries_no_unscoped_wildcard(self, path):
+        """The slash-command validator rejects any wildcard that is not scoped.
+
+        A Copilot-spelled `github/*` here is both invalid to that gate and
+        meaningless to Claude. The Copilot surface takes its grant through the
+        prompt's own `tools` list instead.
+        """
+        body = path.read_text(encoding="utf-8")
+        allowed = next(
+            line for line in body.splitlines() if line.startswith("allowed-tools:")
+        ).split(":", 1)[1]
+        for tool in (t.strip() for t in allowed.split(",")):
+            if "*" in tool:
+                assert tool.startswith("mcp__") or tool.startswith("Bash("), (
+                    f"{path.name} has an unscoped wildcard: {tool}"
+                )
 
     def test_the_copilot_prompt_grants_its_own_namespace(self):
         config = yaml.safe_load(PROMPT.read_text(encoding="utf-8").split("---")[1])
