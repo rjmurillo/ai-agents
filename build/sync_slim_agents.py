@@ -48,7 +48,7 @@ import argparse
 import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -141,8 +141,14 @@ def has_unterminated_frontmatter(text: str) -> bool:
     return text.startswith("---\n") and _frontmatter_end(text) is None
 
 
-def _relative(path: Path) -> str:
-    return str(path.relative_to(REPO_ROOT))
+def _relative(path: PurePath) -> str:
+    """Return the repo-relative path with forward slashes on every platform.
+
+    `str()` on a Windows path yields backslashes, which would make the drift
+    report and the error output disagree with the repository-style paths this
+    script documents and its tests assert.
+    """
+    return path.relative_to(REPO_ROOT).as_posix()
 
 
 def _within_repo(path: Path) -> Path:
@@ -242,7 +248,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Sync slimmed agent bodies from src/claude/ to its mirrors."
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--check",
+        action="store_true",
+        help="Report drift and exit non-zero, mutating nothing. The default.",
+    )
+    mode.add_argument(
         "--write",
         action="store_true",
         help="Apply the sync. Without this flag the script only reports drift.",

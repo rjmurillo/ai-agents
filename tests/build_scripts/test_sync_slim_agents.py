@@ -20,14 +20,19 @@ Tests:
 - Edge: --write is idempotent; the second run reports zero changed files.
 - Edge: a mirror with no frontmatter receives the body verbatim.
 - Edge: non-ASCII bodies survive the round trip (explicit UTF-8 encoding).
-- Edge: split_frontmatter handles absent and unterminated frontmatter.
+- Edge: split_frontmatter handles absent, unterminated, empty, and
+  end-of-file frontmatter delimiters.
+- Edge: an I/O failure exits 3, not 1.
+- CLI: --check is accepted, matches the default, and excludes --write.
+- Platform: reported paths use forward slashes, proved with PureWindowsPath so
+  the assertion is not vacuous on a POSIX host.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
@@ -105,6 +110,46 @@ def test_check_exits_nonzero_and_names_the_drifted_file(tree: Path, capsys) -> N
     out = capsys.readouterr().out
     assert "drifted: 1 of 2 destination files" in out
     assert "templates/agents/analyst.shared.md" in out
+
+
+def test_check_flag_is_accepted_and_matches_the_default(tree: Path) -> None:
+    """The docs spell the default mode `--check`, so the parser must take it."""
+    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
+           TEMPLATE_FRONTMATTER + STALE_BODY)
+
+    assert sync_slim_agents.main(["--check"]) == sync_slim_agents.EXIT_DRIFT
+    assert sync_slim_agents.main([]) == sync_slim_agents.EXIT_DRIFT
+
+
+def test_check_and_write_are_mutually_exclusive(tree: Path) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        sync_slim_agents.main(["--check", "--write"])
+
+    assert excinfo.value.code == 2
+
+
+def test_relative_paths_use_forward_slashes(tree: Path) -> None:
+    reported = sync_slim_agents._relative(
+        tree / "templates" / "agents" / f"{AGENT}.shared.md"
+    )
+
+    assert reported == "templates/agents/analyst.shared.md"
+
+
+def test_relative_paths_use_forward_slashes_on_windows(monkeypatch) -> None:
+    """A POSIX-only assertion cannot see this: str() and as_posix() agree there.
+
+    PureWindowsPath does the path arithmetic Windows would do, on any host, so
+    reverting the cast to str() fails here instead of passing everywhere.
+    """
+    root = PureWindowsPath("C:/repo")
+    monkeypatch.setattr(sync_slim_agents, "REPO_ROOT", root)
+
+    reported = sync_slim_agents._relative(
+        root / "templates" / "agents" / f"{AGENT}.shared.md"
+    )
+
+    assert reported == "templates/agents/analyst.shared.md"
 
 
 def test_check_does_not_mutate_the_drifted_file(tree: Path) -> None:
