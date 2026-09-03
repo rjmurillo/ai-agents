@@ -44,6 +44,11 @@ UNIVERSAL_TREES = [
 # One distinguishing phrase per relocated statement. Each is specific enough
 # that a paraphrase-and-lose-the-point edit fails the assertion.
 RELOCATED_PHRASES = {
+    "opening-paragraph": "choose the persistence surface by who must obey it",
+    "opening-harnesses": "invisible to the other two",
+    "tier-1-ephemeral": "Ephemeral, this-task-only",
+    "tier-2-retrieval": "Retrieval aid, non-binding",
+    "tier-3-durable": "Durable convention that binds every contributor and every harness",
     "serena-alone": "retrieval complements, not the cross-harness binding",
     "operator-preference": "MUST NOT cite an operator preference as a repository rule",
     "single-probe": "MUST NOT assert an absence from a single probe",
@@ -52,7 +57,7 @@ RELOCATED_PHRASES = {
 # Evidence tails. These are the citations that let a reader check the claim.
 RELOCATED_EVIDENCE = [
     "parallel/parallel-001-worktree-isolation.md",
-    "memory/update_memory_index_tokens.py",
+    "scripts/memory/update_memory_index_tokens.py",
     "78e808238",
     "9cd7097f1",
 ]
@@ -77,9 +82,16 @@ def test_knowledge_persistence_is_not_always_on() -> None:
 
 
 def test_knowledge_persistence_points_at_the_relocated_items() -> None:
+    """The pointer names the destination by title, never by tree-local path.
+
+    Plugin consumers receive this file without `.claude/rules/universal.md`,
+    so a path reference would send them to a file they do not have
+    (`.claude/rules/plugin-self-containment.md`).
+    """
     text = KNOWLEDGE_PERSISTENCE.read_text(encoding="utf-8")
-    assert ".claude/rules/universal.md" in text
+    assert "the always-on Universal Rules" in text
     assert "items 7, 8, and 9" in text
+    assert ".claude/rules/universal.md" not in text
 
 
 @pytest.mark.parametrize("tree", UNIVERSAL_TREES, ids=lambda p: p.parts[-2])
