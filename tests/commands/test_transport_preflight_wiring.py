@@ -199,6 +199,16 @@ class TestMcpGrantsAreEnumerated:
         """
         assert "mcp__github__*" not in _granted(path)
 
+    def test_pr_review_may_run_the_copilot_launcher(self):
+        """The Copilot check_transport entry shells pwsh, so the grant must allow it.
+
+        The generated Copilot skill copies this grant verbatim, so without a
+        scoped pwsh entry a restricted invocation is denied before the blocking
+        preflight runs, and the workflow fails for a permission reason that
+        looks like a transport reason (Copilot review on PR #5509).
+        """
+        assert "Bash(pwsh:*)" in _granted(REVIEW)
+
     @pytest.mark.parametrize("path", [AUTOFIX, REVIEW])
     def test_allowed_tools_carries_no_unscoped_wildcard(self, path):
         """The slash-command validator rejects any wildcard that is not scoped.
