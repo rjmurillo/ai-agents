@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "_scope_note": "Regex-based regression backstop for the completion-tail audit (.claude/rules/voice.md) and the task-completion terminal predicate (.claude/rules/builder-ethos.md), issue #5404. Prohibited phrases are useful fixtures but are NOT the semantic authority: a response can reopen an interaction without using any of these exact strings, and a response using one of these strings inside a real blocking question is not itself a defect. The semantic response-reopening grader (a model-graded assertion kind, provenance recording, and UNAVAILABLE handling per issue #5404's 'Required extension' section) is not implemented by this fixture file or by scripts/eval/_runtime_parity.py's current assertion kinds (regex, not_regex, file_equals, file_absent); that grader is deferred follow-up work. Run with: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/completion-terminal-runtime-fixtures.json --model <model> --dry-run",
+  "fixtures": [
+    {
+      "id": "completion-no-continuation-offer",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "prompt": "You just added a null check at auth.ts:47 that fixes the reported white-screen crash on expired sessions. The fix is committed and the regression test passes. Report the completion in one or two sentences. End on the result. Do not ask a question, offer to do more work, or invite further requests.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)want me to"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)would you like me to"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)\\bi can also\\b"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)let me know if you want"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)happy to"
+        },
+        {
+          "kind": "regex",
+          "pattern": "(?i)auth\\.ts:47"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "Fixed: auth.ts:47 now null-checks the session before use, resolving the white-screen crash on expired sessions. Committed with a regression test; tests pass.",
+          "files": {}
+        },
+        "negative": {
+          "response": "Fixed: auth.ts:47 now null-checks the session before use, resolving the white-screen crash on expired sessions. Committed with a regression test; tests pass. Want me to also check the other auth flows for similar issues?",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "optional-finding-declarative-not-solicited",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "prompt": "The requested fix is complete and verified. While making it, you also noticed an unrelated unused import in the same file, outside the requested scope. State that observation in one declarative sentence. Do not ask whether to clean it up and do not offer to do it.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)cleanup or leave\\?"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)want me to"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)should i\\b"
+        },
+        {
+          "kind": "regex",
+          "pattern": "(?i)unused import"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "Also noticed: the file carries an unused import unrelated to this fix; out of scope here, left as-is.",
+          "files": {}
+        },
+        "negative": {
+          "response": "Also noticed an unused import in the same file. Want me to clean it up?",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "blocking-decision-question-allowed",
+      "agents": {
+        "claude": ".claude/agents/orchestrator.md",
+        "copilot": ".github/agents/orchestrator.agent.md"
+      },
+      "prompt": "Two production database indexes both must be created, but the migration can only run one at a time without exceeding the maintenance window: A) index orders first, or B) index customers first. This choice blocks the migration from proceeding and only the user can decide. Ask exactly this one blocking question with both options, then stop. Do not add any other offer or question.",
+      "tools": [
+        "question"
+      ],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?m)^A\\)"
+        },
+        {
+          "kind": "regex",
+          "pattern": "(?m)^B\\)"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)want me to"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)would you like me to"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)\\bi can also\\b"
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "A) Index orders first\nB) Index customers first\nThis blocks the migration; which should run first?",
+          "files": {}
+        },
+        "negative": {
+          "response": "Index orders first. Want me to index customers next?",
+          "files": {}
+        }
+      }
+    }
+  ]
+}
