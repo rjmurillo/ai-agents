@@ -108,6 +108,8 @@ In `gh_unusable` mode the Step 0 verdict does not reach this skill: its workflow
 
 **Parallel**: Launch background agents per PR. Wait for all to complete.
 
+In `gh_unusable` mode this mode is unavailable, for the same reason the sequential one is: a child agent inherits none of the Step 0 verdict and runs the same `gh`-backed responder workflow, so parallelism multiplies the 403 rather than avoiding it. Refuse `--parallel` in that mode, say the transport is why, and derive the PRs one at a time. Refs #5518.
+
 ### Step 5: Verify, Push, and Cleanup
 
 Push any changes per worktree. Clean up worktrees if `--cleanup`. Check `worktree_constraints` in config for isolation rules.
