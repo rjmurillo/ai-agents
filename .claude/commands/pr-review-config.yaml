@@ -39,7 +39,14 @@ scripts:
     # POSIX ${VAR:-default} form used in the claude_code map does not expand in
     # PowerShell, which is what this map targets, so a Windows install would
     # fail before the preflight ran (Copilot review on PR #5509).
-    check_transport: 'pwsh -NoProfile -Command "$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; python3 (Join-Path $root \"skills/github/scripts/utils/check_github_transport.py\") --output-format json"'
+    #
+    # The -Command payload is single-quoted, not double-quoted. A double-quoted
+    # payload is expanded by the POSIX parent shell before pwsh is executed:
+    # `$root` and `$env:` are unset there, so pwsh receives
+    # `= if (:COPILOT_PLUGIN_ROOT) { ... } ...` and fails on a parse error
+    # rather than on anything about the transport. Measured under bash 5 by
+    # printing the expanded argument (Copilot review on PR #5509).
+    check_transport: "pwsh -NoProfile -Command '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; python3 (Join-Path $root \"skills/github/scripts/utils/check_github_transport.py\") --output-format json'"
 
 # Transport preflight. Run check_transport once, before Step 1, and branch on
 # Data.Transport.
