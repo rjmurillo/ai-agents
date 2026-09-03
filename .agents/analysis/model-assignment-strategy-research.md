@@ -6,6 +6,58 @@
 **Audience**: architect, implementer, future ADR author
 **Triggers**: Recurring workflow breakage when a referenced model is deprecated, retired, paywalled, or requires credits the operator does not hold.
 
+## Corrections recorded 2026-09-03
+
+The body below is the 2026-04-26 record, left as authored so it still shows what
+was believed when the plan derived from it was written. Six of its claims are
+wrong. They are corrected here by quotation rather than edited in place.
+
+1. **The Flow A translator was already Python.** Every mention of
+   `build/Generate-Agents.ps1` is stale: the Flow A diagram, the Flow A table row
+   "resolves `tier` to platform-specific model ID at build time", principle 1,
+   step 5 Option B of the proposed plan outline, and the Sources list. That file
+   was deleted 2026-02-10 in `7b8347daa` (PR #1140), the ADR-042 PowerShell to
+   Python migration, ten weeks before this audit ran. At the declared audit
+   commit `49f05187`, `build/` holds only `generate_agents.py` and
+   `generate_agents_common.py`. The stale name most likely came from the platform
+   configs themselves: at that commit both `templates/platforms/vscode.yaml` and
+   `templates/platforms/copilot-cli.yaml` opened with the comment "Used by
+   Generate-Agents.ps1".
+2. **Pinning is not determinism.** "Used when you need bit-stable behavior for
+   evals or reproducibility" and "Pin a versioned ID only when an eval baseline
+   requires bit-stable behavior" overstate what a pin buys. A versioned ID fixes
+   the model snapshot. It does not make sampling deterministic, so an eval
+   baseline built on a pin still needs tolerance for output variation.
+3. **The traffic-share table is not sourced.** The Haiku 5-10 percent, Sonnet
+   80-85 percent, Opus 5-15 percent split, and principle 5 promoting it as "the
+   2026 consensus", appear in neither cited source. [Choosing the right Claude
+   model](https://academy.claude.com/tutorials/choosing-the-right-claude-model)
+   advises choosing by the kind of output you want. The [Augment routing
+   guide](https://www.augmentcode.com/guides/ai-model-routing-guide) routes by
+   task type and agent role. Neither states a traffic share. The 7 opus, 14
+   sonnet, 1 haiku distribution is this repository's own, not a consensus.
+4. **The advisor-pattern benchmark is reversed.** "+2.7 pp accuracy with -12%
+   cost vs all-Opus" states the wrong baseline. Anthropic reports a 2.7
+   percentage point gain on SWE-bench Multilingual and 11.9 percent lower cost
+   per agentic task for Sonnet with an Opus advisor over **Sonnet alone**, not
+   over all-Opus. Source: [The advisor
+   strategy](https://www.claude.com/blog/the-advisor-strategy). The wrong
+   baseline inverts the economic conclusion.
+5. **Four citations are operator-local.** The OpenAI Practical Guide rule, the
+   Adviser Model Pattern, AI Subscription Pricing Collapse, and AI Accessibility
+   Gap all cite `~/Documents/Mobile/wiki/`, which no repository reader can open.
+   The first has a public primary source: OpenAI, [A Practical Guide to Building
+   Agents](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf),
+   "build your agent prototype with the most capable model for every task to
+   establish a performance baseline. From there, try swapping in smaller models
+   to see if they still achieve acceptable results." The other three have no
+   public source here. Treat them as unverifiable operator notes.
+6. **Q4 names the wrong VS Code convention.** "period for Copilot CLI, hyphen for
+   VS Code" is half wrong. At `49f05187`, `templates/platforms/vscode.yaml` maps
+   the tiers to display names such as `Claude Opus 4.6 (copilot)`, which the Flow
+   A table already states correctly. Q4 should read "display names for VS Code".
+   A successor acting on Q4 as written would validate the wrong target.
+
 ## Problem
 
 Hardcoded model identifiers across agents, skills, commands, and documentation create silent breakage when Anthropic rotates model versions, retires SKUs, or moves a model behind a paid tier. Symptoms observed:

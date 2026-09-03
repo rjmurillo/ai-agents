@@ -13,7 +13,7 @@
 
 ## Why this plan was abandoned
 
-Recorded 2026-09-03. None of the 27 tasks below was executed. Three of the plan's
+Recorded 2026-09-03. None of the 28 tasks below was executed. Three of the plan's
 load-bearing premises no longer hold.
 
 1. **The parent issue closed.** The plan rides inside issue #1774 ("arch: JTBD-based
@@ -31,12 +31,19 @@ load-bearing premises no longer hold.
    callsites. That date has passed, so the batch ordering derived from it no longer
    means anything.
 
-Two further premises drifted. The plan names `build/Generate-Agents.ps1` as the
-generator, which the ADR-042 Python migration replaced with
-`build/generate_agents.py`. And it lists ADR-052 as proposed, with "verify file
-exists first" as a task, which is now settled.
+Two further premises are stale, one of them from the day the plan was written.
+The plan names `build/Generate-Agents.ps1` as the generator, but the ADR-042
+Python migration had already deleted that file on 2026-02-10 in `7b8347daa`
+(PR #1140), ten weeks before this plan was written. At the audited commit
+`49f05187` only `build/generate_agents.py` exists, so M2-T2 ("Extend
+`Generate-Agents.ps1`") named a target that was already gone. The stale name most
+likely came from `templates/platforms/vscode.yaml` and
+`templates/platforms/copilot-cli.yaml`, which both still opened with the comment
+"Used by Generate-Agents.ps1" at that commit. The second premise did hold when
+written: the plan lists ADR-052 as proposed, with "verify file exists first" as a
+task, and that is now settled.
 
-Kept rather than deleted because the 27-task decomposition, the dependency graph,
+Kept rather than deleted because the 28-task decomposition, the dependency graph,
 and the four Decision Log rows are the reasoning that issue #5282 inherits. The
 research basis is at `.agents/analysis/model-assignment-strategy-research.md`.
 
@@ -127,7 +134,7 @@ Critical path: M0 (L) ──► M2 (M2-T1 + M2-T2 L) ──► M3 ──► [M5-
 | Date | Update | Agent |
 |------|--------|-------|
 | 2026-04-26 | Created plan. Research doc at `.agents/analysis/model-assignment-strategy-research.md`. Milestones M0-M6, 27 atomic tasks defined via milestone-planner + task-decomposer. Pre-mortem (analyst) + critic validation complete. Plan revised with 3 top changes: (1) Flow A yaml verification added to M0-T3, (2) `flow-b-inventory.yaml` schema fields defined in M1-T3, (3) M5-T2/T3 dependency on M4 clarified as prerequisites. Additional: M0 and M2-T2 resized L; M6-T4 degradation contract audit added; `claude-sonnet-4-20250514` June 15 hard deadline recorded. | rjmurillo[bot] |
-| 2026-09-03 | Abandoned. Parent issue #1774 closed, ADR-036 superseded by ADR-052, and the June 15 2026 deadline passed. Zero of 27 tasks executed. Successor work tracked by issue #5282. | rjmurillo[bot] |
+| 2026-09-03 | Abandoned. Parent issue #1774 closed, ADR-036 superseded by ADR-052, and the June 15 2026 deadline passed. Zero of 28 tasks executed. Successor work tracked by issue #5282. | rjmurillo[bot] |
 
 ## Blockers
 
