@@ -150,11 +150,22 @@ class FetchStatus(str, enum.Enum):
     in 3.11 and would fail to import on a host at the 3.10 portability floor.
     A syntax-level floor check does not catch it: this is a runtime stdlib API,
     so the file parses clean at 3.10 and breaks on import.
+
+    ``__str__`` is restored explicitly because the two are not interchangeable
+    without it. ``StrEnum`` inherits ``str.__str__``, so ``str(FetchStatus.OK)``
+    is ``"ok"``; a plain ``str, Enum`` takes ``Enum.__str__`` and yields
+    ``"FetchStatus.OK"``. Equality with a string keeps working either way, so
+    every comparison in the test suite passed while any log line, f-string, or
+    serialized field carrying this value silently changed shape. ``FetchStatus``
+    is exported from ``github_core``, so that reaches consumers outside this
+    module (Copilot review on PR #5509).
     """
 
     OK = "ok"
     TRANSPORT_ERROR = "transport_error"
     STRUCTURAL_MISSING = "structural_missing"
+
+    __str__ = str.__str__
 
 
 def _log_structural_missing(

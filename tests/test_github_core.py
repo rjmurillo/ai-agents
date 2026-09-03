@@ -1235,6 +1235,31 @@ class TestFetchStatus:
         assert FetchStatus.TRANSPORT_ERROR == "transport_error"
         assert FetchStatus.STRUCTURAL_MISSING == "structural_missing"
 
+    @pytest.mark.parametrize(
+        ("member", "rendered"),
+        [
+            (FetchStatus.OK, "ok"),
+            (FetchStatus.TRANSPORT_ERROR, "transport_error"),
+            (FetchStatus.STRUCTURAL_MISSING, "structural_missing"),
+        ],
+    )
+    def test_rendering_a_member_yields_its_value(self, member, rendered):
+        """Equality is not the contract; rendering is, and they came apart.
+
+        Dropping `enum.StrEnum` for `str, Enum` at the 3.10 portability floor
+        keeps every equality comparison working and silently changes
+        `str(FetchStatus.OK)` from "ok" to "FetchStatus.OK", because StrEnum
+        inherits `str.__str__` and a plain `str, Enum` takes `Enum.__str__`.
+        The three assertions above passed through that whole change. Every log
+        line, f-string, and serialized field carrying this value changed shape,
+        and FetchStatus is exported from `github_core`, so the blast radius is
+        outside this module (Copilot review on PR #5509).
+        """
+        assert str(member) == rendered
+        assert f"{member}" == rendered
+        assert format(member) == rendered
+        assert "%s" % member == rendered
+
     def test_typo_raises_attribute_error(self):
         """Typo on a StrEnum member is a fail-fast attribute error,
         unlike a bare-string sentinel which would silently miss.
