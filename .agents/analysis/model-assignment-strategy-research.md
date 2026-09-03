@@ -9,7 +9,7 @@
 ## Corrections recorded 2026-09-03
 
 The body below is the 2026-04-26 record, left as authored so it still shows what
-was believed when the plan derived from it was written. Six of its claims are
+was believed when the plan derived from it was written. Eight of its claims are
 wrong. They are corrected here by quotation rather than edited in place.
 
 1. **The Flow A translator was already Python.** Every mention of
@@ -18,9 +18,10 @@ wrong. They are corrected here by quotation rather than edited in place.
    step 5 Option B of the proposed plan outline, and the Sources list. That file
    was deleted 2026-02-10 in `7b8347daa` (PR #1140), the ADR-042 PowerShell to
    Python migration, ten weeks before this audit ran. At the declared audit
-   commit `49f05187`, `build/` holds only `generate_agents.py` and
-   `generate_agents_common.py`. The stale name most likely came from the platform
-   configs themselves: at that commit both `templates/platforms/vscode.yaml` and
+   commit `49f05187`, `build/Generate-Agents.ps1` is absent from the tree and
+   `build/generate_agents.py` is the Flow A generator. The stale name most likely
+   came from the platform configs themselves: at that commit both
+   `templates/platforms/vscode.yaml` and
    `templates/platforms/copilot-cli.yaml` opened with the comment "Used by
    Generate-Agents.ps1".
 2. **Pinning is not determinism.** "Used when you need bit-stable behavior for
@@ -58,6 +59,18 @@ wrong. They are corrected here by quotation rather than edited in place.
    under the Flow A table already says this: "Copilot CLI period, Anthropic API
    hyphen, VS Code display names". Q4 should read "display names for VS Code".
    A successor acting on Q4 as written would validate the wrong target.
+7. **The ADR count contradicts its own list.** The Flow B audit row reads
+   "Existing model-related ADRs | 3" and then names four: ADR-002, ADR-021,
+   ADR-036, ADR-039. Four is the right number. Q1 and step 1 of the proposed
+   plan outline both treat ADR-036 as in scope, so the omission is in the
+   "Existing ADRs in Scope" section, which says "Three ADRs" and lists ADR-002,
+   ADR-021, ADR-039 without it.
+8. **The Sonnet 3.5 retirement date is wrong.** "Sonnet 3.5 (retired
+   2026-01-05)" conflates two retirements. Both Sonnet 3.5 snapshots,
+   `claude-3-5-sonnet-20240620` and `claude-3-5-sonnet-20241022`, retired
+   2025-10-28. 2026-01-05 is the Claude Opus 3 (`claude-3-opus-20240229`)
+   retirement date. Source: [Model
+   deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations).
 
 ## Problem
 

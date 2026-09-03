@@ -35,9 +35,9 @@ Two further premises are stale, one of them from the day the plan was written.
 The plan names `build/Generate-Agents.ps1` as the generator, but the ADR-042
 Python migration had already deleted that file on 2026-02-10 in `7b8347daa`
 (PR #1140), ten weeks before this plan was written. At the audited commit
-`49f05187` only `build/generate_agents.py` exists, so M2-T2 ("Extend
-`Generate-Agents.ps1`") named a target that was already gone. The stale name most
-likely came from `templates/platforms/vscode.yaml` and
+`49f05187` that file is absent and `build/generate_agents.py` is the generator,
+so M2-T2 ("Extend `Generate-Agents.ps1`") named a target that was already gone.
+The stale name most likely came from `templates/platforms/vscode.yaml` and
 `templates/platforms/copilot-cli.yaml`, which both still opened with the comment
 "Used by Generate-Agents.ps1" at that commit. The second premise did hold when
 written: the plan lists ADR-052 as proposed, with "verify file exists first" as a
