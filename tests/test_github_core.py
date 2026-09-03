@@ -1258,7 +1258,7 @@ class TestFetchStatus:
         assert str(member) == rendered
         assert f"{member}" == rendered
         assert format(member) == rendered
-        assert "%s" % member == rendered
+        assert "{}".format(member) == rendered  # noqa: UP032
 
     def test_typo_raises_attribute_error(self):
         """Typo on a StrEnum member is a fail-fast attribute error,
