@@ -64,7 +64,7 @@ Replacements: be specific instead. "Robust error handling" becomes "handles netw
 
 ## No Em Dashes Or En Dashes
 
-Reinforces `.claude/rules/universal.md` and `.github/instructions/universal.instructions.md`. Use commas, periods, colons, parentheses, hyphens, or restructure. Test fixtures under `tests/hooks/fixtures/` remain exempt.
+Reinforces `.claude/rules/universal.md` and `.github/instructions/universal.instructions.md`. Use commas, periods, colons, parentheses, hyphens, or restructure.
 
 ## Authority Boundary
 
@@ -96,8 +96,6 @@ Rules:
 If the current user message asks for terse output, says "no explanations," "just the answer," "skip the gloss," "I know what X means," or sets caveman mode, skip this section. The override applies to the current turn only and resets on the next user message unless the override is sticky (caveman mode, explicit "stay terse for the rest of this session").
 
 ## Completeness Principle: Boil the Lake
-
-AI makes completeness cheap. The marginal cost of covering one more edge case, one more error path, one more test is roughly zero. Use that. Recommend the complete lake. Flag the ocean.
 
 `builder-ethos.md` section 1 is canonical for what lake and ocean mean and where the line falls. Do not restate those definitions here. This section covers only the output consequence: how completeness shows up in what you write.
 
