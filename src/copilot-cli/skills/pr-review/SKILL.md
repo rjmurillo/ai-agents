@@ -76,7 +76,7 @@ anchor trust and are refused.
 
 ## Workflow
 
-When `--dry-run` is specified, gather read-only context and output planned actions as JSON. See `dry_run` in config for output schema and constraints. Exit after output without executing mutations.
+Run `transport_preflight` from config first (BLOCKING, once): `gh` can be installed, hold a token, and still be refused for the whole session, in which case every script below fails with HTTP 403 for a reason that has nothing to do with the PR. Branch on its verdict before Step 1 and never turn a transport failure into a PR verdict. When `--dry-run` is specified, gather read-only context and output planned actions as JSON. See `dry_run` in config for output schema and constraints. Exit after output without executing mutations.
 
 ### Step 1: Parse and Validate PRs
 
