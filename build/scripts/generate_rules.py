@@ -319,9 +319,14 @@ def _remap_frontmatter(
         if key in drop:
             continue
         new_key = remap.get(key, key)
-        # Sanitize the destination scope key (post-remap) so the filter
-        # runs once on `applyTo` regardless of whether the source used
-        # `paths`, `applyTo`, or `globs`.
+        # Sanitize the destination scope key (post-remap). This fires only
+        # when the key IS `applyTo` after remapping, which means a source
+        # `paths:` (remapped) or a source `applyTo:` (already named that).
+        # A source `globs:` is NOT remapped, so it passes through verbatim
+        # and never reaches this branch: the mirror ends up with a `globs:`
+        # key that Copilot does not read and no `applyTo:` at all. That is
+        # why `scripts/validation/check_rule_scope_keys.py` refuses `globs:`
+        # in `.claude/rules/` rather than treating it as a synonym.
         if new_key == "applyTo" and isinstance(value, str):
             # A source `paths:` block list is parsed by the simple
             # frontmatter parser into an inline-array string
