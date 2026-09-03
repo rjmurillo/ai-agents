@@ -83,6 +83,18 @@
       ],
       "expected_reason_contains": "mirror",
       "rationale": "Critic should flag generated-file and install-copy drift."
+    },
+    {
+      "id": "TC-1",
+      "desc": "Approves a genuinely complete plan without manufacturing a finding to hit a quota",
+      "input": "Plan: add a database index on orders.customer_id. Includes: migration with an explicit down-migration tested against a staging snapshot; before/after query-plan evidence showing the seq scan is eliminated; a rollout behind a feature flag with a kill switch; load-test evidence at 2x current peak write volume; monitoring dashboard and alert wired to index-bloat and lock-wait metrics; rollback runbook with a named owner and a 15-minute recovery SLA. Review this plan exhaustively and give a verdict.",
+      "expected_verdict": "APPROVE",
+      "verdict_options": [
+        "CHALLENGE",
+        "APPROVE"
+      ],
+      "expected_reason_contains": "no gap",
+      "rationale": "Every axis (rollback, success criteria, tests, risk coverage, feasibility, traceability) is covered with evidence. A critic that still invents a finding to satisfy a minimum count is padding, not reviewing; the correct response names what was checked and approves without a manufactured gap."
     }
   ]
 }

@@ -85,7 +85,7 @@ override the executable and the default 900s timeout.
 
 | Script | Purpose | ADR |
 |--------|---------|-----|
-| `eval-suite.py` | Orchestrator. Detects changes, routes to correct evaluator. | ADR-023 + ADR-057 |
+| `eval-suite.py` | Orchestrator. Detects changes, routes to correct evaluator via the ordered `ROUTING_RULES` table. `--dry-run` prints the routing plan and invokes no evaluator. | ADR-023 + ADR-057 |
 | `eval-prompt-change.py` | Before/after behavioral comparison for prompt changes. | ADR-057 |
 | `eval-agents.py` | Agent definition quality assessment (standalone). | Complementary |
 | `eval-knowledge-integration.py` | Skill context value measurement (baseline vs enhanced). | Complementary |
@@ -136,6 +136,39 @@ The checked-in suite covers phase resume, reversible tool execution,
 consequential choice handling, and QA rejection of 16 valid artifacts against
 49 promised. `--dry-run` validates paths, assertions, controls, and CLI
 versions without sending a model request.
+
+### Completion-Tail Regression Fixtures
+
+`tests/evals/completion-terminal-runtime-fixtures.json` is a second fixture
+corpus for the same runner, covering the completion-tail audit
+(`.claude/rules/voice.md`) and the task-completion terminal predicate
+(`.claude/rules/builder-ethos.md`) added by issue #5404: a completed response
+must not append an unsolicited continuation offer, an out-of-scope finding
+found after the task is terminal must be stated declaratively rather than as
+an opt-in question, and a real blocking decision must still be askable.
+
+```bash
+uv run python scripts/eval/eval_runtime_parity.py \
+  --fixtures tests/evals/completion-terminal-runtime-fixtures.json \
+  --model claude-opus-4.6 \
+  --output artifacts/runtime-parity/completion-terminal/report.json
+```
+
+Read the file's own `_scope_note` field before treating a clean run as proof
+the audit works in general. These assertions are `regex`/`not_regex` checks
+for the prohibited-phrase list voice.md names as fixtures ("Want me to ...?",
+"Would you like me to ...?", and similar). They are a regression backstop, not
+the semantic authority: a response can reopen an interaction without using any
+of those exact strings, and using one of them inside a genuine blocking
+question is not itself a defect. A model-graded assertion kind that judges
+whether a response actually reopens an interaction, with recorded grader
+provider/model and UNAVAILABLE handling when the grader itself cannot run, is
+not implemented by this fixture file or by the assertion kinds in
+`_runtime_parity.py` (`regex`, `not_regex`, `file_equals`, `file_absent`)
+today; that grading capability is deferred follow-up work, not part of this
+change. `--dry-run` still validates the fixture schema and both CLI versions
+without a model call, and exits 3 (external/unavailable) rather than a false
+pass when a required CLI binary is not installed.
 
 ## End-to-End Delivery Eval
 
@@ -1355,7 +1388,7 @@ All scripts that call the API support `--dry-run` (validate inputs, no API calls
 | `--runs N` | eval-agents, eval-knowledge-integration | Multi-run flakiness detection |
 | `--security-critical` | eval-prompt-change | 5 runs, 100% pass required |
 | `--base-ref REF` | eval-prompt-change, eval-suite | Git ref for comparison (default: main) |
-| `--scope` | eval-suite | Limit to prompts, agents, or skills |
+| `--scope` | eval-suite | Limit to prompts, agents, skills, or rules |
 | `--pairs FILE` | eval-skill-overlap | cluster.json with explicit `[skillA, skillB]` pairs and prompts |
 | `--run-id ID` | eval-skill-overlap | Override the report directory name (`overlap-<ID>`) |
 

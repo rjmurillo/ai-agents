@@ -555,6 +555,13 @@ fi
 # empty string, and quoting it would pass an empty argument that argparse
 # rejects. It is never attacker-influenced; both values are written above.
 # shellcheck disable=SC2086
+# The tier this produces gates the auto-merge disarm below via
+# TIER_TRUSTED_T1, and this runs against the checked-out PR branch with no
+# trusted-ref comparison, so it must NOT read --dispositions-file. A PR that
+# edited the registry could dispose its own failing security check, reach T1,
+# and keep auto-merge armed (CWE-829, CWE-284). Only the completion gate,
+# which byte-compares every tracked file its criteria name against the
+# trusted ref first, may honor a disposition.
 if MERGE_READY=$(python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request "$PR" $IS_BOT_FLAG 2>/dev/null); then
     MERGE_READY_RC=0
 else
@@ -1049,6 +1056,8 @@ else
     IS_BOT_FLAG="--is-bot"
 fi
 # shellcheck disable=SC2086
+# No --dispositions-file here either, for the reason recorded at the first
+# tier probe above: this reads the PR branch before any trust comparison.
 python3 "$SCRIPTS_DIR/test_pr_merge_ready.py" --pull-request {pr} $IS_BOT_FLAG
 
 # Per-PR live-state gate (BLOCKING per Phase 2; issue #2455). Returns

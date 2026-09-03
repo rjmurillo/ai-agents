@@ -2368,9 +2368,14 @@ class TestCommandTrustBoundary:
     def test_untracked_operator_file_is_recorded_not_compared(
         self, git_repo, tmp_path, capsys,
     ):
-        # The shipped config passes --dispositions-file, a JSON file the
-        # reviewer writes during the review. It is untracked, so it has
-        # no trusted-ref copy; comparing it would halt every real run.
+        # A file the operator writes during the review, such as a local
+        # scratch fixture. It is untracked, so it has no trusted-ref copy;
+        # comparing it would halt every real run.
+        #
+        # This used to cite the shipped --dispositions-file as the example.
+        # PR #5481 committed .agents/pr-checks/dispositions.json, so that
+        # path is tracked now and is compared like any other tracked file.
+        # The carve-out this test pins is unchanged; only the example moved.
         marker = tmp_path / "ran.txt"
         script = _write_marker_script(tmp_path / "verify.py", marker)
         dispositions = tmp_path / "dispositions.json"
@@ -2392,6 +2397,133 @@ class TestCommandTrustBoundary:
         assert payload["command_trust"]["skipped_untracked_files"] == [
             "dispositions.json",
         ]
+
+    def test_a_tracked_option_value_is_compared_like_any_other_path(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """Positive control for the pair above: tracked means compared.
+
+        `_classify_argv_token` skips a token only when it is empty or
+        starts with a hyphen. There is no option-position tracking, so an
+        option VALUE naming an existing in-tree file is classified by what
+        is on disk, exactly like a bare path argument. The test above shows
+        the untracked half; without this one, a classifier that skipped
+        every option value by position would satisfy it and nothing would
+        notice.
+
+        This is the mechanism by which the shipped `--dispositions-file`
+        value is verified, which the `--command-trust` documentation now
+        states.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, str(registry))],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["command_trust"]["status"] == "trusted"
+        assert payload["command_trust"]["checked_files"] == [
+            "verify.py",
+            "dispositions.json",
+        ], "a tracked option value must be compared, not skipped by position"
+        assert payload["command_trust"]["skipped_untracked_files"] == []
+
+    def test_a_tampered_tracked_option_value_halts_the_gate(
+        self, git_repo, tmp_path,
+    ):
+        """The half that matters: comparison without a halt is decoration.
+
+        A registry that can wave a red check through has to stop the gate
+        when a PR edits it, not merely appear in `checked_files`.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, str(registry))],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+        registry.write_text('{"some-check": {"disposition": "known-flaky"}}',
+                            encoding="utf-8")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), "no criterion may run on an edited registry"
+
+    def test_an_equals_form_option_value_is_compared_like_any_other_path(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """Positive control: `--flag=value` is one argv token, not two.
+
+        `_classify_argv_token` skips any token starting with a hyphen.
+        `--registry=<path>` packs the flag and its value into that one
+        token, so without `_split_long_option_value` unpacking it first,
+        the embedded path would never reach the classifier's path logic
+        at all and `checked_files` would not contain it (CWE-284): the
+        space-separated form is the only one round 5 proved.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, f"--registry={registry}")],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["command_trust"]["status"] == "trusted"
+        assert payload["command_trust"]["checked_files"] == [
+            "verify.py",
+            "dispositions.json",
+        ], "a --flag=value option value must be compared, not skipped as one hyphen-led token"
+        assert payload["command_trust"]["skipped_untracked_files"] == []
+
+    def test_a_tampered_equals_form_option_value_halts_the_gate(
+        self, git_repo, tmp_path,
+    ):
+        """The half that matters: an edited `--flag=value` registry halts too.
+
+        Mirrors `test_a_tampered_tracked_option_value_halts_the_gate` for the
+        packed-token form. Without the fix, this registry was never in
+        `checked_files` at all, so tampering it could not have been noticed:
+        `rc` would stay 0 and the marker would exist.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, f"--registry={registry}")],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+        registry.write_text('{"some-check": {"disposition": "known-flaky"}}',
+                            encoding="utf-8")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), "no criterion may run on an edited registry"
 
     def test_untracked_script_does_not_mask_a_tampered_tracked_one(
         self, git_repo, tmp_path,

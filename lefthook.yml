@@ -1,5 +1,6 @@
 # taste-lint: ignore file-size, hook config is one executable contract and splitting would hide stage order.
 min_version: 2.1.10
+no_auto_install: true
 lefthook: uv run --frozen lefthook
 glob_matcher: doublestar
 
