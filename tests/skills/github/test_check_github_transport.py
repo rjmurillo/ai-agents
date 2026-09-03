@@ -165,13 +165,38 @@ class TestShippedArtifactRuntimeContract:
         / "check_github_transport.py"
     )
 
-    def _run(self, cwd, env_extra):
+    @staticmethod
+    def _stub_gh(tmp_path):
+        """A deterministic `gh` that reports a healthy auth, first on PATH.
+
+        Without this the test runs the real preflight, which shells out to
+        `gh auth status` and can reach the network. Its verdict would then
+        depend on the developer's or runner's token, the proxy policy, and the
+        timeout, so a test meant to prove plugin-root resolution would report
+        on the environment instead (Copilot review on PR #5509).
+        """
+        bin_dir = tmp_path / "stub-bin"
+        bin_dir.mkdir(exist_ok=True)
+        gh = bin_dir / "gh"
+        gh.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        gh.chmod(0o755)
+        return bin_dir
+
+    def _run(self, cwd, env_extra, *, stub_bin=None):
         import os
         import subprocess
 
         env = dict(os.environ)
-        env.pop("COPILOT_PLUGIN_ROOT", None)
-        env.pop("CLAUDE_PLUGIN_ROOT", None)
+        for leaked in (
+            "COPILOT_PLUGIN_ROOT",
+            "CLAUDE_PLUGIN_ROOT",
+            "GH_TOKEN",
+            "GITHUB_TOKEN",
+            "GH_HOST",
+        ):
+            env.pop(leaked, None)
+        if stub_bin is not None:
+            env["PATH"] = f"{stub_bin}{os.pathsep}{env.get('PATH', '')}"
         env.update(env_extra)
         return subprocess.run(
             [sys.executable, str(self.SHIPPED), "--output-format", "json"],
@@ -183,23 +208,26 @@ class TestShippedArtifactRuntimeContract:
         )
 
     def _assert_reached_the_body(self, result):
-        """Prove the entrypoint ran, not merely that it avoided one exit code.
+        """Prove the entrypoint ran and produced the verdict the stub implies.
 
         Asserting `returncode != 2` passes for any startup crash: an
         ImportError exits 1 and would have certified an artifact that never
-        emitted anything (Copilot review on PR #5509). The envelope is the
-        evidence, so require a documented exit and parse the JSON.
+        emitted anything. With a stubbed `gh` reporting healthy auth the
+        answer is fully determined, so assert the exact exit and the exact
+        verdict rather than a range that the ambient token could move
+        (Copilot review on PR #5509).
         """
         import json
 
-        assert result.returncode in (0, 3, 4), (
-            f"undocumented exit {result.returncode}: "
+        assert result.returncode == 0, (
+            f"expected exit 0 with a healthy stub gh, got {result.returncode}: "
             f"{result.stdout}{result.stderr}"
         )
         assert "Plugin lib directory not found" not in result.stderr
         payload = json.loads(result.stdout)
-        assert "Metadata" in payload
+        assert payload["Success"] is True
         assert payload["Metadata"]["Script"] == "check_github_transport.py"
+        assert payload["Data"]["Transport"] == "gh"
 
     def test_shipped_copy_exists(self):
         assert self.SHIPPED.is_file(), f"{self.SHIPPED} is not in the tree"
@@ -207,13 +235,19 @@ class TestShippedArtifactRuntimeContract:
     def test_resolves_its_library_from_a_foreign_cwd_via_plugin_root(self, tmp_path):
         """The install case: run from elsewhere, with the host root exported."""
         plugin_root = _project_root / "src" / "copilot-cli"
-        result = self._run(tmp_path, {"COPILOT_PLUGIN_ROOT": str(plugin_root)})
+        result = self._run(
+            tmp_path,
+            {"COPILOT_PLUGIN_ROOT": str(plugin_root)},
+            stub_bin=self._stub_gh(tmp_path),
+        )
         self._assert_reached_the_body(result)
 
     def test_claude_plugin_root_resolves_the_same_way(self, tmp_path):
         """Both host variables are honored, not just the Copilot one."""
         result = self._run(
-            tmp_path, {"CLAUDE_PLUGIN_ROOT": str(_project_root / "src" / "copilot-cli")}
+            tmp_path,
+            {"CLAUDE_PLUGIN_ROOT": str(_project_root / "src" / "copilot-cli")},
+            stub_bin=self._stub_gh(tmp_path),
         )
         self._assert_reached_the_body(result)
 

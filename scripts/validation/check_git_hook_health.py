@@ -65,7 +65,7 @@ from pathlib import Path
 
 # This guard runs two ways: as a script, and imported as
 # ``scripts.validation.check_git_hook_health``. Its sibling is imported by bare
-# name on purpose (issue #2223), because one module object has to be shared:
+# name on purpose, because one module object has to be shared:
 # ``configured_hook_types`` resolves ``dump_commands`` from its own module
 # globals at call time, and tests monkeypatch that attribute on the bare-name
 # module. A package import here would create a second object and the patch
