@@ -49,6 +49,7 @@
 |zsh bash associative array bad substitution shell iteration: [pr-review/zsh-associative-array-bad-substitution](pr-review/zsh-associative-array-bad-substitution.md) (343)
 |ruleset required contexts scheduled drift second baseline duplicate source contract: [decision-ruleset-drift-must-not-create-a-second-baseline](decision-ruleset-drift-must-not-create-a-second-baseline.md) (258)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
+|stacked pull request async merge endpoint merge-async stack GraphQL refusal: [github/stacked-pr-async-merge-endpoint](github/stacked-pr-async-merge-endpoint.md) (1084)
 
 [Scripting and Testing]
 |repo-root default script REPO_ROOT __file__ scratch clone cwd: [testing/repo-root-default-measures-the-wrong-repository](testing/repo-root-default-measures-the-wrong-repository.md) (719)
@@ -77,7 +78,7 @@
 |architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (588)
 |adr decision record active proposed superseded rationale artifact: [adr-reference-index](adr-reference-index.md) (673), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (824), [adr/adr-review-observations](adr/adr-review-observations.md) (749)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
-|always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (2165)
+|always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (2470)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
 
 [Implementation and Quality]

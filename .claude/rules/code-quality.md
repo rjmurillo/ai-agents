@@ -1,6 +1,24 @@
 ---
 description: Baseline code quality rules merging Clean Code and Code Complete fundamentals. Apply on every code edit.
-alwaysApply: true
+paths:
+  - "**/*.py"
+  - "**/*.cs"
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+  - "**/*.go"
+  - "**/*.rs"
+  - "**/*.java"
+  - "**/*.rb"
+  - "**/*.c"
+  - "**/*.h"
+  - "**/*.cpp"
+  - "**/*.ps1"
+  - "**/*.psm1"
+  - "**/*.psd1"
+  - "**/*.sh"
+  - "**/*.sql"
 ---
 
 # Code Quality

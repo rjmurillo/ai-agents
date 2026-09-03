@@ -2,6 +2,9 @@
     "env": {
         "AI_AGENTS_PROJECT_REPO": "1"
     },
+    "enabledPlugins": {
+        "project-toolkit@ai-agents": false
+    },
     "permissions": {
         "deny": [
             "Bash(git *--output*)",

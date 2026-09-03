@@ -268,22 +268,20 @@ _CANONICAL_TREE = _vamr.CANONICAL_TREE.as_posix()
 # not per directory, for the same reason as `_EXEMPT_FILES`: adding one is then
 # a deliberate edit rather than silent inheritance.
 #
-# Quoted from build/scripts/validate_agent_matrix_refs.py:59-64, which measured
-# the same four with the same predicate: "Measured across all six trees that
-# rule keeps all 186 agent definitions out of 190 suffix-matching files,
-# excluding exactly four sibling documents: ``.claude/agents/AGENTS.md``,
-# ``.claude/agents/CLAUDE.md``, ``src/claude/AGENTS.md``, and
+# Quoted from build/scripts/validate_agent_matrix_refs.py, which measured the
+# same two with the same predicate: "Measured across all six trees that rule
+# keeps all 186 agent definitions out of 188 suffix-matching files, excluding
+# exactly two sibling documents: ``src/claude/AGENTS.md`` and
 # ``src/claude/claude-instructions.template.md``."
 #
-# Both numbers were 175 until PR #5177. Copilot caught that the copy here
-# contradicted this PR's own guarded corpus size; the canonical comment was
-# wrong too, so it was corrected first and re-quoted rather than the copy being
-# patched to differ from its source. `_agent_files()` returns 190 and
-# `_agent_definitions()` returns 186 on this head.
+# The numbers were 175 until PR #5177, then 190 and four until issue #5493
+# deleted `.claude/agents/AGENTS.md` and `.claude/agents/CLAUDE.md`. When the
+# copy here disagreed with the canonical comment on PR #5177, Copilot caught
+# it, and the canonical comment was corrected first and re-quoted rather than
+# the copy being patched to differ from its source. `_agent_files()` returns
+# 188 and `_agent_definitions()` returns 186 on this head.
 _NON_AGENT_SIBLINGS = frozenset(
     {
-        ".claude/agents/AGENTS.md",
-        ".claude/agents/CLAUDE.md",
         "src/claude/AGENTS.md",
         "src/claude/claude-instructions.template.md",
     }

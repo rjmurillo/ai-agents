@@ -9,25 +9,38 @@ forbids hand-editing a mirror at all.
 
 For exactly one question that convention is backwards.
 
-The question is which rules load on every agent turn. A rule is always-on when
-its **generated** `applyTo` resolves to `**`, so the answer lives in the
-generated tree. Parsing `.claude/rules/*.md` gives a wrong answer, wrong in both
-directions.
+The question is which rules load on every agent turn for a Copilot consumer. A
+rule is always-on there when its **generated** `applyTo` resolves to `**`, so
+the answer lives in the generated tree. Parsing `.claude/rules/*.md` for that
+question gives a wrong answer, wrong in both directions.
+
+Claude is the other half, and it reads the source: `paths:` alone, ignoring
+`applyTo:`, `globs:`, and `alwaysApply:`. That split is what made issue #4871
+possible, and the three keys fail differently. `pragmatic-programmer` declared
+code globs under `applyTo:`, which the generator remaps, so only the mirror was
+scoped and only the Claude source leaked. `code-quality` declared
+`alwaysApply: true`, which the generator drops before synthesizing
+`applyTo: '**'`, so both trees loaded universally and the rule had no way to
+state a code-only scope. `globs:` is preserved verbatim and never becomes
+`applyTo:`, so a rule using it leaves both trees unscoped. Between them,
+25,527 bytes loaded on every doc-only session.
+`scripts/validation/check_rule_scope_keys.py` now rejects every scope key but
+`paths:`, so the source-side and mirror-side answers cannot diverge again.
 
 There is also no single answer per tree by default, so always name the tree with
-the number. The two destination trees agree today, measured on this branch after `session-logs` dropped its optional-session-log mention from `knowledge-persistence`:
+the number. The two destination trees agree today, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, and issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 7 rules, 70,382 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 7 rules, 70,382 bytes |
+| `.github/instructions` | Copilot in this repository | 5 rules, 56,144 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 5 rules, 56,144 bytes |
 
-Membership is identical: `builder-ethos`, `claude-model-patches`, `code-quality`,
-`knowledge-persistence`, `search-before-building`, `universal`, `voice`.
+Membership is identical: `builder-ethos`, `claude-model-patches`,
+`search-before-building`, `universal`, `voice`.
 
-Those bytes are whole generated files, frontmatter included. The same seven
-rules measure 70,498 bytes at `.claude/rules/`, 116 more, because the generator
-drops `priority:` and turns `paths:` or `alwaysApply:` into `applyTo:`. Name the
+Those bytes are whole generated files, frontmatter included. The same five
+rules measure 56,239 bytes at `.claude/rules/`, 95 more, because the generator
+drops `priority:` and turns `paths:` into `applyTo:`. Name the
 tree whenever you quote a figure; a gap of about that size is a basis mismatch,
 not staleness.
 
@@ -113,11 +126,13 @@ A scope key may be an inline string or a YAML block list.
 
 ```yaml
 paths:
-  - "**"
+  - ".claude/rules/**"
+  - ".serena/memories/**"
 ```
 
-`^applyTo:\s*(.+)$` returns nothing for that file and reports it as unscoped,
-which is the exact opposite of the truth. Use `yaml.safe_load` on the
+`^applyTo:\s*(.+)$` returns nothing for that file and reports it as unscoped.
+Until issue #5492 the same block held a single `"**"` entry, so that answer was
+the exact opposite of the truth. Use `yaml.safe_load` on the
 frontmatter block. This produced a wrong always-on count during the audit that
 wrote this memory, and the wrong count looked plausible enough to act on.
 

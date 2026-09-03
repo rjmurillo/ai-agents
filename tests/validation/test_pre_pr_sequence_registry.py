@@ -97,6 +97,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Agent Drift Detection',
     'Install Parity (agents and rules)',
     'Agent Content Parity (.claude/agents vs src/claude)',
+    'Agent Tree Frontmatter (.claude/agents)',
     'Plugin Version Bump',
     'Hook Anchoring (Claude + Copilot)',
     'Copilot Agent Frontmatter',
@@ -107,6 +108,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Review Marker (SHA-bound /review)',
     'Instruction Budget (always-on)',
     'Always-on Corpus Claims',
+    'Rule Scope Declarations (paths:)',
 )
 
 QUICK_SKIPPED: frozenset[str] = frozenset(

@@ -168,6 +168,191 @@ npx tsx ~/.claude/plugins/marketplaces/thedotmack/scripts/import-memories.ts \
 python3 .claude-mem/scripts/import_claude_mem_memories.py
 ```
 
+**Locating the importer across harnesses**
+
+Claude-Mem is an optional dependency, and its Copilot CLI integration is
+MCP-only: it installs an MCP server entry and no importer path. The
+bulk-importer script itself does exist upstream, and is the very script this
+command invokes, so the gap is not a missing script. The gap is that nothing in
+the Copilot integration installs it or points at an installed copy, so there is
+a Claude Code default path to fall back on and no Copilot equivalent of it.
+
+External source, pinned: `github.com/thedotmack/claude-mem` at commit
+`8f085b4f8861122201a5524be71d696a49a812a3` (2026-08-31),
+`src/services/integrations/McpIntegrations.ts` line 242:
+
+```typescript
+  'copilot-cli': installMcpIntegration(COPILOT_CLI_CONFIG),
+```
+
+`COPILOT_CLI_CONFIG` in the same file (lines 116 to 122) writes
+`~/.github/copilot/mcp.json`. At that revision `scripts/import-memories.ts`
+exists but nothing routes Copilot to it. This is an external claim about another
+project, so it can go stale without anything here changing: re-verify at a newer
+revision before relying on it.
+
+The bulk importer resolves its path from configuration before any harness
+default.
+
+Canonical source: `.claude-mem/scripts/import_claude_mem_memories.py`. The
+resolution order is `resolve_importer` at lines 293 to 306, quoted verbatim:
+
+```python
+    if explicit is not None:
+        if is_blank(explicit):
+            return ImporterResolution(None, _SOURCE_ARGUMENT_BLANK)
+        return ImporterResolution(expand_home(explicit, home), _SOURCE_ARGUMENT)
+
+    env_value = env.get(IMPORTER_ENV_VAR, "")
+    if not is_blank(env_value):
+        return ImporterResolution(expand_home(env_value, home), _SOURCE_ENVIRONMENT)
+
+    default = claude_default_importer(home)
+    if default.exists():
+        return ImporterResolution(default, _SOURCE_DEFAULT)
+
+    return ImporterResolution(None, _SOURCE_UNSET)
+```
+
+Read as: `--importer PATH` first, then the `CLAUDE_MEM_IMPORTER` environment
+variable, then the Claude Code plugin default, which is returned only when it
+already exists on disk.
+
+The two blank cases are deliberately asymmetric, which the quoted code shows:
+
+| Input | Treated as | Exit | Why |
+|-------|-----------|------|-----|
+| `CLAUDE_MEM_IMPORTER=""` | unset, falls through | 0 or the next tier's outcome | `VAR=""` is the shell idiom for disabling an inherited value |
+| `--importer ""` | configured but invalid | 1 | The caller passed the highest-priority option and supplied nothing usable; falling through would disregard an explicit instruction |
+
+`is_blank` performs the blank test for both tiers. It is detection only: the
+original unstripped string is what resolves, because a POSIX filename may
+legitimately begin or end with a space, and trimming the value that resolves
+would execute a different file or report a real importer missing.
+
+A leading `~` is expanded by `expand_home`, not by `Path.expanduser`. The claims
+below are about that function's body, so it is quoted rather than described.
+From `.claude-mem/scripts/import_claude_mem_memories.py`, lines 251 to 260,
+verbatim:
+
+```python
+    mod: PathModule = os.path if pathmod is None else pathmod
+    seps = path_separators(mod)
+    if raw == "~":
+        return home
+    if not raw.startswith(tuple("~" + sep for sep in seps)):
+        return Path(raw)
+    suffix = raw[2:].lstrip(seps)
+    if mod.splitdrive(suffix)[0]:
+        return Path(raw)
+    return home / suffix
+```
+
+with `path_separators` at lines 194 to 195 of the same file:
+
+```python
+    mod: PathModule = os.path if pathmod is None else pathmod
+    return mod.sep + (mod.altsep or "")
+```
+
+Four things follow from the quoted lines.
+
+`Path.expanduser` is never called, so the expansion depends on the `home` passed
+in and not on the process `HOME` or the password database.
+
+What counts as a separator is asked of a standard-library path module, defaulting
+to `os.path`, which IS `posixpath` or `ntpath` for the running platform. A
+backslash is therefore a separator on Windows and an ordinary filename character
+on POSIX, where `altsep` is None. The same argument means two different things on
+the two platforms, deliberately.
+
+A `~otheruser` prefix does not match the `startswith` test, so it falls to
+`return Path(raw)` and is returned unchanged. That makes it a relative path
+beginning with a literal `~otheruser` segment, so it never resolves against a
+stranger's home. The existence check then runs against whatever that relative
+path resolves to under the process working directory. That normally does not
+exist and the error reports the literal path, but failure is not guaranteed: a
+directory literally named `~otheruser` in the working directory would satisfy
+the check and be executed. This branch is a non-expansion, not a rejection, and
+must not be relied on as one.
+
+A suffix still carrying a drive after the `lstrip` takes the same literal return.
+Stripping separators does not make a suffix relative on Windows, where a drive is
+a second anchoring mechanism: `~/D:/x` leaves `D:/x`, and joining that onto
+`home` yields `D:\x`, dropping `home` exactly as a rooted suffix would. On POSIX
+`splitdrive` reports no drive, so `D:` stays an ordinary directory name and the
+path expands normally.
+
+```bash
+# Point at an importer installed outside the Claude Code plugin root
+CLAUDE_MEM_IMPORTER=/opt/claude-mem/scripts/import-memories.ts \
+  python3 .claude-mem/scripts/import_claude_mem_memories.py
+
+# Or pass it explicitly
+python3 .claude-mem/scripts/import_claude_mem_memories.py \
+  --importer /opt/claude-mem/scripts/import-memories.ts
+```
+
+The exit code is decided by `is_configured`, not by the absence itself. From
+`main` in the same file, lines 401 to 420, quoted verbatim:
+
+```python
+    importer = resolution.path
+    if importer is None or not importer.is_file():
+        # is_file() rather than exists(): a directory can occupy the path (a
+        # misconfigured --importer, or a marketplace layout change), and
+        # exists() alone would let that pass the guard and then fail
+        # unhelpfully once tsx runs against a directory. is_configured, not
+        # the absence itself, decides the exit code: a path the caller named
+        # is a real failure, an uninstalled optional plugin is a supported
+        # state.
+        if resolution.is_configured:
+            print(
+                f"ERROR: Claude-Mem importer from {resolution.source} not found at: {importer}",
+                file=sys.stderr,
+            )
+            return 1
+        print(
+            "SKIP: Claude-Mem plugin not installed. Set "
+            f"${IMPORTER_ENV_VAR} or pass --importer to enable importing."
+        )
+        return 0
+```
+
+`is_configured` is true only for the argument and environment sources, per the
+tuple at line 96 and the property at lines 119 to 128 of the same file. Both are
+needed: the property alone does not say which sources count as configured.
+
+```python
+_CONFIGURED_SOURCES = (_SOURCE_ARGUMENT, _SOURCE_ARGUMENT_BLANK, _SOURCE_ENVIRONMENT)
+
+    @property
+    def is_configured(self) -> bool:
+        """True when configuration was attempted, so a miss is a real failure.
+
+        That is: ``--importer`` was supplied, even blank, or a nonblank
+        ``CLAUDE_MEM_IMPORTER`` was set. It does NOT mean a usable path exists.
+        A blank ``--importer`` names no path and is still configured, which is
+        why ``path`` may be None here.
+        """
+        return self.source in _CONFIGURED_SOURCES
+```
+
+| Situation | Exit | Reason |
+|-----------|------|--------|
+| Nothing configured, no plugin installed | 0 | Optional dependency absent; import skipped with a `SKIP:` line |
+| Configured path missing, or importer fails | 1 | The caller named an importer that does not work |
+| `--importer ""` | 1 | Highest-priority option supplied with nothing usable |
+
+A Copilot CLI session with no bulk importer on disk therefore skips cleanly
+instead of reporting a false failure (issue #4780).
+
+**Stricter/looser/different than canonical**: no divergence. This section
+restates the quoted fragments above and adds no rule the script does not
+implement. Line numbers are a reading aid and drift with edits; the function and
+property names (`resolve_importer`, `ImporterResolution.is_configured`) are the
+stable anchors.
+
 **Manual bulk import** (advanced users):
 
 ```bash

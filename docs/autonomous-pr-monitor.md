@@ -654,7 +654,7 @@ Distinguish stale cache from a real conflict before any refresh:
 PR=2334
 BRANCH="$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request "$PR" | jq -r .Data.head_branch)"
 BASE="$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request "$PR" | jq -r .Data.base_branch)"
-WT=".worktrees/pr-$PR"
+WT="../wt-pr-$PR"
 git worktree add "$WT" "$BRANCH"
 git -C "$WT" fetch origin "$BASE"
 
@@ -730,7 +730,7 @@ Workflow (substitute `PR=<number>`, `BRANCH=<branch-name>` as shell variables; a
 ```bash
 PR=2044
 BRANCH="$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request "$PR" | jq -r .Data.head_branch)"
-WT=".worktrees/pr-$PR"
+WT="../wt-pr-$PR"
 git worktree add "$WT" "$BRANCH"
 git -C "$WT" fetch origin main
 git -C "$WT" merge origin/main --no-edit   # resolve conflicts via merge-resolver skill if needed

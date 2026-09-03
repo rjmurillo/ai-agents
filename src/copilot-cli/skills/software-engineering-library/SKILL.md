@@ -9,7 +9,7 @@ license: MIT
 
 This skill routes software engineering design work to deeper book-derived references without loading them on every turn.
 
-For the everyday default, code-quality loads on every turn and pragmatic-programmer and unified-software-engineering load on code files; open a reference here only when the task needs that specific book's depth (start with one, add a second only when it changes a decision).
+For the everyday default, none loads on every turn and code-quality, pragmatic-programmer and unified-software-engineering load on code files; open a reference here only when the task needs that specific book's depth (start with one, add a second only when it changes a decision).
 
 ## Triggers
 
