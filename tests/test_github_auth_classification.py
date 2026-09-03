@@ -835,6 +835,61 @@ class TestBothTransportsProveASessionRefusal:
         with patch("subprocess.run", side_effect=calls):
             assert check_gh_auth().status is GhAuthStatus.TRANSPORT_BLOCKED
 
+    def test_an_account_level_denial_survives_a_successful_graphql_probe(self):
+        """A viewer query is not repository-scoped, so its success proves less.
+
+        The probe answers "does the token authenticate", and a session can
+        answer yes there while denying every repository call, which is the
+        shape measured on 2026-09-03. Returning AUTHENTICATED selected gh for a
+        workflow whose next call is a 403, and it made "the account-level
+        wording stands alone" true only when GraphQL also failed
+        (Copilot review on PR #5509).
+        """
+        calls = [
+            _completed(stderr=PROXY_REST_403, rc=1),
+            _completed(stdout='{"data": {"viewer": {"login": "x"}}}', rc=0),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.TRANSPORT_BLOCKED
+        _, exit_code, _ = describe_gh_auth_failure(result)
+        assert exit_code == 2
+
+    def test_a_transient_rest_failure_beside_a_working_probe_is_still_authenticated(
+        self,
+    ):
+        """Control: the short-circuit must read the denial, not any REST failure.
+
+        This is the #3139 fix itself. A REST 5xx beside a working GraphQL token
+        has to stay AUTHENTICATED, or the guard above would relabel every
+        transient outage as a refused session and send the whole repository to
+        MCP for a condition that clears by itself.
+        """
+        calls = [
+            _completed(stderr="HTTP 503: Service unavailable", rc=1),
+            _completed(stdout='{"data": {"viewer": {"login": "x"}}}', rc=0),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().is_authenticated
+
+    def test_a_quota_probe_still_outranks_the_account_level_denial(self):
+        """Control: ordering, not just presence.
+
+        Quota has a reset and the denial does not, so a throttled session must
+        not be relabelled as refused. The denial check sits after the quota
+        check for exactly this pair; swapping them returns exit 2 for something
+        that clears in a minute.
+        """
+        calls = [
+            _completed(stderr=PROXY_REST_403, rc=1),
+            _completed(stderr=REST_403_QUOTA, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.RATE_LIMITED
+        _, exit_code, _ = describe_gh_auth_failure(result)
+        assert exit_code == 3
+
     def test_an_account_level_denial_outranks_a_confirmed_bad_token(self):
         """Both faults are real; only one of them has a remedy that works.
 

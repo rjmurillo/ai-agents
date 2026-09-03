@@ -620,19 +620,34 @@ def check_gh_auth() -> GhAuthResult:
         rest_text = f"{result.stdout}\n{result.stderr}"
 
     probe = _graphql_viewer_probe()
-    if probe.is_authenticated or probe.status is GhAuthStatus.MISSING_GH:
+    if probe.status is GhAuthStatus.MISSING_GH:
+        return probe
+
+    # A quota verdict clears on its own and outranks every verdict below it.
+    # Checked before the account-level denial so a throttled session is not
+    # relabelled as a refused one.
+    if probe.status in _RETRYABLE_REFUSAL_STATUSES:
+        return probe
+
+    # The account-level denial closes the session whatever GraphQL managed, so
+    # it has to be read before a successful probe can return. A viewer query is
+    # not repository-scoped and can succeed against a session that denies every
+    # repository call, and returning AUTHENTICATED there selects gh for a
+    # workflow whose next call is a 403. This is the "the account-level wording
+    # stands alone" rule; without it that rule held only when GraphQL also
+    # failed (Copilot review on PR #5509).
+    if _TRANSPORT_BLOCKED_SIGNATURE.search(rest_text):
+        return GhAuthResult(
+            GhAuthStatus.TRANSPORT_BLOCKED, sanitize_failure_detail(rest_text)
+        )
+
+    if probe.is_authenticated:
         return probe
 
     # Both transports failed. That is the only evidence that proves a refusal
     # is session-wide rather than scoped to one query shape, so a policy
     # refusal seen on either transport is promoted to TRANSPORT_BLOCKED only
     # here (Copilot review on PR #5509).
-    # A quota verdict from the probe outranks promotion. Quota has a reset and
-    # its own backoff, so overwriting it with TRANSPORT_BLOCKED would convert a
-    # condition that clears into a config failure and drop the retry the caller
-    # should make (Copilot review on PR #5509).
-    if probe.status in _RETRYABLE_REFUSAL_STATUSES:
-        return probe
     if probe.status is not GhAuthStatus.TRANSPORT_BLOCKED and _is_session_wide_refusal(
         rest_text, probe.detail
     ):
@@ -773,8 +788,10 @@ _MISSING_OR_INVALID_MESSAGE = (
 # denial still dominates because no token clears it. Claiming the credential is
 # fine would be false in exactly that pair (Copilot review on PR #5509).
 _TRANSPORT_BLOCKED_MESSAGE = (
-    "This session's environment refuses GitHub for the gh CLI, so every gh "
-    "call fails with HTTP 403 regardless of the token. Repairing the "
+    "This session's environment refuses GitHub for the gh CLI, so its "
+    "repository and pull-request calls fail with HTTP 403 regardless of the "
+    "token. An account-scoped endpoint such as `gh api user` can still "
+    "answer, and that does not make the session usable. Repairing the "
     "credential cannot clear it: 'gh auth login' and retrying are both the "
     "wrong remedy, whatever else is also wrong. Use the "
     "GitHub MCP operations for this work (spelled mcp__github__* in Claude "
