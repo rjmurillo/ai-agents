@@ -177,9 +177,17 @@ class GhAuthStatus(Enum):
 
     ``TRANSPORT_BLOCKED`` is the agent-sandbox case: ``gh`` is installed and
     carries a credential, but the session's egress policy refuses GitHub, so
-    no ``gh`` invocation can succeed no matter how the token is repaired.
-    ``gh auth login`` is the wrong remedy and retrying is wasted work; the
-    remedy is a different transport. See :data:`_TRANSPORT_BLOCKED_SIGNATURE`.
+    ``gh`` cannot do repository or pull-request work no matter how the token is
+    repaired. ``gh auth login`` is the wrong remedy and retrying is wasted
+    work; the remedy is a different transport.
+    See :data:`_TRANSPORT_BLOCKED_SIGNATURE`.
+
+    Scoped to repository and pull-request work on purpose, because "no ``gh``
+    invocation can succeed" is measurably too strong. A session was observed
+    on 2026-09-03 refusing ``gh api repos/{owner}/{repo}`` and every GraphQL
+    query while ``gh api user`` returned the real account. An account-scoped
+    endpoint surviving does not make the session usable for anything this
+    repository's workflows do, and it is not grounds for reporting success.
     """
 
     AUTHENTICATED = "authenticated"
@@ -544,11 +552,6 @@ def _rest_credential_probe() -> GhAuthResult:
     )
 
 
-# Quota refusals clear on their own, so they must survive the promotion below.
-_RETRYABLE_REFUSAL_STATUSES = frozenset(
-    {GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED}
-)
-
 
 def _is_session_wide_refusal(rest_text: str, graphql_text: str) -> bool:
     """Return True when the pair of failures proves the session is refused.
@@ -651,6 +654,21 @@ def check_gh_auth() -> GhAuthResult:
             return GhAuthResult(rest_status, sanitize_failure_detail(rest_text))
         # Both narrators are unreliable here, so ask the one question that has
         # a decisive answer: does the credential authenticate at all?
+        #
+        # A credential that works, with `gh auth status` failed and GraphQL
+        # refused by policy, is not "authenticated" for any caller's purpose:
+        # every `gh pr` and `gh issue` command goes through GraphQL. Returning
+        # AUTHENTICATED here would report success for a session that cannot
+        # read a PR, and assert_gh_authenticated would pass on it.
+        #
+        # The step from that evidence to TRANSPORT_BLOCKED is an inference, and
+        # it is worth naming as one: `/user` is account-scoped, so its success
+        # says nothing about repository REST, which the observed session
+        # refused separately. What is measured is a valid credential plus a
+        # policy-refused GraphQL transport. Whether a session in that state
+        # deserves its own status, rather than being folded in here, is a
+        # taxonomy question for the repository owner (Copilot review on
+        # PR #5509).
         confirmation = _rest_credential_probe()
         if confirmation.is_authenticated:
             return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
@@ -948,6 +966,14 @@ REFUSAL_BACKOFF_SECONDS = (15.0, 30.0)
 # Quota and secondary-limit refusals clear on their own, so a bounded retry
 # recovers them (issue #4326). 5xx and 429 keep their existing coverage through
 # _TRANSIENT_HTTP_PATTERN; nothing else becomes retryable here.
+#
+# check_gh_auth reads the same set for a different question: a quota verdict
+# must survive promotion to TRANSPORT_BLOCKED, because quota has a reset and a
+# refused session does not. Both call sites want "this clears on its own", so
+# they share one definition. A second copy was added next to check_gh_auth and
+# was silently overwritten by this one at import; the values matched, so
+# nothing broke, and an edit to either would have moved both behaviors at once
+# (Copilot review on PR #5509).
 _RETRYABLE_REFUSAL_STATUSES = frozenset(
     {GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED}
 )

@@ -18,6 +18,7 @@ from unittest.mock import patch
 
 import pytest
 
+import scripts.github_core.api as api
 from scripts.github_core.api import (
     _GRAPHQL_BACKOFF_BASE_SECONDS,
     REFUSAL_BACKOFF_SECONDS,
@@ -89,6 +90,37 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(
         args=["gh"], returncode=rc, stdout=stdout, stderr=stderr
     )
+
+
+class TestModuleLevelConstantsAreDefinedOnce:
+    """A shadowed constant is invisible until someone edits the wrong copy.
+
+    `_RETRYABLE_REFUSAL_STATUSES` was defined twice: once beside `check_gh_auth`
+    for the promotion guard and once beside the GraphQL retry ladder. Python
+    kept the later one, the values happened to match, and nothing failed. An
+    edit to either would have moved both behaviors at once, and only one of
+    them would have had a test (Copilot review on PR #5509).
+    """
+
+    def test_no_module_level_name_is_assigned_twice(self):
+        import ast
+        from pathlib import Path as _Path
+
+        source = _Path(api.__file__).read_text(encoding="utf-8")
+        seen: dict[str, int] = {}
+        duplicates = []
+        for node in ast.parse(source).body:
+            if not isinstance(node, ast.Assign):
+                continue
+            for target in node.targets:
+                name = getattr(target, "id", None)
+                if name is None:
+                    continue
+                if name in seen:
+                    duplicates.append(f"{name} (lines {seen[name]} and {node.lineno})")
+                seen[name] = node.lineno
+
+        assert not duplicates, f"shadowed module-level assignments: {duplicates}"
 
 
 class TestClassifyGhFailureText:
