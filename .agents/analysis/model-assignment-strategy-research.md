@@ -9,8 +9,8 @@
 ## Corrections recorded 2026-09-03
 
 The body below is the 2026-04-26 record, left as authored so it still shows what
-was believed when the plan derived from it was written. Ten of its claims are
-wrong. They are corrected here by quotation rather than edited in place.
+was believed when the plan derived from it was written. Eleven of its claims
+are wrong. They are corrected here by quotation rather than edited in place.
 
 1. **The Flow A translator was already Python.** Every mention of
    `build/Generate-Agents.ps1` is stale: the Flow A diagram, the Flow A table row
@@ -75,11 +75,10 @@ wrong. They are corrected here by quotation rather than edited in place.
    retirement date. Source: [Model
    deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations).
 9. **"Weights preserved indefinitely" overstates the commitment.** Anthropic
-   commits to "preserving the weights of all publicly released models, and all
-   models that are deployed for significant internal use moving forward for, at
-   minimum, the lifetime of Anthropic as a company". That is a floor tied to the
-   company's existence, not a permanent guarantee. Source: [Commitments on model
-   deprecation and
+   commits to preserving the weights of every publicly released model, and of
+   internally deployed models going forward, "for, at minimum, the lifetime of
+   Anthropic as a company". That is a floor tied to the company's existence, not
+   a permanent guarantee. Source: [Commitments on model deprecation and
    preservation](https://www.anthropic.com/research/deprecation-commitments),
    which the sentence already cites.
 10. **The Flow B diagram adds an output its source does not have.** The diagram
@@ -91,6 +90,15 @@ wrong. They are corrected here by quotation rather than edited in place.
     no skills. The skills surface is real and is the migration target this audit
     names, but it is not installed output of `src/claude/`, so a successor
     should not look for a generator that would rewrite it.
+11. **The alias example belongs to Claude Code, not the API.** "Aliases
+    (`opus`, `sonnet`, `haiku`)" is attributed to Anthropic's Models overview
+    and Model deprecations pages. Those pages define API aliases in full form,
+    the dateless IDs such as `claude-opus-5` and `claude-haiku-4-5`. Bare
+    `opus`, `sonnet` and `haiku` are Claude Code configuration values, which
+    this document states correctly two sections later: "`model:` accepts: alias
+    (`opus|sonnet|haiku`), full ID (`claude-opus-4-7`), or `inherit`". The
+    alias-by-default principle survives. The citation is attached to the wrong
+    surface, so a reader could send a bare `opus` to the API and get a 404.
 
 ## Problem
 
