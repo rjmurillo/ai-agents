@@ -269,15 +269,24 @@ def _print_paste_command(
 ) -> None:
     """Print a copy-paste renormalize command that works for every path.
 
-    `shell_argument` picks the spelling per path. Anything with a text
-    spelling gets `shlex.quote`, which is what POSIX `sh` understands. A path
-    carrying bytes that have none gets bash and zsh's `$'...'` form, which
-    re-encodes the real bytes rather than the escaped display spelling; a
-    command built from the display spelling would name a file the repository
-    does not hold, which is why an earlier revision withheld the command
-    entirely rather than print one that could not remediate anything. Do not
-    restore that: `display_path` is for reading, `shell_argument` is for
-    running, and the two are different renderings of the same path.
+    `shell_argument` picks the spelling per path. A path that survives
+    `display_path` unchanged gets `shlex.quote`, which POSIX `sh` understands.
+    One that does not, because it carries bytes unsafe to print verbatim (a
+    control character, a bidi override, an unpaired surrogate), gets bash and
+    zsh's `$'...'` form instead: not because POSIX `sh` cannot express those
+    bytes in a plain single-quoted string, but because `shlex.quote` would
+    quote the escaped display spelling, and a command built from the display
+    spelling would name a file the repository does not hold, which is why an
+    earlier revision withheld the command entirely rather than print one that
+    could not remediate anything. Do not restore that: `display_path` is for
+    reading, `shell_argument` is for running, and the two are different
+    renderings of the same path.
+
+    The same test applies to the repository root printed after `-C`: a root
+    whose path is unsafe to display verbatim needs the same `$'...'` form,
+    independent of whether any target path does. Checking only the targets
+    would print a command that silently uses that form for the root while
+    telling the operator no path needed it.
 
     Only the paths in `remediable` get a command. The rest are wrong in HEAD
     alone, where `git add --renormalize` fails with `pathspec ... did not match
@@ -309,14 +318,22 @@ def _print_paste_command(
         # `-C` because these paths are relative to the repository root and the
         # operator may be anywhere; `--literal-pathspecs` because a tracked
         # name such as `*.md` is a path to this gate and a glob to git.
-        root = shell_argument(str(repo_root))
+        root_str = str(repo_root)
+        root = shell_argument(root_str)
         print(f"  git -C {root} --literal-pathspecs add --renormalize -- {paths}")
-        unspellable = [v for v in targets if not is_spellable(v.path)]
-        if unspellable:
+        unspellable_targets = [v for v in targets if not is_spellable(v.path)]
+        root_needs_escaping = not is_spellable(root_str)
+        if unspellable_targets or root_needs_escaping:
+            described = []
+            if root_needs_escaping:
+                described.append("the repository root")
+            if unspellable_targets:
+                described.append(f"{len(unspellable_targets)} of {len(targets)} path(s)")
             print(
-                f"  {len(unspellable)} of {len(targets)} path(s) carry bytes with no "
-                "text spelling, so the command above uses bash and zsh's $'...' form. "
-                "POSIX sh cannot express those bytes; --fix needs no shell at all."
+                f"  {' and '.join(described)} carry bytes unsafe to display verbatim, "
+                "so the command above renders them with bash and zsh's $'...' form "
+                "instead of plain quoting. --fix passes the real bytes as argv and "
+                "needs no shell at all."
             )
     if committed_only:
         print(

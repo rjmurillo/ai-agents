@@ -113,13 +113,13 @@ def test_the_paste_command_for_an_undecodable_path_actually_remediates_it(
 def test_the_paste_command_names_the_shells_its_second_form_needs(
     tmp_path: Path, capsys
 ) -> None:
-    """POSIX sh has no escape for those bytes, so the note is not decoration."""
+    """An undecodable byte has no text spelling at all, so the note is not decoration."""
     repo, _raw_name = _repo_with_undecodable_crlf_blob(tmp_path)
 
     assert checker.validate_index_line_endings(repo) is False
 
     out = capsys.readouterr().out
-    assert "1 of 1 path(s) carry bytes with no text spelling" in out
+    assert "1 of 1 path(s) carry bytes unsafe to display verbatim" in out
     assert "bash and zsh" in out
 
 

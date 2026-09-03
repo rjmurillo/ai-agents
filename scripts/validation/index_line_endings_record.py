@@ -23,6 +23,24 @@ from dataclasses import dataclass
 # is; `none` means no line endings at all and cannot contradict anything.
 _BAD_INDEX_STATES = frozenset({"i/crlf", "i/mixed"})
 
+# Git's complete `--eol` state vocabulary for the index column, stable since
+# the flag shipped: a text blob reads as `lf`, `crlf`, or `mixed`; `none` means
+# no line endings to judge; `-text` means the text attribute is unset, so the
+# blob is exempt from the whole question. A bare `i/` with no state after the
+# slash is real too, not malformed: a symlink (mode 120000) has no line-ending
+# semantics, so git leaves both the index and worktree state empty, e.g.
+# `i/      w/      attr/text=auto eol=lf \tmemory_enhancement` for this
+# repository's own tracked `memory_enhancement` symlink. `index_state not in
+# _BAD_INDEX_STATES` alone treats every unrecognized spelling as clean by
+# default: a row like `i/crlf-v2 w/crlf attr/text eol=lf` would satisfy the
+# field-prefix checks above, get counted as examined, and fall through here
+# unflagged even though it promises `eol=lf` over a state this parser has
+# never seen. That is the same silent pass ci-scripts.md MUST-12 forbids, one
+# layer down: not a malformed row, but a row this parser cannot classify as
+# bad or clean. Validated before the `_BAD_INDEX_STATES` membership test, so
+# an unknown state raises instead of defaulting to "not bad."
+_KNOWN_INDEX_STATES = frozenset({"i/lf", "i/crlf", "i/mixed", "i/none", "i/-text", "i/"})
+
 # Only these attribute values promise LF in the blob. A path marked `-text` is
 # exempt by declaration, and `eol=crlf` asks for CRLF on purpose, so neither is
 # a contradiction. Matched as whole tokens, never as substrings: `eol=lfx` is
@@ -218,6 +236,13 @@ def parse_violations(output: str, scope: str = "HEAD") -> tuple[list[Violation],
         examined += 1
         index_state = fields[0]
         attributes = " ".join(fields[2:])
+        if index_state not in _KNOWN_INDEX_STATES:
+            raise RuntimeError(
+                f"git ls-files --eol emitted an unrecognized index state "
+                f"{index_state!r}: {line!r}. The parser knows only "
+                f"{sorted(_KNOWN_INDEX_STATES)!r}; an unrecognized state cannot "
+                "be judged bad or clean."
+            )
         if index_state not in _BAD_INDEX_STATES:
             continue
         # `attr/` prefixes the first attribute only, so it comes off before the

@@ -42,7 +42,7 @@ def test_this_repository_has_no_contradicting_blobs() -> None:
     assert examined > 0
 
 
-def test_this_repository_holds_no_crlf_blob_at_all() -> None:
+def test_this_repository_holds_no_crlf_blob_contradicting_its_eol_lf_declaration() -> None:
     """Independent re-check of the gate's condition, and true of this repository today.
 
     Deliberately parallel to, not delegating to, `checker.check_repository` in

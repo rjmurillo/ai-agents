@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import check_index_line_endings as checker
+from scripts.validation import index_line_endings_record as record
 from tests.validation.index_line_endings_helpers import REPO_ROOT
 
 # --- parse_violations: which rows are violations --------------------------
@@ -190,6 +191,47 @@ def test_a_row_with_a_wrong_field_prefix_is_an_error_not_a_skip(row: str) -> Non
         checker.parse_violations(f"{row}\0")
 
 
+def test_an_unrecognized_index_state_is_an_error_not_a_skip() -> None:
+    """A row this parser cannot classify must not default to clean.
+
+    `i/crlf-v2` satisfies every field-prefix check, gets counted as examined,
+    and would otherwise fall through the `_BAD_INDEX_STATES` membership test
+    unflagged even though it promises `eol=lf` over a state the parser has
+    never seen. That is the same silent pass the tab, field-count, and
+    field-prefix checks exist to stop, one layer further in: a row that is
+    counted but not judged.
+    """
+    with pytest.raises(RuntimeError, match="unrecognized index state"):
+        checker.parse_violations("i/crlf-v2 w/crlf attr/text eol=lf\tdocs/a.md\0")
+
+
+def test_a_symlinks_bare_i_slash_state_is_known_and_clean() -> None:
+    """Negative control for the state check above, on a real git shape.
+
+    A symlink (mode 120000) has no line-ending semantics, so git leaves both
+    the index and worktree state empty: `i/` with nothing after the slash,
+    observed verbatim on this repository's own tracked `memory_enhancement`
+    symlink. This must be recognized, not raise, and must not count as a
+    violation.
+    """
+    violations, examined = checker.parse_violations(
+        "i/      w/      attr/text=auto eol=lf \tmemory_enhancement\0"
+    )
+    assert violations == []
+    assert examined == 1
+
+
+def test_every_bad_index_state_is_a_known_index_state() -> None:
+    """The violation vocabulary can never exceed the recognized vocabulary.
+
+    If a future edit adds a spelling to `_BAD_INDEX_STATES` without adding it
+    to `_KNOWN_INDEX_STATES`, every real occurrence of that state would raise
+    as unrecognized before it ever reached the violation check, silently
+    turning a detectable regression into a crash instead of a reported one.
+    """
+    assert record._BAD_INDEX_STATES <= record._KNOWN_INDEX_STATES
+
+
 def test_a_malformed_row_reaches_the_gate_as_a_failure(monkeypatch) -> None:
     """The raise has to arrive somewhere that blocks, not somewhere that logs."""
     monkeypatch.setattr(checker, "_ls_files_eol", lambda *_a, **_k: "garbage\0")
@@ -286,6 +328,48 @@ def test_validate_prints_the_renormalize_command(monkeypatch, capsys) -> None:
     out = capsys.readouterr().out
     assert "--literal-pathspecs add --renormalize -- docs/a.md" in out
 
+
+def test_an_unspellable_repository_root_is_named_even_when_every_target_is_spellable(
+    capsys,
+) -> None:
+    """Checking only the targets would silently use $'...' for the root.
+
+    Every target path here is ordinary. Only `repo_root` carries a byte unsafe
+    to display verbatim (a newline), so the message has to name the root
+    specifically rather than staying silent because no *target* triggered it,
+    or claiming a target count that would be wrong (0 of 1).
+    """
+    violation = checker.Violation(
+        path="docs/a.md",
+        index_state="i/crlf",
+        attributes="attr/text eol=lf",
+    )
+    unspellable_root = Path("/tmp/repo\nwith-a-newline")
+
+    checker._print_paste_command([violation], {"docs/a.md"}, unspellable_root)
+
+    out = capsys.readouterr().out
+    assert "$'" in out
+    assert "the repository root" in out
+    assert "carry bytes unsafe to display verbatim" in out
+    # The target itself is ordinary, so it must not be counted as unspellable.
+    assert "of 1 path(s)" not in out
+
+
+def test_an_unspellable_root_and_an_unspellable_target_are_both_named(capsys) -> None:
+    """The root check and the target check are independent, so both can fire."""
+    unspellable_target = "docs/a\nb.md"
+    violation = checker.Violation(
+        path=unspellable_target,
+        index_state="i/crlf",
+        attributes="attr/text eol=lf",
+    )
+    unspellable_root = Path("/tmp/repo\nwith-a-newline")
+
+    checker._print_paste_command([violation], {unspellable_target}, unspellable_root)
+
+    out = capsys.readouterr().out
+    assert "the repository root and 1 of 1 path(s)" in out
 
 def test_validate_passes_on_a_clean_repository(monkeypatch) -> None:
     monkeypatch.setattr(checker, "check_repository", lambda _root: ([], 9679))
