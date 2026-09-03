@@ -1520,6 +1520,42 @@ def test_restore_owned_prefixes_returns_true_on_a_clean_restore(
     assert build_all._restore_owned_prefixes(repo, ("owned/",), snapshot) is True
 
 
+@pytest.mark.skipif(
+    os.name == "nt", reason="POSIX permission bits are not meaningful on Windows"
+)
+def test_restore_owned_prefixes_preserves_the_files_original_mode(
+    tmp_path: Path,
+) -> None:
+    """PR #5343 review (build_all.py:1261): restore must not downgrade an
+    ordinary file's permissions to the write helper's restrictive create
+    default.
+
+    ``_write_bytes_no_redirect`` creates every file at ``0o600`` (CodeQL,
+    CWE-732) and then, when the caller passed one, ``fchmod``s it to the
+    captured mode. ``_snapshot_owned_prefixes`` captures that mode via
+    ``OwnedSnapshot.modes``, populated by ``_read_into_snapshot``. This is
+    the end-to-end proof: a file that started at the ordinary ``0o644``
+    comes back at ``0o644`` after a restore that actually had to recreate it
+    (content changed, not the already-matches shortcut), not silently
+    downgraded to the create default.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    tracked = owned / "frozen.py"
+    tracked.write_text("x = 1\n", encoding="utf-8")
+    tracked.chmod(0o644)
+    snapshot = build_all._snapshot_owned_prefixes(repo, ("owned/",))
+    assert snapshot.modes[tracked] == 0o644, "precondition: mode was captured"
+
+    tracked.write_text("generator output\n", encoding="utf-8")
+
+    assert build_all._restore_owned_prefixes(repo, ("owned/",), snapshot) is True
+    assert stat.S_IMODE(tracked.stat().st_mode) == 0o644, (
+        "restore downgraded the file's permissions instead of preserving them"
+    )
+
+
 def test_run_check_escalates_to_2_when_restore_reports_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

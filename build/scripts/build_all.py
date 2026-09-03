@@ -1128,6 +1128,32 @@ class SnapshotIncompleteError(RuntimeError):
     """
 
 
+class OwnedSnapshot(dict[Path, bytes]):
+    """A ``{path: content}`` snapshot, plus each file's captured mode bits.
+
+    Subclasses ``dict`` so every existing ``snapshot[path]``,
+    ``snapshot.items()``, ``path in snapshot``, and ``set(snapshot)`` callsite
+    keeps working unchanged; only :func:`_restore_owned_prefixes` needs the
+    added ``.modes`` to restore a file's permissions exactly, not just its
+    content. A test that builds a plain ``{}`` instead of this class still
+    works too: :func:`_read_into_snapshot` only touches ``.modes`` on a
+    successful read, via ``getattr(snapshot, "modes", None)``, so a bare dict
+    passed to a call that never reaches a successful read (every direct-call
+    test of that function exercises a failure or skip path) never trips an
+    ``AttributeError``.
+
+    Mode capture is best-effort and cosmetic, not a security boundary: a
+    Windows target, or a rare stat failure in the instant after a successful
+    read, just leaves that path out of ``.modes``, and
+    :func:`_write_bytes_no_redirect` falls back to its restrictive default
+    create mode rather than raising.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.modes: dict[Path, int] = {}
+
+
 def _missing_owned_root(path: Path) -> bool:
     """Return whether the parent directory also reports no entry for ``path``."""
     try:
@@ -1225,7 +1251,9 @@ def _read_bytes_no_redirect(path: Path) -> bytes:
         os.close(fd)
 
 
-def _write_bytes_no_redirect(path: Path, content: bytes) -> None:
+def _write_bytes_no_redirect(
+    path: Path, content: bytes, *, mode: int | None = None
+) -> None:
     """Create ``path`` fresh and write ``content``, refusing a raced redirect.
 
     Only ``_restore_owned_prefixes`` calls this, and only after it has
@@ -1247,20 +1275,24 @@ def _write_bytes_no_redirect(path: Path, content: bytes) -> None:
     for any other write failure; it does not retry or unlink the racing
     entry, which could itself be adversarial.
 
-    Creates with ``0o600`` (owner read-write only), not a group- or
-    world-readable literal such as ``0o644``: CodeQL flags an explicit
-    permissive mode passed to ``os.open`` (CWE-732), and this call has no
-    reason to grant one. The write is a ``--check`` run reverting its own
-    generator output back to the pre-run snapshot for the remainder of that
-    one process; nothing outside it reads the file in between, and a real
-    ``build_all.py`` run (no ``--check``) writes through the generators'
-    own ``Path.write_text``/``write_bytes`` calls, not this function, so the
-    committed artifact's permissions come from there, unaffected by this
-    literal. The snapshot does not record each file's original mode bits
-    (only its bytes), so this cannot restore an executable owned file's
-    ``+x`` bit either way; :data:`OWNED_PREFIXES` holds no executable file
-    today, and preserving that bit would need snapshotting mode alongside
-    content, out of scope for the redirect fix this function exists for.
+    Always creates with ``0o600`` (owner read-write only), never a group- or
+    world-readable literal such as ``0o644``, passed to ``os.open`` itself:
+    CodeQL flags an explicit permissive mode there (CWE-732), and there is
+    no reason this specific ``os.open`` call needs to ask for one. ``mode``,
+    when given, is applied afterward with ``os.fchmod`` (guarded for
+    platforms, Windows included, where that call is unavailable): callers
+    pass the file's captured pre-run permission bits
+    (:class:`OwnedSnapshot`.modes) so the *restored file* ends up matching
+    what was actually there before the run, restoring the exact pre-run
+    state :func:`_restore_owned_prefixes` promises rather than a fixed
+    literal (PR #5343 review, build_all.py:1261: an earlier version of this
+    function created every restored file as ``0o600`` outright, silently
+    downgrading a file that started at the ordinary ``0o644`` and leaving it
+    unreadable to anyone but the file's owner after ``--check`` finished).
+    ``mode=None`` (no capture, or a plain-dict caller with no ``.modes``)
+    leaves the file at the restrictive create mode; that only differs from
+    the pre-run state on a platform or in the rare stat-failure case
+    :func:`_read_into_snapshot` already documents as falling back silently.
     """
     fd = os.open(
         path,
@@ -1268,6 +1300,8 @@ def _write_bytes_no_redirect(path: Path, content: bytes) -> None:
         0o600,
     )
     try:
+        if mode is not None and hasattr(os, "fchmod"):
+            os.fchmod(fd, mode)
         with os.fdopen(fd, "wb", closefd=False) as handle:
             handle.write(content)
     finally:
@@ -1498,7 +1532,7 @@ def _snapshot_owned_prefixes(
     exclude_ignored: bool = False,
     opaque_boundaries: set[Path] | None = None,
     strict: bool = False,
-) -> dict[Path, bytes]:
+) -> OwnedSnapshot:
     """Snapshot every file under ``prefixes`` into an in-memory dict.
 
     Returns a mapping of absolute Path → raw bytes for every regular file
@@ -1581,7 +1615,7 @@ def _snapshot_owned_prefixes(
     reach what the write touched (:func:`_strict_owned_stat`).
     """
     ignored = _ignored_paths(repo_root, prefixes) if exclude_ignored else set()
-    snapshot: dict[Path, bytes] = {}
+    snapshot = OwnedSnapshot()
     for prefix in prefixes:
         root = repo_root / prefix
         # Every branch below this one runs only when ``strict`` is false: the
@@ -1670,6 +1704,19 @@ def _read_into_snapshot(
     so a symlink or junction swapped in after discovery and before this read
     is refused rather than followed (CWE-367, PR #5343 review thread at
     build_all.py:1562).
+
+    Also captures ``path``'s permission bits into ``snapshot.modes`` when
+    ``snapshot`` is an :class:`OwnedSnapshot` (a plain ``dict`` skips this;
+    see that class for why every existing direct-call test still passes one
+    safely). :func:`_restore_owned_prefixes` uses the captured mode so a
+    restored file keeps the permissions it had before the run, not a fixed
+    literal (PR #5343 review, build_all.py:1261). A separate ``stat`` call
+    after the read, not the same ``fstat`` :func:`_read_bytes_no_redirect`
+    already took: mode capture is cosmetic, not the TOCTOU boundary that
+    call protects, so a stat failure here (the file would have to vanish or
+    become inaccessible in the instant after a read that just proved it
+    readable) is swallowed rather than aborting an otherwise-successful
+    snapshot.
     """
     try:
         snapshot[path] = _read_bytes_no_redirect(path)
@@ -1678,6 +1725,13 @@ def _read_into_snapshot(
             raise SnapshotIncompleteError(
                 f"cannot read owned file {path}: {exc}"
             ) from exc
+        return
+    modes = getattr(snapshot, "modes", None)
+    if modes is not None:
+        try:
+            modes[path] = stat.S_IMODE(path.stat(follow_symlinks=False).st_mode)
+        except OSError:
+            pass
 
 
 def _restore_owned_prefixes(
@@ -1736,6 +1790,10 @@ def _restore_owned_prefixes(
         repo_root, prefixes, opaque_boundaries=preexisting_boundaries
     )
     fully_restored = True
+    # A plain dict (some direct-call tests still pass one) has no .modes;
+    # falling back to {} makes modes.get(path) below None for every path,
+    # which _write_bytes_no_redirect already treats as "no captured mode".
+    modes: dict[Path, int] = getattr(snapshot, "modes", {})
 
     # Cases 1 & 2: restore every file that was in the snapshot.
     #
@@ -1744,7 +1802,10 @@ def _restore_owned_prefixes(
     # Path.read_bytes() / Path.write_bytes(), so a symlink or junction raced
     # in after the is_symlink() checks here and before the actual I/O is
     # refused instead of written through (CWE-367, PR #5343 review thread at
-    # build_all.py:1843).
+    # build_all.py:1843). The write also passes the path's captured mode, so
+    # a restored file keeps its pre-run permissions instead of always coming
+    # back at the write helper's restrictive create default (PR #5343
+    # review, build_all.py:1261).
     for path, content in snapshot.items():
         try:
             if (
@@ -1758,7 +1819,7 @@ def _restore_owned_prefixes(
             elif path.exists() or path.is_symlink():
                 path.unlink()
             path.parent.mkdir(parents=True, exist_ok=True)
-            _write_bytes_no_redirect(path, content)
+            _write_bytes_no_redirect(path, content, mode=modes.get(path))
         except OSError as exc:
             # Best-effort restore; surface so CI logs show what was missed,
             # and tell the caller so --check does not report success over an
