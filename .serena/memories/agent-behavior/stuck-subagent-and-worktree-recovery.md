@@ -97,31 +97,11 @@ the config extension worktreeConfig is enabled`. Enable it once with `git
 config extensions.worktreeConfig true`. `scripts/validation/check_repo_health.py`
 documents the same per-scope distinction for `core.bare`.
 
-## [MED] The AI-Spec-Validator's verdict flip-flops across reruns of the same disclosed gap
+## Split out of this file
 
-On two different PRs (#5350, #5356), successive re-runs of the `Validate Spec
-Coverage` check against the same or adjacent commits produced different
-top-line verdicts (PASS, then FAIL, then PARTIAL) for the identical
-underlying, already-disclosed gap (an unverified live-CLI probe on #5350; a
-prompt-only vs. enforced-control distinction on #5356). The gap itself never
-changed; only the validator's characterization of its severity did.
+Two observations from the same session were moved to their own memories, so
+index recall can reach them and so a correction to either does not touch this
+file:
 
-Takeaway: the flip-flop is evidence that this validator is nondeterministic,
-not license to dismiss it. `.claude/rules/universal.md` requires equivalent
-evidence before calling a red remote check cleared, so bind each verdict to the
-head SHA it ran against and read that run's own report before concluding it
-describes the same already-disclosed gap. When the report does describe that
-gap, comment once on the PR naming the gap and its tracking issue, and do not
-chase every re-verdict with a new comment. When the report names anything else,
-treat it as a live finding and work it.
-
-## [MED] `scripts/maintenance/gc_worktrees.py --apply` is a fast, low-risk way to shrink OOM-affected worktree counts
-
-Report mode first (`--json`, no `--apply`) correctly classified 16 of 42
-registered worktrees as safely removable ("fully pushed"); `--apply` removed
-exactly those with zero side effects. For the remaining "would have removed,
-but its admin directory is the only anchor for work (fully pushed)" entries,
-the tool's own suggested `git branch gc-rescue-<sha> <sha>` command before
-`git worktree remove --force <path>` is a correct, cheap safety net. The
-rescue branch is redundant once the SHA is confirmed already on origin, but
-costs nothing to create.
+- [ci/ai-spec-validator-verdicts-flip-flop-across-reruns](../ci/ai-spec-validator-verdicts-flip-flop-across-reruns.md)
+- [workspace/gc-worktrees-report-then-apply](../workspace/gc-worktrees-report-then-apply.md)

@@ -72,6 +72,7 @@ contention. The session then retried with the flock'd
 background-push-plus-monitor pattern:
 
 ```bash
+# push-lock-historical: incident evidence, not a live recipe.
 mkdir -p "$HOME/src/scratch/locks"
 LOGFILE=".../push_session_branch_vN.log"
 nohup bash -c '

@@ -237,8 +237,13 @@ path (`.agents/planning/impact-analysis-security-*.md`, `count_ratchet.py`, a
 sibling skill's script) named in backticks under `## Changes` to explain context,
 not to claim a diff entry. Each was fixed the slow way, by rewriting the sentence to
 drop the backticks, because the citation-cue trick above (`see`, `per`, `e.g.`) was
-not tried first. The trick is faster and preserves the precise path: prefix the
-existing sentence with `see` rather than rewriting it.
+not tried first. The trick is faster and preserves the precise path.
+
+Insert the cue immediately before the backticked path, not at the head of the
+sentence. `_INLINE_CITATION_PATTERN` allows only spaces, tabs, colons, and
+opening parentheses between the cue and the path, so `see: the token counts in
+`scripts/update_memory_index_tokens.py`` does not match and stays red. Write
+`token counts, see `scripts/update_memory_index_tokens.py`` instead.
 
 ## Related
 
