@@ -1544,6 +1544,285 @@ def _marker_criterion(tmp_path: Path, marker: Path) -> list[dict]:
     ]
 
 
+class TestVerifyConfigOnly:
+    """Step 0's pre-dispatch check (issue #5520).
+
+    The gate's #5072/#5099 machinery guarded `completion_criteria` only,
+    while `/pr-review` Step 0 dispatches from the `scripts` map long
+    before any criterion runs. These cases pin the mode that closes that
+    ordering gap: it must verify, it must refuse a rewritten config, and
+    it must never execute anything on the way to either answer.
+    """
+
+    @staticmethod
+    def _config_with_scripts(tmp_path: Path, command: str) -> Path:
+        config = tmp_path / "pr-review-config.yaml"
+        config.write_text(
+            yaml.safe_dump(
+                {
+                    "scripts": {"claude_code": {"check_transport": command}},
+                    "completion_criteria": [
+                        {
+                            "name": "Unused",
+                            "verification": "command",
+                            "command": "true",
+                            "pass_when": "stdout-json.ok == true",
+                        },
+                    ],
+                },
+            ),
+            encoding="utf-8",
+        )
+        return config
+
+    def test_a_trusted_config_verifies_and_runs_nothing(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """The marker is the whole point: verifying must not dispatch."""
+        marker = tmp_path / "ran.txt"
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text(
+            f"import pathlib\npathlib.Path({str(marker)!r}).write_text('ran')\n",
+            encoding="utf-8",
+        )
+        config = self._config_with_scripts(
+            tmp_path, f"{sys.executable} {preflight}",
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+                "--json",
+            ],
+        )
+
+        assert rc == 0
+        assert not marker.exists(), "verify-only executed a scripts-map command"
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["verified"] is True
+        assert payload["config_trust"] == "trusted"
+        assert payload["command_trust"] == "trusted"
+        assert any("preflight.py" in f for f in payload["checked_files"])
+
+    def test_a_rewritten_command_halts_before_dispatch(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """The attack #5520 names: swap the command after the trusted commit."""
+        marker = tmp_path / "ran.txt"
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text("print('{}')\n", encoding="utf-8")
+        config = self._config_with_scripts(
+            tmp_path, f"{sys.executable} {preflight}",
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+
+        # The PR rewrites the script the trusted config names.
+        preflight.write_text(
+            f"import pathlib\npathlib.Path({str(marker)!r}).write_text('pwned')\n",
+            encoding="utf-8",
+        )
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+            ],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+        assert "preflight.py" in capsys.readouterr().err
+
+    def test_a_rewritten_config_halts(self, git_repo, tmp_path, capsys):
+        """Control on the other half: the config itself diverging."""
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text("print('{}')\n", encoding="utf-8")
+        config = self._config_with_scripts(
+            tmp_path, f"{sys.executable} {preflight}",
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+        config.write_text(
+            config.read_text(encoding="utf-8") + "\n# tampered\n",
+            encoding="utf-8",
+        )
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+            ],
+        )
+
+        assert rc == 2
+        assert "HALT" in capsys.readouterr().err
+
+    def test_the_plugin_root_form_is_expanded_not_skipped(
+        self, git_repo, tmp_path, capsys, monkeypatch,
+    ):
+        """The gap that made the first version of this mode a false verdict.
+
+        `shlex` leaves `${...}` literal, so the token resolved to no file
+        and was classified as nothing-to-verify. The verdict then read
+        "trusted" without ever comparing the script the shell would
+        actually run.
+        """
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text("print('{}')\n", encoding="utf-8")
+        config = self._config_with_scripts(
+            tmp_path,
+            'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
+            '/preflight.py"',
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+                "--json",
+            ],
+        )
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert any("preflight.py" in f for f in payload["checked_files"]), (
+            "the plugin-root token was skipped instead of expanded"
+        )
+
+    def test_an_expanded_plugin_root_script_is_still_compared(
+        self, git_repo, tmp_path, capsys, monkeypatch,
+    ):
+        """Recall control: expansion must feed the byte comparison, not bypass it."""
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text("print('{}')\n", encoding="utf-8")
+        config = self._config_with_scripts(
+            tmp_path,
+            'python3 "${CLAUDE_PLUGIN_ROOT:-.claude}/preflight.py"',
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+        preflight.write_text("print('tampered')\n", encoding="utf-8")
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+            ],
+        )
+
+        assert rc == 2, "an expanded path was resolved but never compared"
+
+    def test_a_shell_evaluated_token_is_reported_not_silently_skipped(
+        self, git_repo, tmp_path, capsys, monkeypatch,
+    ):
+        """A pwsh -Command payload cannot be resolved statically.
+
+        Skipping it is what let a command read as verified while its
+        target went unexamined, so the verdict names it instead.
+        """
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        config = self._config_with_scripts(
+            tmp_path,
+            'pwsh -NoProfile -Command \'& $exe (Join-Path $root "x.py")\'',
+        )
+        _commit_as_trusted(git_repo, config)
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+                "--json",
+            ],
+        )
+
+        assert rc == 0
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["unverifiable_command_tokens"], (
+            "a shell-evaluated token was skipped without being reported"
+        )
+        assert "no file comparison was possible" in captured.err
+
+    def test_a_literal_command_reports_nothing_unverifiable(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """Precision control on the report above.
+
+        Without this, marking every token unverifiable would satisfy the
+        case above while making the field meaningless.
+        """
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text("print('{}')\n", encoding="utf-8")
+        config = self._config_with_scripts(
+            tmp_path, f"{sys.executable} {preflight}",
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+                "--json",
+            ],
+        )
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["unverifiable_command_tokens"] == []
+
+    def test_every_harness_map_is_verified_not_only_the_first(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """Which map a consumer selects is prose the gate cannot read."""
+        other = tmp_path / "copilot_only.py"
+        other.write_text("print('{}')\n", encoding="utf-8")
+        config = tmp_path / "pr-review-config.yaml"
+        config.write_text(
+            yaml.safe_dump(
+                {
+                    "scripts": {
+                        "claude_code": {"a": "true"},
+                        "copilot": {"b": f"{sys.executable} {other}"},
+                    },
+                    "completion_criteria": [
+                        {
+                            "name": "Unused",
+                            "verification": "command",
+                            "command": "true",
+                            "pass_when": "stdout-json.ok == true",
+                        },
+                    ],
+                },
+            ),
+            encoding="utf-8",
+        )
+        _commit_as_trusted(git_repo, config, other)
+        other.write_text("print('tampered')\n", encoding="utf-8")
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+            ],
+        )
+
+        assert rc == 2, "the second harness map was not verified"
+
+
 class TestConfigTrustBoundary:
     """The dispatcher must not execute a config that diverges from the
     trusted ref (CWE-829). No subprocess stubbing: real git, real
