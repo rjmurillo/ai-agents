@@ -42,19 +42,25 @@ before the wrapping lefthook step timeout (240s) or the OS killed it outright.
 
 ## Historical: the retry recipe used before #5464
 
-Before retrying a failed tracking/bookkeeping push under known heavy fleet
-load, check current contention rather than blindly re-running:
+Superseded by PR #5464. Read this as a record of what was done in August 2026,
+not as an instruction. A repeat `exit -9` or `killed on timeout` on
+`build_all.py --check` today is a new regression to root-cause, not noise to
+retry through.
+
+The recipe was: before retrying a failed tracking/bookkeeping push under known
+heavy fleet load, check current contention rather than blindly re-running.
 
 ```bash
 ps aux | grep -E "pre_pr.py|git push" | grep -v grep | wc -l
 ```
 
-A count near 0 means it is a good moment to retry. A push launched into a
-count of 5+ concurrent `pre_pr.py` runs is likely to fail the same way again.
-This is advisory, not a guarantee: load can spike again mid-run (v46-v48 above
-all started with a low count and still failed), so treat repeated failures
-as expected fleet noise, not a regression to root-cause, and just retry with
-the standard flock'd background-push-plus-monitor pattern:
+A count near 0 was read as a good moment to retry. A push launched into a
+count of 5+ concurrent `pre_pr.py` runs was expected to fail the same way
+again. That reading was advisory and it was also wrong about the cause:
+load spiked again mid-run (v46-v48 above all started with a low count and
+still failed) because the real driver was the snapshot walk #5464 fixed, not
+contention. The session then retried with the flock'd
+background-push-plus-monitor pattern:
 
 ```bash
 mkdir -p "$HOME/src/scratch/locks"
@@ -66,14 +72,20 @@ echo "PUSH_REAL_EXIT=$?" >> "'"$LOGFILE"'"
 disown
 ```
 
-Then arm a one-shot `Monitor` polling for `PUSH_REAL_EXIT=` in the log rather
-than sleeping or re-checking manually; grep the log for `PUSH_REAL_EXIT=`
-specifically; a backgrounded shell's own reported exit code is the wrapper's,
-not `git push`'s (see `git-lock-pushes-per-branch-not-globally.md`'s
-`REAL_EXIT` note for the same trap in a different form). Do not treat a
-`[FAIL] Generated Artifact Staleness` or a `pre-pr-validation` timeout as a
-real defect in the branch's diff without first checking whether the fleet was
-under load at push time.
+The push-monitoring half of that recipe is still correct and is the only part
+worth reusing: arm a one-shot `Monitor` polling for `PUSH_REAL_EXIT=` in the
+log rather than sleeping or re-checking manually, and grep the log for
+`PUSH_REAL_EXIT=` specifically, because a backgrounded shell's own reported
+exit code is the wrapper's, not `git push`'s (see
+`git-lock-pushes-per-branch-not-globally.md`'s `REAL_EXIT` note for the same
+trap in a different form).
+
+The diagnostic half is not. This section used to end by telling readers not to
+treat a `[FAIL] Generated Artifact Staleness` or a `pre-pr-validation` timeout
+as a real defect without first checking fleet load. After #5464 that is
+backwards: read the failing log first. Fleet load explains a wall-clock
+`pre-pr-validation` timeout under a genuinely busy machine and nothing else,
+and it never explained the `exit -9`.
 
 ## Root cause found: not fleet load at all, see issue #5370
 

@@ -39,8 +39,15 @@ looked like real, unexplained changes.
 
 Caught only because `git status --porcelain` after the checkout showed
 unexpected modified files, prompting a `git log -1 --oneline <ref>` check that
-revealed a much older commit than expected. Recovery: `git reset --hard HEAD`
-before doing anything else with the polluted state.
+revealed a much older commit than expected.
+
+Recovery, with a precondition that is not optional: read `git status
+--porcelain` first and confirm every listed path is overlay pollution. `git
+reset --hard HEAD` discards all tracked index and working-tree changes, not
+only the overlay, so anything you still want must be committed or stashed
+before you run it. `git stash push --include-untracked` then a selective
+`git checkout HEAD -- <polluted paths>` is the safer form when the status
+output mixes your own work with the overlay.
 
 Takeaway: before `git checkout <ref> -- <path>` or any ref-based read in a
 worktree that might have accumulated stale local branches (common in a
