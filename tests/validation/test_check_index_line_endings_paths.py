@@ -241,6 +241,7 @@ def test_display_path_escapes_every_unsafe_category() -> None:
         assert not record.is_spellable(path)
 
 
+@posix_only_paths
 def test_a_glob_shaped_filename_does_not_broaden_what_fix_stages(
     tmp_path: Path, monkeypatch
 ) -> None:

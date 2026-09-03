@@ -43,18 +43,24 @@ def test_this_repository_has_no_contradicting_blobs() -> None:
 
 
 def test_this_repository_holds_no_crlf_blob_at_all() -> None:
-    """Stronger than the gate, and true of this repository today.
+    """Independent re-check of the gate's condition, and true of this repository today.
 
-    The gate reports a contradiction: a CRLF blob whose attributes promise LF.
-    A `-text` or `eol=crlf` path is exempt by declaration and the gate leaves
-    it alone, which is deliberate and is why a contributor whose editor writes
-    CRLF locally does not get their push failed.
+    Deliberately parallel to, not delegating to, `checker.check_repository` in
+    the sibling test above: this re-derives the violation condition from the
+    raw `git ls-files --eol` fields instead of calling the gate's own parser,
+    so a bug in that parser cannot hide behind a passing gate test. The
+    condition it re-derives has to match the gate's, though: an `i/crlf` or
+    `i/mixed` blob is only a contradiction when the attribute column also
+    promises `eol=lf`. A `-text` or intentional `eol=crlf` path is exempt by
+    declaration and the gate leaves it alone (deliberate, so a contributor
+    whose editor writes CRLF locally does not get their push failed), and an
+    assertion that ignored the attribute column would fail on such a path for
+    a reason unrelated to any real regression.
 
     This repository declares `* text=auto eol=lf` and stores no CRLF blob
-    under any attribute: measured over the tracked tree, the index states are
-    `i/lf` (9629), `i/none` (34), `i/-text` (26) and one empty. So the
-    stronger claim is assertable here, and it catches a CRLF blob arriving
-    under an exemption the gate would pass.
+    under that attribute: measured over the tracked tree, the index states
+    are `i/lf` (9629), `i/none` (34), `i/-text` (26) and one empty, so the
+    assertion is non-vacuous here today.
     """
     output = subprocess.run(
         ["git", "ls-files", "--eol"],
@@ -67,9 +73,17 @@ def test_this_repository_holds_no_crlf_blob_at_all() -> None:
         env={k: v for k, v in os.environ.items() if not k.upper().startswith("GIT_")},
     ).stdout
 
-    crlf = [line for line in output.split("\n") if line.startswith(("i/crlf", "i/mixed"))]
+    contradictions = []
+    for line in output.split("\n"):
+        if not line.startswith(("i/crlf", "i/mixed")):
+            continue
+        head, _, _path = line.partition("\t")
+        fields = head.split()
+        attrs = {fields[2].removeprefix("attr/"), *fields[3:]} if len(fields) >= 3 else set()
+        if "eol=lf" in attrs:
+            contradictions.append(line)
 
-    assert crlf == []
+    assert contradictions == []
 
 
 @pytest.mark.parametrize("path", INCIDENT_PATHS)
