@@ -1,6 +1,18 @@
-# Tracking-branch push fails under this session's own fleet CPU/memory load, not a real regression
+# Tracking-branch push failures blamed on fleet CPU/memory load, root-caused and fixed by PR #5464
 
-## Statement
+## Status: fixed at the source, keep this file for the diagnosis trail only
+
+PR #5464, "fix(build): exclude ignored directories by prefix and stop at git
+boundaries", merged 2026-09-02 and closed issue #5370. It stops
+`build_all.py --check` at nested git boundaries, so the OOM-kill this file
+diagnoses no longer has a source. The retry recipes below are history.
+
+Current guidance: a repeat `exit -9` or `killed on timeout` on
+`build_all.py --check` after #5464 is a NEW regression. Read the failing log
+and open an issue. Do not retry it away as fleet noise, and do not cite this
+memory as evidence that it is noise.
+
+## Statement (as observed before #5464)
 
 When a session runs many concurrent worktree agents (each running its own
 `pre_pr.py`/pytest validation), a push on an unrelated branch can fail its
@@ -28,7 +40,7 @@ failure. `pre-pr-validation` normally finishes in the neighborhood of 60s
 same job on a quiet machine); here it repeatedly ran 4x over that under load
 before the wrapping lefthook step timeout (240s) or the OS killed it outright.
 
-## Recipe
+## Historical: the retry recipe used before #5464
 
 Before retrying a failed tracking/bookkeeping push under known heavy fleet
 load, check current contention rather than blindly re-running:
@@ -73,13 +85,14 @@ walks `.claude/` with `rglob("*")` and reads every file's bytes into memory;
 that walk has no embedded-repository boundary awareness, so it descends into
 every nested worktree checkout under `.claude/worktrees/<name>/` and reads
 each one's full working-tree content. Memory scales with worktree count, not
-with concurrent process count. The fix is in `build_all.py`, not in retry
-timing: see issue #5370 for the exact code path and suggested fix. Retrying
-with a load/memory check (below) is still a valid workaround until that lands,
-but pruning stale worktrees under `.claude/worktrees/` (see issue #4193, the
-GC script that exists but isn't wired up) is the more direct unblock.
+with concurrent process count. The fix was in `build_all.py`, not in retry
+timing, and it landed: PR #5464 merged 2026-09-02 and closed this issue.
+Retrying with a load/memory check was the workaround only until then. Pruning
+stale worktrees under `.claude/worktrees/` (see issue #4193, the GC script that
+exists but isn't wired up) remains useful for disk and registry hygiene, but is
+no longer needed to keep this gate alive.
 
-## A second failure mode: OOM-kill, not CPU timeout
+## Historical: a second failure mode, OOM-kill rather than CPU timeout
 
 The same session hit three more consecutive failures (v74-v76, 2026-08-27) with
 `ps aux | grep -E "pytest|pre_pr"` reading 0-7 (load looked clear) and `free -h`
@@ -108,18 +121,26 @@ retrying; a push launched when available memory is in the low single digits
 of GB is as likely to fail as one launched into high CPU contention, even
 though `ps` reports near-zero load.
 
-Same recipe applies: retry with the flock'd background-push-plus-monitor
-pattern once `free -h` shows several GB available, and treat a repeat
-`exit -9`/`killed on timeout` on `build_all.py --check` as this pattern,
-not a code regression, unless the diff itself changed `build_all.py`.
+That was the recipe at the time: retry with the flock'd
+background-push-plus-monitor pattern once `free -h` shows several GB available.
+It no longer applies. After #5464 a repeat `exit -9` or `killed on timeout` on
+`build_all.py --check` is a new regression, whatever the diff touched. Open the
+log and root-cause it instead of retrying.
 
-## Why this isn't worth root-causing further
+## Superseded: why this looked like it wasn't worth root-causing
 
-The underlying gate (`check_generated_staleness.py`'s `_GATE_BUDGET_SECONDS =
-60.0` for `sync_plugin_lib.py --check` + `build_all.py --check`) is
-deliberately tight on a quiet machine and was never designed to hold under
-N concurrent worktree agents each spawning their own subprocess tree. Loosening
-it would weaken the real signal it protects (generated-file staleness) for
-the common case to accommodate an unusual one (this session's own heavy
-self-imposed fan-out). Retry-with-a-load-check is the cheaper fix and costs
-nothing when load happens to already be low.
+This section was wrong, and #5464 is the proof. It is kept because the reasoning
+is a useful example of how a real defect gets argued into being ambient noise.
+
+The argument ran: the underlying gate (`check_generated_staleness.py`'s
+`_GATE_BUDGET_SECONDS = 60.0` for `sync_plugin_lib.py --check` +
+`build_all.py --check`) is deliberately tight on a quiet machine and was never
+designed to hold under N concurrent worktree agents each spawning their own
+subprocess tree, so loosening it would weaken the generated-file-staleness
+signal for the common case, and retry-with-a-load-check is the cheaper fix.
+
+What that missed: the memory usage was not the fan-out's fault at all. One
+`build_all.py --check` reached 13.4GB standalone because its snapshot guard read
+every nested worktree's files. Root-causing it cost one issue and one PR, and
+the retry loop it replaced had already burned nine pushes. When a gate fails
+repeatedly and the load explanation needs a caveat each time, read the log.

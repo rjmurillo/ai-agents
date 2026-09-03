@@ -1,9 +1,10 @@
 # Stuck-subagent and worktree-identity recovery patterns
 
 Captured via `reflect` after a P1-batch fix session, 2026-08-27. Self-approved
-(unattended run, no human present for the skill's normal Y/n gate) per the
-standing autonomous-operation directive; confidence labels below follow the
-skill's own HIGH/MED tiers.
+in an unattended run with no human present for the skill's normal Y/n gate,
+under the Autonomy Guardrail in `AGENTS.md` ("Internal+reversible: act"), and
+ratified by the repository owner when this memory was opened for review.
+Confidence labels below follow the skill's own HIGH/MED tiers.
 
 ## [HIGH] A SendMessage nudge does not unstick a subagent with no pending tool call
 
@@ -49,12 +50,12 @@ directly instead of the bare branch name.
 
 ## [HIGH] A push rejected with GH007 (private email) mid-session means the worktree's git identity was never set
 
-Three commits made in a scratch worktree carried `Richard Murillo
-<rjmurillo@gmail.com>` (the account owner's real, GH007-protected email)
-instead of the session's established `Claude <noreply@anthropic.com>`
-identity, because nothing had explicitly run `git config user.name/email` in
-that worktree before the first commit: it silently inherited whatever
-ambient/global git config was active. The push then failed with `remote:
+Three commits made in a scratch worktree carried the account owner's real
+personal address as the author email, the one GH007 protects, instead of the
+`users.noreply.github.com` address that account pushes under. Nothing had
+explicitly run `git config user.name/email` in that worktree before the first
+commit, so it silently inherited whatever ambient/global git config was
+active. The push then failed with `remote:
 error: GH007: Your push would publish a private email address`.
 
 Fix that avoided any destructive history rewrite (both `git filter-branch`
@@ -65,10 +66,14 @@ apply` the diff, set `git config user.name/email` explicitly, and commit once
 under the correct identity. Purely additive: no rewrite of anything that had
 ever reached the remote, since the original push had never succeeded.
 
-Takeaway: set `git config user.name "Claude"` and `git config user.email
-"noreply@anthropic.com"` explicitly as the FIRST action in any newly created
-worktree, before the first commit, rather than discovering the gap at push
-time.
+Takeaway: run `git config user.name` and `git config user.email` explicitly as
+the FIRST action in any newly created worktree, before the first commit, rather
+than discovering the gap at push time. Set them to the identity that owns the
+push, using the address GitHub accepts for that account, which is the
+`users.noreply.github.com` form when the account keeps its email private. Do
+not hard-code an agent identity as the commit author: `.claude/rules/universal.md`
+asks only for a `Co-Authored-By:` trailer for agent attribution, and its
+MUST list states that git identity cannot prove a human acted.
 
 ## [MED] The AI-Spec-Validator's verdict flip-flops across reruns of the same disclosed gap
 
@@ -79,12 +84,14 @@ underlying, already-disclosed gap (an unverified live-CLI probe on #5350; a
 prompt-only vs. enforced-control distinction on #5356). The gap itself never
 changed; only the validator's characterization of its severity did.
 
-Takeaway: a single FAIL from this validator is not authoritative on its own.
-Cross-reference the PR's own body/tests for whether the gap is already
-disclosed and tracked before treating a FAIL as a new, actionable finding.
-Comment once on the PR explaining the disclosed gap and its tracking issue;
-do not chase every re-verdict with a new comment (already the established
-practice: this just adds the "why" for future sessions).
+Takeaway: the flip-flop is evidence that this validator is nondeterministic,
+not license to dismiss it. `.claude/rules/universal.md` requires equivalent
+evidence before calling a red remote check cleared, so bind each verdict to the
+head SHA it ran against and read that run's own report before concluding it
+describes the same already-disclosed gap. When the report does describe that
+gap, comment once on the PR naming the gap and its tracking issue, and do not
+chase every re-verdict with a new comment. When the report names anything else,
+treat it as a live finding and work it.
 
 ## [MED] `scripts/maintenance/gc_worktrees.py --apply` is a fast, low-risk way to shrink OOM-affected worktree counts
 

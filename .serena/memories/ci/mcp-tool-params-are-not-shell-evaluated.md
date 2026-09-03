@@ -4,7 +4,7 @@
 
 Passing `$(cat /path/to/file.md)` as the `body` argument to
 `mcp__github__update_pull_request` or `mcp__github__create_pull_request`
-sends the literal 17-byte string `$(cat /path/to/file.md)` as the PR body.
+sends the literal string `$(cat /path/to/file.md)` as the PR body.
 There is no shell in between: MCP tool calls pass their string arguments
 verbatim to the GitHub API. Nothing expands `$(...)`, `` `...` ``, or `$VAR`.
 
