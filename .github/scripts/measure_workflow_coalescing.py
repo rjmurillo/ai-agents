@@ -30,9 +30,9 @@ workspace = os.environ.get(
 sys.path.insert(0, workspace)
 
 from scripts.github_core.api import (  # noqa: E402
-    GhAuthStatus,
     RepoInfo,
     check_gh_auth,
+    describe_gh_auth_failure,
     resolve_repo_params,
 )
 
@@ -157,18 +157,17 @@ def test_prerequisites() -> None:
     # network as well as for a bad token, so its return code alone cannot name
     # the remedy. Sending an operator to `gh auth login` for a GitHub outage is
     # issue #3139; classify before accusing the token.
+    # The remedy comes from describe_gh_auth_failure rather than a local
+    # denylist. The previous shape sent every status except MISSING_GH and
+    # INVALID_CREDENTIALS to "Retry shortly", which is right for a 5xx and a
+    # quota window and wrong for TRANSPORT_BLOCKED, a refusal with no reset
+    # that was added to the enum after this branch was written. A denylist
+    # inverts silently every time the enum grows; the shared describer does
+    # not (Copilot review on PR #5509).
     auth = check_gh_auth()
-    if auth.status is GhAuthStatus.MISSING_GH:
-        raise RuntimeError("GitHub CLI (gh) is not installed or not in PATH")
-    if auth.status is GhAuthStatus.INVALID_CREDENTIALS:
-        raise RuntimeError("GitHub CLI is not authenticated. Run: gh auth login")
     if not auth.is_authenticated:
-        detail = f" ({auth.detail})" if auth.detail else ""
-        raise RuntimeError(
-            "GitHub API is not serving requests right now "
-            f"({auth.status.value}); this is not an authentication failure. "
-            f"Retry shortly.{detail}"
-        )
+        message, _, _ = describe_gh_auth_failure(auth)
+        raise RuntimeError(message)
 
     logger.debug("Prerequisites validated: gh CLI available and authenticated")
 

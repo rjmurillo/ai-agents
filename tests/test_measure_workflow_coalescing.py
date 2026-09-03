@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.github_core.api import GhAuthResult, RepoInfo
+from scripts.github_core.api import GhAuthResult, GhAuthStatus, RepoInfo
 
 # ---------------------------------------------------------------------------
 # Import the script via importlib (same pattern as test_invoke_pr_maintenance.py)
@@ -596,7 +596,12 @@ class TestDefaultWorkflows:
 
 
 _CHECK_PREREQUISITES = _mod.test_prerequisites
-_GhAuthStatus = _mod.GhAuthStatus
+# Imported from the library rather than read off the module. The script no
+# longer names individual statuses: it delegates the remedy to
+# describe_gh_auth_failure, so a status added to the enum later arrives with
+# its own wording instead of a local denylist's fallback
+# (Copilot review on PR #5509).
+_GhAuthStatus = GhAuthStatus
 
 
 class TestPrerequisiteAuthClassification:
@@ -638,3 +643,36 @@ class TestPrerequisiteAuthClassification:
 
         assert "gh auth login" not in str(exc.value)
         assert "not an authentication failure" in str(exc.value)
+
+    def test_a_session_refusal_is_not_offered_as_retryable(self):
+        """TRANSPORT_BLOCKED reached the retry arm of a denylist.
+
+        The previous shape named MISSING_GH and INVALID_CREDENTIALS and sent
+        everything else to "Retry shortly", so a status added to the enum after
+        that branch was written inherited the wrong remedy. A refused session
+        has no reset, and telling an operator to wait it out is the
+        misdiagnosis this whole change exists to stop
+        (Copilot review on PR #5509).
+        """
+        with pytest.raises(RuntimeError) as exc:
+            self._run(_GhAuthStatus.TRANSPORT_BLOCKED, "HTTP 403")
+
+        message = str(exc.value)
+        assert "Retry shortly" not in message
+        # Not a bare absence check on "gh auth login": this message names that
+        # command deliberately, to say it is the wrong remedy. Asserting the
+        # phrase is missing would fail on correct wording and pass on a message
+        # that simply omitted the guidance.
+        assert "Repairing the credential cannot clear it" in message
+        assert "mcp__github__" in message
+
+    def test_a_missing_cli_still_names_the_missing_binary(self):
+        """Control: delegating the wording must not flatten the statuses.
+
+        Without this, describe_gh_auth_failure could return one message for
+        everything and the assertions above would still pass.
+        """
+        with pytest.raises(RuntimeError) as exc:
+            self._run(_GhAuthStatus.MISSING_GH)
+
+        assert "not installed" in str(exc.value)
