@@ -34,6 +34,10 @@ scripts:
     get_pr_checks: "pwsh -NoProfile .claude/skills/github/scripts/pr/Get-PRChecks.ps1 -PullRequest {number}"
     add_thread_reply: "pwsh -NoProfile .claude/skills/github/scripts/pr/Post-PRCommentReply.ps1 -PullRequest {number} -ThreadId {thread_id} -Body {body}"
     resolve_thread: "pwsh -NoProfile .claude/skills/github/scripts/pr/Resolve-PRReviewThread.ps1 -ThreadId {thread_id}"
+    # transport_preflight resolves command_key against the harness map, so the
+    # Copilot map needs its own entry or Step 0 cannot dispatch at all
+    # (Copilot review on PR #5509). The preflight is Python on both harnesses.
+    check_transport: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils/check_github_transport.py" --output-format json'
 
 # Transport preflight. Run check_transport once, before Step 1, and branch on
 # Data.Transport.

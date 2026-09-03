@@ -2,7 +2,7 @@
 name: pr-autofix
 description: Fix PRs autonomously. Triage open PRs by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes.
 argument-hint: '[pull-request|mode]'
-allowed-tools: Bash, Read, Edit, Write, Skill
+allowed-tools: Bash, Read, Edit, Write, Skill, mcp__github__*, github/*
 size-exception: true
 user-invocable: true
 ---
@@ -32,8 +32,10 @@ vendor-portability: upstream-only. Test paths reference rjmurillo/ai-agents cont
 -->
 
 Autonomous PR monitor and fixer. This file carries the whole protocol,
-including the Ready-to-Merge definition below. Nothing outside it is needed
-to run the command.
+including the Ready-to-Merge definition below. Two bundled dependencies are
+required beyond it, both from the github skill: Phase 0 runs its transport
+preflight, and MCP mode reads its routing reference. Everything else needed
+to run the command is here.
 
 ## Triggers
 
@@ -86,9 +88,14 @@ the per-harness spelling for the operation names. On top of it:
    fields with `pull_request_read` and apply the gate definitions in this file
    by hand. Record in the PR handoff that the verdict was derived, not scripted.
 3. The lease and the round cap protect against two sessions fighting over one
-   branch. Without `pr_autofix_lease.py` you cannot hold a lease, so in MCP
-   mode run single-PR mode only, on a PR you were explicitly given, and do not
-   sweep the open queue.
+   branch, and single-PR mode does not replace them: two sessions can each be
+   handed the same PR explicitly and still race toward the same branch, which
+   is the case `pr_autofix_lease.py` exists to stop. So without a lease, MCP
+   mode is read-only. Triage, read threads, and report, but do not push, reply,
+   resolve, arm auto-merge, or merge. If a mutation is genuinely needed, either
+   implement acquire, renew, and release against the same marker-comment
+   protocol using MCP operations first, or hand the PR back and say a lease
+   could not be held. Do not sweep the open queue either way.
 4. A transport failure is an unknown, never a verdict. Never classify a PR as
    T2 (CI fix), BLOCKED, or DIRTY because a call failed. Report the PR as
    untriaged with the transport as the reason.

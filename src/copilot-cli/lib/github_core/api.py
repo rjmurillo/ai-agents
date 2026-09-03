@@ -192,7 +192,10 @@ class GhAuthStatus(Enum):
 
 
 # Statuses that are a token problem the operator can fix (exit 4). Everything
-# else that is not AUTHENTICATED is an upstream condition (exit 3).
+# else that is not AUTHENTICATED is an upstream condition (exit 3), with one
+# exception: TRANSPORT_BLOCKED is an environment configuration fault and maps
+# to exit 2, because exit 3 is the retry signal and a refused session has no
+# reset. See describe_gh_auth_failure.
 _AUTH_FAILURE_STATUSES = frozenset(
     {GhAuthStatus.MISSING_GH, GhAuthStatus.INVALID_CREDENTIALS}
 )
@@ -507,6 +510,33 @@ def _graphql_viewer_probe() -> GhAuthResult:
     )
 
 
+def _is_session_wide_refusal(rest_text: str, graphql_text: str) -> bool:
+    """Return True when the pair of failures proves the session is refused.
+
+    "Both probes failed" is not that proof, and an earlier version of this
+    logic accepted it (Copilot review on PR #5509). A transient REST 503
+    alongside a query-scoped GraphQL refusal satisfies "either transport
+    mentions a policy refusal", so it was promoted to TRANSPORT_BLOCKED and
+    suppressed the REST retry ladder even though REST would have recovered.
+
+    Two shapes qualify:
+
+    1. REST returns the account-level denial. That closes the session on its
+       own, whatever GraphQL said.
+    2. Both transports report a policy refusal. Neither body alone proves more
+       than its own scope; together they leave no transport unrefused.
+
+    ADR-100's "Two different 403s" paragraph is the measurement behind the
+    distinction between the two bodies.
+    """
+    if _TRANSPORT_BLOCKED_SIGNATURE.search(rest_text):
+        return True
+    return bool(
+        _SESSION_POLICY_REFUSAL.search(rest_text)
+        and _SESSION_POLICY_REFUSAL.search(graphql_text)
+    )
+
+
 def check_gh_auth() -> GhAuthResult:
     """Classify GitHub CLI auth across the REST and GraphQL transports.
 
@@ -519,8 +549,8 @@ def check_gh_auth() -> GhAuthResult:
 
     Returns:
         A :class:`GhAuthResult`. ``MISSING_GH`` and ``INVALID_CREDENTIALS`` map
-        to auth exit 4; every other non-authenticated status maps to external
-        exit 3.
+        to auth exit 4; ``TRANSPORT_BLOCKED`` maps to config exit 2; every
+        other non-authenticated status maps to external exit 3.
     """
     try:
         result = _run_gh(["auth", "status"])
@@ -547,9 +577,8 @@ def check_gh_auth() -> GhAuthResult:
     # is session-wide rather than scoped to one query shape, so a policy
     # refusal seen on either transport is promoted to TRANSPORT_BLOCKED only
     # here (Copilot review on PR #5509).
-    if probe.status is not GhAuthStatus.TRANSPORT_BLOCKED and (
-        _SESSION_POLICY_REFUSAL.search(rest_text)
-        or _SESSION_POLICY_REFUSAL.search(probe.detail)
+    if probe.status is not GhAuthStatus.TRANSPORT_BLOCKED and _is_session_wide_refusal(
+        rest_text, probe.detail
     ):
         return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
     return probe
