@@ -1,0 +1,8 @@
+{
+  "semgrep-cloud-platform/scan": {
+    "disposition": "tracked-issue",
+    "reason": "Semgrep Cloud runs a server-side ruleset that no local hook reproduces, so a finding it raises cannot be cleared from a branch. The current finding, python.lang.security.audit.dangerous-subprocess-use-tainted-env-args, id 949800930, lands on the cmd argument of the subprocess.run call inside run_skill_knowledge in scripts/eval/eval-suite.py and is not exploitable: cmd is a list whose first element is sys.executable followed by a fixed script path, subprocess.run defaults to shell=False, and no shell parses the argv, so the rule's suggested shlex.quote would corrupt the value rather than protect it. Clearing the check needs a triage in the semgrep.dev org UI, which neither CI nor a branch can perform. Tracked on issue #5480. The finding id is recorded for a human auditor: the readiness check reads a check name from GitHub's check rollup and never sees which finding produced it, so nothing enforces that a future failure under this check name is this same finding. The pull_requests and expires bounds are what limit the blast radius.",
+    "expires": "2026-12-01",
+    "pull_requests": [5433, 5460, 5466]
+  }
+}

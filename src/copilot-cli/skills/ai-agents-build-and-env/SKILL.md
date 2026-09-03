@@ -87,7 +87,10 @@ What these do:
   environment a push validates against (`scripts/bootstrap-vm.sh:109-115`).
 - `lefthook install` installs Git shims for the events in `lefthook.yml`.
   `check-install` verifies that the shims are active. Lefthook reads the
-  configuration at runtime, so config edits do not require another install.
+  configuration at runtime, so editing the jobs under an already-installed hook
+  type needs no reinstall. Adding or removing a hook type does: with
+  `no_auto_install: true` set, the new type has no shim until install runs
+  again.
 
 ### Phase 3: Verify the Install
 

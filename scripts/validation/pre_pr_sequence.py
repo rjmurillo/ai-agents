@@ -410,15 +410,16 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # surface.
     _Gate("Argument-Hint Frontmatter", _root_only(validate_argument_hint)),
     # Deeper than the gate below, and adjacent so neither reads as covering the
-    # other. "Lefthook Installed" asks whether lefthook considers itself
-    # installed; this asks whether git will read those shims at all. A
+    # other. "Lefthook Installed" verifies the configured runtime can start;
+    # this asks whether git will read the installed shim at all. A
     # core.hooksPath pointing at a missing directory makes git run no hook and
     # print no warning, which is how the PR #5059 hand-edit reached CI instead
     # of being refused at push time. Issue #5090; the same repair already
     # drifted back once after 2026-07-19.
     _Gate("Git Hook Health (core.hooksPath)", _root_only(validate_git_hook_health)),
-    # Local clones must dispatch repository guardrails. Skipped under CI, where
-    # workflows invoke validation directly.
+    # Local clones must resolve the pinned runtime. Skipped under CI, where
+    # workflows invoke validation directly. Do not use `check-install` here:
+    # its shared checksum belongs to whichever branch installed last (#4789).
     _Gate("Lefthook Installed", _root_only(validate_lefthook_installed)),
     # actionlint plus gh act dry-run for changed workflows.
     _Gate("Workflow Local Run", _root_only(validate_workflow_local_run)),

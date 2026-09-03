@@ -40,13 +40,26 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Python 3.10 compatibility (issue #4764), same reasoning as `new_pr.py`:
+# `datetime.UTC` is an alias CPython added in 3.11, so `from datetime import
+# UTC` raises `ImportError: cannot import name 'UTC' from 'datetime'` on 3.10.
+# `.claude/commands/pr-review-config.yaml` and `.claude/commands/pr-autofix.md`
+# both invoke this script with a bare `python3`, so it runs on the HOST's
+# ambient interpreter rather than the repository's 3.14 development one, and
+# `_SUPPORT_FLOOR` in `scripts/validation/validate_python_syntax.py` puts that
+# host floor at 3.10. `timezone.utc` is the same object at every version this
+# repository targets, so it is the portable spelling, not a shim.
+_UTC = timezone.utc
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -1033,12 +1046,78 @@ def _script_commit() -> str:
 # Non-required failure dispositions
 # ---------------------------------------------------------------------------
 
+# The one `expires` grammar every interpreter this script runs on parses the
+# same way: an extended-format calendar date, optionally an extended-format
+# time, optionally fractional seconds, optionally `Z` or a numeric offset.
+# Anchored at both ends. `_disposition_unexpired` explains why the subset is
+# narrower than `datetime.fromisoformat` will accept on any single version.
+#
+# Fractional seconds are exactly 3 or 6 digits, not 1 to 6. CPython 3.10 reads
+# that field as milliseconds or microseconds and nothing else, while 3.11+
+# accepts any width. Measured with 3.10.20 against 3.14.3 on this tree, using
+# `2999-01-01T12:30:00.<n digits>+00:00`:
+#
+#     digits  1     2     3     4     5     6
+#     3.10    err   err   ok    err   err   ok
+#     3.14    ok    ok    ok    ok    ok    ok
+#
+# so `.1` is precisely the host-dependent verdict this pattern exists to stop.
+_EXPIRES_PATTERN = re.compile(
+    r"\d{4}-\d{2}-\d{2}"
+    r"(?:[T ]\d{2}:\d{2}:\d{2}(?:\.(?:\d{3}|\d{6}))?(?:Z|[+-]\d{2}:\d{2})?)?\Z"
+)
+
 _VALID_DISPOSITIONS = frozenset({
     "known-flaky",
     "infrastructure",
     "unrelated-to-pr",
     "tracked-issue",
 })
+
+
+def _dispositions_file_is_tracked(dispositions_file: str) -> bool:
+    """True when git tracks the registry file, which is what makes it trusted.
+
+    An untracked registry is refused rather than read, and the reason is not
+    tidiness. In an installed-plugin consumer the shipped path does not exist
+    at all, so a PR that gets the review agent to write one, by prompt
+    injection into a file that agent reads, would be authoring its own
+    dispositions and could then waive its own failing security check
+    (CWE-829, CWE-284).
+
+    The completion gate does not stop that on its own. Its command-trust check
+    records untracked work-tree files in ``skipped_untracked_files`` and does
+    not compare them, precisely because an untracked file is normally the
+    operator's own state. That carve-out is right for the gate and wrong for
+    this reader, so the reader refuses what the gate declines to verify. The
+    two together give the property that matters: a registry is honored only
+    when it is tracked, and a tracked one is byte-compared against the trusted
+    ref before any criterion runs.
+
+    The path is passed as an explicit ``:(literal)`` pathspec, matching
+    ``_tracked_subset`` in ``run_completion_gate.py``: git reads pathspec
+    magic from a leading ``:`` even after ``--``, so a file literally named
+    ``:(glob)evil.json`` would otherwise never match its own path.
+
+    Fails closed. A nonzero exit, a timeout, a missing git, or a path outside
+    any repository all return False, which loads an empty registry and leaves
+    every non-required failure blocking.
+    """
+    absolute = os.path.abspath(dispositions_file)
+    directory = os.path.dirname(absolute) or "."
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", "--", f":(literal){absolute}"],
+            cwd=directory,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
 
 
 def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
@@ -1049,13 +1128,24 @@ def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
         {
           "Check Name": {
             "disposition": "known-flaky|infrastructure|unrelated-to-pr|tracked-issue",
-            "reason": "human explanation"
+            "reason": "human explanation",
+            "expires": "2026-12-01",
+            "pull_requests": [5433, 5460]
           }
         }
 
-    Returns an empty dict when the file is absent or unreadable.
+    ``disposition``, ``reason``, and ``expires`` are required on every entry.
+    ``pull_requests`` is optional. ``_disposition_accepts`` is the authority
+    on what each field has to hold and on what happens when one does not.
+
+    Returns an empty dict when the file is absent, unreadable, or untracked.
+    ``_dispositions_file_is_tracked`` explains why an untracked registry is
+    refused rather than read; an empty dict disposes nothing, so every
+    non-required failure keeps blocking.
     """
     if not dispositions_file:
+        return {}
+    if not _dispositions_file_is_tracked(dispositions_file):
         return {}
     try:
         with open(dispositions_file, encoding="utf-8") as fh:
@@ -1067,29 +1157,129 @@ def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
     return data
 
 
+def _disposition_unexpired(entry: dict[str, object], now: datetime) -> bool:
+    """Return True when ``entry`` carries an ``expires`` still ahead of ``now``.
+
+    The accepted grammar is ``_EXPIRES_PATTERN``: an extended-format calendar
+    date, optionally followed by an extended-format time and an optional
+    ``Z`` or numeric offset. A bare date means midnight on that date, and a
+    timestamp with no offset is read as UTC. A missing, non-string,
+    off-grammar, or already-passed value returns False.
+
+    The regex runs first, and it is the point of the function rather than
+    belt-and-braces. ``datetime.fromisoformat`` is not the same parser across
+    the versions this script runs on: CPython 3.11 widened it to most of ISO
+    8601, so measured against 3.10.20 and 3.14.3, ``29990101`` and
+    ``2999-W01-1`` parse on the newer one and raise ``ValueError`` on the
+    older. Handing it the raw value would let one registry produce different
+    merge verdicts depending on the host that read it, silently, in the
+    direction of treating a live entry as expired. Anchoring to a subset both
+    versions parse identically makes the answer the same everywhere, and
+    rejects the ambiguous spellings on every host rather than on some.
+
+    A trailing ``Z`` is rewritten to ``+00:00`` after the match, the same
+    normalization ``_parse_rfc3339_utc`` in ``pr_autofix_lease.py`` applies,
+    because ``fromisoformat`` only learned the zulu suffix in 3.11 as well.
+    """
+    expires = entry.get("expires")
+    if not isinstance(expires, str) or not _EXPIRES_PATTERN.match(expires):
+        return False
+    normalized = expires[:-1] + "+00:00" if expires.endswith("Z") else expires
+    try:
+        deadline = datetime.fromisoformat(normalized)
+    except ValueError:
+        return False
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=_UTC)
+    return deadline > now
+
+
+def _disposition_covers_pr(entry: dict[str, object], pr_number: int | None) -> bool:
+    """Return True when ``entry`` applies to the PR under test.
+
+    An entry with no ``pull_requests`` key applies to every PR. When the key
+    is present the value must be a list of ints that holds ``pr_number``.
+    Anything else returns False: a non-list value, a list holding a non-int
+    (``bool`` included, since ``isinstance(True, int)`` is True in Python),
+    a list that omits the PR, and a ``pr_number`` of None, which cannot be
+    shown to be a member of anything.
+    """
+    if "pull_requests" not in entry:
+        return True
+    allowed = entry["pull_requests"]
+    if not isinstance(allowed, list):
+        return False
+    if any(isinstance(n, bool) or not isinstance(n, int) for n in allowed):
+        return False
+    return pr_number in allowed
+
+
+def _disposition_accepts(
+    entry: object,
+    pr_number: int | None,
+    now: datetime,
+) -> bool:
+    """Return True when one disposition entry clears every bound.
+
+    Four bounds. All must hold. Any one that fails rejects the entry, and a
+    rejected entry leaves its check undisposed exactly as if the file carried
+    no entry for that check at all.
+
+    - ``disposition`` is a string in ``_VALID_DISPOSITIONS``.
+    - ``reason`` is a non-empty string.
+    - ``expires`` is an ISO 8601 date or date-time still in the future.
+      Required on every entry rather than optional, because an optional
+      expiry is the one a future entry silently omits, and an entry bound
+      only to a check name accepts every later failure of that check
+      forever, including a real one.
+    - ``pull_requests``, when present, holds ``pr_number``. Absent means the
+      entry applies to any PR, which stays useful for a genuinely repo-wide
+      infrastructure failure but has to be a deliberate choice rather than
+      the accidental default.
+
+    ``expires`` gates every entry and ``pull_requests`` narrows an entry
+    further, so the two compose as AND: an unexpired entry scoped to other
+    PRs rejects, and so does a listed PR on an expired entry.
+
+    Nothing here binds an entry to a specific upstream finding. This script
+    sees a check name from GitHub's check rollup and never the finding a
+    scanner reported under that name, so a finding id written into ``reason``
+    is an audit trail for a human reader, not a bound this function enforces.
+    """
+    if not isinstance(entry, dict):
+        return False
+    disposition = entry.get("disposition")
+    if not isinstance(disposition, str) or disposition not in _VALID_DISPOSITIONS:
+        return False
+    reason = entry.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        return False
+    return (
+        _disposition_unexpired(entry, now)
+        and _disposition_covers_pr(entry, pr_number)
+    )
+
+
 def _check_nonrequired_dispositions(
     failed_non_required: list[str],
     dispositions_file: str | None,
+    pr_number: int | None = None,
 ) -> list[str]:
-    """Return failed non-required check names without valid dispositions.
+    """Return failed non-required check names without an accepted disposition.
 
-    A disposition entry must have a ``disposition`` key with a value from
-    ``_VALID_DISPOSITIONS`` and a non-empty ``reason`` string.
+    ``_disposition_accepts`` decides each entry and documents the four bounds.
+    ``pr_number`` is the PR under test; leaving it None rejects every entry
+    that carries a ``pull_requests`` allowlist, because membership in that
+    list cannot be shown without it.
     """
     if not failed_non_required:
         return []
     dispositions = _load_dispositions(dispositions_file)
-    undisposed: list[str] = []
-    for name in failed_non_required:
-        entry = dispositions.get(name)
-        if not isinstance(entry, dict):
-            undisposed.append(name)
-            continue
-        disp = entry.get("disposition", "")
-        reason = entry.get("reason", "")
-        if disp not in _VALID_DISPOSITIONS or not reason.strip():
-            undisposed.append(name)
-    return undisposed
+    now = datetime.now(_UTC)
+    return [
+        name for name in failed_non_required
+        if not _disposition_accepts(dispositions.get(name), pr_number, now)
+    ]
 
 
 def check_merge_readiness(
@@ -1120,7 +1310,7 @@ def check_merge_readiness(
     )
     # Non-required disposition check: undisposed failures block merge
     undisposed = _check_nonrequired_dispositions(
-        failed_non_required, dispositions_file,
+        failed_non_required, dispositions_file, pr_number,
     )
     if undisposed:
         reasons.append(

@@ -34,6 +34,7 @@ BOOTSTRAP_PATH = REPO_ROOT / ".claude" / "lib" / "bootstrap.py"
 
 VM_BOOTSTRAP_PATH = REPO_ROOT / "scripts" / "bootstrap-vm.sh"
 SETUP_ACTION_PATH = REPO_ROOT / ".github" / "actions" / "setup-code-env" / "action.yml"
+LEFTHOOK_CONFIG_PATH = REPO_ROOT / "lefthook.yml"
 
 
 WORKTRUNK_CONFIG_PATH = REPO_ROOT / ".config" / "wt.toml"
@@ -355,6 +356,12 @@ def test_setup_action_preserves_input_and_installs_lefthook_after_dependencies()
     assert "uv run --frozen --extra dev lefthook install --reset-hooks-path" in text
     assert "scripts/ci/verify_code_env.py" in text
     assert "git config core.hooksPath" not in text
+
+
+def test_lefthook_disables_automatic_reinstall() -> None:
+    config = yaml.safe_load(LEFTHOOK_CONFIG_PATH.read_text(encoding="utf-8"))
+
+    assert config["no_auto_install"] is True
 
 
 def test_setup_action_verification_gates_lefthook_on_both_inputs(monkeypatch) -> None:
