@@ -835,6 +835,52 @@ class TestBothTransportsProveASessionRefusal:
         with patch("subprocess.run", side_effect=calls):
             assert check_gh_auth().status is GhAuthStatus.TRANSPORT_BLOCKED
 
+    def test_an_account_level_denial_outranks_a_confirmed_bad_token(self):
+        """Both faults are real; only one of them has a remedy that works.
+
+        REST returns the org-level denial and GraphQL returns a genuine 401, so
+        the token is bad AND the session is refused. Reporting
+        INVALID_CREDENTIALS sends the operator to `gh auth login`, after which
+        every gh call still returns 403, which is the loop issues #3139 and
+        #4344 record. The denial dominates because no credential action clears
+        it, and the caller has a transport that does work.
+
+        This is a deliberate change from the pre-existing behavior for this
+        pair, which returned INVALID_CREDENTIALS. It is pinned here so the
+        choice is visible rather than incidental, and the message is worded to
+        say repairing the credential cannot clear this, never that the
+        credential is sound (Copilot review on PR #5509).
+        """
+        calls = [
+            _completed(stderr=PROXY_REST_403, rc=1),
+            _completed(stderr=BAD_CREDENTIALS, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.TRANSPORT_BLOCKED
+        message, exit_code, _ = describe_gh_auth_failure(result)
+        assert exit_code == 2
+        assert "credential is not the fault" not in message
+        assert "Repairing the credential cannot clear it" in message
+
+    def test_a_bad_token_without_a_session_denial_is_still_a_credential_fault(self):
+        """Control: only the account-level wording outranks the 401.
+
+        Same GraphQL 401, REST wording the classifier does not recognize as a
+        denial. Without this the promotion could widen to "any REST failure
+        beside a 401 is a blocked session" and route a fixable token away from
+        the one remedy that fixes it.
+        """
+        calls = [
+            _completed(stderr="gh: could not determine status", rc=1),
+            _completed(stderr=BAD_CREDENTIALS, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.INVALID_CREDENTIALS
+        _, exit_code, _ = describe_gh_auth_failure(result)
+        assert exit_code == 4
+
     def test_a_graphql_quota_survives_a_rest_session_refusal(self):
         """Quota outranks promotion: it has a reset, TRANSPORT_BLOCKED does not.
 

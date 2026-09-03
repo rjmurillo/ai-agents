@@ -767,10 +767,16 @@ _MISSING_OR_INVALID_MESSAGE = (
 # Named remedy for a session-wide refusal. Says what is actually wrong, what
 # will not fix it, and which transport still works, because the agent reading
 # this decides its next call from this string alone.
+# Deliberately says repairing the credential cannot clear this, not that the
+# credential is sound. Both can be true at once: an org-level denial and an
+# expired token produce a REST session refusal beside a GraphQL 401, and the
+# denial still dominates because no token clears it. Claiming the credential is
+# fine would be false in exactly that pair (Copilot review on PR #5509).
 _TRANSPORT_BLOCKED_MESSAGE = (
     "This session's environment refuses GitHub for the gh CLI, so every gh "
-    "call fails with HTTP 403 regardless of the token. The credential is not "
-    "the fault: 'gh auth login' and retrying both cannot clear it. Use the "
+    "call fails with HTTP 403 regardless of the token. Repairing the "
+    "credential cannot clear it: 'gh auth login' and retrying are both the "
+    "wrong remedy, whatever else is also wrong. Use the "
     "GitHub MCP operations for this work (spelled mcp__github__* in Claude "
     "Code, github/* in Copilot CLI), or run it where gh has "
     "direct GitHub access, such as CI. If an org admin must connect the "
