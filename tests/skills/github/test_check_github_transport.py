@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size -- one suite per routing surface; the capability
+# probe's cases only mean anything beside the auth-status cases they correct,
+# and splitting them loses the pairing that makes each a control (issue #3779).
 """Tests for check_github_transport.py.
 
 The script exists so a workflow picks its GitHub transport once, from the
@@ -32,11 +35,35 @@ def _auth(status: GhAuthStatus, detail: str = "") -> GhAuthResult:
     return GhAuthResult(status, detail)
 
 
-def _run(status: GhAuthStatus, detail: str = "", argv: list[str] | None = None):
-    """Run main() with a stubbed preflight, returning (exit_code, stdout)."""
+def _completed(stdout: str, stderr: str, rc: int):
+    import subprocess
+
+    return subprocess.CompletedProcess(
+        args=["gh"], returncode=rc, stdout=stdout, stderr=stderr
+    )
+
+
+def _run(
+    status: GhAuthStatus,
+    detail: str = "",
+    argv: list[str] | None = None,
+    repo_refusal: str = "",
+):
+    """Run main() with a stubbed preflight, returning (exit_code, stdout).
+
+    The repository capability probe is stubbed too. It shells out to
+    `gh api repos/...`, so leaving it live would make these tests depend on
+    the network and on whatever session they happen to run in, which is the
+    class of coupling that made the classifier's own fixtures misleading.
+    """
     with patch.object(mod, "check_gh_auth", return_value=_auth(status, detail)):
-        with patch("sys.stdout") as stdout:
-            code = mod.main(argv if argv is not None else ["--output-format", "json"])
+        with patch.object(
+            mod, "_repository_capability_probe", return_value=repo_refusal
+        ):
+            with patch("sys.stdout") as stdout:
+                code = mod.main(
+                    argv if argv is not None else ["--output-format", "json"]
+                )
     written = "".join(call.args[0] for call in stdout.write.call_args_list if call.args)
     return code, written
 
@@ -46,11 +73,37 @@ class TestTransportRouting:
         with patch.object(
             mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)
         ):
-            transport, code, status, detail = mod.resolve_transport()
+            with patch.object(mod, "_repository_capability_probe", return_value=""):
+                transport, code, status, detail = mod.resolve_transport()
         assert transport == mod.TRANSPORT_GH
         assert code == 0
         assert status == "authenticated"
         assert detail == ""
+
+    def test_an_authenticating_session_that_denies_repositories_routes_to_mcp(self):
+        """check_gh_auth cannot see this case, so the preflight has to.
+
+        It runs `gh auth status` and a GraphQL viewer query and nothing else.
+        Neither is repository-scoped, and measured on 2026-09-03 the
+        account-level denial body appears only on `gh api repos/{owner}/{repo}`
+        while `gh auth status` reports the token invalid. So a session that
+        answers the viewer query and denies every repository call returns
+        AUTHENTICATED, and inheriting that verdict selected gh for a workflow
+        whose first call is a 403 (Copilot review on PR #5509).
+        """
+        with patch.object(
+            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)
+        ):
+            with patch.object(
+                mod,
+                "_repository_capability_probe",
+                return_value="GitHub access is not enabled for this session.",
+            ):
+                transport, code, status, detail = mod.resolve_transport()
+        assert transport == mod.TRANSPORT_MCP
+        assert code == 0
+        assert status == "transport_blocked"
+        assert "not enabled for this session" in detail
 
     def test_session_refusal_routes_to_mcp(self):
         """The whole point: a refused session still has a usable transport."""
@@ -189,6 +242,87 @@ class TestCliContract:
         assert code == 0
         assert "Transport: gh" in out
         assert "gh auth status" not in out
+
+
+# Captured on gh 2.98.0 in a Claude Code remote session on 2026-09-03, each
+# from the command that actually emits it. That pairing is the point: the
+# classifier's own fixtures put this REST body in the `gh auth status` slot,
+# where it pinned a branch real data cannot reach (Copilot review on PR #5509).
+REPO_DENIAL_BODY = (
+    '{"message":"GitHub access is not enabled for this session. An org admin '
+    'must connect the Claude GitHub App for this organization."}\n'
+    "gh: GitHub access is not enabled for this session. An org admin must "
+    "connect the Claude GitHub App for this organization. (HTTP 403)"
+)
+AUTH_STATUS_INVALID_BODY = (
+    "github.com\n  X Failed to log in to github.com using token (GH_TOKEN)\n"
+    "  - The token in GH_TOKEN is invalid."
+)
+
+
+class TestRepositoryCapabilityProbe:
+    """The probe answers "are repository calls served", nothing wider.
+
+    Its verdict disables a transport for the whole session, so every case that
+    is not the session-wide refusal has to keep gh. Turning a 5xx on one
+    repository call into a transport change is issue #3139 inverted.
+    """
+
+    @staticmethod
+    def _probe(completed=None, repo=("rjmurillo", "ai-agents"), side_effect=None):
+        from github_core.api import RepoInfo
+
+        info = RepoInfo(owner=repo[0], repo=repo[1]) if repo else None
+        with patch.object(mod, "get_repo_info", return_value=info):
+            kwargs = (
+                {"side_effect": side_effect}
+                if side_effect is not None
+                else {"return_value": completed}
+            )
+            with patch.object(mod.subprocess, "run", **kwargs) as run:
+                return mod._repository_capability_probe(), run
+
+    def test_a_session_denial_on_the_repository_call_is_reported(self):
+        detail, run = self._probe(
+            _completed(stdout="", stderr=REPO_DENIAL_BODY, rc=1)
+        )
+        assert "not enabled for this session" in detail
+        assert run.call_args.args[0][:2] == ["gh", "api"]
+        assert run.call_args.args[0][2] == "repos/rjmurillo/ai-agents"
+
+    def test_a_served_repository_call_keeps_gh(self):
+        detail, _ = self._probe(_completed(stdout='{"id": 1}', stderr="", rc=0))
+        assert detail == ""
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "gh: Internal Server Error (HTTP 500)",
+            "gh: API rate limit exceeded (HTTP 403)",
+            "gh: Not Found (HTTP 404)",
+            AUTH_STATUS_INVALID_BODY,
+        ],
+    )
+    def test_any_other_failure_keeps_gh(self, body):
+        """Control: only the session-wide refusal may change the transport.
+
+        A quota window and a 5xx both clear on their own, and a 404 is about
+        one repository. Rerouting on any of them would hide a condition the
+        caller should wait out or fix, and would keep hiding it.
+        """
+        detail, _ = self._probe(_completed(stdout="", stderr=body, rc=1))
+        assert detail == ""
+
+    def test_no_inferable_repository_is_not_evidence_of_a_denial(self):
+        detail, run = self._probe(repo=None)
+        assert detail == ""
+        assert run.call_count == 0
+
+    @pytest.mark.parametrize("error", [OSError("no gh"), mod.subprocess.TimeoutExpired("gh", 10)])
+    def test_an_unanswerable_probe_keeps_gh(self, error):
+        """Failing closed here would route a working session away from gh."""
+        detail, _ = self._probe(side_effect=error)
+        assert detail == ""
 
 
 class TestShippedArtifactRuntimeContract:

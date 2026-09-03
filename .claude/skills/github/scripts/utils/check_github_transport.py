@@ -28,12 +28,24 @@ statement about gh alone: this script cannot see an MCP server and never
 probes for one, so a caller that reads exit 0 as "the workflow can run" will
 treat an unavailable workflow as runnable. Confirming the operations you need
 are exposed is the caller's job, and ``Data.Guidance`` says so at runtime.
+
+The ``gh`` verdict is capability-checked, not inherited. ``check_gh_auth``
+answers "does any transport authenticate", which is a different question and
+deliberately so (issue #3139): it runs ``gh auth status`` and a GraphQL viewer
+query and nothing else. Neither of those is repository-scoped, and measured on
+gh 2.98.0 in a Claude Code remote session on 2026-09-03, the account-level
+denial body appears only on ``gh api repos/{owner}/{repo}`` while
+``gh auth status`` reports "The token in GH_TOKEN is invalid". So a session
+that answers a viewer query and denies every repository call authenticates and
+cannot work, and inheriting that verdict selects ``gh`` for a workflow whose
+first call is a 403 (Copilot review on PR #5509).
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 
 # Two rungs, both portable. The plugin-root variables win when the host exports
@@ -54,7 +66,10 @@ if _lib_dir not in sys.path:
 from github_core.api import (
     GhAuthStatus,
     check_gh_auth,
+    classify_gh_failure_text,
     describe_gh_auth_failure,
+    get_repo_info,
+    sanitize_failure_detail,
 )
 from github_core.output import (
     add_output_format_arg,
@@ -100,6 +115,40 @@ _MCP_GUIDANCE = (
 )
 
 
+def _repository_capability_probe() -> str:
+    """Return a refusal detail when repository REST is denied, else "".
+
+    Asks the one question the auth preflight structurally cannot: are
+    repository calls served? Only the session-wide refusal signature reroutes.
+    A 5xx, a 404, or a quota window on this one call keeps the ``gh`` verdict,
+    because a transient repository failure must not disable the transport for
+    the whole session; that inversion is issue #3139 in the other direction.
+
+    Degrades to "" whenever the probe cannot be run or read (no inferable
+    repository, gh absent, timeout). An unanswerable probe is not evidence of
+    a denial, and failing closed here would route a working session to MCP.
+    """
+    info = get_repo_info()
+    if info is None:
+        return ""
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{info.owner}/{info.repo}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if result.returncode == 0:
+        return ""
+    text = f"{result.stdout}\n{result.stderr}"
+    if classify_gh_failure_text(text) is GhAuthStatus.TRANSPORT_BLOCKED:
+        return str(sanitize_failure_detail(text))
+    return ""
+
+
 def resolve_transport() -> tuple[str, int, str, str]:
     """Return ``(transport, exit_code, status, detail)`` for this session.
 
@@ -109,6 +158,9 @@ def resolve_transport() -> tuple[str, int, str, str]:
     """
     result = check_gh_auth()
     if result.status is GhAuthStatus.AUTHENTICATED:
+        refusal = _repository_capability_probe()
+        if refusal:
+            return TRANSPORT_MCP, 0, GhAuthStatus.TRANSPORT_BLOCKED.value, refusal
         return TRANSPORT_GH, 0, result.status.value, ""
 
     message, exit_code, _ = describe_gh_auth_failure(result)

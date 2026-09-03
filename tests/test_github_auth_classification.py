@@ -509,8 +509,15 @@ class TestRateLimitGateProbe:
 
 # Bodies captured from a Claude Code remote session on 2026-09-03 (gh 2.98.0),
 # by running `gh api repos/rjmurillo/ai-agents` and `gh api graphql` against
-# the session proxy. Quoted, not synthesized, so these tests cannot encode the
-# same assumption the classifier had.
+# the session proxy. Quoted rather than synthesized.
+#
+# Quoting the body is not the same as quoting it from the right command, and
+# that distinction cost a round. `check_gh_auth` runs `gh auth status` and the
+# GraphQL viewer query and nothing else, so its first subprocess slot can only
+# ever hold `gh auth status` output, which reports "The token in GH_TOKEN is
+# invalid" and never carries PROXY_REST_403. A case that puts the REST body in
+# that slot pins a branch real data cannot reach. Where one does below, it says
+# so and names what covers the real case instead (Copilot review on PR #5509).
 PROXY_REST_403 = (
     '{"message":"GitHub access is not enabled for this session. An org admin '
     'must connect the Claude GitHub App for this organization.",'
@@ -827,7 +834,13 @@ class TestBothTransportsProveASessionRefusal:
         assert run.call_count == 2
 
     def test_rest_global_refusal_alone_is_enough(self):
-        """The account-level denial closes the session whatever GraphQL says."""
+        """Ordering only: the denial signature outranks a GraphQL wobble.
+
+        The body is not one `gh auth status` emits, so this pins the branch's
+        precedence rather than a reachable path. The reachable form of this
+        case is a repository call, which this function never makes; the
+        preflight's capability probe covers it (Copilot review on PR #5509).
+        """
         calls = [
             _completed(stderr=PROXY_REST_403, rc=1),
             _completed(stderr="HTTP 503: Service unavailable", rc=1),
@@ -836,14 +849,16 @@ class TestBothTransportsProveASessionRefusal:
             assert check_gh_auth().status is GhAuthStatus.TRANSPORT_BLOCKED
 
     def test_an_account_level_denial_survives_a_successful_graphql_probe(self):
-        """A viewer query is not repository-scoped, so its success proves less.
+        """Ordering only, for the same reason as the case above.
 
-        The probe answers "does the token authenticate", and a session can
-        answer yes there while denying every repository call, which is the
-        shape measured on 2026-09-03. Returning AUTHENTICATED selected gh for a
-        workflow whose next call is a 403, and it made "the account-level
-        wording stands alone" true only when GraphQL also failed
-        (Copilot review on PR #5509).
+        A viewer query is not repository-scoped, so its success proves less
+        than it looks. This case pins that the denial signature is read before
+        the success return, which is correct precedence. What it does not do,
+        despite an earlier docstring here claiming it, is protect the real
+        mixed session: `gh auth status` emits its own invalid-token text there,
+        not this body, so the branch never fires and this function returns
+        AUTHENTICATED. That gap is pinned directly below and closed by the
+        preflight (Copilot review on PR #5509).
         """
         calls = [
             _completed(stderr=PROXY_REST_403, rc=1),
@@ -854,6 +869,31 @@ class TestBothTransportsProveASessionRefusal:
         assert result.status is GhAuthStatus.TRANSPORT_BLOCKED
         _, exit_code, _ = describe_gh_auth_failure(result)
         assert exit_code == 2
+
+    def test_a_repository_denial_is_invisible_to_this_function(self):
+        """The gap, stated rather than implied.
+
+        Every subprocess response here is from the command that produces it:
+        `gh auth status` reporting the token invalid, then a served viewer
+        query. That is the session shape measured on 2026-09-03 with the
+        repository REST endpoint also denied, and this function returns
+        AUTHENTICATED because it never asks a repository anything.
+
+        This is not a defect to fix here. `check_gh_auth` answers "does any
+        transport authenticate", which is the deliberate #3139 contract shared
+        by eight callers, and widening it to a repository probe would add a
+        network call to all of them. The question "can this workflow run" is
+        the preflight's, and `check_github_transport` now probes for it.
+        Asserting the limitation keeps it from being rediscovered as a
+        surprise (Copilot review on PR #5509).
+        """
+        calls = [
+            _completed(stderr=GH_AUTH_STATUS_INVALID, rc=1),
+            _completed(stdout='{"data": {"viewer": {"login": "x"}}}', rc=0),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.AUTHENTICATED
 
     def test_a_transient_rest_failure_beside_a_working_probe_is_still_authenticated(
         self,
