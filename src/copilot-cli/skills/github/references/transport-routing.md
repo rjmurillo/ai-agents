@@ -61,10 +61,10 @@ Read operations:
 
 | Instead of | Use | Notes |
 |------------|-----|-------|
-| `get_pr_context.py` | `pull_request_read` method `get` | |
-| `get_pr_context.py --include-diff` | `pull_request_read` method `get_diff` | |
+| `get_pr_context.py` | **Composite.** `pull_request_read` method `get`, plus `get_reviews`, `get_check_runs`, and `get_review_comments` | The script returns reviews, the check rollup, and review-thread counts alongside the PR fields. A bare `get` omits all three, so a blocking review or check disappears and the caller reads clean. Gather all four and derive. |
+| `get_pr_context.py --include-diff` | `pull_request_read` method `get_diff`, plus the reads above | `--include-diff` adds the diff, it does not replace the rest of the context. |
 | `get_pull_requests.py` | `list_pull_requests`, or `search_pull_requests` for filters | |
-| `get_pr_checks.py` | `pull_request_read` method `get_check_runs` | For one run's output text, `get_check_run` where the harness exposes it; otherwise `get_job_logs`. Check your toolset before relying on it. |
+| `get_pr_checks.py` | **Composite.** `pull_request_read` method `get_check_runs`, plus `get` for merge state and the branch ruleset for required contexts | The script deduplicates runs, evaluates required and missing contexts, accounts for merge state, and polls. A bare `get_check_runs` sees neither a required context that never reported nor a merge-state block, so it can report clean on a PR that cannot merge. Derive the verdict, do not take the list as one. For one run's output text, `get_check_run` where the harness exposes it, otherwise `get_job_logs`. |
 | `get_pr_check_logs.py` | `get_job_logs` | Set `failed_only` to skip green jobs |
 | `get_pr_review_comments.py` | `pull_request_read` method `get_review_comments` | Returns threads with `isResolved` |
 | `get_pr_reviews.py` | `pull_request_read` method `get_reviews` | |
@@ -79,8 +79,8 @@ Write operations:
 |------------|-----|-------|
 | `new_pr.py` | `create_pull_request` | |
 | `edit_pr_body.py` | `update_pull_request` | |
-| `post_pr_comment_reply.py` | `add_reply_to_pull_request_comment` | |
-| `add_pr_review_thread_reply.py` | `add_reply_to_pull_request_comment` | |
+| `post_pr_comment_reply.py` | `add_reply_to_pull_request_comment` with a review-comment id, or `add_issue_comment` when replying at PR top level | The script posts a top-level PR comment when `--comment-id` is omitted. Collapsing both onto the reply tool sends a top-level reply to a comment id it does not have. |
+| `add_pr_review_thread_reply.py` | `add_reply_to_pull_request_comment`, after resolving the thread to its root comment id | The script takes a GraphQL thread id, checks the thread belongs to the PR and is not already resolved, and can resolve after replying. The MCP tool takes a review-comment id and performs none of those guards, so look the thread up through `pull_request_read` method `get_review_comments`, check ownership and `isResolved` yourself, and call `resolve_review_thread` separately if the script would have. |
 | `resolve_pr_review_thread.py` | `resolve_review_thread` | One thread per call, no `--all` |
 | `unresolve_pr_review_thread.py` | `unresolve_review_thread` | |
 | `post_issue_comment.py` | `add_issue_comment` | Works for PRs too |
@@ -88,7 +88,7 @@ Write operations:
 | `close_issue.py`, `reopen_issue.py` | `issue_write` method `update` | Set `state_reason` when closing |
 | `set_issue_labels.py` | `issue_write` method `update` with `labels`, but read first | **Not equivalent, and destructive if used as one.** The script preserves unrelated labels, reconciles priority labels, and creates a label that does not exist yet. `issue_write` replaces the entire set and cannot create a missing label. So: read the current labels with `issue_read`, union your change into them, and send the whole result. If a label you need does not already exist on the repo, treat the operation as unavailable rather than dropping it silently. |
 | `merge_pr.py` | `merge_pull_request` | |
-| `set_pr_auto_merge.py` | `enable_pr_auto_merge`, `disable_pr_auto_merge` | |
+| `set_pr_auto_merge.py` | `enable_pr_auto_merge`, `disable_pr_auto_merge` | Present in some toolsets and not others. Check yours before relying on it, and treat the operation as unavailable rather than substituting a merge. |
 | `invoke_copilot_assignment.py` | `assign_copilot_to_issue` | |
 
 ## Operations with no MCP equivalent
@@ -96,9 +96,19 @@ Write operations:
 These have no GitHub MCP operation. On a blocked session they cannot run at
 all, so report them as unavailable rather than reporting a PR failure:
 
-- Reactions (`add_comment_reaction.py`). No reactions tool exists.
-- Milestones (`set_issue_milestone.py`, `get_latest_semantic_milestone.py`,
-  `set_item_milestone.py`). No milestone tool exists.
+- Milestone **discovery** (`get_latest_semantic_milestone.py`). Nothing
+  enumerates milestones, so the number cannot be looked up.
+
+Two earlier entries here were wrong and are corrected rather than removed,
+because a false "unavailable" disables a path that works:
+
+- Reactions (`add_comment_reaction.py`) **are** available: `add_issue_comment`
+  takes a `reaction` instead of a `body`, and a `comment_id` to react to one
+  comment rather than the PR. The script's batch mode has no equivalent, so
+  react one call at a time.
+- Milestone **assignment** (`set_issue_milestone.py`, `set_item_milestone.py`)
+  **is** available: `issue_write` method `update` takes a `milestone` number.
+  You still need the number, which is the discovery gap above.
 - Composite repo helpers that wrap several `gh` calls behind local logic and
   return a verdict: `why_pr_blocked.py`, `test_pr_merge_ready.py`,
   `check_pr_live_state.py`, `triage_red_check.py`, `run_completion_gate.py`,
