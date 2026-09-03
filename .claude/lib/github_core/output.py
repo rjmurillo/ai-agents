@@ -41,11 +41,11 @@ from datetime import datetime, timezone
 # mistaken claim).
 # `timezone.utc`, not the `datetime.UTC` alias, on purpose. This module is in
 # the import closure of every bundled skill script, and those run under the
-# host's ambient interpreter rather than this repo's 3.14 (.claude/rules/
-# python.md). The alias landed in 3.11, so on a host at the 3.10 portability
-# floor the import fails before any script can run. The syntax-floor gate does
-# not catch it: this is a runtime stdlib API, not syntax, so the file parses
-# clean at 3.10 and breaks on import (Copilot review on PR #5509).
+# host's ambient interpreter, which can be older than the version this project
+# develops against. The alias landed in 3.11, so on a host at the 3.10
+# portability floor the import fails before any script can run. A syntax-level
+# floor check does not catch it: this is a runtime stdlib API, not syntax, so
+# the file parses clean at 3.10 and breaks on import.
 VALID_ERROR_TYPES = (
     "NotFound",
     "ApiError",
