@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from .workflow_event_subscriptions import (
@@ -424,7 +424,7 @@ def plan_recovery(
         )
         for run in unique
     )
-    timestamp = (now or datetime.now(UTC)).isoformat()
+    timestamp = (now or datetime.now(timezone.utc)).isoformat()
     return RecoveryManifest(
         generated_at=timestamp,
         repository=repository,

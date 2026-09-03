@@ -510,6 +510,12 @@ def _graphql_viewer_probe() -> GhAuthResult:
     )
 
 
+# Quota refusals clear on their own, so they must survive the promotion below.
+_RETRYABLE_REFUSAL_STATUSES = frozenset(
+    {GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED}
+)
+
+
 def _is_session_wide_refusal(rest_text: str, graphql_text: str) -> bool:
     """Return True when the pair of failures proves the session is refused.
 
@@ -577,6 +583,12 @@ def check_gh_auth() -> GhAuthResult:
     # is session-wide rather than scoped to one query shape, so a policy
     # refusal seen on either transport is promoted to TRANSPORT_BLOCKED only
     # here (Copilot review on PR #5509).
+    # A quota verdict from the probe outranks promotion. Quota has a reset and
+    # its own backoff, so overwriting it with TRANSPORT_BLOCKED would convert a
+    # condition that clears into a config failure and drop the retry the caller
+    # should make (Copilot review on PR #5509).
+    if probe.status in _RETRYABLE_REFUSAL_STATUSES:
+        return probe
     if probe.status is not GhAuthStatus.TRANSPORT_BLOCKED and _is_session_wide_refusal(
         rest_text, probe.detail
     ):
