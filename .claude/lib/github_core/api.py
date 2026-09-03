@@ -592,6 +592,9 @@ def check_gh_auth() -> GhAuthResult:
         to auth exit 4; ``TRANSPORT_BLOCKED`` maps to config exit 2; every
         other non-authenticated status maps to external exit 3.
     """
+    # Empty when REST said nothing at all, which is the timeout case below.
+    # Every branch after this point reads it, so it has to exist either way.
+    rest_text = ""
     try:
         result = _run_gh(["auth", "status"])
     except FileNotFoundError:
@@ -599,16 +602,20 @@ def check_gh_auth() -> GhAuthResult:
         return GhAuthResult(GhAuthStatus.MISSING_GH)
     except subprocess.TimeoutExpired:
         logger.debug("gh auth status timed out")
-        # A REST status timeout is not proof of an invalid token; confirm via
-        # the GraphQL transport before failing.
-        return _graphql_viewer_probe()
+        # A REST status timeout is not proof of an invalid token, and it is not
+        # proof of anything else either. Fall through with empty REST text so
+        # the confirmation below still runs: returning the GraphQL probe
+        # directly here skipped it, so a timeout paired with a query-scoped
+        # policy refusal exited 4 recommending `gh auth login` on no credential
+        # evidence at all (Copilot review on PR #5509).
+        pass
+    else:
+        if result.returncode == 0:
+            return GhAuthResult(GhAuthStatus.AUTHENTICATED)
+        # REST status failed. Do not trust its verdict (it may relabel a 5xx or
+        # a quota refusal as an invalid token); confirm over GraphQL below.
+        rest_text = f"{result.stdout}\n{result.stderr}"
 
-    if result.returncode == 0:
-        return GhAuthResult(GhAuthStatus.AUTHENTICATED)
-
-    # REST status failed. Do not trust its verdict (it may relabel a 5xx or a
-    # quota refusal as an invalid token); confirm the real state over GraphQL.
-    rest_text = f"{result.stdout}\n{result.stderr}"
     probe = _graphql_viewer_probe()
     if probe.is_authenticated or probe.status is GhAuthStatus.MISSING_GH:
         return probe

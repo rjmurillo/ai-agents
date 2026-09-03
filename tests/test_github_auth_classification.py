@@ -722,6 +722,62 @@ class TestBothTransportsProveASessionRefusal:
         _, exit_code, _ = describe_gh_auth_failure(result)
         assert exit_code == 4
 
+    def test_a_rest_timeout_does_not_skip_the_credential_confirmation(self):
+        """The timeout branch used to return the GraphQL probe directly.
+
+        That early return sat above every recovery below it, so a `gh auth
+        status` timeout paired with a query-scoped policy refusal exited 4 and
+        recommended `gh auth login` having measured nothing at all: REST said
+        nothing, and GraphQL answered about the policy. A timeout is the case
+        with the least credential evidence of any, so it is the last one that
+        should reach the credential verdict.
+        """
+        calls = [
+            subprocess.TimeoutExpired(cmd="gh", timeout=10),
+            _completed(stderr=PROXY_GRAPHQL_403, rc=1),
+            _completed(stdout='{"login": "rjmurillo"}', rc=0),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.TRANSPORT_BLOCKED
+        _, exit_code, _ = describe_gh_auth_failure(result)
+        assert exit_code == 2
+
+    def test_a_rest_timeout_with_a_genuinely_bad_token_still_exits_4(self):
+        """Control for the case above: the timeout must not launder a bad token.
+
+        Same first two calls, so only the REST probe's answer separates them.
+        Without this, the timeout branch could return TRANSPORT_BLOCKED
+        unconditionally and no test would fail.
+        """
+        calls = [
+            subprocess.TimeoutExpired(cmd="gh", timeout=10),
+            _completed(stderr=PROXY_GRAPHQL_403, rc=1),
+            _completed(stderr=BAD_CREDENTIALS, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.INVALID_CREDENTIALS
+        _, exit_code, _ = describe_gh_auth_failure(result)
+        assert exit_code == 4
+
+    def test_a_rest_timeout_is_never_evidence_of_a_session_refusal(self):
+        """An empty REST body must not satisfy the both-transports test.
+
+        The timeout leaves `rest_text` empty, and the session-wide verdict
+        needs a policy refusal on both transports. If the empty string ever
+        matched, every timeout beside a scoped refusal would read as a refused
+        session without the credential probe running at all.
+        """
+        calls = [
+            subprocess.TimeoutExpired(cmd="gh", timeout=10),
+            _completed(stderr=BAD_CREDENTIALS, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls) as run:
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.INVALID_CREDENTIALS
+        assert run.call_count == 2
+
     def test_a_graphql_credential_failure_never_reaches_the_rest_probe(self):
         """GraphQL answered the credential question, so nothing needs confirming.
 
