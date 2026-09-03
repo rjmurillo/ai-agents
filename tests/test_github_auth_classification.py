@@ -641,6 +641,30 @@ class TestBothTransportsProveASessionRefusal:
         with patch("subprocess.run", side_effect=calls):
             assert check_gh_auth().status is GhAuthStatus.AUTHENTICATED
 
+    def test_a_transient_rest_failure_is_not_promoted(self):
+        """The mixed-failure case: 503 plus a query-scoped refusal.
+
+        Both probes fail, but neither proves the session is refused: REST may
+        recover, and the GraphQL body scopes itself to one query. Promoting
+        this suppressed the REST retry ladder for a condition that clears
+        (Copilot review on PR #5509).
+        """
+        calls = [
+            _completed(stderr="HTTP 503: Service unavailable", rc=1),
+            _completed(stderr=PROXY_GRAPHQL_403, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().status is not GhAuthStatus.TRANSPORT_BLOCKED
+
+    def test_rest_global_refusal_alone_is_enough(self):
+        """The account-level denial closes the session whatever GraphQL says."""
+        calls = [
+            _completed(stderr=PROXY_REST_403, rc=1),
+            _completed(stderr="HTTP 503: Service unavailable", rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls):
+            assert check_gh_auth().status is GhAuthStatus.TRANSPORT_BLOCKED
+
     def test_a_plain_bad_token_on_both_is_still_invalid_credentials(self):
         """Negative control: no policy wording, so no promotion."""
         calls = [

@@ -182,6 +182,25 @@ class TestShippedArtifactRuntimeContract:
             timeout=60,
         )
 
+    def _assert_reached_the_body(self, result):
+        """Prove the entrypoint ran, not merely that it avoided one exit code.
+
+        Asserting `returncode != 2` passes for any startup crash: an
+        ImportError exits 1 and would have certified an artifact that never
+        emitted anything (Copilot review on PR #5509). The envelope is the
+        evidence, so require a documented exit and parse the JSON.
+        """
+        import json
+
+        assert result.returncode in (0, 3, 4), (
+            f"undocumented exit {result.returncode}: "
+            f"{result.stdout}{result.stderr}"
+        )
+        assert "Plugin lib directory not found" not in result.stderr
+        payload = json.loads(result.stdout)
+        assert "Metadata" in payload
+        assert payload["Metadata"]["Script"] == "check_github_transport.py"
+
     def test_shipped_copy_exists(self):
         assert self.SHIPPED.is_file(), f"{self.SHIPPED} is not in the tree"
 
@@ -189,19 +208,14 @@ class TestShippedArtifactRuntimeContract:
         """The install case: run from elsewhere, with the host root exported."""
         plugin_root = _project_root / "src" / "copilot-cli"
         result = self._run(tmp_path, {"COPILOT_PLUGIN_ROOT": str(plugin_root)})
-        # Exit 2 is the bootstrap failure this test exists to catch.
-        assert result.returncode != 2, (
-            f"shipped script could not find its lib: {result.stdout}{result.stderr}"
-        )
-        assert "Plugin lib directory not found" not in result.stderr
+        self._assert_reached_the_body(result)
 
     def test_claude_plugin_root_resolves_the_same_way(self, tmp_path):
         """Both host variables are honored, not just the Copilot one."""
         result = self._run(
             tmp_path, {"CLAUDE_PLUGIN_ROOT": str(_project_root / "src" / "copilot-cli")}
         )
-        assert result.returncode != 2
-        assert "Plugin lib directory not found" not in result.stderr
+        self._assert_reached_the_body(result)
 
     def test_bare_relative_path_from_a_foreign_cwd_is_the_failing_control(
         self, tmp_path
