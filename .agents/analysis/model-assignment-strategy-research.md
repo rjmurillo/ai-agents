@@ -44,15 +44,18 @@ wrong. They are corrected here by quotation rather than edited in place.
    over all-Opus. Source: [The advisor
    strategy](https://www.claude.com/blog/the-advisor-strategy). The wrong
    baseline inverts the economic conclusion.
-5. **Four citations are operator-local.** The OpenAI Practical Guide rule, the
-   Adviser Model Pattern, AI Subscription Pricing Collapse, and AI Accessibility
-   Gap all cite `~/Documents/Mobile/wiki/`, which no repository reader can open.
-   The first has a public primary source: OpenAI, [A Practical Guide to Building
+5. **The wiki citations are operator-local.** Four Sources entries and three
+   body claims cite `~/Documents/Mobile/wiki/`, which no repository reader can
+   open. Two of those claims now have a public primary source in this block. The
+   start-capable-then-swap-down rule is OpenAI, [A Practical Guide to Building
    Agents](https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf),
    "build your agent prototype with the most capable model for every task to
    establish a performance baseline. From there, try swapping in smaller models
-   to see if they still achieve acceptable results." The other three have no
-   public source here. Treat them as unverifiable operator notes.
+   to see if they still achieve acceptable results." The Adviser Model Pattern
+   benchmark is sourced in item 4 above, to Anthropic's own post. The remaining
+   wiki material, The Bitter Lesson of Building with LLMs, AI Subscription
+   Pricing Collapse, and AI Accessibility Gap, has no public source here. Treat
+   those three as unverifiable operator notes.
 6. **Q4 names the wrong VS Code convention.** "period for Copilot CLI, hyphen for
    VS Code" is half wrong. At `49f05187`, `templates/platforms/vscode.yaml` maps
    the tiers to display names such as `Claude Opus 4.6 (copilot)`. The paragraph
