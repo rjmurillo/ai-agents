@@ -176,6 +176,20 @@ class TestCliContract:
         assert code == 0
         assert "Transport: gh_unusable" in out
 
+    def test_the_gh_summary_does_not_attribute_the_verdict_to_gh_auth_status(self):
+        """check_gh_auth can return AUTHENTICATED while `gh auth status` failed.
+
+        That is the deliberate #3139 behavior: a REST 5xx must not read as
+        unauthenticated, so a successful GraphQL probe carries the verdict.
+        Labelling the line "gh auth status: authenticated" then tells a reader
+        that a command which failed reported success, and the operator debugs
+        the wrong thing (Copilot review on PR #5509).
+        """
+        code, out = _run(GhAuthStatus.AUTHENTICATED, argv=["--output-format", "human"])
+        assert code == 0
+        assert "Transport: gh" in out
+        assert "gh auth status" not in out
+
 
 class TestShippedArtifactRuntimeContract:
     """Execute the artifact consumers actually get, not the canonical module.

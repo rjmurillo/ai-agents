@@ -147,8 +147,12 @@ def main(argv: list[str] | None = None) -> int:
         return exit_code
 
     guidance = _MCP_GUIDANCE if transport == TRANSPORT_MCP else ""
+    # "preflight" rather than "gh auth status": check_gh_auth answers with a
+    # GraphQL probe when `gh auth status` itself failed, which is the #3139
+    # behavior, so attributing the verdict to that command claims a failed
+    # command reported success (Copilot review on PR #5509).
     summary = (
-        f"Transport: {transport} (gh auth status: {status})"
+        f"Transport: {transport} (preflight: {status})"
         if transport == TRANSPORT_GH
         else f"Transport: {transport} (gh unusable: {status}). {guidance}"
     )
