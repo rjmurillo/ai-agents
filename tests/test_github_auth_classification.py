@@ -21,12 +21,15 @@ import pytest
 from scripts.github_core.api import (
     _GRAPHQL_BACKOFF_BASE_SECONDS,
     REFUSAL_BACKOFF_SECONDS,
+    GhAuthResult,
     GhAuthStatus,
+    _is_retryable_rest_api_error,
     _is_transient_graphql_error,
     assert_gh_authenticated,
     check_gh_auth,
     classify_gh_failure_response,
     classify_gh_failure_text,
+    describe_gh_auth_failure,
     gh_graphql,
     is_gh_authenticated,
 )
@@ -459,3 +462,127 @@ class TestRateLimitGateProbe:
         assert result.probe_error != ""
         assert "REFUSED" not in result.summary_markdown
         assert "INDETERMINATE" in result.summary_markdown
+
+
+# Bodies captured from a Claude Code remote session on 2026-09-03 (gh 2.98.0),
+# by running `gh api repos/rjmurillo/ai-agents` and `gh api graphql` against
+# the session proxy. Quoted, not synthesized, so these tests cannot encode the
+# same assumption the classifier had.
+PROXY_REST_403 = (
+    '{"message":"GitHub access is not enabled for this session. An org admin '
+    'must connect the Claude GitHub App for this organization.",'
+    '"documentation_url":"https://docs.anthropic.com/en/docs/claude-code/'
+    'github-actions"}\n'
+    "gh: GitHub access is not enabled for this session. An org admin must "
+    "connect the Claude GitHub App for this organization. (HTTP 403)"
+)
+PROXY_GRAPHQL_403 = (
+    "gh: This GraphQL query is not enabled for this session, only the pinned "
+    "set of PR-review operations is served. Use REST via "
+    "`gh api repos/{owner}/{repo}/...` instead. (HTTP 403)"
+)
+
+
+class TestTransportBlockedClassification:
+    """A session-wide GitHub refusal is its own condition, not a bad token.
+
+    Before this classification both bodies fell through to
+    INVALID_CREDENTIALS, so every gh-backed script in an agent sandbox told
+    the operator to run `gh auth login`. That advice cannot work: the refusal
+    is the environment's, and the credential is not what is being refused.
+    """
+
+    @pytest.mark.parametrize("body", [PROXY_REST_403, PROXY_GRAPHQL_403])
+    def test_proxy_refusal_is_transport_blocked(self, body):
+        assert classify_gh_failure_text(body) is GhAuthStatus.TRANSPORT_BLOCKED
+
+    def test_documentation_url_alone_still_classifies(self):
+        """The URL is the second marker, so a reworded body still lands."""
+        body = (
+            "gh: refused (HTTP 403) see "
+            "https://docs.anthropic.com/en/docs/claude-code/github-actions"
+        )
+        assert classify_gh_failure_text(body) is GhAuthStatus.TRANSPORT_BLOCKED
+
+    def test_a_real_bad_token_is_still_invalid_credentials(self):
+        """Negative control: the fallback bucket must keep its own cases."""
+        body = "gh: Bad credentials (HTTP 401)"
+        assert classify_gh_failure_text(body) is GhAuthStatus.INVALID_CREDENTIALS
+
+    def test_quota_refusal_wins_over_the_session_phrase(self):
+        """A throttled session is rate-limited, and that clears on its own."""
+        body = (
+            "gh: API rate limit exceeded for user ID 6811113 (HTTP 403); "
+            "this query is not enabled for this session"
+        )
+        assert classify_gh_failure_text(body) is GhAuthStatus.RATE_LIMITED
+
+    def test_blocked_wins_over_transient_wording(self):
+        """A refusal that mentions a timeout is still permanent for the session."""
+        body = (
+            "gh: GitHub access is not enabled for this session. (HTTP 403) "
+            "connection timed out"
+        )
+        assert classify_gh_failure_text(body) is GhAuthStatus.TRANSPORT_BLOCKED
+
+    def test_ordinary_permission_denial_is_untouched(self):
+        """Negative control: an integration 403 is not a session refusal."""
+        body = "gh: Resource not accessible by integration (HTTP 403)"
+        assert classify_gh_failure_text(body) is GhAuthStatus.INVALID_CREDENTIALS
+
+    def test_empty_text_does_not_report_blocked(self):
+        assert classify_gh_failure_text("") is not GhAuthStatus.TRANSPORT_BLOCKED
+
+
+class TestTransportBlockedRemedy:
+    """The message an agent reads decides its next call, so it must be true."""
+
+    def _describe(self):
+        return describe_gh_auth_failure(
+            GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, "HTTP 403")
+        )
+
+    def test_exit_code_is_config_not_external(self):
+        """Exit 3 advertises 'retryable', and a refused session never clears."""
+        _, code, error_type = self._describe()
+        assert code == 2
+        assert error_type == "ApiError"
+
+    def test_message_does_not_send_the_operator_to_gh_auth_login(self):
+        message, _, _ = self._describe()
+        assert "gh auth login" in message
+        # Present only as the remedy being ruled out, never as the instruction.
+        assert "Run 'gh auth login' first" not in message
+
+    def test_message_names_the_transport_that_works(self):
+        message, _, _ = self._describe()
+        assert "mcp__github__" in message
+
+    def test_detail_is_appended_for_diagnosis(self):
+        message, _, _ = self._describe()
+        assert "HTTP 403" in message
+
+    def test_a_bad_token_keeps_the_auth_remedy(self):
+        """Negative control: the auth path is unchanged."""
+        message, code, error_type = describe_gh_auth_failure(
+            GhAuthResult(GhAuthStatus.INVALID_CREDENTIALS)
+        )
+        assert code == 4
+        assert error_type == "AuthError"
+        assert "gh auth login" in message
+
+
+class TestTransportBlockedIsNotRetried:
+    """Retrying a refused session burns the run's budget for no chance of success."""
+
+    @pytest.mark.parametrize("body", [PROXY_REST_403, PROXY_GRAPHQL_403])
+    def test_rest_retry_ladder_declines(self, body):
+        assert _is_retryable_rest_api_error(body) is False
+
+    @pytest.mark.parametrize("body", [PROXY_REST_403, PROXY_GRAPHQL_403])
+    def test_graphql_retry_ladder_declines(self, body):
+        assert _is_transient_graphql_error(body) is False
+
+    def test_a_5xx_is_still_retried(self):
+        """Negative control: the retry ladder still fires for real transients."""
+        assert _is_transient_graphql_error("HTTP 503 Service Unavailable") is True

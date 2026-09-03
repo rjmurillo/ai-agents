@@ -70,7 +70,15 @@ def _report_failure(stage: str, result: CommandResult, scope_hint: str) -> int:
         return EXIT_LOGIC
 
     print(f"::warning::{stage} could not complete: {status.value}")
-    print("::warning::This is not an authentication failure. Retry shortly.")
+    if status is GhAuthStatus.TRANSPORT_BLOCKED:
+        # A refused session never clears on its own, so "retry shortly" would
+        # send the operator to wait out a condition that has no reset.
+        print(
+            "::warning::This environment refuses GitHub for gh; the token is "
+            "not the fault and retrying will not clear it."
+        )
+    else:
+        print("::warning::This is not an authentication failure. Retry shortly.")
     return EXIT_EXTERNAL
 
 

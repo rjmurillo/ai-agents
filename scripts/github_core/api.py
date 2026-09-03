@@ -174,6 +174,12 @@ class GhAuthStatus(Enum):
     to a bool sent operators to ``gh auth login`` for a GitHub 5xx (issue #3139)
     and for an exhausted GraphQL quota (issue #4344). Each cause needs a
     different remedy, so each gets its own member.
+
+    ``TRANSPORT_BLOCKED`` is the agent-sandbox case: ``gh`` is installed and
+    carries a credential, but the session's egress policy refuses GitHub, so
+    no ``gh`` invocation can succeed no matter how the token is repaired.
+    ``gh auth login`` is the wrong remedy and retrying is wasted work; the
+    remedy is a different transport. See :data:`_TRANSPORT_BLOCKED_SIGNATURE`.
     """
 
     AUTHENTICATED = "authenticated"
@@ -182,6 +188,7 @@ class GhAuthStatus(Enum):
     TRANSIENT_ERROR = "transient_error"
     RATE_LIMITED = "rate_limited"
     SECONDARY_RATE_LIMITED = "secondary_rate_limited"
+    TRANSPORT_BLOCKED = "transport_blocked"
 
 
 # Statuses that are a token problem the operator can fix (exit 4). Everything
@@ -339,6 +346,30 @@ _RATE_LIMIT_REMAINING_HEADER = re.compile(
     r"(?im)^x-ratelimit-remaining:\s*(\d+)\s*$"
 )
 
+# An agent sandbox that proxies egress can refuse GitHub for the whole session
+# while leaving `gh` installed and a GH_TOKEN set. The refusal arrives as HTTP
+# 403 with no rate-limit and no transport wording, so it used to fall through
+# to INVALID_CREDENTIALS and tell the operator to run `gh auth login`, which
+# cannot fix it: the credential is not the thing being refused.
+#
+# Wording captured from the running proxy on 2026-09-03 rather than guessed
+# (gh 2.98.0, Claude Code remote session). REST:
+#
+#     GitHub access is not enabled for this session. An org admin must connect
+#     the Claude GitHub App for this organization. (HTTP 403)
+#
+# GraphQL refuses separately, with its own body: "This GraphQL query is not
+# enabled for this session [...]" followed by a steer back to REST.
+#
+# Both bodies share "not enabled for this session", which is the discriminator
+# matched here. The documentation_url both carry is listed as a second marker
+# so a reworded body still classifies while the URL holds.
+_TRANSPORT_BLOCKED_SIGNATURE = re.compile(
+    r"not enabled for this session"
+    r"|docs\.anthropic\.com/en/docs/claude-code/github-actions",
+    re.IGNORECASE,
+)
+
 
 def sanitize_failure_detail(text: object, limit: int = 200) -> str:
     """Redact tokens and collapse whitespace so detail is envelope/log safe.
@@ -365,6 +396,11 @@ def classify_gh_failure_text(text: str) -> GhAuthStatus:
     Rate-limit wording wins over the transient signature because a quota
     refusal is often delivered as ``HTTP 403 ... API rate limit exceeded`` and
     the 403 alone would otherwise read as a permission denial.
+
+    A sandbox refusal is checked after the quota buckets and before the
+    transient signature: it is neither, and it must not reach the
+    ``INVALID_CREDENTIALS`` fallback, whose remedy tells the operator to
+    re-authenticate a token that is not the problem.
     """
     haystack = text or ""
     if _SECONDARY_RATE_LIMIT_SIGNATURE.search(haystack):
@@ -374,6 +410,8 @@ def classify_gh_failure_text(text: str) -> GhAuthStatus:
         if remaining is not None and int(remaining.group(1)) > 0:
             return GhAuthStatus.SECONDARY_RATE_LIMITED
         return GhAuthStatus.RATE_LIMITED
+    if _TRANSPORT_BLOCKED_SIGNATURE.search(haystack):
+        return GhAuthStatus.TRANSPORT_BLOCKED
     if _TRANSIENT_SIGNATURE.search(haystack):
         return GhAuthStatus.TRANSIENT_ERROR
     return GhAuthStatus.INVALID_CREDENTIALS
@@ -567,6 +605,18 @@ _MISSING_OR_INVALID_MESSAGE = (
     "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first."
 )
 
+# Named remedy for a session-wide refusal. Says what is actually wrong, what
+# will not fix it, and which transport still works, because the agent reading
+# this decides its next call from this string alone.
+_TRANSPORT_BLOCKED_MESSAGE = (
+    "This session's environment refuses GitHub for the gh CLI, so every gh "
+    "call fails with HTTP 403 regardless of the token. The credential is not "
+    "the fault: 'gh auth login' and retrying both cannot clear it. Use the "
+    "GitHub MCP tools (mcp__github__*) for this work, or run it where gh has "
+    "direct GitHub access, such as CI. If an org admin must connect the "
+    "Claude GitHub App for this organization, that is the environment fix."
+)
+
 
 def describe_gh_auth_failure(result: GhAuthResult) -> tuple[str, int, str]:
     """Message, ADR-035 exit code, and error type for a non-authenticated result.
@@ -585,12 +635,19 @@ def describe_gh_auth_failure(result: GhAuthResult) -> tuple[str, int, str]:
         ``(message, exit_code, error_type)``. Missing ``gh`` and confirmed
         invalid credentials map to exit 4 / ``AuthError``; quota refusals and
         transport failures map to exit 3 / ``ApiError`` (the envelope vocabulary
-        in ADR-056 has no rate-limit member).
+        in ADR-056 has no rate-limit member). A session-wide refusal maps to
+        exit 2 / ``ApiError``: it is an environment configuration fault, and
+        exit 3 would advertise it as worth retrying.
     """
     if result.status in _AUTH_FAILURE_STATUSES:
         return _MISSING_OR_INVALID_MESSAGE, 4, "AuthError"
 
     detail = f" ({result.detail})" if result.detail else ""
+    if result.status is GhAuthStatus.TRANSPORT_BLOCKED:
+        # Exit 2 (config), not 3 (external): 3 invites the caller's retry
+        # ladder, and no number of retries makes a refused session succeed.
+        return f"{_TRANSPORT_BLOCKED_MESSAGE}{detail}", 2, "ApiError"
+
     remedy = _RATE_LIMIT_REMEDY.get(result.status)
     if remedy is None:
         return (
@@ -609,8 +666,10 @@ def assert_gh_authenticated() -> None:
 
     Quota refusals and transient transport failures (5xx, timeouts) exit 3
     (external) and name the observed condition without leaking credentials;
-    missing ``gh`` and confirmed invalid credentials exit 4 (auth). See
-    :func:`check_gh_auth`, issue #3139, and issue #4344.
+    missing ``gh`` and confirmed invalid credentials exit 4 (auth); a session
+    whose environment refuses GitHub outright exits 2 (config) and names the
+    MCP transport that still works. See :func:`check_gh_auth`, issue #3139,
+    and issue #4344.
     """
     result = check_gh_auth()
     if result.status is GhAuthStatus.AUTHENTICATED:
