@@ -28,8 +28,7 @@ Load configuration from `.claude/commands/pr-review-config.yaml` for scripts (us
 ## Context
 
 - Current branch: !`git branch --show-current`
-- Repository: !`gh repo view --json nameWithOwner -q '.nameWithOwner'`
-- Authenticated as: !`gh api user -q '.login'`
+- Repository: !`git remote get-url origin`
 
 ## Arguments
 
@@ -41,6 +40,13 @@ Load configuration from `.claude/commands/pr-review-config.yaml` for scripts (us
 | `--dry-run` | Preview planned actions without executing | false |
 
 ## Workflow
+
+### Step 0: Transport Preflight (BLOCKING, runs once)
+
+Run `transport_preflight` from config before Step 1. `gh` can be installed,
+hold a token, and still be refused for the whole session, in which case every
+script below fails with HTTP 403 for a reason that has nothing to do with the
+PR. Branch on its verdict and never turn a transport failure into a PR verdict.
 
 ### Step 1: Parse and Validate PRs
 
