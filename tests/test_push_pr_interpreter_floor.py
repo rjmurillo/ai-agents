@@ -286,11 +286,18 @@ _ACCEPTED_EXPIRIES = (
 def _expires_pattern_source() -> str:
     """The regex literal `_EXPIRES_PATTERN` compiles, read from the source.
 
-    Read out of the AST rather than imported, because the script cannot be
-    imported under 3.10 at all: it pulls in `github_core.review_threads`,
-    whose `FetchStatus` subclasses `enum.StrEnum`, added in 3.11. Reading the
-    literal keeps this test measuring the shipped pattern rather than a copy
-    that can drift away from it.
+    Read out of the AST rather than imported. The original reason was that the
+    script could not be imported under 3.10 at all, because
+    `github_core.review_threads` subclassed `enum.StrEnum` (3.11); that is
+    fixed on this branch and the script now runs on the floor, which is why
+    `test_pr_merge_ready.py` moved into FLOOR_SCRIPTS above.
+
+    Extraction stays, for the reason that outlives the import fault: importing
+    binds a compiled `re.Pattern` object, and `.pattern` on it round-trips
+    through the regex engine rather than reporting the literal the file ships.
+    Reading the literal keeps this measuring the shipped pattern rather than a
+    copy that can drift away from it, and it keeps working if the closure
+    reacquires a floor-breaking import later.
     """
     tree = ast.parse((REPO_ROOT / _MERGE_READY).read_text(encoding="utf-8"))
     for node in ast.walk(tree):
