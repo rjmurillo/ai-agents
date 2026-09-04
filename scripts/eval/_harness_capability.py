@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -580,6 +581,15 @@ def write_report(path: Path, report: Mapping[str, object]) -> None:
             os.unlink(temporary)
         except FileNotFoundError:
             pass
+        except OSError as cleanup_error:
+            # Never let cleanup mask the write failure that triggered it. The
+            # caller needs the original cause to diagnose anything; a leftover
+            # temporary file is the lesser problem, so it is reported and the
+            # original exception is re-raised.
+            print(
+                f"warning: could not remove {temporary}: {cleanup_error}",
+                file=sys.stderr,
+            )
         raise
 
 

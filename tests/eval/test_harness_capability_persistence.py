@@ -89,3 +89,27 @@ def test_report_write_failure_before_replace_leaves_the_report_intact(
 
     assert output.read_text(encoding="utf-8") == '{"previous": true}\n'
     assert list(tmp_path.iterdir()) == [output]
+
+
+def test_cleanup_failure_does_not_mask_the_write_failure(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    output = tmp_path / "report.json"
+    output.write_text('{"previous": true}\n', encoding="utf-8")
+
+    def _fail_fsync(*_args: object, **_kwargs: object) -> None:
+        raise OSError("fsync failed")
+
+    def _fail_unlink(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError("unlink failed")
+
+    monkeypatch.setattr(capability.os, "fsync", _fail_fsync)
+    monkeypatch.setattr(capability.os, "unlink", _fail_unlink)
+
+    # The caller must see the cause, not the cleanup noise. PermissionError is
+    # an OSError, so matching on the message is what discriminates here.
+    with pytest.raises(OSError, match="fsync failed"):
+        capability.write_report(output, {"schema_version": 1})
+
+    assert "could not remove" in capsys.readouterr().err
+    assert output.read_text(encoding="utf-8") == '{"previous": true}\n'
