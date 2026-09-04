@@ -22,17 +22,21 @@ Exit codes: 0 ok, 1 logic, 2 config, 3 external.
 from __future__ import annotations
 
 import argparse
-import functools
 import json
 import os
 import subprocess
 import sys
-import tempfile
 import xml.etree.ElementTree as ET
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.testing.temp_roots import is_temp_path  # noqa: E402
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, keeps the CLI stdlib-only
     import pytest
@@ -43,42 +47,6 @@ SCHEMA_VERSION = 1
 # test that spawns 300 processes needs its count, not 300 copies of one basename.
 _MAX_LABELS = 8
 _MAX_GROUP_LABELS = 16
-
-# Every pytest tmp_path lands under one of these, per-test, so literal roots
-# would bury the repository roots that name the real scanner.
-#
-# `tempfile.gettempdir()` alone is not enough. This repository points pytest's
-# basetemp somewhere else on CI: `.github/workflows/pytest.yml` sets
-# `PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest`, which lives under
-# the runner work directory and not under /tmp. Reading only the system temp
-# dir made every CI tmp_path miss the prefix and enter the label set as a raw
-# absolute path, which is exactly the burying this collapse exists to prevent.
-# It passed locally, where the two agree, and failed on every CI partition.
-#
-# Computed on demand rather than at import so a runner, or a test, that sets the
-# variable after this module loads still gets the right answer. Cached because
-# `note_traversal` is on the hot path; tests that move the root call
-# `_temp_roots.cache_clear()`.
-_TMP_ROOT_ENV_VARS = ("PYTEST_NON_TMP_ROOT", "PYTEST_DEBUG_TEMPROOT", "TMPDIR")
-
-
-@functools.cache
-def _temp_roots() -> tuple[str, ...]:
-    """Every prefix a pytest tmp_path can legitimately sit under."""
-    candidates = [tempfile.gettempdir()]
-    for name in _TMP_ROOT_ENV_VARS:
-        value = os.environ.get(name, "").strip()
-        if value:
-            candidates.append(value)
-    resolved = {os.path.realpath(c) for c in candidates if c}
-    # Longest first so a nested root is credited before its parent.
-    return tuple(sorted(resolved, key=len, reverse=True))
-
-
-def _is_temp_path(label: str) -> bool:
-    """True when *label* sits under any known pytest temp root."""
-    resolved = os.path.realpath(label)
-    return any(resolved.startswith(root) for root in _temp_roots())
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +125,7 @@ class _Telemetry:
         if len(self.roots) >= _MAX_LABELS:
             return
         label = str(root)
-        if _is_temp_path(label):
+        if is_temp_path(label):
             self.roots.add("<tmp>")
         else:
             self.roots.add(f"{label}:{pattern}" if pattern else label)

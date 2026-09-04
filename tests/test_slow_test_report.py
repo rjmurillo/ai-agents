@@ -25,6 +25,7 @@ from pathlib import Path
 import pytest
 
 from scripts.testing import slow_test_report as report
+from scripts.testing import temp_roots as temp_roots_mod
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -453,11 +454,11 @@ class TestRelocatedTempRoot:
     @staticmethod
     def _relocate(monkeypatch: pytest.MonkeyPatch, basetemp: Path) -> None:
         """Make *basetemp* the pytest temp root and the system temp dir something else."""
-        monkeypatch.setattr(report.tempfile, "gettempdir", lambda: "/nowhere-system-temp")
+        monkeypatch.setattr(temp_roots_mod.tempfile, "gettempdir", lambda: "/nowhere-system-temp")
         monkeypatch.delenv("TMPDIR", raising=False)
         monkeypatch.delenv("PYTEST_DEBUG_TEMPROOT", raising=False)
         monkeypatch.setenv("PYTEST_NON_TMP_ROOT", str(basetemp))
-        report._temp_roots.cache_clear()
+        temp_roots_mod.temp_roots.cache_clear()
 
     def test_a_relocated_basetemp_still_collapses(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -474,7 +475,7 @@ class TestRelocatedTempRoot:
             assert counters.traversals == 5
             assert counters.roots == {"<tmp>", "/repo/.claude/skills:**/*.py"}
         finally:
-            report._temp_roots.cache_clear()
+            temp_roots_mod.temp_roots.cache_clear()
 
     def test_a_repository_path_is_not_collapsed(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -489,4 +490,4 @@ class TestRelocatedTempRoot:
 
             assert counters.roots == {"/repo/.claude/skills:**/*.py"}
         finally:
-            report._temp_roots.cache_clear()
+            temp_roots_mod.temp_roots.cache_clear()
