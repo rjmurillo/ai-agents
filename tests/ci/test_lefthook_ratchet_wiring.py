@@ -208,18 +208,26 @@ class TestEveryCountRatchetIsGatedLocally:
         )
 
 
-def spawned_scripts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+def spawned_scripts(monkeypatch: pytest.MonkeyPatch, *, skip: str | None = None) -> list[str]:
     """Every ratchet script one ``validate_count_ratchets`` run launches.
 
     Reads the argv the gate hands ``_run_subprocess`` rather than the registry
     it was built from. A declaration the gate never launches is the failure
     this helper exists to see, and a registry-derived expectation cannot see it.
     Duplicates are kept so a script launched twice is visible too.
+
+    ``skip`` drops one script from the recorded list while still returning an OK
+    result for it, which models a gate that declares an entry and never spawns
+    it. It leaves ``RATCHETS`` untouched on purpose: removing the entry from the
+    registry would move the declared set and the launched set together, and the
+    regression under test is the two disagreeing.
     """
     launched: list[str] = []
 
     def record(args: list[str], **_kwargs: object) -> tuple[int, str, str]:
-        launched.append(args[args.index("python") + 1])
+        script = args[args.index("python") + 1]
+        if script != skip:
+            launched.append(script)
         return 0, "", ""
 
     monkeypatch.setattr(
@@ -277,14 +285,19 @@ class TestEveryDeclaredRatchetIsLaunched:
     def test_a_skipped_entry_is_reported(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Negative control: a registry the gate only partly launches."""
+        """Negative control: the gate declares the entry and never launches it.
+
+        The entry stays in ``RATCHETS``. Only the spawn is suppressed, so the
+        declared set and the launched set disagree by exactly one script, which
+        is the shape ``test_every_baseline_owning_ratchet_is_launched`` exists
+        to catch.
+        """
         target = "scripts/ci/taste_count_ratchet.py"
-        monkeypatch.setattr(
-            checks_ratchet,
-            "RATCHETS",
-            tuple(r for r in checks_ratchet.RATCHETS if r.script != target),
+        assert target in [r.script for r in checks_ratchet.RATCHETS], (
+            f"{target} must stay declared for this control to model "
+            f"declared-but-never-launched"
         )
-        launched = set(spawned_scripts(monkeypatch))
+        launched = set(spawned_scripts(monkeypatch, skip=target))
 
         assert [s for s in ci_baseline_ratchet_scripts() if s not in launched] == [
             target
