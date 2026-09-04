@@ -10,6 +10,12 @@ events, any fail-safe verdict, and any partition with no affected test run the
 full partition unchanged, so coverage combine always receives non-empty data
 for every partition and the run is never less safe than today.
 
+The comparison reads two immutable SHAs from `PYTEST_SELECT_BASE` and
+`PYTEST_SELECT_HEAD`, which the workflow fills from the event payload. On
+`pull_request` both must be present or the run falls back to the full suite:
+Actions checks out a merge commit there, so diffing against the checkout's HEAD
+credits this pull request with base-branch changes (issue #5378).
+
 Exit codes follow the repository contract: 0 ok, 2 config, 3 external.
 """
 
@@ -31,6 +37,11 @@ except ModuleNotFoundError:  # pragma: no cover - exercised via direct file exec
     from scripts.test_selection import select_tests
 
 _PARALLEL = ["-n", "auto", "--dist", "loadfile"]
+
+# Only for events that carry no base SHA in their payload (workflow_dispatch, a
+# local invocation). Every event the selection actually narrows supplies an
+# immutable SHA, so this branch name is never the comparison authority there.
+_DEFAULT_BASE = "origin/main"
 
 # Full argument lists per partition, mirrored from the pytest.yml matrix. These
 # are the single source of truth now that the matrix no longer carries
@@ -142,25 +153,39 @@ def resolve_partition_args(
     event_name: str,
     base_ref: str,
     repo_root: Path,
+    head_ref: str = "",
 ) -> tuple[list[str], str]:
     """Return the pytest args for ``partition`` and a one-line reason.
 
     The full partition args are used unless a certain, non-empty subset applies.
+
+    ``base_ref`` and ``head_ref`` are the event's immutable SHAs when CI has
+    them. On `pull_request` both are required: the checkout's HEAD is the
+    synthetic merge commit, so an implicit HEAD would attribute base-branch
+    changes to this pull request (issue #5378). Missing either one there falls
+    back to the full suite rather than diffing the wrong pair of commits.
     """
     full = _PARTITION_FULL_ARGS[partition]
     if event_name == "merge_group":
         return full, "full: merge_group runs the whole suite"
-    changed = select_tests.changed_from_git(repo_root, base_ref)
+    if event_name == "pull_request" and not (base_ref and head_ref):
+        return full, "full: pull_request without explicit base and head SHAs"
+    base = base_ref or _DEFAULT_BASE
+    head = head_ref or "HEAD"
+    span = f"{base}...{head}"
+    changed = select_tests.changed_from_git(repo_root, base, head)
     if changed is None:
-        return full, f"full: could not diff against {base_ref}"
+        return full, f"full: could not diff {span}"
     selection = select_tests.select(changed, repo_root)
     if selection.full:
-        return full, f"full: {selection.reason}"
+        return full, f"full: {selection.reason} [{span}]"
     mine = _partition_subset(partition, selection.tests)
     if mine is None:
-        return full, "full: no affected test owned by this partition (or unpartitioned test)"
+        return full, (
+            f"full: no affected test owned by this partition (or unpartitioned test) [{span}]"
+        )
     flags = _PARALLEL if partition in _PARALLEL_PARTITIONS else []
-    return [*flags, *mine], f"subset: {len(mine)} affected test file(s)"
+    return [*flags, *mine], f"subset: {len(mine)} affected test file(s) [{span}]"
 
 
 def _emit_summary(partition: str, mode: str, reason: str) -> None:
@@ -177,9 +202,12 @@ def main(argv: list[str] | None = None) -> int:
     known, passthrough = parser.parse_known_args(argv)
 
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")
-    base_ref = os.environ.get("PYTEST_SELECT_BASE", "").strip() or "origin/main"
+    base_ref = os.environ.get("PYTEST_SELECT_BASE", "").strip()
+    head_ref = os.environ.get("PYTEST_SELECT_HEAD", "").strip()
 
-    args, reason = resolve_partition_args(known.partition, event_name, base_ref, _PROJECT_ROOT)
+    args, reason = resolve_partition_args(
+        known.partition, event_name, base_ref, _PROJECT_ROOT, head_ref
+    )
     mode = "subset" if reason.startswith("subset") else "full"
     _emit_summary(known.partition, mode, reason)
 

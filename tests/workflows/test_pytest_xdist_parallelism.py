@@ -227,6 +227,32 @@ class TestRunPytestStep:
         assert "github.event.pull_request.base.sha" in base
         assert "github.event.before" in base
 
+    def test_run_step_passes_selection_head(self) -> None:
+        """Issue #5378: without the pull request's own head SHA the diff would
+        run against the synthetic merge commit and credit this pull request
+        with base-branch changes."""
+        steps = _job_steps("test")
+        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
+        head = run_step.get("env", {}).get("PYTEST_SELECT_HEAD", "")
+        assert "github.event.pull_request.head.sha" in head
+        assert "github.sha" in head
+
+    def test_selection_refs_are_shas_not_branch_names(self) -> None:
+        steps = _job_steps("test")
+        run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]
+        env = run_step.get("env", {})
+        for name in ("PYTEST_SELECT_BASE", "PYTEST_SELECT_HEAD"):
+            value = env.get(name, "")
+            assert "base_ref" not in value, f"{name} must not use a mutable branch name"
+            assert "ref_name" not in value, f"{name} must not use a mutable branch name"
+
+    def test_checkout_depth_can_reach_both_selection_commits(self) -> None:
+        """A shallow checkout cannot hold base.sha and head.sha, so the diff
+        would fail and every run would fall back to the full suite."""
+        steps = _job_steps("test")
+        checkout = [s for s in steps if "actions/checkout" in s.get("uses", "")][0]
+        assert checkout.get("with", {}).get("fetch-depth") == 0
+
     def test_run_step_uses_matrix_coverage_file(self) -> None:
         steps = _job_steps("test")
         run_step = [s for s in steps if s.get("name") == _MAIN_STEP][0]

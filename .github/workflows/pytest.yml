@@ -492,12 +492,26 @@ jobs:
       # combine always receives non-empty data. The full-vs-subset decision and
       # the partition argument lists live in the Python runner, not here, per
       # ADR-006.
+      #
+      # Both selection refs are immutable SHAs from the event payload, never a
+      # branch name. The head one is why (issue #5378): on pull_request the
+      # checkout above is `refs/pull/N/merge`, a synthetic commit whose first
+      # parent is the current base-branch tip, so diffing `base.sha...HEAD`
+      # attributes every base-branch commit made since `base.sha` to this pull
+      # request. Observed on PR #5341, where an unrelated
+      # `.github/workflows/claude.yml` entered the changed set and forced the
+      # full suite. `head.sha` is the pull request's own tip and reproduces
+      # GitHub's base-to-head file list. The `fetch-depth: 0` checkout above is
+      # what makes both commits readable: it fetches every branch plus the
+      # merge ref, whose second parent is `head.sha`. If either commit is
+      # missing the git diff fails and the runner runs the full suite.
       - name: Run pytest
         id: run-pytest
         env:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
           COVERAGE_FILE: ${{ matrix.coverage_file }}
           PYTEST_SELECT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PYTEST_SELECT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: >-
           uv run --frozen python scripts/ci/run_pytest_selected.py
           --partition ${{ matrix.partition }}
