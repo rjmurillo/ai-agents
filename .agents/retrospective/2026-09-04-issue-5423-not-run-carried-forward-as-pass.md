@@ -8,8 +8,11 @@
 - **Outcome**: Success. The checkpoint was one line short of mergeable and the line is now on the branch.
 - **Failure Mode**: #4 False completion markers (`.agents/governance/FAILURE-MODES.md`). Two prior passes recorded the work as validated and ready; the gate that decides whether it can merge had never run in either.
 
-Scope: issue #5423, branch `feat/issue-5423-harness-capability-matrix`, feature commit
-`bbe3b835b`, fix commit added this session. Head of the #5422 dependency chain
+Scope: [issue #5423](https://github.com/rjmurillo/ai-agents/issues/5423), branch
+`feat/issue-5423-harness-capability-matrix`, feature commit `bbe3b835b` (2026-08-31),
+fix commit `7acb80328` (2026-09-04) added this session, shipped as
+[PR #5547](https://github.com/rjmurillo/ai-agents/pull/5547). Head of the
+[#5422](https://github.com/rjmurillo/ai-agents/issues/5422) dependency chain
 (#5424 -> #5425 -> #5426).
 
 ## Phase 0: Data Gathering
@@ -76,10 +79,10 @@ results felt like coverage. They were three answers to the same kind of question
 
 ### Ruling out the cheaper explanation first
 
-`.claude/rules/ci-scripts.md` item 14 says a tripped count ratchet is usually a stale base,
-not a regression, and that merging `origin/main` is the first diagnostic step rather than
-the last resort. That hypothesis was live here: the branch's last merge of `main` was at
-`843db24` and `main` had moved to `fd438940`.
+`.claude/rules/ci-scripts.md:46` (MUST item 14) says a tripped count ratchet is usually a
+stale base, not a regression, and that merging `origin/main` is the first diagnostic step
+rather than the last resort. That hypothesis was live here: the branch's last merge of
+`main` was at `843db243a` (2026-08-31) and `main` had moved to `fd438940e` (2026-09-03).
 
 Two checks settled it without the merge:
 
@@ -96,9 +99,9 @@ instead of by elimination.
 
 ### Choosing the fix
 
-`.claude/rules/ci-scripts.md` MUST NOT 4 forbids raising the baseline and names three
+`.claude/rules/ci-scripts.md:95` (MUST NOT 4) forbids raising the baseline and names three
 permitted responses: fix the violation, split the file, or take the documented
-`# taste-lint: ignore <rule>` escape with a reason.
+`# taste-lint: ignore <rule>` escape with a reason (issue #3779).
 
 The file is 517 lines, of which 228 are code, 217 are comments and docstrings, and 72 are
 blank. The overage is entirely documentation: the per-negative-control rationale issue
@@ -109,7 +112,7 @@ behind an import seam. That contract is the property the file exists to make che
 one place.
 
 So the escape was taken with that reasoning inline, which is the shape
-`.claude/rules/code-quality.md` asks for under "Suppressions Are a Last Resort": scoped to
+`.claude/rules/code-quality.md:224` asks for under "Suppressions Are a Last Resort": scoped to
 one rule in one file, with a short note saying what the check wants and why the idiomatic
 fix is worse here. The repository carries 188 such declarations, several under
 `scripts/eval/`, so this is the sanctioned path rather than an invention.
@@ -160,7 +163,7 @@ ERROR: git push requires retrospective evidence for this session
 2026-09-03. This branch does not, because it predates them. So the gate fires on a branch
 whose base is a few days old regardless of what the session did, and the two ways out are
 to merge `main` (blocked here, see above) or to write the retrospective. `SKIP_RETROSPECTIVE_GATE`
-exists and is forbidden: `.claude/rules/universal.md` MUST NOT 2 lists the bypass
+exists and is forbidden: `.claude/rules/universal.md:35` (MUST NOT 2) lists six bypass
 mechanisms and states that policy forbids all of them.
 
 Writing it was the correct exit anyway. This file is the artifact.
@@ -200,9 +203,12 @@ the measurement, when the measurement includes the comment.
 
 ## References
 
-- Issue #5423. The capability probe this branch implements.
-- Issue #5422. The parent experiment; #5424, #5425, #5426 follow.
-- `.claude/rules/ci-scripts.md`. Count-ratchet attribution (item 14) and the baseline prohibition (MUST NOT 4).
-- `.claude/rules/code-quality.md`. "Suppressions Are a Last Resort".
-- `.claude/rules/universal.md`. MUST NOT 2, the forbidden bypass mechanisms.
-- `.agents/governance/FAILURE-MODES.md`. Mode #4, false completion markers.
+- [Issue #5423](https://github.com/rjmurillo/ai-agents/issues/5423). The capability probe this branch implements.
+- [Issue #5422](https://github.com/rjmurillo/ai-agents/issues/5422). The parent experiment; #5424, #5425, #5426 follow.
+- [PR #5547](https://github.com/rjmurillo/ai-agents/pull/5547). Where this branch shipped, opened 2026-09-04.
+- Commit `bbe3b835b` (2026-08-31), `feat(eval): checkpoint harness capability matrix`. The checkpoint two prior passes read as ready.
+- Commit `7acb80328` (2026-09-04), `fix(eval): keep the capability matrix module under the taste ratchet`. The one line that was missing.
+- `.claude/rules/ci-scripts.md:46` and `:95`. Count-ratchet attribution (MUST 14) and the baseline prohibition (MUST NOT 4).
+- `.claude/rules/code-quality.md:224`. "Suppressions Are a Last Resort".
+- `.claude/rules/universal.md:35`. MUST NOT 2, the forbidden bypass mechanisms.
+- `.agents/governance/FAILURE-MODES.md:128`. Mode 4, false completion markers.
