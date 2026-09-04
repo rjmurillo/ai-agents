@@ -250,13 +250,70 @@ def non_evidence_paths(paths: list[str]) -> list[str]:
     ]
 
 
+def _qa_commit_on_first_parent_chain(
+    commit: str,
+    head: str,
+    *,
+    repo_root: Path,
+) -> bool:
+    """Report whether ``commit`` sits on ``head``'s first-parent chain.
+
+    Issue #5064. ``post_qa_code_changes`` may only narrow the walk to the first
+    parent when the QA commit is on that chain. Anything else, including an
+    unreadable history, returns False so the caller takes the conservative walk.
+    """
+    listing = subprocess.run(
+        ["git", "rev-list", "--first-parent", "--parents", f"{commit}..{head}"],
+        cwd=repo_root,
+        check=False,
+        stdout=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+    )
+    if listing.returncode != 0:
+        return False
+    lines = [line for line in listing.stdout.splitlines() if line.strip()]
+    if not lines:
+        # Nothing between the two commits: head is the QA commit itself.
+        return True
+    oldest = lines[-1].split()
+    # "<sha> <first parent> [<other parents>...]"; a root commit has no parent.
+    return len(oldest) >= 2 and oldest[1] == commit
+
+
 def post_qa_code_changes(
     commit: str,
     head: str,
     *,
     repo_root: Path,
 ) -> list[str]:
-    """Return non-evidence paths touched by any commit after QA."""
+    """Return non-evidence paths this branch authored after QA.
+
+    Issue #5064. The walk used to pass ``-m``, which asks git to diff a merge
+    commit against every parent separately. On a catch-up merge from the base
+    branch that emits every path the base moved since the last catch-up, so a
+    branch that authored nothing still failed as stale. Measured on this
+    repository at merge ``16fd4f6b1``: ``-m`` reported 32 paths for a merge
+    whose branch had authored 5 files and whose merge resolved nothing.
+
+    ``--first-parent`` keeps the walk on this branch's own history instead of
+    descending into the base branch's commits, and ``--cc`` reduces a merge to
+    the paths that differ from *every* parent. A path merged in cleanly matches
+    one parent and drops out; a path the author hand-resolved matches neither
+    and stays. That distinction is the point: a conflict resolution is authored
+    work and must still invalidate the binding.
+
+    ``--first-parent`` is only sound while the QA commit sits on the head's
+    first-parent chain. Ancestry alone does not guarantee that: a QA commit
+    reachable only through a second parent is skipped by the walk, which would
+    hide real post-QA work. Measured on a fixture where the QA branch was
+    merged in as the second parent, the first-parent walk reported 1 path and
+    missed an authored file the old walk caught. So the chain is checked, and
+    an off-chain QA commit falls back to the conservative all-parent walk,
+    which over-reports rather than under-reports.
+    """
     ancestor = subprocess.run(
         ["git", "merge-base", "--is-ancestor", commit, head],
         cwd=repo_root,
@@ -272,6 +329,12 @@ def post_qa_code_changes(
     if ancestor.returncode != 0:
         raise ValueError("Could not verify QA commit ancestry")
 
+    walk_flags = (
+        ["--first-parent", "--cc"]
+        if _qa_commit_on_first_parent_chain(commit, head, repo_root=repo_root)
+        else ["-m"]
+    )
+
     changes = subprocess.run(
         [
             "git",
@@ -279,7 +342,7 @@ def post_qa_code_changes(
             "--format=",
             "--name-only",
             "--no-renames",
-            "-m",
+            *walk_flags,
             "-z",
             f"{commit}..{head}",
         ],

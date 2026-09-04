@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
+
+import pytest
 
 from scripts.test_selection import path_policy, select_tests
 
@@ -222,6 +225,19 @@ def test_changed_from_git_returns_none_outside_repo(tmp_path: Path) -> None:
 
 
 def _git(root: Path, *args: str) -> str:
+    """Run one git command in ``root``, skipping the test when git is absent.
+
+    The guard lives here rather than on each test because this is the only
+    function in the module that shells out, and ``_pull_request_fixture`` is its
+    only caller. A per-test decorator has to be remembered by whoever adds the
+    next test on that fixture; this cannot be forgotten.
+
+    A missing binary raises ``FileNotFoundError`` from ``subprocess.run`` before
+    ``check=True`` is ever consulted, so the failure would not even look like a
+    git error.
+    """
+    if shutil.which("git") is None:
+        pytest.skip("git is not installed")
     result = subprocess.run(
         ["git", *args],
         cwd=root,

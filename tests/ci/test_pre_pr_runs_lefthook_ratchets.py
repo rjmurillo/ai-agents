@@ -74,6 +74,12 @@ _EXPECTED_RATCHETS = (
         True,
     ),
     (
+        "subprocess-encoding-count-ratchet",
+        "scripts/ci/subprocess_encoding_count_ratchet.py",
+        False,
+        True,
+    ),
+    (
         "memory-index-token-ratchet",
         "scripts/ci/memory_index_token_ratchet.py",
         False,
@@ -241,7 +247,7 @@ class TestValidatorBehaviour:
         assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
 
     def test_runs_every_declared_ratchet(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Positive: the gate invokes all four, not just the first."""
+        """Positive: the gate invokes every registered entry, not just the first."""
         seen: list[list[str]] = []
         monkeypatch.setattr(
             checks_ratchet, "_resolve_default_base_ref", lambda _root: "origin/main"
