@@ -94,7 +94,7 @@ def _run_mutants(repo_root: Path) -> int:
             '    Ratchet("taste-count-ratchet", '
             '"scripts/ci/taste_count_ratchet.py", False, True),\n',
             "",
-            f"{TEST}::TestAggregateLefthookDelegation::test_registry_contains_all_eight_ratchets",
+            f"{TEST}::TestAggregateLefthookDelegation::test_registry_contains_every_registered_ratchet",
         ),
         (
             "M4 drop --extra dev from the command builder",
