@@ -138,9 +138,9 @@ class TestTheJobCatchesWhatItIsFor:
     ) -> None:
         repo, _ = _repo_with(tmp_path, {"docs/guide.md": f"one{EM_DASH}two\n"})
         assert _run_job(repo) == 1
-        # citation-freshness: ignore -- docs/guide.md is a fixture this test writes
-        # under tmp_path, not a tracked file, so there is no HEAD line to check.
-        assert "docs/guide.md:1" in capsys.readouterr().out
+        # docs/guide.md is written under tmp_path by this test, not tracked.
+        out = capsys.readouterr().out
+        assert "docs/guide.md:1" in out  # citation-freshness: ignore -- fixture path
 
     def test_an_en_dash_fails_too(self, tmp_path: Path, pinned_base: None) -> None:
         repo, _ = _repo_with(tmp_path, {"docs/guide.md": f"pages 1{EN_DASH}9\n"})
