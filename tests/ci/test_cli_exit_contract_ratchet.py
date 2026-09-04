@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.ci import cli_exit_contract_coverage as coverage
 from scripts.ci import cli_exit_contract_ratchet as ratchet
 from scripts.validation import checks_ratchet
 
@@ -512,3 +513,65 @@ def test_ci_invocation_passes_base_ref() -> None:
             f"must pass --base-ref so a raised baseline is caught. Got: {run!r}. "
             "See issue #4528."
         )
+
+
+def test_a_file_naming_no_tracked_stem_is_never_parsed(monkeypatch):
+    """The issue #4876 cut: no stem in the text means no credit is reachable.
+
+    Negative control for the bail. Reverting it makes `ast.parse` run on the
+    stem-free source and this test fails on the empty-call assertion, which is
+    the only way a pure optimization can be held: its output is unchanged by
+    construction, so the work it skips is what has to be asserted.
+
+    The corpus this ratchet counts is 1092 tracked test files and 207 of them
+    name a tracked script, so the skipped parse is most of the gate.
+    """
+    parsed: list[str] = []
+    real_parse = coverage.ast.parse
+
+    def counting_parse(source, *args, **kwargs):
+        parsed.append(source)
+        return real_parse(source, *args, **kwargs)
+
+    monkeypatch.setattr(coverage.ast, "parse", counting_parse)
+
+    stem_free = "def test_x():\n    assert unrelated.main([]) == 1\n"
+    assert coverage.covered_stems(stem_free, frozenset({"widget"})) == set()
+    assert parsed == []
+
+    proving = (
+        "from scripts.ci import widget\n"
+        "\n\n"
+        "def test_x():\n"
+        "    assert widget.main([]) == 1\n"
+    )
+    assert coverage.covered_stems(proving, frozenset({"widget"})) == {"widget"}
+    assert parsed, "a file that names a tracked stem must still be parsed"
+
+
+def test_the_bail_reads_the_stem_as_a_substring_not_as_an_identifier():
+    """Edge, and the reason the probe is not `_referenced_stems`.
+
+    `_UNQUALIFIED_NAME` drops a name preceded by a dot, so an identifier-level
+    probe would bail on this file. `_SCRIPT_FILE_NAME` credits it, so bailing
+    would silently uncount a covered script and let the ratchet's count rise.
+    """
+    source = (
+        "def test_x():\n"
+        '    result = subprocess.run([sys.executable, "pkg/a.b.widget.py"])\n'
+        "    assert result.returncode == 2\n"
+    )
+
+    assert ratchet.covered_stems(source, frozenset({"widget"})) == {"widget"}
+
+
+def test_an_empty_stem_set_credits_nothing():
+    """Edge: an empty alternation matches every file, so it is short-circuited."""
+    source = (
+        "from scripts.ci import widget\n"
+        "\n\n"
+        "def test_x():\n"
+        "    assert widget.main([]) == 1\n"
+    )
+
+    assert ratchet.covered_stems(source, frozenset()) == set()
