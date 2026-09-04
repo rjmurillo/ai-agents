@@ -143,9 +143,11 @@ class _Gate:
     three gates that need more than a repo root do not need a second mechanism.
 
     ``skip_when_quick`` maps to ``run_validation(..., skip=...)``, which records a
-    SKIP result. ``skip_flag`` is different: it names an ``args`` attribute that,
-    when truthy, bypasses ``run_validation`` entirely and only bumps the totals.
-    Only ``--skip-tests`` behaves that way, and it predates the SKIP record.
+    SKIP result. That is the only per-gate skip mechanism. A second one,
+    ``skip_flag``, named an ``args`` attribute that bypassed ``run_validation``
+    entirely; it existed for ``--skip-tests``, which was removed with the Pester
+    stage, and no gate in ``_SEQUENCE`` ever set it. Both are gone. A new gate
+    that must be skippable uses ``skip_when_quick`` so the skip is recorded.
 
     ``already_run_by`` names an unconditional pre-push fast-stage job that runs
     the same whole-tree check. The piped hook cannot start pre-pr-validation
@@ -156,8 +158,6 @@ class _Gate:
     name: str
     run: Callable[[Path, argparse.Namespace], bool]
     skip_when_quick: bool = False
-    skip_flag: str | None = None
-    skip_note: str = ""
     already_run_by: str = ""
     notes: str = field(default="", repr=False)
 
@@ -463,18 +463,12 @@ def run_all_validations(
 
     ``run_validation`` and ``state`` are owned by ``pre_pr.main()`` and injected
     to avoid importing ``pre_pr`` (which runs as ``__main__``). ``args`` supplies
-    the CLI flags (``quick``, ``skip_tests``, ``verbose``) the sequence reads.
+    the only CLI flag the sequence reads, ``quick``.
 
     The order is ``_SEQUENCE``. Read that table, not this loop.
     """
     fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == "1"
     for gate in _SEQUENCE:
-        if gate.skip_flag is not None and getattr(args, gate.skip_flag, False):
-            print(f"[SKIP] {gate.name} ({gate.skip_note})")
-            state.total += 1
-            state.skipped += 1
-            continue
-
         if fast_stage_ran and gate.already_run_by:
             print(
                 f"[SKIP] {gate.name} (already passed as the unconditional "
