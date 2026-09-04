@@ -1217,7 +1217,7 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     )
 
     assert config["lefthook"] == "uv run --frozen lefthook"
-    assert version.stdout.splitlines()[0] == "2.1.11"
+    assert version.stdout.splitlines()[0] == "2.1.12"
     assert validated.returncode == 0
     assert "All good" in validated.stdout
 
