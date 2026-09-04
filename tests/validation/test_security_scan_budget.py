@@ -177,6 +177,90 @@ def test_a_workstation_keeps_the_semgrep_budget(
     assert budget <= policy.SEMGREP_TIMEOUT_SECONDS + 1
 
 
+def _real_detector(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Run `_container_clamped` against the real detector, with a known filesystem.
+
+    The other tests here inject a clamp, which proves the arithmetic and says
+    nothing about what decides it. The two below run the production predicate,
+    so they read the answer a push actually gets.
+
+    `_container_clamped` imports `run_workflow_local_test` by bare name, which
+    resolves only when something has put `scripts/validation` on sys.path.
+    Pinning the module in sys.modules makes that deterministic: without it a
+    lone run of this file takes the ImportError branch, goes unclamped, and
+    passes the workstation assertion for the wrong reason.
+    """
+    from scripts.validation import run_workflow_local_test as detector
+
+    monkeypatch.setitem(sys.modules, "run_workflow_local_test", detector)
+    monkeypatch.setattr(detector, "_CONTAINER_MARKER_FILES", (str(tmp_path / "absent"),))
+    monkeypatch.setattr(detector, "_CONTAINER_CGROUP_FILE", str(tmp_path / "absent"))
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.delenv("CODESPACES", raising=False)
+    # Every env the predicate reads, so the host cannot decide these budgets.
+    # An image that declares itself would otherwise clamp the workstation test
+    # and the assertion would report a defect that is not there.
+    monkeypatch.delenv("AI_AGENTS_REMOTE_CONTAINER", raising=False)
+
+
+def test_a_claude_code_session_keeps_the_full_semgrep_budget(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Issue #5479, asserted on the budget rather than on a stopwatch.
+
+    The Claude Code CLI sets `CLAUDECODE` on an ordinary workstation. While that
+    counted as a container the job ran on 150s instead of 840s, so a branch
+    whose scan set costs more than 150s could not be pushed from a Claude Code
+    session and pushed fine from a plain terminal on the same machine. Revert
+    the detector change and this test fails.
+    """
+    _real_detector(monkeypatch, tmp_path)
+    monkeypatch.setenv("CLAUDECODE", "1")
+    _arrange(monkeypatch, ["head1"], clamp=policy._container_clamped)
+    seen = _record_deadlines(monkeypatch)
+
+    started = time.monotonic()
+    assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0
+    budget = seen[0] - started
+
+    # A window, not `> _CONTAINER_CEILING`. The deadline is set a few
+    # microseconds after `started`, so a clamped budget measures 150.00001s and
+    # a strict `>` comparison against 150 passes on the clamped value. That
+    # weaker assertion survived the revert this test exists to catch.
+    assert policy.SEMGREP_TIMEOUT_SECONDS - 1 <= budget <= policy.SEMGREP_TIMEOUT_SECONDS + 1, (
+        f"the scan loop got {budget:.0f}s, not the "
+        f"{policy.SEMGREP_TIMEOUT_SECONDS}s workstation budget. CLAUDECODE is "
+        "being read as a container again and this push is capped at 18 percent "
+        "of what it is allowed."
+    )
+
+
+def test_a_real_container_still_clamps_the_semgrep_budget(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Control for the test above: the clamp still binds where it should.
+
+    If these two ever agree the detector answers the same everywhere and
+    neither test is about a container. `CODESPACES` is the env half of the
+    predicate; the filesystem half has its own tests in
+    `tests/validation/test_run_workflow_local_test.py`.
+    """
+    _real_detector(monkeypatch, tmp_path)
+    monkeypatch.setenv("CODESPACES", "true")
+    _arrange(monkeypatch, ["head1"], clamp=policy._container_clamped)
+    seen = _record_deadlines(monkeypatch)
+
+    started = time.monotonic()
+    assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0
+    budget = seen[0] - started
+
+    assert _CONTAINER_CEILING - 1 <= budget <= _CONTAINER_CEILING + 1, (
+        f"the scan loop got {budget:.0f}s inside a container rather than the "
+        f"{_CONTAINER_CEILING:.0f}s ceiling, so the job can outlive a reclaim."
+    )
+
+
 def test_a_later_ref_is_refused_once_the_budget_is_gone(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
