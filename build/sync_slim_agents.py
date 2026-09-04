@@ -40,13 +40,19 @@ Exit codes follow ADR-035:
         the checkout, or opens a `---` block it never closes; or `--write` was
         invoked from outside the checkout that holds this script
     3 - external failure: a read or write raised OSError or UnicodeDecodeError
+
+A destination is published with a temp file plus `os.replace`, so a failed
+write leaves the previous content in place rather than an empty or partial
+agent.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import sys
+import tempfile
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path, PurePath
@@ -196,11 +202,34 @@ def _read(path: Path) -> str:
 
 
 def _write(path: Path, text: str) -> None:
-    descriptor = os.open(
-        _within_repo(path), os.O_WRONLY | os.O_TRUNC | _O_NOFOLLOW | _O_BINARY
+    """Publish `text` at `path` atomically, following generate_adr_index.py.
+
+    Truncating the destination and then writing into it leaves an empty or
+    half-written agent behind if the write fails partway. A temp file in the
+    same directory plus `os.replace` makes the destination change in one step
+    or not at all. `os.replace` also does not follow a symlink at the
+    destination: it swaps the directory entry, so it needs no `O_NOFOLLOW`
+    counterpart the way `_read` does.
+    """
+    target = _within_repo(path)
+    # The preflight proved this is an existing regular file, so its mode is
+    # worth preserving: mkstemp creates at 0600 and os.replace publishes that
+    # verbatim, which would silently narrow a world-readable agent.
+    mode = target.stat().st_mode & 0o777
+    descriptor, temporary = tempfile.mkstemp(
+        dir=target.parent, prefix=f".{target.name}.", suffix=".tmp"
     )
-    with open(descriptor, "w", encoding="utf-8") as handle:
-        handle.write(text)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(text)
+            # Widened only after the write, so the file spends its writable
+            # life at mkstemp's own restrictive default.
+            os.chmod(temporary, mode)
+        os.replace(temporary, target)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(temporary)
+        raise
 
 
 def declared_paths(agents: Iterable[str]) -> Iterator[Path]:
@@ -399,6 +428,16 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return _run(args)
+    except UnsafePathError as exc:
+        # The preflight cleared every declared path, but a check and a later
+        # access are separate operations: an entry can become a symlink in
+        # between. That is a configuration failure, not drift, and exit 1
+        # would read as drift.
+        print(
+            f"sync-slim-agents: path became unsafe after the preflight: {exc}",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
     except (OSError, UnicodeDecodeError) as exc:
         # AGENTS.md reserves 3 for an external failure. Letting these escape
         # would exit 1, which this script's own contract reads as "drift

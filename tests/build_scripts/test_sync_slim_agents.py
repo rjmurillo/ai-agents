@@ -314,6 +314,59 @@ def test_symlinked_source_outside_the_root_is_a_config_error(tree: Path,
     assert template.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + SOURCE_BODY
 
 
+def test_path_that_becomes_unsafe_after_the_preflight_is_a_config_error(
+    tree: Path, monkeypatch, capsys
+) -> None:
+    """The preflight and the access are separate operations.
+
+    Simulated by clearing the preflight's own answer, which is what a mirror
+    swapped for a symlink between the two would look like from `_run`.
+    Without the boundary this escapes as a traceback and status 1, which the
+    contract reserves for drift.
+    """
+    external = tree.parent / f"{tree.name}-late-swap.md"
+    external.write_text(TEMPLATE_FRONTMATTER + STALE_BODY, encoding="utf-8")
+    template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
+    template.unlink()
+    _symlink_or_skip(template, external)
+    monkeypatch.setattr(sync_slim_agents, "find_unsafe_paths", lambda agents: [])
+
+    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_CONFIG
+
+    assert "after the preflight" in capsys.readouterr().err
+    assert external.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + STALE_BODY
+
+
+def test_write_preserves_the_destination_mode(tree: Path) -> None:
+    """os.replace publishes the temp file's mode, so it must be restored."""
+    target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
+    _write(target, TEMPLATE_FRONTMATTER + STALE_BODY)
+    target.chmod(0o644)
+
+    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
+
+    assert target.stat().st_mode & 0o777 == 0o644
+    assert target.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + SOURCE_BODY
+
+
+def test_failed_write_leaves_the_destination_intact(tree: Path,
+                                                    monkeypatch) -> None:
+    """A partial write must not publish. os.replace is the all-or-nothing step."""
+    target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
+    _write(target, TEMPLATE_FRONTMATTER + STALE_BODY)
+
+    def _explode(source, destination):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(sync_slim_agents.os, "replace", _explode)
+
+    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_EXTERNAL
+
+    assert target.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + STALE_BODY
+    leftovers = list(target.parent.glob(f".{target.name}.*"))
+    assert leftovers == []
+
+
 def test_undecodable_file_is_an_external_failure(tree: Path, capsys) -> None:
     """AGENTS.md reserves 3 for external failures. Exit 1 would read as drift.
 
