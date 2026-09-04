@@ -1,4 +1,5 @@
 .claude/rules/**
+.claude/skills/merge-resolver/**
 .github/instructions/**
 src/copilot-cli/instructions/**
 conftest.py
