@@ -16,18 +16,17 @@ working tree.
 1. `delete:` 26 skillforge slide-deck PNGs, 25.8 MB, carried in both plugin
    trees. Nothing. [`.claude/skills/skillforge/assets/images/`,
    `src/copilot-cli/skills/skillforge/assets/images/`]
-2. `delete:` 121 colocated skill test files, 29,539 lines, that no runner
-   collects. Move the few that assert something to `tests/skills/<name>/`.
+2. `delete:` 121 colocated skill test files that ship inside the customer
+   plugin payload. Migrate the 14,883 authored lines to `tests/skills/<name>/`,
+   which deletes the 14,656-line generated mirror.
    [`.claude/skills/*/tests/`, `src/copilot-cli/skills/*/tests/`]
 3. `delete:` 9.2 MB claude-mem export blob with no code reader. Nothing.
    [`.claude-mem/memories/direct-backup-2026-01-03-1434-ai-agents.json`]
 4. `yagni:` 33 `scripts/` modules, 11,405 lines, reachable only from their own
    tests. Delete the module and its test together. [`scripts/`, see Evidence 4]
-5. `yagni:` session-log validator and its test, 6,952 lines, plus
-   `measure_context_retrieval_metrics.py`, for an artifact type whose creation
-   is discontinued. Keep a minimal validate-if-present path, drop the rest.
-   [`scripts/validate_session_json.py`, `tests/test_validate_session_json.py`,
-   `scripts/measure_context_retrieval_metrics.py`]
+5. `yagni:` 291-line metrics reader over `.agents/sessions/`, an artifact type
+   whose creation is discontinued, imported only by its own test. Nothing.
+   [`scripts/measure_context_retrieval_metrics.py`]
 6. `yagni:` workflow engine with an ABC and three coordination strategies and
    zero production callers, 2,392 lines with its tests. Nothing.
    [`scripts/workflow/`]
@@ -74,7 +73,8 @@ working tree.
     fixture with the same shape.
     [`2026-01-19-full-backup.json` at `tests/test_import_forgetful_memories.py:232`]
 
-net: -56,500 lines, -35 MB, -0 deps possible.
+net: -34,700 lines, -35 MB, -0 deps possible, plus 14,883 lines relocated
+from the plugin roots to `tests/skills/`.
 
 Zero deps: every entry in `pyproject.toml` (`anthropic`, `jsonschema`,
 `markdown-it-py`, `python-frontmatter`, `PyYAML`, `tiktoken`) and every dev
@@ -87,15 +87,18 @@ extra (`mypy`, `semgrep`, `bandit`, `pip-audit`, `ruff`, `pytest*`, `lefthook`,
    packager already excludes them from every install. Repo-wide search for each
    of the 13 basenames across `*.md`, `*.py`, `*.json`, `*.yml` returns zero
    hits, so no document embeds them either.
-2. Every pytest invocation in the repository targets `tests/`:
-   `scripts/ci/run_pytest_selected.py` partitions (`bulk`, `bulk-nested`,
-   `mutation`, `safe-push`, `pr-autofix`), the four direct `pytest` lines in
-   `.github/workflows/*.yml`, the plugin-manifest action, and the pre-push path
-   (`git_hook_policy.py:7211`, `repo_root / "tests"`). `pyproject.toml:68` sets
-   `testpaths = ["tests"]`. `scripts/validation/check_colocated_skill_tests.py`
-   already calls these files a defect ("Colocated tests are copied into customer
-   plugin installs and executed in consumer CI environments where they should
-   never run") and blocks new ones, grandfathering the existing 121.
+2. These tests DO run, contrary to what a search of workflows and `lefthook.yml`
+   suggests. `tests/test_skill_bundle_suites_run.py` sits under `tests/`, so the
+   CI bulk partition collects it, and it runs each skill tree in its own pytest
+   subprocess with a converse guard against an unlisted suite. Issue #3593 raised
+   the collection gap and commit `23054169f` closed it that way. The defect is
+   therefore not that they are dead. It is that they ship: `check_colocated_skill_tests.py`
+   states "Colocated tests are copied into customer plugin installs and executed
+   in consumer CI environments where they should never run", and issue #4838
+   (PR #5035) shipped that ratchet with the explicit carve-out "Allow existing
+   legacy colocated suites until migrated". Nobody migrated them. Counts:
+   `git ls-files '.claude/skills/*/tests/*.py' | xargs wc -l` gives 14,883 and the
+   `src/copilot-cli` mirror gives 14,656, over 121 files.
 3. Search for `direct-backup-2026-01-03` outside `.agents/` and the file itself
    returns only a directory listing in `.claude-mem/memories/README.md`. The
    one analysis that mined it (`.agents/analysis/906-skill-learning-heuristic-enhancement.md`)
@@ -116,12 +119,14 @@ extra (`mypy`, `semgrep`, `bandit`, `pip-audit`, `ruff`, `pytest*`, `lefthook`,
    it to CI") and is excluded from the count.
 5. `.claude/rules/session-logs.md:9`: "Session log creation is discontinued: do
    not create a new `.agents/sessions/*.json` file." The 1,538 existing logs are
-   frozen history. `scripts/validate_session_json.py` (1,694 lines) has no
-   caller outside its own 5,258-line test;
-   `git_hook_policy.py session` is a validate-if-present pre-commit gate that
-   fires only when such a file is staged, which the rule tells contributors never
-   to do. `scripts/measure_context_retrieval_metrics.py` parses the same frozen
-   corpus and is imported only by `tests/test_context_retrieval_decision.py`.
+   frozen history. `scripts/measure_context_retrieval_metrics.py` parses that
+   frozen corpus and is imported only by `tests/test_context_retrieval_decision.py`.
+   `scripts/validate_session_json.py` and its 5,258-line test are NOT part of this
+   cut: `new_pr_validations.py:192-206` sets `validate_script` to that path
+   (`.claude/skills/github/scripts/pr/`) and runs it under `subprocess.run` as
+   the "Session End" PR validation, and
+   `git_hook_policy.py session` is a validate-if-present pre-commit gate. Both fire
+   whenever a legacy log is staged or cherry-picked, so the validator stays.
 6. `scripts/workflow/coordinator.py:29` defines `CoordinationStrategy(ABC)` with
    `CentralizedStrategy`, `HierarchicalStrategy`, and `MeshStrategy`. Searching
    for `WorkflowExecutor`, `get_strategy`, and each strategy name outside
@@ -190,6 +195,25 @@ the `keep_internal` switch documented at `build/scripts/generate_rules.py:306-31
 strips upstream-only path globs from the distributed copy, because a consumer
 does not have the internal directories. Cutting to one tree would be a packaging
 rewrite, which is ocean, not lake.
+
+## Method note: indirect runners
+
+Two findings in an earlier draft of this report were wrong the same way, and the
+error is worth naming because it is cheap to repeat. Grepping `.github/workflows/`
+and `lefthook.yml` for an invocation is NOT sufficient to prove nothing runs a
+thing. A caller can sit inside an ordinary Python file that CI collects for other
+reasons:
+
+- `tests/test_skill_bundle_suites_run.py` runs the colocated skill suites in a
+  pytest subprocess. Finding 2 originally claimed no runner collects them.
+- `.claude/skills/github/scripts/pr/new_pr_validations.py` runs
+  `scripts/validate_session_json.py` under `subprocess.run`. Finding 5 originally
+  claimed the validator had no caller outside its own test.
+
+Before asserting that nothing invokes a path, grep the whole repository for the
+path string itself, not only for import statements, and read every hit. Both
+misses were caught by searching the issue tracker (#3593, #4838) rather than the
+tree, which is a second source worth checking on any "nothing uses this" claim.
 
 Also not flagged: `scripts/memory/memory_health.py` is documented as a runnable
 command in `.serena/memories/README.md:112` and
