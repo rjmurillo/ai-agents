@@ -66,15 +66,30 @@ impossible.
 
 ## What the reviewers actually see
 
-Not the PR body. `scripts/ci/spec_prepare_context.py:177` builds the
-`additional-context` payload as `["## Specification Content", "", spec_content]`,
-sourced from `SPEC_FILE` alone. Steps 6 and 7 pass that payload with
-`context-type: pr-diff`.
+The spec, plus two optional blocks. `scripts/ci/spec_prepare_context.py:177`
+builds the `additional-context` payload in three pieces:
 
-So the comparison is **diff against the issue and spec acceptance criteria**. The
-PR description is not in the reviewers' context at all. `PR_BODY` is referenced in
-exactly one place in this workflow: step 8, `External-signal gate (observe)`, which
-is `continue-on-error: true` and decides nothing.
+```python
+context_parts = ["## Specification Content", "", spec_content]
+context_parts += _incremental_scope_block(incremental_scope)
+context_parts += _nonexecutable_criteria_block(pr_body)
+```
+
+Steps 6 and 7 pass that payload with `context-type: pr-diff`.
+
+So the comparison is **diff against the issue and spec acceptance criteria**, and
+the body reaches the reviewers only through that last block. `PR_BODY` is
+referenced in two places in this workflow, not one. Line 195 is step 8,
+`External-signal gate (observe)`, which is `continue-on-error: true` and decides
+nothing. Line 148 is step 5, `Prepare Spec Context`, which is not
+`continue-on-error` and feeds the payload both blocking reviewers read; the
+workflow comment above it says the body "carries the acceptance-criteria list the
+reviewer is graded against" (issue #5366).
+
+What stays true is the part that matters for a failing gate: prose in the body
+does not satisfy a criterion. Only `_nonexecutable_criteria_block` crosses over,
+and it carries criteria the diff cannot demonstrate, not an argument that the diff
+is fine. A persuasive description still cannot talk this gate into passing.
 
 Description-versus-diff is a different gate entirely:
 `scripts/validation/pr_description.py`, inside `pr-validation.yml`. The two are
