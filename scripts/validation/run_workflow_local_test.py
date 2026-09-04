@@ -288,11 +288,11 @@ def _tool_gap_is_environmental() -> bool:
     """True where a missing local tool is the environment, not a code defect.
 
     Deliberately wider than :func:`_is_remote_container`. This one only decides
-    whether a missing ``gh act``, ``actionlint`` or Docker daemon degrades to a
-    warning instead of blocking the push (Issue #2548, item 3), and firing too
-    widely costs a warning. The container predicate cuts subprocess budgets, and
-    firing too widely there costs a push that cannot complete at all, so the two
-    questions get two answers.
+    whether a missing ``gh``, ``gh act``, ``actionlint`` or Docker daemon
+    degrades to a warning instead of blocking the push (Issue #2548, item 3),
+    and firing too widely costs a warning. The container predicate cuts
+    subprocess budgets, and firing too widely there costs a push that cannot
+    complete at all, so the two questions get two answers.
     """
     if _env_truthy(_CI_ENV):
         return False
