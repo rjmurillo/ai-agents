@@ -408,6 +408,7 @@ class TestPluginEndToEnd:
             cwd=REPO_ROOT,
             capture_output=True,
             encoding="utf-8",
+            errors="replace",
             check=False,
             timeout=180,
         )
