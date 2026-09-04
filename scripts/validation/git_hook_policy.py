@@ -8044,6 +8044,24 @@ def _handle_staged_dashes(args: argparse.Namespace) -> int:
     return check_staged_dashes(args.paths, _repo_root(args))
 
 
+def _handle_branch_dashes(args: argparse.Namespace) -> int:
+    """Branch-wide em/en-dash scan as a standalone pre-push job (issue #5086).
+
+    Delegates to the one authoritative implementation,
+    ``checks_dash.validate_dash_prohibition``, which owns the detection regex
+    and the vendored/fixture carve-out. This handler adds only the exit-code
+    translation, so the fast-stage job and ``pre_pr.py`` cannot disagree about
+    what a violation is.
+
+    Imported inside the handler rather than at module scope: every other
+    subcommand of this module pays for a top-level import, and none of them
+    needs the branch scan.
+    """
+    from checks_dash import validate_dash_prohibition
+
+    return 0 if validate_dash_prohibition(_repo_root(args)) else 1
+
+
 def _handle_staged_action_pins(args: argparse.Namespace) -> int:
     return check_staged_action_pins(args.paths, _repo_root(args))
 
@@ -8437,6 +8455,7 @@ def build_parser() -> argparse.ArgumentParser:
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),
         ("atomic-commit", _handle_atomic_commit),
+        ("branch-dashes", _handle_branch_dashes),
     )
     for name, handler in path_commands:
         _add_path_command(subparsers, name, handler)

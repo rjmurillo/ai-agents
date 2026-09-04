@@ -550,6 +550,34 @@ pre-push:
             timeout: 90s
             run: uv run --frozen python build/scripts/generate_pr_quality_prompts.py --dry-run
 
+          # Issue #5086: the branch-wide dash scan used to run only inside
+          # pre-pr-validation, in the expensive stage, so a one-character
+          # violation of universal.md MUST NOT 4 was reported after every
+          # fast gate and most of the expensive ones had already run. Same
+          # implementation as before (checks_dash.validate_dash_prohibition,
+          # reached through git_hook_policy so this process bounds itself in a
+          # container); pre_pr.py defers its Em/en-dash gate to this job.
+          # No glob, on purpose: issue #5317 established that a deferral
+          # target must run on every push, because a glob-skipped lefthook job
+          # is indistinguishable from a passed one.
+          # Measured on this checkout: 1.1s on a branch with no changed
+          # markdown, and 4.94s for the widest scan available here (0.45s to
+          # list plus 4.49s to read 1187 markdown files across a 400-commit
+          # range, an order of magnitude more than a branch carries). Both are
+          # standalone numbers, not in-push ones, so the cap is not sized from
+          # them: ci-scripts.md MUST-16 wants a loaded-machine measurement and
+          # this job has none yet. 2m is the smallest cap that clears the
+          # per-child headroom rule in tests/test_lefthook_integration.py,
+          # which credits every git_hook_policy subcommand with
+          # DEFAULT_SUBPROCESS_TIMEOUT_SECONDS (90s) and wants 30s of outer
+          # margin over it. Funding: none needed. This group is parallel, so
+          # its declared worst case is the group maximum, which
+          # branch-context-policy already holds at 2m; the pre-push declared
+          # total is 3450s before and after.
+          - name: dash-prohibition
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py branch-dashes
+
     # Expensive stdin consumer (issue #5066). Serial on purpose: MUST-21
     # forbids `use_stdin: true` under `parallel: true`, and the piped top
     # level delivers the same full payload here as a piped group would
@@ -572,7 +600,7 @@ pre-push:
             run: uv run --frozen python scripts/validation/pre_pr.py
             env:
               SKIP_AUTOFIX: "1"
-              # The four deferral targets are unconditional fast-stage jobs.
+              # The five deferral targets are unconditional fast-stage jobs.
               # Because the hook is piped, this job starts only after they pass.
               # Direct pre_pr.py and CI calls leave this unset and run all gates.
               AI_AGENTS_PRE_PR_FAST_STAGE_RAN: "1"
