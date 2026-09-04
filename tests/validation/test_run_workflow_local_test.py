@@ -117,6 +117,187 @@ def test_select_workflow_files_keeps_only_workflows(tmp_path):
     ]
 
 
+# --- container detection (Issue #5479) -----------------------------------
+#
+# `_is_remote_container` decides whether `git_hook_policy` clamps every child
+# process to 150s. It used to answer from `CLAUDECODE`, which the Claude Code
+# CLI sets on an ordinary workstation, so a branch whose semgrep scan needs more
+# than 150s could not be pushed from a Claude Code session while the same push
+# succeeded from a plain terminal on the same machine. These tests pin the
+# predicate to observable container evidence instead.
+#
+# The probe reads real files under tmp_path rather than a patched `Path`, so the
+# branch under test is the one production takes.
+
+
+def _filesystem(monkeypatch, tmp_path, *, marker=None, cgroup=None):
+    """Point the container probe at tmp_path. Absent argument means absent file."""
+    marker_path = tmp_path / "container-marker"
+    if marker is not None:
+        marker_path.write_text(marker, encoding="utf-8")
+    monkeypatch.setattr(w, "_CONTAINER_MARKER_FILES", (str(marker_path),))
+
+    cgroup_path = tmp_path / "cgroup"
+    if cgroup is not None:
+        cgroup_path.write_text(cgroup, encoding="utf-8")
+    monkeypatch.setattr(w, "_CONTAINER_CGROUP_FILE", str(cgroup_path))
+
+
+# Measured on an Ubuntu 6.17 workstation with Docker installed, no container.
+_HOST_CGROUP = "1:net_cls:/\n0::/init.scope\n"
+# Shape of /proc/1/cgroup inside a cgroup v1 Docker container.
+_DOCKER_CGROUP = "11:cpuset:/docker/8f2c19a4\n1:name=systemd:/docker/8f2c19a4\n"
+
+
+def test_claude_code_cli_on_a_workstation_is_not_a_container(monkeypatch, tmp_path):
+    """The defect. CLAUDECODE names the client, never the environment.
+
+    This is the negative control for the whole change: revert the fix and this
+    is the assertion that fails, because the old predicate answered True here
+    and cut the semgrep budget from 840s to 150s on a developer workstation.
+    """
+    monkeypatch.setenv("CLAUDECODE", "1")
+    _filesystem(monkeypatch, tmp_path, cgroup=_HOST_CGROUP)
+
+    assert w._is_remote_container() is False
+
+
+def test_nothing_set_is_not_a_container(monkeypatch, tmp_path):
+    """Plain terminal on the same workstation: no env marker, no container."""
+    _filesystem(monkeypatch, tmp_path, cgroup=_HOST_CGROUP)
+
+    assert w._is_remote_container() is False
+
+
+def test_a_docker_marker_file_is_a_container(monkeypatch, tmp_path):
+    """Docker writes /.dockerenv inside the container and nowhere else."""
+    _filesystem(monkeypatch, tmp_path, marker="", cgroup=_HOST_CGROUP)
+
+    assert w._is_remote_container() is True
+
+
+def test_a_cgroup_hint_is_a_container_without_any_marker_file(monkeypatch, tmp_path):
+    """cgroup v1 containers carry the runtime in the init process's cgroups.
+
+    Separate from the marker-file test so neither signal can regress alone: a
+    predicate that only read /.dockerenv would still pass that one.
+    """
+    _filesystem(monkeypatch, tmp_path, cgroup=_DOCKER_CGROUP)
+
+    assert w._is_remote_container() is True
+
+
+def test_codespaces_is_still_a_container(monkeypatch, tmp_path):
+    """CODESPACES names a managed remote container, so it survived the change."""
+    monkeypatch.setenv("CODESPACES", "true")
+    _filesystem(monkeypatch, tmp_path, cgroup=_HOST_CGROUP)
+
+    assert w._is_remote_container() is True
+
+
+def test_an_image_set_marker_is_a_container_with_no_filesystem_evidence(monkeypatch, tmp_path):
+    """The escape hatch Issue #5479 asked for, for images the probe cannot see.
+
+    The filesystem probe is evidence, not a guarantee: a runtime that writes no
+    marker file and reports `0::/` under cgroup v2 leaves nothing to read, and
+    the Claude web container's filesystem has not been measured here. ADR-104
+    rule 8 is the reason that gap needs a way to close: without a container
+    answer the semgrep budget stays at 840s and the whole-process watchdog never
+    arms, so a hook that stops making progress is reclaimed with no diagnostic.
+    An image that needs the bound sets this marker instead of being inferred.
+    """
+    monkeypatch.setenv("AI_AGENTS_REMOTE_CONTAINER", "1")
+    monkeypatch.delenv("CODESPACES", raising=False)
+    _filesystem(monkeypatch, tmp_path, cgroup=_HOST_CGROUP)
+
+    assert w._is_remote_container() is True
+
+
+def test_the_image_set_marker_does_not_widen_the_tool_gap_degrade(monkeypatch, tmp_path):
+    """It answers the container question only, like every other container signal.
+
+    Pairs with the marker test above so the new variable cannot quietly become
+    a second `CLAUDECODE`: declaring a reclamation bound is not a claim that
+    `gh act` cannot be installed, so a tool gap there still blocks at exit 3.
+    """
+    monkeypatch.setenv("AI_AGENTS_REMOTE_CONTAINER", "1")
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.delenv("CODESPACES", raising=False)
+    _filesystem(monkeypatch, tmp_path, cgroup=_HOST_CGROUP)
+
+    assert w._tool_gap_is_environmental() is False
+
+
+def test_ci_overrides_the_image_set_marker(monkeypatch, tmp_path):
+    """CI provisions the tools and must keep failing the way CI expects.
+
+    The CI override is checked before the env markers, so a new marker in that
+    tuple cannot reach CI. Asserted rather than assumed: this is the branch that
+    would turn a real CI hang into a 150s clamp and a different verdict.
+    """
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("AI_AGENTS_REMOTE_CONTAINER", "1")
+    _filesystem(monkeypatch, tmp_path, cgroup=_HOST_CGROUP)
+
+    assert w._is_remote_container() is False
+
+
+def test_ci_overrides_a_real_container_signal(monkeypatch, tmp_path):
+    """CI runs in containers and a hang there is a real failure, not a reclaim."""
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setenv("CODESPACES", "true")
+    _filesystem(monkeypatch, tmp_path, marker="", cgroup=_DOCKER_CGROUP)
+
+    assert w._is_remote_container() is False
+
+
+def test_an_unreadable_cgroup_file_is_not_a_container(monkeypatch, tmp_path):
+    """Edge: the probe runs on every push and must never raise.
+
+    Points the cgroup path at a directory, which is the cheapest reproducible
+    OSError. A non-Linux host takes the same branch by having no such file.
+    """
+    monkeypatch.setattr(w, "_CONTAINER_MARKER_FILES", (str(tmp_path / "absent"),))
+    monkeypatch.setattr(w, "_CONTAINER_CGROUP_FILE", str(tmp_path))
+
+    assert w._has_container_filesystem_signal() is False
+
+
+def test_the_tool_gap_predicate_still_degrades_for_claude_code(monkeypatch, tmp_path):
+    """Issue #2548 item 3 is unchanged: a tool gap there is still a warning.
+
+    The two predicates answer different questions. Firing this one too widely
+    costs a warning; firing the container one too widely costs a push that
+    cannot complete, which is why CLAUDECODE stays here and left the other.
+    """
+    monkeypatch.setenv("CLAUDECODE", "1")
+    _filesystem(monkeypatch, tmp_path, cgroup=_HOST_CGROUP)
+
+    assert w._tool_gap_is_environmental() is True
+    assert w._is_remote_container() is False
+
+
+def test_the_tool_gap_predicate_ignores_container_filesystem_signals(monkeypatch, tmp_path):
+    """Control for the pair above, from the other side.
+
+    A container with neither env marker set blocks on a tool gap exactly as it
+    did before this change, so the degrade path gained nothing and lost nothing.
+    """
+    _filesystem(monkeypatch, tmp_path, marker="", cgroup=_DOCKER_CGROUP)
+
+    assert w._is_remote_container() is True
+    assert w._tool_gap_is_environmental() is False
+
+
+def test_ci_overrides_the_tool_gap_predicate(monkeypatch, tmp_path):
+    """CI provisions gh act, so a gap there stays a hard failure."""
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.setenv("CI", "true")
+    _filesystem(monkeypatch, tmp_path, cgroup=_HOST_CGROUP)
+
+    assert w._tool_gap_is_environmental() is False
+
+
 # --- tool / docker gaps --------------------------------------------------
 
 
@@ -125,7 +306,7 @@ def test_actionlint_missing_is_exit_3(monkeypatch, tmp_path):
     # blocks at exit 3. The container-downgrade seam is pinned off so the test is
     # deterministic regardless of the host env (Issue #3064).
     monkeypatch.setattr(w, "_have", lambda tool: tool != "actionlint")
-    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
+    monkeypatch.setattr(w, "_tool_gap_is_environmental", lambda: False)
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 3
@@ -167,7 +348,7 @@ def test_gh_missing_is_exit_3(monkeypatch, tmp_path):
     # is deterministic regardless of the host env (Issue #2548, item 3).
     monkeypatch.setattr(w, "_have", lambda tool: tool == "actionlint")
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
-    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
+    monkeypatch.setattr(w, "_tool_gap_is_environmental", lambda: False)
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 3
@@ -180,7 +361,7 @@ def test_gh_act_extension_missing_is_exit_3(monkeypatch, tmp_path):
     monkeypatch.setattr(w, "_have", lambda tool: True)
     monkeypatch.setattr(w, "_gh_act_available", lambda: False)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
-    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
+    monkeypatch.setattr(w, "_tool_gap_is_environmental", lambda: False)
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
     r = w.run_local_test([WF], tmp_path)
     assert r.exit_code == 3
@@ -236,7 +417,7 @@ def test_gh_act_missing_without_container_signal_still_exit_3(monkeypatch, tmp_p
     monkeypatch.setattr(w, "_have", lambda tool: True)
     monkeypatch.setattr(w, "_gh_act_available", lambda: False)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
-    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
+    monkeypatch.setattr(w, "_tool_gap_is_environmental", lambda: False)
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
     monkeypatch.delenv("CI", raising=False)
     r = w.run_local_test([WF], tmp_path)
@@ -267,7 +448,7 @@ def test_docker_down_is_exit_3_for_full(all_tools, monkeypatch, tmp_path):
     # container-downgrade seam is pinned off so the exit-3 assertion is
     # deterministic regardless of the host env (Issue #3064).
     monkeypatch.setattr(w, "_docker_ready", lambda: False)
-    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
+    monkeypatch.setattr(w, "_tool_gap_is_environmental", lambda: False)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
     r = w.run_local_test([WF], tmp_path)
@@ -281,7 +462,7 @@ def test_docker_not_installed_is_exit_3_with_distinct_note(monkeypatch, tmp_path
     monkeypatch.setattr(w, "_have", lambda tool: tool != "docker")
     monkeypatch.setattr(w, "_gh_act_available", lambda: True)
     monkeypatch.setattr(w, "_docker_ready", lambda: False)
-    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
+    monkeypatch.setattr(w, "_tool_gap_is_environmental", lambda: False)
     monkeypatch.setattr(w, "_actionlint_stage", lambda f, r: _ok("actionlint"))
     monkeypatch.setattr(w, "_act_dryrun_stage", lambda f, r: _ok("gh act -n"))
     monkeypatch.delenv(w._BYPASS_ENV, raising=False)
@@ -675,7 +856,7 @@ def test_all_secret_blocked_actionlint_missing_is_exit_3(monkeypatch, tmp_path):
     # container-downgrade seam off so the exit-3 assertion holds regardless of
     # the host env (Issue #3064).
     monkeypatch.setattr(w, "_have", lambda tool: tool != "actionlint")
-    monkeypatch.setattr(w, "_is_remote_container", lambda: False)
+    monkeypatch.setattr(w, "_tool_gap_is_environmental", lambda: False)
     monkeypatch.delenv("BOT_PAT_2841", raising=False)
     _write_wf_secrets(tmp_path, WF, "BOT_PAT_2841")
     r = w.run_local_test([WF], tmp_path)

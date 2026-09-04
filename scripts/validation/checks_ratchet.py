@@ -8,14 +8,35 @@ pass, pushed, and learned about a 0.21 second failure 674 seconds later.
 
 Running them here converts that 674 second round trip into a local one that
 finishes before the suite starts. The registry has grown since, and the "about
-three seconds" this paragraph used to claim is long gone: the eight entries are
-dominated by merge-tree and cli-exit-contract, with the other six between 0.1s
-and 2.6s. Measured on an 8 core Linux host at load average 10 to 14, the whole
-registry runs together in 33.1s and 42.6s. Still far inside the 674 seconds it
-replaces, and inside the 90 second lefthook cap.
+three seconds" this paragraph used to claim is long gone: the nine entries are
+dominated by subprocess-encoding at 33.7s, merge-tree at 22.9s and
+cli-exit-contract at 15.6s, with the other six between 0.1s and 2.6s. Run
+together they measured 46.72s, 43.46s and 48.91s wall over three runs on this
+machine, where the floor is the slowest single entry rather than the sum.
+Still far inside the 674 seconds it replaces, and inside the 90 second
+lefthook cap.
+
+Every entry in :data:`RATCHETS` is spawned, including the five whose counters
+``scripts/ci/merge_tree_ratchet_check.py`` runs a second time against the
+merged tree. Issue #5510 asked for that second run to be dropped as duplicate
+work. It is not dropped, because the two runs answer different questions:
+``scripts/ci/count_ratchet.py::_base_ref_verdict`` says so in its own words,
+"this check reads the fork point, which the merge-tree gate never does, and it
+evaluates the branch's own tree rather than the merged one. Neither subsumes
+the other."
+
+Probed on this tree, with the merged pass called directly. A taste baseline of
+615 over a base of 575 with a count of 575 returns
+``(0, 'taste count ratchet: OK. 575 <= 575.')`` from
+``merge_tree_ratchet_check._check_one``, while the standalone run exits 1 with
+BASELINE ABOVE BASE. A ruff baseline of 130 over a tree measuring 118 returns
+``(0, 'ruff count ratchet: OK. 118 <= 130.')``, while
+``count_ratchet.baseline_health(118, 130)`` reports "a gap of 12 above the
+permitted 6". Dropping the spawn would leave both verdicts enforced in CI and
+in no local gate, which is the property issue #5482 exists to remove.
 
 The pre-push hook and pre-PR runner both delegate to this module. Keeping the
-ratchet set and command construction here avoids eight parallel hook jobs
+ratchet set and command construction here avoids nine parallel hook jobs
 duplicating the registry while preserving early failure before expensive jobs.
 """
 
@@ -86,6 +107,16 @@ RATCHETS: tuple[Ratchet, ...] = (
         False,
         True,
     ),
+    # Issue #5482: before this entry existed the counter ran only in
+    # .github/workflows/pytest.yml, so a violation in any of the 1729 tracked
+    # Python files outside scripts/ passed every local gate and failed CI.
+    # Measured live on PR #5476.
+    Ratchet(
+        "subprocess-encoding-count-ratchet",
+        "scripts/ci/subprocess_encoding_count_ratchet.py",
+        False,
+        True,
+    ),
     Ratchet(
         "memory-index-token-ratchet",
         "scripts/ci/memory_index_token_ratchet.py",
@@ -104,24 +135,28 @@ RATCHETS: tuple[Ratchet, ...] = (
 # deadline is what fires and names the offending ratchet, rather than lefthook
 # killing the job with no attribution.
 #
-# Not raised, deliberately. Concurrency is what buys headroom for a ninth
-# entry, the subprocess-encoding ratchet of issue #5482, which is NOT
-# registered above: measured with it, 84.2s sequential against this
-# deadline and 51.4s concurrent.
-# Raising the lefthook cap to buy more would cost 90s of the pre-push declared
+# Not raised, deliberately. The subprocess-encoding ratchet of issue #5482 was
+# held out of this registry because a sequential loop did not fit it: 84.2s
+# sequential and 51.4s concurrent against this deadline. Concurrency is what
+# paid for it, and the nine-entry set was re-measured here with it registered,
+# load average 0.73 to 2.09: 46.72s, 43.46s and 48.91s wall, 92.4s to 100.7s of
+# user CPU, all three exit 0. The slowest run is 58% of this deadline and
+# leaves 36s. Wall clock is what this deadline and the lefthook cap measure,
+# and its floor is the slowest single entry either way, so the five counters
+# the merge-tree pass also runs cost CPU here rather than wall clock. That is the
+# trade issue #5510 asked to close and it is not taken; the module docstring
+# above records the two verdict classes dropping those spawns would move to CI
+# only.
+# Raising the lefthook cap instead would cost 90s of the pre-push declared
 # budget, which `tests/ci/test_lefthook_declared_budget.py` ratchets at 3450s
 # for the whole hook; that budget is paid for by measuring a job and cutting
 # another cap (ci-scripts.md MUST-16), which is separate work from this
-# change. Issue #4876 bought the headroom on the other side instead, by
-# cutting the work: `cli_exit_contract_coverage.covered_stems` now bails on a
-# test file that names no tracked script before parsing it, which removes
-# about 10s from cli-exit-contract and the same 10s again from merge-tree,
-# which evaluates that ratchet a second time on the merged tree. Measured A/B
-# on one host at load average 10 to 14: 72.8s and 69.0s before, 33.1s and
-# 42.6s after. `tests/ci/test_pre_pr_runs_lefthook_ratchets.py` holds the
-# result by timing the real registry and requiring this deadline to stay
-# above it with margin, so a future entry that eats the margin fails a test
-# instead of a push.
+# change. Under heavy load the aggregate can still exhaust this budget:
+# measured at load average 6.2 it reached 85.3s while every ratchet passed
+# alone. That failure mode predates this change (a cold run reported
+# "merge-tree-ratchet: Command timed out after 33s" with the eight entry
+# registry, then passed on retry), and concurrency makes it rarer than the
+# sequential loop did, but it is not eliminated.
 _AGGREGATE_TIMEOUT_SECONDS = 85
 _LEFTHOOK_TIMEOUT_SECONDS = 90
 
@@ -226,19 +261,13 @@ def _run_ratchets(
     """Run every ratchet concurrently; return each result by job name.
 
     Concurrent rather than sequential because the registry's cost is dominated
-    by a few entries: measured warm on this tree at load average 5, merge-tree
-    18.1s and cli-exit-contract 7.4s against 0.1s to 2.6s for the other six. One
-    shared deadline over a sequential loop spends that budget in registry order, so the last entry
-    runs on whatever is left and is
-    the one that times out; observed on a cold run, where merge-tree,
-    registered last, reported "Command timed out after 33s" and then passed on
-    retry with no code change.
-
-    Measured A/B, with the subprocess-encoding ratchet issue #5482 wants to
-    add: 84.2s sequential against an 85 second deadline, 51.4s concurrent.
-    That entry is not registered here yet, because even concurrently it does
-    not fit the budget on a loaded machine; the headroom this creates is a
-    precondition for it, not a delivery of it.
+    by a few entries: measured warm on this tree, subprocess-encoding 33.7s,
+    merge-tree 22.9s and cli-exit-contract 15.6s against 0.1s to 2.6s for the
+    other six. One shared
+    deadline over a sequential loop spends that budget in registry order, so
+    the last entry runs on whatever is left and is the one that times out;
+    observed on a cold run, where merge-tree, registered last, reported
+    "Command timed out after 33s" and then passed on retry with no code change.
 
     Every registered ratchet only reads: none of the scripts issues a git
     command that writes (`add`, `commit`, `checkout`, `reset`, `read-tree`,

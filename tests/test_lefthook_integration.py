@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import ast
 import builtins
+import importlib
 import io
 import json
 import os
@@ -7353,9 +7354,9 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
     # Pin the workstation contract. `_run_command` clamps a child's deadline
-    # inside a managed container (ADR-104 rule 8), and this repository's own
-    # dev containers set CLAUDECODE, so without this the assertion below reads
-    # the clamp rather than the budget it is about. The container behaviour is
+    # inside a managed container (ADR-104 rule 8), and this suite also runs
+    # inside dev containers, so without this the assertion below reads the
+    # clamp rather than the budget it is about. The container behaviour is
     # covered by its own test below.
     monkeypatch.setattr(policy, "_container_clamped", lambda seconds: seconds)
 
@@ -7541,7 +7542,13 @@ def test_a_container_clamps_the_cli_e2e_child_deadline(
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
     monkeypatch.delenv("CI", raising=False)
-    monkeypatch.setenv("CLAUDECODE", "1")
+    # CODESPACES, not CLAUDECODE. Issue #5479: the Claude Code CLI sets
+    # CLAUDECODE on a laptop and a workstation, so it names the client rather
+    # than the execution environment and no longer answers the container
+    # question. CODESPACES names a managed remote container, which is the case
+    # this test is about.
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.setenv("CODESPACES", "true")
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
 
@@ -7577,7 +7584,11 @@ def test_ci_keeps_the_full_budget_even_inside_a_container_image(
             return ("", "")
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
-    monkeypatch.setenv("CLAUDECODE", "1")
+    # A marker that really does mean a container, so the CI override is what
+    # makes the answer False. With CLAUDECODE here (Issue #5479) there would be
+    # no container signal left for CI to override and this control would hold
+    # for the wrong reason.
+    monkeypatch.setenv("CODESPACES", "true")
     monkeypatch.setenv("CI", "true")
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
@@ -11415,3 +11426,39 @@ def test_semgrep_family_prefix_exclusion_suppresses_nothing(tmp_path: Path) -> N
 def test_semgrep_command_exclusions_suppress_every_compat_rule(tmp_path: Path) -> None:
     """The production command, unmodified, reports none of the four rules."""
     assert _scan_compat_target(tmp_path, None) == set()
+
+
+def test_a_claude_code_session_on_a_workstation_keeps_the_full_semgrep_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #5479, end to end through the clamp the push actually calls.
+
+    `CLAUDECODE` named the client, not the environment. The Claude Code CLI
+    sets it on a laptop, a workstation, and a VM, so `_container_clamped` took
+    the semgrep budget from 840s to 150s there. A branch whose scan set needed
+    more than 150s could not be pushed from a Claude Code session and pushed
+    fine from a plain terminal on the same machine, same commits, same host.
+    Every bypass is forbidden by `.claude/rules/universal.md`, so the branch
+    simply could not be pushed.
+
+    Asserted on `_container_clamped` rather than on the predicate, because the
+    predicate is already pinned in `tests/ci/test_lefthook_container_bound.py`
+    and this is the consumer that turns it into a number the push feels. If the
+    two ever disagree, this is the one that matters.
+    """
+    sys.path.insert(0, str(Path(policy.__file__).resolve().parent))
+    try:
+        detector = importlib.import_module("run_workflow_local_test")
+    finally:
+        sys.path.pop(0)
+
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.delenv("CODESPACES", raising=False)
+    monkeypatch.delenv("AI_AGENTS_REMOTE_CONTAINER", raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(detector, "_has_container_filesystem_signal", lambda: False)
+
+    budget = policy._container_clamped(policy.SEMGREP_TIMEOUT_SECONDS)
+
+    assert budget == policy.SEMGREP_TIMEOUT_SECONDS
+    assert budget > policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
