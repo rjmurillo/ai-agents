@@ -1,4 +1,4 @@
-"""Regression guard for #5097: superseded runs must not publish red aggregates.
+"""Regression guard for #5097 and #5104: superseded runs must not publish red.
 
 Every workflow here uses `cancel-in-progress`, so pushing to a branch while a
 run is live cancels that run and leaves its jobs reporting `cancelled`. A
@@ -32,11 +32,21 @@ produced, and `cancelled` is (like `skipped`) neither `success` nor
 `failure`, so branch protection keeps waiting on a superseded run instead
 of reading a false green.
 
+A job can depend on an upstream job's work in two ways, and both go red the
+same way under `always()`. #5097 covered the first: the job reads
+`needs.<job>.result`, scores the `cancelled` value, and exits non-zero. #5104
+is the second: the job downloads an artifact the upstream job never uploaded
+because cancellation reached it first, and `actions/download-artifact` errors
+on the missing artifact. `codeql-analysis.yml::check-blocking-issues` is that
+second shape, which is why the #5097 sweep walked past it: it mentions no
+`needs.<job>.result` anywhere. `depends_on_upstream_output` now recognizes
+both, so the sweep covers both.
+
 Two workflows fixed for #2347 with the equivalent `always() && !cancelled()`
 spelling (`ai-pr-quality-gate.yml`, `ai-session-protocol.yml`) were later
-deleted (#5132, #5135); `MINIMUM_AGGREGATORS_EXAMINED` below reflects the
-five aggregators this module now covers, not the seven that existed when it
-was fixed.
+deleted (#5132, #5135); `MINIMUM_AGGREGATORS_EXAMINED` below reflects what
+the sweep examines today, not the seven jobs that existed when #5097 was
+fixed.
 
 Assertions run against `yaml.safe_load` output, never against workflow text
 (`.claude/rules/testing.md` MUST 9).
@@ -61,17 +71,32 @@ WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 # `pytest.yml::main-failure-alert` and `installed-plugin-hook-guard.yml`.
 CONSUMES_NEEDS_RESULT = re.compile(r"needs\.[A-Za-z0-9_-]+\.result|toJSON\(\s*needs\s*\)")
 
+# The second way a job depends on upstream work: it downloads an artifact an
+# upstream job uploaded. Issue #5104. `codeql-analysis.yml::check-blocking-issues`
+# reads no `needs.<job>.result` at all, so the result-only classifier above
+# never examined it, and the #5097 sweep reported clean while that job still
+# carried `always()`. A cancelled run leaves the analyze legs with nothing
+# uploaded, and `actions/download-artifact` errors on the missing artifacts
+# instead of the job skipping. Matching the action reference (rather than a
+# step name) keeps this literal: `actions/upload-artifact` does not match, so
+# a producer is never mistaken for a consumer.
+CONSUMES_DEPENDENCY_ARTIFACTS = re.compile(r"actions/download-artifact")
+
 # Events that put a check run on a pull request head. A schedule-only or
 # dispatch-only aggregate cannot produce the #5097 noise, so it is out of scope.
 PR_HEAD_EVENTS = frozenset({"pull_request", "push"})
 
-# The five jobs this change converted. Keyed workflow file to job id.
+# Every job converted to the guard, across #5097 and #5104. Workflow file to
+# job id.
 FIXED_AGGREGATORS: tuple[tuple[str, str], ...] = (
     ("pytest.yml", "test-result"),
     ("pytest.yml", "main-failure-alert"),
     ("cli-smoke.yml", "smoke-result"),
     ("installed-plugin-hook-guard.yml", "guard-result"),
     ("test-codeql-integration.yml", "aggregate-results"),
+    # Added for #5104. Depends on upstream output through downloaded SARIF
+    # artifacts, not through `needs.<job>.result`.
+    ("codeql-analysis.yml", "check-blocking-issues"),
 )
 
 # The `if` each fixed job carried before this change, read verbatim from
@@ -91,19 +116,27 @@ PRE_FIX_CONDITIONS: dict[tuple[str, str], str] = {
     ("cli-smoke.yml", "smoke-result"): "always()",
     ("installed-plugin-hook-guard.yml", "guard-result"): "always()",
     ("test-codeql-integration.yml", "aggregate-results"): "always()",
+    ("codeql-analysis.yml", "check-blocking-issues"): (
+        "always() && needs.check-paths.outputs.should-run-analysis == 'true'"
+    ),
 }
 
 # Lower bound on what the repository-wide sweep must examine. Without it a
 # broken classifier that matches nothing reports a clean sweep
 # (`.claude/rules/testing.md` MUST 10: report the scope size, not only the
-# finding count). Measured at 5: the five aggregators in FIXED_AGGREGATORS.
+# finding count). Measured at 7 by running the sweep against
+# `.github/workflows/*.yml` at this commit: the six jobs in FIXED_AGGREGATORS
+# plus `pytest.yml::coverage`, which the artifact classifier added for #5104
+# and which was already guarded (`needs.check-paths.outputs.python-changed ==
+# 'true' && !cancelled() && needs.test.result == 'success'`), so widening the
+# classifier flagged nothing beyond the job #5104 reports.
 # Two more (`ai-pr-quality-gate.yml::aggregate`, `ai-session-protocol.yml::aggregate`,
 # guarded for #2347) counted toward this bound until #5132 and #5135 deleted
 # those workflows in full, a legitimate cleanup and not a classifier
 # regression (issue #5142). Drop this count again if a future PR removes one
-# of the five that remain, rather than raising MINIMUM_AGGREGATORS_EXAMINED
+# of the jobs that remain, rather than raising MINIMUM_AGGREGATORS_EXAMINED
 # to paper over a real regression.
-MINIMUM_AGGREGATORS_EXAMINED = 5
+MINIMUM_AGGREGATORS_EXAMINED = 7
 
 
 def _load_workflow(name: str) -> Mapping[Any, Any]:
@@ -163,6 +196,30 @@ def _consumes_dependency_results(job: Mapping[str, Any]) -> bool:
     """
     payload = {key: value for key, value in job.items() if key not in _CONTROL_ONLY_KEYS}
     return any(CONSUMES_NEEDS_RESULT.search(text) for text in _strings(payload))
+
+
+def _consumes_dependency_artifacts(job: Mapping[str, Any]) -> bool:
+    """True if the job's own execution payload downloads an artifact.
+
+    Same payload scan as `_consumes_dependency_results`, for the same reason:
+    the reference lives in a step's `uses`, and a reusable-workflow call job
+    carries no `steps` at all. `if` and `needs` stay excluded so this answers
+    "does this job operationally consume upstream output" rather than "does
+    its guard mention one".
+    """
+    payload = {key: value for key, value in job.items() if key not in _CONTROL_ONLY_KEYS}
+    return any(CONSUMES_DEPENDENCY_ARTIFACTS.search(text) for text in _strings(payload))
+
+
+def depends_on_upstream_output(job: Mapping[str, Any]) -> bool:
+    """True if the job reads a dependency result or downloads its artifacts.
+
+    Either shape turns a cancelled upstream into a red check when the job is
+    gated on `always()`: the result reader scores a `cancelled` value, and the
+    artifact consumer errors on a download that was never uploaded. #5097
+    fixed the first shape; #5104 is the second.
+    """
+    return _consumes_dependency_results(job) or _consumes_dependency_artifacts(job)
 
 
 def _strip_expression_wrapper(condition: str) -> str:
@@ -298,7 +355,7 @@ def unguarded_pr_head_aggregators(workflow: Mapping[Any, Any]) -> tuple[list[str
     for job_id, job in (workflow.get("jobs") or {}).items():
         if not isinstance(job, dict) or not job.get("needs"):
             continue
-        if not _consumes_dependency_results(job):
+        if not depends_on_upstream_output(job):
             continue
         examined += 1
         if cancellation_guard_violations(job):
@@ -325,18 +382,20 @@ class TestFixedAggregators:
         key, job = fixed_aggregator
         assert bare_always_violations(job) == [], f"{key[0]}::{key[1]} kept always()"
 
-    def test_aggregator_still_reads_dependency_results(
+    def test_aggregator_still_depends_on_upstream_output(
         self, fixed_aggregator: tuple[tuple[str, str], dict[str, Any]]
     ) -> None:
         """Guards the premise, not the fix.
 
-        If a job stops reading `needs.<job>.result` it is no longer the
-        aggregator these assertions describe, and the sweep below would stop
-        examining it. Failing here is a signal to re-derive the list, not to
-        delete the case.
+        If a job stops reading `needs.<job>.result` AND stops downloading a
+        dependency's artifacts, it is no longer the aggregator these
+        assertions describe, and the sweep below would stop examining it.
+        Failing here is a signal to re-derive the list, not to delete the case.
         """
         key, job = fixed_aggregator
-        assert _consumes_dependency_results(job), f"{key[0]}::{key[1]} reads no dependency result"
+        assert depends_on_upstream_output(job), (
+            f"{key[0]}::{key[1]} neither reads a dependency result nor downloads its artifacts"
+        )
 
     def test_pre_fix_condition_is_rejected(
         self, fixed_aggregator: tuple[tuple[str, str], dict[str, Any]]
@@ -531,6 +590,96 @@ class TestRepositoryWideSweep:
         }
 
         assert unguarded_pr_head_aggregators(document) == (["result"], 1)
+
+
+class TestArtifactConsumerClassifier:
+    """The #5104 shape: depends on upstream output without reading a result.
+
+    `codeql-analysis.yml::check-blocking-issues` scores downloaded SARIF and
+    never mentions `needs.<job>.result`, so the result-only classifier walked
+    past it and the #5097 sweep reported clean while the job still carried
+    `always()`. These cases pin the widened classifier in both directions: it
+    must see a consumer, and it must not invent one.
+    """
+
+    def test_downloading_an_artifact_counts_as_depending_on_upstream(self) -> None:
+        job = {
+            "needs": ["analyze"],
+            "if": "always()",
+            "steps": [{"uses": "actions/download-artifact@v8", "with": {"pattern": "results-*"}}],
+        }
+
+        assert _consumes_dependency_results(job) is False
+        assert depends_on_upstream_output(job) is True
+
+    def test_uploading_an_artifact_does_not_count(self) -> None:
+        """Negative control: a producer is not a consumer.
+
+        `actions/upload-artifact` is the step the analyze legs run. Matching
+        it here would classify every producer job as an aggregator and demand
+        a cancellation guard from jobs that depend on nothing.
+        """
+        job = {
+            "needs": ["build"],
+            "if": "always()",
+            "steps": [{"uses": "actions/upload-artifact@v7", "with": {"name": "results"}}],
+        }
+
+        assert _consumes_dependency_artifacts(job) is False
+        assert depends_on_upstream_output(job) is False
+
+    def test_sweep_flags_an_unguarded_artifact_consumer(self) -> None:
+        document = {
+            "on": {"pull_request": None},
+            "jobs": {
+                "analyze": {"runs-on": "ubuntu-latest", "steps": []},
+                "check": {
+                    "needs": ["analyze"],
+                    "if": "always()",
+                    "steps": [{"uses": "actions/download-artifact@v8"}],
+                },
+            },
+        }
+
+        violations, examined = unguarded_pr_head_aggregators(document)
+
+        assert examined == 1
+        assert violations == ["check"]
+
+    def test_sweep_examines_but_clears_a_guarded_artifact_consumer(self) -> None:
+        """Shape of `pytest.yml::coverage`: examined, and already safe.
+
+        Distinguishes "the classifier now sees artifact consumers" from "the
+        classifier now fails them", which a flag-everything regression would
+        conflate.
+        """
+        document = {
+            "on": {"pull_request": None},
+            "jobs": {
+                "test": {"runs-on": "ubuntu-latest", "steps": []},
+                "coverage": {
+                    "needs": ["test"],
+                    "if": "!cancelled() && needs.test.result == 'success'",
+                    "steps": [{"uses": "actions/download-artifact@v8"}],
+                },
+            },
+        }
+
+        assert unguarded_pr_head_aggregators(document) == ([], 1)
+
+    def test_sweep_ignores_an_artifact_consumer_with_no_needs(self) -> None:
+        """A job with no dependencies cannot be orphaned by a cancelled one."""
+        document = {
+            "on": {"pull_request": None},
+            "jobs": {
+                "check": {
+                    "if": "always()",
+                    "steps": [{"uses": "actions/download-artifact@v8"}],
+                },
+            },
+        }
+
+        assert unguarded_pr_head_aggregators(document) == ([], 0)
 
 
 class TestConcurrencyStaysOn:

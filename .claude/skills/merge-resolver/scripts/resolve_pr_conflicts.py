@@ -215,7 +215,6 @@ from github_core.api import RepoInfo  # noqa: E402
 # the main branch version is authoritative.
 AUTO_RESOLVABLE_PATTERNS: list[str] = [
     # Session artifacts - constantly changing, main is authoritative
-    ".agents/HANDOFF.md",
     ".agents/sessions/*",
     ".agents/*",
     # Serena memories - auto-generated, main is authoritative

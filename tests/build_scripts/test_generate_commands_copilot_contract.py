@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size -- one contract suite per translation transform;
+# each case pairs a positive with the control that makes it discriminate, and
+# splitting them from the transform they pin loses that pairing (issue #3779).
 """Copilot CLI runtime-contract tests for the command-to-skill bridge.
 
 Issue #2743. Verifies the translation that `generate_commands` applies to
@@ -24,6 +27,8 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
@@ -189,7 +194,11 @@ def test_plugin_name_falls_back_when_manifest_absent(tmp_path: Path) -> None:
 
 
 def test_translate_skill_file_preserves_frontmatter(tmp_path: Path) -> None:
-    """translate_skill_file leaves frontmatter untouched, translates the body."""
+    """translate_skill_file passes frontmatter through, translates the body.
+
+    Every key but `allowed-tools` is untouched; that one is respelled by the
+    MCP-name transform covered below.
+    """
     content = (
         "---\n"
         "name: demo\n"
@@ -218,6 +227,154 @@ def test_translate_skill_file_preserves_crlf_frontmatter(tmp_path: Path) -> None
     assert "$ARGUMENTS" not in out
     assert '`agent_type: "project-toolkit:critic"`' in out
     assert "## Copilot CLI invocation reference" not in out
+
+
+def test_allowed_tools_mcp_names_respelled_for_copilot(tmp_path: Path) -> None:
+    """`mcp__github__*` names nothing Copilot exposes; it spells it `github/*`.
+
+    Copied across unchanged, the grant is inert and every MCP-routed step in
+    the mirror fails for a reason that has nothing to do with the PR
+    (Copilot review on PR #5509). `templates/toolsets.yaml` is the canonical
+    spelling: `github/pull_request_read`, `serena/*`.
+    """
+    content = (
+        "---\n"
+        "name: demo\n"
+        "allowed-tools: Bash, Read, mcp__github__*, mcp__serena__find_symbol\n"
+        "---\n"
+        "body\n"
+    )
+
+    out = copilot_body_translation.translate_skill_file(content, tmp_path)
+
+    assert "allowed-tools: Bash, Read, github/*, serena/find_symbol\n" in out
+    assert "mcp__" not in out
+
+
+@pytest.mark.parametrize(
+    ("claude_name", "copilot_name"),
+    [
+        ("mcp__github__pull_request_read", "github/pull_request_read"),
+        ("mcp__github__*", "github/*"),
+        # Hyphens are legal in both halves and this repository uses them in
+        # both positions (Copilot review on PR #5509).
+        ("mcp__context7__resolve-library-id", "context7/resolve-library-id"),
+        ("mcp__claude-mem__search", "claude-mem/search"),
+    ],
+)
+def test_hyphenated_server_and_operation_names_are_respelled(
+    tmp_path: Path, claude_name: str, copilot_name: str
+) -> None:
+    """Excluding `-` from the server made the pattern skip the name entirely.
+
+    A skipped name leaves the Claude spelling in a Copilot grant, which is the
+    inert-grant defect the transform exists to prevent, arriving through a
+    silent non-match rather than a wrong rewrite.
+    """
+    content = f"---\nallowed-tools: Read, {claude_name}\n---\nbody\n"
+
+    out = copilot_body_translation.translate_skill_file(content, tmp_path)
+
+    assert f"allowed-tools: Read, {copilot_name}\n" in out
+
+
+def test_a_plugin_aliased_server_is_left_for_a_human(tmp_path: Path) -> None:
+    """Control: not every `mcp__` name has a mechanical Copilot spelling.
+
+    Copilot names `mcp__plugin_context-mode_context-mode__ctx_execute` as
+    `context-mode_ctx_execute`, not as the server path this transform would
+    build. That mapping depends on plugin aliasing the generator cannot see, so
+    guessing ships a name as wrong as the one it replaced. Leaving it makes the
+    committed-artifact gate fail on the surviving `mcp__`, which surfaces the
+    case instead of shipping it.
+    """
+    content = (
+        "---\nallowed-tools: Read, mcp__plugin_context-mode_context-mode__*\n"
+        "---\nbody\n"
+    )
+
+    out = copilot_body_translation.translate_skill_file(content, tmp_path)
+
+    assert "mcp__plugin_context-mode_context-mode__*" in out
+
+
+def test_allowed_tools_respelling_handles_the_yaml_list_form(tmp_path: Path) -> None:
+    """The key also takes a block list, which a single-line pattern would miss."""
+    content = (
+        "---\n"
+        "allowed-tools:\n"
+        "  - Read\n"
+        "  - mcp__github__issue_read\n"
+        "---\n"
+        "body\n"
+    )
+
+    out = copilot_body_translation.translate_skill_file(content, tmp_path)
+
+    assert "  - github/issue_read\n" in out
+
+
+def test_the_allowed_tools_match_stops_at_the_closing_fence(tmp_path: Path) -> None:
+    """Control: the continuation class must not swallow `---` and keep going.
+
+    A leading `-` in that class matched the closing fence, and from there every
+    following list line, so a call on a whole document respelled body prose and
+    broke the one-key promise. The body line here starts with `-` and shares no
+    blank line with the fence, which is the shape that reproduced it.
+    """
+    document = (
+        "---\n"
+        "allowed-tools:\n"
+        "  - mcp__github__issue_read\n"
+        "---\n"
+        "- Claude Code spells it mcp__github__get_me.\n"
+    )
+
+    out = copilot_body_translation.translate_allowed_tools(document)
+
+    assert "  - github/issue_read\n" in out
+    assert "- Claude Code spells it mcp__github__get_me.\n" in out
+
+
+def test_mcp_names_outside_allowed_tools_are_left_alone(tmp_path: Path) -> None:
+    """Control: the transform must not rewrite every occurrence of the token.
+
+    Body prose and the `description` deliberately contrast the two spellings so
+    a reader on either harness knows which one is theirs. Rewriting those turns
+    a per-harness table into two identical rows, and no assertion above would
+    fail. Without this case the transform could drop its `allowed-tools` anchor
+    and still pass.
+    """
+    content = (
+        "---\n"
+        "description: routes through mcp__github__get_me\n"
+        "allowed-tools: Read\n"
+        "---\n"
+        "Claude Code spells it mcp__github__pull_request_read.\n"
+    )
+
+    out = copilot_body_translation.translate_skill_file(content, tmp_path)
+
+    assert "description: routes through mcp__github__get_me\n" in out
+    assert "Claude Code spells it mcp__github__pull_request_read." in out
+
+
+def test_committed_skill_frontmatter_grants_no_claude_mcp_names() -> None:
+    """Gate the shipped artifact, not only the generator.
+
+    A hand-edit or a merge can put the Claude spelling back into a committed
+    mirror without the generator ever running (`.claude/rules/generated-artifacts.md`
+    MUST 3). Frontmatter only: the bodies carry the per-harness tables.
+    """
+    offenders = []
+    for path in sorted(_COPILOT_SKILLS.glob("*/SKILL.md")):
+        content = path.read_text(encoding="utf-8")
+        match = copilot_body_translation._FRONTMATTER_RE.match(content)
+        if match is None:
+            continue
+        if "mcp__" in match.group(1):
+            offenders.append(path.parent.name)
+    assert not offenders, f"Claude MCP tool names in Copilot frontmatter: {offenders}"
 
 
 def test_translate_skill_file_matches_call_with_extra_args(tmp_path: Path) -> None:

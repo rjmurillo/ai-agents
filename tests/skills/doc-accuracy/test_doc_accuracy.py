@@ -1673,6 +1673,54 @@ class TestMain:
         assert "Gate: DID_NOT_RUN" in captured.out
         assert "No source symbols found" in captured.out
 
+    def test_json_format_emits_did_not_run_payload(self, tmp_path: Path, capsys) -> None:
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+        assert rc == 1
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["gate_result"]["verdict"] == "DID_NOT_RUN"
+        assert payload["compilability_data"]["status"] == "DID_NOT_RUN"
+
+    def test_json_format_emits_fail_payload(self, tmp_path: Path, capsys) -> None:
+        subprocess.run(
+            ["git", "init", str(tmp_path)],
+            check=True,
+            capture_output=True,
+        )
+        (tmp_path / "main.py").write_text(
+            "def ExistingWidget():\n    pass\n",
+        )
+        (tmp_path / "README.md").write_text(
+            "```python\nMyWidget()\n```\n",
+        )
+
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+        assert rc == 10
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["gate_result"]["verdict"] == "FAIL"
+        assert payload["gate_result"]["blocking_findings"] == 1
+
+    def test_json_format_emits_pass_payload(self, tmp_path: Path, capsys) -> None:
+        subprocess.run(
+            ["git", "init", str(tmp_path)],
+            check=True,
+            capture_output=True,
+        )
+        (tmp_path / "main.py").write_text(
+            "def ExistingWidget():\n    pass\n",
+        )
+        (tmp_path / "README.md").write_text(
+            "```python\nExistingWidget()\n```\n",
+        )
+
+        rc = main(["--target", str(tmp_path), "--format", "json"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["gate_result"]["verdict"] == "PASS"
+        assert payload["gate_result"]["blocking_findings"] == 0
+
     def test_custom_output_dir(self, tmp_path: Path) -> None:
         out = tmp_path / "custom-output"
         rc = main([
@@ -1689,3 +1737,56 @@ class TestMain:
         assert (tmp_path / ".doc-accuracy" / "assessment.json").exists()
         # claims.json should not exist when only phase 1 runs
         assert not (tmp_path / ".doc-accuracy" / "claims.json").exists()
+
+
+class TestGateFormatDropsTheSymbolIndex:
+    """`--format gate` exists so `/review` does not pay for the symbol index.
+
+    `source_symbols` is the whole tracked-source index, built even for a
+    diff-scoped run because claim checking needs it. Measured on this
+    repository with `--diff-base origin/main`: 8,561,547 bytes of JSON, of
+    which source_symbols is 8,456,923 (98.8%, 36,975 entries), against 43,513
+    bytes of documentation_files. `/review` reads only `gate_result.verdict`
+    and `assessment.documentation_files`, and a payload that large is liable to
+    be truncated in transit, which turns a completed scan into a parse failure.
+    """
+
+    def _repo(self, tmp_path: Path) -> Path:
+        subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
+        (tmp_path / "main.py").write_text("def ExistingWidget():\n    pass\n")
+        (tmp_path / "README.md").write_text("```python\nExistingWidget()\n```\n")
+        return tmp_path
+
+    def test_gate_omits_source_symbols(self, tmp_path: Path, capsys) -> None:
+        rc = main(["--target", str(self._repo(tmp_path)), "--format", "gate"])
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert "source_symbols" not in payload["assessment"]
+
+    def test_gate_keeps_what_review_consumes(self, tmp_path: Path, capsys) -> None:
+        """The two fields the adapter reads must survive the projection."""
+        rc = main(["--target", str(self._repo(tmp_path)), "--format", "gate"])
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["gate_result"]["verdict"] == "PASS"
+        assert payload["assessment"]["documentation_files"]
+
+    def test_gate_verdict_matches_json_verdict(self, tmp_path: Path, capsys) -> None:
+        """Dropping the index must not change the gate outcome."""
+        repo = self._repo(tmp_path)
+        assert main(["--target", str(repo), "--format", "json"]) == 0
+        full = json.loads(capsys.readouterr().out)
+        assert main(["--target", str(repo), "--format", "gate"]) == 0
+        gate = json.loads(capsys.readouterr().out)
+        assert gate["gate_result"] == full["gate_result"]
+        assert (
+            gate["assessment"]["documentation_files"]
+            == full["assessment"]["documentation_files"]
+        )
+
+    def test_json_still_carries_the_symbol_index(self, tmp_path: Path, capsys) -> None:
+        """Negative control: the full report is unchanged for other callers."""
+        rc = main(["--target", str(self._repo(tmp_path)), "--format", "json"])
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert "source_symbols" in payload["assessment"]

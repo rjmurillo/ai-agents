@@ -16,17 +16,71 @@ CLI:
 EXIT CODES:
     0 - success
     1 - generator logic error
-    2 - configuration error / staleness detected (--check)
-    3 - audit blocklist violation (REQ-003-011)
+    2 - configuration error; staleness detected (--check); a path under
+        OWNED_PREFIXES that cannot be read, redirects (symlink or
+        junction), or holds a nested git repository (--check, aborts
+        before generation); a generator wrote under .claude/
+        (REQ-003-010)
+    3 - audit blocklist violation (REQ-003-011); git state unreadable
+        (--check)
+
+Exit 2 has five producers and only the staleness one is fixed by
+regenerating and committing. The unreachable-owned-path producer arrived with
+issue #4632 and covers three shapes: a path that cannot be read, one that
+redirects (a symlink or a Windows junction, which is a directory carrying a
+reparse tag and passes every symlink test), and a directory holding its own
+``.git`` entry. All three are cases where ``--check`` could write somewhere it
+cannot restore, so it refuses before any generator runs.
+
+The fourth producer is the REQ-003-010 no-write violation,
+set in :func:`_run_generators` when :func:`assert_no_claude_writes` reports a
+write under ``.claude/``: that is a generator policy failure, and regenerating
+reproduces it, because the offending generator runs again.
+
+The fifth producer is :func:`run` escalating a successful generator result to
+2 when :func:`_restore_owned_prefixes` reports it could not fully restore the
+working tree afterward: a redirect raced in after the strict snapshot, or any
+other ``OSError`` a restore write hit. Regenerating does not fix this one
+either; it means ``--check``'s read-only promise did not fully hold on this
+run, and the ``WARN`` lines on stderr name which paths.
+
+Exit 3 covers the two failures that are not a stale tree: an audit blocklist
+violation, and a git that could not answer. Git is an external tool and
+``AGENTS.md`` reads "0=ok|1=logic|2=config|3=external", so every git-read
+failure lands here: a git that will not launch, one that times out, and one
+that exits nonzero. Neither exit-3 producer is cleared by regenerating.
+
+Do not split "not a git repository" back out to 2. It is a git fatal like any
+other, git localizes its fatal messages so no stderr match is reliable, and
+routing it to 2 would put "your environment is broken" back in the same code
+as "regenerate and commit", which is the conflation this split exists to
+remove.
+
+Issue #4632 reversed a promise the old :func:`_git_diff_paths` docstring
+made: "We do not want to fail when a contributor runs the script in a non-git
+working tree." ``--check`` in a non-git tree now exits 3. A plain
+(non-``--check``) build there still succeeds, because :func:`_git_diff_paths`
+is reached only under ``--check``.
+
+That last sentence is a claim about one function, not about the script.
+Every run, ``--check`` or not, snapshots ``.claude/`` for the REQ-003-010
+guard with ``exclude_ignored=True``, and that path calls
+:func:`_ignored_paths`, which shells out to ``git ls-files``. A plain build
+in a broken-git tree therefore does read git; it survives because
+:func:`_ignored_paths` tolerates its own failures and returns what it
+gathered, not because nothing asked git. Do not read the fail-closed change
+here as "the script only touches git under ``--check``".
 """
 
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -36,7 +90,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable, Iterator, Sequence
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
@@ -644,6 +698,34 @@ def write_audit(
 # --- .claude/ guard (REQ-003-010) ----------------------------------------
 
 
+class GitStateUnreadableError(RuntimeError):
+    """Raised when git cannot report the working-tree state (issue #4632).
+
+    A caller that swallows this and substitutes an empty path list cannot
+    tell "git says nothing changed" from "nobody asked git". Both render as
+    ``[]``. See :func:`_git_diff_paths`.
+    """
+
+
+# git's stderr is unbounded, and the most common failure here is the worst
+# case: `git diff --no-index` prints 128 lines of flag documentation when it
+# refuses to run outside a repository. The pre-PR gate
+# (scripts/validation/check_generated_staleness.py) echoes only the last
+# _MAX_OUTPUT_LINES = 40 lines specifically so the diagnosis is last, so an
+# unbounded detail pushes the diagnosis into the "earlier line(s) omitted"
+# bucket and shows the operator nothing but flag help.
+_GIT_STDERR_DETAIL_CHARS = 200
+
+
+def _first_stderr_line(stderr: str | bytes | None) -> str:
+    """Return git's first stderr line, capped, for a one-line error message."""
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", errors="replace")
+    raw = (stderr or "").strip()
+    first = raw.splitlines()[0] if raw else ""
+    return first[:_GIT_STDERR_DETAIL_CHARS] or "(no stderr)"
+
+
 def _git_diff_paths(repo_root: Path) -> list[str]:
     """Return changed paths via ``git diff --name-only`` UNION untracked.
 
@@ -653,35 +735,62 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
     failures are detected: when a generator-owned file is removed from
     the index and then regenerated, ``git diff`` reports it as deleted
     but ``git status`` shows the regenerated copy as untracked. Without
-    the untracked half, --check and the .claude/ guard both miss it.
+    the untracked half, --check misses it.
 
-    Used by --check (staleness) and the .claude/ guard. A failure to run
-    git is treated as no-diff: this is a CI-side check, and CI always has
-    git. We do not want to fail when a contributor runs the script in a
-    non-git working tree.
+    Raises :class:`GitStateUnreadableError` when either git invocation fails to
+    start, times out, or exits nonzero. All three are external failures, and
+    the ``--check`` handler maps them to exit 3 per ``AGENTS.md``; see the
+    module docstring. The prior behavior returned the
+    paths gathered so far, which for a broken git is the empty list: the
+    exact value a clean tree produces, so ``--check`` reported exit 0 over a
+    tree it never examined (issue #4632, reproduction 1: ``PATH=/nonexistent
+    build_all.py --check`` returned rc=0 with a stale generated file on
+    disk). Fail-closed here costs nothing in CI, which always has git, and
+    the only caller is the ``--check`` staleness gate, so a plain
+    (non-``--check``) build in a non-git working tree still succeeds. That is
+    this function's caller set, not the script's git use: :func:`_ignored_paths`
+    runs git on every build and fails open (see the module docstring).
+
+    The raised message stays one line: see :func:`_first_stderr_line`.
+
+    The ``.claude/`` guard does NOT use this function. It compares two
+    :func:`_snapshot_owned_prefixes` results; see
+    :func:`assert_no_claude_writes`.
     """
     paths: list[str] = []
     seen: set[str] = set()
     scrubbed_env = _git_scrubbed_env()
     for argv in (
-        ["git", "-C", str(repo_root), "diff", "--name-only"],
-        ["git", "-C", str(repo_root), "ls-files", "--others", "--exclude-standard"],
+        ["git", "-C", str(repo_root), "diff", "--name-only", "-z"],
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+            "-z",
+        ],
     ):
         try:
             proc = subprocess.run(
                 argv,
                 capture_output=True,
-                text=True,
                 check=False,
                 timeout=30,
                 env=scrubbed_env,
             )
-        except (OSError, subprocess.SubprocessError):
-            continue
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise GitStateUnreadableError(
+                f"could not run {' '.join(argv)}: {exc}"
+            ) from exc
         if proc.returncode != 0:
-            continue
-        for line in proc.stdout.splitlines():
-            p = line.strip()
+            raise GitStateUnreadableError(
+                f"{' '.join(argv)} exited {proc.returncode}: "
+                f"{_first_stderr_line(proc.stderr)}"
+            )
+        for raw in proc.stdout.split(b"\x00"):
+            p = os.fsdecode(raw)
             if p and p not in seen:
                 seen.add(p)
                 paths.append(p)
@@ -716,7 +825,10 @@ def _git_scrubbed_env() -> dict[str, str]:
 
 
 def assert_no_claude_writes(
-    repo_root: Path, baseline: dict[Path, bytes]
+    repo_root: Path,
+    baseline: dict[Path, bytes],
+    *,
+    preexisting_boundaries: set[Path] | None = None,
 ) -> list[str]:
     """REQ-003-010: generators MUST NOT write under .claude/.
 
@@ -724,6 +836,20 @@ def assert_no_claude_writes(
     generator ran (see :func:`_snapshot_owned_prefixes`). This function
     re-reads the tree and returns the repo-relative paths the generators
     created, modified, or deleted relative to that baseline.
+
+    ``preexisting_boundaries`` is the set :func:`_git_boundaries_under`
+    recorded before the generators ran, and it MUST be the same set the
+    baseline snapshot used. Both walks stop at git repository boundaries.
+    Detecting those by shape at each end independently means a generator
+    can write a ``.git`` entry of its own and take the whole tree it
+    created out of the second walk, while the first walk never saw it
+    either, so the diff is empty and REQ-003-010 reports nothing.
+    Measured before this argument existed: a generator creating
+    ``.claude/out/.git`` plus ``.claude/out/leaked.md`` produced
+    ``violations reported: []`` with the file still on disk. Passing one
+    recorded set makes the two walks skip exactly the same trees, so a
+    boundary that appeared during the build is walked and reported like
+    any other generator write.
 
     Scoping to generator-attributable writes (not raw git diff) lets a
     legitimate pre-build sync of .claude/lib pass while still tripping on
@@ -741,7 +867,10 @@ def assert_no_claude_writes(
     ``.claude/lib/`` throughout (issue #3773).
     """
     current = _snapshot_owned_prefixes(
-        repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
+        repo_root,
+        CLAUDE_GUARD_PREFIX,
+        exclude_ignored=True,
+        opaque_boundaries=preexisting_boundaries,
     )
     offending: set[Path] = set()
     for path, content in current.items():
@@ -922,6 +1051,13 @@ def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
     Git location env vars (``GIT_DIR`` and friends) are stripped from the
     subprocess env so an inherited value cannot redirect ``ls-files`` away
     from ``repo_root`` (issue #2992 hook-execution context).
+
+    An entry here can be a directory rather than a file: ``ls-files``
+    reports an embedded git repository (a nested worktree checkout, for
+    example under ``.claude/worktrees/<name>/``) as one ignored directory,
+    not one entry per file inside it. Callers must treat each returned
+    path as a prefix, not just an exact key: see
+    :func:`_is_ignored_path`.
     """
     ignored: set[Path] = set()
     scrubbed_env = _git_scrubbed_env()
@@ -946,9 +1082,19 @@ def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
                 timeout=30,
                 env=scrubbed_env,
             )
-        except (OSError, subprocess.SubprocessError):
+        except (OSError, subprocess.SubprocessError) as exc:
+            print(
+                f"WARN: git ls-files failed for {prefix!r}, ignore set may be "
+                f"incomplete: {exc}",
+                file=sys.stderr,
+            )
             continue
         if proc.returncode != 0:
+            print(
+                f"WARN: git ls-files exited {proc.returncode} for {prefix!r}, "
+                "ignore set may be incomplete",
+                file=sys.stderr,
+            )
             continue
         for raw in proc.stdout.split(b"\x00"):
             if not raw:
@@ -958,12 +1104,435 @@ def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
     return ignored
 
 
+def _is_ignored_path(path: Path, ignored: set[Path]) -> bool:
+    """Return True if ``path`` is ignored, or nested under an ignored dir.
+
+    ``ignored`` (see :func:`_ignored_paths`) can hold directory entries: a
+    nested worktree checkout is reported as one ignored directory, not one
+    entry per file inside it. Matching ``ignored`` with plain set
+    membership therefore misses every file nested under such a directory,
+    which is what let a full worktree checkout get read into the
+    :func:`_snapshot_owned_prefixes` snapshot instead of skipped (issue
+    #5370, OOM reading 24+ nested worktrees under ``.claude/worktrees/``).
+    Treating each ignored entry as a path prefix closes that gap.
+    """
+    return path in ignored or any(parent in ignored for parent in path.parents)
+
+
+class SnapshotIncompleteError(RuntimeError):
+    """Raised when a file under an owned prefix could not be snapshotted.
+
+    Only :func:`_snapshot_owned_prefixes` in ``strict`` mode raises this. See
+    that function for why an unreadable file is fatal to ``--check`` and
+    harmless to the ``.claude/`` guard.
+    """
+
+
+class OwnedSnapshot(dict[Path, bytes]):
+    """A ``{path: content}`` snapshot, plus each file's captured mode bits.
+
+    Subclasses ``dict`` so every existing ``snapshot[path]``,
+    ``snapshot.items()``, ``path in snapshot``, and ``set(snapshot)`` callsite
+    keeps working unchanged; only :func:`_restore_owned_prefixes` needs the
+    added ``.modes`` to restore a file's permissions exactly, not just its
+    content. A test that builds a plain ``{}`` instead of this class still
+    works too: :func:`_read_into_snapshot` only touches ``.modes`` on a
+    successful read, via ``getattr(snapshot, "modes", None)``, so a bare dict
+    passed to a call that never reaches a successful read (every direct-call
+    test of that function exercises a failure or skip path) never trips an
+    ``AttributeError``.
+
+    Mode capture is best-effort and cosmetic, not a security boundary: a
+    Windows target, or a rare stat failure in the instant after a successful
+    read, just leaves that path out of ``.modes``, and
+    :func:`_write_bytes_no_redirect` falls back to its restrictive default
+    create mode rather than raising.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.modes: dict[Path, int] = {}
+
+
+def _missing_owned_root(path: Path) -> bool:
+    """Return whether the parent directory also reports no entry for ``path``."""
+    try:
+        with os.scandir(path.parent) as entries:
+            return all(entry.name != path.name for entry in entries)
+    except FileNotFoundError:
+        return True
+    except OSError as exc:
+        raise SnapshotIncompleteError(
+            f"cannot verify missing owned path {path}: {exc}"
+        ) from exc
+
+
+# stat.IO_REPARSE_TAG_MOUNT_POINT exists only on Windows builds, so reading it
+# through getattr with a sentinel default made the junction arm inert wherever
+# the attribute is missing: a check that cannot fire is not a check. The value
+# is a fixed Windows constant, and CPython's own os.path.isjunction compares
+# against exactly it, so pinning the literal makes the predicate answer the
+# same question on every platform. Non-Windows stat results carry no
+# st_reparse_tag at all, so the arm is unreachable there by data, not by a
+# missing name.
+_MOUNT_POINT_REPARSE_TAG = 0xA0000003
+
+
+def _is_redirecting(metadata: os.stat_result) -> bool:
+    """Return whether a no-follow stat names a link or a Windows junction.
+
+    ``S_ISLNK`` alone is not enough. A Windows directory junction is reported
+    as a directory carrying a reparse tag, so it passes every symlink test and
+    is then traversed, which is the same escape a symlink gives. The
+    repository already draws the line at both shapes: see `_is_redirecting_link`
+    in ``scripts/validation/portability_baseline.py``, which asks
+    ``path.is_symlink() or path.is_junction()``.
+
+    This reads the tag off an lstat result the caller already has, rather than
+    calling ``Path.is_junction()``. That helper delegates to
+    ``os.path.isjunction``, which swallows ``OSError`` and answers False, and a
+    strict probe that answers False on a metadata failure is the fail-open this
+    whole path exists to remove.
+    """
+    if stat.S_ISLNK(metadata.st_mode):
+        return True
+    return getattr(metadata, "st_reparse_tag", 0) == _MOUNT_POINT_REPARSE_TAG
+
+
+# Force binary mode on Windows, where os.open() without O_BINARY inherits the
+# C runtime's text-mode default: CRLF translation and truncation at a 0x1A
+# byte, either of which would corrupt a snapshot read or a restored write.
+# The flag does not exist off Windows, so getattr's fallback of 0 is a no-op
+# there. os.O_NOFOLLOW is POSIX-only for the same reason; see
+# _read_bytes_no_redirect and _write_bytes_no_redirect for what covers a
+# Windows junction, which os.O_NOFOLLOW never catches on any platform.
+_O_BINARY = getattr(os, "O_BINARY", 0)
+_O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+
+
+def _read_bytes_no_redirect(path: Path) -> bytes:
+    """Read ``path``'s bytes, refusing at open time if it currently redirects.
+
+    ``_read_into_snapshot`` and the "already matches" check in
+    ``_restore_owned_prefixes`` both call this instead of
+    ``Path.read_bytes()``, which follows a symlink to wherever it points.
+    Every caller here already validated ``path`` earlier (strict discovery
+    stats it with ``follow_symlinks=False``, or the restore loop just
+    checked ``not path.is_symlink()``), but a symlink or Windows junction can
+    still be swapped in between that check and this read: PR #5343 review
+    threads at build_all.py:1562 and :1843 named exactly this gap (CWE-367).
+
+    ``os.O_NOFOLLOW`` makes the ``os.open`` call itself fail (``ELOOP``) on a
+    symlinked final path component, so the swap is refused at the syscall
+    boundary instead of silently followed. It is POSIX-only; on Windows
+    ``getattr`` falls back to ``0`` (a no-op bit) and a symlink there would
+    still be opened. The ``fstat`` check right after open covers the other
+    redirect shape :func:`_is_redirecting` already treats as equivalent, a
+    Windows directory junction, on every platform.
+
+    This narrows the window between validation and read to the gap between
+    this function's own ``os.open`` and ``os.fstat`` calls. It does not close
+    that gap to zero, and it does not close the POSIX-symlink gap on Windows
+    at all. The wider remedy considered on those review threads, generating
+    into an isolated tree so a redirect at any point cannot reach a path
+    ``--check`` would restore, was not chosen; see the threads for why.
+    """
+    fd = os.open(path, os.O_RDONLY | _O_BINARY | _O_NOFOLLOW)
+    try:
+        metadata = os.fstat(fd)
+        if _is_redirecting(metadata):
+            raise OSError(
+                errno.ELOOP,
+                f"{path} redirects (symlink or junction) at open time",
+            )
+        with os.fdopen(fd, "rb", closefd=False) as handle:
+            return handle.read()
+    finally:
+        os.close(fd)
+
+
+def _write_bytes_no_redirect(
+    path: Path, content: bytes, *, mode: int | None = None
+) -> None:
+    """Create ``path`` fresh and write ``content``, refusing a raced redirect.
+
+    Only ``_restore_owned_prefixes`` calls this, and only after it has
+    already removed whatever was at ``path`` (``shutil.rmtree`` for a
+    directory, ``Path.unlink`` for a file or a symlink), so this call is
+    always meant to create a brand new inode. ``os.O_EXCL`` makes the open
+    fail if anything, a real file or a symlink, already exists at ``path``:
+    that closes the classic unlink-then-recreate race, because nothing that
+    lands at ``path`` between the caller's removal and this open can be
+    written through. ``os.O_NOFOLLOW`` adds nothing over ``O_EXCL`` for a
+    symlink specifically (``O_EXCL`` already refuses any existing entry,
+    link or not), but costs nothing and keeps this call symmetric with
+    :func:`_read_bytes_no_redirect`.
+
+    Raises ``OSError`` (``FileExistsError`` when the race fires) instead of
+    writing through whatever reappeared. The caller's existing per-path
+    ``try/except OSError`` turns that into a ``WARN`` and moves on to the
+    next snapshot entry, the same best-effort behavior restore already had
+    for any other write failure; it does not retry or unlink the racing
+    entry, which could itself be adversarial.
+
+    Always creates with ``0o600`` (owner read-write only), never a group- or
+    world-readable literal such as ``0o644``, passed to ``os.open`` itself:
+    CodeQL flags an explicit permissive mode there (CWE-732), and there is
+    no reason this specific ``os.open`` call needs to ask for one. ``mode``,
+    when given, is applied afterward with ``os.fchmod`` (guarded for
+    platforms, Windows included, where that call is unavailable): callers
+    pass the file's captured pre-run permission bits
+    (:class:`OwnedSnapshot`.modes) so the *restored file* ends up matching
+    what was actually there before the run, restoring the exact pre-run
+    state :func:`_restore_owned_prefixes` promises rather than a fixed
+    literal (PR #5343 review, build_all.py:1261: an earlier version of this
+    function created every restored file as ``0o600`` outright, silently
+    downgrading a file that started at the ordinary ``0o644`` and leaving it
+    unreadable to anyone but the file's owner after ``--check`` finished).
+    ``mode=None`` (no capture, or a plain-dict caller with no ``.modes``)
+    leaves the file at the restrictive create mode; that only differs from
+    the pre-run state on a platform or in the rare stat-failure case
+    :func:`_read_into_snapshot` already documents as falling back silently.
+    """
+    fd = os.open(
+        path,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_BINARY | _O_NOFOLLOW,
+        0o600,
+    )
+    try:
+        if mode is not None and hasattr(os, "fchmod"):
+            os.fchmod(fd, mode)
+        with os.fdopen(fd, "wb", closefd=False) as handle:
+            handle.write(content)
+    finally:
+        os.close(fd)
+
+
+def _reject_redirecting_ancestors(repo_root: Path, path: Path) -> None:
+    """Fail the strict snapshot when a component above ``path`` redirects.
+
+    ``stat(follow_symlinks=False)`` only declines to follow the FINAL
+    component. Every directory above it is resolved by the kernel on the way
+    there, so a redirecting parent is followed before any per-path check runs.
+    Concretely: ``docs/agent-catalog.md`` is a single-file owned prefix, and a
+    ``docs`` symlink or junction pointing outside the repository sends the
+    generated catalog to the link target, where restore cannot reach it.
+
+    A missing ancestor ends the walk without complaint. Nothing exists below
+    it to protect, and generators may create the tree.
+    """
+    try:
+        relative = path.relative_to(repo_root)
+    except ValueError:
+        return
+    current = repo_root
+    for part in relative.parts[:-1]:
+        current = current / part
+        try:
+            metadata = current.stat(follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            raise SnapshotIncompleteError(
+                f"cannot inspect owned path ancestor {current}: {exc}"
+            ) from exc
+        if _is_redirecting(metadata):
+            raise SnapshotIncompleteError(
+                f"owned path ancestor redirects, so --check cannot restore a "
+                f"write through it: {current}"
+            )
+
+
+def _strict_owned_stat(
+    path: Path, *, missing_root_ok: bool
+) -> os.stat_result | None:
+    """Return metadata for ``path``, rejecting symlinks, without following them.
+
+    A symlink under an owned prefix raises here instead of being skipped by
+    the caller. Skipping was fail-open in the one direction ``--check``
+    promises to be safe. The snapshot omits the link, but generation writes
+    THROUGH it: :func:`generate_skills._copy_skill_tree` builds each
+    destination as ``dst_path = target / rel`` and then calls
+    ``dst_path.parent.mkdir(parents=True, exist_ok=True)``, so a
+    ``src/copilot-cli/skills/<name>`` symlink pointing outside the repository
+    takes the generated bytes to the link target.
+
+    :func:`_restore_owned_prefixes` cannot undo that write.
+    :func:`_enumerate_files_under` skips symlinks too, and ``Path.rglob`` does
+    not descend into a symlinked directory, so the written file lands in
+    neither the snapshot nor the post-run enumeration. A ``--check`` run
+    documented as read-only would leave files changed outside the repository,
+    which is issue #4632's contract failing in a second place.
+
+    Raising is cheap: the repository has no symlink under
+    :data:`OWNED_PREFIXES` today, so the cost is one error message to whoever
+    introduces the first one. Snapshotting and restoring link metadata is the
+    alternative, and it would still not undo a write that landed outside the
+    repository.
+
+    Only strict callers reach this. The ``.claude/`` guard keeps skipping
+    symlinks: it compares snapshots and never deletes, so a link there costs
+    a missed report, not data.
+    """
+    try:
+        metadata = path.stat(follow_symlinks=False)
+    except FileNotFoundError as exc:
+        if missing_root_ok and _missing_owned_root(path):
+            return None
+        raise SnapshotIncompleteError(
+            f"owned path disappeared during snapshot {path}: {exc}"
+        ) from exc
+    except OSError as exc:
+        raise SnapshotIncompleteError(
+            f"cannot inspect owned path {path}: {exc}"
+        ) from exc
+    if _is_redirecting(metadata):
+        raise SnapshotIncompleteError(
+            f"owned path redirects (symlink or junction), and --check cannot "
+            f"restore a write through it: {path}"
+        )
+    if not stat.S_ISDIR(metadata.st_mode) and not stat.S_ISREG(metadata.st_mode):
+        raise SnapshotIncompleteError(
+            f"owned path is neither a regular file nor a directory, and "
+            f"--check can neither snapshot nor restore it: {path}"
+        )
+    return metadata
+
+
+def _strict_owned_children(path: Path) -> list[Path]:
+    """Return direct children of ``path`` or fail the strict snapshot."""
+    try:
+        with os.scandir(path) as entries:
+            return [Path(entry.path) for entry in entries]
+    except OSError as exc:
+        raise SnapshotIncompleteError(
+            f"cannot enumerate owned directory {path}: {exc}"
+        ) from exc
+
+
+def _strict_is_git_boundary(directory: Path) -> bool:
+    """Return whether ``directory`` holds its own ``.git`` entry, failing closed.
+
+    :func:`_is_opaque_boundary`'s shape branch asks ``(entry / ".git").exists()``,
+    and that is fail-open in strict mode for the reason this file spends a
+    docstring on elsewhere: ``Path.exists()`` answers "absent" and "could not
+    be stat'ed" with the same ``False``. A permission error or a stale handle
+    on ``<directory>/.git`` would read as "not a boundary", the strict walk
+    would descend into the checkout, and the nested-worktree read that issue
+    #5370 closed would be back, this time reached through the very metadata
+    failure this branch was added to reject.
+
+    So the marker gets the same treatment every other strict probe gets. Only
+    :class:`FileNotFoundError` means absent. A symlinked marker is rejected
+    rather than followed, matching :func:`_strict_owned_stat`. Every other
+    :class:`OSError` aborts the snapshot.
+
+    Both marker shapes count: ``git worktree add`` writes ``.git`` as a file
+    holding a ``gitdir:`` pointer, a normal clone writes it as a directory.
+    """
+    marker = directory / ".git"
+    try:
+        metadata = marker.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        raise SnapshotIncompleteError(
+            f"cannot inspect git boundary marker {marker}: {exc}"
+        ) from exc
+    if _is_redirecting(metadata):
+        raise SnapshotIncompleteError(
+            f"git boundary marker redirects, so it cannot be trusted to say "
+            f"whether {directory} is a nested repository: {marker}"
+        )
+    return True
+
+
+def _reject_nested_repository(directory: Path) -> None:
+    """Refuse a directory that holds its own ``.git`` entry.
+
+    Called on every directory the strict walk is about to enter, the prefix
+    root included. Checking only children left the root itself unguarded: a
+    prefix such as ``src/`` holding its own ``.git`` was queued directly and
+    traversed, and generators then wrote into that repository.
+    """
+    if _strict_is_git_boundary(directory):
+        raise SnapshotIncompleteError(
+            f"owned prefix contains a nested git repository, and --check "
+            f"cannot keep its promise over one: {directory}"
+        )
+
+
+def _queue_strict_owned_path(pending: list[Path], path: Path) -> Path | None:
+    """Queue child directories and return child files for strict snapshots."""
+    metadata = _strict_owned_stat(path, missing_root_ok=False)
+    assert metadata is not None, (
+        "missing_root_ok=False guarantees a non-None result or a raise"
+    )
+    if stat.S_ISDIR(metadata.st_mode):
+        _reject_nested_repository(path)
+        pending.append(path)
+        return None
+    return path
+
+
+def _iter_strict_owned_files(root: Path) -> Iterable[Path]:
+    """Yield owned files while surfacing strict metadata and scan failures.
+
+    Rejects a nested git repository under an owned prefix rather than
+    skipping it. Skipping protected restore and nothing else: the checkout
+    stays out of the snapshot, generation still writes into it (a checkout at
+    ``src/copilot-cli/skills/alpha`` gets its ``SKILL.md`` overwritten by
+    :func:`generate_skills.generate_skills` like any other target), and
+    restore then skips the same directory, so ``--check`` returns having
+    modified a tree it promised not to touch. The snapshot cannot hold the
+    checkout (issue #5370: 24 nested worktrees under ``.claude/worktrees/``
+    read into memory until the process died) and restore cannot repair it, so
+    the only honest answer is to refuse the run.
+
+    That refusal is cheap here. :data:`OWNED_PREFIXES` is generated output,
+    and the repository has no nested checkout under any of it. The
+    ``.claude/`` guard keeps skipping boundaries, which is where #5370
+    actually bit: it compares snapshots, never deletes, and never generates
+    into them.
+
+    Shape detection is correct at this call site because this runs before any
+    generator, so nothing can have manufactured a ``.git`` entry yet. The
+    probe is :func:`_strict_is_git_boundary`, not :func:`_is_opaque_boundary`,
+    because the latter's shape branch uses ``Path.exists()`` and would swallow
+    a metadata failure on the marker.
+
+    Neither this function nor :func:`_queue_strict_owned_path` re-tests
+    ``Path.is_symlink()``, and neither tests for a special file.
+    :func:`_strict_owned_stat` stats with ``follow_symlinks=False`` and raises
+    on a redirect or on anything that is not a regular file or a directory
+    before returning, so every ``st_mode`` reaching a caller is already one of
+    those two.
+    """
+    root_metadata = _strict_owned_stat(root, missing_root_ok=True)
+    if root_metadata is None:
+        return
+    if stat.S_ISREG(root_metadata.st_mode):
+        yield root
+        return
+
+    _reject_nested_repository(root)
+    pending = [root]
+    while pending:
+        current = pending.pop()
+        for child in _strict_owned_children(current):
+            child_file = _queue_strict_owned_path(pending, child)
+            if child_file is not None:
+                yield child_file
+
+
 def _snapshot_owned_prefixes(
     repo_root: Path,
     prefixes: tuple[str, ...],
     *,
     exclude_ignored: bool = False,
-) -> dict[Path, bytes]:
+    opaque_boundaries: set[Path] | None = None,
+    strict: bool = False,
+) -> OwnedSnapshot:
     """Snapshot every file under ``prefixes`` into an in-memory dict.
 
     Returns a mapping of absolute Path → raw bytes for every regular file
@@ -973,10 +1542,9 @@ def _snapshot_owned_prefixes(
     Used by --check to make the build orchestrator read-only (#2440).
     The snapshot is held in process memory because the real owned-prefix
     tree is ~21MB and a temp-dir copytree adds I/O and cleanup hazards
-    without buying meaningful safety. Symlinks under owned prefixes are
-    not in scope today: generators only emit regular files, and treating
-    them as such matches the existing copytree semantics in
-    :func:`_build_directory_copy`.
+    without buying meaningful safety. The two modes answer the symlink
+    question differently: the comparison-only caller skips links, and
+    ``strict`` rejects them (see :func:`_strict_owned_stat`).
 
     When ``exclude_ignored`` is set, gitignored runtime artifacts (see
     :func:`_ignored_paths`) and bytecode caches (see
@@ -992,43 +1560,187 @@ def _snapshot_owned_prefixes(
     pre-existing ``__pycache__`` under an owned prefix, which is the same
     cache-eviction that makes the next run recompile inside the guard
     window: the exact race issue #3856 closes.
+
+    ``opaque_boundaries`` forwards to :func:`_iter_tree_skip_git_boundaries`;
+    see :func:`_is_opaque_boundary` for why a caller comparing two
+    snapshots must pass one recorded set to both rather than letting each
+    walk detect boundaries by shape.
+
+    The walk always skips nested git repository boundaries (see
+    :func:`_iter_tree_skip_git_boundaries`), regardless of
+    ``exclude_ignored``. ``--check`` calls this with ``exclude_ignored=False``,
+    so relying on ``_is_ignored_path`` alone would leave this snapshot pass
+    asymmetric with :func:`_enumerate_files_under`'s boundary skip: a nested
+    worktree would still be read here and then clobbered by
+    :func:`_restore_owned_prefixes` (issue #5370).
+
+    ``strict`` decides what an unreadable file means, and the two consumers
+    need opposite answers (issue #4632).
+
+    The ``.claude/`` guard takes ``strict=False``, and the cost of that is a
+    missed violation, not nothing. :func:`assert_no_claude_writes` builds
+    ``offending`` from ``current.items()`` and from
+    ``baseline.keys() - current.keys()``, so a ``.claude/`` path unreadable at
+    both snapshot times lands in neither set: on that one path the guard
+    cannot see a generator write, which is REQ-003-010 failing open. The trade
+    is deliberate. The guard can only report (it never deletes), and the
+    alternative is failing a pre-push gate on a transient permission error in
+    the same concurrent-write window issue #3773 describes. Do not read
+    ``strict=False`` here as the file's general convention: the neighbouring
+    :func:`_confirm_ignored` is fail-closed for this same guard, because there
+    the failure direction is reversed and a git that will not run leaves every
+    candidate reported rather than dropped.
+
+    ``--check`` takes ``strict=True``, because it *restores* from its
+    snapshot: :func:`_restore_owned_prefixes` deletes anything on disk the
+    snapshot does not name, so the same skip turns a file the run could not
+    read into a file the run deletes. Issue #4632 reproduction 2
+    made one generated instruction file unreadable and observed
+    ``rc=1 state=deleted``: a ``--check`` run, documented as read-only,
+    destroyed a pre-existing file. ``strict=True`` raises
+    :class:`SnapshotIncompleteError` there so the caller aborts before any
+    generator runs and no partial snapshot ever reaches restore.
+
+    Strict discovery does not use ``Path.is_file()``, ``Path.is_dir()``,
+    ``Path.exists()``, or ``Path.rglob()``. In Python 3.14 those helpers can
+    suppress stat and traversal errors, which turns a transient metadata or
+    scan failure into an omitted path. If the error clears before restore,
+    ``--check`` can then delete that pre-existing file as generator-created.
+    A missing prefix root is skipped because generators may create it. Once a
+    path has been discovered, every metadata, traversal, or read error raises
+    before generation starts, including :class:`FileNotFoundError`, so a
+    transient disappear-and-recreate race cannot leave restore with a partial
+    snapshot. A symlink raises for the same reason one class further out: the
+    snapshot cannot hold it, generation writes through it, and restore cannot
+    reach what the write touched (:func:`_strict_owned_stat`).
     """
     ignored = _ignored_paths(repo_root, prefixes) if exclude_ignored else set()
-    snapshot: dict[Path, bytes] = {}
+    snapshot = OwnedSnapshot()
     for prefix in prefixes:
         root = repo_root / prefix
+        # Every branch below this one runs only when ``strict`` is false: the
+        # strict branch handles single-file and directory prefixes alike and
+        # ``continue``s. So they pass ``strict=False`` literally rather than
+        # forwarding the parameter. Forwarding read as live wiring while being
+        # dead, which is an argument no mutation can distinguish (measured:
+        # rewriting the forward to ``strict=False`` left all 137 tests green).
+        if strict:
+            _reject_redirecting_ancestors(repo_root, root)
+            for path in _iter_strict_owned_files(root):
+                if _is_ignored_path(path, ignored) or (
+                    exclude_ignored and _is_bytecode_artifact(path)
+                ):
+                    continue
+                _read_into_snapshot(snapshot, path, strict=True)
+            continue
         if root.is_file() and not root.is_symlink():
             if root in ignored:
                 continue
-            try:
-                snapshot[root] = root.read_bytes()
-            except OSError:
-                continue
+            _read_into_snapshot(snapshot, root, strict=False)
             continue
         if root.exists() and not root.is_dir():
             continue
         if not root.is_dir():
             continue
-        for path in root.rglob("*"):
-            if not path.is_file() or path.is_symlink():
+        for path, is_dir in _iter_tree_skip_git_boundaries(
+            root, opaque_boundaries=opaque_boundaries
+        ):
+            if is_dir or not path.is_file():
                 continue
-            if path in ignored or (exclude_ignored and _is_bytecode_artifact(path)):
+            if _is_ignored_path(path, ignored) or (
+                exclude_ignored and _is_bytecode_artifact(path)
+            ):
                 continue
-            try:
-                snapshot[path] = path.read_bytes()
-            except OSError:
-                # Unreadable file (permissions, race). Skip — restore will
-                # treat it as not-present which keeps the working tree at
-                # least as clean as it was before the run.
-                continue
+            _read_into_snapshot(snapshot, path, strict=False)
     return snapshot
+
+
+def _read_into_snapshot(
+    snapshot: dict[Path, bytes], path: Path, *, strict: bool
+) -> None:
+    """Read ``path`` into ``snapshot``, or decide what its failure means.
+
+    Extracted so the single-file prefix branch and the directory walk in
+    :func:`_snapshot_owned_prefixes` cannot drift apart. ``docs/agent-catalog.md``
+    and ``.agents/architecture/README.md`` are single-file owned prefixes, so
+    the branch that handles them is exactly as exposed to the delete-on-
+    unreadable bug as the walk is.
+
+    Under ``strict`` every :class:`OSError` raises, :class:`FileNotFoundError`
+    included, because restore CAN delete a file that is still on disk. An
+    earlier version of this sentence carved out `FileNotFoundError` as
+    "vanished" and skipped it. That contradicted the code below and the
+    post-discovery contract: a path that disappears and returns before restore
+    would be absent from the snapshot and deleted as generator-created. Only
+    the non-strict caller skips, and it skips every :class:`OSError` alike.
+
+    The narrower ``strict and path.exists()`` guard this replaces was
+    fail-open. ``Path.exists()`` reports a boolean over two different
+    questions, "is it absent" and "could I stat it", and it answers both with
+    ``False``. On CPython 3.14.7 it delegates to ``os.path.exists``, whose
+    body is::
+
+        def exists(path):
+            try:
+                os.stat(path)
+            except (OSError, ValueError):
+                return False
+            return True
+
+    So a permission error, a stale handle, or a transient I/O failure on the
+    ``stat`` made ``exists()`` ``False`` for a file that was still there, the
+    strict branch was skipped, the path stayed out of the snapshot, and
+    :func:`_restore_owned_prefixes` deleted it as generator-created: the exact
+    data loss issue #4632 reproduction 2 reported. Measured with a symlink
+    loop, which needs no mock and no permission bits: ``exists()`` is
+    ``False`` while ``read_bytes()`` raises ``OSError(ELOOP)``, not
+    ``FileNotFoundError``.
+
+    Under ``strict`` every :class:`OSError` raises because the path was already
+    discovered and statted. A path that disappears and returns before restore
+    would otherwise be absent from the snapshot and deleted as generator-created.
+
+    Reads through :func:`_read_bytes_no_redirect`, not ``Path.read_bytes()``,
+    so a symlink or junction swapped in after discovery and before this read
+    is refused rather than followed (CWE-367, PR #5343 review thread at
+    build_all.py:1562).
+
+    Also captures ``path``'s permission bits into ``snapshot.modes`` when
+    ``snapshot`` is an :class:`OwnedSnapshot` (a plain ``dict`` skips this;
+    see that class for why every existing direct-call test still passes one
+    safely). :func:`_restore_owned_prefixes` uses the captured mode so a
+    restored file keeps the permissions it had before the run, not a fixed
+    literal (PR #5343 review, build_all.py:1261). A separate ``stat`` call
+    after the read, not the same ``fstat`` :func:`_read_bytes_no_redirect`
+    already took: mode capture is cosmetic, not the TOCTOU boundary that
+    call protects, so a stat failure here (the file would have to vanish or
+    become inaccessible in the instant after a read that just proved it
+    readable) is swallowed rather than aborting an otherwise-successful
+    snapshot.
+    """
+    try:
+        snapshot[path] = _read_bytes_no_redirect(path)
+    except OSError as exc:
+        if strict:
+            raise SnapshotIncompleteError(
+                f"cannot read owned file {path}: {exc}"
+            ) from exc
+        return
+    modes = getattr(snapshot, "modes", None)
+    if modes is not None:
+        try:
+            modes[path] = stat.S_IMODE(path.stat(follow_symlinks=False).st_mode)
+        except OSError:
+            pass
 
 
 def _restore_owned_prefixes(
     repo_root: Path,
     prefixes: tuple[str, ...],
     snapshot: dict[Path, bytes],
-) -> None:
+    *,
+    preexisting_boundaries: set[Path] | None = None,
+) -> bool:
     """Restore the working tree to the snapshot state under ``prefixes``.
 
     Three cases per path:
@@ -1039,19 +1751,67 @@ def _restore_owned_prefixes(
       3. On disk AND not in snapshot → delete it (the generator created
          a new path that did not exist pre-run).
 
-    After this returns, every file under ``prefixes`` matches its
+    Returns ``True`` when every path was restored exactly to its pre-run
+    state, ``False`` when any path could not be restored (a ``WARN`` is
+    printed for each one as it happens). :func:`run` uses this to escalate
+    ``--check``'s exit code: this function has always been best-effort
+    internally (one failed path must not abort the rest of the restore),
+    but the caller silently ignored the outcome, so a raced redirect that
+    :func:`_write_bytes_no_redirect` correctly refused to write through
+    still let ``--check`` exit 0 with the rollback incomplete (PR #5343
+    review, build_all.py:1724). A directory left over after
+    :func:`_prune_empty_dirs` fails is not counted: pruning is cosmetic
+    (an empty directory carries no content to diverge from the snapshot),
+    not a break in the read-only content-restoration contract this return
+    value protects.
+
+    After a ``True`` return, every file under ``prefixes`` matches its
     pre-run state. Pre-existing dirty state (uncommitted edits, untracked
     files) is preserved exactly because the snapshot captured it.
+
+    ``preexisting_boundaries`` is the set of git repository boundaries recorded
+    before the generators ran. ``--check`` passes an EMPTY set, not ``None``,
+    because strict discovery aborts on any nested repository under an owned
+    prefix, so by the time this runs there provably are none. ``None`` would
+    switch :func:`_is_opaque_boundary` back to shape detection and let a
+    generator hide its own output behind a ``.git`` entry it wrote during the
+    build. The ``.claude/`` guard passes a real set from
+    :func:`_git_boundaries_under`, because that walk tolerates boundaries
+    rather than refusing them. Detecting boundaries by shape here instead would read the
+    post-generation tree, so a tree the generator created with a ``.git``
+    entry inside it would look like a nested checkout and case 3 would
+    skip its files. Measured before this argument existed: a generator
+    creating ``owned/out/.git`` plus ``owned/out/generated.txt`` left both
+    on disk after a ``--check`` restore, breaking the read-only contract
+    of issue #2440. ``None`` keeps the shape test, which is correct for a
+    caller with no recorded baseline.
     """
-    current = _enumerate_files_under(repo_root, prefixes)
+    current = _enumerate_files_under(
+        repo_root, prefixes, opaque_boundaries=preexisting_boundaries
+    )
+    fully_restored = True
+    # A plain dict (some direct-call tests still pass one) has no .modes;
+    # falling back to {} makes modes.get(path) below None for every path,
+    # which _write_bytes_no_redirect already treats as "no captured mode".
+    modes: dict[Path, int] = getattr(snapshot, "modes", {})
 
     # Cases 1 & 2: restore every file that was in the snapshot.
+    #
+    # Both the "already matches" read and the write below go through
+    # _read_bytes_no_redirect / _write_bytes_no_redirect rather than
+    # Path.read_bytes() / Path.write_bytes(), so a symlink or junction raced
+    # in after the is_symlink() checks here and before the actual I/O is
+    # refused instead of written through (CWE-367, PR #5343 review thread at
+    # build_all.py:1843). The write also passes the path's captured mode, so
+    # a restored file keeps its pre-run permissions instead of always coming
+    # back at the write helper's restrictive create default (PR #5343
+    # review, build_all.py:1261).
     for path, content in snapshot.items():
         try:
             if (
                 path.is_file()
                 and not path.is_symlink()
-                and path.read_bytes() == content
+                and _read_bytes_no_redirect(path) == content
             ):
                 continue  # already matches snapshot
             if path.is_dir() and not path.is_symlink():
@@ -1059,9 +1819,12 @@ def _restore_owned_prefixes(
             elif path.exists() or path.is_symlink():
                 path.unlink()
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(content)
+            _write_bytes_no_redirect(path, content, mode=modes.get(path))
         except OSError as exc:
-            # Best-effort restore; surface so CI logs show what was missed.
+            # Best-effort restore; surface so CI logs show what was missed,
+            # and tell the caller so --check does not report success over an
+            # incomplete rollback.
+            fully_restored = False
             print(
                 f"WARN: failed to restore {path} after --check: {exc}",
                 file=sys.stderr,
@@ -1072,18 +1835,128 @@ def _restore_owned_prefixes(
         try:
             path.unlink()
         except OSError as exc:
+            fully_restored = False
             print(
                 f"WARN: failed to remove generator-created {path} after --check: {exc}",
                 file=sys.stderr,
             )
 
-    _prune_empty_dirs(repo_root, prefixes)
+    _prune_empty_dirs(
+        repo_root, prefixes, opaque_boundaries=preexisting_boundaries
+    )
+    return fully_restored
+
+
+def _is_opaque_boundary(entry: Path, opaque: set[Path] | None) -> bool:
+    """Return True if ``entry`` is a boundary the walk must not enter.
+
+    ``opaque`` of ``None`` means "detect boundaries by shape": any
+    directory holding its own ``.git`` file or directory. That is the
+    right question before a build, when nothing has been recorded yet.
+
+    A caller that passes a set is asking a different question: which
+    boundaries existed at a recorded moment. Shape is the wrong test
+    there, because a generator can create a ``.git`` entry during the
+    build, and treating that new tree as opaque would leave the
+    generator's own output on disk (see :func:`_restore_owned_prefixes`).
+    """
+    if opaque is None:
+        return (entry / ".git").exists()
+    return entry in opaque
+
+
+def _iter_tree_skip_git_boundaries(
+    root: Path,
+    *,
+    opaque_boundaries: set[Path] | None = None,
+    boundaries_seen: set[Path] | None = None,
+) -> Iterator[tuple[Path, bool]]:
+    """Yield ``(path, is_dir)`` for every entry under ``root``.
+
+    Never descends into a directory that is itself a git repository
+    boundary (holds its own ``.git`` file or directory), the same shape
+    ``git worktree`` uses for a nested checkout under, for example,
+    ``.claude/worktrees/<name>/``. A boundary directory is not yielded
+    either, so callers never enumerate, prune, or (via
+    :func:`_restore_owned_prefixes`) delete anything inside one.
+
+    This is what keeps a future addition of ``.claude/`` to
+    :data:`OWNED_PREFIXES` from making :func:`_restore_owned_prefixes` walk
+    into, and delete, a nested worktree's own working tree (issue #5370).
+
+    ``opaque_boundaries`` narrows that skip to a recorded set of paths;
+    see :func:`_is_opaque_boundary` for why the post-build walk cannot use
+    shape detection. ``boundaries_seen`` collects every boundary the walk
+    refused to enter, which is how :func:`_git_boundaries_under` records
+    the pre-build set without a second traversal shape.
+    """
+    stack = [root]
+    while stack:
+        current = stack.pop()
+        try:
+            entries = list(current.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            if entry.is_symlink():
+                continue
+            is_dir = entry.is_dir()
+            if is_dir and _is_opaque_boundary(entry, opaque_boundaries):
+                # git repository boundary; opaque, do not descend
+                if boundaries_seen is not None:
+                    boundaries_seen.add(entry)
+                continue
+            yield entry, is_dir
+            if is_dir:
+                stack.append(entry)
+
+
+def _git_boundaries_under(
+    repo_root: Path, prefixes: tuple[str, ...]
+) -> set[Path]:
+    """Return the git repository boundaries under ``prefixes`` right now.
+
+    ``--check`` records this before any generator runs so
+    :func:`_restore_owned_prefixes` can tell a pre-existing nested
+    checkout, which it must leave alone, from a boundary-shaped tree a
+    generator created during the build, which is output and must be
+    removed like any other generator write (issue #2440).
+
+    The walk stops at each boundary, so this costs a directory traversal
+    and reads no file contents, which is the property issue #5370 needed.
+    """
+    boundaries: set[Path] = set()
+    for prefix in prefixes:
+        root = repo_root / prefix
+        if not root.is_dir():
+            continue
+        for _ in _iter_tree_skip_git_boundaries(root, boundaries_seen=boundaries):
+            pass
+    return boundaries
 
 
 def _enumerate_files_under(
-    repo_root: Path, prefixes: tuple[str, ...]
+    repo_root: Path,
+    prefixes: tuple[str, ...],
+    *,
+    opaque_boundaries: set[Path] | None = None,
 ) -> set[Path]:
-    """Return every regular non-symlink file under any of ``prefixes``."""
+    """Return every regular non-symlink file under any of ``prefixes``.
+
+    Skips nested git repository boundaries; see
+    :func:`_iter_tree_skip_git_boundaries` and, for what
+    ``opaque_boundaries`` changes, :func:`_is_opaque_boundary`.
+
+    ``path.is_file()`` is load-bearing, not a redundant re-check of
+    ``not is_dir``. A FIFO, a unix socket, or a device node is neither a
+    directory nor a regular file. :func:`_snapshot_owned_prefixes` drops
+    those with the same predicate (``if is_dir or not path.is_file():
+    continue``), so counting every non-directory entry here would put a
+    pre-existing special file in ``current - snapshot`` and case 3 of
+    :func:`_restore_owned_prefixes` would unlink it. That turns a
+    read-only ``--check`` into a delete. Symlinks are already dropped
+    upstream by :func:`_iter_tree_skip_git_boundaries`.
+    """
     found: set[Path] = set()
     for prefix in prefixes:
         root = repo_root / prefix
@@ -1094,17 +1967,31 @@ def _enumerate_files_under(
             continue
         if not root.is_dir():
             continue
-        for path in root.rglob("*"):
-            if path.is_file() and not path.is_symlink():
+        for path, is_dir in _iter_tree_skip_git_boundaries(
+            root, opaque_boundaries=opaque_boundaries
+        ):
+            if not is_dir and path.is_file():
                 found.add(path)
     return found
 
 
-def _prune_empty_dirs(repo_root: Path, prefixes: tuple[str, ...]) -> None:
+def _prune_empty_dirs(
+    repo_root: Path,
+    prefixes: tuple[str, ...],
+    *,
+    opaque_boundaries: set[Path] | None = None,
+) -> None:
     """Remove empty directories the generator created under ``prefixes``.
 
     Walks bottom-up so child dirs go before parents. Never touches the
-    prefix root itself.
+    prefix root itself, and never descends into or removes a nested git
+    repository boundary; see :func:`_iter_tree_skip_git_boundaries`.
+
+    ``opaque_boundaries`` protects the same set
+    :func:`_enumerate_files_under` protects. Without it here, a
+    boundary-shaped tree a generator created would keep its now-empty
+    directories after case 3 deleted their files, which is still a
+    ``--check`` write.
     """
     for prefix in prefixes:
         root = repo_root / prefix
@@ -1112,11 +1999,14 @@ def _prune_empty_dirs(repo_root: Path, prefixes: tuple[str, ...]) -> None:
             continue
         if not root.is_dir():
             continue
-        for dirpath in sorted(
-            (p for p in root.rglob("*") if p.is_dir()),
-            key=lambda p: len(p.parts),
-            reverse=True,
-        ):
+        dirs = [
+            p
+            for p, is_dir in _iter_tree_skip_git_boundaries(
+                root, opaque_boundaries=opaque_boundaries
+            )
+            if is_dir
+        ]
+        for dirpath in sorted(dirs, key=lambda p: len(p.parts), reverse=True):
             try:
                 if not any(dirpath.iterdir()):
                     dirpath.rmdir()
@@ -1153,31 +2043,101 @@ def run(
     # BEFORE any generator runs so we can revert any writes after the
     # staleness diff is computed. This makes --check safe to call from
     # any worktree without dirtying it.
+    #
+    # A file that cannot be read is fatal HERE, before any generator runs and
+    # before the try/finally below arms the restore. Continuing with a partial
+    # snapshot would let _restore_owned_prefixes classify the unreadable file
+    # as generator-created and delete it (issue #4632).
     snapshot: dict[Path, bytes] | None = None
+    boundaries: set[Path] | None = None
     if check:
-        snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES)
+        # Restore's boundary set comes from this same traversal, not from a
+        # separate _git_boundaries_under pass. Two passes could disagree: that
+        # helper's walker swallows every directory-scan OSError, so one
+        # transient failure returns an incomplete set while a separate strict
+        # pass, run again later, hits no transient failure and correctly
+        # rejects the nested repository outright (SnapshotIncompleteError),
+        # never merely skipping it by shape the way the non-strict
+        # _is_opaque_boundary fallback would. Restore would then receive
+        # the short set, descend into a repository the snapshot never read,
+        # and delete its files as generator-created: issue #4632's data loss
+        # reopened one level out. Collecting here makes the two agree by
+        # construction, and a scan failure aborts the run instead.
+        # Empty on purpose, not None. Strict discovery aborts on any nested
+        # repository under an owned prefix, so by the time restore runs there
+        # provably are none, and membership against an empty set is the right
+        # answer. None would switch _is_opaque_boundary back to shape
+        # detection, which would let a generator hide its own output behind a
+        # .git entry it wrote during the build (#5464).
+        boundaries = set()
+        try:
+            snapshot = _snapshot_owned_prefixes(
+                repo_root, OWNED_PREFIXES, strict=True
+            )
+        except SnapshotIncompleteError as exc:
+            print(
+                f"Error: --check aborted before generation: {exc}",
+                file=sys.stderr,
+            )
+            return 2
 
     # REQ-003-010 (issue #2613): snapshot the .claude/ tree before any
     # generator runs so the no-write guard attributes only writes the
     # generators made, not pre-build drift such as a .claude/lib sync.
+    # Record the boundaries the baseline walk is about to skip, so the
+    # post-generation re-read in assert_no_claude_writes skips that same
+    # set instead of re-deriving it from the post-generation tree. Without
+    # it, a generator can hide a .claude/ write behind a .git entry it
+    # wrote itself: the second walk skips a tree the first one never saw,
+    # so the diff is empty.
+    #
+    # The baseline below is deliberately NOT given the set. It runs on the
+    # same filesystem state _git_boundaries_under just read, so shape
+    # detection and set membership return the same answer here by
+    # construction. Passing it would be an argument no mutation can
+    # distinguish, which is an argument with no test holding it.
+    claude_boundaries = _git_boundaries_under(repo_root, CLAUDE_GUARD_PREFIX)
     claude_baseline = _snapshot_owned_prefixes(
         repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
     )
 
+    exit_code = 2
     try:
-        return _run_generators(
+        exit_code = _run_generators(
             repo_root,
             configs,
             check=check,
             audit_format=audit_format,
             claude_baseline=claude_baseline,
+            claude_boundaries=claude_boundaries,
         )
     finally:
         # #2440: ALWAYS restore on --check, including on exception paths.
         # Otherwise a generator crash mid-build leaves partial writes
         # in the caller's worktree.
+        #
+        # An exception from _run_generators skips straight to this block
+        # with exit_code still at its pre-try sentinel; restore still runs,
+        # but the escalation below is moot because the "return exit_code"
+        # after this try/finally is never reached on that path. Python
+        # re-raises the original exception once finally completes, matching
+        # the prior behavior of this function exactly.
         if snapshot is not None:
-            _restore_owned_prefixes(repo_root, OWNED_PREFIXES, snapshot)
+            restored = _restore_owned_prefixes(
+                repo_root,
+                OWNED_PREFIXES,
+                snapshot,
+                preexisting_boundaries=boundaries,
+            )
+            # A raced redirect _write_bytes_no_redirect correctly refused to
+            # write through only prints a WARN, so without this, --check
+            # could still exit 0 over an incomplete rollback (PR #5343
+            # review, build_all.py:1724). Only escalate when generation
+            # itself did not already report a failure: a genuine generator
+            # error keeps its own, more specific exit code.
+            if not restored and exit_code == 0:
+                exit_code = 2
+    return exit_code
 
 
 def _run_generators(
@@ -1187,6 +2147,7 @@ def _run_generators(
     check: bool,
     audit_format: str,
     claude_baseline: dict[Path, bytes],
+    claude_boundaries: set[Path] | None = None,
 ) -> int:
     """Execute the generator pipeline and emit the audit log.
 
@@ -1222,7 +2183,9 @@ def _run_generators(
     audit.duration_s = time.monotonic() - started
 
     # REQ-003-010: enforce .claude/ no-write invariant.
-    claude_writes = assert_no_claude_writes(repo_root, claude_baseline)
+    claude_writes = assert_no_claude_writes(
+        repo_root, claude_baseline, preexisting_boundaries=claude_boundaries
+    )
     if claude_writes:
         for p in claude_writes:
             print(f"REQ-003-010 VIOLATION: generator wrote to {p}", file=sys.stderr)
@@ -1248,12 +2211,31 @@ def _run_generators(
         # Limit staleness check to paths the generators actually own. Other
         # working-tree drift (e.g. uv.lock) is the user's responsibility,
         # not the build orchestrator's.
+        try:
+            changed = _git_diff_paths(repo_root)
+        except GitStateUnreadableError as exc:
+            # An empty diff and an unreadable git both yield zero paths. Only
+            # the first one means the tree is clean (issue #4632).
+            #
+            # Exit 3, not 2. Git is an external tool, and AGENTS.md's exit-code
+            # contract reads "0=ok|1=logic|2=config|3=external". Exit 2 here
+            # told a caller the same thing staleness tells it, so "you are
+            # missing git" and "your generated tree is stale" arrived as one
+            # code and the caller could recommend a regeneration that cannot
+            # fix the problem. See the module docstring for why a non-repository
+            # root is not split back out to 2.
+            print(
+                f"STALENESS UNKNOWN: cannot read git state: {exc}",
+                file=sys.stderr,
+            )
+            audit.overall_exit = max(audit.overall_exit, 3)
+            changed = []
         diff = [
-            p for p in _git_diff_paths(repo_root)
+            p for p in changed
             if any(p.startswith(prefix) for prefix in OWNED_PREFIXES)
         ]
         if diff:
-            print("STALENESS DETECTED — uncommitted regen drift:", file=sys.stderr)
+            print("STALENESS DETECTED: uncommitted regen drift:", file=sys.stderr)
             for p in diff:
                 print(f"  {p}", file=sys.stderr)
             audit.overall_exit = 2

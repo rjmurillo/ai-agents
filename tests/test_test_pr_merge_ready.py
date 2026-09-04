@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shlex
+import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from scripts.github_core.api import RepoInfo
 
@@ -32,6 +36,9 @@ def _import_script(name: str):
 
 
 _mod = _import_script("test_pr_merge_ready")
+# The completion-gate dispatcher, imported so the wiring test at the bottom of
+# this file can drive a real producer verdict through the real gate predicate.
+_gate = _import_script("run_completion_gate")
 main = _mod.main
 build_parser = _mod.build_parser
 check_merge_readiness = _mod.check_merge_readiness
@@ -294,13 +301,20 @@ class TestCheckMergeReadiness:
         )
 
     def test_null_merge_state_status_normalizes_to_empty_string(self):
+        # Contract change, issue #4899 reopen. This case previously asserted
+        # CanMerge is True. GitHub declares mergeStateStatus non-null, so an
+        # empty value means the probe did not return the state, not that the
+        # state is benign, and the caller picks its merge path by that value.
+        # Normalization to "" is unchanged; readiness on "" is what flipped.
         pr_data = json.loads(json.dumps(_OPEN_PR))
         pr_data["repository"]["pullRequest"]["mergeStateStatus"] = None
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness("o", "r", 42)
-        assert result["CanMerge"] is True
         assert result["MergeStateStatus"] == ""
-        assert result["Reasons"] == []
+        assert result["CanMerge"] is False
+        assert any("<missing>" in reason for reason in result["Reasons"]), (
+            f"a missing merge state must name itself; reasons: {result['Reasons']}"
+        )
 
     def test_unresolved_threads(self):
         pr_data = json.loads(json.dumps(_OPEN_PR))
@@ -1073,7 +1087,75 @@ class TestQuerySelectsDetailsUrl:
 
 _load_dispositions = _mod._load_dispositions
 _check_nonrequired_dispositions = _mod._check_nonrequired_dispositions
+_disposition_accepts = _mod._disposition_accepts
+_EXPIRES_PATTERN = _mod._EXPIRES_PATTERN
 _VALID_DISPOSITIONS = _mod._VALID_DISPOSITIONS
+
+# `expires` is required on every entry, so the shared fixtures below carry one.
+# A date far enough out that the suite does not start failing on a calendar
+# boundary, and a past one for the expiry negatives.
+_FUTURE_EXPIRY = "2999-01-01"
+_PAST_EXPIRY = "2000-01-01"
+
+
+def _git(repo, *args):
+    subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+    )
+
+
+def _tracked_repo(tmp_path):
+    """A git repository at `tmp_path`, initialised once per test."""
+    if not (tmp_path / ".git").is_dir():
+        _git(tmp_path, "init", "-q")
+        _git(tmp_path, "config", "user.email", "test@example.invalid")
+        _git(tmp_path, "config", "user.name", "test")
+    return tmp_path
+
+
+def _write_dispositions(tmp_path, entries, name="dispositions.json", track=True):
+    """Write a dispositions file and return its path as a string.
+
+    Tracked by default, because `_load_dispositions` refuses an untracked
+    registry: an untracked file at that path is something a prompt-injected
+    agent could have written, and the completion gate deliberately skips
+    comparing untracked files. Writing these fixtures into a real repository
+    exercises the real `git ls-files` probe rather than a stub of it, so the
+    tests below measure the shipped guard.
+
+    `track=False` produces the untracked case on purpose.
+    """
+    repo = _tracked_repo(tmp_path)
+    disp_file = repo / name
+    disp_file.write_text(json.dumps(entries), encoding="utf-8")
+    if track:
+        _git(repo, "add", "--", name)
+    return str(disp_file)
+
+
+def _entry(**overrides):
+    """Build an entry that clears every bound, then apply overrides.
+
+    A key set to None is deleted rather than set, so a test can drop a
+    required field.
+    """
+    entry = {
+        "disposition": "known-flaky",
+        "reason": "Flaky network test tracked in #1234",
+        "expires": _FUTURE_EXPIRY,
+    }
+    for key, value in overrides.items():
+        if value is None:
+            entry.pop(key, None)
+        else:
+            entry[key] = value
+    return entry
 
 
 class TestNonRequiredDispositions:
@@ -1085,15 +1167,9 @@ class TestNonRequiredDispositions:
         assert _check_nonrequired_dispositions([], None) == []
 
     def test_all_failures_disposed_returns_empty(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Tests": {
-                "disposition": "known-flaky",
-                "reason": "Flaky network test tracked in #1234",
-            },
-        }))
+        disp_file = _write_dispositions(tmp_path, {"Run Tests": _entry()})
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], str(disp_file),
+            ["Run Tests"], disp_file,
         )
         assert result == []
 
@@ -1112,73 +1188,677 @@ class TestNonRequiredDispositions:
         assert result == ["Run Tests"]
 
     def test_partial_disposition_returns_undisposed(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Tests": {
-                "disposition": "known-flaky",
-                "reason": "Tracked in #1234",
-            },
-        }))
+        disp_file = _write_dispositions(tmp_path, {"Run Tests": _entry()})
         result = _check_nonrequired_dispositions(
-            ["Run Tests", "Lint"], str(disp_file),
+            ["Run Tests", "Lint"], disp_file,
         )
         assert result == ["Lint"]
 
     def test_invalid_disposition_value_treated_as_undisposed(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Tests": {
-                "disposition": "yolo",
-                "reason": "I want to merge",
-            },
-        }))
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": _entry(disposition="yolo")},
+        )
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], str(disp_file),
+            ["Run Tests"], disp_file,
+        )
+        assert result == ["Run Tests"]
+
+    def test_non_string_disposition_treated_as_undisposed(self, tmp_path):
+        """An unhashable value must reject, not raise on the set membership."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": _entry(disposition=["known-flaky"])},
+        )
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], disp_file,
         )
         assert result == ["Run Tests"]
 
     def test_empty_reason_treated_as_undisposed(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Tests": {
-                "disposition": "known-flaky",
-                "reason": "",
-            },
-        }))
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": _entry(reason="   ")},
+        )
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], str(disp_file),
+            ["Run Tests"], disp_file,
+        )
+        assert result == ["Run Tests"]
+
+    def test_non_string_reason_treated_as_undisposed(self, tmp_path):
+        """A numeric reason must reject, not raise on `.strip()`."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": _entry(reason=1234)},
+        )
+        result = _check_nonrequired_dispositions(
+            ["Run Tests"], disp_file,
         )
         assert result == ["Run Tests"]
 
     # -- Edge cases --
 
     def test_malformed_json_returns_all_failures(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text("not json{{{")
+        """Tracked but unparseable. Tracking matters: an untracked file is
+        refused before the JSON is ever read, so writing this one loose would
+        pass for the wrong reason and stop testing the parse at all."""
+        repo = _tracked_repo(tmp_path)
+        disp_file = repo / "dispositions.json"
+        disp_file.write_text("not json{{{", encoding="utf-8")
+        _git(repo, "add", "--", "dispositions.json")
         result = _check_nonrequired_dispositions(
             ["Run Tests"], str(disp_file),
         )
         assert result == ["Run Tests"]
 
+    def test_untracked_registry_is_refused(self, tmp_path):
+        """An untracked registry disposes nothing, however valid it looks.
+
+        The consumer attack this closes: the shipped path does not exist in an
+        installed-plugin workspace, so a PR that prompt-injects the review
+        agent into writing one would be authoring its own dispositions. The
+        completion gate skips comparing untracked files by design, so the
+        reader has to refuse them.
+        """
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": _entry()}, track=False,
+        )
+        assert _check_nonrequired_dispositions(["Run Tests"], disp_file) == [
+            "Run Tests",
+        ]
+
+    def test_the_same_registry_tracked_is_honored(self, tmp_path):
+        """Positive control for the pair above.
+
+        Identical bytes, identical entry, only the tracking differs. Without
+        this, a guard that refused every registry would satisfy the case above
+        while disabling the feature.
+        """
+        disp_file = _write_dispositions(tmp_path, {"Run Tests": _entry()})
+        assert _check_nonrequired_dispositions(["Run Tests"], disp_file) == []
+
+    def test_a_registry_outside_any_repository_is_refused(self, tmp_path):
+        """No repository at all means no way to establish tracking."""
+        loose = tmp_path / "loose.json"
+        loose.write_text(json.dumps({"Run Tests": _entry()}), encoding="utf-8")
+        assert _check_nonrequired_dispositions(
+            ["Run Tests"], str(loose),
+        ) == ["Run Tests"]
+
     def test_non_dict_entry_treated_as_undisposed(self, tmp_path):
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Tests": "just a string",
-        }))
+        disp_file = _write_dispositions(
+            tmp_path, {"Run Tests": "just a string"},
+        )
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], str(disp_file),
+            ["Run Tests"], disp_file,
         )
         assert result == ["Run Tests"]
 
     def test_all_valid_disposition_values_accepted(self, tmp_path):
         for disp_val in _VALID_DISPOSITIONS:
-            disp_file = tmp_path / f"d_{disp_val}.json"
-            disp_file.write_text(json.dumps({
-                "Check": {"disposition": disp_val, "reason": "valid"},
-            }))
+            disp_file = _write_dispositions(
+                tmp_path,
+                {"Check": _entry(disposition=disp_val, reason="valid")},
+                name=f"d_{disp_val}.json",
+            )
             assert _check_nonrequired_dispositions(
-                ["Check"], str(disp_file),
+                ["Check"], disp_file,
             ) == [], f"Failed for disposition={disp_val}"
+
+
+class TestDispositionExpiry:
+    """PR #5481 review: an entry scoped only to a check name never expires.
+
+    Without `expires`, one recorded acceptance of `semgrep-cloud-platform/scan`
+    would swallow every later failure of that check, including a new
+    exploitable finding. `expires` is required so an entry has to be renewed
+    on purpose rather than surviving by neglect.
+    """
+
+    def test_future_expiry_is_disposed(self, tmp_path):
+        disp_file = _write_dispositions(tmp_path, {"Scan": _entry()})
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
+
+    def test_future_datetime_expiry_is_disposed(self, tmp_path):
+        """A full ISO 8601 timestamp with an offset parses, not just a date."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="2999-01-01T12:30:00+00:00")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
+
+    def test_future_zulu_expiry_is_disposed(self, tmp_path):
+        """The `Z` suffix must work, and on the 3.10 host floor it needs help.
+
+        `datetime.fromisoformat` only learned the zulu suffix in CPython 3.11.
+        Measured with CPython 3.10.20:
+
+            ValueError: Invalid isoformat string: '2026-12-01T00:00:00Z'
+
+        Without normalization this entry would be honored on a 3.11+ host and
+        silently treated as expired on a 3.10 one, which is the worst shape a
+        disagreement between hosts can take.
+        """
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="2999-01-01T12:30:00Z")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
+
+    def test_past_zulu_expiry_is_undisposed(self, tmp_path):
+        """Negative half: normalizing `Z` must not also stop expiry working."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="2000-01-01T00:00:00Z")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    # -- One grammar on every supported interpreter --
+    #
+    # `datetime.fromisoformat` is not one parser. CPython 3.11 widened it to
+    # most of ISO 8601, so a value can be honored on a new host and rejected
+    # on the 3.10 host floor, where the rejection reads as the entry having
+    # expired. Measured with CPython 3.10.20 against 3.14.3 on this tree:
+    #
+    #     29990101    -> 3.10 ValueError, 3.14 2999-01-01 00:00:00
+    #     2999-W01-1  -> 3.10 ValueError, 3.14 2998-12-31 00:00:00
+    #
+    # `_EXPIRES_PATTERN` accepts only the subset both parse identically, so
+    # these reject everywhere rather than somewhere. The list below is
+    # wider than the divergence: the two short time forms and the ordinal
+    # date agree across versions and are excluded to keep one grammar
+    # rather than because they disagree. `2999-001` is refused by both.
+
+    @pytest.mark.parametrize("value", [
+        "29990101",                  # basic-format calendar date, 3.11+ only
+        "2999-W01-1",                # week date, 3.11+ only
+        "2999-001",                  # ordinal date, rejected on both
+        "2999-01-01T12",             # hour-only time, parses on both
+        "2999-01-01T12:30",          # no seconds, parses on both
+        "2999-01-01T12:30:00+0000",  # basic-format offset, 3.11+ only
+        # Fractional seconds are 3 or 6 digits on both hosts and any width on
+        # 3.11+. Measured with 3.10.20 against 3.14.3 using
+        # `2999-01-01T12:30:00.<n digits>+00:00`:
+        #   digits 1 2 3 4 5 6 -> 3.10 err err ok err err ok, 3.14 all ok
+        "2999-01-01T12:30:00.1+00:00",       # 1 digit, 3.11+ only
+        "2999-01-01T12:30:00.12+00:00",      # 2 digits, 3.11+ only
+        "2999-01-01T12:30:00.1234+00:00",    # 4 digits, 3.11+ only
+        "2999-01-01T12:30:00.12345+00:00",   # 5 digits, 3.11+ only
+    ])
+    def test_off_grammar_forms_are_undisposed(self, tmp_path, value):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires=value)},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    @pytest.mark.parametrize("value", [
+        "2999-01-01",
+        "2999-01-01T12:30:00",
+        "2999-01-01T12:30:00Z",
+        "2999-01-01T12:30:00+00:00",
+        "2999-01-01T12:30:00-08:00",
+        "2999-01-01T12:30:00.123+00:00",
+        "2999-01-01T12:30:00.123456+00:00",
+        "2999-01-01 12:30:00+00:00",
+    ])
+    def test_forms_every_supported_host_parses_are_disposed(self, tmp_path, value):
+        """The positive control on the grammar.
+
+        Without it, a pattern that matched nothing at all would satisfy every
+        rejection case above and quietly disable the whole feature.
+        """
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires=value)},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
+
+    def test_the_grammar_is_anchored_at_both_ends(self, tmp_path):
+        """A value with trailing garbage must not match on its prefix."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="2999-01-01ignored")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    def test_interior_z_is_not_repaired(self, tmp_path):
+        """Only a trailing `Z` is rewritten, so a malformed value still fails.
+
+        A blanket `.replace("Z", "+00:00")` would turn this into something
+        that parses, which would accept a value nobody wrote on purpose.
+        """
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="2999Z01Z01")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    def test_past_expiry_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires=_PAST_EXPIRY)},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    def test_missing_expiry_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires=None)},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    def test_unparseable_expiry_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires="whenever")},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    def test_non_string_expiry_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(expires=20991231)},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+
+class TestDispositionPullRequestAllowlist:
+    """PR #5481 review: bound an entry to the PRs that carry the failure.
+
+    `pull_requests` is optional because a genuinely repo-wide infrastructure
+    failure has no PR list to give. Omitting it has to be a deliberate choice,
+    so an entry that names the key is held to it exactly.
+    """
+
+    def test_listed_pr_is_disposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[5433, 5481])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == []
+
+    def test_unlisted_pr_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[5433, 5460])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+    def test_absent_allowlist_applies_to_any_pr(self, tmp_path):
+        disp_file = _write_dispositions(tmp_path, {"Scan": _entry()})
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == []
+
+    def test_allowlist_without_pr_number_is_undisposed(self, tmp_path):
+        """Membership cannot be shown, so the entry fails closed."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[5481])},
+        )
+        assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
+
+    def test_non_list_allowlist_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=5481)},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+    def test_non_integer_member_is_undisposed(self, tmp_path):
+        """A string member rejects the whole list, matching int or not."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[5481, "5460"])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+    def test_bool_member_is_undisposed(self, tmp_path):
+        """`isinstance(True, int)` is True in Python, so bools need the guard."""
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[True])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 1,
+        ) == ["Scan"]
+
+    def test_empty_allowlist_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+    # -- The two bounds compose as AND --
+
+    def test_listed_pr_on_expired_entry_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path,
+            {"Scan": _entry(expires=_PAST_EXPIRY, pull_requests=[5481])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+    def test_unexpired_entry_scoped_to_other_prs_is_undisposed(self, tmp_path):
+        disp_file = _write_dispositions(
+            tmp_path, {"Scan": _entry(pull_requests=[5433])},
+        )
+        assert _check_nonrequired_dispositions(
+            ["Scan"], disp_file, 5481,
+        ) == ["Scan"]
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SCRIPT_NAME = "test_pr_merge_ready.py"
+_FLAG = "--dispositions-file"
+_SHIPPED_PATH = ".agents/pr-checks/dispositions.json"
+
+# Everything a plugin installation can carry. Discovered rather than listed,
+# because a hard-coded inventory cannot fail on the call site nobody added to
+# it, which is the only call site the guard below actually needs to catch.
+_SHIPPED_ROOTS = (
+    ".claude/commands",
+    ".claude/skills",
+    ".github/prompts",
+    "src/copilot-cli/commands",
+    "src/copilot-cli/skills",
+)
+
+
+def _yaml_string_scalars(node, path=()):
+    """Every string scalar in a parsed YAML document, with its key path.
+
+    Walks the whole document rather than one key. The negative half of the
+    guard below used to skip YAML entirely, which left a command under any
+    key other than `completion_criteria` invisible to both halves: it would
+    have been neither an approved criterion nor a scanned text line.
+    """
+    if isinstance(node, str):
+        yield path, node
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            yield from _yaml_string_scalars(value, (*path, str(key)))
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            yield from _yaml_string_scalars(value, (*path, str(index)))
+
+
+def _shipped_yaml_documents() -> list[tuple[str, object]]:
+    """`(relative path, parsed document)` for every shipped YAML file."""
+    found: list[tuple[str, object]] = []
+    for root in _SHIPPED_ROOTS:
+        for path in sorted((_REPO_ROOT / root).rglob("*.y*ml")):
+            try:
+                doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+            except (yaml.YAMLError, OSError, UnicodeDecodeError):
+                continue
+            found.append((path.relative_to(_REPO_ROOT).as_posix(), doc))
+    return found
+
+
+def _gate_criterion_commands() -> list[tuple[str, str]]:
+    """`(relative path, command)` for every completion-gate criterion.
+
+    Parsed out of the YAML rather than grepped, so a criterion that is
+    commented out is absent here. A text scan counts a commented line as
+    present, which would let the real wiring disappear under a green test.
+    """
+    found: list[tuple[str, str]] = []
+    for relative, doc in _shipped_yaml_documents():
+        if not isinstance(doc, dict):
+            continue
+        for criterion in doc.get("completion_criteria") or []:
+            command = (criterion or {}).get("command", "")
+            if isinstance(command, str) and _SCRIPT_NAME in command:
+                found.append((relative, command))
+    return found
+
+
+def _yaml_invocations() -> list[tuple[str, tuple[str, ...], str]]:
+    """`(relative path, key path, scalar)` for YAML scalars invoking the script.
+
+    Every scalar in every shipped YAML, not only `completion_criteria`. The
+    key path comes back so the caller can tell an approved criterion from a
+    command hiding under some other key.
+    """
+    found: list[tuple[str, tuple[str, ...], str]] = []
+    for relative, doc in _shipped_yaml_documents():
+        for key_path, scalar in _yaml_string_scalars(doc):
+            if _SCRIPT_NAME in scalar and "--pull-request" in scalar:
+                found.append((relative, key_path, scalar))
+    return found
+
+
+def _text_invocations() -> list[tuple[str, str]]:
+    """`(relative path, line)` for every non-YAML invocation of the script.
+
+    A trailing backslash continuation is joined first, because both pr-autofix
+    call sites wrap and a line-at-a-time scan would read their flags wrong.
+    Requiring `--pull-request` on the line keeps prose mentions of the script
+    name out; requiring the name keeps unrelated commands out. The two shapes
+    quote differently, `"$SCRIPTS_DIR/test_pr_merge_ready.py"` with a closing
+    quote against a bare path, so the two markers are matched separately.
+    """
+    found: list[tuple[str, str]] = []
+    for root in _SHIPPED_ROOTS:
+        for path in sorted((_REPO_ROOT / root).rglob("*")):
+            if not path.is_file() or path.suffix in {".yml", ".yaml"}:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            if _SCRIPT_NAME not in text:
+                continue
+            for line in text.replace("\\\n", " ").splitlines():
+                if _SCRIPT_NAME in line and "--pull-request" in line:
+                    found.append((path.relative_to(_REPO_ROOT).as_posix(), line))
+    return found
+
+
+def _registry_arguments(command: str) -> list[str]:
+    """The value that follows each `--dispositions-file` in `command`.
+
+    Tokenized with `shlex` and read positionally. A substring test cannot tell
+    `--dispositions-file .agents/pr-checks/dispositions.json` from
+    `--dispositions-file /tmp/other.json --note .agents/pr-checks/dispositions.json`,
+    and the second reads the wrong registry while satisfying every substring
+    assertion about the flag and the path.
+
+    A flag in `--dispositions-file=VALUE` form is read from the token itself.
+    A trailing flag with no following token yields the empty string, which
+    fails the caller's equality check rather than being skipped.
+    """
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.split()
+    values: list[str] = []
+    for index, token in enumerate(tokens):
+        if token.startswith(f"{_FLAG}="):
+            values.append(token.split("=", 1)[1])
+        elif token == _FLAG:
+            values.append(tokens[index + 1] if index + 1 < len(tokens) else "")
+    return values
+
+
+class TestDispositionRegistryWiring:
+    """Where the registry may be read, and where it must not be.
+
+    Not "every caller passes the flag". The two callers sit on opposite sides
+    of a trust boundary.
+
+    The completion gate byte-compares every tracked file its criteria name
+    against the trusted ref before running them, so a PR that edits the
+    registry halts the gate rather than being believed by it. That is the one
+    place a disposition can be honored.
+
+    The pr-autofix tier probe has no such comparison. It runs against the
+    checked-out PR branch, and its verdict reaches `TIER_TRUSTED_T1` in
+    `pr-autofix.md`, which decides whether an already-armed auto-merge is
+    disarmed. Passing the registry there lets a PR dispose its own failing
+    security check, classify as T1, keep auto-merge armed, and merge red
+    before the gate ever runs (CWE-829, CWE-284). PR #5481 added the flag
+    there, review caught it, and it came back out.
+
+    So the guard is a positive on the gate and a negative everywhere else.
+    Both sides discover their inputs, because the call site that breaks this
+    is the one nobody remembered to add to a list.
+    """
+
+    def test_a_gate_criterion_exists_to_check(self):
+        """Negative control: the positive case below must not pass vacuously."""
+        assert _gate_criterion_commands(), (
+            "no completion_criteria command invokes the readiness script, so "
+            "the wiring assertion below would pass against nothing"
+        )
+
+    def test_gate_criteria_pass_the_shipped_registry(self):
+        """The flag must carry the shipped path as its own value.
+
+        Asserted positionally rather than by substring. A command reading
+        `--dispositions-file /tmp/other.json --note <shipped path>` contains
+        both the flag and the path, satisfies any substring test, and reads
+        the wrong registry.
+        """
+        for relative, command in _gate_criterion_commands():
+            values = _registry_arguments(command)
+            assert values == [_SHIPPED_PATH], (
+                f"{relative} runs the readiness script as a completion "
+                f"criterion but its {_FLAG} values are {values!r}, not "
+                f"exactly [{_SHIPPED_PATH!r}], so it reads the wrong registry "
+                f"or none: {command}"
+            )
+
+    def test_no_other_caller_reads_the_registry(self):
+        """The security half. Any non-gate caller with the flag fails here.
+
+        This is what catches a call site added later, in a file this test has
+        never heard of, anywhere under the shipped roots.
+
+        YAML is scanned in full, not skipped. Only `completion_criteria`
+        commands are exempt, and the exemption is keyed on where the scalar
+        sits in the document, so an invocation under any other key is treated
+        like any other untrusted caller. Skipping YAML wholesale left exactly
+        that shape invisible to both halves of this guard.
+        """
+        for relative, key_path, scalar in _yaml_invocations():
+            if key_path[:1] == ("completion_criteria",) and key_path[-1] == "command":
+                continue
+            assert _FLAG not in scalar, (
+                f"{relative} passes {_FLAG} from YAML key "
+                f"{'.'.join(key_path)}, which is not a completion-gate "
+                f"criterion: {scalar}"
+            )
+        for relative, line in _text_invocations():
+            assert _FLAG not in line, (
+                f"{relative} passes {_FLAG} outside a completion-gate "
+                f"criterion. That caller reads the checked-out PR branch with "
+                f"no trusted-ref comparison, so a PR could dispose its own "
+                f"failing check: {line.strip()}"
+            )
+
+    def test_the_yaml_scan_reaches_the_shipped_criteria(self):
+        """Negative control for the YAML half of the scan above.
+
+        The exemption is what makes that loop pass on the shipped tree, so a
+        walker that found no YAML invocation at all would also pass it, while
+        seeing nothing. This fails in that case.
+        """
+        exempt = [
+            (relative, key_path)
+            for relative, key_path, _ in _yaml_invocations()
+            if key_path[:1] == ("completion_criteria",) and key_path[-1] == "command"
+        ]
+        assert exempt, (
+            "the YAML walk found no completion-criteria invocation, so the "
+            "exemption in the guard above is covering nothing and the walk "
+            "may not be reaching the shipped configs at all"
+        )
+
+
+class TestShippedDispositionsFile:
+    """The committed file has to satisfy the validator that reads it.
+
+    `.claude/commands/pr-review-config.yaml` passes this exact path to the
+    readiness check, so a file that fails its own bounds is a silent no-op.
+
+    Stricter than the validator on one point: `_disposition_accepts` treats
+    `pull_requests` as optional, and an entry that omits it applies to any
+    PR. This class requires it on every shipped entry. The validator has to
+    keep the unscoped form for a genuinely repo-wide infrastructure failure,
+    but the committed file has no such entry today, and adding one should
+    cost an argued edit to this test rather than a quiet line in a JSON file.
+    """
+
+    _PATH = (
+        Path(__file__).resolve().parents[1]
+        / ".agents" / "pr-checks" / "dispositions.json"
+    )
+
+    def test_every_entry_carries_both_bounds(self):
+        entries = json.loads(self._PATH.read_text(encoding="utf-8"))
+        # An empty object is the correct end state, not a failure. Issue #5480
+        # closes by deleting the one entry, and `_load_dispositions` reads `{}`
+        # as "nothing is disposed", which blocks every non-required failure.
+        # Asserting non-empty here would make that cleanup break this test.
+        assert isinstance(entries, dict), "the registry must be a JSON object"
+        for name, entry in entries.items():
+            assert "expires" in entry, f"{name} has no expires"
+            assert "pull_requests" in entry, (
+                f"{name} has no pull_requests allowlist, so it would apply to "
+                "every PR. If that is really intended, change this test and "
+                "say why in the commit."
+            )
+
+    @staticmethod
+    def _just_before_expiry(entry):
+        """A clock one hour before this entry's own recorded expiry.
+
+        Derived from the entry rather than read off the wall clock, on
+        purpose. `_check_nonrequired_dispositions` calls `datetime.now`, so
+        asserting through it here would make these cases start failing on the
+        shipped expiry date and turn the whole suite red on every unrelated
+        PR until someone edited the registry. An expiry is meant to make one
+        check undisposed, never to break the build. `TestDispositionExpiry`
+        covers rejection past the boundary, against fixed dates, so nothing
+        is lost by keeping this class off the calendar.
+        """
+        expires = entry["expires"]
+        normalized = expires[:-1] + "+00:00" if expires.endswith("Z") else expires
+        deadline = datetime.fromisoformat(normalized)
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=timezone.utc)
+        return deadline - timedelta(hours=1)
+
+    def test_shipped_entries_accept_their_listed_prs(self):
+        entries = json.loads(self._PATH.read_text(encoding="utf-8"))
+        for name, entry in entries.items():
+            now = self._just_before_expiry(entry)
+            for pr_number in entry["pull_requests"]:
+                assert _disposition_accepts(entry, pr_number, now), (
+                    f"{name} rejects its own listed PR {pr_number}"
+                )
+
+    def test_shipped_entries_are_rejected_once_expired(self):
+        """The same entries, one hour the other side of their own deadline."""
+        entries = json.loads(self._PATH.read_text(encoding="utf-8"))
+        for name, entry in entries.items():
+            now = self._just_before_expiry(entry) + timedelta(hours=2)
+            for pr_number in entry["pull_requests"]:
+                assert not _disposition_accepts(entry, pr_number, now), (
+                    f"{name} still applies to PR {pr_number} after its expiry"
+                )
+
+    def test_shipped_expiries_parse_on_the_host_floor_grammar(self):
+        """A shipped value off the cross-version subset would read differently
+        on a 3.10 host than on a 3.14 one, so pin the grammar, not just the
+        parse."""
+        entries = json.loads(self._PATH.read_text(encoding="utf-8"))
+        for name, entry in entries.items():
+            assert _EXPIRES_PATTERN.match(entry["expires"]), (
+                f"{name} has an expires outside the accepted grammar: "
+                f"{entry['expires']}"
+            )
+
+    def test_shipped_entries_reject_an_unlisted_pr(self):
+        entries = json.loads(self._PATH.read_text(encoding="utf-8"))
+        for name, entry in entries.items():
+            unlisted = max(entry["pull_requests"]) + 1_000_000
+            assert _check_nonrequired_dispositions(
+                [name], str(self._PATH), unlisted,
+            ) == [name], f"{name} accepts unlisted PR {unlisted}"
 
 
 class TestMergeReadinessWithDispositions:
@@ -1216,20 +1896,63 @@ class TestMergeReadinessWithDispositions:
     def test_disposed_nonrequired_failure_allows_merge(self, tmp_path):
         """With valid disposition file, UNSTABLE PR can merge."""
         pr_data = self._pr_with_failed_nonrequired()
-        disp_file = tmp_path / "dispositions.json"
-        disp_file.write_text(json.dumps({
-            "Run Python Tests": {
-                "disposition": "known-flaky",
-                "reason": "Tracked in issue #9999",
-            },
-        }))
+        disp_file = _write_dispositions(tmp_path, {
+            "Run Python Tests": _entry(reason="Tracked in issue #9999"),
+        })
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness(
                 "o", "r", 42,
-                dispositions_file=str(disp_file),
+                dispositions_file=disp_file,
             )
         assert result["CanMerge"] is True
         assert result["UndisposedNonRequiredFailures"] == []
+
+    def test_allowlisted_pr_number_reaches_the_validator(self, tmp_path):
+        """check_merge_readiness must hand its pr_number to the guard.
+
+        Positive half: the PR under test is on the allowlist, so the entry
+        applies and the failure clears.
+        """
+        pr_data = self._pr_with_failed_nonrequired()
+        disp_file = _write_dispositions(tmp_path, {
+            "Run Python Tests": _entry(pull_requests=[42]),
+        })
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness(
+                "o", "r", 42, dispositions_file=disp_file,
+            )
+        assert result["UndisposedNonRequiredFailures"] == []
+        assert result["CanMerge"] is True
+
+    def test_unlisted_pr_number_still_blocks_merge(self, tmp_path):
+        """Negative half of the pair above: a wired-through number can block.
+
+        Same entry, same failing check, only the allowlist differs. If
+        pr_number were dropped on the way to the guard this would still pass.
+        """
+        pr_data = self._pr_with_failed_nonrequired()
+        disp_file = _write_dispositions(tmp_path, {
+            "Run Python Tests": _entry(pull_requests=[99]),
+        })
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness(
+                "o", "r", 42, dispositions_file=disp_file,
+            )
+        assert result["UndisposedNonRequiredFailures"] == ["Run Python Tests"]
+        assert result["CanMerge"] is False
+
+    def test_expired_entry_still_blocks_merge(self, tmp_path):
+        """An expired entry blocks exactly as an absent one does."""
+        pr_data = self._pr_with_failed_nonrequired()
+        disp_file = _write_dispositions(tmp_path, {
+            "Run Python Tests": _entry(expires=_PAST_EXPIRY),
+        })
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness(
+                "o", "r", 42, dispositions_file=disp_file,
+            )
+        assert result["UndisposedNonRequiredFailures"] == ["Run Python Tests"]
+        assert result["CanMerge"] is False
 
     def test_zero_required_base_absent_check_blocks(self):
         """Zero required checks + failed non-required = blocked (no evidence)."""
@@ -1476,8 +2199,449 @@ class TestClassifyTier:
     def test_tier_order_tuple_is_complete(self):
         """Verify _TIER_ORDER contains all possible classifier outputs."""
         from test_pr_merge_ready import _TIER_ORDER
-        expected = {"T1", "T2", "T3", "T4", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP"}
+        expected = {
+            "T1", "T2", "T3", "T4", "T5",
+            "BEHIND", "BLOCKED", "DIRTY", "SKIP", "UNSUPPORTED",
+        }
         assert set(_TIER_ORDER) == expected
+
+
+def _add_unresolved_thread(pr_data):
+    """Give `pr_data` exactly one unresolved review thread, in place."""
+    threads = pr_data["repository"]["pullRequest"]["reviewThreads"]
+    threads["nodes"].append({"id": "t-unresolved", "isResolved": False})
+    threads["totalCount"] = len(threads["nodes"])
+
+
+def _add_failed_required_check(pr_data, name="required-thing"):
+    """Give `pr_data` exactly one failing required check, in place."""
+    rollup = (
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+        ["statusCheckRollup"]
+    )
+    rollup["contexts"]["nodes"].append({
+        "__typename": "CheckRun",
+        "name": name,
+        "status": "COMPLETED",
+        "conclusion": "FAILURE",
+        "isRequired": True,
+    })
+
+
+def _clean_pr_in_state(merge_state):
+    """An otherwise perfectly mergeable PR in `merge_state`.
+
+    Threads resolved, required checks green, not draft, open, and
+    `mergeable == "MERGEABLE"`, so `merge_state` is the only thing that can
+    block. Without it every other gate passes and CanMerge is true.
+    """
+    pr_data = json.loads(json.dumps(_OPEN_PR))
+    pr_data["repository"]["pullRequest"]["mergeStateStatus"] = merge_state
+    return pr_data
+
+
+class TestUnsupportedMergeStatesNeverReachT1:
+    """Issue #4899 reopen: only a state with a merge path may reach T1.
+
+    `.claude/commands/pr-autofix.md` "Ready-to-Merge Definition" item 4 reads:
+
+        4. `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with
+           documented non-required failures).
+
+    and its "Merge path by `mergeStateStatus`" table names a merge script for
+    those three. Before this fix `_evaluate_pr_state` enumerated blockers
+    (BEHIND, BLOCKED) instead of allowlisting, so any value nobody listed
+    produced no reason, `CanMerge` was `len(reasons) == 0` and therefore true,
+    and `classify_tier` returned T1: the auto-merge path, for a state
+    pr-autofix has no verified handling for.
+    """
+
+    # Values with no row in pr-autofix.md's merge-path table, plus one GitHub
+    # has not defined yet.  The last one is the point of the allowlist: an
+    # enumeration of blockers cannot cover it.  HAS_HOOKS is deliberately NOT
+    # here: GitHub defines it as "Mergeable with passing commit status and
+    # pre-receive hooks", and `scripts/ci/check_pr_merge_state.py:27` lists it
+    # in PASS_STATES, so it is covered by the positive cases below instead.
+    _UNSUPPORTED = ("UNKNOWN", "DRAFT", "A_STATE_GITHUB_ADDS_LATER")
+
+    def _clean_pr_in_state(self, merge_state):
+        """See the module-level `_clean_pr_in_state`.
+
+        Kept as a thin delegate so the cases below read unchanged while the
+        negative-control class further down can build the same fixture without
+        reaching into this class.
+        """
+        return _clean_pr_in_state(merge_state)
+
+    @pytest.mark.parametrize("merge_state", _UNSUPPORTED)
+    def test_unsupported_merge_state_blocks_can_merge(self, merge_state):
+        pr_data = self._clean_pr_in_state(merge_state)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False, (
+            f"{merge_state} has no merge path in pr-autofix.md and must not "
+            f"report ready; reasons: {result['Reasons']}"
+        )
+        assert any(merge_state in reason for reason in result["Reasons"]), (
+            f"the blocking reason must name the state; reasons: {result['Reasons']}"
+        )
+
+    @pytest.mark.parametrize("merge_state", _UNSUPPORTED)
+    def test_unsupported_merge_state_is_never_t1(self, merge_state):
+        pr_data = self._clean_pr_in_state(merge_state)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["Tier"] != "T1", (
+            f"{merge_state} reached the auto-merge tier; that is issue #4899"
+        )
+        assert result["Tier"] in _mod._TIER_ORDER
+
+    @pytest.mark.parametrize("merge_state", _UNSUPPORTED)
+    def test_unsupported_merge_state_takes_its_own_terminal_tier(self, merge_state):
+        """The tier the classifier actually chooses, not merely "not T1".
+
+        `UNSUPPORTED` rather than `T4`: pr-autofix.md routes T3 and T4 into the
+        round-cap thread-fix loop, and this PR has no threads and no CI
+        failures, so that loop would have no action and would terminate only by
+        burning the round cap and posting an escalation comment.
+        """
+        pr_data = self._clean_pr_in_state(merge_state)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["UnresolvedThreads"] == 0
+        assert result["FailedRequiredChecks"] == []
+        assert result["PendingRequiredChecks"] == []
+        assert result["CIPassing"] is True
+        assert result["Tier"] == "UNSUPPORTED"
+
+    def test_unsupported_merge_state_with_threads_does_not_fall_through_to_t3(self):
+        """The work-tier fallthrough, closed.
+
+        Before the terminal tier, an unsupported state with threads classified
+        T3, whose documented action ends in "then merge" for a state with no
+        merge path. The state must win over the thread count.
+        """
+        pr_data = self._clean_pr_in_state("A_STATE_GITHUB_ADDS_LATER")
+        _add_unresolved_thread(pr_data)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["UnresolvedThreads"] == 1
+        assert result["Tier"] == "UNSUPPORTED"
+
+    def test_unsupported_merge_state_with_a_failed_check_does_not_fall_through_to_t2(self):
+        """The other half of the fallthrough: CI failures must not win either."""
+        pr_data = self._clean_pr_in_state("A_STATE_GITHUB_ADDS_LATER")
+        _add_failed_required_check(pr_data)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["FailedRequiredChecks"] == ["required-thing"]
+        assert result["Tier"] == "UNSUPPORTED"
+
+    def test_has_hooks_reaches_t1(self):
+        """`HAS_HOOKS` is executable, so a clean PR in that state is T1.
+
+        GitHub's GraphQL `MergeStateStatus` reference defines it as "Mergeable
+        with passing commit status and pre-receive hooks", i.e. CLEAN plus
+        pre-receive hooks, and `scripts/ci/check_pr_merge_state.py:27` carries
+        `PASS_STATES = {"BEHIND", "BLOCKED", "CLEAN", "HAS_HOOKS",
+        "UNSTABLE"}`. A PR on a repository with push rulesets reports
+        `HAS_HOOKS` while fully green; blocking it stripped the author's armed
+        auto-merge and burned rounds on a PR with nothing to fix.
+        """
+        pr_data = self._clean_pr_in_state("HAS_HOOKS")
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is True, f"reasons: {result['Reasons']}"
+        assert result["Reasons"] == []
+        assert result["Tier"] == "T1"
+
+    def test_has_hooks_with_threads_is_t3(self):
+        """A supported state still classifies by the work it needs.
+
+        The T3 action ends in "then merge", which is only honest because
+        HAS_HOOKS has a merge path. Paired with the UNSUPPORTED cases above,
+        this is what separates "state has no path" from "state has a path and
+        work remains".
+        """
+        pr_data = self._clean_pr_in_state("HAS_HOOKS")
+        _add_unresolved_thread(pr_data)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["UnresolvedThreads"] == 1
+        assert result["CanMerge"] is False
+        assert result["Tier"] == "T3"
+
+    def test_has_hooks_with_a_failed_required_check_is_t2(self):
+        """The CI half of the pair above."""
+        pr_data = self._clean_pr_in_state("HAS_HOOKS")
+        _add_failed_required_check(pr_data)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["FailedRequiredChecks"] == ["required-thing"]
+        assert result["CanMerge"] is False
+        assert result["Tier"] == "T2"
+
+    def test_dirty_merge_state_blocks_without_a_conflicting_mergeable(self):
+        """DIRTY blocks on its own, not only via `mergeable == CONFLICTING`.
+
+        The old code caught DIRTY indirectly through the separate `mergeable`
+        field, so a response reporting the conflict in `mergeStateStatus` alone
+        left `reasons` empty.
+
+        Blocking here is the documented safe fallback, not a verdict that a
+        real conflict exists: the comment on `_STALE_DIRTY_STATE` reads
+        `mergeStateStatus == DIRTY` as a stale status cache, and
+        `stale_dirty_suspected` already promised that absent a local refresh
+        `CanMerge` stays False. The caller confirms against local git before
+        treating the conflict as stale.
+        """
+        pr_data = self._clean_pr_in_state("DIRTY")
+        assert pr_data["repository"]["pullRequest"]["mergeable"] == "MERGEABLE"
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["Tier"] == "DIRTY"
+
+    @pytest.mark.parametrize("merge_state", ["CLEAN", "UNSTABLE"])
+    def test_supported_merge_states_still_report_ready(self, merge_state):
+        """Positive control: the allowlist must not block the real paths.
+
+        Without this, a fix that blocked every state would pass every negative
+        case above while breaking the feature outright. The third supported
+        state, `HAS_HOOKS`, has its own case above carrying its citation.
+        """
+        pr_data = self._clean_pr_in_state(merge_state)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is True, f"reasons: {result['Reasons']}"
+        assert result["Reasons"] == []
+        assert result["Tier"] == "T1"
+
+    def test_unstable_with_disposed_non_required_failure_is_t1(self, tmp_path):
+        """The `UNSTABLE` half of item 4: disposed non-required failures merge.
+
+        A failing non-required check makes GitHub report UNSTABLE. With a
+        recorded disposition it does not block, so this is the one case where a
+        red check still reaches T1, and the allowlist must leave it intact.
+        """
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pull_request = pr_data["repository"]["pullRequest"]
+        pull_request["mergeStateStatus"] = "UNSTABLE"
+        rollup = pull_request["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+        rollup["contexts"]["nodes"].append({
+            "__typename": "CheckRun",
+            "name": "flaky-extra",
+            "status": "COMPLETED",
+            "conclusion": "FAILURE",
+            "isRequired": False,
+        })
+        dispositions_path = _write_dispositions(tmp_path, {
+            "flaky-extra": _entry(
+                reason="tracked in issue #4899", pull_requests=[42],
+            ),
+        })
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness(
+                "o", "r", 42, dispositions_file=dispositions_path,
+            )
+        assert result["FailedNonRequiredChecks"] != []
+        assert result["UndisposedNonRequiredFailures"] == []
+        assert result["CanMerge"] is True, f"reasons: {result['Reasons']}"
+        assert result["Tier"] == "T1"
+
+    def test_undisposed_non_required_failure_on_unstable_is_t2(self):
+        """Negative half of the pair above: no disposition, no T1."""
+        pr_data = json.loads(json.dumps(_OPEN_PR))
+        pull_request = pr_data["repository"]["pullRequest"]
+        pull_request["mergeStateStatus"] = "UNSTABLE"
+        rollup = pull_request["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+        rollup["contexts"]["nodes"].append({
+            "__typename": "CheckRun",
+            "name": "flaky-extra",
+            "status": "COMPLETED",
+            "conclusion": "FAILURE",
+            "isRequired": False,
+        })
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["UndisposedNonRequiredFailures"] == ["flaky-extra"]
+        assert result["CanMerge"] is False
+        assert result["Tier"] == "T2"
+
+    def test_draft_still_classifies_as_skip(self):
+        """A draft is SKIP, not the unsupported-state tier.
+
+        GitHub reports `mergeStateStatus == DRAFT` for a draft PR, which the
+        allowlist blocks. `classify_tier` checks `IsDraft` first, so the draft
+        must keep reaching SKIP rather than falling into a work tier.
+        """
+        pr_data = self._clean_pr_in_state("DRAFT")
+        pr_data["repository"]["pullRequest"]["isDraft"] = True
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            result = check_merge_readiness("o", "r", 42)
+        assert result["CanMerge"] is False
+        assert result["Tier"] == "SKIP"
+
+    def test_supported_state_set_matches_the_documented_merge_gate(self):
+        """The allowlist is exactly the set pr-autofix.md names a script for.
+
+        Read from the command file rather than restated, so widening the set in
+        the script without widening the documented merge path fails here.
+        """
+        assert _mod._SUPPORTED_MERGE_STATES == frozenset(
+            {"CLEAN", "HAS_HOOKS", "UNSTABLE"}
+        )
+        command = (
+            Path(__file__).resolve().parents[1]
+            / ".claude" / "commands" / "pr-autofix.md"
+        ).read_text(encoding="utf-8")
+        assert (
+            "`mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with "
+            "documented non-required failures)."
+        ) in command
+        for state in _mod._SUPPORTED_MERGE_STATES:
+            assert f"| `{state}`" in command or f"| `{state}` with" in command, (
+                f"{state} is in the allowlist but has no row in the "
+                f'"Merge path by `mergeStateStatus`" table'
+            )
+
+
+class TestTheAllowlistIsWhatBlocksTheUnsupportedStates:
+    """Negative control: restore the pre-fix shape, watch the cases above fail.
+
+    Every case in `TestUnsupportedMergeStatesNeverReachT1` asserts an outcome.
+    None of them, alone, proves the outcome comes from this change rather than
+    from a gate that already existed, and a test that passes identically before
+    and after a fix is not evidence for the fix. The PR body records a manual
+    revert-and-recount (12 failed, 96 passed). This class puts the same proof in
+    the suite, where CI re-runs it: a control nobody re-runs stops being
+    evidence the moment the code moves.
+
+    What the fix replaced. `_evaluate_pr_state` enumerated blockers. Verbatim
+    from `origin/main` at `.claude/skills/github/scripts/pr/`
+    `test_pr_merge_ready.py`:
+
+        merge_state = _merge_state_status(pr)
+        if merge_state == "BEHIND":
+            reasons.append("Branch is behind base; update against the base branch before merging")
+        elif merge_state == "BLOCKED":
+            reasons.append(
+                "Merge blocked by branch protection (missing review decision or "
+                "unmet protection rule)"
+            )
+
+    Any value nobody listed produced no reason. `CanMerge` is
+    `len(reasons) == 0`, and `classify_tier` carried no allowlist guard, so such
+    a state reached T1. The fix introduced `_SUPPORTED_MERGE_STATES` and made
+    both `_append_merge_state_reason` and `classify_tier` read it.
+
+    How the stand-in works, and what it is not. There is no pre-fix allowlist to
+    revert to, so the control widens the allowlist to hold the one state under
+    test. For that state this is exactly the pre-fix condition: no reason from
+    `_append_merge_state_reason`, and `classify_tier`'s guard inert. It is a
+    stand-in on the discriminating input, not a full revert of the diff.
+    `BEHIND` and `BLOCKED` are refused by `_readiness_without_the_allowlist`
+    below, because pre-fix those two blocked by explicit enumeration; widening
+    the allowlist to hold them would model a defect that never existed.
+
+    Measured, so the control is not merely asserted to work. Replacing the
+    widening below with `frozenset(_mod._SUPPORTED_MERGE_STATES)`, a no-op, and
+    re-running this class: 9 failed, 3 passed. The 9 are every case that
+    reproduces the defect. The 3 still green are exactly the inverted control at
+    the bottom, which the widening is supposed to leave untouched. So each case
+    here moves on the allowlist and on nothing else.
+    """
+
+    _UNSUPPORTED = TestUnsupportedMergeStatesNeverReachT1._UNSUPPORTED
+    _LATER = "A_STATE_GITHUB_ADDS_LATER"
+
+    @staticmethod
+    def _readiness_without_the_allowlist(pr_data, merge_state):
+        """Run `check_merge_readiness` with `merge_state` no longer excluded."""
+        assert merge_state not in ("BEHIND", "BLOCKED"), (
+            "pre-fix, BEHIND and BLOCKED blocked by explicit enumeration, so "
+            "widening the allowlist to hold either one models a defect that "
+            "never existed"
+        )
+        widened = frozenset(_mod._SUPPORTED_MERGE_STATES | {merge_state})
+        with (
+            patch("test_pr_merge_ready.gh_graphql", return_value=pr_data),
+            patch.object(_mod, "_SUPPORTED_MERGE_STATES", widened),
+        ):
+            return check_merge_readiness("o", "r", 42)
+
+    @pytest.mark.parametrize("merge_state", _UNSUPPORTED)
+    def test_without_the_allowlist_an_unsupported_state_reports_ready(self, merge_state):
+        """Discriminates `test_unsupported_merge_state_blocks_can_merge`."""
+        result = self._readiness_without_the_allowlist(
+            _clean_pr_in_state(merge_state), merge_state,
+        )
+        assert result["Reasons"] == [], (
+            "the pre-fix shape produced no blocking reason for an unlisted "
+            "state; if it does now, this control no longer discriminates"
+        )
+        assert result["CanMerge"] is True
+
+    @pytest.mark.parametrize("merge_state", _UNSUPPORTED)
+    def test_without_the_allowlist_an_unsupported_state_reaches_t1(self, merge_state):
+        """Discriminates the `is_never_t1` and `terminal_tier` cases.
+
+        T1 is the auto-merge path, so this is issue #4899 itself, reproduced.
+        """
+        result = self._readiness_without_the_allowlist(
+            _clean_pr_in_state(merge_state), merge_state,
+        )
+        assert result["Tier"] == "T1"
+
+    def test_without_the_allowlist_threads_fall_through_to_t3(self):
+        """Discriminates the thread half of the work-tier fallthrough.
+
+        T3's documented action ends in "then merge", for a state with no merge
+        path. That is what the terminal tier exists to prevent.
+        """
+        pr_data = _clean_pr_in_state(self._LATER)
+        _add_unresolved_thread(pr_data)
+        result = self._readiness_without_the_allowlist(pr_data, self._LATER)
+        assert result["UnresolvedThreads"] == 1
+        assert result["Tier"] == "T3"
+
+    def test_without_the_allowlist_a_failed_check_falls_through_to_t2(self):
+        """Discriminates the CI half of the same fallthrough."""
+        pr_data = _clean_pr_in_state(self._LATER)
+        _add_failed_required_check(pr_data)
+        result = self._readiness_without_the_allowlist(pr_data, self._LATER)
+        assert result["FailedRequiredChecks"] == ["required-thing"]
+        assert result["Tier"] == "T2"
+
+    def test_without_the_allowlist_dirty_reports_ready(self):
+        """Discriminates `test_dirty_merge_state_blocks_without_a_conflicting_mergeable`.
+
+        The tier stays `DIRTY` either way: `_MERGE_STATE_TIERS` carries a row
+        for it and `classify_tier` reads that table before the allowlist guard.
+        `CanMerge` is the half the fix moved, and it is the half that decides,
+        because pr-autofix's four-condition gate reads `CanMerge`.
+        """
+        pr_data = _clean_pr_in_state("DIRTY")
+        assert pr_data["repository"]["pullRequest"]["mergeable"] == "MERGEABLE"
+        result = self._readiness_without_the_allowlist(pr_data, "DIRTY")
+        assert result["CanMerge"] is True
+        assert result["Tier"] == "DIRTY"
+
+    @pytest.mark.parametrize("merge_state", ["CLEAN", "HAS_HOOKS", "UNSTABLE"])
+    def test_the_widening_is_inert_for_states_already_in_the_allowlist(self, merge_state):
+        """Inverted control: the stand-in must not pass by breaking everything.
+
+        A stand-in that flipped every outcome would satisfy every case above
+        while proving nothing about the allowlist. These three are already in
+        `_SUPPORTED_MERGE_STATES`, so the widening is a no-op and they must
+        still reach T1. The outcomes above therefore move because the state was
+        excluded, not because patching the module attribute fires.
+        """
+        result = self._readiness_without_the_allowlist(
+            _clean_pr_in_state(merge_state), merge_state,
+        )
+        assert result["CanMerge"] is True, f"reasons: {result['Reasons']}"
+        assert result["Tier"] == "T1"
 
 
 class TestTierInMergeReadinessOutput:
@@ -1488,3 +2652,137 @@ class TestTierInMergeReadinessOutput:
             result = check_merge_readiness("o", "r", 42)
         assert "Tier" in result
         assert result["Tier"] in _mod._TIER_ORDER
+
+
+class TestSupportedStatesClearTheCompletionGate:
+    """Every state that reaches T1 must also clear pr-autofix's Phase 3 gate.
+
+    Wiring proof, per `.claude/rules/testing.md` SHOULD-6. The two halves of
+    this contract ship in different files and neither one's unit tests can see
+    the other:
+
+      * `_SUPPORTED_MERGE_STATES` in
+        `.claude/skills/github/scripts/pr/test_pr_merge_ready.py` decides which
+        `mergeStateStatus` values reach tier `T1`, the auto-merge tier.
+      * the `MergeStateStatus in (...)` clause of the `pass_when_python`
+        predicate for "PR is ready to merge (CI green, no conflicts)" in
+        `.claude/commands/pr-review-config.yaml` decides which values clear the
+        completion gate that `.claude/commands/pr-autofix.md` Phase 3 runs
+        before any merge is enabled.
+
+    A state accepted by the first and rejected by the second is a PR that
+    advances to the merge tier and then fails a mandatory gate with nothing
+    left to fix. `HAS_HOOKS` was in exactly that shape when it entered the
+    producer's allowlist. These cases run the real producer over a real
+    GraphQL payload and feed its actual output dict to the real predicate, so
+    widening one side without the other fails here rather than on a live PR.
+    """
+
+    _CONFIG_PATH = (
+        Path(__file__).resolve().parents[1]
+        / ".claude" / "commands" / "pr-review-config.yaml"
+    )
+    _CRITERION = "PR is ready to merge (CI green, no conflicts)"
+
+    @classmethod
+    def _shipped_predicate(cls) -> str:
+        config = yaml.safe_load(cls._CONFIG_PATH.read_text(encoding="utf-8"))
+        for criterion in config["completion_criteria"]:
+            if criterion.get("name") == cls._CRITERION:
+                return criterion["pass_when_python"]
+        raise AssertionError(
+            f"no criterion named {cls._CRITERION!r} in {cls._CONFIG_PATH}",
+        )
+
+    def _readiness_for(self, merge_state):
+        pr_data = _clean_pr_in_state(merge_state)
+        with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
+            return check_merge_readiness("o", "r", 42)
+
+    @pytest.mark.parametrize("merge_state", sorted(_mod._SUPPORTED_MERGE_STATES))
+    def test_a_t1_verdict_clears_the_completion_gate(self, merge_state):
+        """Parametrized over the producer's own allowlist, not a copy of it.
+
+        Adding a state to `_SUPPORTED_MERGE_STATES` without adding it to the
+        gate's tuple adds a case here that fails, which is the drift this
+        class exists to catch.
+        """
+        result = self._readiness_for(merge_state)
+
+        assert result["Tier"] == "T1", (
+            f"{merge_state} is in _SUPPORTED_MERGE_STATES but did not reach "
+            f"T1; reasons: {result['Reasons']}"
+        )
+        assert _gate._eval_pass_when_python(result, self._shipped_predicate()) is True, (
+            f"{merge_state} reaches T1 (attempt merge) and then fails the "
+            f"mandatory completion gate in pr-review-config.yaml, so the PR "
+            f"dead-ends with no work left to do"
+        )
+
+    @pytest.mark.parametrize("merge_state", ["UNKNOWN", "A_STATE_GITHUB_ADDS_LATER"])
+    def test_an_unsupported_verdict_is_refused_by_the_completion_gate(self, merge_state):
+        """Discrimination control: the gate is not passing everything.
+
+        Without this, a predicate that ignored `MergeStateStatus` entirely
+        would satisfy every positive case above.
+        """
+        result = self._readiness_for(merge_state)
+
+        assert result["Tier"] == "UNSUPPORTED"
+        assert _gate._eval_pass_when_python(result, self._shipped_predicate()) is False
+
+def _failing_bot_pr() -> dict:
+    """`_OPEN_PR` with one failing required check, so a tier arm is reachable."""
+    pr = json.loads(json.dumps(_OPEN_PR))
+    node = pr["repository"]["pullRequest"]
+    node["mergeStateStatus"] = "UNSTABLE"
+    rollup = node["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+    rollup["state"] = "FAILURE"
+    rollup["contexts"]["nodes"][0]["conclusion"] = "FAILURE"
+    return pr
+
+
+class TestIsBotFlagReachesTierT5:
+    """`--is-bot` must change the tier, not merely arrive.
+
+    `test_pr_autofix_bot_tier_forwarding.py` proves `/pr-autofix` puts the flag
+    on the producer's argv, against a fake producer that records argv and
+    prints whatever tier the case asked for. That is the whole forwarding
+    contract on the command side and none of it on this side: a producer that
+    accepted `--is-bot` and dropped it before `classify_tier` would leave every
+    one of those cases green while issue #5208 stayed open, because no test in
+    either suite runs argv through to an emitted tier.
+
+    `TestClassifyTier.test_bot_with_failures_is_t5` calls `classify_tier`
+    directly with `is_bot=True`, which skips the two wirings that can break:
+    `build_parser`'s `--is-bot` into `args.is_bot`, and `main`'s `args.is_bot`
+    into `check_merge_readiness(is_bot=...)` into `classify_tier`. These run the
+    real `main` over the real code path while isolating exactly three external
+    boundaries: authentication, repository resolution, and `gh_graphql`.
+    """
+
+    def _tier(self, argv: list[str], capsys) -> str:
+        with patch("test_pr_merge_ready.assert_gh_authenticated"), patch(
+            "test_pr_merge_ready.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ), patch("test_pr_merge_ready.gh_graphql", return_value=_failing_bot_pr()):
+            rc = main(argv)
+        assert rc == 1, "a PR with a failing required check is not merge-ready"
+        return json.loads(capsys.readouterr().out)["Tier"]
+
+    def test_the_is_bot_flag_produces_tier_t5(self, capsys):
+        tier = self._tier(["--pull-request", "42", "--is-bot"], capsys)
+        assert tier == "T5", (
+            "the forwarded flag did not reach classify_tier, so /pr-autofix "
+            f"sending --is-bot still cannot produce T5; got {tier}"
+        )
+
+    def test_without_the_flag_the_same_pr_is_not_t5(self, capsys):
+        """Negative control. Without it, a hardcoded T5 would pass the case above.
+
+        T2 is the arm this PR takes without the flag: a failing required check
+        and no unresolved threads. That is exactly the misclassification issue
+        #5208 reports, so this case also pins the defect's shape.
+        """
+        tier = self._tier(["--pull-request", "42"], capsys)
+        assert tier == "T2", f"expected the pre-fix misclassification, got {tier}"

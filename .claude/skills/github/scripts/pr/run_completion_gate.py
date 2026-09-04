@@ -166,10 +166,14 @@ case as well; there is one approval model, not two.
 
 What is classified, and why:
 
-  * Option flags (leading ``-``), option values, the substituted PR
-    number, and bare interpreter names that are not paths (``python3``
-    resolves under the cwd but no such file exists) are skipped: there
-    is nothing to compare.
+  * Option flags (leading ``-``), the substituted PR number, bare
+    interpreter names that are not paths (``python3`` resolves under
+    the cwd but no such file exists), and directories are skipped:
+    there is nothing to compare. Classification is by token shape and
+    by what is on disk, never by argv position. There is no
+    option-position tracking, so an option VALUE that names an existing
+    file is classified exactly like any other path token. That is how
+    a tracked ``--dispositions-file`` value comes to be compared.
   * Files OUTSIDE the git work tree are recorded in
     ``command_trust.skipped_external_files`` and not compared. An
     absolute interpreter path or an installed-plugin script cannot be
@@ -178,10 +182,25 @@ What is classified, and why:
   * UNTRACKED work-tree files are recorded in
     ``command_trust.skipped_untracked_files`` and not compared. PR
     content arrives through a checkout, so it is always tracked; an
-    untracked file is the operator's own state, such as the
-    ``--dispositions-file`` JSON a reviewer writes during the review.
-    Comparing those would halt every real run against a trusted-ref
-    copy that cannot exist.
+    untracked file is the operator's own state, such as a local scratch
+    fixture a reviewer writes during the review. Comparing those would
+    halt every real run against a trusted-ref copy that cannot exist.
+
+    ``--dispositions-file`` used to be the example here and is no longer
+    a safe one. Classification follows the git state of the workspace
+    this runs in, nothing else, and that answer differs by workspace.
+    In the upstream repository, PR #5481 committed
+    ``.agents/pr-checks/dispositions.json``, the path the shipped config
+    passes, so there it is tracked and compared, and a PR that edits it
+    halts the gate until the change is approved. That is the posture to
+    want for a file whose contents can wave a red check through. In an
+    installed-plugin consumer it is not the same file. Each marketplace
+    maps ``project-toolkit`` to one root and only one, ``./.claude`` in
+    ``.claude-plugin/marketplace.json`` and ``./src/copilot-cli`` in
+    ``.github/plugin/marketplace.json``, and neither root contains the
+    upstream ``.agents`` tree, so a consumer workspace has no such path
+    until someone writes one, and a file written there is untracked and
+    skipped exactly as before.
   * A repo-local path whose resolution leaves the work tree (a
     PR-committed symlink) or cannot be resolved fails closed as
     untrusted: the link is PR content and its target has no trusted-ref
@@ -1295,6 +1314,25 @@ _ARGV_EXTERNAL = "external"
 _ARGV_ESCAPES = "escapes"
 
 
+def _split_long_option_value(token: str) -> str | None:
+    """Return the value half of a ``--flag=value`` long option, or ``None``.
+
+    argparse accepts ``--flag=value`` as equivalent to ``--flag value``.
+    ``_classify_argv_token`` skips any token starting with ``-`` outright, so
+    a value packed into the same token as its flag would escape verification
+    entirely: the embedded path is never compared against the trusted ref,
+    which lets a PR-controlled command waive its own failing check (CWE-284).
+    The two-token space-separated form already works, because the value is
+    its own argv element there. Scoped to ``--`` (long options only):
+    argparse has no ``-f=value`` short form, so a short option is never
+    split, and a token with no ``=`` returns ``None`` unchanged.
+    """
+    if not token.startswith("--") or "=" not in token:
+        return None
+    _, _, value = token.partition("=")
+    return value
+
+
 class CommandTrustCheck(NamedTuple):
     """Outcome of verifying the files a config's commands name.
 
@@ -1365,16 +1403,78 @@ def _first_symlinked_component(candidate: Path, root: Path) -> Path | None:
     return None
 
 
+# The plugin-root form every shipped invocation uses. Expanding it is not
+# general shell emulation: it is the one documented, deterministic
+# indirection in this repo's command strings, and the shell resolves it
+# the same way at dispatch. Leaving it literal made the token resolve to
+# no file on disk, so the preflight script the scripts map actually runs
+# was classified as nothing-to-verify and the verdict read "trusted"
+# without ever comparing it (issue #5520).
+_PLUGIN_ROOT_FORMS = (
+    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}",
+    "${CLAUDE_PLUGIN_ROOT:-${COPILOT_PLUGIN_ROOT:-.claude}}",
+    "${COPILOT_PLUGIN_ROOT:-.claude}",
+    "${CLAUDE_PLUGIN_ROOT:-.claude}",
+)
+
+
+def _expand_plugin_root(token: str) -> str:
+    """Resolve the documented plugin-root indirection, or return as-is.
+
+    Mirrors the shell's ``${VAR:-default}``: the environment wins when
+    set and non-empty, otherwise the literal default. Only the exact
+    forms in :data:`_PLUGIN_ROOT_FORMS` are expanded. Anything else
+    keeps its ``$`` and is reported by :func:`_unverifiable_argv`
+    instead of being quietly resolved to the wrong thing.
+    """
+    for form in _PLUGIN_ROOT_FORMS:
+        if form not in token:
+            continue
+        root = (
+            os.environ.get("COPILOT_PLUGIN_ROOT")
+            or os.environ.get("CLAUDE_PLUGIN_ROOT")
+            or ".claude"
+        )
+        return token.replace(form, root)
+    return token
+
+
+def _unverifiable_argv(argv: list[str]) -> list[str]:
+    """Tokens naming a script that static classification cannot resolve.
+
+    A token still carrying ``$`` or ``$env:`` after plugin-root
+    expansion reaches its target through shell or PowerShell evaluation
+    this function does not perform, so no byte comparison is possible.
+    Such a token is REPORTED rather than skipped: skipping it is what let
+    a command read as verified while its target was never examined.
+    Reporting keeps the verdict's scope honest without inventing a
+    blocker, because the command string itself is covered by the config
+    byte comparison that runs before this.
+    """
+    found: list[str] = []
+    for token in argv:
+        if "$" not in token:
+            continue
+        if not any(ext in token for ext in (".py", ".ps1", ".sh")):
+            continue
+        if token not in found:
+            found.append(token)
+    return found
+
+
 def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
     """Classify one argv element for trust verification.
 
     Returns ``(kind, value)`` where kind is one of the ``_ARGV_*``
     constants:
 
-      * ``_ARGV_SKIP`` -- nothing to verify: an option flag, an option
-        value, a PR number, a bare interpreter name that is not a path
-        (``python3`` resolves under the cwd but no such file exists), or
-        a directory.
+      * ``_ARGV_SKIP`` -- nothing to verify: an option flag, a PR
+        number, a bare interpreter name that is not a path (``python3``
+        resolves under the cwd but no such file exists), or a
+        directory. Only the leading-hyphen test is by shape; every
+        other token is classified by what is on disk. An option value
+        is not skipped for being one, so a value naming an existing
+        file falls through to the cases below like any other path.
       * ``_ARGV_VERIFY`` -- an existing file inside the work tree; the
         value is its work-tree-relative POSIX path. Whether git tracks
         it is decided later, in one batched probe
@@ -1472,11 +1572,15 @@ def _collect_command_paths(
             raise ConfigError(
                 f"command is not a parseable command line: {exc}",
             ) from exc
-        for token in argv:
-            kind, value = _classify_argv_token(token, toplevel)
-            bucket = buckets.get(kind)
-            if bucket is not None and value not in bucket:
-                bucket.append(value)
+        for raw_token in argv:
+            token = _expand_plugin_root(raw_token)
+            embedded = _split_long_option_value(token)
+            candidates = (token, embedded) if embedded is not None else (token,)
+            for candidate in candidates:
+                kind, value = _classify_argv_token(candidate, toplevel)
+                bucket = buckets.get(kind)
+                if bucket is not None and value not in bucket:
+                    bucket.append(value)
 
     return to_verify, external, escaping
 
@@ -1624,12 +1728,18 @@ def _tracked_subset(rel_paths: list[str], toplevel: Path) -> tuple[set[str], str
 
     Trust is scoped to tracked files because the threat is PR content,
     and PR content arrives through a checkout, so it is always tracked.
-    An untracked work-tree file is the operator's own state (the
-    ``--dispositions-file`` a reviewer writes during the review, a local
-    scratch fixture); comparing it would halt every real run against a
-    trusted-ref copy that cannot exist, which trains operators to pass
-    the approval flag by reflex. A non-empty ``error`` means the probe
-    itself failed and the caller must halt.
+    An untracked work-tree file is the operator's own state (a local
+    scratch fixture, a reviewer's private copy of a config); comparing
+    it would halt every real run against a trusted-ref copy that cannot
+    exist, which trains operators to pass the approval flag by reflex.
+    ``--dispositions-file`` used to be the example here, and it is a
+    poor one now because the answer depends on the workspace: upstream,
+    PR #5481 committed the path the shipped config passes, so there it
+    is tracked and compared; in an installed-plugin consumer, which
+    receives no ``.agents`` tree, any file written at that path is
+    untracked and skipped. This probe reports the workspace it is given
+    and takes no position beyond it. A non-empty ``error`` means the
+    probe itself failed and the caller must halt.
 
     ``-z`` because paths are not newline-safe and ``core.quotePath``
     would otherwise escape non-ASCII names out of alignment with the
@@ -2085,6 +2195,18 @@ def build_parser() -> argparse.ArgumentParser:
             "Git ref holding the trusted copies; the working-tree config and "
             "every work-tree file its commands name must be byte-identical "
             "to it before any criterion runs"
+        ),
+    )
+    parser.add_argument(
+        "--verify-config-only",
+        action="store_true",
+        help=(
+            "Verify the config and the files its scripts-map commands name "
+            "against the trusted ref, then exit without running any "
+            "criterion. This is what a workflow calls BEFORE dispatching its "
+            "first command-map entry, so a PR-rewritten command never reaches "
+            "execution. Exit 0 trusted, 2 untrusted, 3 verification "
+            "impossible"
         ),
     )
     parser.add_argument(
@@ -2574,6 +2696,105 @@ def _resolve_and_read_config(config_arg: str) -> ResolvedConfig:
         return ResolvedConfig(None, None, None, 2)
 
 
+def _scripts_map_criteria(config: dict[str, Any]) -> list[Any]:
+    """Render every ``scripts.<harness>`` entry as a synthetic criterion.
+
+    Step 0 dispatches from the ``scripts`` map, not from
+    ``completion_criteria``, so the #5072 and #5099 machinery covered the
+    wrong half of the config for the first command a workflow runs
+    (issue #5520). Rather than write a second verifier, this reshapes the
+    map into the criterion dicts :func:`_verify_command_trust` already
+    understands, so both halves are checked by one implementation and a
+    fix to that implementation reaches both.
+
+    Every harness map is included, not just the caller's. Which map a
+    consumer selects is decided in prose the gate cannot read, and a
+    verdict that depended on guessing it would be trusted for the wrong
+    set. Verifying the union costs a few extra path comparisons.
+
+    A non-mapping ``scripts``, or a non-mapping harness entry, yields
+    nothing rather than raising: those are config-shape problems the
+    schema validator owns, and failing closed here would refuse to
+    verify a config whose only fault is an unrelated typo.
+    """
+    scripts = config.get("scripts")
+    if not isinstance(scripts, dict):
+        return []
+    criteria: list[Any] = []
+    for harness, commands in sorted(scripts.items()):
+        if not isinstance(commands, dict):
+            continue
+        for key, command in sorted(commands.items()):
+            if not isinstance(command, str) or not command.strip():
+                continue
+            criteria.append(
+                {
+                    "name": f"scripts.{harness}.{key}",
+                    "verification": "command",
+                    "command": command,
+                    "pass_when": "true",
+                },
+            )
+    return criteria
+
+
+def _report_verify_only(
+    trust_status: str,
+    command_trust: CommandTrustCheck,
+    trust_anchor_ref: str,
+    as_json: bool,
+    unverifiable: list[str],
+) -> None:
+    """Print the verify-only verdict. Called only on the trusted path.
+
+    ``unverifiable`` is stated, never omitted. The config comparison
+    already covers every command STRING, so a token whose target cannot
+    be resolved statically is a gap in the file-level defense in depth
+    rather than in the boundary itself. Saying so is the difference
+    between a verdict a reader can size and one that implies coverage it
+    does not have.
+    """
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "verified": True,
+                    "config_trust": trust_status,
+                    "command_trust": command_trust.status,
+                    "trusted_ref": trust_anchor_ref,
+                    "checked_files": command_trust.checked_files,
+                    "unverifiable_command_tokens": unverifiable,
+                    "skipped_external_files": (
+                        command_trust.skipped_external_files
+                    ),
+                    "skipped_untracked_files": (
+                        command_trust.skipped_untracked_files
+                    ),
+                },
+                indent=2,
+            ),
+        )
+    else:
+        print(
+            f"Config and scripts-map commands verified against "
+            f"{trust_anchor_ref}: config {trust_status}, commands "
+            f"{command_trust.status}, {len(command_trust.checked_files)} "
+            f"file(s) compared.",
+        )
+    if unverifiable:
+        listing = _escape_terminal_controls(
+            "\n".join(f"  {token}" for token in unverifiable),
+        )
+        print(
+            f"NOTE: {len(unverifiable)} command token(s) reach their target "
+            f"through shell or PowerShell evaluation, so no file comparison "
+            f"was possible for them. Their command strings are covered by "
+            f"the config comparison above; the files they name are "
+            f"not:\n{listing}",
+            file=sys.stderr,
+        )
+
+
 def _extract_criteria(config: dict[str, Any]) -> list[Any] | None:
     """Return the completion_criteria list, or None (with stderr) if invalid.
 
@@ -2635,6 +2856,51 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as exc:
         print(f"Failed to load config {config_path}: {exc}", file=sys.stderr)
         return 2
+
+    if args.verify_config_only:
+        # The config passed its own trust check above. Now verify the
+        # files the scripts-map commands name, which is what Step 0 is
+        # about to dispatch, and stop. Nothing is executed on this path:
+        # the point is to answer "is it safe to run a command from this
+        # config" before anything runs (issue #5520).
+        try:
+            command_trust, halt_code = _enforce_command_trust(
+                _scripts_map_criteria(config),
+                args.pull_request,
+                args.trust_anchor_ref,
+                args.approve_untrusted_config,
+            )
+        except ConfigError as exc:
+            print(f"Config error in scripts map: {exc}", file=sys.stderr)
+            return 2
+        if halt_code is not None:
+            return halt_code
+        unverifiable: list[str] = []
+        for criterion in _scripts_map_criteria(config):
+            try:
+                argv = _format_command(criterion["command"], args.pull_request)
+            except ValueError:
+                # A command line this cannot even split is a config-shape
+                # fault the schema validator owns. It executes nothing
+                # here, so record it as unverifiable rather than halting.
+                unverifiable.append(criterion["name"])
+                continue
+            # Expanded first, exactly as _collect_command_paths does, so a
+            # token the plugin-root form resolved is not reported as
+            # unresolvable when it was in fact compared.
+            for token in _unverifiable_argv(
+                [_expand_plugin_root(t) for t in argv]
+            ):
+                if token not in unverifiable:
+                    unverifiable.append(token)
+        _report_verify_only(
+            trust.status,
+            command_trust,
+            args.trust_anchor_ref,
+            args.json,
+            unverifiable,
+        )
+        return 0
 
     criteria = _extract_criteria(config)
     if criteria is None:

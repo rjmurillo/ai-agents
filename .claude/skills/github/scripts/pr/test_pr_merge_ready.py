@@ -40,13 +40,26 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Python 3.10 compatibility (issue #4764), same reasoning as `new_pr.py`:
+# `datetime.UTC` is an alias CPython added in 3.11, so `from datetime import
+# UTC` raises `ImportError: cannot import name 'UTC' from 'datetime'` on 3.10.
+# `.claude/commands/pr-review-config.yaml` and `.claude/commands/pr-autofix.md`
+# both invoke this script with a bare `python3`, so it runs on the HOST's
+# ambient interpreter rather than the repository's 3.14 development one, and
+# `_SUPPORT_FLOOR` in `scripts/validation/validate_python_syntax.py` puts that
+# host floor at 3.10. `timezone.utc` is the same object at every version this
+# repository targets, so it is the portable spelling, not a shim.
+_UTC = timezone.utc
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -565,14 +578,40 @@ def _merge_state_status(pr: dict) -> str:
     return "" if value is None else str(value)
 
 
+# The merge states the caller knows how to execute.  Quoted verbatim from
+# `.claude/commands/pr-autofix.md`, "Ready-to-Merge Definition" item 4:
+#
+#     4. `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with
+#        documented non-required failures).
+#
+# `HAS_HOOKS` belongs there on GitHub's own definition of the enum value in the
+# GraphQL `MergeStateStatus` reference: "Mergeable with passing commit status
+# and pre-receive hooks."  That is CLEAN plus pre-receive hooks, so the CLEAN
+# merge path executes it unchanged, and this repository already read it that
+# way before this script existed: `scripts/ci/check_pr_merge_state.py:27-28`
+# carries `PASS_STATES = {"BEHIND", "BLOCKED", "CLEAN", "HAS_HOOKS",
+# "UNSTABLE"}` against `FAIL_STATES = {"DIRTY"}`.  The "Merge path by
+# `mergeStateStatus`" table in `pr-autofix.md` names the CLEAN scripts for
+# `HAS_HOOKS` for the same reason, so the two definitions of the enum value in
+# this repository agree.
+#
+# Everything outside this set is refused rather than attempted.  BEHIND, DIRTY,
+# and BLOCKED route to their own repair tiers; any other value (UNKNOWN, a
+# missing value, or one GitHub adds later) reaches the terminal `UNSUPPORTED`
+# tier.  That refusal is deliberately conservative, not a claim that GitHub
+# would reject the merge: pr-autofix has no verified path for those states, so
+# it hands the PR back instead of guessing.  Issue #4899 reopen: before this
+# allowlist the code enumerated blockers instead, so any value nobody listed
+# reached `CanMerge=True` and through it `Tier=T1`, the auto-merge path.
+_SUPPORTED_MERGE_STATES = frozenset({"CLEAN", "HAS_HOOKS", "UNSTABLE"})
+
+
 def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     """Append draft/state/merge-conflict reasons; return mergeable string.
 
     Also gates on ``mergeStateStatus == BEHIND`` (issue #2157): a branch
     behind its base cannot land, and this repo does not auto-update it on
-    auto-merge (issue #2048 concrete failure), so it must block. ``DRAFT``,
-    ``DIRTY``, and ``UNKNOWN`` are already covered by the ``isDraft`` and
-    ``mergeable`` checks.
+    auto-merge (issue #2048 concrete failure), so it must block.
 
     ``mergeStateStatus == BLOCKED`` blocks (issue #2326). A BLOCKED state
     means GitHub's branch protection still refuses the merge: a missing
@@ -584,25 +623,73 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     own four-condition merge gate (``.claude/commands/pr-autofix.md``,
     ``.claude/commands/pr-review-config.yaml``), which both require
     ``mergeStateStatus in ('CLEAN', 'UNSTABLE')``.
+
+    Every ``mergeStateStatus`` outside :data:`_SUPPORTED_MERGE_STATES` also
+    blocks, by allowlist rather than by enumeration (issue #4899 reopen).
+    Enumerating blockers fails open on each value nobody listed, and that is
+    how ``DIRTY`` used to reach ``CanMerge=True``: only the separate
+    ``mergeable`` field was checked, so a response that reported the conflict
+    in ``mergeStateStatus`` while leaving ``mergeable`` at something other than
+    ``CONFLICTING`` produced no reason at all. The allowlist closes that and
+    every future value GitHub adds, because a state this script has never heard
+    of is exactly a state the caller has no verified path for.
+
+    Blocking a ``DIRTY`` that carries no ``CONFLICTING`` is the documented safe
+    fallback, not a verdict that a real conflict exists. The comment on
+    :data:`_STALE_DIRTY_STATE` below reads ``mergeStateStatus == DIRTY`` as a
+    stale status cache, and :func:`stale_dirty_suspected` already promised this
+    outcome ("absent a local refresh, ``CanMerge`` stays False"); the old code
+    did not deliver it. The caller confirms against local git before treating
+    the conflict as stale.
+
+    An empty ``mergeStateStatus`` (the field absent or null in the API
+    response) blocks for the same reason. GitHub declares the field non-null,
+    so an empty value means the probe did not return the state rather than that
+    the state is benign, and the caller selects its merge path by that value.
+
+    Stricter than canonical: ``pr-autofix.md`` describes the merge path a human
+    or agent takes once ready. This function refuses to report ready at all for
+    a state that document names no path for, so the two agree on CLEAN,
+    HAS_HOOKS, and UNSTABLE and this one is strictly narrower everywhere else.
     """
     if pr["state"] != "OPEN":
         reasons.append(f"PR is {pr['state'].lower()}, not open")
     if pr.get("isDraft"):
         reasons.append("PR is in draft state")
-    mergeable = pr.get("mergeable", "")
+    # Normalized the same way as `_merge_state_status`: `.get(key, default)`
+    # returns None, not the default, when the key is present and explicitly
+    # null, which GraphQL payloads do emit. Collapsing it here is what lets
+    # this function honor its declared `-> str`.
+    raw_mergeable = pr.get("mergeable")
+    mergeable = "" if raw_mergeable is None else str(raw_mergeable)
     if mergeable == "CONFLICTING":
         reasons.append("PR has merge conflicts")
     elif mergeable == "UNKNOWN":
         reasons.append("Merge status is being calculated")
-    merge_state = _merge_state_status(pr)
+    _append_merge_state_reason(_merge_state_status(pr), reasons)
+    return mergeable
+
+
+def _append_merge_state_reason(merge_state: str, reasons: list[str]) -> None:
+    """Append the blocking reason for ``merge_state``, if it blocks.
+
+    Silent only for the states in :data:`_SUPPORTED_MERGE_STATES`.
+    """
+    if merge_state in _SUPPORTED_MERGE_STATES:
+        return
     if merge_state == "BEHIND":
         reasons.append("Branch is behind base; update against the base branch before merging")
-    elif merge_state == "BLOCKED":
+        return
+    if merge_state == "BLOCKED":
         reasons.append(
             "Merge blocked by branch protection (missing review decision or "
             "unmet protection rule)"
         )
-    return mergeable
+        return
+    reasons.append(
+        f"Merge state {merge_state or '<missing>'} has no supported merge path "
+        f"(supported: {', '.join(sorted(_SUPPORTED_MERGE_STATES))})"
+    )
 
 
 # GitHub reports conflicts in two places:
@@ -959,12 +1046,78 @@ def _script_commit() -> str:
 # Non-required failure dispositions
 # ---------------------------------------------------------------------------
 
+# The one `expires` grammar every interpreter this script runs on parses the
+# same way: an extended-format calendar date, optionally an extended-format
+# time, optionally fractional seconds, optionally `Z` or a numeric offset.
+# Anchored at both ends. `_disposition_unexpired` explains why the subset is
+# narrower than `datetime.fromisoformat` will accept on any single version.
+#
+# Fractional seconds are exactly 3 or 6 digits, not 1 to 6. CPython 3.10 reads
+# that field as milliseconds or microseconds and nothing else, while 3.11+
+# accepts any width. Measured with 3.10.20 against 3.14.3 on this tree, using
+# `2999-01-01T12:30:00.<n digits>+00:00`:
+#
+#     digits  1     2     3     4     5     6
+#     3.10    err   err   ok    err   err   ok
+#     3.14    ok    ok    ok    ok    ok    ok
+#
+# so `.1` is precisely the host-dependent verdict this pattern exists to stop.
+_EXPIRES_PATTERN = re.compile(
+    r"\d{4}-\d{2}-\d{2}"
+    r"(?:[T ]\d{2}:\d{2}:\d{2}(?:\.(?:\d{3}|\d{6}))?(?:Z|[+-]\d{2}:\d{2})?)?\Z"
+)
+
 _VALID_DISPOSITIONS = frozenset({
     "known-flaky",
     "infrastructure",
     "unrelated-to-pr",
     "tracked-issue",
 })
+
+
+def _dispositions_file_is_tracked(dispositions_file: str) -> bool:
+    """True when git tracks the registry file, which is what makes it trusted.
+
+    An untracked registry is refused rather than read, and the reason is not
+    tidiness. In an installed-plugin consumer the shipped path does not exist
+    at all, so a PR that gets the review agent to write one, by prompt
+    injection into a file that agent reads, would be authoring its own
+    dispositions and could then waive its own failing security check
+    (CWE-829, CWE-284).
+
+    The completion gate does not stop that on its own. Its command-trust check
+    records untracked work-tree files in ``skipped_untracked_files`` and does
+    not compare them, precisely because an untracked file is normally the
+    operator's own state. That carve-out is right for the gate and wrong for
+    this reader, so the reader refuses what the gate declines to verify. The
+    two together give the property that matters: a registry is honored only
+    when it is tracked, and a tracked one is byte-compared against the trusted
+    ref before any criterion runs.
+
+    The path is passed as an explicit ``:(literal)`` pathspec, matching
+    ``_tracked_subset`` in ``run_completion_gate.py``: git reads pathspec
+    magic from a leading ``:`` even after ``--``, so a file literally named
+    ``:(glob)evil.json`` would otherwise never match its own path.
+
+    Fails closed. A nonzero exit, a timeout, a missing git, or a path outside
+    any repository all return False, which loads an empty registry and leaves
+    every non-required failure blocking.
+    """
+    absolute = os.path.abspath(dispositions_file)
+    directory = os.path.dirname(absolute) or "."
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", "--", f":(literal){absolute}"],
+            cwd=directory,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
 
 
 def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
@@ -975,13 +1128,24 @@ def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
         {
           "Check Name": {
             "disposition": "known-flaky|infrastructure|unrelated-to-pr|tracked-issue",
-            "reason": "human explanation"
+            "reason": "human explanation",
+            "expires": "2026-12-01",
+            "pull_requests": [5433, 5460]
           }
         }
 
-    Returns an empty dict when the file is absent or unreadable.
+    ``disposition``, ``reason``, and ``expires`` are required on every entry.
+    ``pull_requests`` is optional. ``_disposition_accepts`` is the authority
+    on what each field has to hold and on what happens when one does not.
+
+    Returns an empty dict when the file is absent, unreadable, or untracked.
+    ``_dispositions_file_is_tracked`` explains why an untracked registry is
+    refused rather than read; an empty dict disposes nothing, so every
+    non-required failure keeps blocking.
     """
     if not dispositions_file:
+        return {}
+    if not _dispositions_file_is_tracked(dispositions_file):
         return {}
     try:
         with open(dispositions_file, encoding="utf-8") as fh:
@@ -993,29 +1157,129 @@ def _load_dispositions(dispositions_file: str | None) -> dict[str, object]:
     return data
 
 
+def _disposition_unexpired(entry: dict[str, object], now: datetime) -> bool:
+    """Return True when ``entry`` carries an ``expires`` still ahead of ``now``.
+
+    The accepted grammar is ``_EXPIRES_PATTERN``: an extended-format calendar
+    date, optionally followed by an extended-format time and an optional
+    ``Z`` or numeric offset. A bare date means midnight on that date, and a
+    timestamp with no offset is read as UTC. A missing, non-string,
+    off-grammar, or already-passed value returns False.
+
+    The regex runs first, and it is the point of the function rather than
+    belt-and-braces. ``datetime.fromisoformat`` is not the same parser across
+    the versions this script runs on: CPython 3.11 widened it to most of ISO
+    8601, so measured against 3.10.20 and 3.14.3, ``29990101`` and
+    ``2999-W01-1`` parse on the newer one and raise ``ValueError`` on the
+    older. Handing it the raw value would let one registry produce different
+    merge verdicts depending on the host that read it, silently, in the
+    direction of treating a live entry as expired. Anchoring to a subset both
+    versions parse identically makes the answer the same everywhere, and
+    rejects the ambiguous spellings on every host rather than on some.
+
+    A trailing ``Z`` is rewritten to ``+00:00`` after the match, the same
+    normalization ``_parse_rfc3339_utc`` in ``pr_autofix_lease.py`` applies,
+    because ``fromisoformat`` only learned the zulu suffix in 3.11 as well.
+    """
+    expires = entry.get("expires")
+    if not isinstance(expires, str) or not _EXPIRES_PATTERN.match(expires):
+        return False
+    normalized = expires[:-1] + "+00:00" if expires.endswith("Z") else expires
+    try:
+        deadline = datetime.fromisoformat(normalized)
+    except ValueError:
+        return False
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=_UTC)
+    return deadline > now
+
+
+def _disposition_covers_pr(entry: dict[str, object], pr_number: int | None) -> bool:
+    """Return True when ``entry`` applies to the PR under test.
+
+    An entry with no ``pull_requests`` key applies to every PR. When the key
+    is present the value must be a list of ints that holds ``pr_number``.
+    Anything else returns False: a non-list value, a list holding a non-int
+    (``bool`` included, since ``isinstance(True, int)`` is True in Python),
+    a list that omits the PR, and a ``pr_number`` of None, which cannot be
+    shown to be a member of anything.
+    """
+    if "pull_requests" not in entry:
+        return True
+    allowed = entry["pull_requests"]
+    if not isinstance(allowed, list):
+        return False
+    if any(isinstance(n, bool) or not isinstance(n, int) for n in allowed):
+        return False
+    return pr_number in allowed
+
+
+def _disposition_accepts(
+    entry: object,
+    pr_number: int | None,
+    now: datetime,
+) -> bool:
+    """Return True when one disposition entry clears every bound.
+
+    Four bounds. All must hold. Any one that fails rejects the entry, and a
+    rejected entry leaves its check undisposed exactly as if the file carried
+    no entry for that check at all.
+
+    - ``disposition`` is a string in ``_VALID_DISPOSITIONS``.
+    - ``reason`` is a non-empty string.
+    - ``expires`` is an ISO 8601 date or date-time still in the future.
+      Required on every entry rather than optional, because an optional
+      expiry is the one a future entry silently omits, and an entry bound
+      only to a check name accepts every later failure of that check
+      forever, including a real one.
+    - ``pull_requests``, when present, holds ``pr_number``. Absent means the
+      entry applies to any PR, which stays useful for a genuinely repo-wide
+      infrastructure failure but has to be a deliberate choice rather than
+      the accidental default.
+
+    ``expires`` gates every entry and ``pull_requests`` narrows an entry
+    further, so the two compose as AND: an unexpired entry scoped to other
+    PRs rejects, and so does a listed PR on an expired entry.
+
+    Nothing here binds an entry to a specific upstream finding. This script
+    sees a check name from GitHub's check rollup and never the finding a
+    scanner reported under that name, so a finding id written into ``reason``
+    is an audit trail for a human reader, not a bound this function enforces.
+    """
+    if not isinstance(entry, dict):
+        return False
+    disposition = entry.get("disposition")
+    if not isinstance(disposition, str) or disposition not in _VALID_DISPOSITIONS:
+        return False
+    reason = entry.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        return False
+    return (
+        _disposition_unexpired(entry, now)
+        and _disposition_covers_pr(entry, pr_number)
+    )
+
+
 def _check_nonrequired_dispositions(
     failed_non_required: list[str],
     dispositions_file: str | None,
+    pr_number: int | None = None,
 ) -> list[str]:
-    """Return failed non-required check names without valid dispositions.
+    """Return failed non-required check names without an accepted disposition.
 
-    A disposition entry must have a ``disposition`` key with a value from
-    ``_VALID_DISPOSITIONS`` and a non-empty ``reason`` string.
+    ``_disposition_accepts`` decides each entry and documents the four bounds.
+    ``pr_number`` is the PR under test; leaving it None rejects every entry
+    that carries a ``pull_requests`` allowlist, because membership in that
+    list cannot be shown without it.
     """
     if not failed_non_required:
         return []
     dispositions = _load_dispositions(dispositions_file)
-    undisposed: list[str] = []
-    for name in failed_non_required:
-        entry = dispositions.get(name)
-        if not isinstance(entry, dict):
-            undisposed.append(name)
-            continue
-        disp = entry.get("disposition", "")
-        reason = entry.get("reason", "")
-        if disp not in _VALID_DISPOSITIONS or not reason.strip():
-            undisposed.append(name)
-    return undisposed
+    now = datetime.now(_UTC)
+    return [
+        name for name in failed_non_required
+        if not _disposition_accepts(dispositions.get(name), pr_number, now)
+    ]
 
 
 def check_merge_readiness(
@@ -1046,7 +1310,7 @@ def check_merge_readiness(
     )
     # Non-required disposition check: undisposed failures block merge
     undisposed = _check_nonrequired_dispositions(
-        failed_non_required, dispositions_file,
+        failed_non_required, dispositions_file, pr_number,
     )
     if undisposed:
         reasons.append(
@@ -1097,10 +1361,13 @@ def check_merge_readiness(
 # ---------------------------------------------------------------------------
 
 # Total classifier: every PR maps to exactly one tier.  Merge-path states
-# (BEHIND, BLOCKED, DIRTY, SKIP) are separated from work-needed tiers
-# (T1-T5) so callers never invent ad-hoc buckets.
+# (BEHIND, BLOCKED, DIRTY, SKIP, UNSUPPORTED) are separated from work-needed
+# tiers (T1-T5) so callers never invent ad-hoc buckets.
 
-_TIER_ORDER = ("T1", "T2", "T3", "T4", "T5", "BEHIND", "BLOCKED", "DIRTY", "SKIP")
+_TIER_ORDER = (
+    "T1", "T2", "T3", "T4", "T5",
+    "BEHIND", "BLOCKED", "DIRTY", "SKIP", "UNSUPPORTED",
+)
 
 # Merge-path states resolved by lookup (no branching needed).
 _MERGE_STATE_TIERS: dict[str, str] = {
@@ -1124,6 +1391,26 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     -------
     str
         One of the values in :data:`_TIER_ORDER`.
+
+    Totality
+    --------
+    Every ``mergeStateStatus`` GitHub can report reaches exactly one tier, and
+    no value reaches ``T1`` unless the caller has a merge path for it (issue
+    #4899 reopen). ``BEHIND``, ``BLOCKED``, and ``DIRTY`` take their own
+    merge-path tiers from :data:`_MERGE_STATE_TIERS`. The three states
+    ``pr-autofix.md`` names a merge script for, :data:`_SUPPORTED_MERGE_STATES`
+    (``CLEAN``, ``HAS_HOOKS``, ``UNSTABLE``), reach ``T1`` when ``CanMerge`` is
+    true and a work tier (``T2``, ``T3``, ``T4``, ``T5``) otherwise. Every
+    other value, ``UNKNOWN`` and a missing value today plus anything GitHub
+    adds later, returns the terminal ``UNSUPPORTED`` tier.
+
+    ``UNSUPPORTED`` is its own tier rather than a fall-through to ``T4``
+    because the work tiers name work the caller can do and there is none here.
+    Such a PR routinely carries zero unresolved threads and zero CI failures,
+    and ``pr-autofix.md`` routes ``T3`` and ``T4`` into the round-cap thread-fix
+    loop, which would then have no action to take and would terminate only by
+    burning the round cap and posting an escalation comment. Its own arm in
+    that document disarms auto-merge and stops.
     """
     # --- Non-actionable states (SKIP) ---
     if result.get("IsDraft") or (result.get("State") or "").upper() in ("CLOSED", "MERGED"):
@@ -1133,6 +1420,15 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     merge_state = result.get("MergeStateStatus") or ""
     if merge_state in _MERGE_STATE_TIERS:
         return _MERGE_STATE_TIERS[merge_state]
+
+    # --- States with no merge path (terminal) ---
+    # Outside both the executable allowlist and the merge-path table above:
+    # UNKNOWN, a missing value, or a value GitHub adds later.  Returned before
+    # the work tiers, so an unsupported state with threads does not classify T3
+    # ("Walk full thread lifecycle, then merge") for a state this script has no
+    # merge path for, and one with CI failures does not classify T2.
+    if merge_state not in _SUPPORTED_MERGE_STATES:
+        return "UNSUPPORTED"
 
     # --- Work-needed tiers ---
     has_ci_failures = (
@@ -1145,7 +1441,8 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     if is_bot and (has_ci_failures or has_threads):
         return "T5"
 
-    # T1: merge-ready (CanMerge covers CLEAN and UNSTABLE-with-dispositions)
+    # T1: merge-ready.  Only _SUPPORTED_MERGE_STATES reach this far, so this
+    # arm covers CLEAN, HAS_HOOKS, and UNSTABLE-with-dispositions.
     if result.get("CanMerge"):
         return "T1"
 
@@ -1161,8 +1458,10 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     if len(result.get("PendingRequiredChecks") or []) > 0:
         return "T2"
 
-    # Edge: all checks pass, no threads, but CanMerge is False for another
-    # reason (e.g. UNKNOWN merge state).  Treat as T4 (needs investigation).
+    # Edge: the merge state is executable and all checks pass with no threads,
+    # yet CanMerge is False for another reason (draft handled above, so this is
+    # a non-OPEN state, an UNKNOWN/CONFLICTING mergeable, or a reason a later
+    # gate appended).  T4 means investigate; it is deliberately not T1.
     return "T4"
 
 

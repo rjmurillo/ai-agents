@@ -15,7 +15,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 # The set of Error.Type values write_skill_error accepts. Module-level so it
 # is a single, importable source of truth: tests/test_skill_output.py derives
@@ -39,6 +39,13 @@ from datetime import UTC, datetime
 # here (Copilot review on PR #5283, correcting the ADR-103 Round 5
 # convergence check's high-level-advisor seat, which made the same
 # mistaken claim).
+# `timezone.utc`, not the `datetime.UTC` alias, on purpose. This module is in
+# the import closure of every bundled skill script, and those run under the
+# host's ambient interpreter, which can be older than the version this project
+# develops against. The alias landed in 3.11, so on a host at the 3.10
+# portability floor the import fails before any script can run. A syntax-level
+# floor check does not catch it: this is a runtime stdlib API, not syntax, so
+# the file parses clean at 3.10 and breaks on import.
 VALID_ERROR_TYPES = (
     "NotFound",
     "ApiError",
@@ -127,7 +134,7 @@ def write_skill_output(
         "Metadata": {
             "Script": script_name,
             "Version": version,
-            "Timestamp": datetime.now(UTC).isoformat(),
+            "Timestamp": datetime.now(timezone.utc).isoformat(),
         },
     }
 
@@ -253,7 +260,7 @@ def write_skill_error(
         "Metadata": {
             "Script": script_name,
             "Version": version,
-            "Timestamp": datetime.now(UTC).isoformat(),
+            "Timestamp": datetime.now(timezone.utc).isoformat(),
         },
     }
 

@@ -23,6 +23,7 @@ from typing import cast
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _SCRIPT_PATH = (
@@ -34,6 +35,8 @@ _SCRIPT_PATH = (
     / "pr"
     / "run_completion_gate.py"
 )
+_PR_REVIEW_CONFIG_PATH = _REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+_MERGE_READY_CRITERION = "PR is ready to merge (CI green, no conflicts)"
 
 
 def _import_dispatcher():
@@ -50,6 +53,27 @@ def _import_dispatcher():
 
 
 _dispatcher = _import_dispatcher()
+
+
+def _shipped_merge_ready_predicate() -> str:
+    """The `pass_when_python` string for the merge-ready criterion, as shipped.
+
+    Read from `.claude/commands/pr-review-config.yaml` rather than transcribed.
+    A transcribed copy is a paraphrase the moment the config moves, and the
+    tests then certify a predicate nobody runs: the hand-copied version this
+    replaced had already lost the `UndisposedNonRequiredFailures` clause, so
+    every case below exercised a four-condition gate while pr-autofix ran a
+    five-condition one.
+    """
+    config = yaml.safe_load(_PR_REVIEW_CONFIG_PATH.read_text(encoding="utf-8"))
+    for criterion in config["completion_criteria"]:
+        if criterion.get("name") == _MERGE_READY_CRITERION:
+            return criterion["pass_when_python"]
+    raise AssertionError(
+        f"no criterion named {_MERGE_READY_CRITERION!r} in "
+        f"{_PR_REVIEW_CONFIG_PATH}; the gate this suite tests has been renamed "
+        f"or removed",
+    )
 
 
 def _make_proc(stdout: str = "", stderr: str = "", returncode: int = 0):
@@ -1300,16 +1324,7 @@ class TestMergeReadyFourConditionGate:
     fetch integrity so a verifier regression cannot fail open.
     """
 
-    # The exact predicate shipped in .claude/commands/pr-review-config.yaml
-    # for the "PR is ready to merge" criterion. Kept verbatim so this test
-    # exercises the real contract, not a paraphrase.
-    _MERGE_READY_PASS_WHEN = (
-        "lambda d: d.get('CanMerge') is True "
-        "and d.get('CIPassing') is True "
-        "and d.get('fetched_pages_complete') is True "
-        "and d.get('UnresolvedThreads') == 0 "
-        "and d.get('MergeStateStatus') in ('CLEAN', 'UNSTABLE')"
-    )
+    _MERGE_READY_PASS_WHEN = _shipped_merge_ready_predicate()
 
     def _merge_ready_config(self, tmp_path: Path) -> Path:
         return _write_config(
@@ -1336,33 +1351,34 @@ class TestMergeReadyFourConditionGate:
             )
         return rc, json.loads(capsys.readouterr().out)
 
-    def test_clean_ready_pr_passes(self, repo_root, tmp_path, capsys):
-        rc, result = self._run_gate(
-            tmp_path,
-            capsys,
-            {
-                "CanMerge": True,
-                "CIPassing": True,
-                "UnresolvedThreads": 0,
-                "MergeStateStatus": "CLEAN",
-                "fetched_pages_complete": True,
-            },
-        )
-        assert rc == 0
-        assert result["criteria"][0]["passed"] is True
+    @staticmethod
+    def _ready_payload(merge_state: str = "CLEAN") -> dict:
+        """A merge-ready verifier verdict, every gate condition satisfied."""
+        return {
+            "CanMerge": True,
+            "CIPassing": True,
+            "UnresolvedThreads": 0,
+            "MergeStateStatus": merge_state,
+            "fetched_pages_complete": True,
+            "UndisposedNonRequiredFailures": [],
+        }
 
-    def test_unstable_ready_pr_passes(self, repo_root, tmp_path, capsys):
-        rc, result = self._run_gate(
-            tmp_path,
-            capsys,
-            {
-                "CanMerge": True,
-                "CIPassing": True,
-                "UnresolvedThreads": 0,
-                "MergeStateStatus": "UNSTABLE",
-                "fetched_pages_complete": True,
-            },
-        )
+    @pytest.mark.parametrize("merge_state", ["CLEAN", "HAS_HOOKS", "UNSTABLE"])
+    def test_every_supported_merge_state_passes(
+        self, repo_root, tmp_path, capsys, merge_state,
+    ):
+        """The three states `test_pr_merge_ready.py` routes to T1 clear the gate.
+
+        `HAS_HOOKS` is here because the producer's `_SUPPORTED_MERGE_STATES`
+        allowlists it while this gate's tuple did not, so a green `HAS_HOOKS`
+        PR reached the auto-merge tier and then failed a mandatory gate with no
+        work left to do (issue #4899 review round). The two sets have to move
+        together; `TestSupportedStatesClearTheCompletionGate` in
+        `tests/test_test_pr_merge_ready.py` drives the real producer verdict
+        into this real predicate and fails when they drift apart.
+        """
+        rc, result = self._run_gate(tmp_path, capsys, self._ready_payload(merge_state))
+
         assert rc == 0
         assert result["criteria"][0]["passed"] is True
 
@@ -1374,20 +1390,24 @@ class TestMergeReadyFourConditionGate:
             ({"UnresolvedThreads": 1}, "unresolved thread"),
             ({"MergeStateStatus": "BLOCKED"}, "blocked merge state"),
             ({"MergeStateStatus": "BEHIND"}, "behind merge state"),
+            ({"MergeStateStatus": "DIRTY"}, "conflicted merge state"),
+            ({"MergeStateStatus": "UNKNOWN"}, "unsupported merge state"),
+            (
+                {"MergeStateStatus": "A_STATE_GITHUB_ADDS_LATER"},
+                "merge state GitHub has not defined yet",
+            ),
             ({"fetched_pages_complete": False}, "partial fetch"),
             ({"CanMerge": None}, "missing CanMerge"),
+            (
+                {"UndisposedNonRequiredFailures": ["flaky-lint"]},
+                "undisposed non-required failure",
+            ),
         ],
     )
     def test_any_missing_condition_fails_closed(
         self, repo_root, tmp_path, capsys, override, reason,
     ):
-        data = {
-            "CanMerge": True,
-            "CIPassing": True,
-            "UnresolvedThreads": 0,
-            "MergeStateStatus": "CLEAN",
-            "fetched_pages_complete": True,
-        }
+        data = self._ready_payload()
         data.update(override)
 
         rc, result = self._run_gate(tmp_path, capsys, data)
@@ -1522,6 +1542,285 @@ def _marker_criterion(tmp_path: Path, marker: Path) -> list[dict]:
             "pass_when": "stdout-json.ok == true",
         },
     ]
+
+
+class TestVerifyConfigOnly:
+    """Step 0's pre-dispatch check (issue #5520).
+
+    The gate's #5072/#5099 machinery guarded `completion_criteria` only,
+    while `/pr-review` Step 0 dispatches from the `scripts` map long
+    before any criterion runs. These cases pin the mode that closes that
+    ordering gap: it must verify, it must refuse a rewritten config, and
+    it must never execute anything on the way to either answer.
+    """
+
+    @staticmethod
+    def _config_with_scripts(tmp_path: Path, command: str) -> Path:
+        config = tmp_path / "pr-review-config.yaml"
+        config.write_text(
+            yaml.safe_dump(
+                {
+                    "scripts": {"claude_code": {"check_transport": command}},
+                    "completion_criteria": [
+                        {
+                            "name": "Unused",
+                            "verification": "command",
+                            "command": "true",
+                            "pass_when": "stdout-json.ok == true",
+                        },
+                    ],
+                },
+            ),
+            encoding="utf-8",
+        )
+        return config
+
+    def test_a_trusted_config_verifies_and_runs_nothing(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """The marker is the whole point: verifying must not dispatch."""
+        marker = tmp_path / "ran.txt"
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text(
+            f"import pathlib\npathlib.Path({str(marker)!r}).write_text('ran')\n",
+            encoding="utf-8",
+        )
+        config = self._config_with_scripts(
+            tmp_path, f"{sys.executable} {preflight}",
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+                "--json",
+            ],
+        )
+
+        assert rc == 0
+        assert not marker.exists(), "verify-only executed a scripts-map command"
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["verified"] is True
+        assert payload["config_trust"] == "trusted"
+        assert payload["command_trust"] == "trusted"
+        assert any("preflight.py" in f for f in payload["checked_files"])
+
+    def test_a_rewritten_command_halts_before_dispatch(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """The attack #5520 names: swap the command after the trusted commit."""
+        marker = tmp_path / "ran.txt"
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text("print('{}')\n", encoding="utf-8")
+        config = self._config_with_scripts(
+            tmp_path, f"{sys.executable} {preflight}",
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+
+        # The PR rewrites the script the trusted config names.
+        preflight.write_text(
+            f"import pathlib\npathlib.Path({str(marker)!r}).write_text('pwned')\n",
+            encoding="utf-8",
+        )
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+            ],
+        )
+
+        assert rc == 2
+        assert not marker.exists()
+        assert "preflight.py" in capsys.readouterr().err
+
+    def test_a_rewritten_config_halts(self, git_repo, tmp_path, capsys):
+        """Control on the other half: the config itself diverging."""
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text("print('{}')\n", encoding="utf-8")
+        config = self._config_with_scripts(
+            tmp_path, f"{sys.executable} {preflight}",
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+        config.write_text(
+            config.read_text(encoding="utf-8") + "\n# tampered\n",
+            encoding="utf-8",
+        )
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+            ],
+        )
+
+        assert rc == 2
+        assert "HALT" in capsys.readouterr().err
+
+    def test_the_plugin_root_form_is_expanded_not_skipped(
+        self, git_repo, tmp_path, capsys, monkeypatch,
+    ):
+        """The gap that made the first version of this mode a false verdict.
+
+        `shlex` leaves `${...}` literal, so the token resolved to no file
+        and was classified as nothing-to-verify. The verdict then read
+        "trusted" without ever comparing the script the shell would
+        actually run.
+        """
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text("print('{}')\n", encoding="utf-8")
+        config = self._config_with_scripts(
+            tmp_path,
+            'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
+            '/preflight.py"',
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+                "--json",
+            ],
+        )
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert any("preflight.py" in f for f in payload["checked_files"]), (
+            "the plugin-root token was skipped instead of expanded"
+        )
+
+    def test_an_expanded_plugin_root_script_is_still_compared(
+        self, git_repo, tmp_path, capsys, monkeypatch,
+    ):
+        """Recall control: expansion must feed the byte comparison, not bypass it."""
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path))
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text("print('{}')\n", encoding="utf-8")
+        config = self._config_with_scripts(
+            tmp_path,
+            'python3 "${CLAUDE_PLUGIN_ROOT:-.claude}/preflight.py"',
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+        preflight.write_text("print('tampered')\n", encoding="utf-8")
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+            ],
+        )
+
+        assert rc == 2, "an expanded path was resolved but never compared"
+
+    def test_a_shell_evaluated_token_is_reported_not_silently_skipped(
+        self, git_repo, tmp_path, capsys, monkeypatch,
+    ):
+        """A pwsh -Command payload cannot be resolved statically.
+
+        Skipping it is what let a command read as verified while its
+        target went unexamined, so the verdict names it instead.
+        """
+        monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
+        monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+        config = self._config_with_scripts(
+            tmp_path,
+            'pwsh -NoProfile -Command \'& $exe (Join-Path $root "x.py")\'',
+        )
+        _commit_as_trusted(git_repo, config)
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+                "--json",
+            ],
+        )
+
+        assert rc == 0
+        captured = capsys.readouterr()
+        payload = json.loads(captured.out)
+        assert payload["unverifiable_command_tokens"], (
+            "a shell-evaluated token was skipped without being reported"
+        )
+        assert "no file comparison was possible" in captured.err
+
+    def test_a_literal_command_reports_nothing_unverifiable(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """Precision control on the report above.
+
+        Without this, marking every token unverifiable would satisfy the
+        case above while making the field meaningless.
+        """
+        preflight = tmp_path / "preflight.py"
+        preflight.write_text("print('{}')\n", encoding="utf-8")
+        config = self._config_with_scripts(
+            tmp_path, f"{sys.executable} {preflight}",
+        )
+        _commit_as_trusted(git_repo, config, preflight)
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+                "--json",
+            ],
+        )
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["unverifiable_command_tokens"] == []
+
+    def test_every_harness_map_is_verified_not_only_the_first(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """Which map a consumer selects is prose the gate cannot read."""
+        other = tmp_path / "copilot_only.py"
+        other.write_text("print('{}')\n", encoding="utf-8")
+        config = tmp_path / "pr-review-config.yaml"
+        config.write_text(
+            yaml.safe_dump(
+                {
+                    "scripts": {
+                        "claude_code": {"a": "true"},
+                        "copilot": {"b": f"{sys.executable} {other}"},
+                    },
+                    "completion_criteria": [
+                        {
+                            "name": "Unused",
+                            "verification": "command",
+                            "command": "true",
+                            "pass_when": "stdout-json.ok == true",
+                        },
+                    ],
+                },
+            ),
+            encoding="utf-8",
+        )
+        _commit_as_trusted(git_repo, config, other)
+        other.write_text("print('tampered')\n", encoding="utf-8")
+
+        rc = _dispatcher.main(
+            [
+                "--config", str(config),
+                "--pull-request", "1",
+                "--verify-config-only",
+            ],
+        )
+
+        assert rc == 2, "the second harness map was not verified"
 
 
 class TestConfigTrustBoundary:
@@ -2348,9 +2647,14 @@ class TestCommandTrustBoundary:
     def test_untracked_operator_file_is_recorded_not_compared(
         self, git_repo, tmp_path, capsys,
     ):
-        # The shipped config passes --dispositions-file, a JSON file the
-        # reviewer writes during the review. It is untracked, so it has
-        # no trusted-ref copy; comparing it would halt every real run.
+        # A file the operator writes during the review, such as a local
+        # scratch fixture. It is untracked, so it has no trusted-ref copy;
+        # comparing it would halt every real run.
+        #
+        # This used to cite the shipped --dispositions-file as the example.
+        # PR #5481 committed .agents/pr-checks/dispositions.json, so that
+        # path is tracked now and is compared like any other tracked file.
+        # The carve-out this test pins is unchanged; only the example moved.
         marker = tmp_path / "ran.txt"
         script = _write_marker_script(tmp_path / "verify.py", marker)
         dispositions = tmp_path / "dispositions.json"
@@ -2372,6 +2676,133 @@ class TestCommandTrustBoundary:
         assert payload["command_trust"]["skipped_untracked_files"] == [
             "dispositions.json",
         ]
+
+    def test_a_tracked_option_value_is_compared_like_any_other_path(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """Positive control for the pair above: tracked means compared.
+
+        `_classify_argv_token` skips a token only when it is empty or
+        starts with a hyphen. There is no option-position tracking, so an
+        option VALUE naming an existing in-tree file is classified by what
+        is on disk, exactly like a bare path argument. The test above shows
+        the untracked half; without this one, a classifier that skipped
+        every option value by position would satisfy it and nothing would
+        notice.
+
+        This is the mechanism by which the shipped `--dispositions-file`
+        value is verified, which the `--command-trust` documentation now
+        states.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, str(registry))],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["command_trust"]["status"] == "trusted"
+        assert payload["command_trust"]["checked_files"] == [
+            "verify.py",
+            "dispositions.json",
+        ], "a tracked option value must be compared, not skipped by position"
+        assert payload["command_trust"]["skipped_untracked_files"] == []
+
+    def test_a_tampered_tracked_option_value_halts_the_gate(
+        self, git_repo, tmp_path,
+    ):
+        """The half that matters: comparison without a halt is decoration.
+
+        A registry that can wave a red check through has to stop the gate
+        when a PR edits it, not merely appear in `checked_files`.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, str(registry))],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+        registry.write_text('{"some-check": {"disposition": "known-flaky"}}',
+                            encoding="utf-8")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), "no criterion may run on an edited registry"
+
+    def test_an_equals_form_option_value_is_compared_like_any_other_path(
+        self, git_repo, tmp_path, capsys,
+    ):
+        """Positive control: `--flag=value` is one argv token, not two.
+
+        `_classify_argv_token` skips any token starting with a hyphen.
+        `--registry=<path>` packs the flag and its value into that one
+        token, so without `_split_long_option_value` unpacking it first,
+        the embedded path would never reach the classifier's path logic
+        at all and `checked_files` would not contain it (CWE-284): the
+        space-separated form is the only one round 5 proved.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, f"--registry={registry}")],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1", "--json"],
+        )
+
+        assert rc == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["command_trust"]["status"] == "trusted"
+        assert payload["command_trust"]["checked_files"] == [
+            "verify.py",
+            "dispositions.json",
+        ], "a --flag=value option value must be compared, not skipped as one hyphen-led token"
+        assert payload["command_trust"]["skipped_untracked_files"] == []
+
+    def test_a_tampered_equals_form_option_value_halts_the_gate(
+        self, git_repo, tmp_path,
+    ):
+        """The half that matters: an edited `--flag=value` registry halts too.
+
+        Mirrors `test_a_tampered_tracked_option_value_halts_the_gate` for the
+        packed-token form. Without the fix, this registry was never in
+        `checked_files` at all, so tampering it could not have been noticed:
+        `rc` would stay 0 and the marker would exist.
+        """
+        marker = tmp_path / "ran.txt"
+        script = _write_marker_script(tmp_path / "verify.py", marker)
+        registry = tmp_path / "dispositions.json"
+        registry.write_text("{}", encoding="utf-8")
+        config_path = _write_config(
+            tmp_path, [_script_criterion("Ok", script, f"--registry={registry}")],
+        )
+        _commit_as_trusted(git_repo, config_path, script, registry)
+        registry.write_text('{"some-check": {"disposition": "known-flaky"}}',
+                            encoding="utf-8")
+
+        rc = _dispatcher.main(
+            ["--config", str(config_path), "--pull-request", "1"],
+        )
+
+        assert rc == 2
+        assert not marker.exists(), "no criterion may run on an edited registry"
 
     def test_untracked_script_does_not_mask_a_tampered_tracked_one(
         self, git_repo, tmp_path,

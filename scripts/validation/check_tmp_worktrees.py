@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Report git worktrees living under the system temp directory, and a low temp floor.
 
-`.claude/rules/universal.md` MUST NOT 7 states the binding rule verbatim:
+`.claude/rules/universal.md` MUST NOT 6 states the binding rule verbatim:
 
-    7. Git worktrees MUST be external.
+    Worktrees MUST be external: a sibling of the checkout or
+    `~/worktrees/`, never under the clone, never under `/tmp`.
 
 `.serena/memories/git/git-worktree-tmp-not-durable.md` carries the loss: a
 four-conflict resolution for PR #4003 was committed to `/tmp/wt_4003`, `/tmp`
@@ -57,7 +58,7 @@ DEFAULT_TEMP_ROOT = Path("/tmp")
 _BYTES_PER_GIB = 1024**3
 _GIT_TIMEOUT_SECONDS = 10
 
-RULE_CITATION = ".claude/rules/universal.md MUST NOT 7 (git worktrees MUST be external)"
+RULE_CITATION = ".claude/rules/universal.md MUST NOT 6 (git worktrees MUST be external)"
 
 
 @dataclass(frozen=True, slots=True)

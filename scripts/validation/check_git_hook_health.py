@@ -25,11 +25,18 @@ relative), and in a linked worktree it resolves to the common directory's
 installs and where a worktree push really looks. Verified on git 2.51.0
 against a scratch repository with a linked worktree: a marker pre-push under
 the common directory fired on a push from the worktree, and stopped firing
-once removed. So ``--git-common-dir`` is unnecessary, and the whole health
-test is whether ``<git-path hooks>/pre-push`` is an executable file, which
-also covers the "directory exists but holds no pre-push" and "hook exists but
-Git will ignore it" cases. ``core.hooksPath`` is read only on the unhealthy
-path, to name which condition failed.
+once removed. So ``--git-common-dir`` is unnecessary, and the health test is
+whether ``<git-path hooks>/pre-push`` is an executable file that dispatches
+Lefthook, which also covers the "directory exists but holds no pre-push" and
+"hook exists but Git will ignore it" cases. ``core.hooksPath`` is read only on
+the unhealthy path, to name which condition failed.
+
+Executability alone is not installation evidence. ``#!/bin/sh`` followed by
+``exit 0`` is an executable ``pre-push`` that runs no job, so a clone in that
+state passes an executability-only probe while every local guardrail is off.
+The adjacent ``Lefthook Installed`` gate cannot cover the difference either: it
+proves the configured runtime starts, not that git will reach it. So this gate
+reads the hook and requires Lefthook's own dispatch line (issue #4789).
 
 Scope: the remedy is a lefthook command, so this gate passes silently in any
 repository that does not configure lefthook. A repository with no hooks and no
@@ -47,6 +54,7 @@ An explicit non-repository is out of scope and exits 0. Missing git, timeouts,
 and unexpected command failures are verification failures and exit 3; the
 pre-PR adapter receives False for the same states.
 """
+# ruff: noqa: E402
 
 from __future__ import annotations
 
@@ -55,6 +63,36 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+# ``lefthook_inventory`` is imported below by its bare module name, matching
+# how every sibling script in this directory (e.g. ``git_hook_policy.py``)
+# imports the others. That only resolves when ``scripts/validation`` is on
+# ``sys.path``, which happens as a side effect of running this file directly
+# or of collecting ``tests/validation/test_check_git_hook_health.py`` first,
+# which does the same insert before importing this module. Neither is
+# guaranteed: a caller that imports this file as the package member
+# ``scripts.validation.check_git_hook_health`` never runs that side effect,
+# and the bare import then raises ``ModuleNotFoundError: No module named
+# 'lefthook_inventory'``. ``pre_pr_sequence.py`` does not hit this: it also
+# inserts ``scripts/validation`` onto ``sys.path`` before importing this
+# module by the same bare name. The caller that does hit it is
+# ``tests/test_lefthook_integration.py``, which imports this file as
+# ``scripts.validation.check_git_hook_health`` directly. Measured: that broke
+# inside the mutation-testing harness's isolated worktree copy, where no
+# earlier import had inserted the path. Bootstrapping here, self-contained,
+# removes the dependency on import order.
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_VALIDATION_DIR = _PROJECT_ROOT / "scripts" / "validation"
+if str(_VALIDATION_DIR) not in sys.path:
+    sys.path.insert(0, str(_VALIDATION_DIR))
+
+from lefthook_inventory import (
+    CONFIG_REMEDY,
+    RUNTIME_REMEDY,
+    LefthookConfigError,
+    LefthookExecutionError,
+    configured_hook_types,
+)
 
 # The repair below is a lefthook command, so this gate only speaks to a
 # repository that configures lefthook. These are the config names lefthook
@@ -71,6 +109,31 @@ LEFTHOOK_CONFIG_NAMES = tuple(
 # means the install never ran or was overridden.
 PROBE_HOOK = "pre-push"
 
+# Every diagnosis reached after the pre-push probe passed starts with this, so
+# the summary line does not claim pre-push is dead when pre-push proved live.
+_POST_PROBE_PREFIX = "pre-push is live, but "
+
+# Lefthook's generated shim ends by dispatching the hook through its own
+# resolver function, and that line is the one part of the template every
+# supported platform shares. Measured on the shim Lefthook 2.1.11 installed
+# into this repository: the last line is `call_lefthook run "pre-commit" "$@"`.
+# `tests/test_lefthook_integration.py::test_install_resets_legacy_hooks_path`
+# asserts the same line for the Windows template, which differs from the POSIX
+# one everywhere else: it omits the configured runner, the `LEFTHOOK_BIN`
+# override, and the PATH fallback. Matching this instead of parsing the shim
+# keeps the gate on Lefthook's own output rather than reimplementing a shell
+# reader, which the ADR-086 amendment debate rejected.
+def _dispatch_command(hook_name: str) -> str:
+    """The complete line Lefthook generates as ``hook_name``'s final command.
+
+    Matched exactly, not by containment. `echo 'call_lefthook run "pre-push"'`
+    is an executable final command that dispatches nothing (CWE-693), and only
+    equality has no weaker interior to fall through to. The `"$@"` also pins
+    argument forwarding.
+    """
+    return f'call_lefthook run "{hook_name}" "$@"'
+
+
 REMEDY = "uv run --frozen lefthook install --reset-hooks-path"
 WORKTREE_REMEDY = f"git config --worktree --unset-all core.hooksPath && {REMEDY}"
 GLOBAL_REMEDY = f"git config --global --unset-all core.hooksPath && {REMEDY}"
@@ -80,6 +143,7 @@ SYSTEM_REMEDY = f"git config --system --unset-all core.hooksPath && {REMEDY}"
 # milliseconds, so this only trips on a genuine hang. The gate fails closed
 # with ADR-035 exit 3 because an unreadable hook state is not a verified pass.
 GIT_TIMEOUT_SECONDS = 5
+
 
 
 class GitExecutionError(RuntimeError):
@@ -202,12 +266,103 @@ def _failed_condition(repo_root: Path, hooks_dir: Path) -> str:
     )
 
 
-def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> str | None:
-    """Diagnose the already-resolved hooks directory without querying git again."""
+def _final_command(text: str) -> str:
+    """Return the last line that a shell would execute, ignoring comments.
+
+    Not a shell parser: the ADR-086 amendment debate rejected one. This reads
+    the last non-blank, non-comment line, which is where Lefthook's generated
+    shim puts its dispatch on every platform.
+    """
+    for line in reversed(text.splitlines()):
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            return stripped
+    return ""
+
+
+def _dispatch_failure(hook: Path, hook_name: str) -> str | None:
+    """Return why ``hook`` does not dispatch Lefthook, or None when it does.
+
+    The final command must equal the generated dispatch, not contain it. Two
+    weaker versions of this check were fail-open in the same way (CWE-693, PR
+    #5358 review). A whole-file substring accepts an inert hook mentioning the
+    marker in a comment above ``exit 0``. A containment test on the final line
+    accepts ``echo 'call_lefthook run "pre-push"'``. Both are executable, both
+    report healthy, and neither runs a guard.
+
+    A read failure is reported separately from a wrong command. Collapsing them
+    into one boolean made the caller say the final command was wrong when no
+    command had been read, hiding the permission or I/O fault behind a
+    misleading diagnosis. Both still fail the gate: an unverifiable hook is not
+    a verified pass.
+    """
+    try:
+        text = hook.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return f"{hook} could not be read ({exc}), so its state is unverifiable"
+    if _final_command(text) != _dispatch_command(hook_name):
+        return (
+            f"{hook} is executable but does not dispatch Lefthook: its final "
+            f"command is not exactly '{_dispatch_command(hook_name)}', so git "
+            "runs no repository guardrail"
+        )
+    return None
+
+
+def _diagnose_hooks_dir(
+    repo_root: Path, hooks_dir: Path
+) -> tuple[str | None, frozenset[str]]:
+    """Return the failed condition and the hook types examined.
+
+    The inventory is obtained once and returned, so the success report names the
+    same set that was validated. Fetching it a second time to build that report
+    let a config edit between the two calls print a hook as live without its
+    shim ever being checked.
+    """
+    probed = frozenset({PROBE_HOOK})
     hook = hooks_dir / PROBE_HOOK
-    if hook.is_file() and os.access(hook, os.X_OK):
+    if not (hook.is_file() and os.access(hook, os.X_OK)):
+        return _failed_condition(repo_root, hooks_dir), probed
+    probe_failure = _dispatch_failure(hook, PROBE_HOOK)
+    if probe_failure is not None:
+        return probe_failure, probed
+    configured = configured_hook_types(repo_root)
+    return _missing_hook_types(hooks_dir, configured), configured | probed
+
+
+def _is_live_hook(hook: Path, hook_name: str) -> bool:
+    """True when git will run ``hook`` and it dispatches Lefthook.
+
+    Both halves, in the same order the ``pre-push`` probe applies them. Text
+    alone is not enough: on POSIX a shim carrying the exact dispatch line at
+    mode 0644 is ignored by git.
+    """
+    if not (hook.is_file() and os.access(hook, os.X_OK)):
+        return False
+    return _dispatch_failure(hook, hook_name) is None
+
+
+def _missing_hook_types(hooks_dir: Path, configured: frozenset[str]) -> str | None:
+    """Report configured hook types whose shim is absent or does not dispatch.
+
+    ``no_auto_install: true`` stops one worktree re-syncing the shims every
+    other worktree reads (issue #4789), and the same setting means a newly
+    configured hook type keeps no shim until install runs again. Git runs no
+    hook it has no file for and prints no warning, so probing ``pre-push``
+    alone reports healthy while the hook type someone just added is inert.
+    """
+    missing = sorted(
+        name
+        for name in configured - {PROBE_HOOK}
+        if not _is_live_hook(hooks_dir / name, name)
+    )
+    if not missing:
         return None
-    return _failed_condition(repo_root, hooks_dir)
+    return (
+        f"{_POST_PROBE_PREFIX}{hooks_dir} has no live shim for configured hook "
+        f"{'types' if len(missing) > 1 else 'type'} {', '.join(missing)}, so "
+        "git runs nothing for them; run install again after any hook-type change"
+    )
 
 
 def diagnose(repo_root: Path) -> str | None:
@@ -216,9 +371,17 @@ def diagnose(repo_root: Path) -> str | None:
         return None
     try:
         hooks_dir = _hooks_dir(repo_root)
+        return _diagnose_hooks_dir(repo_root, hooks_dir)[0]
     except NotGitRepositoryError:
         return None
-    return _diagnose_hooks_dir(repo_root, hooks_dir)
+    except (LefthookConfigError, LefthookExecutionError) as exc:
+        # configured_hook_types(), called inside _diagnose_hooks_dir, is the
+        # only source of either exception; _hooks_dir() above cannot raise
+        # them. The call was outside this try until this fix, so this branch
+        # was unreachable and diagnose() propagated an uncaught exception
+        # instead of the documented str | None on an invalid config or an
+        # unavailable Lefthook runtime.
+        return f"{_POST_PROBE_PREFIX}{exc}"
 
 
 def _evaluate(repo_root: Path) -> int:
@@ -238,7 +401,7 @@ def _evaluate(repo_root: Path) -> int:
 
     try:
         hooks_dir = _hooks_dir(repo_root)
-        reason = _diagnose_hooks_dir(repo_root, hooks_dir)
+        reason, probed = _diagnose_hooks_dir(repo_root, hooks_dir)
         remedy = _remedy(repo_root) if reason is not None else None
     except NotGitRepositoryError:
         print(
@@ -249,19 +412,34 @@ def _evaluate(repo_root: Path) -> int:
     except GitExecutionError as exc:
         print(f"[ERROR] Git hook health could not be verified: {exc}", file=sys.stderr)
         return 3
+    # ADR-035 separates these deliberately, and so do their repairs: syncing
+    # dependencies does not fix invalid YAML, and editing YAML does not install
+    # a missing runtime.
+    except LefthookConfigError as exc:
+        print(f"[ERROR] Lefthook configuration is unusable: {exc}", file=sys.stderr)
+        print(f"Fix: {CONFIG_REMEDY}", file=sys.stderr)
+        return 2
+    except LefthookExecutionError as exc:
+        print(f"[ERROR] Lefthook could not be run: {exc}", file=sys.stderr)
+        print(f"Fix: {RUNTIME_REMEDY}", file=sys.stderr)
+        return 3
 
     if reason is None:
-        print(
-            f"git hook health: {PROBE_HOOK} present in {hooks_dir} "
-            "(1 of 1 probed hook found)"
-        )
+        names, count = ", ".join(sorted(probed)), len(probed)
+        print(f"git hook health: {names} live in {hooks_dir} ({count} of {count} found)")
         return 0
 
     print(f"[FAIL] {reason}.", file=sys.stderr)
-    print(
-        "Pushes are not locally gated: pre-push does not run.",
-        file=sys.stderr,
-    )
+    # Only claim the push is ungated when the pre-push probe is what failed.
+    # A missing commit-msg shim reaches here with a working pre-push, and the
+    # blanket line sent contributors after the wrong hook.
+    if reason.startswith(_POST_PROBE_PREFIX):
+        print("pre-push itself is live; the gap is elsewhere.", file=sys.stderr)
+    else:
+        print(
+            "Pushes are not locally gated: pre-push does not run.",
+            file=sys.stderr,
+        )
     print(f"Fix: {remedy}", file=sys.stderr)
     return 1
 

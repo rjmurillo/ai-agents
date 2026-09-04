@@ -1,11 +1,12 @@
+<!-- # taste-lint: ignore file-size  canonical failure-mode catalog; one entry per mode, splitting breaks cross-references -->
 # Agent Failure Modes
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2026-04-19
+> **Last Updated**: 2026-09-03
 > **RFC 2119**: This document uses RFC 2119 key words.
 > **Reference**: Issue #1690
 
-This document catalogs the eight recurring failure patterns observed across 50+ retrospectives (December 2025 through January 2026). Each pattern lists a description, trigger, evidence, and the enforcement pattern that replaces trust with verification.
+This document catalogs the recurring failure patterns observed across 50+ retrospectives (December 2025 through January 2026) plus later additions. Each pattern lists a description, trigger, evidence, and the enforcement pattern that replaces trust with verification.
 
 ## Cross-Cutting Theme
 
@@ -26,6 +27,7 @@ Trust-based compliance fails at scale. Instructions asking agents to "remember",
 | 9 | Confident-incorrectness recurrence | High | `2026-05-08-pr-1897-confident-incorrectness-recurrence.md` |
 | 10 | Silent defaults and guard-clause suppression | High | PR #1965 round-9/round-11 fixes; daniel.haxx.se 2026-05-11 |
 | 11 | Customer-facing generated artifact shipped without runtime verification | Critical | `2026-06-02-pr-2205-customer-wedge-incident.md`; ADR-071 |
+| 12 | Post-completion continuation | High | Issue #5404 |
 
 ---
 
@@ -89,7 +91,7 @@ Context window approaches its limit. The harness compacts prior messages. Compre
 - Display `Commit X/20`, or `X/40` once the branch merges main, every turn so the counter survives compaction visibly. Thresholds live in `scripts/validation/pr_commit_count.py`.
 - On resume, require the agent to read the latest per-issue handoff before taking any mutating action.
 
-See ADR-008 (protocol automation lifecycle hooks) and `.agents/HANDOFF.md`.
+See ADR-008 (protocol automation lifecycle hooks).
 
 ---
 
@@ -479,6 +481,47 @@ smoke MUST be loud.
 
 ---
 
+## 12. Post-Completion Continuation
+
+### Description
+
+Two related manifestations. First, execution continuation: the agent satisfies every requested deliverable and then keeps working, because the control flow has no single completion contract to stop against. Later critique, a fresh reviewer pass, or the agent's own re-reading of the diff surfaces an optional refinement, adjacent cleanup, or new preference, and it gets silently promoted into active work instead of being named and left out of scope. Second, response reopening: after execution correctly terminates, the final response still appends an unsolicited continuation prompt ("Want me to...?", "I can also...", "Would you like me to...?"), creating a new implicit continuation edge even though no blocker or requested decision remains.
+
+### Trigger
+
+No canonical predicate distinguished "verified complete" from "more could still be done." Reviewer agent prompts rewarded a minimum finding count, and response guidance encouraged proactive offers, both of which reward continuing past a satisfied request.
+
+### Evidence
+
+Issue #5404 names the mechanism directly rather than one dated incident. The recurring surface was `templates/agents/critic.shared.md` and `templates/agents/qa.shared.md`'s "find at least three issues" instruction, which manufactures a finding on a clean diff to hit the count, and `.claude/rules/voice.md`'s prior "Offer to fix proactively" guidance, whose worked examples ended in an opt-in question ("Want me to fix in this PR or open an issue?") even when the surrounding task had already been reported complete.
+
+### Detection
+
+- A response reports a completed result and then asks a question whose only function is to continue the interaction, with no blocking decision, no user-requested question, and no policy requirement behind it.
+- A reviewer agent's findings list contains an item with no file:line evidence, or padded to meet a minimum count on an otherwise clean diff.
+- Work continues after every acceptance criterion in the frozen task contract is satisfied and no blocker has been raised, driven by remaining delegation budget, TODO slots, or review rounds rather than by a falsified criterion.
+
+### Enforcement Pattern
+
+| Gate | Mechanism | Blocking |
+|------|-----------|----------|
+| Task-contract ownership | `.claude/rules/builder-ethos.md` Task Completion Contract: terminal predicate, finding disposition, reactivation rules | Prompt-level (always-on) |
+| Response-tail ownership | `.claude/rules/voice.md` Completion-Tail Audit | Prompt-level (always-on) |
+| Reviewer quota removal | `templates/agents/critic.shared.md`, `templates/agents/qa.shared.md`: exhaustive inspection replaces a minimum finding count, mirrored to generated and hand-maintained copies | Prompt-level |
+| Verdict/decision scenarios | `tests/evals/critic-scenarios.json`, `tests/evals/qa-scenarios.json`, `tests/evals/orchestrator-scenarios.json` scored by `scripts/eval/eval-prompt-change.py` | Eval harness (manual/CI-optional) |
+| Ordinary response-tail scenarios | `tests/evals/completion-terminal-runtime-fixtures.json` scored by `scripts/eval/eval_runtime_parity.py` | Eval harness; regex-based regression backstop today, not yet a semantic grader (see the fixture file's own scope note) |
+
+The principle: **completion is a terminal state, not an invitation to search for or solicit a new objective.** A finding manufactured to satisfy a quota and a question appended to satisfy a habit of helpfulness are the same failure viewed from two sides of one response.
+
+### References
+
+- Issue #5404 (task-completion contract and completion-tail audit).
+- `.claude/rules/builder-ethos.md`, section 4 (Task Completion Contract).
+- `.claude/rules/voice.md`, Completion-Tail Audit.
+- `.claude/skills/avoiding-manufactured-work/SKILL.md` (finding-disposition procedure this pattern reuses rather than duplicates).
+
+---
+
 ## Using This Document
 
 ### When to Read
@@ -489,7 +532,7 @@ smoke MUST be loud.
 
 ### When to Update
 
-- A ninth pattern emerges. Document it with the same shape: description, trigger, evidence, detection, enforcement.
+- A new pattern emerges. Document it with the same shape: description, trigger, evidence, detection, enforcement.
 - An existing pattern has new evidence. Append the retrospective to its evidence list.
 - An enforcement pattern is obsoleted by a better mechanism. Update the table and reference the ADR that supersedes it.
 

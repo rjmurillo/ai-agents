@@ -19,23 +19,29 @@ logic that only fails at execution time (the class of defect that slipped
 through static checks in PR #2120's CI runner).
 
 Tool / environment gaps are reported, not silently skipped: a missing
-actionlint, gh act, or Docker daemon yields exit 3 (external) so the caller can
-block with an actionable message. A documented bypass exists for workflows that
+actionlint, gh, gh act, or Docker daemon yields exit 3 (external) so the caller
+can block with an actionable message. A documented bypass exists for workflows that
 genuinely cannot run under act (secrets, ARM-only runners): set
 ``SKIP_WORKFLOW_LOCAL_TEST=true``; the bypass is logged, not hidden.
 
-Tool gaps degrade instead of blocking inside a managed remote container: when
-actionlint, ``gh``, the ``gh act`` extension, or the Docker daemon is
-unavailable inside a Claude web container or a GitHub Codespace (detected by env
-markers), the gate returns exit 0 with ``degraded=True`` and a logged warning.
-Such an environment may not be able to provision those tools, so blocking every
-workflow-touching push there is friction, not safety. A truthy ``CI`` marker
-overrides the managed-container signal, so CI, where the tools are provisioned,
-keeps the hard exit 3. On a dev laptop (no container marker) the gap also stays
-exit 3, so the local-run requirement is unchanged there. Issue #2548 item 3
-introduced this degrade for the ``gh``/``gh act`` gap; Issue #3064 extended it to
-the actionlint and Docker gaps so a container without those tools can still push
-a workflow edit.
+Tool gaps degrade instead of blocking where the developer may not be able to
+provision the tool: when actionlint, ``gh``, the ``gh act`` extension, or the
+Docker daemon is unavailable and ``CLAUDECODE`` or ``CODESPACES`` is set, the
+gate returns exit 0 with ``degraded=True`` and a logged warning. Such a session
+may not be able to install those tools, so blocking every workflow-touching push
+there is friction, not safety. A truthy ``CI`` marker overrides both env
+markers, so CI, where the tools are provisioned, keeps the hard exit 3. With
+neither marker set the gap also stays exit 3, so the local-run requirement is
+unchanged on a dev laptop. Issue #2548 item 3 introduced this degrade for the
+``gh``/``gh act`` gap; Issue #3064 extended it to the actionlint and Docker gaps
+so a session without those tools can still push a workflow edit.
+
+That degrade reads env markers only, in :func:`_tool_gap_is_environmental`. It
+is a different question from "am I inside a container", which
+:func:`_is_remote_container` answers from ``CODESPACES``, an image-set marker,
+and the filesystem. A container that sets neither env marker keeps the hard exit
+3 like any other host, because a tool it can install is not an environment gap.
+Issue #5479 has why the two questions stopped sharing one answer.
 
 CLI
 ---
@@ -52,10 +58,10 @@ EXIT CODES (per ADR-035, exit-code contract in AGENTS.md)
 0 - all stages passed (or no workflow files, or bypassed)
 1 - a stage ran and failed (block the push)
 2 - configuration error (bad args, repo root absent)
-3 - a required tool is unavailable (actionlint, gh act, or Docker). Inside a
-    managed remote container this gap degrades to exit 0 (degraded=True)
-    instead, because the tool cannot be provisioned there; CI and dev laptops
-    keep the hard exit 3 (Issue #3064)
+3 - a required tool is unavailable (actionlint, gh, gh act, or Docker). Under
+    ``CLAUDECODE`` or ``CODESPACES`` this gap degrades to exit 0
+    (degraded=True) instead, because the tool may not be provisionable there;
+    CI and a plain dev laptop keep the hard exit 3 (Issue #3064, #5479)
 4 - unrunnable locally: actionlint passed but every changed workflow
     references a secret absent from this environment, so act has nothing to
     supply (auth per ADR-035). Skipped the act run audibly; CI runs it with the
@@ -86,16 +92,56 @@ _BYPASS_ENV = "SKIP_WORKFLOW_LOCAL_TEST"
 # which accepts "1" and "true").
 _TRUTHY = {"1", "true"}
 
-# Env markers that identify managed remote containers where the developer may
-# not be able to provision ``gh act``. Observed on Claude web containers, which
-# set ``CLAUDECODE``, and GitHub Codespaces. In such environments a missing
-# ``gh act`` is an environment gap, not a code defect, so the gate degrades to a
+# Env markers that say the developer may not be able to provision ``gh act``.
+# Observed on Claude web containers and the Claude Code CLI, which both set
+# ``CLAUDECODE``, and on GitHub Codespaces. Where one is set a missing ``gh
+# act`` is an environment gap, not a code defect, so the gate degrades to a
 # logged warning instead of blocking the push (Issue #2548, item 3). The same
 # gate keeps its hard failure in CI, where ``gh act`` is provisioned: the ``CI``
-# marker (set to a truthy value by GitHub Actions) overrides the managed
-# container signal in :func:`_is_remote_container`.
-_REMOTE_CONTAINER_ENV_MARKERS = ("CLAUDECODE", "CODESPACES")
+# marker (set to a truthy value by GitHub Actions) overrides these in
+# :func:`_tool_gap_is_environmental`.
+#
+# This tuple is about tool provisioning only. It is NOT evidence of a container,
+# and until Issue #5479 it was read as both: ``CLAUDECODE`` names the client,
+# not the execution environment, and the Claude Code CLI sets it on a laptop, a
+# workstation and a VM. Reading it as a container took the semgrep budget in
+# ``git_hook_policy`` from 840s to 150s on a workstation, so a branch whose scan
+# needs more than 150s could not be pushed from a Claude Code session while the
+# same push succeeded from a plain terminal on the same machine. The container
+# question now has its own answer in :func:`_is_remote_container`.
+_TOOL_GAP_ENV_MARKERS = ("CLAUDECODE", "CODESPACES")
 _CI_ENV = "CI"
+
+# ``CODESPACES`` names a managed remote container, so it is a container signal
+# as well as a tool-provisioning one. ``CLAUDECODE`` is not, which is the whole
+# of Issue #5479.
+#
+# ``AI_AGENTS_REMOTE_CONTAINER`` is the marker an image sets for itself, which
+# is what Issue #5479 asked for in place of borrowing the client's variable. It
+# exists because the filesystem probe below is evidence, not a guarantee: a
+# runtime that writes no marker file and runs under cgroup v2 (where
+# ``/proc/1/cgroup`` is ``0::/`` and names nothing) leaves nothing to read. The
+# Claude web container is the class ADR-104 rule 8 was measured against (679s
+# push, reclaimed mid-hook) and its filesystem has not been measured here, so an
+# image that needs the clamp declares itself instead of being inferred. Setting
+# it is the whole install: `ENV AI_AGENTS_REMOTE_CONTAINER=1` in the image, or
+# export it in the session's shell profile.
+_REMOTE_CONTAINER_ENV_MARKERS = ("CODESPACES", "AI_AGENTS_REMOTE_CONTAINER")
+
+# Files that exist only inside a container: Docker writes ``/.dockerenv`` and
+# Podman writes ``/run/.containerenv``.
+_CONTAINER_MARKER_FILES = ("/.dockerenv", "/run/.containerenv")
+# Under cgroup v1 the init process's cgroup paths name the container runtime.
+# cgroup v2 collapses them to ``0::/``, which is why the marker files above
+# carry the common cases and this is a supplement rather than the primary test.
+#
+# ``/proc/self/mountinfo`` is deliberately not consulted, though it carries the
+# same hints. On an Ubuntu 6.17 workstation with Docker installed and no
+# container running it holds two matching lines, ``/run/docker/netns/default``
+# and ``/var/lib/lxcfs``, so it reports a container on a machine that is not
+# one. That is the same false positive this function exists to remove.
+_CONTAINER_CGROUP_HINTS = ("docker", "containerd", "kubepods", "lxc", "podman")
+_CONTAINER_CGROUP_FILE = "/proc/1/cgroup"
 
 # Only GitHub Actions workflow files can run under ``gh act``. Custom actions
 # under ``.github/actions/`` and any other path are filtered out before the act
@@ -190,18 +236,67 @@ def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in _TRUTHY
 
 
-def _is_remote_container() -> bool:
-    """True in a remote/managed container that cannot provision ``gh act``.
+def _has_container_filesystem_signal() -> bool:
+    """True when the filesystem says this process is inside a container.
 
-    A truthy ``CI`` marker overrides every container signal: CI provisions
-    ``gh act``, so a gap there is a real failure and must keep blocking. Outside
-    CI, the managed remote-container env markers (``CLAUDECODE``, ``CODESPACES``)
-    identify environments where the ``gh act`` gap is expected and the gate
-    should degrade rather than block (Issue #2548, item 3).
+    Total and cheap: two ``stat`` calls and one small read, no subprocess, and
+    no error escapes (``Path.exists`` already answers False rather than raising
+    on an unreadable path). It runs once per clamped subprocess in
+    ``git_hook_policy``, which is orders of magnitude cheaper than the spawn it
+    bounds, so nothing here is cached and no invalidation problem exists. On a
+    host without these paths (Windows, macOS) it returns False without raising.
+    """
+    if any(Path(marker).exists() for marker in _CONTAINER_MARKER_FILES):
+        return True
+    try:
+        cgroups = Path(_CONTAINER_CGROUP_FILE).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    lowered = cgroups.lower()
+    return any(hint in lowered for hint in _CONTAINER_CGROUP_HINTS)
+
+
+def _is_remote_container() -> bool:
+    """True when this process really is running inside a container.
+
+    A truthy ``CI`` marker overrides every container signal: CI provisions the
+    tools and a real hang there is a real failure, so it must keep failing the
+    way CI expects. Outside CI the answer comes from ``CODESPACES``, from an
+    image that declares itself with ``AI_AGENTS_REMOTE_CONTAINER``, or from the
+    filesystem, never from a variable that names the client rather than the
+    environment (Issue #5479).
+
+    The filesystem probe is the fallback and not the guarantee: it reads real
+    evidence, so it answers False on a runtime that writes no marker file and
+    reports ``0::/`` under cgroup v2. An image whose reclamation bound must hold
+    sets ``AI_AGENTS_REMOTE_CONTAINER`` rather than relying on being inferred.
+
+    Callers use this to decide whether the environment can end the process out
+    from under them: ``git_hook_policy._container_clamped`` and
+    ``_arm_container_watchdog`` both bound work against container reclamation.
+    A false positive there is a hard stop, not a warning, which is why this is
+    the strict predicate and :func:`_tool_gap_is_environmental` is the loose one.
     """
     if _env_truthy(_CI_ENV):
         return False
-    return any(_env_truthy(marker) for marker in _REMOTE_CONTAINER_ENV_MARKERS)
+    if any(_env_truthy(marker) for marker in _REMOTE_CONTAINER_ENV_MARKERS):
+        return True
+    return _has_container_filesystem_signal()
+
+
+def _tool_gap_is_environmental() -> bool:
+    """True where a missing local tool is the environment, not a code defect.
+
+    Deliberately wider than :func:`_is_remote_container`. This one only decides
+    whether a missing ``gh``, ``gh act``, ``actionlint`` or Docker daemon
+    degrades to a warning instead of blocking the push (Issue #2548, item 3),
+    and firing too widely costs a warning. The container predicate cuts
+    subprocess budgets, and firing too widely there costs a push that cannot
+    complete at all, so the two questions get two answers.
+    """
+    if _env_truthy(_CI_ENV):
+        return False
+    return any(_env_truthy(marker) for marker in _TOOL_GAP_ENV_MARKERS)
 
 
 def _decode_partial(raw: bytes | str | None) -> str:
@@ -1199,9 +1294,10 @@ def _tool_gap_report(report: Report, note: str) -> Report:
 
     A tool gap is a missing actionlint, ``gh``, ``gh act`` extension, or Docker
     daemon: the local run cannot proceed, but the workflow itself is not proven
-    broken. In a remote container (see :func:`_is_remote_container`) the gap is
-    an environment limitation, not a code defect, so the gate degrades to a
-    logged warning (exit 0, ``degraded=True``) and the push proceeds. Everywhere
+    broken. Where the environment cannot provision the tool (see
+    :func:`_tool_gap_is_environmental`) the gap is an environment limitation,
+    not a code defect, so the gate degrades to a logged warning (exit 0,
+    ``degraded=True``) and the push proceeds. Everywhere
     else (a dev laptop, or CI where the tools are provisioned) the gap stays a
     blocking tool-unavailable failure (exit 3). The install hint in ``note`` is
     preserved either way.
@@ -1212,11 +1308,11 @@ def _tool_gap_report(report: Report, note: str) -> Report:
     Docker or actionlint can still push a workflow edit while CI keeps the hard
     exit 3.
     """
-    if _is_remote_container():
+    if _tool_gap_is_environmental():
         report.exit_code = 0
         report.degraded = True
         report.note = (
-            f"{note} Remote container detected; the missing tool cannot be "
+            f"{note} Managed environment detected; the missing tool cannot be "
             "provisioned here, so this gate is downgraded to a warning. CI "
             "still runs the full workflow check."
         )

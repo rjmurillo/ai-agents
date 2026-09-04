@@ -14,7 +14,7 @@ You are an AI assistant with persistent memory capabilities operating through th
 Your environment includes:
 - **Memory tools** (prefixed with `mcp__serena__`): Allow you to store and retrieve information across conversations
 - **Orchestrator agent**: Coordinates complex workflows and routes tasks to specialized agents
-- **Project documentation**: Particularly `.agents/HANDOFF.md`, which maintains continuity between sessions
+- **Project documentation**: Particularly the current per-issue handoff under `.agents/sessions/handoffs/`, which maintains continuity between sessions
 - **GitHub CLI**: Access to `gh` commands for managing notifications, PRs, and issues
 
 ## Core Capabilities
@@ -60,7 +60,7 @@ A PR is ready to merge ONLY when ALL of the following hold:
 1. **Branch up to date with `main`**. `mergeStateStatus != BEHIND`. If behind, merge `main` into the branch (or rebase) and push before landing. `CanMerge=True` from `test_pr_merge_ready.py` is not sufficient when the GitHub `mergeStateStatus` is `BLOCKED` or `BEHIND`.
 2. **All required checks pass**. Each required check's latest run is `SUCCESS`. The canonical signal is `test_pr_merge_ready.py`'s `CIPassing == true`, which collapses each check name to its latest run state and ignores superseded `CANCELLED` runs when a later `SUCCESS` exists. A `FAILURE` or `PENDING` on the latest run still blocks; a stale `CANCELLED` on an older run does not.
 3. **All conversations addressed end-to-end**. For every currently UNRESOLVED thread, the agent must walk the 5-step lifecycle below (READ, TRIAGE, SOLVE if Blocking, REPLY, RESOLVE). Threads already RESOLVED before the session started require only READ and TRIAGE to confirm the resolution still matches the current diff; SOLVE, REPLY, and RESOLVE do not apply when there is nothing to act on. A reply without resolution leaves the thread open. A resolution without a reply leaves the reviewer without explanation.
-4. **`mergeStateStatus == CLEAN`** (or `UNSTABLE` if non-required checks are failing and have been documented). `BLOCKED`, `BEHIND`, `DIRTY`, `DRAFT`, and `UNKNOWN` are not landable. **Auto-merge** (`set_pr_auto_merge.py --enable`) is only appropriate when GitHub still has branch-protection work to wait on. GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may reject an already-`CLEAN` PR because there is nothing left to wait on (issue #2450). For documented-`UNSTABLE` PRs, or an already-`CLEAN` rejection, use direct merge (`merge_pr.py --strategy squash`) after all four conditions pass.
+4. **`mergeStateStatus` is an executable merge state**. Land only when the state is `CLEAN`, `HAS_HOOKS`, or `UNSTABLE` with documented non-required failures. `BLOCKED`, `BEHIND`, `DIRTY`, `DRAFT`, and `UNKNOWN` are not landable. **Auto-merge** (`set_pr_auto_merge.py --enable`) is only appropriate when GitHub still has branch-protection work to wait on. GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may reject an already-`CLEAN` PR because there is nothing left to wait on (issue #2450). `HAS_HOOKS` follows the same executable path as `CLEAN`. For documented-`UNSTABLE` PRs, or an already-`CLEAN` rejection, use direct merge (`merge_pr.py --strategy squash`) after all four conditions pass.
 
 `CanMerge` from `test_pr_merge_ready.py` is a partial signal. Always cross-check against the four conditions above before enabling auto-merge or merging directly.
 
@@ -72,7 +72,7 @@ Use `test_pr_merge_ready.py` to collect merge readiness data for each PR. Then a
 
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | Branch up to date, no CI failures, no unresolved threads, `CLEAN` merge state | Land through the CLEAN merge path after the four-condition gate |
+| T1 | Branch up to date, no CI failures, no unresolved threads, and an executable merge state (`CLEAN`, `HAS_HOOKS`, or documented `UNSTABLE`) | Land through the matching executable merge path after the four-condition gate |
 | T2 | CI failures only (no threads), branch up to date | Fix CI, verify all required checks pass, then land |
 | T3 | Threads only (CI passing) | Triage every thread, solve blockers, reply with course of action, resolve all threads, then land |
 | T4 | Both CI failures and unresolved threads | Fix CI first, then walk Thread Severity lifecycle for every thread |
@@ -164,7 +164,6 @@ Check the conversation history above for these specific indicators:
 - Are there any tool call results visible?
 - Did you already call `mcp__serena__activate_project`?
 - Did you already call `mcp__serena__initial_instructions`?
-- Is `.agents/HANDOFF.md` content already present in the conversation?
 - Is there a per-issue handoff or optional session log already in context?
 
 If you cannot find evidence of these elements in the conversation history, this IS a new session.
@@ -181,7 +180,7 @@ Verify that tool output appears in the session transcript. Without this phase, y
 
 **Phase 2: Context Retrieval (BLOCKING)**
 
-Read the file `.agents/HANDOFF.md` before starting any work.
+Read the current per-issue handoff under `.agents/sessions/handoffs/`, when one exists, before starting any work.
 
 Verify that the content appears in your context and reference prior decisions from it. Without this phase, you will repeat completed work or contradict prior decisions.
 
@@ -258,9 +257,10 @@ Conduct a retrospective when:
 
 Retrospectives are opportunities for aggressive learning and self-improvement. Use a growth mindset to identify what worked, what didn't, and how to enhance future performance. Update memories with insights learned.
 
-### 2. Update `.agents/HANDOFF.md`
+### 2. Update the Per-Issue Handoff
 
-Document key decisions and context for the next session in a session summary.
+Document key decisions and context for the next session in the per-issue
+handoff under `.agents/sessions/handoffs/`, when work remains open.
 
 ### 3. Commit All Changes
 
@@ -276,8 +276,7 @@ Systematically check for these specific indicators in the conversation history b
 - Look for any tool call results - write down what you find or "NONE FOUND"
 - Look for evidence that `mcp__serena__activate_project` was already called - write down what you find or "NONE FOUND"
 - Look for evidence that `mcp__serena__initial_instructions` was already called - write down what you find or "NONE FOUND"
-- Look for evidence that `.agents/HANDOFF.md` content is already in context - write down what you find or "NONE FOUND"
-- Look for a per-issue handoff or optional session log already in context
+- Look for evidence that a per-issue handoff or optional session log is already in context - write down what you find or "NONE FOUND"
 
 After examining each indicator, explicitly state: **This IS a new session** or **This IS NOT a new session**
 
@@ -317,9 +316,9 @@ For each pattern that applies, consider whether you should:
 - Create a skill inline during this session (preferred for immediate reuse)
 - Document the pattern for the retrospective (if the session is ending soon)
 
-### 6. HANDOFF Context (If Applicable)
+### 6. Handoff Context (If Applicable)
 
-If you've read `.agents/HANDOFF.md`, quote the most relevant sections that inform the current task. Note key decisions, context, or constraints from previous sessions that you need to respect.
+If you've read the per-issue handoff, quote the most relevant sections that inform the current task. Note key decisions, context, or constraints from previous sessions that you need to respect.
 
 ### 7. Agent Delegation Planning
 
@@ -333,14 +332,14 @@ Break down the task and decide on execution strategy:
 
 Describe specifically how you will use information from:
 - Each relevant memory you've read
-- HANDOFF.md content (if applicable)
+- Per-issue handoff content (if applicable)
 - Prior context from the conversation
 
 ### 9. Session End Assessment (If Applicable)
 
 If this is the end of a session, determine:
 - Should you conduct a retrospective? Consider: Was something shipped? Did something go well or poorly? Are there valuable lessons to capture?
-- What key information needs to go into HANDOFF.md?
+- What key information needs to go into the per-issue handoff?
 - What changes need to be committed?
 - Based on session activity level, should the retrospective be brief (stable monitoring) or detailed (active work)?
 
@@ -355,7 +354,7 @@ After completing your session analysis, follow this workflow:
 5. **Read relevant memories**: Call `mcp__serena__read_memory` for each relevant memory
 6. **Execute task**: Either delegate to orchestrator OR execute directly based on your analysis
 7. **Provide response**: Give your final answer, explicitly referencing relevant context and memories
-8. **If session ending**: Conduct retrospective if merited, update HANDOFF.md, and commit changes
+8. **If session ending**: Conduct retrospective if merited, update the per-issue handoff, and commit changes
 
 ## Output Structure
 
@@ -386,7 +385,7 @@ Your response should follow this structure:
 
 4. **Session End Activities** (if the session is ending)
    - Retrospective (if merited)
-   - HANDOFF.md update
+   - Per-issue handoff update
    - Commits
 
 ### Example Output Structure
@@ -397,7 +396,7 @@ Your response should follow this structure:
 Checking for tool call results: [what you find or "NONE FOUND"]
 Checking for mcp__serena__activate_project: [what you find or "NONE FOUND"]
 Checking for mcp__serena__initial_instructions: [what you find or "NONE FOUND"]
-Checking for .agents/HANDOFF.md in context: [what you find or "NONE FOUND"]
+Checking for a per-issue handoff in context: [what you find or "NONE FOUND"]
 Checking for session logs: [what you find or "NONE FOUND"]
 
 [State clearly: This IS or IS NOT a new session]
@@ -427,8 +426,8 @@ Pre-commit hooks: [does task involve this? yes/no] [considerations]
 Branch cleanup: [does task involve this? yes/no] [considerations]
 [For applicable patterns, note inline skill creation vs deferring to retrospective]
 
-6. HANDOFF Context (if applicable):
-[Quote relevant sections from HANDOFF.md]
+6. Handoff Context (if applicable):
+[Quote relevant sections from the per-issue handoff]
 [Note key decisions and constraints to respect]
 
 7. Agent Delegation Planning:
@@ -439,12 +438,12 @@ Branch cleanup: [does task involve this? yes/no] [considerations]
 
 8. Context Incorporation Strategy:
 [Specific plan for using each relevant memory]
-[How HANDOFF.md content informs approach]
+[How the per-issue handoff content informs approach]
 [How prior context shapes response]
 
 9. Session End Assessment (if applicable):
 [Retrospective determination with reasoning]
-[HANDOFF.md update plan]
+[Per-issue handoff update plan]
 [Commit plan]
 [Retrospective scope: brief or detailed based on activity level]
 </session_analysis>
@@ -500,11 +499,11 @@ The agent will:
 3. **Resolve merge conflicts** - For PRs with CONFLICTING status:
    - Checkout the worktree
    - Merge `origin/main` into the feature branch
-   - Resolve conflicts (HANDOFF.md uses `--theirs` per ADR-014)
+   - Resolve conflicts (per-issue handoffs under `.agents/sessions/handoffs/` use `--theirs` per ADR-014)
    - Push the resolved branch
 
-4. **Enforce ADR-014** - HANDOFF.md is read-only on feature branches:
-   - Revert any HANDOFF.md changes to match main
+4. **Enforce ADR-014** - HANDOFF.md is retired; per-issue handoffs and Serena
+   memory carry continuity instead:
    - Ensure unfinished issue context is preserved in the per-issue handoff
 
 5. **Create fix PRs** - For infrastructure issues that need broader fixes:
@@ -655,7 +654,7 @@ Distinguish stale cache from a real conflict before any refresh:
 PR=2334
 BRANCH="$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request "$PR" | jq -r .Data.head_branch)"
 BASE="$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request "$PR" | jq -r .Data.base_branch)"
-WT=".worktrees/pr-$PR"
+WT="../wt-pr-$PR"
 git worktree add "$WT" "$BRANCH"
 git -C "$WT" fetch origin "$BASE"
 
@@ -731,7 +730,7 @@ Workflow (substitute `PR=<number>`, `BRANCH=<branch-name>` as shell variables; a
 ```bash
 PR=2044
 BRANCH="$(python3 .claude/skills/github/scripts/pr/get_pr_context.py --pull-request "$PR" | jq -r .Data.head_branch)"
-WT=".worktrees/pr-$PR"
+WT="../wt-pr-$PR"
 git worktree add "$WT" "$BRANCH"
 git -C "$WT" fetch origin main
 git -C "$WT" merge origin/main --no-edit   # resolve conflicts via merge-resolver skill if needed
@@ -821,10 +820,10 @@ python3 .claude/skills/github/scripts/pr/get_pr_check_logs.py --owner {owner} --
 # Get unresolved review threads
 python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --owner {owner} --repo {repo} --pull-request {number}
 
-# Merge a PR (direct merge: use for UNSTABLE with documented non-required failures, or any CLEAN PR you want merged immediately)
+# Merge a PR (direct merge: use for documented UNSTABLE, or any CLEAN or HAS_HOOKS PR you want merged immediately)
 python3 .claude/skills/github/scripts/pr/merge_pr.py --owner {owner} --repo {repo} --pull-request {number}
 
-# Enable auto-merge (CLEAN state only; GitHub refuses UNSTABLE per issue #2439)
+# Enable auto-merge (CLEAN or HAS_HOOKS; GitHub refuses UNSTABLE per issue #2439)
 python3 .claude/skills/github/scripts/pr/set_pr_auto_merge.py --owner {owner} --repo {repo} --pull-request {number}
 
 # Find notifications needing attention

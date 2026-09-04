@@ -1,0 +1,389 @@
+#!/usr/bin/env python3
+"""Report installed plugin copies whose hook registrations diverge from source.
+
+An installed plugin that still registers a retired guard is worse than no
+guard: the block looks authoritative and cites a rule that cannot be found in
+the repository. Issue #5085 measured four such guards blocking a live session
+after all four had been deleted from `main`, and 45 minutes spent diagnosing a
+hook that no longer existed. Nothing in a session told the reader that the
+thing which blocked them came from a stale install.
+
+This hook states it. At session start it compares the hooks each shipped
+manifest actually enforces against every installed copy of the same plugin it
+can find on disk, and names what diverges.
+
+"Actually enforces" is the load-bearing part. A Claude registration usually
+names `invoke_dispatch_claude.py --group <id>` rather than a hook script, and
+that group's real membership lives in `dispatch_groups.json`. Comparing the
+`hooks.json` entry points alone would call a stale install a match whenever
+both sides route through the same dispatcher, which is the issue #5085 shape
+exactly. Registrations are therefore expanded to their shim membership before
+anything is diffed. Copilot CLI manifests use a flatter schema (registrations
+directly under the event, command under `bash`), parsed separately.
+
+Untrusted input, stated plainly: an installed manifest under the scanned trees
+is attacker-influenceable (a mis-added marketplace entry is enough), and this
+hook's output becomes session context. No manifest string is echoed. Only
+allowlisted, length-capped metadata leaves this file: an event name, a matcher,
+and a sanitized script basename or dispatch-group id. A command resolving to
+neither is reported as an opaque digest.
+
+Scope and its limit, stated plainly: the check runs only inside a checkout of
+the repository that publishes the plugin, because that checkout is the only
+available second opinion. A consumer whose install is stale never receives
+this hook at all, since the stale install is what would have to ship it. Asks
+1 and 2 of issue #5085, the freshness-resolution questions, need evidence this
+hook cannot produce, and are not closed here.
+
+Hook Type: SessionStart (non-blocking, fail-open)
+Exit Codes:
+    0 = Success (always, fail-open)
+
+References:
+    - Issue #5085 (installed plugin enforces guards deleted from main)
+    - ADR-097 (tool-call hooks retired; the shipped state is zero of them)
+    - `.claude/rules/ci-scripts.md` MUST 8, which names
+      `~/.claude/plugins/cache` and `~/.copilot/installed-plugins` as the
+      copies that "can be arbitrarily old"
+"""
+
+from __future__ import annotations
+
+import io
+import os
+import sys
+from collections import deque
+from collections.abc import Sequence
+from dataclasses import dataclass
+from itertools import islice
+from pathlib import Path
+
+# --- Standard hook boilerplate: resolve lib directory ---
+_plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if _plugin_root:
+    _lib_dir = os.path.join(_plugin_root, "lib")
+else:
+    _lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
+if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
+
+# The manifest model ships beside this file. Python only adds the script's own
+# directory to sys.path when the file is the entry point, and the dispatcher
+# runs shims from `.claude/hooks/`, so add it explicitly rather than relying on
+# how this hook happened to be launched.
+_hook_dir = str(Path(__file__).resolve().parent)
+if _hook_dir not in sys.path:
+    sys.path.insert(0, _hook_dir)
+
+from plugin_hook_drift_model import (  # noqa: E402
+    CLAUDE_SCHEMA,
+    COPILOT_SCHEMA,
+    read_plugin_identity,
+    root_registrations,
+)
+from plugin_hook_drift_report import (  # noqa: E402
+    format_message,
+)
+from plugin_hook_drift_safety import (  # noqa: E402
+    EVENT_SHAPE,
+    MATCHER_SHAPE,
+    MAX_PATH_CHARS,
+    path_token,
+    redacted,
+    sanitize_label,
+)
+from plugin_hook_drift_state import (  # noqa: E402
+    DIRECTORY_UNREADABLE,
+    ENTRY_CEILING_REACHED,
+    MAX_SCAN_DEPTH,
+    PLUGIN_MANIFEST_UNREADABLE,
+    PRUNED_DIR_NAMES,
+    InstallReport,
+    ScanBudget,
+    ScanOutcome,
+)
+
+try:
+    from hook_utilities import get_project_directory
+    from hook_utilities.guards import skip_if_consumer_repo
+except ImportError:
+
+    def get_project_directory() -> str:
+        env_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip()
+        if env_dir:
+            return str(Path(env_dir).resolve())
+        return str(Path.cwd())
+
+    def skip_if_consumer_repo(hook_name: str) -> bool:
+        agents_path = Path(get_project_directory()) / ".agents"
+        if not agents_path.is_dir():
+            print(f"[SKIP] {hook_name}: .agents/ not found (consumer repo)", file=sys.stderr)
+            return True
+        return False
+
+
+HOOK_NAME = "plugin-hook-drift-check"
+
+# Ceiling on entries taken from any one directory. `sorted(iterdir())` would
+# otherwise materialize and sort a whole directory before the visit budget is
+# consulted, so one enormous directory could exhaust memory or burn the shim's
+# time budget before any bound applied.
+MAX_ENTRIES_PER_DIR = 2000
+
+
+@dataclass(frozen=True, slots=True)
+class PluginSurface:
+    """One shipped plugin root and the install locations that mirror it."""
+
+    label: str
+    source_rel: Path
+    search_roots: tuple[Path, ...]
+    schema: str = CLAUDE_SCHEMA
+
+
+
+def copilot_home(home: Path) -> Path:
+    """Copilot CLI's home directory, honoring the ``COPILOT_HOME`` override.
+
+    Mirrors `scripts/dev/dogfood_copilot_plugin.py::default_target`, which
+    resolves the same directory for the same reason and reads verbatim:
+
+        home_env = os.environ.get("COPILOT_HOME", "").strip()
+        home = Path(home_env) if home_env else Path.home() / ".copilot"
+
+    An operator who moved Copilot's home and left this hook pointed at the
+    account home would be told "no installed copy" about the very install that
+    is enforcing a retired guard.
+
+    Stricter/looser/different than canonical: the fallback uses the ``home``
+    passed in rather than `Path.home()`, because every path in this module is
+    resolved from an injected home so tests can point it at a fixture. The
+    override branch and the strip-to-empty fallback rule are identical.
+    """
+    override = os.environ.get("COPILOT_HOME", "").strip()
+    return Path(override) if override else home / ".copilot"
+
+
+def plugin_surfaces(home: Path) -> tuple[PluginSurface, ...]:
+    """The plugin roots this repository publishes, with their install trees."""
+    return (
+        PluginSurface(
+            label="Claude Code",
+            source_rel=Path(".claude"),
+            search_roots=(home / ".claude" / "plugins",),
+        ),
+        PluginSurface(
+            label="Copilot CLI",
+            source_rel=Path("src") / "copilot-cli",
+            search_roots=(copilot_home(home) / "installed-plugins",),
+            schema=COPILOT_SCHEMA,
+        ),
+    )
+
+
+def _bounded_children(directory: Path, budget: ScanBudget) -> list[Path]:
+    """List one directory's entries, stopping at ``MAX_ENTRIES_PER_DIR``.
+
+    `sorted(directory.iterdir())` materializes and sorts every entry before the
+    directory budget is consulted, so a single directory with an enormous entry
+    count could exhaust memory or burn the shim's time budget before any bound
+    applied. Entries are taken lazily up to the ceiling instead, and hitting it
+    marks the scan truncated: the entries past the cutoff were never examined,
+    so this walk is no longer a statement about the whole tree.
+
+    Sorting is preserved for the entries that are taken, so the walk order
+    stays deterministic.
+    """
+    try:
+        taken = list(islice(directory.iterdir(), MAX_ENTRIES_PER_DIR + 1))
+    except OSError:
+        # An existing subtree that cannot be listed (permissions, or a
+        # concurrent removal) is not an empty subtree. Returning [] silently
+        # would let an unreadable directory hide a stale install while the
+        # message still claimed every copy matched.
+        budget.stop(DIRECTORY_UNREADABLE)
+        return []
+    if len(taken) > MAX_ENTRIES_PER_DIR:
+        budget.stop(ENTRY_CEILING_REACHED)
+        taken = taken[:MAX_ENTRIES_PER_DIR]
+    return sorted(taken)
+
+
+def find_installed_roots(
+    search_root: Path, plugin_name: str, budget: ScanBudget | None = None
+) -> list[Path]:
+    """Bounded breadth-first search for installed copies of ``plugin_name``.
+
+    Symlinked directories are never followed and a matched plugin root is not
+    descended into: an install tree may vendor another copy of itself, and one
+    session-start walk must not turn into an unbounded one.
+
+    Pass ``budget`` to learn whether the returned list is the whole answer. The
+    walk stops when the budget runs out and sets ``budget.truncated``, so a
+    caller can tell an exhaustive "not installed here" apart from a search that
+    never reached the rest of the tree. Callers that omit ``budget`` get a
+    fresh one and discard that distinction.
+    """
+    if budget is None:
+        budget = ScanBudget()
+    if not search_root.is_dir():
+        return []
+    found: list[Path] = []
+    queue: deque[tuple[Path, int]] = deque([(search_root, 0)])
+    while queue:
+        if not budget.spend():
+            break
+        current, depth = queue.popleft()
+        name, unreadable = read_plugin_identity(current)
+        if unreadable:
+            budget.stop(PLUGIN_MANIFEST_UNREADABLE)
+        if name == plugin_name:
+            found.append(current)
+            continue
+        if depth >= MAX_SCAN_DEPTH:
+            continue
+        for child in _bounded_children(current, budget):
+            if child.name in PRUNED_DIR_NAMES or child.is_symlink() or not child.is_dir():
+                continue
+            queue.append((child, depth + 1))
+    return found
+
+
+def _describe(triples: set[tuple[str, str, str]]) -> tuple[str, ...]:
+    """Render units as stable lines, every field redacted by shape.
+
+    Event and matcher come from the installed manifest, so they are rendered
+    only when their shape cannot carry prose. Character filtering is not
+    enough here: an event named "Ignore all previous instructions" is made
+    entirely of allowlisted characters.
+    """
+    return tuple(
+        f"{redacted(event, EVENT_SHAPE, 'event')} "
+        f"(matcher {redacted(matcher, MATCHER_SHAPE, 'matcher')!r}): {unit}"
+        for event, matcher, unit in sorted(triples)
+    )
+
+
+def compare_install(
+    surface_label: str,
+    install_path: Path,
+    source: set[tuple[str, str, str]],
+    schema: str = CLAUDE_SCHEMA,
+) -> InstallReport:
+    """Compare one installed copy's enforced units against the source set."""
+    installed, error = root_registrations(install_path, schema)
+    if installed is None:
+        return InstallReport(surface_label, install_path, (), (), error)
+    return InstallReport(
+        surface=surface_label,
+        install_path=install_path,
+        only_in_install=_describe(installed - source),
+        only_in_source=_describe(source - installed),
+        error=None,
+    )
+
+
+def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
+    """Compare every installed copy found on disk against its shipped source.
+
+    ``notes`` carries per-surface problems that are not a specific install's
+    fault, such as a source manifest this checkout cannot read. ``incomplete``
+    names every reason the pass is not a statement about the whole tree: a walk
+    that hit its directory bound, and a surface that was never searched at all
+    because its source manifest could not be read. Both produce no reports, and
+    an empty report list on its own reads as "nothing is installed", so each
+    one has to be said out loud.
+    """
+    outcome = ScanOutcome()
+    for surface in plugin_surfaces(home):
+        source_root = project_dir / surface.source_rel
+        plugin_name, _ = read_plugin_identity(source_root)
+        if plugin_name is None:
+            outcome.notes.append(f"{surface.label}: no readable plugin manifest at {source_root}")
+            outcome.incomplete.append(f"{surface.label}: not searched (source plugin unreadable)")
+            continue
+        source, error = root_registrations(source_root, surface.schema)
+        if source is None:
+            outcome.notes.append(f"{surface.label}: {error}")
+            outcome.incomplete.append(f"{surface.label}: not searched (source hooks unreadable)")
+            continue
+        for search_root in surface.search_roots:
+            budget = ScanBudget()
+            for install_path in find_installed_roots(search_root, plugin_name, budget):
+                outcome.reports.append(
+                    compare_install(surface.label, install_path, source, surface.schema)
+                )
+            if budget.truncated:
+                causes = "; ".join(sorted(budget.reasons))
+                outcome.incomplete.append(f"{surface.label}: {search_root} ({causes})")
+    return outcome
+
+
+
+def _drain_stdin() -> None:
+    """Drain stdin to prevent pipe buffer blocking on the harness side."""
+    if not sys.stdin.isatty():
+        try:
+            sys.stdin.read()
+        except OSError:
+            pass
+
+
+def _emit_utf8(text: str) -> None:
+    """Prefer UTF-8 protocol output, with an ambient-encoding text fallback."""
+    stream = sys.stdout
+    reconfigure = getattr(stream, "reconfigure", None)
+    if callable(reconfigure):
+        try:
+            reconfigure(encoding="utf-8", errors="strict", newline="\n")
+        except (AttributeError, TypeError, ValueError, io.UnsupportedOperation, OSError):
+            pass
+        else:
+            stream.write(text + "\n")
+            stream.flush()
+            return
+
+    buffer = getattr(stream, "buffer", None)
+    if buffer is not None:
+        buffer.write(bytes(f"{text}\n", encoding="utf-8"))
+        buffer.flush()
+        return
+
+    stream.write(text + "\n")
+    stream.flush()
+
+
+def _log_install_paths(reports: Sequence[InstallReport]) -> None:
+    """Resolve each reported token to its real path, on stderr only.
+
+    stdout is injected into the session as context, so it carries opaque
+    tokens. stderr is not: it reaches the hook log a human reads when they
+    actually need to go find the install on disk. The path is still scrubbed
+    and capped, because a log is read by people too.
+    """
+    for report in reports:
+        if not report.has_drift:
+            continue
+        path = sanitize_label(report.install_path, MAX_PATH_CHARS)
+        print(f"[{HOOK_NAME}] {path_token(report.install_path)} = {path}", file=sys.stderr)
+
+
+def main() -> None:
+    """Compare installed plugin copies against this checkout and report."""
+    _drain_stdin()
+
+    if skip_if_consumer_repo(HOOK_NAME):
+        sys.exit(0)
+
+    outcome = check_installed_plugins(Path(get_project_directory()), Path.home())
+    _emit_utf8(format_message(outcome.reports, outcome.notes, outcome.incomplete))
+    _log_install_paths(outcome.reports)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:
+        # Fail-open: never block session start
+        print(f"[WARNING] {HOOK_NAME} error: {exc}", file=sys.stderr)
+        sys.exit(0)

@@ -87,7 +87,6 @@ And link them from **README.md** (keep the root README focused on getting starte
 ## What you should generally NOT edit
 
 - `src/vs-code-agents/` and `src/copilot-cli/` are generated outputs.
-- `.agents/HANDOFF.md` is explicitly **read-only** (a dashboard, not a working file).
 
 ## “Where do artifacts go?”
 

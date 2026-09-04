@@ -259,8 +259,13 @@ def list_violations(
 
     None means the scan could not be read, which is not the same as a clean
     tree and never renders as one. Every leg that returns it says why.
+
+    ``announce_unmerged=False`` because this is the run's second index read.
+    ``run`` calls ``current_count`` before it calls this, and that read
+    already emitted the mid-merge note. Without the suppression a contributor
+    mid-merge saw the identical caveat twice for one regression (issue #4746).
     """
-    files = tracked_files(repo_root, ("*",))
+    files = tracked_files(repo_root, ("*",), announce_unmerged=False)
     if files is None:
         return None
     if not files:

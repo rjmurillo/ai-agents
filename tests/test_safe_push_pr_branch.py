@@ -943,8 +943,8 @@ def _record_pytest_timeouts(
 
     # Pin the workstation contract. `run_pytest` now clamps the aggregate
     # budget, not just each child, so inside a container these numbers would be
-    # the 150s ceiling rather than the budget under test. This repository's dev
-    # containers set CLAUDECODE, so without this the assertions would read the
+    # the 150s ceiling rather than the budget under test. This suite also runs
+    # inside dev containers, so without this the assertions would read the
     # clamp and quietly stop testing what they name. The clamped case has its
     # own test below.
     monkeypatch.setattr(git_hook_policy, "_container_clamped", lambda seconds: seconds)
@@ -998,7 +998,7 @@ def test_run_pytest_gives_the_collection_stand_in_the_smaller_budget(
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
     # Workstation contract: the aggregate is now clamped in a container, and
-    # this repo's dev containers set CLAUDECODE, so the assertion would read
+    # this suite also runs inside dev containers, so the assertion would read
     # the 150s ceiling instead of the collection budget it names.
     monkeypatch.setattr(git_hook_policy, "_container_clamped", lambda seconds: seconds)
     seen: list[float] = []

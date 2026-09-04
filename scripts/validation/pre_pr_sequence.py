@@ -42,6 +42,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 from active_plan_closeout import validate_active_plan_closeout
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
+from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
@@ -49,6 +50,7 @@ from check_doc_interpreter_portability import (
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_generated_staleness import validate_generated_staleness
 from check_git_hook_health import validate_git_hook_health
+from check_index_line_endings import validate_index_line_endings
 from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
 from check_subprocess_encoding import validate_subprocess_encoding
@@ -99,6 +101,7 @@ from checks_tooling import (
     validate_markdown_lint,
     validate_path_normalization,
     validate_planning_artifacts,
+    validate_rule_scope_declarations,
     validate_session_end,
     validate_workflow_yaml,
     validate_yaml_style,
@@ -232,8 +235,15 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Subprocess Encoding Convention", _root_only(validate_subprocess_encoding)),
     _Gate("Test Working Tree Writes", _root_only(validate_test_tree_writes)),
     _Gate("Push Lock Path Agreement", _root_only(validate_push_lock_paths)),
+    # Blocks an index blob whose line endings contradict its gitattributes. Two
+    # CRLF blobs under `* text=auto eol=lf` reached main and aborted every merge
+    # that touched their paths, in worktrees nobody had edited. Both arrived via
+    # the GraphQL createCommitOnBranch API, which uploads bytes verbatim and runs
+    # neither the clean filter nor any local hook, so the index is the only place
+    # the defect is visible and no upstream gate can be relied on instead.
+    _Gate("Index Line Endings", _root_only(validate_index_line_endings)),
     # Blocks a tracked prescription that tells a reader to create a worktree
-    # under /tmp or inside the checkout, against universal.md MUST NOT 7. Issue
+    # under /tmp or inside the checkout, against universal.md MUST NOT 6. Issue
     # #5111: the rule, a Serena memory, and a prior incident all already
     # existed, and six violations still accumulated, because nothing read the
     # recipes.
@@ -373,6 +383,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
         "Agent Content Parity (.claude/agents vs src/claude)",
         _root_only(validate_agent_content_parity),
     ),
+    # The Claude Code plugin loader registers every .md under .claude/agents/ as
+    # a dispatchable subagent, frontmatter or not. Issue #4813 answered the same
+    # five files by narrowing our own validator globs, which taught CI to look
+    # away and left the loader untouched. This gate fails instead. Issue #5493.
+    _Gate(
+        "Agent Tree Frontmatter (.claude/agents)",
+        _root_only(validate_agent_tree_frontmatter),
+    ),
     # A source change requires a plugin.json bump (issue #2118).
     _Gate("Plugin Version Bump", _root_only(validate_plugin_version_bump)),
     # Claude and Copilot plugin hooks.json must anchor to the plugin root. Bare
@@ -392,15 +410,16 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # surface.
     _Gate("Argument-Hint Frontmatter", _root_only(validate_argument_hint)),
     # Deeper than the gate below, and adjacent so neither reads as covering the
-    # other. "Lefthook Installed" asks whether lefthook considers itself
-    # installed; this asks whether git will read those shims at all. A
+    # other. "Lefthook Installed" verifies the configured runtime can start;
+    # this asks whether git will read the installed shim at all. A
     # core.hooksPath pointing at a missing directory makes git run no hook and
     # print no warning, which is how the PR #5059 hand-edit reached CI instead
     # of being refused at push time. Issue #5090; the same repair already
     # drifted back once after 2026-07-19.
     _Gate("Git Hook Health (core.hooksPath)", _root_only(validate_git_hook_health)),
-    # Local clones must dispatch repository guardrails. Skipped under CI, where
-    # workflows invoke validation directly.
+    # Local clones must resolve the pinned runtime. Skipped under CI, where
+    # workflows invoke validation directly. Do not use `check-install` here:
+    # its shared checksum belongs to whichever branch installed last (#4789).
     _Gate("Lefthook Installed", _root_only(validate_lefthook_installed)),
     # actionlint plus gh act dry-run for changed workflows.
     _Gate("Workflow Local Run", _root_only(validate_workflow_local_run)),
@@ -417,6 +436,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # rule growing by 400 bytes surfaces locally in under 0.5 seconds instead of
     # 17 minutes later in CI. Issue #4285.
     _Gate("Always-on Corpus Claims", _root_only(validate_always_on_corpus_claims)),
+    # The two gates above read the generated .github/instructions/ tree, where a
+    # rule scoped with a key Claude Code ignores still looks correctly scoped.
+    # This one reads .claude/rules/ and refuses applyTo:, globs:, or
+    # alwaysApply:, the source-side leak that put 25,527 bytes of code-only rule
+    # into every doc-only session. Issue #4871.
+    _Gate("Rule Scope Declarations (paths:)", _root_only(validate_rule_scope_declarations)),
 )
 
 

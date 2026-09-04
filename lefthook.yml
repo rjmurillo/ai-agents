@@ -1,5 +1,6 @@
 # taste-lint: ignore file-size, hook config is one executable contract and splitting would hide stage order.
 min_version: 2.1.10
+no_auto_install: true
 lefthook: uv run --frozen lefthook
 glob_matcher: doublestar
 
@@ -91,11 +92,6 @@ pre-commit:
     - group:
         parallel: true
         jobs:
-          - name: handoff-protection
-            timeout: 2m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py handoff {staged_files}
-            glob: ".agents/HANDOFF.md"
-
           - name: root-hygiene-policy
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py root-hygiene {staged_files}
@@ -608,6 +604,29 @@ pre-push:
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
             env:
               AI_AGENTS_PYTEST_WORKER_CAP: "4"
+
+          # Issue #4494: a test_*.py inside testpaths that defines no test
+          # collects nothing, is counted in no failure, and reads as a passing
+          # suite forever. Scheduled here rather than in the fast stage because
+          # its cost is one pytest collection over testpaths (13s standalone,
+          # 28,893 items), which is the same work python-tests beside it does;
+          # the fast stage is for gates that finish in seconds. The 4m cap is
+          # the per-job container ceiling, sized for a loaded machine rather
+          # than the standalone number (ci-scripts.md MUST-16).
+          #
+          # Copilot review round 8 (PR #5344): no `glob` here on purpose. This
+          # is a whole-tree check, not a diff-scoped one, and `.claude/rules/
+          # ci-scripts.md`'s "Path filters gate the diff, never the tree"
+          # section's "whole tree MUST run" rule applies to local pre-push the
+          # same way it applies to the CI job this mirrors
+          # (`zero-collection-guard` in `.github/workflows/pytest.yml`). A
+          # non-Python push (`uv.lock`, `.python-version`) changes the pytest
+          # environment this script measures, so filtering it out here would
+          # let a lock-only push skip the one local check that would catch a
+          # regression the environment change introduced.
+          - name: zero-collection-tests
+            timeout: 4m
+            run: uv run --frozen python scripts/validation/check_zero_collection_tests.py
 
           - name: python-lint-advisory
             timeout: 2m

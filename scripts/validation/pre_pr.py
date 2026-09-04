@@ -101,7 +101,6 @@ from checks_dash import (
     validate_dash_prohibition,
 )
 from checks_plugin import (
-    _is_linked_worktree,
     validate_colocated_skill_tests,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,

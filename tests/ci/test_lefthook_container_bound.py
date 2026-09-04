@@ -26,6 +26,12 @@ Coverage:
 
 from __future__ import annotations
 
+import importlib
+import sys
+from types import ModuleType
+
+import pytest
+
 from tests.ci.lefthook_budget_model import (
     CONTAINER_UNCLAMPED_JOBS,
     REPO_ROOT,
@@ -184,3 +190,88 @@ class TestNoSingleChildOutlivesAContainer:
         }
         missing = sorted(CONTAINER_UNCLAMPED_JOBS - names)
         assert missing == [], f"{missing} are in the roster but not in pre-push."
+
+
+class TestTheClampAsksTheContainerQuestion:
+    """The clamp must fire on container evidence, never on a client name.
+
+    Issue #5479. `CLAUDECODE` named the client, not the environment, and the
+    Claude Code CLI sets it on a laptop, a workstation, and a VM. Reading it as
+    a container took the semgrep budget from 840s to 150s on a workstation, so a
+    branch whose scan needed more than 150s could not be pushed from a Claude
+    Code session and pushed fine from a plain terminal on the same machine.
+
+    The ceiling asserted by the rest of this module is only worth what the
+    predicate deciding when to apply it is worth. These cases pin that
+    predicate, so a future edit cannot widen the clamp back onto hosts that are
+    not containers while every declared-cap assertion above stays green.
+
+    Coverage: positive (real container evidence clamps), negative (the client
+    marker alone does not), edge (CI overrides, and the tool-gap predicate keeps
+    the marker the container predicate dropped).
+    """
+
+    @staticmethod
+    def _module() -> ModuleType:
+        sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
+        try:
+            return importlib.import_module("run_workflow_local_test")
+        finally:
+            sys.path.pop(0)
+
+    def test_the_client_marker_alone_is_not_a_container(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The regression itself. `CLAUDECODE` with no container evidence."""
+        module = self._module()
+        monkeypatch.setenv("CLAUDECODE", "1")
+        monkeypatch.delenv("CODESPACES", raising=False)
+        monkeypatch.delenv("AI_AGENTS_REMOTE_CONTAINER", raising=False)
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.setattr(module, "_has_container_filesystem_signal", lambda: False)
+
+        assert module._is_remote_container() is False
+
+    def test_a_filesystem_signal_is_a_container(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        module = self._module()
+        monkeypatch.delenv("CODESPACES", raising=False)
+        monkeypatch.delenv("AI_AGENTS_REMOTE_CONTAINER", raising=False)
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.setattr(module, "_has_container_filesystem_signal", lambda: True)
+
+        assert module._is_remote_container() is True
+
+    def test_a_declared_image_marker_is_a_container(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An image with no filesystem signal can still declare itself."""
+        module = self._module()
+        monkeypatch.setenv("AI_AGENTS_REMOTE_CONTAINER", "1")
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.setattr(module, "_has_container_filesystem_signal", lambda: False)
+
+        assert module._is_remote_container() is True
+
+    def test_ci_overrides_every_container_signal(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """CI provisions the tools, so a hang there is a real failure."""
+        module = self._module()
+        monkeypatch.setenv("CI", "true")
+        monkeypatch.setenv("CODESPACES", "true")
+        monkeypatch.setattr(module, "_has_container_filesystem_signal", lambda: True)
+
+        assert module._is_remote_container() is False
+
+    def test_the_tool_gap_predicate_still_keeps_the_client_marker(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The two questions must not collapse back into one.
+
+        Negative control for the first case above. If this ever agrees with it,
+        the split has been undone and the Issue #2548 item 3 degrade has been
+        dragged back onto the container predicate, or the reverse.
+        """
+        module = self._module()
+        monkeypatch.setenv("CLAUDECODE", "1")
+        monkeypatch.delenv("CI", raising=False)
+        monkeypatch.setattr(module, "_has_container_filesystem_signal", lambda: False)
+
+        assert module._tool_gap_is_environmental() is True
+        assert module._is_remote_container() is False

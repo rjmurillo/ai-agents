@@ -38,7 +38,7 @@ Before starting work, complete these steps IN ORDER:
 - [ ] Read this file completely
 - [ ] Read `.agents/AGENT-SYSTEM.md` for agent catalog
 - [ ] Read `.agents/archive/planning/enhancement-PROJECT-PLAN.md` for current project
-- [ ] Check `.agents/HANDOFF.md` for previous session notes
+- [ ] Read the current per-issue handoff under `.agents/sessions/handoffs/`, when one exists
 - [ ] Identify your assigned phase and tasks
 - [ ] Read the current per-issue handoff, when one exists
 
@@ -51,7 +51,7 @@ Before starting work, complete these steps IN ORDER:
 | `AGENT-INSTRUCTIONS.md` | How to execute work (this file) | Rarely - only if process changes |
 | `AGENT-SYSTEM.md` | Agent catalog and workflows | When agents added/modified |
 | `archive/planning/enhancement-PROJECT-PLAN.md` | Master project plan | After task completion |
-| `HANDOFF.md` | Session-to-session context | At END of every session |
+| `sessions/handoffs/*.md` | Per-issue session-to-session context | At END of every session with open work |
 | `sessions/*.json` | Historical session logs | Creation discontinued; never |
 | `governance/*.md` | Standards and protocols | When governance changes |
 | `specs/*/*.md` | Requirements, designs, tasks | When specs created/updated |
@@ -72,7 +72,7 @@ Use the **table format** (not bullet lists) for validation to pass:
 |-----|------|--------|----------|
 | MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | Tool output present |
 | MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | Tool output present |
-| MUST | Read `.agents/HANDOFF.md` | [x] | Content in context |
+| MUST | Read the current per-issue handoff, when one exists | [x] | Content in context |
 | MUST NOT | Create a session log | [x] | Session log creation is discontinued |
 | MUST | List skill scripts in `.claude/skills/github/scripts/` | [x] | Output documented below |
 | MUST | Read skill-usage-mandatory memory | [x] | Content in context |
@@ -119,7 +119,7 @@ Use the Session End checklist for repository quality and continuity:
 | MUST | Run `npx markdownlint-cli2 --fix "**/*.md"` | [x] | Lint clean |
 | MUST | Route to qa agent (feature implementation) | [x] | QA report path or SKIPPED: docs-only |
 | MUST | Commit all changes (including `.serena/memories/`) | [x] | Commit SHA: abc1234 |
-| MUST NOT | Update `.agents/HANDOFF.md` | [x] | HANDOFF.md unchanged |
+| MUST | Update the per-issue handoff, when work remains open | [x] | Handoff updated or SKIPPED: work complete |
 ```
 
 ---
@@ -169,7 +169,7 @@ grep -r "→.*[agent-name]\|[agent-name].*→" .agents/
 
 ### Affected Documentation
 - [ ] `AGENT-SYSTEM.md` - Update catalog entry
-- [ ] `HANDOFF.md` - Note capability change
+- [ ] Per-issue handoff - Note capability change
 
 ### Workflow Changes
 - [ ] [Workflow name] - [Description of change]
@@ -299,90 +299,22 @@ for continuity instead.
 
 ---
 
-## HANDOFF.md Template
+## Per-Issue Handoff Template
 
-Update at session end:
+Update the per-issue handoff at session end when work remains open. The
+project-wide `HANDOFF.md` dashboard described in earlier revisions of this
+document is retired per ADR-014; do not recreate it. Copy
+`.agents/templates/HANDOFF.md` to
+`.agents/sessions/handoffs/{ISO_DATE}-{ISSUE_NUMBER}-handoff.md` and fill it
+in. See `.agents/sessions/handoffs/README.md` for naming, lifecycle, and
+scope.
 
-```markdown
-# Handoff Document
-
-> **Last Updated**: YYYY-MM-DD by Claude (Session NN - [Phase Name])
-> **Current Phase**: Phase N - [Phase Name]
-> **Branch**: `feat/phase-N-description`
-
----
-
-## Current State
-
-**Git Status**: ✅ Clean | 🔄 Uncommitted changes
-**Last Commit**: `abc1234` - [message]
-**Markdown Lint**: ✅ Passing | ❌ Issues
-
-**Project Context**:
-- Repository: rjmurillo/ai-agents
-- Purpose: Multi-agent orchestration system
-- Enhancement Goal: Reconcile Kiro, Anthropic, and existing patterns
-
-### Session Summary (Session NN - YYYY-MM-DD)
-
-**Purpose**: [What this session accomplished]
-
-**Work Completed**:
-1. [Task-ID]: [What was done]
-2. [Task-ID]: [What was done]
-
-**Files Changed**:
-- `[path]` - [What changed]
-
-**Commits**:
-- `[hash]` - [message]
-
----
-
-## What's Next
-
-The next session should:
-
-1. [Specific first action]
-2. [Specific second action]
-3. [etc.]
-
-## Blockers & Concerns
-
-| Issue | Impact | Mitigation |
-|-------|--------|------------|
-| [Issue] | [Impact] | [What to do] |
-
-## Quick Verification
-
-```bash
-# Verify state
-git log --oneline -5
-git status
-
-# Verify markdown
-npx markdownlint-cli2 "**/*.md"
-```
-
----
-
-## Session History
-
-| Date | Phase | Tasks | Status |
-|------|-------|-------|--------|
-| YYYY-MM-DD | 0 | F-001, F-002 | ✅ Complete |
-| YYYY-MM-DD | 1 | S-001 | 🔄 In Progress |
-
-## Files to Review
-
-If you need context, read these files in order:
+If you need context at session start, read these files in order:
 
 1. `.agents/AGENT-INSTRUCTIONS.md` - Process instructions (this file)
 2. `.agents/AGENT-SYSTEM.md` - Agent catalog and workflows
 3. `.agents/archive/planning/enhancement-PROJECT-PLAN.md` - Master project plan
-4. `.agents/HANDOFF.md` - Previous session context
-5. The current per-issue handoff under `.agents/sessions/handoffs/`, when one exists
-```
+4. The current per-issue handoff under `.agents/sessions/handoffs/`, when one exists
 
 ---
 
@@ -684,7 +616,7 @@ Before delegating to an agent:
 - ✅ Update documentation as you go
 - ✅ Check off tasks immediately when complete
 - ✅ Run markdown linting frequently
-- ✅ Update HANDOFF.md before session ends
+- ✅ Update the per-issue handoff before session ends, when work remains open
 - ✅ **Invoke critic agent** before major implementations
 - ✅ **Invoke qa agent** after implementations
 - ✅ **Run retrospective agent** after significant sessions
@@ -696,7 +628,7 @@ Before delegating to an agent:
 - ❌ Skip the pre-flight checklist
 - ❌ Make large commits with multiple unrelated changes
 - ❌ Forget to update PROJECT-PLAN.md checkboxes
-- ❌ Leave session without updating HANDOFF.md
+- ❌ Leave session without updating the per-issue handoff, when work remains open
 - ❌ Assume the next session has context you didn't document
 - ❌ Skip verification steps
 - ❌ **Skip critic validation** - empty critique/ directory is a warning sign

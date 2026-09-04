@@ -143,8 +143,7 @@ When creating a new AI-powered workflow with concurrency control:
 | Constraint | Source | Verification |
 |------------|--------|--------------|
 | MUST initialize Serena before any other action | AGENTS.md | Tool output in transcript |
-| MUST read .agents/HANDOFF.md before starting work | `templates/agents/implementer.shared.md` | Content in context |
-| MUST NOT modify HANDOFF.md during session | ADR-014 | HANDOFF.md unchanged |
+| MUST read the latest per-issue handoff before starting work | AGENTS.md | Content in context |
 | MUST preserve incomplete issue state | ADR-014 | Per-issue handoff |
 | MUST validate a staged or supplied session log, if one is present | `.claude/rules/session-logs.md` | Validator output |
 | MUST NOT create a new session log (creation discontinued) | `.claude/rules/session-logs.md` MUST 1 | No new `.agents/sessions/*.json` file |

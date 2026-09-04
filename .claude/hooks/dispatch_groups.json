@@ -23,6 +23,18 @@
           "statusMessage": "Checking checkout freshness against origin/main (#4689)"
         }
       ]
+    },
+    "sessionstart-3-plugin_hook_drift": {
+      "event": "SessionStart",
+      "mode": "observe",
+      "matcher": null,
+      "shims": [
+        {
+          "file": "SessionStart/invoke_plugin_hook_drift_check.py",
+          "timeout": 20,
+          "statusMessage": "Comparing installed plugin hooks against this checkout (#5085)"
+        }
+      ]
     }
   }
 }

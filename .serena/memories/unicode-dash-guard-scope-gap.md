@@ -26,7 +26,7 @@ the plugin roots.
 ## Quotations are not exempt
 
 Substituting a comma inside a quoted external title or passage is a misquote,
-not a fix. `.claude/rules/universal.md` MUST NOT item 5 now carries the
+not a fix. `.claude/rules/universal.md` MUST NOT item 4 now carries the
 procedure: end the quoted span before the dash, elide it with a bracketed
 ellipsis, or split the quotation and carry the dash's job in your own words
 outside the quotation marks.

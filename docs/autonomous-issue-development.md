@@ -409,8 +409,7 @@ git merge origin/main --no-edit
 
 # If conflicts exist:
 # 1. Resolve conflicts in affected files
-# 2. For HANDOFF.md conflicts, use --theirs (per ADR-014)
-git checkout --theirs .agents/HANDOFF.md
+# 2. For per-issue handoff conflicts under .agents/sessions/handoffs/, use --theirs
 
 # Complete merge and push
 git add .

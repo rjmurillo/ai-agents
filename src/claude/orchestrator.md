@@ -17,11 +17,10 @@ You coordinate specialized agents to deliver end-to-end results. Classify comple
 
 Before routing any task, complete this checklist:
 
-- [ ] Read `.agents/HANDOFF.md` for prior session context
 - [ ] Activate Serena: `mcp__serena__activate_project`
 - [ ] Read `.agents/AGENT-INSTRUCTIONS.md`
 
-Stop criteria: Do NOT begin triage or routing until all three items are checked. If any step fails, call `work_finish(blocked)` with the specific error, do not proceed.
+Stop criteria: Do NOT begin triage or routing until both items are checked. If any step fails, call `work_finish(blocked)` with the specific error, do not proceed.
 
 Note: Context compaction does NOT exempt this session from the above. Treat every session start identically regardless of prior context.
 
@@ -214,6 +213,8 @@ When a synthesis exceeds the cap, cut the weakest finding, not the strongest rec
 
 ## Completion Gate (Blocking)
 
+Task completion is governed by `.claude/rules/builder-ethos.md` (Task Completion Contract): once every requested deliverable satisfies the frozen contract and no blocker remains, the task is terminal. The sequence below is the housekeeping that accompanies that terminal state, not a substitute test for it.
+
 Session completion does not require a session log. Session log creation is
 discontinued; do not create one.
 
@@ -222,10 +223,9 @@ discontinued; do not create one.
 1. Verify all delegations have returned or been explicitly abandoned.
 2. Verify synthesis is complete and TODOs logged for deferred work.
 3. Verify delegation count is within budget (fewer than 15); if budget limit was reached, produce a budget-exhaustion summary.
-4. Verify HANDOFF.md was preserved (read-only per ADR-014).
-5. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session.
-6. Store durable findings in Serena memory.
-7. Validate any staged or supplied session log, if one is present (e.g. cherry-picked from an older branch).
+4. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session.
+5. Store durable findings in Serena memory.
+6. Validate any staged or supplied session log, if one is present (e.g. cherry-picked from an older branch).
 
 ### Failure Path
 
@@ -317,6 +317,8 @@ it carries.
 ## Orchestration Budget
 
 Two axes, not one. The delegation cap below bounds how *many* agents a task spends. The wave rules bound how many run at *once*, and what a simultaneous wave is allowed to contain.
+
+These are backstops, not a completion test: reaching the terminal predicate (`builder-ethos.md`) ends delegation regardless of remaining budget, and remaining budget is never a reason to keep delegating past it.
 
 - **Max agent delegations per task**: 15. Record a warning in the task tracker when 10 delegations have been made.
 - **Budget-exhausted behavior**: When the limit is reached, stop delegating, synthesize all work completed so far, list remaining unresolved items, and return control to the user with a clear summary of what was done and what was not.

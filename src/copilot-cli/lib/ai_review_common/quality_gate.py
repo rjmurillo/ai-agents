@@ -6,6 +6,7 @@ from .retry import (  # noqa: F401
 from .verdict import (  # noqa: F401
     FAIL_VERDICTS,
     SAFE_NAME_PATTERN,
+    adapt_local_axis_verdict,
     extract_verdict,
     get_failure_category,
     get_labels,
