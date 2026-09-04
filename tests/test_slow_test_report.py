@@ -432,3 +432,61 @@ class TestPluginEndToEnd:
         result = self._run(tmp_path, [])
         assert result.returncode == 0, result.stdout + result.stderr
         assert not destination.exists()
+
+
+class TestRelocatedTempRoot:
+    """CI points pytest's basetemp outside the system temp dir.
+
+    `.github/workflows/pytest.yml` sets `PYTEST_NON_TMP_ROOT` to
+    `${{ runner.temp }}/ai-agents-pytest`, under the runner work directory
+    rather than /tmp. Reading only `tempfile.gettempdir()` made every CI
+    tmp_path miss the `<tmp>` collapse and enter the label set as a raw
+    absolute path, so the suite passed locally and failed on every CI
+    partition.
+
+    `tempfile.gettempdir` is redirected in these cases rather than relying on
+    `tmp_path` being elsewhere. A first attempt put the relocated root under
+    `tmp_path`, which is itself inside the system temp dir, so both the fixed
+    and the unfixed implementation collapsed it and the control proved nothing.
+    """
+
+    @staticmethod
+    def _relocate(monkeypatch: pytest.MonkeyPatch, basetemp: Path) -> None:
+        """Make *basetemp* the pytest temp root and the system temp dir something else."""
+        monkeypatch.setattr(report.tempfile, "gettempdir", lambda: "/nowhere-system-temp")
+        monkeypatch.delenv("TMPDIR", raising=False)
+        monkeypatch.delenv("PYTEST_DEBUG_TEMPROOT", raising=False)
+        monkeypatch.setenv("PYTEST_NON_TMP_ROOT", str(basetemp))
+        report._temp_roots.cache_clear()
+
+    def test_a_relocated_basetemp_still_collapses(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        basetemp = tmp_path / "runner-temp" / "ai-agents-pytest"
+        basetemp.mkdir(parents=True)
+        self._relocate(monkeypatch, basetemp)
+        try:
+            counters = report._Telemetry()
+            for index in range(4):
+                counters.note_traversal(basetemp / f"case{index}", "**/*.py")
+            counters.note_traversal(Path("/repo/.claude/skills"), "**/*.py")
+
+            assert counters.traversals == 5
+            assert counters.roots == {"<tmp>", "/repo/.claude/skills:**/*.py"}
+        finally:
+            report._temp_roots.cache_clear()
+
+    def test_a_repository_path_is_not_collapsed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative control: the collapse must not swallow a real scanner root."""
+        basetemp = tmp_path / "runner-temp"
+        basetemp.mkdir(parents=True)
+        self._relocate(monkeypatch, basetemp)
+        try:
+            counters = report._Telemetry()
+            counters.note_traversal(Path("/repo/.claude/skills"), "**/*.py")
+
+            assert counters.roots == {"/repo/.claude/skills:**/*.py"}
+        finally:
+            report._temp_roots.cache_clear()

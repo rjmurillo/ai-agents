@@ -25,7 +25,21 @@ from pathlib import Path
 
 import tomllib
 
-from scripts.testing.slow_test_report import ModuleGroup, group_by_module, load_inputs
+# Bootstrap the repository root so a bare `python3 scripts/testing/slow_test_budget.py`
+# resolves the sibling import. `tests/validation/test_validation_entry_point_imports.py`
+# runs every entry point under `scripts/` with the repository root stripped from
+# sys.path and the editable-install finders removed, which is what a bare
+# `python3 <script>` invocation actually looks like. Same pattern as
+# `scripts/validation/checks_ratchet.py`.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.testing.slow_test_report import (  # noqa: E402
+    ModuleGroup,
+    group_by_module,
+    load_inputs,
+)
 
 
 def load_budget(path: Path) -> dict[str, float]:
