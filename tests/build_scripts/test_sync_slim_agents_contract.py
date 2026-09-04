@@ -40,6 +40,27 @@ sys.modules["sync_slim_agents_contract"] = sync_slim_agents
 _spec.loader.exec_module(sync_slim_agents)
 
 
+# The nine mirrored slim targets, from AC-7 in
+# .agents/archive/planning/SPEC-agent-consolidation.md: "9 of the 11 slim
+# targets (explainer, implementer, issue-feature-review, roadmap,
+# milestone-planner, analyst, critic, orchestrator, skillbook) are propagated
+# to all four mirror locations". Held here rather than derived from the module,
+# so a deletion from SLIMMED_AGENTS fails instead of quietly shrinking the set
+# of files the tool checks.
+_SPEC_SLIM_TARGETS = frozenset(
+    {
+        "analyst",
+        "critic",
+        "explainer",
+        "implementer",
+        "issue-feature-review",
+        "milestone-planner",
+        "orchestrator",
+        "roadmap",
+        "skillbook",
+    }
+)
+
 AGENT = "analyst"
 SOURCE_BODY = "# Analyst\n\nBody from the Claude tree.\n"
 CLAUDE_FRONTMATTER = "---\nname: analyst\nmodel: sonnet\n---\n"
@@ -119,15 +140,35 @@ def test_split_frontmatter_accepts_a_closer_at_end_of_file() -> None:
 def test_shipped_source_is_the_canonical_claude_tree() -> None:
     """`src/claude/` is the edit-here source; `.claude/agents/` is the runtime copy.
 
-    The fixture above monkeypatches AGENT_SOURCE and DESTINATIONS, so no test
-    that uses it can see an inverted shipped direction. This one reads the
-    shipped constants directly, which is the only place the inversion shows.
-    """
-    directories = {destination.directory for destination in sync_slim_agents.DESTINATIONS}
+    The tree fixture in the sibling module monkeypatches AGENT_SOURCE and
+    DESTINATIONS, so no test that uses it can see an inverted shipped
+    direction. This one reads the shipped constants directly, which is the
+    only place the inversion shows.
 
+    The destination set is pinned exactly, not merely checked for the two
+    directories that must stay out. Excluding the wrong entries would still
+    pass with a mirror deleted, which is how the draft this PR replaces left
+    `.github/agents/` silently stale.
+    """
     assert sync_slim_agents.AGENT_SOURCE == _REPO_ROOT / "src" / "claude"
-    assert _REPO_ROOT / ".claude" / "agents" not in directories
-    assert sync_slim_agents.AGENT_SOURCE not in directories
+    assert {
+        (destination.directory, destination.suffix)
+        for destination in sync_slim_agents.DESTINATIONS
+    } == {
+        (_REPO_ROOT / "templates" / "agents", ".shared.md"),
+        (_REPO_ROOT / ".github" / "agents", ".agent.md"),
+    }
+
+
+def test_shipped_slimmed_agents_match_the_spec() -> None:
+    """The declared list is exactly AC-7's nine, checked before path existence.
+
+    `find_missing_paths` returns an empty list for an empty input, so an
+    existence check alone passes just as happily with entries deleted as with
+    the full set. Pinning the tuple is what makes a deletion fail.
+    """
+    assert set(sync_slim_agents.SLIMMED_AGENTS) == _SPEC_SLIM_TARGETS
+    assert len(sync_slim_agents.SLIMMED_AGENTS) == len(_SPEC_SLIM_TARGETS)
 
 
 def test_shipped_slimmed_agents_all_exist_in_every_tree() -> None:
