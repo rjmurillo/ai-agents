@@ -9,7 +9,8 @@ In this repository it is not bookkeeping. A **closing keyword** in the PR body a
 `.github/workflows/ai-spec-validation.yml`, which then holds the diff to that
 issue's acceptance criteria and blocks the PR when they are not met.
 
-Only four keywords arm it. `scripts/ci/spec_extract_refs.py:85` matches
+Four keywords arm the closing-keyword path, which is one of the two paths that
+can arm the gate. `scripts/ci/spec_extract_refs.py:100` matches
 `Closes|Fixes|Resolves|Implements` and nothing else:
 
 ```python
@@ -65,7 +66,7 @@ impossible.
 
 ## What the reviewers actually see
 
-Not the PR body. `scripts/ci/spec_prepare_context.py:48` builds the
+Not the PR body. `scripts/ci/spec_prepare_context.py:177` builds the
 `additional-context` payload as `["## Specification Content", "", spec_content]`,
 sourced from `SPEC_FILE` alone. Steps 6 and 7 pass that payload with
 `context-type: pr-diff`.
@@ -89,7 +90,7 @@ author read that line. Writing a persuasive PR body does not help here, because 
 reviewers never see it. Only the diff can satisfy this gate.
 
 The two verdicts do not block symmetrically. From
-`scripts/ai_review_common/verdict.py:215`:
+`scripts/ai_review_common/verdict.py:489`:
 
 ```python
 _TRACE_FAILURES = frozenset({"CRITICAL_FAIL", "FAIL", "NEEDS_REVIEW"})
