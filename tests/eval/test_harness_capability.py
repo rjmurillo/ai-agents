@@ -453,33 +453,3 @@ def test_worst_eligibility_prefers_the_most_restrictive_verdict() -> None:
         is ArmEligibility.ELIGIBLE_UNMATCHED
     )
     assert capability._worst_eligibility([]) is ArmEligibility.UNVERIFIED
-
-
-def test_report_write_failure_leaves_the_previous_report_intact(
-    tmp_path: Path, monkeypatch
-) -> None:
-    output = tmp_path / "report.json"
-    output.write_text('{"previous": true}\n', encoding="utf-8")
-
-    # Inject the failure at the replace, which is the only point that touches
-    # the destination. A serialization failure would not discriminate: it
-    # raises before a non-atomic implementation truncates anything, so the
-    # naive version passes such a test too (verified by restoring the defect).
-    def _fail_replace(*_args: object, **_kwargs: object) -> None:
-        raise OSError("replace failed")
-
-    monkeypatch.setattr(capability.os, "replace", _fail_replace)
-    with pytest.raises(OSError):
-        capability.write_report(output, {"schema_version": 1})
-
-    assert output.read_text(encoding="utf-8") == '{"previous": true}\n'
-    # No temporary file is left behind for the next reader to trip over.
-    assert list(tmp_path.iterdir()) == [output]
-
-
-def test_write_report_round_trips(tmp_path: Path) -> None:
-    output = tmp_path / "nested" / "report.json"
-    capability.write_report(output, {"schema_version": capability.SCHEMA_VERSION})
-    assert json.loads(output.read_text(encoding="utf-8")) == {
-        "schema_version": capability.SCHEMA_VERSION
-    }

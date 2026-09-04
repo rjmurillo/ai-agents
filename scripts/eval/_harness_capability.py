@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -540,6 +541,22 @@ def _arm_eligibility_dict(
     return rows
 
 
+def _carry_existing_mode(destination: Path, temporary: str) -> None:
+    """Give the replacement the permissions the destination already had.
+
+    `mkstemp` creates its file 0600 and `os.replace` publishes the temporary
+    file's mode along with its content, so re-running the evaluator would
+    silently narrow an existing report and cut off a reader that could open it
+    before. A destination that does not exist yet keeps mkstemp's restrictive
+    default rather than inheriting the process umask.
+    """
+    try:
+        existing = destination.stat().st_mode
+    except FileNotFoundError:
+        return
+    os.chmod(temporary, stat.S_IMODE(existing))
+
+
 def write_report(path: Path, report: Mapping[str, object]) -> None:
     """Persist a report through write-temp-then-rename.
 
@@ -556,6 +573,7 @@ def write_report(path: Path, report: Mapping[str, object]) -> None:
             handle.write(json.dumps(report, indent=2) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
+        _carry_existing_mode(path, temporary)
         os.replace(temporary, path)
     except BaseException:
         try:
