@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+from types import ModuleType
 
 import pytest
 
@@ -211,7 +212,7 @@ class TestTheClampAsksTheContainerQuestion:
     """
 
     @staticmethod
-    def _module() -> object:
+    def _module() -> ModuleType:
         sys.path.insert(0, str(REPO_ROOT / "scripts" / "validation"))
         try:
             return importlib.import_module("run_workflow_local_test")
