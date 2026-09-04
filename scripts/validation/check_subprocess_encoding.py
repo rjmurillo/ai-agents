@@ -1663,7 +1663,15 @@ def find_violations(source: str, filename: str = "<string>") -> list[int]:
     decode failure should propagate as an error rather than silently produce
     replacement characters).
     """
-    tree = ast.parse(source, filename=filename)
+    return _violations_in_tree(ast.parse(source, filename=filename), source)
+
+
+def _violations_in_tree(tree: ast.Module, source: str) -> list[int]:
+    """Return flagged line numbers for an already-parsed *tree*.
+
+    Split out of :func:`find_violations` so :func:`_scan_all` can parse a file
+    once and then decide whether the walk is worth doing. See the probe there.
+    """
     visitor = _SubprocessCallVisitor()
     visitor.visit(tree)
 
@@ -1727,35 +1735,39 @@ def _scan_all(
             raise ScanError(f"tracked source is not a regular file: {path}")
         try:
             source = path.read_text(encoding="utf-8")
+            # Parse every file, walk only the ones that can hold a violation.
+            #
             # Every binding this gate can flag is anchored on the literal token
-            # `subprocess`: `_SubprocessCallVisitor` only ever binds an alias
-            # from `import subprocess` or `from subprocess import ...` (see the
-            # alias handling around lines 560 and 571). A file whose source does
-            # not contain that substring can bind nothing, so it cannot hold a
-            # violation, and parsing it is pure cost.
+            # `subprocess`: `_SubprocessCallVisitor` binds an alias only from
+            # `import subprocess` or `from subprocess import ...`. A file whose
+            # source omits that token can bind nothing, so walking it is pure
+            # cost.
             #
-            # That cost dominated the gate. Registered against the whole tree by
-            # issue #5482, this scanner measured 67.31s alone at load average
-            # 7.7 on an 8 core host, which made it the critical path of the
-            # concurrent `count-ratchets` registry and put the aggregate at 80s
-            # to 82s against its own 85s deadline. 989 of 2246 tracked Python
-            # files mention subprocess, so the probe skips 56% of the corpus:
-            # 67.31s to 57.49s for this scanner, and 80s to 82s down to 56.00s
-            # for the whole registry, at comparable load.
+            # The walk is the cost, not the parse. Measured over all 2246
+            # tracked Python files on an 8 core host: 7.24s to parse them all,
+            # 63.16s to parse and walk them all. So the parse stays
+            # unconditional and only the walk is skipped, which keeps the
+            # ScanError this gate raises on an unparseable tracked file. An
+            # earlier revision skipped the parse too and broke
+            # `test_main_exits_two_on_tracked_syntax_error`, which is the test
+            # that owns that contract.
             #
-            # Equivalence was not reasoned about, it was replayed: the
-            # unprobed implementation was run over all 2246 tracked Python
-            # files and compared against this one: 238 violations both ways,
-            # 0 mismatches, and 0 files that failed to parse. See
+            # Why it matters: issue #5482 registered this scanner against the
+            # whole tree, which fixed a real 78% blind spot and made it the
+            # critical path of the concurrent `count-ratchets` registry.
+            # Measured after #5546 merged, at load average 7.7:
+            # subprocess-encoding 67.31s alone, whole registry 80.61s to 82.03s,
+            # against a 85s deadline and a 90s lefthook cap.
+            #
+            # 989 of 2246 tracked files mention subprocess, so the walk is
+            # skipped for 56% of the corpus.
+            #
+            # Equivalence was replayed, not argued: the unconditional-walk
+            # implementation over all 2246 files returns 238 violations, this
+            # one returns the same 238, 0 mismatches. See
             # `test_the_probe_matches_an_unprobed_scan_over_the_whole_corpus`.
-            #
-            # Skipping the parse also skips this gate's incidental SyntaxError
-            # check on those files. That check is not this gate's contract, and
-            # `check_unreachable_code.py` parses all 2245 tracked Python files
-            # in the same fast stage, so nothing stops failing closed.
-            if _SUBPROCESS_TOKEN not in source:
-                continue
-            lines = find_violations(source, str(path))
+            tree = ast.parse(source, filename=str(path))
+            lines = _violations_in_tree(tree, source) if _SUBPROCESS_TOKEN in source else []
         except (OSError, UnicodeDecodeError, SyntaxError) as exc:
             raise ScanError(f"could not analyze tracked source {path}: {exc}") from exc
         for lineno in lines:
