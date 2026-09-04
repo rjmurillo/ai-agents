@@ -599,9 +599,30 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
     # fail this factor against an 85s deadline and the post-cut numbers clear it.
     _REQUIRED_HEADROOM = 1.5
 
+    @pytest.mark.integration
+    @pytest.mark.timeout(600)
     def test_the_real_registry_finishes_with_margin_inside_the_deadline(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """Measured, so it is load-sensitive, so it does not gate a local push.
+
+        The assertion is real: it runs the whole registry and compares against
+        the deadline it must fit. But wall clock on a developer machine is not a
+        property of the diff. Measured on one 8 core host: 43.5s to 48.9s at
+        load average 0.7 to 2.1, and 71.4s at load average 8 with other work
+        running. At a 1.5x margin the first passes and the second fails, on
+        identical code.
+
+        A pre-push gate that reds because the machine is busy blocks a
+        legitimate push for a reason unrelated to the change, which is the
+        failure mode `.claude/rules/universal.md` MUST NOT item 2 exists to stop
+        people bypassing. So this runs in the merge-group suite on a controlled
+        runner, and pre-push deselects it with `-m "not integration"`.
+
+        What still gates locally is the deadline-below-cap relationship in
+        `test_aggregate_deadline_leaves_headroom_under_the_lefthook_cap`, which
+        is a property of the constants and needs no clock.
+        """
         if shutil.which("uv") is None:
             pytest.skip("uv is absent; the registry cannot be run to be measured")
 
