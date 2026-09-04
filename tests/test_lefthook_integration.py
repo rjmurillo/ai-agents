@@ -7353,9 +7353,9 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
     # Pin the workstation contract. `_run_command` clamps a child's deadline
-    # inside a managed container (ADR-104 rule 8), and this repository's own
-    # dev containers set CLAUDECODE, so without this the assertion below reads
-    # the clamp rather than the budget it is about. The container behaviour is
+    # inside a managed container (ADR-104 rule 8), and this suite also runs
+    # inside dev containers, so without this the assertion below reads the
+    # clamp rather than the budget it is about. The container behaviour is
     # covered by its own test below.
     monkeypatch.setattr(policy, "_container_clamped", lambda seconds: seconds)
 
@@ -7541,7 +7541,13 @@ def test_a_container_clamps_the_cli_e2e_child_deadline(
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
     monkeypatch.delenv("CI", raising=False)
-    monkeypatch.setenv("CLAUDECODE", "1")
+    # CODESPACES, not CLAUDECODE. Issue #5479: the Claude Code CLI sets
+    # CLAUDECODE on a laptop and a workstation, so it names the client rather
+    # than the execution environment and no longer answers the container
+    # question. CODESPACES names a managed remote container, which is the case
+    # this test is about.
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.setenv("CODESPACES", "true")
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
 
@@ -7577,7 +7583,11 @@ def test_ci_keeps_the_full_budget_even_inside_a_container_image(
             return ("", "")
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
-    monkeypatch.setenv("CLAUDECODE", "1")
+    # A marker that really does mean a container, so the CI override is what
+    # makes the answer False. With CLAUDECODE here (Issue #5479) there would be
+    # no container signal left for CI to override and this control would hold
+    # for the wrong reason.
+    monkeypatch.setenv("CODESPACES", "true")
     monkeypatch.setenv("CI", "true")
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
