@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.test_selection import select_tests
+from scripts.test_selection import path_policy, select_tests
 
 
 def _write(root: Path, rel: str, text: str) -> None:
@@ -31,8 +31,9 @@ def _make_repo(root: Path) -> Path:
 
 
 def _patterns(root: Path) -> Path:
-    path = root / "patterns.txt"
-    path.write_text("# comment\ndocs/**\nlockfile.txt\n", encoding="utf-8")
+    """A stand-in for the shared path policy CI and the hook both read."""
+    path = root / "path_policy.yml"
+    path.write_text("python:\n  - 'docs/**'\n  - 'lockfile.txt'\n", encoding="utf-8")
     return path
 
 
@@ -56,11 +57,41 @@ def test_conftest_change_is_full(tmp_path: Path) -> None:
     assert "conftest" in result.reason
 
 
-def test_runtime_read_pattern_is_full(tmp_path: Path) -> None:
+def test_test_input_pattern_is_full(tmp_path: Path) -> None:
+    """A policy-named path the import graph cannot trace runs everything.
+
+    The path is Markdown, so the non-Python rule below would also return full.
+    The reason string is what discriminates: this asserts the policy rule fired
+    first and named the glob that matched, which is what issue #5377 will act
+    on when the non-Python rule stops being a blanket full-suite trigger.
+    """
     _make_repo(tmp_path)
-    result = _select(tmp_path, ["docs/guide.py"])
+    result = _select(tmp_path, ["docs/guide.md"])
     assert result.full
-    assert "runtime-read pattern" in result.reason
+    assert result.reason == "docs/guide.md matches test-input pattern docs/**"
+
+
+def test_unpoliced_non_python_change_is_not_attributed_to_the_policy(tmp_path: Path) -> None:
+    """Negative control for the rule above: no glob matches, no policy reason."""
+    _make_repo(tmp_path)
+    result = _select(tmp_path, ["assets/logo.svg"])
+    assert result.full
+    assert "test-input pattern" not in result.reason
+    assert "non-Python" in result.reason
+
+
+def test_policy_named_python_file_is_still_traced(tmp_path: Path) -> None:
+    """A `.py` file inside a policy-named tree stays source, not a test input.
+
+    `scripts/memory_enhancement/**` and `.claude/hooks/**` are Python trees the
+    policy names for their non-Python members. Classifying their modules as
+    test inputs would force the full suite on every ordinary Python edit there.
+    """
+    _make_repo(tmp_path)
+    _write(tmp_path, "docs/pkg.py", "from pkg import core\n")
+    result = _select(tmp_path, ["docs/pkg.py"])
+    assert result.full
+    assert "test-input pattern" not in result.reason
 
 
 def test_dynamic_import_is_full(tmp_path: Path) -> None:
@@ -184,9 +215,9 @@ def test_has_dynamic_import_treats_unparseable_as_dynamic(tmp_path: Path) -> Non
     assert select_tests.has_dynamic_import(path)
 
 
-def test_load_runtime_read_patterns_skips_comments_and_blanks(tmp_path: Path) -> None:
-    patterns = _patterns(tmp_path)
-    assert select_tests.load_runtime_read_patterns(patterns) == ("docs/**", "lockfile.txt")
+def test_the_selector_reads_the_shared_policy_file(tmp_path: Path) -> None:
+    """The globs come from the policy document, not a private list."""
+    assert path_policy.load_patterns(_patterns(tmp_path)) == ("docs/**", "lockfile.txt")
 
 
 def test_changed_from_git_returns_none_outside_repo(tmp_path: Path) -> None:

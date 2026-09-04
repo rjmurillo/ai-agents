@@ -33,6 +33,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.test_selection import path_policy
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/pytest.yml"
 SCRIPT = "scripts/validation/check_index_line_endings.py"
@@ -169,12 +171,33 @@ def test_every_required_check_leg_asserts_the_gate_result(job_id: str) -> None:
 
 
 def _python_filter() -> set[str]:
-    """The `python` path filter this workflow's `check-paths` job publishes."""
+    """The `python` path filter this workflow's `check-paths` job publishes.
+
+    Issue #5318 moved the list into `scripts/test_selection/path_policy.yml`,
+    which `check-paths` names as its `filters:` input and `select_tests.py`
+    reads too. `_filter_input_names_the_policy_file` below pins that wiring, so
+    reading the policy through its loader here still describes this job.
+    """
+    return set(path_policy.load_patterns())
+
+
+def _filter_input() -> str:
     for step in _jobs()["check-paths"]["steps"]:
         raw = step.get("with", {}).get("filters")
         if raw:
-            return set(yaml.safe_load(raw)["python"])
+            return str(raw)
     raise AssertionError("check-paths publishes no `filters` input")
+
+
+def test_the_filter_input_names_the_policy_file() -> None:
+    """The gate and the local selector must read the same document.
+
+    Without this, `_python_filter` could go on describing a list the workflow
+    stopped using, and every assertion below it would measure the wrong file.
+    """
+    named = _filter_input().strip()
+    assert named == "scripts/test_selection/path_policy.yml", named
+    assert (REPO_ROOT / named).is_file(), f"{named} is named by pytest.yml but absent"
 
 
 def _tracked(pattern: str) -> list[str]:

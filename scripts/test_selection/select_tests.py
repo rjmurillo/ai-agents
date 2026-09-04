@@ -1,10 +1,15 @@
 """Select the pytest files affected by a set of changed files.
 
 Applies the fail-safe rules from issue #5050: any non-Python change, any
-``conftest.py`` change, any file matching a runtime-read pattern, any dynamic
-import in a changed file, or any file the import graph cannot map falls back to
-the full suite. Otherwise the import graph yields the exact set of test files
-that transitively import the changed files.
+``conftest.py`` change, any file the shared path policy calls a test input, any
+dynamic import in a changed file, or any file the import graph cannot map falls
+back to the full suite. Otherwise the import graph yields the exact set of test
+files that transitively import the changed files.
+
+The test-input rule reads `path_policy.yml`, the same list
+`.github/workflows/pytest.yml` hands to `dorny/paths-filter` (issue #5318). It
+replaces `runtime_read_patterns.txt`, a 12-entry near-copy of that 53-entry
+list that drifted every time either side was widened by hand.
 
 Run directly to see the decision for a diff::
 
@@ -22,13 +27,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
-    from scripts.test_selection import import_graph
+    from scripts.test_selection import import_graph, path_policy
 except ModuleNotFoundError:  # pragma: no cover - exercised via direct file execution
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-    from scripts.test_selection import import_graph
+    from scripts.test_selection import import_graph, path_policy
 
 FULL_SUITE = "FULL_SUITE"
-_PATTERNS_FILE = Path(__file__).with_name("runtime_read_patterns.txt")
 
 
 @dataclass(frozen=True)
@@ -47,31 +51,6 @@ class Selection:
 
 def _full(reason: str) -> Selection:
     return Selection(full=True, reason=reason, tests=())
-
-
-def load_runtime_read_patterns(patterns_file: Path | None = None) -> tuple[str, ...]:
-    """Read non-import dependency globs, ignoring blanks and ``#`` comments."""
-    path = patterns_file if patterns_file is not None else _PATTERNS_FILE
-    lines = path.read_text(encoding="utf-8").splitlines()
-    return tuple(
-        stripped for line in lines if (stripped := line.strip()) and not stripped.startswith("#")
-    )
-
-
-def _matches_pattern(rel: str, pattern: str) -> bool:
-    if rel == pattern:
-        return True
-    # fnmatch treats "*" as matching across "/", so collapsing "**" to "*"
-    # over-matches rather than under-matches: a wider full-suite trigger is the
-    # safe direction here.
-    return fnmatch.fnmatch(rel, pattern.replace("**", "*"))
-
-
-def _matches_any_pattern(rel: str, patterns: tuple[str, ...]) -> str | None:
-    for pattern in patterns:
-        if _matches_pattern(rel, pattern):
-            return pattern
-    return None
 
 
 def _is_python(rel: str) -> bool:
@@ -120,16 +99,24 @@ def select(
     cache_path: Path | None = None,
     patterns_file: Path | None = None,
 ) -> Selection:
-    """Decide which tests to run for ``changed`` files, falling back to full."""
+    """Decide which tests to run for ``changed`` files, falling back to full.
+
+    ``patterns_file`` overrides `path_policy.POLICY_FILE`, the list CI reads
+    too. Tests pass it; nothing in production does.
+    """
     changed = [rel.replace("\\", "/").strip() for rel in changed if rel.strip()]
     if not changed:
         return _full("no changed files reported")
 
-    patterns = load_runtime_read_patterns(patterns_file)
+    # Test inputs first, and only for paths the import graph cannot trace. A
+    # `.py` file inside a policy-named tree classifies as source, so an
+    # ordinary edit under `scripts/memory_enhancement/` or `.claude/hooks/`
+    # still narrows instead of running everything.
+    patterns = path_policy.load_patterns(patterns_file)
     for rel in changed:
-        matched = _matches_any_pattern(rel, patterns)
-        if matched is not None:
-            return _full(f"{rel} matches runtime-read pattern {matched}")
+        impact, matched = path_policy.classify(rel, patterns)
+        if impact is path_policy.Impact.TEST_INPUT:
+            return _full(f"{rel} matches test-input pattern {matched}")
 
     for rel in changed:
         if not _is_python(rel):

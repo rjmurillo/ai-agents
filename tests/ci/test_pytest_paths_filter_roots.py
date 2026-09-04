@@ -38,10 +38,10 @@ import re
 from pathlib import Path
 
 import pytest
-import yaml
+
+from scripts.test_selection import path_policy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pytest.yml"
 _TESTS = REPO_ROOT / "tests"
 
 # Entries that justify themselves and need no reader: a suffix glob matches by
@@ -50,17 +50,13 @@ _EXTENSION_GLOB = re.compile(r"^\*\*/\*\.[A-Za-z0-9]+$")
 
 
 def _filter_entries() -> list[str]:
-    """The `python:` filter's patterns, read from the workflow as data."""
-    config = yaml.safe_load(_WORKFLOW.read_text(encoding="utf-8"))
-    for job in config["jobs"].values():
-        for step in job.get("steps", []):
-            if not isinstance(step, dict):
-                continue
-            if not str(step.get("uses", "")).startswith("dorny/paths-filter"):
-                continue
-            filters = yaml.safe_load(step["with"]["filters"])
-            return [str(entry) for entry in filters["python"]]
-    raise AssertionError("pytest.yml no longer declares a dorny/paths-filter step.")
+    """The filter's patterns, read from the shared policy file (issue #5318).
+
+    `pytest.yml` no longer carries the list inline; it hands the same file to
+    `dorny/paths-filter` that `select_tests.py` reads, so this module reads it
+    through the one loader rather than re-parsing the workflow.
+    """
+    return list(path_policy.load_patterns())
 
 
 def _tree_roots() -> list[str]:
