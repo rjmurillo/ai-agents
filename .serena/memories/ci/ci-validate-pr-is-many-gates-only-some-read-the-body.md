@@ -231,6 +231,22 @@ clearing one of them proves nothing about the other. #4438, #4411, and #4392 wer
 confirmed cases: all three were step 20 at 598 versus 597, with descriptions that
 passed the description validator cleanly.
 
+Reconfirmed 2026-08-27 across five more PRs in one triage session (#5342, #5343,
+#5344, #5350, #5356), same shape every time: a tool script or a scope-description
+path (`.agents/planning/impact-analysis-security-*.md`, `count_ratchet.py`, a
+sibling skill's script) named in backticks under `## Changes` to explain context,
+not to claim a diff entry. Each was fixed the slow way, by rewriting the sentence to
+drop the backticks, because the citation-cue trick above (`see`, `per`, `e.g.`) was
+not tried first. The trick is faster and preserves the precise path.
+
+Insert the cue immediately before the backticked path, not at the head of the
+sentence. `_INLINE_CITATION_PATTERN` allows only spaces, tabs, colons, and
+opening parentheses between the cue and the path. So a line reading "see: the
+token counts in `scripts/update_memory_index_tokens.py`" does not match, and
+the path is still collected as a change claim. A line reading "token counts,
+see `scripts/update_memory_index_tokens.py`" does match, because nothing but a
+space sits between the cue and the path.
+
 ## Related
 
 - [ci-infrastructure-003-job-status-verdict-distinction](ci-infrastructure-003-job-status-verdict-distinction.md).
