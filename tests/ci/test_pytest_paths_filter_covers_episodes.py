@@ -32,6 +32,8 @@ from pathlib import Path, PurePosixPath
 import pytest
 import yaml
 
+from scripts.test_selection import path_policy
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/pytest.yml"
 EPISODE_STORE = REPO_ROOT / ".agents/memory/episodes"
@@ -69,7 +71,13 @@ def _paths_filter_step() -> dict:
 
 
 def _python_filter() -> list[str]:
-    return yaml.safe_load(_paths_filter_step()["with"]["filters"])["python"]
+    """The filter list, from the shared policy file `pytest.yml` points at.
+
+    Issue #5318 moved the list out of the workflow so `select_tests.py` reads
+    the same document. `_paths_filter_step` above still guards the pin and the
+    wiring; only the list moved.
+    """
+    return list(path_policy.load_patterns())
 
 
 def test_the_filter_covers_the_episode_store():

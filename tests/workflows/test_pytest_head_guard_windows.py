@@ -12,9 +12,12 @@ from typing import Any
 
 import yaml
 
+from scripts.test_selection import path_policy
+
 _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pytest.yml"
 _JOB_NAME = "test-windows-pwsh"
 _PATHS_FILTER_ACTION = "dorny/paths-filter@"
+_POLICY_FILE_INPUT = "scripts/test_selection/path_policy.yml"
 _WINDOWS_COMMAND = "uv run --frozen pytest -m windows_path -v"
 _LEFTHOOK_TRIGGER_PATHS = {
     "lefthook.yml",
@@ -101,7 +104,12 @@ def test_lefthook_runtime_surfaces_trigger_windows_suite() -> None:
         if str(step.get("uses", "")).startswith(_PATHS_FILTER_ACTION)
     ]
     assert len(filter_steps) == 1, f"expected one {_PATHS_FILTER_ACTION} step in check-paths"
-    filters = filter_steps[0]["with"]["filters"]
+    # Issue #5318 moved the list into the shared policy file, so the step
+    # carries its path rather than the document. Asserting on the loaded
+    # entries instead of on the raw text also stops a commented-out line from
+    # satisfying a substring check.
+    assert filter_steps[0]["with"]["filters"].strip() == str(_POLICY_FILE_INPUT)
 
+    entries = set(path_policy.load_patterns())
     for path in _LEFTHOOK_TRIGGER_PATHS:
-        assert f"- '{path}'" in filters
+        assert path in entries
