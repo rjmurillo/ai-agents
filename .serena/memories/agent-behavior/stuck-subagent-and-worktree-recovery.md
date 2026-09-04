@@ -54,6 +54,15 @@ your own edits together loses the edits. For those, pick hunks with `git
 checkout -p HEAD -- <path>` and accept only the pollution, or read your own
 hunks out of `git diff HEAD -- <path>` first and reapply them after.
 
+Keep the `HEAD` in that command. git-checkout(1) says the chosen hunks "are
+then applied in reverse to the working tree (and if a <tree-ish> was specified,
+the index)", so the tree-ish form reverts each accepted hunk in both places and
+leaves none of the overlay staged. Probed on git 2.51.0: with a polluted hunk
+staged alongside an own-edit hunk, accepting only the polluted one cleared it
+from the index and the working tree and left the own edit in both. Drop the
+`HEAD`, or reach for `git restore -p <path>`, and you patch the working tree
+alone, which is the shape that leaves the overlay staged for the next commit.
+
 Do not stash here. This repository runs many worktrees off one `.git`, so
 `refs/stash` is shared: a `git stash pop` can restore a sibling worktree's
 entry. That is recorded in

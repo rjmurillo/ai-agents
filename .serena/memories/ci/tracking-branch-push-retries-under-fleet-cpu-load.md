@@ -110,9 +110,15 @@ each one's full working-tree content. Memory scales with worktree count, not
 with concurrent process count. The fix was in `build_all.py`, not in retry
 timing, and it landed: PR #5464 merged 2026-09-02 and closed this issue.
 Retrying with a load/memory check was the workaround only until then. Pruning
-stale worktrees under `.claude/worktrees/` (see issue #4193, the GC script that
-exists but isn't wired up) remains useful for disk and registry hygiene, but is
-no longer needed to keep this gate alive.
+stale worktrees under `.claude/worktrees/` remains useful for disk and registry
+hygiene, but is no longer needed to keep this gate alive. The GC script itself
+is wired: `lefthook.yml` runs a `worktree-gc-report` job under `pre-push` as
+`uv run --frozen python scripts/maintenance/gc_worktrees.py`, advisory and
+report-only, because the script defaults to a dry run. Its `--apply` flag is
+the one that mutates, documented in `scripts/maintenance/gc_worktrees.py` as
+`help="Actually remove safe candidates. Default is dry-run (no mutation)."`,
+and no hook passes it. So the report reaches you and the removal does not.
+Issue #4193, which reported the script had zero callers, is closed.
 
 ## Historical: a second failure mode, OOM-kill rather than CPU timeout
 
