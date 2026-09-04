@@ -200,6 +200,7 @@ def test_accepts_qa_report_with_matching_session_and_commit(tmp_path: Path) -> N
     completed = [
         subprocess.CompletedProcess([], 0, "", ""),
         subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 0, "", ""),
     ]
     with mock.patch.object(_qa_report.subprocess, "run", side_effect=completed):
         report = validate_qa_report(
@@ -223,6 +224,7 @@ def test_accepts_qa_report_whose_commit_differs_but_only_evidence_changed(
 
     completed = [
         subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 0, "", ""),
         subprocess.CompletedProcess([], 0, ".agents/sessions/session.json\0", ""),
     ]
     with mock.patch.object(_qa_report.subprocess, "run", side_effect=completed):
@@ -243,6 +245,7 @@ def test_rejects_qa_report_for_stale_commit(tmp_path: Path) -> None:
     _write_qa_report(report_path, commit="b" * 40)
 
     completed = [
+        subprocess.CompletedProcess([], 0, "", ""),
         subprocess.CompletedProcess([], 0, "", ""),
         subprocess.CompletedProcess([], 0, "scripts/changed.py\0", ""),
     ]
@@ -521,6 +524,7 @@ def test_validator_accepts_configured_external_session_root(
 def test_detects_code_touched_then_reverted_after_qa(tmp_path: Path) -> None:
     completed = [
         subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 0, "", ""),
         subprocess.CompletedProcess(
             [],
             0,
@@ -547,13 +551,15 @@ def test_detects_code_touched_then_reverted_after_qa(tmp_path: Path) -> None:
     assert changed == ["scripts/changed.py"]
     assert [call.args[0] for call in run.call_args_list] == [
         ["git", "merge-base", "--is-ancestor", "a" * 40, "b" * 40],
+        ["git", "rev-list", "--first-parent", "--parents", f"{'a' * 40}..{'b' * 40}"],
         [
             "git",
             "log",
             "--format=",
             "--name-only",
             "--no-renames",
-            "-m",
+            "--first-parent",
+            "--cc",
             "-z",
             f"{'a' * 40}..{'b' * 40}",
         ],
@@ -562,6 +568,7 @@ def test_detects_code_touched_then_reverted_after_qa(tmp_path: Path) -> None:
 
 def test_accepts_evidence_only_commits_after_qa(tmp_path: Path) -> None:
     completed = [
+        subprocess.CompletedProcess([], 0, "", ""),
         subprocess.CompletedProcess([], 0, "", ""),
         subprocess.CompletedProcess(
             [],
@@ -630,6 +637,7 @@ def test_fails_closed_when_qa_ancestry_cannot_be_checked(tmp_path: Path) -> None
 def test_fails_closed_when_post_qa_commits_cannot_be_read(tmp_path: Path) -> None:
     completed = [
         subprocess.CompletedProcess([], 0, "", ""),
+        subprocess.CompletedProcess([], 0, "", ""),
         subprocess.CompletedProcess([], 1, "", ""),
     ]
 
@@ -646,6 +654,205 @@ def test_fails_closed_when_post_qa_commits_cannot_be_read(tmp_path: Path) -> Non
             "b" * 40,
             repo_root=tmp_path,
         )
+
+
+def _qa_binding_repo(root: Path) -> Callable[..., str]:
+    """Return a git runner bound to a freshly initialised repo at ``root``."""
+
+    def git(*args: str, check: bool = True) -> str:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=root,
+            check=check,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        return completed.stdout.strip()
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.name", "Test User")
+    git("config", "user.email", "test@example.com")
+    return git
+
+
+def test_clean_catch_up_merge_does_not_invalidate_the_binding(
+    tmp_path: Path,
+) -> None:
+    """Issue #5064: a catch-up merge authors nothing, so QA stays bound."""
+    git = _qa_binding_repo(tmp_path)
+    (tmp_path / "shared.py").write_text("base\n", encoding="utf-8")
+    (tmp_path / "main_only.py").write_text("base\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: base")
+
+    git("checkout", "-q", "-b", "feature")
+    (tmp_path / "feature.py").write_text("feature\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: feature work")
+    qa_commit = git("rev-parse", "HEAD")
+
+    git("checkout", "-q", "main")
+    (tmp_path / "main_only.py").write_text("moved by main\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: main moves on")
+
+    git("checkout", "-q", "feature")
+    git("merge", "--no-edit", "main")
+    head = git("rev-parse", "HEAD")
+
+    assert head != qa_commit, "expected a real merge commit, not a fast-forward"
+    assert post_qa_code_changes(qa_commit, head, repo_root=tmp_path) == []
+
+
+def test_hand_resolved_merge_conflict_still_invalidates_the_binding(
+    tmp_path: Path,
+) -> None:
+    """Negative control: resolving a conflict is authored work, so it counts.
+
+    Skipping every merge would pass the sibling test above while silently
+    dropping this path. ``--cc`` is what keeps the two apart.
+    """
+    git = _qa_binding_repo(tmp_path)
+    (tmp_path / "shared.py").write_text("base\n", encoding="utf-8")
+    (tmp_path / "clean.py").write_text("base\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: base")
+
+    git("checkout", "-q", "-b", "feature")
+    (tmp_path / "shared.py").write_text("feature side\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: feature edits shared")
+    qa_commit = git("rev-parse", "HEAD")
+
+    git("checkout", "-q", "main")
+    (tmp_path / "shared.py").write_text("main side\n", encoding="utf-8")
+    (tmp_path / "clean.py").write_text("main moved this\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: main edits shared and clean")
+
+    git("checkout", "-q", "feature")
+    git("merge", "--no-edit", "main", check=False)
+    (tmp_path / "shared.py").write_text("hand resolved\n", encoding="utf-8")
+    git("add", "shared.py")
+    git("commit", "-q", "-m", "test: resolve the conflict by hand")
+    head = git("rev-parse", "HEAD")
+
+    changed = post_qa_code_changes(qa_commit, head, repo_root=tmp_path)
+
+    assert changed == ["shared.py"], (
+        "the hand-resolved path must invalidate the binding, and the cleanly "
+        "merged path must not"
+    )
+
+
+def test_authored_commit_after_a_catch_up_merge_still_invalidates(
+    tmp_path: Path,
+) -> None:
+    """Negative control: the relaxation must not hide real post-QA work."""
+    git = _qa_binding_repo(tmp_path)
+    (tmp_path / "shared.py").write_text("base\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: base")
+
+    git("checkout", "-q", "-b", "feature")
+    (tmp_path / "feature.py").write_text("feature\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: feature work")
+    qa_commit = git("rev-parse", "HEAD")
+
+    git("checkout", "-q", "main")
+    (tmp_path / "shared.py").write_text("moved by main\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: main moves on")
+
+    git("checkout", "-q", "feature")
+    git("merge", "--no-edit", "main")
+    (tmp_path / "authored_after_qa.py").write_text("new\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: real work after QA")
+    head = git("rev-parse", "HEAD")
+
+    assert post_qa_code_changes(qa_commit, head, repo_root=tmp_path) == [
+        "authored_after_qa.py"
+    ]
+
+
+def test_catch_up_merge_of_evidence_paths_only_stays_bound(
+    tmp_path: Path,
+) -> None:
+    """Edge: evidence-prefixed paths never invalidate, merged or authored."""
+    git = _qa_binding_repo(tmp_path)
+    (tmp_path / ".agents" / "qa").mkdir(parents=True)
+    (tmp_path / ".agents" / "qa" / "report.md").write_text(
+        "base\n", encoding="utf-8"
+    )
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: base")
+
+    git("checkout", "-q", "-b", "feature")
+    (tmp_path / "feature.py").write_text("feature\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: feature work")
+    qa_commit = git("rev-parse", "HEAD")
+
+    git("checkout", "-q", "main")
+    (tmp_path / ".agents" / "qa" / "report.md").write_text(
+        "main updated evidence\n", encoding="utf-8"
+    )
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: main updates evidence")
+
+    git("checkout", "-q", "feature")
+    git("merge", "--no-edit", "main")
+    head = git("rev-parse", "HEAD")
+
+    assert post_qa_code_changes(qa_commit, head, repo_root=tmp_path) == []
+
+
+def test_qa_commit_off_the_first_parent_chain_falls_back_to_full_walk(
+    tmp_path: Path,
+) -> None:
+    """Negative control: narrowing the walk must not hide off-chain work.
+
+    Being an ancestor is weaker than sitting on the first-parent chain. A QA
+    commit merged in as a second parent is invisible to ``--first-parent``, so
+    the guard falls back to the conservative all-parent walk rather than
+    under-reporting and letting a stale QA report pass.
+    """
+    git = _qa_binding_repo(tmp_path)
+    (tmp_path / "base.txt").write_text("base\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: base")
+
+    git("checkout", "-q", "-b", "feature")
+    (tmp_path / "feature.py").write_text("f\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: QA taken here")
+    qa_commit = git("rev-parse", "HEAD")
+
+    (tmp_path / "authored_after_qa.py").write_text("real\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: real work after QA")
+
+    git("checkout", "-q", "main")
+    (tmp_path / "main_only.py").write_text("m\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "test: main moves")
+    git("merge", "--no-edit", "feature")
+    head = git("rev-parse", "HEAD")
+
+    assert git("rev-list", "--first-parent", head).splitlines().count(qa_commit) == 0, (
+        "fixture must place the QA commit off the first-parent chain"
+    )
+
+    changed = post_qa_code_changes(qa_commit, head, repo_root=tmp_path)
+
+    assert "authored_after_qa.py" in changed, (
+        "post-QA work reachable only through a second parent must still "
+        "invalidate the binding"
+    )
 
 
 def _make_complete_start_section(**overrides: dict) -> dict:
@@ -1624,6 +1831,7 @@ class TestValidateQaReportEvidence:
         completed = [
             subprocess.CompletedProcess([], 0, "", ""),
             subprocess.CompletedProcess([], 0, "", ""),
+            subprocess.CompletedProcess([], 0, "", ""),
         ]
 
         with (
@@ -1649,11 +1857,19 @@ class TestValidateQaReportEvidence:
             ["git", "merge-base", "--is-ancestor", qa_commit, older_head],
             [
                 "git",
+                "rev-list",
+                "--first-parent",
+                "--parents",
+                f"{qa_commit}..{older_head}",
+            ],
+            [
+                "git",
                 "log",
                 "--format=",
                 "--name-only",
                 "--no-renames",
-                "-m",
+                "--first-parent",
+                "--cc",
                 "-z",
                 f"{qa_commit}..{older_head}",
             ],
