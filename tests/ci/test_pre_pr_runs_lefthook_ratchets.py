@@ -23,12 +23,16 @@ Coverage:
   absent ratchet script, and an unresolvable base ref each fail the gate.
 - edge: an absent ``uv`` raises the SKIP signal rather than failing; a failed
   base-ref refresh warns and continues.
+- measured: the real registry, timed end to end, finishes far enough inside
+  ``_AGGREGATE_TIMEOUT_SECONDS`` to leave margin (issue #4876).
 """
 
 from __future__ import annotations
 
+import shutil
 import sys
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -549,3 +553,72 @@ class TestNormalizeRemoteHead:
                 is None
             )
         assert "ref not usable" in capsys.readouterr().err
+
+
+class TestBudgetHoldsAgainstMeasuredRuntime:
+    """The deadline is calibrated against a measurement, not against a constant.
+
+    Issue #4876 reports the aggregate gate exceeding its wrapper timeout. Every
+    other timeout assertion in this tree relates two declared numbers:
+    ``test_aggregate_deadline_leaves_headroom_under_the_lefthook_cap`` compares
+    the lefthook cap with ``_AGGREGATE_TIMEOUT_SECONDS``, and
+    ``test_each_ratchet_gets_the_budget_left_when_it_starts`` compares stubbed
+    child timeouts with the same constant. Both stay green with the deadline set
+    to 30 seconds, which the real registry cannot meet. Constants agreeing with
+    constants cannot calibrate a timeout; only running the registry can.
+
+    So this runs it, with the deadline lifted so the measurement is not clipped
+    by the thing under test, and requires the shipped deadline to clear the
+    measured wall clock by ``_REQUIRED_HEADROOM``. A bare
+    ``measured <= deadline`` would only go red once the gate was already
+    failing, which is where issue #4876 was reopened from: 74.7s measured
+    against an 85s deadline passed, and the same tree timed out on a busier
+    machine minutes later. Margin is the property, not survival.
+
+    Failing here means one of two things, and the message says which numbers to
+    read: a new registry entry, or a slower existing one, has eaten the margin.
+    The repair is to cut the work, or to pay for a larger cap by cutting another
+    one (ci-scripts.md MUST-16), never to lower this factor.
+    """
+
+    # Above the deadline, so the measurement reflects the registry rather than
+    # the thing under test, and below the 120s pytest-timeout cap in
+    # pyproject.toml, so a hung ratchet still reports through the assertion
+    # message below instead of through a bare Timeout.
+    _MEASUREMENT_CEILING_SECONDS = 100
+
+    # The gate must finish in two thirds of its budget. Chosen from the measured
+    # A/B on this tree: 72.8s and 69.0s before the issue #4876 cut, 33.1s and
+    # 42.6s after, both at load average 10 to 14 on 8 cores. The pre-cut numbers
+    # fail this factor against an 85s deadline and the post-cut numbers clear it.
+    _REQUIRED_HEADROOM = 1.5
+
+    def test_the_real_registry_finishes_with_margin_inside_the_deadline(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        if shutil.which("uv") is None:
+            pytest.skip("uv is absent; the registry cannot be run to be measured")
+
+        deadline = checks_ratchet._AGGREGATE_TIMEOUT_SECONDS
+        monkeypatch.setattr(
+            checks_ratchet,
+            "_AGGREGATE_TIMEOUT_SECONDS",
+            self._MEASUREMENT_CEILING_SECONDS,
+        )
+        start = time.monotonic()
+        passed = checks_ratchet.validate_count_ratchets(REPO_ROOT)
+        measured = time.monotonic() - start
+        captured = capsys.readouterr()
+
+        assert passed, (
+            f"the registry did not pass, so its runtime is not a calibration "
+            f"input. measured={measured:.1f}s\n{captured.out}{captured.err}"
+        )
+        required = measured * self._REQUIRED_HEADROOM
+        assert required <= deadline, (
+            f"measured registry runtime {measured:.1f}s needs {required:.1f}s of "
+            f"budget at a {self._REQUIRED_HEADROOM}x margin, but "
+            f"checks_ratchet._AGGREGATE_TIMEOUT_SECONDS is {deadline}s. Cut the "
+            f"work, or pay for a larger cap by cutting another "
+            f"(ci-scripts.md MUST-16). Issue #4876."
+        )

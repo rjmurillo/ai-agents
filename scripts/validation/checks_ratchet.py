@@ -9,11 +9,10 @@ pass, pushed, and learned about a 0.21 second failure 674 seconds later.
 Running them here converts that 674 second round trip into a local one that
 finishes before the suite starts. The registry has grown since, and the "about
 three seconds" this paragraph used to claim is long gone: the eight entries are
-dominated by merge-tree at 22.9s and cli-exit-contract at 15.6s, with the other
-six between 0.1s and 2.6s. That is 42.4s run one after another and about 23s
-run together on an idle machine, where the floor is the slowest single entry
-rather than the sum. Still far inside the 674 seconds it replaces, and inside
-the 90 second lefthook cap.
+dominated by merge-tree and cli-exit-contract, with the other six between 0.1s
+and 2.6s. Measured on an 8 core Linux host at load average 10 to 14, the whole
+registry runs together in 33.1s and 42.6s. Still far inside the 674 seconds it
+replaces, and inside the 90 second lefthook cap.
 
 The pre-push hook and pre-PR runner both delegate to this module. Keeping the
 ratchet set and command construction here avoids eight parallel hook jobs
@@ -113,12 +112,16 @@ RATCHETS: tuple[Ratchet, ...] = (
 # budget, which `tests/ci/test_lefthook_declared_budget.py` ratchets at 3450s
 # for the whole hook; that budget is paid for by measuring a job and cutting
 # another cap (ci-scripts.md MUST-16), which is separate work from this
-# change. Under heavy load the aggregate can still exhaust this budget:
-# measured at load average 6.2 it reached 85.3s while every ratchet passed
-# alone. That failure mode predates this change (a cold run this session
-# reported "merge-tree-ratchet: Command timed out after 33s" with the eight
-# entry registry, then passed on retry), and concurrency makes it rarer than
-# the sequential loop did, but it is not eliminated.
+# change. Issue #4876 bought the headroom on the other side instead, by
+# cutting the work: `cli_exit_contract_coverage.covered_stems` now bails on a
+# test file that names no tracked script before parsing it, which removes
+# about 10s from cli-exit-contract and the same 10s again from merge-tree,
+# which evaluates that ratchet a second time on the merged tree. Measured A/B
+# on one host at load average 10 to 14: 72.8s and 69.0s before, 33.1s and
+# 42.6s after. `tests/ci/test_pre_pr_runs_lefthook_ratchets.py` holds the
+# result by timing the real registry and requiring this deadline to stay
+# above it with margin, so a future entry that eats the margin fails a test
+# instead of a push.
 _AGGREGATE_TIMEOUT_SECONDS = 85
 _LEFTHOOK_TIMEOUT_SECONDS = 90
 
@@ -223,8 +226,8 @@ def _run_ratchets(
     """Run every ratchet concurrently; return each result by job name.
 
     Concurrent rather than sequential because the registry's cost is dominated
-    by a few entries: measured warm on this tree, merge-tree 22.9s and
-    cli-exit-contract 15.6s against 0.1s to 2.6s for the other six. One
+    by a few entries: measured warm on this tree at load average 5, merge-tree
+    18.1s and cli-exit-contract 7.4s against 0.1s to 2.6s for the other six. One
     shared deadline over a sequential loop spends that budget in registry order, so the last entry
     runs on whatever is left and is
     the one that times out; observed on a cold run, where merge-tree,
