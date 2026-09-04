@@ -22,7 +22,7 @@ harness that adds them later is covered on arrival.
 from __future__ import annotations
 
 import ast
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
 
@@ -137,11 +137,23 @@ def unresolved_selectors(source: str, repo_root: Path) -> list[str]:
         # onto repo_root discards repo_root entirely under pathlib, and a ".."
         # segment walks out of the tree, so either would make this helper read a
         # file the scan was never pointed at. Report instead of reading.
-        rel_path = Path(rel)
-        if rel_path.is_absolute() or ".." in rel_path.parts:
+        #
+        # The check must not go through bare Path, which is platform-dependent:
+        # PureWindowsPath("/tmp/x.py").is_absolute() is False, so on Windows a
+        # rooted-but-driveless selector passes and still escapes, because
+        # PureWindowsPath("C:/repo") / that yields "C:/tmp/x.py". Ask both
+        # flavours instead, so the verdict is the same on every host. The posix
+        # arm catches a leading slash, the Windows anchor arm catches a drive
+        # letter and a UNC share.
+        rel_posix = PurePosixPath(rel)
+        if (
+            rel_posix.is_absolute()
+            or PureWindowsPath(rel).anchor
+            or ".." in rel_posix.parts
+        ):
             problems.append(f"line {lineno}: {selector} (not a repo-relative path: {rel})")
             continue
-        target = repo_root / rel_path
+        target = repo_root / rel
         if not target.is_file():
             problems.append(f"line {lineno}: {selector} (no such file: {rel})")
             continue
@@ -215,15 +227,21 @@ class TestTheRuleDiscriminates:
 
     @pytest.mark.parametrize(
         "rel",
-        ["/tmp/outside_test.py", "../outside/sample_test.py"],
-        ids=["absolute", "parent-escape"],
+        ["/tmp/outside_test.py", "C:/outside_test.py", "../outside/sample_test.py"],
+        ids=["rooted", "windows-drive", "parent-escape"],
     )
     def test_a_selector_escaping_the_repo_is_reported(self, rel: str, tmp_path: Path) -> None:
         """Neither shape may be joined onto repo_root and read.
 
-        Both heads end in ``.py`` on purpose: :func:`_selectors` only collects a
+        Every head ends in ``.py`` on purpose: :func:`_selectors` only collects a
         string whose head does, so a selector that fails that rule never reaches
-        the guard and would make this control pass for the wrong reason.
+        the guard, collects nothing, and fails this control on an empty
+        ``problems`` list rather than on the behaviour under test.
+
+        ``windows-drive`` is here because the guard is host-independent by
+        construction. A drive-letter head is not absolute to posix pathlib, and a
+        rooted-but-driveless head is not absolute to Windows pathlib, so a check
+        written against bare ``Path`` passes one of them on each platform.
         """
         source = f'NODE = "{rel}::TestThing::test_x"\n'
         problems = unresolved_selectors(source, tmp_path)
