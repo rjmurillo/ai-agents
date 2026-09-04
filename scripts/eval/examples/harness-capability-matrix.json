@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "note": "Honest capability state for issue #5423 at authoring time. No live behavioral probe was run, so every capability is UNVERIFIED with an explicit reason. Runtime versions are filled live by scripts/eval/eval_harness_capability.py when the CLI is installed and probe-capable. VERIFIED is reserved for backend evidence only. Provider/model/pricing authority stays in scripts/eval/_providers.py and scripts/eval/_eval_common.py; supported_models here is the observed-live set, not a registry.",
+  "harnesses": [
+    {
+      "harness": "codex",
+      "version": "",
+      "version_evidence": "none",
+      "supported_models": [],
+      "supported_efforts": [],
+      "tool_sandbox_constraints": "UNVERIFIED: Codex tool and sandbox constraints not probed. No in-tree Codex runtime support exists to probe (issue #5423 confirmed gap).",
+      "telemetry_fields": [],
+      "failure_retry_behavior": "UNVERIFIED: retry and failure semantics not observed from a live Codex run.",
+      "probe_command": "uv run python scripts/eval/eval_harness_capability.py --dry-run",
+      "date": "2026-08-31",
+      "capabilities": {
+        "model_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run observed a requested Codex model id (Sol low/medium, Luna high, Terra high) being honored rather than echoed.", "value": null},
+        "effort_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run observed a requested reasoning effort/tier being honored. Zero in-tree occurrences of reasoning_effort passed to Codex.", "value": null},
+        "subagent_support": {"status": "UNVERIFIED", "evidence": "none", "detail": "Codex subagent support not observed from a live run.", "value": null},
+        "concurrency_limit": {"status": "UNVERIFIED", "evidence": "none", "detail": "Maximum concurrent children not measured for Codex.", "value": null},
+        "parent_child_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "Whether a Codex child can differ from its parent model/effort not observed. A silent inherit-parent would fail verification.", "value": null},
+        "reviewer_isolation": {"status": "UNVERIFIED", "evidence": "none", "detail": "Reviewer isolation from producer-private context not probed for Codex.", "value": null},
+        "single_agent": {"status": "UNVERIFIED", "evidence": "none", "detail": "Single-agent/no-child execution not observed for Codex.", "value": null},
+        "fresh_session": {"status": "UNVERIFIED", "evidence": "none", "detail": "Fresh-context/session support within one project not observed for Codex.", "value": null},
+        "durable_artifact_handoff": {"status": "UNVERIFIED", "evidence": "none", "detail": "Durable implementation-plan.md handoff not observed for Codex.", "value": null},
+        "context_reset_observability": {"status": "UNVERIFIED", "evidence": "none", "detail": "Context compaction/reset/restart observability not probed for Codex.", "value": null},
+        "sol_ultra": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend evidence for a Sol Ultra control. Aliasing Sol Ultra to high/xhigh/max is forbidden without direct evidence (issue #5423 negative control 4). Zero in-tree occurrences of Sol Ultra.", "value": null}
+      }
+    },
+    {
+      "harness": "copilot",
+      "version": "",
+      "version_evidence": "none",
+      "supported_models": [],
+      "supported_efforts": [],
+      "tool_sandbox_constraints": "UNVERIFIED: Copilot CLI tool and sandbox constraints not probed for this matrix.",
+      "telemetry_fields": [],
+      "failure_retry_behavior": "UNVERIFIED: retry and failure semantics not observed from a live Copilot run for this matrix.",
+      "probe_command": "uv run python scripts/eval/eval_harness_capability.py",
+      "date": "2026-08-31",
+      "capabilities": {
+        "model_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run in this matrix observed a requested Copilot model being honored. The existing runtime-parity harness verifies resolved_model separately; that evidence is not imported here.", "value": null},
+        "effort_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend run observed a requested reasoning effort/tier being honored for Copilot. Zero in-tree occurrences of reasoning_effort passed to Copilot.", "value": null},
+        "subagent_support": {"status": "UNVERIFIED", "evidence": "none", "detail": "Copilot subagent support not observed from a live run for this matrix.", "value": null},
+        "concurrency_limit": {"status": "UNVERIFIED", "evidence": "none", "detail": "Maximum concurrent children not measured for Copilot.", "value": null},
+        "parent_child_override": {"status": "UNVERIFIED", "evidence": "none", "detail": "Whether a Copilot child can differ from its parent model/effort not observed. A silent inherit-parent would fail verification.", "value": null},
+        "reviewer_isolation": {"status": "UNVERIFIED", "evidence": "none", "detail": "Reviewer isolation from producer-private context not probed for Copilot.", "value": null},
+        "single_agent": {"status": "UNVERIFIED", "evidence": "none", "detail": "Single-agent/no-child execution not observed for Copilot.", "value": null},
+        "fresh_session": {"status": "UNVERIFIED", "evidence": "none", "detail": "Fresh-context/session support within one project not observed for Copilot.", "value": null},
+        "durable_artifact_handoff": {"status": "UNVERIFIED", "evidence": "none", "detail": "Durable implementation-plan.md handoff not observed for Copilot.", "value": null},
+        "context_reset_observability": {"status": "UNVERIFIED", "evidence": "none", "detail": "Context compaction/reset/restart observability not probed for Copilot.", "value": null},
+        "sol_ultra": {"status": "UNVERIFIED", "evidence": "none", "detail": "No backend evidence for a Sol Ultra control in Copilot. Aliasing Sol Ultra to high/xhigh/max is forbidden without direct evidence (issue #5423 negative control 4).", "value": null}
+      }
+    }
+  ]
+}
