@@ -133,7 +133,15 @@ def unresolved_selectors(source: str, repo_root: Path) -> list[str]:
     problems: list[str] = []
     for lineno, selector in _selectors(ast.parse(source)):
         rel, _, chain = selector.partition("::")
-        target = repo_root / rel
+        # A selector is a repo-relative pytest nodeid. Joining an absolute path
+        # onto repo_root discards repo_root entirely under pathlib, and a ".."
+        # segment walks out of the tree, so either would make this helper read a
+        # file the scan was never pointed at. Report instead of reading.
+        rel_path = Path(rel)
+        if rel_path.is_absolute() or ".." in rel_path.parts:
+            problems.append(f"line {lineno}: {selector} (not a repo-relative path: {rel})")
+            continue
+        target = repo_root / rel_path
         if not target.is_file():
             problems.append(f"line {lineno}: {selector} (no such file: {rel})")
             continue
@@ -169,13 +177,18 @@ class TestTheRepositoryResolves:
     def test_the_scan_actually_finds_the_known_selectors(self) -> None:
         """Guards against a rule that passes because it collected nothing.
 
-        ``mutation_harness_4251.py`` carries eight selectors. If a refactor of
-        :func:`_selectors` stopped matching the f-string shape, every assertion
-        above would pass vacuously and the drift guard would be decoration.
+        ``mutation_harness_4251.py`` carries at least eight selectors. If a
+        refactor of :func:`_selectors` stopped matching the f-string shape,
+        every assertion above would pass vacuously and the drift guard would be
+        decoration.
+
+        The bound is a minimum, not an equality. Adding a selector to a mutation
+        harness is a legitimate change that this guard has no business failing;
+        only collecting fewer than the known set is evidence the matcher broke.
         """
         source = (MUTATION_DIR / "mutation_harness_4251.py").read_text(encoding="utf-8")
         found = _selectors(ast.parse(source))
-        assert len(found) == 8, f"expected 8 selectors, found {len(found)}: {found}"
+        assert len(found) >= 8, f"expected at least 8 selectors, found {len(found)}: {found}"
 
 
 class TestTheRuleDiscriminates:
@@ -199,6 +212,23 @@ class TestTheRuleDiscriminates:
         problems = unresolved_selectors(source, tmp_path)
         assert len(problems) == 1
         assert "no such file" in problems[0]
+
+    @pytest.mark.parametrize(
+        "rel",
+        ["/tmp/outside_test.py", "../outside/sample_test.py"],
+        ids=["absolute", "parent-escape"],
+    )
+    def test_a_selector_escaping_the_repo_is_reported(self, rel: str, tmp_path: Path) -> None:
+        """Neither shape may be joined onto repo_root and read.
+
+        Both heads end in ``.py`` on purpose: :func:`_selectors` only collects a
+        string whose head does, so a selector that fails that rule never reaches
+        the guard and would make this control pass for the wrong reason.
+        """
+        source = f'NODE = "{rel}::TestThing::test_x"\n'
+        problems = unresolved_selectors(source, tmp_path)
+        assert len(problems) == 1
+        assert "not a repo-relative path" in problems[0]
 
     def test_a_resolving_selector_is_not_reported(self, tmp_path: Path) -> None:
         target = tmp_path / "tests" / "sample_test.py"
