@@ -415,6 +415,21 @@ def test_cli_rejects_invalid_utf8_matrix(tmp_path: Path) -> None:
     assert cli.main(["--matrix", str(doc), "--dry-run"]) == cli.EXIT_CONFIG
 
 
+def test_cli_maps_an_unresolvable_output_path_to_the_external_exit(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # A relative path resolves through os.getcwd(), so removing the working
+    # directory makes Path.resolve() raise FileNotFoundError. Measured on
+    # CPython 3.14.7; a symlink loop does not raise there, so this is the
+    # condition that actually reaches the CLI. Resolving the output path
+    # outside main's try block let this escape as a traceback.
+    workdir = tmp_path / "gone"
+    workdir.mkdir()
+    monkeypatch.chdir(workdir)
+    workdir.rmdir()
+    assert cli.main(["--output", "report.json", "--dry-run"]) == cli.EXIT_EXTERNAL
+
+
 def test_third_harness_is_not_matched_while_a_peer_is_unmatched() -> None:
     codex = _record("codex")
     copilot = _record(

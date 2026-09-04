@@ -135,8 +135,13 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = subprocess.run) 
     if not (args.timeout > 0):
         print("Error: --timeout must be greater than zero.", file=sys.stderr)
         return EXIT_CONFIG
-    output = (args.output or _default_output()).resolve()
+    # Path.resolve() touches the filesystem, so it fails the same ways the run
+    # does. A relative path resolves through os.getcwd(), which raises
+    # FileNotFoundError once the working directory has been removed. Resolving
+    # outside this block let that escape as a traceback instead of the exit
+    # contract below.
     try:
+        output = (args.output or _default_output()).resolve()
         report = run(
             matrix_path=args.matrix.resolve(),
             output=output,
