@@ -164,11 +164,25 @@ def select(
     return Selection(full=False, reason="import-graph subset", tests=tests)
 
 
-def changed_from_git(repo_root: Path, base: str) -> list[str] | None:
-    """Files this branch changed versus ``base`` (three-dot diff), or None."""
+def changed_from_git(repo_root: Path, base: str, head: str = "HEAD") -> list[str] | None:
+    """Files ``head`` changed versus ``base`` (three-dot diff), or None.
+
+    ``head`` defaults to the checkout's own HEAD, which is what a developer and
+    a `push` run want. On `pull_request`, Actions checks out the synthetic
+    `refs/pull/N/merge` commit, so HEAD carries every base-branch commit made
+    since the event's `base.sha` as well as the author's. Measured on the shape
+    issue #5378 reports: with `base.sha` at the fork point and the merge commit
+    as HEAD, the diff listed an unrelated `.github/workflows/claude.yml` from
+    the base branch and forced the full suite. Passing the pull request's own
+    `head.sha` reproduces GitHub's base-to-head file list instead.
+
+    Returns None when git cannot compute the diff, which includes an unfetched
+    or unknown SHA. Every caller treats None as "run everything", so a checkout
+    too shallow to hold both commits fails closed.
+    """
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only", f"{base}...HEAD"],
+            ["git", "diff", "--name-only", f"{base}...{head}"],
             cwd=repo_root,
             capture_output=True,
             text=True,

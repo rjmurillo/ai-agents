@@ -9,19 +9,41 @@ In this repository it is not bookkeeping. A **closing keyword** in the PR body a
 `.github/workflows/ai-spec-validation.yml`, which then holds the diff to that
 issue's acceptance criteria and blocks the PR when they are not met.
 
-Only four keywords arm it. `scripts/ci/spec_extract_refs.py:85` matches
+Four keywords arm the closing-keyword path, which is one of the two paths that
+can arm the gate. `scripts/ci/spec_extract_refs.py:100` matches
 `Closes|Fixes|Resolves|Implements` and nothing else:
 
 ```python
 r"(?:Closes|Fixes|Resolves|Implements)\s+((?:[A-Za-z0-9_-]+/[A-Za-z0-9_-]+)?#\d+)",
 ```
 
-**`Refs #N` does not arm this gate.** It matches no pattern, so `has_specs` stays
-false and every AI check is skipped. That matters because `Refs #N` is the form
-`.claude/rules/universal.md` offers for a PR that should not close its issue: it
-satisfies the issue-linkage rule while silently opting out of spec validation.
-Reaching for `Refs` to avoid auto-closing also buys you a skipped gate, whether or
-not you wanted one.
+**`Refs #N` does not arm this gate by itself, and that is narrower than it
+sounds.** `run()` sets `has_specs` false only when BOTH extractors come back
+empty:
+
+```python
+if not spec_refs and not issue_refs:
+```
+
+`_extract_issue_refs` matches the closing keywords, so `Refs` misses it. But
+`_extract_spec_refs` is a second, independent path:
+
+```python
+req_ids = re.findall(r"(?:REQ|DESIGN|TASK)-\d+", combined)
+spec_paths = re.findall(r"\.agents/(?:specs|planning)/\S+\.md", combined)
+```
+
+So a body carrying `Refs #N` still arms the gate if it also names a
+`REQ`/`DESIGN`/`TASK` id or a path under `.agents/specs/` or
+`.agents/planning/`. The skip needs `Refs` AND none of those.
+
+That still matters, because `Refs #N` is the form `.claude/rules/universal.md`
+offers for a PR that should not close its issue, and a PR body that links an
+issue without citing a spec id or path is common. Measured on PR #5358 at head
+`656d8687730f349bc1e7462f00428ccf4cfccc24`, whose body carried neither: `Refs
+#4789` produced `HAS_SPECS: false` while `Fixes #4789` produced `true`. Issue
+#5489 tracks the fix. Do not read the skip as automatic, and do not read it as
+impossible.
 
 ## Mechanism
 
@@ -44,15 +66,30 @@ not you wanted one.
 
 ## What the reviewers actually see
 
-Not the PR body. `scripts/ci/spec_prepare_context.py:48` builds the
-`additional-context` payload as `["## Specification Content", "", spec_content]`,
-sourced from `SPEC_FILE` alone. Steps 6 and 7 pass that payload with
-`context-type: pr-diff`.
+The spec, plus two optional blocks. `scripts/ci/spec_prepare_context.py:177`
+builds the `additional-context` payload in three pieces:
 
-So the comparison is **diff against the issue and spec acceptance criteria**. The
-PR description is not in the reviewers' context at all. `PR_BODY` is referenced in
-exactly one place in this workflow: step 8, `External-signal gate (observe)`, which
-is `continue-on-error: true` and decides nothing.
+```python
+context_parts = ["## Specification Content", "", spec_content]
+context_parts += _incremental_scope_block(incremental_scope)
+context_parts += _nonexecutable_criteria_block(pr_body)
+```
+
+Steps 6 and 7 pass that payload with `context-type: pr-diff`.
+
+So the comparison is **diff against the issue and spec acceptance criteria**, and
+the body reaches the reviewers only through that last block. `PR_BODY` is
+referenced in two places in this workflow, not one. Line 195 is step 8,
+`External-signal gate (observe)`, which is `continue-on-error: true` and decides
+nothing. Line 148 is step 5, `Prepare Spec Context`, which is not
+`continue-on-error` and feeds the payload both blocking reviewers read; the
+workflow comment above it says the body "carries the acceptance-criteria list the
+reviewer is graded against" (issue #5366).
+
+What stays true is the part that matters for a failing gate: prose in the body
+does not satisfy a criterion. Only `_nonexecutable_criteria_block` crosses over,
+and it carries criteria the diff cannot demonstrate, not an argument that the diff
+is fine. A persuasive description still cannot talk this gate into passing.
 
 Description-versus-diff is a different gate entirely:
 `scripts/validation/pr_description.py`, inside `pr-validation.yml`. The two are
@@ -68,7 +105,7 @@ author read that line. Writing a persuasive PR body does not help here, because 
 reviewers never see it. Only the diff can satisfy this gate.
 
 The two verdicts do not block symmetrically. From
-`scripts/ai_review_common/verdict.py:215`:
+`scripts/ai_review_common/verdict.py:489`:
 
 ```python
 _TRACE_FAILURES = frozenset({"CRITICAL_FAIL", "FAIL", "NEEDS_REVIEW"})
