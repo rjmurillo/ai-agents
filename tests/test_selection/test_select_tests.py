@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from scripts.test_selection import select_tests
+
+# Every test below that calls _pull_request_fixture shells out to git with
+# check=True, so a host without git would fail them for a reason unrelated to
+# selection logic. Same guard the repo already uses in tests/ci.
+requires_git = pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
 
 
 def _write(root: Path, rel: str, text: str) -> None:
@@ -237,6 +245,7 @@ def _pull_request_fixture(root: Path) -> tuple[str, str]:
     return base, head
 
 
+@requires_git
 def test_changed_from_git_excludes_base_branch_change_when_head_is_explicit(
     tmp_path: Path,
 ) -> None:
@@ -244,6 +253,7 @@ def test_changed_from_git_excludes_base_branch_change_when_head_is_explicit(
     assert select_tests.changed_from_git(tmp_path, base, head) == ["pkg/x.py"]
 
 
+@requires_git
 def test_changed_from_git_leaks_base_branch_change_without_explicit_head(
     tmp_path: Path,
 ) -> None:
@@ -260,11 +270,13 @@ def test_changed_from_git_leaks_base_branch_change_without_explicit_head(
     ]
 
 
+@requires_git
 def test_changed_from_git_returns_none_for_unfetchable_head(tmp_path: Path) -> None:
     base, _ = _pull_request_fixture(tmp_path)
     assert select_tests.changed_from_git(tmp_path, base, "0" * 40) is None
 
 
+@requires_git
 def test_changed_from_git_returns_none_for_unfetchable_base(tmp_path: Path) -> None:
     _, head = _pull_request_fixture(tmp_path)
     assert select_tests.changed_from_git(tmp_path, "0" * 40, head) is None
