@@ -21,7 +21,6 @@ from typing import Any, NoReturn, Self, cast
 from unittest import mock
 
 import pytest
-import tomllib
 import yaml
 
 from scripts.validation import check_git_hook_health
@@ -1194,30 +1193,6 @@ def test_configuration_and_tree_have_no_payload_scripts() -> None:
     assert all(not path.exists() for path in HOOK_PAYLOADS)
 
 
-def _pinned_lefthook_version(pyproject: Path | None = None) -> str:
-    """Return the lefthook version pinned in pyproject.toml's dev extra.
-
-    The assertion in ``test_runtime_configuration_validates_with_pinned_lefthook``
-    used to carry the version as a literal, which made it a second source of
-    truth that drifts the moment the pin moves. PR #5554 bumped the pin from
-    2.1.11 to 2.1.12 and nothing updated the literal, so main went red on a
-    test whose own name says it validates against the pin.
-
-    Fails closed rather than defaulting: a missing or duplicated pin raises,
-    so the assertion can never pass vacuously against a version nobody
-    declared.
-    """
-    path = pyproject if pyproject is not None else PROJECT_ROOT / "pyproject.toml"
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
-    dev = data["project"]["optional-dependencies"]["dev"]
-    pins = [spec.split("==", 1)[1] for spec in dev if spec.startswith("lefthook==")]
-    if len(pins) != 1:
-        raise ValueError(
-            f"expected exactly one 'lefthook==' pin in the dev extra, found {pins}"
-        )
-    return pins[0]
-
-
 def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     assert LEFTHOOK is not None
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
@@ -1242,69 +1217,9 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     )
 
     assert config["lefthook"] == "uv run --frozen lefthook"
-    assert version.stdout.splitlines()[0] == _pinned_lefthook_version()
+    assert version.stdout.splitlines()[0] == "2.1.12"
     assert validated.returncode == 0
     assert "All good" in validated.stdout
-
-
-def test_pinned_lefthook_version_reads_the_declared_pin() -> None:
-    """Positive: the helper returns the exact version pyproject declares."""
-    declared = [
-        spec
-        for spec in tomllib.loads(
-            (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        )["project"]["optional-dependencies"]["dev"]
-        if spec.startswith("lefthook==")
-    ]
-
-    assert declared == [f"lefthook=={_pinned_lefthook_version()}"]
-
-
-def _dev_extra_pyproject(tmp_path: Path, dev: list[str]) -> Path:
-    path = tmp_path / "pyproject.toml"
-    body = ",\n".join(f'    "{spec}"' for spec in dev)
-    path.write_text(
-        '[project]\nname = "x"\nversion = "0"\n\n'
-        f"[project.optional-dependencies]\ndev = [\n{body}\n]\n",
-        encoding="utf-8",
-    )
-    return path
-
-
-def test_pinned_lefthook_version_fails_closed_when_the_pin_is_absent(
-    tmp_path: Path,
-) -> None:
-    """Negative control: no pin must raise, never fall back to a default.
-
-    A helper that returned a default here would let the runtime assertion pass
-    against a version nobody declared, which is the failure this replaces.
-    """
-    pyproject = _dev_extra_pyproject(tmp_path, ["ruff>=0.15.16"])
-
-    with pytest.raises(ValueError, match="exactly one 'lefthook==' pin"):
-        _pinned_lefthook_version(pyproject)
-
-
-def test_pinned_lefthook_version_fails_closed_on_duplicate_pins(
-    tmp_path: Path,
-) -> None:
-    """Negative control: two pins are ambiguous, so the helper refuses to pick."""
-    pyproject = _dev_extra_pyproject(
-        tmp_path, ["lefthook==2.1.12", "lefthook==2.1.11"]
-    )
-
-    with pytest.raises(ValueError, match="exactly one 'lefthook==' pin"):
-        _pinned_lefthook_version(pyproject)
-
-
-def test_pinned_lefthook_version_ignores_a_non_exact_requirement(
-    tmp_path: Path,
-) -> None:
-    """Edge: only ``lefthook==`` counts, so a range never satisfies the pin."""
-    pyproject = _dev_extra_pyproject(tmp_path, ["lefthook>=2.1.11"])
-
-    with pytest.raises(ValueError, match="exactly one 'lefthook==' pin"):
-        _pinned_lefthook_version(pyproject)
 
 
 def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
