@@ -12,6 +12,7 @@ import runpy
 import shutil
 import subprocess
 import sys
+import sysconfig
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
@@ -30,7 +31,29 @@ from scripts.validation import git_hook_policy as policy
 pytestmark = pytest.mark.windows_path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-LEFTHOOK = shutil.which("lefthook")
+
+
+def _resolve_lefthook(scripts: str | None = None) -> str | None:
+    """Locate lefthook, preferring the running interpreter's own environment.
+
+    lefthook is a pinned dev dependency (`lefthook==` in pyproject's dev extra),
+    so the binary that matches the pin sits in this interpreter's scripts
+    directory. A bare PATH lookup agrees only while that directory leads PATH,
+    which `uv run` arranges and a directly invoked `.venv/bin/pytest` does not.
+    Measured with a stub `lefthook` placed earlier on PATH: `uv run` resolved
+    `.venv/bin/lefthook` either way, while `.venv/bin/python` resolved the stub
+    under PATH and the pinned 2.1.12 under the scripts directory. Binary
+    identity is not incidental here, because the assertions below pin lefthook's
+    own scheduling, skip, and templating behavior, which moves between releases.
+
+    PATH remains the fallback so a host without the dev extra installed keeps
+    whatever lefthook it has instead of failing every test that needs one.
+    """
+    directory = scripts if scripts is not None else sysconfig.get_path("scripts")
+    return shutil.which("lefthook", path=directory) or shutil.which("lefthook")
+
+
+LEFTHOOK = _resolve_lefthook()
 SEMGREP = shutil.which("semgrep")
 # The Semgrep carve-out proves a `run:` body parses by shelling out to `bash -n`,
 # and fails closed when the host has no Bash. Windows runners put Git's `cmd`
@@ -1305,6 +1328,59 @@ def test_pinned_lefthook_version_ignores_a_non_exact_requirement(
 
     with pytest.raises(ValueError, match="exactly one 'lefthook==' pin"):
         _pinned_lefthook_version(pyproject)
+
+
+def _stub_lefthook(directory: Path) -> Path:
+    """Create an executable file named like lefthook inside ``directory``."""
+    directory.mkdir(parents=True, exist_ok=True)
+    stub = directory / ("lefthook.bat" if os.name == "nt" else "lefthook")
+    stub.write_text("", encoding="utf-8")
+    stub.chmod(0o755)
+    return stub
+
+
+def test_resolve_lefthook_prefers_the_interpreter_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Positive and negative control: the scripts directory beats PATH.
+
+    Reverting the helper to a bare ``shutil.which("lefthook")`` returns the PATH
+    copy here and fails this assertion, which is the whole point: an IDE that
+    runs ``.venv/bin/pytest`` directly leaves PATH pointing at whatever global
+    lefthook the developer installed, and the behavioral assertions in this
+    module would then describe a release nobody pinned.
+    """
+    pinned = _stub_lefthook(tmp_path / "env")
+    monkeypatch.setenv("PATH", str(_stub_lefthook(tmp_path / "elsewhere").parent))
+
+    resolved = _resolve_lefthook(str(pinned.parent))
+
+    # samefile, not string equality: Windows resolution applies PATHEXT and can
+    # return an extension whose case does not match the file on disk.
+    assert resolved is not None
+    assert Path(resolved).samefile(pinned)
+
+
+def test_resolve_lefthook_falls_back_to_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative: an environment without the dev extra still finds a lefthook."""
+    on_path = _stub_lefthook(tmp_path / "elsewhere")
+    monkeypatch.setenv("PATH", str(on_path.parent))
+
+    resolved = _resolve_lefthook(str(tmp_path / "empty"))
+
+    assert resolved is not None
+    assert Path(resolved).samefile(on_path)
+
+
+def test_resolve_lefthook_returns_none_when_no_binary_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Edge: neither source has one, so callers see None and fail loudly."""
+    monkeypatch.setenv("PATH", str(tmp_path / "nothing"))
+
+    assert _resolve_lefthook(str(tmp_path / "empty")) is None
 
 
 def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
