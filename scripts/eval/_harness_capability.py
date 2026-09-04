@@ -28,6 +28,8 @@ label, a missing runtime version, or malformed metadata can never yield
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from enum import Enum
@@ -437,7 +439,7 @@ def load_matrix(path: Path) -> list[HarnessCapabilityRecord]:
     """Load and validate a capability matrix document, failing closed."""
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise HarnessCapabilityError(f"could not read matrix: {exc}") from exc
     root = _mapping(payload, "matrix document")
     if root.get("schema_version") != SCHEMA_VERSION:
@@ -495,6 +497,30 @@ def _record_dict(record: HarnessCapabilityRecord) -> dict[str, object]:
     }
 
 
+# Most restrictive first. `_worst_eligibility` walks this order, so a harness
+# reaches `ELIGIBLE_MATCHED` only when every peer agrees.
+_ELIGIBILITY_PRECEDENCE: tuple[ArmEligibility, ...] = (
+    ArmEligibility.UNSUPPORTED,
+    ArmEligibility.UNVERIFIED,
+    ArmEligibility.ELIGIBLE_UNMATCHED,
+    ArmEligibility.ELIGIBLE_MATCHED,
+)
+
+
+def _worst_eligibility(verdicts: Sequence[ArmEligibility]) -> ArmEligibility:
+    """Return the most restrictive verdict in `verdicts`.
+
+    A harness is only matched for an arm when it is matched against *every*
+    peer in the matrix. Reducing over the first peer alone reports a matched
+    comparison while an incompatible third harness sits unexamined in the same
+    document, which is the misleading A/B evidence #5422 forbids.
+    """
+    for candidate in _ELIGIBILITY_PRECEDENCE:
+        if candidate in verdicts:
+            return candidate
+    return ArmEligibility.UNVERIFIED
+
+
 def _arm_eligibility_dict(
     records: Sequence[HarnessCapabilityRecord],
 ) -> list[dict[str, object]]:
@@ -506,12 +532,37 @@ def _arm_eligibility_dict(
             if not peers:
                 eligibility[harness.harness] = ArmEligibility.UNVERIFIED.value
                 continue
-            verdict = derive_arm_eligibility(arm, harness, peers[0])
-            eligibility[harness.harness] = verdict.value
+            verdicts = [derive_arm_eligibility(arm, harness, peer) for peer in peers]
+            eligibility[harness.harness] = _worst_eligibility(verdicts).value
         rows.append(
             {"arm": arm.arm_id, "summary": arm.summary, "eligibility": eligibility}
         )
     return rows
+
+
+def write_report(path: Path, report: Mapping[str, object]) -> None:
+    """Persist a report through write-temp-then-rename.
+
+    `Path.write_text` truncates the destination before the document is
+    serialized, so a failure mid-write leaves an empty or partial report where
+    #5424 expects a valid one. Mirrors `_report_writer._atomic_write`.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(report, indent=2) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def build_report(records: Sequence[HarnessCapabilityRecord]) -> dict[str, object]:

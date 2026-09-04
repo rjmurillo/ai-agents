@@ -30,6 +30,7 @@ from _harness_capability import (
     apply_version_probe,
     build_report,
     load_matrix,
+    write_report,
 )
 from _runtime_parity import probe_version
 
@@ -111,8 +112,7 @@ def run(
         )
     report: dict[str, object] = build_report(records)
     if not dry_run:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        write_report(output, report)
     return report
 
 
