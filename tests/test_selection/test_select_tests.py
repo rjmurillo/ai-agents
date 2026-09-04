@@ -10,11 +10,6 @@ import pytest
 
 from scripts.test_selection import select_tests
 
-# Every test below that calls _pull_request_fixture shells out to git with
-# check=True, so a host without git would fail them for a reason unrelated to
-# selection logic. Same guard the repo already uses in tests/ci.
-requires_git = pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-
 
 def _write(root: Path, rel: str, text: str) -> None:
     path = root / rel
@@ -199,6 +194,19 @@ def test_changed_from_git_returns_none_outside_repo(tmp_path: Path) -> None:
 
 
 def _git(root: Path, *args: str) -> str:
+    """Run one git command in ``root``, skipping the test when git is absent.
+
+    The guard lives here rather than on each test because this is the only
+    function in the module that shells out, and ``_pull_request_fixture`` is its
+    only caller. A per-test decorator has to be remembered by whoever adds the
+    next test on that fixture; this cannot be forgotten.
+
+    A missing binary raises ``FileNotFoundError`` from ``subprocess.run`` before
+    ``check=True`` is ever consulted, so the failure would not even look like a
+    git error.
+    """
+    if shutil.which("git") is None:
+        pytest.skip("git is not installed")
     result = subprocess.run(
         ["git", *args],
         cwd=root,
@@ -245,7 +253,6 @@ def _pull_request_fixture(root: Path) -> tuple[str, str]:
     return base, head
 
 
-@requires_git
 def test_changed_from_git_excludes_base_branch_change_when_head_is_explicit(
     tmp_path: Path,
 ) -> None:
@@ -253,7 +260,6 @@ def test_changed_from_git_excludes_base_branch_change_when_head_is_explicit(
     assert select_tests.changed_from_git(tmp_path, base, head) == ["pkg/x.py"]
 
 
-@requires_git
 def test_changed_from_git_leaks_base_branch_change_without_explicit_head(
     tmp_path: Path,
 ) -> None:
@@ -270,13 +276,11 @@ def test_changed_from_git_leaks_base_branch_change_without_explicit_head(
     ]
 
 
-@requires_git
 def test_changed_from_git_returns_none_for_unfetchable_head(tmp_path: Path) -> None:
     base, _ = _pull_request_fixture(tmp_path)
     assert select_tests.changed_from_git(tmp_path, base, "0" * 40) is None
 
 
-@requires_git
 def test_changed_from_git_returns_none_for_unfetchable_base(tmp_path: Path) -> None:
     _, head = _pull_request_fixture(tmp_path)
     assert select_tests.changed_from_git(tmp_path, "0" * 40, head) is None

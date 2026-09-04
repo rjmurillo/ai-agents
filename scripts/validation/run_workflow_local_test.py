@@ -19,8 +19,8 @@ logic that only fails at execution time (the class of defect that slipped
 through static checks in PR #2120's CI runner).
 
 Tool / environment gaps are reported, not silently skipped: a missing
-actionlint, gh act, or Docker daemon yields exit 3 (external) so the caller can
-block with an actionable message. A documented bypass exists for workflows that
+actionlint, gh, gh act, or Docker daemon yields exit 3 (external) so the caller
+can block with an actionable message. A documented bypass exists for workflows that
 genuinely cannot run under act (secrets, ARM-only runners): set
 ``SKIP_WORKFLOW_LOCAL_TEST=true``; the bypass is logged, not hidden.
 
@@ -58,7 +58,7 @@ EXIT CODES (per ADR-035, exit-code contract in AGENTS.md)
 0 - all stages passed (or no workflow files, or bypassed)
 1 - a stage ran and failed (block the push)
 2 - configuration error (bad args, repo root absent)
-3 - a required tool is unavailable (actionlint, gh act, or Docker). Under
+3 - a required tool is unavailable (actionlint, gh, gh act, or Docker). Under
     ``CLAUDECODE`` or ``CODESPACES`` this gap degrades to exit 0
     (degraded=True) instead, because the tool may not be provisionable there;
     CI and a plain dev laptop keep the hard exit 3 (Issue #3064, #5479)
