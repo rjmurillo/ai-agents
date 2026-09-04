@@ -345,8 +345,16 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when a backtick path citation in .claude/commands/pr-quality/all.md
     # points to a file that no longer exists. Issue #1966.
     _Gate("Orchestrator Citation Check", _root_only(validate_orchestrator_citations)),
-    # Branch-wide em/en-dash check (issue #1923, REQ-006-AC7).
-    _Gate("Em/en-dash Prohibition", _root_only(validate_dash_prohibition)),
+    # Branch-wide em/en-dash check (issue #1923, REQ-006-AC7). Deferred to the
+    # unconditional `dash-prohibition` fast-stage job (issue #5086) so the
+    # repository's most-flagged defect class fails a push in seconds rather
+    # than after pytest. Direct and CI callers leave FAST_STAGE_RAN_ENV unset
+    # and still run it here.
+    _Gate(
+        "Em/en-dash Prohibition",
+        _root_only(validate_dash_prohibition),
+        already_run_by="dash-prohibition",
+    ),
     # Advisory (issue #1920). Catches the PR #1897 round-7 loop (linked issue
     # claims one model tier, committed agent frontmatter ships another) locally
     # instead of after each push.

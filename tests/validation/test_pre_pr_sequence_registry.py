@@ -125,6 +125,7 @@ FAST_STAGE_DUPLICATES = frozenset(
         "Unreachable Code Detection",
         "Path Normalization",
         "Planning Artifacts",
+        "Em/en-dash Prohibition",
     }
 )
 

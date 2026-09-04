@@ -7,7 +7,7 @@ boundary: pre-push blocks on checks that are cheap and would otherwise waste a
 CI run, and delegates whole-suite execution to CI.
 
 The first deferral attempt trusted piped ordering but ignored target globs.
-Issue #5317 makes the four targets unconditional, so piped ordering now proves
+Issue #5317 made every deferral target unconditional, so piped ordering proves
 they ran and passed before pre-pr-validation starts.
 
 Coverage:
@@ -40,6 +40,7 @@ EXPECTED_DEFERRALS = {
     "Unreachable Code Detection": "python-unreachable-statements",
     "Path Normalization": "path-normalization",
     "Planning Artifacts": "planning-artifacts",
+    "Em/en-dash Prohibition": "dash-prohibition",
 }
 
 

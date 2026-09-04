@@ -53,6 +53,7 @@ FAST_PARALLEL_GATES = frozenset(
         "branch-scope",
         "branch-context-policy",
         "review-axis-drift",
+        "dash-prohibition",
     }
 )
 
