@@ -25,7 +25,7 @@ HarnessCapabilityRecord = capability.HarnessCapabilityRecord
 HarnessCapabilityError = capability.HarnessCapabilityError
 
 
-def _verified_cap(value: int | None = None, detail: str = "") -> Capability:
+def _verified_cap(value: int | None = None, detail: str = "") -> capability.Capability:
     return Capability(
         status=CapabilityStatus.VERIFIED,
         evidence=EvidenceKind.BACKEND,
@@ -38,10 +38,10 @@ def _record(
     harness: str = "codex",
     *,
     version: str = "codex 1.0.0",
-    version_evidence: EvidenceKind = EvidenceKind.BACKEND,
-    overrides: dict[str, Capability] | None = None,
-) -> HarnessCapabilityRecord:
-    caps: dict[str, Capability] = {}
+    version_evidence: capability.EvidenceKind = EvidenceKind.BACKEND,
+    overrides: dict[str, capability.Capability] | None = None,
+) -> capability.HarnessCapabilityRecord:
+    caps: dict[str, capability.Capability] = {}
     for key in capability.CAPABILITY_KEYS:
         if key == "concurrency_limit":
             caps[key] = _verified_cap(value=3)
