@@ -9,12 +9,29 @@ pass, pushed, and learned about a 0.21 second failure 674 seconds later.
 Running them here converts that 674 second round trip into a local one that
 finishes before the suite starts. The registry has grown since, and the "about
 three seconds" this paragraph used to claim is long gone: the nine entries are
-dominated by subprocess-encoding at 33.7s, merge-tree at 22.9s and
-cli-exit-contract at 15.6s, with the other six between 0.1s and 2.6s. Run
-together they measured 46.72s, 43.46s and 48.91s wall over three runs on this
-machine, where the floor is the slowest single entry rather than the sum.
-Still far inside the 674 seconds it replaces, and inside the 90 second
-lefthook cap.
+dominated by subprocess-encoding, merge-tree and cli-exit-contract, with the
+other six between 0.1s and 2.6s. Run together they measured 46.72s, 43.46s and
+48.91s wall on an idle machine, where the floor is the slowest single entry
+rather than the sum. Still far inside the 674 seconds it replaces, and inside
+the 90 second lefthook cap.
+
+Those idle numbers were not the operative ones. Re-measured under load average
+7.7 on an 8 core host once issue #5482's scanner was registered here:
+subprocess-encoding 67.31s alone, merge-tree 20.62s, cli-exit-contract 9.88s,
+and the whole registry 80.61s to 82.03s against the 85s deadline below. Three
+seconds of margin, which is the failure the comment on that deadline had
+already warned about at load average 6.2.
+
+Issue #4876 bought the margin back by cutting work rather than raising a cap.
+Both of the two heaviest entries now skip the expensive step for input that
+cannot produce a finding: `cli_exit_contract_coverage.covered_stems` bails
+before parsing a test file that names no tracked script, and
+`check_subprocess_encoding` skips the AST walk, though not the parse, for a
+file that never names subprocess. Each equivalence was replayed over the whole
+corpus rather than argued, 0 mismatches. Measured after both, at load average
+6.5: subprocess-encoding 43.73s, whole registry 50.29s. On the real push that
+carried this change, `count-ratchets` reported 49.45s against 80s on the same
+machine before it.
 
 Every entry in :data:`RATCHETS` is spawned, including the five whose counters
 ``scripts/ci/merge_tree_ratchet_check.py`` runs a second time against the
