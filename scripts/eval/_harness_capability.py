@@ -1,3 +1,9 @@
+# taste-lint: ignore file-size. Just over the 500-line ceiling, and fewer than half
+# those lines are code: the rest are the per-negative-control rationale issue #5423
+# requires every capability cell and classifier to carry. Splitting the parser away
+# from the record it validates would route the fail-closed contract, every VERIFIED
+# path through HarnessCapabilityError, across an import seam. That contract is the
+# property this file exists to keep checkable in one place.
 """Per-harness capability matrix for the #5422 orchestration experiment.
 
 This module is a *capability probe*, not a benchmark (issue #5423). It records,
