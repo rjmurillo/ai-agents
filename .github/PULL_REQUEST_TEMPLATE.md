@@ -154,7 +154,7 @@ substance, not on catching what tooling already catches.
 -->
 
 - [ ] Builds locally (or N/A)
-- [ ] Pre-PR validation passed (`uv run python scripts/validation/pre_pr.py`; pass `--quick` to skip slow validations or `--skip-tests` for very fast iterations)
+- [ ] Pre-PR validation passed (`uv run python scripts/validation/pre_pr.py`; `--quick` drops four slow gates, measured at under 2 percent of the run, so prefer the full sequence)
 - [ ] Lint and formatting clean (scoped to changed files)
 - [ ] Code follows project style guidelines ([.gemini/styleguide.md](https://github.com/rjmurillo/ai-agents/blob/main/.gemini/styleguide.md)) and code quality standards ([.agents/governance/code-quality.md](https://github.com/rjmurillo/ai-agents/blob/main/.agents/governance/code-quality.md))
 - [ ] Self-review completed (read the diff as if you did not write it)

@@ -26,10 +26,10 @@ uv run --frozen python scripts/validation/pre_pr.py
 
 # Skip the four quick-skippable gates
 uv run --frozen python scripts/validation/pre_pr.py --quick
-
-# Verbose output
-uv run --frozen python scripts/validation/pre_pr.py --verbose
 ```
+
+`--quick` and `--markdown-lint-only` are the only flags. The runner reads every
+argument it declares.
 
 `--quick` skips YAML Style Validation, Path Normalization, Planning Artifacts,
 and Agent Drift Detection. Measured 2026-08-19, those four gates cost 1.89s of
@@ -37,8 +37,11 @@ a 103.25s run, so `--quick` now saves under 2 percent. It was worth 50 to 90
 seconds when the sequence had six gates; it is not a meaningful lever today.
 Run the full sequence.
 
-`--skip-tests` and its `SKIP_TESTS` environment default are parsed but inert:
-no gate in `_SEQUENCE` sets `skip_flag`, so the flag skips nothing.
+`--skip-tests`, its `SKIP_TESTS` environment default, and `--verbose` are gone.
+All three were parsed and never read: no gate in `_SEQUENCE` set `skip_flag`,
+and nothing read `verbose`. `--skip-tests` also described a Pester stage in a
+repository tracking zero `.ps1` files. Passing any of them now fails with
+argparse exit code 2 rather than being silently accepted.
 
 ## Validation Sequence
 

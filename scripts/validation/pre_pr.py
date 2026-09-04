@@ -4,20 +4,13 @@
 Runs all local validations before creating a pull request.
 Executes validations in optimized order (fast checks first).
 
-Validation sequence:
-    1. Session End (for latest session log)
-    2. Pester Tests (all unit tests)
-    3. Markdown Lint (auto-fix and validate)
-    4. Workflow YAML (validate GitHub Actions workflows)
-    5. Design Review Frontmatter (validate DESIGN-REVIEW YAML frontmatter)
-    6. Build Command Exit Gates (PR #1887 retrospective Layer 2)
-    7. Canonical Citation Check (heuristic mirror-claim citation; soft warn)
-    7b. Spec Contradiction Check (PR/issue vs committed frontmatter; advisory)
-    8. YAML Style (check YAML style with yamllint) [skip if --quick]
-    9. Path Normalization (check for absolute paths) [skip if --quick, requires PS1]
-   10. Traceability (validate spec links)
-   11. Planning Artifacts (validate planning consistency) [skip if --quick, requires PS1]
-   12. Agent Drift (detect semantic drift) [skip if --quick, requires PS1]
+The ordered gate list is ``_SEQUENCE`` in ``pre_pr_sequence``. Read it there.
+This docstring deliberately keeps no second copy: the 12-row list it used to
+carry had drifted to describe a 63-gate sequence, and named a Pester stage and
+three "requires PS1" gates that are Python ports run through
+``_run_python_validator`` in a repository tracking zero ``.ps1`` files.
+``.agents/devops/SHIFT-LEFT.md`` documents the same rule and the
+command that prints the live sequence.
 
 Exit codes follow ADR-035:
     0 - Success (all validations passed)
@@ -258,18 +251,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--quick",
         action="store_true",
         default=os.environ.get("QUICK_MODE", "").lower() in ("true", "1"),
-        help="Skip slow validations (path normalization, planning, drift)",
-    )
-    parser.add_argument(
-        "--skip-tests",
-        action="store_true",
-        default=os.environ.get("SKIP_TESTS", "").lower() in ("true", "1"),
-        help="Skip Pester unit tests (use sparingly)",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Run with verbose output",
+        help="Skip the slow gates (YAML style, path normalization, planning, drift)",
     )
     parser.add_argument(
         "--markdown-lint-only",

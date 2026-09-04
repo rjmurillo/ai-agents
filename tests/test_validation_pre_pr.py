@@ -362,23 +362,82 @@ class TestBuildParser:
         parser = build_parser()
         args = parser.parse_args([])
         assert args.quick is False
-        assert args.skip_tests is False
-        assert args.verbose is False
 
     def test_quick_flag(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["--quick"])
         assert args.quick is True
 
-    def test_skip_tests_flag(self) -> None:
+    def test_markdown_lint_only_flag(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["--skip-tests"])
-        assert args.skip_tests is True
+        args = parser.parse_args(["--markdown-lint-only", "README.md"])
+        assert (args.markdown_lint_only, args.markdown_files) == (True, ["README.md"])
 
-    def test_verbose_flag(self) -> None:
+    def test_parser_declares_no_argument_the_runner_ignores(self) -> None:
+        """Every declared destination must be read by pre_pr or the sequence.
+
+        The defect this pins: --skip-tests and --verbose were declared, parsed,
+        and never read by any consumer, so the parser advertised behavior the
+        runner did not have. Asserting the destination set (rather than the
+        absence of two names) also fails when a future flag is added without a
+        consumer.
+        """
+        dests = {
+            action.dest
+            for action in build_parser()._actions
+            if action.dest != "help"
+        }
+        assert dests == {"quick", "markdown_lint_only", "markdown_files"}
+
+
+class TestRemovedFlagsAreRejected:
+    """--skip-tests and --verbose were parsed and discarded; both are gone.
+
+    Deleting their old tests would only prove the flags are untested. These
+    assert argparse actively rejects them, so reintroducing a parsed-and-ignored
+    flag under either name fails here.
+    """
+
+    @pytest.mark.parametrize("flag", ["--skip-tests", "--verbose"])
+    def test_parser_rejects_removed_flag(self, flag: str) -> None:
         parser = build_parser()
-        args = parser.parse_args(["--verbose"])
-        assert args.verbose is True
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args([flag])
+        assert exc.value.code == 2
+
+    @pytest.mark.parametrize("flag", ["--skip-tests", "--verbose"])
+    def test_main_exits_two_on_removed_flag(self, flag: str) -> None:
+        """CLI exit code, not just the parser: ADR-035 reserves 2 for config."""
+        with pytest.raises(SystemExit) as exc:
+            main([flag])
+        assert exc.value.code == 2
+
+    def test_removed_flags_are_rejected_together(self) -> None:
+        parser = build_parser()
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args(["--quick", "--skip-tests", "--verbose"])
+        assert exc.value.code == 2
+
+    def test_parsed_namespace_has_no_removed_destinations(self) -> None:
+        """Edge: absent from the namespace, not merely absent from the CLI."""
+        args = build_parser().parse_args([])
+        assert not hasattr(args, "skip_tests")
+        assert not hasattr(args, "verbose")
+
+    def test_skip_tests_env_var_no_longer_feeds_the_parser(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """SKIP_TESTS was the flag's env default; it must now be inert."""
+        monkeypatch.setenv("SKIP_TESTS", "true")
+        args = build_parser().parse_args([])
+        assert not hasattr(args, "skip_tests")
+
+    def test_quick_still_reads_its_env_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Positive control: the surviving env default still works."""
+        monkeypatch.setenv("QUICK_MODE", "true")
+        assert build_parser().parse_args([]).quick is True
 
 
 class TestMain:
@@ -403,7 +462,7 @@ class TestMain:
         mock_which.return_value = "/usr/bin/tool"
 
         # Quick mode should skip path normalization, planning, agent drift, yaml style
-        result = main(["--quick", "--skip-tests"])
+        result = main(["--quick"])
         assert result == 0
 
     @patch(
@@ -422,7 +481,7 @@ class TestMain:
         mock_which.return_value = "/usr/bin/tool"
 
         # All external tools pass
-        result = main(["--quick", "--skip-tests"])
+        result = main(["--quick"])
         assert result == 0
 
 
@@ -459,7 +518,7 @@ class TestHookModeBanner:
             import os
 
             os.environ.pop("SKIP_AUTOFIX", None)
-            result = main(["--quick", "--skip-tests"])
+            result = main(["--quick"])
 
         assert result == 0
         captured = capsys.readouterr()
@@ -485,7 +544,7 @@ class TestHookModeBanner:
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):
-            result = main(["--quick", "--skip-tests"])
+            result = main(["--quick"])
 
         assert result == 0
         captured = capsys.readouterr()
@@ -510,7 +569,7 @@ class TestHookModeBanner:
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {"SKIP_AUTOFIX": "0"}):
-            result = main(["--quick", "--skip-tests"])
+            result = main(["--quick"])
 
         assert result == 0
         captured = capsys.readouterr()
@@ -534,7 +593,7 @@ class TestHookModeBanner:
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):
-            result = main(["--quick", "--skip-tests"])
+            result = main(["--quick"])
 
         assert result == 1
         captured = capsys.readouterr()
@@ -558,7 +617,7 @@ class TestHookModeBanner:
         mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
-        result = main(["--quick", "--skip-tests"])
+        result = main(["--quick"])
         assert result == 0
         out = capsys.readouterr().out
         assert "Verify the push landed" in out
