@@ -504,6 +504,20 @@ jobs:
           --cov --cov-report=
           --junitxml=${{ matrix.junit_file }}
 
+      # Issue #5382. Reads the JUnit report the step above already wrote, so it
+      # runs no test of its own, and fails when a budgeted validator suite
+      # exceeds the seconds recorded for it in [tool.slow-test-budget]. A
+      # budgeted suite this partition did not run is absent from the report and
+      # is not a violation.
+      # The step name carries no "#": a plain scalar treats it as a comment
+      # (ci-scripts.md item 20).
+      - name: Enforce the slow-test budget (issue 5382)
+        if: steps.run-pytest.outcome != 'skipped' && !cancelled()
+        run: >-
+          uv run --frozen python scripts/testing/slow_test_budget.py
+          ${{ matrix.junit_file }}
+          --budget pyproject.toml
+
       # Issue #1963: verdict.py's 100% branch gate needs all three of
       # test_ai_review.py, test_verdict.py, and test_quality_gate.py
       # (test_ai_review.py alone reports 63%). Collection stays broad; the
