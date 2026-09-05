@@ -784,7 +784,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "stage-memory-index",
         "memory-cross-reference",
         "stage-memory-cross-references",
-        "memory-sync-advisory",
         "extract-session-episodes",
         "commit-file-count",
     }
@@ -839,9 +838,6 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert pre_commit_names.index("memory-size") < pre_commit_names.index("memory-cross-reference")
     assert pre_commit_names.index("memory-cross-reference") < pre_commit_names.index(
         "memory-skill-format"
-    )
-    assert pre_commit_names.index("memory-skill-format") < pre_commit_names.index(
-        "memory-sync-advisory"
     )
     assert pre_commit_names.index("extract-session-episodes") < pre_commit_names.index(
         "commit-file-count"
@@ -970,7 +966,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "stage-memory-index",
         "memory-cross-reference",
         "stage-memory-cross-references",
-        "memory-sync-advisory",
         "extract-session-episodes",
         "commit-file-count",
         "memory-size",
@@ -7317,31 +7312,6 @@ def test_pytest_policy_cleans_hook_environment(
         assert key not in env
 
 
-def test_memory_sync_preserves_skip_and_immediate_semantics(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[list[str]] = []
-
-    def fake_run(
-        args: Sequence[str],
-        _root: Path,
-        **_kwargs: object,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(list(args))
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", fake_run)
-    monkeypatch.setenv("SKIP_MEMORY_SYNC", "1")
-    assert policy.run_memory_sync(tmp_path) == 0
-    assert calls == []
-
-    monkeypatch.delenv("SKIP_MEMORY_SYNC")
-    monkeypatch.setenv("MEMORY_SYNC_IMMEDIATE", "1")
-    assert policy.run_memory_sync(tmp_path) == 0
-    assert calls[0][-1] == "--immediate"
-
-
 def test_workflow_local_maps_secret_skip_but_blocks_tool_gap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7394,7 +7364,6 @@ def test_advisories_warn_but_generators_block_before_staging(
     assert policy.generate_agents_advisory(tmp_path) == 1
     assert policy.update_memory_tokens(tmp_path) == 1
     assert policy.cross_reference_memories(["memory.md"], tmp_path) == 1
-    assert policy.run_memory_sync(tmp_path) == 0
 
 
 def test_memory_cross_reference_requires_successful_json(
@@ -8677,7 +8646,6 @@ def test_old_bot_review_does_not_warn(
         ("generate-agents", [], "generate_agents_advisory"),
         ("memory-token-update", [], "update_memory_tokens"),
         ("memory-size", [], "validate_memory_sizes"),
-        ("memory-sync", [], "run_memory_sync"),
         ("pytest", [], "run_pytest"),
         ("placeholder-identity", [], "check_placeholder_identities"),
         ("additions", [], "additions_advisory"),

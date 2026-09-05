@@ -7092,20 +7092,6 @@ def cross_reference_memories(paths: Sequence[str], repo_root: Path) -> int:
     return 0
 
 
-def run_memory_sync(repo_root: Path) -> int:
-    if os.environ.get("SKIP_MEMORY_SYNC") == "1":
-        print("Memory sync skipped (SKIP_MEMORY_SYNC=1)")
-        return 0
-    command = [sys.executable, "-m", "scripts.memory_sync.cli", "hook"]
-    if os.environ.get("MEMORY_SYNC_IMMEDIATE") == "1":
-        command.append("--immediate")
-    result = _run_command(command, repo_root)
-    _print_process_output(result)
-    if result.returncode != 0:
-        print("WARNING: memory sync failed without blocking", file=sys.stderr)
-    return 0
-
-
 def parse_pytest_workers(raw: str | None) -> str:
     """Return the ``-n`` value named by ``raw``, or the default.
 
@@ -8081,10 +8067,6 @@ def _handle_memory_cross_reference(args: argparse.Namespace) -> int:
     return cross_reference_memories(args.paths, _repo_root(args))
 
 
-def _handle_memory_sync(args: argparse.Namespace) -> int:
-    return run_memory_sync(_repo_root(args))
-
-
 def _handle_pytest(args: argparse.Namespace) -> int:
     changed = list(args.paths) if args.paths else None
     return run_pytest(_repo_root(args), changed)
@@ -8334,7 +8316,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("generate-agents", _handle_generate_agents),
         ("memory-token-update", _handle_memory_tokens),
         ("memory-size", _handle_memory_size),
-        ("memory-sync", _handle_memory_sync),
         ("placeholder-identity", _handle_placeholder_identity),
         ("additions", _handle_additions),
         ("bot-cascade", _handle_bot_cascade),
