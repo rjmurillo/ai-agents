@@ -7,7 +7,6 @@ allowed-tools:
   - Grep
   - Glob
   - mcp__serena__*
-model: opus
 ---
 
 # PR Quality Gate - Architect Review
