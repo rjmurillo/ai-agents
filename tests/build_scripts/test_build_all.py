@@ -10,7 +10,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -1565,9 +1565,8 @@ def test_run_check_escalates_to_2_when_restore_reports_failure(
     Unit-level test of the wiring in ``run()``: stubs ``_run_generators`` to
     a clean ``0`` (so the escalation is the only thing that can produce a
     nonzero result) and ``_restore_owned_prefixes`` to ``False`` (what it
-    now returns when :func:`_write_bytes_no_redirect` correctly refuses to
-    write through a path raced back into existence, per
-    ``test_restore_owned_prefixes_refuses_a_symlink_raced_in_before_the_write``
+    now returns when a restore write fails, per
+    ``test_restore_owned_prefixes_warns_and_keeps_the_file_when_the_swap_fails``
     on the underlying primitive). Deliberately does not run the real
     generator pipeline: that pipeline has its own unrelated failure modes in
     a minimal fixture repo (a missing ADR directory, an absent skills
@@ -3490,20 +3489,26 @@ def test_write_bytes_no_redirect_creates_with_no_group_or_world_access(
     assert stat.S_IMODE(dest.stat().st_mode) == 0o600
 
 
-def test_restore_owned_prefixes_refuses_a_symlink_raced_in_before_the_write(
+def test_restore_owned_prefixes_replaces_a_raced_symlink_without_writing_through_it(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """End-to-end: a redirect planted between removal and write is refused.
+    """A redirect planted just before the swap gets replaced, never followed.
 
-    Monkeypatches ``Path.unlink`` so the moment ``_restore_owned_prefixes``
-    removes the pre-existing file at ``owned/frozen.py``, this test plants a
-    symlink to an external file at that exact path before the function's
-    own write runs, reproducing review thread ``PRRT_kwDOQoWRls6epgus``
-    (build_all.py:1843) without needing real concurrency. Restore must
-    refuse the write (WARN, keep going) rather than send the snapshot's
-    original bytes through the link to the external target.
+    Successor to ``..._refuses_a_symlink_raced_in_before_the_write``, which
+    hooked ``Path.unlink`` because restore removed the destination before
+    recreating it. Issue #5502 replaced that sequence with
+    ``_publish_bytes_atomically``, so there is no removal to hook and the only
+    remaining window is the instant before ``os.replace``. This plants the
+    symlink there, which is the same review thread ``PRRT_kwDOQoWRls6epgus``
+    (build_all.py:1843) scenario without real concurrency.
+
+    The security assertion is unchanged and is the first one below: the
+    snapshot's bytes must not reach the external target. What changed is the
+    outcome for the destination. The old sequence refused and left the file
+    DELETED, further from its pre-run state than when the run started; the
+    swap restores it, because ``os.replace`` exchanges the directory entry
+    rather than opening the path.
     """
     repo = tmp_path / "repo"
     owned = repo / "owned"
@@ -3516,25 +3521,109 @@ def test_restore_owned_prefixes_refuses_a_symlink_raced_in_before_the_write(
     external = tmp_path / "external.py"
     external.write_text("do not touch\n", encoding="utf-8")
 
-    real_unlink = Path.unlink
+    real_replace = os.replace
     raced = False
 
-    def racing_unlink(self: Path, missing_ok: bool = False) -> None:
+    def racing_replace(source: Any, destination: Any) -> None:
         nonlocal raced
-        real_unlink(self, missing_ok=missing_ok)
-        if self == protected and not raced:
+        target = Path(destination)
+        if target == protected and not raced:
             raced = True
-            self.symlink_to(external)
+            target.unlink()
+            target.symlink_to(external)
+        real_replace(source, destination)
 
     # The generator "changed" the file so restore's already-matches
-    # shortcut does not skip straight past the removal-and-write path.
+    # shortcut does not skip straight past the write path.
     protected.write_text("generator output\n", encoding="utf-8")
-    monkeypatch.setattr(Path, "unlink", racing_unlink)
+    monkeypatch.setattr(build_all.os, "replace", racing_replace)
 
-    build_all._restore_owned_prefixes(repo, ("owned/",), snapshot)
+    assert build_all._restore_owned_prefixes(repo, ("owned/",), snapshot) is True
 
+    assert raced, "precondition: the redirect was planted"
     assert external.read_text(encoding="utf-8") == "do not touch\n"
+    assert not protected.is_symlink()
+    assert protected.read_bytes() == b"x = 1\n"
+
+
+def test_restore_owned_prefixes_never_empties_the_destination(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #5502: a concurrent reader must never see absent or empty bytes.
+
+    Fails against the previous remove-then-recreate sequence two ways:
+    ``os.replace`` was never called, so ``observed`` stays empty and the first
+    assertion goes red; and by the time the write ran the destination had
+    already been unlinked, so the observation would have been ``<absent>``.
+
+    Measured before the fix by polling
+    ``src/copilot-cli/agents/analyst.agent.md`` during
+    ``build/scripts/build_all.py --check`` against a stale tree:
+    ``13147 -> 13110 -> -1 -> 0 -> 8192 -> 12288 -> 13147``, 74 missing samples
+    and 28 zero-size samples.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    tracked = owned / "frozen.py"
+    tracked.write_bytes(b"x = 1\n")
+    snapshot = build_all._snapshot_owned_prefixes(repo, ("owned/",))
+
+    generated = b"generator output that is longer than the snapshot\n"
+    tracked.write_bytes(generated)
+
+    observed: list[bytes] = []
+    real_replace = os.replace
+
+    def observing_replace(source: Any, destination: Any) -> None:
+        target = Path(destination)
+        # One instruction before the swap. A remove-then-recreate sequence
+        # would already have deleted or truncated the destination by now.
+        observed.append(target.read_bytes() if target.is_file() else b"<absent>")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(build_all.os, "replace", observing_replace)
+
+    assert build_all._restore_owned_prefixes(repo, ("owned/",), snapshot) is True
+
+    assert observed, "restore did not publish through os.replace"
+    assert observed == [generated], (
+        "destination was not intact at the swap: a reader in another process "
+        "would have seen it absent or empty"
+    )
+    assert tracked.read_bytes() == b"x = 1\n"
+    assert list(owned.glob(".frozen.py.*")) == []
+
+
+def test_restore_owned_prefixes_warns_and_keeps_the_file_when_the_swap_fails(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The WARN and False return that run()'s exit-2 escalation depends on.
+
+    Also the inverse of the old sequence's worst case: a failed publish must
+    leave the destination on disk, not deleted.
+    """
+    repo = tmp_path / "repo"
+    owned = repo / "owned"
+    owned.mkdir(parents=True)
+    tracked = owned / "frozen.py"
+    tracked.write_bytes(b"x = 1\n")
+    snapshot = build_all._snapshot_owned_prefixes(repo, ("owned/",))
+    tracked.write_bytes(b"generator output\n")
+
+    def failing_replace(source: Any, destination: Any) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(build_all.os, "replace", failing_replace)
+
+    assert build_all._restore_owned_prefixes(repo, ("owned/",), snapshot) is False
+
     assert "WARN: failed to restore" in capsys.readouterr().err
+    assert tracked.read_bytes() == b"generator output\n"
+    assert list(owned.glob(".frozen.py.*")) == []
 
 
 def test_snapshot_non_strict_still_skips_an_owned_directory_symlink(
