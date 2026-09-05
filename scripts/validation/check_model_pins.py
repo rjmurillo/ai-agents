@@ -79,12 +79,24 @@ _MANIFEST_PATH = _REPO_ROOT / ".agents" / "governance" / "model-pin-evidence.jso
 _TIERS_PATH = _REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
 
 # Source unit trees and self-host copies scanned for model-pin policy.
+# ``src/claude`` and ``.github/prompts`` are here because they are
+# hand-authored, not generated: a pin added to either ships without ever
+# passing through a source tree this gate already reads. Their absence was a
+# live hole, not a design choice. ``src/claude/*.md`` is the plugin's agent
+# copy, byte-identical to ``.claude/agents`` by content parity, and
+# ``.github/prompts`` held ``model: Claude Opus 4.5 (copilot)`` on two files,
+# a retired id of exactly the class issue #2839 broke CI on, unseen by this
+# scanner for its whole life. Generated mirrors stay out: a pin there is a
+# copy of a source pin this gate already fails on, so scanning them would
+# report one fault twice and send the reader to a file they must not edit.
 _UNIT_GLOBS: tuple[tuple[str, str], ...] = (
     ("skill", ".claude/skills/*/SKILL.md"),
     ("agent", ".claude/agents/*.md"),
     ("agent", ".github/agents/*.md"),
+    ("agent", "src/claude/*.md"),
     ("agent", "templates/agents/*.shared.md"),
     ("command", ".claude/commands/**/*.md"),
+    ("command", ".github/prompts/*.md"),
 )
 
 _DOC_EXAMPLE_NAMES = frozenset({"AGENTS.md", "CLAUDE.md"})
@@ -542,26 +554,64 @@ def run_check(
     return report
 
 
-def write_baseline(units: list[Unit], baseline_path: Path = _BASELINE_PATH) -> int:
-    """Freeze the current pins as the baseline. Returns the entry count.
+class BaselineWouldRise(RuntimeError):
+    """Raised when --update-baseline would record more debt than the ratchet allows."""
 
-    Preserves the existing frozen_count if present to prevent baseline growth.
-    On first write (no existing baseline), sets frozen_count to current count.
+
+def write_baseline(units: list[Unit], baseline_path: Path = _BASELINE_PATH) -> int:
+    """Freeze the units needing grandfathering as the baseline. Returns the count.
+
+    Only a unit that FAILS the ADR-080 rules is recorded. A compliant pin needs
+    no baseline entry: ``run_check`` consults the baseline solely to downgrade a
+    rule failure to backlog, so freezing a passing pin records debt that does
+    not exist and inflates the number rule 6 obliges us to burn down.
+
+    Two guards keep the ratchet from re-arming, and the drain to zero is what
+    made both load-bearing:
+
+    - The first-write branch keys on whether the baseline file EXISTS, not on
+      whether its ``frozen_count`` is above zero. Reading zero as "no baseline
+      yet" meant a drained ratchet re-derived its own ceiling from the tree, so
+      one ``--update-baseline`` run silently restored grandfathering for
+      whatever was on disk and the growth guard in ``run_check`` never fired,
+      because both numbers moved together.
+    - Recording more entries than the stored ceiling raises ``BaselineWouldRise``
+      instead of writing. A ratchet may only fall; ``--update-baseline`` is for
+      recording a fall, never for accepting a rise.
     """
-    _, existing_frozen_count = load_baseline(baseline_path)
+    existing_pins, existing_frozen_count = load_baseline(baseline_path)
+    had_baseline = baseline_path.is_file()
+
+    manifest = load_manifest(_MANIFEST_PATH)
+    tier_map = load_tier_map()
+    today = datetime.now(timezone.utc).date()
 
     # A nested-only unit has no top-level model to freeze, and a nested pin is a
     # hard violation forever, so it must never enter the baseline as an empty
     # string that a later comparison would read as a matching pin.
-    pins = {u.path: u.model for u in sorted(units, key=lambda u: u.path) if u.model}
+    pins = {
+        u.path: u.model
+        for u in sorted(units, key=lambda u: u.path)
+        if u.model
+        and _unit_rule_failure(u, manifest, tier_map, _REPO_ROOT, today, DEFAULT_MODEL) is not None
+    }
 
-    frozen_count = existing_frozen_count if existing_frozen_count > 0 else len(pins)
+    frozen_count = existing_frozen_count if had_baseline else len(pins)
+
+    if len(pins) > frozen_count:
+        raise BaselineWouldRise(
+            f"refusing to write {len(pins)} baselined pin(s) against a frozen count of "
+            f"{frozen_count}: the ADR-080 ratchet may only fall. Existing entries: "
+            f"{len(existing_pins)}. Remove the new pin instead of baselining it."
+        )
 
     payload = {
         "schema_version": "1",
         "description": (
             "Frozen ADR-080 model-pin baseline. Draining ratchet: this count "
-            "must never grow and should shrink each release until empty."
+            "must never grow and should shrink each release until empty. Only a "
+            "pin that fails the ADR-080 rules is recorded here; a compliant pin "
+            "needs no entry."
         ),
         "frozen_count": frozen_count,
         "pins": pins,
@@ -605,7 +655,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if args.update_baseline:
-        count = write_baseline(scan_units(), args.baseline)
+        try:
+            count = write_baseline(scan_units(), args.baseline)
+        except BaselineWouldRise as exc:
+            print(f"[model-pins] {exc}", file=sys.stderr)
+            return 1
         print(f"[model-pins] baseline written: {count} pins -> {args.baseline}")
         return 0
 

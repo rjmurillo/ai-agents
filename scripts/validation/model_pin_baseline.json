@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "description": "Frozen ADR-080 model-pin baseline, drained to zero (issue #5605). The draining ratchet is empty: every remaining pin passes ADR-080 on its own rules, so nothing is grandfathered. frozen_count 0 means any new non-compliant pin is a hard violation, never backlog.",
+  "description": "Frozen ADR-080 model-pin baseline. Draining ratchet: this count must never grow and should shrink each release until empty. Only a pin that fails the ADR-080 rules is recorded here; a compliant pin needs no entry.",
   "frozen_count": 0,
   "pins": {}
 }
