@@ -3528,8 +3528,10 @@ def test_skillforge_mirror_skip_is_derived_from_the_commands_directory(
         )
         is False
     )
-    # Edge: a sub-directory command (forgetful/memory-save.md) has no flat
-    # mirror, so the flat path must not be skipped on its account.
+    # Edge: a sub-directory command (e.g. <topic>/memory-save.md) has no flat
+    # mirror, so the flat path must not be skipped on its account. The example
+    # this named was a command directory Stage 1 of issue #5574 deleted; the
+    # rule is about nesting, not about that particular command.
     assert (
         policy._skip_skillforge_path("src/copilot-cli/skills/memory-save/SKILL.md", tmp_path)
         is False

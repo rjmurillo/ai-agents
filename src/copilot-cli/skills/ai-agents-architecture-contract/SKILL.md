@@ -49,13 +49,13 @@ Direction rule: generators read canonical, write mirrors. They NEVER write `.cla
 
 | Decision | ADR | Status (as of 2026-07-30 except where a row states its own later date) | Why it exists |
 |---|---|---|---|
-| Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`) canonical, Forgetful supplementary | ADR-007 | Accepted (revised 2026-01-01) | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
+| Memory-first: retrieval precedes reasoning; Serena (`.serena/memories/`) canonical | ADR-007 | Accepted (revised 2026-01-01); supplementary store retired by issue #5574 | Agents re-derive knowledge badly; retrieval is cheaper and auditable |
 | Distributed handoffs; HANDOFF.md deleted (was read-only) | ADR-014 | Accepted | Single-file write target caused merge-conflict storms |
 | Two-source agent templates (shared templates plus hand-written `src/claude/`) | ADR-036 | Superseded in governance by ADR-052 (2026-08-25); procedure still operative, ADR-052 unimplemented | Claude prompts need harness-specific depth; 3 full sources would drift |
 | Claude-first template strategy (target state, not yet implemented) | ADR-052 | Accepted (2026-08-25), `implemented: false` | The template layer today does synchronize both generated agent trees and feed `build/generate_agent_catalog.py`'s `docs/agent-catalog.md`; the case for Claude-first is cost, not lost value: a direct Claude-to-platform generation preserves all three outputs while removing the intermediate `templates/agents/` source tree |
 | Python-only new scripts, bash prohibited | ADR-042 | Accepted | One toolchain, testable, cross-platform |
 | Skill-first over subagent dispatch | ADR-030 | doc's own header reads "Status: Critical Update - Changes Recommendation" (line 4); treated as binding by AGENTS.md Skill-First section | In-context skill plus direct MCP call is 5-20ms vs 100-200ms Task spawn overhead (ADR-030 line 31 comparison table) |
-| Memory skill decomposition into tiers | ADR-063, amended by ADR-089 | Accepted; ADR-089 proposed | Tier 1 semantic (Serena plus Forgetful search), Tier 2 episodic. ADR-063's Tier 3 causal graph was removed: nothing read it |
+| Memory skill decomposition into tiers | ADR-063, amended by ADR-089 | Accepted; ADR-089 proposed | Tier 1 semantic (Serena search; the second backend was retired by issue #5574), Tier 2 episodic. ADR-063's Tier 3 causal graph was removed: nothing read it |
 | Hook failure policy: prevention-first, fail-closed-and-loud | ADR-066 | Accepted (2026-07-19) | Launcher fail-open hid a broken hook from every customer for 33 days |
 | Plugin hook runtime-contract verification | ADR-071 | Accepted (six-agent adr-review) | Vendor docs were wrong by omission twice; contracts are tested, not assumed |
 | Consolidated per-event hook dispatcher for Copilot CLI | ADR-068 | Accepted (2026-07-19); rationale narrowed after the 2026-07-22 hook purge | Historical matcher and timeout behavior made one process per shim unsafe; #3218 closed after confirming the generation machinery remains live |
