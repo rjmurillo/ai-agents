@@ -18,6 +18,8 @@ Tests:
   no destination.
 - Contract: the shipped agent list resolves in every tree, with no unsafe or
   malformed file.
+- Contract: the shipped destinations strip `mcp__github__` and not
+  `mcp__serena__`.
 """
 
 from __future__ import annotations
@@ -183,3 +185,29 @@ def test_shipped_trees_carry_no_unsafe_or_malformed_paths() -> None:
     """The live tree passes the two guards, so the gate is not shipping red."""
     assert sync_slim_agents.find_unsafe_paths(sync_slim_agents.SLIMMED_AGENTS) == []
     assert sync_slim_agents.find_malformed_paths(sync_slim_agents.SLIMMED_AGENTS) == []
+
+
+def test_shipped_destinations_strip_github_and_leave_serena() -> None:
+    """Reads the shipped constants: the tree fixture monkeypatches them away.
+
+    Pins the rule against its evidence. `mcp__github__` is in `src/claude/` 26
+    times and in neither mirror; `mcp__serena__` is in all three trees, so a
+    transform that stripped it would rewrite mirror lines that are correct.
+
+    Goes through the text layer instance the CLI module itself loaded, rather
+    than loading a second one here. Two instances would define two `Transform`
+    classes, and a dataclass `__eq__` returns NotImplemented across classes, so
+    the first assertion below would compare the shipped rule set against a
+    structurally identical stranger and fail.
+    """
+    reconcile = sync_slim_agents._reconcile
+
+    for destination in sync_slim_agents.DESTINATIONS:
+        assert destination.transforms == reconcile.MIRROR_TRANSFORMS
+
+    rewritten = reconcile.transformed_body(
+        "mcp__github__issue_read and mcp__serena__read_memory\n",
+        reconcile.MIRROR_TRANSFORMS,
+    )
+
+    assert rewritten == "issue_read and mcp__serena__read_memory\n"

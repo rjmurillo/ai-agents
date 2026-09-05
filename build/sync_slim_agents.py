@@ -1,54 +1,35 @@
 #!/usr/bin/env python3
-# taste-lint: ignore file-size, kept whole while PR #5526 scopes edits to two files.
 """Propagate a slimmed agent body from `src/claude/` to its sibling copies.
 
 `build/AGENTS.md` Rule 2 states the manual procedure this automates: when a
 Claude agent receives a universal change, the same change is duplicated into
 `templates/agents/{name}.shared.md`. `.serena/memories/decision-two-pipeline-agent-mirror-recipe.md`
 widens that to the other hand-maintained copies. This script performs the body
-copy for the agents listed in `SLIMMED_AGENTS` and leaves each destination's own
-frontmatter alone, because the trees do not share a frontmatter schema:
-`src/claude/` carries `model:` and `mcp__`-prefixed tool names,
-`.github/agents/` carries slash-namespaced tool names, and `templates/agents/`
-carries the `tools_vscode` and `tools_copilot` pair that
-`build/generate_agents.py` fans out.
+copy for the agents listed in `SLIMMED_AGENTS`.
 
-The body is not copied verbatim either. Each destination declares a
-`transforms` tuple that `transformed_body` applies in order, rewriting the
-source body into that tree's own vocabulary. Both current destinations declare
-the same single transform: strip the literal `mcp__github__` prefix, so
-`mcp__github__pull_request_read` reaches a mirror as `pull_request_read`.
-Measured on this branch with `grep -rhoE "mcp__[a-z0-9]+__" <tree>/*.md`,
-`src/claude/` holds 26 `mcp__github__` occurrences against 0 in each
-destination tree, while `mcp__serena__` appears in all three (83, 31, 40) and
-is left alone.
+This module owns the files: which agents are mirrored, where they live, path
+safety, the atomic write, the CLI and the exit codes. What a body becomes on
+the way to a mirror belongs to the sibling `sync_slim_agents_reconcile.py`;
+read its docstring for the frontmatter schemas, the `mcp__github__` rule and
+its measurement, and the reconciliation opcodes.
 
-Most divergence is not mechanizable, so the copy is refused rather than
-attempted wherever the two disagree. Of the 48 line pairs the trees currently
-replace, exactly 10 are that one prefix rule; the other 38 are destination
-wording no transform reproduces, including the `mcp__deepwiki__` and
-`mcp__context7__` sentences the mirrors reworded instead of stripping.
-`reconciliation_blockages` compares each destination body against its
-transformed source body with `difflib.SequenceMatcher` and treats `replace`
-and `delete` as blocking. `--write` then exits 2 and writes nothing, naming
-every blocked file and line. `--check` reports those same files as drift it
-cannot mechanize, counted apart from drift it can apply.
+A destination it cannot reproduce blocks the run: `--write` exits 2 and writes
+nothing, and `--check` counts those files apart from the ones it can sync. On
+the live tree that is 7 of the 18 declared files.
 
 `src/claude/` is the source and never a destination. Its own `AGENTS.md`
 tabulates `src/claude/` as the source for Claude Code agents, marked "Edit
 here", against `.claude/agents/` as the installed runtime copy, marked "DO NOT
 edit directly", and names copying the installed tree back over the source as a
 common mistake that can drop blocking gates. So `.claude/agents/` is neither
-read nor written here. Nothing is lost by leaving it out:
-`build/scripts/check_agent_content_parity.py` already compares those two trees
-byte-for-byte and runs on every PR through `pre_pr.py`.
+read nor written here, and an edit that started in `src/claude/` still has to
+reach that installed copy by its own route;
+`build/scripts/check_agent_content_parity.py` compares those two trees
+byte-for-byte on every PR through `pre_pr.py` and fails until it does.
 
-It does NOT regenerate the derived trees. After a `--write` run, run
+Nor does this regenerate the derived trees. After a `--write` run, run
 `uv run python build/generate_agents.py` to refresh `src/copilot-cli/` and
-`src/vs-code-agents/`. It also does not touch `.claude/agents/`, so an edit
-that started in `src/claude/` still has to reach that installed copy by its own
-route; `check_agent_content_parity.py` compares the two byte-for-byte and fails
-the PR until it does. Both steps are printed after a write.
+`src/vs-code-agents/`. Both follow-ups are printed after a write.
 
 Default mode is `--check`: report drift and exit non-zero, mutating nothing.
 `--write` performs the copy. The asymmetry is deliberate. Four of the nine
@@ -63,25 +44,19 @@ Exit codes follow ADR-035:
         carries body wording the transforms cannot reproduce; or `--write` was
         invoked from outside the checkout that holds this script
     3 - external failure: a read or write raised OSError or UnicodeDecodeError
-
-A destination is published with a temp file plus `os.replace`, so a failed
-write leaves the previous content in place rather than an empty or partial
-agent.
 """
 
 from __future__ import annotations
 
 import argparse
 import contextlib
-import difflib
+import importlib.util
 import os
-import re
 import sys
 import tempfile
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import TextIO
+from types import ModuleType
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -108,51 +83,50 @@ class UnsafePathError(Exception):
     """A declared path is a symlink or resolves outside the repository root."""
 
 
-@dataclass(frozen=True, slots=True)
-class Transform:
-    """One mechanical rewrite a destination applies to the source body.
+def _load_reconcile() -> ModuleType:
+    """Load the sibling text layer without mutating `sys.path`.
 
-    `why` records the evidence for the rule rather than restating the rule. A
-    transform nobody measured is a guess about what a mirror wants, and a wrong
-    guess here rewrites nine agent files in two trees at once.
+    Canonical source (`.claude/rules/canonical-source-mirror.md`):
+    `build/generate_agents_common.py`'s `_load_model_pin_manifest_exports`,
+    whose docstring states the contract verbatim, it "loads a sibling
+    build-tree module via ``importlib.util.spec_from_file_location`` and
+    ``exec_module`` specifically so that importing the *loading* module never
+    touches ``sys.path``". A plain import would not resolve here anyway: this
+    module is itself loaded by file location, by the three test modules under
+    `tests/build_scripts/`.
+
+    Different than canonical: it registers in `sys.modules` before executing.
+    The sibling defines `@dataclass(slots=True)` classes, and building a
+    slotted class runs `dataclasses._is_type`, which reads
+    `sys.modules.get(cls.__module__).__dict__`. Unregistered that is None and
+    the import dies with `'NoneType' object has no attribute '__dict__'`,
+    nowhere near the line that caused it.
     """
-
-    pattern: re.Pattern[str]
-    replacement: str
-    why: str
-
-    def apply(self, text: str) -> str:
-        return self.pattern.sub(self.replacement, text)
-
-
-# Both mirror trees take this one rule, and only this one.
-MIRROR_TRANSFORMS: tuple[Transform, ...] = (
-    Transform(
-        pattern=re.compile(r"mcp__github__"),
-        replacement="",
-        why=(
-            'grep -rhoE "mcp__[a-z0-9]+__" over the three trees counts 26'
-            " mcp__github__ in src/claude/ against 0 in templates/agents/ and 0"
-            " in .github/agents/, so both mirrors strip that prefix with no"
-            " exception. mcp__serena__ is deliberately not here: it appears in"
-            " all three trees (83, 31, 40), so stripping it would rewrite 71"
-            " mirror lines that are already correct."
-        ),
-    ),
-)
+    path = Path(__file__).resolve().parent / "sync_slim_agents_reconcile.py"
+    spec = importlib.util.spec_from_file_location("_sync_slim_reconcile", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load build utility {path}: no import spec")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        del sys.modules[spec.name]
+        raise ImportError(f"Cannot load build utility {path}: {exc}") from exc
+    return module
 
 
-@dataclass(frozen=True, slots=True)
-class Destination:
-    """One hand-maintained mirror of an agent body."""
+_reconcile = _load_reconcile()
 
-    label: str
-    directory: Path
-    suffix: str
-    transforms: tuple[Transform, ...]
-
-    def path_for(self, name: str) -> Path:
-        return self.directory / f"{name}{self.suffix}"
+Comparison = _reconcile.Comparison
+Destination = _reconcile.Destination
+Drift = _reconcile.Drift
+MIRROR_TRANSFORMS = _reconcile.MIRROR_TRANSFORMS
+collect_drift = _reconcile.collect_drift
+compare_file = _reconcile.compare_file
+has_unterminated_frontmatter = _reconcile.has_unterminated_frontmatter
+print_blockages = _reconcile.print_blockages
+split_frontmatter = _reconcile.split_frontmatter
 
 
 DESTINATIONS: tuple[Destination, ...] = (
@@ -187,57 +161,6 @@ SLIMMED_AGENTS: tuple[str, ...] = (
     "roadmap",
     "skillbook",
 )
-
-
-def _opens_frontmatter(text: str) -> bool:
-    """True when the text starts with a line that is exactly `---`.
-
-    A file whose entire content is `---` opens a block with no newline after
-    it. Requiring the newline would classify that file as having no
-    frontmatter, and `--write` would then replace the whole thing with the
-    source body instead of refusing it.
-    """
-    return text.startswith("---\n") or text == "---"
-
-
-def _frontmatter_end(text: str) -> int | None:
-    """Return the index just past the closing `---` line, or None if absent.
-
-    The search starts at the newline that closes the opening delimiter, not
-    past it, so an empty block (`---` on one line and `---` on the next) is
-    terminated rather than unterminated. A closing delimiter that ends the
-    file with no trailing newline counts too. Both shapes are legal
-    frontmatter, and `main` now rejects an unterminated block outright, so
-    misreading either one would refuse to sync a valid file.
-    """
-    if not _opens_frontmatter(text):
-        return None
-    end = text.find("\n---\n", 3)
-    if end != -1:
-        return end + len("\n---\n")
-    if text.endswith("\n---"):
-        return len(text)
-    return None
-
-
-def split_frontmatter(text: str) -> tuple[str, str]:
-    """Return (frontmatter, body). Frontmatter includes both `---` delimiters.
-
-    A file with no leading `---` block yields an empty frontmatter and the whole
-    text as body. A file whose block never closes yields that same shape, so
-    this return value alone cannot tell the two apart. `main` runs
-    `find_malformed_paths` first and refuses the second shape, which is what
-    keeps the ambiguity away from the callers below.
-    """
-    boundary = _frontmatter_end(text)
-    if boundary is None:
-        return "", text
-    return text[:boundary], text[boundary:]
-
-
-def has_unterminated_frontmatter(text: str) -> bool:
-    """True when the text opens a `---` block that never closes."""
-    return _opens_frontmatter(text) and _frontmatter_end(text) is None
 
 
 def _relative(path: PurePath) -> str:
@@ -339,181 +262,35 @@ def find_malformed_paths(agents: tuple[str, ...]) -> list[str]:
     ]
 
 
-def rendered_content(source_body: str, target_text: str) -> str:
-    """Return what `target_text` becomes once it carries `source_body`."""
-    frontmatter, _ = split_frontmatter(target_text)
-    if not frontmatter:
-        return source_body
-    if not frontmatter.endswith("\n"):
-        # A closing `---` that ended the file carries no newline of its own.
-        # Concatenating straight onto it yields `---# Analyst`, which is no
-        # longer a standalone YAML delimiter, so the block would not parse.
-        frontmatter += "\n"
-    return frontmatter + source_body
+def compare(agents: tuple[str, ...]) -> Drift:
+    """Read every declared pair and sort it into the three outcomes.
 
-
-def transformed_body(source_body: str, destination: Destination) -> str:
-    """Return the source body rewritten into `destination`'s own vocabulary.
-
-    Transforms apply in declaration order, so a later rule sees what an earlier
-    one produced. Every read of a source body on its way to a mirror goes
-    through here, which is what keeps `--check` and `--write` from disagreeing
-    about what a destination should hold.
-    """
-    for transform in destination.transforms:
-        source_body = transform.apply(source_body)
-    return source_body
-
-
-@dataclass(frozen=True, slots=True)
-class Blockage:
-    """One destination line the transform layer cannot reproduce.
-
-    `line` is 1-based and indexes the destination file, frontmatter included,
-    so it matches what an editor shows. `source_text` is None when the source
-    has no counterpart at all, which is the `delete` case below; an empty
-    string there would be indistinguishable from a blank source line.
-    """
-
-    line: int
-    destination_text: str
-    source_text: str | None
-
-
-def reconciliation_blockages(
-    destination_body: str, source_body: str, line_offset: int = 0
-) -> tuple[Blockage, ...]:
-    """Return the destination lines a copy of `source_body` would lose.
-
-    `difflib.SequenceMatcher` over the two line lists yields three non-equal
-    opcodes, and exactly one of them is safe to write through:
-
-    - `insert`: the source has lines the destination lacks. When inserts are
-      the only opcodes, the destination body is exactly the transformed source
-      minus some lines, so writing the transformed source adds content and
-      loses nothing. Safe.
-    - `replace`: the destination says the same thing in wording the transforms
-      did not produce. Writing would overwrite a hand-made adaptation with the
-      Claude phrasing. Blocking.
-    - `delete`: the destination carries a line the source does not, such as the
-      `vendor-portability` declaration comment in
-      `templates/agents/implementer.shared.md`. Writing would drop it.
-      Blocking.
-
-    A blocking opcode reports one entry per destination line it covers, paired
-    with the source line at the same offset when the block has one. Naming
-    `insert` in the safe set is a statement of policy rather than the
-    mechanism that enforces it: an insert covers no destination line, so the
-    loop below would emit nothing for one even if it were not filtered out. `autojunk`
-    is off because its heuristic drops lines that repeat in more than 1% of a
-    long sequence, and a blank line or a `| --- |` table rule qualifies; a
-    dropped line cannot be reported as blocking.
-    """
-    destination_lines = destination_body.splitlines()
-    source_lines = source_body.splitlines()
-    matcher = difflib.SequenceMatcher(
-        None, destination_lines, source_lines, autojunk=False
-    )
-    blocked: list[Blockage] = []
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag not in ("replace", "delete"):
-            continue
-        for offset in range(i2 - i1):
-            paired = j1 + offset
-            blocked.append(
-                Blockage(
-                    line=line_offset + i1 + offset + 1,
-                    destination_text=destination_lines[i1 + offset],
-                    source_text=source_lines[paired] if paired < j2 else None,
-                )
-            )
-    return tuple(blocked)
-
-
-@dataclass(frozen=True, slots=True)
-class Comparison:
-    """One destination file, what it would become, and whether it may change."""
-
-    target: Path
-    in_sync: bool
-    updated: str
-    blockages: tuple[Blockage, ...]
-
-
-def compare(agents: tuple[str, ...]) -> list[Comparison]:
-    """Classify every declared destination file in one pass.
-
-    Both modes read this list, so a file `--check` calls unmechanizable is the
-    same file `--write` refuses, computed the same way from the same bytes.
+    Both modes call this, so a file `--check` calls unmechanizable is the same
+    file `--write` refuses, computed the same way from the same bytes.
     """
     comparisons: list[Comparison] = []
     for name in agents:
         _, source_body = split_frontmatter(_read(AGENT_SOURCE / f"{name}.md"))
         for destination in DESTINATIONS:
             target = destination.path_for(name)
-            current = _read(target)
-            frontmatter, current_body = split_frontmatter(current)
-            body = transformed_body(source_body, destination)
-            updated = rendered_content(body, current)
             comparisons.append(
-                Comparison(
-                    target=target,
-                    in_sync=updated == current,
-                    updated=updated,
-                    blockages=reconciliation_blockages(
-                        current_body, body, frontmatter.count("\n")
-                    ),
+                compare_file(
+                    target, source_body, _read(target), destination.transforms
                 )
             )
-    return comparisons
+    return collect_drift(comparisons)
 
 
-@dataclass(frozen=True, slots=True)
-class Drift:
-    """The three outcomes `--check` has to tell apart.
+def apply_sync(drift: Drift) -> list[str]:
+    """Write the body into every destination that may take one.
 
-    Reporting only "drifted" merges the last two, and they call for opposite
-    actions: one is cleared by running `--write`, the other is cleared by a
-    person reconciling wording `--write` refuses to touch.
-    """
-
-    in_sync: tuple[str, ...]
-    applicable: tuple[str, ...]
-    blocked: tuple[Comparison, ...]
-
-    @property
-    def examined(self) -> int:
-        return len(self.in_sync) + len(self.applicable) + len(self.blocked)
-
-
-def collect_drift(agents: tuple[str, ...]) -> Drift:
-    """Sort every destination file into the three outcomes, in one pass."""
-    comparisons = compare(agents)
-    return Drift(
-        in_sync=tuple(
-            _relative(item.target) for item in comparisons if item.in_sync
-        ),
-        applicable=tuple(
-            _relative(item.target)
-            for item in comparisons
-            if not item.in_sync and not item.blockages
-        ),
-        blocked=tuple(item for item in comparisons if item.blockages),
-    )
-
-
-def apply_sync(agents: tuple[str, ...]) -> list[str]:
-    """Write the transformed Claude body into every destination.
-
-    Returns the repo-relative paths changed. A blocked file is skipped rather
-    than written. `_preflight` already refused the whole run in that case, so
-    the skip is unreachable from the CLI; it is here so that a direct caller
-    of this function cannot lose destination wording either.
+    Returns the repo-relative paths changed. Takes the whole `Drift` and reads
+    only `applicable`, so a blocked file is not skipped by a guard here, it is
+    never handed over: the set this walks is by construction the set that is
+    neither in sync nor blocked.
     """
     changed: list[str] = []
-    for comparison in compare(agents):
-        if comparison.in_sync or comparison.blockages:
-            continue
+    for comparison in drift.applicable:
         _write(comparison.target, comparison.updated)
         changed.append(_relative(comparison.target))
     return changed
@@ -537,40 +314,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _report(label: str, paths: list[str], total: int) -> None:
-    print(f"{label}: {len(paths)} of {total} destination files")
-    for path in paths:
-        print(f"  {path}")
-
-
-# A mirror body carries markdown table rows several hundred characters wide.
-# Printed whole, one of them scrolls every other finding off the screen.
-_EXCERPT_WIDTH = 76
-
-
-def _excerpt(text: str) -> str:
-    """Trim one reported line so a long row cannot bury the rest of the report."""
-    if len(text) <= _EXCERPT_WIDTH:
-        return text
-    return text[: _EXCERPT_WIDTH - 3] + "..."
-
-
-def _print_blockages(blockages: Iterable[Blockage], stream: TextIO) -> None:
-    """Print both sides of every blocked line, so the reader can reconcile them."""
-    for blockage in blockages:
-        source = (
-            "(no matching source line)"
-            if blockage.source_text is None
-            else _excerpt(blockage.source_text)
-        )
-        print(
-            f"    line {blockage.line} destination: "
-            f"{_excerpt(blockage.destination_text)}",
-            file=stream,
-        )
-        print(f"    line {blockage.line} source:      {source}", file=stream)
-
-
 def _config_error(header: str, paths: list[str], remedy: str) -> int:
     print(f"sync-slim-agents: {header}", file=sys.stderr)
     for path in paths:
@@ -588,7 +331,7 @@ def _blocked_error(blocked: tuple[Comparison, ...]) -> int:
     )
     for comparison in blocked:
         print(f"  {_relative(comparison.target)}", file=sys.stderr)
-        _print_blockages(comparison.blockages, sys.stderr)
+        print_blockages(comparison.blockages, sys.stderr)
     print(
         "Reconcile each line by hand, or declare a transform that produces the"
         " destination wording. Refusing to write anything.",
@@ -638,7 +381,7 @@ def _preflight(for_write: bool) -> int:
         )
 
     if for_write:
-        blocked = collect_drift(SLIMMED_AGENTS).blocked
+        blocked = compare(SLIMMED_AGENTS).blocked
         if blocked:
             return _blocked_error(blocked)
 
@@ -657,11 +400,11 @@ def _report_check(drift: Drift) -> int:
         f" --write can apply, {len(drift.blocked)} with drift it cannot"
         " mechanize"
     )
-    for path in drift.applicable:
-        print(f"  can apply: {path}")
+    for comparison in drift.applicable:
+        print(f"  can apply: {_relative(comparison.target)}")
     for comparison in drift.blocked:
         print(f"  cannot mechanize: {_relative(comparison.target)}")
-        _print_blockages(comparison.blockages, sys.stdout)
+        print_blockages(comparison.blockages, sys.stdout)
     if drift.applicable:
         print("Run with --write to propagate the src/claude/ bodies.")
     if drift.blocked:
@@ -697,8 +440,13 @@ def _run(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return EXIT_CONFIG
-        changed = apply_sync(SLIMMED_AGENTS)
-        _report("sync-slim-agents: wrote", changed, total)
+        changed = apply_sync(compare(SLIMMED_AGENTS))
+        print(
+            f"sync-slim-agents: wrote: {len(changed)} of {total}"
+            " destination files"
+        )
+        for path in changed:
+            print(f"  {path}")
         print(
             "Next: run `uv run python build/generate_agents.py` to refresh"
             " src/copilot-cli/ and src/vs-code-agents/."
@@ -710,7 +458,7 @@ def _run(args: argparse.Namespace) -> int:
         )
         return EXIT_OK
 
-    return _report_check(collect_drift(SLIMMED_AGENTS))
+    return _report_check(compare(SLIMMED_AGENTS))
 
 
 def main(argv: list[str] | None = None) -> int:

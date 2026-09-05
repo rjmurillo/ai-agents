@@ -35,8 +35,6 @@ Tests:
 - Negative: --check on a blocked tree exits 1 and counts unmechanizable drift
   apart from drift it can apply.
 - Edge: a long blocked line is truncated so it cannot bury the rest.
-- Contract: the shipped destinations strip `mcp__github__` and not
-  `mcp__serena__`.
 
 The frontmatter parsing contract and the shipped-constant checks live in
 `test_sync_slim_agents_contract.py`; every case here drives the `tree` fixture.
@@ -664,23 +662,7 @@ def test_apply_sync_skips_a_blocked_file_when_called_directly(tree: Path) -> Non
     template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     _write(template, TEMPLATE_FRONTMATTER + REWORDED_BODY)
 
-    assert sync_slim_agents.apply_sync(sync_slim_agents.SLIMMED_AGENTS) == []
+    drift = sync_slim_agents.compare(sync_slim_agents.SLIMMED_AGENTS)
+
+    assert sync_slim_agents.apply_sync(drift) == []
     assert template.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + REWORDED_BODY
-
-
-def test_shipped_destinations_strip_github_and_leave_serena() -> None:
-    """Reads the shipped constants: the tree fixture monkeypatches them away.
-
-    Pins the rule against its evidence. `mcp__github__` is in `src/claude/` 26
-    times and in neither mirror; `mcp__serena__` is in all three trees, so a
-    transform that stripped it would rewrite mirror lines that are correct.
-    """
-    for destination in sync_slim_agents.DESTINATIONS:
-        assert destination.transforms == sync_slim_agents.MIRROR_TRANSFORMS
-
-    rewritten = sync_slim_agents.transformed_body(
-        "mcp__github__issue_read and mcp__serena__read_memory\n",
-        sync_slim_agents.DESTINATIONS[0],
-    )
-
-    assert rewritten == "issue_read and mcp__serena__read_memory\n"
