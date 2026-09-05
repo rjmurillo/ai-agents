@@ -948,67 +948,6 @@ Supported reference formats:
 
 The AI Spec Validation workflow will check for these references on all PRs.
 
-## Forgetful MCP Server
-
-This project uses the [Forgetful MCP](https://github.com/ScottRBK/forgetful) server for AI agent memory. Forgetful provides semantic search, automatic knowledge graph construction, and cross-session memory persistence.
-
-### Setup
-
-Forgetful uses stdio transport with automatic installation via `uvx`. No manual service setup required.
-
-**Configure MCP client** (`.mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "forgetful": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "forgetful-ai"
-      ]
-    }
-  }
-}
-```
-
-### Forgetful Installation Prerequisites
-
-Install `uv` if not already present:
-
-**Linux/macOS:**
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-**Windows:**
-
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-**Security Note**: Optional: verify installer integrity or use a package manager (e.g., brew/winget) when available.
-
-### Verifying Connection
-
-After configuration, verify the MCP connection in your client:
-
-- **Claude Code**: Run `mcp__forgetful__discover_forgetful_tools()` to see available tools
-- Check logs if issues occur (uvx manages the process lifecycle automatically)
-
-### Importing Shared Memories
-
-Import the project's shared Forgetful memories to get cross-session context:
-
-```bash
-python3 scripts/forgetful/import_forgetful_memories.py
-```
-
-This imports all JSON exports from `.forgetful/exports/` into your local Forgetful database. The import is idempotent and safe to run multiple times.
-
-**Note**: See `scripts/forgetful/README.md` for limitations on ID-based sync between divergent databases.
-
 ## Claude Router Plugin
 
 This project supports the [Claude Router](https://github.com/0xrdan/claude-router) plugin for intelligent model routing and cost optimization.
