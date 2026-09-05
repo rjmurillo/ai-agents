@@ -20,7 +20,8 @@ working tree.
    plugin payload. Migrate the 14,883 authored lines to `tests/skills/<name>/`,
    which deletes the 14,656-line generated mirror.
    [`.claude/skills/*/tests/`, `src/copilot-cli/skills/*/tests/`]
-3. `delete:` 9.2 MB claude-mem export blob with no code reader. Nothing.
+3. `delete:` 9.2 MB claude-mem export blob whose only reader is a manual
+   importer. Retire the documented import procedure, then the blob.
    [`.claude-mem/memories/direct-backup-2026-01-03-1434-ai-agents.json`]
 4. `yagni:` 33 `scripts/` modules, 11,405 lines, reachable only from their own
    tests. Delete the module and its test together. [`scripts/`, see Evidence 4]
@@ -69,12 +70,15 @@ working tree.
     singular and plural pair holding 360 and 344 files, forcing
     `extract_session_episode.py:1614` to search both. One directory, one lookup.
     [`.agents/archive/`]
-19. `shrink:` 1.0 MB JSON fixture loaded whole by one import test. A trimmed
-    fixture with the same shape.
-    [`2026-01-19-full-backup.json` at `tests/test_import_forgetful_memories.py:232`]
+19. `delete:` 1.0 MB committed export corpus that one test reaches out of
+    `tests/` to read whole. Superseded by the forgetful decommission, which
+    removes the corpus and the test together.
+    [`.forgetful/exports/2026-01-19-full-backup.json`, read at
+    `tests/test_import_forgetful_memories.py:228-232`]
 
-net: -34,700 lines, -35 MB, -0 deps possible, plus 14,883 lines relocated
-from the plugin roots to `tests/skills/`.
+net: -34,700 lines, -26.8 MB, -0 deps possible, plus 14,883 lines relocated
+from the plugin roots to `tests/skills/`. A further 9.2 MB (finding 3) is
+recoverable only if the manual claude-mem import procedure is retired first.
 
 Zero deps: every entry in `pyproject.toml` (`anthropic`, `jsonschema`,
 `markdown-it-py`, `python-frontmatter`, `PyYAML`, `tiktoken`) and every dev
@@ -99,10 +103,19 @@ extra (`mypy`, `semgrep`, `bandit`, `pip-audit`, `ruff`, `pytest*`, `lefthook`,
    legacy colocated suites until migrated". Nobody migrated them. Counts:
    `git ls-files '.claude/skills/*/tests/*.py' | xargs wc -l` gives 14,883 and the
    `src/copilot-cli` mirror gives 14,656, over 121 files.
-3. Search for `direct-backup-2026-01-03` outside `.agents/` and the file itself
-   returns only a directory listing in `.claude-mem/memories/README.md`. The
-   one analysis that mined it (`.agents/analysis/906-skill-learning-heuristic-enhancement.md`)
-   finished in the past.
+3. Corrected. The original claim, "no code reader", came from searching for
+   `direct-backup-2026-01-03` and finding only a directory listing in
+   `.claude-mem/memories/README.md`. That search could not have found the
+   reader, because the reader never names the file:
+   `.claude-mem/scripts/import_claude_mem_memories.py:86` sets `_MEMORIES_DIR`
+   to the sibling `memories` directory, and line 428 globs it. The blob is the
+   only top-level `.json` there, so it is the importer's sole input.
+   What is actually absent is an automated caller. Six suites under
+   `tests/claude_mem/` load the importer.
+   `.agents/governance/MEMORY-MANAGEMENT.md:168` runs
+   `python3 .claude-mem/scripts/import_claude_mem_memories.py` by hand.
+   Deleting the blob without retiring that documented procedure leaves the
+   procedure pointing at nothing.
 4. Each of the 33 has an importer only in its own test module. Roughly ten also
    carry a documented manual invocation in `scripts/README.md`,
    `scripts/eval/README.md`, or a `SKILL.md`, so triage before cutting:
@@ -118,14 +131,22 @@ extra (`mypy`, `semgrep`, `bandit`, `pip-audit`, `ruff`, `pytest*`, `lefthook`,
    docstring reads "This is a FORENSIC TOOL, not a regression gate. Do NOT add
    it to CI") and is excluded from the count.
 5. `.claude/rules/session-logs.md:9`: "Session log creation is discontinued: do
-   not create a new `.agents/sessions/*.json` file." The 1,538 existing logs are
-   frozen history. `scripts/measure_context_retrieval_metrics.py` parses that
+   not create a new `.agents/sessions/*.json` file." The 1,467 existing logs are
+   frozen history. An earlier draft said 1,538, which is every tracked file under
+   `.agents/sessions/`: it counts the 15 files in `handoffs/` and the non-JSON
+   entries the quoted rule does not describe.
+   `scripts/measure_context_retrieval_metrics.py` parses that
    frozen corpus and is imported only by `tests/test_context_retrieval_decision.py`.
    `scripts/validate_session_json.py` and its 5,258-line test are NOT part of this
-   cut: `new_pr_validations.py:192-206` sets `validate_script` to that path
+   cut. It has three live callers, not the zero the first draft claimed:
+   `new_pr_validations.py:192-206` sets `validate_script` to that path
    (`.claude/skills/github/scripts/pr/`) and runs it under `subprocess.run` as
-   the "Session End" PR validation, and
-   `git_hook_policy.py session` is a validate-if-present pre-commit gate. Both fire
+   the "Session End" PR validation;
+   `git_hook_policy.py session` is a validate-if-present pre-commit gate that
+   `lefthook.yml` runs as `session-policy`; and
+   `scripts/validation/pre_pr_sequence.py:257` registers it as the
+   "Session End Validation" gate.
+   All three fire
    whenever a legacy log is staged or cherry-picked, so the validator stays.
 6. `scripts/workflow/coordinator.py:29` defines `CoordinationStrategy(ABC)` with
    `CentralizedStrategy`, `HierarchicalStrategy`, and `MeshStrategy`. Searching
@@ -198,8 +219,10 @@ rewrite, which is ocean, not lake.
 
 ## Method note: indirect runners
 
-Two findings in an earlier draft of this report were wrong the same way, and the
-error is worth naming because it is cheap to repeat. Grepping `.github/workflows/`
+Three findings in this report were wrong about who uses a thing, and the errors
+are worth naming because they are cheap to repeat.
+
+The first two failed the same way. Grepping `.github/workflows/`
 and `lefthook.yml` for an invocation is NOT sufficient to prove nothing runs a
 thing. A caller can sit inside an ordinary Python file that CI collects for other
 reasons:
@@ -214,6 +237,18 @@ Before asserting that nothing invokes a path, grep the whole repository for the
 path string itself, not only for import statements, and read every hit. Both
 misses were caught by searching the issue tracker (#3593, #4838) rather than the
 tree, which is a second source worth checking on any "nothing uses this" claim.
+
+The third failed differently, and grepping harder would not have caught it.
+Finding 3 claimed a data file had no reader. Its reader resolves the path by
+directory glob, so the file name appears nowhere in the source, and no search
+for that name can succeed. When the subject is a data file rather than a module,
+search for readers of its DIRECTORY, not for its name.
+
+All three errors share one shape: absence was inferred from a single search
+whose scope could not have covered the thing being denied. That is the failure
+mode `.claude/rules/universal.md` MUST NOT item 9 names. Two corrections in this
+report were themselves wrong on first attempt, so a correction earns no
+discount: it needs the same evidence as the claim it replaces.
 
 Also not flagged: `scripts/memory/memory_health.py` is documented as a runnable
 command in `.serena/memories/README.md:112` and
