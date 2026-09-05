@@ -156,12 +156,14 @@ def _normalize_and_raise(provider_label: str, exc: Exception) -> None:
     ) from None
 
 
-# OpenAI reasoning models (o1/o3/o4 series, gpt-5 family) reject `max_tokens`
-# and a non-default `temperature` with HTTP 400; they require
+# OpenAI reasoning models (o1/o3/o4 series, gpt-5 and gpt-6 families) reject
+# `max_tokens` and a non-default `temperature` with HTTP 400; they require
 # `max_completion_tokens` and the provider's default temperature. Match by id,
 # tolerating a vendor prefix like "openai/". A new reasoning family is one more
 # alternative in this pattern, no other change.
-_REASONING_MODEL_RE = re.compile(r"^(?:[a-z0-9-]+/)?(?:o\d|gpt-5)", re.IGNORECASE)
+# gpt-6 covers `gpt-6-astra`, whose migration guide drops `temperature`,
+# `top_p`, and `top_logprobs`.
+_REASONING_MODEL_RE = re.compile(r"^(?:[a-z0-9-]+/)?(?:o\d|gpt-[56])", re.IGNORECASE)
 
 
 def _is_reasoning_model(model: str) -> bool:

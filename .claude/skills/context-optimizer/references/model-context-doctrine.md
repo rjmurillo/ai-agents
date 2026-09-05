@@ -1,6 +1,7 @@
 # Model Context Doctrine
 
-Current as of 2026-08-03. Covers Claude Opus 5 and GPT-5.6 Sol.
+Current as of 2026-09-05. Covers Claude Opus 5, the GPT-5.6 tiers
+(Sol, Terra, Luna), and GPT-6 Astra.
 
 Read this before you argue about what belongs in always-on context. It exists
 so nobody has to re-derive the argument from primary sources every time. When
@@ -148,8 +149,25 @@ to cut.
 
 ## Per-model levers
 
-The two models this repo ships against respond to different controls. Do not
-assume a fix for one transfers.
+Two axes, and conflating them is the mistake this section exists to prevent.
+
+**Generation** (`gpt-5.6`, `gpt-6`) sets the API contract: which parameters the
+endpoint rejects. That is code, not doctrine, and it belongs in
+`_REASONING_MODEL_RE` in `scripts/eval/_providers.py`, which matches by id
+prefix so one alternation covers every tier in a generation at once.
+
+**Tier** (Sol, Terra, Luna, Astra) sets behavior and cost. OpenAI's scheme is
+that the number identifies a generation while the names "identify durable
+capability tiers that can advance on their own cadence". Sol is the
+hard-problem tier, Terra the high-volume tier, Luna the cheap everyday tier.
+Astra is the only GPT-6 tier documented as of this update.
+
+Behavior transfers across neither axis. Do not assume a fix for one model
+moves another, and do not write a rule file per tier: rule frontmatter scopes
+by `paths:` alone (`scripts/validation/check_rule_scope_keys.py`), so it cannot
+branch on the runtime model. A per-tier rule file would load in every session
+regardless of model. Per-tier findings go here, in a reference this skill loads
+on demand.
 
 ### Claude Opus 5
 
@@ -175,6 +193,55 @@ public model it has evaluated for Sol, including exploiting bugs in the eval
 harness itself. Never accept Sol's green test results at face value. Verify
 independently. This applies to Sol acting as a reviewer as well as Sol acting
 as an implementer.
+
+### GPT-6 Astra
+
+Vendor-documented, not measured here. No audit from `rule-audit-procedure.md`
+has been run against Astra; everything below comes from OpenAI's migration
+guide dated 2026-09-03 and is recorded so nobody re-reads the guide to find it.
+Step 5 of the update procedure blocks changing always-on content on an
+unaudited model, and nothing here changes always-on content. Downgrade any
+claim the first audit contradicts.
+
+**The lever is believed to be the prompt.** Opus responds to prompt size, Sol
+to effort tier. OpenAI documents Astra as responding to explicit instruction
+about when to stop and ask. That is a third lever and it is unverified here.
+
+**It pauses for confirmation where other tiers proceed.** The vendor remedy is
+narrower than the secondhand summaries of it: "Before asking the user
+clarifying questions, you should complete the work that is already authorized
+from context and necessary to make the proposed action concrete and
+reviewable." That is finish-the-authorized-work-before-asking, not ask-less.
+This repo already says it in `AGENTS.md` ("Internal+reversible: act|
+External/irreversible: confirm|Ambiguous: act minimal, flag rest") and in
+`voice.md` ("act minimally, flag what you assumed"). Astra needs the existing
+rule, not a new one.
+
+**Reasoning effort.** The guide maps `none` and `minimal` to `low`; other
+settings carry over. This repo passes effort only to `codex exec` in
+`docs/eval/scripts/evalkit.py` as a caller-supplied value, so there is no
+hardcoded `none` or `minimal` to migrate.
+
+**Formatting.** The guide recommends "clear, concise paragraphs" over
+list-by-default. `voice.md` already binds every model in this repo and is
+stricter. No Astra-specific text.
+
+### Precedence is not a per-model lever
+
+Astra ships with a documented default that contradicts this repo: "The user's
+instructions take precedence over guidelines provided in a skill."
+
+That default is written for skills that are style guidance. Several skills here
+are not: `pre_pr.py`, the security scan, and the `/ship` review gate block, and
+`AGENTS.md` lists Architecture, New ADRs, Breaking, and Security as Ask First.
+`claude-model-patches.md` already resolves this by making model-level nudges
+"subordinate to skill workflows, STOP points and confirmation gates".
+
+Resolve it once, for every model, in that precedence stack. Do not restate it
+per tier: N tiers means N chances for the copies to drift, and the copy a
+session happens to load would decide whether a gate holds. A model whose vendor
+default disagrees is a reason to state the repo stack where that model reads
+it, not a reason to fork the stack.
 
 ## Where this repo stands
 
@@ -341,7 +408,9 @@ lands.
 | Anthropic, Context Engineering for Claude 5 | 2026-07-24 | Vendor, first party |
 | Vercel passive context vs skills | 2026-02-08 | Third party, reproduced locally |
 | METR evaluation of GPT-5.6 Sol | 2026 | Third party |
+| OpenAI, GPT-6 Astra migration guide | 2026-09-03 | Vendor, first party |
+| OpenAI, GPT-5.6 Sol/Terra/Luna tier naming | 2026-07-09 | Vendor, first party |
 | PR #1022, commit `77edc827` | 2026-01-31 | This repo |
 | ADR-088 | see `.agents/architecture/` | This repo |
 
-<!-- vendor-portability: declared, mixed kinds. Two paths are citations (AGENTS.md, scripts/validation/instruction_budget_constants.py), named as historical provenance for the 8KB budget figure so a future reader does not re-investigate a settled question. One is not: the command under "Measuring the corpus" invokes scripts/validation/instruction_budget.py, and scripts/ ships in no plugin root, so that command cannot run in a vendored install. The surrounding doctrine still applies without it; only the local re-measurement is lost. SKILL.md labels the routing trigger contributor-only because this file and rule-audit-procedure.md both assume a full checkout. Two more are citations added for the two-tree divergence: templates/platforms/copilot-cli.yaml is the generator config whose keepInternalGlobsFor line is the sole cause of the divergence, and the .agents/ reference names the very paths a vendored install lacks, which is the point of that sentence. Neither is executable; both are provenance a reader would otherwise have to re-derive. One citation names build/scripts/generate_rules.py, the generator whose skip branch is the sole authority for what happens to a fully internal-only scope, so naming the line lets a reader check the claim instead of trusting it. One more names scripts/validation/check_rule_scope_keys.py, the gate that keeps the declaration table above true; it is upstream-only like the budget scripts, and a vendored install loses the ability to run it, not the reason it exists. Issue #2050. -->
+<!-- vendor-portability: declared, mixed kinds. Two paths are citations (AGENTS.md, scripts/validation/instruction_budget_constants.py), named as historical provenance for the 8KB budget figure so a future reader does not re-investigate a settled question. One is not: the command under "Measuring the corpus" invokes scripts/validation/instruction_budget.py, and scripts/ ships in no plugin root, so that command cannot run in a vendored install. The surrounding doctrine still applies without it; only the local re-measurement is lost. SKILL.md labels the routing trigger contributor-only because this file and rule-audit-procedure.md both assume a full checkout. Two more are citations added for the two-tree divergence: templates/platforms/copilot-cli.yaml is the generator config whose keepInternalGlobsFor line is the sole cause of the divergence, and the .agents/ reference names the very paths a vendored install lacks, which is the point of that sentence. Neither is executable; both are provenance a reader would otherwise have to re-derive. One citation names build/scripts/generate_rules.py, the generator whose skip branch is the sole authority for what happens to a fully internal-only scope, so naming the line lets a reader check the claim instead of trusting it. One more names scripts/validation/check_rule_scope_keys.py, the gate that keeps the declaration table above true; it is upstream-only like the budget scripts, and a vendored install loses the ability to run it, not the reason it exists. Two more arrive with the generation-versus-tier split under Per-model levers, and both are citations rather than executable steps. scripts/eval/_providers.py is named because _REASONING_MODEL_RE is the single place the per-generation API contract lives, so a reader deciding where a new generation belongs can check the claim instead of trusting it; docs/eval/scripts/evalkit.py is named because it is the only place this repo passes a reasoning effort, which is what makes the Astra effort-mapping item a no-op here. Both ship outside every plugin root, and a vendored install loses the ability to open them, not the doctrine that cites them. Issue #2050. -->
