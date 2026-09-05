@@ -322,7 +322,7 @@ it carries.
 
 - **Idempotent delegations**: re-delegating the same task to the same agent should be safe
 - **Explicit handoffs**: never let context decay across agents
-- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst errors, fall back to the exploring-knowledge-graph skill for context)
+- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst errors, fall back to the context-gather skill for context)
 - **Observability**: log routing decisions with rationale
 
 ## Orchestration Budget
