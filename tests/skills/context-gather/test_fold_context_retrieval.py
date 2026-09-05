@@ -1,9 +1,13 @@
-"""Tests for folding the context-retrieval agent into the exploring-knowledge-graph skill.
+"""Tests for the folded context-retrieval guidance under context-gather.
 
 Issue #2103, skill-catalog epic #1944. The former context-retrieval agent's
-unique retrieval and citation guidance moved into
-`.claude/skills/exploring-knowledge-graph/references/context-retrieval.md`.
-SKILL.md gained a pointer to it.
+unique retrieval and citation guidance was folded into a reference doc, and
+the owning skill gained a pointer to it.
+
+Issue #5574 moved that reference from the retired knowledge-graph skill to
+`.claude/skills/context-gather/references/context-retrieval.md`. The retired
+skill was a pure Forgetful client; this guidance was not, and context-gather
+was its only live consumer, so the fold survives the retirement.
 
 Parametrized over the canonical `.claude/` tree and the generated
 `src/copilot-cli/` mirror so a single test asserts both copies satisfy the
@@ -22,7 +26,7 @@ CANONICAL_REFERENCE = (
     REPO_ROOT
     / ".claude"
     / "skills"
-    / "exploring-knowledge-graph"
+    / "context-gather"
     / "references"
     / "context-retrieval.md"
 )
@@ -31,19 +35,19 @@ MIRROR_REFERENCE = (
     / "src"
     / "copilot-cli"
     / "skills"
-    / "exploring-knowledge-graph"
+    / "context-gather"
     / "references"
     / "context-retrieval.md"
 )
 CANONICAL_SKILL_MD = (
-    REPO_ROOT / ".claude" / "skills" / "exploring-knowledge-graph" / "SKILL.md"
+    REPO_ROOT / ".claude" / "skills" / "context-gather" / "SKILL.md"
 )
 MIRROR_SKILL_MD = (
     REPO_ROOT
     / "src"
     / "copilot-cli"
     / "skills"
-    / "exploring-knowledge-graph"
+    / "context-gather"
     / "SKILL.md"
 )
 
@@ -58,7 +62,7 @@ SKILL_MD_PATHS = [
 
 # Sections folded from the former agent into the reference doc.
 FOLDED_SECTIONS = [
-    "## Five-Source Strategy",
+    "## Four-Source Strategy",
     "## Output Structure",
     "## When Context is Thin",
     "## Citation and Source Discipline",
@@ -128,3 +132,17 @@ def test_reference_does_not_re_delegate_to_agent(reference_path: Path) -> None:
 
     assert 'subagent_type="context-retrieval"' not in content
     assert "Task(subagent_type='context-retrieval')" not in content
+
+
+@pytest.mark.parametrize("reference_path", REFERENCE_PATHS)
+def test_reference_names_no_forgetful_tool(reference_path: Path) -> None:
+    """Negative control for #5574: no Forgetful tool survives the move.
+
+    The reference kept its Serena, Context7, DeepWiki, and web sources and
+    lost only the Forgetful one, so a reintroduced Forgetful tool call here
+    would be a live instruction to a decommissioned MCP server.
+    """
+    content = reference_path.read_text(encoding="utf-8")
+
+    assert "mcp__forgetful__" not in content
+    assert "execute_forgetful_tool" not in content
