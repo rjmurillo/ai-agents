@@ -67,6 +67,22 @@ def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # restated here, and the gate's registration is covered in
         # tests/validation/test_pre_pr_index_line_endings_wiring.py.
         "Index Line Endings",
+        # Spawns `build/scripts/build_all.py --check` against the real
+        # repository root. That child is not mocked: the gate reaches it
+        # through `subprocess.Popen`
+        # (scripts/validation/check_generated_staleness.py:239) and
+        # TestMain patches `subprocess.run` only. So this gate is not merely
+        # real-corpus-dependent like the ones above, it MUTATES the real
+        # corpus: build_all regenerates every generator-owned file and then
+        # restores its snapshot, and a sibling xdist worker reading one of
+        # those files mid-write sees it truncated. Issue #5502 recorded that
+        # as `src/vs-code-agents/skillbook.agent.md` read empty; the same
+        # window turned `tests/test_pr_identity_gate.py` red on
+        # `src/copilot-cli/agents/analyst.agent.md`. The gate's own behavior
+        # is covered by tests/validation/test_check_generated_staleness.py,
+        # and its registration by
+        # tests/validation/test_pre_pr_sequence_registry.py.
+        "Generated Artifact Staleness",
     }
     return tuple(
         replace(gate, run=lambda _repo_root, _args: True)
