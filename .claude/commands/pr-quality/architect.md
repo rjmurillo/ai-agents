@@ -6,7 +6,6 @@ allowed-tools:
   - Read
   - Grep
   - Glob
-  - mcp__forgetful__*
   - mcp__serena__*
 model: opus
 ---
