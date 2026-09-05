@@ -16,9 +16,6 @@ from ..scripts.test_memory_health import (
     test_episodes_available as check_episodes,
 )
 from ..scripts.test_memory_health import (
-    test_forgetful_available as check_forgetful,
-)
-from ..scripts.test_memory_health import (
     test_modules_available as check_modules,
 )
 from ..scripts.test_memory_health import (
@@ -50,24 +47,6 @@ class TestSerenaAvailable:
         result = check_serena(serena)
         assert result["available"] is True
         assert result["count"] == 0
-
-
-class TestForgetfulAvailable:
-    """Tests for Forgetful availability check."""
-
-    def test_unavailable(self) -> None:
-        with patch("socket.create_connection", side_effect=OSError("refused")):
-            result = check_forgetful()
-            assert result["available"] is False
-
-    def test_available(self) -> None:
-        mock_conn = type(
-            "MockConn", (),
-            {"__enter__": lambda s: s, "__exit__": lambda *a: None},
-        )()
-        with patch("socket.create_connection", return_value=mock_conn):
-            result = check_forgetful()
-            assert result["available"] is True
 
 
 class TestEpisodesAvailable:

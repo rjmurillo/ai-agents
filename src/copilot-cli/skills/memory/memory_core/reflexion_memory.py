@@ -6,7 +6,7 @@ Implements the episodic portion of the ADR-038 Reflexion Memory Schema:
 
 Tier Architecture:
 - Tier 0: Working memory (context window, managed by Claude)
-- Tier 1: Semantic memory (Serena + Forgetful, ADR-037)
+- Tier 1: Semantic memory (Serena, ADR-037)
 - Tier 2: Episodic memory (this module)
 
 Tier 3 causal memory was removed; the graph was a derived cache with no runtime

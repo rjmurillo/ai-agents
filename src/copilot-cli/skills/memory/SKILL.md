@@ -46,7 +46,7 @@ matches your task; each carries a smaller context than the full memory surface.
 
 | Sub-Skill | Operation | Load When |
 |-----------|-----------|-----------|
-| `memory-search` | Tier 1 semantic search (Serena + Forgetful) | You need facts, patterns, or rules |
+| `memory-search` | Tier 1 semantic search (Serena) | You need facts, patterns, or rules |
 | `memory-reflexion` | Tier 2 episode extraction | You are recording a completed session |
 | `memory-gate` | Memory-First Gate (BLOCKING) and Chesterton's Fence protocol | You are about to change an existing system |
 | `memory-maintenance` | Health check, token count, size validation, benchmark, density | You are maintaining the memory stores |
@@ -81,7 +81,8 @@ What do you need?
 │   └─► memory-reflexion sub-skill (Tier 2 episode extraction)
 │
 ├─► Store new factual knowledge directly?
-│   └─► using-forgetful-memory skill
+│   └─► Write a Serena memory (mcp__serena__write_memory), then
+│       curating-memories to keep it accurate
 │
 ├─► Check health, count tokens, benchmark, or improve graph density?
 │   └─► memory-maintenance sub-skill
@@ -178,7 +179,6 @@ When observations contradict, prefer the most recent, create a new memory with a
 | Data | Location |
 |------|----------|
 | Serena memories | Serena memory store (travels with the repository) |
-| Forgetful memories | HTTP MCP (vector DB) |
 | Episodes | Local episode store (see `memory-reflexion`) |
 
 ---
@@ -246,14 +246,14 @@ The router owns the canonical memory scripts. Sub-skills delegate to these paths
 
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
-| `search_memory.py` | Search across Serena, the episode store, and Forgetful | 0=success, 1=error |
+| `search_memory.py` | Search across Serena and the episode store | 0=success, 1=error |
 | `count_memory_tokens.py` | Token counting with tiktoken caching | 0=success, 1=error |
 | `test_memory_size.py` | Memory atomicity validation | 0=pass, 1=violations |
 | `test_memory_health.py` | System health dashboard | 0=success |
 | `extract_session_episode.py` | Episode extraction; `--validate` checks the store at rest, `--fix` repairs backwards commit order | 0=success, 1=error, 2=violation or bad flag |
 | `repair_episode_causal_links.py` | Restore causal edges in flattened episodes | 0=success, 1=an episode is invalid, 2=episodes dir missing |
 | `migrate_causal_version.py` | One-shot migration: stamps `causal_order_version=2` on legacy episodes (#3598); `--dry-run` previews counts without writing | 0=all stamped, 1=some skipped, 2=bad path |
-| `measure_memory_performance.py` | Serena and Forgetful benchmark | 0=success, 1=error |
+| `measure_memory_performance.py` | Serena search benchmark, by phase | 0=success, 1=error |
 | `improve_memory_graph_density.py` | Graph density improvement | 0=success, 1=error |
 | `convert_index_table_links.py` | Index table link conversion | 0=success, 1=error |
 | `invoke_memory_cross_reference.py` | Cross-reference memories | 0=success, 1=error |
@@ -277,7 +277,6 @@ Invoke via the portable root form:
 | `memory-consolidate` | Periodic durable/dated consolidation, merge, index tidy |
 | `memory-enhancement` | Add citations, verify code references, track confidence |
 | `memory-documentary` | Narrative cross-system memory reports |
-| `using-forgetful-memory` | Deep Forgetful operations (create, update, link) |
 | `curating-memories` | Memory content maintenance (obsolete, deduplicate) |
 | `exploring-knowledge-graph` | Multi-hop graph traversal |
 

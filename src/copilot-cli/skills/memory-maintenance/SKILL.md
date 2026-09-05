@@ -32,7 +32,7 @@ Use this skill when the user says:
 
 - `check memory health` for the tier-availability dashboard
 - `count memory tokens` for retrieval budget analysis
-- `benchmark memory performance` for Serena and Forgetful latency
+- `benchmark memory performance` for Serena search latency
 
 ## Quick Start
 
@@ -48,7 +48,7 @@ python3 "$SCRIPTS_DIR/count_memory_tokens.py" <memory-file>
 # Atomicity size validation (pre-commit gate)
 python3 "$SCRIPTS_DIR/test_memory_size.py" <memory-dir> --pattern "*.md"
 
-# Performance benchmark (Serena lexical, Forgetful semantic)
+# Performance benchmark (Serena lexical search, by phase)
 python3 "$SCRIPTS_DIR/measure_memory_performance.py" --format table
 ```
 
@@ -64,7 +64,7 @@ sub-skill delegates to them and does not reimplement any check.
 | Health check | `test_memory_health.py` | `--format` (json/table) |
 | Token count | `count_memory_tokens.py` | `<memory-file>` |
 | Size validation | `test_memory_size.py` | `<memory-dir>`, `--pattern` |
-| Benchmark performance | `measure_memory_performance.py` | `--serena-only`, `--format` |
+| Benchmark performance | `measure_memory_performance.py` | `--iterations`, `--warmup`, `--format` |
 | Improve graph density | `improve_memory_graph_density.py` | `--memory-path`, `--dry-run` |
 | Cross-reference | `invoke_memory_cross_reference.py` | `--memory-path`, `--threshold` |
 | Convert index links | `convert_index_table_links.py` | `--memory-path`, `--dry-run` |
@@ -75,11 +75,11 @@ sub-skill delegates to them and does not reimplement any check.
 python3 "$SCRIPTS_DIR/test_memory_health.py" --format table
 ```
 
-A healthy system reports `available: true` for each tier. A tier that reports
-`available: false` degrades gracefully: Tier 1 falls back to Serena-only with
-`--lexical-only`, and the reflexion tiers are local so they do not depend on a
-network store. Use the health check before a maintenance batch so you know which
-tiers are reachable.
+A healthy system reports `available: true` for each tier. Every tier is now
+backed by files in the working tree, so `available: false` means a missing or
+unreadable directory rather than a service being down, and there is no
+fallback mode to select. Use the health check before a maintenance batch so you
+know which tiers are readable.
 
 ## Token Cost Visibility
 
@@ -130,9 +130,9 @@ linking adds noise. Prefer a threshold that adds few, high-confidence links.
 python3 "$SCRIPTS_DIR/measure_memory_performance.py" --format table
 ```
 
-The benchmark measures Serena (lexical) and Forgetful (semantic) search latency.
-Use it to confirm a change did not regress retrieval speed. The full method, the
-query set, and the target ratios are in
+The benchmark measures Serena lexical search latency, split into its listing,
+matching, and reading phases. Use it to confirm a change did not regress
+retrieval speed. The full method and the query set are in
 [references/benchmarking.md](references/benchmarking.md).
 
 ## Verification
@@ -185,10 +185,10 @@ change. Re-run the relevant check to verify the result.
 
 | Symptom | Cause | Recovery |
 |---------|-------|----------|
-| Health check shows a tier down | Backend store unreachable | Fall back to `--lexical-only`; the reflexion tiers stay local |
+| Health check shows a tier down | Store directory missing or unreadable | Verify the path exists; every tier is local files, so this is not a service outage |
 | Token count slow | Cache cold on first run | Re-run; the SHA-256 cache warms after the first pass |
 | Size validation fails | Memory past atomicity thresholds | Decompose the memory into atomic files per the recommendation |
-| Benchmark latency high | Forgetful semantic path slow or down | Compare against `--serena-only`; isolate the slow backend |
+| Benchmark latency high | Large corpus, or many files matched and read | Read the per-phase split: listing, matching, and reading are timed separately |
 
 See [references/troubleshooting.md](references/troubleshooting.md) for the full
 diagnostic tables by component and symptom, and
