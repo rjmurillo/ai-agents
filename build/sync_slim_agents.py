@@ -57,6 +57,7 @@ import tempfile
 from collections.abc import Iterable, Iterator
 from pathlib import Path, PurePath
 from types import ModuleType
+from typing import TYPE_CHECKING
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -116,7 +117,16 @@ def _load_reconcile() -> ModuleType:
     return module
 
 
-_reconcile = _load_reconcile()
+# Two readers. mypy takes the type-checking branch, where a plain import
+# resolves because `build/` holds no `__init__.py`; nothing there runs, so the
+# no-`sys.path` guarantee above still holds. Reading the sibling as a bare
+# `ModuleType` instead leaves `Drift` a variable rather than a type and every
+# attribute read on one unknown, 24 errors of that one shape, which
+# `typing.cast` cannot fix because the missing thing is the type itself.
+if TYPE_CHECKING:
+    import sync_slim_agents_reconcile as _reconcile
+else:
+    _reconcile = _load_reconcile()
 
 Comparison = _reconcile.Comparison
 Destination = _reconcile.Destination
