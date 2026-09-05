@@ -62,9 +62,6 @@ Complex questions requiring synthesis.
 ```text
 Primary tier unavailable?
 │
-├── Tier 1 (Forgetful part) unavailable
-│   └── Pass lexical_only=True (Serena always works)
-│
 ├── Tier 2 unavailable
 │   └── Check .agents/memory/episodes/ exists
 │   └── If missing, no historical data yet

@@ -25,7 +25,6 @@
       to the tiered memory architecture. Reduce cognitive load on agents.
     </why>
     <existing_landscape>
-      - using-forgetful-memory: Forgetful-specific (Tier 1 partial)
       - curating-memories: Maintenance only
       - exploring-knowledge-graph: Exploration only
       - serena-code-architecture: Code analysis, not memory
@@ -44,7 +43,7 @@
       <requirement id="E7">Document anti-patterns</requirement>
     </explicit>
     <implicit>
-      <requirement id="I1">Graceful degradation when Forgetful unavailable</requirement>
+      <requirement id="I1">Graceful degradation when a memory store is unreadable</requirement>
       <requirement id="I2">Integration with session protocol</requirement>
       <requirement id="I3">Follow the Python-first constraint (ADR-042, which superseded ADR-005)</requirement>
       <requirement id="I4">Align with memory-first architecture (ADR-007)</requirement>
@@ -95,11 +94,6 @@
         <default>Start with Tier 1, escalate if insufficient</default>
       </decision>
 
-      <decision id="DP2" question="Forgetful available?">
-        <option value="yes">Use unified search (default)</option>
-        <option value="no">Pass lexical_only=True (Serena fallback)</option>
-      </decision>
-
       <decision id="DP3" question="Store or retrieve?">
         <option value="retrieve">Query appropriate tier</option>
         <option value="store">Extract episode</option>
@@ -115,7 +109,7 @@
 
     <script_inventory>
       <script name="scripts/search_memory.py" category="query" exists="true">
-        Unified search across Serena, the episode store, and Forgetful
+        Unified search across Serena and the episode store
       </script>
       <script name="memory_core/memory_router.py" category="module" exists="true">
         Core routing module implementing ADR-037
@@ -137,7 +131,7 @@
     <agentic_capabilities>
       <autonomous>All scripts can run without human intervention</autonomous>
       <self_verify>Search returns count, extraction returns JSON, graph returns stats</self_verify>
-      <recovery>lexical_only=True fallback when Forgetful unavailable</recovery>
+      <recovery>Empty result list when a store is unreadable; never an error</recovery>
     </agentic_capabilities>
   </scripts>
 
@@ -158,7 +152,7 @@
 
     <obsolescence_triggers>
       <trigger>Claude gains native persistent memory (reduces need)</trigger>
-      <trigger>Serena/Forgetful deprecated without replacement</trigger>
+      <trigger>Serena deprecated without replacement</trigger>
       <trigger>Session protocol changes incompatibly</trigger>
     </obsolescence_triggers>
   </evolution_analysis>
@@ -179,10 +173,10 @@
     </pattern>
 
     <pattern id="AP3">
-      <name>Forgetful Dependency</name>
-      <description>Assuming Forgetful is always available</description>
-      <why_bad>Skill fails when MCP server is down</why_bad>
-      <alternative>Use -LexicalOnly fallback, always works via Serena</alternative>
+      <name>Assuming a Second Backend</name>
+      <description>Writing code or prose that expects a semantic memory store beside Serena</description>
+      <why_bad>The second backend was decommissioned in issue #5574; nothing replaced it</why_bad>
+      <alternative>Serena is the whole of Tier 1; there is no backend to select or fall back from</alternative>
     </pattern>
 
     <pattern id="AP4">
@@ -219,8 +213,8 @@
     </criterion>
 
     <criterion id="SC4">
-      <measure>Skill gracefully degrades without Forgetful</measure>
-      <verification>-LexicalOnly returns Serena results</verification>
+      <measure>Skill returns results from a readable Serena store</measure>
+      <verification>search_memory returns Serena results; an unreadable store yields an empty list, not an error</verification>
     </criterion>
 
     <criterion id="SC5">

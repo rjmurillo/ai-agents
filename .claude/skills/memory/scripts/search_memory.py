@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Unified memory search across Serena, the episode store, and Forgetful.
+"""Unified memory search across Serena and the episode store.
 
-Agent-facing script that provides unified memory search with Serena-first
-routing and optional Forgetful augmentation per ADR-037. Includes token
-budget warnings for large memories.
+Agent-facing script that searches the two file-based memory stores and
+reports a token budget warning for large memories.
+
+The semantic backend this script also queried is decommissioned (issue
+#5574), and with it the two flags that chose between the stores. Both
+remaining stores are local files, so there is nothing left to select
+between and nothing that can be unavailable.
 
 The lexical path also searches the Tier 2 episode store. Before that was
 wired, nothing outside the episode tests read those records, so the write
@@ -19,7 +23,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import socket
 import sys
 from pathlib import Path
 from typing import Any
@@ -180,15 +183,6 @@ def search_episodes(
     return results[:max_results]
 
 
-def test_forgetful_available(host: str = "localhost", port: int = 8020) -> bool:
-    """Check if Forgetful MCP is reachable via TCP."""
-    try:
-        with socket.create_connection((host, port), timeout=2):
-            return True
-    except OSError:
-        return False
-
-
 def get_memory_router_status(
     serena_path: Path, episodes_path: Path | None = None
 ) -> dict[str, dict[str, object]]:
@@ -204,7 +198,6 @@ def get_memory_router_status(
         episodes_available = True
         episode_count = len(list(episodes_path.glob("episode-*.json")))
 
-    forgetful_available = test_forgetful_available()
     return {
         "Serena": {
             "Available": serena_available,
@@ -216,18 +209,12 @@ def get_memory_router_status(
             "MemoryCount": episode_count,
             "Path": str(episodes_path) if episodes_path is not None else "",
         },
-        "Forgetful": {
-            "Available": forgetful_available,
-            "Endpoint": "http://localhost:8020/mcp",
-        },
     }
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description=(
-            "Unified memory search across Serena, episodes, and Forgetful."
-        ),
+        description="Unified memory search across Serena and episodes.",
     )
     parser.add_argument(
         "query",
@@ -236,14 +223,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-results", type=int, default=10,
         help="Maximum results to return (1-100, default 10)",
-    )
-    parser.add_argument(
-        "--lexical-only", action="store_true",
-        help="Search only the file-based stores (Serena and episodes)",
-    )
-    parser.add_argument(
-        "--semantic-only", action="store_true",
-        help="Search only Forgetful (semantic/vector)",
     )
     parser.add_argument(
         "--format", choices=["json", "table"], default="json",
@@ -275,8 +254,6 @@ def main(argv: list[str] | None = None) -> int:
 
     query = args.query
     max_results = max(1, min(100, args.max_results))
-    lexical_only = args.lexical_only
-    semantic_only = args.semantic_only
     output_format = args.output_format
 
     validation_error = validate_query(query)
@@ -308,35 +285,18 @@ def main(argv: list[str] | None = None) -> int:
         episodes_path = repo_root / ".agents" / "memory" / "episodes"
 
     search_status: dict[str, Any] = {
-        "SerenaQueried": not semantic_only,
-        "EpisodesQueried": not semantic_only,
-        "ForgetfulQueried": not lexical_only,
+        "SerenaQueried": True,
+        "EpisodesQueried": True,
         "SerenaSucceeded": False,
         "EpisodesSucceeded": False,
-        "ForgetfulSucceeded": False,
-        "ForgetfulError": None,
     }
 
-    results: list[dict[str, Any]] = []
-
-    # Search the file-based stores
-    if not semantic_only:
-        results = search_serena(query, serena_path, max_results)
-        search_status["SerenaSucceeded"] = True
-        results += search_episodes(query, episodes_path, max_results)
-        search_status["EpisodesSucceeded"] = True
-        results.sort(key=lambda r: float(r["Score"]), reverse=True)
-        results = results[:max_results]
-
-    # Check Forgetful availability
-    if not lexical_only:
-        if test_forgetful_available():
-            search_status["ForgetfulSucceeded"] = True
-        else:
-            search_status["ForgetfulSucceeded"] = False
-            search_status["ForgetfulError"] = (
-                "Forgetful unavailable (TCP health check failed)"
-            )
+    results = search_serena(query, serena_path, max_results)
+    search_status["SerenaSucceeded"] = True
+    results += search_episodes(query, episodes_path, max_results)
+    search_status["EpisodesSucceeded"] = True
+    results.sort(key=lambda r: float(r["Score"]), reverse=True)
+    results = results[:max_results]
 
     # Compute token estimates
     token_budget: dict[str, Any] = {"TotalEstimate": 0, "Warnings": []}
@@ -378,13 +338,11 @@ def main(argv: list[str] | None = None) -> int:
             for warning in token_budget["Warnings"]:
                 print(f"WARNING: {warning}", file=sys.stderr)
     else:
-        source_label = "Lexical" if lexical_only else (
-            "Forgetful" if semantic_only else "Unified"
-        )
         output = {
             "Query": query,
             "Count": len(results),
-            "Source": source_label,
+            # Unchanged: this was the value every flagless caller already got.
+            "Source": "Unified",
             "SearchStatus": search_status,
             "TokenBudget": token_budget,
             "Results": results,

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -15,25 +14,6 @@ from ..scripts.measure_memory_performance import (
     main,
     measure_serena_search,
 )
-from ..scripts.measure_memory_performance import (
-    test_forgetful_available as check_forgetful,
-)
-
-
-class TestForgetfulAvailable:
-    """Tests for Forgetful availability check."""
-
-    def test_unavailable(self) -> None:
-        with patch("socket.create_connection", side_effect=OSError("refused")):
-            assert check_forgetful() is False
-
-    def test_available(self) -> None:
-        mock_conn = type(
-            "MockConn", (),
-            {"__enter__": lambda s: s, "__exit__": lambda *a: None},
-        )()
-        with patch("socket.create_connection", return_value=mock_conn):
-            assert check_forgetful() is True
 
 
 class TestMeasureSerenaSearch:
@@ -77,32 +57,21 @@ class TestMeasureSerenaSearch:
 class TestFormatConsole:
     """Tests for console format output."""
 
-    def test_serena_only(self) -> None:
-        benchmark = {
-            "Summary": {
-                "SerenaAvgMs": 1.5,
-                "ForgetfulAvgMs": 0.0,
-                "SpeedupFactor": 0.0,
-                "Target": "96-164x",
-            },
-        }
+    def test_reports_serena_average(self) -> None:
+        benchmark = {"Summary": {"SerenaAvgMs": 1.5}}
         output = format_console(benchmark)
-        assert "Serena Average: 1.5ms" in output
-        assert "Not available" in output
+        assert output == "Serena Average: 1.5ms"
 
-    def test_both_systems(self) -> None:
-        benchmark = {
-            "Summary": {
-                "SerenaAvgMs": 1.5,
-                "ForgetfulAvgMs": 100.0,
-                "SpeedupFactor": 66.67,
-                "Target": "96-164x",
-            },
-        }
-        output = format_console(benchmark)
-        assert "Serena Average: 1.5ms" in output
-        assert "Forgetful Average: 100.0ms" in output
-        assert "66.67x" in output
+    def test_reports_no_comparison_ratio(self) -> None:
+        """Negative control: a one-backend benchmark reports no speedup.
+
+        The summary used to carry `SpeedupFactor` and a claude-flow target.
+        Both were ratios between two systems, so with one system they could
+        only ever be zero. Reporting a zero ratio reads as a measured result.
+        """
+        output = format_console({"Summary": {"SerenaAvgMs": 1.5}})
+        assert "Speedup" not in output
+        assert "Target" not in output
 
 
 class TestFormatMarkdown:
@@ -115,12 +84,7 @@ class TestFormatMarkdown:
                 "Iterations": 5,
                 "WarmupIterations": 2,
             },
-            "Summary": {
-                "SerenaAvgMs": 2.0,
-                "ForgetfulAvgMs": 0.0,
-                "SpeedupFactor": 0.0,
-                "Target": "96-164x",
-            },
+            "Summary": {"SerenaAvgMs": 2.0},
         }
         output = format_markdown(benchmark)
         assert "# Memory Performance Benchmark Report" in output
@@ -138,7 +102,6 @@ class TestMainFunction:
         (serena / "git-hooks.md").write_text("# Git Hooks\nContent")
 
         result = main([
-            "--serena-only",
             "--format", "json",
             "--iterations", "1",
             "--warmup", "0",
@@ -158,7 +121,6 @@ class TestMainFunction:
         serena.mkdir()
 
         result = main([
-            "--serena-only",
             "--format", "console",
             "--iterations", "1",
             "--warmup", "0",
@@ -176,7 +138,6 @@ class TestMainFunction:
         serena.mkdir()
 
         result = main([
-            "--serena-only",
             "--format", "markdown",
             "--iterations", "1",
             "--warmup", "0",
@@ -194,7 +155,6 @@ class TestMainFunction:
         serena.mkdir()
 
         result = main([
-            "--serena-only",
             "--format", "json",
             "--iterations", "1",
             "--warmup", "0",

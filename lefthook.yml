@@ -380,13 +380,6 @@ pre-commit:
       run: uv run --frozen python scripts/validate_skill_format.py --staged-only --ci
       glob: ".serena/memories/**/*.md"
 
-    - name: memory-sync-advisory
-      timeout: 5m
-      run: uv run --frozen python scripts/validation/git_hook_policy.py memory-sync
-      glob: ".serena/memories/**/*.md"
-      skip:
-        - merge
-
     - name: extract-session-episodes
       timeout: 10m
       run: uv run --frozen python scripts/validation/git_hook_policy.py extract-episodes {staged_files}
