@@ -1,4 +1,3 @@
-# taste-lint: ignore file-size, kept whole while PR #5526 scopes edits to two files.
 """Behavior tests for build/sync_slim_agents.py (Refs #5282).
 
 The script copies an agent body from `src/claude/{name}.md` into two
@@ -8,8 +7,6 @@ and exits non-zero; `--write` applies the copy, and refuses the whole run when
 any destination carries wording the transforms cannot reproduce.
 
 Tests:
-- Positive: matching bodies report zero drift and exit 0.
-- Negative: a drifted body exits 1 and names the file.
 - Negative: a declared agent missing from the source exits 2 (config).
 - Negative: a declared agent missing from one mirror exits 2 (config).
 - Negative: the installed `.claude/agents/` copy is neither read nor written.
@@ -25,19 +22,11 @@ Tests:
 - Edge: non-ASCII bodies survive the round trip (explicit UTF-8 encoding).
 - Edge: an I/O failure exits 3, not 1.
 - CLI: --check is accepted, matches the default, and excludes --write.
-- Positive: the `mcp__github__` prefix is stripped into both destinations.
-- Positive: `mcp__serena__` is written through untouched.
-- Positive: a destination missing a whole section still syncs; insert-only is
-  not blocking.
-- Negative: a reworded destination line blocks --write with exit 2, names the
-  file and the line, and leaves a second syncable destination untouched.
-- Negative: a destination-only line (the delete case) blocks the same way.
-- Negative: --check on a blocked tree exits 1 and counts unmechanizable drift
-  apart from drift it can apply.
-- Edge: a long blocked line is truncated so it cannot bury the rest.
 
 The frontmatter parsing contract and the shipped-constant checks live in
-`test_sync_slim_agents_contract.py`; every case here drives the `tree` fixture.
+`test_sync_slim_agents_contract.py`, and the transform and reconciliation cases
+live in `test_sync_slim_agents_transforms.py`; every case here drives the
+`tree` fixture.
 - Platform: reported paths use forward slashes.
 """
 
@@ -67,17 +56,6 @@ SOURCE_BODY = "# Analyst\n\nBody from the Claude tree.\n"
 # fixture body reworded line 3 instead, which the guard now blocks, so every
 # --write case below would have exercised the refusal rather than the write.
 STALE_BODY = "# Analyst\n"
-
-# Drift the tool must refuse: line 3 says the same thing in wording no
-# transform produces, which is a `replace` opcode.
-REWORDED_BODY = "# Analyst\n\nBody from the Claude tree, reworded.\n"
-
-# The other blocking shape: a line the source does not have at all.
-DESTINATION_ONLY_BODY = SOURCE_BODY + "\nDestination-only note.\n"
-
-GITHUB_TOOL_BODY = "# Analyst\n\nCall `mcp__github__pull_request_read` first.\n"
-SERENA_TOOL_BODY = "# Analyst\n\nCall `mcp__serena__read_memory` first.\n"
-SECTIONED_BODY = "# Analyst\n\n## Tools\n\nRead, Grep, Glob.\n"
 
 CLAUDE_FRONTMATTER = "---\nname: analyst\nmodel: sonnet\n---\n"
 GITHUB_FRONTMATTER = "---\nname: analyst\ntools:\n  - read\n---\n"
@@ -141,25 +119,6 @@ def tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(sync_slim_agents, "SLIMMED_AGENTS", (AGENT,))
     monkeypatch.chdir(tmp_path)
     return tmp_path
-
-
-def test_check_reports_no_drift_when_bodies_match(tree: Path, capsys) -> None:
-    assert sync_slim_agents.main([]) == sync_slim_agents.EXIT_OK
-
-    assert "examined 2 destination files: 2 in sync, 0 with drift" in (
-        capsys.readouterr().out
-    )
-
-
-def test_check_exits_nonzero_and_names_the_drifted_file(tree: Path, capsys) -> None:
-    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
-           TEMPLATE_FRONTMATTER + STALE_BODY)
-
-    assert sync_slim_agents.main([]) == sync_slim_agents.EXIT_DRIFT
-
-    out = capsys.readouterr().out
-    assert "1 with drift --write can apply" in out
-    assert "can apply: templates/agents/analyst.shared.md" in out
 
 
 def test_check_flag_is_accepted_and_matches_the_default(tree: Path) -> None:
@@ -535,134 +494,3 @@ def test_mirror_with_an_empty_frontmatter_block_keeps_it(tree: Path) -> None:
 
     assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
     assert target.read_text(encoding="utf-8") == "---\n---\n" + SOURCE_BODY
-
-
-def test_github_tool_prefix_is_stripped_into_both_destinations(tree: Path) -> None:
-    """The one mechanizable rule: `mcp__github__x` reaches a mirror as `x`."""
-    _write(tree / "src" / "claude" / f"{AGENT}.md",
-           CLAUDE_FRONTMATTER + GITHUB_TOOL_BODY)
-    template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
-    github = tree / ".github" / "agents" / f"{AGENT}.agent.md"
-    _write(template, TEMPLATE_FRONTMATTER + STALE_BODY)
-    _write(github, GITHUB_FRONTMATTER + STALE_BODY)
-
-    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
-
-    expected = "# Analyst\n\nCall `pull_request_read` first.\n"
-    assert template.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + expected
-    assert github.read_text(encoding="utf-8") == GITHUB_FRONTMATTER + expected
-
-
-def test_serena_tool_prefix_is_written_through_unchanged(tree: Path) -> None:
-    """`mcp__serena__` is in all three trees, so stripping it would be wrong."""
-    _write(tree / "src" / "claude" / f"{AGENT}.md",
-           CLAUDE_FRONTMATTER + SERENA_TOOL_BODY)
-    template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
-    github = tree / ".github" / "agents" / f"{AGENT}.agent.md"
-    _write(template, TEMPLATE_FRONTMATTER + STALE_BODY)
-    _write(github, GITHUB_FRONTMATTER + STALE_BODY)
-
-    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
-
-    assert template.read_text(encoding="utf-8") == (
-        TEMPLATE_FRONTMATTER + SERENA_TOOL_BODY
-    )
-    assert github.read_text(encoding="utf-8") == GITHUB_FRONTMATTER + SERENA_TOOL_BODY
-
-
-def test_destination_missing_a_whole_section_still_syncs(tree: Path) -> None:
-    """Insert-only is the safe shape: the copy adds lines and drops none."""
-    _write(tree / "src" / "claude" / f"{AGENT}.md",
-           CLAUDE_FRONTMATTER + SECTIONED_BODY)
-    template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
-    github = tree / ".github" / "agents" / f"{AGENT}.agent.md"
-    _write(template, TEMPLATE_FRONTMATTER + "# Analyst\n")
-    _write(github, GITHUB_FRONTMATTER + "# Analyst\n")
-
-    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
-
-    assert template.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + SECTIONED_BODY
-
-
-def test_reworded_destination_blocks_write_and_writes_nothing(tree: Path,
-                                                              capsys) -> None:
-    """A `replace` opcode is destination wording no transform reproduces.
-
-    The second mirror carries insert-only drift, so it is writable on its own.
-    The refusal covers the whole run, which is what keeps a partial sync from
-    landing when one file is blocked.
-    """
-    template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
-    github = tree / ".github" / "agents" / f"{AGENT}.agent.md"
-    _write(template, TEMPLATE_FRONTMATTER + REWORDED_BODY)
-    _write(github, GITHUB_FRONTMATTER + STALE_BODY)
-
-    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_CONFIG
-
-    err = capsys.readouterr().err
-    assert "templates/agents/analyst.shared.md" in err
-    # Frontmatter is 5 lines, the reworded line is body line 3.
-    assert "line 8 destination: Body from the Claude tree, reworded." in err
-    assert "line 8 source:      Body from the Claude tree." in err
-    assert template.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + REWORDED_BODY
-    assert github.read_text(encoding="utf-8") == GITHUB_FRONTMATTER + STALE_BODY
-
-
-def test_destination_only_line_blocks_write(tree: Path, capsys) -> None:
-    """The `delete` case: a copy would drop a line the source never had.
-
-    `templates/agents/implementer.shared.md` carries a real one, the
-    `vendor-portability` declaration comment.
-    """
-    template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
-    _write(template, TEMPLATE_FRONTMATTER + DESTINATION_ONLY_BODY)
-
-    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_CONFIG
-
-    err = capsys.readouterr().err
-    assert "templates/agents/analyst.shared.md" in err
-    assert "line 10 destination: Destination-only note." in err
-    assert "line 10 source:      (no matching source line)" in err
-    assert template.read_text(encoding="utf-8") == (
-        TEMPLATE_FRONTMATTER + DESTINATION_ONLY_BODY
-    )
-
-
-def test_check_counts_the_two_kinds_of_drift_apart(tree: Path, capsys) -> None:
-    """Both kinds exit 1, but only one of them is cleared by running --write."""
-    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
-           TEMPLATE_FRONTMATTER + REWORDED_BODY)
-    _write(tree / ".github" / "agents" / f"{AGENT}.agent.md",
-           GITHUB_FRONTMATTER + STALE_BODY)
-
-    assert sync_slim_agents.main(["--check"]) == sync_slim_agents.EXIT_DRIFT
-
-    out = capsys.readouterr().out
-    assert "examined 2 destination files: 0 in sync, 1 with drift" in out
-    assert "1 with drift --write can apply" in out
-    assert "1 with drift it cannot mechanize" in out
-    assert "can apply: .github/agents/analyst.agent.md" in out
-    assert "cannot mechanize: templates/agents/analyst.shared.md" in out
-
-
-def test_blocked_line_is_truncated_in_the_report(tree: Path, capsys) -> None:
-    """One 200-character table row must not scroll the other findings away."""
-    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
-           TEMPLATE_FRONTMATTER + "# Analyst\n\n" + "x" * 200 + "\n")
-
-    assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_CONFIG
-
-    err = capsys.readouterr().err
-    assert "x" * 73 + "..." in err
-    assert "x" * 77 not in err
-
-
-def test_apply_sync_skips_a_blocked_file_when_called_directly(tree: Path) -> None:
-    """The CLI refuses first, so this pins the second gate behind that one."""
-    template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
-    _write(template, TEMPLATE_FRONTMATTER + REWORDED_BODY)
-
-    drift = sync_slim_agents.compare(sync_slim_agents.SLIMMED_AGENTS)
-
-    assert sync_slim_agents.apply_sync(drift) == []
-    assert template.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + REWORDED_BODY
