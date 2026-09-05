@@ -31,8 +31,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
     "tier1_semantic": {
       "name": "Semantic Memory",
       "available": true,
-      "serena":    {"available": true,  "count": 95},
-      "forgetful": {"available": true,  "endpoint": "http://localhost:8020/mcp"}
+      "serena":    {"available": true,  "count": 95}
     },
     "tier2_episodic": {
       "name": "Episodic Memory",
@@ -48,8 +47,10 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 }
 ```
 
-`overall` reports `degraded` rather than `unhealthy` when Forgetful is down,
-because Serena and the episode store both still answer.
+`overall` reports `unhealthy` only when Tier 1 itself is unreadable. Every
+tier is backed by files in the working tree, so a tier reporting
+`available: false` means a missing or unreadable directory, not a service
+outage.
 
 ## Memory Router Issues
 
@@ -90,52 +91,6 @@ inside a memory will not match.
 | No memories created yet | Create initial memories |
 | Query too specific | Try broader search terms |
 | Special characters in query | Use only alphanumeric + allowed punctuation |
-
-### Issue: Forgetful Not Available
-
-**Symptoms**:
-
-- `ForgetfulAvailable: false` in status
-- Semantic search fails
-- Error: "Connection refused"
-
-**Diagnosis**:
-
-```bash
-# Check every tier
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/test_memory_health.py" --format table
-
-# Check the port
-ss -ltn 'sport = :8020'
-
-# Check the service (Linux)
-systemctl --user status forgetful
-
-# Check the scheduled task (Windows)
-schtasks /query /tn ForgetfulMCP /v /fo list
-```
-
-**Solutions**:
-
-| Cause | Solution |
-|-------|----------|
-| Service not running | Start Forgetful service |
-| Wrong port | Verify port 8020 in configuration |
-| Service crashed | Restart service, check logs |
-| Network issue | Verify localhost connectivity |
-
-**Starting Forgetful**:
-
-```bash
-# Linux
-systemctl --user start forgetful
-
-# Windows
-schtasks /run /tn ForgetfulMCP
-
-# Manual (any OS)
-cd path/to/forgetful && python -m forgetful serve --port 8020
-```
 
 ### Issue: Query Validation Error
 
@@ -182,8 +137,7 @@ print(bool(re.match(r"^[a-zA-Z0-9\s\-.,_()&:]+$", query)))  # want True
 **Diagnosis**:
 
 ```bash
-time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test" --lexical-only
-time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test" --semantic-only
+time uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "test"
 ```
 
 Or benchmark every tier at once:
@@ -197,7 +151,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 | Cause | Solution |
 |-------|----------|
 | Too many memories | Archive old memories |
-| Forgetful slow | Check Forgetful logs, restart |
+| Broad query matching many files | Narrow the query; every match is read in full |
 | File system slow | Check disk I/O |
 | Large memory files | Split into smaller memories |
 
@@ -419,12 +373,6 @@ Old Path                    New Path
 
 **Fix**: Use only allowed characters: `a-zA-Z0-9\s\-.,_()&:`
 
-### "Connection refused to localhost:8020"
-
-**Cause**: Forgetful MCP server not running.
-
-**Fix**: Start Forgetful service or use `-LexicalOnly` switch.
-
 ### "Episode not found for session"
 
 **Cause**: Episode not extracted from session log.
@@ -454,7 +402,7 @@ It checks:
 | Area | What it reports |
 |------|-----------------|
 | Tier 0 | Working memory (always available) |
-| Tier 1 | Serena memory count, Forgetful reachability and endpoint |
+| Tier 1 | Serena memory count and path |
 | Tier 2 | Episode directory and episode count |
 | Modules | `memory_router.py` and `reflexion_memory.py` presence |
 | Overall | `healthy`, `degraded`, or `unhealthy`, plus `recommendations` |
@@ -478,16 +426,14 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 | `--queries ...` | built-in set | Queries to benchmark |
 | `--iterations N` | see `--help` | Timed runs per query |
 | `--warmup N` | see `--help` | Untimed runs before timing |
-| `--serena-only` | off | Skip Forgetful |
 | `--format {console,markdown,json}` | `console` | Output format |
 | `--serena-path PATH` | `.serena/memories` | Override the Serena store |
 
-Measured on this repo with 95 Serena memories, Forgetful down:
+Measured on this repo with 95 Serena memories:
 
 ```text
 === Summary ===
 Serena Average: 0.55ms
-Forgetful: Not available
 ```
 
 That figure is the in-process search only. The ~500ms in the performance
