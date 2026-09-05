@@ -133,7 +133,7 @@ attribution, to the caller.
 | `memory` | Router for episode extraction, health, or maintenance |
 | `memory-enhancement` | Add citations, verify code references, track confidence |
 | `curating-memories` | Memory maintenance (obsolete, deduplicate, link) |
-| `exploring-knowledge-graph` | Multi-hop graph traversal beyond Tier 1 search |
+| `context-gather` | Multi-source gather across Serena, Context7, DeepWiki, and web |
 
 ## Troubleshooting
 
