@@ -67,10 +67,15 @@ Commands available:
 - /encode-repo-serena - Repository encoding (requires Serena)
 ```
 
-Memory search runs from the repository, not from a plugin:
-`uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`.
-It reads the committed markdown under `.serena/memories/`, so it works whether
-or not the Serena MCP server is reachable.
+Memory search reads committed files rather than querying a server:
+
+```bash
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" --query "topic"
+```
+
+It reads the markdown under `.serena/memories/`, so it works whether or not the
+Serena MCP server is reachable. The plugin-root prefix resolves the script in a
+vendored install, where a bare `.claude/` path does not exist.
 
 ## Step 3: Quick Test (Optional)
 
