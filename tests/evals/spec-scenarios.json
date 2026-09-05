@@ -11,12 +11,12 @@
     },
     {
       "id": "D6",
-      "desc": "Forgetful unavailable degrades to Serena-only and completes",
-      "input": "Invoke /spec after Step 0 PASS. During Step 0.5, Forgetful MCP is unavailable. Serena memory search is available and returns one relevant prior-art entry. chestertons-fence and exploring-knowledge-graph are available. No halt trigger fires. Determine the Step 0.5 outcome and the required record in PriorArtBlock/Coverage notes.",
+      "desc": "Forgetful unavailable skips exploring-knowledge-graph and completes",
+      "input": "Invoke /spec after Step 0 PASS. During Step 0.5, Forgetful MCP is unavailable, so exploring-knowledge-graph cannot run. Memory search is available and returns one relevant prior-art entry. chestertons-fence is available. No halt trigger fires. Determine the Step 0.5 outcome and the required record in PriorArtBlock/Coverage notes.",
       "expected_verdict": "DEGRADED_PASS",
       "verdict_options": ["DEGRADED_PASS", "HALT", "SKIP_MEMORY"],
-      "expected_reason_contains": "Serena-only",
-      "rationale": "AC-07 requires graceful degradation: log the Forgetful outage in coverage notes, run Serena-only search, complete Step 0.5, and append a pass tally."
+      "expected_reason_contains": "exploring-knowledge-graph",
+      "rationale": "AC-07 requires graceful degradation. The degradation table in .claude/commands/spec.md now has one Forgetful row, and it covers exploring-knowledge-graph only: skip the skill, emit the coverage note, continue. Memory search no longer depends on Forgetful, so the old Serena-only fallback has no source line to grade against."
     },
     {
       "id": "D7",
