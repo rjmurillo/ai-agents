@@ -314,9 +314,15 @@ def test_every_dispatch_call_targets_its_current_pr(tmp_path: Path, doc: str) ->
         ["--pull-request", "5177", "--field", "author_is_bot", "--output-format", "json"],
         ["--pull-request", "5177", "--field", "auto_merge_method", "--output-format", "json"],
     ]
+    # No --output-format: the real set_pr_auto_merge.py registers no such option
+    # and exits 2 on it (issue #5551). This expectation carried the flag until
+    # the fix, because the fake here records its argv and accepts anything, so
+    # the harness cannot tell a rejected flag from an accepted one.
+    # `test_pr_autofix_flag_contract.py` checks each option against the real
+    # parser and is what closes that gap.
     assert run.disarm_calls == [
-        ["--pull-request", "5176", "--disable", "--output-format", "json"],
-        ["--pull-request", "5177", "--disable", "--output-format", "json"],
+        ["--pull-request", "5176", "--disable"],
+        ["--pull-request", "5177", "--disable"],
     ]
 
 

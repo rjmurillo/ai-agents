@@ -22,7 +22,6 @@ tools:
   - serena/*
   - todo
   - memory
-model: Claude Opus 4.5 (copilot)
 ---
 
 # Comprehensive PR Review

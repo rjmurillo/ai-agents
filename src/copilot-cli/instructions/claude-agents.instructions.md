@@ -4,7 +4,7 @@ applyTo: src/claude/**
 
 # Claude Agent and Skill Rules
 
-`src/claude/*.md` are hand-maintained Claude agent prompts with unique Claude-specific content (`name`/`model` frontmatter). They are NOT generated. `templates/agents/*.shared.md` holds the shared body that the Copilot and VS Code copies are generated from. **No check compares the content of `src/claude/*.md` against that shared body**, and the co-change check that exists is one-directional (see MUST-1). `.claude/agents/`, `.claude/skills/`, and `.claude/commands/` hold per-repo artifacts loaded by Claude Code.
+`src/claude/*.md` are hand-maintained Claude agent prompts with unique Claude-specific content (a `name` field the shared template does not carry, and Claude-side tool ids). A `model:` field is no longer part of that set: ADR-080 defaults every agent to the harness-inherited model, and the 2026-09-05 migration that drained its ratchet to zero left a pin on only `code-reviewer`, which carries the `haiku` cost exception. They are NOT generated. `templates/agents/*.shared.md` holds the shared body that the Copilot and VS Code copies are generated from. **No check compares the content of `src/claude/*.md` against that shared body**, and the co-change check that exists is one-directional (see MUST-1). `.claude/agents/`, `.claude/skills/`, and `.claude/commands/` hold per-repo artifacts loaded by Claude Code.
 
 ## MUST
 
