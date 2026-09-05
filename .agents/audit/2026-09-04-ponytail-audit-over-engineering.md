@@ -131,14 +131,22 @@ extra (`mypy`, `semgrep`, `bandit`, `pip-audit`, `ruff`, `pytest*`, `lefthook`,
    docstring reads "This is a FORENSIC TOOL, not a regression gate. Do NOT add
    it to CI") and is excluded from the count.
 5. `.claude/rules/session-logs.md:9`: "Session log creation is discontinued: do
-   not create a new `.agents/sessions/*.json` file." The 1,538 existing logs are
-   frozen history. `scripts/measure_context_retrieval_metrics.py` parses that
+   not create a new `.agents/sessions/*.json` file." The 1,467 existing logs are
+   frozen history. An earlier draft said 1,538, which is every tracked file under
+   `.agents/sessions/`: it counts the 15 files in `handoffs/` and the non-JSON
+   entries the quoted rule does not describe.
+   `scripts/measure_context_retrieval_metrics.py` parses that
    frozen corpus and is imported only by `tests/test_context_retrieval_decision.py`.
    `scripts/validate_session_json.py` and its 5,258-line test are NOT part of this
-   cut: `new_pr_validations.py:192-206` sets `validate_script` to that path
+   cut. It has three live callers, not the zero the first draft claimed:
+   `new_pr_validations.py:192-206` sets `validate_script` to that path
    (`.claude/skills/github/scripts/pr/`) and runs it under `subprocess.run` as
-   the "Session End" PR validation, and
-   `git_hook_policy.py session` is a validate-if-present pre-commit gate. Both fire
+   the "Session End" PR validation;
+   `git_hook_policy.py session` is a validate-if-present pre-commit gate that
+   `lefthook.yml` runs as `session-policy`; and
+   `scripts/validation/pre_pr_sequence.py:257` registers it as the
+   "Session End Validation" gate.
+   All three fire
    whenever a legacy log is staged or cherry-picked, so the validator stays.
 6. `scripts/workflow/coordinator.py:29` defines `CoordinationStrategy(ABC)` with
    `CentralizedStrategy`, `HierarchicalStrategy`, and `MeshStrategy`. Searching
