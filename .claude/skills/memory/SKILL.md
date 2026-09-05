@@ -30,12 +30,15 @@ right one so a caller loads only the surface it needs.
 | Pre-change memory-first gate | No | `memory-gate` sub-skill |
 | Health, token count, benchmark | No | `memory-maintenance` sub-skill |
 | Periodic durable/dated consolidation, index tidy | No | `memory-consolidate` sub-skill |
-| Agent needs deep context | No | `exploring-knowledge-graph` skill |
+| Agent needs deep multi-source context | No | `context-gather` skill |
 | Human at CLI | No | `/memory-search` command |
 
-See the [exploring-knowledge-graph skill](../exploring-knowledge-graph/SKILL.md)
-for the deep-context decision tree and the five-source strategy (Issue #2103
-folded the former context-retrieval agent into it).
+See the [context-gather skill](../context-gather/SKILL.md) for the
+multi-source pre-work gather and its
+[references/context-retrieval.md](../context-gather/references/context-retrieval.md)
+for the source-priority strategy (Issue #2103 folded the former
+context-retrieval agent into that reference; #5574 moved it here from the
+retired knowledge-graph skill).
 
 ---
 
@@ -278,6 +281,5 @@ Invoke via the portable root form:
 | `memory-enhancement` | Add citations, verify code references, track confidence |
 | `memory-documentary` | Narrative cross-system memory reports |
 | `curating-memories` | Memory content maintenance (obsolete, deduplicate) |
-| `exploring-knowledge-graph` | Multi-hop graph traversal |
 
 <!-- vendor-portability: declared. This skill links reference docs that ship in its own references/ tree and routes callers to sibling sub-skills. The episode store is the consumer's own data dir, created on demand when absent in a vendored install. Issue #2050, ADR-063. -->

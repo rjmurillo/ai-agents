@@ -166,11 +166,6 @@ Use [using-forgetful-memory](../using-forgetful-memory/SKILL.md) instead when:
 - Creating new memories from scratch
 - Learning Forgetful tool parameters and constraints
 
-Use [exploring-knowledge-graph](../exploring-knowledge-graph/SKILL.md) instead when:
-
-- Traversing entity relationships for comprehensive context
-- Investigating cross-project connections
-
 ---
 
 ## Process
