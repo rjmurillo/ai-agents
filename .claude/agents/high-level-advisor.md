@@ -67,7 +67,7 @@ Query these Serena memories when relevant:
 Access via Memory Router or direct file read:
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py --query "[memory-name]" --lexical-only
+uv run python .claude/skills/memory/scripts/search_memory.py "[memory-name]"
 # Or read directly:
 Read .serena/memories/[memory-name].md
 ```
