@@ -97,7 +97,6 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".diffray",
         ".env.example",
         ".factory",
-        ".forgetful",
         ".gemini",
         ".gitattributes",
         ".github",
