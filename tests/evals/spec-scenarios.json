@@ -42,8 +42,8 @@
       "input": "Run Step 9 critic on a PRD containing ## Prior Art / Constraints with a non-empty ### Direct prior art from memory subsection citing ADR-057 and a non-empty ### Coverage notes subsection. Checks 9a, 9b, and 9c pass. Determine the Check 9d verdict.",
       "expected_verdict": "PASS",
       "verdict_options": ["PASS", "FAIL"],
-      "expected_reason_contains": "Prior Art / Constraints",
-      "rationale": "AC-12 pass condition is a populated PriorArtBlock with at least one evidence subsection or justified coverage note."
+      "expected_reason_contains": "PriorArtBlock",
+      "rationale": "AC-12 pass condition is a populated PriorArtBlock with at least one evidence subsection or justified coverage note. The graded literal is PriorArtBlock rather than the heading text: the heading appears verbatim in this scenario's own input, so a grader echoing the prompt would match it, while PriorArtBlock is a schema term the grader has to supply from the command itself."
     },
     {
       "id": "D13",
