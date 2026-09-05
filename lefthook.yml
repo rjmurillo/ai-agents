@@ -730,17 +730,6 @@ pre-push:
               - "tests/e2e/copilot_hook_probe.py"
               - ".github/workflows/nightly-cli-smoke.yml"
 
-          # Issue #4492 pattern: on the first push of a new branch lefthook's
-          # {push_files} fallback includes upstream-only files, which fed every
-          # tracked observation file to this job; without a reachable Forgetful
-          # service each file burns a 10s MCP timeout and the corpus overruns
-          # the 5m cap. The handler derives the real push range from stdin.
-          - name: observation-sync-advisory
-            timeout: 5m
-            run: uv run --frozen python scripts/validation/git_hook_policy.py observations-push
-            use_stdin: true
-            glob: ".serena/memories/**/*-observations.md"
-
           - name: bot-cascade-advisory
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py bot-cascade
