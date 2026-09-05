@@ -1,7 +1,6 @@
 ---
 name: high-level-advisor
 description: Brutally honest strategic advisor who cuts through comfort and delivers unfiltered truth. Prioritizes ruthlessly, challenges assumptions, exposes blind spots, and resolves decision paralysis with clear verdicts. Use when you need P0 priorities, not options. Clarity and action, not validation.
-model: opus
 metadata:
   role: strategic
 argument-hint: Describe the strategic decision or conflict needing advice
