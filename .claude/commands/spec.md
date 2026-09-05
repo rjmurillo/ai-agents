@@ -103,7 +103,6 @@ Discovered entities and projects feed the `### Connected context from exploring-
 | Failure | Behavior |
 |---|---|
 | `chestertons-fence` skill unavailable | Emit `### Coverage notes` entry: "chestertons-fence unavailable; git archaeology skipped; confidence low." Continue. |
-| Forgetful MCP unavailable for memory | Degrade to Serena-only via the existing `search_memory.py --lexical-only` fallback. Emit coverage note: "Forgetful MCP unavailable; Serena-only search; results may be incomplete." Continue. |
 | Forgetful MCP unavailable for exploring-knowledge-graph | Skip the skill (no fallback exists). Emit coverage note: "exploring-knowledge-graph skipped: Forgetful MCP unavailable." Continue. |
 | Memory search returns 0 results for a topic after at minimum 3 distinct queries | Emit coverage note for that topic: "no results for `<topic>` after 3 distinct queries; absence of evidence, not evidence of absence." Not a halt. |
 
