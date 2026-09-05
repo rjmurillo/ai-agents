@@ -395,7 +395,6 @@ def test_spec_command_scenarios_are_discoverable_by_eval_suite():
     )
     assert set(ids) == {
         "D1",
-        "D6",
         "D7",
         "D9",
         "D12",
@@ -534,7 +533,6 @@ class TestShippedScenariosValid:
         )
         required_d_check_ids = {
             "D1",
-            "D6",
             "D7",
             "D9",
             "D12",
@@ -962,12 +960,11 @@ class TestAcceptanceGate:
         assert gate["criteria"]["has_improvement"] is False
 
     def test_partial_base_failure_no_delta_passes(self):
-        # Issue #2197 regression repro: base ref has 5/7 passing (D13/D14 fail),
+        # Issue #2197 regression repro: base ref has 4/6 passing (D13/D14 fail),
         # a doc-consistency edit changes nothing. before_score == after_score,
         # no regression, zero improvements. Must PASS, not block.
         before = [
             self._r("D1", True),
-            self._r("D6", True),
             self._r("D7", True),
             self._r("D9", True),
             self._r("D12", True),
@@ -976,7 +973,6 @@ class TestAcceptanceGate:
         ]
         after = [
             self._r("D1", True),
-            self._r("D6", True),
             self._r("D7", True),
             self._r("D9", True),
             self._r("D12", True),
