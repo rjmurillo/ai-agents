@@ -163,10 +163,6 @@ wt_*/
 # Traceability cache
 .agents/.cache/
 
-# Memory sync runtime state (Issue #747)
-.memory_sync_queue.json
-.memory_sync_state.json
-
 .claude/worktrees/
 .worktrees/
 

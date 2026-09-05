@@ -62,7 +62,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["scripts*", "scripts.mcp_cli*", "scripts.memory_sync*", "scripts.hook_utilities*", "scripts.test_result_helpers*", "scripts.pr_maintenance*", "scripts.github_core*", "scripts.ai_review_common*", "scripts.validation*", "scripts.workflow*", "memory_enhancement*"]
+include = ["scripts*", "scripts.mcp_cli*", "scripts.hook_utilities*", "scripts.test_result_helpers*", "scripts.pr_maintenance*", "scripts.github_core*", "scripts.ai_review_common*", "scripts.validation*", "scripts.workflow*", "memory_enhancement*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -80,7 +80,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = [".claude", "scripts", "scripts/memory_sync", "scripts/memory_enhancement"]
+source = [".claude", "scripts", "scripts/memory_enhancement"]
 omit = ["**/tests/*", "**/__pycache__/*"]
 
 [tool.coverage.report]
@@ -217,10 +217,10 @@ disallow_any_generics = false
 
 [[tool.mypy.overrides]]
 # Pre-existing type debt (arg-type at serena_integration.py:246,
-# return-value at :326) unrelated to the atomic-write hardening. The
-# scripts.memory_sync modules import this module, so a whole-file mypy
-# run on those files surfaces its errors. Scoped here rather than
-# suppressed in-file so the debt stays visible and tracked separately.
+# return-value at :326) unrelated to the atomic-write hardening. Scoped
+# here rather than suppressed in-file so the debt stays visible and
+# tracked separately. The importer that first surfaced it,
+# scripts.memory_sync, is gone; the debt in the module itself is not.
 module = [
     "memory_enhancement.serena_integration",
     "scripts.memory_enhancement.serena_integration",
