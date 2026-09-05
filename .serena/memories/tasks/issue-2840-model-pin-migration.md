@@ -27,7 +27,28 @@ entry. This session executed the SAFE half:
   taste-lints, observability, fix-markdown-fences) and em-dash (negotiation,
   pipeline-validator).
 
-## Why agents are NOT touched (owner-gated)
+## SUPERSEDED 2026-09-05: the agent half ran and the ratchet is at zero
+
+Both blockers below are cleared, so read this section as history, not as a
+live constraint.
+
+1. `agent_registry.py` no longer requires `model`. `_REQUIRED_FIELDS` is
+   `("name", "description")`; a pin that IS present is still checked against
+   the rolling-alias allowlist.
+2. The ADR-002 conflict is gone. `.claude/rules/templates.md` MUST-4 and MUST-5
+   now defer to ADR-080, and issue #5313 implemented rule 5, so the generator
+   injects no default `model:`.
+
+Issue #5605 removed the remaining 37 sonnet and opus pins across 30 agents and
+7 commands, in both `.claude/agents/` and the hand-maintained `src/claude/`
+copies. `model_pin_baseline.json` is now `pins: {}` with `frozen_count: 0`, and
+`check_model_pins.py --mode enforce` exits 0 over the 8 haiku pins that remain.
+No eval sweep was run: none was needed, because a bare `sonnet` or `opus` alias
+can never satisfy rule 3's below-default pricing test, so removal was the only
+reachable end state and rule 2's sweep path applies only to a versioned pin
+someone wants to ADD.
+
+## Why agents were NOT touched in 2026-07 (owner-gated at the time)
 
 1. `scripts/validation/agent_registry.py:31` requires model:
    `_REQUIRED_FIELDS = ("name","description","model")`. Removing an agent's

@@ -6,7 +6,7 @@ decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-080: Model Pins Require Cited Eval Evidence
@@ -218,8 +218,8 @@ frontmatter string.
 
 | Component | Dependency Type | Required Update | Risk |
 | ----------- | ---------------- | ----------------- | ------ |
-| `scripts/validation/check_model_pins.py` (new) | Direct | Scanner, manifest and rationale validation, draining baseline | Medium |
-| `.agents/governance/model-pin-evidence.json` (new) | Direct | Manifest schema and initial (empty) content | Low |
+| `scripts/validation/check_model_pins.py` | Direct | Scanner, manifest and rationale validation, draining baseline | Medium |
+| `.agents/governance/model-pin-evidence.json` | Direct | Manifest schema and initial (empty) content | Low |
 | Copilot agent generator config | Direct | Stop injecting `model: claude-opus-4.6`; inherit unless justified | Medium |
 | Skill / command copiers | Direct | Confirm no versioned `model:` survives into mirrors | Low |
 | CI workflow | Direct | Wire the check warn-then-enforce | Low |
@@ -342,13 +342,152 @@ Recorded because the errors are instructive, and two reviewers caught them.
 - It asserted display-name values fall back. `Claude Opus 4.6 (copilot)` is
   accepted; only the `(anthropic)` spelling falls back.
 
-### Stale statements this amendment does not fix
+### Stale statements this amendment deferred
 
 `implemented: false` in the frontmatter, and the "(new)" labels on
-`check_model_pins.py` and the manifest in the Impact table, all predate their
-implementation. `check_model_pins.py` ships and runs `--mode enforce` at
-`.github/workflows/pr-validation.yml:418`. Left for a separate change so this
-amendment stays a rationale correction.
+`check_model_pins.py` and the manifest in the Impact table, all predated their
+implementation. `check_model_pins.py` ships and runs `--mode enforce` in the
+PR-validation workflow. The amendment left them for a separate change so it
+could stay a rationale correction; the 2026-09-05 migration below made that
+change.
+
+## Migration 2026-09-05: the ratchet reached zero
+
+`scripts/validation/model_pin_baseline.json` now holds `pins: {}` and
+`frozen_count: 0`. Rule 6's burn-down obligation is discharged for the trees the
+check scans, so nothing is grandfathered there: every pin the check sees passes
+on the rules in the Decision, and a new non-compliant pin is a hard violation
+rather than backlog.
+
+### Starting count, stated once
+
+The pre-migration file on `main` held **45** entries against a `frozen_count` of
+**51**. The two numbers disagreed because 51 was the ceiling left by the 2026-07
+drain and nothing lowered it as entries cleared; the gate only ever compared
+entries against the ceiling, so the gap was slack, not a fault. The 2026-08-12
+Amendment's "46 baseline entries" is off by one against that file. Read 45 as
+the reproducible figure: `git show <pre-migration-sha>:scripts/validation/model_pin_baseline.json`.
+
+Of the 45, **37** were bare `sonnet` or `opus` and **8** were bare `haiku` with a
+cost `model-rationale:`. The 37 are gone. The 8 remain and pass: one agent
+(`code-reviewer`), one command (`pr-quality/all`), and six skills.
+
+### Why removal, and not a sweep
+
+Rule 3 admits a cost rationale only for an alias that resolves, through the
+platform `model_tiers` map, to an id priced strictly below the
+`claude-sonnet-4-6` harness default. `sonnet` ties that default and `opus`
+exceeds it, so no rationale could make those 37 compliant.
+
+Rule 2's evidence path could not save them either, and this is the part worth
+stating explicitly because it looks like an unexercised option. Rule 2 justifies
+a **versioned** agent pin. Reaching it from a bare `sonnet` or `opus` means
+minting a versioned id from a rolling alias, which rule 3 forbids in its first
+sentence. So no sweep verdict, KEEP_PIN included, had a compliant expression for
+these units. **Zero sweeps ran, by rule and not by omission**, and
+`.agents/governance/model-pin-evidence.json` stays empty as its expected steady
+state: an entry appears there only when someone wants to ADD a versioned agent
+pin and has the evidence for it. The Negative consequence above, "costs API
+budget for the ~17 agent sweeps", is therefore an unspent cost, not a deferred
+one.
+
+What removal is NOT justified by: Amendment finding 1. That finding measured a
+**versioned** `claude-opus-4.6` on Copilot CLI 1.0.79, and finding 2 records
+that the bare aliases were never independently probed at runtime. The removed
+pins are bare aliases, so finding 1 does not bear on them and must not be cited
+as their justification. The commit bodies on the migration branch cite it that
+way; that citation overreaches and this section is the correction. The
+justification is rules 3 and 6, which need no runtime measurement: they are the
+Decision.
+
+The Context's three drift costs do not carry the argument either. It says
+plainly that rolling aliases carry none of the three. Removing them buys the
+Decision's default-to-inherit state and discharges rule 6, and it substitutes no
+quality measurement for the guess it deletes. A unit that wants a pin back has
+rule 2, and needs a versioned id and a sweep to get one.
+
+### Scope: what the check actually reads
+
+The claim above is scoped to `_UNIT_GLOBS` in
+`scripts/validation/check_model_pins.py`, not to the whole repository. The
+migration widened that list by two hand-authored trees that had never been
+scanned, because a pin added to either ships without passing through any tree
+the gate reads:
+
+- `src/claude/*.md`, the plugin's agent copy. Content parity keeps it
+  byte-identical to `.claude/agents/`, but the gate never read it, so a bare
+  `opus` added there cleared both this check and `agent_registry.py`.
+- `.github/prompts/*.md`. Two files carried `model: Claude Opus 4.5 (copilot)`,
+  a **retired** id of exactly the class that broke CI in issue #2839, unseen for
+  the life of this gate. Both lines are removed.
+
+Generated mirrors stay out on purpose. A pin in `src/copilot-cli/` or
+`src/vs-code-agents/` is a copy of a source pin the gate already fails on, so
+scanning them would report one fault twice and point the reader at a file they
+must not edit.
+
+### The drain made two write paths load-bearing
+
+`write_baseline` derived its ceiling from the tree whenever `frozen_count` was
+zero, which before the drain was unreachable. At zero it became the normal case,
+so a single `--update-baseline` run would have re-seeded the ceiling from
+whatever was on disk and quietly restored grandfathering, with the growth guard
+never firing because both numbers moved together. Two changes close it: the
+first-write branch now keys on whether the baseline file exists, and a write
+that would record more entries than the stored ceiling raises rather than
+writes. The baseline also now records only pins that FAIL the rules, since a
+compliant pin needs no grandfathering and counting it inflates the number rule 6
+obliges us to burn down. Tests pin all three, and pin that a drained baseline
+turns a new pin into a hard violation.
+
+### Blockers the earlier migration recorded, now cleared
+
+`scripts/validation/agent_registry.py` listed `model` in its required
+frontmatter fields, which contradicted this ADR's "the absence of a `model:`
+line is correct and needs no justification". The field is optional now; the
+allowed-value check still runs on any pin that is present. The ADR-002 conflict
+the same note cited is also gone: `.claude/rules/templates.md` MUST-4 and MUST-5
+defer to this ADR, and issue #5313 implemented rule 5, so the generator injects
+no default `model:`.
+
+### Two corrections to the 2026-08-12 Amendment
+
+Finding 4 says `src/copilot-cli/skills` ships "7 `haiku`, 1 `opus`". The count
+was 6 haiku plus 1 opus when written. The opus one is gone:
+`.claude/commands/research.md` carried it and the command-to-skill bridge copied
+it verbatim, so removing the source pin removed the mirror's.
+
+Finding 4 also says a template's `model_tier: sonnet` resolves to
+`model: claude-sonnet-4.6` before shipping. Issue #5313 ended that. The
+generator emits a `model` key only for a manifest KEEP_PIN or the `haiku` tier,
+so `model_tier: opus` and `model_tier: sonnet` now resolve to no pin at all.
+
+### What stays open
+
+The six `haiku` skills still reach `src/copilot-cli/skills/` as raw aliases,
+which are not valid Copilot model ids, so their cheap-tier intent is discarded
+there in favour of the session default. Closing it means either teaching the
+skill copier to resolve the alias, which mints a versioned id and reopens
+finding 1, or dropping rule 3's cost exception for skills. That is a Decision
+change, tracked at **issue #5606**.
+
+`implemented: true` in the frontmatter carries ADR-073's meaning, "flips true at
+first merged change", and gates amend-versus-supersede. It does not claim every
+consequence is settled: issue #5606 is open, and because the flag is now true,
+resolving it takes a superseding ADR rather than an in-place edit to the
+Decision.
+
+One reading is worth recording so a future reader does not file it as a bug.
+`check_model_pins.py` price-tests every `model-rationale:` it finds, which is
+rules 1 and 3 read together: rule 1 permits an alias carrying a rationale, and
+rule 3 says the only rationale that is valid is a cost one below the default.
+Rule 1's sentence read alone is looser than that. The check implements the
+combined reading, and this migration relied on it.
+
+The Impact table's "Paired version bump in each migration PR" no longer applies:
+ADR-092 removed the `version` field from both plugin manifests, and
+`build/scripts/validate_plugin_version_bump.py` fails a PR that adds one back.
+The migration bumped nothing, correctly.
 
 ## Related Decisions
 
