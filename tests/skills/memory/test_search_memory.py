@@ -2,7 +2,6 @@
 
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 SCRIPT_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -176,16 +175,19 @@ class TestGetMemoryRouterStatus:
         status = search_memory.get_memory_router_status(tmp_path / "missing")
         assert status["Serena"]["Available"] is False
 
-    def test_forgetful_unavailable(self, tmp_path):
-        with patch.object(search_memory, "test_forgetful_available", return_value=False):
-            status = search_memory.get_memory_router_status(tmp_path)
-            assert status["Forgetful"]["Available"] is False
+    def test_reports_only_the_two_file_stores(self, tmp_path):
+        """Negative control: the retired backend has no status block.
+
+        It reported a TCP probe. Nothing probes now, so a block claiming a
+        store is unavailable would misdescribe a store that does not exist.
+        """
+        status = search_memory.get_memory_router_status(tmp_path)
+        assert set(status) == {"Serena", "Episodes"}
 
     def test_reports_episode_store(self, tmp_path):
         episodes = tmp_path / "episodes"
         episodes.mkdir()
         (episodes / "episode-2026-01-02-session-1-alpha.json").write_text('{"task": "a"}')
-        with patch.object(search_memory, "test_forgetful_available", return_value=False):
-            status = search_memory.get_memory_router_status(tmp_path, episodes)
+        status = search_memory.get_memory_router_status(tmp_path, episodes)
         assert status["Episodes"]["Available"] is True
         assert status["Episodes"]["MemoryCount"] == 1
