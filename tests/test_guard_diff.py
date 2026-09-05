@@ -1,3 +1,7 @@
+# taste-lint: ignore file-size -- the session corpus scan, the gate tests that
+# read it, and the once-per-worker assertion that guards it are one unit; a
+# split would put the fixture in a different module from the tests it exists for
+# and from the negative control that proves it is not vacuous (issue #5382).
 """Tests for the differential guard scanner (scripts/guard_diff.py).
 
 Coverage:
@@ -12,12 +16,21 @@ Coverage:
   a real corpus file does not fire the gate.
 * Negative control: a weakened guard (one rule stubbed out) produces a
   non-empty ``removed`` set, proving the gate goes red on real regressions.
+
+The corpus-gate tests below used to call ``scan_corpus`` against
+``.claude/skills`` themselves, four full traversals in all, each one reading and
+parsing every ``.py`` file under that root. The scan is invariant for the
+duration of a session, so ``corpus_scan`` performs it once per pytest process
+and the tests assert against the cached result. Per-file violation diagnostics
+are unchanged: every assertion still names the exact findings that moved
+(issue #5382).
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
@@ -51,6 +64,74 @@ def _real_guard() -> Callable[[str], list[int]]:
     from typing import cast
 
     return cast(Callable[[str], list[int]], _load_module_attr(GUARD_PATH, "unpinned_lines"))
+
+
+# ---------------------------------------------------------------------------
+# One corpus scan per session (issue #5382)
+# ---------------------------------------------------------------------------
+
+# Every traversal of the real corpus in this process, appended by the wrapper
+# below. Scans of a tmp_path corpus are not repeat passes and are not counted.
+_CORPUS_SCANS: list[str] = []
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _count_corpus_scans() -> Iterator[None]:
+    """Count real-corpus traversals wherever in this module they are called from.
+
+    Counting executions of the ``corpus_scan`` fixture body instead would assert
+    a pytest guarantee: a session fixture already runs at most once per process.
+    The wrapper sees a direct ``scan_corpus(guard, CORPUS_ROOT)`` in any test,
+    which is the shape the batching regression comes back in.
+    """
+    import scripts.guard_diff as guard_diff
+
+    original = guard_diff.scan_corpus
+
+    def counting(
+        guard: Callable[[str], list[int]], scan_root: Path
+    ) -> dict[str, list[int]]:
+        if Path(scan_root) == CORPUS_ROOT:
+            _CORPUS_SCANS.append(str(scan_root))
+        return original(guard, scan_root)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(guard_diff, "scan_corpus", counting)
+        yield
+    # Order-independent backstop: a scan added by a test that runs after the
+    # dedicated assertion below still fails the session.
+    assert len(_CORPUS_SCANS) <= 1, (
+        f"{CORPUS_ROOT} was traversed {len(_CORPUS_SCANS)} times in this "
+        "process. Session-scoped caching regressed."
+    )
+
+
+@dataclass(frozen=True)
+class CorpusScan:
+    """The real guard's verdict on the corpus, scanned once."""
+
+    results: dict[str, list[int]] = field(default_factory=dict)
+    findings: frozenset[tuple[str, str, int]] = frozenset()
+    baseline: frozenset[tuple[str, str, int]] = frozenset()
+
+
+@pytest.fixture(scope="session")
+def corpus_scan(_count_corpus_scans: None) -> CorpusScan:
+    """Scan ``.claude/skills`` with the real guard once per pytest worker.
+
+    ``scan_corpus`` reads and parses every ``.py`` file under the root, so a
+    per-test call multiplies the cost by the number of gate tests. The corpus
+    and the guard are both immutable for the session, which makes the result
+    safe to share.
+    """
+    from scripts.guard_diff import content_findings, load_baseline_findings, scan_corpus
+
+    results = scan_corpus(_real_guard(), CORPUS_ROOT)
+    return CorpusScan(
+        results=results,
+        findings=frozenset(content_findings(results, CORPUS_ROOT)),
+        baseline=frozenset(load_baseline_findings(BASELINE_PATH)),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +343,9 @@ def test_scan_corpus_empty_dir_returns_empty(tmp_path: Path) -> None:
     not CORPUS_ROOT.exists(),
     reason=".claude/skills not present",
 )
-def test_corpus_gate_current_guard_finds_all_baseline_findings() -> None:
+def test_corpus_gate_current_guard_finds_all_baseline_findings(
+    corpus_scan: CorpusScan,
+) -> None:
     """The current guard must report at least every finding in the pinned baseline.
 
     Findings are compared by content (normalized source line text + occurrence
@@ -271,14 +354,7 @@ def test_corpus_gate_current_guard_finds_all_baseline_findings() -> None:
     ``tests/fixtures/guard_corpus_baseline.json`` and explain why in the
     commit message.
     """
-    from scripts.guard_diff import content_findings, load_baseline_findings, scan_corpus
-
-    guard = _real_guard()
-    baseline_set = load_baseline_findings(BASELINE_PATH)
-    current = scan_corpus(guard, CORPUS_ROOT)
-    current_set = content_findings(current, CORPUS_ROOT)
-
-    removed = baseline_set - current_set
+    removed = corpus_scan.baseline - corpus_scan.findings
     assert removed == set(), (
         "Guard lost coverage: the following findings were in the baseline but "
         "are no longer reported by the current guard.\n"
@@ -292,7 +368,9 @@ def test_corpus_gate_current_guard_finds_all_baseline_findings() -> None:
     not CORPUS_ROOT.exists(),
     reason=".claude/skills not present",
 )
-def test_corpus_gate_reports_no_finding_the_baseline_does_not_carry() -> None:
+def test_corpus_gate_reports_no_finding_the_baseline_does_not_carry(
+    corpus_scan: CorpusScan,
+) -> None:
     """A new unpinned call must fail here, not be written into the baseline.
 
     The removed-only assertion above is one-directional: it catches a guard that
@@ -301,13 +379,7 @@ def test_corpus_gate_reports_no_finding_the_baseline_does_not_carry() -> None:
     the baseline, and pass. Measured clean at the head of this branch: 0 added,
     0 removed across the whole corpus.
     """
-    from scripts.guard_diff import content_findings, load_baseline_findings, scan_corpus
-
-    guard = _real_guard()
-    baseline = load_baseline_findings(BASELINE_PATH)
-    current = scan_corpus(guard, CORPUS_ROOT)
-    current_findings = content_findings(current, CORPUS_ROOT)
-    added = current_findings - baseline
+    added = corpus_scan.findings - corpus_scan.baseline
 
     assert added == set(), (
         "New unpinned subprocess text=True call(s). Pass encoding=\"utf-8\" (or "
@@ -378,44 +450,61 @@ def test_corpus_gate_survives_line_insertion_in_flagged_file(
     not CORPUS_ROOT.exists(),
     reason=".claude/skills not present",
 )
-def test_corpus_gate_catches_weakened_guard() -> None:
+def test_corpus_gate_catches_weakened_guard(corpus_scan: CorpusScan) -> None:
     """Negative control: a guard that drops one file's findings trips the gate.
 
-    This proves the gate is not vacuous.  We build a weakened guard that
-    returns [] for one specific file the baseline knows about, run the diff,
-    and assert the removed set is non-empty.  We then verify that the full
-    guard produces an empty removed set (gate goes green).
+    This proves the gate is not vacuous.  We weaken the cached scan the way a
+    guard that stopped reporting the victim's lines would have weakened it, run
+    the diff, and assert the removed set is non-empty.  We then verify that the
+    full guard produces an empty removed set (gate goes green).
+
+    ``scan_corpus`` maps the guard over each file independently, so filtering
+    the cached per-file line lists is identical to rescanning the corpus with
+    the weakened guard, without a second traversal (issue #5382).
     """
-    from scripts.guard_diff import content_findings, load_baseline_findings, scan_corpus
-
-    baseline_set = load_baseline_findings(BASELINE_PATH)
-    real_guard = _real_guard()
-
     # Pick the first file with at least one finding as the victim.
     raw = json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
     victim_file = next(iter(raw["findings"]))
+    victim_lines = set(corpus_scan.results.get(victim_file, []))
 
-    # Scan once with the real guard to get its line numbers for the victim.
-    full_results = scan_corpus(real_guard, CORPUS_ROOT)
-    victim_lines = full_results.get(victim_file, [])
+    weakened_results = {
+        rel: kept
+        for rel, lines in corpus_scan.results.items()
+        if (kept := [ln for ln in lines if ln not in victim_lines])
+    }
 
-    def weakened_guard(source: str) -> list[int]:
-        lines = real_guard(source)
-        if set(lines) & set(victim_lines):
-            return [ln for ln in lines if ln not in victim_lines]
-        return lines
+    from scripts.guard_diff import content_findings
 
-    weakened_results = scan_corpus(weakened_guard, CORPUS_ROOT)
     weakened_set = content_findings(weakened_results, CORPUS_ROOT)
-    removed_w = baseline_set - weakened_set
+    removed_w = corpus_scan.baseline - weakened_set
     assert removed_w, (
         "Negative control failed: weakened guard did not trigger the gate. "
         f"Victim file: {victim_file!r}"
     )
 
     # Green path: real guard produces no removals.
-    full_set = content_findings(full_results, CORPUS_ROOT)
-    removed_f = baseline_set - full_set
+    removed_f = corpus_scan.baseline - corpus_scan.findings
     assert removed_f == set(), (
         f"Unexpected: real guard triggered the gate. Removed: {removed_f}"
+    )
+
+
+@pytest.mark.skipif(
+    not CORPUS_ROOT.exists(),
+    reason=".claude/skills not present",
+)
+def test_corpus_is_scanned_once_per_worker(corpus_scan: CorpusScan) -> None:
+    """The gate tests share one traversal, not one traversal each.
+
+    Before issue #5382 the three gate tests above ran four ``scan_corpus`` passes
+    over ``.claude/skills`` between them. Session scope collapses that to one per
+    pytest process, which is also what an xdist worker gets. The counter comes
+    from a wrapper around ``scan_corpus`` itself, so a gate test that goes back
+    to scanning the corpus directly fails here even though it never touches the
+    fixture.
+    """
+    assert corpus_scan.results
+    assert _CORPUS_SCANS == [str(CORPUS_ROOT)], (
+        f"{CORPUS_ROOT} was traversed {len(_CORPUS_SCANS)} times in this "
+        "process, not once. Session-scoped caching regressed."
     )

@@ -113,6 +113,141 @@ def test_serial_partition_subset_has_no_parallel_flags(monkeypatch: pytest.Monke
     assert args == ["tests/test_safe_push_pr_branch.py"]
 
 
+def _capture_diff_args(monkeypatch: pytest.MonkeyPatch, changed: list[str]) -> list[tuple]:
+    """Record every changed_from_git call and answer with ``changed``."""
+    calls: list[tuple] = []
+
+    def _fake(*args: object) -> list[str]:
+        calls.append(args)
+        return changed
+
+    monkeypatch.setattr(mod.select_tests, "changed_from_git", _fake)
+    return calls
+
+
+def test_pull_request_diffs_the_explicit_base_and_head_shas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base, head = "a" * 40, "b" * 40
+    calls = _capture_diff_args(monkeypatch, ["pkg/x.py"])
+    monkeypatch.setattr(
+        mod.select_tests,
+        "select",
+        lambda *_a, **_k: Selection(full=False, reason="subset", tests=("tests/test_leaf.py",)),
+    )
+    args, reason = mod.resolve_partition_args("bulk", "pull_request", base, _REPO_ROOT, head)
+    assert args == ["-n", "auto", "--dist", "loadfile", "tests/test_leaf.py"]
+    assert calls == [(_REPO_ROOT, base, head)]
+    assert reason == f"subset: 1 affected test file(s) [{base}...{head}]"
+
+
+def test_pull_request_without_head_sha_runs_full_without_diffing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _capture_diff_args(monkeypatch, ["pkg/x.py"])
+    args, reason = mod.resolve_partition_args("bulk", "pull_request", "a" * 40, _REPO_ROOT, "")
+    assert args == mod._PARTITION_FULL_ARGS["bulk"]
+    assert reason == "full: pull_request without explicit base and head SHAs"
+    assert calls == []
+
+
+def test_pull_request_without_base_sha_runs_full_without_diffing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _capture_diff_args(monkeypatch, ["pkg/x.py"])
+    args, reason = mod.resolve_partition_args("bulk", "pull_request", "", _REPO_ROOT, "b" * 40)
+    assert args == mod._PARTITION_FULL_ARGS["bulk"]
+    assert reason == "full: pull_request without explicit base and head SHAs"
+    assert calls == []
+
+
+def test_push_without_head_sha_still_diffs_against_the_checkout_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _capture_diff_args(monkeypatch, ["pkg/x.py"])
+    monkeypatch.setattr(
+        mod.select_tests,
+        "select",
+        lambda *_a, **_k: Selection(full=False, reason="subset", tests=("tests/test_leaf.py",)),
+    )
+    _, reason = mod.resolve_partition_args("bulk", "push", "c" * 40, _REPO_ROOT)
+    assert calls == [(_REPO_ROOT, "c" * 40, "HEAD")]
+    assert reason.endswith(f"[{'c' * 40}...HEAD]")
+
+
+def test_empty_base_falls_back_to_the_default_branch_ref(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _capture_diff_args(monkeypatch, ["pkg/x.py"])
+    monkeypatch.setattr(
+        mod.select_tests, "select", lambda *_a, **_k: Selection(full=True, reason="non-Python")
+    )
+    args, reason = mod.resolve_partition_args("bulk", "workflow_dispatch", "", _REPO_ROOT)
+    assert args == mod._PARTITION_FULL_ARGS["bulk"]
+    assert calls == [(_REPO_ROOT, mod._DEFAULT_BASE, "HEAD")]
+    assert reason == f"full: non-Python [{mod._DEFAULT_BASE}...HEAD]"
+
+
+def test_unfetchable_commit_names_both_ends_of_the_span(monkeypatch: pytest.MonkeyPatch) -> None:
+    base, head = "a" * 40, "b" * 40
+    monkeypatch.setattr(mod.select_tests, "changed_from_git", lambda *_: None)
+    args, reason = mod.resolve_partition_args("bulk", "pull_request", base, _REPO_ROOT, head)
+    assert args == mod._PARTITION_FULL_ARGS["bulk"]
+    assert reason == f"full: could not diff {base}...{head}"
+
+
+def test_main_reads_the_head_sha_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    base, head = "a" * 40, "b" * 40
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("PYTEST_SELECT_BASE", base)
+    monkeypatch.setenv("PYTEST_SELECT_HEAD", head)
+    calls = _capture_diff_args(monkeypatch, ["pkg/x.py"])
+    monkeypatch.setattr(
+        mod.select_tests,
+        "select",
+        lambda *_a, **_k: Selection(full=False, reason="subset", tests=("tests/test_leaf.py",)),
+    )
+    monkeypatch.setattr(mod.run_pytest_non_tmp, "main", lambda _argv: 0)
+    assert mod.main(["--partition", "bulk"]) == 0
+    assert calls == [(mod._PROJECT_ROOT, base, head)]
+
+
+def test_main_runs_full_when_the_pull_request_head_sha_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, list[str]] = {}
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("PYTEST_SELECT_BASE", "a" * 40)
+    monkeypatch.delenv("PYTEST_SELECT_HEAD", raising=False)
+    calls = _capture_diff_args(monkeypatch, ["pkg/x.py"])
+    monkeypatch.setattr(
+        mod.run_pytest_non_tmp, "main", lambda argv: captured.setdefault("argv", argv) and 0 or 0
+    )
+    assert mod.main(["--partition", "bulk"]) == 0
+    assert captured["argv"] == mod._PARTITION_FULL_ARGS["bulk"]
+    assert calls == []
+
+
+def test_main_reports_the_span_and_mode(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base, head = "a" * 40, "b" * 40
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+    monkeypatch.setenv("PYTEST_SELECT_BASE", base)
+    monkeypatch.setenv("PYTEST_SELECT_HEAD", head)
+    _capture_diff_args(monkeypatch, ["pkg/x.py"])
+    monkeypatch.setattr(
+        mod.select_tests,
+        "select",
+        lambda *_a, **_k: Selection(full=False, reason="subset", tests=("tests/test_leaf.py",)),
+    )
+    monkeypatch.setattr(mod.run_pytest_non_tmp, "main", lambda _argv: 0)
+    mod.main(["--partition", "bulk"])
+    err = capsys.readouterr().err
+    assert "mode=subset" in err
+    assert f"{base}...{head}" in err
+
+
 def test_main_returns_runner_failure_code(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GITHUB_EVENT_NAME", "merge_group")
     monkeypatch.setattr(mod.run_pytest_non_tmp, "main", lambda _argv: 3)

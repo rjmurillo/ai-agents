@@ -53,6 +53,7 @@ FAST_PARALLEL_GATES = frozenset(
         "branch-scope",
         "branch-context-policy",
         "review-axis-drift",
+        "dash-prohibition",
     }
 )
 
@@ -84,21 +85,16 @@ EXPENSIVE_STAGE_ROSTER = EXPENSIVE_JOBS | frozenset(
         "python-lint-advisory",
         "infrastructure-advisory",
         "additions-advisory",
-        "observation-sync-advisory",
         "bot-cascade-advisory",
     }
 )
 
 # Documented exceptions: these carry `use_stdin: true` inside the expensive
 # `parallel: true` group and only use the payload to derive the changed-file
-# range. The two e2e jobs predate MUST-21; observation-sync-advisory joined
-# on main via the issue #4492-pattern fix (stdin-derived push range replacing
-# the {push_files} fallback that overran its cap on first pushes). Do not
-# grow this set without the same range-derivation justification; a new stdin
-# consumer belongs in the piped group or at the top level.
-PARALLEL_STDIN_EXCEPTIONS = frozenset(
-    {"hook-anchoring-e2e", "plugin-load-e2e", "observation-sync-advisory"}
-)
+# range. Both predate MUST-21. Do not grow this set without the same
+# range-derivation justification; a new stdin consumer belongs in the piped
+# group or at the top level.
+PARALLEL_STDIN_EXCEPTIONS = frozenset({"hook-anchoring-e2e", "plugin-load-e2e"})
 
 # Ceilings for jobs scheduled ahead of the expensive stage, set to the
 # largest cap each stage half already carries. After the session-json-validation

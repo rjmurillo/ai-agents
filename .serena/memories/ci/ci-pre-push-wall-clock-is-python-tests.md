@@ -78,8 +78,9 @@ semgrep                  6.68s for 7 files, 310 rules
 pre_pr.py --quick        saves 1.89s of 103.25s, the four quick gates are cheap now
 ```
 
-`--skip-tests` and `SKIP_TESTS` are parsed by `pre_pr.py` but inert: no gate in
-`_SEQUENCE` sets `skip_flag`.
+`--skip-tests`, `SKIP_TESTS`, and `--verbose` were parsed by `pre_pr.py` and
+never read. All three are removed, along with the `_Gate.skip_flag` field no
+gate ever set. Passing any of them now fails with argparse exit code 2.
 
 ## Reproduce
 

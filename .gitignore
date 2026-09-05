@@ -111,6 +111,11 @@ ENV/
 # Hook runtime logs and caches
 .claude/hooks/audit.log
 
+# Skill-pattern loader cache. Maps absolute source paths to float mtimes, so
+# every contributor's copy differs on every line. Matched under any hook event
+# directory, not just Stop/, so a second writer does not reopen the hole.
+.claude/hooks/**/.skill_pattern_cache.json
+
 # Scheduled-task runtime lock (held while ScheduleWakeup-managed loops run)
 .claude/scheduled_tasks.lock
 
@@ -143,14 +148,16 @@ wt_*/
 .env*
 
 # Factory.ai (DROID)
-.factory/
+# Contents rather than the directory itself: .factory/mcp.json is tracked and
+# generated from .mcp.json by sync_mcp_config.py, and the stage-mcp-config
+# lefthook job stages it by explicit path. git refuses to add an explicit path
+# under an ignored directory, and gitignore cannot re-include a file whose
+# parent directory is excluded, so ".factory/" made that job fail on every
+# .mcp.json edit. Excluding the contents leaves the negation below effective.
+.factory/*
+!.factory/mcp.json
 # Claude hook runtime state
 /.agents/.hook-state/
-
-# Forgetful temporary files
-.forgetful/exports/*.bak
-.forgetful/exports/*.tmp
-.forgetful/exports/*.swp
 
 # CodeQL artifacts
 .codeql/cli/

@@ -12,6 +12,7 @@ from __future__ import annotations
 import ast
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 
 __all__ = ["covered_stems", "defines_main"]
 
@@ -42,6 +43,18 @@ _NONZERO_EXIT_ASSERTION = re.compile(
 # A superset of every proof shape, used only to skip files that cannot credit
 # anything before paying for a parse.
 _ANY_NONZERO_COMPARISON = re.compile(r"==\s*[1-9]|!=\s*0|EXIT_|_ERROR")
+
+
+@lru_cache(maxsize=4)
+def _stem_probe(stems: frozenset[str]) -> re.Pattern[str]:
+    """One alternation over the tracked stems, reused across the whole corpus.
+
+    Compiled once per stem set rather than once per file: the ratchet calls
+    ``covered_stems`` for every tracked test file with the same set, and the
+    merge-tree ratchet calls it a second time against the merged tree.
+    """
+    return re.compile("|".join(sorted(map(re.escape, stems))))
+
 
 # An identifier that nothing qualifies, so `widget` counts and `pkg.widget`
 # does not.
@@ -435,6 +448,22 @@ def covered_stems(test_source: str, stems: frozenset[str]) -> set[str]:
     # superset of both proof forms, including the two-step `assert rc == 1`
     # that _proves_failure resolves through a bound name.
     if not _ANY_NONZERO_COMPARISON.search(test_source):
+        return set()
+    # Second cheap bail, and the one that pays (issue #4876). Every credit this
+    # function can return names a stem that appears verbatim in the source:
+    # module aliases resolve through the module path, path credit matches
+    # ``<stem>.py`` inside a string, bare-``main`` credit intersects the file's
+    # identifiers, and the return value is intersected with ``stems`` besides.
+    # So a file naming no stem at all is decided here instead of through a
+    # parse and six tree walks. Measured on this corpus: 207 of 1092 tracked
+    # test files name one, and the gate's counting pass dropped from 16.9s to
+    # 7.2s, in a ratchet the aggregate runs twice (once directly, once inside
+    # the merge-tree ratchet) against an 85 second shared deadline.
+    #
+    # Substring, not identifier, on purpose. ``_UNQUALIFIED_NAME`` skips a name
+    # preceded by a dot, so it would miss the ``"pkg/a.b.widget.py"`` shape that
+    # ``_SCRIPT_FILE_NAME`` credits. A superset cannot drop a credit.
+    if not stems or not _stem_probe(stems).search(test_source):
         return set()
     try:
         tree = ast.parse(test_source)

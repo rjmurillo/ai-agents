@@ -58,6 +58,7 @@ KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset({
     "session-log-fixer",
     "session-migration",
     "session-qa-eligibility",
+    "using-forgetful-memory",
 })
 
 

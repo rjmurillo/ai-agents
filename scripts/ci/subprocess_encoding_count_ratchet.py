@@ -55,17 +55,18 @@ MERGE_TREE_BACKED = False
 The other five count ratchets under ``scripts/ci`` are, so their branch-tree
 comparison may pass a branch that merely holds a number ``main`` lowered
 underneath it: ``scripts/ci/merge_tree_ratchet_check.py`` measures the merged
-result for them. This one has no such gate, and it runs only from
-``.github/workflows/pytest.yml`` (no lefthook job, no pr-validation step), so
-the ``--base-ref`` comparison is its whole stale-branch guard. Waiving it here
-would let a branch cut before a lowering carry its old ceiling over the base's
-current one: with baseline 238 against a tree of 234, four new violations
-measure 238, pass under the stale ceiling, and land above ``main``'s 234.
+result for them. This one has no such gate, so the ``--base-ref`` comparison is
+its whole stale-branch guard. Waiving it here would let a branch cut before a
+lowering carry its old ceiling over the base's current one: with baseline 238
+against a tree of 234, four new violations measure 238, pass under the stale
+ceiling, and land above ``main``'s 234.
 
-Registering it would be the other fix and is deliberately not taken here: it
-adds a sixth evaluation to the local count-ratchets aggregate and to
-pr-validation, which is a gate change (ci-scripts MUST-13) rather than a defect
-repair. Pinned against the registry by
+Registering the baseline in that registry would be the other fix and is still
+not taken. Issue #5482 was closed by registering this module in
+``scripts/validation/checks_ratchet.py::RATCHETS`` instead, which is what runs
+it at pre-push and in ``pre_pr.py``. That is a local gate, not a merged-tree
+evaluation, so it leaves the declaration above at False. Pinned against the
+merge-tree registry by
 ``tests/ci/test_merge_tree_backing_declarations.py``, so flipping this to True
 without registering the baseline fails.
 """

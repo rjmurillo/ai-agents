@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import ast
 import builtins
+import importlib
 import io
 import json
 import os
@@ -11,6 +12,7 @@ import runpy
 import shutil
 import subprocess
 import sys
+import sysconfig
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
@@ -20,6 +22,7 @@ from typing import Any, NoReturn, Self, cast
 from unittest import mock
 
 import pytest
+import tomllib
 import yaml
 
 from scripts.validation import check_git_hook_health
@@ -28,7 +31,29 @@ from scripts.validation import git_hook_policy as policy
 pytestmark = pytest.mark.windows_path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-LEFTHOOK = shutil.which("lefthook")
+
+
+def _resolve_lefthook(scripts: str | None = None) -> str | None:
+    """Locate lefthook, preferring the running interpreter's own environment.
+
+    lefthook is a pinned dev dependency (`lefthook==` in pyproject's dev extra),
+    so the binary that matches the pin sits in this interpreter's scripts
+    directory. A bare PATH lookup agrees only while that directory leads PATH,
+    which `uv run` arranges and a directly invoked `.venv/bin/pytest` does not.
+    Measured with a stub `lefthook` placed earlier on PATH: `uv run` resolved
+    `.venv/bin/lefthook` either way, while `.venv/bin/python` resolved the stub
+    under PATH and the pinned 2.1.12 under the scripts directory. Binary
+    identity is not incidental here, because the assertions below pin lefthook's
+    own scheduling, skip, and templating behavior, which moves between releases.
+
+    PATH remains the fallback so a host without the dev extra installed keeps
+    whatever lefthook it has instead of failing every test that needs one.
+    """
+    directory = scripts if scripts is not None else sysconfig.get_path("scripts")
+    return shutil.which("lefthook", path=directory) or shutil.which("lefthook")
+
+
+LEFTHOOK = _resolve_lefthook()
 SEMGREP = shutil.which("semgrep")
 # The Semgrep carve-out proves a `run:` body parses by shelling out to `bash -n`,
 # and fails closed when the host has no Bash. Windows runners put Git's `cmd`
@@ -784,7 +809,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "hook-anchoring-e2e",
         "plugin-load-e2e",
         "review-axis-drift",
-        "observation-sync-advisory",
         "bot-cascade-advisory",
     }
     assert expected_pre_commit <= set(_job_map(config, "pre-commit"))
@@ -1037,15 +1061,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         run = pre_push_jobs[name]["run"]
         assert isinstance(run, str)
         assert "{push_files}" in run
-    # observation-sync-advisory derives its file set from the push refs on
-    # stdin instead of {push_files}: the first-push fallback fed the whole
-    # observation corpus to the sync and overran the job's cap (#5071).
-    observation_job = pre_push_jobs["observation-sync-advisory"]
-    observation_run = observation_job["run"]
-    assert isinstance(observation_run, str)
-    assert observation_run.endswith("git_hook_policy.py observations-push")
-    assert "{push_files}" not in observation_run
-    assert observation_job.get("use_stdin") is True
     workflow_run = pre_push_jobs["workflow-local-run"]["run"]
     branch_scope_run = pre_push_jobs["branch-scope"]["run"]
     assert isinstance(workflow_run, str)
@@ -1192,6 +1207,30 @@ def test_configuration_and_tree_have_no_payload_scripts() -> None:
     assert all(not path.exists() for path in HOOK_PAYLOADS)
 
 
+def _pinned_lefthook_version(pyproject: Path | None = None) -> str:
+    """Return the lefthook version pinned in pyproject.toml's dev extra.
+
+    The assertion in ``test_runtime_configuration_validates_with_pinned_lefthook``
+    used to carry the version as a literal, which made it a second source of
+    truth that drifts the moment the pin moves. PR #5554 bumped the pin from
+    2.1.11 to 2.1.12 and nothing updated the literal, so main went red on a
+    test whose own name says it validates against the pin.
+
+    Fails closed rather than defaulting: a missing or duplicated pin raises,
+    so the assertion can never pass vacuously against a version nobody
+    declared.
+    """
+    path = pyproject if pyproject is not None else PROJECT_ROOT / "pyproject.toml"
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    dev = data["project"]["optional-dependencies"]["dev"]
+    pins = [spec.split("==", 1)[1] for spec in dev if spec.startswith("lefthook==")]
+    if len(pins) != 1:
+        raise ValueError(
+            f"expected exactly one 'lefthook==' pin in the dev extra, found {pins}"
+        )
+    return pins[0]
+
+
 def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     assert LEFTHOOK is not None
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
@@ -1216,9 +1255,122 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     )
 
     assert config["lefthook"] == "uv run --frozen lefthook"
-    assert version.stdout.splitlines()[0] == "2.1.11"
+    assert version.stdout.splitlines()[0] == _pinned_lefthook_version()
     assert validated.returncode == 0
     assert "All good" in validated.stdout
+
+
+def test_pinned_lefthook_version_reads_the_declared_pin() -> None:
+    """Positive: the helper returns the exact version pyproject declares."""
+    declared = [
+        spec
+        for spec in tomllib.loads(
+            (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        )["project"]["optional-dependencies"]["dev"]
+        if spec.startswith("lefthook==")
+    ]
+
+    assert declared == [f"lefthook=={_pinned_lefthook_version()}"]
+
+
+def _dev_extra_pyproject(tmp_path: Path, dev: list[str]) -> Path:
+    path = tmp_path / "pyproject.toml"
+    body = ",\n".join(f'    "{spec}"' for spec in dev)
+    path.write_text(
+        '[project]\nname = "x"\nversion = "0"\n\n'
+        f"[project.optional-dependencies]\ndev = [\n{body}\n]\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_pinned_lefthook_version_fails_closed_when_the_pin_is_absent(
+    tmp_path: Path,
+) -> None:
+    """Negative control: no pin must raise, never fall back to a default.
+
+    A helper that returned a default here would let the runtime assertion pass
+    against a version nobody declared, which is the failure this replaces.
+    """
+    pyproject = _dev_extra_pyproject(tmp_path, ["ruff>=0.15.16"])
+
+    with pytest.raises(ValueError, match="exactly one 'lefthook==' pin"):
+        _pinned_lefthook_version(pyproject)
+
+
+def test_pinned_lefthook_version_fails_closed_on_duplicate_pins(
+    tmp_path: Path,
+) -> None:
+    """Negative control: two pins are ambiguous, so the helper refuses to pick."""
+    pyproject = _dev_extra_pyproject(
+        tmp_path, ["lefthook==2.1.12", "lefthook==2.1.11"]
+    )
+
+    with pytest.raises(ValueError, match="exactly one 'lefthook==' pin"):
+        _pinned_lefthook_version(pyproject)
+
+
+def test_pinned_lefthook_version_ignores_a_non_exact_requirement(
+    tmp_path: Path,
+) -> None:
+    """Edge: only ``lefthook==`` counts, so a range never satisfies the pin."""
+    pyproject = _dev_extra_pyproject(tmp_path, ["lefthook>=2.1.11"])
+
+    with pytest.raises(ValueError, match="exactly one 'lefthook==' pin"):
+        _pinned_lefthook_version(pyproject)
+
+
+def _stub_lefthook(directory: Path) -> Path:
+    """Create an executable file named like lefthook inside ``directory``."""
+    directory.mkdir(parents=True, exist_ok=True)
+    stub = directory / ("lefthook.bat" if os.name == "nt" else "lefthook")
+    stub.write_text("", encoding="utf-8")
+    stub.chmod(0o755)
+    return stub
+
+
+def test_resolve_lefthook_prefers_the_interpreter_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Positive and negative control: the scripts directory beats PATH.
+
+    Reverting the helper to a bare ``shutil.which("lefthook")`` returns the PATH
+    copy here and fails this assertion, which is the whole point: an IDE that
+    runs ``.venv/bin/pytest`` directly leaves PATH pointing at whatever global
+    lefthook the developer installed, and the behavioral assertions in this
+    module would then describe a release nobody pinned.
+    """
+    pinned = _stub_lefthook(tmp_path / "env")
+    monkeypatch.setenv("PATH", str(_stub_lefthook(tmp_path / "elsewhere").parent))
+
+    resolved = _resolve_lefthook(str(pinned.parent))
+
+    # samefile, not string equality: Windows resolution applies PATHEXT and can
+    # return an extension whose case does not match the file on disk.
+    assert resolved is not None
+    assert Path(resolved).samefile(pinned)
+
+
+def test_resolve_lefthook_falls_back_to_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative: an environment without the dev extra still finds a lefthook."""
+    on_path = _stub_lefthook(tmp_path / "elsewhere")
+    monkeypatch.setenv("PATH", str(on_path.parent))
+
+    resolved = _resolve_lefthook(str(tmp_path / "empty"))
+
+    assert resolved is not None
+    assert Path(resolved).samefile(on_path)
+
+
+def test_resolve_lefthook_returns_none_when_no_binary_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Edge: neither source has one, so callers see None and fail loudly."""
+    monkeypatch.setenv("PATH", str(tmp_path / "nothing"))
+
+    assert _resolve_lefthook(str(tmp_path / "empty")) is None
 
 
 def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
@@ -7353,9 +7505,9 @@ def test_cli_e2e_runs_with_clean_plugin_environment(
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
     # Pin the workstation contract. `_run_command` clamps a child's deadline
-    # inside a managed container (ADR-104 rule 8), and this repository's own
-    # dev containers set CLAUDECODE, so without this the assertion below reads
-    # the clamp rather than the budget it is about. The container behaviour is
+    # inside a managed container (ADR-104 rule 8), and this suite also runs
+    # inside dev containers, so without this the assertion below reads the
+    # clamp rather than the budget it is about. The container behaviour is
     # covered by its own test below.
     monkeypatch.setattr(policy, "_container_clamped", lambda seconds: seconds)
 
@@ -7541,7 +7693,13 @@ def test_a_container_clamps_the_cli_e2e_child_deadline(
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
     monkeypatch.delenv("CI", raising=False)
-    monkeypatch.setenv("CLAUDECODE", "1")
+    # CODESPACES, not CLAUDECODE. Issue #5479: the Claude Code CLI sets
+    # CLAUDECODE on a laptop and a workstation, so it names the client rather
+    # than the execution environment and no longer answers the container
+    # question. CODESPACES names a managed remote container, which is the case
+    # this test is about.
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.setenv("CODESPACES", "true")
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
 
@@ -7577,7 +7735,11 @@ def test_ci_keeps_the_full_budget_even_inside_a_container_image(
             return ("", "")
 
     monkeypatch.setattr(policy.subprocess, "Popen", FakePopen)
-    monkeypatch.setenv("CLAUDECODE", "1")
+    # A marker that really does mean a container, so the CI override is what
+    # makes the answer False. With CLAUDECODE here (Issue #5479) there would be
+    # no container signal left for CI to override and this control would hold
+    # for the wrong reason.
+    monkeypatch.setenv("CODESPACES", "true")
     monkeypatch.setenv("CI", "true")
 
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
@@ -7594,7 +7756,7 @@ def test_cli_e2e_without_cli_fails_closed(
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 2
 
 
-def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
+def test_session_helpers_aggregate_without_blocking_advisory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -7622,83 +7784,6 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
         == 1
     )
     assert all("../" not in " ".join(command) for command in commands)
-
-    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
-    assert policy.sync_observations(["memory-observations.md"], tmp_path) == 0
-
-
-def test_sync_observations_stops_at_its_internal_budget(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The advisory must finish under its lefthook cap from the inside.
-
-    A lefthook `timeout:` kill cannot be absorbed by a shell guard, so an
-    advisory job that overruns its cap blocks the push. Each file costs up to
-    the MCP client timeout when the Forgetful server is unreachable, and the
-    first push of a new branch sweeps every tracked observation file into the
-    job, so the loop needs a wall-clock deadline of its own.
-    """
-    synced: list[str] = []
-
-    def _record(command: list[str], _root: Path, **_kwargs: object) -> object:
-        synced.append(command[3])
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", _record)
-    clock = iter([0.0, 0.0, 500.0])
-    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
-
-    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
-
-    assert synced == ["a.md"]
-    assert "skipped 1 of 2" in capsys.readouterr().err
-
-
-def test_sync_observations_clamps_the_child_timeout_to_the_remaining_budget(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A child spawned near the deadline must not outlive the budget.
-
-    The deadline check runs between spawns, so without a clamp a child started
-    just under the deadline keeps the 90s subprocess default and carries the
-    job past the lefthook cap whose kill cannot be absorbed by a shell guard.
-    """
-    seen: list[float] = []
-
-    def _record(command: list[str], _root: Path, *, timeout_seconds: float) -> object:
-        seen.append(timeout_seconds)
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", _record)
-    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 200.0)
-    clock = iter([0.0, 150.0, 199.0, 250.0])
-    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
-
-    assert policy.sync_observations(["a.md", "b.md", "c.md"], tmp_path) == 0
-
-    # 50s left at the first spawn, 1s at the second; both beat the 90s default.
-    assert seen == [50.0, 1.0]
-
-
-def test_sync_observations_reports_a_fully_exhausted_budget(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Edge: the deadline can pass before the first file is attempted."""
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: pytest.fail("budget was exhausted; nothing may sync"),
-    )
-    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 0.0)
-
-    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
-
-    assert "skipped 2 of 2" in capsys.readouterr().err
 
 
 def test_placeholder_identity_handles_malformed_deletion_and_failure(
@@ -8418,7 +8503,6 @@ def test_remaining_policy_success_and_error_branches(
     assert policy.generate_mcp_advisory(tmp_path) == 0
     assert policy.generate_agents_advisory(tmp_path) == 0
     assert policy.update_memory_tokens(tmp_path) == 0
-    assert policy.sync_observations(["observations.md"], tmp_path) == 0
 
     ref = policy.PushRef("refs/heads/a", "1" * 40, "refs/heads/a", "2" * 40)
     monkeypatch.setattr(policy, "parse_push_refs", lambda _stream: [ref])
@@ -8428,125 +8512,6 @@ def test_remaining_policy_success_and_error_branches(
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "10\t0\tfile\n"))
     assert policy.additions_advisory(tmp_path) == 0
     assert "recommended maximum" not in capsys.readouterr().out
-
-
-def test_observation_sync_runs_every_file_within_budget(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Positive: with budget headroom every pushed file is imported once,
-    each child clamped to at most the remaining budget."""
-    commands: list[list[str]] = []
-    timeouts: list[float] = []
-
-    def _record(command, *_args, **_kwargs):
-        commands.append(command)
-        timeouts.append(_kwargs["timeout_seconds"])
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", _record)
-    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
-    imported = [command[3] for command in commands]
-    assert imported == ["a-observations.md", "b-observations.md"]
-    assert all(t <= policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS for t in timeouts)
-    assert all(t > 0 for t in timeouts)
-    assert "budget" not in capsys.readouterr().err
-
-
-def test_observation_sync_stays_advisory_on_per_file_failure(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Negative: a failing import warns, continues, and never blocks the push."""
-    results = iter([_completed(1), _completed(0)])
-    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: next(results))
-    assert policy.sync_observations(["bad-observations.md", "ok-observations.md"], tmp_path) == 0
-    err = capsys.readouterr().err
-    assert "observation sync failed for 'bad-observations.md'" in err
-    assert "budget" not in err
-
-
-def test_observation_sync_budget_exhaustion_skips_remaining_and_stays_green(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Edge: lefthook's 5m timeout kill cannot be absorbed by an advisory job,
-    so the loop's own budget must stop it first, name every skipped file (no
-    silent caps), and still return 0."""
-    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", -1.0)
-    calls: list[list[str]] = []
-
-    def _forbidden(command, *_args, **_kwargs):
-        calls.append(command)
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", _forbidden)
-    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
-    assert calls == []
-    err = capsys.readouterr().err
-    assert "budget" in err
-    assert "skipped 2" in err
-    assert "'a-observations.md', 'b-observations.md'" in err
-
-
-def test_observation_sync_mid_loop_expiry_keeps_progress_and_names_the_rest(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Edge: the deadline passing between files keeps the files already
-    imported and skips exactly the remainder, naming them."""
-    clock = iter([0.0, 0.0, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0])
-
-    def _tick() -> float:
-        return next(clock, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0)
-
-    monkeypatch.setattr(policy.time, "monotonic", _tick)
-    commands: list[list[str]] = []
-
-    def _record(command, *_args, **_kwargs):
-        commands.append(command)
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", _record)
-    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
-    assert [command[3] for command in commands] == ["a-observations.md"]
-    err = capsys.readouterr().err
-    assert "exhausted after 1 of 2" in err
-    assert "'b-observations.md'" in err
-    assert "'a-observations.md'," not in err
-
-
-def test_observation_sync_budget_sits_below_the_lefthook_cap() -> None:
-    """The budget protects the job only if budget plus one worst-case child
-    (the unclamped straggler bound) stays at or under lefthook.yml's cap."""
-    import yaml
-
-    repo_root = Path(__file__).resolve().parents[1]
-    config = yaml.safe_load((repo_root / "lefthook.yml").read_text(encoding="utf-8"))
-
-    def _find(jobs):
-        for job in jobs:
-            if job.get("name") == "observation-sync-advisory":
-                return job
-            if "group" in job:
-                found = _find(job["group"].get("jobs", []))
-                if found is not None:
-                    return found
-        return None
-
-    job = _find(config["pre-push"]["jobs"])
-    assert job is not None, "observation-sync-advisory job missing from lefthook.yml"
-    cap_text = job["timeout"]
-    assert cap_text.endswith("m")
-    cap_seconds = float(cap_text[:-1]) * 60
-    assert (
-        policy._OBSERVATION_SYNC_BUDGET_SECONDS + policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
-        <= cap_seconds
-    )
 
 
 def test_changed_commit_path_and_scan_edge_cases(
@@ -8702,7 +8667,6 @@ def test_old_bot_review_does_not_warn(
         ("memory-cross-reference", ["memory.md"], "cross_reference_memories"),
         ("workflow-local", ["workflow.yml"], "run_workflow_local"),
         ("sessions", ["session.json"], "validate_branch_sessions"),
-        ("observations", ["observations.md"], "sync_observations"),
         ("stage-generated", ["mcp"], "stage_generated"),
         ("extract-episodes", ["session.json"], "extract_session_episodes"),
         ("atomic-commit", [], "check_atomic_commit"),
@@ -11415,3 +11379,39 @@ def test_semgrep_family_prefix_exclusion_suppresses_nothing(tmp_path: Path) -> N
 def test_semgrep_command_exclusions_suppress_every_compat_rule(tmp_path: Path) -> None:
     """The production command, unmodified, reports none of the four rules."""
     assert _scan_compat_target(tmp_path, None) == set()
+
+
+def test_a_claude_code_session_on_a_workstation_keeps_the_full_semgrep_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Issue #5479, end to end through the clamp the push actually calls.
+
+    `CLAUDECODE` named the client, not the environment. The Claude Code CLI
+    sets it on a laptop, a workstation, and a VM, so `_container_clamped` took
+    the semgrep budget from 840s to 150s there. A branch whose scan set needed
+    more than 150s could not be pushed from a Claude Code session and pushed
+    fine from a plain terminal on the same machine, same commits, same host.
+    Every bypass is forbidden by `.claude/rules/universal.md`, so the branch
+    simply could not be pushed.
+
+    Asserted on `_container_clamped` rather than on the predicate, because the
+    predicate is already pinned in `tests/ci/test_lefthook_container_bound.py`
+    and this is the consumer that turns it into a number the push feels. If the
+    two ever disagree, this is the one that matters.
+    """
+    sys.path.insert(0, str(Path(policy.__file__).resolve().parent))
+    try:
+        detector = importlib.import_module("run_workflow_local_test")
+    finally:
+        sys.path.pop(0)
+
+    monkeypatch.setenv("CLAUDECODE", "1")
+    monkeypatch.delenv("CODESPACES", raising=False)
+    monkeypatch.delenv("AI_AGENTS_REMOTE_CONTAINER", raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(detector, "_has_container_filesystem_signal", lambda: False)
+
+    budget = policy._container_clamped(policy.SEMGREP_TIMEOUT_SECONDS)
+
+    assert budget == policy.SEMGREP_TIMEOUT_SECONDS
+    assert budget > policy.CONTAINER_SUBPROCESS_CEILING_SECONDS

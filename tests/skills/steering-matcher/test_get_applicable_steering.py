@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -12,10 +14,12 @@ import pytest
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
 if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
+REPO_ROOT = Path(__file__).resolve().parents[3]
+SCRIPT_PATH = REPO_ROOT / ".claude/skills/steering-matcher/scripts/get_applicable_steering.py"
 
 from claude_skills_import import import_skill_script
 
-mod = import_skill_script(".claude/skills/steering-matcher/get_applicable_steering.py")
+mod = import_skill_script(".claude/skills/steering-matcher/scripts/get_applicable_steering.py")
 glob_to_regex = mod.glob_to_regex
 file_matches_pattern = mod.file_matches_pattern
 get_applicable_steering = mod.get_applicable_steering
@@ -32,8 +36,13 @@ class TestGlobToRegex:
     def test_globstar_slash(self) -> None:
         regex = glob_to_regex("**/*.md")
         import re
+        assert re.match(regex, "file.md")
         assert re.match(regex, "docs/file.md")
         assert re.match(regex, "a/b/c/file.md")
+
+    def test_universal_globstar_matches_bare_and_nested_paths(self) -> None:
+        assert file_matches_pattern("file.py", ["**"]) is True
+        assert file_matches_pattern("a/b/file.py", ["**"]) is True
 
     def test_question_mark(self) -> None:
         regex = glob_to_regex("file?.md")
@@ -67,6 +76,15 @@ class TestFileMatchesPattern:
 
     def test_matches_globstar(self) -> None:
         assert file_matches_pattern("src/deep/nested/file.py", ["**/*.py"]) is True
+
+    def test_nested_globstar_rejects_non_matching_path(self) -> None:
+        pattern = "wiki/entities/people/Directs/**/1-1s/**"
+        assert file_matches_pattern(
+            "wiki/entities/people/Directs/Alice/1-1s/2026-01.md", [pattern]
+        ) is True
+        assert file_matches_pattern(
+            "wiki/entities/people/Peers/Alice/1-1s/2026-01.md", [pattern]
+        ) is False
 
     def test_no_match(self) -> None:
         assert file_matches_pattern("src/app.ts", ["*.py"]) is False
@@ -150,6 +168,15 @@ class TestGetApplicableSteering:
         assert len(result) == 1
         assert result[0]["Priority"] == 5
 
+    def test_parses_crlf_front_matter(self, steering_dir: Path) -> None:
+        (steering_dir / "crlf.md").write_bytes(
+            b'---\r\napplyTo: "**"\r\npriority: 7\r\n---\r\n\r\nCRLF.\r\n'
+        )
+        result = get_applicable_steering(["nested/file.py"], str(steering_dir))
+        assert len(result) == 1
+        assert result[0]["Name"] == "crlf"
+        assert result[0]["Priority"] == 7
+
     def test_skips_files_without_apply_to(self, steering_dir: Path) -> None:
         (steering_dir / "no-apply.md").write_text(
             "---\npriority: 5\n---\n\nNo apply.\n"
@@ -195,3 +222,29 @@ class TestMain:
         assert result == 0
         captured = capsys.readouterr()
         assert "No applicable" in captured.out
+
+    def test_script_json_cli_executes_documented_entrypoint(self, tmp_path: Path) -> None:
+        sdir = tmp_path / "steering"
+        sdir.mkdir()
+        (sdir / "universal.md").write_text(
+            '---\napplyTo: "**"\npriority: 9\n---\n\nUniversal.\n'
+        )
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT_PATH),
+                "--files",
+                "nested/file.py",
+                "--steering-path",
+                str(sdir),
+                "--json",
+            ],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        results = json.loads(completed.stdout)
+        assert results[0]["Name"] == "universal"
+        assert results[0]["Priority"] == 9

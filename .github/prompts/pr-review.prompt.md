@@ -32,7 +32,6 @@ tools:
   - todo
   - updateUserPreferences
   - memory
-model: Claude Opus 4.5 (copilot)
 ---
 
 # PR Review Command

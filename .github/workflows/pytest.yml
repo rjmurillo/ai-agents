@@ -66,143 +66,12 @@ jobs:
         id: filter
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && env.ACT != 'true'
         with:
-          filters: |
-            python:
-              - '**/*.py'
-              - '**/*.pyi'
-              - '**/*.ipynb'
-              - '**/*.js'
-              - '**/*.ts'
-              - '**/*.yaml'
-              - '**/*.yml'
-              - '**/*.ps1'
-              - '**/*.psm1'
-              - '**/*.pyw'
-              # Canonical rules and both generated instruction trees are
-              # direct inputs to Python contract tests. They were named here
-              # when the filter scoped Markdown to a curated set. It no longer
-              # does: the extension globs at the bottom of this list match all
-              # tracked Markdown, JSON and text, so session logs trigger pytest
-              # too. That is deliberate, and the reasoning is at those globs.
-              # These roots stay because they also carry non-Markdown files.
-              - '.claude/rules/**'
-              - '.github/instructions/**'
-              - 'src/copilot-cli/instructions/**'
-              - 'scripts/ci/ruff_count_baseline.txt'
-              - 'scripts/ci/subprocess_encoding_count_baseline.txt'
-              - '**/pyproject.toml'
-              - '**/ruff.toml'
-              - '**/.ruff.toml'
-              - 'uv.lock'
-              - 'tests/conftest.py'
-              - 'scripts/memory_enhancement/**'
-              - 'lefthook.yml'
-              - '.config/wt.toml'
-              - 'scripts/bootstrap-vm.sh'
-              - '.github/actions/setup-code-env/action.yml'
-              - '.github/actions/ai-review/action.yml'
-              - '.github/workflows/pytest.yml'
-              # Episode JSON is a test input, not source: the store-clean pin in
-              # tests/skills/memory/test_extract_session_episode.py reads it. The
-              # population issue #3633 names is a hand edit or merge-conflict
-              # resolution touching only these files, which no '**/*.py' pattern
-              # catches.
-              - '.agents/memory/episodes/**'
-              # Issue #4408: rules files are test inputs -- many Python tests read
-              # them directly (e.g. test_validate_workflows.py, test_plugin_tree_no_unicode_dashes.py).
-              # A rules-only change must trigger the full suite. The same three
-              # roots are listed above for the same reason; one copy is enough.
-              # Issue #5315. Pre-push stopped executing the suite on a
-              # non-Python change (ADR-104) on the stated ground that CI
-              # executes it instead. These roots are read as test inputs by
-              # real tests and were absent from this filter, so a push touching
-              # only one of them ran no assertions locally AND skipped the
-              # matrix here: assertions did not run until the merge queue
-              # forced them. Each entry below is referenced by at least one
-              # test, which the colocated guard checks textually: it does not
-              # prove a runtime read, and a mention in a comment counts. The
-              # looseness is deliberate (a strict-path version produced a false
-              # negative on a package tree reached by import), and it means a
-              # passing guard is evidence of intent, not of dependency.
-              #   .claude/skills/**        tests/skills/**, e.g.
-              #                            security-review/test_skill_md.py
-              #   .serena/memories/**      tests/test_memory_verification.py
-              #   .agents/architecture/**  tests/build_scripts/test_hook_contract_knowledge.py
-              #   .agents/governance/**    tests/test_canonical_sources_registration.py
-              #   AGENTS.md, README.md     tests/test_knowledge_surface_consistency.py
-              #   .agents/AGENT-SYSTEM.md  tests/test_agent_role_metadata_migration.py
-              - '.claude/skills/**'
-              - 'src/copilot-cli/skills/**'
-              - '.serena/memories/**'
-              - '.agents/architecture/**'
-              - '.agents/governance/**'
-              - '.agents/AGENT-SYSTEM.md'
-              # Added in review on PR #5319, from two concrete misses a reviewer
-              # found by reading the tests rather than the filter:
-              #   .agents/critique/**  tests/build_scripts/test_hook_contract_knowledge.py
-              #                        opens ADR-084-debate-log.md directly
-              #   templates/agents/**  tests/test_pr_identity_gate.py reads
-              #                        analyst.shared.md directly
-              # The colocated test checks that every root here is referenced by
-              # a test. It cannot check the reverse, which is the direction that
-              # fails silently, and these two are what that gap looked like.
-              - '.agents/critique/**'
-              - 'templates/agents/**'
-              # Second batch, same method and same reviewer (PR #5319): found by
-              # reading tests for direct reads rather than by reading the filter.
-              #   .github/PULL_REQUEST_TEMPLATE.md
-              #       tests/external_signals/test_acceptance_criteria.py
-              #   .agents/schemas/**  tests/test_skill_output_schema.py
-              #   .claude/settings.json, .claude/hooks/**, src/copilot-cli/hooks/**
-              #       tests/build_scripts/test_hook_contract_knowledge.py
-              # None was matched by an extension glob: the filter carries no
-              # `**/*.json` or `**/*.md`, which is the point of the allowlist and
-              # also why a JSON or Markdown input has to be named to be seen.
-              - '.github/PULL_REQUEST_TEMPLATE.md'
-              - '.agents/schemas/**'
-              - '.claude/settings.json'
-              - '.claude/hooks/**'
-              - 'src/copilot-cli/hooks/**'
-              - 'AGENTS.md'
-              - 'README.md'
-              # Eighth root, third round, same method (PR #5319):
-              #   docs/installation.md  tests/test_knowledge_surface_consistency.py
-              - 'docs/installation.md'
-              # Fourth round, and the last hand-picked one. A reviewer asked for
-              # a reverse audit instead of a fifth batch, so one was run: parse
-              # every string literal in all 974 test modules, keep the ones that
-              # resolve to a real repository file, and check each against this
-              # filter. It found 120 direct test inputs the allowlist did not
-              # match, 92 Markdown, 14 JSON, 5 text, spread across every tree
-              # including `.agents/retrospective/**`, `.agents/sessions/**`, and
-              # `.agents/analysis/**`, which the comment at the top of this
-              # filter names as the Markdown it deliberately skips. Those trees
-              # are test inputs too, so the thing the allowlist was protecting
-              # was already close to empty.
-              #
-              # Three extension globs close all 120 and end the curation. The
-              # trade is deliberate: a docs-only or retro-only PR now runs the
-              # matrix it used to skip, so the failure direction flips from "a
-              # gate silently did not run" to "a run was wasted". Only the
-              # second one is visible to the person who caused it.
-              #
-              # The named roots above stay: they cover non-Markdown, non-JSON,
-              # non-text inputs inside those trees, and deleting them would make
-              # this change larger than the gap it closes.
-              - '**/*.md'
-              - '**/*.json'
-              - '**/*.txt'
-              # THIRD-PARTY-NOTICES.TXT is read by a test and picomatch is
-              # case-sensitive, so the lowercase glob above does not reach it.
-              - '**/*.TXT'
-              # The reverse audit's remainder: real test inputs with no
-              # extension to glob. `.gitkeep` marks a directory a test asserts
-              # exists; the other four are read for their contents.
-              - '.actrc'
-              - '.gitattributes'
-              - '.gitignore'
-              - '.python-version'
-              - '**/.gitkeep'
+          # Issue #5318. The list itself lives in the policy file, which
+          # `scripts/test_selection/path_policy.py` also reads, so the
+          # local test selector and this gate cannot drift apart. The
+          # action accepts a workspace-relative path here in place of an
+          # inline document; the checkout above puts the file in place.
+          filters: scripts/test_selection/path_policy.yml
 
       - name: Determine if tests should run
         id: determine
@@ -492,17 +361,45 @@ jobs:
       # combine always receives non-empty data. The full-vs-subset decision and
       # the partition argument lists live in the Python runner, not here, per
       # ADR-006.
+      #
+      # Both selection refs are immutable SHAs from the event payload, never a
+      # branch name. The head one is why (issue #5378): on pull_request the
+      # checkout above is `refs/pull/N/merge`, a synthetic commit whose first
+      # parent is the current base-branch tip, so diffing `base.sha...HEAD`
+      # attributes every base-branch commit made since `base.sha` to this pull
+      # request. Observed on PR #5341, where an unrelated
+      # `.github/workflows/claude.yml` entered the changed set and forced the
+      # full suite. `head.sha` is the pull request's own tip and reproduces
+      # GitHub's base-to-head file list. The `fetch-depth: 0` checkout above is
+      # what makes both commits readable: it fetches every branch plus the
+      # merge ref, whose second parent is `head.sha`. If either commit is
+      # missing the git diff fails and the runner runs the full suite.
       - name: Run pytest
         id: run-pytest
         env:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
           COVERAGE_FILE: ${{ matrix.coverage_file }}
           PYTEST_SELECT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PYTEST_SELECT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: >-
           uv run --frozen python scripts/ci/run_pytest_selected.py
           --partition ${{ matrix.partition }}
           --cov --cov-report=
           --junitxml=${{ matrix.junit_file }}
+
+      # Issue #5382. Reads the JUnit report the step above already wrote, so it
+      # runs no test of its own, and fails when a budgeted validator suite
+      # exceeds the seconds recorded for it in [tool.slow-test-budget]. A
+      # budgeted suite this partition did not run is absent from the report and
+      # is not a violation.
+      # The step name carries no "#": a plain scalar treats it as a comment
+      # (ci-scripts.md item 20).
+      - name: Enforce the slow-test budget (issue 5382)
+        if: steps.run-pytest.outcome != 'skipped' && !cancelled()
+        run: >-
+          uv run --frozen python scripts/testing/slow_test_budget.py
+          ${{ matrix.junit_file }}
+          --budget pyproject.toml
 
       # Issue #1963: verdict.py's 100% branch gate needs all three of
       # test_ai_review.py, test_verdict.py, and test_quality_gate.py

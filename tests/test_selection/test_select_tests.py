@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
 from pathlib import Path
 
-from scripts.test_selection import select_tests
+import pytest
+
+from scripts.test_selection import path_policy, select_tests
 
 
 def _write(root: Path, rel: str, text: str) -> None:
@@ -27,8 +31,9 @@ def _make_repo(root: Path) -> Path:
 
 
 def _patterns(root: Path) -> Path:
-    path = root / "patterns.txt"
-    path.write_text("# comment\ndocs/**\nlockfile.txt\n", encoding="utf-8")
+    """A stand-in for the shared path policy CI and the hook both read."""
+    path = root / "path_policy.yml"
+    path.write_text("python:\n  - 'docs/**'\n  - 'lockfile.txt'\n", encoding="utf-8")
     return path
 
 
@@ -52,11 +57,41 @@ def test_conftest_change_is_full(tmp_path: Path) -> None:
     assert "conftest" in result.reason
 
 
-def test_runtime_read_pattern_is_full(tmp_path: Path) -> None:
+def test_test_input_pattern_is_full(tmp_path: Path) -> None:
+    """A policy-named path the import graph cannot trace runs everything.
+
+    The path is Markdown, so the non-Python rule below would also return full.
+    The reason string is what discriminates: this asserts the policy rule fired
+    first and named the glob that matched, which is what issue #5377 will act
+    on when the non-Python rule stops being a blanket full-suite trigger.
+    """
     _make_repo(tmp_path)
-    result = _select(tmp_path, ["docs/guide.py"])
+    result = _select(tmp_path, ["docs/guide.md"])
     assert result.full
-    assert "runtime-read pattern" in result.reason
+    assert result.reason == "docs/guide.md matches test-input pattern docs/**"
+
+
+def test_unpoliced_non_python_change_is_not_attributed_to_the_policy(tmp_path: Path) -> None:
+    """Negative control for the rule above: no glob matches, no policy reason."""
+    _make_repo(tmp_path)
+    result = _select(tmp_path, ["assets/logo.svg"])
+    assert result.full
+    assert "test-input pattern" not in result.reason
+    assert "non-Python" in result.reason
+
+
+def test_policy_named_python_file_is_still_traced(tmp_path: Path) -> None:
+    """A `.py` file inside a policy-named tree stays source, not a test input.
+
+    `scripts/memory_enhancement/**` and `.claude/hooks/**` are Python trees the
+    policy names for their non-Python members. Classifying their modules as
+    test inputs would force the full suite on every ordinary Python edit there.
+    """
+    _make_repo(tmp_path)
+    _write(tmp_path, "docs/pkg.py", "from pkg import core\n")
+    result = _select(tmp_path, ["docs/pkg.py"])
+    assert result.full
+    assert "test-input pattern" not in result.reason
 
 
 def test_dynamic_import_is_full(tmp_path: Path) -> None:
@@ -180,13 +215,106 @@ def test_has_dynamic_import_treats_unparseable_as_dynamic(tmp_path: Path) -> Non
     assert select_tests.has_dynamic_import(path)
 
 
-def test_load_runtime_read_patterns_skips_comments_and_blanks(tmp_path: Path) -> None:
-    patterns = _patterns(tmp_path)
-    assert select_tests.load_runtime_read_patterns(patterns) == ("docs/**", "lockfile.txt")
+def test_the_selector_reads_the_shared_policy_file(tmp_path: Path) -> None:
+    """The globs come from the policy document, not a private list."""
+    assert path_policy.load_patterns(_patterns(tmp_path)) == ("docs/**", "lockfile.txt")
 
 
 def test_changed_from_git_returns_none_outside_repo(tmp_path: Path) -> None:
     assert select_tests.changed_from_git(tmp_path, "origin/main") is None
+
+
+def _git(root: Path, *args: str) -> str:
+    """Run one git command in ``root``, skipping the test when git is absent.
+
+    The guard lives here rather than on each test because this is the only
+    function in the module that shells out, and ``_pull_request_fixture`` is its
+    only caller. A per-test decorator has to be remembered by whoever adds the
+    next test on that fixture; this cannot be forgotten.
+
+    A missing binary raises ``FileNotFoundError`` from ``subprocess.run`` before
+    ``check=True`` is ever consulted, so the failure would not even look like a
+    git error.
+    """
+    if shutil.which("git") is None:
+        pytest.skip("git is not installed")
+    result = subprocess.run(
+        ["git", *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    )
+    return result.stdout.strip()
+
+
+def _pull_request_fixture(root: Path) -> tuple[str, str]:
+    """A local repo shaped like a pull_request checkout. Returns base and head.
+
+    Models issue #5378 and the PR #5341 report: the pull request branches from
+    the base at ``base``, adds ``pkg/x.py``, and the base branch then advances
+    on its own with ``.github/workflows/claude.yml``. HEAD is left on the
+    synthetic merge commit Actions checks out for `refs/pull/N/merge`, whose
+    parents are the advanced base tip and the pull request head. No network:
+    every commit is local.
+    """
+    _git(root, "init", "-q", "-b", "main", ".")
+    _git(root, "config", "user.email", "test@example.invalid")
+    _git(root, "config", "user.name", "test")
+    _write(root, "README.md", "start\n")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "base fork point")
+    base = _git(root, "rev-parse", "HEAD")
+
+    _git(root, "checkout", "-q", "-b", "pr")
+    _write(root, "pkg/x.py", "VALUE = 1\n")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "pull request change")
+    head = _git(root, "rev-parse", "HEAD")
+
+    _git(root, "checkout", "-q", "main")
+    _write(root, ".github/workflows/claude.yml", "on: push\n")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "unrelated base-branch change")
+
+    _git(root, "checkout", "-q", "-b", "merge-ref", "main")
+    _git(root, "merge", "-q", "--no-ff", "pr", "-m", "Merge pr into main")
+    return base, head
+
+
+def test_changed_from_git_excludes_base_branch_change_when_head_is_explicit(
+    tmp_path: Path,
+) -> None:
+    base, head = _pull_request_fixture(tmp_path)
+    assert select_tests.changed_from_git(tmp_path, base, head) == ["pkg/x.py"]
+
+
+def test_changed_from_git_leaks_base_branch_change_without_explicit_head(
+    tmp_path: Path,
+) -> None:
+    """Negative control: the pre-#5378 call shape is what pulled the leak in.
+
+    This is the behavior PR #5341 observed. Revert the explicit head argument
+    and the assertion above produces this list instead, so the unrelated
+    workflow file forces the full suite.
+    """
+    base, _ = _pull_request_fixture(tmp_path)
+    assert select_tests.changed_from_git(tmp_path, base) == [
+        ".github/workflows/claude.yml",
+        "pkg/x.py",
+    ]
+
+
+def test_changed_from_git_returns_none_for_unfetchable_head(tmp_path: Path) -> None:
+    base, _ = _pull_request_fixture(tmp_path)
+    assert select_tests.changed_from_git(tmp_path, base, "0" * 40) is None
+
+
+def test_changed_from_git_returns_none_for_unfetchable_base(tmp_path: Path) -> None:
+    _, head = _pull_request_fixture(tmp_path)
+    assert select_tests.changed_from_git(tmp_path, "0" * 40, head) is None
 
 
 def test_cli_prints_full_suite_sentinel(tmp_path: Path, capsys) -> None:

@@ -8,7 +8,6 @@ This document describes the Model Context Protocol (MCP) tool ecosystem for ai-a
 |--------|---------|--------|
 | **Serena** | Code navigation, symbol analysis, memory management | Active |
 | **DeepWiki** | Repository documentation and AI-powered knowledge | Active |
-| **Forgetful** | Semantic memory with vector search | Planned |
 
 ### Configuration
 
@@ -18,8 +17,7 @@ MCP servers are configured in `.mcp.json`:
 {
   "mcpServers": {
     "serena": { "type": "stdio", "command": "uvx", "args": ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--project", "${workspaceFolder:-.}", "--context", "claude-code"] },
-    "deepwiki": { "type": "http", "url": "https://mcp.deepwiki.com/mcp" },
-    "forgetful": { "type": "stdio", "command": "uvx", "args": ["forgetful-ai"] }
+    "deepwiki": { "type": "http", "url": "https://mcp.deepwiki.com/mcp" }
   }
 }
 ```

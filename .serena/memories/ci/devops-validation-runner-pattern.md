@@ -23,7 +23,7 @@ Unified validation orchestration that runs all shift-left validations in optimiz
 ## Validation Sequence
 
 1. **Session End** (2-5s): Validate latest session log
-2. **Unit Tests** (skipped): attempts `build/scripts/Invoke-PesterTests.ps1`, which ADR-042 removed with no Python port, so `validate_pester_tests` in `scripts/validation/checks_tooling.py` raises `MissingScriptSkip` every run. `--skip-tests` skips it explicitly. Run pytest directly with `uv run pytest tests/`
+2. **Unit Tests**: no such gate. `validate_pester_tests` was deleted with the Pester stage (issue #4661), and the `--skip-tests` flag that nominally skipped it was itself removed once it was found to be parsed and never read. Passing `--skip-tests` now fails with argparse exit code 2. Run pytest directly with `uv run pytest tests/`
 3. **Markdown Lint** (5-10s): Auto-fix and validate markdown
 4. **Path Normalization** (15-30s, skip if --quick): Check for absolute paths
 5. **Planning Artifacts** (10-20s, skip if --quick): Validate planning consistency

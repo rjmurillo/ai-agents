@@ -275,6 +275,47 @@ class TestValidate:
         assert not result.ok
         assert any("invalid model 'gpt4'" in e for e in result.errors)
 
+    def test_unpinned_agent_is_valid(self) -> None:
+        """ADR-080: no model line is the correct default, not a missing field."""
+        agents = [
+            AgentDefinition("a1", "Desc", "", "hint", Path("a1.md")),
+        ]
+        result = validate(agents)
+        assert result.ok
+        assert result.errors == []
+
+    def test_unpinned_agent_parses_and_validates_from_disk(
+        self, tmp_agent_dir: Path
+    ) -> None:
+        """An agent file with no model: line reaches validate() and passes."""
+        unpinned = tmp_agent_dir / "unpinned.md"
+        unpinned.write_text(
+            "---\nname: unpinned\ndescription: Inherits the harness model\n---\n",
+            encoding="utf-8",
+        )
+
+        agent = parse_agent_file(unpinned)
+
+        assert agent.model == ""
+        assert validate([agent]).ok
+
+    def test_cost_justified_alias_is_valid(self) -> None:
+        """ADR-080 rule 3 keeps the cheap-tier alias legal, so haiku must pass."""
+        agents = [
+            AgentDefinition("a1", "Desc", "haiku", "hint", Path("a1.md")),
+        ]
+        result = validate(agents)
+        assert result.ok
+
+    def test_versioned_pin_is_rejected(self) -> None:
+        """A versioned id is not a rolling alias, so the value check rejects it."""
+        agents = [
+            AgentDefinition("a1", "Desc", "claude-opus-4-6", "hint", Path("a1.md")),
+        ]
+        result = validate(agents)
+        assert not result.ok
+        assert any("invalid model 'claude-opus-4-6'" in e for e in result.errors)
+
     def test_missing_required_field(self) -> None:
         agents = [
             AgentDefinition("a1", "", "sonnet", "", Path("a1.md")),

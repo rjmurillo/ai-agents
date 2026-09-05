@@ -1,7 +1,6 @@
 ---
 name: pr-comment-responder
 description: PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. Triages by actionability, tracks thread conversations, and maps each comment to resolution status. Use when handling PR feedback, review threads, or bot comments.
-model: sonnet
 role: coordinator
 argument-hint: Specify the PR number or review comments to address
 ---
@@ -137,9 +136,9 @@ You have direct access to:
 - **Bash**: Git operations, gh CLI for PR/comment management
 - **Task**: Delegate to orchestrator (primary)
 - **TodoWrite**: Track review progress
-- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+- **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" --query "topic"`
-  - Serena-first with optional Forgetful augmentation; graceful fallback
+  - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory
