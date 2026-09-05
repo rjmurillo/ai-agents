@@ -5,6 +5,13 @@ Scans exported memory JSON files for sensitive information patterns including
 API keys, tokens, passwords, secrets, private file paths, database connection
 strings, email addresses, and PII patterns.
 
+Kept, not deleted, when the memory backend it was first written for was
+decommissioned (issue #5574): its live callers are the claude-mem exporters
+in `.claude-mem/scripts/`, which invoke it on every export. What went with
+that backend is the opt-in mode that exempted canonical UUIDs appearing in
+`id` and `user_id` fields, since only its export format put them there. No
+caller passed that mode, so every caller keeps the behaviour it had.
+
 EXIT CODES:
   0  - Success: No sensitive data patterns detected
   1  - Error: Sensitive data patterns found or pattern scanning failed
@@ -23,15 +30,6 @@ from typing import TypedDict
 _GENERIC_SECRET_PATTERN = (
     r"(?<![a-zA-Z0-9~_.-])[a-zA-Z0-9~_.-]{34,}(?![a-zA-Z0-9~_.-])"
 )
-_FORGETFUL_ID_UUID = re.compile(
-    r'(?<!\\)"(?:id|user_id)"\s*:\s*'
-    r'"(?P<uuid>[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})"'
-)
-_CANONICAL_UUID = re.compile(
-    r"[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}"
-)
-
-
 class _Issue(TypedDict):
     category: str
     count: int
@@ -83,36 +81,10 @@ SENSITIVE_PATTERNS: dict[str, list[str]] = {
 }
 
 
-def _is_forgetful_id_uuid(line: str, match: re.Match[str]) -> bool:
-    if _CANONICAL_UUID.fullmatch(match.group()) is None:
-        return False
-    return any(
-        id_match.span("uuid") == match.span()
-        for id_match in _FORGETFUL_ID_UUID.finditer(line)
-    )
-
-
-def _line_has_sensitive_match(
-    line: str,
-    pattern: str,
-    compiled: re.Pattern[str],
-    *,
-    forgetful_export: bool,
-) -> bool:
-    matches = compiled.finditer(line)
-    if pattern != _GENERIC_SECRET_PATTERN:
-        return next(matches, None) is not None
-    if not forgetful_export:
-        return next(matches, None) is not None
-    return any(not _is_forgetful_id_uuid(line, match) for match in matches)
-
-
 def _scan_pattern(
     category: str,
     pattern: str,
     lines: list[str],
-    *,
-    forgetful_export: bool,
 ) -> tuple[_Issue | None, int]:
     try:
         compiled = re.compile(pattern, re.IGNORECASE)
@@ -128,12 +100,7 @@ def _scan_pattern(
     match_lines = [
         number
         for number, line in enumerate(lines, 1)
-        if _line_has_sensitive_match(
-            line,
-            pattern,
-            compiled,
-            forgetful_export=forgetful_export,
-        )
+        if compiled.search(line) is not None
     ]
     if not match_lines:
         return None, 0
@@ -147,21 +114,12 @@ def _scan_pattern(
     )
 
 
-def _collect_issues(
-    lines: list[str],
-    *,
-    forgetful_export: bool,
-) -> tuple[list[_Issue], int]:
+def _collect_issues(lines: list[str]) -> tuple[list[_Issue], int]:
     found_issues: list[_Issue] = []
     total_matches = 0
     for category, patterns in SENSITIVE_PATTERNS.items():
         for pattern in patterns:
-            issue, match_count = _scan_pattern(
-                category,
-                pattern,
-                lines,
-                forgetful_export=forgetful_export,
-            )
+            issue, match_count = _scan_pattern(category, pattern, lines)
             if issue is None:
                 continue
             found_issues.append(issue)
@@ -169,22 +127,14 @@ def _collect_issues(
     return found_issues, total_matches
 
 
-def scan_file(
-    export_file: Path,
-    quiet: bool = False,
-    *,
-    forgetful_export: bool = False,
-) -> int:
+def scan_file(export_file: Path, quiet: bool = False) -> int:
     if not quiet:
         print(f"Scanning export file for sensitive data: {export_file}")
         print()
 
     content = export_file.read_text(encoding="utf-8")
     lines = content.splitlines()
-    found_issues, total_matches = _collect_issues(
-        lines,
-        forgetful_export=forgetful_export,
-    )
+    found_issues, total_matches = _collect_issues(lines)
 
     if not found_issues:
         if not quiet:
@@ -219,22 +169,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Security review for memory export files")
     parser.add_argument("export_file", type=Path, help="Path to exported memory JSON file")
     parser.add_argument("--quiet", action="store_true", help="Suppress output, only set exit code")
-    parser.add_argument(
-        "--forgetful-export",
-        action="store_true",
-        help="Allow canonical UUIDs in Forgetful id and user_id fields",
-    )
     args = parser.parse_args(argv)
 
     if not args.export_file.is_file():
         print(f"ERROR: File not found: {args.export_file}", file=sys.stderr)
         return 1
 
-    return scan_file(
-        args.export_file,
-        args.quiet,
-        forgetful_export=args.forgetful_export,
-    )
+    return scan_file(args.export_file, args.quiet)
 
 
 if __name__ == "__main__":
