@@ -28,14 +28,25 @@ class TestSerenaAvailable:
         assert result["count"] == 0
 
 
-class TestForgetfulAvailable:
-    """Tests for test_forgetful_available function."""
+class TestRetiredBackendProbe:
+    """Negative control: the second store's probe is gone with the store."""
 
-    def test_unavailable(self):
-        result = test_memory_health.test_forgetful_available()
-        # In test env, Forgetful is not running
-        assert "available" in result
-        assert "endpoint" in result
+    def test_probe_function_is_absent(self):
+        """The health check must not report a store that does not exist.
+
+        Named explicitly rather than deleted so a reintroduced probe fails
+        here instead of silently re-adding a tier the report cannot back.
+        """
+        probes = [
+            name
+            for name in dir(test_memory_health)
+            if name.startswith("test_") and name.endswith("_available")
+        ]
+        assert sorted(probes) == [
+            "test_episodes_available",
+            "test_modules_available",
+            "test_serena_available",
+        ]
 
 
 class TestEpisodesAvailable:
