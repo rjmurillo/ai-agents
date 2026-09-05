@@ -41,9 +41,9 @@ You have access to:
 - **Read/Search**: Scan repository structure and file contents
 - **Bash**: Run `uv run python ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py`
 - **Write/Edit**: Generate quality reports
-- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+- **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `uv run python ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py --query "topic"`
-  - Serena-first with optional Forgetful augmentation; graceful fallback
+  - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `serena/write_memory`: Create new memory
   - `serena/edit_memory`: Update existing memory
