@@ -45,7 +45,7 @@ Next action: <smallest action, or none>
 
 ## Disposition Procedure for Post-Completion Findings
 
-`.claude/rules/builder-ethos.md` section `## 4. Task Completion Contract` owns the completion contract: forming it, precedence, the terminal predicate, and reactivation. Read that section for any of those. Its `### Finding disposition` subsection delegates exactly one step to this skill, verbatim:
+The builder-ethos rule, section `## 4. Task Completion Contract`, owns the completion contract (directory prefix omitted on purpose: this skill ships in the plugin mirrors, where a `.claude/rules/` path dangles; look the rule up by name in whichever instruction tree you are reading, `builder-ethos.md` under `.claude/rules/` or `builder-ethos.instructions.md` under the instructions trees): forming it, precedence, the terminal predicate, and reactivation. Read that section for any of those. Its `### Finding disposition` subsection delegates exactly one step to this skill, verbatim:
 
 > Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
 
@@ -60,7 +60,7 @@ This section is that procedure. It maps each class onto the keep/shrink/defer/de
 
 Test the Blocker class first. A finding that falsifies mandatory safety or repository policy is a Blocker whether or not it sits inside the requested objective, so it never reaches the Side quest row and never maps to delete. Classify in table order: Blocker, then Requested improvement, then Optional enhancement, then Side quest.
 
-A defer or a delete is a disposition, not a silent drop. Name the finding and its class in the report, then stop. Naming it is not a reason to reopen the task; only `### Reactivation` in `.claude/rules/builder-ethos.md` can do that.
+A defer or a delete is a disposition, not a silent drop. Name the finding and its class in the report, then stop. Naming it is not a reason to reopen the task; only `### Reactivation` in that same builder-ethos rule can do that.
 
 ## Checklist
 

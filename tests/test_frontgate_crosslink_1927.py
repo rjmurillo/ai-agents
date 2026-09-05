@@ -95,11 +95,15 @@ def test_avoiding_manufactured_work_has_sibling_callout(path: Path) -> None:
     assert "opposite timing" in text, f"missing opposite timing in {path}"
 
 
-def test_avoiding_callout_precedes_workflow() -> None:
+def test_avoiding_callout_precedes_process() -> None:
+    # The heading is "## Process" since the skillforge validator fix in this
+    # branch renamed it from "## Workflow" and added "## Triggers" above it.
+    # The invariant is unchanged: the sibling-skill callout has to come before
+    # the procedure a reader would otherwise start executing.
     text = _read(AVOIDING_SOURCE)
     callout = text.index("## Sibling skill")
-    workflow = text.index("## Workflow")
-    assert callout < workflow, "Sibling skill callout must appear before the Workflow section"
+    process = text.index("## Process")
+    assert callout < process, "Sibling skill callout must appear before the Process section"
 
 
 def test_research_source_and_mirror_agree() -> None:
