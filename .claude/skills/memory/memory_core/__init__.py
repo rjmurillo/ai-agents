@@ -10,12 +10,9 @@ from .memory_router import (
     MemoryResult,
     get_content_hash,
     get_memory_router_status,
-    invoke_forgetful_search,
     invoke_serena_search,
-    merge_memory_results,
     reset_caches,
     search_memory,
-    test_forgetful_available,
 )
 from .reflexion_memory import (
     get_decision_sequence,
@@ -52,12 +49,9 @@ __all__ = [
     "MemoryResult",
     "get_content_hash",
     "get_memory_router_status",
-    "invoke_forgetful_search",
     "invoke_serena_search",
-    "merge_memory_results",
     "reset_caches",
     "search_memory",
-    "test_forgetful_available",
     # Reflexion memory
     "get_decision_sequence",
     "get_episode",
