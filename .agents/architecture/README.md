@@ -151,6 +151,7 @@ These bind today.
 | [ADR-099](ADR-099-remove-commit-limit-bypass-gate.md) | Remove the commit-count block and its commit-limit-bypass label | 2026-08-21 | Remove the commit-count block and the `commit-limit-bypass` label mechanism entirely, from both the CI workflow (`pr-validation.yml`, `scripts/ci/enforce_pr_validation.py`) and the local pre-push... |
 | [ADR-102](ADR-102-session-qa-binding-field-precedence.md) | Replace session_qa_binding()'s Field-Equality Raise with Documented Precedence and a Diagnostic | 2026-08-21 | Delete the equality raise. |
 | [ADR-103](ADR-103-skill-output-python-contract-correction.md) | Skill Output Format Standardization, Python Contract Correction | 2026-08-25 | Supersede ADR-056 items 2 and 6, and its enforcement scope, as follows. |
+| [ADR-105](ADR-105-terminal-state-completion-contract.md) | Terminal-State Completion Contract | 2026-09-03 | Put the whole completion contract on the always-on rule path, and keep exactly one operational procedure delegated to the skill that already owned it. |
 
 ## Proposed
 

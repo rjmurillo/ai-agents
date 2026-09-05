@@ -86,6 +86,12 @@ CRITIC_SCENARIOS_PATH = Path("tests/evals/critic-scenarios.json")
 QA_SCENARIOS_PATH = Path("tests/evals/qa-scenarios.json")
 ORCHESTRATOR_SCENARIOS_PATH = Path("tests/evals/orchestrator-scenarios.json")
 
+# The only critic scenario allowed to expect a passing verdict. Every other
+# fixture carries a planted defect and must expect CHALLENGE. Stated as an
+# allowlist of one rather than a snapshot of today's CHALLENGE ids, so a
+# scenario added later is covered by construction instead of slipping through.
+CRITIC_APPROVE_SCENARIO_IDS = frozenset({"TC-1"})
+
 
 def _text(path: Path) -> str:
     return (REPO_ROOT / path).read_text(encoding="utf-8")
@@ -140,6 +146,33 @@ def test_critic_zero_finding_scenario_is_graded_by_the_eval_harness() -> None:
     assert scenario["expected_verdict"] == "APPROVE"
     assert scenario["expected_verdict"] in scenario["verdict_options"]
     assert "CHALLENGE" in scenario["verdict_options"]
+
+
+def test_planted_defect_scenarios_still_expect_challenge() -> None:
+    """Zero-finding registration must not weaken the planted-defect fixtures.
+
+    ``TC-1`` teaches that a critic may pass with zero findings. Every other
+    fixture teaches the other half: a diff carrying a real gap must draw a
+    CHALLENGE. Relaxing one of those to APPROVE, or adding a second APPROVE
+    fixture, would let the suite pass for a reviewer that approves everything.
+    """
+    payload = json.loads((REPO_ROOT / CRITIC_SCENARIOS_PATH).read_text(encoding="utf-8"))
+    approving = {
+        s["id"] for s in payload["scenarios"] if s["expected_verdict"] != "CHALLENGE"
+    }
+    assert approving == set(CRITIC_APPROVE_SCENARIO_IDS), (
+        f"{CRITIC_SCENARIOS_PATH} must expect CHALLENGE on every scenario except "
+        f"{sorted(CRITIC_APPROVE_SCENARIO_IDS)}; found non-CHALLENGE on "
+        f"{sorted(approving)}. A new passing fixture weakens the reviewer-"
+        "asymmetry experiment that TC-1 completes."
+    )
+    challenging = {
+        s["id"] for s in payload["scenarios"] if s["expected_verdict"] == "CHALLENGE"
+    }
+    assert challenging, (
+        f"{CRITIC_SCENARIOS_PATH} carries no planted-defect scenario; the "
+        "zero-finding case would then be the whole experiment."
+    )
 
 
 def test_qa_zero_finding_scenario_is_graded_by_the_eval_harness() -> None:
