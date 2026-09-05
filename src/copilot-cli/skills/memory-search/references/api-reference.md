@@ -341,7 +341,7 @@ Command line wrapper over `memory_router`.
 
 ```bash
 uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" <query> \
-    [--max-results N] [--lexical-only | --semantic-only] \
+    [--max-results N] \
     [--format json|table] [--serena-path PATH] [--episodes-path PATH]
 ```
 
