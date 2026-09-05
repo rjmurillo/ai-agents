@@ -131,7 +131,7 @@ def test_claude_md_excluded(tmp_path: Path) -> None:
 
 
 def test_subdirectories_skipped(tmp_path: Path) -> None:
-    """Sub-command directories (forgetful/, pr-quality/) are out of scope."""
+    """Sub-command directories (pr-quality/) are out of scope."""
     _write_command(tmp_path / "cmds", "alpha", body="alpha\n")
     sub = tmp_path / "cmds" / "subdir"
     sub.mkdir()
