@@ -71,10 +71,6 @@ Guidance for maintaining memory quality through curation. Covers deduplication, 
 
 Guidance for deep knowledge graph traversal across memories, entities, and relationships.
 
-### using-forgetful-memory
-
-Guidance for using Forgetful semantic memory effectively. Covers query formulation, result interpretation, and storage patterns.
-
 ## Security
 
 ### security-scan

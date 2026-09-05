@@ -208,7 +208,6 @@ module = [
     "scripts.pr_branch_mapping",
     "scripts.utils.markdown_parser",
     "scripts.validation.hook_contracts",
-    "scripts.forgetful.import_forgetful_memories",
 ]
 disallow_any_generics = false
 
