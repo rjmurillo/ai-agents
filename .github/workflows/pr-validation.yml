@@ -414,8 +414,12 @@ jobs:
       # gate has to fire on every PR regardless of touched paths, and this is
       # the only required check that always reports status.
       #
-      # Enforce mode grandfathers the existing backlog through
-      # scripts/validation/model_pin_baseline.json and fails only on new or
-      # changed pins, so it passes clean on today's tree.
+      # The baseline at scripts/validation/model_pin_baseline.json is empty
+      # (issue #5605 drained it), so enforce mode grandfathers nothing: every
+      # pin on the scanned trees passes on the ADR-080 rules themselves, and a
+      # new non-compliant pin is a hard failure rather than backlog. The
+      # scanned trees are the ones _UNIT_GLOBS names in that script, which is
+      # narrower than the repository; a pin in a generated mirror is caught at
+      # its source.
       - name: Enforce model pin policy
         run: uv run --frozen python3 scripts/validation/check_model_pins.py --mode enforce
