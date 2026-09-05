@@ -89,7 +89,7 @@ Invoke the two skills in order. Each emits content into a named subsection of th
 
    **Invocation contract (security)**: the canonical flow is `skill: "memory"`, which already passes topics via argv-vector internally. If the agent's environment lacks the `Skill` tool and must invoke the script directly as a fallback, resolve `search_memory.py` in this order: (1) `<skill_dir>/../memory/scripts/search_memory.py`, where `<skill_dir>` is the base directory printed when this spec skill loads; (2) `.claude/skills/memory/scripts/search_memory.py`, only after confirming the current repo is this toolkit source checkout. If neither path exists, emit a coverage note naming both paths tried and skip the direct memory point-search fallback. When invoking the resolved script, the agent MUST use an argv list, not shell string concatenation: `subprocess.run(["python3", resolved_search_memory_py, topic], shell=False, ...)`. String concatenation of topics into a shell command line is forbidden because Q3+Q4 entity strings are author-controlled and the topic normalization rule does not strip shell metacharacters. CWE-78 (OS Command Injection) applies. If the agent cannot use either the Skill wrapper OR argv-vector invocation, it MUST first reject any topic matching `[^\w\-\./ ]` and emit a coverage note explaining the rejection.
 
-Search depth for step 2 matches ProvisionalTier:
+Prior-art search depth matches ProvisionalTier. Each row is cumulative over the two steps above:
 
 | ProvisionalTier | Phases run | Effect |
 |---|---|---|
