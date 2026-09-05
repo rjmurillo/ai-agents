@@ -70,7 +70,7 @@ Commands available:
 Memory search reads committed files rather than querying a server:
 
 ```bash
-uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" --query "topic"
+uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"
 ```
 
 It reads the markdown under `.serena/memories/`, so it works whether or not the
