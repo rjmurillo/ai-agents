@@ -177,6 +177,77 @@ misread this record, which is why the ADR now states the definition inline.
   fails 4 of the 7 new tests; restoring `model` to `_REQUIRED_FIELDS` fails both
   new agent-registry positives.
 
+## Round 3, 2026-09-05: prose compression, no Decision change
+
+Recorded here rather than in a new log because it reviews the same ADR-080
+Migration section rounds 1 and 2 produced, and it changes no rule.
+
+### Why the change exists
+
+The Migration section took the file to 509 lines, one error-severity `file-size`
+taste violation. `main`'s baseline had slack so PR #5607 merged green, but the
+violation is real, and it lands on any branch that merges `main` while holding a
+tighter baseline. PR #5600 recorded 566 before this file grew, measured 567
+after merging `main`, and its push blocked on a violation it did not introduce.
+
+Raising a baseline to clear it is what `.claude/rules/ci-scripts.md` MUST NOT 4
+forbids, and a `taste-lint: ignore` would assert the size rule does not apply to
+an ADR, which is not true. Nothing here needed 509 lines, so the fix is the
+prose.
+
+### Review
+
+One reviewer, the `critic` seat, against one claim: every fact, number,
+citation and issue reference survives, and only redundant second tellings were
+removed. That is the right rigor for a docs-only compression with a mechanical
+invariant, and the log says so rather than implying a six-seat panel ran.
+
+**Verdict: Block**, on two P1 findings. Both were correct and both are fixed.
+
+- **P1, an absence claim was strengthened.** The compression turned "never
+  *independently* probed at runtime" into "never probed at runtime". Amendment
+  finding 2 says only that the bare aliases were not independently measured with
+  runtime probes, so dropping the qualifier converted a scoped evidence gap into
+  a flat absence, which `.claude/rules/universal.md` MUST NOT 9 forbids, inside
+  the very section whose job is correcting misreadings of that Amendment.
+  Restored, with the emphasis kept.
+- **P1, a claim lost its reason.** "Rule 1's sentence read alone is looser than
+  that" was deleted with no replacement, leaving "readings worth recording so
+  nobody files them as bugs" with no stated mismatch to record. Restored as
+  "Rule 1 read alone is looser than that, which is why the price test can look
+  like a bug".
+
+Two P2 findings were also taken: the normative "must not be cited as their
+justification" was restored over the descriptive "does not bear on them", and
+"This migration bumped nothing, correctly" was restored as the affirmative fact
+about this migration's own behavior.
+
+Restoring four claims at 499 of 500 lines is not free, so the budget came from
+compressing three further passages that genuinely said the same thing twice: the
+scope section's mirror rationale, the two Amendment corrections, and the
+starting-count paragraphs. Final length 499.
+
+### What the reviewer confirmed rather than flagged
+
+The Decision, rules 1 through 6, and `## Amendment 2026-08-12` are untouched:
+every hunk starts at old line 359 or later. Zero em dashes and zero en dashes.
+`taste_count_ratchet.py` reports OK.
+
+It also corrected the change's own accounting. The baseline moves 575 to 571
+through the ratchet's `--update`, which records a decrease and refuses an
+increase, but only 1 of those 4 points is this compression. The linter finds
+exactly one error-severity violation in this file before and zero after; the
+other 3 were already slack in a stale 575. The commit body says so.
+
+### Position
+
+| Agent | Position | Basis |
+|-------|----------|-------|
+| critic | Accept after fixes | Its two P1 items were the block, and both are restored; the P2 items were taken as well |
+
+No dissent recorded. Rounds 1 and 2 stand unchanged, including the
+independent-thinker's Disagree-and-Commit on `implemented: true`.
+
 ## Next Steps
 
 - Issue #5606 decides the skill-copier half of Amendment finding 4. It is a
