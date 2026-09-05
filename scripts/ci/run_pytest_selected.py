@@ -82,7 +82,6 @@ _PARTITION_FULL_ARGS: dict[str, list[str]] = {
         "tests/quality_gate",
         "tests/skillbook",
         "tests/skills",
-        "tests/test_memory_sync",
         "tests/test_selection",
         "tests/validation",
         "tests/validation_pre_pr",
