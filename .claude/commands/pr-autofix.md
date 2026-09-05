@@ -783,14 +783,29 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
     else
         echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
     fi
+    # No --output-format here. set_pr_auto_merge.py registers no such option,
+    # so argparse exited 2 before the mutation ran and this gate took its
+    # failure branch on every armed non-T1 PR, leaving auto-merge armed (issue
+    # #5551). The script already prints the AutoMergeEnabled object the
+    # verification checklist asks for, with no flag needed.
     if run_pr_mutation_if_live \
         python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \
-        --pull-request "$PR" --disable --output-format json; then
-        :
+        --pull-request "$PR" --disable; then
+        MUTATION_RC=0
     else
         MUTATION_RC=$?
+    fi
+    # Captured in both arms rather than read from $? inside the else. The
+    # single-arm form holds the right value today only because nothing sits
+    # between the `if` and the read; this form does not depend on that.
+    if [ "$MUTATION_RC" -ne 0 ]; then
         if [ "$MUTATION_RC" -ne 75 ]; then
-            echo "Failed to disable auto-merge on #$PR; skipping to avoid unguarded merge."
+            # 75 is the wrapper's own skip and it already printed the reason.
+            # Any other status means the disable was attempted and did not
+            # land, so auto-merge is still armed on a PR whose readiness this
+            # session never verified. Say that. The old wording, "skipping to
+            # avoid unguarded merge", named the opposite of the state it left.
+            echo "Failed to disable auto-merge on #$PR (rc=$MUTATION_RC); auto-merge is still armed and GitHub can land the PR unattended. Skipping; this one needs a human."
         fi
         cleanup_pr_autofix
         continue
