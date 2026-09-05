@@ -5,7 +5,6 @@ allowed-tools: WebSearch, WebFetch, Read, Write, Glob, Grep, Bash(python3:*/skil
 # directory so this command can reach GitHub discourse and file its Phase 5 issue
 # without raw shell. Wildcards are Claude Code tool patterns, not shell globs; the
 # Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
-model: opus
 ---
 
 # Research and Incorporate Command
