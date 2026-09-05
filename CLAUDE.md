@@ -26,7 +26,7 @@ For non-trivial tasks: `Task(subagent_type="orchestrator", prompt="...")`
 | Scenario | Use | Why |
 |----------|-----|-----|
 | Quick CLI search | `/memory-search` slash command | Instant, no agent overhead |
-| Deep exploration | `exploring-knowledge-graph` skill | Graph traversal, artifact reading |
+| Deep exploration | `context-gather` skill | Multi-source gather, artifact reading |
 | Script automation | `search_memory.py` | Python CLI, testable, structured output |
 | Direct MCP (last resort) | `mcp__serena__read_memory` | Full control when abstractions fail |
 

@@ -9,8 +9,6 @@
     "chesterton-fence": "chestertons-fence",
     "memory-skill": "memory",
     "memory-search": "memory",
-    "knowledge-graph": "exploring-knowledge-graph",
-    "kg-traversal": "exploring-knowledge-graph",
     "session-protocol": "session-protocol-gate"
   }
 }
