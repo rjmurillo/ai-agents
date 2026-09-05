@@ -1,8 +1,7 @@
 {
-  "_comment": "Issue #1949 (M4): pairwise overlap eval on the two INVESTIGATE-tier pairs from the M1 triage. Pair 1: curating-memories x memory-enhancement (both maintain memory quality, content vs metadata facet). Pair 2: exploring-knowledge-graph x memory Tier-1 (both answer 'what do you know about X', graph traversal vs semantic search). Prompts are the per-skill native prompts derived from each SKILL.md. Run live with: python3 scripts/eval/eval-skill-overlap.py --pairs scripts/eval/examples/overlap-pairs-issue-1949.json",
+  "_comment": "Issue #1949 (M4): pairwise overlap eval on the INVESTIGATE-tier pairs from the M1 triage. Pair 1: curating-memories x memory-enhancement (both maintain memory quality, content vs metadata facet). The original pair 2 was exploring-knowledge-graph x memory Tier-1; that skill was retired in the Forgetful decommission (#5574) and the pair is removed, because eval-skill-overlap.py hard-fails on a missing skill directory and the quarterly skill-overlap-eval.yml workflow runs this file. The completed M4 run is preserved at evals/reports/overlap-m4-overlap-1949-2026-06-17/. Prompts are the per-skill native prompts derived from each SKILL.md. Run live with: python3 scripts/eval/eval-skill-overlap.py --pairs scripts/eval/examples/overlap-pairs-issue-1949.json",
   "pairs": [
-    ["curating-memories", "memory-enhancement"],
-    ["exploring-knowledge-graph", "memory"]
+    ["curating-memories", "memory-enhancement"]
   ],
   "prompts": {
     "curating-memories": [
@@ -47,28 +46,6 @@
         "prompt": "How do reinforcement updates avoid double-counting when the enhancement pass runs twice on the same entry?",
         "expected": "Each update carries an idempotency key (entry id plus timestamp) so a replayed pass is a no-op. Confidence and link counts are at-least-once signals that must not accumulate on retry.",
         "owner": "memory-enhancement"
-      }
-    ],
-    "exploring-knowledge-graph": [
-      {
-        "prompt": "I need to find every memory entry related to a decision three hops away from a given symbol. How do I traverse the graph?",
-        "expected": "Use graph traversal from the symbol node, following relation edges up to the hop limit, reading observations at each node. Semantic search seeds the entry point; relations carry the traversal.",
-        "owner": "exploring-knowledge-graph"
-      },
-      {
-        "prompt": "What is the difference between a semantic search over memories and a relation-based graph walk?",
-        "expected": "Semantic search ranks entries by similarity to a query string. A graph walk follows explicit relation edges between entities, preserving causal and structural links that similarity alone misses.",
-        "owner": "exploring-knowledge-graph"
-      },
-      {
-        "prompt": "How are these two concepts connected across the knowledge graph when no single memory mentions both?",
-        "expected": "Traverse from each concept's entity node and look for an intersecting node or a path of relation edges. The connection lives in the edges between entities, not in any one memory's text.",
-        "owner": "exploring-knowledge-graph"
-      },
-      {
-        "prompt": "Give me comprehensive context on a topic before I plan: I want the full multi-hop neighborhood, not just the top hits.",
-        "expected": "Run a deep multi-phase exploration: seed with semantic search, then expand outward along entity relations across several hops, collecting observations at each node to assemble the full neighborhood.",
-        "owner": "exploring-knowledge-graph"
       }
     ],
     "memory": [
