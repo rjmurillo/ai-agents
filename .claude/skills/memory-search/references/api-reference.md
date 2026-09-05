@@ -37,7 +37,7 @@ Two scripts wrap these modules with a command line: `.claude/skills/memory/scrip
 
 ### search_memory
 
-Unified memory search across Serena and Forgetful.
+Keyword search across the Serena memory corpus.
 
 **Signature**:
 
@@ -45,8 +45,6 @@ Unified memory search across Serena and Forgetful.
 def search_memory(
     query: str,
     max_results: int = 10,
-    semantic_only: bool = False,
-    lexical_only: bool = False,
 ) -> list[MemoryResult]
 ```
 
@@ -54,15 +52,14 @@ def search_memory(
 
 - **query** (`str`, required): Search query, 1-500 chars. Pattern: `^[a-zA-Z0-9\s\-.,_()&:]+$`
 - **max_results** (`int`): Maximum results to return, 1-100. Default 10.
-- **semantic_only** (`bool`): Force Forgetful-only search. Raises if Forgetful is unavailable.
-- **lexical_only** (`bool`): Force Serena-only search. Always available.
 
-**Returns**: `list[MemoryResult]`. See [MemoryResult](#memoryresult).
+**Returns**: `list[MemoryResult]`. Results always carry `content` and `hash`. See [MemoryResult](#memoryresult).
 
 **Raises**:
 
-- `ValueError`: both `semantic_only` and `lexical_only` were passed, or the query failed validation.
-- `RuntimeError`: `semantic_only` was passed and Forgetful is unavailable.
+- `ValueError`: the query or `max_results` failed validation.
+
+The two backend-selection parameters this function used to take were removed with the second backend (issue #5574). Passing either raises `TypeError`.
 
 **Example**:
 
@@ -86,12 +83,12 @@ The dataclass every search function returns.
 | Field | Type | Meaning |
 |-------|------|---------|
 | `name` | `str` | Memory name |
-| `content` | `str \| None` | Full memory content. `None` when `skip_content` was set. |
-| `source` | `str` | `"Serena"` or `"Forgetful"` |
-| `score` | `float` | Relevance. Serena: fraction of query keywords matched. Forgetful: similarity. |
-| `path` | `str \| None` | File path. Serena only. |
+| `content` | `str \| None` | Full memory content. `None` when `skip_content` was set on `invoke_serena_search`. |
+| `source` | `str` | `"Serena"` |
+| `score` | `float` | Relevance: fraction of query keywords matched. |
+| `path` | `str \| None` | File path. |
 | `hash` | `str \| None` | SHA-256 content hash, 64 lowercase hex chars. |
-| `id` | `int \| None` | Forgetful record id. `None` for Serena results. |
+| `id` | `int \| None` | Always `None`. Retained on the dataclass; the second backend supplied it. |
 
 ---
 
@@ -114,61 +111,6 @@ Scoring is the fraction of query keywords that appear in the filename. `skip_con
 
 ---
 
-### invoke_forgetful_search
-
-Semantic search via the Forgetful MCP HTTP endpoint, using JSON-RPC 2.0.
-
-**Signature**:
-
-```python
-def invoke_forgetful_search(
-    query: str,
-    endpoint: str = "http://localhost:8020/mcp",
-    max_results: int = 10,
-) -> list[MemoryResult]
-```
-
-`endpoint` must use the `http` or `https` scheme. Other schemes (`file://`, `ftp://`) are rejected.
-
----
-
-### merge_memory_results
-
-Merges and deduplicates results from both sources using SHA-256 content hashing. Serena results take priority: they appear first and are treated as canonical.
-
-**Signature**:
-
-```python
-def merge_memory_results(
-    serena_results: list[MemoryResult] | None = None,
-    forgetful_results: list[MemoryResult] | None = None,
-    max_results: int = 10,
-) -> list[MemoryResult]
-```
-
----
-
-### test_forgetful_available
-
-Checks whether Forgetful MCP is reachable, with 30 second caching.
-
-**Signature**:
-
-```python
-def test_forgetful_available(port: int = 8020, force: bool = False) -> bool
-```
-
-**Side effect**: updates the health check cache, TTL 30 seconds. Pass `force=True` to skip the cache.
-
-**Example**:
-
-```python
-if test_forgetful_available():
-    print("Forgetful is available")
-```
-
----
-
 ### get_memory_router_status
 
 Diagnostic information about the router.
@@ -184,24 +126,20 @@ def get_memory_router_status() -> dict[str, Any]
 ```python
 {
     "Serena": {"Available": True, "Path": ".serena/memories"},
-    "Forgetful": {"Available": False, "Endpoint": "http://localhost:8020/mcp"},
-    "Cache": {"AgeSeconds": 0.0, "TTLSeconds": 30.0},
     "Configuration": {
         "serena_path": ".serena/memories",
-        "forgetful_port": 8020,
-        "forgetful_timeout": 0.5,
         "max_results": 10,
     },
 }
 ```
 
-`forgetful_timeout` is in seconds, not milliseconds.
+The second backend's status block and the `Cache` block that reported its probe age were removed with it (issue #5574).
 
 **Example**:
 
 ```python
 status = get_memory_router_status()
-print(status["Serena"]["Available"], status["Forgetful"]["Available"])
+print(status["Serena"]["Available"])
 ```
 
 ---
@@ -218,7 +156,7 @@ def get_content_hash(content: str) -> str
 
 ### reset_caches
 
-Clears the health check and file listing caches. Tests call this between cases.
+Clears the file listing cache. Tests call this between cases.
 
 ```python
 def reset_caches() -> None
@@ -486,7 +424,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 
 ## Error Handling
 
-- Invalid input raises `ValueError`. Read failures raise `OSError`. A required-but-unavailable Forgetful raises `RuntimeError`.
+- Invalid input raises `ValueError`. Read failures raise `OSError`.
 - Not-found is not an error. `get_episode` returns `None`; `get_decision_sequence` and `get_episodes` return empty lists.
 - Recoverable problems are reported through the `logging` module, not by raising.
 
@@ -496,11 +434,8 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 
 | Function | Typical latency | Complexity |
 |----------|----------------|------------|
-| `search_memory` (Serena only) | 530ms | O(n) file scan |
-| `search_memory` (augmented) | 700ms | O(n) + network |
-| `test_forgetful_available` (cached) | <1ms | O(1) cache read |
-| `test_forgetful_available` (fresh) | 1-500ms | TCP connect |
-| `get_memory_router_status` | <10ms | file stats + cache read |
+| `search_memory` | 530ms | O(n) file scan |
+| `get_memory_router_status` | <10ms | file stats |
 | `get_episode` | <50ms | JSON file read |
 | `get_episodes` | ~200ms | O(n) directory scan |
 | `new_episode` | ~100ms | JSON serialize + write |
