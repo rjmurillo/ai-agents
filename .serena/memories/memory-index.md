@@ -84,7 +84,7 @@
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
-|model pin migration ADR-080 alias rationale sweep retirement: [tasks/issue-2840-model-pin-migration](tasks/issue-2840-model-pin-migration.md) (870)
+|model pin migration ADR-080 alias rationale sweep retirement: [tasks/issue-2840-model-pin-migration](tasks/issue-2840-model-pin-migration.md) (1185)
 |quality qa DoD definition-of-done test strategy critique: [skills-quality-index](skills-quality-index.md) (290)
 |sentinel zero None unknown unmeasured tri-state exit code: [quality/add-missing-state-not-sentinel](quality/add-missing-state-not-sentinel.md) (811)
 |quality gate unknown verdict infra downgrade fail closed: [quality/unknown-verdict-infra-downgrade-stays-blocking](quality/unknown-verdict-infra-downgrade-stays-blocking.md) (226)

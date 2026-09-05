@@ -63,10 +63,18 @@ read_yaml_frontmatter = _load_read_yaml_frontmatter()
 # Files in src/claude/ that are not agent definitions
 _EXCLUDED_FILES = frozenset({"AGENTS.md", "claude-instructions.template.md"})
 
-# Required frontmatter fields for every agent definition
-_REQUIRED_FIELDS = ("name", "description", "model")
+# Required frontmatter fields for every agent definition.
+#
+# ``model`` is deliberately absent. ADR-080 defaults every agent to the
+# harness-inherited model and states that the absence of a ``model:`` line is
+# correct and needs no justification, so requiring the field here would fail
+# every agent the ADR-080 migration returned to the default. A pin that IS
+# present is still checked against _VALID_MODELS below.
+_REQUIRED_FIELDS = ("name", "description")
 
-# Allowed model values
+# Allowed model values when a unit does pin one. ADR-080 rule 1 bans versioned
+# ids outside the agent-evidence path, so only the rolling aliases appear here;
+# scripts/validation/check_model_pins.py owns the rest of the policy.
 _VALID_MODELS = frozenset({"opus", "sonnet", "haiku"})
 
 

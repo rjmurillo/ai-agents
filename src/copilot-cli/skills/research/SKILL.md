@@ -1,7 +1,6 @@
 ---
 name: research
 description: Research external topics, create comprehensive analysis, and incorporate learnings into memory systems
-model: opus
 allowed-tools: WebSearch, WebFetch, Read, Write, Glob, Grep, Bash(python3:*/skills/github/scripts/*), forgetful/*, serena/*, Skill
 user-invocable: true
 ---
