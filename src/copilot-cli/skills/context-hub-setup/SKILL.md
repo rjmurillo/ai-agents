@@ -1,18 +1,18 @@
 ---
 name: context-hub-setup
-description: Use when setting up new development environment or troubleshooting MCP connectivity. Configures Context Hub dependencies including Forgetful MCP server and plugin prerequisites.
+description: Use when setting up a new development environment or troubleshooting MCP connectivity. Checks the Serena and Context7 plugin prerequisites and reports what is missing.
 user-invocable: true
 ---
 
 # Context Hub Setup
 
-Configure Context Hub's dependencies: Forgetful MCP server and prerequisite plugins.
+Check the plugins the context commands depend on, and report what is missing.
 
 ## Prerequisites
 
 Context Hub requires these plugins to be installed:
 
-1. **Serena** - Symbol-level code analysis (required for `/encode-repo-serena`)
+1. **Serena** - Symbol-level code analysis and the `.serena/memories/` store (required for `/encode-repo-serena`)
 2. **Context7** - Framework documentation (recommended for `/context-gather`)
 
 ## Step 1: Check Plugin Prerequisites
@@ -52,88 +52,29 @@ Or search for it:
   claude plugins search context7
 ```
 
-## Step 2: Configure Forgetful MCP
-
-Check if Forgetful is already configured:
-
-```bash
-claude mcp list | grep -i forgetful
-```
-
-If already configured:
-
-- Ask user if they want to reconfigure
-- If no, skip to Step 3
-- If yes, remove existing first: `claude mcp remove forgetful`
-
-### Setup Options
-
-Ask the user which setup they prefer:
-
-**Question**: "How would you like to configure Forgetful?"
-
-**Options**:
-
-1. **Standard (Recommended)** - Zero config, uses uvx with SQLite storage
-2. **Custom** - Remote HTTP server, PostgreSQL, custom embeddings, etc.
-
-### Standard Setup
-
-```bash
-claude mcp add forgetful --scope user -- uvx forgetful-ai
-```
-
-Confirm success:
-
-```bash
-claude mcp list | grep -i forgetful
-```
-
-Report: "Forgetful is now configured. Your memories will persist in `~/.forgetful/` using SQLite."
-
-### Custom Setup
-
-If user chose Custom:
-
-1. Fetch configuration docs:
-
-```text
-WebFetch: https://github.com/ScottRBK/forgetful/blob/main/docs/configuration.md
-```
-
-2. Guide through options:
-   - **Remote HTTP server** - Connect to Forgetful running elsewhere
-   - **PostgreSQL backend** - Use Postgres instead of SQLite
-   - **Custom embeddings** - Different embedding model/provider
-
-3. Build appropriate command based on choices.
-
-## Step 3: Verify Complete Setup
+## Step 2: Verify Complete Setup
 
 Report status of all components:
 
 ```text
 Context Hub Setup Status:
 -------------------------
-Forgetful MCP:  [Configured / Not configured]
 Serena Plugin:  [Installed / Not installed - run: claude plugins install serena]
 Context7 Plugin: [Installed / Not installed - run: claude plugins install context7 --marketplace pleaseai/claude-code-plugins]
 
 Commands available:
 - /context-gather - Multi-source context retrieval
 - /encode-repo-serena - Repository encoding (requires Serena)
-- /memory-search, /memory-list, /memory-save, /memory-explore - Memory management
 ```
 
-## Step 4: Quick Test (Optional)
+Memory search runs from the repository, not from a plugin:
+`uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`.
+It reads the committed markdown under `.serena/memories/`, so it works whether
+or not the Serena MCP server is reachable.
+
+## Step 3: Quick Test (Optional)
 
 Offer to test the setup:
-
-**Test Forgetful:**
-
-```text
-/memory-list
-```
 
 **Test Serena (if installed):**
 
@@ -149,12 +90,6 @@ Ask about a framework: "How does FastAPI dependency injection work?"
 
 ## Troubleshooting
 
-**Forgetful issues:**
-
-- Check if `uvx` is installed: `which uvx`
-- For HTTP: verify server is running
-- Check Claude Code logs for MCP errors
-
 **Plugin issues:**
 
 - Re-run: `claude plugins install <plugin-name>`
@@ -162,9 +97,8 @@ Ask about a framework: "How does FastAPI dependency injection work?"
 
 ## Notes
 
-- Forgetful MCP config stored in `~/.claude.json` (persists across updates)
 - Serena and Context7 are plugins, not MCPs - install via `claude plugins install`
-- SQLite database location: `~/.forgetful/forgetful.db`
+- Serena memories are committed markdown under `.serena/memories/`. They stay readable when the MCP layer is down.
 
 ## Completion Criteria
 
@@ -172,13 +106,12 @@ The Context Hub setup is **complete** when ALL of the following are true:
 
 | Criterion | Verification |
 |-----------|------------|
-| Forgetful MCP configured | Run `claude mcp list` and pipe to `grep -i forgetful`; expect a non-empty result |
 | Serena plugin status reported | Output shows "Installed" or explicit "Not installed" message |
 | Context7 plugin status reported | Output shows "Installed" or explicit "Not installed" message |
-| Setup status block printed | Step 3 status block has been emitted to the user |
+| Setup status block printed | Step 2 status block has been emitted to the user |
 
 ### Stop Condition
 
-After printing the Step 3 status block, the command is complete. Do not continue polling, re-checking, or offering additional tests unless the user explicitly requests a re-run with `/context-hub-setup` again.
+After printing the Step 2 status block, the command is complete. Do not continue polling, re-checking, or offering additional tests unless the user explicitly requests a re-run with `/context-hub-setup` again.
 
-If the user chooses to run the optional Step 4 quick tests, those are supplementary and do not affect completion status.
+If the user chooses to run the optional Step 3 quick tests, those are supplementary and do not affect completion status.
