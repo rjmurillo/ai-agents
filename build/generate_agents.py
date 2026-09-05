@@ -26,6 +26,7 @@ import argparse
 import os
 import re
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -489,7 +490,7 @@ def generate_agents(
                     )
                     continue
                 output_dir.mkdir(parents=True, exist_ok=True)
-                output_file.write_bytes(output_content.encode("utf-8"))
+                _atomic_write_bytes(output_file, output_content.encode("utf-8"))
                 print(f"  Generated: {platform_name}")
                 generated += 1
 
@@ -512,6 +513,90 @@ def generate_agents(
 
     print()
     return 0
+
+
+def _atomic_write_bytes(path: Path, content: bytes) -> None:
+    """Publish ``content`` at ``path`` atomically via a temp file plus ``os.replace``.
+
+    Follows ``build/scripts/generate_adr_index.py``, function
+    ``_atomic_write_text`` (lines 876 to 957 as of this commit; the name is the
+    durable handle). Its docstring reads verbatim:
+
+        Write ``content`` to ``path`` atomically via a temp file plus ``os.replace``.
+
+        ``Path.write_text`` opens ``path`` for writing, which follows a symlink and
+        writes through to whatever it targets. A contributor who committed
+        ``path`` as a symlink (or a CI runner checking out such a commit) would
+        then have this generator overwrite an arbitrary file the process can
+        write, not the intended destination (CWE-59/CWE-22; Copilot review,
+        originally found on the standalone extraction PR #5285). ``os.replace``
+        does not follow a symlink destination: it replaces the directory entry
+        itself, so a symlink at ``path`` is unlinked and swapped for a regular
+        file rather than written through. Verified empirically: replacing a
+        symlink this way leaves its former target byte-for-byte unchanged and
+        leaves ``path`` a regular file.
+
+    That is the security half. This generator needs the concurrency half of the
+    same property, which issue #5502 measured. ``Path.write_bytes`` opens the
+    destination ``"wb"``, so the file is 0 bytes from the truncate until the
+    buffer flushes, and every intermediate flush size is observable in between.
+    Polling ``src/copilot-cli/agents/analyst.agent.md`` on this branch while
+    running ``build/scripts/build_all.py --check`` recorded
+    ``13110 -> 0 -> 8192 -> 12288 -> 13110`` with 376 zero-size samples. A
+    reader in another process inside that window gets an empty file that passes
+    ``Path.is_file()``, which is how ``tests/test_pr_identity_gate.py`` failed
+    on ``assert ('merge' in '')`` against a file git reported as clean.
+    ``os.replace`` swaps one directory entry, so a concurrent reader opens
+    either the old inode or the new one and never a partial destination.
+
+    Stricter/looser/different than canonical:
+
+    - Different: writes bytes (``"wb"``, no ``encoding``) because the caller
+      has already encoded to UTF-8 and normalized line endings. The canonical
+      writes text. The defensive ``os.close`` below is kept anyway: the
+      canonical documents it as required for an ``os.fdopen`` that fails
+      argument validation before touching the descriptor, and that half does
+      not depend on the mode string.
+    - Same as canonical, deliberately: a symlink destination and a
+      first-ever generation are both left at ``mkstemp``'s own 0600 rather
+      than given a world-readable literal, per the canonical comment naming
+      CodeQL ``py/overly-permissive-mask`` (PR #5321). Every destination this
+      generator writes in the committed tree already exists as a regular file,
+      so the preserve branch is the one that runs in practice.
+    """
+    existing_mode: int | None
+    if path.is_symlink() or not path.is_file():
+        existing_mode = None
+    else:
+        try:
+            existing_mode = path.stat().st_mode & 0o777
+        except OSError:
+            existing_mode = None
+    fd, tmp_name = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
+    )
+    try:
+        try:
+            handle = os.fdopen(fd, "wb")
+        except BaseException:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            raise
+        with handle:
+            handle.write(content)
+            # Widened only after the write, so the file spends its writable
+            # life at mkstemp's restrictive default.
+            if existing_mode is not None:
+                os.chmod(tmp_name, existing_mode)
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def _handle_validate(
