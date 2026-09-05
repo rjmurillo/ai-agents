@@ -40,9 +40,9 @@ You have direct access to:
 - **Bash**: Git commands (`git blame`, `git log`, `git diff`, `git merge`)
 - **github skill**: `.claude/skills/github/` for PR metadata
 - **merge-resolver skill**: `.claude/skills/merge-resolver/` for auto-resolution script
-- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+- **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `python3 .claude/skills/memory/scripts/search_memory.py "topic"`
-  - Serena-first with optional Forgetful augmentation; graceful fallback
+  - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory

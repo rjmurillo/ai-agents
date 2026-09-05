@@ -10,9 +10,9 @@ as the bridge for Claude's slash commands.
 
 The transform is intentionally narrow:
 
-- top-level ``.md`` files only (sub-directories like ``forgetful/`` and
-  ``pr-quality/`` are skipped — they are namespaced sub-commands the
-  Copilot CLI runtime cannot model today)
+- top-level ``.md`` files only (sub-directories like ``pr-quality/``
+  are skipped: they are namespaced sub-commands the Copilot CLI
+  runtime cannot model today)
 - ``CLAUDE.md`` excluded (per the AGENTS.md/CLAUDE.md exclude policy)
 - the source frontmatter is preserved; ``user-invocable: true`` (and any
   other ``appendFrontmatter`` keys) is merged in
@@ -123,8 +123,8 @@ def _resolve_resource_suffixes(stanza: dict[str, object]) -> set[str]:
 def _iter_command_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
     """Return top-level ``*.md`` files (no recursion into subdirs).
 
-    Sub-directories under ``.claude/commands/`` (e.g. ``forgetful/``,
-    ``pr-quality/``) hold namespaced sub-commands. Copilot CLI's user-
+    Sub-directories under ``.claude/commands/`` (e.g. ``pr-quality/``)
+    hold namespaced sub-commands. Copilot CLI's user-
     invocable skill surface is flat; mapping nested commands would lose
     the namespace prefix and collide with existing skill names. Treat
     them as out-of-scope for the bridge.

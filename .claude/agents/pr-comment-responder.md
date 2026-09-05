@@ -137,9 +137,9 @@ You have direct access to:
 - **Bash**: Git operations, gh CLI for PR/comment management
 - **Task**: Delegate to orchestrator (primary)
 - **TodoWrite**: Track review progress
-- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+- **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" --query "topic"`
-  - Serena-first with optional Forgetful augmentation; graceful fallback
+  - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory

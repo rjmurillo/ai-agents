@@ -35,9 +35,9 @@ You have direct access to:
 
 - **Read/Grep/Glob**: Analyze codebase and project state
 - **GitHub skill scripts first**: Query issues, PRs, and project health through repo wrappers when available; use Bash only when no wrapper exists
-- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+- **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
-  - Serena-first with optional Forgetful augmentation; graceful fallback
+  - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory
