@@ -554,7 +554,7 @@ def run_check(
     return report
 
 
-class BaselineWouldRise(RuntimeError):
+class BaselineWouldRiseError(RuntimeError):
     """Raised when --update-baseline would record more debt than the ratchet allows."""
 
 
@@ -575,7 +575,7 @@ def write_baseline(units: list[Unit], baseline_path: Path = _BASELINE_PATH) -> i
       one ``--update-baseline`` run silently restored grandfathering for
       whatever was on disk and the growth guard in ``run_check`` never fired,
       because both numbers moved together.
-    - Recording more entries than the stored ceiling raises ``BaselineWouldRise``
+    - Recording more entries than the stored ceiling raises ``BaselineWouldRiseError``
       instead of writing. A ratchet may only fall; ``--update-baseline`` is for
       recording a fall, never for accepting a rise.
     """
@@ -599,7 +599,7 @@ def write_baseline(units: list[Unit], baseline_path: Path = _BASELINE_PATH) -> i
     frozen_count = existing_frozen_count if had_baseline else len(pins)
 
     if len(pins) > frozen_count:
-        raise BaselineWouldRise(
+        raise BaselineWouldRiseError(
             f"refusing to write {len(pins)} baselined pin(s) against a frozen count of "
             f"{frozen_count}: the ADR-080 ratchet may only fall. Existing entries: "
             f"{len(existing_pins)}. Remove the new pin instead of baselining it."
@@ -657,7 +657,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.update_baseline:
         try:
             count = write_baseline(scan_units(), args.baseline)
-        except BaselineWouldRise as exc:
+        except BaselineWouldRiseError as exc:
             print(f"[model-pins] {exc}", file=sys.stderr)
             return 1
         print(f"[model-pins] baseline written: {count} pins -> {args.baseline}")

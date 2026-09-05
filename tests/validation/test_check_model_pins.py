@@ -613,7 +613,7 @@ class TestDrainedRatchet:
             encoding="utf-8",
         )
 
-        with pytest.raises(cmp.BaselineWouldRise):
+        with pytest.raises(cmp.BaselineWouldRiseError):
             cmp.write_baseline(cmp.scan_units(tmp_path), out)
 
         pins, frozen = cmp.load_baseline(out)

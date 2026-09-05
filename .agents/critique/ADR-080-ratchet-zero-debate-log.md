@@ -85,7 +85,7 @@ Changes made in response, all in this branch:
 1. **`write_baseline` hardened** (security P0, critic P1). The first-write
    branch keys on `baseline_path.is_file()`, not on `frozen_count > 0`. A write
    that would record more entries than the stored ceiling raises
-   `BaselineWouldRise` instead of writing. The baseline now records only pins
+   `BaselineWouldRiseError` instead of writing. The baseline now records only pins
    that FAIL the rules, so a compliant pin no longer inflates the count rule 6
    obliges us to burn down. Four new tests, with a negative control: reverting
    each change fails the matching test.
