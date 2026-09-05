@@ -73,7 +73,6 @@ _PARTITION_FULL_ARGS: dict[str, list[str]] = {
         "tests/eval_scenarios",
         "tests/external_signals",
         "tests/fixtures",
-        "tests/forgetful",
         "tests/hooks",
         "tests/integration",
         "tests/lib",
