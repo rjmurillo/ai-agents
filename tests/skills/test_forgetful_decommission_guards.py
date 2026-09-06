@@ -7,11 +7,9 @@ list. Scoping by file list rather than by call site left 59 live
 repository that stopped being true when Stage 1 removed the server from
 `.mcp.json`.
 
-This module guards the surfaces cleaned in the follow-up. It does not cover
-`encode-repo-serena`, `research-and-incorporate`, or `serena-code-architecture`:
-those three are Forgetful-native rather than Forgetful-flavored, so whether they
-are retired or rewritten is an owner decision, and they still name the server on
-purpose until it is made.
+This module guards the surfaces cleaned in the follow-up. It does not cover the
+three Forgetful-native skills, whose call sites were not fixable in place: the
+owner retired them under #5624, so their surfaces are gone rather than guarded.
 
 Each guard is parametrized over the canonical `.claude/` tree and the generated
 `src/copilot-cli/` mirror so a regeneration cannot reintroduce a surface on one

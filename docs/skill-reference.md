@@ -127,10 +127,6 @@ Systematic abstraction discovery using Commonality Variability Analysis. Identif
 
 Structured decision critic that systematically stress-tests recommendations. Evaluates evidence quality, alternative coverage, and risk assessment.
 
-### serena-code-architecture
-
-Architectural analysis workflow using Serena symbols and knowledge graphs. Maps dependencies, coupling, and cohesion across the codebase.
-
 ### chaos-experiment
 
 Designs and documents chaos engineering experiments. Guides steady-state hypothesis definition, blast radius planning, and result analysis.
@@ -192,10 +188,6 @@ Resolves merge conflicts by analyzing git history and commit intent. Produces cl
 ### metrics
 
 Collects agent usage metrics from git history and generates health dashboards for monitoring agent effectiveness.
-
-### encode-repo-serena
-
-Systematically populates the knowledge base using Serena's code analysis tools. Maps symbols, relationships, and patterns.
 
 ### steering-matcher
 

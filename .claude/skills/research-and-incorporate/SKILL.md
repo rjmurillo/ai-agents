@@ -160,7 +160,6 @@ After completion, verify:
 | Skill | Relationship |
 |-------|--------------|
 | `using-forgetful-memory` | Memory creation best practices |
-| `encode-repo-serena` | Similar but for codebase analysis |
 | `memory` | Search and retrieve incorporated knowledge |
 
 ## References

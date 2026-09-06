@@ -1,6 +1,6 @@
 ---
 name: using-serena-symbols
-description: Guidance for using Serena's LSP-powered symbol analysis. Use when you say "how do I find a symbol", "trace references for this method", "explore this file's structure", or when grep/text search would be imprecise. Do NOT use to populate the knowledge base (use encode-repo-serena), for full architectural analysis (use serena-code-architecture), or for memory guidance (use memory).
+description: Guidance for using Serena's LSP-powered symbol analysis. Use when you say "how do I find a symbol", "trace references for this method", "explore this file's structure", or when grep/text search would be imprecise. Do NOT use for memory guidance (use memory).
 license: MIT
 metadata:
 version: 1.0.0
@@ -236,11 +236,6 @@ Use Grep/text search instead when:
 - Finding patterns in config files or YAML
 - Looking for TODO/FIXME markers
 - Simple keyword search across non-code files
-
-Use [serena-code-architecture](../serena-code-architecture/SKILL.md) instead when:
-
-- Performing full architectural analysis with memory persistence
-- Building entity graphs from code structure
 
 ---
 
