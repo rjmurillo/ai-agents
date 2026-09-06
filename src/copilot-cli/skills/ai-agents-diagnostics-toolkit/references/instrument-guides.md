@@ -45,7 +45,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/orp
 ```
 
 - Output contract: JSON envelope then a final `VERDICT: PASS|WARN|CRITICAL_FAIL` line. Exit 0 for PASS/WARN, 1 for CRITICAL_FAIL, 2 for config error.
-- Current baseline (as of 2026-07-29): 190 files scanned, 535 refs checked, 0 findings, `VERDICT: PASS`, exit 0. The instrument reads green only because 187 refs are directive-suppressed: the historical specs that once produced findings now carry `orphan-ref-ignore` markers, so read the suppression count alongside the verdict.
+- Current baseline (as of 2026-09-06): 223 files scanned, 672 refs checked, 0 findings, `VERDICT: PASS`, exit 0. The instrument reads green only because 239 refs are directive-suppressed: the historical specs that once produced findings now carry `orphan-ref-ignore` markers, so read the suppression count alongside the verdict. Suppression carries almost the entire load, and it grew: issue #5581 cleared 44 findings, every one of them by directive rather than by correcting a reference or restoring an entity. Treat a rising suppression count as the number to challenge in review.
 - Healthy delta: your PR adds zero findings. Backticked kebab names in anything you write must resolve to real `.claude/skills/<name>/` directories.
 - Unhealthy: new findings pointing at YOUR files; CI runs this on PR-relevant targets and a new critical blocks.
 - Suppression, sparingly: line-scope `orphan-ref-ignore` and file-scope `orphan-ref-ignore-file` HTML-comment directives; the file-scope directive must appear in the first 50 lines (`scan.py:234-235`, `patterns.py:89`).
