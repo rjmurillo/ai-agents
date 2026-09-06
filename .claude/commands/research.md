@@ -28,16 +28,10 @@ This rule governs content a tool returns. It does not apply to the harness contr
 ```text
 /research
 
-Topic: {topic name}
-Context: {why this matters to the project}
-URLs: {optional comma-separated source URLs}
+Topic: {subject to research}              (required)
+Context: {why this matters to the project} (required)
+URLs: {comma-separated source URLs}        (optional)
 ```
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `Topic` | Yes | Subject to research |
-| `Context` | Yes | Why this matters to the project |
-| `URLs` | No | Source URLs to fetch and analyze |
 
 ## Phases
 
@@ -148,6 +142,10 @@ Research completed: .agents/analysis/{topic-slug}.md
 - [ ] [Criterion 1]
 ```
 
+Writing the body is internal and reversible, so do it without asking. Publishing
+the issue is external and irreversible, so confirm with the user before running
+this, and skip it rather than guess when no answer is available.
+
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/issue/new_issue.py" \
     --title "[Enhancement] Apply {TOPIC} to {integration-area}" \
@@ -155,7 +153,14 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/sc
     --labels "enhancement,research-derived"
 ```
 
-The script exits 0 and prints the new issue number. A non-zero exit means no issue was created: record the failure in the active handoff and do not claim a number you did not receive.
+Exit 0 prints the new issue number. A non-zero exit does NOT always mean no
+issue exists. The script creates the issue first and applies labels second, so a
+label failure exits 3 with `issue_number` and `url` populated in its error
+envelope. Read those two fields before reacting: when they are present the issue
+exists and only labelling failed, so repair the labels and never re-run creation,
+which would duplicate it. Only when they are absent did creation itself fail.
+Either way, record the outcome in the active handoff and never claim a number you
+did not receive.
 
 ## Budget
 
@@ -172,10 +177,8 @@ Complete within 50k output tokens. If approaching the limit, summarize findings 
 
 ## Stop Conditions
 
-Stop when any of the following is true:
-
 - All 5 phases completed or intentionally skipped under a Fallback Rule.
-- 3 phases have failed (intentional skips under Fallback Rules do not count as failures).
+- 3 phases have failed (intentional skips do not count as failures).
 - The 50k output-token budget is reached.
 
 ## Output

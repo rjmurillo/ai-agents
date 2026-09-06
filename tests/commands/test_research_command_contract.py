@@ -212,6 +212,48 @@ def test_each_tree_carries_only_its_own_mcp_spelling(
 # it has to carry the same two escapes.
 
 
+def test_command_matches_the_new_issue_partial_success_contract(research_text: str) -> None:
+    """Phase 5 result handling must match what `new_issue.py` actually does.
+
+    Canonical source: `.claude/skills/github/scripts/issue/new_issue.py`. Its
+    `_apply_labels` docstring reads, verbatim: "Apply labels to an
+    already-created issue." and "On failure, emit the standard error envelope
+    carrying the issue number and URL so automation can repair labels rather
+    than re-create the issue."
+
+    The prose migrated in #5624 said "A non-zero exit means no issue was
+    created", carried from the retired workflow without opening the script. That
+    is the opposite of the contract and steers a reader into re-running creation,
+    producing the duplicate the script was built to prevent. Devin Review caught
+    it on PR #5629.
+
+    Both halves are asserted so the test fails if either side moves: the script
+    losing its create-then-label ordering, or the command regressing to the
+    simpler and wrong reading.
+    """
+    source = (
+        REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "issue" / "new_issue.py"
+    ).read_text(encoding="utf-8")
+    assert "already-created issue" in source
+    assert "rather than re-create the issue" in source
+    assert '"issue_number": issue_number' in source
+
+    assert "does NOT always mean no" in research_text
+    assert "never re-run creation" in research_text
+
+
+def test_command_confirms_before_publishing_an_issue(research_text: str) -> None:
+    """Publishing is external and irreversible, so it needs a confirmation gate.
+
+    `AGENTS.md` states the Autonomy Guardrail as "Internal+reversible: act |
+    External/irreversible: confirm". Writing the body is internal and reversible;
+    creating the GitHub issue is neither, so the command must ask first. Devin
+    Review flagged the missing gate on PR #5629 against that rule.
+    """
+    assert "external and irreversible" in research_text
+    assert "confirm with the user before running" in research_text
+
+
 def test_command_creates_issues_through_the_github_script(research_text: str) -> None:
     """#5624 moved Phase 5 from the retired workflow reference into the command.
 
@@ -228,11 +270,20 @@ def test_command_creates_issues_through_the_github_script(research_text: str) ->
     assert "git branch --show-current" not in research_text
 
 
-def test_generators_exit_zero_and_leave_the_mirrors_matching_their_sources() -> None:
+def test_generators_exit_zero_and_write_the_command_mirror() -> None:
     """The mirrors are generated, so a hand edit to one is torn state.
 
-    Runs both generators through the CLI and asserts exit code 0, then compares
-    every generated research file to its `.claude/` source byte for byte.
+    Runs both generators through the CLI, asserts exit code 0, and asserts the
+    command mirror exists afterwards.
+
+    Deliberately NOT a content comparison. Until #5624 the byte-for-byte check
+    here covered the retired skill and its workflow reference, both of which were
+    copies. The command mirror is a translation instead: `generate_commands.py`
+    swaps command frontmatter for skill frontmatter, so a byte comparison would
+    fail on a correctly generated file. `test_research_source_and_mirror_agree`
+    in `tests/test_frontgate_crosslink_1927.py` compares the bodies through the
+    production translation and is where that coverage now lives. Renamed so the
+    name stops promising a comparison this body does not make.
     """
     for script in ("generate_skills.py", "generate_commands.py"):
         result = subprocess.run(
