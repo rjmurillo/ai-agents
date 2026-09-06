@@ -92,7 +92,6 @@ Each gets `evals/<skill>-spike/` with `README.md`, `fixtures/README.md`, `fixtur
 | requirements-interview | Adversarial requirements elicitation. Question coverage is judgment. |
 | research-and-incorporate | External research synthesis. Synthesis quality is judgment. |
 | review | Nine-axis review across six canonical axes plus three chained skills. Pure judgment surface. |
-| serena-code-architecture | Architectural analysis using Serena symbols. Architecture conclusions are judgment. |
 | slashcommandcreator | Meta-skill for slash commands. Command design is judgment. |
 | slo-designer | Designs SLOs, SLIs, alerting thresholds. Design quality is judgment. |
 | threat-modeling | OWASP STRIDE matrix generation. Risk-rating accuracy is judgment. |
@@ -108,7 +107,6 @@ Mechanical or deterministic skills. Agent-vs-baseline does not measure their cor
 | Skill | Why no scaffold |
 |---|---|
 | codeql-scan | Wraps CodeQL CLI. Output deterministic given the database. |
-| encode-repo-serena | Mechanical population of Forgetful from Serena symbols. |
 | execution-plans | CRUD on versioned plan artifacts. |
 | fix-markdown-fences | Regex repair of malformed fences. |
 | git-advanced-workflows | Guidance document (passive context territory). |

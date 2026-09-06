@@ -132,7 +132,7 @@ class TestCategorizeSkill:
         """
         for name, description in (
             ("memory-search", "search stored memories"),
-            ("encode-repo-serena", "populate the serena knowledge base"),
+            ("memory-consolidate", "merge duplicate memory files"),
             ("curating-memories", "maintain memory files"),
         ):
             assert categorize_skill(name, description) == "memory", name
