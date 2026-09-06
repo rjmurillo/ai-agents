@@ -148,9 +148,7 @@ def _semgrep_pinned_version(repo_root: Path) -> str:
     try:
         text = pyproject.read_text(encoding="utf-8")
     except OSError as exc:
-        raise _SemgrepExecutableError(
-            f"cannot read semgrep pin from {pyproject}: {exc}"
-        ) from exc
+        raise _SemgrepExecutableError(f"cannot read semgrep pin from {pyproject}: {exc}") from exc
     matches: list[str] = re.findall(
         r'^\s*"semgrep==([^"]+)",\s*$',
         text,
@@ -159,8 +157,7 @@ def _semgrep_pinned_version(repo_root: Path) -> str:
     versions = set(matches)
     if len(versions) != 1:
         raise _SemgrepExecutableError(
-            f"pyproject.toml must declare exactly one semgrep pin, "
-            f"found: {sorted(versions)!r}"
+            f"pyproject.toml must declare exactly one semgrep pin, found: {sorted(versions)!r}"
         )
     return versions.pop()
 
@@ -187,9 +184,7 @@ def _probe_semgrep_version(executable: str) -> str:
         )
     version = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
     if not version:
-        raise _SemgrepExecutableError(
-            f"semgrep version probe returned no output for {executable}"
-        )
+        raise _SemgrepExecutableError(f"semgrep version probe returned no output for {executable}")
     return version
 
 
@@ -374,13 +369,27 @@ class SemgrepScanner:
             # before those versions, which are eight and seven minor versions
             # below the project floor. Every finding they produce is a
             # guaranteed false positive here, and their own metadata classifies
-            # them as "compatibility", not security. Excluding the family keeps
-            # them from blocking PRs that comply with the encoding convention
-            # that tests/test_subprocess_text_encoding.py mandates (issue #4223).
+            # them as "compatibility", not security. Excluding them keeps them
+            # from blocking PRs that comply with the encoding convention that
+            # tests/test_subprocess_text_encoding.py mandates (issue #4223).
+            #
+            # Full ids, not the family prefix. `--exclude-rule` matches an id
+            # exactly. This call site passed `python.lang.compatibility.python36`
+            # and suppressed nothing, so the comment above described an exclusion
+            # that was not happening. Measured on semgrep 1.175.0 against a local
+            # ruleset carrying these ids: the full id removed its finding, the
+            # family prefix left every finding in place.
+            # scripts/validation/git_hook_policy.py carries the same four ids for
+            # the pre-push scan; PR #5462 corrected that call site and missed
+            # this one. Refs #4725.
             "--exclude-rule",
-            "python.lang.compatibility.python36",
+            "python.lang.compatibility.python36.python36-compatibility-Popen1",
             "--exclude-rule",
-            "python.lang.compatibility.python37",
+            "python.lang.compatibility.python36.python36-compatibility-Popen2",
+            "--exclude-rule",
+            "python.lang.compatibility.python37.python37-compatibility-Popen1",
+            "--exclude-rule",
+            "python.lang.compatibility.python37.python37-compatibility-Popen2",
         ]
 
         if self.severity:
@@ -403,11 +412,7 @@ class SemgrepScanner:
             if result.returncode not in (0, 1):
                 context = _semgrep_failure_context(result.stdout, result.stderr)
                 logger.error("Semgrep execution error: %s", context)
-                return [
-                    _scan_failure_finding(
-                        f"Semgrep exited {result.returncode}: {context}"
-                    )
-                ]
+                return [_scan_failure_finding(f"Semgrep exited {result.returncode}: {context}")]
 
             if not result.stdout.strip():
                 logger.error("Semgrep produced no JSON output")
@@ -418,11 +423,7 @@ class SemgrepScanner:
             except json.JSONDecodeError as e:
                 context = _semgrep_failure_context(result.stdout, result.stderr)
                 logger.error("Semgrep JSON parse failed: %s; %s", e, context)
-                return [
-                    _scan_failure_finding(
-                        f"Semgrep JSON parse failed: {e}; {context}"
-                    )
-                ]
+                return [_scan_failure_finding(f"Semgrep JSON parse failed: {e}; {context}")]
             findings = []
 
             for finding in data.get("results", []):
@@ -456,9 +457,7 @@ class SemgrepScanner:
                 "Semgrep timed out after %ds; failing scan",
                 self.SCAN_TIMEOUT_SECONDS,
             )
-            raise SemgrepScanError(
-                f"Semgrep timed out after {self.SCAN_TIMEOUT_SECONDS}s"
-            ) from e
+            raise SemgrepScanError(f"Semgrep timed out after {self.SCAN_TIMEOUT_SECONDS}s") from e
         except (subprocess.SubprocessError, OSError) as e:
             # OSError is a sibling of subprocess.SubprocessError, not a
             # subclass, and it is what subprocess.run raises when the exec
