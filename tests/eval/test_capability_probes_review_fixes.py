@@ -29,7 +29,7 @@ from tests.eval._capability_probe_fixtures import (
     _plan,
     _runner,
 )
-from tests.eval._harness_capability_test_support import probes
+from tests.eval._harness_capability_test_support import probes, topology
 
 # A stream that would verify the model override if the command were bound to
 # the plan. Reused so each case below differs only in the command.
@@ -158,26 +158,26 @@ def test_unmatched_starts_after_one_completed_pair_do_not_inflate_the_peak() -> 
     """NEGATIVE CONTROL: one early pair licensed an unbounded tail of open starts."""
     events = _boundaries("start", "complete", "start", "start", "start")
 
-    assert probes.max_concurrent_children(events) == 1
+    assert topology.max_concurrent_children(events) == 1
 
 
 def test_a_truncated_stream_reports_only_the_children_it_closed() -> None:
     """NEGATIVE CONTROL: a dropped completion must lower the count, never raise it."""
     events = _boundaries("start", "start", "complete")
 
-    assert probes.max_concurrent_children(events) == 1
+    assert topology.max_concurrent_children(events) == 1
 
 
 def test_a_completion_with_no_child_open_derives_no_concurrency() -> None:
     """NEGATIVE CONTROL: boundaries that cannot describe a run measure nothing."""
-    assert probes.max_concurrent_children(_boundaries("complete", "start")) is None
+    assert topology.max_concurrent_children(_boundaries("complete", "start")) is None
 
 
 def test_a_fully_paired_overlap_still_reports_its_real_peak() -> None:
     """CONFIRMATORY: the guard lowers unclosed peaks, not closed ones."""
     events = _boundaries("start", "start", "start", "complete", "complete", "complete")
 
-    assert probes.max_concurrent_children(events) == 3
+    assert topology.max_concurrent_children(events) == 3
 
 
 def test_an_inflated_stream_leaves_the_concurrency_probe_unverified() -> None:

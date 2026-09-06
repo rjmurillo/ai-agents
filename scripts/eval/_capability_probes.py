@@ -26,12 +26,10 @@ Fail-closed rules, each of which can only ever refuse a claim:
   before the CLI runs. The argv is caller-supplied and opaque here, so a
   command that omits the override, or targets a different harness, would
   otherwise have its harness default classified as an honored override.
-* A subagent tool request is not a launched child. `_runtime_output.traces`
-  merges Claude `tool_use` blocks for `Agent` and `Task` with the runtime's
-  own lifecycle events; only the latter can verify subagent support.
-* A concurrency peak counts a child only while the stream still holds enough
-  completion boundaries to close it, so a truncated run reports fewer
-  children rather than more.
+* A subagent tool request is not a launched child, and a concurrency peak
+  counts a child only while the stream still holds enough completion
+  boundaries to close it. `_capability_topology` owns both rules and the
+  event vocabulary they share.
 * A harness with no in-tree backend parser observes `EvidenceKind.NONE`, never
   a guess. `_capability_evidence` owns that rule and every other question of
   what a value read from an event stream is worth.
@@ -62,9 +60,13 @@ from pathlib import Path
 
 from _capability_evidence import (
     DEFAULT_EFFORT_KEYS,
-    ProbeObservation,
     observe_effort,
     observe_model,
+)
+from _capability_topology import (
+    max_concurrent_children,
+    requested_subagent_tools,
+    subagent_lifecycle_events,
 )
 from _harness_capability import (
     Capability,
@@ -73,16 +75,13 @@ from _harness_capability import (
     HarnessCapabilityError,
     classify_override,
 )
-from _runtime_output import RuntimeOutputError, parse_events, traces
+from _runtime_output import RuntimeOutputError, parse_events
 
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
 #: Capabilities this module can probe through `classify_override`.
 OVERRIDE_CAPABILITIES: tuple[str, ...] = ("model_override", "effort_override")
 
-#: The event type Copilot attaches a backend answer to. `copilot_result`
-_START_HINTS: tuple[str, ...] = ("start", "begin", "launch", "spawn")
-_END_HINTS: tuple[str, ...] = ("complete", "end", "stop", "finish", "exit", "result")
 
 
 class ProbeError(HarnessCapabilityError):
@@ -331,33 +330,6 @@ def probe_override(
     )
 
 
-def _subagent_lifecycle_events(
-    events: Sequence[Mapping[str, object]],
-) -> list[Mapping[str, object]]:
-    """Return the runtime's own subagent lifecycle events.
-
-    Split out from `_runtime_output.traces`, which merges these with Claude
-    `tool_use` blocks named `Agent` or `Task`. That merge is right for a
-    parity report, which wants everything the run touched, and wrong here: a
-    `tool_use` block is the model asking for a child, emitted before anything
-    runs and present even when the launch fails. Counting one as a launch is
-    the config-echo failure wearing a different observable, so only events the
-    runtime itself emitted about a child's lifecycle are counted.
-    """
-    lifecycle: list[Mapping[str, object]] = []
-    for event in events:
-        kind = event.get("type")
-        if isinstance(kind, str) and "subagent" in kind.lower():
-            lifecycle.append(event)
-    return lifecycle
-
-
-def _requested_subagent_tools(events: Sequence[Mapping[str, object]]) -> int:
-    """Count subagent tool requests, which are asks rather than launches."""
-    _, subagents = traces(events)
-    return len(subagents) - len(_subagent_lifecycle_events(events))
-
-
 def probe_subagent_support(
     command: ProbeCommand,
     *,
@@ -374,9 +346,9 @@ def probe_subagent_support(
     events, failure = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
-    launched = _subagent_lifecycle_events(events)
+    launched = subagent_lifecycle_events(events)
     if not launched:
-        requested = _requested_subagent_tools(events)
+        requested = requested_subagent_tools(events)
         detail = (
             f"{command.harness} output carried {requested} subagent tool requests and no "
             "lifecycle event, so no child is known to have run"
@@ -389,57 +361,6 @@ def probe_subagent_support(
         EvidenceKind.BACKEND,
         f"{command.harness} output carried {len(launched)} subagent lifecycle events",
     )
-
-
-def max_concurrent_children(events: Sequence[Mapping[str, object]]) -> int | None:
-    """Return the peak number of children in flight at once, or `None`.
-
-    Derived by walking subagent start and completion boundaries in order, so
-    the result is what the runtime reported running, never what the probe
-    asked for. A start counts toward the peak only while enough completion
-    boundaries remain in the stream to close it and every child already open
-    beside it. Without that, a run of N starts is indistinguishable from N
-    sequential children whose completions were never emitted, and assuming
-    they overlapped would report the requested number wearing the observed
-    number's label.
-
-    One global "a completion appeared somewhere" flag was not enough: it let a
-    single early pair license an unbounded tail of unclosed starts, so
-    `start, end, start, start, start` reported three. The same tail now
-    reports one, and a truncated `start, start, end` reports one rather than
-    two. Both directions are the fail-closed one.
-
-    Returns `None` when no start is backed by a completion, and when a
-    completion arrives with no child open, which is a stream whose boundaries
-    do not describe a coherent run. Claude's `tool_use` blocks for `Agent` and
-    `Task` carry no boundary of either kind, so they resolve to `None` here.
-    """
-    boundaries: list[bool] = []
-    for event in events:
-        kind = event.get("type")
-        if not isinstance(kind, str) or "subagent" not in kind.lower():
-            continue
-        lowered = kind.lower()
-        if any(hint in lowered for hint in _END_HINTS):
-            boundaries.append(False)
-        elif any(hint in lowered for hint in _START_HINTS):
-            boundaries.append(True)
-    completions_left = boundaries.count(False)
-    depth = 0
-    peak = 0
-    for is_start in boundaries:
-        if not is_start:
-            if depth == 0:
-                return None
-            depth -= 1
-            completions_left -= 1
-            continue
-        depth += 1
-        if depth <= completions_left:
-            peak = max(peak, depth)
-    if peak == 0:
-        return None
-    return peak
 
 
 def probe_concurrency(
@@ -473,21 +394,3 @@ def probe_concurrency(
         f"{command.harness} ran at most {peak} children at once while {requested} were requested",
         value=peak,
     )
-
-
-#: Re-exported from `_capability_evidence` so a probe caller needs one import.
-__all__ = [
-    "DEFAULT_EFFORT_KEYS",
-    "OVERRIDE_CAPABILITIES",
-    "OverridePlan",
-    "ProbeCommand",
-    "ProbeError",
-    "ProbeObservation",
-    "build_override_plan",
-    "max_concurrent_children",
-    "observe_effort",
-    "observe_model",
-    "probe_concurrency",
-    "probe_override",
-    "probe_subagent_support",
-]

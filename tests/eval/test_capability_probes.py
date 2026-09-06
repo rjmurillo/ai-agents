@@ -35,7 +35,7 @@ from tests.eval._capability_probe_fixtures import (
     _runner,
     _session_change,
 )
-from tests.eval._harness_capability_test_support import probes
+from tests.eval._harness_capability_test_support import probes, topology
 
 # --- Model override probe ------------------------------------------------------
 
@@ -393,7 +393,7 @@ def test_claude_agent_tool_blocks_carry_no_concurrency_boundary() -> None:
         }
     ]
 
-    assert probes.max_concurrent_children(events) is None
+    assert topology.max_concurrent_children(events) is None
 
 
 def test_a_sequential_run_records_a_peak_of_one() -> None:
@@ -405,7 +405,7 @@ def test_a_sequential_run_records_a_peak_of_one() -> None:
         {"type": "subagent.complete"},
     ]
 
-    assert probes.max_concurrent_children(events) == 1
+    assert topology.max_concurrent_children(events) == 1
 
 
 def test_concurrency_rejects_a_requested_count_below_one() -> None:
