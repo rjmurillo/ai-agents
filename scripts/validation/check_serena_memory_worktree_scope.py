@@ -57,7 +57,10 @@ EXIT CODES (ADR-035):
   0 - no findings (prints the count of worktrees examined)
   1 - at least one untracked ``.serena/memories/**/*.md`` file in another
       worktree
-  2 - configuration error (``--repo-root`` does not exist)
+  2 - configuration or environment error: ``--repo-root`` does not exist, or
+      ``git worktree list`` itself failed so nothing could be examined. A scan
+      that could not look never reports 0: a scripted caller reads the exit
+      code, not the text.
 """
 
 from __future__ import annotations
@@ -151,6 +154,33 @@ def parse_stray_memory_files(porcelain: str) -> list[str]:
     return findings
 
 
+def _bare_worktree_paths(porcelain: str) -> set[str]:
+    """Return the worktree paths in ``porcelain`` whose block carries ``bare``.
+
+    ``git worktree list --porcelain`` emits one blank-line-separated block per
+    worktree, each opening with ``worktree <path>``. A bare repository's block
+    carries a lone ``bare`` line. A bare repo has no working tree, so it can
+    never hold a stray memory file and ``git status`` there exits 128. Counting
+    it unreadable would print a permanent scan-failure line on exactly the
+    bare-clone-plus-worktrees layout this gate exists to serve, which trains the
+    reader to ignore the line that signals a real failure.
+
+    ``parse_worktree_list`` keys on the ``worktree `` prefix alone and cannot
+    see the marker, so the block structure is re-read here rather than changing
+    shared code that other gates depend on.
+    """
+    bare: set[str] = set()
+    current_path: str | None = None
+    for line in porcelain.splitlines():
+        if line.startswith("worktree "):
+            current_path = line[len("worktree ") :].strip()
+        elif line.strip() == "bare" and current_path is not None:
+            bare.add(current_path)
+        elif not line.strip():
+            current_path = None
+    return bare
+
+
 def _list_other_worktrees(repo_root: Path, current: str) -> tuple[list[str], bool]:
     """Return (sibling worktree paths, listing_failed).
 
@@ -158,17 +188,27 @@ def _list_other_worktrees(repo_root: Path, current: str) -> tuple[list[str], boo
     worktree is never scanned. Deduplicates in case ``git worktree list``
     ever reports the same admin path twice.
     """
-    exit_code, stdout, _stderr = _run_subprocess(
-        ["git", "worktree", "list", "--porcelain"],
-        cwd=repo_root,
-        timeout=_GIT_TIMEOUT_SECONDS,
-    )
+    try:
+        exit_code, stdout, _stderr = _run_subprocess(
+            ["git", "worktree", "list", "--porcelain"],
+            cwd=repo_root,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except OSError:
+        # ``_run_subprocess`` absorbs FileNotFoundError and TimeoutExpired but
+        # lets every other OSError through, and ``pre_pr.run_validation`` turns
+        # any exception into a FAIL. An advisory gate that fails the push is not
+        # advisory, so a listing that cannot run reports itself failed instead.
+        return [], True
     if exit_code != 0:
         return [], True
 
+    bare = _bare_worktree_paths(stdout)
     others: list[str] = []
     seen: set[str] = {current}
     for raw in parse_worktree_list(stdout):
+        if raw in bare:
+            continue
         try:
             resolved = str(Path(raw).resolve())
         except OSError:
@@ -187,12 +227,28 @@ def _stray_files_in(worktree_path: str) -> tuple[list[str], bool]:
     read-only advisory scan, and one unreadable sibling must not stop the
     rest of the report (fail-open, mirroring
     ``check_tmp_worktrees._list_registered``).
+
+    That promise covers two distinct failures. A git process that runs and exits
+    non-zero returns through ``exit_code``. A failure BEFORE git starts raises:
+    ``_run_subprocess`` catches only FileNotFoundError and TimeoutExpired, so a
+    sibling directory that stats but cannot be entered (mode 600, or a locked
+    Windows handle) raises PermissionError out of ``subprocess.run(cwd=...)``.
+    ``pre_pr.run_validation`` converts any exception into a FAIL, which would
+    make this advisory gate block the push. Both are caught here.
+
+    ``--untracked-files=all`` is load-bearing, not cosmetic: without it git
+    collapses a brand-new ``.serena/memories/<tier>/`` directory to a single
+    directory line, which fails the ``.md`` suffix filter. A write into a tier
+    the sibling's branch does not carry is precisely the issue #5061 symptom.
     """
-    exit_code, stdout, _stderr = _run_subprocess(
-        ["git", "status", "--porcelain", "--untracked-files=all", "--", ".serena/memories"],
-        cwd=worktree_path,
-        timeout=_GIT_TIMEOUT_SECONDS,
-    )
+    try:
+        exit_code, stdout, _stderr = _run_subprocess(
+            ["git", "status", "--porcelain", "--untracked-files=all", "--", ".serena/memories"],
+            cwd=worktree_path,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except OSError:
+        return [], True
     if exit_code != 0:
         return [], True
     return parse_stray_memory_files(stdout), False
@@ -216,11 +272,16 @@ def build_scope_report(repo_root: Path) -> ScopeReport:
             report.stale_worktree_entries += 1
             continue
 
-        report.other_worktrees_examined += 1
         stray, unreadable = _stray_files_in(worktree)
         if unreadable:
+            # Counted as unreadable, NOT as examined. Collapsing the two would
+            # let the summary line report a clean scan of a worktree nothing
+            # could read, contradicting the "could not be read" line above it.
+            # ``check_tmp_worktrees.scan_temp_root`` orders these the same way.
             report.unreadable_worktrees += 1
             continue
+
+        report.other_worktrees_examined += 1
         for relpath in stray:
             report.findings.append(StrayMemoryFinding(worktree=worktree, relpath=relpath))
 
@@ -232,10 +293,7 @@ def format_report(report: ScopeReport) -> str:
     lines: list[str] = []
 
     if report.worktree_listing_failed:
-        return (
-            "serena-memory-worktree-scope: git worktree list failed; "
-            "nothing was examined"
-        )
+        return "serena-memory-worktree-scope: git worktree list failed; nothing was examined"
 
     for finding in report.findings:
         lines.append(f"  {finding.worktree}: {finding.relpath}")
@@ -286,8 +344,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description=(
-            "Report untracked Serena memory files sitting in a sibling git "
-            "worktree (issue #5061)."
+            "Report untracked Serena memory files sitting in a sibling git worktree (issue #5061)."
         ),
     )
     parser.add_argument(
@@ -319,6 +376,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(asdict(report), indent=2))
     else:
         print(format_report(report))
+
+    if report.worktree_listing_failed:
+        # Nothing was examined. Returning 0 here would hand a scripted caller a
+        # machine-readable "clean" for a run that never looked.
+        return 2
     return 1 if report.has_findings else 0
 
 
