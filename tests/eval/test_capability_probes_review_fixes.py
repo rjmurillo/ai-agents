@@ -93,12 +93,44 @@ def test_an_equals_joined_flag_carries_the_request() -> None:
     assert result.status is CapabilityStatus.VERIFIED
 
 
-def test_an_environment_variable_carries_the_request() -> None:
-    """CONFIRMATORY: a harness configured by env is bound, not refused."""
+def test_an_environment_value_no_longer_carries_the_request() -> None:
+    """NEGATIVE CONTROL: any variable whose value matched counted as the request.
+
+    The env surface accepted a match from any variable, so one that happened
+    to hold the model string bound a command that never asked for it. Naming
+    the variables that really carry the request would mean writing down a
+    Codex and Copilot contract this repository has not verified, so argv is
+    the only surface now.
+    """
     command = probes.ProbeCommand(
         harness="copilot",
         argv=("copilot", "--prompt", "probe"),
-        env={"COPILOT_MODEL": "gpt-5.6-sol"},
+        env={"UNRELATED_CACHE_KEY": "gpt-5.6-sol"},
+    )
+
+    with pytest.raises(ProbeError, match="does not request"):
+        probes.probe_override(_plan(), command, runner=_runner(_HONORED), timeout=TIMEOUT)
+
+
+def test_a_command_whose_executable_does_not_name_the_harness_is_refused() -> None:
+    """NEGATIVE CONTROL: the harness field is a label, not evidence of the process."""
+    seen: list[list[str]] = []
+    command = probes.ProbeCommand(
+        harness="copilot", argv=("codex", "--model", "gpt-5.6-sol")
+    )
+
+    with pytest.raises(ProbeError, match="does not name"):
+        probes.probe_override(
+            _plan(), command, runner=_runner(_HONORED, seen=seen), timeout=TIMEOUT
+        )
+
+    assert seen == [], "the CLI must not run when the label and the executable disagree"
+
+
+def test_an_executable_path_still_satisfies_the_harness_check() -> None:
+    """CONFIRMATORY: an absolute path to the CLI is the normal shape, not a violation."""
+    command = probes.ProbeCommand(
+        harness="copilot", argv=("/usr/local/bin/copilot", "--model", "gpt-5.6-sol")
     )
 
     result = probes.probe_override(
@@ -106,6 +138,22 @@ def test_an_environment_variable_carries_the_request() -> None:
     )
 
     assert result.status is CapabilityStatus.VERIFIED
+
+
+def test_a_hand_built_plan_naming_an_unprobeable_capability_is_refused() -> None:
+    """NEGATIVE CONTROL: probe_override routes every non-model capability to effort.
+
+    The capability check lived only in `build_override_plan`, so a hand-built
+    plan naming anything else had effort evidence classified as that
+    capability.
+    """
+    with pytest.raises(ProbeError, match="capability must be one of"):
+        probes.OverridePlan(
+            capability="concurrency_limit",
+            harness="copilot",
+            parent_value="2",
+            child_value="4",
+        )
 
 
 # --- A tool request is not a launched child (Devin BUG_0004) -------------------
@@ -154,23 +202,40 @@ def _boundaries(*kinds: str) -> list[dict[str, object]]:
     return [{"type": f"subagent.{kind}"} for kind in kinds]
 
 
-def test_unmatched_starts_after_one_completed_pair_do_not_inflate_the_peak() -> None:
-    """NEGATIVE CONTROL: one early pair licensed an unbounded tail of open starts."""
+def test_a_completed_pair_then_unclosed_starts_measures_nothing() -> None:
+    """NEGATIVE CONTROL: this published one while three children were still open.
+
+    The first fix called that lower bound conservative. For a maximum it is
+    not: the same stream shows four starts, so reporting one as the verified
+    maximum claims a limit below a number of children the evidence already
+    shows running.
+    """
     events = _boundaries("start", "complete", "start", "start", "start")
 
-    assert topology.max_concurrent_children(events) == 1
+    assert topology.max_concurrent_children(events) is None
 
 
-def test_a_truncated_stream_reports_only_the_children_it_closed() -> None:
-    """NEGATIVE CONTROL: a dropped completion must lower the count, never raise it."""
+def test_a_truncated_stream_measures_nothing() -> None:
+    """NEGATIVE CONTROL: a stream that ends mid-run has not shown its maximum."""
     events = _boundaries("start", "start", "complete")
 
-    assert topology.max_concurrent_children(events) == 1
+    assert topology.max_concurrent_children(events) is None
 
 
 def test_a_completion_with_no_child_open_derives_no_concurrency() -> None:
-    """NEGATIVE CONTROL: boundaries that cannot describe a run measure nothing."""
-    assert topology.max_concurrent_children(_boundaries("complete", "start")) is None
+    """NEGATIVE CONTROL: boundaries that cannot describe a run measure nothing.
+
+    The input has to end balanced to observe this guard at all. A stream that
+    merely opens with a completion, `complete, start`, ends one child deep, so
+    the end-of-stream check rejects it whether or not the unmatched-completion
+    branch exists, and a test built on that input passes against code with the
+    branch removed. This stream closes level, so only the branch under test
+    can reject it: without it the extra completion is absorbed and a peak of
+    one is published for an incoherent run.
+    """
+    events = _boundaries("start", "complete", "complete", "start", "complete")
+
+    assert topology.max_concurrent_children(events) is None
 
 
 def test_a_fully_paired_overlap_still_reports_its_real_peak() -> None:

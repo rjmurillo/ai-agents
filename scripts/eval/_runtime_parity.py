@@ -319,8 +319,29 @@ def _nested_git_env() -> dict[str, str]:
     return env
 
 
+#: Harnesses `prepare_workspace` can install a fixture agent for. `runtime_env`
+#: knows a third, codex, for the version-probe flow, which needs no artifact.
+_FIXTURE_HARNESSES: frozenset[str] = frozenset({"claude", "copilot"})
+
+
 def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
-    """Create one isolated git repository and install its agent artifact."""
+    """Create one isolated git repository and install its agent artifact.
+
+    Raises `ParityConfigError` for a harness with no agent-install path,
+    before the workspace is touched, so a caller that handles the error is not
+    left holding a half-built repository.
+    """
+    if harness not in _FIXTURE_HARNESSES:
+        # `runtime_env` accepts codex for the version-probe flow, which needs
+        # only an isolated profile. Fixture execution needs an agent artifact
+        # and an instructions file, and no codex shape for either is verified
+        # in this repository. Falling through would write Copilot artifacts
+        # into a codex workspace and parse the run with the Copilot parser,
+        # reporting a parity result about a harness that never saw the fixture.
+        raise ParityConfigError(
+            f"no agent-install path is defined for {harness!r}; only "
+            f"{', '.join(sorted(_FIXTURE_HARNESSES))} fixtures can be prepared"
+        )
     workspace.mkdir(parents=True)
     subprocess.run(
         ["git", "init", "--quiet"],
@@ -345,17 +366,6 @@ def prepare_workspace(fixture: Fixture, harness: str, workspace: Path) -> None:
         )
         _install_agent(fixture.claude_agent, workspace / ".claude" / "agents" / "parity.md")
         return
-    if harness != "copilot":
-        # `runtime_env` accepts codex for the version-probe flow, which needs
-        # only an isolated profile. Fixture execution needs an agent artifact
-        # and an instructions file, and no codex shape for either is verified
-        # in this repository. Falling through would write Copilot artifacts
-        # into a codex workspace and parse the run with the Copilot parser,
-        # reporting a parity result about a harness that never saw the fixture.
-        raise ParityConfigError(
-            f"no agent-install path is defined for {harness!r}; only claude and copilot "
-            "fixtures can be prepared"
-        )
     (profile / "copilot-instructions.md").write_text(
         f"Append {SENTINEL} to every answer.", encoding="utf-8"
     )

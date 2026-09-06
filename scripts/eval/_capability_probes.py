@@ -41,10 +41,12 @@ Fail-closed rules, each of which can only ever refuse a claim:
   `xhigh`, `max`, or any other tier, and `_discriminates` is the only
   comparison any value passes through.
 
-Reading the runtime's output lives in `_capability_evidence`; this module
-builds the probes, runs them, and hands what that module observed to the
-classifier. `observe_model`, `observe_effort`, `ProbeObservation`, and the
-evidence constants are re-exported below so a caller needs one import.
+Reading the runtime's output lives in `_capability_evidence` and reading child
+lifecycles in `_capability_topology`; this module builds the probes, runs them,
+and hands what those modules observed to the classifier. It imports what it
+calls and re-exports nothing: a caller wanting `observe_model` or
+`max_concurrent_children` imports the module that owns it, so the boundary is
+visible at the import site.
 
 Authority boundary: provider, model, and pricing tables stay in
 `scripts/eval/_providers.py` and `scripts/eval/_eval_common.py`. This module
@@ -114,7 +116,18 @@ class OverridePlan:
     child_value: str
 
     def __post_init__(self) -> None:
-        """Refuse a plan whose child request cannot discriminate an override."""
+        """Refuse a plan this module cannot probe or that cannot discriminate.
+
+        `capability` is checked here rather than only in `build_override_plan`
+        for the same reason the rest of these checks moved: `probe_override`
+        routes every capability that is not `model_override` through
+        `observe_effort`, so a hand-built plan naming anything else would have
+        had effort evidence classified as that capability.
+        """
+        if self.capability not in OVERRIDE_CAPABILITIES:
+            raise ProbeError(
+                f"capability must be one of {OVERRIDE_CAPABILITIES}, got {self.capability!r}"
+            )
         if not self.harness:
             raise ProbeError("harness must be a non-empty string")
         if not self.parent_value:
@@ -150,7 +163,7 @@ class ProbeCommand:
 
 
 def _carries_request(command: ProbeCommand, value: str) -> bool:
-    """Report whether this invocation actually asks for `value`.
+    """Report whether this invocation actually asks for `value` in its argv.
 
     `ProbeCommand.argv` is caller-supplied, so nothing else in this module can
     tell a command that requests the override from one that does not. Without
@@ -160,19 +173,24 @@ def _carries_request(command: ProbeCommand, value: str) -> bool:
     child value the probe reports `VERIFIED` for a mechanism that never ran.
 
     A token carries the request when it is the value itself (`--model`,
-    `gpt-5.6-sol`) or ends in `=value` (`--model=gpt-5.6-sol`). An environment
-    variable carries it on an exact value match. A request delivered any other
-    way (a config file, a profile setting) is not visible here and is refused
-    rather than assumed, which withholds a probe instead of accepting an
-    unbound one.
+    `gpt-5.6-sol`) or ends in `=value` (`--model=gpt-5.6-sol`). A token that
+    merely contains the value, such as a prompt mentioning the model name,
+    does not.
+
+    Environment variables were accepted here and no longer are: any variable
+    whose value happened to equal the request counted as the request, and
+    naming the variables that really carry it would mean writing down a Codex
+    and Copilot contract this repository has not verified. Argv is the one
+    surface a caller can be required to make explicit, so a request delivered
+    any other way is refused rather than assumed.
+
+    Known residual gap: this proves the value appears as an argument, not that
+    it appears as the *model* or *effort* option, because no verified flag
+    surface for either harness exists in this repository. Closing that needs
+    step 3 of issue #5423, which is where a real flag set gets observed.
     """
     suffix = f"={value}"
-    for token in command.argv:
-        if token == value or token.endswith(suffix):
-            return True
-    if command.env is not None:
-        return any(entry == value for entry in command.env.values())
-    return False
+    return any(token == value or token.endswith(suffix) for token in command.argv)
 
 
 def _discriminates(candidate: str, parent: str) -> bool:
@@ -299,6 +317,14 @@ def probe_override(
         raise ProbeError(
             f"command targets {command.harness!r} but the plan probes {plan.harness!r}; "
             "a run against one harness cannot verify an override on another"
+        )
+    if not command.argv or plan.harness not in Path(command.argv[0]).name:
+        # `ProbeCommand.harness` is a caller-supplied label. Nothing tied it to
+        # the process actually launched, so a command labelled copilot could
+        # execute any executable and have its output classified as copilot's.
+        raise ProbeError(
+            f"command executes {command.argv[0]!r} if anything, which does not name "
+            f"{plan.harness!r}; the label on a command is not evidence of what it runs"
         )
     if not _carries_request(command, plan.child_value):
         raise ProbeError(

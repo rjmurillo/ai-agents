@@ -137,9 +137,9 @@ def test_prepare_workspace_refuses_codex_instead_of_installing_copilot_artifacts
     with pytest.raises(parity.ParityConfigError, match="no agent-install path"):
         parity.prepare_workspace(_any_fixture(), "codex", workspace)
 
-    assert not (workspace / ".github").exists(), "no Copilot agent may be installed"
-    assert not list(workspace.glob("**/copilot-instructions.md")), (
-        "no Copilot instructions may be written"
+    assert not workspace.exists(), (
+        "the guard must fire before any mutation; a caller that handles the error "
+        "must not be left holding a half-built git repository"
     )
 
 
