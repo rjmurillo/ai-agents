@@ -25,31 +25,9 @@ The transform is intentionally narrow:
   authored content. The generator only writes to its own outputs.
 - NO-REGEN sentinel honored (``regen_guard.is_protected``)
 
-Progressive disclosure for commands
------------------------------------
-
-A command may carry a ``references/`` tree the same way a skill does:
-``.claude/commands/<name>/references/**`` holds the depth, and
-``.claude/commands/<name>.md`` stays under the 200-line ceiling
-``scripts/validation/command_size.py`` enforces. The tree is mirrored to
-``artifacts.commands.referencesOutputDir`` at ``<name>/references/**``,
-which puts it at the same plugin-root-relative path in both installs:
-
-    ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/commands/<name>/references/<file>
-
-That is the spelling `.claude/commands/pr-review.md` already uses to reach
-``commands/pr-review-config.yaml``, so one path in the command body resolves
-in the Claude checkout, the Claude plugin cache, and the Copilot CLI plugin.
-Mirroring into ``skills/<name>/references/`` instead would have made the
-Claude-relative and Copilot-relative spellings differ, which is a broken link
-in whichever tree the author did not test.
-
-A ``references/`` directory under a source dir with no bridged
-``<name>.md`` (a namespaced sub-command directory such as ``pr-quality/``)
-is reported and not copied: the bridge does not emit a skill for those
-names, so a mirror there would be an orphan. A ``references/`` tree with no
-``referencesOutputDir`` configured is a configuration error (exit 2) rather
-than a silent drop.
+Resources (``pr-review-config.yaml``) and per-command ``references/`` trees
+travel through ``generate_commands_resources``; see that module for the
+progressive-disclosure layout and why it mirrors where it does.
 
 EXIT CODES:
   0 - success
@@ -83,18 +61,23 @@ from generate_agents_common import (  # noqa: E402
     parse_simple_frontmatter,
     read_yaml_frontmatter,
 )
+from generate_commands_resources import (  # noqa: E402
+    REFERENCES_DIR_NAME,
+    GenerateCommandsError,
+    collect_reference_sets,
+    copy_resource,
+    iter_resource_sources,
+    resolve_optional_output_dir,
+    resolve_resource_suffixes,
+)
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
-from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
+from yaml_loader import (  # noqa: E402
+    ConfigError,
+    load_platform_config,
+    validate_relative_path,
+)
 
 _DEFAULT_EXCLUDES = ("CLAUDE.md",)
-
-# The per-command progressive-disclosure directory, named to match
-# `.claude/skills/<name>/references/` so one convention covers both surfaces.
-_REFERENCES_DIR_NAME = "references"
-
-
-class GenerateCommandsError(Exception):
-    """Domain error for command-to-skill bridging."""
 
 
 def _resolve_paths(
@@ -108,48 +91,6 @@ def _resolve_paths(
     return repo_root / source_dir, repo_root / output_dir
 
 
-def _resolve_optional_output_dir(
-    repo_root: Path, field: str, value: object, *, present: bool
-) -> Path | None:
-    """Resolve an optional output directory from the platform config."""
-    if not present:
-        return None
-    errs = validate_relative_path(field, value)
-    if errs:
-        raise GenerateCommandsError("; ".join(errs))
-    assert isinstance(value, str)
-    return repo_root / value
-
-
-def _resolve_resource_suffixes(stanza: dict[str, object]) -> set[str]:
-    """Validate and normalize optional command resource suffixes."""
-    has_resource_output = "resourceOutputDir" in stanza
-    has_resource_suffixes = "resourceSuffixes" in stanza
-    if has_resource_output != has_resource_suffixes:
-        raise GenerateCommandsError(
-            "`artifacts.commands`: `resourceOutputDir` and "
-            "`resourceSuffixes` must be set together"
-        )
-    if not has_resource_suffixes:
-        return set()
-    suffixes = stanza.get("resourceSuffixes")
-    if (
-        not isinstance(suffixes, list)
-        or not suffixes
-        or not all(
-            isinstance(item, str)
-            and item.startswith(".")
-            and len(item) > 1
-            for item in suffixes
-        )
-    ):
-        raise GenerateCommandsError(
-            "`artifacts.commands.resourceSuffixes`: must be a "
-            "non-empty list of dotted suffix strings"
-        )
-    return set(suffixes)
-
-
 def _iter_command_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
     """Return top-level ``*.md`` files (no recursion into subdirs).
 
@@ -160,7 +101,7 @@ def _iter_command_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
     them as out-of-scope for the bridge.
 
     ``<name>/references/`` is the one exception, and it is not read here:
-    :func:`_collect_reference_sets` picks it up as depth belonging to the
+    :func:`generate_commands_resources.collect_reference_sets` picks it up as depth belonging to the
     top-level ``<name>.md``, not as a sub-command of its own.
     """
     if not source_dir.is_dir():
@@ -175,64 +116,6 @@ def _iter_command_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
             continue
         sources.append(child)
     return sources
-
-
-def _iter_resource_sources(
-    source_dir: Path, suffixes: set[str], excludes: set[str]
-) -> list[Path]:
-    """Return top-level command resource files matching configured suffixes."""
-    if not suffixes:
-        return []
-    resources: list[Path] = []
-    for child in sorted(source_dir.iterdir()):
-        if not child.is_file():
-            continue
-        if child.name in excludes:
-            continue
-        if child.suffix in suffixes:
-            resources.append(child)
-    return resources
-
-
-def _iter_reference_sources(command_dir: Path) -> list[Path]:
-    """Return every file under one command's ``references/`` tree, sorted.
-
-    Recurses, so a command may nest its depth the way a skill does. Python
-    cache artifacts are skipped for the same reason ``generate_skills.py``
-    skips them: they are build-time noise, not plugin content.
-    """
-    refs_dir = command_dir / _REFERENCES_DIR_NAME
-    if not refs_dir.is_dir():
-        return []
-    files: list[Path] = []
-    for path in sorted(refs_dir.rglob("*")):
-        if not path.is_file():
-            continue
-        if "__pycache__" in path.parts or path.suffix in (".pyc", ".pyo"):
-            continue
-        files.append(path)
-    return files
-
-
-def _collect_reference_sets(
-    source_dir: Path, excludes: set[str]
-) -> dict[str, list[Path]]:
-    """Map each command-name directory holding a ``references/`` tree to its files.
-
-    Keyed by directory name, which is the command stem the tree belongs to.
-    Directories with no ``references/`` subtree, and trees holding only cache
-    artifacts, are omitted so callers can treat a present key as real content.
-    """
-    sets: dict[str, list[Path]] = {}
-    for child in sorted(source_dir.iterdir()):
-        if not child.is_dir():
-            continue
-        if child.name in excludes:
-            continue
-        files = _iter_reference_sources(child)
-        if files:
-            sets[child.name] = files
-    return sets
 
 
 def _first_nonblank_line(body: str) -> str:
@@ -343,20 +226,6 @@ def _write_skill(
     return True
 
 
-def _copy_resource(src: Path, target: Path, *, what_if: bool) -> bool:
-    """Copy one command resource. Returns True on write, False on skip."""
-    reason = regen_detect_reason(target)
-    if reason is not None:
-        print(f"  NOTICE: skipped {target} (NO-REGEN: {reason})")
-        return False
-    if what_if:
-        print(f"  Would copy: {target}")
-        return True
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(src.read_bytes())
-    return True
-
-
 def generate_commands(
     config_path: Path,
     repo_root: Path,
@@ -406,7 +275,7 @@ def generate_commands(
     references_output_dir_raw = stanza.get("referencesOutputDir")
     references_output_dir_present = "referencesOutputDir" in stanza
     try:
-        resource_suffixes = _resolve_resource_suffixes(stanza)
+        resource_suffixes = resolve_resource_suffixes(stanza)
     except GenerateCommandsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
@@ -425,13 +294,13 @@ def generate_commands(
         source_dir, output_dir = _resolve_paths(
             repo_root, source_dir_str, output_dir_str
         )
-        resource_output_dir = _resolve_optional_output_dir(
+        resource_output_dir = resolve_optional_output_dir(
             repo_root,
             "artifacts.commands.resourceOutputDir",
             resource_output_dir_raw,
             present=resource_output_dir_present,
         )
-        references_output_dir = _resolve_optional_output_dir(
+        references_output_dir = resolve_optional_output_dir(
             repo_root,
             "artifacts.commands.referencesOutputDir",
             references_output_dir_raw,
@@ -453,14 +322,14 @@ def generate_commands(
         return 1
 
     bridged_names = {src.stem for src in sources}
-    reference_sets = _collect_reference_sets(source_dir, excludes)
+    reference_sets = collect_reference_sets(source_dir, excludes)
     orphan_references = sorted(set(reference_sets) - bridged_names)
     for orphan in orphan_references:
         # A namespaced sub-command directory (pr-quality/) gets no bridged
         # skill, so a mirror of its references/ would point at nothing. Say
         # so instead of dropping the files without a word.
         print(
-            f"  NOTICE: skipped {source_dir / orphan / _REFERENCES_DIR_NAME} "
+            f"  NOTICE: skipped {source_dir / orphan / REFERENCES_DIR_NAME} "
             f"(no bridged command '{orphan}.md' owns it)"
         )
         del reference_sets[orphan]
@@ -520,9 +389,9 @@ def generate_commands(
             skipped += 1
 
     if resource_output_dir is not None:
-        for src in _iter_resource_sources(source_dir, resource_suffixes, excludes):
+        for src in iter_resource_sources(source_dir, resource_suffixes, excludes):
             target = resource_output_dir / src.name
-            if _copy_resource(src, target, what_if=what_if):
+            if copy_resource(src, target, what_if=what_if):
                 resources_written += 1
             else:
                 resources_skipped += 1
@@ -533,7 +402,7 @@ def generate_commands(
             for src in reference_sets[name]:
                 rel = src.relative_to(command_dir)
                 target = references_output_dir / name / rel
-                if _copy_resource(src, target, what_if=what_if):
+                if copy_resource(src, target, what_if=what_if):
                     references_written += 1
                 else:
                     references_skipped += 1
