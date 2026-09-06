@@ -93,7 +93,7 @@ These rules apply to every change in this repository.
    and cite the search, or narrow the claim to the scope actually searched.
    Measured: a memory asserted "No script regenerates these, and no validator
    checks them" after one probe of a guessed path,
-   `scripts/memory/update_memory_index_tokens.py`. The regenerator and its
+   `scripts/memory/update_memory_index_tokens.py`. The regenerator and its <!-- orphan-ref-ignore -->
    pre-push ratchet both exist one directory up, lefthook runs both, and the
    Knowledge Persistence Rule names the regenerator by path in its MUST list,
    so the memory taught the anti-pattern a binding rule forbids
