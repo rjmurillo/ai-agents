@@ -164,18 +164,44 @@ SlashCommandCreator: design slash command for running security audit
 create slash command that summarizes recent PR comments
 ```
 
+## Progressive Disclosure: `<name>/references/`
+
+Depth belongs in `.claude/commands/<name>/references/`, the same way a skill
+puts depth in its own `references/`. `build/scripts/generate_commands.py`
+mirrors that tree into the Copilot CLI plugin at `commands/<name>/references/`,
+so one path resolves in every install:
+
+```text
+${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/commands/<name>/references/<file>.md
+```
+
+Write that spelling, not a bare `.claude/commands/...` path: the bare form
+works only in the upstream checkout. `.claude/commands/pr-review.md` already
+resolves `commands/pr-review-config.yaml` through the same root list.
+
+The 200-line ceiling `scripts/validation/command_size.py` enforces measures the
+body, which loads in full on every invocation. It does not measure
+`references/`, which loads only when the body sends the agent there. So the
+ceiling bounds per-invocation cost, not how much a command may say.
+
+Two costs to weigh before splitting. A reference file the body never points at
+is dead weight nobody reads. And Claude Code discovers commands by recursing
+`.claude/commands/`, so files under `<name>/references/` may surface in the
+slash-command palette as namespaced entries; keep the tree small and keep the
+filenames self-describing.
+
 ## Decision Matrix: Slash Command vs Skill
 
 **Use Slash Command When**:
 
-- Prompt is <200 lines
+- Body is <200 lines, with depth in `<name>/references/` when it needs more
 - No multi-step conditional logic
 - Simple argument substitution
 - No external script orchestration
 
 **Use Skill When**:
 
-- Prompt is >200 lines
+- The body cannot get under 200 lines by moving depth to `references/`
 - Multi-agent coordination required
 - Complex scripting logic
 - Requires dedicated tests
@@ -189,7 +215,8 @@ Before marking complete:
 - [ ] Frontmatter has `allowed-tools` (if uses bash/file refs)
 - [ ] No overly permissive wildcards in `allowed-tools`
 - [ ] Description follows trigger-based pattern (creator-001)
-- [ ] File is <200 lines (or converted to skill)
+- [ ] Body is <200 lines (move depth to `<name>/references/`, or convert to a skill)
+- [ ] Every `<name>/references/` file is reachable from the body via the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/commands/<name>/references/` path
 - [ ] No bare `.claude/skills/...` exec path in the generated command; use the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}` form (see `docs/SKILL-AUTHORING.md`). Verify: `grep -nE '(python3?|bash|sh)[[:space:]].*\.claude/skills/[^[:space:]]+\.(py|sh)|\./\.claude/skills/[^[:space:]]+\.(py|sh)' [file]` returns no match
 - [ ] Passes `markdownlint-cli2` validation
 - [ ] Passes `validate_slash_command.py` validation
@@ -209,7 +236,8 @@ Before marking complete:
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Creating commands > 200 lines | Too complex for slash command format | Convert to a skill instead |
+| Bodies over 200 lines | Every invocation pays for text most runs never need | Move the depth to `<name>/references/` and point the body at it; convert to a skill only when the body still will not fit |
+| A `<name>/references/` file nothing in the body points at | Nothing loads it, so it rots unread while the mirror still ships it | Link it from the body or delete it |
 | Overly permissive `allowed-tools` wildcards | Security risk | List specific tools needed |
 | Skipping multi-agent validation | Miss security, scope, or necessity issues | Run all 4 validation agents |
 | Duplicate commands for similar purposes | Confusing discoverability | Check existing commands first |
