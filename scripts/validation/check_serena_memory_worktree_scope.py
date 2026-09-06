@@ -67,6 +67,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -83,7 +84,6 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(_SCRIPT_DIR))
 
-from check_tmp_worktrees import parse_worktree_list  # noqa: E402
 from checks_common import _run_subprocess  # noqa: E402
 
 # Matches this repo's own glob for memory content, cited verbatim from
@@ -154,31 +154,74 @@ def parse_stray_memory_files(porcelain: str) -> list[str]:
     return findings
 
 
-def _bare_worktree_paths(porcelain: str) -> set[str]:
-    """Return the worktree paths in ``porcelain`` whose block carries ``bare``.
+def _git_environment() -> dict[str, str]:
+    """Environment for this scan's git calls, with every ambient ``GIT_*`` removed.
 
-    ``git worktree list --porcelain`` emits one blank-line-separated block per
-    worktree, each opening with ``worktree <path>``. A bare repository's block
-    carries a lone ``bare`` line. A bare repo has no working tree, so it can
-    never hold a stray memory file and ``git status`` there exits 128. Counting
-    it unreadable would print a permanent scan-failure line on exactly the
-    bare-clone-plus-worktrees layout this gate exists to serve, which trains the
-    reader to ignore the line that signals a real failure.
+    ``git push`` from a linked worktree exports ``GIT_DIR`` into the pre-push
+    hook, and this gate runs inside ``pre_pr.py``, which the pre-push hook runs.
+    An exported ``GIT_DIR``, ``GIT_WORK_TREE`` or ``GIT_INDEX_FILE`` outranks
+    ``cwd=``, so a sibling scan would read the pushing worktree rather than the
+    sibling it was pointed at.
 
-    ``parse_worktree_list`` keys on the ``worktree `` prefix alone and cannot
-    see the marker, so the block structure is re-read here rather than changing
-    shared code that other gates depend on.
+    Measured on git 2.43.0, a sibling holding a file the scan should see:
+
+        clean env,   cwd=sibling            ' M .serena/memories/git/stray.md'
+        GIT_DIR,     cwd=sibling            ' M .serena/memories/git/stray.md'
+        GIT_DIR + GIT_WORK_TREE             ''
+
+    The third row is the defect: every sibling reads clean, so the gate reports
+    a scan it never performed. Issue #4914 is the same class in the count
+    ratchets, and ``scripts/ci/count_ratchet.py`` records the same measurement.
+
+    Mirrors the ``GIT_*`` half of the rule that file quotes verbatim, including
+    its ``name.upper()`` so a lowercased ``git_dir`` folded by a
+    case-insensitive platform is stripped too. ``HOME`` and the config
+    variables are deliberately kept: this scans real checkouts, where a global
+    ``safe.directory`` entry is load-bearing.
     """
-    bare: set[str] = set()
-    current_path: str | None = None
-    for line in porcelain.splitlines():
-        if line.startswith("worktree "):
-            current_path = line[len("worktree ") :].strip()
-        elif line.strip() == "bare" and current_path is not None:
-            bare.add(current_path)
-        elif not line.strip():
-            current_path = None
-    return bare
+    env = os.environ.copy()
+    for name in tuple(env):
+        if name.upper().startswith("GIT_"):
+            env.pop(name)
+    return env
+
+
+def parse_worktree_records(porcelain: str) -> list[tuple[str, bool]]:
+    """Return ``(path, is_bare)`` per record of ``git worktree list --porcelain -z``.
+
+    ``-z`` is required rather than preferred. Without it git delimits attributes
+    with newlines, so a worktree path that itself contains a newline is split
+    across lines and a line-based parser keeps only the first fragment. The scan
+    then skips a real worktree and never reports the stray memory inside it.
+    Under ``-z`` every attribute is NUL-terminated and a record ends at an empty
+    attribute, so a newline in a path is ordinary data.
+
+    A bare repository is flagged rather than returned as scannable: it has no
+    working tree, so ``git status`` there exits 128 and it can never hold a
+    stray memory file. Counting it unreadable would print a permanent
+    scan-failure line on the bare-clone-plus-worktrees layout this gate serves,
+    which trains the reader to ignore the line that flags a real failure.
+
+    ``check_tmp_worktrees.parse_worktree_list`` is deliberately left alone
+    rather than widened: it is line-based, serves a different gate, and changing
+    its contract to suit this one would put that gate's behavior in scope here.
+    """
+    records: list[tuple[str, bool]] = []
+    path: str | None = None
+    bare = False
+    for attribute in porcelain.split("\0"):
+        if attribute == "":
+            if path is not None:
+                records.append((path, bare))
+            path, bare = None, False
+            continue
+        if attribute.startswith("worktree "):
+            path = attribute[len("worktree ") :]
+        elif attribute == "bare":
+            bare = True
+    if path is not None:
+        records.append((path, bare))
+    return records
 
 
 def _list_other_worktrees(repo_root: Path, current: str) -> tuple[list[str], bool]:
@@ -190,9 +233,10 @@ def _list_other_worktrees(repo_root: Path, current: str) -> tuple[list[str], boo
     """
     try:
         exit_code, stdout, _stderr = _run_subprocess(
-            ["git", "worktree", "list", "--porcelain"],
+            ["git", "worktree", "list", "--porcelain", "-z"],
             cwd=repo_root,
             timeout=_GIT_TIMEOUT_SECONDS,
+            env=_git_environment(),
         )
     except OSError:
         # ``_run_subprocess`` absorbs FileNotFoundError and TimeoutExpired but
@@ -203,11 +247,10 @@ def _list_other_worktrees(repo_root: Path, current: str) -> tuple[list[str], boo
     if exit_code != 0:
         return [], True
 
-    bare = _bare_worktree_paths(stdout)
     others: list[str] = []
     seen: set[str] = {current}
-    for raw in parse_worktree_list(stdout):
-        if raw in bare:
+    for raw, is_bare in parse_worktree_records(stdout):
+        if is_bare:
             continue
         try:
             resolved = str(Path(raw).resolve())
@@ -246,6 +289,7 @@ def _stray_files_in(worktree_path: str) -> tuple[list[str], bool]:
             ["git", "status", "--porcelain", "--untracked-files=all", "--", ".serena/memories"],
             cwd=worktree_path,
             timeout=_GIT_TIMEOUT_SECONDS,
+            env=_git_environment(),
         )
     except OSError:
         return [], True

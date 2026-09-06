@@ -34,8 +34,6 @@ reading into.
 from __future__ import annotations
 
 import argparse
-import json
-import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -122,6 +120,24 @@ def test_multiple_lines_are_filtered_independently() -> None:
 # --- build_scope_report ----------------------------------------------------
 
 
+def _z(*records: object) -> str:
+    """Build ``git worktree list --porcelain -z`` output.
+
+    Each record is a path, or a ``(path, "bare")`` pair. The production parser
+    reads NUL-terminated attributes precisely so a newline inside a worktree
+    path stays data instead of splitting the record, so the fixtures have to
+    speak the same format the real command emits under ``-z``.
+    """
+    parts: list[str] = []
+    for record in records:
+        if isinstance(record, tuple):
+            path, marker = record
+            parts.append(f"worktree {path}\0{marker}\0\0")
+        else:
+            parts.append(f"worktree {record}\0\0")
+    return "".join(parts)
+
+
 def _make_fake_run_subprocess(
     worktree_listing: str,
     status_by_worktree: dict[str, str],
@@ -132,7 +148,10 @@ def _make_fake_run_subprocess(
     status_exit_codes = status_exit_codes or {}
 
     def _fake(
-        args: list[str], cwd: object = None, timeout: int | None = None
+        args: list[str],
+        cwd: object = None,
+        timeout: int | None = None,
+        env: dict[str, str] | None = None,
     ) -> tuple[int, str, str]:
         if args[:3] == ["git", "worktree", "list"]:
             return listing_exit_code, worktree_listing, ""
@@ -154,7 +173,7 @@ def test_a_stray_file_in_a_sibling_worktree_is_found(
     sibling.mkdir()
     sibling_key = str(sibling.resolve())
 
-    listing = f"worktree {current.resolve()}\nworktree {sibling.resolve()}\n"
+    listing = _z(current.resolve(), sibling.resolve())
     fake = _make_fake_run_subprocess(listing, {sibling_key: "?? .serena/memories/git/stray.md\n"})
     monkeypatch.setattr(checker, "_run_subprocess", fake)
 
@@ -180,10 +199,13 @@ def test_the_current_worktrees_own_untracked_memory_file_is_never_reported(
     current.mkdir()
     current_key = str(current.resolve())
 
-    listing = f"worktree {current.resolve()}\n"
+    listing = _z(current.resolve())
 
     def fake(
-        args: list[str], cwd: object = None, timeout: int | None = None
+        args: list[str],
+        cwd: object = None,
+        timeout: int | None = None,
+        env: dict[str, str] | None = None,
     ) -> tuple[int, str, str]:
         if args[:3] == ["git", "worktree", "list"]:
             return 0, listing, ""
@@ -206,7 +228,7 @@ def test_no_findings_when_every_sibling_is_clean(
     sibling = tmp_path / "sibling"
     sibling.mkdir()
 
-    listing = f"worktree {current.resolve()}\nworktree {sibling.resolve()}\n"
+    listing = _z(current.resolve(), sibling.resolve())
     fake = _make_fake_run_subprocess(listing, {str(sibling.resolve()): ""})
     monkeypatch.setattr(checker, "_run_subprocess", fake)
 
@@ -222,7 +244,7 @@ def test_a_single_worktree_repository_examines_nothing(
 ) -> None:
     current = tmp_path / "current"
     current.mkdir()
-    listing = f"worktree {current.resolve()}\n"
+    listing = _z(current.resolve())
     fake = _make_fake_run_subprocess(listing, {})
     monkeypatch.setattr(checker, "_run_subprocess", fake)
 
@@ -240,10 +262,13 @@ def test_a_stale_registered_worktree_is_skipped_without_a_status_call(
     current.mkdir()
     gone = tmp_path / "gone"  # never created on disk
 
-    listing = f"worktree {current.resolve()}\nworktree {gone}\n"
+    listing = _z(current.resolve(), gone)
 
     def fake(
-        args: list[str], cwd: object = None, timeout: int | None = None
+        args: list[str],
+        cwd: object = None,
+        timeout: int | None = None,
+        env: dict[str, str] | None = None,
     ) -> tuple[int, str, str]:
         if args[:3] == ["git", "worktree", "list"]:
             return 0, listing, ""
@@ -286,9 +311,7 @@ def test_one_unreadable_sibling_does_not_stop_the_rest_of_the_scan(
     healthy_key = str(healthy.resolve())
     broken_key = str(broken.resolve())
 
-    listing = (
-        f"worktree {current.resolve()}\nworktree {broken.resolve()}\nworktree {healthy.resolve()}\n"
-    )
+    listing = _z(current.resolve(), broken.resolve(), healthy.resolve())
     fake = _make_fake_run_subprocess(
         listing,
         {healthy_key: "?? .serena/memories/git/stray.md\n", broken_key: ""},
@@ -365,7 +388,7 @@ def test_the_advisory_gate_always_returns_true_even_with_findings(
     current.mkdir()
     sibling = tmp_path / "sibling"
     sibling.mkdir()
-    listing = f"worktree {current.resolve()}\nworktree {sibling.resolve()}\n"
+    listing = _z(current.resolve(), sibling.resolve())
     fake = _make_fake_run_subprocess(
         listing, {str(sibling.resolve()): "?? .serena/memories/git/stray.md\n"}
     )
@@ -375,56 +398,6 @@ def test_the_advisory_gate_always_returns_true_even_with_findings(
 
     assert result is True
     assert "stray.md" in capsys.readouterr().out
-
-
-# --- main() / CLI ------------------------------------------------------------
-
-
-def _init_repo(path: Path) -> None:
-    subprocess.run(["git", "init", "-q", str(path)], check=True, cwd=path)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], check=True, cwd=path)
-    subprocess.run(["git", "config", "user.name", "Test"], check=True, cwd=path)
-
-
-def test_main_exits_zero_on_a_real_single_worktree_repo(tmp_path: Path) -> None:
-    """End-to-end with real git, hermetic under tmp_path: no linked worktrees,
-    nothing under .serena/memories/, so nothing to find."""
-    repo = tmp_path / "solo-repo"
-    repo.mkdir()
-    _init_repo(repo)
-
-    exit_code = checker.main(["--repo-root", str(repo)])
-
-    assert exit_code == 0
-
-
-def test_main_exits_two_when_repo_root_does_not_exist(tmp_path: Path) -> None:
-    missing = tmp_path / "does-not-exist"
-
-    exit_code = checker.main(["--repo-root", str(missing)])
-
-    assert exit_code == 2
-
-
-def test_main_exits_one_and_prints_json_when_a_sibling_has_a_stray_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    current = tmp_path / "current"
-    current.mkdir()
-    sibling = tmp_path / "sibling"
-    sibling.mkdir()
-    listing = f"worktree {current.resolve()}\nworktree {sibling.resolve()}\n"
-    fake = _make_fake_run_subprocess(
-        listing, {str(sibling.resolve()): "?? .serena/memories/git/stray.md\n"}
-    )
-    monkeypatch.setattr(checker, "_run_subprocess", fake)
-
-    exit_code = checker.main(["--repo-root", str(current), "--json"])
-
-    payload = json.loads(capsys.readouterr().out)
-    assert exit_code == 1
-    assert len(payload["findings"]) == 1
-    assert payload["findings"][0]["relpath"] == ".serena/memories/git/stray.md"
 
 
 # --- pre_pr_sequence wiring (testing.md SHOULD 6) ---------------------------
