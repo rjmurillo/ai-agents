@@ -42,7 +42,7 @@ URLs: {optional comma-separated source URLs}
 ## Phases
 
 1. **Research**: check existing knowledge, fetch URLs, search the web, synthesize principles, frameworks, examples, and failure modes.
-2. **Analysis**: write the document below to `.agents/analysis/{topic-slug}.md`.
+2. **Analysis**: write the analysis document, using the skeleton below. The Output table names its location.
 3. **Applicability**: map integration points and prioritize them.
 4. **Memory**: write a Serena memory at `{topic-slug}-integration` cross-referencing the analysis.
 5. **Action**: file a GitHub issue when implementation work is identified.
