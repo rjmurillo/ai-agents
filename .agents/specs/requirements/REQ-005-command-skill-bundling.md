@@ -29,7 +29,7 @@ updated: 2026-05-05
 
 Lifecycle commands at `.claude/commands/{spec,plan,build,test,review,ship,pr-review}.md` miss seven dedicated skills and re-prompt agents inline for two more. The gaps are:
 
-- `/spec` and `/ship` skip `session-init` and `session-end`, causing missing session logs on every run.
+- `/spec` and `/ship` skip `session-init` and `session-end`, causing missing session logs on every run. <!-- orphan-ref-ignore -->
 - `/plan` steps 6-7 prompt `analyst` and `critic` inline instead of invoking `pre-mortem` and `decision-critic` skills, causing critique quality to drift from the same skills `/spec` uses.
 - `/build` has no preflight retrieval step, causing the recurring "started coding before reading rules" failure.
 - `/test` Gate 3 skips `threat-modeling` on complex changes; Gate 6 skips `slo-designer` and `observability`.
@@ -53,7 +53,7 @@ WHEN `/spec` is invoked,
 THE SYSTEM SHALL invoke `Skill(skill="session-init")` unconditionally,
 SO THAT session logs are created for every spec session.
 
-The `session-init` skill is responsible for handling missing `.agents/SESSION-PROTOCOL.md` (its own precondition); commands do not gate on external infrastructure markers. This matches the PR #1894 pattern where prose-driven bundling at the agent layer ships universal behavior and skills own their own preconditions.
+The `session-init` skill is responsible for handling missing `.agents/SESSION-PROTOCOL.md` (its own precondition); commands do not gate on external infrastructure markers. This matches the PR #1894 pattern where prose-driven bundling at the agent layer ships universal behavior and skills own their own preconditions. <!-- orphan-ref-ignore -->
 
 User stories covered: US-1.
 
@@ -63,7 +63,7 @@ WHEN `/ship` completes PR creation successfully,
 THE SYSTEM SHALL invoke `Skill(skill="session-end")` first (unconditional), then `Skill(skill="reflect")` (unconditional; minimum-delta guard: skip if diff is fewer than 5 changed files),
 SO THAT learnings persist and the session log validates after every ship, without noisy reflect invocations on trivial changes.
 
-The `session-end` skill owns its own missing-marker behavior internally; commands do not gate on `.agents/SESSION-PROTOCOL.md` presence (matches PR #1894 precedent: skills own their preconditions).
+The `session-end` skill owns its own missing-marker behavior internally; commands do not gate on `.agents/SESSION-PROTOCOL.md` presence (matches PR #1894 precedent: skills own their preconditions). <!-- orphan-ref-ignore -->
 
 User stories covered: US-1.
 
@@ -143,7 +143,7 @@ WHEN a skill's runtime gate condition is not met (`chestertons-fence` when no di
 THE SYSTEM SHALL emit `BUNDLE: <command> -> <skill> (skipped:condition-not-met)` and continue without aborting the command,
 SO THAT runtime-conditional skills do not fire when their precondition is absent.
 
-Note: AC-12 applies only to **runtime conditionals**, not to external-infrastructure presence checks. Skills that depend on `.agents/` infrastructure (e.g., `session-init`, `session-end`) own their own missing-marker handling internally per AC-1 and AC-2.
+Note: AC-12 applies only to **runtime conditionals**, not to external-infrastructure presence checks. Skills that depend on `.agents/` infrastructure (e.g., `session-init`, `session-end`) own their own missing-marker handling internally per AC-1 and AC-2. <!-- orphan-ref-ignore -->
 
 ### AC-13: Failed skill warn-and-continue
 
