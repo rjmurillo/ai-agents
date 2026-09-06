@@ -42,11 +42,11 @@
     },
     {
       "id": "S4",
-      "desc": "Forgetful-store curation stays outside the Serena file consolidation skill",
-      "input": "In the Forgetful store, deduplicate obsolete memories and add links between related entries. Do not touch Serena memory files.",
+      "desc": "In-file supersession stays outside the Serena file consolidation skill",
+      "input": "Mark the stale sections of .serena/memories/github/gh-cli-auth.md as superseded and leave the current guidance visible inline. Do not merge, delete, or reindex any files.",
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "This request explicitly targets Forgetful curation, which the skill's Do NOT clause routes to curating-memories. memory-consolidate must stay inactive even though the request uses memory cleanup language."
+      "rationale": "This request targets in-file supersession markers, which the skill's Do NOT clause routes to curating-memories. memory-consolidate must stay inactive even though the request uses memory cleanup language and names a Serena memory path, so the skill has to separate its sibling by operation rather than by store."
     }
   ]
 }

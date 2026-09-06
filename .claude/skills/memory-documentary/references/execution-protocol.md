@@ -13,7 +13,7 @@ Before searching, re-read the topic and answer:
 3. **Scope Boundaries**: What is explicitly IN scope? What is OUT of scope?
 4. **Success Criteria**: What would make this analysis valuable?
 
-**Confidence Note**: Assume all 4 MCP servers are available (Claude-Mem, Forgetful, Serena, DeepWiki). Tool errors are rare and system will notify if unavailable.
+**Confidence Note**: Assume all 3 MCP servers are available (Claude-Mem, Serena, DeepWiki). Tool errors are rare and system will notify if unavailable.
 
 ---
 
@@ -34,17 +34,6 @@ mcp__plugin_claude-mem_mcp-search__timeline(anchor=[observation_id], depth_befor
 
 # Step 3: Fetch full details
 mcp__plugin_claude-mem_mcp-search__get_observations(ids=[filtered_ids])
-```
-
-**Forgetful MCP** (semantic):
-
-```python
-mcp__forgetful__execute_forgetful_tool("query_memory", {
-    "query": "[topic]",
-    "query_context": "Documentary analysis seeking patterns and evidence",
-    "k": 10,
-    "include_links": true
-})
 ```
 
 **Serena MCP** (project-specific):
@@ -155,12 +144,10 @@ For each major finding:
 ### Finding: [Title]
 
 **Memory Evidence**:
-- **ID**: Forgetful Memory #123
-- **Retrieval**: `execute_forgetful_tool("get_memory", {"memory_id": 123})`
+- **Source**: Serena memory `github/gh-cli-auth`
+- **Retrieval**: `mcp__serena__read_memory(memory_file_name="github/gh-cli-auth")`
 - **Created**: 2025-12-15
-- **Importance**: 8/10
 - **Quote**: "Direct quote from memory content"
-- **Links**: Related to Memory #456, #789
 
 **Document Evidence**:
 - **Path**: `.agents/retrospective/2025-12-15-session-review.md`
@@ -243,19 +230,6 @@ Analyze across categories with boundaries:
 ## Phase 5: Memory Updates
 
 After report completion, update systems:
-
-### Forgetful Update
-
-```python
-mcp__forgetful__execute_forgetful_tool("create_memory", {
-    "title": "[Topic] Meta-Pattern Analysis",
-    "content": "[Summary of discovered meta-pattern]",
-    "context": "Documentary analysis of [topic]",
-    "keywords": ["meta-analysis", "[topic-keywords]"],
-    "tags": ["documentary", "meta-pattern"],
-    "importance": 8
-})
-```
 
 ### Serena Update
 

@@ -1,8 +1,8 @@
 ---
 name: memory-documentary
 version: 1.0.0
-description: Generate evidence-based documentary reports by searching across all 4
-  memory systems (Claude-Mem, Forgetful, Serena, DeepWiki), .agents/ artifacts, and
+description: Generate evidence-based documentary reports by searching across all 3
+  memory systems (Claude-Mem, Serena, DeepWiki), .agents/ artifacts, and
   GitHub issues. Produces investigative journalism-style analysis with full citation
   chains. Use when you ask for an "evidence-based report", "investigate across all
   memory systems", "what happened with X over time". Do NOT use for a single semantic
@@ -16,7 +16,7 @@ metadata:
 
 Generate comprehensive documentary-style reports from your memory systems with full evidence chains.
 
-<!-- vendor-portability: declared. This skill searches the consumer's .agents/ artifacts (sessions, retrospectives, analysis) alongside the four memory systems as evidence inputs, and writes the report under .agents/. The .agents/ reads are best-effort evidence sources; a vendored install without that tree produces a report from whatever memory systems and artifacts the consumer repo does have, not a silent no-op. Issue #2050. -->
+<!-- vendor-portability: declared. This skill searches the consumer's .agents/ artifacts (sessions, retrospectives, analysis) alongside the three memory systems as evidence inputs, and writes the report under .agents/. The .agents/ reads are best-effort evidence sources; a vendored install without that tree produces a report from whatever memory systems and artifacts the consumer repo does have, not a silent no-op. Issue #2050. -->
 
 ---
 
@@ -80,7 +80,6 @@ The skill searches ALL available data sources systematically:
 **Memory Systems (4 MCP servers)**:
 
 - Claude-Mem: Timeline observations via 3-layer workflow
-- Forgetful: Semantic memory with linked entities
 - Serena: Project-specific lexical memory
 - DeepWiki: Documentation resources
 
@@ -125,7 +124,7 @@ The skill searches ALL available data sources systematically:
 Full citation for each finding:
 
 - Memory ID/Observation ID with retrieval command
-- Source system (Forgetful/Claude-Mem/Serena)
+- Source system (Claude-Mem/Serena/DeepWiki)
 - Timestamp/Creation date
 - Direct quote from source
 - Links to related evidence
@@ -154,7 +153,7 @@ Cross-system synthesis revealing:
 ### Synthesis
 
 - What all systems agree on
-- What's recent (Claude-Mem) vs crystallized (Forgetful)
+- What's recent (Claude-Mem) vs durable (Serena)
 - Actionable recommendations
 
 ---
@@ -177,7 +176,7 @@ Cross-system synthesis revealing:
 | Partial searches | Miss critical evidence | Search ALL systems |
 | Paraphrasing | Loses verifiability | Direct quotes only |
 | Single query | Miss variations | 3+ query variants per system |
-| Skipping systems | Incomplete picture | Check all 4 MCP servers |
+| Skipping systems | Incomplete picture | Check all 3 MCP servers |
 
 ---
 
