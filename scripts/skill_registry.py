@@ -133,7 +133,7 @@ def categorize_skill(name: str, description: str) -> str:
 
     category_keywords = {
         "security": ["security", "threat", "owasp", "cwe", "codeql", "vulnerability"],
-        "memory": ["memory", "forgetful", "serena", "knowledge", "curating"],
+        "memory": ["memory", "serena", "knowledge", "curating"],
         "analysis": [
             "analy",
             "critic",

@@ -65,6 +65,33 @@ def frontmatter(skill_content: str) -> dict[str, str]:
     return fm
 
 
+def _names_forgetful(text: str) -> bool:
+    """True when *text* names the decommissioned Forgetful server in any form.
+
+    Case-folded because the surfaces spelled it four ways: `Forgetful Memory`
+    in the frontmatter description and body, `forgetful` as a `TIER_QUERIED`
+    token, and `mcp__forgetful__execute_forgetful_tool` in the Tools list.
+    """
+    return "forgetful" in text.lower()
+
+
+def test_the_forgetful_detector_catches_every_spelling_it_guards() -> None:
+    """Negative control: the guard below is not vacuous.
+
+    Fires on each of the four surfaces #5574 removed and stays quiet on the
+    Serena and Context7 names that remain.
+    """
+    assert _names_forgetful("description: Gather context from Forgetful Memory, Context7 docs")
+    assert _names_forgetful("TIER_QUERIED: forgetful")
+    assert _names_forgetful("- `mcp__forgetful__execute_forgetful_tool`")
+
+    assert not _names_forgetful("- `mcp__serena__read_memory`, `mcp__serena__list_memories`")
+    assert not _names_forgetful(
+        "Where `<tier>` is one of: `serena`, `context7`, `deepwiki`, `web`."
+    )
+    assert not _names_forgetful("")
+
+
 class TestFrontmatter:
     """Verify required frontmatter fields exist and have correct values."""
 
@@ -191,6 +218,21 @@ class TestStructure:
         assert "exploring-knowledge-graph" not in skill_content, (
             "SKILL.md must not reference the retired knowledge-graph skill"
         )
+
+    def test_skill_names_no_decommissioned_forgetful_tier(self, skill_content: str) -> None:
+        """Issue #5574: no tier, output token, or tool names Forgetful.
+
+        Five references were live instructions, not stale prose. The
+        frontmatter description routes skill selection; the body summary and
+        the Phase 2 bullet told the agent to query the tier; `TIER_QUERIED:
+        forgetful` was a machine-readable output token callers could emit; and
+        the Tools list named `mcp__forgetful__execute_forgetful_tool`. The MCP
+        server is decommissioned, so each pointed at a backend that cannot
+        answer. references/context-retrieval.md, which this skill points at,
+        already dropped Forgetful from its source table in #5612, so the skill
+        and its own reference disagreed until this change.
+        """
+        assert not _names_forgetful(skill_content)
 
     def test_context_retrieval_subagent_removed(self) -> None:
         """Issue #2103: the context-retrieval agent file was deleted after its

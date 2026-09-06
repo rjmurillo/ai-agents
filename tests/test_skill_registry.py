@@ -114,6 +114,29 @@ class TestCategorizeSkill:
         """Falls back to other when no keywords match."""
         assert categorize_skill("xyzzy", "does unknown things") == "other"
 
+    def test_retired_forgetful_keyword_no_longer_routes_to_memory(self) -> None:
+        """Issue #5574: `forgetful` was a memory-category keyword.
+
+        The MCP server is decommissioned, so no skill name or description will
+        carry the word again. Measured before removal: dropping the keyword
+        changed the category of 0 of the 93 skills under `.claude/skills/`, so
+        it matched nothing that the surviving keywords do not already match.
+        """
+        assert categorize_skill("forgetful-client", "queries the graph") == "other"
+
+    def test_live_memory_keywords_still_route_to_memory(self) -> None:
+        """Control: the surviving keywords keep their routing.
+
+        Without this, deleting the whole memory category would also pass the
+        test above.
+        """
+        for name, description in (
+            ("memory-search", "search stored memories"),
+            ("encode-repo-serena", "populate the serena knowledge base"),
+            ("curating-memories", "maintain memory files"),
+        ):
+            assert categorize_skill(name, description) == "memory", name
+
 
 class TestScanSkill:
     """Tests for scan_skill function."""

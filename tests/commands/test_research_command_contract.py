@@ -45,9 +45,24 @@ def _allowed_tools_line(text: str) -> str:
 # the mirror, so a test that expects one spelling in both files is asserting
 # that half the tree is misgranted.
 _MCP_SPELLING = {
-    "claude": ("mcp__serena__*", "mcp__forgetful__*"),
-    "copilot": ("serena/*", "forgetful/*"),
+    "claude": ("mcp__serena__*",),
+    "copilot": ("serena/*",),
 }
+
+# Issue #5574 removed the second entry from each tuple. The Forgetful MCP
+# server is decommissioned, so `mcp__forgetful__*` and its Copilot respelling
+# `forgetful/*` granted tools on a server that cannot answer.
+_FORGETFUL_SPELLINGS = ("mcp__forgetful__", "forgetful/")
+
+
+def _names_forgetful(text: str) -> bool:
+    """True when *text* names the decommissioned Forgetful server in any form.
+
+    Case-folded because the grant line spells it lowercase while the prose
+    spelled it `Forgetful`, and both were live instructions to the same dead
+    backend.
+    """
+    return "forgetful" in text.lower()
 
 
 @pytest.fixture
@@ -147,6 +162,34 @@ def test_research_still_prefers_web_tools_for_non_github_sources(
     assert "WebFetch" in allowed
     for grant in mcp_grants:
         assert grant in allowed
+
+
+def test_research_names_no_decommissioned_forgetful_surface(research_text: str) -> None:
+    """Issue #5574: no grant, phase, fallback, or output row names Forgetful.
+
+    Four references were live, not merely stale. `allowed-tools` granted
+    `mcp__forgetful__*`; the Memory Phase told the agent to write 5-10 atomic
+    memories into the knowledge graph; the fallback rule keyed degradation on a
+    backend that can no longer be reachable or unreachable; and the Output table
+    promised those memories as a deliverable. The server is gone, so each one
+    directed work at something that cannot answer.
+    """
+    assert not _names_forgetful(research_text)
+
+
+def test_the_forgetful_detector_catches_every_spelling_it_guards() -> None:
+    """Negative control: the detector above is not vacuous.
+
+    Fires on both harness grant spellings and on the prose capitalization,
+    stays quiet on the Serena grants that replaced them.
+    """
+    for spelling in _FORGETFUL_SPELLINGS:
+        assert _names_forgetful(f"allowed-tools: Read, {spelling}*, Skill"), spelling
+    assert _names_forgetful("4. **Memory Phase**: 5-10 atomic Forgetful memories")
+
+    assert not _names_forgetful("allowed-tools: Read, mcp__serena__*, Skill")
+    assert not _names_forgetful("allowed-tools: Read, serena/*, Skill")
+    assert not _names_forgetful("")
 
 
 def test_each_tree_carries_only_its_own_mcp_spelling(

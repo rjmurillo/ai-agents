@@ -13,9 +13,6 @@ Usage::
     # Call with arguments
     result = mcp_call("serena", "read_memory", name="my-memory")
 
-    # Call a Forgetful tool
-    result = mcp_call("forgetful", "discover_forgetful_tools")
-
 See: Issue #1484
 """
 
@@ -89,7 +86,8 @@ def mcp_call(
     """Call an MCP tool via mcporter.
 
     Args:
-        server: MCP server name (e.g. "serena", "forgetful", "deepwiki").
+        server: MCP server name. `.mcp.json` configures "serena" and
+            "deepwiki"; mcporter resolves the name against that file.
         tool: Tool name on that server (e.g. "list_memories", "read_memory").
         timeout: Subprocess timeout in seconds.
         cwd: Working directory for mcporter (affects server config discovery).
