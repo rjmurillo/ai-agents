@@ -105,6 +105,10 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".mcp.json",
         ".python-version",
         ".qualityrc.json",
+        # semgrep discovers this by walking from the scan cwd up to the git
+        # root (ProjectConfig.load_all), so the repository root is the only
+        # place it is found for a scan rooted here. Refs #4725.
+        ".semgrepconfig.yml",
         ".serena",
         ".vscode",
         ".worktreeinclude",
