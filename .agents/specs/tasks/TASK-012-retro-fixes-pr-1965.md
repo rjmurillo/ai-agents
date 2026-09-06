@@ -172,11 +172,11 @@ All tasks reference DESIGN-012 for interface contracts and REQ-009 for acceptanc
 **Objective:** Add `check_rework_warning` function to the session-end skill's script layer, wire it into the session log append, and add a contract test pinning the 6-commit threshold. Pins REQ-012-07, REQ-012-08, REQ-012-09.
 
 **In scope:**
-- Edit `.claude/skills/session-end/scripts/complete_session_log.py` (or equivalent session-end script).
+- Edit `.claude/skills/session-end/scripts/complete_session_log.py` (or equivalent session-end script). <!-- orphan-ref-ignore -->
 - Add `check_rework_warning(base_branch: str = "main") -> list[tuple[str, int]]`.
 - Wire the function into the session log's `## Rework Warning` section append.
 - Emit `rework-warning: {path} edited {n} times` per file, or `rework-warning: none`.
-- Create `tests/skills/session-end/test_rework_warning.py`.
+- Create `tests/skills/session-end/test_rework_warning.py`. <!-- orphan-ref-ignore -->
 - Test stubs `subprocess.run`; asserts threshold behavior at the 6-commit boundary.
 
 **Out of scope:**
@@ -198,8 +198,8 @@ All tasks reference DESIGN-012 for interface contracts and REQ-009 for acceptanc
 
 | File | Action | Description |
 |------|--------|-------------|
-| `.claude/skills/session-end/scripts/complete_session_log.py` | Edit | Add `check_rework_warning` function + session log wiring |
-| `tests/skills/session-end/test_rework_warning.py` | Create | Contract test for rework threshold behavior |
+| `.claude/skills/session-end/scripts/complete_session_log.py` | Edit | Add `check_rework_warning` function + session log wiring | <!-- orphan-ref-ignore -->
+| `tests/skills/session-end/test_rework_warning.py` | Create | Contract test for rework threshold behavior | <!-- orphan-ref-ignore -->
 
 **Implementation Notes:**
 - Read the current `complete_session_log.py` before editing to understand existing structure and avoid side effects.
