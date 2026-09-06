@@ -1,14 +1,25 @@
 """Failure modes of the Serena memory worktree-scope gate (issue #5061).
 
 Split from ``test_check_serena_memory_worktree_scope.py`` to keep both files
-under the 500-line taste ceiling. Everything here came out of an adversarial
-review of the gate's first commit, and each test below fails against that
-commit unless its docstring says otherwise.
+under the 500-line taste ceiling.
 
 Covers the cases where the scan cannot run rather than the cases where it
 finds something: git raising before it starts, a bare repository that has no
 working tree to scan, the argv flags the detection silently depends on, and
 the exit code of a run that examined nothing.
+
+Most of these came out of review rounds on the gate's first commits and fail
+against them. The ``main()`` CLI tests did not: they were moved here from the
+sibling module for size, and they pass against every commit on this branch.
+
+DELIBERATE REAL-GIT EXCEPTION. Most tests here stub ``checker._run_subprocess``.
+The ``main()`` CLI tests do not: they build throwaway repositories under
+``tmp_path`` and run real git against them, which is the point of those three.
+A mocked exit-code test asserts that the code returns what the mock was told to
+produce, which pins nothing about whether the real command sequence works.
+Every such call is bounded by ``_GIT_TEST_TIMEOUT``, so a wedged git fails the
+owning test rather than hanging the session, and none of them touch this
+repository: only directories the test just created.
 """
 
 from __future__ import annotations
