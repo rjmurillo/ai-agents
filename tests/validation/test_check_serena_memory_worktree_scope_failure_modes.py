@@ -32,6 +32,9 @@ import check_serena_memory_worktree_scope as checker
 
 _SubprocessFake = Callable[..., tuple[int, str, str]]
 
+# Seconds. A wedged git in a throwaway repo should fail the test, not the job.
+_GIT_TEST_TIMEOUT = 30
+
 
 def _z(*records: object) -> str:
     """Build ``git worktree list --porcelain -z`` output.
@@ -315,9 +318,20 @@ def test_the_worktree_listing_is_requested_nul_delimited(
 
 
 def _init_repo(path: Path) -> None:
-    subprocess.run(["git", "init", "-q", str(path)], check=True, cwd=path)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], check=True, cwd=path)
-    subprocess.run(["git", "config", "user.name", "Test"], check=True, cwd=path)
+    """Create a throwaway repo for the CLI tests, with timeouts so a wedged git
+    fails this test instead of hanging the session until the job timeout."""
+    subprocess.run(
+        ["git", "init", "-q", str(path)], check=True, cwd=path, timeout=_GIT_TEST_TIMEOUT
+    )
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        check=True,
+        cwd=path,
+        timeout=_GIT_TEST_TIMEOUT,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"], check=True, cwd=path, timeout=_GIT_TEST_TIMEOUT
+    )
 
 
 def test_main_exits_zero_on_a_real_single_worktree_repo(tmp_path: Path) -> None:
