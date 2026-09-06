@@ -394,16 +394,13 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
         "SSL_CERT_FILE",
         "REQUESTS_CA_BUNDLE",
     }
-    # Codex's environment-variables reference documents `CODEX_API_KEY`
-    # ("Supplies an API key to non-interactive processes") and
-    # `CODEX_ACCESS_TOKEN` ("Furnishes access tokens for trusted automation")
-    # as its two non-interactive auth variables. Fetched and quoted directly
-    # from https://developers.openai.com/codex/environment-variables
-    # (redirects to https://learn.chatgpt.com/docs/config-file/environment-variables)
-    # on 2026-09-06. `OPENAI_API_KEY` is documented elsewhere only as a value
-    # piped into the interactive `codex login --with-api-key` command, not as
-    # an ambient variable Codex reads during a run, so it is deliberately
-    # excluded here.
+    # CODEX_API_KEY ("Supplies an API key to non-interactive processes") and
+    # CODEX_ACCESS_TOKEN ("Furnishes access tokens for trusted automation")
+    # are Codex's own non-interactive auth variables, quoted from
+    # https://developers.openai.com/codex/environment-variables, fetched
+    # 2026-09-06. OPENAI_API_KEY is documented elsewhere only as a value piped
+    # into the interactive `codex login --with-api-key` command, not as an
+    # ambient variable Codex reads at runtime, so it is excluded here.
     authentication = {
         "claude": {"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"},
         "copilot": {"COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"},
@@ -430,12 +427,9 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     else:
         # CODEX_HOME "Sets the root for Codex state, including config, auth,
         # logs, sessions, skills, and standalone package metadata," default
-        # ~/.codex. Quoted from
-        # https://developers.openai.com/codex/environment-variables
-        # (redirects to
-        # https://learn.chatgpt.com/docs/config-file/environment-variables),
-        # fetched 2026-09-06. Pointing it at the workspace profile isolates
-        # state the same way CLAUDE_CONFIG_DIR and COPILOT_HOME do.
+        # ~/.codex (same source as above, fetched 2026-09-06). Pointing it at
+        # the workspace profile isolates state the same way CLAUDE_CONFIG_DIR
+        # and COPILOT_HOME do.
         env["CODEX_HOME"] = str(profile)
     return env
 
@@ -452,12 +446,11 @@ def probe_version(
     argv = [executable, "--version"]
     if harness == "copilot":
         argv.insert(1, "--no-auto-update")
-    # Codex needs no equivalent flag here. Third-party CLI references describe
-    # `codex --version` as printing a single `codex-cli x.y.z` line with no
-    # login required, but the official reference page for that flag 404s as
-    # of 2026-09-06, so this is web-search evidence, not a fetched primary
-    # source; it is also the existing default for every harness other than
-    # copilot, so no behavior changes here regardless.
+    # Codex needs no equivalent flag: third-party references describe
+    # `codex --version` as a plain `codex-cli x.y.z` line needing no login
+    # (the official flag reference 404s as of 2026-09-06, so this is
+    # web-search evidence, not a fetched primary source). It is also already
+    # the default for every harness other than copilot.
     run = runner(
         argv,
         env=runtime_env(workspace, harness),
