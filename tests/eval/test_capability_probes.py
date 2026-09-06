@@ -1,163 +1,41 @@
-"""Tests for the behavioral capability probers, issue #5423 step 2.
+"""Tests for capability probe execution, issue #5423 step 2.
 
-Every case here is deterministic: an injected fake runner returns recorded
-runtime output, and no test touches the network, PATH, or a real CLI. No test
-writes to `scripts/eval/examples/harness-capability-matrix.json`; the honesty
-of that file is pinned by `test_harness_capability.py`.
+Deterministic cases over an injected fake runner and recorded runtime
+output. No network, no PATH lookup, no real CLI. No test writes to
+`scripts/eval/examples/harness-capability-matrix.json`; the honesty of that
+file is pinned by `test_harness_capability.py`. Plan construction is
+covered by `test_capability_probe_plans.py`.
 
 Discrimination. Twenty-one mutations were run against `_capability_probes.py`,
 each removing or weakening one guard, with `__pycache__` cleared between every
 mutation and its rerun. All twenty-one were killed, a behavior-preserving
 inverted control survived, and the restored file was byte-compared against the
 original. Every case marked NEGATIVE CONTROL below failed under at least one of
-those mutations and is named by it.
-
-The nine cases marked CONFIRMATORY survived all twenty-one, or failed only as
-collateral of a mutation aimed at a different case. They exercise a happy path,
-or a path whose behavior belongs entirely to `_runtime_output`. They are here
-because a reachable VERIFIED path is what gives the negative controls something
-to be negative about, and they are labeled because they are not evidence that
-any guard in this module works.
+those mutations and is named by it. Cases marked CONFIRMATORY survived all
+twenty-one, or failed only as collateral of a mutation aimed at a different
+case; they are labeled because they are not evidence that any guard works.
 """
 
 from __future__ import annotations
 
-import json
 import subprocess
-from collections.abc import Mapping, Sequence
-from typing import Any
 
 import pytest
 
-from tests.eval._harness_capability_test_support import capability, probes
-
-CapabilityStatus = capability.CapabilityStatus
-EvidenceKind = capability.EvidenceKind
-HarnessCapabilityError = capability.HarnessCapabilityError
-ProbeError = probes.ProbeError
-ProbeCommand = probes.ProbeCommand
-
-TIMEOUT = 5.0
-
-
-def _jsonl(events: Sequence[Mapping[str, object]]) -> str:
-    return "\n".join(json.dumps(event) for event in events) + "\n"
-
-
-def _answer(text: str, **data: object) -> dict[str, object]:
-    """One Copilot answer turn, the shape `copilot_result` already reads."""
-    return {"type": "assistant.message", "data": {"content": text, **data}}
-
-
-def _session_change(**data: object) -> dict[str, object]:
-    """A session-state event: the CLI reporting its own configuration."""
-    return {"type": "session.model_change", "data": dict(data)}
-
-
-def _runner(
-    stdout: str = "",
-    *,
-    returncode: int = 0,
-    stderr: str = "",
-    raises: BaseException | None = None,
-    seen: list[list[str]] | None = None,
-):
-    """Build a fake runner that dispatches on argv rather than call order."""
-
-    def run(argv: Sequence[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        if seen is not None:
-            seen.append(list(argv))
-        if raises is not None:
-            raise raises
-        return subprocess.CompletedProcess(list(argv), returncode, stdout, stderr)
-
-    return run
-
-
-def _command(harness: str = "copilot") -> probes.ProbeCommand:
-    return ProbeCommand(harness=harness, argv=(harness, "--prompt", "probe"))
-
-
-def _plan(
-    *,
-    capability_key: str = "model_override",
-    harness: str = "copilot",
-    parent: str = "claude-opus-5",
-    candidates: Sequence[str] = ("gpt-5.6-sol",),
-) -> probes.OverridePlan:
-    return probes.build_override_plan(
-        capability=capability_key,
-        harness=harness,
-        parent_value=parent,
-        candidates=candidates,
-    )
-
-
-# --- Plan construction ---------------------------------------------------------
-
-
-def test_a_plan_selects_the_first_candidate_that_differs_from_the_parent() -> None:
-    """NEGATIVE CONTROL: an undiscriminating candidate must never be selected."""
-    plan = _plan(candidates=("claude-opus-5", "gpt-5.6-sol"))
-
-    assert plan.parent_value == "claude-opus-5"
-    assert plan.child_value == "gpt-5.6-sol"
-
-
-def test_an_equal_parent_and_child_value_cannot_produce_a_plan() -> None:
-    """NEGATIVE CONTROL: the equal-value probe that can never verify anything."""
-    with pytest.raises(ProbeError, match="cannot tell an honored override"):
-        _plan(candidates=("claude-opus-5",))
-
-
-def test_a_case_only_difference_cannot_produce_a_plan() -> None:
-    """NEGATIVE CONTROL: a case-folding harness would echo the parent back."""
-    with pytest.raises(ProbeError, match="cannot tell an honored override"):
-        _plan(parent="Sol Ultra", candidates=("sol ultra", "  SOL ULTRA  "))
-
-
-def test_sol_ultra_survives_plan_construction_unaliased() -> None:
-    """NEGATIVE CONTROL: Sol Ultra is a literal, never folded onto a tier."""
-    plan = _plan(
-        capability_key="effort_override",
-        parent="high",
-        candidates=("Sol Ultra",),
-    )
-
-    assert plan.child_value == "Sol Ultra"
-    assert plan.child_value not in {"high", "xhigh", "max"}
-
-
-def test_sol_ultra_as_the_parent_still_admits_a_genuinely_different_child() -> None:
-    """CONFIRMATORY: the guard rejects sameness, not the literal itself."""
-    plan = _plan(capability_key="effort_override", parent="Sol Ultra", candidates=("high",))
-
-    assert plan.parent_value == "Sol Ultra"
-    assert plan.child_value == "high"
-
-
-def test_a_plan_rejects_an_unknown_capability() -> None:
-    """NEGATIVE CONTROL: only capabilities classify_override covers are probeable."""
-    with pytest.raises(ProbeError, match="capability must be one of"):
-        _plan(capability_key="concurrency_limit")
-
-
-def test_a_plan_rejects_an_empty_parent_value() -> None:
-    """NEGATIVE CONTROL: an unknown parent cannot discriminate."""
-    with pytest.raises(ProbeError, match="parent_value must be"):
-        _plan(parent="")
-
-
-def test_a_plan_rejects_an_empty_harness() -> None:
-    """NEGATIVE CONTROL: an unnamed harness cannot be recorded against."""
-    with pytest.raises(ProbeError, match="harness must be"):
-        _plan(harness="")
-
-
-def test_a_plan_error_is_a_harness_capability_error() -> None:
-    """CONFIRMATORY: callers keep one fail-closed except arm."""
-    assert issubclass(ProbeError, HarnessCapabilityError)
-
+from tests.eval._capability_probe_fixtures import (
+    TIMEOUT,
+    CapabilityStatus,
+    EvidenceKind,
+    HarnessCapabilityError,
+    ProbeError,
+    _answer,
+    _command,
+    _jsonl,
+    _plan,
+    _runner,
+    _session_change,
+)
+from tests.eval._harness_capability_test_support import probes
 
 # --- Model override probe ------------------------------------------------------
 
