@@ -111,7 +111,7 @@ documentation), and the anti-patterns table.
 
 See [references/integration-and-design.md](references/integration-and-design.md)
 for integration with the session protocol, the memory skill, and Serena; the
-design-decision rationale (sidecar naming, Serena vs Forgetful roles,
+design-decision rationale (sidecar naming, the Serena sidecar contract,
 relationship to `curating-memories`); extension points; and the commit
 convention for skill observation updates.
 
@@ -134,6 +134,5 @@ convention for skill observation updates.
 | Skill | Relationship |
 |-------|--------------|
 | `memory` | Skill memories are part of Tier 1 |
-| `using-forgetful-memory` | Alternative storage for skill learnings |
 | `curating-memories` | For maintaining/pruning skill memories |
 | `retrospective` | Full session retrospective (this is mini version) |

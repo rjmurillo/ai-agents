@@ -54,10 +54,9 @@ mcp__serena__write_memory(memory_file_name="github/github-observations", memory_
 
 **Migration**: Rename `{skill}-observations.md` (or legacy `skill-{name}.md`) to `{skill}-observations.md` and update index references.
 
-### Serena vs Forgetful Roles
+### Serena Sidecar Role
 
 - **Serena MCP** remains the canonical record. Every learning is persisted to the `{skill}-observations.md` file.
-- **Forgetful** is optional and used for semantic lookup only. When storing supporting context, tag the entry with `skill-{name}` and reference the Serena sidecar instead of duplicating the content.
 
 ### Relationship to `curating-memories`
 
@@ -75,15 +74,13 @@ mcp__serena__write_memory(memory_file_name="github/github-observations", memory_
 
 1. **Curating memories**: route conflicting or stale learnings to `curating-memories` for consolidation.
 2. **Memory skill**: use `memory` skill for search/recall before proposing redundant learnings.
-3. **Forgetful**: optionally mirror high-confidence learnings into Forgetful with `skill-{name}` tags for semantic recall.
-4. **Git and PR history**: preserve non-obvious rationale for manual sidecar edits in the change that carries them.
+3. **Git and PR history**: preserve non-obvious rationale for manual sidecar edits in the change that carries them.
 
 ## Related
 
 | Skill | Relationship |
 |-------|--------------|
 | `memory` | Skill memories are part of Tier 1 |
-| `using-forgetful-memory` | Alternative storage for skill learnings |
 | `curating-memories` | For maintaining/pruning skill memories |
 | `retrospective` | Full session retrospective (this is mini version) |
 

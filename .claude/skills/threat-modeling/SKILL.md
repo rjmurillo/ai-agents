@@ -387,27 +387,21 @@ Use the template at: `templates/threat-model-template.md`
 
 ### Memory Integration
 
-Query Forgetful memory for prior threat models:
+Search Serena memory for prior threat models before starting a new one. Use the
+`memory` skill, or list and read directly:
 
 ```python
-mcp__forgetful__execute_forgetful_tool("query_memory", {
-    "query": "threat model authentication",
-    "query_context": "Finding prior security analysis"
-})
+mcp__serena__list_memories()
+mcp__serena__read_memory(memory_file_name="security/threat-model-auth-service")
 ```
 
-Store threat model summaries:
+Store the threat model summary as a Serena memory:
 
 ```python
-mcp__forgetful__execute_forgetful_tool("create_memory", {
-    "title": "Auth Service Threat Model Summary",
-    "content": "Key threats: credential stuffing, session hijacking...",
-    "context": "Security analysis Q1 2026",
-    "keywords": ["threat-model", "authentication", "STRIDE"],
-    "tags": ["security"],
-    "importance": 8,
-    "project_ids": [1]
-})
+mcp__serena__write_memory(
+    memory_file_name="security/threat-model-auth-service",
+    content="Key threats: credential stuffing, session hijacking. STRIDE categories covered: spoofing, elevation of privilege."
+)
 ```
 
 ---
