@@ -14,7 +14,7 @@ every search that touches it.
 
 This skill owns in-file supersession markers on `.serena/memories/**`. It never
 merges or deletes Serena files and never edits Serena index files. Use
-`memory-consolidate` for cross-file merges, deletions, and index cleanup, and
+`memory-consolidate` for cross-file Serena merges, deletions, and index cleanup, and
 `memory-maintenance` for health, token, and size checks.
 
 ## Triggers
@@ -35,7 +35,7 @@ rather than because a backend hides it.
 
 | In scope | Out of scope |
 |----------|--------------|
-| Strike-through and dated banners inside one memory file | Merging two memory files (`memory-consolidate`) |
+| Strike-through and dated banners inside one memory file | Merging two Serena memory files (`memory-consolidate`) |
 | Collapsing a resolved investigation to a changelog footer | Deleting a memory file (`memory-consolidate`) |
 | Adding a dated-snapshot banner to a point-in-time doc | Editing `memory-index.md` (`memory-consolidate`) |
 | Running and verifying the supersession sweep | Store health, token, and size checks (`memory-maintenance`) |
