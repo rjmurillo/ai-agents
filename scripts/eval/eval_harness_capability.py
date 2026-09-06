@@ -43,10 +43,13 @@ DEFAULT_MATRIX = Path(__file__).parent / "examples" / "harness-capability-matrix
 DEFAULT_TIMEOUT = 60.0
 
 # Only harnesses whose isolated profile `_runtime_parity.runtime_env` knows how
-# to build are probe-capable through the existing prober. Codex has no in-tree
-# runtime support (issue #5423 confirms the gap), so its version stays
-# UNVERIFIED rather than being fabricated here.
-PROBE_HARNESS: dict[str, str] = {"copilot": "copilot"}
+# to build are probe-capable through the existing prober. `_runtime_parity`
+# now has a codex branch (profile root, isolated env, version-probe argv), so
+# codex is wired in alongside copilot. Neither harness's *behavioral*
+# capabilities (model/effort override, subagent support, and so on) are
+# probed anywhere in this module: only the version string can move off
+# UNVERIFIED here, and only when the CLI is actually on PATH.
+PROBE_HARNESS: dict[str, str] = {"copilot": "copilot", "codex": "codex"}
 
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
