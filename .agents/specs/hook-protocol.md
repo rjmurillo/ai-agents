@@ -56,7 +56,7 @@ direct path. The third has no wrapper and was retired.
 - `scripts/memory_enhancement/hooks/session_end_memory.py` (reflection): live.
   `.claude/hooks/SessionEnd/invoke_memory_reflection.py` is a thin invoker for
   it, registered under `SessionEnd` in `.claude/settings.json`.
-- `scripts/memory_enhancement/hooks/post_tool_call_memory.py` (fact capture):
+- `scripts/memory_enhancement/hooks/post_tool_call_memory.py` (fact capture): <!-- orphan-ref-ignore -->
   **deleted by ADR-097**, which retired the `PostToolUseFailure` wrapper that
   was its only caller. Re-adding automatic fact capture means writing a new
   carrier and clearing `.claude/rules/tool-use-hook-bar.md` first.

@@ -139,12 +139,12 @@ The two destination trees now agree, measured on this branch after issue #4871 r
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot working in this repository | 5 rules, 56,144 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 5 rules, 56,144 bytes |
+| `.github/instructions` | Copilot working in this repository | 5 rules, 56,171 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 5 rules, 56,171 bytes |
 
 The membership is identical: `builder-ethos`, `claude-model-patches`, `search-before-building`, `universal`, `voice`.
 
-Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same five rules measure 56,239 bytes at `.claude/rules/`, 95 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
+Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same five rules measure 56,266 bytes at `.claude/rules/`, 95 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
 
 The Claude side answers the same question from the source, and it reads `paths:` alone. It ignores `applyTo:`, `globs:`, and `alwaysApply:`, all three of which `generate_rules.py` accepts, and each fails differently. `applyTo:` is remapped, so the mirror is scoped and only the Claude source leaks (`pragmatic-programmer`). `globs:` is preserved verbatim and never becomes `applyTo:`, so neither tree is scoped. `alwaysApply:` is dropped before the generator synthesizes `applyTo: '**'`, so both trees load universally and a code-only rule cannot state its scope (`code-quality`). Between them, 25,527 bytes loaded on every doc-only session (issue #4871). `check_rule_scope_keys.py`, under the validation-scripts tree, now fails the build on any scope key but `paths:`, which is what keeps the source-side and mirror-side answers the same. The directory prefix is omitted for the same reason the citation-freshness gate's is above: this rule ships in the plugin instruction mirrors, where an upstream-only path would dangle.
 

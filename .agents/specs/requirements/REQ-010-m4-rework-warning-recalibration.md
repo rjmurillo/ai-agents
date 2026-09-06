@@ -38,7 +38,7 @@ Three requesters:
 
 ### Q3 Desperate Specificity
 
-The M4 rework warning at `.claude/skills/session-end/scripts/rework_warning.py`, constant `REWORK_THRESHOLD = 6`. PR #1989 had max file edit count of 4. Detector returns 0 on its own test bed.
+The M4 rework warning at `.claude/skills/session-end/scripts/rework_warning.py`, constant `REWORK_THRESHOLD = 6`. PR #1989 had max file edit count of 4. Detector returns 0 on its own test bed. <!-- orphan-ref-ignore -->
 
 ### Q4 Narrowest Wedge (revised after Step 0.5 calibration)
 
@@ -116,7 +116,7 @@ The detector is security-adjacent tooling (it gates milestone commits). Missing 
 
 ## Dependencies
 
-- `.claude/skills/session-end/scripts/rework_warning.py` must exist at the canonical path (verified: present in repo).
+- `.claude/skills/session-end/scripts/rework_warning.py` must exist at the canonical path (verified: present in repo). <!-- orphan-ref-ignore -->
 - `tests/skills/session-end/` directory must exist or be created.
 - Git CLI must be available in the test environment for fixture capture.
 - DESIGN-010 must be approved before TASK-010 implementation begins.

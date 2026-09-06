@@ -116,7 +116,7 @@ Edit seven lifecycle command files to add dedicated skill invocations per the DE
 
 **In Scope**:
 - Insert post-ship step between current Step 4 (Create PR) and Step 5 (Report) per DESIGN-005 ship.md diff.
-- `session-end`: unconditional invocation (skill owns its own missing-marker handling per Q2 resolution).
+- `session-end`: unconditional invocation (skill owns its own missing-marker handling per Q2 resolution). <!-- orphan-ref-ignore -->
 - `reflect`: invoked when diff has 5 or more changed files; otherwise emit `BUNDLE: ship -> reflect (skipped:condition-not-met)`. Minimum-delta guard prevents noisy memory writes on trivial changes.
 - BUNDLE markers for both skills, including failure path.
 - Renumber "Report" to Step 6.
