@@ -362,7 +362,7 @@ def _profile_roots(profile: Path) -> dict[str, str]:
     Copilot's bootstrap reads LOCALAPPDATA, XDG_CACHE_HOME, and
     COPILOT_CACHE_HOME before COPILOT_HOME, so leaving the operator's values in
     place lets a run read or write cached packages and profile state outside
-    the workspace. Both harnesses get the same treatment.
+    the workspace. All harnesses get the same treatment.
     """
     home = profile / "home"
     roots = {
@@ -394,10 +394,21 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
         "SSL_CERT_FILE",
         "REQUESTS_CA_BUNDLE",
     }
+    # CODEX_API_KEY ("Supplies an API key to non-interactive processes") and
+    # CODEX_ACCESS_TOKEN ("Furnishes access tokens for trusted automation")
+    # are Codex's own non-interactive auth variables, quoted from
+    # https://developers.openai.com/codex/environment-variables, fetched
+    # 2026-09-06. OPENAI_API_KEY is documented elsewhere only as a value piped
+    # into the interactive `codex login --with-api-key` command, not as an
+    # ambient variable Codex reads at runtime, so it is excluded here.
     authentication = {
         "claude": {"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"},
         "copilot": {"COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"},
+        "codex": {"CODEX_API_KEY", "CODEX_ACCESS_TOKEN"},
     }
+    # A harness outside this mapping raises KeyError here rather than falling
+    # through to the profile branch below, so that branch's final `else` is
+    # reachable only for "codex".
     allow.update(authentication[harness])
     env = {key: value for key, value in os.environ.items() if key in allow}
     runtime = workspace / ".runtime"
@@ -408,11 +419,18 @@ def runtime_env(workspace: Path, harness: str) -> dict[str, str]:
     env.update(_profile_roots(profile))
     if harness == "claude":
         env["CLAUDE_CONFIG_DIR"] = str(profile)
-    else:
+    elif harness == "copilot":
         session_state = profile / "session-state"
         session_state.mkdir(exist_ok=True)
         env["COPILOT_HOME"] = str(profile)
         env["COPILOT_SESSION_STATE_DIR"] = str(session_state)
+    else:
+        # CODEX_HOME "Sets the root for Codex state, including config, auth,
+        # logs, sessions, skills, and standalone package metadata," default
+        # ~/.codex (same source as above, fetched 2026-09-06). Pointing it at
+        # the workspace profile isolates state the same way CLAUDE_CONFIG_DIR
+        # and COPILOT_HOME do.
+        env["CODEX_HOME"] = str(profile)
     return env
 
 
@@ -428,6 +446,11 @@ def probe_version(
     argv = [executable, "--version"]
     if harness == "copilot":
         argv.insert(1, "--no-auto-update")
+    # Codex needs no equivalent flag: third-party references describe
+    # `codex --version` as a plain `codex-cli x.y.z` line needing no login
+    # (the official flag reference 404s as of 2026-09-06, so this is
+    # web-search evidence, not a fetched primary source). It is also already
+    # the default for every harness other than copilot.
     run = runner(
         argv,
         env=runtime_env(workspace, harness),
