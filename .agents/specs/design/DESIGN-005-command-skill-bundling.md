@@ -41,8 +41,8 @@ The registry is the canonical mapping. Every `Skill(skill="...")` call added by 
 
 | Command file | Skill name | Gate type | Phase | Presence marker | AC# |
 |---|---|---|---|---|---|
-| `spec.md` | `session-init` | always | preflight | (none; skill owns missing-marker handling) | AC-1 |
-| `ship.md` | `session-end` | always | postflight | (none; skill owns missing-marker handling) | AC-2 |
+| `spec.md` | `session-init` | always | preflight | (none; skill owns missing-marker handling) | AC-1 | <!-- orphan-ref-ignore -->
+| `ship.md` | `session-end` | always | postflight | (none; skill owns missing-marker handling) | AC-2 | <!-- orphan-ref-ignore -->
 | `ship.md` | `reflect` | always | postflight | (none) | AC-2 |
 | `plan.md` | `pre-mortem` | always | step-6 | (none) | AC-3 |
 | `plan.md` | `decision-critic` | always | step-7 | (none) | AC-4 |
@@ -361,7 +361,7 @@ Satisfies: AC-10, AC-11, AC-13.
 | BUNDLE marker format | Static text marker adjacent to `Skill(...)` call in the markdown | Parseable by both humans and the test file; no runtime stdout dependency; avoids structured logging overhead. |
 | Presence-check method | `Read` or `Bash(test -f <literal-path>)` | CWE-78 prevention; no user-supplied path interpolation. |
 | Conflict resolution | Closer-to-implementation invocation wins | E.g., `decision-critic` in `/spec` and `/plan` both invoke the same skill; no conflict because they are independent command runs. |
-| Idempotency | `session-init` checks for existing log; `reflect` skips when no HIGH-confidence learnings | Handled inside the skills; command edits do not need idempotency guards. |
+| Idempotency | `session-init` checks for existing log; `reflect` skips when no HIGH-confidence learnings | Handled inside the skills; command edits do not need idempotency guards. | <!-- orphan-ref-ignore -->
 
 ---
 

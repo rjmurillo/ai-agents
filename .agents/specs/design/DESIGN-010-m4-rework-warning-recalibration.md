@@ -44,15 +44,15 @@ The chestertons-fence constraint is satisfied: the constant has three prior comm
 
 | Acceptance Criterion | Code Location | Change |
 |---|---|---|
-| REQ-010-01: scan.py included, episode excluded | `tests/skills/session-end/test_rework_warning.py` | New test `test_excludes_episode_logs_real_fixture` |
-| REQ-010-02: episodes prefix added | `.claude/skills/session-end/scripts/rework_warning.py:_REWORK_EXCLUDED_PREFIXES` | Append `.agents/memory/episodes/` |
-| REQ-010-02 (mirror): same prefix | `src/copilot-cli/skills/session-end/scripts/rework_warning.py:_REWORK_EXCLUDED_PREFIXES` | Same append, regenerated via `build_all.py` |
+| REQ-010-01: scan.py included, episode excluded | `tests/skills/session-end/test_rework_warning.py` | New test `test_excludes_episode_logs_real_fixture` | <!-- orphan-ref-ignore -->
+| REQ-010-02: episodes prefix added | `.claude/skills/session-end/scripts/rework_warning.py:_REWORK_EXCLUDED_PREFIXES` | Append `.agents/memory/episodes/` | <!-- orphan-ref-ignore -->
+| REQ-010-02 (mirror): same prefix | `src/copilot-cli/skills/session-end/scripts/rework_warning.py:_REWORK_EXCLUDED_PREFIXES` | Same append, regenerated via `build_all.py` | <!-- orphan-ref-ignore -->
 | REQ-010-03: self-apply gate | PR description + `build/` invocation | Run M4 before milestone commit; capture output |
 | REQ-010-04: real-fixture test | `tests/skills/session-end/fixtures/orphan_ref_validator_git_log.txt` | Captured git log from feat/issue-1939-orphan-ref |
 
 ### Canonical file
 
-`.claude/skills/session-end/scripts/rework_warning.py`
+`.claude/skills/session-end/scripts/rework_warning.py` <!-- orphan-ref-ignore -->
 
 Current `_REWORK_EXCLUDED_PREFIXES` (representative; read actual file before editing):
 
@@ -68,7 +68,7 @@ After TASK-010-03, the tuple gains `.agents/memory/episodes/` as an additional e
 
 ### Mirror file
 
-`src/copilot-cli/skills/session-end/scripts/rework_warning.py` is regenerated from the canonical template via `python3 build/scripts/build_all.py` (or equivalent generator). It MUST NOT be hand-edited. TASK-010-04 covers the regeneration step.
+`src/copilot-cli/skills/session-end/scripts/rework_warning.py` is regenerated from the canonical template via `python3 build/scripts/build_all.py` (or equivalent generator). It MUST NOT be hand-edited. TASK-010-04 covers the regeneration step. <!-- orphan-ref-ignore -->
 
 ### Fixture file
 
@@ -118,7 +118,7 @@ Detection logic (the exclusion filter and the threshold comparison) is treated a
 Before the milestone commit, the implementer runs:
 
 ```
-python3 .claude/skills/session-end/scripts/rework_warning.py
+python3 .claude/skills/session-end/scripts/rework_warning.py <!-- orphan-ref-ignore -->
 ```
 
 against the working branch and pastes the output into the PR description. At least one warning line must appear. A zero-output result blocks the commit.
