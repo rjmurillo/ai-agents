@@ -1,10 +1,12 @@
 # Skill Eval Triage
 
-Per-skill classification for the 71 skills under `.claude/skills/`. Decides which skills get an agent-vs-baseline spike under `evals/<skill>-spike/` and which are excluded with rationale.
+Per-skill classification for the skills under `.claude/skills/`. Decides which skills get an agent-vs-baseline spike under `evals/<skill>-spike/` and which are excluded with rationale.
 
 ## Scope
 
 This triage covers every `.claude/skills/<name>/SKILL.md` present on `feat/evals-skill-coverage` at 2026-05-26. It extends the prior 15-skill triage (`.serena/memories/skills/triage-eval-2026-05-09.md`) to full skill coverage.
+
+A retired skill has its classification row removed, so the counts below track the surviving classification rather than the 2026-05-26 tree. Three rows have gone this way: `guard-maturity` (#5156), and `encode-repo-serena` and `serena-code-architecture` (#5624).
 
 ## Two eval systems
 
@@ -24,9 +26,9 @@ A skill can carry both kinds of eval. Adding an `evals/<skill>-spike/` does not 
 | Category | Count | Action |
 |---|---|---|
 | Already covered | 12 | No new artifact. Cross-referenced below. |
-| Eval-worthy (deferred) | 39 | Original plan was to scaffold per-skill spikes; reverted (see baseline-report.md). Real fixture authoring will happen one spike at a time. |
-| Utility-skip | 20 | No scaffold. Mechanical or deterministic skill; agent-vs-baseline shape is wrong. |
-| **Total** | **71** | |
+| Eval-worthy (deferred) | 38 | Original plan was to scaffold per-skill spikes; reverted (see baseline-report.md). Real fixture authoring will happen one spike at a time. |
+| Utility-skip | 18 | No scaffold. Mechanical or deterministic skill; agent-vs-baseline shape is wrong. |
+| **Total** | **68** | |
 
 ### Decision rule
 
@@ -55,7 +57,7 @@ These skills appear in `tests/evals/skills/triage-prompts.json` with six prompts
 
 Note: prior triage also covered `doc-coverage`, `doc-sync`, `workflow`. Those skill directories were pruned. The `tests/evals/skills/triage-prompts.json` entries remain as deprecation trackers and are not in scope here.
 
-## Eval-worthy (39, scaffold)
+## Eval-worthy (38, scaffold)
 
 Each gets `evals/<skill>-spike/` with `README.md`, `fixtures/README.md`, `fixtures/.gitkeep`. Fixture authoring is left to the operator who owns the skill.
 
@@ -100,7 +102,7 @@ Each gets `evals/<skill>-spike/` with `README.md`, `fixtures/README.md`, `fixtur
 | work-operating-model | Five-layer interview eliciting team operating model. Elicitation depth is judgment. |
 | world-model-diagnostic | Twenty-minute paradigm diagnostic. Diagnostic accuracy is judgment. |
 
-## Utility-skip (20, no scaffold)
+## Utility-skip (18, no scaffold)
 
 Mechanical or deterministic skills. Agent-vs-baseline does not measure their correctness. Unit tests under `.claude/skills/<name>/tests/` are the right verification surface.
 
