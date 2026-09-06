@@ -135,11 +135,13 @@ def test_the_security_scanner_excludes_the_four_ids_in_full(
         captured["cmd"] = list(cmd)
         raise AssertionError("stop after argv capture")
 
-    # Build the scanner BEFORE patching: its constructor resolves the repo root
-    # through its own subprocess call, which the stub would otherwise swallow.
-    scanner = run_semgrep.SemgrepScanner()
+    # The constructor resolves the repo root through a Git subprocess. Stub that
+    # lookup first so the test reads no live Git state and passes outside a
+    # worktree; then stub the executable resolution and the scan subprocess.
+    monkeypatch.setattr(run_semgrep, "get_repo_root", lambda: REPO_ROOT)
     monkeypatch.setattr(run_semgrep, "_resolve_semgrep_executable", lambda _root: "semgrep")
     monkeypatch.setattr(run_semgrep.subprocess, "run", _fake_run)
+    scanner = run_semgrep.SemgrepScanner()
 
     with pytest.raises(AssertionError, match="stop after argv capture"):
         scanner._run_semgrep([Path("scripts/validation/run_workflow_local_test.py")])
@@ -162,9 +164,10 @@ def test_neither_call_site_passes_a_bare_family_prefix(
         captured["cmd"] = list(cmd)
         raise AssertionError("stop")
 
-    scanner = run_semgrep.SemgrepScanner()
+    monkeypatch.setattr(run_semgrep, "get_repo_root", lambda: REPO_ROOT)
     monkeypatch.setattr(run_semgrep, "_resolve_semgrep_executable", lambda _root: "semgrep")
     monkeypatch.setattr(run_semgrep.subprocess, "run", _fake_run)
+    scanner = run_semgrep.SemgrepScanner()
     with pytest.raises(AssertionError):
         scanner._run_semgrep([Path("x.py")])
 
