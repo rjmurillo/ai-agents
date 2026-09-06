@@ -209,6 +209,7 @@ artifacts:
     outputDir: "src/copilot-cli/skills"
     resourceOutputDir: "src/copilot-cli/commands"
     resourceSuffixes: [".yaml"]
+    referencesOutputDir: "src/copilot-cli/commands"
     transform: "command-to-skill"
     appendFrontmatter:
       user-invocable: true

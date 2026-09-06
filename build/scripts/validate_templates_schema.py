@@ -64,6 +64,7 @@ COMMANDS_KEYS = {
     "outputDir",
     "resourceOutputDir",
     "resourceSuffixes",
+    "referencesOutputDir",
     "transform",
     "appendFrontmatter",
     "excludeFilenames",
@@ -101,7 +102,12 @@ ARTIFACT_DISPATCH = {
 PATH_FIELDS_BY_ARTIFACT = {
     "agents": ("sourceDir", "outputDir"),
     "skills": ("sourceDir", "outputDir"),
-    "commands": ("sourceDir", "outputDir", "resourceOutputDir"),
+    "commands": (
+        "sourceDir",
+        "outputDir",
+        "resourceOutputDir",
+        "referencesOutputDir",
+    ),
     "rules": ("sourceDir", "outputDir"),
     "lib": ("sourceDir", "outputDir"),
     "hooks": ("settingsSource", "scriptSource", "outputConfig", "outputScripts"),

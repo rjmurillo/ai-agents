@@ -25,6 +25,32 @@ The transform is intentionally narrow:
   authored content. The generator only writes to its own outputs.
 - NO-REGEN sentinel honored (``regen_guard.is_protected``)
 
+Progressive disclosure for commands
+-----------------------------------
+
+A command may carry a ``references/`` tree the same way a skill does:
+``.claude/commands/<name>/references/**`` holds the depth, and
+``.claude/commands/<name>.md`` stays under the 200-line ceiling
+``scripts/validation/command_size.py`` enforces. The tree is mirrored to
+``artifacts.commands.referencesOutputDir`` at ``<name>/references/**``,
+which puts it at the same plugin-root-relative path in both installs:
+
+    ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/commands/<name>/references/<file>
+
+That is the spelling `.claude/commands/pr-review.md` already uses to reach
+``commands/pr-review-config.yaml``, so one path in the command body resolves
+in the Claude checkout, the Claude plugin cache, and the Copilot CLI plugin.
+Mirroring into ``skills/<name>/references/`` instead would have made the
+Claude-relative and Copilot-relative spellings differ, which is a broken link
+in whichever tree the author did not test.
+
+A ``references/`` directory under a source dir with no bridged
+``<name>.md`` (a namespaced sub-command directory such as ``pr-quality/``)
+is reported and not copied: the bridge does not emit a skill for those
+names, so a mirror there would be an orphan. A ``references/`` tree with no
+``referencesOutputDir`` configured is a configuration error (exit 2) rather
+than a silent drop.
+
 EXIT CODES:
   0 - success
   1 - logic error (collision with an authored skill, source missing)
@@ -61,6 +87,10 @@ from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
 _DEFAULT_EXCLUDES = ("CLAUDE.md",)
+
+# The per-command progressive-disclosure directory, named to match
+# `.claude/skills/<name>/references/` so one convention covers both surfaces.
+_REFERENCES_DIR_NAME = "references"
 
 
 class GenerateCommandsError(Exception):
@@ -128,6 +158,10 @@ def _iter_command_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
     invocable skill surface is flat; mapping nested commands would lose
     the namespace prefix and collide with existing skill names. Treat
     them as out-of-scope for the bridge.
+
+    ``<name>/references/`` is the one exception, and it is not read here:
+    :func:`_collect_reference_sets` picks it up as depth belonging to the
+    top-level ``<name>.md``, not as a sub-command of its own.
     """
     if not source_dir.is_dir():
         raise GenerateCommandsError(f"sourceDir not found: {source_dir}")
@@ -158,6 +192,47 @@ def _iter_resource_sources(
         if child.suffix in suffixes:
             resources.append(child)
     return resources
+
+
+def _iter_reference_sources(command_dir: Path) -> list[Path]:
+    """Return every file under one command's ``references/`` tree, sorted.
+
+    Recurses, so a command may nest its depth the way a skill does. Python
+    cache artifacts are skipped for the same reason ``generate_skills.py``
+    skips them: they are build-time noise, not plugin content.
+    """
+    refs_dir = command_dir / _REFERENCES_DIR_NAME
+    if not refs_dir.is_dir():
+        return []
+    files: list[Path] = []
+    for path in sorted(refs_dir.rglob("*")):
+        if not path.is_file():
+            continue
+        if "__pycache__" in path.parts or path.suffix in (".pyc", ".pyo"):
+            continue
+        files.append(path)
+    return files
+
+
+def _collect_reference_sets(
+    source_dir: Path, excludes: set[str]
+) -> dict[str, list[Path]]:
+    """Map each command-name directory holding a ``references/`` tree to its files.
+
+    Keyed by directory name, which is the command stem the tree belongs to.
+    Directories with no ``references/`` subtree, and trees holding only cache
+    artifacts, are omitted so callers can treat a present key as real content.
+    """
+    sets: dict[str, list[Path]] = {}
+    for child in sorted(source_dir.iterdir()):
+        if not child.is_dir():
+            continue
+        if child.name in excludes:
+            continue
+        files = _iter_reference_sources(child)
+        if files:
+            sets[child.name] = files
+    return sets
 
 
 def _first_nonblank_line(body: str) -> str:
@@ -328,6 +403,8 @@ def generate_commands(
     output_dir_str = str(stanza.get("outputDir", ""))
     resource_output_dir_raw = stanza.get("resourceOutputDir")
     resource_output_dir_present = "resourceOutputDir" in stanza
+    references_output_dir_raw = stanza.get("referencesOutputDir")
+    references_output_dir_present = "referencesOutputDir" in stanza
     try:
         resource_suffixes = _resolve_resource_suffixes(stanza)
     except GenerateCommandsError as exc:
@@ -354,6 +431,12 @@ def generate_commands(
             resource_output_dir_raw,
             present=resource_output_dir_present,
         )
+        references_output_dir = _resolve_optional_output_dir(
+            repo_root,
+            "artifacts.commands.referencesOutputDir",
+            references_output_dir_raw,
+            present=references_output_dir_present,
+        )
     except GenerateCommandsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
@@ -369,11 +452,35 @@ def generate_commands(
         print(f"Error: no command files found under {source_dir}", file=sys.stderr)
         return 1
 
+    bridged_names = {src.stem for src in sources}
+    reference_sets = _collect_reference_sets(source_dir, excludes)
+    orphan_references = sorted(set(reference_sets) - bridged_names)
+    for orphan in orphan_references:
+        # A namespaced sub-command directory (pr-quality/) gets no bridged
+        # skill, so a mirror of its references/ would point at nothing. Say
+        # so instead of dropping the files without a word.
+        print(
+            f"  NOTICE: skipped {source_dir / orphan / _REFERENCES_DIR_NAME} "
+            f"(no bridged command '{orphan}.md' owns it)"
+        )
+        del reference_sets[orphan]
+
+    if reference_sets and references_output_dir is None:
+        print(
+            "Error: `artifacts.commands.referencesOutputDir` is required when a "
+            "command carries a references/ tree; found "
+            f"{', '.join(sorted(reference_sets))}",
+            file=sys.stderr,
+        )
+        return 2
+
     print(f"Found {len(sources)} command(s)")
     written = 0
     skipped = 0
     resources_written = 0
     resources_skipped = 0
+    references_written = 0
+    references_skipped = 0
     collisions: list[str] = []
 
     for src in sources:
@@ -381,6 +488,9 @@ def generate_commands(
         collision = _detect_authored_skill_collision(repo_root, output_dir, name)
         if collision is not None:
             collisions.append(collision)
+            # No SKILL.md is written for a collided name, so its references
+            # would land beside nothing. Drop them with the command.
+            reference_sets.pop(name, None)
             continue
 
         text = src.read_text(encoding="utf-8")
@@ -417,6 +527,17 @@ def generate_commands(
             else:
                 resources_skipped += 1
 
+    if references_output_dir is not None:
+        for name in sorted(reference_sets):
+            command_dir = source_dir / name
+            for src in reference_sets[name]:
+                rel = src.relative_to(command_dir)
+                target = references_output_dir / name / rel
+                if _copy_resource(src, target, what_if=what_if):
+                    references_written += 1
+                else:
+                    references_skipped += 1
+
     duration = time.monotonic() - start
 
     if collisions:
@@ -436,10 +557,14 @@ def generate_commands(
     print(f"Skills written: {written}")
     if resource_output_dir is not None:
         print(f"Resources copied: {resources_written}")
+    if references_output_dir is not None:
+        print(f"Reference files copied: {references_written}")
     if skipped:
         print(f"Skills skipped (NO-REGEN): {skipped}")
     if resources_skipped:
         print(f"Resources skipped (NO-REGEN): {resources_skipped}")
+    if references_skipped:
+        print(f"Reference files skipped (NO-REGEN): {references_skipped}")
     return 0
 
 

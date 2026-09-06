@@ -21,6 +21,12 @@ artifacts:
     outputDir: "src/copilot-cli/skills"
     resourceOutputDir: "src/copilot-cli/commands"
     resourceSuffixes: [".yaml"]
+    # Progressive disclosure for commands. `.claude/commands/<name>/references/`
+    # mirrors here as `<name>/references/`, so one plugin-root-relative path,
+    # `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/commands/<name>/references/<file>`,
+    # resolves in the Claude checkout, the Claude plugin cache, and the Copilot
+    # CLI install. Same shape `pr-review-config.yaml` already relies on.
+    referencesOutputDir: "src/copilot-cli/commands"
     transform: "command-to-skill"
     appendFrontmatter:
       user-invocable: true
