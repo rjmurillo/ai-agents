@@ -15,6 +15,7 @@ _path_added = str(EVAL_DIR) not in sys.path
 if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
 try:
+    import _capability_probes as probes
     import _harness_capability as capability
 
     _spec = importlib.util.spec_from_file_location("eval_harness_capability", CLI_SCRIPT)
@@ -26,4 +27,4 @@ finally:
     if _path_added:
         sys.path.remove(str(EVAL_DIR))
 
-__all__ = ["MATRIX", "capability", "cli"]
+__all__ = ["MATRIX", "capability", "cli", "probes"]
