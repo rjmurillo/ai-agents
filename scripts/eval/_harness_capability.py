@@ -232,19 +232,32 @@ def classify_override(
 ) -> CapabilityStatus:
     """Verify a requested model or effort was honored by the backend.
 
-    Enforces three negative controls at once:
+    Enforces four negative controls at once:
       * control 2: non-`BACKEND` evidence (an echo of the request or config)
         never verifies;
+      * an equal-value request (`requested == parent_value`) never verifies,
+        even when the backend reports that same value. This closes a gap
+        identified after PR #5547 shipped (issue #5423, reopened comment
+        2026-09-04): when a child asks for the value it would already have
+        inherited, an observed match is indistinguishable from the override
+        mechanism never running at all. Only a child request that *differs*
+        from the parent can discriminate "honored" from "silently
+        inherited", so callers driving a real probe must always vary the
+        child request from the parent's value;
       * control 3/5: an observed value that silently inherited `parent_value`
         while a different value was requested never verifies;
       * a backend value that simply does not equal the request never verifies.
 
     Returns `VERIFIED` only when the backend reported exactly the requested
-    value and did not fall back to the parent. Returns `UNVERIFIED` otherwise.
-    Callers that know the harness rejects a control outright record
-    `UNSUPPORTED` directly; this helper never invents `UNSUPPORTED`.
+    value, that value differed from the parent's (or there was no parent to
+    compare against), and it did not fall back to the parent. Returns
+    `UNVERIFIED` otherwise. Callers that know the harness rejects a control
+    outright record `UNSUPPORTED` directly; this helper never invents
+    `UNSUPPORTED`.
     """
     if evidence is not EvidenceKind.BACKEND:
+        return CapabilityStatus.UNVERIFIED
+    if parent_value is not None and requested == parent_value:
         return CapabilityStatus.UNVERIFIED
     if not observed:
         return CapabilityStatus.UNVERIFIED
