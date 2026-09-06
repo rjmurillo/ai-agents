@@ -97,6 +97,8 @@ def test_an_unknown_key_is_fatal_rather_than_ignored(tmp_path: Path) -> None:
 
 
 def test_the_config_declares_no_key_beyond_the_supported_schema() -> None:
+    """Guards the file itself rather than the loader: an added key is fatal at
+    scan time, so catch it here instead of on the next `semgrep ci` run."""
     loaded = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
 
     assert set(loaded) <= {"version", "tags"}
@@ -115,6 +117,8 @@ def test_the_config_records_every_rule_id_the_platform_exception_must_cover() ->
 
 
 def test_the_pre_push_hook_excludes_the_four_ids_in_full() -> None:
+    """The call site PR #5462 already corrected. Pinned here so the two sites
+    stay bonded to one id set rather than drifting apart again."""
     import git_hook_policy
 
     excluded = _exclude_rule_values(git_hook_policy._semgrep_command("auto", []))
@@ -132,6 +136,7 @@ def test_the_security_scanner_excludes_the_four_ids_in_full(
     captured: dict[str, list[str]] = {}
 
     def _fake_run(cmd: list[str], **_kwargs: object) -> object:
+        """Capture the argv and abort, so no semgrep process is ever spawned."""
         captured["cmd"] = list(cmd)
         raise AssertionError("stop after argv capture")
 
@@ -161,6 +166,7 @@ def test_neither_call_site_passes_a_bare_family_prefix(
     captured: dict[str, list[str]] = {}
 
     def _fake_run(cmd: list[str], **_kwargs: object) -> object:
+        """Capture the argv and abort, so no semgrep process is ever spawned."""
         captured["cmd"] = list(cmd)
         raise AssertionError("stop")
 
