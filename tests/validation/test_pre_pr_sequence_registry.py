@@ -59,6 +59,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Index Line Endings',
     'Worktree Recipe Destinations',
     'Temp-filesystem Worktrees (advisory)',
+    'Serena Memory Worktree Scope (advisory)',
     'Session End Validation',
     'Mypy Changed Files (ratchet)',
     'Markdown Linting',
