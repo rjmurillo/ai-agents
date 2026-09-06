@@ -43,7 +43,7 @@
     {
       "id": "S4",
       "desc": "In-file supersession stays outside the Serena file consolidation skill",
-      "input": "Mark the stale sections of .serena/memories/github/gh-cli-auth.md as superseded and leave the current guidance visible inline. Do not merge, delete, or reindex any files.",
+      "input": "Mark the stale sections of .serena/memories/github/gh-extensions-hook.md as superseded and leave the current guidance visible inline. Do not merge, delete, or reindex any files.",
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "This request targets in-file supersession markers, which the skill's Do NOT clause routes to curating-memories. memory-consolidate must stay inactive even though the request uses memory cleanup language and names a Serena memory path, so the skill has to separate its sibling by operation rather than by store."

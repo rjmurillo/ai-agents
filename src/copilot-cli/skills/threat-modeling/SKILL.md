@@ -392,8 +392,9 @@ Search Serena memory for prior threat models before starting a new one. Use the
 
 ```python
 mcp__serena__list_memories()
-mcp__serena__read_memory(memory_file_name="security/threat-model-auth-service")
 ```
+
+Then read the entries whose names match the component under analysis.
 
 Store the threat model summary as a Serena memory:
 

@@ -144,8 +144,8 @@ For each major finding:
 ### Finding: [Title]
 
 **Memory Evidence**:
-- **Source**: Serena memory `github/gh-cli-auth`
-- **Retrieval**: `mcp__serena__read_memory(memory_file_name="github/gh-cli-auth")`
+- **Source**: Serena memory `[memory-name]`
+- **Retrieval**: `mcp__serena__read_memory(memory_file_name="[memory-name]")`
 - **Created**: 2025-12-15
 - **Quote**: "Direct quote from memory content"
 
