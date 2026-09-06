@@ -67,7 +67,6 @@ _CANONICAL_CONTRACT_PATHS = (
     ".claude/rules/universal.md",
     ".claude/commands/build.md",
     ".claude/skills/reflect/references/integration-and-design.md",
-    ".claude/skills/research-and-incorporate/references/workflow.md",
     ".claude/skills/ai-agents-change-control/SKILL.md",
     ".claude/skills/ai-agents-docs-of-record/SKILL.md",
     ".claude/skills/memory-gate/SKILL.md",
@@ -98,7 +97,6 @@ _CANONICAL_CONTRACT_PATHS = (
     "src/copilot-cli/agents/retrospective.agent.md",
     "src/copilot-cli/skills/build/SKILL.md",
     "src/copilot-cli/skills/reflect/references/integration-and-design.md",
-    "src/copilot-cli/skills/research-and-incorporate/references/workflow.md",
     "src/vs-code-agents/critic.agent.md",
     "src/vs-code-agents/implementer.agent.md",
     "src/vs-code-agents/orchestrator.agent.md",
@@ -127,10 +125,8 @@ _MANDATORY_LOG_PATTERNS = (
 _GENERAL_WORKFLOW_PATHS = (
     ".claude/commands/build.md",
     ".claude/skills/reflect/references/integration-and-design.md",
-    ".claude/skills/research-and-incorporate/references/workflow.md",
     "src/copilot-cli/skills/build/SKILL.md",
     "src/copilot-cli/skills/reflect/references/integration-and-design.md",
-    "src/copilot-cli/skills/research-and-incorporate/references/workflow.md",
 )
 
 _RETIRED_SOLE_SINK_PATTERN = re.compile(
