@@ -39,8 +39,8 @@ Four targeted file edits plus three new test files address each RCA without refa
 | `.claude/rules/canonical-source-mirror.md` | Rule | Edit (applyTo only) | RCA-2 |
 | `tests/build_scripts/test_canonical_source_mirror.py` | Test | Create | RCA-2 |
 | `.claude/commands/spec.md` | Command | Edit (Step 6 section) | RCA-3a |
-| `.claude/skills/session-end/scripts/complete_session_log.py` | Script | Edit (add function) | RCA-3b | <!-- orphan-ref-ignore -->
-| `tests/skills/session-end/test_rework_warning.py` | Test | Create | RCA-3b | <!-- orphan-ref-ignore -->
+| `.claude/skills/session-end/scripts/complete_session_log.py` | Script | Edit (add function) | RCA-3b <!-- orphan-ref-ignore --> |
+| `tests/skills/session-end/test_rework_warning.py` | Test | Create | RCA-3b <!-- orphan-ref-ignore --> |
 
 No files are deleted. No new directories are created (all parent directories already exist).
 
@@ -179,7 +179,7 @@ PR #1965 had scan.py touched 56 times. The retrospective identifies 6+ as the bo
 |-----------|-------------|
 | `tests/test_get_unresolved_review_threads.py` | Pagination contract: all threads returned on multi-page response; exactly one HTTP call on single-page response. |
 | `tests/build_scripts/test_canonical_source_mirror.py` | `applyTo` glob coverage: both axis and prompt paths match after the rule edit. |
-| `tests/skills/session-end/test_rework_warning.py` | Rework threshold: 6-commit file appears in warning; 3-commit file does not; format is `rework-warning: {path} edited {n} times`. | <!-- orphan-ref-ignore -->
+| `tests/skills/session-end/test_rework_warning.py` | Rework threshold: 6-commit file appears in warning; 3-commit file does not; format is `rework-warning: {path} edited {n} times`. <!-- orphan-ref-ignore --> |
 
 All tests are discoverable by pytest without additional configuration. All tests run without live network or git access. All tests use standard library mocking (`unittest.mock`).
 

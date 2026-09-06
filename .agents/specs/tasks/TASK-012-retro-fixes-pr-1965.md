@@ -198,8 +198,8 @@ All tasks reference DESIGN-012 for interface contracts and REQ-009 for acceptanc
 
 | File | Action | Description |
 |------|--------|-------------|
-| `.claude/skills/session-end/scripts/complete_session_log.py` | Edit | Add `check_rework_warning` function + session log wiring | <!-- orphan-ref-ignore -->
-| `tests/skills/session-end/test_rework_warning.py` | Create | Contract test for rework threshold behavior | <!-- orphan-ref-ignore -->
+| `.claude/skills/session-end/scripts/complete_session_log.py` | Edit | Add `check_rework_warning` function + session log wiring <!-- orphan-ref-ignore --> |
+| `tests/skills/session-end/test_rework_warning.py` | Create | Contract test for rework threshold behavior <!-- orphan-ref-ignore --> |
 
 **Implementation Notes:**
 - Read the current `complete_session_log.py` before editing to understand existing structure and avoid side effects.
