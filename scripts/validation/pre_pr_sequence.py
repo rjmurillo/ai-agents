@@ -53,6 +53,9 @@ from check_git_hook_health import validate_git_hook_health
 from check_index_line_endings import validate_index_line_endings
 from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
+from check_serena_memory_worktree_scope import (
+    validate_serena_memory_worktree_scope,
+)
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_tmp_worktrees import validate_tmp_worktrees
@@ -254,6 +257,17 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Never fails; see the validator's docstring for why machine state does not
     # get to block a push. Issue #5111.
     _Gate("Temp-filesystem Worktrees (advisory)", _root_only(validate_tmp_worktrees)),
+    # Advisory sibling of the gate above, same reasoning, different subject:
+    # an untracked .serena/memories/**/*.md file in another linked worktree,
+    # the symptom of issue #5061 (Serena's MCP server resolves its project
+    # root at activation time, not per call, so a worktree-scoped subagent's
+    # write_memory can land in a different checkout entirely). Never fails;
+    # see the validator's docstring for why another worktree's uncommitted
+    # state does not get to block this push.
+    _Gate(
+        "Serena Memory Worktree Scope (advisory)",
+        _root_only(validate_serena_memory_worktree_scope),
+    ),
     _Gate("Session End Validation", _root_only(validate_session_end)),
     # Type-check changed Python files with ratchet semantics (issue #4674).
     # Surfaces regressions at pre-PR time rather than waiting for push CI.
