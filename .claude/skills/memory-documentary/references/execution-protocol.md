@@ -77,14 +77,17 @@ gh issue list --state closed --search "[topic]" --json number,title,body,comment
 
 Execute queries from Phase 2 plan. For each result, capture:
 
+What each source can actually supply differs, so the contract is per source. Do
+not carry a field a source does not provide; an invented id or date is worse
+evidence than an absent one.
+
 | Field | Required |
 |-------|----------|
-| Memory/Observation ID | Yes |
 | Source system | Yes |
-| Timestamp | Yes |
-| Importance score | If available |
 | Direct quote | Yes |
-| Related IDs | If available |
+| Observation ID | Claude-Mem only. Serena memories are files and have no id. |
+| Memory file name | Serena only. It is the retrieval key, so it plays the id's role. |
+| Timestamp | Claude-Mem supplies it directly. For a Serena file, read the last commit date from git rather than guessing. |
 
 ### Thread 2: Project Artifacts
 
@@ -146,7 +149,7 @@ For each major finding:
 **Memory Evidence**:
 - **Source**: Serena memory `[memory-name]`
 - **Retrieval**: `mcp__serena__read_memory(memory_file_name="[memory-name]")`
-- **Created**: 2025-12-15
+- **Dated**: 2025-12-15, from `git log -1 --format=%ad -- .serena/memories/[memory-name].md`
 - **Quote**: "Direct quote from memory content"
 
 **Document Evidence**:

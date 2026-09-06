@@ -22,6 +22,7 @@ without it, a guard that silently stopped matching would pass on every file.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -58,6 +59,41 @@ REMOVED_SPELLINGS = (
     "execute_forgetful_tool",
     "mcp__forgetful__",
     "using-forgetful-memory",
+)
+
+# memory-documentary went from four memory systems to three. The count words carry
+# no `forgetful` substring, so the guard above cannot see them and they need their
+# own scan.
+MEMORY_DOCUMENTARY_FILES = (
+    "memory-documentary/SKILL.md",
+    "memory-documentary/references/execution-protocol.md",
+)
+
+_COUNT_WORDS = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "1": 1,
+    "2": 2,
+    "3": 3,
+    "4": 4,
+    "5": 5,
+    "6": 6,
+}
+
+# Any count immediately qualifying "MCP server(s)" or "memory system(s)". `\s+`
+# rather than a literal space because the YAML frontmatter description wraps the
+# count onto the line above its noun.
+#
+# "data sources" is deliberately NOT matched. Those include the .agents/ artifact
+# trees and GitHub issues alongside the memory systems, so "4+ data sources" in
+# the execution protocol is correct and was never part of the tier removal.
+_MEMORY_COUNT_RE = re.compile(
+    r"\b(?P<count>\d+|one|two|three|four|five|six)\s+(?:MCP servers?|memory systems?)\b",
+    re.IGNORECASE,
 )
 
 
@@ -158,16 +194,79 @@ def test_memory_consolidate_boundary_names_the_live_sibling_contract(
 
 
 @pytest.mark.parametrize("skills_root", TREE_ROOTS)
-def test_memory_documentary_counts_three_memory_systems(skills_root: Path) -> None:
-    """The count words carry no `forgetful` substring, so the guard cannot see them.
+@pytest.mark.parametrize("relative_path", MEMORY_DOCUMENTARY_FILES)
+def test_every_memory_system_count_says_three(
+    skills_root: Path, relative_path: str
+) -> None:
+    """Every count qualifying "MCP server" or "memory system" must read three.
 
-    Dropping the Forgetful tier without fixing "all 4 memory systems" would leave
-    the description promising a source the protocol no longer queries.
+    The first version of this guard pinned three hand-picked strings, so it proved
+    the edits that were made and nothing about the ones that were missed. Devin
+    Review found two it could not see: the Process heading still read
+    "Memory Systems (4 MCP servers)" five lines above its own three-item list, and
+    the Verification checklist still required all four to have been queried, which
+    no complete three-source report could satisfy.
+
+    Scanning for the pattern instead of for known strings means a count-bearing
+    surface added later is covered without editing this test.
+    """
+    content = _read(skills_root / relative_path)
+    wrong = [
+        match.group(0)
+        for match in _MEMORY_COUNT_RE.finditer(content)
+        if _COUNT_WORDS[match.group("count").lower()] != 3
+    ]
+    assert not wrong, (
+        f"{relative_path} states a memory-system count that is not three: {wrong}"
+    )
+
+
+def test_memory_system_count_scan_is_not_vacuous() -> None:
+    """Negative control: the scan above passes because counts are right, not absent.
+
+    Without this, deleting every count-bearing sentence would turn the guard green.
+    """
+    content = _read(CANONICAL_ROOT / "memory-documentary" / "SKILL.md")
+    matches = list(_MEMORY_COUNT_RE.finditer(content))
+    assert len(matches) >= 3, (
+        f"expected at least 3 count-bearing phrases in the skill, found {len(matches)}; "
+        "if the wording changed, update the pattern rather than deleting this guard"
+    )
+
+    # The pattern must actually catch a wrong count, including across the line
+    # wrap that YAML frontmatter puts in the description.
+    for probe in ("Memory Systems (4 MCP servers)", "all 4\n  memory systems"):
+        found = _MEMORY_COUNT_RE.search(probe)
+        assert found is not None, f"pattern no longer matches {probe!r}"
+        assert _COUNT_WORDS[found.group("count").lower()] == 4
+
+
+@pytest.mark.parametrize("skills_root", TREE_ROOTS)
+def test_memory_systems_heading_count_matches_the_list_beneath_it(
+    skills_root: Path,
+) -> None:
+    """Structural check: the declared server count equals the servers listed.
+
+    This is the check that would have caught the miss directly. The heading and
+    the list it introduces sat five lines apart and disagreed by one, because the
+    Forgetful bullet was deleted from the list and the heading was not updated.
     """
     content = _read(skills_root / "memory-documentary" / "SKILL.md")
-    assert "all 3\n  memory systems (Claude-Mem, Serena, DeepWiki)" in content
-    assert "the three memory systems as evidence inputs" in content
-    assert "Check all 3 MCP servers" in content
+    block = re.search(
+        r"\*\*Memory Systems \((?P<count>\d+) MCP servers\)\*\*:\n\n(?P<items>(?:- .*\n)+)",
+        content,
+    )
+    assert block is not None, (
+        "the Memory Systems block changed shape; update this guard alongside it "
+        "rather than letting it pass vacuously"
+    )
+    declared = int(block.group("count"))
+    listed = sum(
+        1 for line in block.group("items").splitlines() if line.startswith("- ")
+    )
+    assert declared == listed, (
+        f"heading declares {declared} MCP servers but {listed} are listed beneath it"
+    )
 
 
 def test_build_and_env_server_table_matches_mcp_json() -> None:
