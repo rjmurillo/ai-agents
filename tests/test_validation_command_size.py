@@ -18,6 +18,7 @@ from scripts.validation.command_size import (
     get_command_files,
     has_exception_rationale,
     has_size_exception,
+    is_command_reference,
     main,
 )
 
@@ -162,6 +163,69 @@ class TestGetCommandFiles:
     def test_changed_files_without_commands_returns_empty(self) -> None:
         files = get_command_files(changed_files=["src/foo.py", "tests/bar.py"])
         assert files == []
+
+    def test_changed_files_excludes_command_references(self, tmp_path: Path) -> None:
+        """Depth under <name>/references/ is read on demand, not per invocation.
+
+        Gating it against the per-invocation ceiling would restore the very
+        constraint `references/` exists to remove, and would do it silently:
+        the file is never loaded unless the body sends the agent there.
+        """
+        refs_dir = tmp_path / ".claude" / "commands" / "spec" / "references"
+        refs_dir.mkdir(parents=True)
+        reference = refs_dir / "deep.md"
+        reference.write_text(_body(COMMAND_SIZE_LIMIT + 50), encoding="utf-8")
+
+        assert get_command_files(changed_files=[str(reference)]) == []
+
+    def test_changed_files_still_checks_the_command_body(self, tmp_path: Path) -> None:
+        """Negative control: the exclusion must not swallow the body itself."""
+        cmd_dir = tmp_path / ".claude" / "commands"
+        cmd_dir.mkdir(parents=True)
+        body = cmd_dir / "spec.md"
+        body.write_text(_body(10), encoding="utf-8")
+
+        assert get_command_files(changed_files=[str(body)]) == [body]
+
+    def test_changed_files_still_checks_namespaced_sub_commands(
+        self, tmp_path: Path
+    ) -> None:
+        """`pr-quality/all.md` is a command, not depth. It stays gated."""
+        sub_dir = tmp_path / ".claude" / "commands" / "pr-quality"
+        sub_dir.mkdir(parents=True)
+        sub = sub_dir / "all.md"
+        sub.write_text(_body(10), encoding="utf-8")
+
+        assert get_command_files(changed_files=[str(sub)]) == [sub]
+
+
+class TestIsCommandReference:
+    def test_command_body_is_not_a_reference(self) -> None:
+        assert not is_command_reference(".claude/commands/spec.md")
+
+    def test_reference_under_a_command_is_a_reference(self) -> None:
+        assert is_command_reference(".claude/commands/spec/references/deep.md")
+
+    def test_nested_reference_is_a_reference(self) -> None:
+        assert is_command_reference(".claude/commands/spec/references/a/b.md")
+
+    def test_copilot_mirror_reference_is_a_reference(self) -> None:
+        assert is_command_reference("src/copilot-cli/commands/spec/references/deep.md")
+
+    def test_namespaced_sub_command_is_not_a_reference(self) -> None:
+        assert not is_command_reference(".claude/commands/pr-quality/all.md")
+
+    def test_a_command_named_references_is_not_a_reference(self) -> None:
+        """Edge: the segment must be the directory, not a stem that starts with it."""
+        assert not is_command_reference(".claude/commands/references.md")
+
+    def test_skill_references_are_out_of_scope(self) -> None:
+        """This gate only ever reads command paths; skills have their own."""
+        assert not is_command_reference(".claude/skills/memory/references/x.md")
+
+    def test_references_before_the_commands_segment_do_not_count(self) -> None:
+        """Only segments after the last `commands/` decide."""
+        assert not is_command_reference("references/tooling/commands/spec.md")
 
 
 class TestMain:

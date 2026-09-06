@@ -2,10 +2,17 @@
 """Validate .claude/commands/*.md files do not exceed the 200-line ceiling.
 
 The slashcommandcreator skill states three times that a command body must be
-under 200 lines. Commands exceeding this should be converted to a skill.
-Commands that carry irreducible repo-specific content may declare a
-size-exception in their YAML frontmatter with a prose rationale in a
-leading HTML comment.
+under 200 lines. Commands that carry irreducible repo-specific content may
+declare a size-exception in their YAML frontmatter with a prose rationale in
+a leading HTML comment.
+
+The ceiling bounds what loads on every invocation, not what a command may
+say. Depth belongs in `.claude/commands/<name>/references/`, which
+`build/scripts/generate_commands.py` mirrors into the Copilot CLI plugin the
+same way a skill's `references/` is mirrored. Those files are read on demand,
+so this gate does not measure them: a reference path reaching
+``--changed-files`` is filtered out rather than judged against a ceiling that
+was never about it.
 
 Exit codes follow ADR-035:
     0 - Success: All command files within size limits
@@ -108,9 +115,30 @@ def check_command_size(path: str | Path) -> CommandSizeResult:
         passed=False,
         errors=[
             f"{count} lines exceeds {COMMAND_SIZE_LIMIT}-line ceiling. "
-            "Convert to a skill or add size-exception with a rationale comment."
+            "Move the depth to <name>/references/ and point the body at it, "
+            "convert to a skill, or add size-exception with a rationale comment."
         ],
     )
+
+
+COMMAND_REFERENCES_DIR = "references"
+
+
+def is_command_reference(path: str | Path) -> bool:
+    """True when ``path`` is progressive-disclosure depth, not a command body.
+
+    A command body is ``.../commands/<name>.md`` (or ``.../commands/<ns>/
+    <name>.md`` for a namespaced sub-command). Its depth lives under
+    ``.../commands/<name>/references/``, is loaded only when the body sends
+    the agent there, and so is not billed on every invocation. Measuring it
+    against the per-invocation ceiling would put the constraint back that
+    ``references/`` exists to remove.
+    """
+    parts = Path(path).parts
+    if "commands" not in parts:
+        return False
+    after = parts[len(parts) - 1 - parts[::-1].index("commands") :]
+    return COMMAND_REFERENCES_DIR in after
 
 
 def get_command_files(
@@ -122,7 +150,10 @@ def get_command_files(
         return [
             Path(f)
             for f in changed_files
-            if f.endswith(".md") and "/commands/" in f and Path(f).exists()
+            if f.endswith(".md")
+            and "/commands/" in f
+            and not is_command_reference(f)
+            and Path(f).exists()
         ]
 
     if path is None:
