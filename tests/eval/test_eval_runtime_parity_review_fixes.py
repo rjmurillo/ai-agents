@@ -8,7 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from tests.eval._runtime_parity_test_support import FIXTURES, parity, runtime_parity
+from tests.eval._runtime_parity_test_support import (
+    FIXTURES,
+    parity,
+    runtime_harness,
+)
 
 
 @pytest.mark.parametrize("bad_id", ["/abs/fixture", "../escape", "a/../../b"])
@@ -41,7 +45,7 @@ def test_agent_install_preserves_crlf_line_endings(tmp_path: Path) -> None:
     source = tmp_path / "source.md"
     source.write_bytes(b"---\r\nname: original\r\n---\r\nbody\r\n")
     target = tmp_path / "target.md"
-    runtime_parity._install_agent(source, target)
+    runtime_harness._install_agent(source, target)
 
     assert target.read_bytes() == b"---\r\nname: parity\r\n---\r\nbody\r\n"
 
