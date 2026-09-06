@@ -199,12 +199,12 @@ def test_s4_memory_minimum_three_distinct_queries(step0_5_block: str):
 
 
 # ---------------------------------------------------------------------------
-# S5: knowledge-graph depth table (AC-05)
+# S5: prior-art search depth table (AC-05)
 # ---------------------------------------------------------------------------
 
 
 def test_s5_depth_table_per_provisional_tier(step0_5_block: str):
-    assert 'Skill(skill="exploring-knowledge-graph")' in step0_5_block
+    assert 'Skill(skill="memory")' in step0_5_block
     assert "Phases 1-2 (shallow)" in step0_5_block
     assert "Phases 1-4 (medium)" in step0_5_block
     assert "Phases 1-5 (deep)" in step0_5_block
@@ -230,14 +230,21 @@ def test_s6_zero_result_coverage_note_rule(step0_5_block: str):
 # ---------------------------------------------------------------------------
 
 
-def test_s7_three_degradation_rules_present(spec_text: str):
+def test_s7_degradation_rules_present(spec_text: str):
+    """Both surviving skills have a documented degradation rule.
+
+    The third rule named Forgetful MCP as the failure mode for the
+    knowledge-graph traversal. That skill is retired with Forgetful
+    (#5574), so the rule documented skipping something that no longer
+    exists and was deleted with it.
+    """
     body = extract_step0_5_subsection(
         spec_text,
         "#### Step 0.5 degradation rules",
     )
     assert "chestertons-fence" in body
-    assert "Forgetful MCP unavailable" in body
-    assert "exploring-knowledge-graph" in body
+    assert "Memory search returns 0 results" in body
+    assert "Forgetful" not in body
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +398,7 @@ def test_s12_check_9d_in_step_9(step9_block: str):
 
 def test_s12_check_9d_pass_condition_lists_three_subsections(step9_block: str):
     assert "### Direct prior art from memory" in step9_block
-    assert "### Connected context from exploring-knowledge-graph" in step9_block
+    assert "### Connected context from prior-art search" in step9_block
     assert "### Coverage notes" in step9_block
 
 
@@ -740,7 +747,7 @@ def test_llm_required_d_checks_have_adr057_scenarios():
     )
 
     by_id = {scenario["id"]: scenario for scenario in scenarios}
-    expected_d_checks = {"D1", "D6", "D7", "D9", "D12", "D13", "D14"}
+    expected_d_checks = {"D1", "D7", "D9", "D12", "D13", "D14"}
     assert set(by_id) == expected_d_checks
     assert len(scenarios) == len(expected_d_checks)
     for scenario in scenarios:
@@ -756,8 +763,6 @@ def test_llm_required_d_checks_have_adr057_scenarios():
     # that match the actual D-check behaviors defined in ADR-057 and issue #1972.
     # D1 AC-01: Step 0.5 must run (RUN_STEP_0_5, not a generic PASS).
     assert by_id["D1"]["expected_verdict"] == "RUN_STEP_0_5"
-    # D6 AC-07: Forgetful failure degrades gracefully (DEGRADED_PASS, not generic PASS).
-    assert by_id["D6"]["expected_verdict"] == "DEGRADED_PASS"
     # D7 AC-08: Discovered entity needs adjudication (REQUEST_ADJUDICATION, not PASS).
     assert by_id["D7"]["expected_verdict"] == "REQUEST_ADJUDICATION"
     # D9 AC-09: Under blast-radius threshold, Step 0.5 proceeds (PROCEED_STEP_1, not PASS).
@@ -1136,7 +1141,6 @@ def test_alias_table_canonical_values_are_normalized():
         ("spec command", "spec-pipeline"),
         ("memory skill", "memory"),
         ("memory_search", "memory"),
-        ("knowledge graph", "exploring-knowledge-graph"),
     ],
 )
 def test_normalize_topic_with_aliases_collapses_synonyms(

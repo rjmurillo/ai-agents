@@ -67,10 +67,6 @@ Generates evidence-based documentary reports by searching across the full memory
 
 Guidance for maintaining memory quality through curation. Covers deduplication, freshness scoring, and relevance assessment.
 
-### exploring-knowledge-graph
-
-Guidance for deep knowledge graph traversal across memories, entities, and relationships.
-
 ## Security
 
 ### security-scan

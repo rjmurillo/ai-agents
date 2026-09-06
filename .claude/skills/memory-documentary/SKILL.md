@@ -201,7 +201,6 @@ Reports saved to: `.agents/analysis/[topic]-documentary-[date].md`
 | Skill | Relationship |
 |-------|--------------|
 | memory | Operations (search, update) |
-| exploring-knowledge-graph | Forgetful traversal |
 | retrospective | Learning extraction |
 | skillbook | Pattern → skill conversion |
 

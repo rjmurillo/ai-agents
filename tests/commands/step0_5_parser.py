@@ -276,11 +276,14 @@ def adjudicate_entity_scope(entity_name: str, q_answers: list[str] | tuple[str, 
 
 
 def phases_needed(tier: int) -> int:
-    """Return the number of exploring-knowledge-graph phases required at a tier.
+    """Return the number of Step 0.5 prior-art search phases required at a tier.
 
     Per REQ-017 AC-05/AC-10: Tier 1-2 runs Phases 1-2 (shallow);
     Tier 3 runs Phases 1-4 (medium); Tier 4-5 runs all 5 phases (deep).
-    Used by AC-10 supplemental trigger logic.
+    Used by AC-10 supplemental trigger logic. The depth table these
+    numbers index moved off the retired knowledge-graph traversal and
+    onto the surviving memory point search; the tier-to-phase mapping
+    itself is unchanged.
     """
     if tier <= 2:
         return 2

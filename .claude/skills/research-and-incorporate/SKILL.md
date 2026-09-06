@@ -161,7 +161,6 @@ After completion, verify:
 |-------|--------------|
 | `using-forgetful-memory` | Memory creation best practices |
 | `encode-repo-serena` | Similar but for codebase analysis |
-| `exploring-knowledge-graph` | Navigate created knowledge |
 | `memory` | Search and retrieve incorporated knowledge |
 
 ## References

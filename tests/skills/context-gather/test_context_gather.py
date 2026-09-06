@@ -174,22 +174,31 @@ class TestStructure:
     def test_spec_005_referenced(self, skill_content: str) -> None:
         assert "SPEC-005" in skill_content, "SKILL.md must reference SPEC-005"
 
-    def test_routes_to_exploring_knowledge_graph(self, skill_content: str) -> None:
-        """Issue #2103: the context-retrieval agent was folded into the
-        exploring-knowledge-graph skill. SKILL.md now points at that skill for
-        the five-source strategy, not at a deleted subagent."""
-        assert "exploring-knowledge-graph" in skill_content, (
-            "SKILL.md must route context gathering through the "
-            "exploring-knowledge-graph skill"
+    def test_routes_to_folded_context_retrieval_reference(
+        self, skill_content: str
+    ) -> None:
+        """Issue #2103, #5574: SKILL.md points at the folded reference doc.
+
+        The pointer used to route through the knowledge-graph skill. That
+        skill is retired with Forgetful, so the reference moved into this
+        skill's own references tree and the pointer follows it. Asserting the
+        relative link keeps a broken pointer failing here rather than at
+        read time.
+        """
+        assert "references/context-retrieval.md" in skill_content, (
+            "SKILL.md must point at its folded context-retrieval reference"
+        )
+        assert "exploring-knowledge-graph" not in skill_content, (
+            "SKILL.md must not reference the retired knowledge-graph skill"
         )
 
     def test_context_retrieval_subagent_removed(self) -> None:
         """Issue #2103: the context-retrieval agent file was deleted after its
-        guidance was folded into the exploring-knowledge-graph skill. Guard
-        against the orphan agent being reintroduced."""
+        guidance was folded into a reference doc. Guard against the orphan
+        agent being reintroduced."""
         subagent = REPO_ROOT / ".claude" / "agents" / "context-retrieval.md"
         assert not subagent.exists(), (
-            f"context-retrieval agent was folded into exploring-knowledge-graph "
+            f"context-retrieval agent was folded into a reference doc "
             f"(Issue #2103) but {subagent} still exists"
         )
 
