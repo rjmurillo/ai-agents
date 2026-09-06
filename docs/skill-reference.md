@@ -209,10 +209,6 @@ Critical learning capture. Extracts HIGH/MED/LOW confidence patterns from sessio
 
 ## Research
 
-### research-and-incorporate
-
-Researches external topics, creates comprehensive analysis, and determines how findings should be incorporated into the project.
-
 ### programming-advisor
 
 Evaluates existing solutions (libraries, SaaS, open source) before writing new software. Prevents NIH syndrome.

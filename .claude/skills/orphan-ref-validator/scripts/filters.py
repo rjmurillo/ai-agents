@@ -55,6 +55,7 @@ KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset({
     "exploring-knowledge-graph",
     "github-pr-reply",
     "guard-maturity",
+    "research-and-incorporate",
     "session-end",
     "session-init",
     "session-log-fixer",
