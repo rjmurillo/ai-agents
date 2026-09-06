@@ -10,7 +10,7 @@ Check the plugins the context commands depend on, and report what is missing.
 
 Context Hub requires these plugins to be installed:
 
-1. **Serena** - Symbol-level code analysis and the `.serena/memories/` store (required for `/encode-repo-serena`)
+1. **Serena** - Symbol-level code analysis and the `.serena/memories/` store (required for `using-serena-symbols` and the memory skills)
 2. **Context7** - Framework documentation (recommended for `/context-gather`)
 
 ## Step 1: Check Plugin Prerequisites
@@ -29,7 +29,7 @@ Look for:
 **If Serena is not installed:**
 
 ```text
-To use /encode-repo-serena, install the Serena plugin:
+To use Serena symbol analysis, install the Serena plugin:
 
   claude plugins install serena
 
@@ -62,7 +62,6 @@ Context7 Plugin: [Installed / Not installed - run: claude plugins install contex
 
 Commands available:
 - /context-gather - Multi-source context retrieval
-- /encode-repo-serena - Repository encoding (requires Serena)
 ```
 
 Memory search reads committed files rather than querying a server:
