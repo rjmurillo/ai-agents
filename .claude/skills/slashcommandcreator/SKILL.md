@@ -167,22 +167,22 @@ create slash command that summarizes recent PR comments
 ## Progressive Disclosure: `<name>/references/`
 
 Depth belongs in `.claude/commands/<name>/references/`, the same way a skill
-puts depth in its own `references/`. `build/scripts/generate_commands.py`
-mirrors that tree into the Copilot CLI plugin at `commands/<name>/references/`,
-so one path resolves in every install:
+puts depth in its own `references/`. The command generator mirrors that tree
+into the Copilot CLI plugin at `commands/<name>/references/`, so one path
+resolves in every install:
 
 ```text
 ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/commands/<name>/references/<file>.md
 ```
 
 Write that spelling, not a bare `.claude/commands/...` path: the bare form
-works only in the upstream checkout. `.claude/commands/pr-review.md` already
-resolves `commands/pr-review-config.yaml` through the same root list.
+works only in the upstream checkout. The `/pr-review` command already resolves
+its `pr-review-config.yaml` sidecar through the same root list.
 
-The 200-line ceiling `scripts/validation/command_size.py` enforces measures the
-body, which loads in full on every invocation. It does not measure
-`references/`, which loads only when the body sends the agent there. So the
-ceiling bounds per-invocation cost, not how much a command may say.
+The 200-line ceiling the command-size gate enforces measures the body, which
+loads in full on every invocation. It does not measure `references/`, which
+loads only when the body sends the agent there. So the ceiling bounds
+per-invocation cost, not how much a command may say.
 
 Two costs to weigh before splitting. A reference file the body never points at
 is dead weight nobody reads. And Claude Code discovers commands by recursing
