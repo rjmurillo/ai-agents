@@ -1,6 +1,6 @@
 ---
 name: using-serena-symbols
-description: Guidance for using Serena's LSP-powered symbol analysis. Use when you say "how do I find a symbol", "trace references for this method", "explore this file's structure", or when grep/text search would be imprecise. Do NOT use to populate the knowledge base (use encode-repo-serena), for full architectural analysis (use serena-code-architecture), or for Forgetful memory guidance (use using-forgetful-memory).
+description: Guidance for using Serena's LSP-powered symbol analysis. Use when you say "how do I find a symbol", "trace references for this method", "explore this file's structure", or when grep/text search would be imprecise. Do NOT use to populate the knowledge base (use encode-repo-serena), for full architectural analysis (use serena-code-architecture), or for memory guidance (use memory).
 license: MIT
 metadata:
 version: 1.0.0
@@ -207,7 +207,7 @@ mcp__plugin_serena_serena__find_symbol({
 1. **Use `relative_path`** to scope searches - much faster than searching entire codebase
 2. **Start with `include_body: false`** - get structure first, read code only when needed
 3. **Use `depth: 0`** initially - expand to children only when exploring specific classes
-4. **Combine with Forgetful** - create memories for important architectural findings
+4. **Combine with Serena memory** - record important architectural findings with `mcp__serena__write_memory`
 
 ## Triggers
 

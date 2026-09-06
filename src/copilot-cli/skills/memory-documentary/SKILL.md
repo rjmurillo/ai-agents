@@ -1,8 +1,8 @@
 ---
 name: memory-documentary
 version: 1.0.0
-description: Generate evidence-based documentary reports by searching across all 4
-  memory systems (Claude-Mem, Forgetful, Serena, DeepWiki), .agents/ artifacts, and
+description: Generate evidence-based documentary reports by searching across all 3
+  memory systems (Claude-Mem, Serena, DeepWiki), .agents/ artifacts, and
   GitHub issues. Produces investigative journalism-style analysis with full citation
   chains. Use when you ask for an "evidence-based report", "investigate across all
   memory systems", "what happened with X over time". Do NOT use for a single semantic
@@ -16,7 +16,7 @@ metadata:
 
 Generate comprehensive documentary-style reports from your memory systems with full evidence chains.
 
-<!-- vendor-portability: declared. This skill searches the consumer's .agents/ artifacts (sessions, retrospectives, analysis) alongside the four memory systems as evidence inputs, and writes the report under .agents/. The .agents/ reads are best-effort evidence sources; a vendored install without that tree produces a report from whatever memory systems and artifacts the consumer repo does have, not a silent no-op. Issue #2050. -->
+<!-- vendor-portability: declared. This skill searches the consumer's .agents/ artifacts (sessions, retrospectives, analysis) alongside the three memory systems as evidence inputs, and writes the report under .agents/. The .agents/ reads are best-effort evidence sources; a vendored install without that tree produces a report from whatever memory systems and artifacts the consumer repo does have, not a silent no-op. Issue #2050. -->
 
 ---
 
@@ -67,7 +67,7 @@ Use `memory` skill instead when:
 |-------|--------|--------|
 | 1 | Topic Comprehension | Search variants, scope boundaries |
 | 2 | Investigation Planning | Explicit queries per system |
-| 3 | Data Collection | Evidence with IDs, timestamps |
+| 3 | Data Collection | Evidence with retrieval keys and dates |
 | 4 | Report Generation | Documentary with citations |
 | 5 | Memory Updates | Store meta-pattern discovered |
 
@@ -77,10 +77,9 @@ Use `memory` skill instead when:
 
 The skill searches ALL available data sources systematically:
 
-**Memory Systems (4 MCP servers)**:
+**Memory Systems (3 MCP servers)**:
 
 - Claude-Mem: Timeline observations via 3-layer workflow
-- Forgetful: Semantic memory with linked entities
 - Serena: Project-specific lexical memory
 - DeepWiki: Documentation resources
 
@@ -124,9 +123,9 @@ The skill searches ALL available data sources systematically:
 
 Full citation for each finding:
 
-- Memory ID/Observation ID with retrieval command
-- Source system (Forgetful/Claude-Mem/Serena)
-- Timestamp/Creation date
+- Source system (Claude-Mem/Serena/DeepWiki)
+- Retrieval key with its command: an observation id for Claude-Mem, a memory file name for Serena
+- Date, from the source for Claude-Mem, from git history for a Serena file
 - Direct quote from source
 - Links to related evidence
 
@@ -136,7 +135,7 @@ Timeline showing how thinking changed:
 
 ```text
 YYYY-MM-DD: [Observation #ID] - Initial state
-YYYY-MM-DD: [Memory #ID] - First iteration
+YYYY-MM-DD: [Serena memory-name] - First iteration
 YYYY-MM-DD: [Issue #NNN] - Technical response
 ```
 
@@ -154,7 +153,7 @@ Cross-system synthesis revealing:
 ### Synthesis
 
 - What all systems agree on
-- What's recent (Claude-Mem) vs crystallized (Forgetful)
+- What's recent (Claude-Mem) vs durable (Serena)
 - Actionable recommendations
 
 ---
@@ -163,7 +162,7 @@ Cross-system synthesis revealing:
 
 | Standard | Requirement |
 |----------|-------------|
-| Citation | Every claim has ID, timestamp, quote |
+| Citation | Every claim has a retrieval key, a date, and a quote |
 | Quotes | Direct quotes, not paraphrases |
 | Verification | Retrieval commands for all evidence |
 | Cross-links | Related evidence connected |
@@ -177,7 +176,7 @@ Cross-system synthesis revealing:
 | Partial searches | Miss critical evidence | Search ALL systems |
 | Paraphrasing | Loses verifiability | Direct quotes only |
 | Single query | Miss variations | 3+ query variants per system |
-| Skipping systems | Incomplete picture | Check all 4 MCP servers |
+| Skipping systems | Incomplete picture | Check all 3 MCP servers |
 
 ---
 
@@ -186,8 +185,8 @@ Cross-system synthesis revealing:
 After execution:
 
 - [ ] Report saved to `.agents/analysis/[topic]-documentary-[date].md`
-- [ ] Every claim has a citation with source system, ID, and direct quote
-- [ ] All 4 MCP servers were queried (or documented as unavailable)
+- [ ] Every claim has a citation with source system, retrieval key, and direct quote
+- [ ] All 3 MCP servers were queried (or documented as unavailable)
 - [ ] Meta-pattern stored in memory (Phase 5)
 
 ## Output Location
