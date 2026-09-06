@@ -295,6 +295,37 @@ class TestValidateAllowedTools:
         all_tools = ",".join(VALID_TOOLS)
         assert validate_allowed_tools(all_tools) == []
 
+    def test_decommissioned_forgetful_server_root_rejected(self) -> None:
+        """Issue #5574: `forgetful` was an MCP server root in VALID_TOOLS.
+
+        The server is decommissioned, so a skill naming it as a tool root
+        declares a capability no harness can grant.
+        """
+        errors = validate_allowed_tools("Read,forgetful")
+
+        assert any("Unknown tools" in e for e in errors)
+        assert any("forgetful" in e for e in errors)
+
+    def test_live_mcp_server_roots_still_accepted(self) -> None:
+        """Control: the two roots `.mcp.json` still configures are untouched.
+
+        Without this, dropping every MCP root would also pass the test above.
+        """
+        assert validate_allowed_tools("Read,serena,deepwiki") == []
+
+    def test_wildcard_grants_bypass_the_root_allow_list_entirely(self) -> None:
+        """Documents the limit of the check above, measured not assumed.
+
+        `validate_allowed_tools` skips any entry containing `*` before the
+        VALID_TOOLS lookup, so `mcp__forgetful__*` and its Copilot respelling
+        `forgetful/*` are accepted no matter what VALID_TOOLS holds. Removing
+        the root closes the bare-name case only. The wildcard case is guarded
+        per file instead, by the contract tests on the research command and on
+        the context-gather and curating-memories skills.
+        """
+        assert validate_allowed_tools("Read,mcp__forgetful__*") == []
+        assert validate_allowed_tools("Read,forgetful/*") == []
+
 
 # ---------------------------------------------------------------------------
 # get_skill_files
