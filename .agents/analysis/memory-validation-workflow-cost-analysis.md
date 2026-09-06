@@ -30,8 +30,12 @@ $ find .serena/memories -name '*.md' | wc -l
 $ grep -rn "\[cite:" .serena/memories/ | wc -l
 0
 $ git log -S"[cite:" -- .serena/memories/
-                       # no output: no commit in repository history ever added one
+                       # no output, searched against full unshallowed history
 ```
+
+The workflow was added on 2025-12-24 (`0dadc6994`, "ci: add memory validation workflow for
+ADR-017 enforcement", PR #342). It has run for 256 days without a citation existing for it
+to check.
 
 The `[cite:type](target)` syntax is documented in `.claude/skills/memory-enhancement/SKILL.md:91`
 and `.claude/skills/reflect/references/phase3-4-propose-persist.md:139`. No memory writer
@@ -92,10 +96,21 @@ The workflow posts `memory-health-report.md`, which is the full `verify-all` lis
 | Memory files until the limit | 146 |
 
 At 146 more memory files, the `Post PR comment` step returns 422 and the job goes red for
-a reason unrelated to any PR that trips it. Corpus growth measured over the available
-history window (1032 files at 2026-09-03, 1037 at 2026-09-06) is 1.7 files per day, which
-puts the limit near 86 days out. Treat the day count as an extrapolation from a 3 day base
-and the 146 file headroom as the hard number.
+a reason unrelated to any PR that trips it. Corpus growth, counted from `git ls-tree` at monthly
+points on `origin/main`:
+
+| Date | Memory files |
+|---|---|
+| 2026-03-06 | 835 |
+| 2026-05-06 | 861 |
+| 2026-06-06 | 877 |
+| 2026-07-06 | 829 |
+| 2026-08-06 | 981 |
+| 2026-09-06 | 1037 |
+
+The last month ran at 1.81 files per day, the last six months at 1.10 per day (the July dip
+is a consolidation pass, not a deletion trend). That puts the 146 file headroom between 81
+and 133 days out. The file count is the hard number; the date is a projection.
 
 Every agent that reads a PR thread (pr-comment-responder, the review skills, the CI
 feedback sub-loop) pulls those 57,447 characters into context, roughly 14k tokens, to learn
