@@ -177,18 +177,16 @@ ignores:
   # command to a proper skill in #2042; its SKILL.md has an H1 heading and is
   # fully linted.
   - ".claude/commands/spec.md"
-  - ".claude/commands/test.md"
 
   # Copilot CLI mirrors of the lifecycle command files. Same structure as
-  # `.claude/commands/{spec,test}.md`: YAML frontmatter followed by
-  # `@CLAUDE.md` and prose, with no H1 heading. The Claude Code paths above
-  # were excluded; the Copilot CLI mirrors were missed in that PR and only
-  # surface when hooks are configured (see CONTRIBUTING.md). plan, build and
-  # ship left this list when they became skills under ADR-064: a SKILL.md
-  # carries an H1, so the reason for the exemption no longer holds and all
-  # six paths lint clean (issue #5632).
+  # `.claude/commands/spec.md`: YAML frontmatter followed by `@CLAUDE.md` and
+  # prose, with no H1 heading. The Claude Code path above was excluded; the
+  # Copilot CLI mirror was missed in that PR and only surfaces when hooks are
+  # configured (see CONTRIBUTING.md). plan, build, ship and test left this
+  # list when they became skills under ADR-064: a SKILL.md carries an H1, so
+  # the reason for the exemption no longer holds and all eight paths lint
+  # clean (issue #5632).
   - "src/copilot-cli/skills/spec/SKILL.md"
-  - "src/copilot-cli/skills/test/SKILL.md"
 
   # Reference files extracted from spec.md (issue #3632). These are embedded-prose reference
   # documents: they use heading levels (####, ###) relative to the original document's nesting,
