@@ -16,6 +16,7 @@ import pytest
 from scripts.validation.checks_tooling import validate_always_on_corpus_claims
 from scripts.validation.evidence import (
     REASON_BASE_REF_UNRESOLVED,
+    REASON_INCOMPLETE_EVIDENCE,
     EvidenceState,
 )
 from scripts.validation.pre_pr import (
@@ -356,7 +357,16 @@ class TestValidateSessionEnd:
         assert seen[-1][-1] == "--existing-log"
         assert "--validation-head" not in seen[-1]
 
-    def test_unresolvable_head_fails_closed(self, tmp_path: Path) -> None:
+    def test_unresolvable_head_reports_unknown(self, tmp_path: Path) -> None:
+        """Was test_unresolvable_head_fails_closed (issue #5646 item 2).
+
+        The old contract let ``git rev-parse HEAD`` fail, substituted the
+        literal ``INVALID_HEAD``, passed that to the child validator as
+        ``--validation-head``, and reported the child's non-zero exit as FAIL.
+        FAIL was the wrong finding: nothing about the session logs was proven,
+        and a reader sent to fix a session log would find nothing wrong with it.
+        The run now stops at the unreadable revision and says so.
+        """
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
         log = sessions / "2025-12-01-session-1.json"
@@ -381,9 +391,14 @@ class TestValidateSessionEnd:
             "checks_tooling.new_session_logs",
             return_value={".agents/sessions/2025-12-01-session-1.json"},
         ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
-            assert validate_session_end(tmp_path).state is EvidenceState.FAIL
+            outcome = validate_session_end(tmp_path)
 
-        assert seen[-1][-2:] == ["--validation-head", "INVALID_HEAD"]
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_INCOMPLETE_EVIDENCE
+        # The child validator is never reached, so the placeholder that used to
+        # travel to it as ``--validation-head`` cannot exist to be passed.
+        assert all("--validation-head" not in command for command in seen)
+        assert all("INVALID_HEAD" not in command for command in seen)
 
 
 class TestBuildParser:

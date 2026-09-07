@@ -321,12 +321,28 @@ def test_general_workflows_do_not_use_session_logs_as_the_persistence_sink(
 
 
 def test_pre_pr_session_validation_passes_without_a_branch_log() -> None:
-    """The pre-PR session gate passes when the branch changes no JSON log."""
+    """The pre-PR session gate passes when the branch changes no JSON log.
+
+    The fake dispatches on ``argv``: since issue #5646 item 2 the gate reads
+    ``git rev-parse HEAD`` for the revision its PASS names, and a blanket
+    ``(0, "", "")`` would leave that revision empty, which is now UNKNOWN rather
+    than a PASS naming a placeholder.
+    """
+    head = "9c1e7f30ab4d5268e0f1a2b3c4d5e6f708192a3b"
+
+    def fake_run(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
+        if "rev-parse" in command:
+            return 0, f"{head}\n", ""
+        return 0, "", ""
+
     with (
         mock.patch("checks_tooling._resolve_branch_base_ref", return_value="origin/main"),
-        mock.patch("checks_tooling._run_subprocess", return_value=(0, "", "")),
+        mock.patch("checks_tooling._run_subprocess", side_effect=fake_run),
     ):
-        assert pre_pr.validate_session_end(PROJECT_ROOT).state is EvidenceState.PASS
+        outcome = pre_pr.validate_session_end(PROJECT_ROOT)
+
+    assert outcome.state is EvidenceState.PASS
+    assert outcome.revision == head
 
 
 def test_adr_review_gate_requires_staged_debate_evidence(tmp_path: Path) -> None:
