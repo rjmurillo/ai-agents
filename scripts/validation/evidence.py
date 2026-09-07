@@ -104,6 +104,7 @@ __all__ = [
     "REASON_LEGACY_BOOLEAN",
     "REASON_MALFORMED_OUTPUT",
     "REASON_NO_OUTCOMES",
+    "REASON_PROCESS_SIGNALED",
     "REASON_QUICK_MODE",
     "REASON_SCRIPT_ABSENT",
     "REASON_TIMEOUT",
@@ -161,6 +162,12 @@ REASON_SCRIPT_ABSENT: Final = "script.absent"
 REASON_TOOL_ABSENT: Final = "tool.absent"
 REASON_TREE_ABSENT: Final = "tree.absent"
 REASON_TIMEOUT: Final = "timeout"
+#: The child was killed by a signal rather than exiting on its own, so its
+#: return code is a negated signal number and carries no verdict. Distinct
+#: from :data:`REASON_TIMEOUT`, which is the wrapper killing a child it was
+#: watching: this one is the OS or an outside process, and the remedy is to
+#: find out what killed it rather than to raise a timeout (issue #5653).
+REASON_PROCESS_SIGNALED: Final = "process.signaled"
 REASON_MALFORMED_OUTPUT: Final = "output.malformed"
 REASON_INCOMPLETE_EVIDENCE: Final = "evidence.incomplete"
 REASON_AUTH_UNAVAILABLE: Final = "auth.unavailable"

@@ -8,6 +8,7 @@ from unittest.mock import patch
 from scripts.validation import subprocess_runner
 from scripts.validation.evidence import (
     REASON_DIFF_FAILED,
+    REASON_PROCESS_SIGNALED,
     REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
 )
@@ -95,15 +96,26 @@ class TestClassifySubprocessFailure:
 
         assert reason == REASON_DIFF_FAILED
 
-    def test_the_sentinel_exit_alone_keeps_the_caller_s_reason(self) -> None:
-        """Edge: exit -1 with neither marker is not evidence of a timeout.
+    def test_the_sentinel_exit_alone_reports_a_signal_not_the_caller_s_reason(
+        self,
+    ) -> None:
+        """Edge: exit -1 with neither marker is a signal, not a timeout.
 
-        NEGATIVE CONTROL: a classifier keyed on the exit code alone returns
-        REASON_TIMEOUT here and mislabels an unrecognized failure.
+        Was test_the_sentinel_exit_alone_keeps_the_caller_s_reason, which
+        asserted the caller's own reason survived here (issue #5653). It does
+        not any more, and the old assertion was the defect: ``_run_subprocess``
+        always writes a marker when it returns -1 itself, so a markerless -1
+        never came from the wrapper. It is SIGHUP, and handing it back to the
+        caller let a signal-killed child be read as that child's own verdict.
+
+        NEGATIVE CONTROL, unchanged and still the point: a classifier keyed on
+        the exit code alone returns REASON_TIMEOUT here and mislabels an
+        unrecognized failure. The new answer is not a timeout either.
         """
         reason = classify_subprocess_failure(-1, "", default=REASON_DIFF_FAILED)
 
-        assert reason == REASON_DIFF_FAILED
+        assert reason == REASON_PROCESS_SIGNALED
+        assert reason != REASON_TIMEOUT
 
     def test_the_marker_alone_keeps_the_caller_s_reason(self) -> None:
         """Edge: a child that printed the marker text and exited 1 is not a timeout.
