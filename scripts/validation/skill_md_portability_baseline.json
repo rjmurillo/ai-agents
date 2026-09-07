@@ -107,7 +107,6 @@
     "templates/agents/task-decomposer.shared.md": 2
   },
   "marker_files": {
-    ".claude/commands/push-pr.md": 3,
     ".claude/skills/adr-generator/SKILL.md": 6,
     ".claude/skills/adr-generator/references/adr-template.md": 1,
     ".claude/skills/adr-generator/references/adr-templates-catalog.md": 2,
@@ -171,6 +170,7 @@
     ".claude/skills/panning-for-gold/SKILL.md": 6,
     ".claude/skills/pr-comment-responder/SKILL.md": 4,
     ".claude/skills/pr-comment-responder/references/workflow.md": 2,
+    ".claude/skills/push-pr/SKILL.md": 2,
     ".claude/skills/quality-grades/SKILL.md": 3,
     ".claude/skills/requirements-interview/SKILL.md": 5,
     ".claude/skills/research-and-incorporate/SKILL.md": 1,
