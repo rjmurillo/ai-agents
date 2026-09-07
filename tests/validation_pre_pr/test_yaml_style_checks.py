@@ -3,8 +3,9 @@
 Covers ``_yaml_style_targets`` (the branch-scoping helper) and the wiring in
 ``validate_yaml_style`` that decides between an immediate pass, a scoped
 yamllint invocation, and the full-repo fallback. yamllint findings are
-advisory: a scoped or full-repo run that finds style issues still returns
-``True`` (see ``validate_yaml_style``'s docstring in ``checks_tooling.py``).
+advisory: a scoped or full-repo run that finds style issues still reports PASS,
+with the tolerance recorded in the outcome scope rather than as a finding count
+(see ``validate_yaml_style``'s docstring in ``checks_tooling.py``).
 """
 
 from __future__ import annotations

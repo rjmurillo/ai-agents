@@ -89,17 +89,32 @@ than a mistake in the validator.
   push; the underlying rule is `ci-scripts.md` MUST 14's "re-measure" applied
   to one's own diff rather than to `main`.
 
-- **Splitting a type contract across modules is not free in this directory.**
-  `scripts/validation/` is imported both flat (`pre_pr.py` inserts the
-  directory on `sys.path`) and as a package (tests use
-  `scripts.validation.X`). A first attempt split `evidence.py` in two to clear
-  the 500-line taste ceiling. That would have given the two import paths two
-  distinct `EvidenceState` enum classes, and every `is` comparison across the
-  seam would have returned `False` silently. Verified empirically: importing
-  the same file both ways yields `pkg is flat` -> `False`. The module stayed
-  one file with a justified `taste-lint: ignore file-size`, and every consumer
-  imports it by its package path so there is exactly one identity. This is
-  issue #3073's dual-module-identity trap arriving at a new site.
+- **Verifying a mechanism is not verifying the constraint you inferred from
+  it.** A first attempt split `evidence.py` in two to clear the 500-line taste
+  ceiling. I abandoned the split and took the file-size escape instead, on the
+  grounds that `scripts/validation/` is imported both flat and as a package, so
+  a split would fork `EvidenceState` into two enum classes and break every `is`
+  comparison across the seam. I checked that claim and it came back true:
+  importing the same file both ways yields `pkg is flat` -> `False`.
+
+  That measurement is real and it proves the wrong proposition. It establishes
+  the mechanism, which fires when the file DEFINING the enum is reached under
+  two names. It says nothing about whether THIS file is, and I never asked. An
+  adversarial review of my own PR did, and the answer is no: running `pre_pr.py`
+  as `__main__` with its flat `sys.path` insert active binds `evidence.py` to
+  exactly one name, `scripts.validation.evidence`. Five siblings genuinely do
+  load flat, and a flat-loaded `checks_tooling` still satisfies
+  `checks_tooling.CheckOutcome is scripts.validation.evidence.CheckOutcome`.
+  No flat `import evidence` exists anywhere in the repository. The guard is the
+  package-path convention every consumer already follows, and it protects two
+  files exactly as well as one.
+
+  The cost of the error is not the unsplit file. It is that I wrote the false
+  constraint into a code comment, a module docstring, a PR body, and this
+  retrospective, where the next maintainer would have read "must stay one
+  module", believed it, and declined a refactor that is safe. The general shape:
+  when a check confirms a hypothesis, ask which proposition it actually tested.
+  `pkg is flat -> False` answers "can this fork", never "does this fork here".
 
 - **Migrating a producer means flipping its tests in the same diff, and the
   count is larger than it looks.** Four validators changed return type and 30
@@ -115,9 +130,11 @@ than a mistake in the validator.
 1. When a caller must distinguish more than two outcomes, widen the return
    type before adding a workaround. A fail-open guard clause is usually a
    symptom that the type is too narrow.
-2. Before splitting a module that defines an enum or a dataclass used in `is`
-   comparisons, check how its directory is imported. Two import paths mean two
-   identities.
+2. Before splitting a module that defines an enum used in `is` comparisons,
+   check whether that file is actually reached under two names, not whether its
+   directory could be. Audit `sys.modules` through the real entrypoint. Two
+   import PATHS mean two identities; one module is not the guard, and a
+   package-path convention protects any number of files.
 3. Run the gate against the whole corpus before claiming it is ready. Unit
    tests prove the checker's logic; only the corpus run proves the tree
    satisfies it.
@@ -130,3 +147,33 @@ than a mistake in the validator.
 - Issue #3073. The dual-module-identity trap in `scripts/validation/`.
 - `.claude/rules/ci-scripts.md` MUST 12, MUST 13, MUST 14.
 - `.agents/governance/TESTING-RIGOR.md`, "Contract Changes: Flip the Stale Tests".
+
+## Correction, 2026-09-07
+
+`.claude/rules/retros.md` MUST NOT 1 requires a correction to append rather than
+edit in place, so this section records what changed in this file after it was
+first committed (`37ced08`) and why.
+
+**What the original said.** A "What to improve" bullet titled *Splitting a type
+contract across modules is not free in this directory* asserted that
+`scripts/validation/` being imported both flat and as a package meant a split of
+`evidence.py` would fork `EvidenceState` into two enum classes, and that the
+file therefore had to stay one module. Reusable rule 2 restated it as "Two
+import paths mean two identities."
+
+**Why it was wrong.** The measurement behind it (`pkg is flat` -> `False`) tests
+the mechanism, not this file. An adversarial review of PR #5641 audited
+`sys.modules` through the real flat entrypoint and found `evidence.py` bound to
+exactly one name. Verified independently before accepting: running `pre_pr.py`
+as `__main__` binds it only as `scripts.validation.evidence`, a flat-loaded
+`checks_tooling` still satisfies `checks_tooling.CheckOutcome is
+scripts.validation.evidence.CheckOutcome`, and no flat `import evidence` exists
+in the repository.
+
+**What changed.** The bullet and reusable rule 2 were rewritten to state the
+correction rather than the false constraint, because leaving a false lesson
+standing in a "What to improve" list teaches it. The same false claim was
+removed from `scripts/validation/evidence.py` (the file-size escape comment and
+the module docstring) and from the PR #5641 description. This correction hardens
+the criticism rather than softening it, which is the direction MUST NOT 1 exists
+to protect.

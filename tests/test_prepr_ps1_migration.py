@@ -20,6 +20,7 @@ from scripts.validation.evidence import (
     REASON_BASE_REF_UNRESOLVED,
     REASON_DIFF_FAILED,
     REASON_TIMEOUT,
+    CheckOutcome,
     EvidenceState,
 )
 
@@ -359,7 +360,7 @@ class TestDiffFailureReachesTheGateAsUnknown:
     _BAD_REV = (128, "", "fatal: bad revision 'origin/main...HEAD'")
 
     @staticmethod
-    def _session_end(diff_result: tuple[int, str, str]) -> object:
+    def _session_end(diff_result: tuple[int, str, str]) -> CheckOutcome:
         from checks_tooling import validate_session_end
 
         with patch("checks_tooling._resolve_branch_base_ref", return_value="origin/main"):
@@ -367,7 +368,7 @@ class TestDiffFailureReachesTheGateAsUnknown:
                 return validate_session_end(REPO_ROOT)
 
     @staticmethod
-    def _mypy(diff_result: tuple[int, str, str]) -> object:
+    def _mypy(diff_result: tuple[int, str, str]) -> CheckOutcome:
         from checks_mypy import validate_mypy_changed_files
 
         with patch("checks_mypy._resolve_branch_base_ref", return_value="origin/main"):

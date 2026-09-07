@@ -523,8 +523,16 @@ def validate_yaml_style(repo_root: Path) -> CheckOutcome:
     Returns typed evidence (issue #5635). An absent yamllint is BLOCKED and is
     licensed by name in the pre-PR policy, same as actionlint above. Findings
     remain advisory and still return PASS, because this gate deliberately does
-    not block on style; the finding count now rides along so a reader can see
-    the difference between a clean scan and a tolerated one.
+    not block on style.
+
+    A tolerated run is distinguished from a clean one by its scope string
+    (``advisory findings tolerated``) and by the yamllint exit code carried in
+    ``detail``, NOT by a finding count: ``CheckOutcome.passed`` takes no
+    ``findings`` argument and hard-codes it to 0, and ``_check_pass_evidence``
+    rejects any PASS reporting findings. Counting the parsable-format lines
+    would mean returning FAIL and licensing it with a fourth
+    ``PolicyException``, which is a heavier contract than an advisory style
+    check earns.
     """
     if not shutil.which("yamllint"):
         print("[BLOCKED] yamllint not found; no YAML file was examined")

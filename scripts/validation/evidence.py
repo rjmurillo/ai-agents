@@ -1,10 +1,11 @@
-# taste-lint: ignore file-size. This module is one type contract and must stay
-# one module: scripts/validation/ is imported both flat (pre_pr.py inserts the
-# directory on sys.path) and as a package (tests use scripts.validation.X), so
-# splitting the policy half out would give the two import paths two distinct
-# EvidenceState enums and every `is` comparison across the seam would silently
-# return False. That is the dual-module-identity trap issue #3073 records for
-# pre_pr. Roughly a third of the lines are docstrings and rationale comments.
+# taste-lint: ignore file-size. One type contract, with a large share of the
+# file given to docstrings and rationale rather than code; re-derive the split
+# with tokenize rather than trusting a number here, which drifts on every edit.
+# Splitting this module is SAFE, not forbidden. An earlier version of this
+# comment claimed otherwise; the module docstring below records the correction
+# and the measurement behind it. The escape is taken because the two halves
+# would be a contract and its one caller's licence list, which read better
+# adjacent, not because a split would break anything.
 """Typed evidence states for repository validators.
 
 A validator that returns ``bool`` can say only "clean" or "dirty". Every other
@@ -49,11 +50,27 @@ Prior art this mirrors rather than reinvents:
   measurement fails to happen are separate states, because they share no
   remedy.
 
-This is one module on purpose. Splitting the policy half out would give a flat
-``from evidence import ...`` and a package ``from scripts.validation.evidence
-import ...`` two distinct ``EvidenceState`` enums, and every ``is`` comparison
-across the seam would silently return False. That is the dual-module-identity
-trap issue #3073 records for ``pre_pr``.
+A correction, because the first version of this file got it wrong. That version
+claimed the module could not be split, on the grounds that ``scripts/validation``
+is imported both flat and as a package, so a split would fork ``EvidenceState``
+into two enum classes and break every ``is`` comparison across the seam.
+
+The mechanism is real. The constraint is not, and the difference matters to
+anyone deciding whether to refactor this file. The fork happens when the file
+DEFINING the enum is reached under two names, which is a property of the import
+PATH, not the module COUNT. Measured on this tree: running ``pre_pr.py`` as
+``__main__``, with its flat ``sys.path`` insert active, binds this file to
+exactly one name, ``scripts.validation.evidence``; five siblings do load flat
+(``checks_common``, ``checks_mypy``, ``checks_tooling``, ``pre_pr_sequence``,
+``subprocess_runner``), and a flat-loaded ``checks_tooling`` still satisfies
+``checks_tooling.CheckOutcome is scripts.validation.evidence.CheckOutcome``.
+No flat ``import evidence`` exists anywhere in the repository.
+
+So the guard is the package-path import convention every consumer already
+follows, and it protects two files exactly as well as one. Keeping this as one
+module is a readability preference, not a safety requirement. Do not cite the
+trap as a reason to decline a split. Issue #3073 is a real trap for ``pre_pr``,
+which genuinely is loaded under two names; this file is not.
 
 Import discipline: standard library only, so a step invoking a script with bare
 ``python3`` can use it (``ci-scripts.md`` MUST 18), and nothing from this
