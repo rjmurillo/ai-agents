@@ -41,6 +41,7 @@ import yaml
 import scripts.validate_session_json as vsj
 from scripts.validation import git_hook_policy as policy
 from scripts.validation import pre_pr
+from scripts.validation.evidence import EvidenceState
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LEFTHOOK = PROJECT_ROOT / "lefthook.yml"
@@ -325,7 +326,7 @@ def test_pre_pr_session_validation_passes_without_a_branch_log() -> None:
         mock.patch("checks_tooling._resolve_branch_base_ref", return_value="origin/main"),
         mock.patch("checks_tooling._run_subprocess", return_value=(0, "", "")),
     ):
-        assert pre_pr.validate_session_end(PROJECT_ROOT) is True
+        assert pre_pr.validate_session_end(PROJECT_ROOT).state is EvidenceState.PASS
 
 
 def test_adr_review_gate_requires_staged_debate_evidence(tmp_path: Path) -> None:

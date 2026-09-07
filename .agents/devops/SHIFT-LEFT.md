@@ -93,15 +93,86 @@ SKIP_AUTOFIX=1 uv run --frozen python scripts/validation/pre_pr.py
 
 The per-gate durations print in the Detailed Results block at the end.
 
+## Evidence States
+
+Since issue #5635 a gate reports one of five typed states rather than a boolean,
+defined in `scripts/validation/evidence.py`. The distinction the boolean could
+not carry is between a check that ran and one that only appeared to.
+
+| State | Meaning | Blocks the push |
+|-------|---------|-----------------|
+| PASS | Ran against the named revision and scope, and proved the contract | No |
+| FAIL | Ran, and found a violation | Yes |
+| SKIP | Intentionally did not apply | No, by the exception below |
+| BLOCKED | Could not run: a dependency or service was unavailable | Yes |
+| UNKNOWN | Evidence incomplete, malformed, stale, or truncated | Yes |
+
+Every non-PASS state carries a machine-readable reason code (`base_ref.unresolved`,
+`diff.failed`, `script.absent`, `tool.absent`, `timeout`, `output.malformed`,
+and the rest are constants in `evidence.py`), and the runner prints it next to
+the gate name. A PASS must name the revision and the scope it ran against, so
+the state cannot be reached without the proof it claims.
+
+The gate accepts PASS and nothing else, with one declared exception:
+`default_pre_pr_policy()` licenses SKIP for every gate. That is not new policy,
+it is this document's prior sentence made executable: ADR-042 expunged the
+PowerShell validators, so a downstream install legitimately lacks scripts this
+repository ships, and `--quick` plus the pre-push fast stage skip gates on
+purpose. BLOCKED and UNKNOWN get no exception, because those are the outcomes
+that used to arrive as PASS.
+
+Add an exception only through `PolicyException`, which requires a written
+justification so a reviewer can evaluate it.
+
 ## Exit Codes
+
+The worst state that blocked the gate picks the code
+(`evidence.py:exit_code_for`).
 
 | Code | Meaning | Action |
 |------|---------|--------|
-| 0 | PASS | All gates passed |
-| 1 | FAIL | One or more gates failed; fix and re-run |
-| 2 | ERROR | Environment or configuration fault |
+| 0 | Nothing blocked | All gates passed or were licensed by the policy |
+| 1 | FAIL or UNKNOWN | Fix the violation, or read the gate's output |
+| 2 | Config error | Bad repository root, or a SKIP the policy refused |
+| 3 | BLOCKED | Install or authenticate the dependency the reason names |
 
-Gates that raise `MissingScriptSkip` record SKIP and do not fail the run.
+## Machine-readable summary
+
+`--summary-json PATH` (or `PRE_PR_SUMMARY_JSON`) writes the run as JSON: the
+parent state, the counts per state, the declared policy, one row per gate with
+its state, reason code, scope, revision, and counts, and the subset that
+blocked.
+
+```bash
+uv run --frozen python scripts/validation/pre_pr.py --summary-json /tmp/pre-pr.json
+```
+
+## Unmigrated validators
+
+The migration is deliberately partial. A gate that still returns `bool` is
+adapted by `evidence.coerce_outcome`, which tags its failing side with the
+reason code `legacy.boolean_contract` and its passing side with the scope
+`whole validator (unmigrated boolean contract)`. Both are greppable in the JSON
+summary, so the remaining work is countable rather than invisible.
+
+Migrated so far: `checks_tooling.validate_session_end`,
+`checks_tooling.validate_workflow_yaml`, `checks_tooling.validate_yaml_style`,
+and `checks_mypy.validate_mypy_changed_files`.
+
+Known unmigrated, verified on this tree:
+
+- `checks_plugin.validate_workflow_local_run` returns `True` on four
+  not-checked conditions: an unresolved base ref, a failed `git diff`, and the
+  child script's exit 3 (tools unavailable) and exit 4 (auth unavailable).
+- Three `checks_spec` gates return `True` when their child script is absent,
+  printing a warning instead of raising `MissingScriptSkip`, so the skip is
+  invisible to the runner.
+- `checks_coverage.validate_review_marker` returns `True` on an advisory
+  failure and rewrites the child's `[FAIL]` tokens to `[WARN]` to match. That
+  one is a deliberate advisory (issue #1938), not a fail-open, but it still
+  reports PASS for a check that found something.
+
+All four are tracked in #5635.
 
 ## Integration with Workflows
 

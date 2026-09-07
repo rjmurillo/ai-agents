@@ -16,6 +16,11 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.validation.evidence import (
+    REASON_BASE_REF_UNRESOLVED,
+    EvidenceState,
+)
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHECKS_TOOLING = REPO_ROOT / "scripts" / "validation" / "checks_tooling.py"
 
@@ -82,7 +87,7 @@ class TestSessionEndGate:
         # No changed session logs on branch -> PASS
         with patch("checks_tooling._resolve_branch_base_ref", return_value="main"):
             with patch("checks_tooling._run_subprocess", return_value=(0, "", "")):
-                assert validate_session_end(REPO_ROOT) is True
+                assert validate_session_end(REPO_ROOT).state is EvidenceState.PASS
 
     def test_fails_on_invalid_log(self, tmp_path: Path) -> None:
         from checks_tooling import validate_session_end
@@ -110,7 +115,7 @@ class TestSessionEndGate:
                     (1, "[FAIL] Invalid session log", ""),
                 ],
             ):
-                assert validate_session_end(tmp_path) is False
+                assert validate_session_end(tmp_path).state is EvidenceState.FAIL
 
     def test_no_missing_script_skip_when_script_present(self) -> None:
         from checks_tooling import validate_session_end
@@ -121,7 +126,8 @@ class TestSessionEndGate:
             with patch("checks_tooling._run_subprocess", return_value=(0, "", "")):
                 # No changed logs -> passes without needing the script
                 result = validate_session_end(REPO_ROOT)
-                assert result is True
+                assert result.state is EvidenceState.PASS
+                assert result.examined == 0
 
 
 class TestPathNormalizationGate:
@@ -214,13 +220,21 @@ class TestMypyChangedFilesGate:
 
         with patch("checks_mypy._resolve_branch_base_ref", return_value="main"):
             with patch("checks_mypy._run_subprocess", return_value=(0, "", "")):
-                assert validate_mypy_changed_files(REPO_ROOT) is True
+                assert validate_mypy_changed_files(REPO_ROOT).state is EvidenceState.PASS
 
-    def test_passes_when_no_base_ref(self) -> None:
+    def test_reports_blocked_when_no_base_ref(self) -> None:
+        """Was test_passes_when_no_base_ref, asserting PASS (issue #5635).
+
+        No base ref means no changed-file set, so mypy type-checked nothing.
+        Reporting that as PASS is the defect; BLOCKED names the remedy.
+        """
         from checks_mypy import validate_mypy_changed_files
 
         with patch("checks_mypy._resolve_branch_base_ref", return_value=None):
-            assert validate_mypy_changed_files(REPO_ROOT) is True
+            outcome = validate_mypy_changed_files(REPO_ROOT)
+
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_BASE_REF_UNRESOLVED
 
     def test_fails_when_new_type_error_added(self, tmp_path: Path) -> None:
         """A file that ADDS a new type error on a changed line must FAIL.
