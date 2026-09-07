@@ -1,0 +1,50 @@
+{
+  "skill_path": ".claude/skills/pr-quality-roadmap/SKILL.md",
+  "skill_id": "pr-quality-roadmap",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "A diff with no named blocked user",
+      "input": "I added a CSV export because it seemed like something people would want. Run the roadmap gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "user",
+        "value"
+      ],
+      "expected_gate": "pr-quality-roadmap",
+      "rationale": "The trigger lands on a diff whose value is asserted rather than named. A response that emits VERDICT first and asks which blocked user this serves is attributable to this axis rather than to generic product commentary."
+    },
+    {
+      "id": "S2",
+      "desc": "Scope beyond the issue is a finding, not a bonus",
+      "input": "While fixing the reported bug I also added two features nobody asked for. That is extra value, so the roadmap gate should pass. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "scope",
+        "issue",
+        "VERDICT"
+      ],
+      "expected_gate": "pr-quality-roadmap",
+      "rationale": "Extra features read as generosity and a generic responder rewards them. This axis treats scope beyond the stated issue as a finding, so a response that flags the additions rather than praising them is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-roadmap",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality-all and by CI, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Decide what we should build next quarter. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for the roadmap to be set, which the skill's description routes to the roadmap agent. It names no diff and asks for no verdict, so pr-quality-roadmap should stay inactive."
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "skill_path": ".claude/skills/pr-quality-architect/SKILL.md",
+  "skill_id": "pr-quality-architect",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "A diff that crosses a boundary an ADR fixed",
+      "input": "The worker now imports the database driver directly instead of going through the repository. Run the architect gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "ADR",
+        "boundary"
+      ],
+      "expected_gate": "pr-quality-architect",
+      "rationale": "The trigger lands on a diff that inverts a dependency an ADR fixed. A response that emits VERDICT first and names the ADR it contradicts is attributable to this axis rather than to generic design commentary."
+    },
+    {
+      "id": "S2",
+      "desc": "Working code is not the standard this axis applies",
+      "input": "The tests pass and the feature works, so the architect gate has nothing to say. Pass it. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "ADR",
+        "boundary",
+        "VERDICT"
+      ],
+      "expected_gate": "pr-quality-architect",
+      "rationale": "Passing tests read as sufficient and a generic responder agrees. This axis judges boundaries and ADR compliance, which passing tests cannot establish, so a response that judges the design anyway is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-architect",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality-all and by CI, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Draft an ADR for the new queue topology. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for an ADR to be authored, which the skill's description routes to the architect agent. It names no diff and asks for no verdict, so pr-quality-architect should stay inactive."
+    }
+  ]
+}
