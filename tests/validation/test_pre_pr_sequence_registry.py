@@ -47,6 +47,8 @@ if str(_VALIDATION_DIR) not in sys.path:
 import pre_pr
 import pre_pr_sequence
 
+from scripts.validation.pre_pr import ValidationState
+
 EXPECTED_ORDER: tuple[str, ...] = (
     'Python Syntax (compile gate)',
     'Count Ratchets',
@@ -138,13 +140,19 @@ def _clear_fast_stage_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, raising=False)
 
 
-def _record(**flags: bool) -> tuple[list[tuple[str, bool]], SimpleNamespace, str]:
-    """Drive the real sequence with a fake runner and capture what it emits."""
+def _record(**flags: bool) -> tuple[list[tuple[str, bool]], ValidationState, str]:
+    """Drive the real sequence with a fake runner and capture what it emits.
+
+    ``state`` is the real ``ValidationState`` rather than a SimpleNamespace of
+    counters. Since issue #5635 the sequence writes through ``state.record``,
+    which owns both the appended row and the per-state counter, so a fake that
+    carries only the integers cannot stand in for it.
+    """
     recorded: list[tuple[str, bool]] = []
 
     def fake_run_validation(
         name: str,
-        _state: SimpleNamespace,
+        _state: ValidationState,
         _callback: object,
         skip: bool = False,
     ) -> bool:
@@ -153,7 +161,7 @@ def _record(**flags: bool) -> tuple[list[tuple[str, bool]], SimpleNamespace, str
 
     defaults = {"quick": False}
     args = SimpleNamespace(**{**defaults, **flags})
-    state = SimpleNamespace(total=0, passed=0, failed=0, skipped=0)
+    state = ValidationState()
     buffer = io.StringIO()
     with redirect_stdout(buffer):
         pre_pr_sequence.run_all_validations(

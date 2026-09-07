@@ -560,6 +560,32 @@ def default_pre_pr_policy() -> GatePolicy:
                 ),
                 reference=".agents/devops/SHIFT-LEFT.md",
             ),
+            PolicyException(
+                validator="validate_workflow_yaml",
+                states=frozenset({EvidenceState.BLOCKED}),
+                reasons=frozenset({REASON_TOOL_ABSENT}),
+                justification=(
+                    "actionlint is an optional developer-machine tool, not a "
+                    "dependency this repository installs. lefthook already treats "
+                    "its absence as DEGRADED rather than a failure, so blocking the "
+                    "push here would stop every contributor who has not installed "
+                    "it. The BLOCKED state is still recorded, so the summary "
+                    "distinguishes a degraded run from a clean one instead of "
+                    "reporting both as PASS."
+                ),
+                reference="lefthook.yml workflow-local-run",
+            ),
+            PolicyException(
+                validator="validate_yaml_style",
+                states=frozenset({EvidenceState.BLOCKED}),
+                reasons=frozenset({REASON_TOOL_ABSENT}),
+                justification=(
+                    "yamllint is optional and this gate is advisory by design: it "
+                    "reports style findings without failing (issue #2374). Its "
+                    "absence therefore cannot be more blocking than its findings."
+                ),
+                reference="scripts/validation/checks_tooling.py validate_yaml_style",
+            ),
         )
     )
 

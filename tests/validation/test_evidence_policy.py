@@ -10,6 +10,7 @@ ADR-035 exit code each blocking state maps to. The producer-side half is in
 from __future__ import annotations
 
 import json
+from typing import Any, cast
 
 import pytest
 
@@ -168,11 +169,42 @@ class TestDefaultPrePrPolicy:
         """These are the states that used to arrive as True."""
         assert not default_pre_pr_policy().accepts(outcome)
 
-    def test_the_exception_cites_where_the_policy_is_written_down(self) -> None:
-        """A bounded exception points at the document a reviewer reads."""
-        (exception,) = default_pre_pr_policy().exceptions
+    def test_every_exception_carries_a_justification_and_a_reference(self) -> None:
+        """A bounded exception points at what a reviewer reads to evaluate it."""
+        exceptions = default_pre_pr_policy().exceptions
 
-        assert exception.reference == ".agents/devops/SHIFT-LEFT.md"
+        assert len(exceptions) == 3
+        assert all(exception.justification.strip() for exception in exceptions)
+        assert all(exception.reference.strip() for exception in exceptions)
+        assert exceptions[0].reference == ".agents/devops/SHIFT-LEFT.md"
+
+    @pytest.mark.parametrize(
+        "validator", ["validate_workflow_yaml", "validate_yaml_style"]
+    )
+    def test_an_absent_optional_linter_is_licensed_by_name(self, validator: str) -> None:
+        """actionlint and yamllint are optional, so their absence must not block.
+
+        The state is still BLOCKED and still appears in the summary, which is
+        the difference from the pre-#5635 behavior of returning True.
+        """
+        blocked = CheckOutcome.blocked(validator, reason=REASON_TOOL_ABSENT)
+
+        assert default_pre_pr_policy().accepts(blocked)
+
+    @pytest.mark.parametrize(
+        "validator", ["validate_workflow_yaml", "validate_yaml_style"]
+    )
+    def test_the_licence_does_not_extend_to_another_reason(self, validator: str) -> None:
+        """Bounded by reason: only a missing tool is licensed, not a missing base ref."""
+        blocked = CheckOutcome.blocked(validator, reason=REASON_BASE_REF_UNRESOLVED)
+
+        assert not default_pre_pr_policy().accepts(blocked)
+
+    def test_the_licence_does_not_extend_to_another_validator(self) -> None:
+        """Bounded by validator: a third gate's missing tool still blocks."""
+        blocked = CheckOutcome.blocked("validate_session_end", reason=REASON_TOOL_ABSENT)
+
+        assert not default_pre_pr_policy().accepts(blocked)
 
 
 class TestAggregate:
@@ -321,6 +353,7 @@ class TestAggregateOutcomeIsImmutable:
     def test_frozen_dataclass_rejects_assignment(self) -> None:
         """Evidence is a record, not a mutable scratchpad."""
         summary: AggregateOutcome = aggregate("g", [])
+        mutable = cast(Any, summary)
 
         with pytest.raises((AttributeError, TypeError)):
-            summary.state = EvidenceState.PASS  # type: ignore[misc]
+            mutable.state = EvidenceState.PASS
