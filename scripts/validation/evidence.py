@@ -663,6 +663,26 @@ def aggregate(
     """
     resolved_policy = GatePolicy() if policy is None else policy
     children = tuple(outcomes)
+    if not children:
+        # worst_state() already calls the empty set UNKNOWN, but an empty
+        # ``rejected`` leaves ``blocking`` False and ``exit_code_for`` at 0, so
+        # a runner that executed no gate at all would report success. That is
+        # the exact fail-open this contract exists to remove, reached through
+        # the aggregate rather than through a validator. Materialise the
+        # finding as a child so the state, the counts, the serialized results,
+        # the blocking guidance, and the exit code all agree (issue #5635).
+        children = (
+            CheckOutcome.unknown(
+                name,
+                reason=REASON_NO_OUTCOMES,
+                scope="no validator produced an outcome",
+                examined=0,
+                detail=(
+                    "the run produced no outcomes, so it examined nothing and "
+                    "proved nothing"
+                ),
+            ),
+        )
     return AggregateOutcome(
         name=name,
         state=worst_state(outcome.state for outcome in children),

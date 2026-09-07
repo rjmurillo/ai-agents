@@ -375,3 +375,24 @@ class TestFastStageSkipIsRecorded:
 
         (outcome,) = state.outcomes()
         assert outcome.state is EvidenceState.PASS
+
+
+class TestMainWithAnEmptySequence:
+    """``main`` must not report success when the sequence ran no gate at all.
+
+    Driven through the real ``main`` rather than through ``aggregate`` so the
+    assertion is on the process exit code (``.claude/rules/testing.md`` MUST 8):
+    the aggregate-level unit tests in ``test_evidence_contract.py`` prove the
+    contract, and this proves the runner is wired to it. Requested by review
+    on PR #5641.
+    """
+
+    def test_an_empty_sequence_exits_nonzero(self) -> None:
+        """Before the fix this exited 0, reporting a clean run of nothing."""
+        with patch("pre_pr_sequence._SEQUENCE", ()):
+            assert main(["--quick"]) == 1
+
+    def test_a_nonempty_sequence_still_exits_zero(self) -> None:
+        """Negative control: only the empty case changed."""
+        with patch("pre_pr_sequence._SEQUENCE", _sequence_returning(True)):
+            assert main(["--quick"]) == 0

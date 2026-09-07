@@ -22,12 +22,16 @@ from scripts.validation.evidence import (
     REASON_DIFF_FAILED,
     REASON_LEGACY_BOOLEAN,
     REASON_MALFORMED_OUTPUT,
+    REASON_NO_OUTCOMES,
     REASON_SCRIPT_ABSENT,
     REASON_TOOL_ABSENT,
     WORKING_TREE,
     CheckOutcome,
     EvidenceState,
+    aggregate,
     coerce_outcome,
+    default_pre_pr_policy,
+    exit_code_for,
     worst_state,
 )
 
@@ -310,3 +314,61 @@ class TestWorstState:
         """A state outside the contract must not silently become PASS."""
         with pytest.raises(ValueError, match="unrecognized states"):
             worst_state(_off_contract(["MAYBE"]))
+
+
+class TestAggregateWithNoOutcomes:
+    """A run that produced no outcomes must block, not exit clean.
+
+    ``worst_state`` already called the empty set UNKNOWN, but ``aggregate``
+    left ``rejected`` empty, so ``blocking`` was False and ``exit_code_for``
+    returned 0: a runner whose sequence was empty reported success. That is
+    the fail-open this contract exists to remove, reached through the
+    aggregate instead of through a validator. Found by review on PR #5641;
+    ``REASON_NO_OUTCOMES`` had been defined and exported since the first
+    commit but was never wired to anything.
+    """
+
+    def test_an_empty_aggregate_is_unknown(self) -> None:
+        """Unchanged by the fix: the state was always right."""
+        assert aggregate("pre-pr", []).state is EvidenceState.UNKNOWN
+
+    def test_an_empty_aggregate_blocks(self) -> None:
+        """The state and the blocking verdict must agree."""
+        assert aggregate("pre-pr", []).blocking is True
+
+    def test_an_empty_aggregate_exits_nonzero(self) -> None:
+        """The discriminating assertion: this returned 0 before the fix."""
+        assert exit_code_for(aggregate("pre-pr", [])) == 1
+
+    def test_an_empty_aggregate_names_its_reason(self) -> None:
+        """A blocked run must say why, or the exit code is unactionable."""
+        (rejected,) = aggregate("pre-pr", []).rejected
+
+        assert rejected.reason == REASON_NO_OUTCOMES
+        assert rejected.state is EvidenceState.UNKNOWN
+
+    def test_the_documented_policy_does_not_license_it(self) -> None:
+        """The pre-PR policy licenses absent tools, never absent evidence."""
+        summary = aggregate("pre-pr", [], default_pre_pr_policy())
+
+        assert summary.blocking is True
+        assert exit_code_for(summary) == 1
+
+    def test_the_counts_report_the_synthesized_finding(self) -> None:
+        """counts() must agree with the state rather than reporting all zero."""
+        assert aggregate("pre-pr", []).counts()["UNKNOWN"] == 1
+
+    def test_the_serialized_summary_agrees_with_the_exit_code(self) -> None:
+        """A consumer parsing the JSON must reach the same verdict."""
+        payload = aggregate("pre-pr", []).to_dict()
+
+        assert payload["state"] == "UNKNOWN"
+        assert payload["blocking"] is True
+        assert payload["exit_code"] == 1
+        assert [row["reason"] for row in payload["rejected"]] == [REASON_NO_OUTCOMES]
+
+    def test_a_single_passing_child_still_exits_zero(self) -> None:
+        """Negative control: the fix must not make every aggregate block."""
+        passing = CheckOutcome.passed("v", revision=WORKING_TREE, scope="everything")
+
+        assert exit_code_for(aggregate("pre-pr", [passing])) == 0
