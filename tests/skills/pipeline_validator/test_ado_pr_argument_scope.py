@@ -127,7 +127,7 @@ SKILL_PATHS = (
 # pinning the guard to a fixed tuple would leave any newly added skill or runbook unguarded.
 KNOWN_ADO_DOC_PATHS = (
     *SKILL_PATHS,
-    Path(".claude/commands/ship.md"),
+    Path(".claude/skills/ship/SKILL.md"),
     Path("src/copilot-cli/skills/ship/SKILL.md"),
 )
 
@@ -304,7 +304,7 @@ class TestIdScopedCommandsRejectProjectFlags:
     def test_policy_list_invocation_is_clean(self) -> None:
         """The exact command named in issue #5077, in the file this repo does ship."""
         for path in (
-            Path(".claude/commands/ship.md"),
+            Path(".claude/skills/ship/SKILL.md"),
             Path("src/copilot-cli/skills/ship/SKILL.md"),
         ):
             policy_calls = [c for c in parse_calls(read(path)) if c.subcommand == "policy list"]
