@@ -27,7 +27,6 @@ tools:
   - edit
   - search
   - web
-  - forgetful/*
   - serena/*
   - todo
   - updateUserPreferences

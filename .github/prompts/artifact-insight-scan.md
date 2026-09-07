@@ -93,7 +93,7 @@ SOURCE: .agents/sessions/2026-02-20-session-42.json:15
 FINDING:
 TYPE: IMPROVEMENT
 TITLE: docs(memory): document memory tier selection criteria
-BODY: Multiple sessions show confusion about when to use Serena vs Forgetful memory. Add decision tree to AGENTS.md clarifying tier selection.
+BODY: Multiple sessions show confusion about when to use Serena memories versus session episodes. Add decision tree to AGENTS.md clarifying tier selection.
 PRIORITY: P2
 LABELS: documentation
 SOURCE: .agents/retrospective/2026-02-18-retrospective.md:45
