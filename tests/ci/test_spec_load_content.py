@@ -194,6 +194,148 @@ class TestRun:
             with patch("scripts.ci.spec_load_content.subprocess.run", return_value=failure):
                 assert main() == EXIT_EXTERNAL
 
+    def test_unresolvable_ref_is_skipped_when_another_resolves(self, tmp_path: Path) -> None:
+        """A pull request number among the refs must not fail the whole gate.
+
+        `spec_extract_refs.py` now extracts non-closing linkage (issues #5489
+        and #5620), and real bodies point `Refs #<n>` at pull requests: PR #5609
+        carries `Refs #5600` and PR #5630 carries `Refs #5623`. `gh issue view`
+        cannot resolve a pull request number, so aborting on the first failure
+        would take the required check red on a compliant body.
+        """
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_REFS": "",
+            "ISSUE_REFS": "5600 5605",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+
+        def fake_run(argv: list[str], **_kwargs: object) -> MagicMock:
+            if "5600" in argv:
+                return MagicMock(returncode=1, stdout="", stderr="Could not resolve to an Issue")
+            return MagicMock(returncode=0, stdout="Real issue\n\nAcceptance criteria")
+
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_load_content.subprocess.run", side_effect=fake_run):
+                assert main() == EXIT_OK
+
+        written = (tmp_path / "spec-content-0.md").read_text(encoding="utf-8")
+        assert "Acceptance criteria" in written
+        assert "5600" not in written
+
+    def test_unresolvable_ref_is_skipped_when_a_spec_file_resolves(self, tmp_path: Path) -> None:
+        spec_file = tmp_path / "REQ-010-spec.md"
+        spec_file.write_text("# REQ-010\nSpec body", encoding="utf-8")
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_REFS": str(spec_file),
+            "ISSUE_REFS": "5600",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+        failure = MagicMock(returncode=1, stdout="", stderr="Could not resolve to an Issue")
+
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=failure):
+                assert main() == EXIT_OK
+
+        assert "Spec body" in (tmp_path / "spec-content-0.md").read_text(encoding="utf-8")
+
+    def test_an_outage_fails_even_when_another_reference_loaded(self, tmp_path: Path) -> None:
+        """A genuine lookup failure must not be skipped just because something loaded.
+
+        Devin Review on PR #5648: skipping every failure alike let the required
+        check pass while the judge saw a subset of the requirements. A reference
+        that is simply not an issue stays skippable; an outage does not.
+        """
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_REFS": "",
+            "ISSUE_REFS": "5605 5600 5610",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+
+        def fake_run(argv: list[str], **_kwargs: object) -> MagicMock:
+            if "5600" in argv:
+                return MagicMock(returncode=1, stdout="", stderr="Could not resolve to an Issue")
+            if "5610" in argv:
+                return MagicMock(returncode=1, stdout="", stderr="API rate limit exceeded")
+            return MagicMock(returncode=0, stdout="Real issue\n\nAcceptance criteria")
+
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_load_content.subprocess.run", side_effect=fake_run):
+                assert main() == EXIT_EXTERNAL
+
+        assert not (tmp_path / "spec-content-0.md").exists()
+
+    def test_launch_failure_fails_even_when_another_reference_loaded(self, tmp_path: Path) -> None:
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_REFS": "",
+            "ISSUE_REFS": "5605 5610",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+
+        def fake_run(argv: list[str], **_kwargs: object) -> MagicMock:
+            if "5610" in argv:
+                raise OSError("gh not found")
+            return MagicMock(returncode=0, stdout="Real issue\n\nAcceptance criteria")
+
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_load_content.subprocess.run", side_effect=fake_run):
+                assert main() == EXIT_EXTERNAL
+
+    def test_unrecognized_stderr_is_treated_as_an_outage(self, tmp_path: Path) -> None:
+        """The classifier fails closed on wording it does not recognize."""
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_REFS": "",
+            "ISSUE_REFS": "5605 5600",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+
+        def fake_run(argv: list[str], **_kwargs: object) -> MagicMock:
+            if "5600" in argv:
+                return MagicMock(returncode=1, stdout="", stderr="some new gh wording")
+            return MagicMock(returncode=0, stdout="Real issue\n\nAcceptance criteria")
+
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_load_content.subprocess.run", side_effect=fake_run):
+                assert main() == EXIT_EXTERNAL
+
+    def test_every_ref_is_not_an_issue_reports_config_not_external(self, tmp_path: Path) -> None:
+        """Skipping a non-issue ref must not become a fail-open path."""
+        out_file = tmp_path / "out.txt"
+        env = {
+            "SPEC_REFS": "",
+            "ISSUE_REFS": "5600 5623",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+        failure = MagicMock(returncode=1, stdout="", stderr="Could not resolve to an Issue")
+
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=failure):
+                assert main() == EXIT_CONFIG
+
+        assert not (tmp_path / "spec-content-0.md").exists()
+
     def test_issue_lookup_launch_failure_main_returns_external(self, tmp_path: Path) -> None:
         out_file = tmp_path / "out.txt"
         env = {
