@@ -1,5 +1,5 @@
 {
-  "_comment": "Phase 1 example for eval-skill-overlap.py. The Issue #1932 body named four pairs, but doc-coverage, doc-sync, and session-qa-eligibility were deleted in the M1 catalog prune (commit 5c4729345, #1942), and exploring-knowledge-graph was retired in the Forgetful decommission (#5574). Only live, currently-overlapping pairs are listed here: memory-enhancement/curating-memories (both maintain memory quality). Prompts below are illustrative; replace with the per-skill 5-6 native prompts from the triage report before a production run.",
+  "_comment": "Phase 1 example for eval-skill-overlap.py. The Issue #1932 body named four pairs, but doc-coverage, doc-sync, and session-qa-eligibility were deleted in the M1 catalog prune (commit 5c4729345, #1942), and exploring-knowledge-graph was retired by the memory-backend decommission (#5574). Only live, currently-overlapping pairs are listed here: memory-enhancement/curating-memories (both maintain memory quality). Prompts below are illustrative; replace with the per-skill 5-6 native prompts from the triage report before a production run.",
   "pairs": [
     ["memory-enhancement", "curating-memories"]
   ],

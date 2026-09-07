@@ -163,7 +163,6 @@ PREFIX_TO_DIR = {
     "memory-": "memory",
     "context-engineering": "memory",
     "context-inference": "memory",
-    "forgetful-": "memory",
     "phase2a-memory": "memory",
     # Gemini domain
     "gemini-": "gemini",
