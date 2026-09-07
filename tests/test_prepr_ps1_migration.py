@@ -12,6 +12,7 @@ import ast
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -81,6 +82,25 @@ class TestPesterGateRemoved:
         assert not hasattr(checks_tooling, "validate_pester_tests")
 
 
+def _session_git_fake(head: str) -> Any:
+    """Return a ``_run_subprocess`` replacement keyed on the git subcommand.
+
+    A blanket ``return_value=(0, "", "")`` answers ``git rev-parse HEAD`` with
+    empty stdout. Since issue #5646 item 2 that is UNKNOWN rather than a PASS
+    naming the ``INVALID_HEAD`` placeholder, so the revision has to be supplied
+    for a no-changed-logs run to reach PASS. Dispatching on ``argv`` rather than
+    on call order per ``.claude/rules/testing.md`` SHOULD 11: the diff and the
+    rev-parse are issued from two different branches.
+    """
+
+    def run(args: list[str], **_kwargs: Any) -> tuple[int, str, str]:
+        if "rev-parse" in args:
+            return 0, f"{head}\n", ""
+        return 0, "", ""
+
+    return run
+
+
 class TestSessionEndGate:
     """Issue #4658: validate_session_end calls validate_session_json.py."""
 
@@ -88,9 +108,15 @@ class TestSessionEndGate:
         from checks_tooling import validate_session_end
 
         # No changed session logs on branch -> PASS
+        head = "a" * 40
         with patch("checks_tooling._resolve_branch_base_ref", return_value="main"):
-            with patch("checks_tooling._run_subprocess", return_value=(0, "", "")):
-                assert validate_session_end(REPO_ROOT).state is EvidenceState.PASS
+            with patch(
+                "checks_tooling._run_subprocess", side_effect=_session_git_fake(head)
+            ):
+                outcome = validate_session_end(REPO_ROOT)
+
+        assert outcome.state is EvidenceState.PASS
+        assert outcome.revision == head
 
     def test_fails_on_invalid_log(self, tmp_path: Path) -> None:
         from checks_tooling import validate_session_end
@@ -125,12 +151,17 @@ class TestSessionEndGate:
 
         # With a valid base ref and changed log, should NOT raise MissingScriptSkip
         # when validate_session_json.py exists (which it does in this repo).
+        head = "b" * 40
         with patch("checks_tooling._resolve_branch_base_ref", return_value="main"):
-            with patch("checks_tooling._run_subprocess", return_value=(0, "", "")):
+            with patch(
+                "checks_tooling._run_subprocess", side_effect=_session_git_fake(head)
+            ):
                 # No changed logs -> passes without needing the script
                 result = validate_session_end(REPO_ROOT)
-                assert result.state is EvidenceState.PASS
-                assert result.examined == 0
+
+        assert result.state is EvidenceState.PASS
+        assert result.examined == 0
+        assert result.revision == head
 
 
 class TestPathNormalizationGate:
