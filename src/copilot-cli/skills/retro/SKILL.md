@@ -1,12 +1,18 @@
 ---
 name: retro
-description: Fill an unfilled auto-retro skeleton for a date by running the retrospective skill
+version: 1.0.0
+description: Fill an unfilled auto-retrospective skeleton for a date, or list the skeletons still pending. Use when you say `retro fill`, `fill retro skeleton`, or `list pending retros`. Do NOT use to run the retrospective analysis itself (this hands off to the retrospective skill), and do NOT use to write a session log.
+license: MIT
 argument-hint: fill <YYYY-MM-DD>
 allowed-tools: Skill, Read, Glob
 user-invocable: true
 ---
 
-# Retro Command
+# Retro
+
+Migrated from `.claude/commands/retro.md` under ADR-064, which makes skills the
+single user-invocable surface. The body was already skill-shaped, so only the
+frontmatter changed.
 
 Fill an unfilled auto-retrospective skeleton, or write a retrospective from
 scratch. Skeletons carry the marker `<!-- RETRO-STATE: skeleton-pending-fill -->`
