@@ -361,7 +361,7 @@ uv run --frozen python scripts/eval/eval-suite.py              # Full run (requi
 
 # Evaluate a specific prompt change (before/after comparison):
 uv run python scripts/eval/eval-prompt-change.py \
-  --prompt .claude/commands/research.md \
+  --prompt .claude/skills/research/SKILL.md \
   --scenarios tests/evals/research-scenarios.json \
   --base-ref main
 

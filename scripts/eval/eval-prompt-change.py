@@ -8,7 +8,7 @@ security-critical tier, and flakiness protocol from ADR-057.
 Usage:
     # Compare working copy against base branch:
     uv run python scripts/eval/eval-prompt-change.py \\
-        --prompt .claude/commands/research.md \\
+        --prompt .claude/skills/research/SKILL.md \\
         --scenarios tests/evals/research-scenarios.json \\
         --base-ref main
 
@@ -25,7 +25,7 @@ Usage:
 
     # Dry run (validate scenario file, no API calls):
     uv run python scripts/eval/eval-prompt-change.py \\
-        --prompt .claude/commands/research.md \\
+        --prompt .claude/skills/research/SKILL.md \\
         --scenarios tests/evals/research-scenarios.json \\
         --dry-run
 
