@@ -293,12 +293,18 @@ def run_validation(
     state.record(name, outcome)
 
     print()
-    print(f"[{outcome.state.value}] {name} completed in {outcome.duration_seconds:.2f}s")
-    print(f"  {outcome.summary_line()}")
-    if outcome.state is EvidenceState.FAIL:
-        print(f"Error: {outcome.detail}")
-    elif outcome.state is not EvidenceState.PASS:
-        print(f"Note: {outcome.detail}")
+    examined = "" if outcome.examined is None else f" (examined {outcome.examined})"
+    print(
+        f"[{outcome.state.value}] {name} completed in "
+        f"{outcome.duration_seconds:.2f}s{examined}"
+    )
+    if outcome.state is not EvidenceState.PASS:
+        # Only a non-PASS row earns the full evidence line. Printing it for
+        # every gate would bury the handful that need reading, and a PASS has
+        # already said the one thing a reader wants: it proved its contract.
+        print(f"  {outcome.summary_line()}")
+        label = "Error" if outcome.state is EvidenceState.FAIL else "Note"
+        print(f"{label}: {outcome.detail}")
 
     return _POLICY.accepts(outcome)
 

@@ -177,13 +177,15 @@ class TestCheckOutcomeInvariants:
         with pytest.raises(TypeError, match="must be an EvidenceState"):
             CheckOutcome(validator="v", state=_off_contract("PASS"))
 
-    @pytest.mark.parametrize("field_name", ["examined", "findings"])
-    def test_negative_counts_are_rejected(self, field_name: str) -> None:
+    def test_negative_examined_count_is_rejected(self) -> None:
         """A negative count is a measurement bug, not evidence."""
-        with pytest.raises(ValueError, match=f"{field_name} must not be negative"):
-            CheckOutcome(
-                validator="v", state=EvidenceState.FAIL, reason="x.y", **{field_name: -1}
-            )
+        with pytest.raises(ValueError, match="examined must not be negative"):
+            CheckOutcome(validator="v", state=EvidenceState.FAIL, reason="x.y", examined=-1)
+
+    def test_negative_finding_count_is_rejected(self) -> None:
+        """Same rule on the other counter; a splat here would hide the type error."""
+        with pytest.raises(ValueError, match="findings must not be negative"):
+            CheckOutcome(validator="v", state=EvidenceState.FAIL, reason="x.y", findings=-1)
 
     def test_negative_duration_is_rejected(self) -> None:
         """A negative duration means the clock was read wrong."""
