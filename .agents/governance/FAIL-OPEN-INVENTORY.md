@@ -187,8 +187,7 @@ says why.
 
 | Path | Job.step | Construct | What fails silently | Visible | Documented |
 |---|---|---|---|---|---|
-| `memory-health.yml:83` | `health-check` / Run health check (JSON) | `continue-on-error: true` | a `memory_enhancement` crash, which the workflow header itself documents as exit 2, never fails the job; a `has_issues` warning fires only if the parse succeeds | partial | UNDOCUMENTED |
-| `memory-health.yml:88` | `health-check` / Run health check (Markdown) | `continue-on-error: true` | the same crash on the markdown path | partial | UNDOCUMENTED |
+| `memory-health.yml:88` | `health-check` / Run health check (Markdown) | `continue-on-error: true` | a `memory_enhancement` crash on the markdown path. Unlike the JSON path below, nothing re-asserts it: the only consumer is the PR-comment step, which wraps `readFileSync('health-report.md')` in try/catch and posts "Health check completed but no report generated." | partial | UNDOCUMENTED |
 | `pr-validation.yml:134` | `validate-pr` / Post PR Comment | `continue-on-error: true` | the validation report failing to post | partial, retry wrapper only | UNDOCUMENTED |
 | `ai-spec-validation.yml:154` | `validate-spec` / Requirements Traceability Check | `continue-on-error: true` | an analyst-agent crash or timeout at step level | partial, `check_spec_failures.py` reads `TRACE_VERDICT` and `TRACE_INFRA_FAILURE` downstream | UNDOCUMENTED |
 | `ai-spec-validation.yml:169` | `validate-spec` / Completeness Check | `continue-on-error: true` | a critic-agent crash or timeout | partial, same downstream gate | UNDOCUMENTED |
@@ -200,7 +199,6 @@ says why.
 
 | Path | Job.step | What fails silently | Visible | Documented |
 |---|---|---|---|---|
-| `software-engineering-library-activation.yml:79` | `activation-gate` / Run live activation eval | a crash or failure of the live eval | partial, opens a rollback alert issue only when `outcome == 'failure'` | UNDOCUMENTED |
 | `drift-detection.yml:63` | `detect-drift` / Summarize kill-criteria drift telemetry | the report exits 1 when a criterion fired | partial, alert lands in the job step summary | DELIBERATE |
 | `post-pr-retrospective.yml:150` | `retrospective` / Run retrospective via Claude Code | an expired OAuth token, an API outage, any real agent error | partial, step annotation | DELIBERATE, Issue #2015, "the annotation, not a red check, is the signal" |
 | `pr-maintenance.yml:95` | `discover-prs` / Detect orphan commits | detector failures and findings alike | no, raw run log only | DELIBERATE, Issue #4316, "Warn, never block" |
@@ -220,6 +218,8 @@ remove the re-assertion without touching the `continue-on-error` line.
 | `agent-drift-detection.yml:150` | `validate` / Check plugin lib mirrors are in sync | same step |
 | `agent-drift-detection.yml:156` | `validate` / Check plugin manifest parity | same step |
 | `semantic-pr-title-check.yml:45` | `main` / `amannn/action-semantic-pull-request` | "Classify outcome (ignore Unicorn HTML flake, block real failures)" |
+| `memory-health.yml:83` | `health-check` / Run health check (JSON) | "Parse health results" runs `parse_memory_health_results.py` with no `continue-on-error`; that script returns 1 on a missing, empty, unparseable, or schema-invalid report, so a crashed health command fails the job |
+| `software-engineering-library-activation.yml:79` | `activation-gate` / Run live activation eval | "Fail when live activation gate failed" reads `steps.live-eval.outcome == 'failure'` and exits 1, alongside the rollback alert issue |
 
 ### Excluded after reading
 
