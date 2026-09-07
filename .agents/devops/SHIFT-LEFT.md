@@ -109,7 +109,7 @@ not carry is between a check that ran and one that only appeared to.
 
 Every non-PASS state carries a machine-readable reason code (`base_ref.unresolved`,
 `diff.failed`, `script.absent`, `tool.absent`, `timeout`, `output.malformed`,
-and the rest are constants in `evidence.py`), and the runner prints it next to
+`aggregate.no_outcomes`, and the rest are constants in `evidence.py`), and the runner prints it next to
 the gate name. A PASS must name the revision and the scope it ran against, so
 the state cannot be reached without the proof it claims.
 
@@ -123,6 +123,28 @@ that used to arrive as PASS.
 
 Add an exception only through `PolicyException`, which requires a written
 justification so a reviewer can evaluate it.
+
+### Boundary cases the states must not smooth over
+
+Three cases sit where a plausible reading collapses two states into one. Each
+is pinned by a test rather than left to the reader, because each one was wrong
+in the first draft of this contract and was caught in review of PR #5641.
+
+- **A run with no outcomes blocks.** `aggregate` reports UNKNOWN with
+  `aggregate.no_outcomes`. A sequence that executed no gate examined nothing
+  and so proved nothing. Before the reason was wired, the empty rejected list
+  left `blocking` False and the runner exited 0, reporting a clean run of zero
+  gates: the contract's own fail-open, reached through the aggregate instead of
+  through a validator.
+- **Applicability outranks tool absence.** A checkout with no
+  `.github/workflows` reports SKIP `tree.absent` whether or not actionlint is
+  installed. Probing the tool first told a downstream install holding neither
+  to go install actionlint for a gate that did not apply to it.
+- **An advisory gate still separates a finding from a failure.**
+  `validate_yaml_style` tolerates yamllint findings and returns PASS, but a
+  timeout returns UNKNOWN `timeout` and a failed exec returns BLOCKED
+  `tool.absent`. A tool that never finished produced no findings, which is not
+  the same as having found nothing.
 
 ## Exit Codes
 
