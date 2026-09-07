@@ -113,13 +113,27 @@ Every non-PASS state carries a machine-readable reason code (`base_ref.unresolve
 the gate name. A PASS must name the revision and the scope it ran against, so
 the state cannot be reached without the proof it claims.
 
-The gate accepts PASS and nothing else, with one declared exception:
-`default_pre_pr_policy()` licenses SKIP for every gate. That is not new policy,
-it is this document's prior sentence made executable: ADR-042 expunged the
-PowerShell validators, so a downstream install legitimately lacks scripts this
-repository ships, and `--quick` plus the pre-push fast stage skip gates on
-purpose. BLOCKED and UNKNOWN get no exception, because those are the outcomes
-that used to arrive as PASS.
+The gate accepts PASS and nothing else, with three declared exceptions in
+`default_pre_pr_policy()`.
+
+The first licenses SKIP for every gate. That is not new policy, it is this
+document's prior sentence made executable: ADR-042 expunged the PowerShell
+validators, so a downstream install legitimately lacks scripts this repository
+ships, and `--quick` plus the pre-push fast stage skip gates on purpose.
+
+The other two license BLOCKED, each for one named validator on the single
+reason code `tool.absent`: `validate_workflow_yaml` when actionlint is not on
+PATH, and `validate_yaml_style` when yamllint is not. Both tools are optional
+developer-machine installs rather than repository dependencies, and neither
+gate blocked on their absence before the typed states existed; the licences
+make that prior behavior reviewable instead of implicit. The BLOCKED state is
+still recorded and still printed, and since issue #5646 the RESULT line names
+the licensed rows too, so a degraded run and a clean one are distinguishable.
+
+UNKNOWN gets no exception at all, and BLOCKED gets none outside those two named
+pairs. Correction, 2026-09-07: the paragraph this replaces claimed one exception
+and that BLOCKED got none. Both halves were false when they shipped in PR #5641,
+against the same function they described (issue #5646 item 4).
 
 Add an exception only through `PolicyException`, which requires a written
 justification so a reviewer can evaluate it.

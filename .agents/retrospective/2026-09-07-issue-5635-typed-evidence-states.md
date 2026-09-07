@@ -177,3 +177,44 @@ removed from `scripts/validation/evidence.py` (the file-size escape comment and
 the module docstring) and from the PR #5641 description. This correction hardens
 the criticism rather than softening it, which is the direction MUST NOT 1 exists
 to protect.
+
+## Correction 2, 2026-09-07: four false counts and citations (issue #5646 item 7)
+
+`.claude/rules/retros.md` MUST NOT 1 requires corrections to append rather than
+edit in place, so the header and body above are left as written. Four claims in
+them are wrong. Each was re-derived here rather than relayed from the review
+that reported it.
+
+| Where | Claim as written | What it is | How it was checked |
+|---|---|---|---|
+| Line 4 | "9 commits" | 16 at merge | PR #5641's own `commits` field |
+| Line 6 | Failure mode #10 at `FAILURE-MODES.md:26` | Line 26 is `\| 8 \| Security drift \|`; #10 sits at line 28 | `sed -n '26p;28p' .agents/governance/FAILURE-MODES.md` |
+| Line 68 | "the 125 new unit tests" | 129, the number the PR body states twice | PR #5641 body, Changes and Testing sections |
+| Line 155 | The retro "was first committed (`37ced08`)" | `c403b8f3a2757f8`, "docs(retro): record the typed evidence-state migration". `37ced08a5cb9173` is "docs(validation): record why the capability probes keep their own contract", a different commit on the same branch | `git log --format="%H %s" --reverse <pr-head> -- <this file>` |
+
+**Why all four are the same mistake.** Every one was true of some state of the
+branch and was never re-derived against the state that shipped. The commit count
+and the test count were measured mid-branch and left standing while both grew.
+The line number was read from `FAILURE-MODES.md` correctly for the row above the
+one being cited, an off-by-two that no gate catches because the citation names a
+governance file and `.markdownlint-cli2.yaml` ignores `.agents/**`. The SHA was
+copied from the wrong entry of a `git log` listing several doc commits from the
+same day with near-identical subjects.
+
+`.claude/rules/canonical-source-mirror.md` already names this under "True when
+you wrote it is not true at merge", and its machine-checked slice, the citation
+freshness gate, covers only path-plus-line-number citations on added lines.
+`FAILURE-MODES.md:26` is exactly that shape, but the gate exempts historical
+trees, `.agents/retrospective/` among them, so nothing measured it. The three
+counts and the SHA were never in scope for any gate at all.
+
+**Failure mode.** #4, False completion markers
+(`.agents/governance/FAILURE-MODES.md:22`). The retro's own header already
+claimed a secondary touch on #4 for a stale ratchet count in a commit message;
+these four are the same class, in the document written to record it.
+
+**Remediation.** No governance change is proposed. The rule that would have
+caught all four already exists and was not applied; adding a second copy of it
+does not make it more likely to be read. What this correction buys is the record
+that a retrospective is not exempt from its own re-measurement rule, and the
+corrected values for anyone citing this file downstream.
