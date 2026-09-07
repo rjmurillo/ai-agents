@@ -35,7 +35,7 @@ from tests.eval._capability_probe_fixtures import (
     _runner,
     _session_change,
 )
-from tests.eval._harness_capability_test_support import probes
+from tests.eval._harness_capability_test_support import probes, topology
 
 # --- Model override probe ------------------------------------------------------
 
@@ -76,24 +76,43 @@ def test_a_child_that_silently_inherits_the_parent_never_verifies() -> None:
     assert "claude-opus-5" in result.detail
 
 
-def test_a_hand_built_plan_with_an_equal_child_value_still_cannot_verify() -> None:
-    """NEGATIVE CONTROL: the parent value reaches classify_override, not only the builder.
+def test_a_hand_built_plan_with_an_equal_child_value_cannot_be_constructed() -> None:
+    """NEGATIVE CONTROL: the discrimination guard binds the dataclass, not only the builder.
 
-    `OverridePlan` is a public dataclass, so a caller can skip
-    `build_override_plan`. Without the parent value forwarded, an equal-value
-    plan whose backend echoes that value would read as a verified override.
+    `OverridePlan` is public, so a caller can skip `build_override_plan`. An
+    equal-value plan whose backend echoes that value would otherwise reach
+    `classify_override`, which is the last line of defense rather than the
+    first.
     """
-    plan = probes.OverridePlan(
-        capability="model_override",
-        harness="copilot",
-        parent_value="gpt-5.6-sol",
-        child_value="gpt-5.6-sol",
-    )
-    stdout = _jsonl([_answer("hi", model="gpt-5.6-sol")])
+    with pytest.raises(ProbeError, match="does not differ from parent"):
+        probes.OverridePlan(
+            capability="model_override",
+            harness="copilot",
+            parent_value="gpt-5.6-sol",
+            child_value="gpt-5.6-sol",
+        )
 
-    result = probes.probe_override(plan, _command(), runner=_runner(stdout), timeout=TIMEOUT)
 
-    assert result.status is CapabilityStatus.UNVERIFIED
+def test_a_hand_built_plan_differing_only_by_case_cannot_be_constructed() -> None:
+    """NEGATIVE CONTROL: `classify_override` compares with ==, so case slipped past it."""
+    with pytest.raises(ProbeError, match="does not differ from parent"):
+        probes.OverridePlan(
+            capability="effort_override",
+            harness="copilot",
+            parent_value="Sol Ultra",
+            child_value="sol ultra",
+        )
+
+
+def test_a_hand_built_plan_differing_only_by_whitespace_cannot_be_constructed() -> None:
+    """NEGATIVE CONTROL: the other form == accepts as a difference."""
+    with pytest.raises(ProbeError, match="does not differ from parent"):
+        probes.OverridePlan(
+            capability="effort_override",
+            harness="copilot",
+            parent_value="Sol Ultra",
+            child_value="  Sol Ultra  ",
+        )
 
 
 def test_two_answer_turns_naming_different_models_verify_nothing() -> None:
@@ -116,7 +135,7 @@ def test_a_harness_with_no_backend_model_parser_verifies_nothing() -> None:
 
     result = probes.probe_override(
         _plan(harness="codex", parent="sol-low", candidates=("sol-medium",)),
-        _command("codex"),
+        _command("codex", requests="sol-medium"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -137,7 +156,7 @@ def test_claude_init_model_is_not_treated_as_backend_evidence() -> None:
 
     result = probes.probe_override(
         _plan(harness="claude", parent="claude-sonnet-5", candidates=("claude-opus-5",)),
-        _command("claude"),
+        _command("claude", requests="claude-opus-5"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -155,7 +174,7 @@ def test_the_probe_passes_the_command_argv_through_verbatim() -> None:
         _plan(), _command(), runner=_runner(stdout, seen=seen), timeout=TIMEOUT
     )
 
-    assert seen == [["copilot", "--prompt", "probe"]]
+    assert seen == [["copilot", "--prompt", "probe", "--model", "gpt-5.6-sol"]]
 
 
 # --- Effort override probe -----------------------------------------------------
@@ -167,7 +186,7 @@ def test_an_effort_on_an_answer_turn_verifies_the_override() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(),
+        _command(requests="Sol Ultra"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -183,7 +202,7 @@ def test_an_effort_read_from_session_state_never_verifies() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(),
+        _command(requests="Sol Ultra"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -198,7 +217,7 @@ def test_an_effort_on_a_contentless_turn_is_not_backend_evidence() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(),
+        _command(requests="Sol Ultra"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -213,7 +232,7 @@ def test_an_effort_key_outside_the_configured_set_observes_nothing() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(),
+        _command(requests="Sol Ultra"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -227,7 +246,7 @@ def test_a_caller_supplied_effort_key_is_honored() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(),
+        _command(requests="Sol Ultra"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
         effort_keys=("tier",),
@@ -374,7 +393,7 @@ def test_claude_agent_tool_blocks_carry_no_concurrency_boundary() -> None:
         }
     ]
 
-    assert probes.max_concurrent_children(events) is None
+    assert topology.max_concurrent_children(events) is None
 
 
 def test_a_sequential_run_records_a_peak_of_one() -> None:
@@ -386,7 +405,7 @@ def test_a_sequential_run_records_a_peak_of_one() -> None:
         {"type": "subagent.complete"},
     ]
 
-    assert probes.max_concurrent_children(events) == 1
+    assert topology.max_concurrent_children(events) == 1
 
 
 def test_concurrency_rejects_a_requested_count_below_one() -> None:

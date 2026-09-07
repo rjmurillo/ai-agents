@@ -58,8 +58,22 @@ def _runner(
     return run
 
 
-def _command(harness: str = "copilot") -> probes.ProbeCommand:
-    return ProbeCommand(harness=harness, argv=(harness, "--prompt", "probe"))
+def _command(
+    harness: str = "copilot",
+    *,
+    requests: str | None = "gpt-5.6-sol",
+    env: Mapping[str, str] | None = None,
+) -> probes.ProbeCommand:
+    """Build a command that actually asks for `requests`.
+
+    `probe_override` refuses a command that does not carry its plan's child
+    value, so the requested value is part of the argv rather than implied.
+    Pass `requests=None` to build the unbound command that refusal is about.
+    """
+    argv = [harness, "--prompt", "probe"]
+    if requests is not None:
+        argv += ["--model", requests]
+    return ProbeCommand(harness=harness, argv=tuple(argv), env=env)
 
 
 def _plan(

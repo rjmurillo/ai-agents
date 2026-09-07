@@ -22,8 +22,17 @@ Fail-closed rules, each of which can only ever refuse a claim:
   cannot be constructed. `classify_override` returns `UNVERIFIED` for equal
   values, so such a plan is a probe that can never verify anything; building
   one silently would waste a live run and read as a failed capability.
+* An override probe whose command does not implement its plan is refused
+  before the CLI runs. The argv is caller-supplied and opaque here, so a
+  command that omits the override, or targets a different harness, would
+  otherwise have its harness default classified as an honored override.
+* A subagent tool request is not a launched child, and a concurrency peak
+  counts a child only while the stream still holds enough completion
+  boundaries to close it. `_capability_topology` owns both rules and the
+  event vocabulary they share.
 * A harness with no in-tree backend parser observes `EvidenceKind.NONE`, never
-  a guess.
+  a guess. `_capability_evidence` owns that rule and every other question of
+  what a value read from an event stream is worth.
 * A missing CLI, a non-zero exit, and a timeout all resolve to `UNVERIFIED`.
   Malformed or truncated output raises `HarnessCapabilityError` instead,
   because a half-read stream is a broken contract rather than a negative
@@ -31,6 +40,13 @@ Fail-closed rules, each of which can only ever refuse a claim:
 * `Sol Ultra` is a literal control value. Nothing here folds it onto `high`,
   `xhigh`, `max`, or any other tier, and `_discriminates` is the only
   comparison any value passes through.
+
+Reading the runtime's output lives in `_capability_evidence` and reading child
+lifecycles in `_capability_topology`; this module builds the probes, runs them,
+and hands what those modules observed to the classifier. It imports what it
+calls and re-exports nothing: a caller wanting `observe_model` or
+`max_concurrent_children` imports the module that owns it, so the boundary is
+visible at the import site.
 
 Authority boundary: provider, model, and pricing tables stay in
 `scripts/eval/_providers.py` and `scripts/eval/_eval_common.py`. This module
@@ -44,6 +60,16 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from _capability_evidence import (
+    DEFAULT_EFFORT_KEYS,
+    observe_effort,
+    observe_model,
+)
+from _capability_topology import (
+    max_concurrent_children,
+    requested_subagent_tools,
+    subagent_lifecycle_events,
+)
 from _harness_capability import (
     Capability,
     CapabilityStatus,
@@ -51,48 +77,13 @@ from _harness_capability import (
     HarnessCapabilityError,
     classify_override,
 )
-from _runtime_output import (
-    RuntimeOutputError,
-    copilot_result,
-    parse_events,
-    structured_tool_model,
-    traces,
-)
+from _runtime_output import RuntimeOutputError, parse_events
 
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
 #: Capabilities this module can probe through `classify_override`.
 OVERRIDE_CAPABILITIES: tuple[str, ...] = ("model_override", "effort_override")
 
-#: The event type Copilot attaches a backend answer to. `copilot_result`
-#: reads the same type, and the model on it is attributable to the turn that
-#: produced the text.
-ASSISTANT_EVENT = "assistant.message"
-
-#: Session-state events the CLI emits about its own configuration. A value
-#: read from one of these is the client reporting what it set, not the backend
-#: reporting what it ran, so it is `CLIENT_ECHO` and can never verify.
-#: `session.model_change` with `data.newModel` and `data.reasoningEffort` is
-#: the shape recorded in `tests/eval/test_providers.py`, whose comment states
-#: it is modeled on a real log.
-SESSION_STATE_EVENTS: frozenset[str] = frozenset({"session.model_change", "session.start"})
-
-#: Keys an assistant turn might carry a resolved reasoning effort or tier on.
-#: Only `reasoningEffort` is attested in-tree, and only on a session-state
-#: event. The rest are candidates. A key that never matches yields
-#: `EvidenceKind.NONE`, so a wrong guess here withholds a claim rather than
-#: inventing one. A live run should replace this with the observed key.
-DEFAULT_EFFORT_KEYS: tuple[str, ...] = ("reasoningEffort", "reasoning_effort", "effort")
-
-#: Harnesses with an in-tree parser that attributes a model to a backend turn.
-#: Claude is absent on purpose: `_runtime_output.claude_result` reads the model
-#: off the `system`/`init` event, which the CLI emits before the backend has
-#: replied, so it cannot be told apart from the request echoed back. Codex is
-#: absent because no Codex output parser exists in this repository at all.
-BACKEND_MODEL_HARNESSES: frozenset[str] = frozenset({"copilot"})
-
-_START_HINTS: tuple[str, ...] = ("start", "begin", "launch", "spawn")
-_END_HINTS: tuple[str, ...] = ("complete", "end", "stop", "finish", "exit", "result")
 
 
 class ProbeError(HarnessCapabilityError):
@@ -110,12 +101,45 @@ class OverridePlan:
     `child_value` is guaranteed to differ from `parent_value`, so an observed
     match means the override mechanism ran rather than the child inheriting.
     Both values are the caller's verbatim strings; nothing normalizes them.
+
+    The guarantee is enforced here rather than only in `build_override_plan`,
+    because this dataclass is public and `probe_override` accepts a hand-built
+    plan. `classify_override` compares with `==`, so a plan differing from the
+    parent only by case or surrounding whitespace passed that check while a
+    case-folding harness would echo the parent back and read as an honored
+    override.
     """
 
     capability: str
     harness: str
     parent_value: str
     child_value: str
+
+    def __post_init__(self) -> None:
+        """Refuse a plan this module cannot probe or that cannot discriminate.
+
+        `capability` is checked here rather than only in `build_override_plan`
+        for the same reason the rest of these checks moved: `probe_override`
+        routes every capability that is not `model_override` through
+        `observe_effort`, so a hand-built plan naming anything else would have
+        had effort evidence classified as that capability.
+        """
+        if self.capability not in OVERRIDE_CAPABILITIES:
+            raise ProbeError(
+                f"capability must be one of {OVERRIDE_CAPABILITIES}, got {self.capability!r}"
+            )
+        if not self.harness:
+            raise ProbeError("harness must be a non-empty string")
+        if not self.parent_value:
+            raise ProbeError(
+                "parent_value must be a non-empty string; an unknown parent cannot discriminate"
+            )
+        if not _discriminates(self.child_value, self.parent_value):
+            raise ProbeError(
+                f"child value {self.child_value!r} does not differ from parent "
+                f"{self.parent_value!r}; an equal-value request cannot tell an honored "
+                "override from a silent inherit"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +150,10 @@ class ProbeCommand:
     verified in this repository, and inventing one would put an unverified
     contract in the tree. `eval_runtime_parity.build_argv` holds the Copilot
     flag set that is attested.
+
+    Because the argv is opaque to this module, `probe_override` checks that it
+    carries the plan's child value before running it. A caller that delivers
+    the override some other way must put it in `env` or the probe is refused.
     """
 
     harness: str
@@ -134,13 +162,35 @@ class ProbeCommand:
     env: Mapping[str, str] | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class ProbeObservation:
-    """What the runtime's own output said, and how much that is worth."""
+def _carries_request(command: ProbeCommand, value: str) -> bool:
+    """Report whether this invocation actually asks for `value` in its argv.
 
-    observed: str | None
-    evidence: EvidenceKind
-    detail: str
+    `ProbeCommand.argv` is caller-supplied, so nothing else in this module can
+    tell a command that requests the override from one that does not. Without
+    this check `probe_override` executes an opaque argv and classifies it
+    against a plan it may not implement: a command that omits the override
+    runs the harness default, and if that default happens to equal the plan's
+    child value the probe reports `VERIFIED` for a mechanism that never ran.
+
+    A token carries the request when it is the value itself (`--model`,
+    `gpt-5.6-sol`) or ends in `=value` (`--model=gpt-5.6-sol`). A token that
+    merely contains the value, such as a prompt mentioning the model name,
+    does not.
+
+    Environment variables were accepted here and no longer are: any variable
+    whose value happened to equal the request counted as the request, and
+    naming the variables that really carry it would mean writing down a Codex
+    and Copilot contract this repository has not verified. Argv is the one
+    surface a caller can be required to make explicit, so a request delivered
+    any other way is refused rather than assumed.
+
+    Known residual gap: this proves the value appears as an argument, not that
+    it appears as the *model* or *effort* option, because no verified flag
+    surface for either harness exists in this repository. Closing that needs
+    step 3 of issue #5423, which is where a real flag set gets observed.
+    """
+    suffix = f"={value}"
+    return any(token == value or token.endswith(suffix) for token in command.argv)
 
 
 def _discriminates(candidate: str, parent: str) -> bool:
@@ -242,102 +292,6 @@ def _capture_events(
     return events, ""
 
 
-def _assistant_values(
-    events: Sequence[Mapping[str, object]],
-    keys: Sequence[str],
-) -> str | None:
-    """Return the single value `keys` carries on a backend answer turn.
-
-    Requires non-empty text content on the same event, which is what makes the
-    turn an answer the backend produced rather than a status line. Two turns
-    disagreeing return `None`, mirroring `copilot_result`: a blended answer has
-    no single author, so no value earns the claim.
-    """
-    found: set[str] = set()
-    for event in events:
-        if event.get("type") != ASSISTANT_EVENT:
-            continue
-        data = event.get("data")
-        if not isinstance(data, Mapping):
-            continue
-        content = data.get("content")
-        if not isinstance(content, str) or not content.strip():
-            continue
-        for key in keys:
-            value = data.get(key)
-            if isinstance(value, str) and value:
-                found.add(value)
-                break
-    return found.pop() if len(found) == 1 else None
-
-
-def _session_state_value(
-    events: Sequence[Mapping[str, object]],
-    keys: Sequence[str],
-) -> str | None:
-    """Return a value the CLI reported about its own session configuration."""
-    for event in events:
-        kind = event.get("type")
-        if not isinstance(kind, str) or kind not in SESSION_STATE_EVENTS:
-            continue
-        data = event.get("data")
-        if not isinstance(data, Mapping):
-            continue
-        for key in keys:
-            value = data.get(key)
-            if isinstance(value, str) and value:
-                return value
-    return None
-
-
-def observe_model(
-    harness: str,
-    events: Sequence[Mapping[str, object]],
-) -> ProbeObservation:
-    """Read the model the backend attributed to its own answer."""
-    if harness not in BACKEND_MODEL_HARNESSES:
-        return ProbeObservation(
-            None,
-            EvidenceKind.NONE,
-            f"no in-tree parser attributes a model to a backend turn for {harness}",
-        )
-    _, model = copilot_result(events)
-    if not model:
-        model = structured_tool_model(events)
-    if model:
-        return ProbeObservation(model, EvidenceKind.BACKEND, "model attributed to an answer turn")
-    echoed = _session_state_value(events, ("newModel", "selectedModel", "model"))
-    if echoed:
-        return ProbeObservation(
-            echoed,
-            EvidenceKind.CLIENT_ECHO,
-            "model came from a session-state event, which is the request echoed back",
-        )
-    return ProbeObservation(None, EvidenceKind.NONE, "no answer turn carried a model attribution")
-
-
-def observe_effort(
-    harness: str,
-    events: Sequence[Mapping[str, object]],
-    *,
-    effort_keys: Sequence[str] = DEFAULT_EFFORT_KEYS,
-) -> ProbeObservation:
-    """Read the reasoning effort or tier the backend attributed to its answer."""
-    observed = _assistant_values(events, effort_keys)
-    if observed:
-        return ProbeObservation(
-            observed, EvidenceKind.BACKEND, f"{harness} answer turn carried a resolved effort"
-        )
-    echoed = _session_state_value(events, effort_keys)
-    if echoed:
-        return ProbeObservation(
-            echoed,
-            EvidenceKind.CLIENT_ECHO,
-            "effort came from a session-state event, which is the request echoed back",
-        )
-    return ProbeObservation(None, EvidenceKind.NONE, f"no {harness} answer turn carried an effort")
-
-
 def probe_override(
     plan: OverridePlan,
     command: ProbeCommand,
@@ -352,7 +306,32 @@ def probe_override(
     kind, and the plan's parent value go straight to
     `_harness_capability.classify_override`, which owns every rule that can
     withhold `VERIFIED`.
+
+    Raises `ProbeError` when `command` does not implement `plan`: a different
+    harness, or an invocation that does not carry the plan's child value. Both
+    are refused before the CLI runs, because a probe whose command and plan
+    describe different invocations cannot attribute what it observes to the
+    override it claims to be testing.
     """
+    if command.harness != plan.harness:
+        raise ProbeError(
+            f"command targets {command.harness!r} but the plan probes {plan.harness!r}; "
+            "a run against one harness cannot verify an override on another"
+        )
+    if not command.argv or plan.harness not in Path(command.argv[0]).name:
+        # `ProbeCommand.harness` is a caller-supplied label. Nothing tied it to
+        # the process actually launched, so a command labelled copilot could
+        # execute any executable and have its output classified as copilot's.
+        raise ProbeError(
+            f"command executes {command.argv[0]!r} if anything, which does not name "
+            f"{plan.harness!r}; the label on a command is not evidence of what it runs"
+        )
+    if not _carries_request(command, plan.child_value):
+        raise ProbeError(
+            f"command does not request {plan.child_value!r} in its argv or env, so an "
+            f"observed {plan.child_value!r} would be the harness default rather than an "
+            "honored override"
+        )
     events, failure = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
@@ -387,53 +366,27 @@ def probe_subagent_support(
 
     Presence, not a requested count: a run that asked for children and shows
     none in its output is `UNVERIFIED`, which is the config-echo rule applied
-    to a different observable.
+    to a different observable. A `tool_use` block requesting `Agent` or `Task`
+    is such an ask, so it is reported and never verifies on its own.
     """
     events, failure = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
-    _, subagents = traces(events)
-    if not subagents:
-        return Capability(
-            CapabilityStatus.UNVERIFIED,
-            EvidenceKind.NONE,
-            f"{command.harness} output carried no subagent events",
+    launched = subagent_lifecycle_events(events)
+    if not launched:
+        requested = requested_subagent_tools(events)
+        detail = (
+            f"{command.harness} output carried {requested} subagent tool requests and no "
+            "lifecycle event, so no child is known to have run"
+            if requested
+            else f"{command.harness} output carried no subagent events"
         )
+        return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, detail)
     return Capability(
         CapabilityStatus.VERIFIED,
         EvidenceKind.BACKEND,
-        f"{command.harness} output carried {len(subagents)} subagent events",
+        f"{command.harness} output carried {len(launched)} subagent lifecycle events",
     )
-
-
-def max_concurrent_children(events: Sequence[Mapping[str, object]]) -> int | None:
-    """Return the peak number of children in flight at once, or `None`.
-
-    Derived by walking subagent start and completion boundaries in order, so
-    the result is what the runtime reported running, never what the probe
-    asked for. Returns `None` when no completion boundary appears: without
-    one, a run of N starts is indistinguishable from N sequential children,
-    and assuming they overlapped would report the requested number wearing the
-    observed number's label. Claude's `tool_use` blocks for `Agent` and `Task`
-    carry no boundary of either kind, so they resolve to `None` here.
-    """
-    depth = 0
-    peak = 0
-    saw_end = False
-    for event in events:
-        kind = event.get("type")
-        if not isinstance(kind, str) or "subagent" not in kind.lower():
-            continue
-        lowered = kind.lower()
-        if any(hint in lowered for hint in _END_HINTS):
-            depth = max(0, depth - 1)
-            saw_end = True
-        elif any(hint in lowered for hint in _START_HINTS):
-            depth += 1
-            peak = max(peak, depth)
-    if not saw_end or peak == 0:
-        return None
-    return peak
 
 
 def probe_concurrency(

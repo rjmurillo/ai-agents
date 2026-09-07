@@ -108,3 +108,47 @@ def test_nonzero_exit_codex_version_probe_fails_closed(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="--version failed"):
         parity.probe_version("codex", "codex", tmp_path / "probe", runner, 30)
+
+
+# --- Negative: codex has no fixture-execution path ----------------------------
+
+
+def _any_fixture():
+    """The first checked-in parity fixture; its content is irrelevant here."""
+    return parity.load_fixtures(
+        Path(parity.__file__).resolve().parent / "examples" / "runtime-parity-fixtures.json"
+    )[0]
+
+
+def test_prepare_workspace_refuses_codex_instead_of_installing_copilot_artifacts(
+    tmp_path: Path,
+) -> None:
+    """NEGATIVE CONTROL: the fall-through wrote Copilot artifacts into a codex workspace.
+
+    `runtime_env` accepts codex for the version probe, which needs only an
+    isolated profile. `prepare_workspace` branched on claude and fell through
+    to copilot for everything else, so a codex workspace received
+    `copilot-instructions.md` and a Copilot agent, and the run would have been
+    parsed by the Copilot parser. A parity result about a harness that never
+    saw the fixture is worse than no result.
+    """
+    workspace = tmp_path / "codex-ws"
+
+    with pytest.raises(parity.ParityConfigError, match="no agent-install path"):
+        parity.prepare_workspace(_any_fixture(), "codex", workspace)
+
+    assert not workspace.exists(), (
+        "the guard must fire before any mutation; a caller that handles the error "
+        "must not be left holding a half-built git repository"
+    )
+
+
+def test_prepare_workspace_still_installs_the_copilot_artifacts_for_copilot(
+    tmp_path: Path,
+) -> None:
+    """CONFIRMATORY: the guard rejects the unknown harness, not the known one."""
+    workspace = tmp_path / "copilot-ws"
+
+    parity.prepare_workspace(_any_fixture(), "copilot", workspace)
+
+    assert (workspace / ".github" / "copilot-instructions.md").exists()
