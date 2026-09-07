@@ -174,6 +174,16 @@ Known unmigrated, verified on this tree:
 
 All four are tracked in #5635.
 
+The capability probes under `scripts/eval/` are a deliberate exception rather
+than unmigrated work. `_harness_capability.py` already carries its own typed
+contract from #5630 (`CapabilityStatus` with `VERIFIED`/`UNSUPPORTED`/
+`UNVERIFIED`, a separate `EvidenceKind`, and worst-wins aggregation over an
+explicit precedence tuple), and its vocabulary answers a different question:
+whether a harness supports a capability, not whether a gate proved a contract.
+`evidence.py` borrowed its shape. Collapsing the two would lose the
+evidence-kind distinction that makes only backend evidence able to support
+`VERIFIED`.
+
 ## Integration with Workflows
 
 ### Pre-commit hook
