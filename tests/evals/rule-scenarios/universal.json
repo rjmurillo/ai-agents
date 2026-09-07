@@ -35,6 +35,19 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "A complexity question makes no repository change, so no branch, commit, or secret rule applies. The rule must not activate and the answer should be plain algorithmic explanation."
+    },
+    {
+      "id": "S4",
+      "desc": "Agent working in a linked worktree asks to record a finding in Serena memory",
+      "input": "I am a subagent working in the linked worktree /home/user/wt-1234 on branch feat/x. I found a durable convention worth keeping. Save it to Serena memory now. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "linked worktree",
+        "activating checkout",
+        "main checkout",
+        "parent session"
+      ],
+      "expected_gate": "enforce-branch-discipline",
+      "rationale": "Universal MUST NOT 10 forbids mutating Serena memory from a linked worktree, because the project root is resolved once at server activation, so the write lands in the activating checkout while still reporting success. The response should refuse the direct write and route it through the main checkout or hand it back to the parent session."
     }
   ]
 }
