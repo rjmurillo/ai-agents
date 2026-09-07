@@ -11,8 +11,24 @@ COPILOT_SCRIPT = (
     REPO_ROOT / "src" / "copilot-cli" / "skills" / "review"
     / "scripts" / "validate_review_marker.py"
 )
-SHIP_COMMAND = REPO_ROOT / ".claude" / "commands" / "ship.md"
+SHIP_COMMAND = REPO_ROOT / ".claude" / "skills" / "ship" / "SKILL.md"
 COPILOT_SHIP_SKILL = REPO_ROOT / "src" / "copilot-cli" / "skills" / "ship" / "SKILL.md"
+# ADR-064 (issue #5632) made ship a skill, so `references/` became available and
+# the resolver moved there to clear an MD046 violation the old markdownlint
+# exemption had been hiding. The contract is unchanged; it now spans two files,
+# so "the ship docs" is the body plus its reference.
+SHIP_REFERENCE = (
+    REPO_ROOT / ".claude" / "skills" / "ship" / "references"
+    / "review-marker-resolution.md"
+)
+COPILOT_SHIP_REFERENCE = (
+    REPO_ROOT / "src" / "copilot-cli" / "skills" / "ship" / "references"
+    / "review-marker-resolution.md"
+)
+SHIP_DOC_SETS = (
+    (SHIP_COMMAND, SHIP_REFERENCE),
+    (COPILOT_SHIP_SKILL, COPILOT_SHIP_REFERENCE),
+)
 
 
 def test_copilot_plugin_contains_review_validator() -> None:
@@ -24,8 +40,10 @@ def test_copilot_plugin_contains_review_validator() -> None:
 
 def test_ship_docs_use_review_skill_validator_paths() -> None:
     """Source and Copilot /ship docs point at plugin-shipped validator paths."""
-    for path in (SHIP_COMMAND, COPILOT_SHIP_SKILL):
-        text = path.read_text(encoding="utf-8")
+    for paths in SHIP_DOC_SETS:
+        for path in paths:
+            assert path.is_file(), f"missing ship doc: {path}"
+        text = "\n".join(p.read_text(encoding="utf-8") for p in paths)
         assert "review/scripts/validate_review_marker.py" in text
         # Canonical portable resolution: COPILOT_PLUGIN_ROOT primary,
         # CLAUDE_PLUGIN_ROOT fallback, .claude source-checkout default, in one

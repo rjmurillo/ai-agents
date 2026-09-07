@@ -12,7 +12,7 @@ RESEARCH_SOURCE = REPO_ROOT / ".claude" / "skills" / "research-and-incorporate" 
 RESEARCH_MIRROR = (
     REPO_ROOT / "src" / "copilot-cli" / "skills" / "research-and-incorporate" / "SKILL.md"
 )
-PLAN_SOURCE = REPO_ROOT / ".claude" / "commands" / "plan.md"
+PLAN_SOURCE = REPO_ROOT / ".claude" / "skills" / "plan" / "SKILL.md"
 PLAN_MIRROR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "plan" / "SKILL.md"
 AVOIDING_SOURCE = REPO_ROOT / ".claude" / "skills" / "avoiding-manufactured-work" / "SKILL.md"
 AVOIDING_MIRROR = (

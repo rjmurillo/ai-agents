@@ -22,7 +22,7 @@ single user-invocable surface.
 `plan how to build this`, `break this into milestones`, `decompose this spec`,
 `plan this work`
 
-## Front gate: arrive with a spec
+## If you arrived here without a spec, run the front-gate first
 
 Planning a spec that was never gated manufactures work. If there is no `/spec`
 output for this work (no requirement, no design, no testable acceptance
