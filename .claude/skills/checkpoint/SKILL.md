@@ -25,7 +25,8 @@ Migrated from the checkpoint command under ADR-064, which makes skills the
 single user-invocable surface. The command file is gone, so its path is named
 here in plain text rather than as a citation to something a reader could open.
 
-<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+@CLAUDE.md
+
 ## The checkpoint and session directories
 
 Resolve them the way `paths.artifact_dir` does, then take its `checkpoints/` and
@@ -48,7 +49,7 @@ file is the human-readable record; the session log keeps a reference to it.
 
 ## Arguments
 
-Optional label for this checkpoint: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
+Optional label for this checkpoint: $ARGUMENTS
 
 ## Process
 

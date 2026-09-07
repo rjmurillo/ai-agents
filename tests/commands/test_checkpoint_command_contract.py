@@ -1,6 +1,6 @@
-"""Contract tests for the /checkpoint command.
+"""Contract tests for the checkpoint skill.
 
-The command is LLM-executed prose, so these tests pin the contract fragments
+The skill is LLM-executed prose, so these tests pin the contract fragments
 that protect issue #1907 AC-4: a checkpoint file must be linked from the active
 JSON session log when such a log exists, and failures must be reported instead
 of silently claimed as done.
@@ -14,13 +14,28 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-COMMAND_PATH = REPO_ROOT / ".claude" / "commands" / "checkpoint.md"
+COMMAND_PATH = REPO_ROOT / ".claude" / "skills" / "checkpoint" / "SKILL.md"
 COPILOT_PATH = REPO_ROOT / "src" / "copilot-cli" / "skills" / "checkpoint" / "SKILL.md"
 
 
 @pytest.fixture(params=[COMMAND_PATH, COPILOT_PATH], ids=["claude", "copilot"])
 def checkpoint_text(request: pytest.FixtureRequest) -> str:
-    return Path(request.param).read_text(encoding="utf-8")
+    """The whole checkpoint surface: the skill body plus every reference it ships.
+
+    ADR-064 (issue #5632) made checkpoint a skill, which gave it a `references/`
+    directory, and the eight-step procedure moved into it to bring the body back
+    under the 200-line progressive-disclosure threshold. A fixture that read only
+    `SKILL.md` would report those steps as deleted when they had merely moved one
+    file over. Absence assertions get stricter under this, not looser: they now
+    have to hold across the references too.
+    """
+    skill = Path(request.param)
+    parts = [skill.read_text(encoding="utf-8")]
+    parts.extend(
+        ref.read_text(encoding="utf-8")
+        for ref in sorted((skill.parent / "references").glob("*.md"))
+    )
+    return "\n".join(parts)
 
 
 def test_checkpoint_can_read_and_edit_session_log(checkpoint_text: str) -> None:
