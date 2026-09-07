@@ -338,7 +338,7 @@ def validate_orchestrator_citations(repo_root: Path) -> bool:
     """Verify orchestrator prose path citations resolve to real files.
 
     Wraps ``scripts/validation/check_orchestrator_citations.py``, which fails
-    when a backtick path citation in ``.claude/commands/pr-quality/all.md``
+    when a backtick path citation in ``.claude/skills/pr-quality-all/SKILL.md``
     points to a file that no longer exists. A stale citation (e.g. the removed
     ``AIReviewCommon.psm1`` reference fixed in PR #1934) sends the next reader
     to a dead pointer. See Issue #1966.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify path-like citations in orchestrator prose resolve to real files.
 
-`.claude/commands/pr-quality/all.md` cites the modules that own the verdict
+`.claude/skills/pr-quality-all/SKILL.md` cites the modules that own the verdict
 merge and emoji mapping logic (for example
 `.claude/lib/ai_review_common/verdict.py:merge_verdicts`). When that logic
 moves, the prose citation goes stale and the next reader follows a dead
@@ -10,7 +10,7 @@ pointer. Issue #1966 traces a prior stale citation (the removed
 lint gate over the orchestrator command file.
 
 This check extracts backtick-wrapped, repo-relative path citations from the
-tracked orchestrator command files and fails when a cited path does not
+tracked orchestrator files and fails when a cited path does not
 exist on disk. A citation may carry a `:symbol` suffix
 (`path/to/file.py:func`); the suffix is stripped before the path is
 resolved, because this check verifies the file exists, not the symbol.
@@ -34,7 +34,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Orchestrator prose files this check inspects. Relative to repo root.
-_TARGET_FILES: tuple[str, ...] = (".claude/commands/pr-quality/all.md",)
+# ADR-064 (issue #5632) moved this surface from a namespaced sub-command to a
+# skill; the citations it guards are unchanged.
+_TARGET_FILES: tuple[str, ...] = (".claude/skills/pr-quality-all/SKILL.md",)
 
 # Backtick-wrapped, repo-relative path citation ending in a known source
 # extension, with an optional `:symbol` suffix. Requires at least one path

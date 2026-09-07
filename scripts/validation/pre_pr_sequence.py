@@ -356,7 +356,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Heuristic; soft warn unless STRICT_CANONICAL_CHECK=1. PR #1887
     # retrospective, Layer 4.
     _Gate("Canonical Citation Check", _root_only(validate_canonical_citations)),
-    # Fails when a backtick path citation in .claude/commands/pr-quality/all.md
+    # Fails when a backtick path citation in .claude/skills/pr-quality-all/SKILL.md
     # points to a file that no longer exists. Issue #1966.
     _Gate("Orchestrator Citation Check", _root_only(validate_orchestrator_citations)),
     # Branch-wide em/en-dash check (issue #1923, REQ-006-AC7). Deferred to the
