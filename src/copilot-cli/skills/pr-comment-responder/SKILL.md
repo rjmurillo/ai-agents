@@ -7,7 +7,8 @@ description: PR review coordinator who gathers comment context, acknowledges eve
   resolution status. Use when you say "respond to PR comments", "address review
   feedback on PR 123", "handle PR review comments", "fix PR review issues", or
   "reply to reviewer". Do NOT use for a single-comment reply with a known response
-  (use post_pr_comment_reply.py directly) or for a full pre-merge code review (use review).
+  (use post_pr_comment_reply.py directly), for a full pre-merge code review (use review),
+  or to run the local quality gates before pushing (use pr-quality-all).
 license: MIT
 metadata:
   argument-hint: Specify the PR number or review comments to address
