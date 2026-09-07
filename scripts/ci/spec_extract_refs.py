@@ -34,6 +34,32 @@ from pathlib import Path
 EXIT_OK = 0
 EXIT_EXTERNAL = 3
 
+# GitHub resolves closing keywords case-insensitively, in every tense, and
+# tolerates a colon before the reference. This pattern also accepts the
+# non-closing linkage this repository mandates: `.claude/rules/universal.md`
+# MUST 2 offers `Refs #<n>`, and MUST 3 tells authors to downgrade an
+# unsupported `Fixes` claim to `Refs`. While `Refs` was absent here, following
+# that rule set `has_specs=false`, every judging step in
+# `.github/workflows/ai-spec-validation.yml` skipped on its
+# `has_specs == 'true'` guard, and the required `Validate Spec Coverage` check
+# reported success having evaluated nothing (issue #5489). The missing GitHub
+# spellings (`closed`, `fixed`, `resolved`, `Closes: #10`, `owner/repo.name#10`)
+# opened the same fail-open (issue #5620). `AB#` work-item tokens are issue
+# #5621 and are out of scope here.
+#
+# `See #<n>` is deliberately excluded. It reads as ordinary prose and in this
+# repository most often points at a pull request rather than an issue, which
+# `gh issue view` cannot resolve.
+#
+# The leading `\b` is new and load-bearing: without it `prefixes #42` matched
+# on `fixes`.
+_ISSUE_REF_PATTERN = re.compile(
+    r"\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?|implement(?:s|ed)?|refs?|part\s+of)"
+    r"(?:\s*:\s*|\s+)"
+    r"((?:[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*)?#\d+)",
+    re.IGNORECASE,
+)
+
 
 def write_github_output(key: str, value: str) -> None:
     """Append key=value to GITHUB_OUTPUT; fall back to stdout."""
@@ -95,11 +121,12 @@ def _extract_spec_refs(combined: str) -> str:
 
 
 def _extract_issue_refs(combined: str) -> str:
-    """Return space-delimited issue refs (numeric or owner/repo#N)."""
-    raw = re.findall(
-        r"(?:Closes|Fixes|Resolves|Implements)\s+((?:[A-Za-z0-9_-]+/[A-Za-z0-9_-]+)?#\d+)",
-        combined,
-    )
+    """Return space-delimited issue refs (numeric or owner/repo#N).
+
+    Accepts every GitHub closing keyword plus non-closing linkage. See
+    `_ISSUE_REF_PATTERN` for why the narrower set was a gate defect.
+    """
+    raw = [match.group(1) for match in _ISSUE_REF_PATTERN.finditer(combined)]
     results: list[str] = []
     for ref in sorted(set(raw)):
         if ref.startswith("#"):

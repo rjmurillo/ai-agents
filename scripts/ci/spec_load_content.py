@@ -17,7 +17,7 @@ Outputs:
 EXIT CODES (ADR-035):
   0 - content loaded
   2 - referenced spec content is missing
-  3 - GitHub issue lookup failed
+  3 - every GitHub issue lookup failed and nothing else loaded
 """
 
 from __future__ import annotations
@@ -123,16 +123,37 @@ def _load_spec_refs(spec_refs: list[str]) -> tuple[int, list[str]]:
 
 
 def _load_issue_refs(issue_refs: list[str], repository: str) -> tuple[int, list[str]]:
-    """Load linked issue references."""
+    """Load linked issue references, skipping the ones GitHub cannot resolve.
+
+    Returns the last lookup failure code alongside whatever did load. A single
+    unresolvable reference no longer aborts the load, because
+    `spec_extract_refs.py` now feeds this function every non-closing linkage in
+    the body (issues #5489 and #5620), and real bodies in this repository point
+    `Refs #<n>` at pull requests: PR #5609 carries `Refs #5600` and PR #5630
+    carries `Refs #5623`, both pull request numbers. `gh issue view` does not
+    resolve a pull request number, so aborting on the first failure would take
+    the required `Validate Spec Coverage` check red on a body that follows
+    `.claude/rules/universal.md` MUST 2.
+
+    This does not open a fail-open path. `run` still refuses to write spec
+    content when nothing resolved, and propagates this code so an outage is
+    still reported as external (exit 3) rather than as a config error.
+    """
     parts: list[str] = []
+    failure = EXIT_OK
     for issue in issue_refs:
         exit_code, body = _gh_issue_body(issue, repository)
         if exit_code != EXIT_OK:
-            return exit_code, []
+            print(
+                f"::warning::skipping issue reference that did not resolve: {issue}",
+                file=sys.stderr,
+            )
+            failure = exit_code
+            continue
         if body:
             display = f"#{issue}" if "/" not in issue else issue
             parts.append(f"## Issue {display}\n\n{body}")
-    return EXIT_OK, parts
+    return failure, parts
 
 
 def run(_argv: list[str] | None = None) -> int:
@@ -148,9 +169,7 @@ def run(_argv: list[str] | None = None) -> int:
     exit_code, parts = _load_spec_refs(spec_refs)
     if exit_code != EXIT_OK:
         return exit_code
-    exit_code, issue_parts = _load_issue_refs(issue_refs, repository)
-    if exit_code != EXIT_OK:
-        return exit_code
+    issue_failure, issue_parts = _load_issue_refs(issue_refs, repository)
     parts.extend(issue_parts)
 
     spec_content = "\n\n".join(parts)
@@ -159,7 +178,9 @@ def run(_argv: list[str] | None = None) -> int:
             f"::error::no spec content found for references: {spec_refs_raw} {issue_refs_raw}",
             file=sys.stderr,
         )
-        return EXIT_CONFIG
+        # Nothing loaded. When a lookup failed, that is the reason, so report it
+        # as external rather than flattening an outage into a config error.
+        return issue_failure if issue_failure != EXIT_OK else EXIT_CONFIG
 
     spec_file = Path(runner_temp) / f"spec-content-{os.environ.get('GITHUB_RUN_ID', '0')}.md"
     spec_file.write_text(spec_content, encoding="utf-8")

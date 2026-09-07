@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.ci.spec_extract_refs import (
     EXIT_EXTERNAL,
@@ -71,6 +73,78 @@ class TestExtractIssueRefs:
         parts = result.split()
         assert parts.count("5") == 1
 
+    # Issue #5620: GitHub resolves every tense of every closing keyword, in any
+    # case. Each spelling the parser missed produced has_specs=false and a
+    # required check that judged nothing.
+    @pytest.mark.parametrize(
+        "keyword",
+        [
+            "close",
+            "closes",
+            "closed",
+            "fix",
+            "fixes",
+            "fixed",
+            "resolve",
+            "resolves",
+            "resolved",
+        ],
+    )
+    def test_extracts_every_github_closing_keyword(self, keyword: str) -> None:
+        assert _extract_issue_refs(f"{keyword} #123") == "123"
+        assert _extract_issue_refs(f"{keyword.upper()} #123") == "123"
+        assert _extract_issue_refs(f"{keyword.capitalize()} #123") == "123"
+
+    @pytest.mark.parametrize(
+        "body",
+        ["Closes: #10", "closes:#10", "CLOSES:  #10", "Fixes:\n#10"],
+    )
+    def test_extracts_colon_syntax(self, body: str) -> None:
+        assert _extract_issue_refs(body) == "10"
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "Fixes owner/repo.name#123",
+            "Fixes my-org/my-repo#123",
+            "Fixes owner/repo_name#123",
+        ],
+    )
+    def test_extracts_cross_repo_names_with_dots_and_hyphens(self, body: str) -> None:
+        assert _extract_issue_refs(body).endswith("#123")
+
+    # Issue #5489: universal.md MUST 2 and MUST 3 tell the author to write
+    # `Refs #<n>` when the change does not close the issue, and that spelling
+    # was the one that disarmed the gate.
+    @pytest.mark.parametrize(
+        "body",
+        ["Refs #4789", "refs #4789", "Ref #4789", "REFS: #4789", "Part of #4789"],
+    )
+    def test_extracts_non_closing_linkage(self, body: str) -> None:
+        assert _extract_issue_refs(body) == "4789"
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "prefixes #42",
+            "postfixed #42",
+            "See #42",
+            "issue #42",
+            "Fixes #",
+            "Fixes 42",
+            "#42",
+        ],
+    )
+    def test_ignores_text_that_is_not_issue_linkage(self, body: str) -> None:
+        assert _extract_issue_refs(body) == ""
+
+    def test_deduplicates_across_keywords(self) -> None:
+        assert _extract_issue_refs("Fixes #7\nRefs #7") == "7"
+
+    def test_collects_every_reference_in_a_multi_ref_body(self) -> None:
+        body = "Refs #5574\nRefs #5624\nCloses #5610"
+        assert sorted(_extract_issue_refs(body).split()) == ["5574", "5610", "5624"]
+
 
 class TestExtractIncrementalScope:
     def test_returns_stdout_on_success(self) -> None:
@@ -118,6 +192,36 @@ class TestRun:
                 return_value=MagicMock(returncode=0, stdout=""),
             ):
                 run()
+        assert "has_specs=true" in out_file.read_text()
+
+    @pytest.mark.parametrize(
+        "body",
+        ["Refs #4789", "CLOSES: #123", "closed #123", "Part of #123"],
+    )
+    def test_has_specs_true_for_linkage_the_old_parser_missed(
+        self, body: str, tmp_path: Path
+    ) -> None:
+        """Pin the workflow guard, not the helper return value.
+
+        `.github/workflows/ai-spec-validation.yml` gates every judging step on
+        `steps.spec-ref.outputs.has_specs == 'true'`, so the output file is the
+        contract that decides whether the required check evaluates anything.
+        Issues #5489 and #5620.
+        """
+        out_file = tmp_path / "out.txt"
+        env = {
+            "PR_TITLE_INPUT": "fix(ci): a change with no spec ID in the title",
+            "PR_BODY_INPUT": body,
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(out_file),
+            "GITHUB_RUN_ID": "0",
+        }
+        with patch.dict(os.environ, env):
+            with patch(
+                "scripts.ci.spec_extract_refs.subprocess.run",
+                return_value=MagicMock(returncode=0, stdout=""),
+            ):
+                assert run() == 0
         assert "has_specs=true" in out_file.read_text()
 
     def test_fallback_to_gh_when_no_inputs(self, tmp_path: Path) -> None:
@@ -203,6 +307,7 @@ class TestRun:
                 side_effect=OSError("python not found"),
             ):
                 assert main() == EXIT_EXTERNAL
+
 
 class TestMain:
     def test_main_delegates(self) -> None:
