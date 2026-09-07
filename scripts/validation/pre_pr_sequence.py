@@ -139,13 +139,14 @@ class _ValidationStateLike(Protocol):
     references ``pre_pr``. ``pre_pr`` imports this module; a back-reference would
     make mypy resolve ``pre_pr`` under two module names (Issue #3073).
 
-    ``record`` is the only write. The counters move with the recorded state, so
-    a row the sequence short-circuits still appears in the summary with its
-    reason code instead of incrementing a counter and vanishing (issue #5635).
+    ``record`` is the only write, and the only requirement. The counters move
+    with the recorded state inside it, so a row the sequence short-circuits
+    still appears in the summary with its reason code instead of incrementing a
+    counter and vanishing (issue #5635). Before that, this Protocol also
+    required ``total`` and ``skipped`` because the short-circuit incremented
+    them directly; requiring them now would constrain implementers over fields
+    this module never reads.
     """
-
-    total: int
-    skipped: int
 
     def record(self, name: str, outcome: CheckOutcome) -> CheckOutcome:
         """Append one gate's typed outcome and update its state counter."""
@@ -198,8 +199,8 @@ def _root_only(
 
     name = validator.__name__
 
-    def _run(repo_root: Path, _args: argparse.Namespace) -> bool:
-        current = cast("Callable[[Path], bool]", globals().get(name, validator))
+    def _run(repo_root: Path, _args: argparse.Namespace) -> GateResult:
+        current = cast("Callable[[Path], GateResult]", globals().get(name, validator))
         return current(repo_root)
 
     return _run
