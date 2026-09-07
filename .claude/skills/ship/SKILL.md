@@ -1,14 +1,33 @@
 ---
-description: Ship it. Pre-flight validation, CI check, and PR creation. Run after /review.
+name: ship
+version: 1.0.0
+description: Run the four pre-flight checks, then create the PR or validate a contributor branch without touching it. Use when you say `ship it`, `ship this branch`, or `run pre-flight and open the PR`, and run it after review. Do NOT use to open a PR without the gates (use push-pr), and do NOT use to run the review axes themselves (use review).
+license: MIT
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 argument-hint: target-branch
+user-invocable: true
 ---
+
+# Ship
+
+Pre-flight validation, CI check, and PR creation, branching on VCS host and on
+whether the branch is yours.
+
+Migrated from `.claude/commands/ship.md` under ADR-064, which makes skills the
+single user-invocable surface.
 
 @CLAUDE.md
 
+## Triggers
+
+`ship it`, `ship this branch`, `run pre-flight and open the PR`,
+`is this ready to ship`
+
+## Arguments
+
 Ship: $ARGUMENTS
 
-Default target is main unless specified. If $ARGUMENTS names a different branch, use that as the target.
+Default target is main unless specified. If `$ARGUMENTS` names a different branch, use that as the target.
 
 ## Mode Detection
 
@@ -78,36 +97,15 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
 2. **Security posture** - Invoke Skill(skill="security-scan"). No new CWE findings? No secrets in diff? This check is host-agnostic: the scan is regex over the diff and applies identically to GitHub and ADO repos.
 3. **Reviewed on this SHA** - The shipped code must carry SHA-bound `/review` proof (Issue #1938). The proof shape depends on `mode`:
    - **`mode=owner` (marker commit required; behavior unchanged).** First confirm `git status --porcelain` is empty. If any file is staged or modified, this check FAILS: commit the change, re-run `/review`, then re-run `/ship`. `/push-pr` must only push the existing marker commit; it must not create a new commit after this check passes. Then run the review-skill validator:
-     - Resolve the validator through the skill dir when available, otherwise through the portable plugin-root form:
-       ```bash
-       if [ -n "${CLAUDE_SKILL_DIR:-}" ]; then
-         REVIEW_MARKER_SCRIPT="$CLAUDE_SKILL_DIR/../review/scripts/validate_review_marker.py"
-       else
-         resolve_review_scripts_dir() {
-  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-           for root in \
-             "${COPILOT_PLUGIN_ROOT:-}" \
-             "${CLAUDE_PLUGIN_ROOT:-}" \
-             "$repo_root/.claude" \
-             "${HOME:-}/.copilot/installed-plugins/_direct/project-toolkit" \
-             "${HOME:-}/.copilot/installed-plugins"/*/project-toolkit \
-             "${HOME:-}/.claude/plugins/cache"/*/project-toolkit; do
-             if [ -n "$root" ] && [ -d "$root/skills/review/scripts" ]; then
-               printf '%s\n' "$root/skills/review/scripts"
-               return 0
-             fi
-           done
-           printf '%s\n' ".claude/skills/review/scripts"
-         }
-         # Default remains ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/review/scripts/validate_review_marker.py.
-         REVIEW_SCRIPTS_DIR="$(resolve_review_scripts_dir)"
-         REVIEW_MARKER_SCRIPT="$REVIEW_SCRIPTS_DIR/validate_review_marker.py"
-       fi
-       python3 "$REVIEW_MARKER_SCRIPT" --ref HEAD --repo-root "$(pwd)"
-       ```
+     - Resolve the validator through the skill dir when available, otherwise
+       through the portable plugin-root form. The root walk and its exit-code
+       table live in `references/review-marker-resolution.md`; run the command
+       it gives you, then read the exit code below.
 
      The validator exits `0` only when HEAD is a `/review` marker commit whose `Reviewed-By: /review@<axes> on <sha>` trailer binds the reviewed tip (its parent). Exit `1` means no marker, a stale marker, or new code landed after review; exit `2` is a config error. On any non-zero exit, this check FAILS: run `/review` on this branch (it writes the marker on a PASS verdict), then re-run `/ship`. This replaces the old "has /review been run somewhere?" check with proof it passed on the exact code being shipped. Because `/review` is the strict superset of CI (Child 1 #1934), a passing marker covers golden-principles, taste-lints, and code-quality too; there is no separate standards check.
+
    - **`mode=contributor` (advisory; no marker commit).** Writing the empty `Reviewed-By` marker commit onto a shared branch is PROHIBITED here: it pollutes the owner's PR. Do NOT run the marker validator and do NOT commit a marker. Instead, run the `/review` axes and accept a non-commit attestation as the proof: a `/review` run logged in the ship report (the axes run plus verdict on the current HEAD SHA), or that same result posted as a PR comment. This check is advisory in contributor mode: a clean `/review` result records the attestation; it never blocks and never mutates the branch.
+
 4. **Tests passing** - All tests green? No skipped tests without justification?
 
 > `golden-principles` + `taste-lints` + `code-quality` are now part of `/review` (Child 1 #1934), so `/ship` does not invoke them separately. `/pr-quality:all` is likewise no longer a required separate step before `/ship`: a passing `/review` marker (check 3) already runs the same canonical axes locally, and CI runs the same prompts as a backstop.
@@ -154,3 +152,35 @@ NEXT: [monitoring, follow-up items]
 `RESULT: VALIDATED` is the contributor-mode terminal state: readiness checks and `/review` axes ran, no marker commit was written, no PR was created, and nothing was merged.
 
 A bare `Pipeline: DEFERRED` in a finished report is a defect: the deferral is discharged by Process step 4, so a completed run reports `DEFERRED->PASS` or `DEFERRED->FAIL`.
+
+## Verification
+
+- [ ] `host` and `mode` detected before any pre-flight check, and both stated in the report
+- [ ] `pr` set from a real query, with a failed query distinguished from no-PR
+- [ ] All four pre-flight checks ran, each with specific evidence
+- [ ] In owner mode, the SHA-bound review marker validated against HEAD and its parent
+- [ ] In contributor mode, no marker commit written, no PR created, nothing merged
+- [ ] Any `Pipeline: DEFERRED` discharged in Process step 4 and reported as `DEFERRED->PASS` or `DEFERRED->FAIL`
+- [ ] The discharge checked both exit code 0 and `Data.AllPassing == true`
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Treating a failed PR query as no PR | A network or auth failure then reads as `pr=none`, and the run ships against a PR it never checked | Only set `pr=none` on the documented no-PR message; stop on any other non-zero exit |
+| Invoking pipeline-validator when `pr=none` | Its own contract stops the run before the step that creates the first PR, so the branch can never leave that state (#4841) | Record `Pipeline: DEFERRED` and discharge it in step 4 |
+| Reporting a bare `Pipeline: DEFERRED` as finished | The deferral is the promise, not the result; a finished report carrying it never checked CI | Discharge it, or report `DEFERRED->FAIL` |
+| Reading exit code 0 alone as CI green | A PR with no checks exits 0 with `AllPassing: false` | Require both exit 0 and `Data.AllPassing == true` |
+| Writing a review marker onto a shared branch | Pollutes the owner's PR with a foreign workflow artifact | In contributor mode, attest without committing |
+| Committing to clear a dirty tree at check 3 | The marker then binds a tip nobody reviewed | Commit, re-run review, then re-run ship |
+
+## Extension Points
+
+- **Another VCS host.** Mode Detection's `case` and each check's host branch are
+  the only host-aware parts; the review-marker and security checks are
+  host-agnostic by construction.
+- **New pre-flight check.** Add it to the numbered list, to the report block, and
+  to the Verification list together, so it cannot run unreported.
+- **Different review proof.** Check 3 accepts a marker commit in owner mode and
+  an attestation in contributor mode. A project with a different proof swaps
+  those two branches and nothing else.

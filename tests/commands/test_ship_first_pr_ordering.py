@@ -34,8 +34,8 @@ invokes it. `TestPreFixControl` feeds the pre-fix ordering back through the same
 every check here is shown to fail on the shape it was written against
 (`.claude/rules/testing.md` SHOULD 10).
 
-`.claude/commands/ship.md` is the source; `src/copilot-cli/skills/ship/SKILL.md` is
-generated from it by `build/scripts/generate_commands.py` (see
+`.claude/skills/ship/SKILL.md` is the source; `src/copilot-cli/skills/ship/SKILL.md` is
+generated from it by `build/scripts/generate_skills.py` (see
 `.agents/governance/GENERATOR-FILES.md`). Both are asserted so the shipped Copilot copy
 cannot carry the deadlock after the Claude copy is fixed. The generator rewrites the
 invocation syntax (`Skill(skill="pipeline-validator")` becomes
@@ -50,7 +50,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-COMMAND_PATH = REPO_ROOT / ".claude" / "commands" / "ship.md"
+COMMAND_PATH = REPO_ROOT / ".claude" / "skills" / "ship" / "SKILL.md"
 COMMAND_MIRROR_PATH = REPO_ROOT / "src" / "copilot-cli" / "skills" / "ship" / "SKILL.md"
 VALIDATOR_SKILL_PATH = REPO_ROOT / ".claude" / "skills" / "pipeline-validator" / "SKILL.md"
 
@@ -250,7 +250,7 @@ class TestShipReportStatesTheDeferral:
 
 
 # The pre-fix ordering, reduced to the parts these helpers read. Reproduced from
-# `.claude/commands/ship.md` at commit ab9c636de5 (origin/main, 2026-08-13). Keeping it
+# the ship command at commit ab9c636de5 (origin/main, 2026-08-13). Keeping it
 # inline rather than reading git history makes the control independent of branch state.
 _PRE_FIX_SHIP_MD = """---
 description: Ship it.
