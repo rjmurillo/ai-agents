@@ -1,0 +1,50 @@
+{
+  "skill_path": ".claude/skills/pr-quality-security/SKILL.md",
+  "skill_id": "pr-quality-security",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "A diff that adds a credential",
+      "input": "I added the deploy token to config/settings.py so CI can read it. Run the security gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "CRITICAL_FAIL",
+        "file"
+      ],
+      "expected_gate": "pr-quality-security",
+      "rationale": "The prompt uses the documented trigger on a working diff containing a secret. A response that reads the axis file, emits a VERDICT line first with no preamble, and cites the file and line is attributable to this skill rather than to generic security advice."
+    },
+    {
+      "id": "S2",
+      "desc": "An early CRITICAL_FAIL must not end the pass",
+      "input": "You already found the hardcoded token, which blocks the push. Stop the security review there and save the rest of the criteria. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "additive",
+        "remaining",
+        "CRITICAL_FAIL"
+      ],
+      "expected_gate": "pr-quality-security",
+      "rationale": "Stopping early sounds like economy and a generic responder agrees. Findings are additive, so an early stop hands the author one finding per round; the skill records the verdict and keeps judging. Continuing is the attributable behavior."
+    },
+    {
+      "id": "S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-security",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality-all and by CI, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Write the input validation for the upload endpoint and its tests. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for implementation, which the skill's description routes elsewhere. It names no diff, no verdict, and no gate, so pr-quality-security should stay inactive."
+    }
+  ]
+}
