@@ -39,7 +39,10 @@ SPEC_ENTITY_ALIASES_PATH = (
 )
 _DEFAULT_ENTITY_ALIASES: dict[str, str] | None = None
 
-STEP_0_5_HEADING = "### Step 0.5: Memory-First Gate (blocking, runs after Step 0)"
+# ADR-064 (issue #5632) moved the block into the spec skill's
+# references/step-0-5-memory-gate.md, where it is a top-level section rather
+# than a step inside the command's Process, so it carries one fewer hash.
+STEP_0_5_HEADING = "## Step 0.5: Memory-First Gate (blocking, runs after Step 0)"
 GUARD_STRING = "<!-- step0.5:incomplete-without-2b -->"
 
 PROVISIONAL_TIER_HOURS_DEFAULT = 2
@@ -345,16 +348,36 @@ def _is_fence_line(stripped: str) -> tuple[str, int] | None:
     return None
 
 
-def _block_boundary_offset(after_heading: str) -> int:
+
+def _heading_level_at_or_above(line: str, sibling_level: int) -> bool:
+    """True when *line* opens an ATX heading at *sibling_level* or shallower.
+
+    Shallower means fewer hashes: an h2 terminates an h3 block, an h3 does not.
+    """
+    stripped = line.lstrip()
+    hashes = len(stripped) - len(stripped.lstrip("#"))
+    if hashes == 0 or hashes > sibling_level:
+        return False
+    return stripped[hashes : hashes + 1] == " "
+
+
+def _block_boundary_offset(after_heading: str, *, sibling_level: int = 3) -> int:
     """Return the offset where the Step 0.5 block ends, respecting code fences.
 
-    The block terminates at the first line that, OUTSIDE any code fence, is one
-    of: a bare horizontal rule (`---`), a sibling h3 (`### `), or an h2 (`## `).
+    The block terminates at the first line that, OUTSIDE any code fence, is a
+    bare horizontal rule (`---`) or a heading at ``sibling_level`` or shallower.
     Heading-shaped and rule-shaped lines INSIDE a fenced code block (for example
     the `### Direct prior art from memory` lines and any `---` inside the
-    PriorArtBlock schema example) do not terminate the block. The Step 0.5
-    heading itself is skipped: the search starts after the first newline so the
-    opening `### Step 0.5 ...` line never matches the h3 boundary.
+    PriorArtBlock schema example) do not terminate the block. The block's own
+    heading is skipped: the search starts after the first newline so the opening
+    line never matches its own level.
+
+    ``sibling_level`` is the heading depth of the block being extracted, and it
+    has to be passed rather than assumed. ADR-064 (issue #5632) moved the Step
+    0.5 block out of the command's Process and into its own reference file,
+    where it is an h2 whose subsections are h3. Under the old hardcoded rule
+    those h3 subsections read as siblings and truncated the block at its first
+    one. Step 9, still an h3 in `spec-prior-art-schema.md`, keeps the default.
 
     Tracks the OPENING fence run length so a four-backtick outer fence stays open
     across an inner three-backtick block (CommonMark: a closing fence uses the
@@ -384,8 +407,7 @@ def _block_boundary_offset(after_heading: str) -> int:
             offset += len(line)
             continue
         if fence_char is None and (
-            line.startswith("### ")
-            or line.startswith("## ")
+            _heading_level_at_or_above(line, sibling_level)
             or line.rstrip("\n").rstrip() == "---"
         ):
             return offset
@@ -410,7 +432,8 @@ def extract_step0_5_block(spec_text: str) -> str:
             f"Step 0.5 heading not found: {STEP_0_5_HEADING!r}"
         )
     after_heading = spec_text[start:]
-    end = _block_boundary_offset(after_heading)
+    level = len(STEP_0_5_HEADING) - len(STEP_0_5_HEADING.lstrip("#"))
+    end = _block_boundary_offset(after_heading, sibling_level=level)
     return after_heading[:end]
 
 
