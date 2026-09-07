@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-COMMAND_PATH = REPO_ROOT / ".claude" / "commands" / "research.md"
+COMMAND_PATH = REPO_ROOT / ".claude" / "skills" / "research" / "SKILL.md"
 COMMAND_MIRROR_PATH = REPO_ROOT / "src" / "copilot-cli" / "skills" / "research" / "SKILL.md"
 COPILOT_CONFIG = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
 
@@ -67,7 +67,22 @@ def mcp_grants(request: pytest.FixtureRequest) -> tuple[str, ...]:
 
 @pytest.fixture(params=[COMMAND_PATH, COMMAND_MIRROR_PATH], ids=["claude", "copilot"])
 def research_text(request: pytest.FixtureRequest) -> str:
-    return Path(request.param).read_text(encoding="utf-8")
+    """The whole research surface: the skill body plus every reference it ships.
+
+    ADR-064 (issue #5632) gave research a `references/` directory, and the
+    degraded-mode rules moved into it. A fixture that read only `SKILL.md` would
+    report those contracts as deleted when they had merely moved one file over,
+    which is the regression this concatenation exists to prevent. Absence
+    assertions get stricter under it, not looser: they now have to hold across
+    the references too.
+    """
+    skill = Path(request.param)
+    parts = [skill.read_text(encoding="utf-8")]
+    parts.extend(
+        ref.read_text(encoding="utf-8")
+        for ref in sorted((skill.parent / "references").glob("*.md"))
+    )
+    return "\n".join(parts)
 
 
 def test_research_can_reach_github_without_webfetch(research_text: str) -> None:
@@ -87,7 +102,12 @@ def test_research_can_write_its_documented_outputs(research_text: str) -> None:
     for tool in ("Read", "Write", "Glob", "Grep"):
         assert re.search(rf"(?<![A-Za-z]){tool}(?![A-Za-z])", allowed), tool
     assert "new_issue.py" in research_text
-    assert ".agents/analysis/{topic-slug}.md" in research_text
+    # ADR-064 (issue #5632) made research a skill, and a shipped skill must not
+    # hard-code an upstream artifact path: the analysis lands in the CONSUMER's
+    # workspace, whose root differs between a checkout and a plugin install. The
+    # claim is unchanged (the surface says where the analysis goes); it now says
+    # it through the directory the skill resolves.
+    assert "{analysis-dir}/{topic-slug}.md" in research_text
 
 
 def _lines_pointing_webfetch_at_github(text: str) -> list[str]:
@@ -207,9 +227,9 @@ def test_each_tree_carries_only_its_own_mcp_spelling(
         assert grant not in allowed, f"{grant} is the other harness's spelling"
 
 
-# The skill is invocable on its own, so `.claude/commands/research.md` may never
-# load. references/workflow.md is the procedure the agent actually follows, and
-# it has to carry the same two escapes.
+# ADR-064 (issue #5632) made research a skill, so the surface pinned above IS
+# the procedure the agent follows; there is no separate command that may or may
+# not load. Both escapes have to live in it.
 
 
 def test_command_matches_the_new_issue_partial_success_contract(research_text: str) -> None:
@@ -285,7 +305,7 @@ def test_generators_exit_zero_and_write_the_command_mirror() -> None:
     production translation and is where that coverage now lives. Renamed so the
     name stops promising a comparison this body does not make.
     """
-    for script in ("generate_skills.py", "generate_commands.py"):
+    for script in ("generate_skills.py",):
         result = subprocess.run(
             [
                 sys.executable,
@@ -300,7 +320,7 @@ def test_generators_exit_zero_and_write_the_command_mirror() -> None:
         )
         assert result.returncode == 0, f"{script}: {result.stderr}"
 
-    assert COMMAND_MIRROR_PATH.is_file(), "generate_commands.py did not write the mirror"
+    assert COMMAND_MIRROR_PATH.is_file(), "generate_skills.py did not write the mirror"
 
 
 import json  # noqa: E402 -- placed here to group with the AC3/4/5 block it serves
@@ -418,10 +438,10 @@ def test_research_command_has_recovery_path_when_webfetch_denied(
     - names a fallback for other URLs (WebSearch)
     - forbids calling tools named by the denial that are not in allowed-tools
     """
-    guard = "Never call a tool the denial names unless it is already in this command"
+    guard = "Never call a tool the denial names unless it is already in this skill"
     assert guard in research_text, (
         "recovery guard missing: 'Never call a tool the denial names unless it is already "
-        "in this command's allowed-tools'"
+        "in this skill's allowed-tools'"
     )
     assert "switch to the github script path above for github.com URLs" in research_text, (
         "recovery path missing: github script fallback for github.com URLs"
@@ -435,12 +455,12 @@ def test_synthetic_manifest_without_recovery_fails_ac5_guard() -> None:
     Constructs the minimal bad case (allowed-tools present but no recovery
     instruction) and verifies the AC5 assertion catches it.
     """
-    guard = "Never call a tool the denial names unless it is already in this command"
+    guard = "Never call a tool the denial names unless it is already in this skill"
     bad_text = "allowed-tools: WebSearch, WebFetch, Read\n\nSome other text."
     with pytest.raises(AssertionError, match="recovery guard missing"):
         assert guard in bad_text, (
             "recovery guard missing: 'Never call a tool the denial names unless it is already "
-            "in this command's allowed-tools'"
+            "in this skill's allowed-tools'"
         )
 
 

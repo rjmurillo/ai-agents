@@ -3,7 +3,7 @@ name: research
 version: 1.0.0
 description: Research an external topic, write a 3000-to-5000-word analysis, map it onto this project, and file the follow-up issue. Use when you say `research this topic`, `what does the literature say about X`, or `analyze this external practice for us`. Do NOT use to search this repository (use memory or grep), and do NOT use when no spec, issue, or artifact consumes the result.
 license: MIT
-allowed-tools: WebSearch, WebFetch, Read, Write, Glob, Grep, Bash(python3:*/skills/github/scripts/*), serena/*, Skill
+allowed-tools: WebSearch, WebFetch, Read, Write, Glob, Grep, Bash(python3:*/skills/github/scripts/*), mcp__serena__*, Skill
 argument-hint: topic-and-context
 user-invocable: true
 ---
@@ -24,7 +24,8 @@ without raw shell. Wildcards are Claude Code tool patterns, not shell globs; the
 Bash tool executor must sanitize arguments to prevent command injection
 (CWE-78).
 
-<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+@CLAUDE.md
+
 ## Triggers
 
 `research this topic`, `what does the literature say about X`,
@@ -32,7 +33,7 @@ Bash tool executor must sanitize arguments to prevent command injection
 
 ## Arguments
 
-Research: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
+Research: $ARGUMENTS
 
 Expected shape, with topic and context both required:
 
