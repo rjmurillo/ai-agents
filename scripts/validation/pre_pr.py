@@ -174,6 +174,22 @@ from scripts.validation.evidence import (
     exit_code_for,
 )
 
+# The verdict reporters, extracted for the same size ceiling that produced
+# ``pre_pr_sequence`` (issue #3073). Package path, for the ``EvidenceState``
+# identity reason stated above. The private aliases keep ``pre_pr``'s existing
+# surface: ``main`` looks these up as module globals, so
+# ``patch.object(pre_pr, "_write_summary_json")`` in
+# tests/validation/test_pre_pr_evidence_states.py still intercepts the call.
+from scripts.validation.pre_pr_report import (
+    print_blocking_guidance as _print_blocking_guidance,
+)
+from scripts.validation.pre_pr_report import (
+    print_result_line as _print_result_line,
+)
+from scripts.validation.pre_pr_report import (
+    write_summary_json as _write_summary_json,
+)
+
 #: The gate this runner enforces. PASS always passes; the one exception is
 #: SKIP, which .agents/devops/SHIFT-LEFT.md already documented as
 #: non-blocking before issue #5635. BLOCKED and UNKNOWN block.
@@ -378,41 +394,6 @@ def _print_summary(summary: AggregateOutcome, state: ValidationState) -> None:
     print()
 
 
-def _print_blocking_guidance(summary: AggregateOutcome) -> None:
-    """Name every gate that blocked and why, then how to act on each state."""
-    print(f"RESULT: {len(summary.rejected)} validation(s) blocked the gate")
-    print()
-    for outcome in summary.rejected:
-        print(f"  {outcome.summary_line()}")
-        if outcome.detail:
-            print(f"    {outcome.detail}")
-    print()
-    print("Fix suggestions:")
-    print("  FAIL: review the error above and fix the violation it names")
-    print("  BLOCKED: install or authenticate the dependency named in the reason")
-    print("  UNKNOWN: the evidence was unreadable; re-run and read the gate's output")
-    print("  See .agents/devops/SHIFT-LEFT.md for workflow documentation")
-    print()
-
-
-def _write_summary_json(summary: AggregateOutcome, destination: str) -> None:
-    """Write the machine-readable summary when a destination was given.
-
-    A write failure is reported and does not change the gate's verdict: the
-    summary is a report of the run, not part of it.
-    """
-    if not destination:
-        return
-    try:
-        Path(destination).write_text(
-            json.dumps(summary.to_dict(), indent=2) + "\n", encoding="utf-8"
-        )
-    except OSError as exc:
-        print(f"[WARNING] could not write summary JSON to {destination}: {exc}", file=sys.stderr)
-        return
-    print(f"Machine-readable summary written to {destination}")
-
-
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns ADR-035 exit code."""
     parser = build_parser()
@@ -467,7 +448,7 @@ def main(argv: list[str] | None = None) -> int:
         _print_blocking_guidance(summary)
         return exit_code_for(summary)
 
-    print("RESULT: All validations passed")
+    _print_result_line(summary)
     print()
     # When running as a lefthook job (SKIP_AUTOFIX=1), pre_pr.py is one parallel
     # job among several. Printing success guidance is false: this job only
