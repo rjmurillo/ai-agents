@@ -117,6 +117,16 @@ from validate_no_orphaned_build_deferrals import (
 )
 from validate_python_syntax import validate_python_syntax
 
+# The typed evidence contract (issue #5635). PACKAGE path, matching
+# ``pre_pr.py``: a flat ``import evidence`` and a package
+# ``import scripts.validation.evidence`` yield two distinct ``EvidenceState``
+# enums, so the sequence and the runner must resolve the same one.
+from scripts.validation.evidence import (
+    REASON_ALREADY_RUN,
+    CheckOutcome,
+    GateResult,
+)
+
 if TYPE_CHECKING:
     import argparse
     from collections.abc import Callable
@@ -128,10 +138,19 @@ class _ValidationStateLike(Protocol):
     Typed structurally rather than imported from ``pre_pr`` so this module never
     references ``pre_pr``. ``pre_pr`` imports this module; a back-reference would
     make mypy resolve ``pre_pr`` under two module names (Issue #3073).
+
+    ``record`` is the only write, and the only requirement. The counters move
+    with the recorded state inside it, so a row the sequence short-circuits
+    still appears in the summary with its reason code instead of incrementing a
+    counter and vanishing (issue #5635). Before that, this Protocol also
+    required ``total`` and ``skipped`` because the short-circuit incremented
+    them directly; requiring them now would constrain implementers over fields
+    this module never reads.
     """
 
-    total: int
-    skipped: int
+    def record(self, name: str, outcome: CheckOutcome) -> CheckOutcome:
+        """Append one gate's typed outcome and update its state counter."""
+        ...
 
 
 FAST_STAGE_RAN_ENV = "AI_AGENTS_PRE_PR_FAST_STAGE_RAN"
@@ -159,13 +178,15 @@ class _Gate:
     """
 
     name: str
-    run: Callable[[Path, argparse.Namespace], bool]
+    run: Callable[[Path, argparse.Namespace], GateResult]
     skip_when_quick: bool = False
     already_run_by: str = ""
     notes: str = field(default="", repr=False)
 
 
-def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
+def _root_only(
+    validator: Callable[[Path], GateResult],
+) -> Callable[[Path, argparse.Namespace], GateResult]:
     """Adapt a ``validate_x(repo_root)`` validator to the uniform gate signature.
 
     The validator is resolved by name at call time, not captured at import.
@@ -178,8 +199,8 @@ def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Na
 
     name = validator.__name__
 
-    def _run(repo_root: Path, _args: argparse.Namespace) -> bool:
-        current = cast("Callable[[Path], bool]", globals().get(name, validator))
+    def _run(repo_root: Path, _args: argparse.Namespace) -> GateResult:
+        current = cast("Callable[[Path], GateResult]", globals().get(name, validator))
         return current(repo_root)
 
     return _run
@@ -484,12 +505,14 @@ def run_all_validations(
     fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == "1"
     for gate in _SEQUENCE:
         if fast_stage_ran and gate.already_run_by:
-            print(
-                f"[SKIP] {gate.name} (already passed as the unconditional "
-                f"pre-push job {gate.already_run_by})"
+            detail = (
+                f"already passed as the unconditional pre-push job {gate.already_run_by}"
             )
-            state.total += 1
-            state.skipped += 1
+            print(f"[SKIP] {gate.name} ({detail})")
+            state.record(
+                gate.name,
+                CheckOutcome.skipped(gate.name, reason=REASON_ALREADY_RUN, detail=detail),
+            )
             continue
 
         run_validation(

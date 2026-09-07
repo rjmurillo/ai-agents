@@ -14,6 +14,10 @@ from unittest.mock import patch
 import pytest
 
 from scripts.validation.checks_tooling import validate_always_on_corpus_claims
+from scripts.validation.evidence import (
+    REASON_BASE_REF_UNRESOLVED,
+    EvidenceState,
+)
 from scripts.validation.pre_pr import (
     ValidationState,
     _find_latest_session_log,
@@ -245,9 +249,20 @@ class TestRunValidation:
 class TestValidateSessionEnd:
     """Tests for session end validation."""
 
-    def test_no_session_log_returns_true(self, tmp_path: Path) -> None:
+    def test_unresolvable_base_ref_reports_blocked(self, tmp_path: Path) -> None:
+        """tmp_path is not a git checkout, so no base ref resolves.
+
+        This test used to assert ``is True`` and was named
+        ``test_no_session_log_returns_true``. It pinned the defect issue #5635
+        exists to remove: a gate that could not compute its changed-file set
+        reported the same value as a gate that computed an empty one. The name
+        was wrong too, since no session log was ever examined.
+        """
         result = validate_session_end(tmp_path)
-        assert result is True
+
+        assert result.state is EvidenceState.BLOCKED
+        assert result.reason == REASON_BASE_REF_UNRESOLVED
+        assert result.examined is None
 
     def test_missing_script_raises_skip(self, tmp_path: Path) -> None:
         """When validate_session_json.py is absent and there ARE changed logs,
@@ -304,7 +319,7 @@ class TestValidateSessionEnd:
             "checks_tooling.new_session_logs",
             return_value={".agents/sessions/2025-12-01-session-1.json"},
         ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
-            assert validate_session_end(tmp_path) is True
+            assert validate_session_end(tmp_path).state is EvidenceState.PASS
 
         assert seen[-1][-2:] == ["--validation-head", head]
 
@@ -336,7 +351,7 @@ class TestValidateSessionEnd:
             "checks_tooling.new_session_logs",
             return_value=set(),
         ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
-            assert validate_session_end(tmp_path) is True
+            assert validate_session_end(tmp_path).state is EvidenceState.PASS
 
         assert seen[-1][-1] == "--existing-log"
         assert "--validation-head" not in seen[-1]
@@ -366,7 +381,7 @@ class TestValidateSessionEnd:
             "checks_tooling.new_session_logs",
             return_value={".agents/sessions/2025-12-01-session-1.json"},
         ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
-            assert validate_session_end(tmp_path) is False
+            assert validate_session_end(tmp_path).state is EvidenceState.FAIL
 
         assert seen[-1][-2:] == ["--validation-head", "INVALID_HEAD"]
 
@@ -397,13 +412,16 @@ class TestBuildParser:
         runner did not have. Asserting the destination set (rather than the
         absence of two names) also fails when a future flag is added without a
         consumer.
+
+        ``summary_json`` joined the set with issue #5635; ``main`` reads it in
+        ``_write_summary_json``.
         """
         dests = {
             action.dest
             for action in build_parser()._actions
             if action.dest != "help"
         }
-        assert dests == {"quick", "markdown_lint_only", "markdown_files"}
+        assert dests == {"quick", "markdown_lint_only", "markdown_files", "summary_json"}
 
 
 class TestRemovedFlagsAreRejected:
