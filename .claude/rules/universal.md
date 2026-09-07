@@ -100,6 +100,14 @@ These rules apply to every change in this repository.
    so the memory taught the anti-pattern a binding rule forbids
    (`78e808238`, corrected in `9cd7097f1`).
 
+10. MUST NOT call `mcp__serena__write_memory` from an agent whose working
+    directory is a linked worktree. Serena resolves its memory directory once at
+    server activation, so the write lands in the activating checkout, not yours,
+    and still returns success. Route it through the main checkout or hand the
+    content to the parent session. ADR-097 retired the hook that blocked this;
+    `check_serena_memory_worktree_scope.py` only reports it afterward, and never
+    fails. Refs Issue #5061.
+
 ## Choosing a persistence surface
 
 When you learn a durable fact, convention, or decision procedure that future sessions must honor, choose the persistence surface by who must obey it and across which harnesses. This repository runs under Claude, Codex, and Copilot. A convention that lives in only one harness's memory is invisible to the other two.
