@@ -164,6 +164,12 @@ PREFIX_TO_DIR = {
     "context-engineering": "memory",
     "context-inference": "memory",
     "phase2a-memory": "memory",
+    # Retired backend, kept deliberately: this is a one-time migration script,
+    # so its input is an un-migrated tree that still holds `forgetful-*` files at
+    # top level. Without this row the fallback routes them by first word into a
+    # `forgetful/` group, which then collapses into `general/` under the
+    # group-size floor. The server is gone (#5574); the routing rule is not.
+    "forgetful-": "memory",
     # Gemini domain
     "gemini-": "gemini",
     # Creator domain

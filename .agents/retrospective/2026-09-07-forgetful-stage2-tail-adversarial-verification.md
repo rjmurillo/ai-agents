@@ -1,7 +1,7 @@
 # Retrospective: an adversarial pass refuted 19 of 36 agent-proposed rewrites
 
 **Date**: 2026-09-07
-**Scope**: Issue #5574 Stage 2 tail, branch `chore/5574-forgetful-stage2-tail`, commits `5c811f339`, `6845d572c`, `35893f4e9`, `9ba4e4d8d`
+**Scope**: Issue #5574 Stage 2 tail, PR #5647, branch `chore/5574-forgetful-stage2-tail`
 **Failure mode classification**: #4, False completion markers, and #10, silent defaults. Both caught before shipping, by a verification stage rather than by review.
 
 ## What happened
@@ -22,16 +22,21 @@ It refuted 19 of 36. The 17 survivors shipped.
 | Rewrite refuted on inspection | 19 | 53% |
 | Rewrite confirmed and shipped | 17 | 47% |
 
-Refutation grounds, counted by kind:
+Refutation grounds. Several refutations cite more than one independent
+ground, so each is counted once under its primary ground and the column sums
+to 19.
 
-| Ground | Count | Example |
+| Primary ground | Count | Example |
 |---|---|---|
-| Introduced a claim that is false | 5 | Three book references gained an exclusivity the original never made |
+| Replacement introduces an unsupported or false claim | 9 | Three book references gained an exclusivity the original never made |
 | Miscited the line it quoted | 2 | Quoted a line number that is blank; the text was one line lower |
+| Arithmetic or count wrong | 2 | A count the proposal called decisive was off by roughly 72 percent |
 | Misread the gate it cited | 1 | Called a portability baseline "lower is better" in the wrong direction |
-| Record misread as live instruction | 4 | Provenance prose about the decommission itself, and a retired-hook history row |
-| Would break the artifact | 2 | A replacement injected a word into an eval fixture's prompt |
-| Arithmetic wrong | 1 | A count the proposal called decisive was off by roughly 72 percent |
+| Record misread as a live instruction | 1 | Provenance prose about the decommission itself |
+| Would break the artifact | 1 | A replacement injected a word into an eval fixture's prompt |
+| Replacement duplicates content already in the file | 1 | Restated a bullet the References section already carried |
+| The instruction contradicted itself | 1 | Said "replace lines 414-418 with exactly these five lines", then supplied six |
+| Wrong remedy: the target is dead code | 1 | A constant defined and never referenced; delete it rather than reword it |
 
 ## Root cause, five whys
 
@@ -83,7 +88,9 @@ wrong one is a second read with an opposing default.
   the start.** AC1 cannot be satisfied while a decommission guard test whose
   job is to contain the token, and frozen eval run records, both match it.
   That was recorded as an open question on #5624 before this session and is
-  still unanswered; 15 of the remaining 44 matches are in that class.
+  still unanswered; 16 of the remaining 45 matches are in that class, the
+  newest being a retired-name routing row in a migration script that a
+  reviewer correctly asked me to put back.
 
 ## Evidence
 
@@ -93,4 +100,7 @@ wrong one is a second read with an opposing default.
   18 tracked offenders, all exit 0.
 - Affected suites after the fixture edits: 167 passed, exit 0.
 - `pre_pr.py`: all validations passed, exit 0, zero FAIL lines.
-- AC1 count: 68 before, 44 after.
+- AC1 count: 68 before, 45 after. The 45th is deliberate: review found that
+  removing a `forgetful-` routing row from a one-time migration script would
+  misroute historical records on the un-migrated tree the script exists to
+  process, so the row was restored with that reason recorded inline.
