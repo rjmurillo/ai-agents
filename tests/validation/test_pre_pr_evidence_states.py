@@ -23,14 +23,19 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.validation import pre_pr
 from scripts.validation.evidence import (
     REASON_ALREADY_RUN,
+    REASON_BASE_REF_UNRESOLVED,
+    REASON_DIFF_FAILED,
     REASON_MALFORMED_OUTPUT,
     REASON_QUICK_MODE,
     REASON_SCRIPT_ABSENT,
+    REASON_TOOL_ABSENT,
     REASON_VALIDATOR_RAISED,
     CheckOutcome,
     EvidenceState,
+    aggregate,
 )
 from scripts.validation.pre_pr import (
     MissingScriptSkip,
@@ -85,7 +90,7 @@ class TestRunValidationRecordsTheState:
         counted under ``passed``.
         """
         blocked = CheckOutcome.blocked(
-            "validate_session_end", reason="base_ref.unresolved", detail="no base ref"
+            "validate_session_end", reason=REASON_BASE_REF_UNRESOLVED, detail="no base ref"
         )
 
         state, accepted = _run(lambda: blocked)
@@ -97,7 +102,7 @@ class TestRunValidationRecordsTheState:
 
     def test_an_unknown_outcome_is_recorded_and_blocks(self) -> None:
         """Incomplete evidence blocks rather than passing."""
-        unknown = CheckOutcome.unknown("v", reason="diff.failed")
+        unknown = CheckOutcome.unknown("v", reason=REASON_DIFF_FAILED)
 
         state, accepted = _run(lambda: unknown)
 
@@ -168,8 +173,8 @@ class TestValidationStateRecord:
             (CheckOutcome.passed("v", revision="HEAD", scope="tree"), "passed"),
             (CheckOutcome.failed("v", reason="lint.violation"), "failed"),
             (CheckOutcome.skipped("v", reason=REASON_SCRIPT_ABSENT), "skipped"),
-            (CheckOutcome.blocked("v", reason="tool.absent"), "blocked"),
-            (CheckOutcome.unknown("v", reason="diff.failed"), "unknown"),
+            (CheckOutcome.blocked("v", reason=REASON_TOOL_ABSENT), "blocked"),
+            (CheckOutcome.unknown("v", reason=REASON_DIFF_FAILED), "unknown"),
         ],
     )
     def test_each_state_increments_its_own_counter(
@@ -186,7 +191,7 @@ class TestValidationStateRecord:
     def test_the_record_keeps_both_the_label_and_the_typed_outcome(self) -> None:
         """Callers reading ``record.status`` keep working; the evidence is there too."""
         state = ValidationState()
-        outcome = CheckOutcome.blocked("v", reason="tool.absent", detail="actionlint absent")
+        outcome = CheckOutcome.blocked("v", reason=REASON_TOOL_ABSENT, detail="actionlint absent")
 
         state.record("Workflow Validation", outcome)
 
@@ -227,13 +232,13 @@ class TestMainExitCode:
 
     def test_a_blocked_gate_exits_three(self) -> None:
         """ADR-035 external. The pre-change runner exited 0 here."""
-        blocked = CheckOutcome.blocked("v", reason="tool.absent", detail="actionlint absent")
+        blocked = CheckOutcome.blocked("v", reason=REASON_TOOL_ABSENT, detail="actionlint absent")
 
         assert self._main_with(blocked) == 3
 
     def test_an_unknown_gate_exits_one(self) -> None:
         """Unreadable evidence is a logic error, not a pass."""
-        unknown = CheckOutcome.unknown("v", reason="diff.failed", detail="git diff failed")
+        unknown = CheckOutcome.unknown("v", reason=REASON_DIFF_FAILED, detail="git diff failed")
 
         assert self._main_with(unknown) == 1
 
@@ -256,7 +261,7 @@ class TestMainSummaryJson:
         """Acceptance criterion: aggregators produce a machine-readable summary."""
         destination = tmp_path / "summary.json"
         assert not destination.exists()
-        blocked = CheckOutcome.blocked("v", reason="tool.absent", detail="actionlint absent")
+        blocked = CheckOutcome.blocked("v", reason=REASON_TOOL_ABSENT, detail="actionlint absent")
 
         with patch("pre_pr_sequence._SEQUENCE", _sequence_returning(blocked)):
             exit_code = main(["--quick", "--summary-json", str(destination)])
@@ -272,11 +277,39 @@ class TestMainSummaryJson:
         assert payload["policy"]["exceptions"][0]["states"] == ["SKIP"]
 
     def test_no_summary_is_written_when_no_destination_is_given(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The flag is opt-in; the default run writes nothing."""
+        """The flag is opt-in; the default run writes nothing.
+
+        The chdir is load-bearing. Without it ``main`` is never told about
+        ``tmp_path``, so an assertion that the directory stayed empty holds no
+        matter what the writer does, which is the vacuous shape
+        ``.claude/rules/testing.md`` MUST 12 and SHOULD 14 forbid. Standing in
+        ``tmp_path`` is what makes a stray relative write land where this test
+        is looking.
+        """
+        monkeypatch.chdir(tmp_path)
+
         with patch("pre_pr_sequence._SEQUENCE", _sequence_returning(True)):
             main(["--quick"])
+
+        assert list(tmp_path.iterdir()) == []
+
+    def test_the_writer_is_handed_the_empty_destination_on_a_default_run(self) -> None:
+        """Pin the contract at the call, not only at its observable effect."""
+        with patch.object(pre_pr, "_write_summary_json") as writer:
+            with patch("pre_pr_sequence._SEQUENCE", _sequence_returning(True)):
+                main(["--quick"])
+
+        assert writer.call_args.args[1] == ""
+
+    def test_write_summary_json_creates_nothing_for_an_empty_destination(
+        self, tmp_path: Path
+    ) -> None:
+        """The guard itself, driven directly."""
+        summary = aggregate("g", [CheckOutcome.passed("v", revision="HEAD", scope="tree")])
+
+        pre_pr._write_summary_json(summary, "")
 
         assert list(tmp_path.iterdir()) == []
 

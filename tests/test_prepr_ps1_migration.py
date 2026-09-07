@@ -18,6 +18,8 @@ import pytest
 
 from scripts.validation.evidence import (
     REASON_BASE_REF_UNRESOLVED,
+    REASON_DIFF_FAILED,
+    REASON_TIMEOUT,
     EvidenceState,
 )
 
@@ -341,3 +343,63 @@ class TestMypyChangedFilesGate:
 
         # The error is pre-existing and NOT on a changed line, so ratchet allows it.
         assert result == 0, "Expected PASS: pre-existing error not on a changed line"
+
+
+class TestDiffFailureReachesTheGateAsUnknown:
+    """The UNKNOWN branch of both migrated validators, driven end to end.
+
+    classify_subprocess_failure has its own unit tests, but a correct helper
+    nobody calls delivers nothing (`.claude/rules/testing.md` SHOULD 6). These
+    drive each validator with a real _run_subprocess return value and assert on
+    the reason code that reaches the caller, so a validator that stops calling
+    the classifier, or passes the wrong default, fails here.
+    """
+
+    _TIMEOUT = (-1, "", "Command timed out after 30s")
+    _BAD_REV = (128, "", "fatal: bad revision 'origin/main...HEAD'")
+
+    @staticmethod
+    def _session_end(diff_result: tuple[int, str, str]) -> object:
+        from checks_tooling import validate_session_end
+
+        with patch("checks_tooling._resolve_branch_base_ref", return_value="origin/main"):
+            with patch("checks_tooling._run_subprocess", return_value=diff_result):
+                return validate_session_end(REPO_ROOT)
+
+    @staticmethod
+    def _mypy(diff_result: tuple[int, str, str]) -> object:
+        from checks_mypy import validate_mypy_changed_files
+
+        with patch("checks_mypy._resolve_branch_base_ref", return_value="origin/main"):
+            with patch("checks_mypy._run_subprocess", return_value=diff_result):
+                return validate_mypy_changed_files(REPO_ROOT)
+
+    def test_session_end_reports_timeout_when_the_diff_times_out(self) -> None:
+        """The sentinel exit plus the marker must reach the gate as timeout."""
+        outcome = self._session_end(self._TIMEOUT)
+
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_TIMEOUT
+
+    def test_session_end_reports_diff_failed_on_a_real_git_error(self) -> None:
+        """A child that ran and exited non-zero keeps the caller reason."""
+        outcome = self._session_end(self._BAD_REV)
+
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_DIFF_FAILED
+        assert outcome.revision == "origin/main...HEAD"
+
+    def test_mypy_gate_reports_timeout_when_the_diff_times_out(self) -> None:
+        """Same wiring on the second migrated validator."""
+        outcome = self._mypy(self._TIMEOUT)
+
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_TIMEOUT
+
+    def test_mypy_gate_reports_diff_failed_on_a_real_git_error(self) -> None:
+        """Control for the timeout case above: same branch, different reason."""
+        outcome = self._mypy(self._BAD_REV)
+
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_DIFF_FAILED
+        assert outcome.revision == "origin/main...HEAD"
