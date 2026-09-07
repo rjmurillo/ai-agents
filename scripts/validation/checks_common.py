@@ -34,50 +34,19 @@ if TYPE_CHECKING:
     # ``tuple[int, str, str]`` return type is preserved. Runtime uses the bare
     # import because ``pre_pr`` and ``checks_ratchet`` load this module as a
     # top-level name after inserting ``_SCRIPT_DIR`` on ``sys.path``.
-    from scripts.validation.subprocess_runner import _run_subprocess
+    # ``classify_subprocess_failure`` reads that wrapper's return contract, so
+    # it lives beside it and is re-exported here to keep one shared subprocess
+    # surface for the ``checks_*`` modules. Unused here by design (noqa below).
+    from scripts.validation.subprocess_runner import (
+        _run_subprocess,
+        classify_subprocess_failure,
+    )
 else:
-    from subprocess_runner import _run_subprocess
+    from subprocess_runner import (  # noqa: F401
+        _run_subprocess,
+        classify_subprocess_failure,
+    )
 
-# Reason codes for the typed evidence contract (issue #5635). PACKAGE path,
-# matching pre_pr.py: a flat and a package import of ``evidence`` yield two
-# distinct enum classes.
-from scripts.validation.evidence import (  # noqa: E402
-    REASON_TIMEOUT,
-    REASON_TOOL_ABSENT,
-)
-
-# The exit code ``subprocess_runner._run_subprocess`` returns when the child
-# never produced one of its own: a timeout or a missing executable. Any other
-# non-zero value came from the child itself.
-_SUBPROCESS_SENTINEL_EXIT = -1
-
-
-
-def classify_subprocess_failure(exit_code: int, stderr: str, *, default: str) -> str:
-    """Return the evidence reason code for a failed :func:`_run_subprocess` call.
-
-    A timed-out child and a child that ran and exited non-zero are different
-    findings with different remedies, and ``_run_subprocess`` reports both as
-    exit ``-1`` versus a real code. Collapsing them into one reason costs the
-    reader the first diagnostic step, which is the defect
-    ``.claude/rules/ci-scripts.md`` MUST 14 records for the count ratchets and
-    the reason ``evidence.py`` keeps BLOCKED and UNKNOWN apart.
-
-    The two markers are ``subprocess_runner._run_subprocess``'s documented
-    contract, quoted verbatim from its source:
-
-        marker = f"Command timed out after {timeout}s"
-        return -1, "", f"Command not found: {args[0]}"
-
-    ``default`` is the caller's own reason for an ordinary non-zero exit, since
-    only the caller knows what its child was doing (issue #5635).
-    """
-    if exit_code == _SUBPROCESS_SENTINEL_EXIT:
-        if "Command timed out after" in stderr:
-            return REASON_TIMEOUT
-        if "Command not found:" in stderr:
-            return REASON_TOOL_ABSENT
-    return default
 
 
 class MissingScriptSkip(Exception):  # noqa: N818 - control-flow signal, not an error condition

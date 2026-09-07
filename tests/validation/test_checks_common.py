@@ -6,12 +6,12 @@ import sys
 from unittest.mock import patch
 
 from scripts.validation import subprocess_runner
-from scripts.validation.checks_common import classify_subprocess_failure
 from scripts.validation.evidence import (
     REASON_DIFF_FAILED,
     REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
 )
+from scripts.validation.subprocess_runner import classify_subprocess_failure
 
 
 def test_subprocess_resolves_windows_command_shim() -> None:
