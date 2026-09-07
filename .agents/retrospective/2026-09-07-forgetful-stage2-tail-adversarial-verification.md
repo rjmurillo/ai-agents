@@ -38,6 +38,15 @@ to 19.
 | The instruction contradicted itself | 1 | Said "replace lines 414-418 with exactly these five lines", then supplied six |
 | Wrong remedy: the target is dead code | 1 | A constant defined and never referenced; delete it rather than reword it |
 
+## Impact
+
+| Area | Severity | Effect |
+|---|---|---|
+| Agent instruction accuracy | High | Twelve authored surfaces named a server the harness can no longer reach, two of them untrusted-content preambles and two of them MCP tool grants |
+| Trust in agent-proposed edits | High | 19 of 36 proposals were wrong, and every one of them cited a verbatim quote and a line number |
+| Acceptance criterion integrity | Medium | AC1 cannot reach zero while the guards and frozen run records that must contain the token to do their job still match it |
+| Retrospective accuracy | Medium | The grounds table first shipped summing to 15 against a stated 19, the defect class this campaign exists to remove |
+
 ## Root cause, five whys
 
 1. Why were 19 proposals wrong? Each was written by an agent that had read the
@@ -91,6 +100,18 @@ wrong one is a second read with an opposing default.
   still unanswered; 16 of the remaining 45 matches are in that class, the
   newest being a retired-name routing row in a migration script that a
   reviewer correctly asked me to put back.
+
+## Remediation
+
+| Action | Where | Status |
+|---|---|---|
+| Rewrite the 17 confirmed live surfaces and ship no refuted proposal | This PR, #5647 | Done |
+| Restore the `forgetful-` routing row with its reason recorded inline | `scripts/restructure_memories.py` | Done, #5647 |
+| Recount the refutation grounds from run data, one primary ground each | This retro | Done, #5647 |
+| Decide the AC1 rescope: a recorded exclusion list, or drop the grep-returns-nothing form | Issue #5574, comment 5575524584 | Open, owner |
+| Decide the orphan prompt that sits outside AC1 scope | Issue #5643 | Open, owner |
+| Supersede the memory ADRs rather than editing them; ADR-037 is the largest at 72 mentions | Issue #5574 Stage 3 | Open, blocked on #5647 |
+| A live three-tier memory table still presents the retired backend as a current tier | `.agents/governance/MEMORY-MANAGEMENT.md` | Not filed, Open, no owner |
 
 ## Evidence
 
