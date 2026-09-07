@@ -45,6 +45,7 @@ from checks_workflow_targets import _workflow_yaml_targets  # noqa: E402
 from scripts.validation.evidence import (  # noqa: E402
     REASON_BASE_REF_UNRESOLVED,
     REASON_DIFF_FAILED,
+    REASON_INCOMPLETE_EVIDENCE,
     REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
     REASON_TREE_ABSENT,
@@ -167,11 +168,32 @@ def validate_session_end(repo_root: Path) -> CheckOutcome:
 
     changed_paths = _changed_session_paths(stdout, repo_root)
 
-    _, validation_head, _ = _run_subprocess(
+    # The revision is the PASS's whole falsifiability claim, so a failed
+    # rev-parse cannot be papered over with a placeholder. This call used to
+    # discard its exit code and substitute the literal "INVALID_HEAD", which
+    # ``_check_pass_evidence`` accepted because it only rejects an empty
+    # revision: the gate then reported PASS naming a revision that does not
+    # exist, defeating the one invariant the contract rests on (issue #5646
+    # item 2). A revision this run could not read is UNKNOWN.
+    head_exit, head_stdout, head_stderr = _run_subprocess(
         ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
         timeout=30,
     )
-    validation_head = validation_head.strip() or "INVALID_HEAD"
+    validation_head = head_stdout.strip()
+    if head_exit != 0 or not validation_head:
+        reason = classify_subprocess_failure(
+            head_exit, head_stderr, default=REASON_INCOMPLETE_EVIDENCE
+        )
+        print(f"[UNKNOWN] Session validation: git rev-parse HEAD failed ({reason})")
+        return CheckOutcome.unknown(
+            _SESSION_END,
+            reason=reason,
+            scope=f"session logs changed against {base_ref}",
+            detail=(
+                f"git rev-parse HEAD exited {head_exit} and named no revision, so "
+                "any verdict here could not say which commit it examined"
+            ),
+        )
 
     if not changed_paths:
         print("[PASS] Session End Validation (0 session logs changed on branch)")
@@ -501,6 +523,37 @@ def validate_workflow_yaml(repo_root: Path) -> CheckOutcome:
 
     scope = f"{len(file_args)} workflow file(s)"
     if exit_code != 0:
+        # Classify before reporting violations. ``_run_subprocess`` gives a
+        # timeout, a failed exec, and a real finding the same non-zero shape,
+        # and only the last one examined anything. The sibling
+        # ``validate_yaml_style`` was fixed in #5641 and this half of the pair
+        # was not, so a timed-out or unexecutable actionlint was reported as
+        # workflow violations that do not exist (issue #5646 item 6). An empty
+        # ``default`` means "no execution failure applies"; the remaining
+        # non-zero codes are actionlint's own finding exits.
+        failure = classify_subprocess_failure(exit_code, stderr or "", default="")
+        if failure == REASON_TOOL_ABSENT:
+            print("[BLOCKED] actionlint could not be executed; no workflow file was examined")
+            return CheckOutcome.blocked(
+                _WORKFLOW_YAML,
+                reason=REASON_TOOL_ABSENT,
+                scope=scope,
+                detail=(
+                    "actionlint passed the PATH probe but could not be executed, "
+                    "so no workflow file was examined"
+                ),
+            )
+        if failure == REASON_TIMEOUT:
+            print("[UNKNOWN] actionlint timed out; its findings are incomplete")
+            return CheckOutcome.unknown(
+                _WORKFLOW_YAML,
+                reason=REASON_TIMEOUT,
+                scope=scope,
+                detail=(
+                    "actionlint timed out, so an unknown share of the scope went "
+                    "unexamined and its silence proves nothing"
+                ),
+            )
         print("[FAIL] actionlint found issues in workflow files")
         _print_capped(stdout or stderr, 20, "lines")
         return CheckOutcome.failed(
