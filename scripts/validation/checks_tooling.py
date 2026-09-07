@@ -45,6 +45,7 @@ from checks_workflow_targets import _workflow_yaml_targets  # noqa: E402
 from scripts.validation.evidence import (  # noqa: E402
     REASON_BASE_REF_UNRESOLVED,
     REASON_DIFF_FAILED,
+    REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
     REASON_TREE_ABSENT,
     WORKING_TREE,
@@ -434,16 +435,12 @@ def validate_workflow_yaml(repo_root: Path) -> CheckOutcome:
     empty ``_workflow_yaml_targets`` change set passes without invoking
     actionlint; an unproven scope falls back to the full glob below.
     """
-    if not shutil.which("actionlint"):
-        print("[BLOCKED] actionlint not found; no workflow file was examined")
-        print("  Install actionlint to enable GitHub Actions workflow validation.")
-        return CheckOutcome.blocked(
-            _WORKFLOW_YAML,
-            reason=REASON_TOOL_ABSENT,
-            scope=".github/workflows",
-            detail="actionlint is not on PATH, so no workflow file was examined",
-        )
-
+    # Applicability is decided before the tool probe. A checkout with no
+    # workflow tree has no work for actionlint to do, so its verdict is SKIP
+    # (nothing to examine) rather than BLOCKED (a tool we needed was missing).
+    # Probing first inverted that for a downstream install with neither, which
+    # then read a false "install actionlint" diagnosis for a check that did not
+    # apply to it at all.
     workflow_path = repo_root / ".github" / "workflows"
     if not workflow_path.is_dir():
         print("[SKIP] No .github/workflows directory found")
@@ -452,6 +449,16 @@ def validate_workflow_yaml(repo_root: Path) -> CheckOutcome:
             reason=REASON_TREE_ABSENT,
             scope=".github/workflows",
             detail="this checkout has no .github/workflows directory",
+        )
+
+    if not shutil.which("actionlint"):
+        print("[BLOCKED] actionlint not found; no workflow file was examined")
+        print("  Install actionlint to enable GitHub Actions workflow validation.")
+        return CheckOutcome.blocked(
+            _WORKFLOW_YAML,
+            reason=REASON_TOOL_ABSENT,
+            scope=".github/workflows",
+            detail="actionlint is not on PATH, so no workflow file was examined",
         )
 
     targets = _workflow_yaml_targets(repo_root)
@@ -564,6 +571,35 @@ def validate_yaml_style(repo_root: Path) -> CheckOutcome:
     scope = f"{len(target_args)} YAML target(s)"
 
     if exit_code != 0:
+        # yamllint's findings are advisory here by design (issue #2374), but
+        # _run_subprocess reports a timeout and a failed exec with the same
+        # non-zero shape, and neither examined anything. Classify first, so an
+        # execution failure is never read as a tolerated-findings run. An empty
+        # ``default`` means "no execution failure applies"; the remaining
+        # non-zero codes are yamllint's own finding exits.
+        failure = classify_subprocess_failure(exit_code, stderr or "", default="")
+        if failure == REASON_TOOL_ABSENT:
+            print("[BLOCKED] yamllint could not be executed; no YAML file was examined")
+            return CheckOutcome.blocked(
+                _YAML_STYLE,
+                reason=REASON_TOOL_ABSENT,
+                scope=scope,
+                detail=(
+                    "yamllint passed the PATH probe but could not be executed, "
+                    "so no YAML file was examined"
+                ),
+            )
+        if failure == REASON_TIMEOUT:
+            print("[UNKNOWN] yamllint timed out; its findings are incomplete")
+            return CheckOutcome.unknown(
+                _YAML_STYLE,
+                reason=REASON_TIMEOUT,
+                scope=scope,
+                detail=(
+                    "yamllint timed out, so an unknown share of the scope went "
+                    "unexamined and its silence proves nothing"
+                ),
+            )
         print("[WARNING] yamllint found style issues (non-blocking)")
         _print_capped(stdout or stderr, 30, "issues")
         print()

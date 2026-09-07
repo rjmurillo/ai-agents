@@ -17,6 +17,7 @@ from unittest.mock import patch
 import pytest
 
 from scripts.validation.evidence import (
+    REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
     EvidenceState,
     default_pre_pr_policy,
@@ -204,3 +205,78 @@ class TestValidateYamlStyle:
         ]
         # Exactly one argv element for the file, not two from a whitespace split.
         assert len(command) == 4
+
+
+class TestYamlStyleExecutionFailures:
+    """A yamllint that never ran must not read as a tolerated-findings PASS.
+
+    Findings are advisory here by design (issue #2374), and the first form of
+    that tolerance collapsed *every* non-zero exit into PASS. But
+    ``_run_subprocess`` signals a timeout and a failed exec with the same
+    non-zero shape as a finding, so the tolerance also swallowed the two cases
+    where nothing was examined at all: the gate reported "advisory findings
+    tolerated" for a run that produced no findings because it never completed.
+    Found by review on PR #5641.
+    """
+
+    def test_a_timeout_reports_unknown(self, tmp_path: Path) -> None:
+        """The discriminating case: an advisory PASS before the fix."""
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (-1, "", "Command timed out after 120s")
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_TIMEOUT
+
+    def test_a_timeout_is_not_licensed_by_the_documented_policy(
+        self, tmp_path: Path
+    ) -> None:
+        """The policy licenses an absent yamllint, never an unfinished one.
+
+        An absent tool and a tool that timed out have different remedies, which
+        is why they get different states: install it versus find out why it
+        hung. Licensing the second the way the first is licensed would restore
+        the fail-open in a new place.
+        """
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (-1, "", "Command timed out after 120s")
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert not default_pre_pr_policy().accepts(outcome)
+
+    def test_a_failed_exec_reports_blocked(self, tmp_path: Path) -> None:
+        """yamllint passed the PATH probe and then could not be executed."""
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (-1, "", "Command not found: yamllint")
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_TOOL_ABSENT
+
+    def test_an_ordinary_finding_exit_is_still_an_advisory_pass(
+        self, tmp_path: Path
+    ) -> None:
+        """Negative control: the fix must not turn real findings into failures.
+
+        Without this, classifying non-zero exits could have made every style
+        finding block the push, which is the behavior issue #2374 removed on
+        purpose.
+        """
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (
+                        1,
+                        "config.yml:1:1: [warning] missing document start (document-start)",
+                        "",
+                    )
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.PASS
+        assert "advisory findings tolerated" in outcome.scope
