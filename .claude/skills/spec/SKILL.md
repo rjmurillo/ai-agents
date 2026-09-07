@@ -29,12 +29,13 @@ plain text rather than as a citation to something a reader could open.
 
 ## Arguments
 
-Spec: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
+Spec: $ARGUMENTS
 
 If `$ARGUMENTS` is empty, ask the user what problem to solve. Do not proceed
 without a problem statement.
 
-<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+@CLAUDE.md
+
 ## Process
 
 ### Step 0: First Principles Gate (blocking, runs before Step 1)

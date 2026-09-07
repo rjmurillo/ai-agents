@@ -1,44 +1,28 @@
----
-description: Define what to build. Transform a problem into testable requirements with acceptance criteria.
-allowed-tools: Task, Skill, Read, Write, Glob, Grep
-argument-hint: problem-statement-or-issue-number
----
+# Step 0.5: the memory-first gate
 
-@CLAUDE.md
+<!-- vendor-portability: two declared paths, neither an upstream-only dependency.
+     .claude/skills/memory/scripts/search_memory.py is a BUNDLED sibling reached
+     only as the second rung of a documented resolution order, after
+     <skill_dir>/../memory/scripts/, and the prose gates it on the repo being this
+     toolkit's own checkout. .agents/dictionaries/spec-entity-aliases.json is a
+     CONSUMER-workspace artifact the gate reads from the installing repository.
+     Declared so the ratchet records them rather than to excuse either
+     (ADR-083, issues #2050, #5632). -->
 
+The blocking gate the spec skill runs after Step 0 and before Step 1, with its
+prior-art checks, halt criteria and the Check 9 series in full.
 
-Spec: $ARGUMENTS
+Held here rather than in `SKILL.md` because it is 100 of the command's 175
+lines: as a command there was nowhere to put it, and ADR-064 (issue #5632) made
+spec a skill, which gave it a `references/` directory.
 
-If $ARGUMENTS is empty, ask the user what problem to solve. Do not proceed without a problem statement.
-
-## Process
-
-### Step 0: First Principles Gate (blocking, runs before Step 1)
-
-Before any clarification work, answer six forcing questions. The gate exists because every retro citing wasted spec work in the last six months traces to a question this gate forces upfront. The strongest single citation is `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` Phase 6, where the retro itself names the question this gate asks ("is the framework worth building at all if its design space misses the dominant failure modes?") and explicitly defers it as out of scope. That deferral landed after 69 commits.
-
-The six questions, asked in order:
-
-| Label | Question |
-|-------|----------|
-| **Q1 Demand Reality** | Who has explicitly requested this? Name three or more individuals, teams, or systems by name. (Question is about requesters; production signals go to Q5.) |
-| **Q2 Status Quo** | What is the exact workaround users do today, step by step? |
-| **Q3 Desperate Specificity** | Name the single most blocked person or system right now. What exactly are they blocked on? |
-| **Q4 Narrowest Wedge** | What is the smallest possible deliverable that unblocks Q3, measured in hours of implementation? |
-| **Q5 Observation** | What direct production signal proves the gap exists? Cite a metric, log entry, error count, ticket, retro line, or trend. (Question is about signals; requesters go to Q1.) |
-| **Q6 Future-fit** | If the system grows 10x, does this feature still make sense, or does it become a liability? |
-
-Write the answers as a structured block (the `## Step 0 First Principles` block) with six `### Q1..Q6` subheads, each containing the author's verbatim answer. The block flows downstream as input: Step 1 (Clarify) reads it as problem context, Step 2 (`requirements-interview`) carries it into the PRD it produces, Step 3 (Tier classification) re-validates Q4 at Tier 5, Step 6 (`spec-generator`) formalizes the PRD into durable artifacts with this block as the first section, and Step 9 (critic pre-mortem) checks that Q1/Q3/Q4 did not drift. Do not paraphrase; downstream steps depend on the verbatim answers.
-
-The pass criteria, hedge phrase validation table, script-resolution rules, kill criteria, and archival policy are in the `spec-generator` skill's `references/spec-step0-gates.md`.
-
-### Step 0.5: Memory-First Gate (blocking, runs after Step 0)
+## Step 0.5: Memory-First Gate (blocking, runs after Step 0)
 
 After Step 0 passes, surface the backward-looking context the proposer should have read before drafting requirements. Step 0 asks "is this work demanded?" Step 0.5 asks "do we already know why the current state is the way it is?" Both gates fire, in order. The `memory-gate` skill declares the gate as BLOCKING under its `## Memory-First Gate (BLOCKING)` section ("Before changing existing systems, you MUST..."); this section wires it into `/spec`.
 
 The gate composes two skills in sequence: `chestertons-fence` (frame: do not change without understanding why, and surface the dependencies the target is wired into), `memory` (point-search prior decisions). Each answers a distinct question; the two layered together form the "Prior Art / Constraints" output that Step 6 carries into the PRD as its first section.
 
-#### Step 0.5 ProvisionalTier (auto-classified, no user prompt)
+### Step 0.5 ProvisionalTier (auto-classified, no user prompt)
 
 Compute ProvisionalTier as `max(hours_tier, entity_tier)` from Step 0 answers. Used to depth-gate the prior-art search without re-asking the proposer.
 
@@ -66,7 +50,7 @@ Entity count: count distinct named entities, files, or system components mention
 
 ProvisionalTier = `max(hours_tier, entity_tier)`. Step 3 may classify the actual tier higher; if the upgrade crosses a phase boundary (i.e., `phases_needed(actual_tier) > phases_needed(provisional_tier)`), append a supplemental sub-block (defined in the supplemental traversal hook section below).
 
-#### Step 0.5 topic extraction
+### Step 0.5 topic extraction
 
 Topics are derived mechanically from Q3 and Q4 named entities. One topic per distinct entity. Normalization, applied in order:
 
@@ -76,11 +60,11 @@ Topics are derived mechanically from Q3 and Q4 named entities. One topic per dis
 4. Collapse internal separator runs (whitespace, `-`, `_`) to a single hyphen, so `spec pipeline`, `spec-pipeline`, and `spec_pipeline` all normalize to `spec-pipeline`.
 5. Look up the result of rule 4 in `.agents/dictionaries/spec-entity-aliases.json` (exact match on the normalized string against the `aliases` keys). On a hit, substitute the canonical value; on a miss, keep the rule-4 result unchanged. This collapses known synonyms (for example `memory-skill` to `memory`, `spec` to `spec-pipeline`) so distinct names for the same entity search as one topic. Adjudication and matching use the post-substitution canonical string.
 
-Example: `.claude/commands/spec.md` normalizes to `claude/commands/spec.md` (rule 2 strips the leading dot and any leading slashes); this string is not an alias key, so rule 5 leaves it unchanged. `spec pipeline` normalizes to `spec-pipeline` after rule 4; `spec` normalizes to `spec` after rule 4, then rule 5 substitutes the canonical `spec-pipeline`, so both resolve to the same topic.
+Example: `.claude/skills/spec/SKILL.md` normalizes to `claude/skills/spec/skill.md` (rule 2 strips the leading dot and any leading slashes); this string is not an alias key, so rule 5 leaves it unchanged. `spec pipeline` normalizes to `spec-pipeline` after rule 4; `spec` normalizes to `spec` after rule 4, then rule 5 substitutes the canonical `spec-pipeline`, so both resolve to the same topic.
 
 The agent lists the derived topics explicitly in the Step 0.5 preamble before running any searches. Auto-mode adjudication (defined under entity discovery below) compares discovered entity names against Q answers using the same normalization.
 
-#### Step 0.5 skill invocation sequence
+### Step 0.5 skill invocation sequence
 
 Invoke the two skills in order. Each emits content into a named subsection of the PriorArtBlock.
 
@@ -99,7 +83,7 @@ Prior-art search depth matches ProvisionalTier. Each row is cumulative over the 
 
 Entities and projects named by the results of steps 1 and 2 feed the `### Connected context from prior-art search` subsection.
 
-#### Step 0.5 degradation rules
+### Step 0.5 degradation rules
 
 | Failure | Behavior |
 |---|---|
@@ -108,7 +92,7 @@ Entities and projects named by the results of steps 1 and 2 feed the `### Connec
 
 None of the above failures halt Step 0.5. They are recorded in the coverage notes subsection so Step 9 check 9d can distinguish "search ran and found nothing" from "search did not run".
 
-#### Step 0.5 entity adjudication
+### Step 0.5 entity adjudication
 
 When the prior-art search discovers an entity or project name that does not appear in Step 0 Q1, Q3, or Q4 (after applying the topic normalization above), the proposer adjudicates each discovered entity as one of: `in-scope`, `out-of-scope`, or `blast-radius`.
 
@@ -131,45 +115,7 @@ The halt itself, the metrics tally, and the supplemental traversal hook are defi
 
 The PriorArtBlock output schema, halt criteria, halt block format, supplemental traversal hook, metrics tally, and process steps 1 through 9 are in the `spec-generator` skill's `references/spec-prior-art-schema.md`.
 
-   - **Check 9e, Operating-model drift (Tier 5 only)**:
-     - Applies only when the spec is Tier 5 and Step 1 invoked `work-operating-model` (the "Operating Model Context" section is present in the PRD). For Tier 1-4, this check is N/A and does not gate.
-     - PASS: the spec's proposed implementation is consistent with the operating model elicited at Step 1 (decision rights, communication patterns, work intake, conflict resolution, retrospection).
-     - FAIL if the proposed implementation contradicts the elicited operating model (for example, it assumes decision rights the elicited model places elsewhere). On FAIL: cite the contradicting operating-model layer and the PRD element that conflicts; halt and require either a spec revision or an explicit operating-model amendment.
-
-## Evaluation Axes
-
-1. **Problem clarity** - Is the right problem being solved? Could a reframing yield 10x impact?
-2. **Requirement testability** - Can each requirement be verified pass/fail?
-3. **Completeness** - No gaps between problem statement and acceptance criteria?
-4. **Traceability** - REQ to DESIGN to TASK linkage established?
-5. **Feasibility** - Buildable within constraints? Existing code to leverage?
-
-## Principles
-
-- **CVA**: Identify commonalities first, then variabilities, then relationships. Greatest risk is the wrong abstraction.
-- **YAGNI**: Only specify what is needed now. Speculative requirements create waste.
-- **Separation of Concerns**: Each requirement addresses one concern. Mixed concerns signal a missing decomposition.
-
-- **Output schema**: Include a `Buy-vs-build decision` section recording: core-vs-context classification, alternatives evaluated, recommendation (build/buy/partner/defer), and rationale. Required for any spec that introduces a new capability; mark `N/A (bug fix / doc / refactor)` otherwise.
-
-## Output
-
-Structured requirements document. Mirror the PRD schema produced in step 2; do not collapse to acceptance criteria alone.
-
-- **Problem statement** (1-2 sentences)
-- **User stories** (who, action, observable outcome)
-- **Ontology** (Step 1 OntologyFragment summary: canonical O2 names, relationships, aggregate boundaries, decision rules, bounded-context boundaries, open questions)
-- **Data model** (entities, identity, invariants, lifecycle; entity names match the OntologyFragment O2 names)
-- **Integrations** (external systems, failure modes, idempotency)
-- **Failure modes** (retries, partial failures, conflicts, replay, schema evolution; initially drafted at Step 2 and written into the artifacts at Step 6, then augmented in place by the Step 9 `pre-mortem` skill: failure scenarios, modes, early warnings, prevention)
-- **Security** (authn, authz, secrets, PII, input validation; populated from the Step 6 `threat-modeling` skill: threats, trust boundaries, abuse cases, mitigations; or an explicit "no security surface" justification at Tier 1-2)
-- **Observability** (logs, metrics, traces, alerts; populated from the Step 6 `slo-designer` skill: SLIs, SLOs, error budgets, alert thresholds; or a lightweight "what metric proves this works" line at Tier 1-2)
-- **Acceptance criteria** (numbered, EARS syntax, each independently testable as pass/fail)
-- **Out of scope** (explicit exclusions to prevent creep)
-- **Deferred** (decisions punted with owners)
-- **Open questions** (unresolved unknowns with owners)
-- **CVA summary** (what is common, what varies, what relationships exist)
-- **Buy-vs-build decision** (core-vs-context classification, alternatives evaluated, recommendation: build/buy/partner/defer, rationale; or `N/A (bug fix / doc / refactor)` when step 4a was skipped)
-- **Complexity classification** (engineering tier 1-5 from Step 3, plus problem domain Clear/Complicated/Complex/Chaotic from the Step 3 `cynefin-classifier` skill, plus derived methodology)
-- **Operating Model Context** (Tier 5 only; the 5-layer model elicited by the Step 1 `work-operating-model` skill: decision rights, communication patterns, work intake, conflict resolution, retrospection; omit at Tier 1-4)
-- **ADR cross-reference** (Tier 4-5 only; the `ADR-NNN-{slug}.md` produced by the Step 6 `adr-generator` skill and its `adr-review` verdict, with the bidirectional ADR<->REQ link; omit at Tier 1-3)
+- **Check 9e, Operating-model drift (Tier 5 only)**:
+  - Applies only when the spec is Tier 5 and Step 1 invoked `work-operating-model` (the "Operating Model Context" section is present in the PRD). For Tier 1-4, this check is N/A and does not gate.
+  - PASS: the spec's proposed implementation is consistent with the operating model elicited at Step 1 (decision rights, communication patterns, work intake, conflict resolution, retrospection).
+  - FAIL if the proposed implementation contradicts the elicited operating model (for example, it assumes decision rights the elicited model places elsewhere). On FAIL: cite the contradicting operating-model layer and the PRD element that conflicts; halt and require either a spec revision or an explicit operating-model amendment.
