@@ -277,7 +277,7 @@ after issue #5404 added the completion-tail audit to it.
 | Rule | Bytes | Loading | Scenario file | Scored result |
 |---|---|---|---|---|
 | `code-quality.md` | 14,402 | code files only | 3 positive, 1 negative | none |
-| `pragmatic-programmer.md` | 11,479 | code files only | 3 positive, 1 negative | none |
+| `pragmatic-programmer.md` | 10,612 | code files only | 3 positive, 1 negative | none |
 | `unified-software-engineering.md` | 7,469 | code files only | 3 positive, 1 negative | yes |
 
 That leaves 0 always-on bytes of book-derived rule, 0% of the
