@@ -152,10 +152,10 @@ finding or an absent tool underneath.
 ### Coverage limit on this section
 
 This section is a **lower bound, not a closed set**. `git_hook_policy.py` is
-roughly 8,300 lines and `check_skill_md_portability.py` roughly 1,400; both were
-sampled by targeted grep and context reads, not read end to end. Around 100
-further files under `scripts/validation/` produced no grep hit and were not
-opened. `check_branch_context` alone holds five silent fail-open sites in one
+8,454 lines and `check_skill_md_portability.py` 1,464, both measured at
+`16ed125`; each was sampled by targeted grep and context reads, not read end to
+end. `scripts/validation/` holds 125 Python files, and those the grep passes did
+not hit were not opened. `check_branch_context` alone holds five silent fail-open sites in one
 function, which is the reason to expect more in the unread regions.
 
 Do not read the absence of a path from this table as evidence that the path is
