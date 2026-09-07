@@ -46,7 +46,6 @@ from scripts.validation.evidence import (  # noqa: E402
     REASON_BASE_REF_UNRESOLVED,
     REASON_DIFF_FAILED,
     REASON_INCOMPLETE_EVIDENCE,
-    REASON_TIMEOUT,
     REASON_TOOL_ABSENT,
     REASON_TREE_ABSENT,
     WORKING_TREE,
@@ -543,15 +542,21 @@ def validate_workflow_yaml(repo_root: Path) -> CheckOutcome:
                     "so no workflow file was examined"
                 ),
             )
-        if failure == REASON_TIMEOUT:
-            print("[UNKNOWN] actionlint timed out; its findings are incomplete")
+        if failure:
+            # Any reason the classifier named is an execution failure, so it
+            # cannot be a findings exit. Matching an allowlist of known reasons
+            # here is what let a signal-killed actionlint through as
+            # ``actionlint.violation`` (issue #5653); this branch does not need
+            # editing when the classifier learns a new one.
+            print(f"[UNKNOWN] actionlint did not complete ({failure}); its findings are incomplete")
             return CheckOutcome.unknown(
                 _WORKFLOW_YAML,
-                reason=REASON_TIMEOUT,
+                reason=failure,
                 scope=scope,
                 detail=(
-                    "actionlint timed out, so an unknown share of the scope went "
-                    "unexamined and its silence proves nothing"
+                    f"actionlint exited {exit_code} without completing, so an "
+                    "unknown share of the scope went unexamined and its silence "
+                    "proves nothing"
                 ),
             )
         print("[FAIL] actionlint found issues in workflow files")
@@ -642,15 +647,20 @@ def validate_yaml_style(repo_root: Path) -> CheckOutcome:
                     "so no YAML file was examined"
                 ),
             )
-        if failure == REASON_TIMEOUT:
-            print("[UNKNOWN] yamllint timed out; its findings are incomplete")
+        if failure:
+            # See the twin branch in validate_workflow_yaml. This half is the
+            # more dangerous of the two: its findings path returns PASS, so a
+            # signal-killed yamllint read as a clean advisory run rather than as
+            # a spurious red (issue #5653).
+            print(f"[UNKNOWN] yamllint did not complete ({failure}); its findings are incomplete")
             return CheckOutcome.unknown(
                 _YAML_STYLE,
-                reason=REASON_TIMEOUT,
+                reason=failure,
                 scope=scope,
                 detail=(
-                    "yamllint timed out, so an unknown share of the scope went "
-                    "unexamined and its silence proves nothing"
+                    f"yamllint exited {exit_code} without completing, so an "
+                    "unknown share of the scope went unexamined and its silence "
+                    "proves nothing"
                 ),
             )
         print("[WARNING] yamllint found style issues (non-blocking)")

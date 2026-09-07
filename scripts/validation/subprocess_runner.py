@@ -20,7 +20,11 @@ from pathlib import Path
 from scripts.cli_exec import resolve_executable
 
 # Reason codes for the typed evidence contract (issue #5635).
-from scripts.validation.evidence import REASON_TIMEOUT, REASON_TOOL_ABSENT
+from scripts.validation.evidence import (
+    REASON_PROCESS_SIGNALED,
+    REASON_TIMEOUT,
+    REASON_TOOL_ABSENT,
+)
 
 # The exit code :func:`_run_subprocess` returns when the child never produced
 # one of its own: a timeout or a missing executable. Any other non-zero value
@@ -102,6 +106,21 @@ def classify_subprocess_failure(exit_code: int, stderr: str, *, default: str) ->
         marker = f"Command timed out after {timeout}s"
         return -1, "", f"Command not found: {args[0]}"
 
+    A negative return code that matches neither marker is a child killed by a
+    signal: :func:`subprocess.run` reports that as the negated signal number,
+    so ``-9`` is SIGKILL and ``-15`` is SIGTERM. Those are not verdicts, and
+    before issue #5653 they fell through to ``default`` and were read as the
+    child's own findings exit: an actionlint killed by the OOM killer became
+    workflow violations that do not exist, and a killed yamllint became a
+    tolerated-findings PASS.
+
+    A bare ``-1`` with no marker belongs in that class too. This wrapper always
+    writes a marker when it returns ``-1`` itself, so a markerless ``-1`` is not
+    the sentinel, it is SIGHUP.
+
+    The rule is therefore the sign, not the sentinel: a negative code means the
+    child did not choose its own exit, so it cannot carry a finding.
+
     ``default`` is the caller's own reason for an ordinary non-zero exit, since
     only the caller knows what its child was doing (issue #5635).
     """
@@ -110,4 +129,6 @@ def classify_subprocess_failure(exit_code: int, stderr: str, *, default: str) ->
             return REASON_TIMEOUT
         if "Command not found:" in stderr:
             return REASON_TOOL_ABSENT
+    if exit_code < 0:
+        return REASON_PROCESS_SIGNALED
     return default
