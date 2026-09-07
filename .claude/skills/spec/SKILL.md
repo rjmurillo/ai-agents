@@ -110,13 +110,16 @@ Two helpers ship inside this skill so an installed plugin can run the gates
 without a toolkit checkout. Resolve them from this skill's own directory, not
 from a repository path.
 
+Both live in this skill's own `scripts/` directory, named here without a
+leading path so nobody reads them as the upstream tree they were copied from.
+
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
-| `scripts/redact_secrets.py` | Redacts secrets from Step 0 and Step 0.5 tally text before any durable write. BLOCKING: a failure means do not write. | 0 clean, 1 redaction applied or logic error, 2 config error |
-| `scripts/metrics_writer.py` | The single safe append point for the metrics tally files. Refuses a symlinked target (CWE-59) and opens with `O_NOFOLLOW` where the platform supports it. | 0 appended, 1 refused or logic error, 2 config error |
+| `redact_secrets.py` | Redacts secrets from Step 0 and Step 0.5 tally text before any durable write. BLOCKING: a failure means do not write. | 0 clean, 1 redaction applied or logic error, 2 config error |
+| `metrics_writer.py` | The single safe append point for the metrics tally files. Refuses a symlinked target (CWE-59) and opens with `O_NOFOLLOW` where the platform supports it. | 0 appended, 1 refused or logic error, 2 config error |
 
-`data/spec-entity-aliases.json` ships beside them: the alias table Step 0.5 uses
-to normalize topic names. All three are byte-identical copies of their canonical
+`spec-entity-aliases.json` ships in this skill's `data/` directory beside them:
+the alias table Step 0.5 uses to normalize topic names. All three are byte-identical copies of their canonical
 sources, pinned by `tests/skills/test_spec_bundle_parity.py`, so a toolkit run
 and an installed-plugin run cannot disagree.
 
