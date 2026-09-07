@@ -8,24 +8,48 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.validation.evidence import (
+    REASON_TOOL_ABSENT,
+    REASON_TREE_ABSENT,
+    EvidenceState,
+    default_pre_pr_policy,
+)
 from scripts.validation.pre_pr import validate_workflow_yaml
 
 
 class TestValidateWorkflowYaml:
     """Workflow validation raises the shellcheck severity floor to warning (#2374)."""
 
-    def test_returns_true_when_actionlint_missing(self, tmp_path: Path) -> None:
+    def test_reports_blocked_when_actionlint_missing(self, tmp_path: Path) -> None:
+        """Was test_returns_true_when_actionlint_missing (issue #5635).
+
+        No workflow file was examined, so the gate proved nothing. BLOCKED says
+        so; default_pre_pr_policy licenses this exact validator and reason, so
+        the push still goes through.
+        """
         from scripts.validation.pre_pr import validate_workflow_yaml
 
         (tmp_path / ".github" / "workflows").mkdir(parents=True)
         with patch("checks_tooling.shutil.which", return_value=None):
-            assert validate_workflow_yaml(tmp_path) is True
+            outcome = validate_workflow_yaml(tmp_path)
 
-    def test_returns_true_when_no_workflow_dir(self, tmp_path: Path) -> None:
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_TOOL_ABSENT
+        assert default_pre_pr_policy().accepts(outcome)
+
+    def test_reports_skip_when_no_workflow_dir(self, tmp_path: Path) -> None:
+        """Was test_returns_true_when_no_workflow_dir (issue #5635).
+
+        A checkout with no .github/workflows has nothing for this gate to
+        apply to, which is SKIP rather than a proved contract.
+        """
         from scripts.validation.pre_pr import validate_workflow_yaml
 
         with patch("checks_tooling.shutil.which", return_value="actionlint"):
-            assert validate_workflow_yaml(tmp_path) is True
+            outcome = validate_workflow_yaml(tmp_path)
+
+        assert outcome.state is EvidenceState.SKIP
+        assert outcome.reason == REASON_TREE_ABSENT
 
     def test_passes_shellcheck_severity_warning_env(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_workflow_yaml
@@ -36,7 +60,7 @@ class TestValidateWorkflowYaml:
         with patch("checks_tooling.shutil.which", return_value="actionlint"):
             with patch("checks_tooling._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "", "")
-                assert validate_workflow_yaml(tmp_path) is True
+                assert validate_workflow_yaml(tmp_path).state is EvidenceState.PASS
 
             env_kwarg = mock_run.call_args.kwargs["env"]
             assert "--severity=warning" in env_kwarg["SHELLCHECK_OPTS"]
@@ -55,7 +79,7 @@ class TestValidateWorkflowYaml:
             ):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
-                    assert validate_workflow_yaml(tmp_path) is True
+                    assert validate_workflow_yaml(tmp_path).state is EvidenceState.PASS
 
                 opts = mock_run.call_args.kwargs["env"]["SHELLCHECK_OPTS"]
                 assert "--exclude=SC1091" in opts
@@ -70,7 +94,7 @@ class TestValidateWorkflowYaml:
         with patch("checks_tooling.shutil.which", return_value="actionlint"):
             with patch("checks_tooling._run_subprocess") as mock_run:
                 mock_run.return_value = (1, "ci.yml:1:1: SC2034 ... [shellcheck]", "")
-                assert validate_workflow_yaml(tmp_path) is False
+                assert validate_workflow_yaml(tmp_path).state is EvidenceState.FAIL
 
 
 class TestValidateWorkflowYamlScope:
@@ -98,7 +122,7 @@ class TestValidateWorkflowYamlScope:
         with patch("checks_tooling.shutil.which", return_value="/usr/bin/actionlint"):
             with patch("checks_tooling._run_subprocess") as mock_run:
                 mock_run.return_value = (0, "", "")
-                assert validate_workflow_yaml(tmp_path) is True
+                assert validate_workflow_yaml(tmp_path).state is EvidenceState.PASS
 
         mock_run.assert_called_once()
         command = mock_run.call_args.args[0]
@@ -121,11 +145,18 @@ class TestValidateWorkflowYamlScope:
         workflows_prefix = str(tmp_path / ".github" / "workflows")
         assert all(p.startswith(workflows_prefix) for p in paths)
 
-    def test_skips_when_actionlint_absent(self, tmp_path: Path) -> None:
+    def test_reports_blocked_when_actionlint_absent(self, tmp_path: Path) -> None:
+        """Was test_skips_when_actionlint_absent, asserting PASS (issue #5635).
+
+        The tree holds workflow files and none of them was examined, so this is
+        the case where a PASS was least defensible.
+        """
         self._build_tree(tmp_path)
         with patch("checks_tooling.shutil.which", return_value=None):
             with patch("checks_tooling._run_subprocess") as mock_run:
-                assert validate_workflow_yaml(tmp_path) is True
+                outcome = validate_workflow_yaml(tmp_path)
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_TOOL_ABSENT
         mock_run.assert_not_called()
 
 
@@ -237,7 +268,9 @@ class TestValidateWorkflowYamlScoping:
         with patch("checks_tooling.shutil.which", return_value="/usr/bin/actionlint"):
             with patch("checks_tooling._workflow_yaml_targets", return_value=[]):
                 with patch("checks_tooling._run_subprocess") as mock_run:
-                    assert validate_workflow_yaml(tmp_path) is True
+                    outcome = validate_workflow_yaml(tmp_path)
+        assert outcome.state is EvidenceState.PASS
+        assert outcome.examined == 0
         mock_run.assert_not_called()
 
     def test_scoped_subset_is_passed_to_actionlint(self, tmp_path: Path) -> None:
@@ -252,7 +285,7 @@ class TestValidateWorkflowYamlScoping:
             ):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
-                    assert validate_workflow_yaml(tmp_path) is True
+                    assert validate_workflow_yaml(tmp_path).state is EvidenceState.PASS
 
         command = mock_run.call_args.args[0]
         assert command == ["actionlint", str(tmp_path / ".github/workflows/ci.yml")]
@@ -267,7 +300,7 @@ class TestValidateWorkflowYamlScoping:
             with patch("checks_tooling._workflow_yaml_targets", return_value=None):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
-                    assert validate_workflow_yaml(tmp_path) is True
+                    assert validate_workflow_yaml(tmp_path).state is EvidenceState.PASS
 
         command = mock_run.call_args.args[0]
         assert command[0] == "actionlint"
@@ -284,7 +317,7 @@ class TestValidateWorkflowYamlScoping:
             ):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (1, "ci.yml:1:1: some error [syntax-check]", "")
-                    assert validate_workflow_yaml(tmp_path) is False
+                    assert validate_workflow_yaml(tmp_path).state is EvidenceState.FAIL
 
     def test_scoped_path_with_space_is_quoted_as_a_single_argv_element(
         self, tmp_path: Path
@@ -307,7 +340,7 @@ class TestValidateWorkflowYamlScoping:
             ):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
-                    assert validate_workflow_yaml(tmp_path) is True
+                    assert validate_workflow_yaml(tmp_path).state is EvidenceState.PASS
 
         command = mock_run.call_args.args[0]
         assert command == ["actionlint", str(tmp_path / ".github/workflows/release notes.yml")]

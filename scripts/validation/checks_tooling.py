@@ -37,6 +37,18 @@ from checks_common import (  # noqa: E402
 from checks_dash import _is_vendored  # noqa: E402
 from checks_workflow_targets import _workflow_yaml_targets  # noqa: E402
 
+# The typed evidence contract (issue #5635). PACKAGE path, matching pre_pr.py
+# and session_scope above: a flat ``import evidence`` and a package
+# ``import scripts.validation.evidence`` yield two distinct ``EvidenceState``
+# enums, and the runner resolves the package one.
+from scripts.validation.evidence import (  # noqa: E402
+    REASON_BASE_REF_UNRESOLVED,
+    REASON_DIFF_FAILED,
+    REASON_TOOL_ABSENT,
+    REASON_TREE_ABSENT,
+    WORKING_TREE,
+    CheckOutcome,
+)
 from scripts.validation.session_scope import new_session_logs  # noqa: E402
 
 MARKDOWNLINT_CLI2_PACKAGE = "markdownlint-cli2@0.23.1"
@@ -103,17 +115,35 @@ def _changed_session_paths(output: str, repo_root: Path) -> list[str]:
     ]
 
 
-def validate_session_end(repo_root: Path) -> bool:
+_SESSION_END = "validate_session_end"
+
+
+def validate_session_end(repo_root: Path) -> CheckOutcome:
     """Validate session logs changed on the branch.
 
     Invokes scripts/validate_session_json.py (ADR-042). Scoped to session logs
     changed on the current branch so pre-existing violations do not block
     unrelated work.
+
+    Returns typed evidence (issue #5635). The two early returns below used to
+    return ``True``, so a checkout whose base ref would not resolve and one
+    whose ``git diff`` exited non-zero both reported the same value as a branch
+    carrying no session logs. They are now BLOCKED and UNKNOWN: the first
+    because the comparison had no left-hand side, the second because a diff
+    that failed produced no file list to trust.
     """
     base_ref = _resolve_branch_base_ref(repo_root)
     if base_ref is None:
-        print("[WARNING] Session validation skipped: no base ref resolved")
-        return True
+        print("[BLOCKED] Session validation: no base ref resolved")
+        return CheckOutcome.blocked(
+            _SESSION_END,
+            reason=REASON_BASE_REF_UNRESOLVED,
+            scope="session logs changed on the branch",
+            detail=(
+                "no base ref resolved, so the branch's changed-file set could not "
+                "be computed; fetch the base branch and re-run"
+            ),
+        )
 
     exit_code, stdout, _ = _run_subprocess(
         ["git", "-C", str(repo_root), "diff", "--name-only", "-z",
@@ -121,14 +151,16 @@ def validate_session_end(repo_root: Path) -> bool:
         timeout=30,
     )
     if exit_code != 0:
-        print("[WARNING] Session validation skipped: git diff failed")
-        return True
+        print("[UNKNOWN] Session validation: git diff failed")
+        return CheckOutcome.unknown(
+            _SESSION_END,
+            reason=REASON_DIFF_FAILED,
+            revision=f"{base_ref}...HEAD",
+            scope="session logs changed on the branch",
+            detail=f"git diff exited {exit_code}, so the changed-file set is unknown",
+        )
 
     changed_paths = _changed_session_paths(stdout, repo_root)
-    if not changed_paths:
-        print("[PASS] Session End Validation (no session logs on branch)")
-        return True
-    new_logs = new_session_logs(changed_paths, repo_root, compare_ref="HEAD")
 
     _, validation_head, _ = _run_subprocess(
         ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
@@ -136,13 +168,23 @@ def validate_session_end(repo_root: Path) -> bool:
     )
     validation_head = validation_head.strip() or "INVALID_HEAD"
 
+    if not changed_paths:
+        print("[PASS] Session End Validation (0 session logs changed on branch)")
+        return CheckOutcome.passed(
+            _SESSION_END,
+            revision=validation_head,
+            scope=f"session logs changed against {base_ref}",
+            examined=0,
+        )
+    new_logs = new_session_logs(changed_paths, repo_root, compare_ref="HEAD")
+
     python_script = repo_root / "scripts" / "validate_session_json.py"
     if not python_script.exists():
         raise MissingScriptSkip(
             "validate_session_json.py not present (downstream install)"
         )
 
-    failed = False
+    invalid = 0
     for relative_path in changed_paths:
         log_path = repo_root / relative_path
         print(f"Validating session log: {log_path.name}")
@@ -161,8 +203,25 @@ def validate_session_end(repo_root: Path) -> bool:
             for line in output.strip().splitlines()[:20]:
                 print(line)
         if exit_code != 0:
-            failed = True
-    return not failed
+            invalid += 1
+
+    scope = f"session logs changed against {base_ref}"
+    if invalid:
+        return CheckOutcome.failed(
+            _SESSION_END,
+            reason="session_log.invalid",
+            revision=validation_head,
+            scope=scope,
+            examined=len(changed_paths),
+            findings=invalid,
+            detail=f"{invalid} of {len(changed_paths)} session log(s) failed validation",
+        )
+    return CheckOutcome.passed(
+        _SESSION_END,
+        revision=validation_head,
+        scope=scope,
+        examined=len(changed_paths),
+    )
 
 
 def validate_markdown_lint(repo_root: Path, explicit_targets: list[str] | None = None) -> bool:
@@ -352,7 +411,11 @@ def _yaml_style_targets(repo_root: Path) -> list[str] | None:
     )
 
 
-def validate_workflow_yaml(repo_root: Path) -> bool:
+_WORKFLOW_YAML = "validate_workflow_yaml"
+_YAML_STYLE = "validate_yaml_style"
+
+
+def validate_workflow_yaml(repo_root: Path) -> CheckOutcome:
     """Validate GitHub Actions workflow files with actionlint.
 
     Scoped to ``.github/workflows/``: a bare ``actionlint`` recursively scans
@@ -368,25 +431,45 @@ def validate_workflow_yaml(repo_root: Path) -> bool:
     actionlint; an unproven scope falls back to the full glob below.
     """
     if not shutil.which("actionlint"):
-        print("[WARNING] actionlint not found (workflow validation skipped)")
+        print("[BLOCKED] actionlint not found; no workflow file was examined")
         print("  Install actionlint to enable GitHub Actions workflow validation.")
-        return True
+        return CheckOutcome.blocked(
+            _WORKFLOW_YAML,
+            reason=REASON_TOOL_ABSENT,
+            scope=".github/workflows",
+            detail="actionlint is not on PATH, so no workflow file was examined",
+        )
 
     workflow_path = repo_root / ".github" / "workflows"
     if not workflow_path.is_dir():
-        print("[WARNING] No .github/workflows directory found")
-        return True
+        print("[SKIP] No .github/workflows directory found")
+        return CheckOutcome.skipped(
+            _WORKFLOW_YAML,
+            reason=REASON_TREE_ABSENT,
+            scope=".github/workflows",
+            detail="this checkout has no .github/workflows directory",
+        )
 
     targets = _workflow_yaml_targets(repo_root)
     if targets == []:
-        print("[PASS] Workflow validation (no changed workflow files)")
-        return True
+        print("[PASS] Workflow validation (0 changed workflow files)")
+        return CheckOutcome.passed(
+            _WORKFLOW_YAML,
+            revision=WORKING_TREE,
+            scope="changed workflow files",
+            examined=0,
+        )
 
     if targets is None:
         workflow_files = list(workflow_path.glob("*.yml")) + list(workflow_path.glob("*.yaml"))
         if not workflow_files:
-            print("[WARNING] No workflow files found in .github/workflows/")
-            return True
+            print("[PASS] Workflow validation (0 workflow files in .github/workflows/)")
+            return CheckOutcome.passed(
+                _WORKFLOW_YAML,
+                revision=WORKING_TREE,
+                scope=".github/workflows",
+                examined=0,
+            )
         file_args = [str(f) for f in workflow_files]
         print(f"Validating {len(file_args)} workflow file(s)...")
     else:
@@ -405,29 +488,58 @@ def validate_workflow_yaml(repo_root: Path) -> bool:
         env=shellcheck_env,
     )
 
+    scope = f"{len(file_args)} workflow file(s)"
     if exit_code != 0:
         print("[FAIL] actionlint found issues in workflow files")
         _print_capped(stdout or stderr, 20, "lines")
-        return False
+        return CheckOutcome.failed(
+            _WORKFLOW_YAML,
+            reason="actionlint.violation",
+            revision=WORKING_TREE,
+            scope=scope,
+            examined=len(file_args),
+            detail=f"actionlint exited {exit_code}",
+        )
 
-    print("All workflow files validated successfully.")
-    return True
+    print(f"All {len(file_args)} workflow file(s) validated successfully.")
+    return CheckOutcome.passed(
+        _WORKFLOW_YAML,
+        revision=WORKING_TREE,
+        scope=scope,
+        examined=len(file_args),
+    )
 
 
-def validate_yaml_style(repo_root: Path) -> bool:
+def validate_yaml_style(repo_root: Path) -> CheckOutcome:
     """Check YAML style with yamllint (advisory: findings warn, never fail).
 
     An empty ``_yaml_style_targets`` change set passes without invoking
     yamllint; an unproven scope falls back to the full-repo scan.
+
+    Returns typed evidence (issue #5635). An absent yamllint is BLOCKED and is
+    licensed by name in the pre-PR policy, same as actionlint above. Findings
+    remain advisory and still return PASS, because this gate deliberately does
+    not block on style; the finding count now rides along so a reader can see
+    the difference between a clean scan and a tolerated one.
     """
     if not shutil.which("yamllint"):
-        print("[WARNING] yamllint not found (YAML style validation skipped)")
-        return True
+        print("[BLOCKED] yamllint not found; no YAML file was examined")
+        return CheckOutcome.blocked(
+            _YAML_STYLE,
+            reason=REASON_TOOL_ABSENT,
+            scope="YAML style",
+            detail="yamllint is not on PATH, so no YAML file was examined",
+        )
 
     targets = _yaml_style_targets(repo_root)
     if targets == []:
-        print("[PASS] YAML style check (no changed YAML files)")
-        return True
+        print("[PASS] YAML style check (0 changed YAML files)")
+        return CheckOutcome.passed(
+            _YAML_STYLE,
+            revision=WORKING_TREE,
+            scope="changed YAML files",
+            examined=0,
+        )
 
     if targets is None:
         target_args = [str(repo_root)]
@@ -437,16 +549,28 @@ def validate_yaml_style(repo_root: Path) -> bool:
         print(f"Checking {len(target_args)} changed YAML file(s) for style issues...")
 
     exit_code, stdout, stderr = _run_subprocess(["yamllint", "-f", "parsable", *target_args])
+    scope = f"{len(target_args)} YAML target(s)"
 
     if exit_code != 0:
         print("[WARNING] yamllint found style issues (non-blocking)")
         _print_capped(stdout or stderr, 30, "issues")
         print()
         print("Note: These are warnings, not errors. Fix when convenient.")
-        return True
+        return CheckOutcome.passed(
+            _YAML_STYLE,
+            revision=WORKING_TREE,
+            scope=f"{scope}, advisory findings tolerated",
+            examined=len(target_args),
+            detail=f"yamllint exited {exit_code}; style findings are advisory here",
+        )
 
-    print("All YAML files conform to style guidelines.")
-    return True
+    print(f"All {len(target_args)} YAML target(s) conform to style guidelines.")
+    return CheckOutcome.passed(
+        _YAML_STYLE,
+        revision=WORKING_TREE,
+        scope=scope,
+        examined=len(target_args),
+    )
 
 
 def _run_python_validator(repo_root: Path, script_rel: str, args: list[str]) -> bool:

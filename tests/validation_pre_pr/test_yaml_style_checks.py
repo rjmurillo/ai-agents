@@ -15,6 +15,11 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.validation.evidence import (
+    REASON_TOOL_ABSENT,
+    EvidenceState,
+    default_pre_pr_policy,
+)
 from scripts.validation.pre_pr import validate_yaml_style
 
 
@@ -106,17 +111,26 @@ class TestYamlStyleTargetsWorktreeOnly:
 class TestValidateYamlStyle:
     """Wiring tests: ``validate_yaml_style`` honors the three scope outcomes."""
 
-    def test_returns_true_when_yamllint_missing(self, tmp_path: Path) -> None:
+    def test_reports_blocked_when_yamllint_missing(self, tmp_path: Path) -> None:
+        """Was test_returns_true_when_yamllint_missing (issue #5635).
+
+        No YAML file was examined. The pre-PR policy licenses this validator
+        and reason by name, so the advisory gate stays non-blocking.
+        """
         with patch("checks_tooling.shutil.which", return_value=None):
             with patch("checks_tooling._run_subprocess") as mock_run:
-                assert validate_yaml_style(tmp_path) is True
+                outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_TOOL_ABSENT
+        assert default_pre_pr_policy().accepts(outcome)
         mock_run.assert_not_called()
 
     def test_empty_scope_passes_without_invoking_yamllint(self, tmp_path: Path) -> None:
         with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
             with patch("checks_tooling._yaml_style_targets", return_value=[]):
                 with patch("checks_tooling._run_subprocess") as mock_run:
-                    assert validate_yaml_style(tmp_path) is True
+                    assert validate_yaml_style(tmp_path).state is EvidenceState.PASS
         mock_run.assert_not_called()
 
     def test_scoped_subset_is_passed_to_yamllint(self, tmp_path: Path) -> None:
@@ -127,7 +141,7 @@ class TestValidateYamlStyle:
             ):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
-                    assert validate_yaml_style(tmp_path) is True
+                    assert validate_yaml_style(tmp_path).state is EvidenceState.PASS
 
         command = mock_run.call_args.args[0]
         assert command == [
@@ -144,7 +158,7 @@ class TestValidateYamlStyle:
             with patch("checks_tooling._yaml_style_targets", return_value=None):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
-                    assert validate_yaml_style(tmp_path) is True
+                    assert validate_yaml_style(tmp_path).state is EvidenceState.PASS
 
         command = mock_run.call_args.args[0]
         assert command == ["yamllint", "-f", "parsable", str(tmp_path)]
@@ -159,7 +173,7 @@ class TestValidateYamlStyle:
                         "config.yml:1:1: [warning] missing document start (document-start)",
                         "",
                     )
-                    assert validate_yaml_style(tmp_path) is True
+                    assert validate_yaml_style(tmp_path).state is EvidenceState.PASS
 
     def test_scoped_path_with_space_is_quoted_as_a_single_argv_element(
         self, tmp_path: Path
@@ -178,7 +192,7 @@ class TestValidateYamlStyle:
             ):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
-                    assert validate_yaml_style(tmp_path) is True
+                    assert validate_yaml_style(tmp_path).state is EvidenceState.PASS
 
         command = mock_run.call_args.args[0]
         assert command == [

@@ -16,16 +16,41 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from checks_common import _resolve_branch_base_ref, _run_subprocess  # noqa: E402
 
+# The typed evidence contract (issue #5635). PACKAGE path, matching pre_pr.py:
+# a flat ``import evidence`` and a package ``import scripts.validation.evidence``
+# yield two distinct ``EvidenceState`` enums, and the runner resolves the
+# package one.
+from scripts.validation.evidence import (  # noqa: E402
+    REASON_BASE_REF_UNRESOLVED,
+    REASON_DIFF_FAILED,
+    CheckOutcome,
+)
 
-def validate_mypy_changed_files(repo_root: Path) -> bool:
+_MYPY_GATE = "validate_mypy_changed_files"
+
+
+def validate_mypy_changed_files(repo_root: Path) -> CheckOutcome:
     """Run mypy over Python files changed on the branch (ratchet semantics).
 
     Surfaces type regressions at pre-PR time rather than waiting for push CI.
+
+    Returns typed evidence (issue #5635). The two early returns below carry the
+    same defect ``validate_session_end`` carried: an unresolved base ref and a
+    failed ``git diff`` both returned ``True``, so a gate that type-checked
+    nothing reported the same value as one that type-checked a clean branch.
     """
     base_ref = _resolve_branch_base_ref(repo_root)
     if base_ref is None:
-        print("[WARNING] Mypy gate skipped: no base ref resolved")
-        return True
+        print("[BLOCKED] Mypy gate: no base ref resolved")
+        return CheckOutcome.blocked(
+            _MYPY_GATE,
+            reason=REASON_BASE_REF_UNRESOLVED,
+            scope="Python files changed on the branch",
+            detail=(
+                "no base ref resolved, so the changed-file set could not be "
+                "computed and no file was type-checked"
+            ),
+        )
 
     exit_code, stdout, _ = _run_subprocess(
         ["git", "-C", str(repo_root), "diff", "--name-only",
@@ -33,18 +58,39 @@ def validate_mypy_changed_files(repo_root: Path) -> bool:
         timeout=30,
     )
     if exit_code != 0:
-        print("[WARNING] Mypy gate skipped: git diff failed")
-        return True
+        print("[UNKNOWN] Mypy gate: git diff failed")
+        return CheckOutcome.unknown(
+            _MYPY_GATE,
+            reason=REASON_DIFF_FAILED,
+            revision=f"{base_ref}...HEAD",
+            scope="Python files changed on the branch",
+            detail=f"git diff exited {exit_code}, so the changed-file set is unknown",
+        )
 
     py_files = [
         p for p in stdout.splitlines()
         if p.endswith(".py") and (repo_root / p).is_file()
     ]
+    scope = f"Python files changed against {base_ref}"
     if not py_files:
-        print("[PASS] Mypy (no Python files changed on branch)")
-        return True
+        print("[PASS] Mypy (0 Python files changed on branch)")
+        return CheckOutcome.passed(
+            _MYPY_GATE, revision=f"{base_ref}...HEAD", scope=scope, examined=0
+        )
 
     print(f"Type-checking {len(py_files)} changed Python file(s)...")
     from git_hook_policy import run_mypy
 
-    return bool(run_mypy(py_files, repo_root) == 0)
+    mypy_exit = run_mypy(py_files, repo_root)
+    if mypy_exit != 0:
+        return CheckOutcome.failed(
+            _MYPY_GATE,
+            reason="mypy.regression",
+            revision=f"{base_ref}...HEAD",
+            scope=scope,
+            examined=len(py_files),
+            detail=f"run_mypy exited {mypy_exit} over {len(py_files)} changed file(s)",
+        )
+    return CheckOutcome.passed(
+        _MYPY_GATE, revision=f"{base_ref}...HEAD", scope=scope, examined=len(py_files)
+    )
