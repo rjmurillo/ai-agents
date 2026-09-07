@@ -1,6 +1,6 @@
 """The counts in evals/skill-triage.md must match the rows they count.
 
-Third instance of one defect class in the forgetful decommission: a count left
+Third instance of one defect class in the #5574 memory-server decommission: a count left
 behind when the list it counts got shorter. The first two were caught by Devin
 Review on PR #5617, where `memory-documentary` still read "Memory Systems
 (4 MCP servers)" five lines above its own three-item list, and its verification
