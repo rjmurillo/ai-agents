@@ -60,7 +60,7 @@ def test_canonical_set_matches_known_lifecycle_commands() -> None:
     # ADR-064 (issue #5632) is converting these into skills one at a time.
     # plan, build, test and ship have moved; spec is the last one here, and
     # when it moves this whole module is superseded by the skill drift gates.
-    expected = {"spec"}
+    expected: set[str] = set()
     assert LIFECYCLE_COMMANDS == expected, (
         f"discovered lifecycle commands {LIFECYCLE_COMMANDS} != "
         f"documented {expected}; update this set and the exclusion "

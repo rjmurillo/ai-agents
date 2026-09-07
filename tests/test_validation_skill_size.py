@@ -1098,10 +1098,15 @@ class TestExceptionRequiresRationale:
 
         The old size-exception on spec.md is no longer needed. This test pins
         that regression: the split must not be undone without a new exception.
+
+        ADR-064 (issue #5632) made spec a skill. The bodies stay under the same
+        ceiling; the Step 0.5 gate that would have pushed them over now lives in
+        `references/step-0-5-memory-gate.md`, which is what a skill can do and a
+        command could not.
         """
         root = Path(__file__).resolve().parents[1]
         for relative in (
-            ".claude/commands/spec.md",
+            ".claude/skills/spec/SKILL.md",
             "src/copilot-cli/skills/spec/SKILL.md",
         ):
             content = (root / relative).read_text(encoding="utf-8")

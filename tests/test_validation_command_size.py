@@ -233,14 +233,15 @@ class TestMain:
 
 
 class TestShippedCommandsPassGate:
-    """The two known over-size commands must have valid exceptions.
+    """The remaining over-size command must have a valid exception.
 
-    Issue #4016: spec.md and pr-autofix.md exceed the 200-line ceiling and are
-    grandfathered with documented exceptions.
+    Issue #4016 grandfathered spec.md and pr-autofix.md past the 200-line
+    ceiling. ADR-064 (issue #5632) converted spec into a skill, where the
+    ceiling is relieved by `references/` rather than by an exception, so only
+    pr-autofix is left here.
     """
 
     @pytest.mark.parametrize("relative", [
-        ".claude/commands/spec.md",
         ".claude/commands/pr-autofix.md",
     ])
     def test_shipped_exception_is_valid(self, relative: str) -> None:
