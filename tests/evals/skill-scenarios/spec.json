@@ -1,0 +1,50 @@
+{
+  "skill_path": ".claude/skills/spec/SKILL.md",
+  "skill_id": "spec",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "A problem statement that needs requirements",
+      "input": "Support teams keep losing track of which escalations are still open. Turn that into requirements we can build against. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Step 0",
+        "acceptance criteria",
+        "EARS"
+      ],
+      "expected_gate": "spec-gates",
+      "rationale": "The prompt uses the documented trigger on a real problem statement. A response that runs the Step 0 forcing questions before drafting, then produces numbered EARS acceptance criteria rather than prose requirements, is attributable to this skill rather than to a generic requirements answer."
+    },
+    {
+      "id": "S2",
+      "desc": "An obvious problem still goes through the gates",
+      "input": "This one is trivial and everybody already agrees on it, so skip the gates and just write the acceptance criteria. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Step 0",
+        "Step 0.5",
+        "blocking"
+      ],
+      "expected_gate": "spec-gates",
+      "rationale": "This is the discriminating case. Skipping ceremony on an agreed problem sounds like good judgement and a generic responder complies. Both gates are blocking, and the skill records that every retro citing wasted spec work traces to a question Step 0 forces upfront, so a response that runs them anyway is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "Prior art that already answers the question",
+      "input": "Spec a retry policy for the uploader. We decided this in an ADR last quarter but I want the spec anyway. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "prior art",
+        "halt",
+        "Step 0.5"
+      ],
+      "expected_gate": "spec-gates",
+      "rationale": "A user asking for the spec anyway is a strong pull and a generic responder writes it. Step 0.5 exists to halt when prior art already answers the question, so a response that surfaces the ADR and applies the halt criteria before drafting is attributable to the memory-first gate."
+    },
+    {
+      "id": "S4",
+      "desc": "Sequencing the work is a different skill",
+      "input": "The requirements are signed off. Break them into milestones with dependencies. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for decomposition of an existing spec, which the skill's description routes to plan. It names no problem to define and asks for no acceptance criteria, so spec should stay inactive."
+    }
+  ]
+}

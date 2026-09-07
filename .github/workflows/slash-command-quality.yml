@@ -31,7 +31,7 @@ jobs:
             commands:
               - '.claude/commands/**/*.md'
             spec_command:
-              - '.claude/commands/spec.md'
+              - '.claude/skills/spec/SKILL.md'
             spec_evals:
               - 'tests/evals/spec-scenarios.json'
               - 'scripts/eval/eval-prompt-change.py'
@@ -87,7 +87,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           BASE_REF: ${{ github.event.pull_request.base.sha }}
-        run: python3 scripts/eval/eval-prompt-change.py --prompt .claude/commands/spec.md --scenarios tests/evals/spec-scenarios.json --base-ref "$BASE_REF"
+        run: python3 scripts/eval/eval-prompt-change.py --prompt .claude/skills/spec/SKILL.md --scenarios tests/evals/spec-scenarios.json --base-ref "$BASE_REF"
 
   skip-validation:
     runs-on: ubuntu-24.04-arm

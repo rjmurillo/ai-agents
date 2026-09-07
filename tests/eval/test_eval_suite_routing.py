@@ -244,10 +244,14 @@ def test_negative_control_reordering_skills_after_agents_breaks_references() -> 
 # ---------------------------------------------------------------------------
 
 # Rows with a filesystem predicate cannot use a synthetic name, because the
-# predicate asks the tree a question about it. `spec` is a real command mirror:
-# `.claude/commands/spec.md` exists and `.claude/skills/spec/` does not.
+# predicate asks the tree a question about it. The representative has to be a
+# name that is still a real command mirror: `.claude/commands/<name>.md` exists
+# and `.claude/skills/<name>/` does not. ADR-064 (issue #5632) is draining that
+# set, so this moves each time one converts; it was `spec` until spec became a
+# skill. When the last mirror converts, this row has no representative left and
+# the row itself should go with it.
 PREDICATE_ROW_REPRESENTATIVES = {
-    "command_mirrors": "src/copilot-cli/skills/spec/SKILL.md",
+    "command_mirrors": "src/copilot-cli/skills/pr-autofix/SKILL.md",
 }
 
 
@@ -356,14 +360,14 @@ def test_negative_control_entrypoints_after_prefixes_recreates_the_shadowing() -
 # `.claude/skills/<name>/` exists the mirror is an ordinary skill and the skill
 # evaluator can resolve it, so it moves to CONVERTED_COMMAND_SKILLS below.
 COMMAND_MIRROR_SKILLS = [
-    "pr-autofix", "pr-review", "spec",
+    "pr-autofix", "pr-review",
 ]
 
 # Converted under ADR-064 (issue #5632). These were command mirrors and are now
 # Claude skills, which is what makes them evaluable for the first time.
 CONVERTED_COMMAND_SKILLS = [
     "build", "checkpoint", "context-hub-setup", "plan", "push-pr", "research",
-    "retro", "ship", "sync", "test", "validate-pr-description",
+    "retro", "ship", "spec", "sync", "test", "validate-pr-description",
 ]
 
 

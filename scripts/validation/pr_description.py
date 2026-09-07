@@ -175,7 +175,7 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 # A backtick file path preceded immediately (within the same line) by one of
 # these citation cue words/phrases is a REFERENCE, not a change claim. Examples:
 #
-#   see `.claude/commands/spec.md`
+#   see `.claude/skills/spec/SKILL.md`
 #   per `.agents/architecture/ADR-035-exit-code-standardization.md`
 #   e.g. `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`
 #   for example `scripts/validate_session_json.py`
