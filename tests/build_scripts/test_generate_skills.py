@@ -68,6 +68,7 @@ def _write_config(
     output_dir: str,
     mode: str = "directory-copy",
     extra_artifacts: bool = False,
+    provider: str = "test",
 ) -> Path:
     extra = ""
     if extra_artifacts:
@@ -80,7 +81,7 @@ def _write_config(
     cfg.write_text(
         f"""\
 schemaVersion: "1.0"
-provider: "test"
+provider: "{provider}"
 artifacts:
   skills:
     sourceDir: "{source_dir}"
@@ -331,3 +332,4 @@ def test_main_invokes_generation(tmp_path: Path, argv: list[str]) -> None:
         "--config", str(cfg), "--repo-root", str(repo_root), *argv,
     ])
     assert rc == 0
+
