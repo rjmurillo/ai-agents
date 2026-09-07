@@ -292,7 +292,7 @@ def is_command_mirror_skill(path: str) -> bool:
     `src/copilot-cli/skills/` holds two different kinds of artifact. Most
     entries mirror `.claude/skills/<name>/`. The rest mirror
     `.claude/commands/<name>.md` and have no `.claude/skills/<name>/` at all:
-    checkpoint, pr-autofix, pr-review, spec, sync. That set shrinks
+    pr-autofix, pr-review, spec. That set shrinks
     as ADR-064 converts each command into a skill (issue #5632), which is why
     this function probes the tree instead of carrying a list.
 
