@@ -33,6 +33,7 @@ from checks_common import (  # noqa: E402
     MissingScriptSkip,
     _resolve_branch_base_ref,
     _run_subprocess,
+    classify_subprocess_failure,
 )
 from checks_dash import _is_vendored  # noqa: E402
 from checks_workflow_targets import _workflow_yaml_targets  # noqa: E402
@@ -145,16 +146,19 @@ def validate_session_end(repo_root: Path) -> CheckOutcome:
             ),
         )
 
-    exit_code, stdout, _ = _run_subprocess(
+    exit_code, stdout, diff_stderr = _run_subprocess(
         ["git", "-C", str(repo_root), "diff", "--name-only", "-z",
          "--diff-filter=ACMR", f"{base_ref}...HEAD"],
         timeout=30,
     )
     if exit_code != 0:
-        print("[UNKNOWN] Session validation: git diff failed")
+        reason = classify_subprocess_failure(
+            exit_code, diff_stderr, default=REASON_DIFF_FAILED
+        )
+        print(f"[UNKNOWN] Session validation: git diff failed ({reason})")
         return CheckOutcome.unknown(
             _SESSION_END,
-            reason=REASON_DIFF_FAILED,
+            reason=reason,
             revision=f"{base_ref}...HEAD",
             scope="session logs changed on the branch",
             detail=f"git diff exited {exit_code}, so the changed-file set is unknown",
@@ -712,7 +716,10 @@ def validate_rule_scope_declarations(repo_root: Path) -> bool:
         )
     from check_rule_scope_keys import validate_rule_scope_keys
 
-    return validate_rule_scope_keys(repo_root)
+    # bool() rather than a bare return: check_rule_scope_keys resolves as an
+    # untyped flat import, so mypy reads the result as Any and no-any-return
+    # fires. The coercion states the contract this function declares.
+    return bool(validate_rule_scope_keys(repo_root))
 
 
 def validate_always_on_corpus_claims(repo_root: Path) -> bool:

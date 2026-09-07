@@ -14,7 +14,11 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from checks_common import _resolve_branch_base_ref, _run_subprocess  # noqa: E402
+from checks_common import (  # noqa: E402
+    _resolve_branch_base_ref,
+    _run_subprocess,
+    classify_subprocess_failure,
+)
 
 # The typed evidence contract (issue #5635). PACKAGE path, matching pre_pr.py:
 # a flat ``import evidence`` and a package ``import scripts.validation.evidence``
@@ -52,16 +56,19 @@ def validate_mypy_changed_files(repo_root: Path) -> CheckOutcome:
             ),
         )
 
-    exit_code, stdout, _ = _run_subprocess(
+    exit_code, stdout, diff_stderr = _run_subprocess(
         ["git", "-C", str(repo_root), "diff", "--name-only",
          "--diff-filter=ACMR", f"{base_ref}...HEAD"],
         timeout=30,
     )
     if exit_code != 0:
-        print("[UNKNOWN] Mypy gate: git diff failed")
+        reason = classify_subprocess_failure(
+            exit_code, diff_stderr, default=REASON_DIFF_FAILED
+        )
+        print(f"[UNKNOWN] Mypy gate: git diff failed ({reason})")
         return CheckOutcome.unknown(
             _MYPY_GATE,
-            reason=REASON_DIFF_FAILED,
+            reason=reason,
             revision=f"{base_ref}...HEAD",
             scope="Python files changed on the branch",
             detail=f"git diff exited {exit_code}, so the changed-file set is unknown",
