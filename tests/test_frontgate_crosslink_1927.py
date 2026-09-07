@@ -8,10 +8,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-RESEARCH_SOURCE = REPO_ROOT / ".claude" / "skills" / "research-and-incorporate" / "SKILL.md"
-RESEARCH_MIRROR = (
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "research-and-incorporate" / "SKILL.md"
-)
+RESEARCH_SOURCE = REPO_ROOT / ".claude" / "commands" / "research.md"
+RESEARCH_MIRROR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "research" / "SKILL.md"
 PLAN_SOURCE = REPO_ROOT / ".claude" / "commands" / "plan.md"
 PLAN_MIRROR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "plan" / "SKILL.md"
 AVOIDING_SOURCE = REPO_ROOT / ".claude" / "skills" / "avoiding-manufactured-work" / "SKILL.md"
@@ -57,11 +55,11 @@ def test_research_callout_routes_to_spec(path: Path) -> None:
     assert "/spec" in text, f"front-gate callout must route to /spec in {path}"
 
 
-def test_research_callout_precedes_phase_one() -> None:
+def test_research_callout_precedes_the_phases() -> None:
     text = _read(RESEARCH_SOURCE)
     callout = text.index("## Front-gate first")
-    phase_one = text.index("Phase 1: RESEARCH")
-    assert callout < phase_one, "Front-gate callout must appear before Phase 1 content"
+    phases = text.index("## Phases")
+    assert callout < phases, "Front-gate callout must appear before the Phases section"
 
 
 @pytest.mark.parametrize("path", [PLAN_SOURCE, PLAN_MIRROR])
@@ -107,9 +105,24 @@ def test_avoiding_callout_precedes_process() -> None:
 
 
 def test_research_source_and_mirror_agree() -> None:
-    assert _read(RESEARCH_SOURCE) == _read(RESEARCH_MIRROR), (
-        "research-and-incorporate source and Copilot mirror diverged; rerun "
-        "build/scripts/build_all.py"
+    import sys
+
+    build_scripts = str(REPO_ROOT / "build" / "scripts")
+    original_path = sys.path.copy()
+    try:
+        if build_scripts not in sys.path:
+            sys.path.insert(0, build_scripts)
+        import copilot_body_translation
+    finally:
+        sys.path[:] = original_path
+
+    source_body = _read(RESEARCH_SOURCE).split("---\n", 2)[-1]
+    mirror_body = _read(RESEARCH_MIRROR).split("---\n", 2)[-1]
+    skills_dir = RESEARCH_MIRROR.parent.parent
+    expected = copilot_body_translation.translate_body(source_body, skills_dir)
+    assert mirror_body == expected, (
+        "research command and Copilot mirror bodies diverged after translation; "
+        "rerun build/scripts/build_all.py"
     )
 
 
