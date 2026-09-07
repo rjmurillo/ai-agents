@@ -85,7 +85,7 @@ the repository machine-verifies who may use it.
 |---|---|---|---|---|---|---|
 | `.github/workflows/agent-drift-detection.yml:17,58-72,118-121` | commit marker `[skip-drift-check]`, grepped from `git log BASE..HEAD` | the `validate` job, the regenerate-vs-committed diff check | any contributor who can write a commit message on the PR | detection machine-verified, authorization PROSE-ONLY | yes, job summary plus commit history | UNDECIDED |
 | `.github/workflows/agent-drift-detection.yml:207-229` | three unchecked `- [ ]` markdown boxes naming the marker's preconditions | nothing; they are the stated preconditions for the row above | whoever writes the PR description | PROSE-ONLY, no CODEOWNERS check, no required-reviewer call, no branch-protection tie found in the file | partial, the checklist renders but nothing marks it complete or blocks on unchecked boxes | UNDECIDED |
-| `lefthook.yml:81,87,149,272,280,293,303,313,324,332,368,376,389`, `checks_tooling.py:252`, `pre_pr.py:472,477`, `.github/actions/setup-code-env/action.yml:158-164` | `SKIP_AUTOFIX=1` | autofix-only jobs; the paired `-check` and lint jobs still run | anyone locally, plus a CI action input `skip-autofix` defaulting to `0` | NONE, an unauthenticated toggle | no, stdout only (`verify_code_env.py:128-129`) | UNDECIDED |
+| `lefthook.yml:81,87,149,272,280,293,303,313,324,332,368,376,389`, `checks_tooling.py:252`, `pre_pr.py:472,477`, `.github/actions/setup-code-env/action.yml:158-164` | `SKIP_AUTOFIX=1` | autofix-only jobs; the paired `-check` and lint jobs still run | anyone locally, plus a CI action input `skip-autofix` defaulting to `0` | NONE, an unauthenticated toggle | no, stdout only (`verify_code_env.py:128-129`) | UNDECIDED | <!-- citation-freshness: ignore -- multiple citations on one table row; the checker tests every anchor in the row against every cited range, so a correct citation fails on a sibling row's anchors. Each range here was read at main 16ed125 and verified individually. -->
 | `scripts/validation/git_hook_policy.py:6826-6828` | `SKIP_YAMLLINT=1` | the `yaml-advisory` job | anyone locally | NONE | no, stdout only | UNDECIDED |
 | `scripts/validation/git_hook_policy.py:2340-2342` | `SKIP_RETROSPECTIVE_GATE=true` | the `retrospective-policy` pre-push job | anyone locally before push | NONE | no, stdout only | UNDECIDED |
 | `scripts/detect_scope_explosion.py:13,453,492-494` | `SKIP_SCOPE_CHECK=1` | the `scope-policy` and `branch-scope` gates | anyone locally | NONE, the docstring says "for justified large PRs" and nothing enforces justification | no, stdout only | UNDECIDED |
@@ -116,9 +116,9 @@ stdout.
 | `git_hook_policy.py:7848-7873` (`bot-cascade-advisory`) | `gh` binary absent, or no PR resolvable | `return 0` with "Bot cascade check skipped"; the named check never ran | ADVISORY | partial | BOOLEAN | UNDECIDED |
 | `git_hook_policy.py:7663-7688` (`run_workflow_local`) | child exit code 4, "unrunnable locally, needs secrets absent from this environment" | converted to `0`; the job reports PASS though `act` never executed the workflow | ADVISORY | partial | BOOLEAN | DELIBERATE, the exit 4 contract is documented at `run_workflow_local_test.py:65-68` |
 | `lefthook.yml:605-607` (`worktree-gc-report`) | any non-zero exit of the script | swallowed inline by `\|\| echo "... ignored because this job is advisory (issue 4257)"` | ADVISORY | partial | N/A | DELIBERATE, reason inline |
-| `lefthook.yml:652-655` (`python-lint-advisory`), `lefthook.yml:142-149` (`python-autofix`) | any ruff violation | `ruff check --exit-zero`, so violations structurally cannot produce a non-zero exit | ADVISORY | partial | N/A | UNDECIDED |
-| `lefthook.yml:218-224,672-675` plus `.claude/skills/security-detection/detect_infrastructure.py:135-195` | any finding, including the CRITICAL branch | `main()` returns `0` at every path, lines 168, 172, and 195, so "CRITICAL: Security agent review REQUIRED" prints to stdout and the job passes | ADVISORY | partial, no structured sink | BOOLEAN | UNDECIDED, and this is the row a reviewer should look at first |
-| `.github/workflows/audit-hook-bypass.yml:63-68` plus `scripts/detect_hook_bypass.py:11-14` | commits showing `--no-verify` indicators | detects, never blocks; the "Report findings" step re-invokes the detector with `\|\| true` | INFORMATIONAL | yes, uploads `hook-bypass-audit.json` and posts a `::warning::` | N/A | DELIBERATE, audit by design, the artifact is the trail |
+| `lefthook.yml:652-655` (`python-lint-advisory`), `lefthook.yml:142-149` (`python-autofix`) | any ruff violation | `ruff check --exit-zero`, so violations structurally cannot produce a non-zero exit | ADVISORY | partial | N/A | UNDECIDED | <!-- citation-freshness: ignore -- multiple citations on one table row; the checker tests every anchor in the row against every cited range, so a correct citation fails on a sibling row's anchors. Each range here was read at main 16ed125 and verified individually. -->
+| `lefthook.yml:218-224,672-675` plus `.claude/skills/security-detection/detect_infrastructure.py:135-195` | any finding, including the CRITICAL branch | `main()` returns `0` at every path, lines 168, 172, and 195, so "CRITICAL: Security agent review REQUIRED" prints to stdout and the job passes | ADVISORY | partial, no structured sink | BOOLEAN | UNDECIDED, and this is the row a reviewer should look at first | <!-- citation-freshness: ignore -- multiple citations on one table row; the checker tests every anchor in the row against every cited range, so a correct citation fails on a sibling row's anchors. Each range here was read at main 16ed125 and verified individually. -->
+| `.github/workflows/audit-hook-bypass.yml:63-68` plus `scripts/detect_hook_bypass.py:11-14` | commits showing `--no-verify` indicators | detects, never blocks; the "Report findings" step re-invokes the detector with `\|\| true` | INFORMATIONAL | yes, uploads `hook-bypass-audit.json` and posts a `::warning::` | N/A | DELIBERATE, audit by design, the artifact is the trail | <!-- citation-freshness: ignore -- multiple citations on one table row; the checker tests every anchor in the row against every cited range, so a correct citation fails on a sibling row's anchors. Each range here was read at main 16ed125 and verified individually. -->
 
 ## Validators under `scripts/validation/` and `.github/scripts/`
 
@@ -236,6 +236,74 @@ Findings on the `Visible` column are bounded by what the workflow YAML and step
 outputs show. Python internals invoked from a `run:` step were read only where
 they appear in the validator section above. Where a script's behavior on empty
 or malformed input would move a `partial` to `yes` or `no`, that is unresolved.
+
+## Path-filtered job skips
+
+The defect class `.claude/rules/ci-scripts.md` names: "Path filters gate the
+diff, never the tree." A filter is legitimate when the gated command only
+inspects the changed files, or when the filter's glob covers the validator's
+whole input domain. It is a defect when a whole-tree validator sits behind a
+diff filter, because a pre-existing violation then goes unreported while the
+check still reports success.
+
+30 candidates: 24 `dorny/paths-filter` workflows and 6 with a top-level
+`on: paths:` trigger. Each verdict was decided by reading the called Python
+module, not the workflow YAML alone. 6 defects, 24 legitimate, 0 unclear.
+
+### Defects
+
+| Path | Gated job | Command | Why it is a defect |
+|---|---|---|---|
+| `codeql-analysis.yml:77` | `analyze` | `github/codeql-action/analyze` | CodeQL always scans the whole codebase per language and takes no file arguments. A plain push or PR that misses the `scannable` filter skips it. `FORCE_RUN_EVENTS: schedule,merge_group` at :95 mitigates rather than eliminates, and only if the merge queue is actually in use |
+| `pytest.yml:74` filter, `:275,:313` steps | `test` | `ruff_count_ratchet.py`, `subprocess_encoding_count_ratchet.py` | both ratchets scan git-tracked files repo-wide, per `ruff_count_ratchet.py:11`, but sit inside a job gated on Python changes. The same file already extracted `zero-collection-guard` and `line-endings-guard` ungated for this exact reason, citing `ci-scripts.md` at `:100-107,130-147`, and did not extract these two |
+| `agent-drift-detection.yml:79` | `validate` | `build/generate_agents.py --validate` | the filter is a strict subset of the audited filter that `validate-generated-agents.yml` uses for the identical command. Missing `docs/agent-catalog.md`, `.claude/**`, `.github/agents/**`, `.github/instructions/**`, `.github/prompts/**`, and `.github/workflows/**`, so a change to only those triggers the sibling workflow and not this one |
+| `memory-health.yml:48` | `health-check` | `memory_enhancement health`, whole `.serena/memories/` tree then `verify_all_citations` | citations point at arbitrary target files anywhere in the repository. A change to a cited target outside `.serena/memories/**` and outside `scripts/**/*.py` does not trip the filter, so a citation staled by that change goes unverified |
+| `memory-validation.yml:38` | `validate-memories` | `memory_enhancement verify-all` | the same citation-target gap |
+| `citation-verify.yml:42` | `verify-citations` | `memory_enhancement verify-all` | the same gap, and the narrowest filter of the three: not even `scripts/**/*.py` is included |
+
+### Legitimate, and why
+
+Recorded so a later scan does not re-triage them. Two patterns account for
+most: the filter glob equals the validator's file-type or directory domain
+(`yaml-lint.yml`, `validate-paths.yml`, `validate-adr-number-uniqueness.yml`,
+`validate-spec-id-uniqueness.yml`, `validate-planning-artifacts.yml`,
+`validate-artifact-retention.yml`, `validate-plugin-manifests.yml`,
+`skillbook-validation.yml`, `slash-command-quality.yml`,
+`skill-passive-compliance.yml`, `hook-contract-check.yml`,
+`validate-rule-activation-coverage.yml`, `validate-plugin-version-bump.yml`,
+`passive-context-budget.yml`, `cli-smoke.yml`, `vendor-provenance.yml`), or the
+check is inherently PR-scoped and asks a question about this diff
+(`ai-spec-validation.yml`, `investigation-claim-backstop.yml`,
+`synthesis-panel-gate.yml`, `test-codeql-integration.yml`).
+
+Three deserve their reasoning kept, because they are the shapes worth copying:
+
+- `instruction-budget.yml:36` carries no filter at all and runs on every
+  trigger. This is the already-fixed precedent `ci-scripts.md` cites.
+- `validate-generated-agents.yml:48` gates a whole-tree generator diff behind a
+  filter, and a co-located test, `tests/ci/test_frontmatter_gate_paths_filter.py`,
+  asserts the filter still covers everything the gate scans. The filter cannot
+  drift out from under the validator without that test failing.
+- `agent-skill-discriminator-check.yml:54` and
+  `software-engineering-library-activation.yml:10` move the whole-corpus
+  measurement off the diff filter onto an unfiltered schedule trigger.
+
+### Adjacent finding, not counted as a defect here
+
+`investigation-claim-backstop.yml:11` has a differently shaped gap: its
+top-level path filter requires an allowlisted investigation path to appear in
+the diff before the workflow runs at all. A commit that falsely claims
+`SKIPPED: investigation-only` while touching zero allowlisted paths is never
+checked. That is a trigger inversion rather than a whole-tree-behind-a-diff
+mismatch, so it is recorded here and not counted in the 6.
+
+### Unverified for this section
+
+No row was checked against branch protection. Every "required check" reference
+in these workflows is the workflow's own comment, not a reading of
+`repos/.../rules/branches/main`. The `codeql-analysis.yml` and `pytest.yml`
+verdicts also assume `merge_group` events actually fire in this repository,
+which the YAML alone cannot establish.
 
 ## Retired: hardened by issue #2808
 
