@@ -18,7 +18,6 @@ tools:
   - edit/createFile
   - edit/editFiles
   - search
-  - forgetful/*
   - serena/*
   - todo
   - memory

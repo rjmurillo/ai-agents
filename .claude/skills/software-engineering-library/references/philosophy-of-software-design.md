@@ -184,7 +184,7 @@ ai-agents already applies several of these rules implicitly. Reuse, do not dupli
 - **Agent prompts**: prompts are interfaces between the orchestrator and an agent. Treat input fields as interface surface; every required field raises cognitive load on every caller. Default to fewer, wider, well-named fields over many narrow ones.
 - **Plugin seams**: when you add a plugin extension point, design it twice and prefer the deeper version. The seam will outlive the first plugin that uses it.
 - **Hooks**: hooks are an information-hiding mechanism. Logic that belongs inside the hook should not be re-implemented in the calling code. If callers feel they must "duplicate the hook's logic just in case," the hook's interface is too narrow.
-- **Memory systems**: Serena and Forgetful are deep modules. Reach for the named operation rather than threading raw reads through your code. If a named operation is missing, add it to the module rather than working around it at the call site.
+- **Memory system**: Serena is a deep module. Reach for the named operation rather than threading raw reads through your code. If a named operation is missing, add it to the module rather than working around it at the call site.
 - **Session and orchestrator seams**: keep them deep. New cross-cutting behavior (telemetry, retries, idempotency) belongs inside, not duplicated in every entry point.
 
 If this rule and the code disagree, prefer a small, focused refactor on the path you are touching. Avoid sweeping rewrites. Note the deviation in the PR description so future readers can follow your reasoning.
