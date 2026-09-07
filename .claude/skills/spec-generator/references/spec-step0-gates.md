@@ -1,6 +1,6 @@
 #### Step 0 gate logic
 
-<!-- vendor-portability: declared. Extracted from spec-generator/SKILL.md, which carries the same declaration. Names upstream-only paths because it documents the upstream gate: scripts/redact_secrets.py and scripts/metrics_writer.py are the runners, .agents/metrics/STEP-0-METRICS.md and .agents/dictionaries/spec-entity-aliases.json are consumer-workspace artifacts the gate writes and reads, and .claude/commands/spec.md, .claude/rules/secret-redaction.md, .claude/skills/memory/SKILL.md, and docs/spec-quality/hedge-phrases.md are contributor-scoped references in the rjmurillo/ai-agents repository. Issue #2050. -->
+<!-- vendor-portability: declared. Extracted from spec-generator/SKILL.md, which carries the same declaration. Names upstream-only paths because it documents the upstream gate: scripts/redact_secrets.py and scripts/metrics_writer.py are the runners, .agents/metrics/STEP-0-METRICS.md and .agents/dictionaries/spec-entity-aliases.json are consumer-workspace artifacts the gate writes and reads, and .claude/skills/spec/SKILL.md, .claude/rules/secret-redaction.md, .claude/skills/memory/SKILL.md, and docs/spec-quality/hedge-phrases.md are contributor-scoped references in the rjmurillo/ai-agents repository. Issue #2050. -->
 
 **Pass criteria** (all must be true):
 
@@ -122,7 +122,7 @@ For the BLOCKING `redact_secrets.py`: if neither path resolves, FAIL loudly. Emi
 
 If neither resolves, treat the alias lookup as a no-op (keep the rule-4 result unchanged) and emit a coverage note. The alias miss is non-blocking; it degrades topic-synonym collapse, it does not stop the gate.
 
-**Canonical cross-references** (`.claude/commands/spec.md`, `.claude/skills/memory/SKILL.md`). These are toolkit-source pointers for maintainers. In installed-plugin mode, equivalent content ships under `<plugin>/skills/`. Do not execute those source-tree paths in a consumer repo; resolve bundled scripts from `<skill_dir>/../<skill-name>/scripts/` first, then fall back to `.claude/...` only after confirming the current repo is this toolkit checkout.
+**Canonical cross-references** (`.claude/skills/spec/SKILL.md`, `.claude/skills/memory/SKILL.md`). These are toolkit-source pointers for maintainers. In installed-plugin mode, equivalent content ships under `<plugin>/skills/`. Do not execute those source-tree paths in a consumer repo; resolve bundled scripts from `<skill_dir>/../<skill-name>/scripts/` first, then fall back to `.claude/...` only after confirming the current repo is this toolkit checkout.
 
 Downstream callers (orchestrators, review skills, CI gates) parse this block by its `step0-halt` info-string. Free-form prose halts that omit the fenced block are non-conforming and SHALL be re-emitted in this format.
 
