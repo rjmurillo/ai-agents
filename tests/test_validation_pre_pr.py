@@ -397,13 +397,16 @@ class TestBuildParser:
         runner did not have. Asserting the destination set (rather than the
         absence of two names) also fails when a future flag is added without a
         consumer.
+
+        ``summary_json`` joined the set with issue #5635; ``main`` reads it in
+        ``_write_summary_json``.
         """
         dests = {
             action.dest
             for action in build_parser()._actions
             if action.dest != "help"
         }
-        assert dests == {"quick", "markdown_lint_only", "markdown_files"}
+        assert dests == {"quick", "markdown_lint_only", "markdown_files", "summary_json"}
 
 
 class TestRemovedFlagsAreRejected:

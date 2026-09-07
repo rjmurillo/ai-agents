@@ -12,10 +12,12 @@ three "requires PS1" gates that are Python ports run through
 ``.agents/devops/SHIFT-LEFT.md`` documents the same rule and the
 command that prints the live sequence.
 
-Exit codes follow ADR-035:
-    0 - Success (all validations passed)
-    1 - Logic error (one or more validations failed)
-    2 - Config error (environment or configuration issue)
+Exit codes follow ADR-035, chosen by the worst state that blocked the gate
+(``scripts/validation/evidence.py:exit_code_for``, issue #5635):
+    0 - Success (nothing blocked)
+    1 - Logic error (a FAIL, or an UNKNOWN whose evidence was unreadable)
+    2 - Config error (a bad repository root, or a SKIP the policy refused)
+    3 - External (a BLOCKED gate: a dependency or service was unavailable)
 
 Decomposition (issue #2223): the individual validations live in sibling
 ``checks_*`` modules grouped by area, and this file is the thin runner plus a
@@ -35,6 +37,7 @@ imports below as a promise of full coverage.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -149,41 +152,122 @@ from validate_no_orphaned_build_deferrals import (
 from validate_python_syntax import validate_python_syntax
 from yaml_utils import _parse_yaml_frontmatter
 
+# The typed evidence contract (issue #5635). Imported by its PACKAGE path, not
+# flat like the ``checks_*`` siblings above, because ``EvidenceState`` identity
+# has to survive the two ways this directory is imported: a flat ``import
+# evidence`` and a package ``import scripts.validation.evidence`` produce two
+# distinct enum classes, and every ``is`` comparison across that seam returns
+# False. Tests import the package path, so production code must too. Same
+# convention as ``scripts.validation.models``.
+from scripts.validation.evidence import (
+    REASON_ALREADY_RUN,
+    REASON_QUICK_MODE,
+    REASON_SCRIPT_ABSENT,
+    REASON_VALIDATOR_RAISED,
+    AggregateOutcome,
+    CheckOutcome,
+    EvidenceState,
+    GateResult,
+    aggregate,
+    coerce_outcome,
+    default_pre_pr_policy,
+    exit_code_for,
+)
+
+#: The gate this runner enforces. PASS always passes; the one exception is
+#: SKIP, which .agents/devops/SHIFT-LEFT.md already documented as
+#: non-blocking before issue #5635. BLOCKED and UNKNOWN block.
+_POLICY = default_pre_pr_policy()
+
 
 @dataclass
 class ValidationRecord:
-    """Result of a single validation step."""
+    """Result of a single validation step.
+
+    ``status`` is the :class:`EvidenceState` value as a bare string, kept for
+    the many callers and tests that read ``record.status`` against ``"PASS"``.
+    ``outcome`` is the typed evidence behind it: the reason code, the scope, the
+    revision, and the counts (issue #5635).
+    """
 
     name: str
-    status: str  # PASS, FAIL, SKIP
+    status: str  # PASS, FAIL, SKIP, BLOCKED, UNKNOWN
     duration: float = 0.0
     message: str = ""
+    outcome: CheckOutcome | None = None
+
+
+_COUNTER_FOR_STATE: dict[EvidenceState, str] = {
+    EvidenceState.PASS: "passed",
+    EvidenceState.FAIL: "failed",
+    EvidenceState.SKIP: "skipped",
+    EvidenceState.BLOCKED: "blocked",
+    EvidenceState.UNKNOWN: "unknown",
+}
 
 
 @dataclass
 class ValidationState:
-    """Tracks overall validation results."""
+    """Tracks overall validation results.
+
+    ``blocked`` and ``unknown`` are separate counters rather than folded into
+    ``passed``: before issue #5635 a gate that could not run and a gate whose
+    evidence was unreadable both incremented ``passed``, which is the defect
+    this contract removes.
+    """
 
     results: list[ValidationRecord] = field(default_factory=list)
     total: int = 0
     passed: int = 0
     failed: int = 0
     skipped: int = 0
+    blocked: int = 0
+    unknown: int = 0
+
+    def record(self, name: str, outcome: CheckOutcome) -> CheckOutcome:
+        """Append one gate's outcome and update the counter for its state.
+
+        Every gate lands here, including the ones the sequence short-circuits,
+        so no child state is lost from the summary.
+        """
+        self.total += 1
+        self.results.append(
+            ValidationRecord(
+                name=name,
+                status=outcome.state.value,
+                duration=outcome.duration_seconds,
+                message=outcome.detail,
+                outcome=outcome,
+            )
+        )
+        counter = _COUNTER_FOR_STATE[outcome.state]
+        setattr(self, counter, getattr(self, counter) + 1)
+        return outcome
+
+    def outcomes(self) -> tuple[CheckOutcome, ...]:
+        """Return the typed outcomes recorded so far, in run order."""
+        return tuple(record.outcome for record in self.results if record.outcome is not None)
 
 
 def run_validation(
     name: str,
     state: ValidationState,
-    callback: Callable[[], bool],
+    callback: Callable[[], GateResult],
     skip: bool = False,
 ) -> bool:
-    """Run a validation and track results. Returns True on pass/skip."""
-    state.total += 1
+    """Run one validation, record its typed outcome, and report whether it passed.
 
+    Returns True when the outcome does not block the gate under
+    :func:`default_pre_pr_policy`, so a SKIP still returns True and a BLOCKED or
+    UNKNOWN does not. The exit code is decided in :func:`main` from the recorded
+    outcomes, not from this return value.
+    """
     if skip:
+        outcome = CheckOutcome.skipped(
+            name, reason=REASON_QUICK_MODE, detail="Skipped due to --quick flag"
+        )
         print(f"[SKIP] {name} (skipped due to --quick flag)")
-        state.skipped += 1
-        state.results.append(ValidationRecord(name=name, status="SKIP", message="Skipped"))
+        state.record(name, outcome)
         return True
 
     print()
@@ -191,50 +275,32 @@ def run_validation(
     print("[RUNNING] Starting validation...")
 
     start = time.monotonic()
-    success = False
-    skipped = False
-    message = ""
-
     try:
-        success = callback()
-        message = "Validation passed" if success else "Validation failed"
+        outcome = coerce_outcome(name, callback())
     except MissingScriptSkip as exc:
-        skipped = True
-        success = True  # SKIP does not count as failure for the gate
-        message = f"Skipped: {exc}"
-    except Exception as exc:
-        success = False
-        message = f"Validation error: {exc}"
-
-    duration = time.monotonic() - start
-
-    if skipped:
-        state.skipped += 1
-        status_label = "SKIP"
-    elif success:
-        state.passed += 1
-        status_label = "PASS"
-    else:
-        state.failed += 1
-        status_label = "FAIL"
-
-    state.results.append(
-        ValidationRecord(
-            name=name,
-            status=status_label,
-            duration=duration,
-            message=message,
+        outcome = CheckOutcome.skipped(
+            name, reason=REASON_SCRIPT_ABSENT, detail=f"Skipped: {exc}"
         )
-    )
+    except Exception as exc:
+        # FAIL rather than UNKNOWN: this preserves the pre-#5635 exit behavior
+        # for a raising validator. The reason code is what changed, so a reader
+        # can tell a crash from a real finding without reading the log.
+        outcome = CheckOutcome.failed(
+            name, reason=REASON_VALIDATOR_RAISED, detail=f"Validation error: {exc}"
+        )
+
+    outcome = outcome.with_duration(time.monotonic() - start)
+    state.record(name, outcome)
 
     print()
-    print(f"[{status_label}] {name} completed in {duration:.2f}s")
-    if status_label == "FAIL":
-        print(f"Error: {message}")
-    elif status_label == "SKIP":
-        print(f"Note: {message}")
+    print(f"[{outcome.state.value}] {name} completed in {outcome.duration_seconds:.2f}s")
+    print(f"  {outcome.summary_line()}")
+    if outcome.state is EvidenceState.FAIL:
+        print(f"Error: {outcome.detail}")
+    elif outcome.state is not EvidenceState.PASS:
+        print(f"Note: {outcome.detail}")
 
-    return success
+    return _POLICY.accepts(outcome)
 
 
 # ---------------------------------------------------------------------------
@@ -259,11 +325,86 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run only markdownlint against positional markdown files",
     )
     parser.add_argument(
+        "--summary-json",
+        default=os.environ.get("PRE_PR_SUMMARY_JSON", ""),
+        metavar="PATH",
+        help=(
+            "Write the machine-readable run summary (per-gate state, reason code, "
+            "scope, counts, and the gate policy) to PATH. Defaults to "
+            "$PRE_PR_SUMMARY_JSON."
+        ),
+    )
+    parser.add_argument(
         "markdown_files",
         nargs="*",
         help=argparse.SUPPRESS,
     )
     return parser
+
+
+def _print_summary(summary: AggregateOutcome, state: ValidationState) -> None:
+    """Print the per-state counts and one line per gate.
+
+    Every non-``PASS`` line carries its reason code and scope, so a reader can
+    tell a gate that did not apply from one whose base ref would not resolve
+    without opening the log above (issue #5635).
+    """
+    counts = summary.counts()
+    print()
+    print("=== Validation Summary ===")
+    print(f"Duration: {summary.duration_seconds:.2f}s")
+    print(f"Total Validations: {state.total}")
+    for label in ("PASS", "FAIL", "SKIP", "BLOCKED", "UNKNOWN"):
+        print(f"{label}: {counts[label]}")
+    print()
+
+    print("=== Detailed Results ===")
+    print()
+    for record in state.results:
+        duration_str = f" ({record.duration:.2f}s)" if record.duration > 0 else ""
+        if record.outcome is None or record.outcome.state is EvidenceState.PASS:
+            print(f"[{record.status}] {record.name}{duration_str}")
+            continue
+        print(
+            f"[{record.status}] {record.name}{duration_str} "
+            f"reason={record.outcome.reason} {record.outcome.detail}".rstrip()
+        )
+    print()
+
+
+def _print_blocking_guidance(summary: AggregateOutcome) -> None:
+    """Name every gate that blocked and why, then how to act on each state."""
+    print(f"RESULT: {len(summary.rejected)} validation(s) blocked the gate")
+    print()
+    for outcome in summary.rejected:
+        print(f"  {outcome.summary_line()}")
+        if outcome.detail:
+            print(f"    {outcome.detail}")
+    print()
+    print("Fix suggestions:")
+    print("  FAIL: review the error above and fix the violation it names")
+    print("  BLOCKED: install or authenticate the dependency named in the reason")
+    print("  UNKNOWN: the evidence was unreadable; re-run and read the gate's output")
+    print("  See .agents/devops/SHIFT-LEFT.md for workflow documentation")
+    print()
+
+
+def _write_summary_json(summary: AggregateOutcome, destination: str) -> None:
+    """Write the machine-readable summary when a destination was given.
+
+    A write failure is reported and does not change the gate's verdict: the
+    summary is a report of the run, not part of it.
+    """
+    if not destination:
+        return
+    try:
+        Path(destination).write_text(
+            json.dumps(summary.to_dict(), indent=2) + "\n", encoding="utf-8"
+        )
+    except OSError as exc:
+        print(f"[WARNING] could not write summary JSON to {destination}: {exc}", file=sys.stderr)
+        return
+    print(f"Machine-readable summary written to {destination}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -312,33 +453,13 @@ def main(argv: list[str] | None = None) -> int:
     run_all_validations(repo_root, args, state, run_validation)
     total_duration = time.monotonic() - start_time
 
-    # Summary
-    print()
-    print("=== Validation Summary ===")
-    print(f"Duration: {total_duration:.2f}s")
-    print(f"Total Validations: {state.total}")
-    print(f"Passed: {state.passed}")
-    print(f"Failed: {state.failed}")
-    print(f"Skipped: {state.skipped}")
-    print()
+    summary = aggregate("pre_pr", state.outcomes(), _POLICY, total_duration)
+    _print_summary(summary, state)
+    _write_summary_json(summary, args.summary_json)
 
-    print("=== Detailed Results ===")
-    print()
-    for record in state.results:
-        duration_str = f" ({record.duration:.2f}s)" if record.duration > 0 else ""
-        print(f"[{record.status}] {record.name}{duration_str}")
-
-    print()
-
-    if state.failed > 0:
-        print(f"RESULT: {state.failed} validation(s) failed")
-        print()
-        print("Fix suggestions:")
-        print("  1. Review error messages above for specific issues")
-        print("  2. Run individual validation scripts for more details")
-        print("  3. See .agents/SHIFT-LEFT.md for workflow documentation")
-        print()
-        return 1
+    if summary.blocking:
+        _print_blocking_guidance(summary)
+        return exit_code_for(summary)
 
     print("RESULT: All validations passed")
     print()
