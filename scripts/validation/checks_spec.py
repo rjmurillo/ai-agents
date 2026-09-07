@@ -28,7 +28,7 @@ from checks_common import (  # noqa: E402
 
 
 def validate_build_gates(repo_root: Path) -> bool:
-    """Verify ``.claude/commands/build.md`` still wires the required exit gates.
+    """Verify the ``build`` skill still wires the required exit gates.
 
     The /build command is the implementer's exit path. If a future edit
     removes the code-qualities-assessment / taste-lints / doc-accuracy
