@@ -16,7 +16,8 @@ what blocks what, what fails first, and what is explicitly out of scope.
 Migrated from `.claude/commands/plan.md` under ADR-064, which makes skills the
 single user-invocable surface.
 
-<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+@CLAUDE.md
+
 ## Triggers
 
 `plan how to build this`, `break this into milestones`, `decompose this spec`,
@@ -35,7 +36,7 @@ exists.
 Skip this only when the user explicitly asks to plan an ungated idea and accepts
 that trade-off.
 
-Plan: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
+Plan: $ARGUMENTS
 
 If `$ARGUMENTS` is empty, check for recent spec output in the conversation. If
 none is found, ask what to plan rather than inferring it.
@@ -45,18 +46,18 @@ none is found, ask what to plan rather than inferring it.
 1. Read the spec or issue.
 2. Map sub-problems to existing code. What already exists? Use Grep and Glob to
    verify rather than assuming.
-3. `agent_type: "project-toolkit:milestone-planner"`: You are a project planner. Break
+3. `Task(subagent_type="milestone-planner")`: You are a project planner. Break
    the spec into milestones with clear exit criteria. Each milestone is
    independently shippable. Sequence by dependencies. Flag parallel
    opportunities.
-4. `agent_type: "project-toolkit:task-decomposer"`: You are a work breakdown specialist.
+4. `Task(subagent_type="task-decomposer")`: You are a work breakdown specialist.
    Decompose each milestone into atomic tasks. Each task is independently
    verifiable with a clear done definition. Size by complexity (S/M/L), not time.
-5. `skill: "execution-plans"` to persist the plan as a versioned artifact.
-6. `agent_type: "project-toolkit:analyst"`: You are a risk analyst. Run a pre-mortem on
+5. `Skill(skill="execution-plans")` to persist the plan as a versioned artifact.
+6. `Task(subagent_type="analyst")`: You are a risk analyst. Run a pre-mortem on
    this plan. What fails first? What dependencies are fragile? What assumptions
    are untested?
-7. `agent_type: "project-toolkit:critic"`: You are a plan reviewer. Validate: is scope
+7. `Task(subagent_type="critic")`: You are a plan reviewer. Validate: is scope
    complete? Can tasks execute in the stated sequence? Are estimates credible?
    Is anything missing?
 

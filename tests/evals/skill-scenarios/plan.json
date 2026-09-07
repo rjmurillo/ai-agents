@@ -1,0 +1,38 @@
+{
+  "skill_path": ".claude/skills/plan/SKILL.md",
+  "skill_id": "plan",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Decomposition request following a completed spec",
+      "input": "The spec for the upload-resume feature is done: requirement, design, and acceptance criteria are all written. Break this into milestones with dependencies and sizing. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "milestone",
+        "exit criteria",
+        "dependenc",
+        "risk"
+      ],
+      "expected_gate": "plan-milestones",
+      "rationale": "The prompt uses the documented trigger `break this into milestones` and states that a spec exists, which is the front gate's precondition. A response that produces milestones with exit criteria, a dependency ordering, and a risk register is attributable to this skill rather than to generic project advice."
+    },
+    {
+      "id": "S2",
+      "desc": "Decomposition request with no spec behind it must hit the front gate",
+      "input": "I had an idea last night that we should add a plugin marketplace. Plan how to build this, break it into milestones. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "spec",
+        "front gate"
+      ],
+      "expected_gate": "plan-front-gate-halt",
+      "rationale": "This is the discriminating case. The prompt uses two documented triggers, so a skill that only pattern-matches triggers produces milestones. The front gate requires a spec first, because planning an ungated idea manufactures work. A response that routes to spec before decomposing is attributable to the skill; one that returns a milestone list is not."
+    },
+    {
+      "id": "S3",
+      "desc": "Implementation request stays outside planning",
+      "input": "Write the retry loop for the uploader and add the regression test. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for code, which the skill's description explicitly routes to build. It names no spec, no milestone, and no decomposition trigger, so plan should stay inactive."
+    }
+  ]
+}
