@@ -46,6 +46,15 @@ class TestExtractSpecRefs:
     def test_empty_string_returns_empty(self) -> None:
         assert _extract_spec_refs("no references here") == ""
 
+    def test_backticked_spec_path_still_counts(self) -> None:
+        """`.github/PULL_REQUEST_TEMPLATE.md` writes spec paths in backticks.
+
+        The code-span mask applies to issue refs only. Masking here would
+        disarm the gate on the template's own convention.
+        """
+        result = _extract_spec_refs("| **Spec** | `.agents/planning/sprint.md` |")
+        assert ".agents/planning/sprint.md" in result
+
     def test_deduplicates(self) -> None:
         refs = _extract_spec_refs("REQ-001 REQ-001 REQ-002")
         parts = refs.split()
@@ -140,6 +149,44 @@ class TestExtractIssueRefs:
 
     def test_deduplicates_across_keywords(self) -> None:
         assert _extract_issue_refs("Fixes #7\nRefs #7") == "7"
+
+    # PR #5648's own run reported `ISSUE_REFS: 10 5489 5600 5620 5621 5623`
+    # from a body that only linked three issues. The other three came from
+    # backticked examples in the prose, two of them pull request numbers, and
+    # the loader handed all six to the judge as this PR's requirements.
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "See `Fixes #42` for the syntax",
+            "The old pattern was ``Closes: #42`` in prose",
+            "```\nFixes #42\n```",
+            "```python\n# Closes #42\n```",
+            "~~~\nRefs #42\n~~~",
+            "```\nFixes #42\n",
+        ],
+    )
+    def test_ignores_references_inside_code(self, body: str) -> None:
+        assert _extract_issue_refs(body) == ""
+
+    def test_keeps_a_real_reference_beside_a_code_span(self) -> None:
+        body = "Writing `Refs #99` is the honest form. Fixes #42"
+        assert _extract_issue_refs(body) == "42"
+
+    def test_pr_5648_body_shape(self) -> None:
+        """Regression fixture taken from the body that produced the defect."""
+        body = (
+            "The other misses (`closed`, `Closes: #10`, `owner/repo.name#10`) "
+            "opened the same hole.\n\n"
+            "```python\n"
+            'r"(?:Closes|Fixes|Resolves|Implements)\\s+(#\\d+)"\n'
+            "```\n\n"
+            "| **Issue** | Fixes #5489 | `Refs #n` disarms the judge |\n"
+            "| **Issue** | Fixes #5620 | missed variants |\n\n"
+            "`AB#` work-item tokens (#5621) are out of scope.\n\n"
+            "PR #5609 carries `Refs #5600` and PR #5630 carries `Refs #5623`.\n\n"
+            "## Related Issues\n\nFixes #5489\nFixes #5620\nRefs #5621\n"
+        )
+        assert _extract_issue_refs(body) == "5489 5620 5621"
 
     def test_collects_every_reference_in_a_multi_ref_body(self) -> None:
         body = "Refs #5574\nRefs #5624\nCloses #5610"

@@ -60,6 +60,29 @@ _ISSUE_REF_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# GitHub does not link an issue from a keyword inside a code span or a fenced
+# block, so neither may arm this gate. Measured on PR #5648's own run: the body
+# discussed the bug using `Closes: #10`, `Refs #5600` and `Refs #5623` as
+# examples inside backticks, and the widened parser reported
+# `ISSUE_REFS: 10 5489 5600 5620 5621 5623`. Three of those six are prose, two
+# of them pull request numbers, and the loader fed all of them to the judge as
+# if they were this PR's requirements. `validate_pr_description.py` already
+# treats a closing keyword in a code span as not-a-link, for the same reason.
+#
+# Deliberately not applied to `_extract_spec_refs`: `.github/PULL_REQUEST_TEMPLATE.md`
+# writes spec paths in backticks (`| **Spec** | `.agents/planning/...` |`), so
+# masking there would disarm the gate on the template's own convention. The
+# asymmetry is real, because a code span suppresses GitHub's issue linking and
+# says nothing about a file path.
+_FENCED_BLOCK = re.compile(r"(?ms)^[ \t]*(`{3,}|~{3,})[^\n]*$.*?(?:^[ \t]*\1[ \t]*$|\Z)")
+_INLINE_CODE = re.compile(r"`+[^`]*`+")
+
+
+def _strip_code(text: str) -> str:
+    """Blank out fenced blocks and inline code spans, keeping the rest intact."""
+    without_fences = _FENCED_BLOCK.sub(" ", text)
+    return _INLINE_CODE.sub(" ", without_fences)
+
 
 def write_github_output(key: str, value: str) -> None:
     """Append key=value to GITHUB_OUTPUT; fall back to stdout."""
@@ -123,10 +146,11 @@ def _extract_spec_refs(combined: str) -> str:
 def _extract_issue_refs(combined: str) -> str:
     """Return space-delimited issue refs (numeric or owner/repo#N).
 
-    Accepts every GitHub closing keyword plus non-closing linkage. See
-    `_ISSUE_REF_PATTERN` for why the narrower set was a gate defect.
+    Accepts every GitHub closing keyword plus non-closing linkage, ignoring
+    anything inside a code span or fenced block. See `_ISSUE_REF_PATTERN` and
+    `_strip_code` for why each of those is a gate defect.
     """
-    raw = [match.group(1) for match in _ISSUE_REF_PATTERN.finditer(combined)]
+    raw = [match.group(1) for match in _ISSUE_REF_PATTERN.finditer(_strip_code(combined))]
     results: list[str] = []
     for ref in sorted(set(raw)):
         if ref.startswith("#"):
