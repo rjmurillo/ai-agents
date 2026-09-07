@@ -374,6 +374,36 @@ class CheckOutcome:
             duration_seconds=duration_seconds,
         )
 
+    def __bool__(self) -> bool:
+        """Refuse to answer, naming the state, so a stale call site fails loudly.
+
+        A dataclass instance is truthy in every state, so ``if validator(...):``
+        reads FAIL, BLOCKED, and UNKNOWN as success. That is the fail-open this
+        contract exists to remove, and the migration path is where it would
+        arrive: 60 of the 64 gates still return ``bool`` and are called from
+        boolean-context code, so converting one to return a ``CheckOutcome``
+        without also converting its call site would produce a gate that always
+        passes. A type checker cannot object, because both types are legal in a
+        boolean context.
+
+        Raising is the only answer that cannot be silently wrong. Returning
+        ``self.state is EvidenceState.PASS`` would keep the stale call site
+        running and re-collapse five states to two; returning ``False`` would
+        invert the same defect into a gate that always blocks. Ask the state
+        instead::
+
+            outcome.state is EvidenceState.PASS   # did it prove the contract
+            policy.accepts(outcome)               # does it block this gate
+
+        Related: issue #5646 item 1.
+        """
+        raise TypeError(
+            f"{self.validator}: CheckOutcome({self.state.value}) has no truth value; "
+            "a five-state result cannot answer a two-state question. Test "
+            "'outcome.state is EvidenceState.PASS' for proof, or "
+            "'policy.accepts(outcome)' for whether it blocks the gate."
+        )
+
     def with_duration(self, duration_seconds: float) -> CheckOutcome:
         """Return a copy timed at ``duration_seconds``.
 
@@ -557,11 +587,27 @@ class GatePolicy:
 def default_pre_pr_policy() -> GatePolicy:
     """Return the policy the pre-PR gate runs under.
 
-    One exception, and it predates issue #5635: a gate that does not apply to
-    this checkout has never blocked the push, and
-    ``.agents/devops/SHIFT-LEFT.md`` documents that. ``BLOCKED`` and
-    ``UNKNOWN`` get no exception; those are the states that used to arrive as
-    ``True``.
+    Three exceptions, in the order they are constructed below.
+
+    The first predates issue #5635: a gate that does not apply to this checkout
+    has never blocked the push, so ``SKIP`` is licensed for every validator and
+    ``.agents/devops/SHIFT-LEFT.md`` documents that.
+
+    The other two are narrower and were added with the typed states. Each
+    licenses ``BLOCKED`` for exactly one validator on exactly one reason code,
+    ``tool.absent``: ``validate_workflow_yaml`` when actionlint is not on PATH,
+    and ``validate_yaml_style`` when yamllint is not. Both tools are optional
+    developer-machine installs rather than repository dependencies, and both
+    gates were already non-blocking on their absence before the states existed;
+    the licences make that prior behavior reviewable instead of implicit. The
+    ``BLOCKED`` state is still recorded and still printed, so a degraded run and
+    a clean one are distinguishable in the summary.
+
+    ``UNKNOWN`` gets no exception at all, and ``BLOCKED`` gets none outside
+    those two named pairs. An earlier version of this docstring said "one
+    exception" and that ``BLOCKED`` got none, which the three
+    :class:`PolicyException` constructions below contradicted on the same
+    screen (issue #5646 item 4).
     """
     return GatePolicy(
         exceptions=(
@@ -701,11 +747,31 @@ def exit_code_for(summary: AggregateOutcome) -> int:
     external dependency (``3``), and a rejected ``SKIP`` is a configuration
     error (``2``) because the run was asked for a check this checkout cannot
     supply.
+
+    ``BLOCKED`` splits once more. ADR-035 line 58 reserves ``4`` for
+    authentication and authorization errors precisely so the reader is sent to
+    re-authenticate rather than to install a missing dependency, and
+    :data:`REASON_AUTH_UNAVAILABLE` is the reason code that says which one this
+    is. Before issue #5646 item 5 that constant was defined and exported but
+    mapped to nothing, so an expired token exited ``1`` and pointed the reader
+    at a violation that does not exist.
+
+    Auth is checked only inside ``BLOCKED`` and only among the outcomes at the
+    worst blocking state. A proven ``FAIL`` elsewhere in the same run still
+    outranks it, per :data:`_PRECEDENCE`: a violation is more actionable than a
+    credential, and reporting ``4`` would send the reader to a login prompt
+    while a real defect went unmentioned.
     """
     if not summary.rejected:
         return 0
     blocking = worst_state(outcome.state for outcome in summary.rejected)
     if blocking is EvidenceState.BLOCKED:
+        if any(
+            outcome.state is EvidenceState.BLOCKED
+            and outcome.reason == REASON_AUTH_UNAVAILABLE
+            for outcome in summary.rejected
+        ):
+            return 4
         return 3
     if blocking is EvidenceState.SKIP:
         return 2
