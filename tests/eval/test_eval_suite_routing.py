@@ -352,10 +352,18 @@ def test_negative_control_entrypoints_after_prefixes_recreates_the_shadowing() -
 # Command mirrors: same tree as skills, different generator
 # ---------------------------------------------------------------------------
 
+# Shrinks as ADR-064 converts each command into a real skill: once
+# `.claude/skills/<name>/` exists the mirror is an ordinary skill and the skill
+# evaluator can resolve it, so it moves to CONVERTED_COMMAND_SKILLS below.
 COMMAND_MIRROR_SKILLS = [
-    "build", "checkpoint", "context-hub-setup", "plan", "pr-autofix",
-    "pr-review", "push-pr", "research", "retro", "ship", "spec", "sync",
-    "test", "validate-pr-description",
+    "checkpoint", "pr-autofix", "pr-review", "research", "spec", "sync",
+]
+
+# Converted under ADR-064 (issue #5632). These were command mirrors and are now
+# Claude skills, which is what makes them evaluable for the first time.
+CONVERTED_COMMAND_SKILLS = [
+    "build", "context-hub-setup", "plan", "push-pr", "retro", "ship", "test",
+    "validate-pr-description",
 ]
 
 
@@ -374,7 +382,9 @@ def test_command_mirror_premise_holds_in_the_tree(name: str) -> None:
     assert (REPO_ROOT / ".claude" / "commands" / f"{name}.md").is_file()
 
 
-@pytest.mark.parametrize("name", ["analyze", "github", "review", "planner"])
+@pytest.mark.parametrize(
+    "name", ["analyze", "github", "review", "planner", *CONVERTED_COMMAND_SKILLS]
+)
 def test_mirrored_claude_skills_still_route_as_skills(name: str) -> None:
     """The narrowing must not capture ordinary mirrored skills."""
     assert (REPO_ROOT / ".claude" / "skills" / name).is_dir()

@@ -290,10 +290,11 @@ def is_command_mirror_skill(path: str) -> bool:
     """Whether a generated Copilot skill mirrors a command, not a Claude skill.
 
     `src/copilot-cli/skills/` holds two different kinds of artifact. Most
-    entries mirror `.claude/skills/<name>/`. Fourteen instead mirror
+    entries mirror `.claude/skills/<name>/`. The rest mirror
     `.claude/commands/<name>.md` and have no `.claude/skills/<name>/` at all:
-    build, checkpoint, context-hub-setup, plan, pr-autofix, pr-review,
-    push-pr, research, retro, ship, sync, spec, test, validate-pr-description.
+    checkpoint, pr-autofix, pr-review, research, spec, sync. That set shrinks
+    as ADR-064 converts each command into a skill (issue #5632), which is why
+    this function probes the tree instead of carrying a list.
 
     The distinction is load bearing because `eval-knowledge-integration.py`
     resolves a skill only under `.claude/skills/`. Measured:
