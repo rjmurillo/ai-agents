@@ -32,7 +32,7 @@ from _harness_capability import (
     load_matrix,
     write_report,
 )
-from _runtime_parity import probe_version
+from _runtime_harness import probe_version
 
 EXIT_OK = 0
 EXIT_CONFIG = 2

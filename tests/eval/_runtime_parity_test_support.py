@@ -25,3 +25,4 @@ finally:
         sys.path.remove(str(EVAL_DIR))
 
 runtime_parity = sys.modules["_runtime_parity"]
+runtime_harness = sys.modules["_runtime_harness"]

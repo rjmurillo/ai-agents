@@ -25,6 +25,13 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
+from _runtime_harness import (
+    SENTINEL,
+    hash_installed_agent,
+    prepare_workspace,
+    probe_version,
+    runtime_env,
+)
 from _runtime_output import (
     RuntimeOutputError,
     parse_events,
@@ -58,15 +65,10 @@ from _runtime_output import (
     traces as _traces,
 )
 from _runtime_parity import (
-    SENTINEL,
     Fixture,
     ParityConfigError,
-    hash_installed_agent,
     live_files,
     load_fixtures,
-    prepare_workspace,
-    probe_version,
-    runtime_env,
     score_assertions,
     verify_worktree_identity,
 )

@@ -12,6 +12,7 @@ import pytest
 from tests.eval._runtime_parity_test_support import (
     FIXTURES,
     parity,
+    runtime_harness,
     runtime_parity,
 )
 
@@ -322,7 +323,7 @@ def test_nested_frontmatter_name_is_not_rewritten(tmp_path: Path) -> None:
     )
     target = tmp_path / "target.md"
 
-    runtime_parity._install_agent(source, target)
+    runtime_harness._install_agent(source, target)
 
     installed = target.read_text(encoding="utf-8")
     assert "  name: nested" in installed
@@ -376,7 +377,7 @@ def test_worktree_identity_rejects_a_top_level_outside_cwd(
 def test_git_init_drops_inherited_repository_context(
     tmp_path: Path, monkeypatch
 ) -> None:
-    for name in runtime_parity.GIT_CONTEXT_VARIABLES:
+    for name in runtime_harness.GIT_CONTEXT_VARIABLES:
         monkeypatch.setenv(name, str(runtime_parity.REPO_ROOT))
     calls = []
 
@@ -390,7 +391,7 @@ def test_git_init_drops_inherited_repository_context(
     parity.prepare_workspace(fixture, "claude", tmp_path / "workspace")
 
     git_env = calls[0]["env"]
-    assert all(name not in git_env for name in runtime_parity.GIT_CONTEXT_VARIABLES)
+    assert all(name not in git_env for name in runtime_harness.GIT_CONTEXT_VARIABLES)
 
 
 def test_resume_fixture_rejects_prose_before_exact_reply() -> None:
