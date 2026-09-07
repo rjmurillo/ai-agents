@@ -188,6 +188,57 @@ class TestExtractIssueRefs:
         )
         assert _extract_issue_refs(body) == "5489 5620 5621"
 
+    # Devin Review on PR #5648 found the regex mask wrong in both delimiter
+    # directions. A fence closes on a run of the same character at least as long
+    # as the opener, so a three-backtick opener closed by four ran to the end of
+    # the body and masked every later reference: the same has_specs=false
+    # fail-open this file exists to close.
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "```\ncode\n````\n\nFixes #5489\n",
+            "~~~\ncode\n~~~~~\n\nFixes #5489\n",
+            '```python\nr"Fixes #99"\n``````\n\nFixes #5489\n',
+        ],
+    )
+    def test_fence_closes_on_a_longer_run_of_the_same_character(self, body: str) -> None:
+        assert _extract_issue_refs(body) == "5489"
+
+    def test_unclosed_fence_masks_through_the_end(self) -> None:
+        assert _extract_issue_refs("```\nFixes #999\nFixes #888") == ""
+
+    # A code span closes on a backtick run of exactly the opener's length and may
+    # contain shorter runs. The old mask ended the span at the inner run and
+    # exposed the example reference as prose.
+    def test_code_span_may_contain_a_shorter_backtick_run(self) -> None:
+        body = "``a ` Fixes #999`` and really Fixes #5489"
+        assert _extract_issue_refs(body) == "5489"
+
+    def test_unmatched_backtick_is_literal_text(self) -> None:
+        assert _extract_issue_refs("a ` stray tick, Fixes #5489") == "5489"
+
+    # Masked content becomes NUL, not a space, so the keyword-to-reference
+    # separator cannot bridge across what was removed.
+    @pytest.mark.parametrize(
+        "body",
+        ["Fixes `x` #12", "Fixes\n```\ncode\n```\n#12"],
+    )
+    def test_masking_does_not_create_a_link_the_body_never_had(self, body: str) -> None:
+        assert _extract_issue_refs(body) == ""
+
+    # `#\d+` with no trailing guard read `Refs #4054garbage` as issue 4054 and
+    # loaded an unrelated issue into the judge's context.
+    @pytest.mark.parametrize(
+        "body",
+        ["Refs #4054garbage", "Refs #0", "Refs #007", "Fixes #12_a", "Refs #0000"],
+    )
+    def test_rejects_malformed_reference_numbers(self, body: str) -> None:
+        assert _extract_issue_refs(body) == ""
+
+    def test_sentence_punctuation_after_a_reference_still_links(self) -> None:
+        body = "Fixes #12. Also Fixes #13, and Fixes #14; plus Fixes #15)"
+        assert sorted(_extract_issue_refs(body).split()) == ["12", "13", "14", "15"]
+
     def test_collects_every_reference_in_a_multi_ref_body(self) -> None:
         body = "Refs #5574\nRefs #5624\nCloses #5610"
         assert sorted(_extract_issue_refs(body).split()) == ["5574", "5610", "5624"]
