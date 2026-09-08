@@ -35,6 +35,8 @@ from pathlib import Path
 
 import pytest
 
+from scripts.validation import check_commands_retired
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "scripts" / "eval"
 
@@ -388,23 +390,16 @@ def test_the_command_tree_is_empty() -> None:
     That category, its predicate row, and its not-evaluated reason existed only
     for a Copilot skill generated from `.claude/commands/<name>.md` with no
     `.claude/skills/<name>/` behind it. ADR-064 emptied that tree, so the row
-    could never match again and a routing row that cannot match is one the
+    could never match again, and a routing row that cannot match is one the
     shadow test above cannot check. Removing it is only correct while this
-    holds, so assert it here rather than leaving the reasoning in a commit
-    message nobody re-reads.
-    """
-    commands = REPO_ROOT / ".claude" / "commands"
-    remaining = sorted(
-        path.name
-        for path in commands.glob("*.md")
-        if path.name not in {"AGENTS.md", "CLAUDE.md"}
-    ) if commands.is_dir() else []
+    holds.
 
-    assert remaining == [], (
-        f"commands are back under .claude/commands/: {remaining}. Their Copilot "
-        "mirrors will route as skills and the skill evaluator will exit 1 on "
-        "them; restore the command_mirrors routing row or convert them."
-    )
+    Driven through the guard's own CLI rather than re-implementing the scan:
+    `check_commands_retired.py` is what pre-push and CI enforce, and a second
+    implementation here would drift from it and would not be the thing that
+    actually blocks a command coming back.
+    """
+    assert check_commands_retired.main(["--repo-root", str(REPO_ROOT)]) == 0
 
 
 def test_no_routing_category_names_command_mirrors() -> None:

@@ -230,37 +230,3 @@ class TestMain:
         f.write_text(_EXCEPTION_FRONTMATTER + _LONG_RATIONALE + _body(COMMAND_SIZE_LIMIT + 50))
         result = main(["--path", str(tmp_path), "--ci"])
         assert result == 0
-
-
-class TestShippedCommandCorpusIsEmpty:
-    """No command is left for the ceiling to grandfather.
-
-    Issue #4016 grandfathered `spec.md` and `pr-autofix.md` past the 200-line
-    ceiling with a `size-exception`. ADR-064 (issue #5632) converted both into
-    skills, where `scripts/validation/skill_size.py` owns the ceiling and
-    `references/` is the idiomatic relief. The exception that pr-autofix still
-    carries is now a skill-size exception, asserted by
-    `tests/test_validation_skill_size.py`, not by this module.
-
-    The parametrized list this replaces named a file that no longer exists, and
-    a parametrize over a moved path fails on collection rather than telling the
-    reader why. Asserting the corpus is empty says the true thing and keeps
-    failing if a command with an exception comes back.
-    """
-
-    def test_no_command_needs_a_size_exception(self) -> None:
-        root = Path(__file__).resolve().parents[1]
-        commands = root / ".claude" / "commands"
-        if not commands.is_dir():
-            return
-
-        oversize = [
-            path.name
-            for path in sorted(commands.glob("*.md"))
-            if path.name not in {"AGENTS.md", "CLAUDE.md"}
-            and not check_command_size(path).passed
-        ]
-
-        assert oversize == [], (
-            f"command(s) over the ceiling with no valid exception: {oversize}"
-        )
