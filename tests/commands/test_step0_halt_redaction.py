@@ -6,7 +6,7 @@ message, CWE-532 sensitive data in a log).
 Two layers, matching the issue acceptance criteria:
 
 1. Static: the redaction pre-emit rule prose appears in the Step 0 (`answer`)
-   and Step 0.5 (`evidence`) halt-block sections of `.claude/commands/spec.md`,
+   and Step 0.5 (`evidence`) halt-block sections of `.claude/skills/spec/SKILL.md`,
    and is mirrored into the Copilot CLI skill at
    `src/copilot-cli/skills/spec/SKILL.md`.
 2. Behavioral: a halt block whose `answer`/`evidence` field carries a

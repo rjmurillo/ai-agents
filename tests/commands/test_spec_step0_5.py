@@ -10,7 +10,7 @@ spec.md fixture). Sibling test_spec_step0.py is 522 lines under the
 same justification.
 
 Verifies the static structure of Step 0.5 instructions in
-`.claude/commands/spec.md` against the 12 acceptance criteria. Parser
+`.claude/skills/spec/SKILL.md` against the 12 acceptance criteria. Parser
 logic lives in `tests/commands/step0_5_parser.py`; this file holds only
 test cases.
 
@@ -809,15 +809,15 @@ def test_normalize_topic_collapses_separators_to_hyphen():
 
 def test_normalize_topic_strips_leading_dots_and_separators_and_lowercases():
     """Rules 1-3: trim; strip leading `/`, `\\`, `.`; lowercase."""
-    assert normalize_topic(".claude/commands/spec.md") == "claude/commands/spec.md"
+    assert normalize_topic(".claude/skills/spec/SKILL.md") == "claude/skills/spec/skill.md"
     assert normalize_topic("  AUTH-Service  ") == "auth-service"
     assert normalize_topic("///leading") == "leading"
     # Regression: leading whitespace must not defeat leading-dot stripping.
     # Rule 1 (trim) runs before rule 2 (strip), so surrounding whitespace is
     # removed before the leading-dot regex applies.
     assert (
-        normalize_topic("  .claude/commands/spec.md  ")
-        == "claude/commands/spec.md"
+        normalize_topic("  .claude/skills/spec/SKILL.md  ")
+        == "claude/skills/spec/skill.md"
     )
 
 
@@ -1176,8 +1176,8 @@ def test_normalize_topic_with_aliases_passes_through_unknown_topics():
     # `auth service` normalizes to `auth-service`, which is not an alias key.
     assert normalize_topic_with_aliases("auth service") == "auth-service"
     assert normalize_topic_with_aliases(
-        ".claude/commands/spec.md"
-    ) == "claude/commands/spec.md"
+        ".claude/skills/spec/SKILL.md"
+    ) == "claude/skills/spec/skill.md"
 
 
 def test_normalize_topic_with_aliases_accepts_injected_table():

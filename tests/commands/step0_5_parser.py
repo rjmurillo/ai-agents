@@ -29,7 +29,7 @@ import re
 from pathlib import Path
 
 # Repo-relative path to the alias table consumed by normalize rule 5. Mirrors
-# the path documented in `.claude/commands/spec.md`, subsection
+# the path documented in `.claude/skills/spec/SKILL.md`, subsection
 # `#### Step 0.5 topic extraction`, rule 5 (Issue #1978).
 SPEC_ENTITY_ALIASES_PATH = (
     Path(__file__).resolve().parents[2]
@@ -128,7 +128,7 @@ def normalize_topic(raw: str) -> str:
     """Normalize a topic or entity name per the spec.md four-rule contract.
 
     Mirrors the canonical normalization defined in
-    `.claude/commands/spec.md`, subsection `#### Step 0.5 topic extraction`,
+    `.claude/skills/spec/SKILL.md`, subsection `#### Step 0.5 topic extraction`,
     quoted verbatim:
 
         1. Trim leading and trailing whitespace.
@@ -155,7 +155,7 @@ def load_entity_aliases(path: Path | None = None) -> dict[str, str]:
 
     Reads `.agents/dictionaries/spec-entity-aliases.json` (or `path` when given)
     and returns its `aliases` object. Implements the lookup side of rule 5 in
-    `.claude/commands/spec.md`, subsection `#### Step 0.5 topic extraction`.
+    `.claude/skills/spec/SKILL.md`, subsection `#### Step 0.5 topic extraction`.
     Returns an empty dict when the file or the `aliases` key is absent so a
     missing table degrades to a pass-through rather than an error. Malformed
     JSON and invalid `aliases` shapes raise so bad config cannot silently widen
@@ -198,7 +198,7 @@ def normalize_topic_with_aliases(
     the rule-4 result is returned unchanged. `aliases` may be passed to avoid
     repeated file reads; when None the table is loaded from the canonical path.
 
-    Mirrors `.claude/commands/spec.md`, subsection `#### Step 0.5 topic
+    Mirrors `.claude/skills/spec/SKILL.md`, subsection `#### Step 0.5 topic
     extraction`, rule 5: "Look up the result of rule 4 ... On a hit, substitute
     the canonical value; on a miss, keep the rule-4 result unchanged."
     """
@@ -223,7 +223,7 @@ def _tokenize_normalized(normalized: str) -> list[str]:
 def entity_matches_answer(entity_name: str, answer: str) -> bool:
     """Return True when a discovered entity matches a Q answer by whole-token equality.
 
-    Mirrors the auto-mode adjudication rule in `.claude/commands/spec.md`,
+    Mirrors the auto-mode adjudication rule in `.claude/skills/spec/SKILL.md`,
     subsection `#### Step 0.5 entity adjudication`. Both inputs are normalized
     with rules 1-5. The entity matches the answer only when the entity's
     canonical normalized token sequence equals a contiguous whole-token span
@@ -263,7 +263,7 @@ def entity_matches_answer(entity_name: str, answer: str) -> bool:
 def adjudicate_entity_scope(entity_name: str, q_answers: list[str] | tuple[str, ...]) -> str:
     """Classify a discovered entity as `in-scope` or `blast-radius` in auto-mode.
 
-    Mirrors the auto-mode resolution in `.claude/commands/spec.md`,
+    Mirrors the auto-mode resolution in `.claude/skills/spec/SKILL.md`,
     subsection `#### Step 0.5 entity adjudication`: a whole-token match
     against ANY of the Q answers resolves the entity as `in-scope`; no match
     resolves it as `blast-radius` (the conservative default). `out-of-scope`

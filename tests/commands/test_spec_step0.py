@@ -3,7 +3,7 @@
 Refs #1926, REQ-016, DESIGN-016, TASK-016, PLAN-1926.
 
 Verifies the static structure and parser-checkable behavior of Step 0
-instructions in `.claude/commands/spec.md` and its Copilot CLI mirror at
+instructions in `.claude/skills/spec/SKILL.md` and its Copilot CLI mirror at
 `src/copilot-cli/skills/spec/SKILL.md`. The parser logic lives in
 `tests/commands/step0_parser.py`; this file holds only test cases.
 
