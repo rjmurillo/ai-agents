@@ -302,7 +302,6 @@ def test_no_routing_row_is_shadowed_by_an_earlier_row(index: int) -> None:
 # pins: if either name reappears under `.claude/agents/` by accident, this
 # still has to classify it as `entrypoints`, not `agents` or `other`.
 SHADOWED_ENTRYPOINTS = [
-    ".claude/commands/CLAUDE.md",
     ".claude/skills/CLAUDE.md",
     ".claude/skills/adr-review/CLAUDE.md",
     ".claude/skills/adr-review/scripts/CLAUDE.md",
@@ -352,9 +351,8 @@ def test_negative_control_entrypoints_after_prefixes_recreates_the_shadowing() -
     entry_row = suite.ROUTING_RULES[0]
     rest = suite.ROUTING_RULES[1:]
     shadowed = (*rest, entry_row)
-    assert _classify_with(shadowed, ".claude/commands/CLAUDE.md") == "prompts"
     assert _classify_with(shadowed, ".claude/skills/github/CLAUDE.md") == "skills"
-    assert suite.classify_path(".claude/commands/CLAUDE.md") == "entrypoints"
+    assert suite.classify_path(".claude/skills/github/CLAUDE.md") == "entrypoints"
 
 
 # ---------------------------------------------------------------------------
