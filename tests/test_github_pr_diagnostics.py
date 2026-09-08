@@ -416,6 +416,7 @@ class TestAuditResume:
                 f"{_audit_mod.__name__}.resolve_repo_params",
                 return_value=_MOCK_REPO,
             ),
+            patch(f"{_audit_mod.__name__}.fetch_repo_squash_setting", return_value="PR_BODY"),
             patch(f"{_audit_mod.__name__}.fetch_open_prs", return_value=nodes),
             patch(f"{_audit_mod.__name__}.write_skill_output") as output,
         ):
@@ -461,6 +462,7 @@ class TestAuditArtifactWriteFailure:
                 f"{_audit_mod.__name__}.resolve_repo_params",
                 return_value=_MOCK_REPO,
             ),
+            patch(f"{_audit_mod.__name__}.fetch_repo_squash_setting", return_value="PR_BODY"),
             patch(f"{_audit_mod.__name__}.fetch_open_prs", return_value=nodes),
             patch(f"{_audit_mod.__name__}.write_skill_error") as write_error,
         ):
@@ -487,6 +489,7 @@ class TestAuditArtifactWriteFailure:
                 f"{_audit_mod.__name__}.resolve_repo_params",
                 return_value=_MOCK_REPO,
             ),
+            patch(f"{_audit_mod.__name__}.fetch_repo_squash_setting", return_value="PR_BODY"),
             patch(f"{_audit_mod.__name__}.fetch_open_prs", return_value=nodes),
         ):
             result = _audit_mod.main(["--artifact", unwritable_artifact, "--output-format", "json"])
@@ -617,6 +620,287 @@ class TestClosingReferencePagination:
             pytest.raises(RuntimeError, match="default branch"),
         ):
             _audit_mod.fetch_open_prs("owner", "repo")
+
+
+class TestClassifyCommitClaim:
+    """Tests for classify_commit_claim: plain-text, not Markdown."""
+
+    def _match(self, text: str):
+        return next(_audit_mod._CLOSING_KEYWORDS_RE.finditer(text))
+
+    def test_plain_keyword_is_active(self):
+        text = "Fixes #123"
+        assert _audit_mod.classify_commit_claim(text, self._match(text)) == "active"
+
+    def test_escaped_hash_is_not_active(self):
+        text = r"Fixes \#123"
+        assert _audit_mod.classify_commit_claim(text, self._match(text)) == "escaped_hash"
+
+    def test_backticks_do_not_neutralise_a_commit_message_claim(self):
+        """Commit messages are not rendered as Markdown, so backticks around
+        a keyword do not create a code span the way they would in a PR body
+        (contrast TestClassifyClaim's code_span case for `extract_claims`).
+        """
+        text = "`Fixes #123`"
+        assert _audit_mod.classify_commit_claim(text, self._match(text)) == "active"
+
+
+class TestExtractReachableClaims:
+    """Tests for extract_reachable_claims: commit / auto-merge-override text."""
+
+    def test_no_claims_on_empty_text(self):
+        assert _audit_mod.extract_reachable_claims(10, "", "commit", True, {}, "o", "r") == []
+
+    def test_active_claim_marked_reachable_when_source_reaches(self):
+        claims = _audit_mod.extract_reachable_claims(
+            10, "Fixes #999", "commit", True, {}, "o", "r",
+        )
+        assert claims[0]["reaches_squash"] is True
+        assert claims[0]["source"] == "commit"
+        assert claims[0]["unsupported"] is False
+
+    def test_active_claim_not_reachable_when_source_does_not_reach(self):
+        claims = _audit_mod.extract_reachable_claims(
+            10, "Fixes #999", "commit", False, {}, "o", "r",
+        )
+        assert claims[0]["reaches_squash"] is False
+
+    def test_escaped_hash_never_reachable_even_when_source_reaches(self):
+        claims = _audit_mod.extract_reachable_claims(
+            10, r"Fixes \#999", "commit", True, {}, "o", "r",
+        )
+        assert claims[0]["context_class"] == "escaped_hash"
+        assert claims[0]["reaches_squash"] is False
+
+    def test_source_tag_propagates_to_auto_merge_override(self):
+        claims = _audit_mod.extract_reachable_claims(
+            10, "Fixes #1", "auto_merge_override", True, {}, "o", "r",
+        )
+        assert claims[0]["source"] == "auto_merge_override"
+
+
+class TestMarkUnsupportedClaims:
+    """Tests for _mark_unsupported_claims: cross-referencing body vs. commit."""
+
+    def _body_claim(self, target=1, will_close=True):
+        return {
+            "source": "body", "target_owner": "o", "target_repo": "r",
+            "target_number": target, "github_will_close": will_close,
+            "reaches_squash": will_close, "unsupported": False,
+        }
+
+    def _commit_claim(self, target=1, reaches=True):
+        return {
+            "source": "commit", "target_owner": "o", "target_repo": "r",
+            "target_number": target, "github_will_close": False,
+            "reaches_squash": reaches, "unsupported": False,
+        }
+
+    def test_commit_claim_matching_a_supported_body_claim_is_supported(self):
+        claims = [self._body_claim(target=1), self._commit_claim(target=1)]
+        found = _audit_mod._mark_unsupported_claims(claims)
+        assert found is False
+        assert claims[1]["unsupported"] is False
+
+    def test_commit_claim_with_no_matching_body_claim_is_unsupported(self):
+        claims = [self._commit_claim(target=999)]
+        found = _audit_mod._mark_unsupported_claims(claims)
+        assert found is True
+        assert claims[0]["unsupported"] is True
+
+    def test_commit_claim_that_does_not_reach_squash_is_never_flagged(self):
+        claims = [self._commit_claim(target=999, reaches=False)]
+        found = _audit_mod._mark_unsupported_claims(claims)
+        assert found is False
+        assert claims[0]["unsupported"] is False
+
+    def test_body_claims_are_never_flagged_unsupported(self):
+        claims = [self._body_claim(target=1, will_close=False)]
+        found = _audit_mod._mark_unsupported_claims(claims)
+        assert found is False
+        assert claims[0]["unsupported"] is False
+
+
+class TestFetchRepoSquashSetting:
+    """Tests for fetch_repo_squash_setting: the REST repo-settings read."""
+
+    def test_returns_stripped_stdout_value(self):
+        with patch(
+            f"{_audit_mod.__name__}.subprocess.run",
+            return_value=_completed(stdout="COMMIT_MESSAGES\n"),
+        ):
+            assert _audit_mod.fetch_repo_squash_setting("o", "r") == "COMMIT_MESSAGES"
+
+    def test_blank_stdout_defaults_to_pr_body(self):
+        with patch(
+            f"{_audit_mod.__name__}.subprocess.run",
+            return_value=_completed(stdout="\n"),
+        ):
+            assert _audit_mod.fetch_repo_squash_setting("o", "r") == "PR_BODY"
+
+    def test_nonzero_exit_raises_runtime_error(self):
+        with (
+            patch(
+                f"{_audit_mod.__name__}.subprocess.run",
+                return_value=_completed(rc=1, stderr="404 Not Found"),
+            ),
+            pytest.raises(RuntimeError, match="404 Not Found"),
+        ):
+            _audit_mod.fetch_repo_squash_setting("o", "r")
+
+
+class TestAuditRefusesUnsupportedReachableClaims:
+    """End-to-end: main() refuses (exit 1) when an unsupported claim reaches
+    the squash commit, per Issue #4462's captured unsafe commit-message pairs.
+    """
+
+    def _pr_node(self, **overrides):
+        node = {
+            "number": 1,
+            "body": "Refs #1",
+            "baseRefName": "main",
+            "defaultBranchName": "main",
+            "closingIssuesReferences": {"nodes": []},
+            "commits": {"nodes": []},
+            "autoMergeRequest": None,
+        }
+        node.update(overrides)
+        return node
+
+    def _run(self, node, squash_setting):
+        with (
+            patch(f"{_audit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_audit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_audit_mod.__name__}.fetch_repo_squash_setting", return_value=squash_setting),
+            patch(f"{_audit_mod.__name__}.fetch_open_prs", return_value=[node]),
+            patch(f"{_audit_mod.__name__}.write_skill_output") as output,
+        ):
+            rc = _audit_mod.main(["--output-format", "json"])
+        result_data = output.call_args.args[0] if output.call_args else {}
+        status = output.call_args.kwargs.get("status") if output.call_args else None
+        return rc, status, result_data
+
+    def test_commit_only_claim_reaches_squash_under_commit_messages_setting(self):
+        node = self._pr_node(commits={"nodes": [{"commit": {"message": "Fixes #999"}}]})
+        rc, status, _ = self._run(node, "COMMIT_MESSAGES")
+        assert rc == 1
+        assert status == "FAIL"
+
+    def test_commit_only_claim_is_inert_under_pr_body_setting(self):
+        node = self._pr_node(commits={"nodes": [{"commit": {"message": "Fixes #999"}}]})
+        rc, _, _ = self._run(node, "PR_BODY")
+        assert rc == 0
+
+    def test_escaped_hash_in_commit_message_never_refuses(self):
+        node = self._pr_node(
+            commits={"nodes": [{"commit": {"message": r"Fixes \#999"}}]},
+        )
+        rc, _, _ = self._run(node, "COMMIT_MESSAGES")
+        assert rc == 0
+
+    def test_explicit_auto_merge_body_override_refuses_regardless_of_repo_setting(self):
+        node = self._pr_node(
+            autoMergeRequest={"commitHeadline": "", "commitBody": "Fixes #999"},
+        )
+        rc, status, _ = self._run(node, "PR_BODY")
+        assert rc == 1
+        assert status == "FAIL"
+
+    def test_auto_merge_override_claim_supported_by_body_does_not_refuse(self):
+        node = self._pr_node(
+            body="Fixes #999",
+            closingIssuesReferences={
+                "nodes": [{"number": 999, "state": "OPEN",
+                           "repository": {"nameWithOwner": "testowner/testrepo"}}],
+            },
+            autoMergeRequest={"commitHeadline": "", "commitBody": "Fixes #999"},
+        )
+        rc, _, _ = self._run(node, "PR_BODY")
+        assert rc == 0
+
+    def test_auto_merge_override_present_makes_plain_commits_inert(self):
+        """When an override is set, GitHub uses the override text for the
+        squash commit instead of any commit-messages default, so a plain
+        commit-message claim must not also be flagged; only the override
+        text's own claim should be.
+        """
+        node = self._pr_node(
+            commits={"nodes": [{"commit": {"message": "Fixes #111"}}]},
+            autoMergeRequest={"commitHeadline": "", "commitBody": "Fixes #999"},
+        )
+        rc, status, result_data = self._run(node, "COMMIT_MESSAGES")
+        assert rc == 1
+        assert status == "FAIL"
+
+        commit_claims = [c for c in result_data["Claims"] if c["source"] == "commit"]
+        override_claims = [c for c in result_data["Claims"] if c["source"] == "auto_merge_override"]
+        assert commit_claims[0]["reaches_squash"] is False
+        assert commit_claims[0]["unsupported"] is False
+        assert override_claims[0]["reaches_squash"] is True
+        assert override_claims[0]["unsupported"] is True
+
+
+class TestFetchOpenPrsCommitPagination:
+    """fetch_open_prs must page through every commit, not just the first 100."""
+
+    def test_paginates_commits_via_gh_graphql(self):
+        first_page = {
+            "repository": {
+                "defaultBranchRef": {"name": "main"},
+                "pullRequests": {
+                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    "nodes": [{
+                        "number": 7,
+                        "body": "",
+                        "closingIssuesReferences": {
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "nodes": [],
+                        },
+                        "commits": {
+                            "pageInfo": {"hasNextPage": True, "endCursor": "commits-1"},
+                            "nodes": [{"commit": {"message": "first"}}],
+                        },
+                    }],
+                },
+            },
+        }
+        second_page = {
+            "repository": {
+                "pullRequest": {
+                    "commits": {
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        "nodes": [{"commit": {"message": "second"}}],
+                    },
+                },
+            },
+        }
+
+        with patch(
+            f"{_audit_mod.__name__}.gh_graphql",
+            side_effect=[first_page, second_page],
+        ) as graphql:
+            nodes = _audit_mod.fetch_open_prs("owner", "repo")
+
+        messages = [n["commit"]["message"] for n in nodes[0]["commits"]["nodes"]]
+        assert messages == ["first", "second"]
+        assert graphql.call_args_list[1].args[1] == {
+            "owner": "owner",
+            "repo": "repo",
+            "number": 7,
+            "cursor": "commits-1",
+        }
+
+    def test_missing_commit_cursor_fails_closed(self):
+        node = {
+            "number": 7,
+            "commits": {
+                "pageInfo": {"hasNextPage": True, "endCursor": None},
+                "nodes": [],
+            },
+        }
+
+        with pytest.raises(RuntimeError, match="commits omitted a cursor"):
+            _audit_mod._complete_commits("owner", "repo", node)
 
 
 class TestBodyHashAndValidate:

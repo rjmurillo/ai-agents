@@ -2,18 +2,56 @@
 """Audit closing claims across open pull requests.
 
 Paginates open PRs and extracts closing keywords (Fixes, Closes, Resolves,
-etc.) from the PR body. Classifies each claim by Markdown context and resolves
-the target issue state when GitHub exposes it.
+etc.) from three sources: the PR body, every commit message on the PR, and
+any auto-merge headline/body override. Classifies each claim by Markdown
+context (body only) and resolves the target issue state when GitHub exposes
+it.
 
-Markdown context classification:
+Markdown context classification (body claims only):
   active         - plain prose, closes when the PR targets the default branch
   code_span      - inside backtick(s), does not close
   fenced_code    - inside triple-backtick or triple-tilde block
   html_comment   - inside <!-- ... -->
   escaped_hash   - hash escaped with backslash (\\#NNN), does not close
 
+Commit-message and auto-merge-override context classification:
+  active         - plain text, reaches the squash commit if that source is live
+  escaped_hash   - hash escaped with backslash (\\#NNN), does not close
+
+Commit messages and auto-merge overrides are not Markdown: GitHub's merge UI
+and API render them as plain text, so the body-only code_span/fenced_code/
+html_comment classes do not apply there. This narrower classifier is a
+deliberate divergence from the body classifier (see the module docstring's
+"Stricter/looser/different than canonical" note below), not an oversight.
+
+Reachability: whether a commit-message or auto-merge-override claim can end
+up as text in the eventual squash commit (and therefore close its target on
+merge) depends on:
+  - the repository's `squash_merge_commit_message` setting (REST field, see
+    `repos/{owner}/{repo}` -> `squash_merge_commit_message`; confirmed live
+    values via `gh api repos/rjmurillo/ai-agents --jq .squash_merge_commit_message`
+    during Issue #4462 triage). "COMMIT_MESSAGES" and
+    "PR_BODY_AND_COMMIT_DETAILS" fold every commit message into the squash
+    commit text; "PR_BODY" and "BLANK" do not.
+  - a per-PR auto-merge commit-message override
+    (`autoMergeRequest.commitHeadline` / `commitBody` in the GraphQL schema).
+    When either is set, that text replaces the repository default for that
+    PR's eventual squash commit, so commit messages no longer reach it
+    independently; the override text itself does.
+
+A commit or auto-merge claim is "unsupported" when it is classified "active",
+reaches the squash commit under the rule above, and targets an issue that no
+"active" body claim already covers with `github_will_close: true`. An
+unsupported reachable claim means the squash merge can close an issue nobody
+reviewing the PR description would expect, which is the exact failure mode
+Issue #4462 measured across 27 PR/issue pairs before the repository setting
+was changed to PR_BODY. `main()` refuses to report a clean audit when one is
+found: it still writes the full evidence (including any `--artifact`) but
+returns exit code 1 instead of 0.
+
 Exit codes follow ADR-035:
-    0 - Audit complete
+    0 - Audit complete, no unsupported reachable claim found
+    1 - Audit complete, but an unsupported claim can reach the squash commit
     2 - Not found / empty fleet / local --artifact write failure
     3 - API error
     4 - Auth error
@@ -25,6 +63,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from typing import Any
 
@@ -58,6 +97,13 @@ from github_core.output import (
 
 _SCRIPT_NAME = "audit_closing_claims.py"
 
+# Repository squash_merge_commit_message values that fold commit messages
+# into the eventual squash commit text. Source: GitHub REST
+# `repos/{owner}/{repo}` field `squash_merge_commit_message`, confirmed live
+# during Issue #4462 triage (values PR_BODY, COMMIT_MESSAGES,
+# PR_BODY_AND_COMMIT_DETAILS, BLANK).
+_COMMIT_REACHING_SQUASH_SETTINGS = frozenset({"COMMIT_MESSAGES", "PR_BODY_AND_COMMIT_DETAILS"})
+
 # GitHub's recognised closing keywords (case-insensitive).
 _CLOSING_KEYWORDS_RE = re.compile(
     r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)(?::)?\s+"
@@ -77,6 +123,14 @@ query($owner: String!, $repo: String!, $cursor: String) {
                 title
                 baseRefName
                 body
+                autoMergeRequest {
+                    commitHeadline
+                    commitBody
+                }
+                commits(first: 100) {
+                    pageInfo { hasNextPage endCursor }
+                    nodes { commit { message } }
+                }
                 closingIssuesReferences(first: 100) {
                     pageInfo { hasNextPage endCursor }
                     nodes { number state repository { nameWithOwner } }
@@ -93,6 +147,18 @@ query($owner: String!, $repo: String!, $number: Int!, $cursor: String!) {
             closingIssuesReferences(first: 100, after: $cursor) {
                 pageInfo { hasNextPage endCursor }
                 nodes { number state repository { nameWithOwner } }
+            }
+        }
+    }
+}"""
+
+_COMMITS_QUERY = """\
+query($owner: String!, $repo: String!, $number: Int!, $cursor: String!) {
+    repository(owner: $owner, name: $repo) {
+        pullRequest(number: $number) {
+            commits(first: 100, after: $cursor) {
+                pageInfo { hasNextPage endCursor }
+                nodes { commit { message } }
             }
         }
     }
@@ -174,7 +240,7 @@ def classify_claim(
     fenced_positions: set[int],
     html_comment_positions: set[int],
 ) -> str:
-    """Return the Markdown context classification for a keyword match."""
+    """Return the Markdown context classification for a body keyword match."""
     start = match.start()
 
     if start in fenced_positions:
@@ -183,14 +249,31 @@ def classify_claim(
     if start in html_comment_positions:
         return "html_comment"
 
-    # Check for escaped hash: \#NNN
-    hash_pos = match.start() + match.group(0).index("#")
-    if hash_pos > 0 and text[hash_pos - 1] == "\\":
+    if _is_escaped_hash(text, match):
         return "escaped_hash"
 
     if _inside_code_span(text, start):
         return "code_span"
 
+    return "active"
+
+
+def _is_escaped_hash(text: str, match: re.Match[str]) -> bool:
+    """Return whether the matched hash is preceded by a backslash escape."""
+    hash_pos = match.start() + match.group(0).index("#")
+    return hash_pos > 0 and text[hash_pos - 1] == "\\"
+
+
+def classify_commit_claim(text: str, match: re.Match[str]) -> str:
+    """Return the plain-text classification for a commit/override keyword match.
+
+    Commit messages and auto-merge commit-message overrides are not
+    rendered as Markdown by GitHub, so only the escaped-hash and active
+    classes apply; code_span, fenced_code, and html_comment are body-only
+    concepts (see module docstring divergence note).
+    """
+    if _is_escaped_hash(text, match):
+        return "escaped_hash"
     return "active"
 
 
@@ -252,6 +335,11 @@ def extract_claims(
         )
 
         target_state = closing_refs.get(target_key, "unknown")
+        will_close = (
+            context_cls == "active"
+            and base_branch == default_branch
+            and target_key in closing_refs
+        )
 
         claims.append({
             "pr_number": pr_number,
@@ -262,13 +350,112 @@ def extract_claims(
             "target_state": target_state,
             "base_branch": base_branch,
             "context_class": context_cls,
-            "github_will_close": (
-                context_cls == "active"
-                and base_branch == default_branch
-                and target_key in closing_refs
-            ),
+            "github_will_close": will_close,
+            "source": "body",
+            "reaches_squash": will_close,
+            "unsupported": False,
         })
     return claims
+
+
+def extract_reachable_claims(
+    pr_number: int,
+    text: str,
+    source: str,
+    reaches_squash: bool,
+    closing_refs: dict[tuple[str, str, int], str],
+    owner: str,
+    repo: str,
+) -> list[dict[str, Any]]:
+    """Parse closing claims from commit-message or auto-merge-override text.
+
+    Unlike `extract_claims`, this treats the input as plain text: no fenced
+    code, code-span, or HTML-comment neutralisation, because GitHub does not
+    render commit messages or merge-commit overrides as Markdown. Whether a
+    claim can actually close its target on merge is `reaches_squash`,
+    supplied by the caller from the repository's squash-message setting and
+    any per-PR auto-merge override (see module docstring). `unsupported` is
+    computed later in `main()` once every source's claims for a PR are
+    collected, so it always starts `False` here.
+    """
+    if not text:
+        return []
+
+    claims: list[dict[str, Any]] = []
+    for m in _CLOSING_KEYWORDS_RE.finditer(text):
+        target_num = int(m.group("number"))
+        context_cls = classify_commit_claim(text, m)
+        target_owner = m.group("owner") or owner
+        target_repo_name = m.group("repo2") or repo
+        target_key = (target_owner.casefold(), target_repo_name.casefold(), target_num)
+        target_state = closing_refs.get(target_key, "unknown")
+
+        claims.append({
+            "pr_number": pr_number,
+            "claim_text": m.group(0),
+            "target_number": target_num,
+            "target_owner": target_owner,
+            "target_repo": target_repo_name,
+            "target_state": target_state,
+            "context_class": context_cls,
+            "github_will_close": False,
+            "source": source,
+            "reaches_squash": reaches_squash and context_cls == "active",
+            "unsupported": False,
+        })
+    return claims
+
+
+def _mark_unsupported_claims(claims: list[dict[str, Any]]) -> bool:
+    """Flag non-body claims that reach the squash commit unsupported by the body.
+
+    A commit or auto-merge claim is unsupported when no active body claim
+    for the same target already has `github_will_close: True`. Mutates the
+    claims in place and returns whether any unsupported claim was found.
+    """
+    supported_targets = {
+        (c["target_owner"].casefold(), c["target_repo"].casefold(), c["target_number"])
+        for c in claims
+        if c["source"] == "body" and c["github_will_close"]
+    }
+
+    found = False
+    for claim in claims:
+        if claim["source"] == "body" or not claim["reaches_squash"]:
+            continue
+        target_key = (
+            claim["target_owner"].casefold(),
+            claim["target_repo"].casefold(),
+            claim["target_number"],
+        )
+        if target_key not in supported_targets:
+            claim["unsupported"] = True
+            found = True
+    return found
+
+
+def fetch_repo_squash_setting(owner: str, repo: str) -> str:
+    """Return the repository's `squash_merge_commit_message` REST setting.
+
+    Raises RuntimeError on any `gh api` failure so callers can map it to the
+    same exit-3 (API error) handling used for GraphQL failures.
+    """
+    result = subprocess.run(
+        ["gh", "api", f"repos/{owner}/{repo}", "--jq", ".squash_merge_commit_message"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            result.stderr.strip()
+            or result.stdout.strip()
+            or f"gh api repos/{owner}/{repo} failed with no stderr or stdout output"
+        )
+    value = result.stdout.strip()
+    return value or "PR_BODY"
 
 
 def fetch_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
@@ -294,6 +481,7 @@ def fetch_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:
         for node in page_nodes:
             node["defaultBranchName"] = default_branch
             _complete_closing_references(owner, repo, node)
+            _complete_commits(owner, repo, node)
         nodes.extend(page_nodes)
         page_info = prs_data.get("pageInfo") or {}
         if not page_info.get("hasNextPage"):
@@ -333,6 +521,32 @@ def _complete_closing_references(
         page_info = next_connection.get("pageInfo") or {}
 
 
+def _complete_commits(
+    owner: str,
+    repo: str,
+    pr_node: dict[str, Any],
+) -> None:
+    """Fetch every commit on one PR node (message text only)."""
+    connection = pr_node.get("commits") or {}
+    page_info = connection.get("pageInfo") or {}
+
+    while page_info.get("hasNextPage"):
+        cursor = page_info.get("endCursor")
+        if not cursor:
+            raise RuntimeError(f"PR #{pr_node.get('number', 0)} commits omitted a cursor")
+        variables = {
+            "owner": owner,
+            "repo": repo,
+            "number": int(pr_node.get("number") or 0),
+            "cursor": cursor,
+        }
+        data = gh_graphql(_COMMITS_QUERY, variables)
+        pull_request = (data.get("repository") or {}).get("pullRequest") or {}
+        next_connection = pull_request.get("commits") or {}
+        connection.setdefault("nodes", []).extend(next_connection.get("nodes") or [])
+        page_info = next_connection.get("pageInfo") or {}
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Audit closing claims in open PRs.")
     p.add_argument("--owner", default="")
@@ -347,6 +561,54 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _collect_pr_claims(
+    node: dict[str, Any],
+    owner: str,
+    repo: str,
+    squash_setting: str,
+) -> list[dict[str, Any]]:
+    """Return every claim (body, commit, auto-merge override) for one PR node."""
+    pr_num = node.get("number") or 0
+    body = node.get("body") or ""
+    base_branch = node.get("baseRefName") or ""
+    default_branch = node.get("defaultBranchName") or ""
+    closing_nodes = (node.get("closingIssuesReferences") or {}).get("nodes") or []
+    closing_refs = _resolve_closing_refs(closing_nodes)
+
+    claims = extract_claims(
+        pr_num, body, base_branch, closing_refs, owner, repo, default_branch,
+    )
+
+    auto_merge = node.get("autoMergeRequest") or {}
+    override_text = "\n".join(
+        part for part in (auto_merge.get("commitHeadline"), auto_merge.get("commitBody")) if part
+    )
+    has_override = bool(override_text.strip())
+
+    commit_nodes = (node.get("commits") or {}).get("nodes") or []
+    commit_text = "\n".join(
+        (n.get("commit") or {}).get("message", "") for n in commit_nodes
+    )
+
+    # An auto-merge commit-message override replaces the repository's
+    # default squash text for this PR entirely, so plain commit messages no
+    # longer reach the squash commit independently; the override text does.
+    commit_reaches = (not has_override) and squash_setting in _COMMIT_REACHING_SQUASH_SETTINGS
+    claims.extend(
+        extract_reachable_claims(
+            pr_num, commit_text, "commit", commit_reaches, closing_refs, owner, repo,
+        )
+    )
+    claims.extend(
+        extract_reachable_claims(
+            pr_num, override_text, "auto_merge_override", has_override, closing_refs, owner, repo,
+        )
+    )
+
+    _mark_unsupported_claims(claims)
+    return claims
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
@@ -354,6 +616,15 @@ def main(argv: list[str] | None = None) -> int:
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)
     owner, repo = resolved.owner, resolved.repo
+
+    try:
+        squash_setting = fetch_repo_squash_setting(owner, repo)
+    except (RuntimeError, subprocess.SubprocessError, OSError) as exc:
+        write_skill_error(
+            str(exc), 3, error_type="ApiError",
+            output_format=fmt, script_name=_SCRIPT_NAME,
+        )
+        return 3
 
     try:
         pr_nodes = fetch_open_prs(owner, repo)
@@ -379,30 +650,19 @@ def main(argv: list[str] | None = None) -> int:
         if args.resume_from and pr_num >= args.resume_from:
             continue
 
-        body = node.get("body") or ""
-        base_branch = node.get("baseRefName") or ""
-        default_branch = node.get("defaultBranchName") or ""
-        closing_nodes = (node.get("closingIssuesReferences") or {}).get("nodes") or []
-        closing_refs = _resolve_closing_refs(closing_nodes)
-
-        claims = extract_claims(
-            pr_num,
-            body,
-            base_branch,
-            closing_refs,
-            owner,
-            repo,
-            default_branch,
-        )
-        all_claims.extend(claims)
+        all_claims.extend(_collect_pr_claims(node, owner, repo, squash_setting))
         audited_prs += 1
+
+    unsupported_claims = [c for c in all_claims if c["unsupported"]]
 
     result = {
         "Success": True,
         "Owner": owner,
         "Repo": repo,
+        "RepoSquashMergeMessageSetting": squash_setting,
         "AuditedPRs": audited_prs,
         "TotalClaims": len(all_claims),
+        "UnsupportedReachableClaims": len(unsupported_claims),
         "Claims": all_claims,
     }
 
@@ -432,6 +692,19 @@ def main(argv: list[str] | None = None) -> int:
                 output_format=fmt, script_name=_SCRIPT_NAME,
             )
             return 2
+
+    if unsupported_claims:
+        write_skill_output(
+            result,
+            output_format=fmt,
+            human_summary=(
+                f"Audited {audited_prs} open PR(s): {len(unsupported_claims)} unsupported "
+                "claim(s) can reach the squash commit"
+            ),
+            status="FAIL",
+            script_name=_SCRIPT_NAME,
+        )
+        return 1
 
     write_skill_output(
         result,
