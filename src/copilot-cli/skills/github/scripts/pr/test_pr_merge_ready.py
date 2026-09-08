@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 # Python 3.10 compatibility (issue #4764), same reasoning as `new_pr.py`:
 # `datetime.UTC` is an alias CPython added in 3.11, so `from datetime import
 # UTC` raises `ImportError: cannot import name 'UTC' from 'datetime'` on 3.10.
-# `.claude/skills/pr-review/pr-review-config.yaml` and `.claude/commands/pr-autofix.md`
+# `.claude/skills/pr-review/pr-review-config.yaml` and `.claude/skills/pr-autofix/SKILL.md`
 # both invoke this script with a bare `python3`, so it runs on the HOST's
 # ambient interpreter rather than the repository's 3.14 development one, and
 # `_SUPPORT_FLOOR` in `scripts/validation/validate_python_syntax.py` puts that
@@ -579,7 +579,7 @@ def _merge_state_status(pr: dict) -> str:
 
 
 # The merge states the caller knows how to execute.  Quoted verbatim from
-# `.claude/commands/pr-autofix.md`, "Ready-to-Merge Definition" item 4:
+# `.claude/skills/pr-autofix/SKILL.md`, "Ready-to-Merge Definition" item 4:
 #
 #     4. `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with
 #        documented non-required failures).
@@ -620,7 +620,7 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     theory that "awaiting required review" is when enabling auto-merge is
     correct; that produced a false ready signal for PRs that branch protection
     actually refused (observed on PR #2323) and conflicted with this repo's
-    own four-condition merge gate (``.claude/commands/pr-autofix.md``,
+    own four-condition merge gate (``.claude/skills/pr-autofix/SKILL.md``,
     ``.claude/skills/pr-review/pr-review-config.yaml``), which both require
     ``mergeStateStatus in ('CLEAN', 'UNSTABLE')``.
 
