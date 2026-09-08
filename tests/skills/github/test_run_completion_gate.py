@@ -35,7 +35,7 @@ _SCRIPT_PATH = (
     / "pr"
     / "run_completion_gate.py"
 )
-_PR_REVIEW_CONFIG_PATH = _REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+_PR_REVIEW_CONFIG_PATH = _REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
 _MERGE_READY_CRITERION = "PR is ready to merge (CI green, no conflicts)"
 
 
@@ -55,10 +55,46 @@ def _import_dispatcher():
 _dispatcher = _import_dispatcher()
 
 
+def test_default_config_path_resolves_to_a_tracked_file() -> None:
+    """The dispatcher's fallback config must be a file the repository ships.
+
+    `--config` is optional, so `_DEFAULT_CONFIG_PATH` is what a bare
+    `run_completion_gate.py --pull-request N` loads. A stale default does not
+    fail loudly at import: it fails at read time as a config error, which is
+    exit 2, which is the same code a genuinely diverged config produces. The
+    operator then reads a trust halt where the real cause is a path that moved.
+
+    Tracked, not merely present: an untracked file at the same path would let
+    the default resolve on the author's machine and nowhere else, and the
+    trusted-ref comparison the gate performs has nothing to compare against for
+    a file no ref carries.
+    """
+    default = _dispatcher._DEFAULT_CONFIG_PATH
+
+    assert default.is_file(), f"{default} does not exist"
+
+    relative = default.resolve().relative_to(_REPO_ROOT).as_posix()
+    tracked = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", relative],
+        cwd=_REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert tracked.returncode == 0, (
+        f"{relative} is the dispatcher default but is not tracked at HEAD: "
+        f"{tracked.stderr.strip()}"
+    )
+    assert default.resolve() == _PR_REVIEW_CONFIG_PATH.resolve(), (
+        f"the dispatcher default ({relative}) and the config every test in "
+        f"this file reads are two different files"
+    )
+
+
 def _shipped_merge_ready_predicate() -> str:
     """The `pass_when_python` string for the merge-ready criterion, as shipped.
 
-    Read from `.claude/commands/pr-review-config.yaml` rather than transcribed.
+    Read from `.claude/skills/pr-review/pr-review-config.yaml` rather than transcribed.
     A transcribed copy is a paraphrase the moment the config moves, and the
     tests then certify a predicate nobody runs: the hand-copied version this
     replaced had already lost the `UndisposedNonRequiredFailures` clause, so
@@ -681,12 +717,12 @@ class TestRepositoryConfigContract:
     """Keep the trusted repository config inside the safe evaluator subset."""
 
     def test_ready_criterion_expression_is_evaluable(self, monkeypatch, capsys):
-        # .claude/commands/pr-review-config.yaml is the live configuration
+        # .claude/skills/pr-review/pr-review-config.yaml is the live configuration
         # consumed by /pr-autofix before it enables auto-merge. Drive main()
         # through every production criterion so this contract covers config
         # loading, dispatch, and the final process verdict, not just the private
         # expression helper.
-        config_path = _REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+        config_path = _REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
         monkeypatch.setattr(
             _dispatcher,
             "_verify_config_trust",
@@ -3789,7 +3825,7 @@ class TestInstallTrustedRoot:
         monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         root = tmp_path / "plugin"
-        config = self._config_in(root / "commands")
+        config = self._config_in(root / "skills" / "pr-review")
         monkeypatch.setenv(env_var, str(root))
         _own_plugin_root(monkeypatch, root)
 
@@ -3802,7 +3838,7 @@ class TestInstallTrustedRoot:
         that as a plugin root would resolve Path("") to the cwd.
         """
         root = tmp_path / "plugin"
-        config = self._config_in(root / "commands")
+        config = self._config_in(root / "skills" / "pr-review")
         monkeypatch.setenv("COPILOT_PLUGIN_ROOT", "   ")
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "")
 
@@ -3825,7 +3861,7 @@ class TestInstallTrustedRoot:
         directory, and nothing is trusted.
         """
         root = tmp_path / "plugin"
-        config = self._config_in(root / "commands")
+        config = self._config_in(root / "skills" / "pr-review")
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", f"  {root}  ")
         _own_plugin_root(monkeypatch, root)
@@ -3861,7 +3897,7 @@ class TestInstallTrustedRoot:
         """
         in_repo_root = _dispatcher._PROJECT_ROOT / ".claude"
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(in_repo_root))
-        config = in_repo_root / "commands" / "pr-review-config.yaml"
+        config = in_repo_root / "skills" / "pr-review" / "pr-review-config.yaml"
 
         assert _dispatcher._install_trusted_root(str(config)) is None
 
@@ -3876,12 +3912,12 @@ class TestInstallTrustedRoot:
 
         Reproduced before the fix with the live project root: declared root
         /home/user install-trusted
-        /home/user/ai-agents/.claude/commands/pr-review-config.yaml.
+        /home/user/ai-agents/.claude/skills/pr-review/pr-review-config.yaml.
         """
         project_root = _dispatcher._PROJECT_ROOT.resolve()
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(project_root.parent))
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
-        pr_controlled = project_root / ".claude" / "commands" / "pr-review-config.yaml"
+        pr_controlled = project_root / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
 
         assert _dispatcher._install_trusted_root(str(pr_controlled)) is None
 
@@ -3906,9 +3942,9 @@ class TestInstallTrustedRoot:
     def test_a_symlink_escaping_the_root_is_refused(self, tmp_path, monkeypatch):
         """Condition 4 resolves before containment (CWE-59)."""
         root = tmp_path / "plugin"
-        (root / "commands").mkdir(parents=True)
         target = self._config_in(tmp_path / "outside")
-        link = root / "commands" / "linked.yaml"
+        link = root / "skills" / "pr-review" / "linked.yaml"
+        link.parent.mkdir(parents=True)
         link.symlink_to(target)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
         _own_plugin_root(monkeypatch, root)
@@ -3923,8 +3959,8 @@ class TestInstallTrustedRoot:
         """
         root = tmp_path / "plugin"
         target = self._config_in(root / "real")
-        (root / "commands").mkdir(parents=True)
-        link = root / "commands" / "linked.yaml"
+        link = root / "skills" / "pr-review" / "linked.yaml"
+        link.parent.mkdir(parents=True)
         link.symlink_to(target)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
         _own_plugin_root(monkeypatch, root)
@@ -3944,7 +3980,7 @@ class TestInstallTrustedRoot:
         copilot_root = tmp_path / "copilot"
         claude_root = tmp_path / "claude"
         claude_root.mkdir(parents=True)
-        config = self._config_in(copilot_root / "commands")
+        config = self._config_in(copilot_root / "skills" / "pr-review")
         monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(copilot_root))
         _own_plugin_root(monkeypatch, copilot_root)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(claude_root))
@@ -3964,14 +4000,14 @@ class TestInstallTrustedRoot:
         """
         consumer = _git_work_tree(tmp_path / "consumer")
         root = tmp_path / "plugin"
-        self._config_in(root / "commands")
+        self._config_in(root / "skills" / "pr-review")
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
         _own_plugin_root(monkeypatch, root)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.chdir(consumer)
 
         approved = _dispatcher._install_trusted_root(
-            "../plugin/commands/pr-review-config.yaml",
+            "../plugin/skills/pr-review/pr-review-config.yaml",
         )
 
         assert approved.root == root.resolve()
@@ -3988,15 +4024,15 @@ class TestInstallTrustedRoot:
         """
         consumer = _git_work_tree(tmp_path / "consumer")
         root = tmp_path / "plugin"
-        self._config_in(root / "commands")
-        self._config_in(consumer / "commands")
+        self._config_in(root / "skills" / "pr-review")
+        self._config_in(consumer / "skills" / "pr-review")
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
         _own_plugin_root(monkeypatch, root)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.chdir(consumer)
 
         assert _dispatcher._install_trusted_root(
-            "commands/pr-review-config.yaml",
+            "skills/pr-review/pr-review-config.yaml",
         ) is None
 
 
@@ -4135,8 +4171,8 @@ class TestWorkTreeProbeFailure:
 
     def _plugin_root(self, tmp_path, monkeypatch):
         root = tmp_path / "plugin"
-        (root / "commands").mkdir(parents=True)
-        config = root / "commands" / "pr-review-config.yaml"
+        config = root / "skills" / "pr-review" / "pr-review-config.yaml"
+        config.parent.mkdir(parents=True)
         config.write_text(
             "completion_criteria:\n"
             "  - name: c\n"
@@ -4313,8 +4349,8 @@ class TestInstalledRuntimePrerequisites:
         self, tmp_path, monkeypatch, capsys,
     ):
         root = tmp_path / "plugin"
-        (root / "commands").mkdir(parents=True)
-        config = root / "commands" / "pr-review-config.yaml"
+        config = root / "skills" / "pr-review" / "pr-review-config.yaml"
+        config.parent.mkdir(parents=True)
         config.write_text("completion_criteria: []\n", encoding="utf-8")
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
@@ -4427,7 +4463,7 @@ class TestInstallTrustedPathConsistency:
         fixture, so every one of them passed against the unfixed code.
         """
         root = tmp_path / "plugin"
-        approved = root / "commands" / "pr-review-config.yaml"
+        approved = root / "skills" / "pr-review" / "pr-review-config.yaml"
         approved.parent.mkdir(parents=True)
         approved.write_text(
             "completion_criteria:\n  - name: approved\n", encoding="utf-8",
@@ -4465,7 +4501,7 @@ class TestInstallTrustedPathConsistency:
     ):
         """An absolute --config is unaffected by the root, as before."""
         root = tmp_path / "plugin"
-        config = root / "commands" / "pr-review-config.yaml"
+        config = root / "skills" / "pr-review" / "pr-review-config.yaml"
         config.parent.mkdir(parents=True)
         config.write_text(
             "completion_criteria:\n  - name: absolute\n", encoding="utf-8",

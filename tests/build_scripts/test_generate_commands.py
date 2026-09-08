@@ -173,12 +173,29 @@ artifacts:
     assert copied.read_text(encoding="utf-8") == "completion_criteria: []\n"
 
 
-def test_committed_pr_review_config_mirror_matches_claude_config() -> None:
-    source = REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
-    mirror = REPO_ROOT / "src" / "copilot-cli" / "commands" / "pr-review-config.yaml"
+def test_no_second_pr_review_config_survives_under_any_plugin_root() -> None:
+    """No plugin root may still carry the pre-ADR-064 config location.
 
-    assert mirror.is_file()
-    assert mirror.read_bytes() == source.read_bytes()
+    ADR-064 moved the completion-gate config from ``.claude/commands/`` into
+    ``.claude/skills/pr-review/``, and the shell resolver in that skill now
+    looks for ``$root/skills/pr-review/pr-review-config.yaml``. A copy left at
+    the old ``$root/commands/pr-review-config.yaml`` would still be findable by
+    any resolver that has not moved, while ``_DEFAULT_CONFIG_PATH`` in
+    ``run_completion_gate.py`` no longer points at it, so the two could diverge
+    with no gate objecting. That is the fail-closed to fail-open flip the move
+    has to avoid, so assert the old location is empty rather than trusting the
+    deletion to stay done.
+    """
+
+    roots = [REPO_ROOT / ".claude", REPO_ROOT / "src" / "claude", REPO_ROOT / "src" / "copilot-cli"]
+    stale = [r / "commands" / "pr-review-config.yaml" for r in roots]
+    present = [str(p.relative_to(REPO_ROOT)) for p in stale if p.exists()]
+
+    assert present == [], (
+        f"pre-ADR-064 completion-gate config still present: {present}. "
+        "The only config is .claude/skills/pr-review/pr-review-config.yaml "
+        "and its generated skill mirror."
+    )
 
 
 # Collision detection --------------------------------------------------------
