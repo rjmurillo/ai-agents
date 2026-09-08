@@ -25,9 +25,9 @@ This skill is the map of design decisions that hold this repository up: what is 
 The generation seam is ASYMMETRIC. There is no single "templates in, everything out" pipeline. Two seams coexist (ADR-072, status Proposed, corrected this premise explicitly: "the seam is asymmetric"):
 
 1. Agents: `templates/agents/*.shared.md` is canonical for the Copilot CLI and VS Code copies only; `src/copilot-cli/agents/` and `src/vs-code-agents/` are generated from it. `src/claude/*.md` is NOT: it is hand-written canonical (see the table row below).
-2. Rules, skills, commands, hooks: `.claude/` itself is canonical (Claude Code consumes it directly); generators emit mirrors for other harnesses.
+2. Rules, skills, hooks: `.claude/` itself is canonical (Claude Code consumes it directly); generators emit mirrors for other harnesses. There is no commands class any more: ADR-064 (issue #5632) converted every command into a skill and deleted the bridge that mirrored `.claude/commands/<name>.md` into `src/copilot-cli/skills/<name>/SKILL.md`, so skills are the single user-invocable surface and `check_commands_retired.py` blocks a command coming back.
 
-Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` and `build/scripts/build_all.py` GENERATORS list at line 435; 7 generators: agents, agent-catalog, skills, commands, rules, lib, hooks):
+Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` and the `build/scripts/build_all.py` GENERATORS list; 7 generators: agents, agent-catalog, adr-index, skills, rules, lib, hooks):
 
 | Artifact class | Canonical source (edit here) | Generated or mirrored output (never edit) | Mechanism |
 |---|---|---|---|
@@ -35,7 +35,6 @@ Source-of-truth table (verified against `.agents/governance/GENERATOR-FILES.md` 
 | Agents (Claude Code) | `src/claude/*.md` is itself canonical, hand-written | none; `.claude/agents/` is a hand-maintained sibling copy | MANUAL dual edit (ADR-036, superseded in governance by ADR-052 2026-08-25, procedure still operative and unimplemented in ADR-052); `templates/README.md:131`: "**Also edit**: `src/claude/{agent}.md` (MANUAL - not auto-synced!)" |
 | Rules | `.claude/rules/*.md` | `.github/instructions/`, `src/copilot-cli/instructions/` | `build/scripts/generate_rules.py` |
 | Skills | `.claude/skills/<name>/` | `src/copilot-cli/skills/<name>/` | `build/scripts/generate_skills.py` |
-| Commands | `.claude/commands/<name>.md` | `src/copilot-cli/skills/<name>/SKILL.md` | `build/scripts/generate_commands.py` |
 | Hooks | `.claude/hooks/` plus `.claude/settings.json` | `src/copilot-cli/hooks/` plus its `hooks.json` | `build/scripts/generate_hooks.py` (plus dispatcher artifacts, Phase 3) |
 | PR-quality CI prompts | `.claude/skills/review/references/{role}.md` | `.github/prompts/pr-quality-gate-{role}.md` | `build/scripts/generate_pr_quality_prompts.py` |
 | Shared Python libs | `scripts/hook_utilities`, `scripts/github_core`, `scripts/ai_review_common` | `.claude/lib/{hook_utilities,github_core,ai_review_common}` (imports rewritten to relative) | `scripts/sync_plugin_lib.py` (SYNC_PAIRS at lines 27-31); `--check` is the CI dry-run |

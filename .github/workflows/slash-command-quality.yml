@@ -9,13 +9,18 @@ on:
       - main
   workflow_dispatch:
 
+# ADR-064 (issue #5632) retired `.claude/commands/`, so the slash-command
+# validator this workflow was built around has no corpus and its filter and step
+# are gone. What remains is the /spec behavioral eval, which is the only gate
+# here that ever read a prompt's content. The workflow and job names are
+# deliberately unchanged: a job name is a branch-protection identifier, and
+# renaming one ahead of the ruleset blocks every PR (ci-scripts.md MUST 22).
 jobs:
   check-paths:
     runs-on: ubuntu-24.04-arm
     permissions:
       pull-requests: read
     outputs:
-      should-run-commands: ${{ steps.filter.outputs.commands == 'true' || steps.filter.outputs.validator == 'true' || steps.filter.outputs.spec_evals == 'true' }}
       spec_evals_changed: ${{ steps.filter.outputs.spec_command == 'true' || steps.filter.outputs.spec_evals == 'true' }}
     steps:
       - name: Checkout code
@@ -28,21 +33,16 @@ jobs:
         id: filter
         with:
           filters: |
-            commands:
-              - '.claude/commands/**/*.md'
             spec_command:
               - '.claude/skills/spec/SKILL.md'
             spec_evals:
               - 'tests/evals/spec-scenarios.json'
               - 'scripts/eval/eval-prompt-change.py'
-            validator:
-              - '.claude/skills/slashcommandcreator/scripts/validate_slash_command.py'
-              - 'scripts/modules/slash_command_validator.py'
 
   validate-slash-commands:
     runs-on: ubuntu-24.04-arm
     needs: check-paths
-    if: needs.check-paths.outputs.should-run-commands == 'true'
+    if: needs.check-paths.outputs.spec_evals_changed == 'true'
     permissions:
       contents: read
 
@@ -58,9 +58,6 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
           enable-pester: false
           enable-git-hooks: false
-
-      - name: Validate slash commands
-        run: python3 -c "from scripts.modules.slash_command_validator import invoke_slash_command_validation; raise SystemExit(invoke_slash_command_validation())"
 
       - name: Install eval extra (openai grader)
         # setup-code-env installs only .[dev]; the github provider grader needs
@@ -92,8 +89,8 @@ jobs:
   skip-validation:
     runs-on: ubuntu-24.04-arm
     needs: check-paths
-    if: needs.check-paths.outputs.should-run-commands != 'true'
+    if: needs.check-paths.outputs.spec_evals_changed != 'true'
     permissions: {}
     steps:
       - name: Skip validation
-        run: echo "No slash command changes detected, skipping validation"
+        run: echo "No /spec prompt or scenario changes detected, skipping evals"

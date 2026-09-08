@@ -12,10 +12,13 @@ For non-trivial tasks, delegate to specialized agents via Task tool:
 
 ### Installation Locations
 
-| Type | Agents | Commands |
-|------|--------|----------|
-| Global | `~/.claude/agents/` | `~/.claude/commands/` |
-| Per-repo | `.claude/agents/` | `.claude/commands/` |
+| Type | Agents | Skills |
+|------|--------|--------|
+| Global | `~/.claude/agents/` | `~/.claude/skills/` |
+| Per-repo | `.claude/agents/` | `.claude/skills/` |
+
+ADR-064 retired `.claude/commands/`. Skills are the single user-invocable
+surface, and a blocking validator refuses a command file under any plugin root.
 
 ### Default Behavior
 
