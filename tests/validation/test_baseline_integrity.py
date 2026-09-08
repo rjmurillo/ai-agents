@@ -543,7 +543,8 @@ class TestSkillsMdPortabilitySymlinkGuard:
         outside = tmp_path / "outside"
         outside.mkdir()
         (repo / ".claude").mkdir(parents=True)
-        link = repo / ".claude" / "commands"
+        link = repo / "templates" / "agents"
+        link.parent.mkdir(parents=True, exist_ok=True)
         link.symlink_to(outside)
         with pytest.raises(OSError, match="outside the repository"):
             self.mod.extra_scan_dirs(repo)
@@ -554,10 +555,11 @@ class TestSkillsMdPortabilitySymlinkGuard:
         real_dir = repo / "_cmds"
         real_dir.mkdir(parents=True)
         (repo / ".claude").mkdir(parents=True)
-        link = repo / ".claude" / "commands"
+        link = repo / "templates" / "agents"
+        link.parent.mkdir(parents=True, exist_ok=True)
         link.symlink_to(real_dir)
         result = self.mod.extra_scan_dirs(repo)
-        assert any("commands" in str(r) for r in result)
+        assert any("agents" in str(r) for r in result)
 
     def test_skills_dirs_absent_root_skipped(self, tmp_path: Path) -> None:
         """A non-existent skills dir is silently skipped (not an error)."""
