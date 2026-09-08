@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import shutil
 import sys
-import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -352,42 +350,39 @@ def test_main_missing_config_returns_2(tmp_path: Path) -> None:
 # Committed-mirror drift -----------------------------------------------------
 
 
-def test_committed_command_mirrors_match_the_generator() -> None:
-    """The shipped mirror must equal what this generator writes from the command.
+def test_the_command_tree_holds_no_commands_left_to_mirror() -> None:
+    """ADR-064 emptied `.claude/commands/`, so the mirror check has no corpus.
 
-    `_skip_skillforge_path` in scripts/validation/git_hook_policy.py exempts
-    these mirrors from skill validation on the reasoning that they are derived
-    from `.claude/commands/<name>.md` and so "cannot drift". Nothing
-    regenerates them at commit time, so they can and did: an edit to
-    `.claude/commands/pr-autofix.md` left the Copilot mirror prescribing a
-    force push without `FORCE_PUSH_OK=1`, which the repository's own pre-push
-    guard exits 1 on. Every Copilot CLI agent following the shipped skill hit
-    that.
+    This replaces `test_committed_command_mirrors_match_the_generator`, which
+    regenerated every command mirror and byte-compared it against the committed
+    copy. That test guarded a real defect: an edit to the pr-autofix command once
+    left the Copilot mirror prescribing a force push without `FORCE_PUSH_OK=1`,
+    which this repository's own pre-push guard exits 1 on, and every Copilot CLI
+    agent following the shipped skill hit it. Nothing regenerated the mirrors at
+    commit time, so they could drift.
+
+    The corpus is gone rather than the guard being unwanted: the last command
+    became `.claude/skills/pr-autofix/SKILL.md`, and skills mirror through
+    `generate_skills.py`, whose own drift is covered by the build-staleness
+    check. Asserting the tree is empty is what remains true, and it fails the
+    moment someone adds a command back without noticing that the generator that
+    would mirror it is on its way out (issue #5632).
     """
-    staged = Path(tempfile.mkdtemp())
-    try:
-        shutil.copytree(REPO_ROOT / ".claude" / "commands", staged / ".claude" / "commands")
-        config = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
+    commands = REPO_ROOT / ".claude" / "commands"
+    if not commands.is_dir():
+        return
 
-        assert generate_commands.generate_commands(config, staged) == 0
+    remaining = sorted(
+        path.name
+        for path in commands.glob("*.md")
+        if path.name not in {"AGENTS.md", "CLAUDE.md"}
+    )
 
-        produced = sorted((staged / "src" / "copilot-cli" / "skills").glob("*/SKILL.md"))
-        assert produced, "generator wrote no mirror; the comparison would be vacuous"
-        committed_root = REPO_ROOT / "src" / "copilot-cli" / "skills"
-        drifted = [
-            path.parent.name
-            for path in produced
-            if not (committed_root / path.parent.name / "SKILL.md").is_file()
-            or (committed_root / path.parent.name / "SKILL.md").read_text(encoding="utf-8")
-            != path.read_text(encoding="utf-8")
-        ]
-
-        assert drifted == [], (
-            f"{len(drifted)} of {len(produced)} command mirrors are stale: "
-            f"{drifted}. Run uv run --frozen python build/scripts/generate_commands.py"
-        )
-    finally:
-        shutil.rmtree(staged, ignore_errors=True)
+    assert remaining == [], (
+        f"{len(remaining)} command(s) still under .claude/commands/: {remaining}. "
+        "ADR-064 makes skills the single user-invocable surface; convert them "
+        "rather than re-enabling the command mirror generator."
+    )
 
 
 # excludeFilenames / _DEFAULT_EXCLUDES union behaviour -----------------------

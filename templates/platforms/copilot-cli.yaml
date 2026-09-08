@@ -16,18 +16,6 @@ artifacts:
     # It stays in .claude/skills for ai-agents' own use but is omitted from the
     # publicly-shipping copilot-cli toolkit (issue #2026).
     excludeFilenames: ["AGENTS.md", "CLAUDE.md", "merge-resolver"]
-  commands:
-    sourceDir: ".claude/commands"
-    outputDir: "src/copilot-cli/skills"
-    # No resourceOutputDir / resourceSuffixes. ADR-064 moved the one resource
-    # this stanza ever carried, pr-review-config.yaml, into
-    # .claude/skills/pr-review/, where the skills directory-copy ships it. A
-    # second emitted copy under src/copilot-cli/commands/ would be a config the
-    # resolver can still find and the dispatcher default no longer points at,
-    # which is how a fail-closed trust check turns into a fail-open one.
-    transform: "command-to-skill"
-    appendFrontmatter:
-      user-invocable: true
   rules:
     sourceDir: ".claude/rules"
     # Dual-target: ships rules to the canonical Copilot instructions
