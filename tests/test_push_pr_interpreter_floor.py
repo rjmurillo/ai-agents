@@ -73,7 +73,7 @@ FLOOR_MODULES = (
 # this module's scope.
 #
 # `test_pr_merge_ready.py` is invoked with a bare `python3` by both
-# `.claude/commands/pr-review-config.yaml` and `.claude/commands/pr-autofix.md`,
+# `.claude/skills/pr-review/pr-review-config.yaml` and `.claude/commands/pr-autofix.md`,
 # so it runs on the host interpreter exactly as `new_pr.py` does, and a draft
 # of PR #5481 shipped `from datetime import UTC` into it. The syntax gate
 # parsed that clean, because the name is 3.11+ stdlib rather than 3.11+ syntax,

@@ -261,7 +261,8 @@ def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
 
 
 def test_pr_review_config_contains_resolution_sha_gate() -> None:
-    config = yaml.safe_load((_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text())
+    config_path = _ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
+    config = yaml.safe_load(config_path.read_text())
     criteria = config["completion_criteria"]
     sha_gate = next(
         item

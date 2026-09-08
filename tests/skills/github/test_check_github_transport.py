@@ -567,7 +567,7 @@ class TestConfiguredLaunchersRun:
     unexercised here and no Windows runner is available to exercise it.
     """
 
-    CONFIG = _project_root / ".claude" / "commands" / "pr-review-config.yaml"
+    CONFIG = _project_root / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
     PLUGIN_ROOT = _project_root / "src" / "copilot-cli"
 
     @staticmethod
