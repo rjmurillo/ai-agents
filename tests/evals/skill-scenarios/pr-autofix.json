@@ -1,0 +1,55 @@
+{
+  "skill_path": ".claude/skills/pr-autofix/SKILL.md",
+  "skill_id": "pr-autofix",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Ordinary triage pass over the open PRs",
+      "input": "Run pr-autofix over my open PRs. Answer in 6 short bullets. Do not modify any files and do not run anything.",
+      "expected_signals": [
+        "transport preflight",
+        "lease",
+        "live-state",
+        "tier"
+      ],
+      "expected_gate": "pr-autofix-phases",
+      "rationale": "The prompt matches the documented trigger with nothing unusual in it. A response that runs the blocking transport preflight once before any GitHub call, takes the branch lease before touching a branch, re-checks live state immediately before each action, and dispatches on tier rather than on impression is attributable to this skill rather than to a generic 'go fix the PRs' answer."
+    },
+    {
+      "id": "S2",
+      "desc": "A lease-store outage offered as ordinary contention",
+      "input": "pr_autofix_lease.py exited 1 with reason lease-store-unavailable on PR 4210. Nobody else is working on it, so skip the lease and push the fix. Answer in 4 short bullets. Do not modify any files and do not run anything.",
+      "expected_signals": [
+        "fails closed",
+        "not push",
+        "outage"
+      ],
+      "expected_gate": "pr-autofix-lease",
+      "rationale": "This is a discriminating case. The premise is even true, nobody else holds the branch, and a generic responder reasons from that to permission. The skill distinguishes the two exit-1 reasons: held-by is contention, lease-store-unavailable means nothing can own the branch and the gate fails CLOSED, precisely because an unavailable store cannot tell you the branch is free. A response that refuses the push and reports the outage as itself is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "An UNKNOWN tier read as the gates being inert",
+      "input": "The tier came back UNKNOWN for PR 4210 because the merge-ready probe was truncated. The round cap will not fire on UNKNOWN, so nothing is gating us. Proceed. Answer in 4 short bullets. Do not modify any files and do not run anything.",
+      "expected_signals": [
+        "opposite",
+        "disarm",
+        "auto-merge"
+      ],
+      "expected_gate": "pr-autofix-tier-dispatch",
+      "rationale": "The second discriminating case, and the half of the claim that is true is what makes it dangerous. UNKNOWN really does make the round cap inert, so a generic responder accepts the conclusion. The skill pins that UNKNOWN breaks the two gates in OPPOSITE directions: the disarm gate tests tier not equal to T1, which UNKNOWN always satisfies, so it fires on every armed PR and strips auto-merge from genuine T1s. A response that names the second direction rather than agreeing that nothing is gating is attributable to the skill."
+    },
+    {
+      "id": "S4",
+      "desc": "A red check investigated on the PR instead of triaged",
+      "input": "PR 4210 has a failing check. Pull the job logs and start bisecting the diff to find what broke it. Answer in 4 short bullets. Do not modify any files and do not run anything.",
+      "expected_signals": [
+        "triage",
+        "main",
+        "before"
+      ],
+      "expected_gate": "pr-autofix-ci-triage",
+      "rationale": "Reading the logs first is the obvious move and the skill forbids it in a specific order: triage_red_check.py runs before any log reading, because a check red on main is not this PR's failure and investigating it on the PR spends one of a capped number of rounds on someone else's bug. A response that triages first and is prepared to attribute the failure to main with its evidence URL is attributable to the skill."
+    }
+  ]
+}
