@@ -86,7 +86,7 @@ transport_preflight:
   # completion_criteria only, which runs at the END. Without this step the
   # first thing the workflow executes is a command a PR author can rewrite
   # (issue #5520, CWE-829).
-  verify_trust: "uv run python .claude/skills/github/scripts/pr/run_completion_gate.py --config .claude/commands/pr-review-config.yaml --pull-request {number} --verify-config-only --json"
+  verify_trust: "uv run python .claude/skills/github/scripts/pr/run_completion_gate.py --config .claude/skills/pr-review/pr-review-config.yaml --pull-request {number} --verify-config-only --json"
   verify_trust_exits:
     - exit_code: 0
       meaning: "Config and the files its scripts-map commands name match the trusted ref. Proceed to check_transport. Read unverifiable_command_tokens: a token listed there reaches its target through shell evaluation, so its file was not compared."
