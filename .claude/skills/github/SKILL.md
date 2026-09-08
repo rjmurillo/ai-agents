@@ -213,7 +213,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_latest_semantic_milestone.py` | Detect latest semantic version milestone | `--owner`, `--repo` |
 | `set_item_milestone.py` | Assign milestone to PR/issue (auto-detect) | `--item-type`, `--item-number`, `--milestone-title` |
 
-### Repository Settings (`scripts/repo/`)
+### Repository Settings (`repo/` scripts)
 
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
