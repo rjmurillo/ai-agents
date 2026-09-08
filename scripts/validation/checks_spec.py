@@ -195,6 +195,32 @@ def validate_skill_shells(repo_root: Path) -> bool:
     return bool(exit_code == 0)
 
 
+def validate_commands_retired(repo_root: Path) -> bool:
+    """Fail when a user-invocable command comes back under a plugin root.
+
+    Wraps ``scripts/validation/check_commands_retired.py``. ADR-064 (issue
+    #5632) made skills the single user-invocable surface and deleted the
+    command-to-skill bridge, so a ``.md`` file under ``<root>/commands/`` now
+    loads in Claude Code and reaches no other harness: nothing mirrors it to
+    Copilot, nothing evaluates it, and no skill gate scans that directory. The
+    wrapped script exits 0 when no command is found, 1 when one is, and 2 on a
+    configuration error. Exit 1 and 2 are both hard failures here.
+    """
+    script = repo_root / "scripts" / "validation" / "check_commands_retired.py"
+    if not script.exists():
+        raise MissingScriptSkip(
+            "scripts/validation/check_commands_retired.py not present"
+        )
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return bool(exit_code == 0)
+
+
 def validate_skill_skip_clauses(repo_root: Path) -> bool:
     """Fail when sibling skill families lack well-formed SKIP routes.
 

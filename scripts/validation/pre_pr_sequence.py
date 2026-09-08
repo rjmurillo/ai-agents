@@ -44,9 +44,7 @@ from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_citation_freshness import validate_citation_freshness
-from check_doc_interpreter_portability import (
-    validate_doc_interpreter_portability,
-)
+from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_generated_staleness import validate_generated_staleness
 from check_git_hook_health import validate_git_hook_health
@@ -82,6 +80,7 @@ from checks_spec import (
     validate_agent_catalog,
     validate_build_gates,
     validate_canonical_citations,
+    validate_commands_retired,
     validate_model_pins,
     validate_orchestrator_citations,
     validate_rule_activation_coverage,
@@ -332,6 +331,11 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when a multi-member leading-token skill family lacks a well-formed
     # route to a real sibling. Issue #3484.
     _Gate("Skill SKIP Clause Routing", _root_only(validate_skill_skip_clauses)),
+    # Fails when a user-invocable command reappears under a plugin root.
+    # ADR-064 / issue #5632: the command-to-skill bridge is gone, so such a
+    # file ships to Claude Code and to nothing else, and no skill gate scans
+    # the directory it sits in.
+    _Gate("Commands Retired (ADR-064)", _root_only(validate_commands_retired)),
     # Fails when a skill or agent instruction commands read_memory or
     # edit_memory on a name that resolves to no tracked memory. Issue #4897:
     # pr-comment-responder's BLOCKING Phase 0 named an unscoped memory, so the
