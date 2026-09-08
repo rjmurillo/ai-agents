@@ -740,14 +740,14 @@ class TestPluginRootScan:
     def test_marker_scan_includes_extra_scan_dirs(self, tmp_path: Path) -> None:
         """Markers in command docs feed the same exact-count marker baseline."""
         self._skill_md(tmp_path, ".claude", "a/SKILL.md", "Clean prose.\n")
-        command = tmp_path / ".claude" / "commands" / "ship.md"
+        command = tmp_path / "templates" / "agents" / "ship.shared.md"
         command.parent.mkdir(parents=True)
         command.write_text(
             "<!-- vendor-portability: declared -->\nWrites .agents/state.\n",
             encoding="utf-8",
         )
 
-        assert cmp.scan_marker_suppressions(tmp_path) == {".claude/commands/ship.md": 1}
+        assert cmp.scan_marker_suppressions(tmp_path) == {"templates/agents/ship.shared.md": 1}
 
     def test_same_named_skills_in_two_roots_do_not_collide(self, tmp_path: Path) -> None:
         """Keys are repository relative because both roots hold ``skills/spec``.
@@ -877,9 +877,9 @@ class TestExtraScanDirs:
 
     def test_extra_scan_dirs_returns_existing_dirs(self, tmp_path: Path) -> None:
         """Directories in EXTRA_SCAN_ROOTS that exist are returned."""
-        (tmp_path / ".claude" / "commands").mkdir(parents=True)
+        (tmp_path / "templates" / "agents").mkdir(parents=True)
         dirs = cmp.extra_scan_dirs(tmp_path)
-        assert tmp_path / ".claude" / "commands" in dirs
+        assert tmp_path / "templates" / "agents" in dirs
 
     def test_extra_scan_dirs_skips_missing(self, tmp_path: Path) -> None:
         """Missing directories are silently skipped."""
@@ -888,13 +888,13 @@ class TestExtraScanDirs:
 
     def test_extra_scan_prefix_does_not_cover_sibling_directory(self, tmp_path: Path) -> None:
         """A sibling path like commands-old is not under commands."""
-        (tmp_path / ".claude" / "commands").mkdir(parents=True)
+        (tmp_path / "templates" / "agents").mkdir(parents=True)
         extra_dir_prefixes = {
             d.relative_to(tmp_path).as_posix() for d in cmp.extra_scan_dirs(tmp_path)
         }
 
         assert not any(
-            _is_under_extra_scan_root(".claude/commands-old/stale.md", prefix)
+            _is_under_extra_scan_root("templates/agents-old/stale.shared.md", prefix)
             for prefix in extra_dir_prefixes
         )
 
@@ -902,12 +902,12 @@ class TestExtraScanDirs:
         """A ref inside .claude/commands/ is counted by scan_plugin_roots."""
         self._write_md(
             tmp_path,
-            ".claude/commands/spec.md",
+            "templates/agents/spec.shared.md",
             "Read the spec at .agents/planning/spec.md\n",
         )
         counts = cmp.scan_plugin_roots(tmp_path)
-        assert ".claude/commands/spec.md" in counts
-        assert counts[".claude/commands/spec.md"] == 1
+        assert "templates/agents/spec.shared.md" in counts
+        assert counts["templates/agents/spec.shared.md"] == 1
 
     def test_templates_agents_refs_are_included_in_scan(self, tmp_path: Path) -> None:
         """A ref inside templates/agents/ is counted by scan_plugin_roots."""
@@ -923,17 +923,17 @@ class TestExtraScanDirs:
         """A commands file with no upstream refs does not appear in counts."""
         self._write_md(
             tmp_path,
-            ".claude/commands/clean.md",
+            "templates/agents/clean.shared.md",
             "This file has no upstream refs.\n",
         )
         counts = cmp.scan_plugin_roots(tmp_path)
-        assert ".claude/commands/clean.md" not in counts
+        assert "templates/agents/clean.shared.md" not in counts
 
     def test_extra_dir_drift_causes_exit_1(self, tmp_path: Path) -> None:
         """An unbaselined ref in a commands/ file exits 1."""
         self._write_md(
             tmp_path,
-            ".claude/commands/drift.md",
+            "templates/agents/drift.shared.md",
             "Write to .agents/sessions/output.md\n",
         )
         baseline = tmp_path / "baseline.json"
@@ -1981,20 +1981,27 @@ class TestBaselineSemanticConflictGuard:
         """The co-change guard must cover EXTRA_SCAN_ROOTS, not only PLUGIN_ROOTS.
 
         AI-Spec-Validation review on PR #5284 found this gap: scan_all() folds
-        EXTRA_SCAN_ROOTS (.claude/commands, templates/agents,
-        src/copilot-cli/instructions) into the same baseline as the plugin
-        skills/ trees, but _is_measured_input() only recognized the latter, so
-        a co-change to an instructions mirror plus the baseline in one commit
-        was invisible to the --base-ref semantic-conflict guard.
+        EXTRA_SCAN_ROOTS (templates/agents, src/copilot-cli/instructions) into
+        the same baseline as the plugin skills/ trees, but _is_measured_input()
+        only recognized the latter, so a co-change to an instructions mirror
+        plus the baseline in one commit was invisible to the --base-ref
+        semantic-conflict guard. `.claude/commands` was a third root until
+        ADR-064 retired that tree (issue #5632).
+
+        Parametrized over the constant rather than restated, so it follows a
+        root that moves instead of failing on the move. That is only sound
+        because `_is_measured_input` matches EXTRA_SCAN_ROOTS generically rather
+        than branch-per-root: there is no per-root branch to forget, so reading
+        the same constant is not the self-referential shape
+        `.claude/rules/canonical-source-mirror.md` rejects.
+
+        Probed by replacing the EXTRA_SCAN_ROOTS branch with `return False`,
+        which is the PR #5284 defect exactly: this test fails, and the two
+        sibling cases below still pass. Adding an unrelated root to the constant
+        changes nothing, which is the correct answer rather than a gap.
         """
-        assert (
-            cmp._is_measured_input(
-                "src/copilot-cli/instructions/example.instructions.md"
-            )
-            is True
-        )
-        assert cmp._is_measured_input(".claude/commands/example.md") is True
-        assert cmp._is_measured_input("templates/agents/example.shared.md") is True
+        for root in cmp.EXTRA_SCAN_ROOTS:
+            assert cmp._is_measured_input(f"{root}/example.md") is True, root
 
     def test_non_md_file_under_extra_scan_root_is_not_measured_input(self) -> None:
         """Negative: only Markdown files feed this scanner's counts."""
