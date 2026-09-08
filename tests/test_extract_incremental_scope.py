@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 _SCRIPT = (
     Path(__file__).resolve().parents[1]
     / ".github"
@@ -39,3 +41,16 @@ def test_ignores_plain_phase_text() -> None:
     module = _load_module()
 
     assert module.extract_incremental_scope("Fix phase 2 rollout bug") == ""
+
+
+def test_missing_title_argument_exits_nonzero() -> None:
+    """main() drives argparse directly; a missing required "title" positional
+    must surface as a nonzero process exit, not a return value from a helper
+    (issue #4528).
+    """
+    module = _load_module()
+
+    with pytest.raises(SystemExit) as excinfo:
+        module.main([])
+
+    assert excinfo.value.code != 0

@@ -24,6 +24,7 @@ _mod = _import_script("check_design_review_gate")
 extract_verdict = _mod.extract_verdict
 check_review_file = _mod.check_review_file
 run_gate = _mod.run_gate
+main = _mod.main
 parse_yaml_frontmatter = _mod.parse_yaml_frontmatter
 BLOCKING_VERDICTS = _mod.BLOCKING_VERDICTS
 PASSING_VERDICTS = _mod.PASSING_VERDICTS
@@ -222,6 +223,27 @@ class TestRunGate:
         outputs = output_file.read_text()
         assert "gate_result=FAIL" in outputs
         assert "blocking_count=1" in outputs
+
+
+# ---------------------------------------------------------------------------
+# Tests: main - exit contract
+# ---------------------------------------------------------------------------
+
+
+class TestMainExitContract:
+    def test_blocking_review_exits_nonzero(self, tmp_path):
+        """Existing TestRunGate cases assert on run_gate()'s return value, a
+        helper one layer below the CLI. That proves the helper detects a
+        blocking review; it proves nothing about the process exit code
+        (issue #4528). This drives main() itself.
+        """
+        arch_dir = tmp_path / ".agents" / "architecture"
+        arch_dir.mkdir(parents=True)
+        (arch_dir / "DESIGN-REVIEW-beta.md").write_text("**Verdict**: NEEDS_CHANGES\n")
+
+        rc = main(["--base-dir", str(tmp_path)])
+
+        assert rc != 0
 
 
 # ---------------------------------------------------------------------------

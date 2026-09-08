@@ -6,6 +6,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Import the consumer script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -171,3 +173,21 @@ RECOMMENDATION: DEFER
         _setup_output(tmp_path, monkeypatch)
         rc = main(["--raw-output", "garbage data with no structure"])
         assert rc == 0
+
+
+# ---------------------------------------------------------------------------
+# Tests: main - exit contract
+# ---------------------------------------------------------------------------
+
+
+class TestMainExitContract:
+    def test_unrecognized_argument_exits_nonzero(self) -> None:
+        """main() has no business-logic failure path (it always returns 0),
+        so its only nonzero exit is argparse rejecting an unknown flag. That
+        is still the CLI's exit contract and must be proven directly against
+        main(), not against a helper (issue #4528).
+        """
+        with pytest.raises(SystemExit) as excinfo:
+            main(["--not-a-real-flag"])
+
+        assert excinfo.value.code != 0

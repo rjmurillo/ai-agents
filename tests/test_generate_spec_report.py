@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Import the consumer script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -223,3 +225,21 @@ class TestMainWithSpecs:
         assert rc == 0
         report = (report_dir / "spec-validation-report.md").read_text()
         assert "99999" in report
+
+
+# ---------------------------------------------------------------------------
+# Tests: main - exit contract
+# ---------------------------------------------------------------------------
+
+
+class TestMainExitContract:
+    def test_unrecognized_argument_exits_nonzero(self) -> None:
+        """main() has no business-logic failure path (every branch below the
+        parser returns 0), so its only nonzero exit is argparse rejecting an
+        unknown flag. That is still the CLI's exit contract and must be
+        proven directly against main(), not against a helper (issue #4528).
+        """
+        with pytest.raises(SystemExit) as excinfo:
+            main(["--not-a-real-flag"])
+
+        assert excinfo.value.code != 0
