@@ -34,7 +34,11 @@ jobs:
         with:
           filters: |
             spec_command:
-              - '.claude/skills/spec/SKILL.md'
+              # The whole skill directory, not just SKILL.md. The eval compares
+              # the prompt surface the agent actually loads, which since ADR-064
+              # is the body plus every references/*.md beside it, so an edit to
+              # a reference changes graded behavior and has to fire this gate.
+              - '.claude/skills/spec/**'
             spec_evals:
               - 'tests/evals/spec-scenarios.json'
               - 'scripts/eval/eval-prompt-change.py'

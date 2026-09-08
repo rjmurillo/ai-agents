@@ -4,10 +4,11 @@
      .claude/skills/memory/scripts/search_memory.py is a BUNDLED sibling reached
      only as the second rung of a documented resolution order, after
      <skill_dir>/../memory/scripts/, and the prose gates it on the repo being this
-     toolkit's own checkout. .agents/dictionaries/spec-entity-aliases.json is a
-     CONSUMER-workspace artifact the gate reads from the installing repository.
-     Declared so the ratchet records them rather than to excuse either
-     (ADR-083, issues #2050, #5632). -->
+     toolkit's own checkout. .agents/dictionaries/spec-entity-aliases.json is the
+     canonical source of the alias table and the SECOND rung of that table's
+     resolution order; the first is this skill's own data/ directory, which is
+     what an installed plugin reads. Declared so the ratchet records them rather
+     than to excuse either (ADR-083, issues #2050, #5632). -->
 
 The blocking gate the spec skill runs after Step 0 and before Step 1, with its
 prior-art checks, halt criteria and the Check 9 series in full.
@@ -58,7 +59,16 @@ Topics are derived mechanically from Q3 and Q4 named entities. One topic per dis
 2. Strip leading path separators (`/`, `\`) AND leading dots (`.`).
 3. Lowercase the string.
 4. Collapse internal separator runs (whitespace, `-`, `_`) to a single hyphen, so `spec pipeline`, `spec-pipeline`, and `spec_pipeline` all normalize to `spec-pipeline`.
-5. Look up the result of rule 4 in `.agents/dictionaries/spec-entity-aliases.json` (exact match on the normalized string against the `aliases` keys). On a hit, substitute the canonical value; on a miss, keep the rule-4 result unchanged. This collapses known synonyms (for example `memory-skill` to `memory`, `spec` to `spec-pipeline`) so distinct names for the same entity search as one topic. Adjudication and matching use the post-substitution canonical string.
+5. Look up the result of rule 4 in the alias table (exact match on the normalized
+   string against the `aliases` keys). Resolve the table in this order, taking the
+   first that exists: `<skill_dir>/data/spec-entity-aliases.json`, the copy this
+   skill ships and the only one an installed plugin has; then
+   `.agents/dictionaries/spec-entity-aliases.json` in the surrounding checkout,
+   which is the canonical source the bundled copy is generated from. The two are
+   byte-identical by `tests/skills/test_spec_bundle_parity.py`, so the order
+   decides only which one resolves, never which answer you get. Reading the
+   checkout path first would drop synonym normalization for every consumer,
+   silently: a miss is indistinguishable from a name that has no alias. On a hit, substitute the canonical value; on a miss, keep the rule-4 result unchanged. This collapses known synonyms (for example `memory-skill` to `memory`, `spec` to `spec-pipeline`) so distinct names for the same entity search as one topic. Adjudication and matching use the post-substitution canonical string.
 
 Example: `.claude/skills/spec/SKILL.md` normalizes to `claude/skills/spec/skill.md` (rule 2 strips the leading dot and any leading slashes); this string is not an alias key, so rule 5 leaves it unchanged. `spec pipeline` normalizes to `spec-pipeline` after rule 4; `spec` normalizes to `spec` after rule 4, then rule 5 substitutes the canonical `spec-pipeline`, so both resolve to the same topic.
 
@@ -90,7 +100,14 @@ Entities and projects named by the results of steps 1 and 2 feed the `### Connec
 | `chestertons-fence` skill unavailable | Emit `### Coverage notes` entry: "chestertons-fence unavailable; git archaeology skipped; confidence low." Continue. |
 | Memory search returns 0 results for a topic after at minimum 3 distinct queries | Emit coverage note for that topic: "no results for `<topic>` after 3 distinct queries; absence of evidence, not evidence of absence." Not a halt. |
 
-None of the above failures halt Step 0.5. They are recorded in the coverage notes subsection so Step 9 check 9d can distinguish "search ran and found nothing" from "search did not run".
+None of the above failures halt Step 0.5. They are recorded in the coverage notes
+subsection so Step 9 check 9d can distinguish "search ran and found nothing" from
+"search did not run".
+
+Check 9d is blocking. An absent PriorArtBlock, or coverage notes that cannot tell
+those two cases apart, is a blocking finding: Step 9 emits it and the critic MUST
+NOT return APPROVED while 9d fails, whatever 9a, 9b and 9c returned. A coverage
+note recording a degraded search satisfies 9d; its absence does not.
 
 ### Step 0.5 entity adjudication
 
