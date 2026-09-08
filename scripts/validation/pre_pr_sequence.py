@@ -331,16 +331,18 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Fails when a multi-member leading-token skill family lacks a well-formed
     # route to a real sibling. Issue #3484.
     _Gate("Skill SKIP Clause Routing", _root_only(validate_skill_skip_clauses)),
-    # Fails when a user-invocable command reappears under a plugin root.
-    # ADR-064 / issue #5632: the command-to-skill bridge is gone, so such a
-    # file ships to Claude Code and to nothing else, and no skill gate scans
-    # the directory it sits in.
-    _Gate("Commands Retired (ADR-064)", _root_only(validate_commands_retired)),
     # Fails when a skill or agent instruction commands read_memory or
     # edit_memory on a name that resolves to no tracked memory. Issue #4897:
     # pr-comment-responder's BLOCKING Phase 0 named an unscoped memory, so the
     # blocking step failed for any agent that ran the instruction literally.
     _Gate("Skill Memory References", _root_only(validate_skill_memory_references)),
+    # Fails when a user-invocable command reappears under a plugin root.
+    # ADR-064 / issue #5632: the command-to-skill bridge is gone, so such a
+    # file ships to Claude Code and to nothing else, and no skill gate scans
+    # the directory it sits in. Placed after the skill-validator cluster, not
+    # inside it: Skill Memory References pins that it runs immediately after
+    # Skill SKIP Clause Routing.
+    _Gate("Commands Retired (ADR-064)", _root_only(validate_commands_retired)),
     # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
     _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation

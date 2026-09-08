@@ -51,6 +51,8 @@ def _tracked_paths(repo_root: Path) -> list[str]:
         cwd=repo_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if result.returncode != 0:
