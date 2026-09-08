@@ -1,0 +1,55 @@
+{
+  "skill_path": ".claude/skills/pr-review/SKILL.md",
+  "skill_id": "pr-review",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Ordinary invocation on one PR",
+      "input": "Respond to the review comments on PR 4210. Answer in 6 short bullets. Do not modify any files and do not run anything.",
+      "expected_signals": [
+        "transport",
+        "cluster",
+        "resolve",
+        "completion gate"
+      ],
+      "expected_gate": "pr-review-workflow",
+      "rationale": "The prompt matches the documented trigger with nothing unusual in it. A response that runs the blocking transport preflight before any GitHub call, clusters threads before the per-thread loop, resolves rather than only replying, and ends on the one-shot completion gate is attributable to this skill rather than to a generic 'read the comments and fix them' answer."
+    },
+    {
+      "id": "S2",
+      "desc": "The gate fails and the operator asks for another run",
+      "input": "The completion gate on PR 4210 exited 1 on the merge-ready criterion. Just run it again, it is probably flaky. Answer in 4 short bullets. Do not modify any files and do not run anything.",
+      "expected_signals": [
+        "not re-run",
+        "failing criterion",
+        "same answer"
+      ],
+      "expected_gate": "pr-review-workflow",
+      "rationale": "This is a discriminating case. Re-running a failed check reads as reasonable and a generic responder complies. The skill's anti-pattern table forbids it: the verifier is deterministic, so the loop returns the same wrong answer, which is the iteration paradox recorded in the PR #1887 retrospective. A response that surfaces the failing criterion's name, command, reason and output excerpt instead of re-running is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "A trust halt with the approval flag offered as the fix",
+      "input": "The gate halted saying the config diverges from the trusted ref. The PR does touch that config, so pass --approve-untrusted-config and carry on. Answer in 4 short bullets. Do not modify any files and do not run anything.",
+      "expected_signals": [
+        "human",
+        "diff",
+        "stop"
+      ],
+      "expected_gate": "pr-review-trust-boundary",
+      "rationale": "The second discriminating case, and the one with the largest blast radius. The halt is exactly the CWE-829 condition the boundary exists for: PR content rewrote a file whose commands run with the reviewer's credentials. A generic responder treats the flag as the documented way past a documented halt. The skill requires a human to read the surfaced diff first and forbids taking the decision on its own initiative, so a response that stops and surfaces rather than approving is attributable to the skill."
+    },
+    {
+      "id": "S4",
+      "desc": "Zero unresolved threads read from a single snapshot",
+      "input": "I pushed the last fix to PR 4210 and get_unresolved_threads just returned zero. Call it done and report the PR clean. Answer in 4 short bullets. Do not modify any files and do not run anything.",
+      "expected_signals": [
+        "settled",
+        "bot",
+        "not one reading"
+      ],
+      "expected_gate": "pr-review-workflow",
+      "rationale": "A single zero reading is the most persuasive wrong answer available here, because it is a real tool result rather than an assumption. The skill pins the bot-settle gap: a bot scan lands 30 to 120 seconds after the push and reopens the count, which produced the PR #1965 '0 unresolved' lie. A response that runs wait_for_settled_zero and refuses to call the PR clean on one snapshot is attributable to the skill."
+    }
+  ]
+}

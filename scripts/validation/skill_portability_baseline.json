@@ -46,6 +46,7 @@
     "skills/github/scripts/pr/pr_validations.py": 3,
     "skills/github/scripts/pr/prepare_pr_body.py": 3,
     "skills/github/scripts/pr/resolve_pr_review_thread.py": 1,
+    "skills/github/scripts/pr/run_completion_gate.py": 1,
     "skills/github/scripts/pr/set_pr_auto_merge.py": 1,
     "skills/github/scripts/pr/test_pr_merge_ready.py": 1,
     "skills/github/scripts/pr/test_pr_merged.py": 1,

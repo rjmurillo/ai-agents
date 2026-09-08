@@ -360,14 +360,15 @@ def test_negative_control_entrypoints_after_prefixes_recreates_the_shadowing() -
 # `.claude/skills/<name>/` exists the mirror is an ordinary skill and the skill
 # evaluator can resolve it, so it moves to CONVERTED_COMMAND_SKILLS below.
 COMMAND_MIRROR_SKILLS = [
-    "pr-autofix", "pr-review",
+    "pr-autofix",
 ]
 
 # Converted under ADR-064 (issue #5632). These were command mirrors and are now
 # Claude skills, which is what makes them evaluable for the first time.
 CONVERTED_COMMAND_SKILLS = [
-    "build", "checkpoint", "context-hub-setup", "plan", "push-pr", "research",
-    "retro", "ship", "spec", "sync", "test", "validate-pr-description",
+    "build", "checkpoint", "context-hub-setup", "plan", "pr-review", "push-pr",
+    "research", "retro", "ship", "spec", "sync", "test",
+    "validate-pr-description",
 ]
 
 
