@@ -190,10 +190,6 @@ pre-commit:
             glob: "**/SKILL.md"
             exclude:
               - "evals/**"
-              # The generated command mirrors under src/copilot-cli/skills/ are
-              # skipped by _skip_skillforge_path in git_hook_policy.py, which
-              # derives them from .claude/commands/. Do not enumerate them here:
-              # a second copy of that list is what drifts.
 
           - name: skill-size
             timeout: 5m
@@ -204,11 +200,6 @@ pre-commit:
             timeout: 1m
             run: uv run --frozen python scripts/validation/check_colocated_skill_tests.py --staged-only
             glob: "{.claude/skills,src/copilot-cli/skills,src/claude/skills}/**/tests/**test*.py"
-
-          - name: command-size
-            timeout: 5m
-            run: uv run --frozen python scripts/validation/command_size.py --changed-files {staged_files} --ci
-            glob: ".claude/commands/*.md"
 
           - name: planning-advisory
             timeout: 5m
@@ -712,11 +703,9 @@ pre-push:
             use_stdin: true
             glob:
               - ".claude/.claude-plugin/plugin.json"
-              - ".claude/commands/**"
               - ".claude/skills/**"
               - "src/copilot-cli/.claude-plugin/plugin.json"
               - "src/copilot-cli/skills/**"
-              - "build/scripts/generate_commands.py"
               - "build/scripts/generate_skills.py"
               - "templates/platforms/copilot-cli.yaml"
               - "tests/e2e/test_plugin_load_smoke.py"
