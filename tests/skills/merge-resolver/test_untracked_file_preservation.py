@@ -39,7 +39,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # Surfaces that run git against the operator's working tree during an autofix.
 _SURFACE_FILES = (
-    Path(".claude/commands/pr-autofix.md"),
+    Path(".claude/skills/pr-autofix/SKILL.md"),
     Path("src/copilot-cli/skills/pr-autofix/SKILL.md"),
 )
 _SURFACE_DIRS = (Path(".claude/skills/merge-resolver"),)
