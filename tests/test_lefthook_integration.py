@@ -3448,7 +3448,7 @@ def test_yamllint_advisory_honors_scope_and_skip(
     assert "SKIP_YAMLLINT=1" in capsys.readouterr().out
 
 
-def test_skillforge_excludes_fixtures_and_command_mirrors(
+def test_skillforge_excludes_only_eval_fixtures(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3462,9 +3462,11 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         calls.append(list(args))
         return _completed(0)
 
-    # `build` is a generated command mirror because .claude/commands/build.md
-    # exists; `hand-written` sits in the same directory with no command source,
-    # so it is an authored skill and must still reach the validator.
+    # `build` used to be exempt as a generated command mirror, because
+    # .claude/commands/build.md existed. ADR-064 converted it (issue #5632), so
+    # the Copilot copy is an ordinary generated skill and reaches the validator
+    # like any other. The commands directory is created here anyway: it must not
+    # be able to reinstate the exemption.
     commands = tmp_path / ".claude" / "commands"
     commands.mkdir(parents=True)
     (commands / "build.md").write_text("# build\n", encoding="utf-8")
@@ -3480,8 +3482,7 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         tmp_path,
     )
 
-    # Fixtures and command mirrors are skipped before any subprocess runs, so
-    # the skills that reach SkillForge are the authored ones. The
+    # Only the fixture is skipped before any subprocess runs. The
     # frontmatter-only exemption probes HEAD and index blobs via _run_command
     # first, so filter to the validator invocation rather than counting every
     # subprocess call.
@@ -3490,50 +3491,46 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
     ]
     assert result == 0
     assert [call[-1] for call in validate_calls] == [
+        "src/copilot-cli/skills/build",
         "src/copilot-cli/skills/hand-written",
         ".claude/skills/real-skill",
     ]
 
 
-def test_skillforge_mirror_skip_is_derived_from_the_commands_directory(
+def test_skillforge_skips_eval_fixtures_and_gates_every_real_skill(
     tmp_path: Path,
 ) -> None:
-    """The mirror set has one source of truth: .claude/commands/<name>.md.
+    """The skip is one clause now: eval fixtures.
 
-    Enumerating names in lefthook.yml and again in git_hook_policy.py is what
-    let the two lists drift (9 of 14 in one, 14 in the other).
+    It used to carry a second, deriving the generated command mirrors from
+    `.claude/commands/<name>.md` so that lefthook.yml and git_hook_policy.py
+    could not hold two copies of the list that drifted (9 of 14 in one, 14 in the
+    other). ADR-064 removed the mirrors along with the generator that wrote them
+    (issue #5632), so every Copilot skill is now mirrored from an authored
+    `.claude/skills/<name>/SKILL.md` and does carry the SkillForge schema.
+
+    The three cases below are the ones the deleted clause used to answer
+    differently: a Copilot skill whose name matches a would-be command, the
+    Claude source it mirrors, and a nested reference under it. All three are
+    gated now, which is the behavior change this asserts rather than describes.
     """
     commands = tmp_path / ".claude" / "commands"
     commands.mkdir(parents=True)
     (commands / "research.md").write_text("# research\n", encoding="utf-8")
 
-    # Positive: a mirror whose command source exists is skipped.
-    assert (
-        policy._skip_skillforge_path("src/copilot-cli/skills/research/SKILL.md", tmp_path) is True
-    )
-    # Positive: eval fixtures are skipped regardless of the commands directory.
+    # Eval fixtures are the only skip, and the commands directory cannot
+    # reinstate the old one even when it exists.
     assert policy._skip_skillforge_path("evals/example/SKILL.md", tmp_path) is True
 
-    # Negative: no command source, so the skill is authored and stays gated.
     assert (
-        policy._skip_skillforge_path("src/copilot-cli/skills/analyze/SKILL.md", tmp_path) is False
+        policy._skip_skillforge_path("src/copilot-cli/skills/research/SKILL.md", tmp_path)
+        is False
     )
-    # Negative: the Claude tree is never a mirror, even for a command name.
     assert policy._skip_skillforge_path(".claude/skills/research/SKILL.md", tmp_path) is False
-
-    # Edge: a nested file under a mirror directory is not the mirror itself.
     assert (
         policy._skip_skillforge_path(
             "src/copilot-cli/skills/research/references/workflow.md", tmp_path
         )
-        is False
-    )
-    # Edge: a sub-directory command (e.g. <topic>/memory-save.md) has no flat
-    # mirror, so the flat path must not be skipped on its account. The example
-    # this named was a command directory Stage 1 of issue #5574 deleted; the
-    # rule is about nesting, not about that particular command.
-    assert (
-        policy._skip_skillforge_path("src/copilot-cli/skills/memory-save/SKILL.md", tmp_path)
         is False
     )
 

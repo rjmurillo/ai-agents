@@ -1,16 +1,40 @@
 ---
 name: spec
-description: Define what to build. Transform a problem into testable requirements with acceptance criteria.
-argument-hint: problem-statement-or-issue-number
+version: 1.0.0
+description: Turn a problem into testable requirements with acceptance criteria, through a first-principles gate, a memory-first prior-art gate, and a PRD schema. Use when you say `spec this out`, `what should we build`, or `define the requirements`, and run it before plan. Do NOT use to sequence work into milestones (use plan), do NOT use to write the code (use build), and do NOT use to emit the REQ, DESIGN and TASK files directly (use spec-generator, which this invokes).
+license: MIT
 allowed-tools: Task, Skill, Read, Write, Glob, Grep
+argument-hint: problem-statement-or-issue-number
 user-invocable: true
 ---
 
-<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+# Spec
+
+<!-- vendor-portability: contributor-scoped citation. The retrospective at
+     .agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md is the evidence for
+     why the Step 0 gate exists and lives upstream in the rjmurillo/ai-agents
+     repo; it is cited, not resolved at runtime (ADR-083, issue #5632). -->
+
+Define what to build: a problem turned into requirements each of which can be
+judged pass or fail, gated twice before any of it is written.
+
+Migrated from the spec command under ADR-064, which makes skills the single
+user-invocable surface. The command file is gone, so its path is named here in
+plain text rather than as a citation to something a reader could open.
+
+## Triggers
+
+`spec this out`, `what should we build`, `define the requirements`,
+`turn this into acceptance criteria`
+
+## Arguments
+
 Spec: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
-If the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message) is empty, ask the user what problem to solve. Do not proceed without a problem statement.
+If `$ARGUMENTS` is empty, ask the user what problem to solve. Do not proceed
+without a problem statement.
 
+<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
 ## Process
 
 ### Step 0: First Principles Gate (blocking, runs before Step 1)
@@ -32,109 +56,14 @@ Write the answers as a structured block (the `## Step 0 First Principles` block)
 
 The pass criteria, hedge phrase validation table, script-resolution rules, kill criteria, and archival policy are in the `spec-generator` skill's `references/spec-step0-gates.md`.
 
-### Step 0.5: Memory-First Gate (blocking, runs after Step 0)
+### Step 0.5: Memory-First Gate
 
-After Step 0 passes, surface the backward-looking context the proposer should have read before drafting requirements. Step 0 asks "is this work demanded?" Step 0.5 asks "do we already know why the current state is the way it is?" Both gates fire, in order. The `memory-gate` skill declares the gate as BLOCKING under its `## Memory-First Gate (BLOCKING)` section ("Before changing existing systems, you MUST..."); this section wires it into `/spec`.
-
-The gate composes two skills in sequence: `chestertons-fence` (frame: do not change without understanding why, and surface the dependencies the target is wired into), `memory` (point-search prior decisions). Each answers a distinct question; the two layered together form the "Prior Art / Constraints" output that Step 6 carries into the PRD as its first section.
-
-#### Step 0.5 ProvisionalTier (auto-classified, no user prompt)
-
-Compute ProvisionalTier as `max(hours_tier, entity_tier)` from Step 0 answers. Used to depth-gate the prior-art search without re-asking the proposer.
-
-Hours extraction: scan Q4 for a numeric estimate followed by `hour`, `hours`, `h`, `hr`, `hrs`, `day`, `days`, `week`, or `weeks` (case-insensitive). Days multiply by 8; weeks multiply by 40. If no numeric estimate is found, default `hours_tier = 2`.
-
-Hours mapping (upper bounds strictly less-than; 8h falls in Tier 3, not Tier 2):
-
-| Q4 estimate | hours_tier |
-|---|---|
-| Less than 2 hours | 1 |
-| 2 to less than 8 hours | 2 |
-| 8 to less than 40 hours | 3 |
-| 40 to less than 160 hours | 4 |
-| 160 hours or more | 5 |
-
-Entity count: count distinct named entities, files, or system components mentioned in Q3 and Q4 answers (after normalization defined below). Map:
-
-| Distinct named entities in Q3+Q4 | entity_tier |
-|---|---|
-| 1 | 1 |
-| 2 to 3 | 2 |
-| 4 to 7 | 3 |
-| 8 to 15 | 4 |
-| More than 15 | 5 |
-
-ProvisionalTier = `max(hours_tier, entity_tier)`. Step 3 may classify the actual tier higher; if the upgrade crosses a phase boundary (i.e., `phases_needed(actual_tier) > phases_needed(provisional_tier)`), append a supplemental sub-block (defined in the supplemental traversal hook section below).
-
-#### Step 0.5 topic extraction
-
-Topics are derived mechanically from Q3 and Q4 named entities. One topic per distinct entity. Normalization, applied in order:
-
-1. Trim leading and trailing whitespace.
-2. Strip leading path separators (`/`, `\`) AND leading dots (`.`).
-3. Lowercase the string.
-4. Collapse internal separator runs (whitespace, `-`, `_`) to a single hyphen, so `spec pipeline`, `spec-pipeline`, and `spec_pipeline` all normalize to `spec-pipeline`.
-5. Look up the result of rule 4 in `.agents/dictionaries/spec-entity-aliases.json` (exact match on the normalized string against the `aliases` keys). On a hit, substitute the canonical value; on a miss, keep the rule-4 result unchanged. This collapses known synonyms (for example `memory-skill` to `memory`, `spec` to `spec-pipeline`) so distinct names for the same entity search as one topic. Adjudication and matching use the post-substitution canonical string.
-
-Example: `.claude/commands/spec.md` normalizes to `claude/commands/spec.md` (rule 2 strips the leading dot and any leading slashes); this string is not an alias key, so rule 5 leaves it unchanged. `spec pipeline` normalizes to `spec-pipeline` after rule 4; `spec` normalizes to `spec` after rule 4, then rule 5 substitutes the canonical `spec-pipeline`, so both resolve to the same topic.
-
-The agent lists the derived topics explicitly in the Step 0.5 preamble before running any searches. Auto-mode adjudication (defined under entity discovery below) compares discovered entity names against Q answers using the same normalization.
-
-#### Step 0.5 skill invocation sequence
-
-Invoke the two skills in order. Each emits content into a named subsection of the PriorArtBlock.
-
-1. **chestertons-fence (frame)**. Invoke `skill: "chestertons-fence"` with `target` set to the Q3 system path and `change` set to the Q4 wedge description. The skill runs git archaeology, PR/ADR search, and dependency analysis on the target. Output (PRESERVE | MODIFY | REPLACE | REMOVE recommendation plus rationale) feeds the `### Direct prior art from memory` subsection.
-2. **memory (point search)**. For each topic from the topic-extraction step, invoke the memory skill via `skill: "memory"` with at minimum 3 distinct query variants per topic. The skill internally calls `search_memory.py`. Distinct queries share no significant token roots; for example, for topic `spec-pipeline`: `spec pipeline`, `spec command BLOCKING`, `clarification gate why`. Result entries with non-zero matches feed the `### Direct prior art from memory` subsection.
-
-   **Invocation contract (security)**: the canonical flow is `skill: "memory"`, which already passes topics via argv-vector internally. If the agent's environment lacks the `Skill` tool and must invoke the script directly as a fallback, resolve `search_memory.py` in this order: (1) `<skill_dir>/../memory/scripts/search_memory.py`, where `<skill_dir>` is the base directory printed when this spec skill loads; (2) `.claude/skills/memory/scripts/search_memory.py`, only after confirming the current repo is this toolkit source checkout. If neither path exists, emit a coverage note naming both paths tried and skip the direct memory point-search fallback. When invoking the resolved script, the agent MUST use an argv list, not shell string concatenation: `subprocess.run(["python3", resolved_search_memory_py, topic], shell=False, ...)`. String concatenation of topics into a shell command line is forbidden because Q3+Q4 entity strings are author-controlled and the topic normalization rule does not strip shell metacharacters. CWE-78 (OS Command Injection) applies. If the agent cannot use either the Skill wrapper OR argv-vector invocation, it MUST first reject any topic matching `[^\w\-\./ ]` and emit a coverage note explaining the rejection.
-
-Prior-art search depth matches ProvisionalTier. Each row is cumulative over the two steps above:
-
-| ProvisionalTier | Phases run | Effect |
-|---|---|---|
-| 1 or 2 | Phases 1-2 (shallow) | Point search per topic, at minimum 3 distinct query variants |
-| 3 | Phases 1-4 (medium) | Adds a `chestertons-fence` dependency analysis pass over the components those results name |
-| 4 or 5 | Phases 1-5 (deep) | Adds a second point-search pass on every entity the earlier phases named |
-
-Entities and projects named by the results of steps 1 and 2 feed the `### Connected context from prior-art search` subsection.
-
-#### Step 0.5 degradation rules
-
-| Failure | Behavior |
-|---|---|
-| `chestertons-fence` skill unavailable | Emit `### Coverage notes` entry: "chestertons-fence unavailable; git archaeology skipped; confidence low." Continue. |
-| Memory search returns 0 results for a topic after at minimum 3 distinct queries | Emit coverage note for that topic: "no results for `<topic>` after 3 distinct queries; absence of evidence, not evidence of absence." Not a halt. |
-
-None of the above failures halt Step 0.5. They are recorded in the coverage notes subsection so Step 9 check 9d can distinguish "search ran and found nothing" from "search did not run".
-
-#### Step 0.5 entity adjudication
-
-When the prior-art search discovers an entity or project name that does not appear in Step 0 Q1, Q3, or Q4 (after applying the topic normalization above), the proposer adjudicates each discovered entity as one of: `in-scope`, `out-of-scope`, or `blast-radius`.
-
-- `in-scope`: the entity is acknowledged as part of the spec's scope; record name and one-line relationship to the spec.
-- `out-of-scope`: the entity is deliberately excluded; record name and one-line reason.
-- `blast-radius`: the entity is connected but the proposer did not previously acknowledge it; record name and one-line risk note.
-
-In auto-mode (no human present), the agent applies topic normalization rules 1-5 to the discovered entity name. For each Q1+Q3+Q4 answer, it applies rules 1-4 to the full answer, splits the normalized answer on `-` to recover its token sequence, then evaluates every contiguous token span after applying rule 5 alias lookup to that span. The agent then performs whole-token equality, not substring match: the discovered entity matches a Q answer only when the entity's canonical normalized value equals a canonicalized contiguous token span inside that answer. A single-token alias such as `spec` can therefore match discovered `spec-pipeline`, and a multi-token alias such as `spec command` can match the same entity. Case-insensitivity is already handled by rule 3 (lowercase) of the normalization, so no separate case fold is applied at match time. A match resolves the entity as `in-scope` automatically. No match resolves the entity as `blast-radius` (conservative). A human proposer in a later turn may override blast-radius classifications that auto-mode conservatively assigned.
-
-Whole-token equality closes the substring bypass (CWE-863, broken access control). Under the old substring rule, a token-rich Q1 such as `auth-service payment-service billing-service` (normalized to `auth-service-payment-service-billing-service`) made almost any short discovered name "match" as a substring, so genuinely connected blast-radius entities resolved to `in-scope` and never counted toward the halt threshold. Worked example with the token rule: discovered `service-mesh` (tokens `service`, `mesh`) does NOT match that answer, because `service mesh` never appears as a contiguous token run; the lone `service` tokens are followed by `payment`/`billing`, not `mesh`. Discovered `auth-service` (tokens `auth`, `service`) DOES match, because `auth service` is a contiguous token run at the answer's head.
-
-The blast-radius halt threshold differs by mode:
-
-| Mode | Blast-radius count to trigger halt |
-|---|---|
-| Human (proposer adjudicates each entity) | 2 or more |
-| Auto (whole-token equality only) | 3 or more |
-
-The halt itself, the metrics tally, and the supplemental traversal hook are defined in the `spec-generator` skill's `references/spec-prior-art-schema.md`.
-
-The PriorArtBlock output schema, halt criteria, halt block format, supplemental traversal hook, metrics tally, and process steps 1 through 9 are in the `spec-generator` skill's `references/spec-prior-art-schema.md`.
-
-   - **Check 9e, Operating-model drift (Tier 5 only)**:
-     - Applies only when the spec is Tier 5 and Step 1 invoked `work-operating-model` (the "Operating Model Context" section is present in the PRD). For Tier 1-4, this check is N/A and does not gate.
-     - PASS: the spec's proposed implementation is consistent with the operating model elicited at Step 1 (decision rights, communication patterns, work intake, conflict resolution, retrospection).
-     - FAIL if the proposed implementation contradicts the elicited operating model (for example, it assumes decision rights the elicited model places elsewhere). On FAIL: cite the contradicting operating-model layer and the PRD element that conflicts; halt and require either a spec revision or an explicit operating-model amendment.
+Runs after Step 0 and before Step 1. It searches prior art before any new spec
+work, halts when the search shows the question is already answered, and runs the
+Check 9 series over the result. The gate in full, including its halt criteria,
+halt block format, metrics tally and every check, is in
+`references/step-0-5-memory-gate.md`. Read it before running the gate: the halt
+conditions are the point, and a summary of them is not the gate.
 
 ## Evaluation Axes
 
@@ -173,3 +102,51 @@ Structured requirements document. Mirror the PRD schema produced in step 2; do n
 - **Complexity classification** (engineering tier 1-5 from Step 3, plus problem domain Clear/Complicated/Complex/Chaotic from the Step 3 `cynefin-classifier` skill, plus derived methodology)
 - **Operating Model Context** (Tier 5 only; the 5-layer model elicited by the Step 1 `work-operating-model` skill: decision rights, communication patterns, work intake, conflict resolution, retrospection; omit at Tier 1-4)
 - **ADR cross-reference** (Tier 4-5 only; the `ADR-NNN-{slug}.md` produced by the Step 6 `adr-generator` skill and its `adr-review` verdict, with the bidirectional ADR<->REQ link; omit at Tier 1-3)
+
+## Scripts
+
+Two helpers ship inside this skill so an installed plugin can run the gates
+without a toolkit checkout. Resolve them from this skill's own directory, not
+from a repository path.
+
+Both live in this skill's own `scripts/` directory, named here without a
+leading path so nobody reads them as the upstream tree they were copied from.
+
+| Script | Purpose | Exit codes |
+|--------|---------|------------|
+| `redact_secrets.py` | Redacts secrets from Step 0 and Step 0.5 tally text before any durable write. BLOCKING: a failure means do not write. | 0 clean, 1 redaction applied or logic error, 2 config error |
+| `metrics_writer.py` | The single safe append point for the metrics tally files. Refuses a symlinked target (CWE-59) and opens with `O_NOFOLLOW` where the platform supports it. | 0 appended, 1 refused or logic error, 2 config error |
+
+`spec-entity-aliases.json` ships in this skill's `data/` directory beside them:
+the alias table Step 0.5 uses to normalize topic names. All three are byte-identical copies of their canonical
+sources, pinned by `tests/skills/test_spec_bundle_parity.py`, so a toolkit run
+and an installed-plugin run cannot disagree.
+
+## Verification
+
+- [ ] Step 0 answered all six forcing questions before any clarification work
+- [ ] Step 0.5 ran and its halt criteria were evaluated, not skimmed
+- [ ] Every acceptance criterion is numbered, in EARS syntax, and independently pass/fail
+- [ ] Requirement names match the Step 1 OntologyFragment canonical names
+- [ ] Out of scope and Deferred are both populated, or explicitly empty
+- [ ] The buy-vs-build section is filled, or marked N/A with its reason
+- [ ] Complexity tier recorded, and the Tier 5 sections present only at Tier 5
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Skipping Step 0 because the problem seems obvious | Every retro citing wasted spec work in the last six months traces to a question this gate forces upfront | Answer the six questions, even quickly |
+| Treating Step 0.5 as a formality | Its job is to halt when the question is already answered, and a skim cannot halt | Read the halt criteria in the reference and apply them |
+| Acceptance criteria that restate the user story | A criterion nobody can fail is not a criterion | Write each one so a reader can say pass or fail from evidence |
+| Speculative requirements | YAGNI: a requirement for a need nobody has yet becomes waste plus a constraint | Specify what is needed now, and record the rest under Deferred |
+| Collapsing the output to acceptance criteria alone | Downstream plan and build read the ontology, data model and failure modes, not just the criteria | Mirror the full PRD schema |
+
+## Extension Points
+
+- **New evaluation axis.** Add a row to the axes list and a matching Verification
+  checkbox, so the axis is both stated and checked.
+- **Different gate content.** Step 0.5 lives in `references/step-0-5-memory-gate.md`;
+  a project that searches prior art differently edits that file, not the process.
+- **Additional output section.** The Output list is the PRD schema. Adding a
+  section there is what makes downstream skills able to rely on it.

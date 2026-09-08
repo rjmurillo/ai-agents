@@ -96,14 +96,14 @@ class TestScanAllReturnsSingleSnapshot:
         repo = tmp_path / "repo"
         (repo / ".claude" / "skills").mkdir(parents=True)
         (repo / "src" / "copilot-cli" / "skills").mkdir(parents=True)
-        commands = repo / ".claude" / "commands"
-        commands.mkdir(parents=True)
-        (commands / "spec.md").write_text("See .agents/lib/x\n", encoding="utf-8")
+        agent_templates = repo / "templates" / "agents"
+        agent_templates.mkdir(parents=True)
+        (agent_templates / "spec.shared.md").write_text("See .agents/lib/x\n", encoding="utf-8")
 
         ref_counts, _, scanned, _ = cmp.scan_all(repo)
 
-        assert ".claude/commands/spec.md" in ref_counts
-        assert scanned.get(".claude/commands") == 1
+        assert "templates/agents/spec.shared.md" in ref_counts
+        assert scanned.get("templates/agents") == 1
 
     def test_extra_dirs_contribute_to_marker_counts_and_coverage(
         self, tmp_path: Path
@@ -111,17 +111,17 @@ class TestScanAllReturnsSingleSnapshot:
         repo = tmp_path / "repo"
         (repo / ".claude" / "skills").mkdir(parents=True)
         (repo / "src" / "copilot-cli" / "skills").mkdir(parents=True)
-        commands = repo / ".claude" / "commands"
-        commands.mkdir(parents=True)
-        (commands / "spec.md").write_text(
+        agent_templates = repo / "templates" / "agents"
+        agent_templates.mkdir(parents=True)
+        (agent_templates / "spec.shared.md").write_text(
             "<!-- vendor-portability: declared -->\nSee .agents/lib/x\n",
             encoding="utf-8",
         )
 
         _, marker_counts, scanned, _ = cmp.scan_all(repo)
 
-        assert marker_counts == {".claude/commands/spec.md": 1}
-        assert scanned.get(".claude/commands") == 1
+        assert marker_counts == {"templates/agents/spec.shared.md": 1}
+        assert scanned.get("templates/agents") == 1
 
 
 class TestScanAllUsedByMain:

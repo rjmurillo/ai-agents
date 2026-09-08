@@ -1,4 +1,4 @@
-"""Tests for the Co-change checklist template in .claude/commands/spec.md.
+"""Tests for the Co-change checklist template in .claude/skills/spec/SKILL.md.
 
 Pins REQ-012-04 and REQ-012-05: Step 6 of the /spec command must include
 a `## Co-change checklist` template that the spec-generator emits when

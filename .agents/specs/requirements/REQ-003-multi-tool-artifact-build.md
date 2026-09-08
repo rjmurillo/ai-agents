@@ -204,14 +204,6 @@ artifacts:
     outputDir: "src/copilot-cli/skills"
     mode: "directory-copy"
     excludeFilenames: ["AGENTS.md", "CLAUDE.md", "merge-resolver"]
-  commands:
-    sourceDir: ".claude/commands"
-    outputDir: "src/copilot-cli/skills"
-    resourceOutputDir: "src/copilot-cli/commands"
-    resourceSuffixes: [".yaml"]
-    transform: "command-to-skill"
-    appendFrontmatter:
-      user-invocable: true
   rules:
     sourceDir: ".claude/rules"
     outputDirs:

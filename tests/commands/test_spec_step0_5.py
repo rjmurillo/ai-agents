@@ -10,7 +10,7 @@ spec.md fixture). Sibling test_spec_step0.py is 522 lines under the
 same justification.
 
 Verifies the static structure of Step 0.5 instructions in
-`.claude/commands/spec.md` against the 12 acceptance criteria. Parser
+`.claude/skills/spec/SKILL.md` against the 12 acceptance criteria. Parser
 logic lives in `tests/commands/step0_5_parser.py`; this file holds only
 test cases.
 
@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 from pathlib import Path
 
 import pytest
@@ -55,8 +54,25 @@ from tests.commands.step0_5_parser import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SPEC_MD = PROJECT_ROOT / ".claude" / "commands" / "spec.md"
+SPEC_MD = PROJECT_ROOT / ".claude" / "skills" / "spec" / "SKILL.md"
 SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec" / "SKILL.md"
+
+
+def _spec_surface(skill_md: Path) -> str:
+    """The whole spec surface: the skill body plus every reference it ships.
+
+    ADR-064 (issue #5632) made spec a skill and moved the Step 0.5 gate into
+    `references/step-0-5-memory-gate.md`, so the contract these tests pin now
+    spans two files. Concatenating in body-then-references order preserves the
+    heading ordering the AC-01 test asserts: Step 0 sits in the body, Step 0.5
+    in the reference that follows it.
+    """
+    parts = [skill_md.read_text(encoding="utf-8")]
+    parts.extend(
+        ref.read_text(encoding="utf-8")
+        for ref in sorted((skill_md.parent / "references").glob("*.md"))
+    )
+    return "\n".join(parts)
 SPEC_PRIOR_ART_SCHEMA = (
     PROJECT_ROOT
     / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
@@ -66,18 +82,10 @@ SKILL_PRIOR_ART_SCHEMA = (
     / "src" / "copilot-cli" / "skills" / "spec-generator" / "references"
     / "spec-prior-art-schema.md"
 )
-# The skills output tree (two levels above the mirror) locates the plugin.json
-# that the #2743 translation reads for the agent_type namespace.
-SKILLS_DIR = SKILL_MD.parent.parent
-
-_build_scripts_dir = str(PROJECT_ROOT / "build" / "scripts")
-_original_sys_path = sys.path.copy()
-try:
-    if _build_scripts_dir not in sys.path:
-        sys.path.insert(0, _build_scripts_dir)
-    import copilot_body_translation
-finally:
-    sys.path[:] = _original_sys_path
+# The #2743 translation import and its SKILLS_DIR anchor are gone with the
+# assertion that used them. ADR-064 (issue #5632) moved the Step 0.5 block into
+# `references/`, which `generate_skills.py` copies byte-for-byte rather than
+# translating, so the mirror comparison is raw equality and needs neither.
 
 SPEC_SCENARIOS_JSON = PROJECT_ROOT / "tests" / "evals" / "spec-scenarios.json"
 
@@ -89,12 +97,12 @@ CANONICAL_DEFERRAL_TEXT = (
 
 @pytest.fixture(scope="module")
 def spec_text() -> str:
-    return SPEC_MD.read_text(encoding="utf-8")
+    return _spec_surface(SPEC_MD)
 
 
 @pytest.fixture(scope="module")
 def skill_text() -> str:
-    return SKILL_MD.read_text(encoding="utf-8")
+    return _spec_surface(SKILL_MD)
 
 
 @pytest.fixture(scope="module")
@@ -133,9 +141,11 @@ def test_s1_heading_order_step_0_then_step_0_5_then_step_1(
     The per-file ordering is preserved even though the files differ.
     """
     step0 = spec_text.find("### Step 0: First Principles Gate")
-    step0_5 = spec_text.find(
-        "### Step 0.5: Memory-First Gate (blocking, runs after Step 0)"
-    )
+    # ADR-064 (issue #5632) moved the Step 0.5 block into the spec skill's
+    # reference, where it is an h2. `STEP_0_5_HEADING` carries that level, so
+    # anchoring on it keeps this ordering assertion true across the move rather
+    # than pinning a literal that only described the command layout.
+    step0_5 = spec_text.find(STEP_0_5_HEADING)
     step1 = re.search(r"^1\. Clarify the problem\.", spec_prior_art_text, re.MULTILINE)
 
     assert step0 != -1, "Step 0 heading missing from spec.md"
@@ -151,7 +161,7 @@ def test_s1_heading_order_step_0_then_step_0_5_then_step_1(
 
 def test_s2_provisional_tier_subsection_present(step0_5_block: str):
     assert (
-        "#### Step 0.5 ProvisionalTier (auto-classified, no user prompt)"
+        "### Step 0.5 ProvisionalTier (auto-classified, no user prompt)"
         in step0_5_block
     )
 
@@ -159,7 +169,7 @@ def test_s2_provisional_tier_subsection_present(step0_5_block: str):
 def test_s2_provisional_tier_hours_mapping_strict_less_than(spec_text: str):
     body = extract_step0_5_subsection(
         spec_text,
-        "#### Step 0.5 ProvisionalTier (auto-classified, no user prompt)",
+        "### Step 0.5 ProvisionalTier (auto-classified, no user prompt)",
     )
     assert "2 to less than 8 hours" in body
     assert "8 to less than 40 hours" in body
@@ -240,7 +250,7 @@ def test_s7_degradation_rules_present(spec_text: str):
     """
     body = extract_step0_5_subsection(
         spec_text,
-        "#### Step 0.5 degradation rules",
+        "### Step 0.5 degradation rules",
     )
     assert "chestertons-fence" in body
     assert "Memory search returns 0 results" in body
@@ -255,7 +265,7 @@ def test_s7_degradation_rules_present(spec_text: str):
 def test_s8_adjudication_three_categories(spec_text: str):
     body = extract_step0_5_subsection(
         spec_text,
-        "#### Step 0.5 entity adjudication",
+        "### Step 0.5 entity adjudication",
     )
     assert "in-scope" in body
     assert "out-of-scope" in body
@@ -265,7 +275,7 @@ def test_s8_adjudication_three_categories(spec_text: str):
 def test_s8_auto_mode_case_insensitive_match_rule(spec_text: str):
     body = extract_step0_5_subsection(
         spec_text,
-        "#### Step 0.5 entity adjudication",
+        "### Step 0.5 entity adjudication",
     )
     # Issue #1973 changed how case-insensitivity is documented: it is now
     # stated as a consequence of normalization rule 2 (lowercase) rather
@@ -287,7 +297,7 @@ def test_s8_auto_mode_uses_whole_token_equality_not_substring(spec_text: str):
     """
     body = extract_step0_5_subsection(
         spec_text,
-        "#### Step 0.5 entity adjudication",
+        "### Step 0.5 entity adjudication",
     )
     assert "whole-token equality" in body, (
         "auto-mode rule must specify whole-token equality"
@@ -307,7 +317,7 @@ def test_s8_auto_mode_adjudication_applies_rule_5_aliases(spec_text: str):
     """Auto-mode prose matches parser behavior for entity alias spans."""
     body = extract_step0_5_subsection(
         spec_text,
-        "#### Step 0.5 entity adjudication",
+        "### Step 0.5 entity adjudication",
     )
     assert "applies topic normalization rules 1-5 to the discovered entity" in body
     assert "every contiguous token span after applying rule 5 alias lookup" in body
@@ -317,7 +327,7 @@ def test_s8_auto_mode_adjudication_applies_rule_5_aliases(spec_text: str):
 def test_s8_blast_radius_thresholds_2_human_3_auto(spec_text: str):
     body = extract_step0_5_subsection(
         spec_text,
-        "#### Step 0.5 entity adjudication",
+        "### Step 0.5 entity adjudication",
     )
     assert "Human" in body and "2 or more" in body
     assert "Auto" in body and "3 or more" in body
@@ -354,7 +364,7 @@ def test_s10_phases_needed_formula_present(spec_prior_art_text: str):
     """After issue #3632, the supplemental traversal hook is in spec-prior-art-schema.md."""
     body = extract_step0_5_subsection(
         spec_prior_art_text,
-        "#### Step 0.5 supplemental traversal hook (cross-step)",
+        "### Step 0.5 supplemental traversal hook (cross-step)",
     )
     assert "phases_needed" in body
     assert "actual_tier > provisional_tier" in body
@@ -379,7 +389,7 @@ def test_s11_metrics_file_path_and_format(spec_prior_art_text: str):
     """After issue #3632, the metrics tally subsection is in spec-prior-art-schema.md."""
     body = extract_step0_5_subsection(
         spec_prior_art_text,
-        "#### Step 0.5 metrics tally",
+        "### Step 0.5 metrics tally",
     )
     assert ".agents/sessions/STEP-0.5-METRICS.md" in body
     assert "<YYYY-MM-DDTHH:MM:SSZ> | <pass|fail>" in body
@@ -799,15 +809,15 @@ def test_normalize_topic_collapses_separators_to_hyphen():
 
 def test_normalize_topic_strips_leading_dots_and_separators_and_lowercases():
     """Rules 1-3: trim; strip leading `/`, `\\`, `.`; lowercase."""
-    assert normalize_topic(".claude/commands/spec.md") == "claude/commands/spec.md"
+    assert normalize_topic(".claude/skills/spec/SKILL.md") == "claude/skills/spec/skill.md"
     assert normalize_topic("  AUTH-Service  ") == "auth-service"
     assert normalize_topic("///leading") == "leading"
     # Regression: leading whitespace must not defeat leading-dot stripping.
     # Rule 1 (trim) runs before rule 2 (strip), so surrounding whitespace is
     # removed before the leading-dot regex applies.
     assert (
-        normalize_topic("  .claude/commands/spec.md  ")
-        == "claude/commands/spec.md"
+        normalize_topic("  .claude/skills/spec/SKILL.md  ")
+        == "claude/skills/spec/skill.md"
     )
 
 
@@ -902,19 +912,24 @@ def test_entity_adjudication_applies_aliases_to_entity_and_answer_spans():
 def test_step0_5_block_byte_identical_across_spec_and_skill(
     spec_text: str, skill_text: str
 ):
-    """The Step 0.5 block must match after the #2743 Copilot translation.
+    """The Step 0.5 block must match between the two trees.
 
-    The Copilot CLI twin at src/copilot-cli/skills/spec/SKILL.md mirrors
-    .claude/commands/spec.md. The block carries an inline `Skill()` call, which
-    the mirror translates to its Copilot `skill:` tool-input span; applying the
-    production translation to the spec block must reproduce the mirror block.
-    Drift beyond that translation would silently change behavior depending on
-    which entry point a user invoked.
+    Raw equality, not the #2743 translation. ADR-064 (issue #5632) moved this
+    block out of the command body and into `references/step-0-5-memory-gate.md`,
+    and `generate_skills.py` translates `SKILL.md` only: every other file in a
+    skill directory is copied byte-for-byte. So the mirror of a reference is its
+    source, and the comparison is raw.
+
+    Known consequence, tracked rather than fixed here: the block still carries
+    `Skill(skill="...")` calls, which now reach Copilot consumers untranslated.
+    Four shipped reference files carry 22 such calls, 19 of them predating this
+    migration. Teaching the generator to translate references was tried and
+    reverted: the translation drops a multi-line triple-quoted prompt body, so it
+    silently deleted a 60-line instruction block from
+    `pr-comment-responder/references/workflow.md`. Fixing the reference gap
+    needs that translation bug fixed first.
     """
-    expected = copilot_body_translation.translate_body(
-        extract_step0_5_block(spec_text), SKILLS_DIR
-    )
-    assert extract_step0_5_block(skill_text) == expected
+    assert extract_step0_5_block(skill_text) == extract_step0_5_block(spec_text)
 
 
 # ---------------------------------------------------------------------------
@@ -973,17 +988,23 @@ def test_step0_5_block_terminates_on_bare_horizontal_rule_outside_fence():
 
 
 def test_step0_5_block_terminates_on_sibling_h3_before_any_rule():
-    """A sibling h3 outside a fence closes the block even with no `---` first.
+    """A sibling heading outside a fence closes the block even with no `---` first.
 
     The hardened extractor anchors on the next sibling boundary, so a sibling
-    h3 that appears before the closing rule terminates the block instead of
+    heading that appears before the closing rule terminates the block instead of
     over-running to a later `---`.
+
+    "Sibling" is relative to the block's own level, which ADR-064 (issue #5632)
+    changed when it moved Step 0.5 into its own reference file as an h2. The
+    synthetic document below is built at that level so the case keeps testing
+    termination rather than accidentally testing a child heading.
     """
+    sibling = "#" * (len(STEP_0_5_HEADING) - len(STEP_0_5_HEADING.lstrip("#")))
     spec = (
         "### Step 0: First Principles Gate\n\n"
         f"{STEP_0_5_HEADING}\n\n"
         "Step 0.5 body content.\n\n"
-        "### Some Sibling Section\n\n"
+        f"{sibling} Some Sibling Section\n\n"
         "Sibling content that is NOT part of Step 0.5.\n"
         "---\n"
     )
@@ -1155,8 +1176,8 @@ def test_normalize_topic_with_aliases_passes_through_unknown_topics():
     # `auth service` normalizes to `auth-service`, which is not an alias key.
     assert normalize_topic_with_aliases("auth service") == "auth-service"
     assert normalize_topic_with_aliases(
-        ".claude/commands/spec.md"
-    ) == "claude/commands/spec.md"
+        ".claude/skills/spec/SKILL.md"
+    ) == "claude/skills/spec/skill.md"
 
 
 def test_normalize_topic_with_aliases_accepts_injected_table():

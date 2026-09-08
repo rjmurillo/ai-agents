@@ -532,9 +532,10 @@ def run_compliance_checks(path: Path, claude_md_path: Path) -> ComplianceResults
                     "The first 200 lines or 25 KB limit applies to auto-memory MEMORY.md."
                 ),
                 "source": CLAUDE_MD_MEMORY_DOCS,
-                "localCommandPolicy": (
-                    "command_size.py owns this repository's local 200-line "
-                    "command-file ratchet. It does not apply to CLAUDE.md."
+                "localSizePolicy": (
+                    "skill_size.py owns this repository's local SKILL.md size "
+                    "ratchet, 500 lines and 24576 bytes. It does not apply to "
+                    "CLAUDE.md."
                 ),
             },
             "contentQualityReview": {

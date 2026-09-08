@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-COMMAND_PATH = REPO_ROOT / ".claude" / "commands" / "pr-autofix.md"
+COMMAND_PATH = REPO_ROOT / ".claude" / "skills" / "pr-autofix" / "SKILL.md"
 MIRROR_PATH = REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-autofix" / "SKILL.md"
 PRODUCER_DIR = REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr"
 

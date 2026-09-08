@@ -20,28 +20,34 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SKILL_DIR = _REPO_ROOT / "src" / "copilot-cli" / "skills" / "spec"
+# ADR-064 (issue #5632) made spec a skill on the Claude side too. Until then the
+# bundle existed only in the Copilot tree and was hand-maintained, so a Claude
+# plugin consumer installed `/spec` with none of the helpers it names. The
+# Claude copy is now the source the directory-copy generator mirrors from, which
+# is why both trees are pinned here rather than just the Copilot one.
+_CLAUDE_SKILL_DIR = _REPO_ROOT / ".claude" / "skills" / "spec"
 
-# (canonical source, bundled copy) pairs, both repo-relative.
-_PARITY_PAIRS: tuple[tuple[Path, Path], ...] = (
-    (
-        _REPO_ROOT / "scripts" / "redact_secrets.py",
-        _SKILL_DIR / "scripts" / "redact_secrets.py",
-    ),
-    (
-        _REPO_ROOT / "scripts" / "metrics_writer.py",
-        _SKILL_DIR / "scripts" / "metrics_writer.py",
-    ),
+_CANONICAL_BUNDLE: tuple[tuple[Path, str], ...] = (
+    (_REPO_ROOT / "scripts" / "redact_secrets.py", "scripts/redact_secrets.py"),
+    (_REPO_ROOT / "scripts" / "metrics_writer.py", "scripts/metrics_writer.py"),
     (
         _REPO_ROOT / ".agents" / "dictionaries" / "spec-entity-aliases.json",
-        _SKILL_DIR / "data" / "spec-entity-aliases.json",
+        "data/spec-entity-aliases.json",
     ),
+)
+
+# (canonical source, bundled copy) pairs, both repo-relative, for both trees.
+_PARITY_PAIRS: tuple[tuple[Path, Path], ...] = tuple(
+    (source, skill_dir / relative)
+    for source, relative in _CANONICAL_BUNDLE
+    for skill_dir in (_SKILL_DIR, _CLAUDE_SKILL_DIR)
 )
 
 
 @pytest.mark.parametrize(
     ("source", "bundled"),
     _PARITY_PAIRS,
-    ids=[bundled.name for _, bundled in _PARITY_PAIRS],
+    ids=[f"{bundled.parts[-4]}-{bundled.name}" for _, bundled in _PARITY_PAIRS],
 )
 def test_bundled_copy_exists(source: Path, bundled: Path) -> None:
     # Arrange / Act / Assert: the bundle must ship the file the skill needs.
@@ -52,7 +58,7 @@ def test_bundled_copy_exists(source: Path, bundled: Path) -> None:
 @pytest.mark.parametrize(
     ("source", "bundled"),
     _PARITY_PAIRS,
-    ids=[bundled.name for _, bundled in _PARITY_PAIRS],
+    ids=[f"{bundled.parts[-4]}-{bundled.name}" for _, bundled in _PARITY_PAIRS],
 )
 def test_bundled_copy_is_byte_identical(source: Path, bundled: Path) -> None:
     # Arrange

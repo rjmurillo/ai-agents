@@ -6860,27 +6860,22 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
 
 
 def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
-    """Skip evals and the command mirrors build/scripts/generate_commands.py writes.
+    """Skip eval fixtures, which are not authored skills.
 
-    A mirror is not an authored skill, so the SkillForge schema (Triggers, Process,
-    Verification) does not describe it and editing it is not how you fix it. The
-    mirror set is derived from `.claude/commands/<name>.md`, the generator's own
-    input, so do not restate the names here or in lefthook.yml.
+    The second clause this used to carry covered the command mirrors that
+    build/scripts/generate_commands.py wrote under src/copilot-cli/skills/. It
+    probed `.claude/commands/<name>.md` to decide, so it self-emptied when
+    ADR-064 converted the last command and stopped being reachable when the
+    generator was deleted (issue #5632). Every Copilot skill is now mirrored from
+    an authored `.claude/skills/<name>/SKILL.md` by generate_skills.py, and those
+    do carry the SkillForge schema, so validating them is correct rather than
+    noise.
 
-    Derived is not the same as in sync. Nothing regenerates a mirror at commit
-    time, so a command edit that skips the generator ships a stale mirror; one
-    did, leaving the Copilot pr-autofix skill prescribing a push the pre-push
-    guard rejects. `test_committed_command_mirrors_match_the_generator` in
-    tests/build_scripts/test_generate_commands.py is what catches that.
+    `repo_root` is kept in the signature: callers pass it positionally, and the
+    parameter is what a future path-relative skip would need.
     """
-    if path.startswith("evals/"):
-        return True
-    parts = PurePosixPath(path).parts
-    if len(parts) != 5 or parts[:3] != ("src", "copilot-cli", "skills"):
-        return False
-    if parts[4] != "SKILL.md":
-        return False
-    return (repo_root / ".claude" / "commands" / f"{parts[3]}.md").is_file()
+    del repo_root
+    return path.startswith("evals/")
 
 
 def run_planning_advisory(repo_root: Path) -> int:
@@ -8201,11 +8196,9 @@ def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
     # These mirror the glob: list for plugin-load-e2e in lefthook.yml.
     plugin_e2e_globs = (
         ".claude/.claude-plugin/plugin.json",
-        ".claude/commands/**",
         ".claude/skills/**",
         "src/copilot-cli/.claude-plugin/plugin.json",
         "src/copilot-cli/skills/**",
-        "build/scripts/generate_commands.py",
         "build/scripts/generate_skills.py",
         "templates/platforms/copilot-cli.yaml",
         "tests/e2e/test_plugin_load_smoke.py",

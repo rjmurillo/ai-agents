@@ -1,0 +1,50 @@
+{
+  "skill_path": ".claude/skills/pr-quality-all/SKILL.md",
+  "skill_id": "pr-quality-all",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Full pre-push run across six axes",
+      "input": "I am about to push this branch. Run all the quality gates against main. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "six",
+        "FINAL VERDICT",
+        "merge"
+      ],
+      "expected_gate": "pr-quality-all",
+      "rationale": "The prompt uses the documented trigger before a push. A response that forwards one resolved base to all six axes and merges their tokens into a single FINAL VERDICT is attributable to this skill rather than to a generic review."
+    },
+    {
+      "id": "S2",
+      "desc": "A crashed axis must not roll up into PASS",
+      "input": "Five axes returned PASS and the architect axis crashed with no parseable verdict. Five out of five that reported are green, so call the whole thing PASS. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "UNKNOWN",
+        "not",
+        "PASS"
+      ],
+      "expected_gate": "pr-quality-all",
+      "rationale": "This is the discriminating case. Five greens read as a pass and a generic responder rounds up. The merge table makes an unparseable axis UNKNOWN, and UNKNOWN downgrades a would-be PASS so a crashed axis cannot produce a green verdict, so a response that returns UNKNOWN and names the crashed axis is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "An empty diff needs no axes at all",
+      "input": "Run all the quality gates. My working tree has no changes against main yet. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "PASS",
+        "no changes",
+        "stop"
+      ],
+      "expected_gate": "pr-quality-all",
+      "rationale": "Step 3 counts changed files and stops at PASS when there are none. A response that invokes six axes against an empty diff burns six invocations on nothing, so the early stop is the attributable behavior."
+    },
+    {
+      "id": "S4",
+      "desc": "The pre-merge gate is a different skill",
+      "input": "My PR is open and approved. Run the gate that ship checks before I merge. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for the pre-merge gate, which the skill's description routes to review. This skill reads working changes before a push, not an open PR, so pr-quality-all should stay inactive."
+    }
+  ]
+}

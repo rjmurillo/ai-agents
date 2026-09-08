@@ -1,15 +1,33 @@
 ---
 name: sync
-description: Detect Spec to Code drift. Scan REQ/DESIGN/TASK specs for references to code that no longer exists, then report drift for review. Run after a hand-edit that moved or deleted code.
-argument-hint: spec-tier-or-empty
+version: 1.0.0
+description: Detect Spec-to-Code drift by scanning REQ, DESIGN and TASK specs for references to code that no longer exists, then report it for triage. Use when you say `detect spec drift`, `sync the specs`, or `did my refactor break a spec`, and run it after a hand-edit that moved or deleted code. Do NOT use to write a spec (use spec), and do NOT use to auto-rewrite specs; it reports and never edits.
+license: MIT
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(python3 scripts/sync/detect_spec_drift.py*)
+argument-hint: spec-tier-or-empty
 user-invocable: true
 ---
 
-# Sync Command
+# Sync
 
-Sync: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
+<!-- vendor-portability: contributor-facing drift detector for the rjmurillo/ai-agents
+     repo itself. It runs scripts/sync/detect_spec_drift.py over that repo's own
+     spec tiers under .agents/specs/requirements, .agents/specs/design and
+     .agents/specs/tasks. The sync-log artifacts named under Step 3 are a planned
+     follow-up and no such directory exists yet.
+     None of those ship in a plugin root, so this skill's audience is repo
+     contributors, not plugin consumers (ADR-083, issue #5632). -->
 
+<!-- vendor-portability-exec: the three python3 invocations below run
+     scripts/sync/detect_spec_drift.py, which is the skill. A prose declaration
+     does not exempt an executable invocation, which migrates independently
+     (issue #2838), so the dependency is declared here too. -->
+
+Migrated from the sync command under ADR-064, which makes skills the single
+user-invocable surface. The command file is gone, so its path is named here in
+plain text rather than as a citation to something a reader could open.
+
+<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
 The forward path (`/spec` -> `/plan` -> `/build`) turns intent into code. There is no clean reverse path. When you hand-edit code (refactor, hotfix, taste change), the spec drifts silently and the staleness surfaces only at `/review` time, late and often misattributed as "the spec was wrong" instead of "the spec needs updating". `/sync` closes that loop: it finds the drift while you still remember why you made the change.
 
 ## What this slice does
@@ -24,6 +42,13 @@ This command detects Spec->Code drift and reports it. It does NOT auto-rewrite s
 | `/sync .agents/specs/design` | Scan one spec tier |
 | `detect spec drift` | Run the detector and report drift |
 
+## Arguments
+
+Sync: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
+
+If `$ARGUMENTS` names a spec tier, scan that tier only by passing it to
+`--target`. Otherwise scan all three tiers.
+
 ## Process
 
 ### Step 1: Detect drift
@@ -34,7 +59,7 @@ Run the drift detector against the specification tier:
 python3 scripts/sync/detect_spec_drift.py --output-format human
 ```
 
-The detector scans `.agents/specs/requirements`, `.agents/specs/design`, and `.agents/specs/tasks` for backticked references to code and artifact paths (`scripts/...`, `build/scripts/...`, `.claude/skills/...`, `.claude/commands/...`, `templates/...`, `tests/...`, `src/...`). Each reference is resolved against the working tree. A reference to a path absent on disk is drift: the spec points at code that moved or was deleted.
+The detector scans `.agents/specs/requirements`, `.agents/specs/design`, and `.agents/specs/tasks` for backticked references to code and artifact paths rooted at any of its known trees (the scripts, build, skills, commands, templates, tests and source roots; the authoritative list is the detector's own). Each reference is resolved against the working tree. A reference to a path absent on disk is drift: the spec points at code that moved or was deleted.
 
 To scan one tier only, pass `--target`:
 
@@ -57,7 +82,7 @@ Do not auto-apply edits. Confirm each case with the author of the change before 
 
 ### Step 3: Propose spec patches (follow-up, not in this slice)
 
-Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wired, `/sync` will hand the drift findings to `agent_type: "project-toolkit:spec-generator"` to draft REQ/DESIGN/TASK edits and write a record under `.agents/specs/sync-log/` with the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
+Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wired, `/sync` will hand the drift findings to `agent_type: "project-toolkit:spec-generator"` to draft REQ/DESIGN/TASK edits and write a sync-log record, in a directory alongside the spec tiers, carrying the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
 
 ## Principles
 
@@ -76,7 +101,7 @@ Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wi
 - [ ] Detector exits `0` only when no drift exists.
 - [ ] Detector exits `1` when stale references exist.
 - [ ] Detector exits `2` for unsafe targets, unreadable specs, or missing custom targets.
-- [ ] Copilot CLI-generated skill matches this command source.
+- [ ] The generated Copilot mirror matches this source.
 
 ## Anti-Patterns
 
@@ -90,4 +115,4 @@ Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wi
 
 - Patch proposal via `spec-generator`.
 - Additional reference roots in `scripts/sync/detect_spec_drift.py`.
-- Sync log artifacts under `.agents/specs/sync-log/`.
+- Sync log artifacts, in a directory alongside the spec tiers. Named without a path here on purpose: no such directory exists yet, and a citation to one would point at nothing.

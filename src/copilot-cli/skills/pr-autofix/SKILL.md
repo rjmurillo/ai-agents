@@ -1,30 +1,33 @@
 ---
 name: pr-autofix
-description: Fix PRs autonomously. Triage open PRs by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes.
-argument-hint: '[pull-request|mode]'
+version: 1.0.0
+description: Fix PRs autonomously. Triage open PRs by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes. Use when you say `pr-autofix`, `autofix this pr`, or `monitor open prs`. Do NOT use to answer review comments interactively on one PR (use pr-review), and do NOT use to run the six quality axes over your working changes (use pr-quality-all).
+license: MIT
+argument-hint: "[pull-request|mode]"
 allowed-tools: Bash, Read, Edit, Write, Skill, github/pull_request_read, github/issue_read, github/get_check_run, github/get_job_logs
 size-exception: true
 user-invocable: true
 ---
 
-<!-- # taste-lint: ignore file-size, this command is one end-to-end PR workflow; splitting it would hide required lease and mutation gates from the agent. -->
+# PR Autofix
 
-# /pr-autofix
+<!-- # taste-lint: ignore file-size, this skill is one end-to-end PR workflow; splitting it would hide required lease and mutation gates from the agent. -->
 
 <!--
-size-exception rationale (Issue #4016).
+size-exception rationale (Issue #4016, carried forward under ADR-064).
 
-What the check wants: the command_size validator blocks a command over 200 lines
-and tells you to convert it to a skill.
+What the check wants: the skill_size validator blocks a SKILL.md over 500 lines
+or 24576 bytes and tells you to decompose it into references/.
 
-Why the idiomatic fix does not apply: this command carries the entire Ready-to-Merge
-protocol in one file by design ("Nothing outside it is needed to run the command").
-The 301-line body includes the tier ladder, Ready-to-Merge gate definition,
-thread-lifecycle state machine, and CI-failure triage procedure. Splitting these
-into a skill or references/ requires changing how the command is invoked and loaded,
-which is a structural change that must be measured against the eval harness before
-shipping (Issue #3953 doctrine). Until that measurement is done, the exception is
-the safer choice over unmeasured content removal.
+Why the idiomatic fix does not apply: this file carries the entire Ready-to-Merge
+protocol by design ("Nothing outside it is needed to run this skill"). The body
+includes the tier ladder, Ready-to-Merge gate definition, thread-lifecycle state
+machine, and CI-failure triage procedure, and the Process phases are one annotated
+bash program whose ordering IS the safety argument. Splitting it into references/
+moves a lease gate, a live-state gate, or a disarm gate out of the loaded body,
+which is a behavioral change that must be measured against the eval harness before
+shipping (Issue #3953 doctrine). ADR-064 changed where this file lives, not what
+it carries, so the exception moves with it unchanged.
 Preserved invariant: One loaded workflow owns lease, mutation safety, live-state revalidation, and merge readiness.
 Behavioral tests: `tests/test_pr_autofix_late_live_state_gate.py`, `tests/test_pr_autofix_force_push_lease.py`, `tests/test_pr_autofix_worktree_identity.py`, `tests/skills/pr-autofix/test_check_pr_round_cap.py`
 Review trigger: Revisit when a measured split keeps those tests green and Ready-to-Merge behavior unchanged.
@@ -35,7 +38,11 @@ Autonomous PR monitor and fixer. This file carries the whole protocol,
 including the Ready-to-Merge definition below. Two bundled dependencies are
 required beyond it, both from the github skill: Phase 0 runs its transport
 preflight, and MCP mode reads its routing reference. Everything else needed
-to run the command is here.
+to run this skill is here.
+
+Migrated from the pr-autofix command under ADR-064, which makes skills the single
+user-invocable surface. The command file is gone, so its path is named here in
+plain text rather than as a citation to something a reader could open.
 
 ## Triggers
 
@@ -657,7 +664,7 @@ if [ "$MERGE_READY_RC" -gt 1 ] || { [ "$MERGE_READY_RC" -eq 1 ] && [ "$TIER" = "
     TIER="UNKNOWN"
     PAGES_COMPLETE="unknown"
 fi
-# .claude/commands/pr-review-config.yaml already ANDs this field into its
+# .claude/skills/pr-review/pr-review-config.yaml already ANDs this field into its
 # completion-gate criterion, so this is the same safety rule applied at the
 # other place a merge can be armed, not a new policy.
 # Fail closed on a tier the producer never declared. Empty or malformed stdout
@@ -1253,7 +1260,7 @@ resolve_pr_scripts_dir() {
   printf '%s\n' ".claude/skills/github/scripts/pr"
 }
 SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
-CONFIG_PATH="${PR_REVIEW_CONFIG_PATH:-.claude/commands/pr-review-config.yaml}"
+CONFIG_PATH="${PR_REVIEW_CONFIG_PATH:-.claude/skills/pr-review/pr-review-config.yaml}"
 python3 "$SCRIPTS_DIR/run_completion_gate.py" \
   --config "$CONFIG_PATH" \
   --pull-request {pr} --json
@@ -1284,3 +1291,30 @@ Per PR processed:
 - [ ] Force-push safety check ran before any push: `git rev-parse "refs/heads/$BRANCH"` matched the PR's expected `head.sha`.
 - [ ] Correct merge path chosen by state: `set_pr_auto_merge.py --enable` for `CLEAN` and for `HAS_HOOKS`, which takes the `CLEAN` path unchanged, `merge_pr.py --strategy squash` for `UNSTABLE` with documented non-required failures (see "Merge path by `mergeStateStatus`" table; issue #2439).
 - [ ] All four Ready-to-Merge conditions hold before the merge command runs (CanMerge=True is insufficient alone).
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Mutating on a readiness verdict computed earlier in the session | A PR can merge, close, or move mid-cycle, so an old verdict authorizes a push against a tree that no longer exists | Re-run the live-state gate immediately before every mutation, through `run_pr_mutation_if_live` |
+| Reading a lease-store outage as contention | `held-by:<owner>` means someone else owns the branch; `lease-store-unavailable` means nothing owns it and nothing can, which fails CLOSED | Branch on `.Data.reason`, and report the outage as itself |
+| Treating `TIER=UNKNOWN` as "the gates turn off" | It breaks the two gates in opposite directions: the round cap goes inert while the disarm gate fires on every armed PR and strips auto-merge from genuine T1s | Read the tier from `test_pr_merge_ready.py`, the authoritative producer, never from `check_pr_live_state.py` |
+| Swapping the disarm gate and the round cap back | The breaker's ESCALATE hands the PR to a human with auto-merge possibly still armed, which is the CWE-284 case the ordering closes | Keep disarm first, then the cap, as the tier-dispatch block states |
+| Reading CI logs before triaging the failing check | A check red on main is not this PR's failure, and investigating it on the PR spends a round on someone else's bug | Run `triage_red_check.py` first and attribute RED_ON_MAIN with its EvidenceUrl |
+| Letting a T3/T4 PR iterate without a cap | PR #1887 ran 11+ bot rounds over 46 hours and PRs #1965 and #1979 ran 18 each; prose caps have been ignored every time | Call `check_pr_round_cap.py` once per pass and honor ESCALATE |
+| Trusting `CanMerge=True` as the merge decision | It is one input, not the gate; all four Ready-to-Merge conditions have to hold | Evaluate the four conditions and pick the merge path from `mergeStateStatus` |
+| Force-pushing without re-reading the ref | The lease says you own the branch, not that the branch is where you left it | Match `git rev-parse "refs/heads/$BRANCH"` against the PR's expected head SHA first |
+
+## Extension Points
+
+- **A new tier.** Add its row to the tier table and its branch to the tier-dispatch
+  block. `test_pr_merge_ready.py` owns the tier set, so the producer changes first
+  and `tests/commands/test_pr_autofix_tier_contract.py` fails until this file agrees.
+- **A new merge state.** Add a row to the merge-path table and to the producer's
+  supported set together. A state with no row here must stay UNSUPPORTED rather
+  than fall through to a default; the test that pins that is deliberate.
+- **A different round budget.** `check_pr_round_cap.py` owns both the count and the
+  wall-clock budget. Change them there and every caller moves together.
+- **A different lease store.** `pr_autofix_lease.py` owns acquisition, renewal, and
+  release. This file reads only the envelope, so a store swap needs no edit here as
+  long as `.Data.reason` keeps its two documented values.

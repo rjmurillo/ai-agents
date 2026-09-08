@@ -725,17 +725,23 @@ def test_blocklist_pattern_at_line_start_rejects_audit(
     assert not audit_path.exists()
 
 
-# M4: Commands + Rules generators wired into orchestrator -------------------
+# M4: Rules generator wired into orchestrator -------------------------------
 
 
 def test_generators_registry_includes_m4_artifacts() -> None:
-    """commands and rules must be in the GENERATORS list (M4-T1, M4-T2)."""
+    """rules must be in the GENERATORS list, after skills (M4-T2).
+
+    M4-T1 also registered a `commands` generator that bridged
+    `.claude/commands/*.md` into `src/copilot-cli/skills/`. ADR-064 (issue
+    #5632) converted every command into a skill and deleted that generator, so
+    the row is gone and the ordering constraint it carried collapses into
+    skills-before-rules.
+    """
     artifact_names = [name for name, _ in build_all.GENERATORS]
-    assert "commands" in artifact_names
     assert "rules" in artifact_names
-    # Order matters: agents first (runs once), then skills, commands, rules.
-    assert artifact_names.index("skills") < artifact_names.index("commands")
-    assert artifact_names.index("commands") < artifact_names.index("rules")
+    assert "commands" not in artifact_names
+    # Order still matters: agents first (runs once), then skills, then rules.
+    assert artifact_names.index("skills") < artifact_names.index("rules")
 
 
 def test_generators_registry_includes_m7_lib_before_hooks() -> None:

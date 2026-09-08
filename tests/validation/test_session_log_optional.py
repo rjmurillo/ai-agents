@@ -66,7 +66,7 @@ _CANONICAL_CONTRACT_PATHS = (
     ".claude/agents/pr-comment-responder.md",
     ".claude/agents/retrospective.md",
     ".claude/rules/universal.md",
-    ".claude/commands/build.md",
+    ".claude/skills/build/SKILL.md",
     ".claude/skills/reflect/references/integration-and-design.md",
     ".claude/skills/ai-agents-change-control/SKILL.md",
     ".claude/skills/ai-agents-docs-of-record/SKILL.md",
@@ -124,7 +124,7 @@ _MANDATORY_LOG_PATTERNS = (
 )
 
 _GENERAL_WORKFLOW_PATHS = (
-    ".claude/commands/build.md",
+    ".claude/skills/build/SKILL.md",
     ".claude/skills/reflect/references/integration-and-design.md",
     "src/copilot-cli/skills/build/SKILL.md",
     "src/copilot-cli/skills/reflect/references/integration-and-design.md",

@@ -116,13 +116,14 @@ class TestMdPortabilityScanAllRejectsSymlinkedRoot:
         assert drift_failures == []
 
     def test_symlinked_extra_dir_raises(self, tmp_path: Path) -> None:
-        outside = tmp_path / "outside_commands"
+        outside = tmp_path / "outside_agent_templates"
         outside.mkdir()
         repo = tmp_path / "repo"
         (repo / ".claude" / "skills").mkdir(parents=True)
         (repo / "src" / "copilot-cli" / "skills").mkdir(parents=True)
-        # commands dir is symlinked outside
-        (repo / ".claude" / "commands").symlink_to(outside)
+        # The extra scan dir is symlinked outside the repository.
+        (repo / "templates").mkdir(parents=True, exist_ok=True)
+        (repo / "templates" / "agents").symlink_to(outside)
 
         with pytest.raises(OSError, match="outside the repository root"):
             cmp.scan_all(repo)

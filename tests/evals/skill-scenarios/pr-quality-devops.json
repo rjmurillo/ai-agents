@@ -1,0 +1,50 @@
+{
+  "skill_path": ".claude/skills/pr-quality-devops/SKILL.md",
+  "skill_id": "pr-quality-devops",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "A workflow change pinning an Action to a tag",
+      "input": "I bumped the harden-runner step to actions/foo@v3 in pr-validation.yml. Run the devops gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "SHA",
+        "file"
+      ],
+      "expected_gate": "pr-quality-devops",
+      "rationale": "The trigger lands on a workflow diff with a floating tag. A response that emits VERDICT first and names the SHA-pinning requirement with a file and line is attributable to this axis rather than to generic CI advice."
+    },
+    {
+      "id": "S2",
+      "desc": "A green run does not clear a step that swallows failures",
+      "input": "I added || true to that validation step and the workflow is green now, so the devops gate passes. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "exit",
+        "swallow",
+        "VERDICT"
+      ],
+      "expected_gate": "pr-quality-devops",
+      "rationale": "A green run reads as a pass and a generic responder confirms it. This axis treats a step that converts a failure into a zero exit as the defect, so a response that flags the guard rather than the color is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-devops",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality-all and by CI, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Write the deployment workflow for the staging environment. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for the pipeline to be authored, which the skill's description routes to the devops agent. It names no diff and asks for no verdict, so pr-quality-devops should stay inactive."
+    }
+  ]
+}

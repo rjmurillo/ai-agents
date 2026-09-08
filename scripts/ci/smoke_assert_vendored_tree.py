@@ -29,9 +29,12 @@ def run(_argv: list[str] | None = None) -> int:
     claude_dir = demo_path / ".claude"
 
     # (path, is_dir) tuples; is_dir=True checks for directory, False for file.
+    #
+    # No `commands` entry. ADR-064 (issue #5632) made skills the single
+    # user-invocable surface and deleted `.claude/commands/`, so a vendored tree
+    # that still carried one would be the defect rather than the expectation.
     expected: list[tuple[Path, bool]] = [
         (claude_dir / "agents", True),
-        (claude_dir / "commands", True),
         (claude_dir / "skills", True),
         (demo_path / "CLAUDE.md", False),
         (demo_path / "AGENTS.md", False),

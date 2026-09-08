@@ -49,7 +49,7 @@ from pathlib import Path
 
 # The trailer key the /review skill writes and /ship reads. Defined once here
 # and quoted verbatim in .claude/skills/review/SKILL.md and
-# .claude/commands/ship.md so the writer and reader never drift (see
+# .claude/skills/ship/SKILL.md so the writer and reader never drift (see
 # .claude/rules/canonical-source-mirror.md).
 MARKER_TRAILER_KEY = "Reviewed-By"
 

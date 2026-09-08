@@ -40,7 +40,6 @@ CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 
 VENDORED_SUBTREE = (
     "agents",
-    "commands",
     "hooks",
     "lib",
     "rules",

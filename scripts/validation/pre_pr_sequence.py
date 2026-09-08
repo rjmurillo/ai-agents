@@ -44,9 +44,7 @@ from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_citation_freshness import validate_citation_freshness
-from check_doc_interpreter_portability import (
-    validate_doc_interpreter_portability,
-)
+from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_generated_staleness import validate_generated_staleness
 from check_git_hook_health import validate_git_hook_health
@@ -82,6 +80,7 @@ from checks_spec import (
     validate_agent_catalog,
     validate_build_gates,
     validate_canonical_citations,
+    validate_commands_retired,
     validate_model_pins,
     validate_orchestrator_citations,
     validate_rule_activation_coverage,
@@ -358,6 +357,13 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # pr-comment-responder's BLOCKING Phase 0 named an unscoped memory, so the
     # blocking step failed for any agent that ran the instruction literally.
     _Gate("Skill Memory References", _root_only(validate_skill_memory_references)),
+    # Fails when a user-invocable command reappears under a plugin root.
+    # ADR-064 / issue #5632: the command-to-skill bridge is gone, so such a
+    # file ships to Claude Code and to nothing else, and no skill gate scans
+    # the directory it sits in. Placed after the skill-validator cluster, not
+    # inside it: Skill Memory References pins that it runs immediately after
+    # Skill SKIP Clause Routing.
+    _Gate("Commands Retired (ADR-064)", _root_only(validate_commands_retired)),
     # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
     _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation
@@ -377,7 +383,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Heuristic; soft warn unless STRICT_CANONICAL_CHECK=1. PR #1887
     # retrospective, Layer 4.
     _Gate("Canonical Citation Check", _root_only(validate_canonical_citations)),
-    # Fails when a backtick path citation in .claude/commands/pr-quality/all.md
+    # Fails when a backtick path citation in .claude/skills/pr-quality-all/SKILL.md
     # points to a file that no longer exists. Issue #1966.
     _Gate("Orchestrator Citation Check", _root_only(validate_orchestrator_citations)),
     # Branch-wide em/en-dash check (issue #1923, REQ-006-AC7). Deferred to the

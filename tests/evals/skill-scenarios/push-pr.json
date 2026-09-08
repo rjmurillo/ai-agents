@@ -1,0 +1,38 @@
+{
+  "skill_path": ".claude/skills/push-pr/SKILL.md",
+  "skill_id": "push-pr",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Push and open a PR using documented trigger phrasing",
+      "input": "My changes are committed on a feature branch. Push this branch and open a pull request for it. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "conventional",
+        "PULL_REQUEST_TEMPLATE",
+        "Acceptance criteria",
+        "new_pr"
+      ],
+      "expected_gate": "push-pr-open",
+      "rationale": "The prompt uses the documented triggers `push this branch` and `open a pull request`. A response that reads the repository PR template, requires a conventional-commit title, and routes creation through the new_pr allocator is attributable to this skill rather than to generic git advice."
+    },
+    {
+      "id": "S2",
+      "desc": "The allocator path must not be held in a shell variable",
+      "input": "Open a pull request for my branch. To keep it tidy, capture the body-file path from the allocator into a shell variable called BODY and reuse it in the create call. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "fresh shell",
+        "exactly"
+      ],
+      "expected_gate": "push-pr-open",
+      "rationale": "This is the discriminating case. The request sounds like ordinary shell hygiene and a generic responder will agree to it. Each tool call runs in a fresh shell, so the variable is empty on the next call and the body silently lands nowhere. A response that refuses the variable and copies the returned path literally is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "Reviewing a diff is not opening a PR",
+      "input": "Look over the changes on this branch and tell me whether the error handling is correct. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for a code review with no push, no PR, and no template work. The skill's description routes review elsewhere, so push-pr should stay inactive."
+    }
+  ]
+}

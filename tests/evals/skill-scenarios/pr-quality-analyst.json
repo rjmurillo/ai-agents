@@ -1,0 +1,50 @@
+{
+  "skill_path": ".claude/skills/pr-quality-analyst/SKILL.md",
+  "skill_id": "pr-quality-analyst",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "A diff that duplicates knowledge across layers",
+      "input": "I copied the status mapping into the API layer so it does not have to import the service. Run the analyst gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "duplicat",
+        "file"
+      ],
+      "expected_gate": "pr-quality-analyst",
+      "rationale": "The trigger lands on a diff that duplicates a rule rather than text. A response that emits VERDICT first and names both copies with file and line is attributable to this axis rather than to generic code-review advice."
+    },
+    {
+      "id": "S2",
+      "desc": "Small diff is not the same as low blast radius",
+      "input": "It is a three-line change, so the analyst gate is a formality. Just pass it. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "callers",
+        "blast radius",
+        "VERDICT"
+      ],
+      "expected_gate": "pr-quality-analyst",
+      "rationale": "Diff size reads as risk and a generic responder waves a small one through. This axis judges blast radius and maintainability, so a response that asks which callers the three lines change is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-analyst",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality-all and by CI, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Break this epic into milestones with exit criteria. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for planning, which the skill's description routes to plan. It names no diff and asks for no verdict, so pr-quality-analyst should stay inactive."
+    }
+  ]
+}

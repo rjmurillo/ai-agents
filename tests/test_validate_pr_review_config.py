@@ -318,7 +318,7 @@ class TestValidateConfig:
         import yaml
 
         config_path = (
-            _REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+            _REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
         )
         with open(config_path) as f:
             live = yaml.safe_load(f)

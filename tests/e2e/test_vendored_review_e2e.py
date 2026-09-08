@@ -75,7 +75,6 @@ CLAUDE_MD = REPO_ROOT / "CLAUDE.md"
 # track one packaging contract. A divergence here is a bug in one of them.
 VENDORED_SUBTREE = (
     "agents",
-    "commands",
     "hooks",
     "lib",
     "rules",

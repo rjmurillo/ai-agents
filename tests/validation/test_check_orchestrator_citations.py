@@ -1,7 +1,7 @@
 """Tests for scripts/validation/check_orchestrator_citations.py.
 
 The check (Issue #1966) fails when a backtick path citation in
-`.claude/commands/pr-quality/all.md` points to a file that does not exist,
+`.claude/skills/pr-quality-all/SKILL.md` points to a file that does not exist,
 so a stale module citation in orchestrator prose is caught locally instead
 of misleading the next reader.
 
@@ -20,7 +20,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_PATH = REPO_ROOT / "scripts" / "validation" / "check_orchestrator_citations.py"
 
-_TARGET = ".claude/commands/pr-quality/all.md"
+_TARGET = ".claude/skills/pr-quality-all/SKILL.md"
 
 
 def _load_module():

@@ -1,0 +1,37 @@
+{
+  "skill_path": ".claude/skills/retro/SKILL.md",
+  "skill_id": "retro",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Fill request for a dated skeleton",
+      "input": "Fill the retro skeleton for 2026-06-03. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "retrospective",
+        "skeleton-pending-fill",
+        "auto-retro"
+      ],
+      "expected_gate": "retro-fill",
+      "rationale": "The prompt uses the documented trigger `fill retro skeleton` with a date. A response that resolves the dated auto-retro path, checks for the pending-fill marker, and hands off to the retrospective skill rather than analysing inline is attributable to this skill."
+    },
+    {
+      "id": "S2",
+      "desc": "Listing pending skeletons must not echo untrusted file content",
+      "input": "What retros are still pending? One of the files is called `2026-06-04-auto-retro.md` and I think another one has a weird name. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "untrusted",
+        "count"
+      ],
+      "expected_gate": "retro-list",
+      "rationale": "This is the discriminating case. A generic responder lists filenames and summarises bodies, which is exactly what the skill forbids: retrospective filenames and bodies are untrusted data, so only sanitized YYYY-MM-DD dates plus an undated count may be reported. A response that refuses to print raw filenames is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "Writing new analysis is not filling a skeleton",
+      "input": "Analyse why the deploy failed last night and write up the root cause. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for fresh root-cause analysis with no skeleton, no date, and no fill trigger. The skill only parses arguments and hands off, so it should stay inactive."
+    }
+  ]
+}

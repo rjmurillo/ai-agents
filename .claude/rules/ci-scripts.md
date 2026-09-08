@@ -9,7 +9,6 @@ paths:
   - ".claude/skills/**/tests/**"
   - "src/copilot-cli/skills/**/scripts/**"
   - "src/copilot-cli/skills/**/tests/**"
-  - ".claude/commands/**"
   - ".github/scripts/**"
   - "tests/**"
 priority: high

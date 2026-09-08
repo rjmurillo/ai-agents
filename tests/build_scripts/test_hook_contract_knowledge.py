@@ -125,8 +125,8 @@ GENERATED_INSTRUCTION_MIRRORS = (
 
 RUNTIME_ROUTING_FILES = (
     REPO_ROOT / ".claude" / "skills" / "autoplan" / "SKILL.md",
-    REPO_ROOT / ".claude" / "commands" / "build.md",
-    REPO_ROOT / ".claude" / "commands" / "test.md",
+    REPO_ROOT / ".claude" / "skills" / "build" / "SKILL.md",
+    REPO_ROOT / ".claude" / "skills" / "test" / "SKILL.md",
     COPILOT_SKILL_ROOT / "autoplan" / "SKILL.md",
     COPILOT_SKILL_ROOT / "build" / "SKILL.md",
     COPILOT_SKILL_ROOT / "test" / "SKILL.md",

@@ -12,10 +12,13 @@ For non-trivial tasks, delegate to specialized agents via Task tool:
 
 ### Installation Locations
 
-| Type | Agents | Commands |
-|------|--------|----------|
-| Global | `~/.claude/agents/` | `~/.claude/commands/` |
-| Per-repo | `.claude/agents/` | `.claude/commands/` |
+| Type | Agents | Skills |
+|------|--------|--------|
+| Global | `~/.claude/agents/` | `~/.claude/skills/` |
+| Per-repo | `.claude/agents/` | `.claude/skills/` |
+
+ADR-064 retired `.claude/commands/`. Skills are the single user-invocable
+surface, and a blocking validator refuses a command file under any plugin root.
 
 ### Default Behavior
 
@@ -47,12 +50,14 @@ Explicit skill invocations still win: when the request names an available skill 
 Explicit routing rules not owned by autoplan:
 - Weekly retro → invoke reflect skill
 
-## Lifecycle commands
+## Lifecycle skills
 
-Dev lifecycle phases, use slash commands (not skills):
-- Define requirements, "what should we build" → /spec
-- Plan work, break down tasks, estimate → /plan
-- Implement, code, build features → /build
-- Test, prove it works, debug failures → /test
-- Review code, check my diff, architecture review → /review
-- Ship, deploy, push, create PR → /ship
+Dev lifecycle phases. ADR-064 retired `.claude/commands/`, so these are skills
+like every other user-invocable surface; `/spec` and the rest still type the same
+because Claude Code fires a `user-invocable` skill by name:
+- Define requirements, "what should we build" → spec
+- Plan work, break down tasks, estimate → plan
+- Implement, code, build features → build
+- Test, prove it works, debug failures → test
+- Review code, check my diff, architecture review → review
+- Ship, deploy, push, create PR → ship

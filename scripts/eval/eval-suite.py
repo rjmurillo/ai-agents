@@ -286,37 +286,6 @@ class RoutingRule(NamedTuple):
         return True
 
 
-def is_command_mirror_skill(path: str) -> bool:
-    """Whether a generated Copilot skill mirrors a command, not a Claude skill.
-
-    `src/copilot-cli/skills/` holds two different kinds of artifact. Most
-    entries mirror `.claude/skills/<name>/`. Fourteen instead mirror
-    `.claude/commands/<name>.md` and have no `.claude/skills/<name>/` at all:
-    build, checkpoint, context-hub-setup, plan, pr-autofix, pr-review,
-    push-pr, research, retro, ship, sync, spec, test, validate-pr-description.
-
-    The distinction is load bearing because `eval-knowledge-integration.py`
-    resolves a skill only under `.claude/skills/`. Measured:
-
-        $ eval-knowledge-integration.py --skill spec --dry-run
-        exit=1
-        ERROR: Skill directory not found for 'spec' in .../.claude/skills
-
-    Routing a command mirror there reproduces issue #4882's own failure shape
-    at a new site, so these are reported `not_evaluated` instead.
-
-    Reads the filesystem because the distinction exists only there: nothing in
-    the path spells out which kind a Copilot skill is.
-    """
-    parts = path.split("/")
-    if not path.startswith("src/copilot-cli/skills/") or len(parts) < 4:
-        return False
-    name = parts[3]
-    if (REPO_ROOT / ".claude" / "skills" / name).is_dir():
-        return False
-    return (REPO_ROOT / ".claude" / "commands" / f"{name}.md").is_file()
-
-
 def _rules_for(
     category: str,
     prefixes: list[str],
@@ -357,14 +326,6 @@ ROUTING_RULES: tuple[RoutingRule, ...] = (
     # CLAUDE.md`, and 14 more). Behind the prefix rows they were all captured
     # as prompts or skills.
     RoutingRule("entrypoints", basenames=ENTRYPOINT_BASENAMES),
-    # Command mirrors before the skill rows: they live under the Copilot skills
-    # tree but the skill evaluator cannot resolve them.
-    RoutingRule(
-        "command_mirrors",
-        prefix="src/copilot-cli/skills/",
-        suffix="",
-        predicate=is_command_mirror_skill,
-    ),
     *_rules_for("prompts", PROMPT_PATTERNS),
     # References must precede the trees that contain them.
     *_rules_for("skill_references", SKILL_PATTERNS, segment=REFERENCE_SEGMENT),
@@ -386,7 +347,6 @@ CATEGORIES: tuple[str, ...] = (
     "agents",
     "skills",
     "skill_references",
-    "command_mirrors",
     "references",
     "rules",
     "instructions",
@@ -410,10 +370,6 @@ RUNNER_BY_CATEGORY: dict[str, str] = {
 }
 
 NOT_EVALUATED_REASONS: dict[str, str] = {
-    "command_mirrors": (
-        "generated from a .claude/commands/ file; the skill evaluator resolves "
-        "only .claude/skills/, so evaluate the generating command instead"
-    ),
     "references": (
         "reference material for a non-skill artifact; no evaluator consumes it"
     ),
@@ -463,8 +419,16 @@ def find_scenarios_for_prompt(prompt_path: str) -> str | None:
     Convention: for prompt at `path/to/name.md`, look for:
     1. tests/evals/name-scenarios.json
     2. .agents/security/benchmarks/name-scenarios.json
+
+    A skill body is named `SKILL.md` in a directory named for the skill, so the
+    file stem is the useless constant `SKILL` for every one of them. The name a
+    reader means is the directory. ADR-064 (issue #5632) turned every command
+    into a skill, so without this the convention resolved for
+    `.claude/commands/spec.md` and returned None for
+    `.claude/skills/spec/SKILL.md`, silently unrouting every converted prompt.
     """
-    stem = Path(prompt_path).stem
+    path = Path(prompt_path)
+    stem = path.parent.name if path.name == "SKILL.md" else path.stem
 
     for scenario_dir in SCENARIO_DIRS:
         candidate = REPO_ROOT / scenario_dir / f"{stem}-scenarios.json"

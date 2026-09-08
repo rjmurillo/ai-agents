@@ -78,7 +78,6 @@ _REFERENCE_ROOTS = (
     "build/scripts",
     "scripts",
     r"\.claude/skills",
-    r"\.claude/commands",
     r"\.claude/hooks",
     r"\.claude/agents",
     "templates",

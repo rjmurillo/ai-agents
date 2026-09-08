@@ -4,7 +4,7 @@
 Issue #1974 / REQ-008 Sec F3: the Step 0 and Step 0.5 metrics tally files
 (``.agents/metrics/STEP-0-METRICS.md`` and
 ``.agents/sessions/STEP-0.5-METRICS.md``) are appended once per ``/spec``
-invocation. The append path was previously prose in ``.claude/commands/spec.md``
+invocation. The append path was previously prose in ``.claude/skills/spec/SKILL.md``
 that told the agent to open and write the file by hand, with no defense against
 a hostile filesystem entry at the tally path.
 

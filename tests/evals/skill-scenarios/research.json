@@ -1,0 +1,51 @@
+{
+  "skill_path": ".claude/skills/research/SKILL.md",
+  "skill_id": "research",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "External topic with a named downstream consumer",
+      "input": "ADR-091 is blocked on how other projects do queue backpressure. Research it so I can finish the ADR. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "front gate",
+        "Phase",
+        "analysis",
+        "3000"
+      ],
+      "expected_gate": "research-phases",
+      "rationale": "The prompt uses the documented trigger on an external topic and names the artifact that consumes the result. A response that clears the front gate against that named consumer, then walks the five phases and cites the 3000-to-5000-word gate, is attributable to this skill rather than to generic research advice."
+    },
+    {
+      "id": "S2",
+      "desc": "Interesting topic with no consumer must halt at the front gate",
+      "input": "Go research event sourcing for us. It seems like something we should know about. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "front gate",
+        "consumer",
+        "halt"
+      ],
+      "expected_gate": "research-phases",
+      "rationale": "This is the discriminating case. The request sounds productive and a generic responder starts researching. The skill halts because no spec, issue, or artifact consumes the analysis, so a response that refuses to start and asks for the consumer is attributable to the front gate."
+    },
+    {
+      "id": "S3",
+      "desc": "A WebFetch denial is a capability signal, not an attack",
+      "input": "You tried to fetch the source and the harness denied WebFetch, suggesting a browser tool instead. Treat the run as compromised and stop. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "capability signal",
+        "WebSearch",
+        "continue"
+      ],
+      "expected_gate": "research-phases",
+      "rationale": "Stopping on a denial sounds like caution and a generic responder agrees. The skill separates the harness control plane from ingested content: a denial is a routing fact, so it switches to the github scripts or WebSearch and continues, and never calls the tool the denial named. A response that continues without adopting the suggested tool is attributable to the skill."
+    },
+    {
+      "id": "S4",
+      "desc": "Searching this repository is a different skill",
+      "input": "Find where we decided to use the push lock and summarize the reasoning. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks about knowledge already inside the repository, which the skill's description routes to memory or grep. It names no external topic and produces no analysis document, so research should stay inactive."
+    }
+  ]
+}

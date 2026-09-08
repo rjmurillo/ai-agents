@@ -8,9 +8,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-RESEARCH_SOURCE = REPO_ROOT / ".claude" / "commands" / "research.md"
+RESEARCH_SOURCE = REPO_ROOT / ".claude" / "skills" / "research" / "SKILL.md"
 RESEARCH_MIRROR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "research" / "SKILL.md"
-PLAN_SOURCE = REPO_ROOT / ".claude" / "commands" / "plan.md"
+PLAN_SOURCE = REPO_ROOT / ".claude" / "skills" / "plan" / "SKILL.md"
 PLAN_MIRROR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "plan" / "SKILL.md"
 AVOIDING_SOURCE = REPO_ROOT / ".claude" / "skills" / "avoiding-manufactured-work" / "SKILL.md"
 AVOIDING_MIRROR = (
@@ -56,10 +56,16 @@ def test_research_callout_routes_to_spec(path: Path) -> None:
 
 
 def test_research_callout_precedes_the_phases() -> None:
+    """The gate has to precede the workflow, whatever the workflow section is called.
+
+    ADR-064 (issue #5632) made research a skill, and a SKILL.md names its
+    workflow `## Process`; skillforge checks for that heading. The ordering
+    #1927 pins is unchanged, so only the section this looks for moves.
+    """
     text = _read(RESEARCH_SOURCE)
     callout = text.index("## Front-gate first")
-    phases = text.index("## Phases")
-    assert callout < phases, "Front-gate callout must appear before the Phases section"
+    phases = text.index("## Process")
+    assert callout < phases, "Front-gate callout must appear before the workflow section"
 
 
 @pytest.mark.parametrize("path", [PLAN_SOURCE, PLAN_MIRROR])

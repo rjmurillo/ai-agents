@@ -3,7 +3,7 @@
     {
       "id": "D1",
       "desc": "Step 0 PASS triggers Step 0.5 before Step 1",
-      "input": "Invoke /spec in auto mode. Step 0 has already PASSed with Q1=Maintainer, Q2=Manual D-checks remain, Q3=.claude/commands/spec.md, Q4=Promote LLM-required D-checks to eval harness, Q5=Review deferred QA F1, Q6=Future /spec PRs should be gated. No Step 0 halt conditions apply. Determine the next action before asking any Step 1 clarification questions.",
+      "input": "Invoke /spec in auto mode. Step 0 has already PASSed with Q1=Maintainer, Q2=Manual D-checks remain, Q3=.claude/skills/spec/SKILL.md, Q4=Promote LLM-required D-checks to eval harness, Q5=Review deferred QA F1, Q6=Future /spec PRs should be gated. No Step 0 halt conditions apply. Determine the next action before asking any Step 1 clarification questions.",
       "expected_verdict": "RUN_STEP_0_5",
       "verdict_options": ["RUN_STEP_0_5", "PROCEED_STEP_1", "SKIP_STEP_0_5", "HALT"],
       "expected_reason_contains": "Step 0.5",
@@ -12,7 +12,7 @@
     {
       "id": "D7",
       "desc": "Prior-art search discovers an entity requiring proposer adjudication",
-      "input": "Invoke /spec after Step 0 PASS. Step 0 Q1+Q3+Q4 mention maintainer, .claude/commands/spec.md, and ADR-057. The Step 0.5 prior-art search discovers connected entity ADR-060, which is absent from Q1, Q3, and Q4 after normalization. No prior adjudication exists. Determine the required next action.",
+      "input": "Invoke /spec after Step 0 PASS. Step 0 Q1+Q3+Q4 mention maintainer, .claude/skills/spec/SKILL.md, and ADR-057. The Step 0.5 prior-art search discovers connected entity ADR-060, which is absent from Q1, Q3, and Q4 after normalization. No prior adjudication exists. Determine the required next action.",
       "expected_verdict": "REQUEST_ADJUDICATION",
       "verdict_options": ["REQUEST_ADJUDICATION", "AUTO_DISCARD", "HALT"],
       "expected_reason_contains": "ADR-060",

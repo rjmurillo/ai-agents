@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RETRO_COMMAND = PROJECT_ROOT / ".claude" / "commands" / "retro.md"
+RETRO_COMMAND = PROJECT_ROOT / ".claude" / "skills" / "retro" / "SKILL.md"
 RETRO_SKILL = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "retro" / "SKILL.md"
 
 

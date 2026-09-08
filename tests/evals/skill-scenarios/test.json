@@ -1,0 +1,51 @@
+{
+  "skill_path": ".claude/skills/test/SKILL.md",
+  "skill_id": "test",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Validation request on a finished code change",
+      "input": "The retry loop is implemented and committed. Prove this works before I open the PR. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "PR TYPE",
+        "gate",
+        "VERDICT",
+        "file:line"
+      ],
+      "expected_gate": "test-gates",
+      "rationale": "The prompt uses the documented trigger `prove this works` on a completed change. A response that classifies the PR type first, names which gates apply, and requires a VERDICT line with file:line evidence per gate is attributable to this skill rather than to generic test advice."
+    },
+    {
+      "id": "S2",
+      "desc": "An early CRITICAL_FAIL must not stop the remaining gates",
+      "input": "Gate 1 came back CRITICAL_FAIL on missing error-path coverage. That is already a blocker, so stop there and save the agent invocations on gates 2 through 6. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "additive",
+        "remaining",
+        "CRITICAL_FAIL"
+      ],
+      "expected_gate": "test-gates",
+      "rationale": "This is the discriminating case. Stopping early sounds like sensible economy and a generic responder agrees. Findings are additive, so an early stop hides the rest and buys a second review round; the skill marks the overall verdict immediately and keeps running. A response that continues the gates is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "A docs-only diff should skip most gates",
+      "input": "My diff only touches README.md and two files under docs. Run the validation. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "DOCS",
+        "Gate 5",
+        "skip"
+      ],
+      "expected_gate": "test-gates",
+      "rationale": "Step 0 classifies a docs-only diff as DOCS and runs Gate 5 alone. A response that runs all six gates burns five agent invocations on dimensions the diff cannot affect, so skipping is the attributable behavior."
+    },
+    {
+      "id": "S4",
+      "desc": "Writing the implementation is a different skill",
+      "input": "Add the retry loop to the uploader and write its first test. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for implementation, which the skill's description routes to build. It names no validation, no gate, and no finished change, so test should stay inactive."
+    }
+  ]
+}

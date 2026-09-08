@@ -1,0 +1,39 @@
+{
+  "skill_path": ".claude/skills/validate-pr-description/SKILL.md",
+  "skill_id": "validate-pr-description",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "PR metadata check request using documented trigger phrases",
+      "input": "Here is my PR title and body. Title: `added the retry thing`. Body: `## Summary\\n\\nMakes the uploader retry.\\n\\n## Changes\\n\\n- retry loop\\n\\n## Type of Change\\n\\n- [ ] Bug fix`. Validate my PR description before I submit it. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "conventional",
+        "Closes",
+        "Type of Change",
+        "feat"
+      ],
+      "expected_gate": "validate-pr-description-report",
+      "rationale": "The prompt uses the documented trigger `validate my PR description` without naming the skill, and supplies input that fails all three checks: the title has no conventional-commit type, the body carries no issue-linking keyword, and the Type of Change checkbox is unmarked. A response that reports the three failures separately, names the missing type prefix, and names a linking keyword is attributable to this skill rather than to generic PR advice."
+    },
+    {
+      "id": "S2",
+      "desc": "Closing-keyword recommendation must be checked against the diff",
+      "input": "My PR title is `fix(auth): stop the session cookie expiring early` and the body says `Refs #412`. Issue #412 asks for the whole session-refresh rewrite; this PR only changes one expiry constant. Check my PR title and body. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Refs",
+        "diff",
+        "Closes"
+      ],
+      "expected_gate": "validate-pr-description-report",
+      "rationale": "The title and keyword are both well-formed, so a checker reading format alone reports a clean pass and recommends upgrading `Refs` to `Closes`. The skill's Phase 3 requires verifying a closing keyword against the diff first. A response that keeps `Refs #412` because the diff does not deliver what the issue asks is attributable to the skill; one that recommends `Closes #412` on format grounds is not."
+    },
+    {
+      "id": "S3",
+      "desc": "Code review request stays outside PR metadata validation",
+      "input": "Review the retry loop in uploader.py for correctness and race conditions. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for a code review of a diff, which the skill's description explicitly routes elsewhere. It names no PR title, no PR body, and no metadata trigger phrase, so validate-pr-description should stay inactive."
+    }
+  ]
+}

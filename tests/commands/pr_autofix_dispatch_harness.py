@@ -28,7 +28,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DISPATCH_DOCS = (
-    ".claude/commands/pr-autofix.md",
+    ".claude/skills/pr-autofix/SKILL.md",
     "src/copilot-cli/skills/pr-autofix/SKILL.md",
 )
 _START = "# tier-dispatch:start"

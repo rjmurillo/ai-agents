@@ -19,7 +19,7 @@ hand-edit to a generated file passed every local gate and failed in CI.
 
 Measured cost on PR #5059: round-cap wiring was hand-edited into
 ``src/copilot-cli/skills/pr-autofix/SKILL.md``, which is generated from
-``.claude/commands/pr-autofix.md``. 26 of 26 skill tests passed,
+``.claude/skills/pr-autofix/SKILL.md``. 26 of 26 skill tests passed,
 ``build/generate_agents.py --validate`` passed (a different generator pair that
 does not cover skills), and ``pre_pr.py`` reported unrelated findings only. CI
 then showed the generator stripping all 43 lines of the wiring. The feature

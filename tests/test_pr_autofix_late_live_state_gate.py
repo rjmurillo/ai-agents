@@ -18,7 +18,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GUARDED_DOCS = (
-    ".claude/commands/pr-autofix.md",
+    ".claude/skills/pr-autofix/SKILL.md",
     "src/copilot-cli/skills/pr-autofix/SKILL.md",
 )
 _GUARD_START = "# late-live-state-guard:start"

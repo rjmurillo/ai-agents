@@ -1,19 +1,19 @@
 ---
 id: ADR-064
-status: proposed
+status: accepted
 date: 2026-06-01
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-064: Retire `.claude/commands/` as a Canonical Authoring Surface; Skills Are the Single User-Invocable Surface
 
 ## Status
 
-Proposed
+Accepted. Implemented on 2026-09-08 by issue #5632.
 
 ## Date
 
@@ -260,6 +260,64 @@ sub-directory that Copilot CLI cannot read.
 | `tests/commands/test_lifecycle_command_drift.py` | Direct | Re-keyed from command paths to skill paths | Medium |
 | `tests/evals/spec-scenarios.json` | Direct | Re-keyed from command paths to skill paths | Medium |
 | `CLAUDE.md` "Lifecycle commands" section | Indirect | Updated to reference skills when migration completes | Low |
+
+## Implementation Outcome (2026-09-08)
+
+Recorded when this ADR moved to `accepted` / `implemented: true` under issue
+#5632. The sections above are the decision as written on 2026-06-01 and are left
+verbatim; this section records where the outcome diverged from it, so a reader
+who trusts `implemented: true` is not told to expect something that was never
+built.
+
+Four deviations, each verified against the tree rather than the plan:
+
+1. **Step 4 did not run, and will not.** The four `forgetful/*` sub-commands were
+   never migrated to `forgetful-<name>` skills. They were retired outright when
+   the Forgetful MCP integration was decommissioned under issue #5574, before
+   this migration resumed, so by the time step 2 started there was nothing to
+   port. `ls .claude/skills/forgetful-*` finds nothing and that is the intended
+   end state, not an omission. `tests/skills/test_forgetful_decommission_guards.py`
+   is where that decommission is pinned.
+
+2. **The inventory above undercounts.** "Top-level (11)" and "22 commands" were
+   measured on 2026-06-01. Three more top-level commands (`checkpoint`, `retro`,
+   `sync`) landed between then and the migration, so 14 top-level commands were
+   converted, and the total converted is 21: 14 top-level plus the 7
+   `pr-quality/*`. The four `forgetful/*` are the difference between that and the
+   ADR's 22, minus the three later arrivals. Counts in the Context section are a
+   measurement of a commit, not a permanent fact; re-measure rather than trusting
+   them.
+
+3. **The naming decision held for everything that shipped.** `pr-quality/<name>`
+   became `pr-quality-<name>` and the top-level commands kept their bare names,
+   exactly as decided. `/review` was already a skill and was not touched.
+
+4. **Step 7 is narrower than written.** `tests/commands/test_lifecycle_command_drift.py`
+   was deleted rather than re-keyed. Its subject was the markdownlint MD041
+   exemption that lifecycle *commands* needed because they carry no H1; a skill
+   has an H1 by construction and `skill_size.py` plus skillforge already gate the
+   shape, so there was nothing left for it to guard and its discovery glob had
+   gone empty, which is a vacuous pass rather than a check.
+   `tests/evals/spec-scenarios.json` was re-keyed as written.
+
+5. **The migration is not behavior-neutral, and that is the decision.** A Claude
+   Code command fires only when typed. A skill can also be invoked by model
+   judgment unless it sets `disable-model-invocation: true`. Issue #5632 asserted
+   every converted command would carry that key; none of the 21 do, and after the
+   `adr-review` debate surfaced the discrepancy the maintainer chose on
+   2026-09-08 to leave it that way rather than restore parity. So the parity
+   claim in #5632 is struck, not implemented: all 21 converted skills are
+   deliberately model-invocable.
+
+   State the cost once, since the record has to carry it. `ship` and `push-pr`
+   push commits and open pull requests. `pr-autofix` mutates open PRs and can
+   enable auto-merge. Nothing in a skill body distinguishes "the user asked" from
+   "the model decided", so the guards that keep those safe are the ones inside
+   them (the lease, the live-state gate, the round cap, the completion gate),
+   not the invocation surface. The gain traded for it is that the model can reach
+   the read-only and advisory skills, `pr-quality-*` among them, on its own
+   judgment, which is the routing the skill surface exists for. A later change
+   may revisit this per skill; it does not need to reopen this ADR.
 
 ## Implementation Notes
 

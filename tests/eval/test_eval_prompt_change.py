@@ -8,6 +8,7 @@ Targets the controlled-vocabulary verdict matching introduced for issue #1755:
 
 from __future__ import annotations
 
+import argparse
 import ast
 import importlib.util
 import json
@@ -377,9 +378,9 @@ def test_spec_command_scenarios_are_discoverable_by_eval_suite():
     # which uses the platform path separator. A raw string compare fails on
     # Windows (`tests\\evals\\spec-scenarios.json`) even though discovery works.
     # Per PR #2028 review.
-    scenario_path_str = eval_suite_mod.find_scenarios_for_prompt(".claude/commands/spec.md")
+    scenario_path_str = eval_suite_mod.find_scenarios_for_prompt(".claude/skills/spec/SKILL.md")
     assert scenario_path_str is not None, (
-        "find_scenarios_for_prompt('.claude/commands/spec.md') returned None; "
+        "find_scenarios_for_prompt('.claude/skills/spec/SKILL.md') returned None; "
         "spec-scenarios.json discovery is broken. Check eval-suite.py and the "
         "tests/evals/<prompt-basename>-scenarios.json convention."
     )
@@ -1627,3 +1628,116 @@ class TestIsProviderOutage:
     )
     def test_non_outage_errors_are_not_skippable(self, message: str) -> None:
         assert eval_mod._is_provider_outage(RuntimeError(message)) is False
+
+
+# ---------------------------------------------------------------------------
+# Prompt surface and rename following (ADR-064, issue #5632)
+# ---------------------------------------------------------------------------
+
+
+class TestPromptSurfaceLoading:
+    """A skill's procedure spans SKILL.md plus references/, so both are read.
+
+    A command held everything in one file. Reading only the body after the
+    split compares a body against a body-plus-procedure, which reports a
+    regression that is pure relocation. Measured on the spec conversion: the
+    body alone was 11,027 chars against the command's 17,329.
+    """
+
+    def test_a_file_with_no_references_directory_is_read_alone(self, tmp_path: Path) -> None:
+        prompt = tmp_path / "SKILL.md"
+        prompt.write_text("body only\n", encoding="utf-8")
+
+        assert eval_mod.load_prompt_surface_from_file(str(prompt)) == "body only\n"
+
+    def test_reference_markdown_is_appended_after_the_body(self, tmp_path: Path) -> None:
+        prompt = tmp_path / "SKILL.md"
+        prompt.write_text("body\n", encoding="utf-8")
+        refs = tmp_path / "references"
+        refs.mkdir()
+        (refs / "b-second.md").write_text("second\n", encoding="utf-8")
+        (refs / "a-first.md").write_text("first\n", encoding="utf-8")
+
+        surface = eval_mod.load_prompt_surface_from_file(str(prompt))
+
+        assert surface.index("body") < surface.index("first") < surface.index("second")
+
+    def test_non_markdown_payloads_are_not_read_into_the_prompt(self, tmp_path: Path) -> None:
+        """Negative control: scripts and data ship beside a skill but are not prose.
+
+        Without the `*.md` filter this JSON would land in the prompt text and
+        the eval would grade the model on a data file.
+        """
+        prompt = tmp_path / "SKILL.md"
+        prompt.write_text("body\n", encoding="utf-8")
+        refs = tmp_path / "references"
+        refs.mkdir()
+        (refs / "payload.json").write_text('{"k": "SENTINEL_JSON"}\n', encoding="utf-8")
+
+        assert "SENTINEL_JSON" not in eval_mod.load_prompt_surface_from_file(str(prompt))
+
+    def test_a_missing_prompt_still_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(RuntimeError, match="Prompt file not found"):
+            eval_mod.load_prompt_surface_from_file(str(tmp_path / "absent.md"))
+
+
+class TestRenameFollowing:
+    """`--renamed-from` is consulted only after the primary path fails.
+
+    That ordering is what makes one invocation correct on both sides of a
+    merge: while the rename is in flight the new path is absent at the base and
+    the old one resolves; once it merges the new path resolves and the old one
+    is never tried. A flag that always won would break the day it landed.
+    """
+
+    @staticmethod
+    def _args(prompt: str, renamed_from: str | None) -> argparse.Namespace:
+        return argparse.Namespace(
+            prompt=prompt,
+            base_ref="somebase",
+            renamed_from=renamed_from,
+            before=None,
+            after=None,
+        )
+
+    def test_the_primary_path_wins_when_it_resolves(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        seen: list[str] = []
+
+        def fake(path: str, ref: str) -> str:
+            seen.append(path)
+            return "primary"
+
+        monkeypatch.setattr(eval_mod, "load_prompt_surface_from_ref", fake)
+        path, text = eval_mod._load_before_across_rename(self._args("new.md", "old.md"))
+
+        assert (path, text) == ("new.md", "primary")
+        assert seen == ["new.md"], "the old path must not be read once the new one resolves"
+
+    def test_the_old_path_is_used_when_the_new_one_is_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake(path: str, ref: str) -> str:
+            if path == "new.md":
+                raise RuntimeError("exists on disk, but not in 'somebase'")
+            return "from-old"
+
+        monkeypatch.setattr(eval_mod, "load_prompt_surface_from_ref", fake)
+        path, text = eval_mod._load_before_across_rename(self._args("new.md", "old.md"))
+
+        assert (path, text) == ("old.md", "from-old")
+
+    def test_without_the_flag_the_original_error_propagates(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative control: the fallback must not swallow a genuine absence.
+
+        This is the failure the flag was added for, and it has to stay loud
+        when no rename was declared.
+        """
+
+        def fake(path: str, ref: str) -> str:
+            raise RuntimeError("exists on disk, but not in 'somebase'")
+
+        monkeypatch.setattr(eval_mod, "load_prompt_surface_from_ref", fake)
+        with pytest.raises(RuntimeError, match="not in 'somebase'"):
+            eval_mod._load_before_across_rename(self._args("new.md", None))

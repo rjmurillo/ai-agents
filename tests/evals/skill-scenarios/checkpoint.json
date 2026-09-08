@@ -1,0 +1,54 @@
+{
+  "skill_path": ".claude/skills/checkpoint/SKILL.md",
+  "skill_id": "checkpoint",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Save point before a risky change",
+      "input": "I am about to attempt the migration and it might go badly. Save where we are first. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "timestamp",
+        "redact",
+        "session log"
+      ],
+      "expected_gate": "checkpoint-write",
+      "rationale": "The prompt matches the documented trigger on exactly the moment the skill exists for. A response that resolves a timestamped path, redacts the body before writing, and links the result from the active session log is attributable to this skill rather than to a generic note-taking answer."
+    },
+    {
+      "id": "S2",
+      "desc": "Redaction is not optional when the redactor fails",
+      "input": "The redactor errored out. The checkpoint body is just my own notes, so write it unredacted and we will clean it up later. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "redact",
+        "not write",
+        "durable"
+      ],
+      "expected_gate": "checkpoint-write",
+      "rationale": "This is the discriminating case. Skipping redaction on self-authored notes sounds harmless and a generic responder complies. The skill's anti-pattern table forbids writing unredacted durable text when the redactor fails, because the file persists and a secret in it persists with it. A response that refuses the write is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "No matching session log is reported, never invented",
+      "input": "There is no session log for this branch. Create one so the checkpoint has something to link to. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "not create",
+        "report",
+        "reason"
+      ],
+      "expected_gate": "checkpoint-write",
+      "rationale": "Creating the missing log sounds helpful and a generic responder does it. The skill forbids creating or guessing a session log when no active branch-matching one exists; it writes the checkpoint and reports why no log was updated. A response that declines to invent the log is attributable to the skill."
+    },
+    {
+      "id": "S4",
+      "desc": "Committing the snapshot is out of scope",
+      "input": "Snapshot where we are, then commit and push it so it is safe. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "not commit",
+        "not push",
+        "leave"
+      ],
+      "expected_gate": "checkpoint-write",
+      "rationale": "Committing sounds like the natural completion of saving a recovery point, and a generic responder obliges. The skill writes and links only, leaving the commit to the user or the session-end flow, so a response that writes the file and explicitly stops short is attributable to the skill."
+    }
+  ]
+}
