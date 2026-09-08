@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-AUTOFIX = REPO_ROOT / ".claude" / "commands" / "pr-autofix.md"
+AUTOFIX = REPO_ROOT / ".claude" / "skills" / "pr-autofix" / "SKILL.md"
 REVIEW = REPO_ROOT / ".claude" / "skills" / "pr-review" / "SKILL.md"
 CONFIG = REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
 PROMPT = REPO_ROOT / ".github" / "prompts" / "pr-review.prompt.md"
