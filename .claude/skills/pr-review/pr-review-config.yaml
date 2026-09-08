@@ -1,6 +1,6 @@
 # PR Review Configuration
 # Structured data extracted from pr-review skill prompt.
-# Referenced by .claude/commands/pr-review.md and .github/prompts/pr-review.prompt.md
+# Referenced by .claude/skills/pr-review/SKILL.md and .github/prompts/pr-review.prompt.md
 
 scripts:
   claude_code:

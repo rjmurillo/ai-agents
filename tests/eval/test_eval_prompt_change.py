@@ -378,9 +378,9 @@ def test_spec_command_scenarios_are_discoverable_by_eval_suite():
     # which uses the platform path separator. A raw string compare fails on
     # Windows (`tests\\evals\\spec-scenarios.json`) even though discovery works.
     # Per PR #2028 review.
-    scenario_path_str = eval_suite_mod.find_scenarios_for_prompt(".claude/commands/spec.md")
+    scenario_path_str = eval_suite_mod.find_scenarios_for_prompt(".claude/skills/spec/SKILL.md")
     assert scenario_path_str is not None, (
-        "find_scenarios_for_prompt('.claude/commands/spec.md') returned None; "
+        "find_scenarios_for_prompt('.claude/skills/spec/SKILL.md') returned None; "
         "spec-scenarios.json discovery is broken. Check eval-suite.py and the "
         "tests/evals/<prompt-basename>-scenarios.json convention."
     )

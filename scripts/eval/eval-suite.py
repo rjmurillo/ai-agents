@@ -419,8 +419,16 @@ def find_scenarios_for_prompt(prompt_path: str) -> str | None:
     Convention: for prompt at `path/to/name.md`, look for:
     1. tests/evals/name-scenarios.json
     2. .agents/security/benchmarks/name-scenarios.json
+
+    A skill body is named `SKILL.md` in a directory named for the skill, so the
+    file stem is the useless constant `SKILL` for every one of them. The name a
+    reader means is the directory. ADR-064 (issue #5632) turned every command
+    into a skill, so without this the convention resolved for
+    `.claude/commands/spec.md` and returned None for
+    `.claude/skills/spec/SKILL.md`, silently unrouting every converted prompt.
     """
-    stem = Path(prompt_path).stem
+    path = Path(prompt_path)
+    stem = path.parent.name if path.name == "SKILL.md" else path.stem
 
     for scenario_dir in SCENARIO_DIRS:
         candidate = REPO_ROOT / scenario_dir / f"{stem}-scenarios.json"
