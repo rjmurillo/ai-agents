@@ -40,7 +40,7 @@ ultrathink
 
 Respond to PR review comments for: $ARGUMENTS
 
-Load configuration from `.claude/commands/pr-review-config.yaml` for scripts (use `scripts.copilot` section), completion criteria, error recovery, and failure handling tables.
+Load configuration from `.claude/skills/pr-review/pr-review-config.yaml` for scripts (use `scripts.copilot` section), completion criteria, error recovery, and failure handling tables.
 
 ## Context
 
@@ -133,7 +133,7 @@ The completion gate is dispatchable. Each criterion in `completion_criteria` run
 
 ```bash
 uv run python .claude/skills/github/scripts/pr/run_completion_gate.py \
-    --config .claude/commands/pr-review-config.yaml \
+    --config .claude/skills/pr-review/pr-review-config.yaml \
     --pull-request {pr} \
     --json
 ```

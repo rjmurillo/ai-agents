@@ -657,7 +657,7 @@ if [ "$MERGE_READY_RC" -gt 1 ] || { [ "$MERGE_READY_RC" -eq 1 ] && [ "$TIER" = "
     TIER="UNKNOWN"
     PAGES_COMPLETE="unknown"
 fi
-# .claude/commands/pr-review-config.yaml already ANDs this field into its
+# .claude/skills/pr-review/pr-review-config.yaml already ANDs this field into its
 # completion-gate criterion, so this is the same safety rule applied at the
 # other place a merge can be armed, not a new policy.
 # Fail closed on a tier the producer never declared. Empty or malformed stdout
@@ -1253,7 +1253,7 @@ resolve_pr_scripts_dir() {
   printf '%s\n' ".claude/skills/github/scripts/pr"
 }
 SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
-CONFIG_PATH="${PR_REVIEW_CONFIG_PATH:-.claude/commands/pr-review-config.yaml}"
+CONFIG_PATH="${PR_REVIEW_CONFIG_PATH:-.claude/skills/pr-review/pr-review-config.yaml}"
 python3 "$SCRIPTS_DIR/run_completion_gate.py" \
   --config "$CONFIG_PATH" \
   --pull-request {pr} --json

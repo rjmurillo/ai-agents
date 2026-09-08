@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 # Python 3.10 compatibility (issue #4764), same reasoning as `new_pr.py`:
 # `datetime.UTC` is an alias CPython added in 3.11, so `from datetime import
 # UTC` raises `ImportError: cannot import name 'UTC' from 'datetime'` on 3.10.
-# `.claude/commands/pr-review-config.yaml` and `.claude/commands/pr-autofix.md`
+# `.claude/skills/pr-review/pr-review-config.yaml` and `.claude/commands/pr-autofix.md`
 # both invoke this script with a bare `python3`, so it runs on the HOST's
 # ambient interpreter rather than the repository's 3.14 development one, and
 # `_SUPPORT_FLOOR` in `scripts/validation/validate_python_syntax.py` puts that
@@ -621,7 +621,7 @@ def _evaluate_pr_state(pr: dict, reasons: list[str]) -> str:
     correct; that produced a false ready signal for PRs that branch protection
     actually refused (observed on PR #2323) and conflicted with this repo's
     own four-condition merge gate (``.claude/commands/pr-autofix.md``,
-    ``.claude/commands/pr-review-config.yaml``), which both require
+    ``.claude/skills/pr-review/pr-review-config.yaml``), which both require
     ``mergeStateStatus in ('CLEAN', 'UNSTABLE')``.
 
     Every ``mergeStateStatus`` outside :data:`_SUPPORTED_MERGE_STATES` also
