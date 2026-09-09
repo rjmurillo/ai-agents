@@ -104,7 +104,6 @@ ENV/
 /health-report.json
 /health-report.md
 /memory-health-report.md
-/memory-validation-results.json
 /quality-grades.json
 /quality-grades.md
 

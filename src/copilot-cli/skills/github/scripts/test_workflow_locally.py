@@ -268,7 +268,7 @@ def _write_event_payload(payload: dict[str, object]) -> str:
 WORKFLOW_MAP = {
     "pester-tests": "pester-tests.yml",
     "validate-paths": "validate-paths.yml",
-    "memory-validation": "memory-validation.yml",
+    "memory-health": "memory-health.yml",
 }
 
 

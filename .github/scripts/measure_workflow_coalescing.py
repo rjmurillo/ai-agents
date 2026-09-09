@@ -48,7 +48,7 @@ DEFAULT_WORKFLOWS: list[str] = [
     "ai-session-protocol",
     "pr-validation",
     "label-pr",
-    "memory-validation",
+    "memory-health",
     "auto-assign-reviewer",
     "codeql-analysis",
 ]
@@ -308,7 +308,7 @@ def get_concurrency_group(run: WorkflowRun) -> str:
         elif "label" in name:
             prefix = "label-pr"
         elif "memory" in name:
-            prefix = "memory-validation"
+            prefix = "memory-health"
         elif "assign" in name:
             prefix = "auto-assign"
         else:
