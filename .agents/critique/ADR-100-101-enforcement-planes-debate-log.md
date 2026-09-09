@@ -680,3 +680,33 @@ No new issue was filed here. Filing duplicates against three open trackers would
 have been the manufactured work the `avoiding-manufactured-work` skill exists to
 stop, and the only reason it was avoidable is that the absence was reported as
 unverified rather than as fact.
+
+### The citation repair needed a second pass, and the gate caught it
+
+Round 12 found eleven stale `path:line` citations and the first repair fixed the
+line numbers. `check_citation_freshness.py` then rejected five of them anyway,
+because it verifies that the **content the citing sentence quotes** actually sits
+at the cited lines, not merely that the numbers point somewhere real.
+
+Four distinct defects, none visible to a reader checking the numbers by hand:
+
+- `lefthook.yml:217` named the job's `name:` line while the sentence quoted the
+  glob, which is four lines below. Widened to `217-221`.
+- `skip: merge` is not a string in the file. It is `skip:` on one line and
+  `- merge` on the next, so no citation to any range could ever match that quote.
+  The prose now quotes the two tokens separately.
+- On the `pytest.yml` pass-through sentence, a long double-quoted comment sat
+  next to a trailing citation to `ruleset_required_contexts.py`, and the
+  extractor attributed the comment to that citation. Splitting the sentence so
+  each citation sits beside the content it names fixed it.
+- The widened `lefthook.yml:217-221` still failed, because the quoted glob
+  followed the citation and the extractor took the intervening prose as the
+  anchor instead. Naming the `adr-review-policy` job before the citation, so a
+  quoted token that really sits at line 217 precedes it, resolved it. The lesson
+  generalises: put the quote before the citation, not after.
+
+Worth recording because this record's thesis is that citations rot unchecked, and
+its author repaired the citations and still got three of the four wrong in a way
+only execution surfaced. The gate reads only lines added since the base ref, so
+it caught these because the repair touched them; the same defects would have been
+invisible had the numbers been correct at merge and rotted afterwards.
