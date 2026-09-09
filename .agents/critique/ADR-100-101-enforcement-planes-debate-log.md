@@ -749,3 +749,103 @@ Unchanged from round 12, minus what is now applied:
 3. The falsification harness that gates Phases 2 and 3 has no owner and no phase.
    Round 12's advisor called this the single highest-value fix, because an
    unowned item is the sole gate on two phases that are abandoned by default.
+
+## Round 13, 2026-09-09: concluded without consensus
+
+Six seats reviewed ADR-101 at `87e7f769d`, the commit applying round 12's six
+deferred findings.
+
+| Seat | Verdict | The finding that decided it |
+|---|---|---|
+| architect | Block | ADR-100's subject was retired by ADR-099 on 2026-08-21 and ADR-100 does not mention it |
+| critic | Block | The corrected live-incident count names a non-member of its own set, and asserts a deletion that has not happened |
+| security | Block | The sixth exhibit's mechanism is false against `pytest.yml`, and requirements 1 and 2 were unsatisfiable together |
+| analyst | Block | Six `path:line` citations do not resolve, including the pair round 12 recorded as repaired |
+| independent-thinker | Block | `path_policy.yml` gates whether six pinned contexts run, and appears nowhere in the record |
+| high-level-advisor | Accept | No finding leaves an operative sentence unsatisfiable |
+
+### The cap was read backwards, and that is why rounds 11 to 13 happened
+
+`.claude/skills/adr-review/SKILL.md:100` says only `Max 10 rounds`, and this log
+deferred a ruling on it three times before the owner ruled it binding. The
+protocol file states what the cap does, and the advisor seat is the first
+participant to open it. `references/debate-protocol.md:200-202`:
+
+```
+- All 6 agents Accept OR Disagree-and-Commit = Consensus reached
+- Any agent Blocks = Another round required (if round < 10)
+- Round 10 with no consensus = Conclude with unresolved issues documented
+```
+
+The cap is the second exit, not a filter on a recorded consensus. Its stated
+consequence is to conclude, so a Block past round 10 documents rather than
+continues. The owner's ruling that the cap binds was right; its application was
+inverted, and the summary that produced the ruling had quoted `SKILL.md` without
+reading the protocol beneath it.
+
+Recording it because the cost is measurable in both directions. Rounds 11 to 13
+were out of protocol, and each returned a defect its predecessor had shipped:
+round 12 caught a forgeable exit status that round 11's tally would have merged,
+and round 13 caught four factual errors introduced by round 12's own correction
+pass. So the protocol's exit rule and this record's experience disagree, and the
+honest reading is that the cap is right about termination and wrong about what a
+terminated record is worth. The record concludes; it is not repaired further by
+panel.
+
+### What round 13 established that no prior round did
+
+**The narrowing is not where four revisions said it was.** The job named `Run
+Python Tests` is `test-result`, whose only step runs `require_job_results.py`
+over `needs.*.result`. The selection happens in the `test` job it depends on.
+Round 12's finding was right and its mechanism was wrong, and the wrong mechanism
+had already reached requirement 1 as a justification.
+
+**`path_policy.yml` is the sharper half of the same directory.** Issue #5318
+moved the paths-filter list out of `pytest.yml` into
+`scripts/test_selection/path_policy.yml`, handed to the action by name at
+`pytest.yml:74`. Its `python:` list decides `steps.filter.outputs.python`, so
+narrowing it to a glob matching nothing skips the matrix and lets the
+pass-through report the pinned context green. That is the sixth edge kind, scope
+configuration consumed by an action input, reached through a data file with no
+Python edit at all. Two seats found it independently.
+
+**ADR-100 is stale, not merely unsettled.** ADR-099 is `accepted` and
+`implemented: true` as of 2026-08-21 and removed the commit-count block and the
+`commit-limit-bypass` label. ADR-100 opens "Two gates cap pull request size in
+this repository", cites `enforce_pr_validation.py:64-84` in a file that is 43
+lines, cites `CONTRIBUTING.md:880` for a claim that file now contradicts, and
+mentions neither ADR-099 nor issue #5233. That answers the settle-together
+question on evidence: they do not, and ADR-100 needs a re-baseline rather than a
+round.
+
+### The citations moved again during this round
+
+Round 12 repaired eleven citations. Round 13 found eight more stale, including
+the `pytest.yml` pair at the impact table that round 12's own entry claims it
+fixed: the body was corrected and the paraphrase two hundred lines away was not.
+Then merging `origin/main` into this branch shifted `pytest.yml` by nineteen
+lines, moving `test-result` from 508 to 527 and `skip-tests` from 634 to 653, so
+every number a seat verified as correct was stale before the amendment landed.
+All of them are re-measured against the merged tree here.
+
+That is the strongest available argument for the record's own thesis and against
+its own form. A document carrying dozens of `path:line` citations into files
+that move several times a day cannot be kept true by review, and
+`check_citation_freshness.py` reads only lines added since the base ref, so it
+cannot see any of them. Round 13's four citation-finding seats each did the work
+by hand.
+
+### Routed, not fixed
+
+Findings that need design rather than correction go to the trackers, per the
+terminal-predicate rule in `.claude/rules/builder-ethos.md`:
+
+| Finding | Seat | Tracker |
+|---|---|---|
+| A candidate `pytest_collection_modifyitems` skip hook satisfies requirement 2's attestation honestly while executing nothing; no repository control measures skip counts | security | #5245 |
+| Requirement 2's only closing mechanism, signed execution evidence, has no instance, no named signer, and no phase | advisor | #5245 |
+| The invariant states one of three necessary conditions; publisher identity and the configuration binding it are the two that carried every exhibit | independent-thinker | #5244 |
+| Phase 0's falsification branch over-triggers, blocking Phase 1 repairs the record calls unconditional | independent-thinker | #5244 |
+| The probe is specified against a canary and the branch conditions on ruleset 11104075, with no transfer argument | security | #5244 |
+| Split the measured audit out of the decision record | independent-thinker | owner |
+| ADR-100's frontmatter reads `proposed` while issue #5241 records owner acceptance on 2026-08-21 and a frontmatter update that never landed | analyst | owner |
