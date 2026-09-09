@@ -39,6 +39,7 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import patch
 
 import pytest
@@ -783,7 +784,7 @@ class TestTheMeasurementRunsOnlyWhereItMeansSomething:
         with pytest.raises(pytest.skip.Exception) as excinfo:
             TestBudgetHoldsAgainstMeasuredRuntime().test_the_real_registry_finishes_with_margin_inside_the_deadline(
                 monkeypatch,
-                _NoCapture(),
+                cast("pytest.CaptureFixture[str]", _NoCapture()),
             )
         assert self._ENV in str(excinfo.value)
 
@@ -802,7 +803,7 @@ class TestTheMeasurementRunsOnlyWhereItMeansSomething:
         with pytest.raises(pytest.skip.Exception) as excinfo:
             TestBudgetHoldsAgainstMeasuredRuntime().test_the_real_registry_finishes_with_margin_inside_the_deadline(
                 monkeypatch,
-                _NoCapture(),
+                cast("pytest.CaptureFixture[str]", _NoCapture()),
             )
         assert self._ENV not in str(excinfo.value)
         assert "uv is absent" in str(excinfo.value)

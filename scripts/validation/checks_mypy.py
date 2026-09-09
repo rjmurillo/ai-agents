@@ -33,6 +33,61 @@ from scripts.validation.evidence import (  # noqa: E402
 _MYPY_GATE = "validate_mypy_changed_files"
 
 
+def _module_identity(repo_root: Path, rel_path: str) -> str:
+    """The dotted module name mypy derives for a file, by walking up packages.
+
+    Mypy maps a path to a module by climbing while each parent holds an
+    ``__init__.py``, and the first directory without one becomes the search
+    root. So ``scripts/ai_review_common/workflow.py`` is
+    ``scripts.ai_review_common.workflow`` because ``scripts/__init__.py``
+    exists, while the same file mirrored under ``.claude/lib/`` and
+    ``src/copilot-cli/lib/`` is ``ai_review_common.workflow`` in both, since
+    neither ``lib`` directory is a package.
+    """
+    path = (repo_root / rel_path).resolve()
+    parts = [path.stem]
+    parent = path.parent
+    while (parent / "__init__.py").is_file() and parent != parent.parent:
+        parts.append(parent.name)
+        parent = parent.parent
+    return ".".join(reversed(parts))
+
+
+def _drop_duplicate_modules(repo_root: Path, py_files: list[str]) -> list[str]:
+    """Keep one path per mypy module name, so the run is not aborted by a collision.
+
+    This repository ships generated mirrors: ``scripts/ai_review_common`` is
+    copied verbatim to ``.claude/lib/`` and ``src/copilot-cli/lib/`` by
+    ``scripts/sync_plugin_lib.py`` and ``build/scripts/build_all.py``, and a
+    drift gate keeps the three byte-identical. Neither ``lib`` directory is a
+    package, so both mirrors claim the same module name. Handing mypy both
+    copies in one invocation makes it exit 1 with "Duplicate module named ...
+    errors prevented further checking": the gate then reported a type
+    regression having type-checked nothing, on any change the repository's own
+    generators produce. Checking one copy checks all of them, since the drift
+    gate is what makes them identical.
+
+    Deduplication is by module identity rather than by a hardcoded mirror list,
+    so a mirror added later is covered without editing this function. The
+    survivor is the first in sorted order, which is deterministic and therefore
+    reproducible between a local run and CI.
+    """
+    kept: dict[str, str] = {}
+    collapsed: list[str] = []
+    for rel_path in sorted(py_files):
+        identity = _module_identity(repo_root, rel_path)
+        if identity in kept:
+            collapsed.append(f"{rel_path} (duplicate of {kept[identity]})")
+            continue
+        kept[identity] = rel_path
+    if collapsed:
+        print(
+            f"Mypy gate: collapsed {len(collapsed)} duplicate module path(s); "
+            f"checking one copy of each: {', '.join(collapsed)}"
+        )
+    return [rel_path for rel_path in py_files if rel_path in set(kept.values())]
+
+
 def validate_mypy_changed_files(repo_root: Path) -> CheckOutcome:
     """Run mypy over Python files changed on the branch (ratchet semantics).
 
@@ -57,14 +112,19 @@ def validate_mypy_changed_files(repo_root: Path) -> CheckOutcome:
         )
 
     exit_code, stdout, diff_stderr = _run_subprocess(
-        ["git", "-C", str(repo_root), "diff", "--name-only",
-         "--diff-filter=ACMR", f"{base_ref}...HEAD"],
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--name-only",
+            "--diff-filter=ACMR",
+            f"{base_ref}...HEAD",
+        ],
         timeout=30,
     )
     if exit_code != 0:
-        reason = classify_subprocess_failure(
-            exit_code, diff_stderr, default=REASON_DIFF_FAILED
-        )
+        reason = classify_subprocess_failure(exit_code, diff_stderr, default=REASON_DIFF_FAILED)
         print(f"[UNKNOWN] Mypy gate: git diff failed ({reason})")
         return CheckOutcome.unknown(
             _MYPY_GATE,
@@ -74,10 +134,10 @@ def validate_mypy_changed_files(repo_root: Path) -> CheckOutcome:
             detail=f"git diff exited {exit_code}, so the changed-file set is unknown",
         )
 
-    py_files = [
-        p for p in stdout.splitlines()
-        if p.endswith(".py") and (repo_root / p).is_file()
-    ]
+    py_files = _drop_duplicate_modules(
+        repo_root,
+        [p for p in stdout.splitlines() if p.endswith(".py") and (repo_root / p).is_file()],
+    )
     scope = f"Python files changed against {base_ref}"
     if not py_files:
         print("[PASS] Mypy (0 Python files changed on branch)")
