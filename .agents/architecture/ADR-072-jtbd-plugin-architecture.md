@@ -13,12 +13,37 @@ implemented: false
 
 ## Status
 
-Proposed. Architect design review completed (verdict: APPROVE WITH CHANGES); this
-ADR may exist as `Proposed` but MUST clear the five approval conditions in
-"Conditions to reach Accepted" before its status moves to `Accepted` and any
-milestone is implemented. Requested by issue #1774 (parent epic #1072, v0.4.0
-Framework Extraction). Refines the plugin taxonomy of ADR-045 (see Decision
-Drivers). No code moves on this ADR alone.
+Proposed, and amended 2026-09-09 after a six-seat `adr-review` round. This ADR
+may exist as `Proposed` but MUST clear the conditions in "Conditions to reach
+Accepted" before its status moves to `Accepted` and any milestone is
+implemented. Requested by issue #1774 (parent epic #1072, v0.4.0 Framework
+Extraction). Refines the plugin taxonomy of ADR-045 (see Decision Drivers). No
+code moves on this ADR alone.
+
+**Round outcome.** Five seats returned Block recommending `rejected`, on the
+shared premise that Decision 3's `dependencies` field and Decision 4's
+marketplace alias are capabilities the platform does not offer. The sixth seat
+refused that premise and ran a probe instead. The probe refuted it, and the
+amendment below records what it measured, so the record is amended rather than
+rejected. What the five seats found that survives the probe is real and is
+carried into the blockers: falsified premises, not an unbuildable mechanism.
+
+**Why not `rejected`.** In this repository `rejected` means a proposal declined
+and not returning (ADR-031 and ADR-095 both open "Recorded so the proposal is
+findable and does not return"). Every seat endorsed the JTBD direction, so that
+enum would record the opposite of the panel's position. ADR-073 line 58 blesses
+the alternative directly, naming this record's conditional `proposed` state as
+the case the prose Status section exists to carry.
+
+**Blockers, all of them this record's own defects rather than platform limits:**
+
+1. The Definition-of-Ready questions below are unanswered.
+2. Decision 1 names five plugins, zero of which exist; see the note there.
+3. The distribution premise was falsified; see "Distribution context".
+4. Decision 4's M1 to M3 are dead as written; see the note there.
+5. Issue #1774 is closed `not_planned` (2026-06-19, ten days after this record
+   was authored) and parent epic #1072 is closed, so nothing tracks this work.
+   ADR-052 set the remedy: file a successor and name it here.
 
 ## Date
 
@@ -26,12 +51,27 @@ Drivers). No code moves on this ADR alone.
 
 ## Distribution context
 
-This repository is a distribution installed by roughly 400 engineers across an
-organization through multiple harnesses (Claude Code, GitHub Copilot CLI, VS Code,
-Codex CLI, Cursor). The plugin boundaries are an install-time contract for that
-population; the marketplace currently ships two live plugins (`claude-agents`,
-`project-toolkit`). Getting boundaries wrong forces a migration on every consumer,
-which is why this is an ADR, not a refactor.
+**Corrected 2026-09-09; the original figure was not a measurement.** This record
+opened by asserting an installed base of roughly 400 engineers. That number is
+ADR-045's distribution *target*, restated as a fact. ADR-045 line 24 reads "The
+framework must be distributed to ~400 users within 30 days", line 38 "targets
+~400 users via plugin marketplace within 30 days of extraction completion", and
+line 56 "targets ~400 users in an organizational rollout". All three are
+future-tense and conditional on the ADR-045 extraction into
+`rjmurillo/awesome-ai`, which never happened: `.claude-plugin/marketplace.json`
+still ships from in-repo sources.
+
+The installed population is therefore unknown, and no measurement of it exists in
+this repository. That matters because the number was the denominator for every
+impact and reversibility claim here, including the argument that M5's blast
+radius makes this an ADR rather than a refactor. The argument survives without
+the number, because breaking an install contract is bad at any population, but it
+must be made qualitatively until someone measures.
+
+The marketplace ships two plugins from `.claude-plugin/marketplace.json`
+(`claude-agents` from `./src/claude`, `project-toolkit` from `./.claude`) and a
+third from `.github/plugin/marketplace.json` (`project-toolkit` from
+`./src/copilot-cli`). Three plugin roots, two marketplaces.
 
 ## Context
 
@@ -88,6 +128,23 @@ Reconcile against the five-plugin set named in #1774 (the four below plus
 | `agent-team` | Delegate to specialists | the specialist agents, routing, and the memory the agents share |
 | `project-toolkit` | All of the above | meta-plugin that DEPENDS ON the above, retained for one-install convenience |
 
+**None of the first four exists.** The tree holds three plugin roots carrying a
+`.claude-plugin/plugin.json`: `.claude/` (`project-toolkit`), `src/claude/`
+(`claude-agents`), and `src/copilot-cli/` (`project-toolkit`). This table is a
+target state, and an earlier revision read as though it described one.
+
+Two contents cells also name assets that do not exist. `.claude/hooks/hooks.json`
+and `src/copilot-cli/hooks/hooks.json` both read `"hooks": {}`, because ADR-097
+(accepted) retired every tool-use registration, so neither the "shipping hooks"
+nor the "enforcement hooks" half of that partition has anything to partition.
+The four surviving session-boundary registrations live in `.claude/settings.json`,
+which is repo-local configuration rather than a plugin surface, so they are not
+assignable to a plugin either. Whoever implements M4 partitions capabilities,
+not hooks.
+
+One job description also drifted from its source: #1774 assigns `agent-team` to
+"Understand + plan", and this table renamed it to "Delegate to specialists" while
+claiming to reconcile against #1774's set.
 ### 2. Reuse the existing source seam; do NOT relocate canonical sources
 
 Default to the lower-risk mechanism the architect recommended: reuse the existing
@@ -106,7 +163,7 @@ migration with no demonstrated benefit over the working `.claude/` seam.
 
 ### 3. Declare cross-plugin dependencies so a partial install cannot break
 
-#1773 decision D3 keeps `project-toolkit` bundled because agents/commands/hooks/
+Issue #1773 decision D3 keeps `project-toolkit` bundled because agents/commands/hooks/
 skills are interdependent (per the #1148 analysis): installing one without the
 others breaks. JTBD slicing increases the cross-plugin dependency surface, so each
 capability plugin MUST declare its `dependencies` in `plugin.json`, and a partial
@@ -114,10 +171,71 @@ install must fail loud at install time rather than degrade to a silent no-op (th
 #2205 customer-wedge failure class). Whether #1148's coupling claim still holds is
 an evidence question routed to the analyst before M4.
 
+**Measured 2026-09-09 against Claude Code 2.1.266, because the review round
+blocked on the belief that this field does not exist.** `dependencies` is a
+first-class, type-checked manifest field, and the host ships a resolver for it.
+Three probes, the second and third being the negative controls that make the
+first mean something:
+
+- A manifest carrying `dependencies: ["cap-b@mkt"]` plus explicit `skills` and
+  `commands` path keys passes `claude plugin validate` with only the routine
+  missing-`version` and missing-`author` warnings.
+- An unrecognized key produces `zzzUnknownKey: Unknown field 'zzzUnknownKey'.
+  Claude Code ignores it at load time.` and validation still PASSES. So a
+  tolerated-but-ignored key is distinguishable from a real one.
+- `dependencies: "nope"` produces `dependencies: Invalid input` and validation
+  FAILS. A field the host merely ignored could not be type-checked, so this is
+  the discriminating result.
+
+The reviewing seat that ran the equivalent probe also installed a two-plugin
+local marketplace end to end and observed `Successfully installed plugin:
+cap-a@probe-mkt (+ 1 dependency: cap-b)` on install and a dependency-no-longer-
+needed notice on uninstall, with `claude plugin prune` available for collection.
+That is the fail-loud partial-install contract this section asks for, already
+implemented by the host.
+
+**What actually blocks Decision 3, then, is local and small.** Two repository
+facts, neither a platform limit:
+
+- `build/scripts/validate_plugin_manifests.py` omits `dependencies` from
+  `ALLOWED_KEYS` and fails unknown keys, so the field would fail this
+  repository's own gate. That is a one-line addition with a test, in the same PR
+  as M4.
+- ADR-092 (accepted, implemented) deleted `version` from all three manifests and
+  `build/scripts/validate_plugin_version_bump.py` fails on its return, so a
+  dependency here can only ever be a bare name. M4 must say so explicitly and
+  cite ADR-092, rather than implying a version-constrained edge.
+
+**A stale constraint that misled the round, recorded so it does not mislead
+again.** `validate_plugin_manifests.py` lines 86 and 120 both pin their
+rationale to "Claude Code 2.1.122", a version measured in commit `a4ed5850c` on
+2026-05-01. Five of six seats read that comment as a standing platform law and
+blocked on it. The forbidden-key check it guards is also narrower than it reads:
+`_is_repo_marketplace_manifest` matches three hardcoded paths, so a new
+capability-plugin root at any other path is unaffected by it today.
+
 ### 4. Milestoned, with M5 as the contract-breaking step
 
-- M1 to M3: complete the per-harness emitters for commands, rules, hooks
-  (additive, revertible: add generated output plus drift check, delete nothing).
+- M1 to M3: complete the per-harness emitters for rules and hooks (additive,
+  revertible: add generated output plus drift check, delete nothing).
+
+  **Amended 2026-09-09: the commands emitter is gone and this milestone cannot
+  be completed as originally written.** ADR-064 reached `accepted` and
+  `implemented: true` on 2026-09-08 via issue #5632, which converted every
+  command in `.claude/commands/` into a skill, deleted the tree, and deleted
+  `build/scripts/generate_commands.py`. An earlier revision of this record
+  committed M1 to M3 to "complete the per-harness emitters for commands, rules,
+  hooks" and described `.claude/commands/*.md` as a canonical source. Both are
+  now false. ADR-064's own Related Decisions section had named this tension and
+  said the two records "cannot both stand as written"; ADR-064 settled first and
+  the tension is resolved in its favour by a shipped change, not by argument.
+
+  What survives is real and untouched by that: rules and hooks still have the
+  `.claude/ -> generated` seam, and the Codex and Cursor emitters this milestone
+  was mainly about remain unwritten. Neither surface exists in the tree today,
+  so M1 to M3 is greenfield work described as completion, and the successor
+  issue should say so. Retarget "commands" to "user-invocable skills" and the
+  rest of this record stands.
 - M4: capability plugin manifests with declared `dependencies`.
 - M5: cut `project-toolkit` to depend on the capability plugins and deprecate the
   directory-named plugins. This is the irreversible, install-contract-breaking
@@ -125,7 +243,12 @@ an evidence question routed to the analyst before M4.
   alias so existing install commands do not 404.
 
 Each milestone is a separate issue under epic #1072 with its own acceptance
-criteria and tests.
+criteria and tests. **Epic #1072 is closed, and so is issue #1774, this record's
+own tracker, closed `not_planned` on 2026-06-19, ten days after this record was
+authored.** So nothing tracks any of these milestones today. That is the same
+shape ADR-064's record diagnosed for issue #2139, and the remedy is the one
+ADR-052 set: file successors and name them in the Status section rather than
+reopening a closed tracker.
 
 ## Conditions to reach Accepted (architect review, APPROVE WITH CHANGES)
 
@@ -185,7 +308,20 @@ M1 to M4 are reversible at the milestone boundary (additive generated output beh
 drift checks; revert by dropping the emitter). M5 is the contract-breaking
 milestone and is reversible only with a migration window: it MUST ship a marketplace
 alias mapping the deprecated plugin names to the new capability plugins so installed
-users' commands keep resolving, plus a documented migration. No
+users' commands keep resolving, plus a documented migration.
+
+**The alias is constructible, though not as a dedicated schema field.** The
+review round blocked partly on the absence of an `alias` or `renames` key from
+`.claude-plugin/marketplace.json`, whose entries carry `{name, description,
+source}`. That absence is real. What follows from it is not that the requirement
+is unimplementable: two marketplace entries with different `name` values pointing
+at one `source` validate clean, which preserves the old install command by
+keeping the old name resolvable. `build/scripts/check_plugin_manifest_parity.py`
+records a second route, that a marketplace entry may carry any manifest-schema
+field as catalog metadata and under `strict: false` may be the whole definition.
+M5 must name which of the two it uses and pin the minimum client version it was
+measured against, because this is the one irreversible milestone and its only
+stated mitigation. No
 harness-proprietary format enters the canonical sources; per-harness specifics live
 only in emitters, so dropping a harness is removing one emitter.
 
@@ -193,7 +329,16 @@ only in emitters, so dropping a harness is removing one emitter.
 
 - Issue #1774 (this decision), parent epic #1072.
 - ADR-045 (framework extraction via plugin marketplace; the 4-plugin taxonomy this
-  refines).
+  refines). Note its frontmatter reads `implemented: true` while its decision,
+  extraction into `rjmurillo/awesome-ai` with four named plugins, has not
+  happened: none of `core-agents`, `framework-skills`, `session-protocol`, or
+  `quality-gates` exists and the marketplace ships from in-repo sources. That
+  flag needs its own correction, tracked separately from this record.
+- ADR-064 (retire `.claude/commands/`; skills are the single user-invocable
+  surface). `accepted`, `implemented: true` as of 2026-09-08. It named the
+  conflict with this record first and settled first; see the M1 to M3 note in
+  Decision 4 for what that removed and what survives. An earlier revision of this
+  record cited ADR-064 nowhere.
 - ADR-002 (agent generation seam), ADR-042 (Python-first hooks), ADR-006 (thin
   workflows, testable modules: the generator and drift-check shape).
 - Issue #1773 decision D3 and the #1148 component-interdependence analysis.
