@@ -1,4 +1,5 @@
 """Tests that lefthook gate jobs include enforcement flags (issue #4313)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,11 +9,12 @@ import yaml
 from scripts.validation.checks_ratchet import RATCHETS as PRE_PUSH_RATCHETS
 
 LEFTHOOK_PATH = Path(__file__).parent.parent / "lefthook.yml"
-MEMORY_WORKFLOW_PATH = (
-    Path(__file__).parent.parent
-    / ".github"
-    / "workflows"
-    / "memory-validation.yml"
+# Issue #5626 deleted memory-validation.yml as fully redundant. The server-side
+# leg of the memory count ratchet it used to carry now lives only here, in the
+# required `Validate PR` check, so these assertions follow it rather than
+# retiring with the workflow.
+PR_VALIDATION_WORKFLOW_PATH = (
+    Path(__file__).parent.parent / ".github" / "workflows" / "pr-validation.yml"
 )
 
 
@@ -27,8 +29,17 @@ def _iter_all_jobs(data) -> list[dict]:
             if child is not None:
                 results.extend(_iter_all_jobs(child))
         for key, val in data.items():
-            if key not in ("name", "run", "jobs", "commands", "glob", "skip",
-                           "timeout", "parallel", "piped"):
+            if key not in (
+                "name",
+                "run",
+                "jobs",
+                "commands",
+                "glob",
+                "skip",
+                "timeout",
+                "parallel",
+                "piped",
+            ):
                 results.extend(_iter_all_jobs(val))
     elif isinstance(data, list):
         for item in data:
@@ -84,90 +95,55 @@ class TestMemoryTierGateEnforcement:
         job = self._find_job("memory-index")
         run = job.get("run", "")
         assert "--orphan-policy ratchet" in run, (
-            "memory-index must leave the legacy backlog to the count ratchet: "
-            f"{run!r}"
+            f"memory-index must leave the legacy backlog to the count ratchet: {run!r}"
         )
 
-    def test_memory_workflow_uses_ratchet_orphan_policy(self) -> None:
-        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
-        steps = data["jobs"]["validate-memories"]["steps"]
-        run_blocks = [
-            step["run"]
-            for step in steps
-            if isinstance(step, dict) and isinstance(step.get("run"), str)
-        ]
-        command = next(
-            run
-            for run in run_blocks
-            if "scripts/validation/memory_index.py" in run
-        )
-        assert "--orphan-policy ratchet" in command
-
-    def test_memory_workflow_runs_count_ratchet(self) -> None:
-        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
-        steps = data["jobs"]["validate-memories"]["steps"]
-        commands = [
-            step["run"]
-            for step in steps
-            if isinstance(step, dict) and isinstance(step.get("run"), str)
-        ]
-
-        assert any(
-            "scripts/ci/memory_index_count_ratchet.py" in command
-            and "--base-ref" in command
-            for command in commands
-        )
-
-    def test_memory_workflow_fetches_base_history(self) -> None:
-        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
-        steps = data["jobs"]["validate-memories"]["steps"]
-        checkout = next(
+    def _count_ratchet_step(self) -> dict:
+        """The one server-side step that still runs the unindexed-memory ratchet."""
+        data = yaml.safe_load(PR_VALIDATION_WORKFLOW_PATH.read_text(encoding="utf-8"))
+        steps = data["jobs"]["validate-pr"]["steps"]
+        return next(
             step
-            for step in steps
-            if step.get("uses", "").startswith("actions/checkout@")
-        )
-
-        assert checkout.get("with", {}).get("fetch-depth") == 0
-
-    def test_memory_workflow_has_manual_dispatch_base_fallback(self) -> None:
-        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
-        steps = data["jobs"]["validate-memories"]["steps"]
-        ratchet = next(
-            step
-            for step in steps
-            if "memory_index_count_ratchet.py" in step.get("run", "")
-        )
-
-        assert ratchet["env"]["BASE_BRANCH"] == (
-            "${{ github.base_ref || github.event.repository.default_branch }}"
-        )
-        assert '--base-ref "origin/$BASE_BRANCH"' in ratchet["run"]
-
-    def test_memory_workflow_uses_locked_markdown_parser_environment(
-        self,
-    ) -> None:
-        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
-        steps = data["jobs"]["validate-memories"]["steps"]
-        validator_commands = [
-            step["run"]
             for step in steps
             if isinstance(step, dict)
-            and isinstance(step.get("run"), str)
-            and step.get("id") in {"tier-validation", "index-validation"}
-        ]
-
-        assert len(validator_commands) == 2
-        assert all(
-            command.startswith("uv run --frozen python ")
-            for command in validator_commands
+            and "memory_index_count_ratchet.py" in str(step.get("run", ""))
         )
 
-    def test_memory_workflow_blocks_tier_structure_errors(self) -> None:
-        data = yaml.safe_load(MEMORY_WORKFLOW_PATH.read_text(encoding="utf-8"))
-        steps = data["jobs"]["validate-memories"]["steps"]
-        tier_validation = next(
-            step for step in steps if step.get("id") == "tier-validation"
+    def test_count_ratchet_survives_in_the_required_check(self) -> None:
+        """Deleting memory-validation.yml must not take the remote leg with it.
+
+        Pre-push stops the count rising locally, but `--no-verify`, a clone with
+        no hooks installed, a bot push, and a cloud agent all reach the remote
+        unchecked. `Validate PR` is a required context; this step is what makes
+        the ratchet reachable from it.
+        """
+        run = self._count_ratchet_step()["run"]
+        assert "--base-ref" in run
+
+    def test_count_ratchet_fetches_base_history_at_full_depth(self) -> None:
+        """A shallow fetch grafts .git/shallow and breaks the later merge-tree pass."""
+        run = self._count_ratchet_step()["run"]
+        assert "git fetch origin" in run
+        assert "--depth" not in run
+
+    def test_count_ratchet_has_a_default_branch_base_fallback(self) -> None:
+        """`github.base_ref` is empty off pull_request, so the fallback carries it."""
+        step = self._count_ratchet_step()
+        assert step["env"]["BASE_REF"] == (
+            "${{ github.base_ref || github.event.repository.default_branch }}"
         )
 
-        assert "continue-on-error" not in tier_validation
-        assert "--ci" not in tier_validation["run"]
+    def test_count_ratchet_uses_the_locked_environment(self) -> None:
+        """Bare python3 resolves the runner's interpreter, which has installed nothing."""
+        assert "uv run --frozen python3" in self._count_ratchet_step()["run"]
+
+    def test_tier_validation_stays_blocking_at_the_hook(self) -> None:
+        """Tier structure was the workflow's only unduplicated-looking step.
+
+        It was not: lefthook's `memory-tier` job runs the same validator on
+        pre-commit with no `continue-on-error` escape, so the check the deleted
+        workflow performed is still performed.
+        """
+        job = self._find_job("memory-tier")
+        assert "scripts/validate_memory_tier.py" in job["run"]
+        assert "continue-on-error" not in job
