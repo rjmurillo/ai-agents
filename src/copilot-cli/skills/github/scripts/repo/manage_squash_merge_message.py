@@ -43,12 +43,16 @@ import os
 import subprocess
 import sys
 
+# No GITHUB_WORKSPACE branch here, unlike the older scripts in this skill. That
+# branch hard-codes `<workspace>/.claude/lib`, which is the wrong tree for the
+# generated copilot-cli mirror of this file, and it buys nothing the relative
+# walk below does not already give: `__file__` resolves the same regardless of
+# the caller's working directory. Keeping it would also raise the
+# scripts/validation/skill_portability_baseline.json count, which the ratchet
+# asks to drive down (issue #2050).
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
-_workspace = os.environ.get("GITHUB_WORKSPACE")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
     _lib_dir = os.path.join(_plugin_root, "lib")
-elif _workspace:
-    _lib_dir = os.path.join(_workspace, ".claude", "lib")
 else:
     _lib_dir = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
@@ -77,7 +81,18 @@ _ALLOWED_VALUES = ("PR_BODY", "COMMIT_MESSAGES", "PR_BODY_AND_COMMIT_DETAILS", "
 
 
 def fetch_current_setting(owner: str, repo: str) -> str:
-    """Return the live `squash_merge_commit_message` value."""
+    """Return the live `squash_merge_commit_message` value.
+
+    Raises RuntimeError when the field is missing from the response. GitHub
+    omits every merge-setting field for a caller without administration read
+    on the repository, and `gh api --jq` on a missing key exits 0 with empty
+    stdout, so the returncode check below does not fire. Defaulting to
+    `PR_BODY` there would fabricate an observation of exactly the safe value,
+    which is the failure this script exists to detect: the read would report
+    a clean setting for a repository that is really on `COMMIT_MESSAGES`, a
+    `--set PR_BODY` run would report a no-op and write nothing, and an
+    `--expected-current PR_BODY` guard would pass against a value never seen.
+    """
     result = subprocess.run(
         ["gh", "api", f"repos/{owner}/{repo}", "--jq", ".squash_merge_commit_message"],
         capture_output=True,
@@ -92,7 +107,15 @@ def fetch_current_setting(owner: str, repo: str) -> str:
             or result.stdout.strip()
             or f"gh api repos/{owner}/{repo} failed with no stderr or stdout output"
         )
-    return result.stdout.strip() or "PR_BODY"
+    value = result.stdout.strip()
+    if not value:
+        raise RuntimeError(
+            f"repos/{owner}/{repo} returned no squash_merge_commit_message field. "
+            "GitHub omits repository merge settings for callers without "
+            "administration read access, so the live value is unknown. Re-run "
+            "with a token that has admin read on the repository."
+        )
+    return value
 
 
 def update_setting(owner: str, repo: str, new_value: str) -> None:
