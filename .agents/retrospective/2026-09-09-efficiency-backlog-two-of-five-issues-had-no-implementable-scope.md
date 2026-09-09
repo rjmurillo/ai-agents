@@ -132,3 +132,57 @@ the disagreement is routine rather than exotic.
 - Red `main` run cited by #5610: job 101352438675 at `19f257b5b`
 - Live ruleset: `gh api repos/rjmurillo/ai-agents/rulesets/11104075` returns
   nine required contexts; "Memory Validation" is not among them
+
+## Correction, 2026-09-09, later the same day
+
+The section above titled "The defect the work surfaced" is wrong, and the five
+whys built on it are wrong with it. Appended rather than rewritten, per
+`.claude/rules/retros.md` MUST NOT item 1.
+
+An adversarial pre-merge review of PR #5674 put three independent refuters on
+the claim that `validate_mypy_changed_files` reported a regression having
+type-checked nothing. All three confirmed the opposite of what this retro
+recorded.
+
+`run_mypy` never hands mypy the file list. It routes every path through
+`_mypy_invocations` (`scripts/validation/git_hook_policy.py:3583-3602`), which
+groups by basename and emits each colliding group as its own single-file
+invocation. A module identity's last component is the file stem, so
+same-identity paths always share a basename, and two paths inside one
+invocation can never share a module name. The `Duplicate module named` abort is
+unreachable through the gate. That split predates this branch by seven weeks.
+
+The reproduction in this retro used `python -m mypy <file1> <file2>` directly.
+That is not a code path the gate takes. Running the real `run_mypy` over the
+same changed set exits 0.
+
+The actual cause of the blocked push was two genuine `[arg-type]` errors in this
+branch's own new test file, at `tests/ci/test_pre_pr_runs_lefthook_ratchets.py`
+lines 786 and 805, where a `_NoCapture` stand-in was passed to a parameter
+declared `CaptureFixture[str]`. The `cast()` added in the same commit is what
+cleared them. `examined=15` was an honest count of files that were checked.
+
+The dedup was not inert. Nothing in it compared content, so it dropped by
+identity: on this branch it removed two `src/copilot-cli/**` paths that
+`lefthook.yml:651-660` already excludes from `python-type-check`, leaving them
+type-checked nowhere. Across 2272 tracked `.py` files, 280 module identities
+have more than one member and 14 of those differ by sha256, `conftest` among
+them at 7 distinct files.
+
+Reverted in `f1ed6cdfc`. Issue #5672 closed as not planned.
+
+### What this changes about the lesson
+
+The original root cause, "the gate modelled changed files as paths when mypy
+models them as modules", described a defect that does not exist. The real
+lesson is narrower and sharper:
+
+**Reproduce a gate's failure through the gate's own entry point, not through
+the tool the gate wraps.** One `python -m mypy` invocation looked like
+sufficient evidence and was not, because the wrapper's behavior was the whole
+question. The same mistake produced a filed issue, a shipped fix, a test whose
+negative control validated an unreachable shape, and this retrospective.
+
+Failure mode #9, confident-incorrectness recurrence, fits the corrected account
+better than #10 did. The original classification stands as written above,
+uncorrected, because it was the honest reading at the time.
