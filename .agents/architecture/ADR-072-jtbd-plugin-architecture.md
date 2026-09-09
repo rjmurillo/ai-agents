@@ -13,7 +13,7 @@ implemented: false
 
 ## Status
 
-Proposed, and amended 2026-09-09 after a six-seat `adr-review` round. This ADR
+Proposed. Amended 2026-09-09 after a six-seat `adr-review` round. This ADR
 may exist as `Proposed` but MUST clear the conditions in "Conditions to reach
 Accepted" before its status moves to `Accepted` and any milestone is
 implemented. Requested by issue #1774 (parent epic #1072, v0.4.0 Framework
