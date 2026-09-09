@@ -104,3 +104,18 @@ this record's own defects rather than platform limits.
 3. File successors for the milestones and name them in Status, per ADR-052.
 4. Re-run the panel against the amended text, with the mechanism question closed
    by the probe rather than reopened by each seat.
+
+### Tracker, filed 2026-09-09
+
+Unlike ADR-101, which turned out to have three open trackers nobody had named,
+ADR-072 genuinely had none: issue #1774 closed `not_planned` on 2026-06-19, ten
+days after the record was authored, and parent epic #1072 is closed.
+
+Successor **#5669** is filed and named in the Status section, per ADR-052.
+
+It tracks **settling** this record, not implementing it, and says so in its own
+body. An implementation tracker would have been manufactured work: this round
+established that the record names five plugins of which zero exist, leaves three
+Definition-of-Ready questions open, and points M1 to M3 at an emitter ADR-064
+deleted. Its checklist is the blocker list from the Status section, so closing it
+means the record is ready for a second round, not that any milestone shipped.

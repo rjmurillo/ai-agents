@@ -41,9 +41,12 @@ the case the prose Status section exists to carry.
 2. Decision 1 names five plugins, zero of which exist; see the note there.
 3. The distribution premise was falsified; see "Distribution context".
 4. Decision 4's M1 to M3 are dead as written; see the note there.
-5. Issue #1774 is closed `not_planned` (2026-06-19, ten days after this record
-   was authored) and parent epic #1072 is closed, so nothing tracks this work.
-   ADR-052 set the remedy: file a successor and name it here.
+5. ~~Issue #1774 is closed `not_planned` (2026-06-19, ten days after this record
+   was authored) and parent epic #1072 is closed, so nothing tracks this work.~~
+   **Closed 2026-09-09.** Successor filed per the ADR-052 precedent and named
+   here: **issue #5669**, which tracks settling this record and carries blockers
+   1 through 4 as its checklist. It deliberately does not track implementation,
+   because this round established the record is not ready to implement.
 
 ## Date
 

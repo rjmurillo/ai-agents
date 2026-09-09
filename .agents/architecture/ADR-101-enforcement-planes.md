@@ -13,7 +13,24 @@ implemented: false
 
 ## Status
 
-Proposed
+Proposed. Round 12 of `adr-review` ran on 2026-09-09 after the repository owner
+ruled the ten-round cap binding, so round 11's no-Block tally does not settle
+this record. Round 12 returned two Blocks (critic, security) against two Accepts
+and two Disagree-and-Commits. Both Blocks landed on commit `a1278384f`, whose own
+pull request body records that no panel reviewed it, and both were settled by
+execution rather than argument: requirement 2's narrowed guarantee named the one
+value the candidate authors. That is repaired here. The remaining findings, in
+particular extending requirement 1 from conditions to head-editable selection
+inputs, are enumerated at the end of
+`.agents/critique/ADR-100-101-enforcement-planes-debate-log.md` and are round 13's
+work.
+
+Implementation is tracked by **issue #5244** (Phase 0, control plane hardening)
+and **issue #5245** (Phase 1, requirement 1 plus the integrity closure), both
+open. Named here per the ADR-052 precedent, since a decision whose tracker is
+unnamed is the failure mode ADR-064's record documents. ADR-100 shares this
+record's debate log and is tracked by **issue #5241**; whether the two settle in
+one change is unresolved, four seats saying yes and two no
 
 ## Date
 

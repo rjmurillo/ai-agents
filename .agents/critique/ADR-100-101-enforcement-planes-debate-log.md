@@ -656,3 +656,27 @@ thing that worked.
 4. A ruling on whether ADR-100 settles in the same change. Four seats said yes
    and two said no; the split is on whether the shared log is a dependency or a
    review artifact.
+
+### Trackers, named 2026-09-09
+
+Round 12's analyst seat reported that it could not determine whether an
+implementation tracker exists, because that seat had no issue-search tool, and
+recorded the gap as `NOT RUN` rather than asserting an absence. That was the
+right call and it paid: a search found three open trackers already filed.
+
+| Tracker | Scope | State |
+|---|---|---|
+| #5244 | ADR-101 Phase 0, control plane hardening | open |
+| #5245 | ADR-101 Phase 1, requirement 1 plus the integrity closure | open |
+| #5241 | ADR-100, retire the PR size ceilings | open |
+
+None was named in either ADR. That is the half of the ADR-052 precedent both
+records were missing: ADR-052 resolved a tracker closed on the ADR text alone by
+filing a successor **and naming it in the Status section**, and a tracker nobody
+can find from the record is not meaningfully tracking it. All three are now named
+in ADR-101's Status.
+
+No new issue was filed here. Filing duplicates against three open trackers would
+have been the manufactured work the `avoiding-manufactured-work` skill exists to
+stop, and the only reason it was avoidable is that the absence was reported as
+unverified rather than as fact.
