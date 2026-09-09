@@ -166,7 +166,7 @@ _CONCURRENCY_PREFIXES: list[tuple[str, str]] = [
     ("spec", "spec-validation"),
     ("session", "session-protocol"),
     ("label", "label-pr"),
-    ("memory", "memory-validation"),
+    ("memory", "memory-health"),
     ("assign", "auto-assign"),
 ]
 
