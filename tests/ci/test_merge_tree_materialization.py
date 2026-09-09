@@ -178,9 +178,7 @@ def test_remove_tree_retries_transient_permission_error(tmp_path: Path) -> None:
 
     assert error is None
     assert remove.call_count == 5
-    assert sleep.call_args_list == [
-        call(delay) for delay in _mat._CLEANUP_RETRY_DELAYS[:4]
-    ]
+    assert sleep.call_args_list == [call(delay) for delay in _mat._CLEANUP_RETRY_DELAYS[:4]]
     assert not target.exists()
 
 
@@ -197,9 +195,7 @@ def test_remove_tree_reports_permission_error_after_retry_budget(
 
     assert error == "scratch cleanup failed: PermissionError: denied"
     assert remove.call_count == len(_mat._CLEANUP_RETRY_DELAYS) + 1
-    assert sleep.call_args_list == [
-        call(delay) for delay in _mat._CLEANUP_RETRY_DELAYS
-    ]
+    assert sleep.call_args_list == [call(delay) for delay in _mat._CLEANUP_RETRY_DELAYS]
 
 
 def test_remove_tree_retries_transient_os_error(tmp_path: Path) -> None:
@@ -282,13 +278,12 @@ def test_make_writable_and_retry_accepts_concurrent_removal(
         target.unlink()
         _mat._make_writable_and_retry(os.unlink, str(target), PermissionError())
     else:
+
         def removed_before_retry(path: str) -> None:
             Path(path).unlink()
             raise FileNotFoundError(path)
 
-        _mat._make_writable_and_retry(
-            removed_before_retry, str(target), PermissionError()
-        )
+        _mat._make_writable_and_retry(removed_before_retry, str(target), PermissionError())
 
     assert not target.exists()
 
@@ -312,3 +307,85 @@ def test_remove_tree_clears_readonly_files(tmp_path: Path) -> None:
 
     assert _mat.remove_tree(target, "scratch") is None
     assert not target.exists()
+
+
+def _scratch_tracked_paths(scratch: Path) -> set[str]:
+    """Tracked paths in the snapshot commit, read from the commit and not the disk."""
+    listing = _git(scratch, "ls-tree", "-r", "-z", "--name-only", "HEAD")
+    return {name for name in listing.stdout.split("\0") if name}
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_snapshot_keeps_a_tracked_file_the_merged_tree_ignores(tmp_path: Path) -> None:
+    """Issue #5539: the merged tree's own .gitignore must not shrink the snapshot.
+
+    The gate's contract is "measure the merged result". Without ``--force`` what
+    it measures is the merged result minus whatever that result chose to hide,
+    which hands a branch a way to change the gate's field of view by editing the
+    one file the gate has no reason to trust. On ``main`` today 47 tracked paths
+    match an ignore rule and none is a ``.py``, so no counter in
+    ``merge_tree_ratchet_registry.py`` undercounts; the first Markdown, YAML, or
+    whole-tree counter added there would be the one that pays.
+    """
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    (scratch / ".gitignore").write_text("shadowed.md\naudit/\n", encoding="utf-8")
+    (scratch / "shadowed.md").write_text("counted\n", encoding="utf-8")
+    (scratch / "audit").mkdir()
+    (scratch / "audit" / "report.md").write_text("counted\n", encoding="utf-8")
+    (scratch / "plain.py").write_text("x = 1\n", encoding="utf-8")
+
+    assert _m._init_scratch_repo(scratch)
+
+    assert _scratch_tracked_paths(scratch) == {
+        ".gitignore",
+        "audit/report.md",
+        "plain.py",
+        "shadowed.md",
+    }
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_dropping_force_loses_the_ignored_files(tmp_path: Path) -> None:
+    """Negative control: the assertion above fails on the pre-fix command.
+
+    Without this the test above passes against any ``git add`` variant, so it
+    would not detect ``--force`` being removed later as noise. Runs the exact
+    argv the fix replaced rather than re-invoking the patched helper.
+    """
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    (scratch / ".gitignore").write_text("shadowed.md\naudit/\n", encoding="utf-8")
+    (scratch / "shadowed.md").write_text("counted\n", encoding="utf-8")
+    (scratch / "audit").mkdir()
+    (scratch / "audit" / "report.md").write_text("counted\n", encoding="utf-8")
+    (scratch / "plain.py").write_text("x = 1\n", encoding="utf-8")
+
+    _git(scratch, "init", "-q", "-b", "main", ".")
+    _git(scratch, "config", "user.email", "ci@example.com")
+    _git(scratch, "config", "user.name", "ci")
+    _git(scratch, "add", "-A")
+    _git(scratch, "commit", "-qm", "merge-tree snapshot")
+
+    tracked = _scratch_tracked_paths(scratch)
+    assert tracked == {".gitignore", "plain.py"}
+    assert "shadowed.md" not in tracked
+    assert "audit/report.md" not in tracked
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_snapshot_command_carries_force(tmp_path: Path) -> None:
+    """The argv itself, so a rewrite that keeps the behavior by accident is caught."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    calls: list[tuple[str, ...]] = []
+
+    def record(_cwd: Path, *argv: str, **_kwargs: object) -> object:
+        calls.append(argv)
+        return _mat.subprocess.CompletedProcess(list(argv), 0, "", "")
+
+    with patch.object(_mat, "run_git", side_effect=record):
+        assert _mat._initialize_repo(scratch, {})
+
+    add = next(argv for argv in calls if argv[0] == "add")
+    assert add == ("add", "-A", "--force")
