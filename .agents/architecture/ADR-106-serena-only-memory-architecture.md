@@ -85,8 +85,18 @@ retrieval") is withdrawn as written, because session-log creation is itself
 discontinued; see Confirmation below.
 
 **2. Serena is the only memory backend.** Committed markdown under
-`.serena/memories/`. There is no supplementary tier and no second store to
-consult, augment from, or fall back to.
+`.serena/memories/`. "Backend" here means a store of memories that retrieval
+can route between: there is no second one to augment from, deduplicate against,
+or fall back to when the other is unavailable, which is the whole job ADR-037's
+router existed to do.
+
+This does not retire the episode tier, and the scope matters because the live
+search path still reads two directories.
+`.claude/skills/memory/scripts/search_memory.py:296` appends
+`search_episodes(query, episodes_path, max_results)` to every result set, over
+`.agents/memory/episodes`. Episodes are an append-only session record governed
+by ADR-038, not a memory backend this ADR may speak for, and nothing here
+changes them.
 
 **3. The two-backend router is withdrawn.** ADR-037's router had one job, to
 reconcile two backends. Four of its specifications are withdrawn rather than
@@ -97,8 +107,10 @@ availability detection and health probing, and the synchronization strategy.
 What survives is the unified entry point, ADR-037 Decision item 1. It still
 ships: `.claude/skills/memory/memory_core/memory_router.py:2` reads "Unified
 memory access layer over Serena, the only memory backend." That interface is
-governed by this ADR going forward. The episode store it also reads is governed
-by ADR-038, which is untouched.
+governed by this ADR going forward. It does not itself read the episode store:
+`grep -i episode` over that module returns nothing. Episode retrieval lives in
+`.claude/skills/memory/scripts/search_memory.py`, whose `search_episodes` is
+called at line 296, and it is governed by ADR-038, which is untouched.
 
 **4. The semantic-only retrieval mode is withdrawn, not degraded.** Stated
 separately because the distinction is load-bearing for a reader of ADR-037.

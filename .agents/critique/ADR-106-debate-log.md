@@ -140,3 +140,60 @@ architecture decision rather than a prose sweep:
 
 Items 1 and 2 belong to the Stage 2 prose surface under #5574. Item 3 is an
 owner decision and is independent of this ADR.
+
+## Round 2: external review after the debate closed
+
+Devin Review ran on `ca69c7d28` once the PR left draft and reported four
+findings against ADR-106 and ADR-007. Recorded here because one of them
+falsified a sentence six seats had read and passed.
+
+### Confirmed and fixed
+
+**ADR-106 Decision item 2 asserted an absolute the live code refutes.** The
+sentence read "There is no supplementary tier and no second store to consult,
+augment from, or fall back to." A second store is consulted on every search:
+`.claude/skills/memory/scripts/search_memory.py:296` runs
+`results += search_episodes(query, episodes_path, max_results)` over
+`.agents/memory/episodes`. Item 2 also contradicted item 3 of the same ADR,
+which already called the episode store surviving and ADR-038-governed. Item 2
+now scopes "backend" to a store retrieval can route between and states the
+episode tier explicitly.
+
+**ADR-106 Decision item 3 attributed episode reading to the wrong module.** It
+said the unified entry point is what "also reads" the episode store. `grep -i
+episode` over `.claude/skills/memory/memory_core/memory_router.py` returns
+nothing; `search_episodes` is defined and called in
+`.claude/skills/memory/scripts/search_memory.py`. Corrected, with the grep and
+the call site named.
+
+This is the same failure mode the round-1 debate caught once already, when four
+seats falsified "Every memory instruction an agent reads now names a store it
+can actually reach." An unbounded quantifier about live behavior survived a
+second time. The lesson for the next ADR of this shape: every sentence claiming
+a store is not consulted needs a call-path check, not a design argument.
+
+### Reviewed and not actioned, with reasons
+
+**"Status edit adds substantive interpretation" (ADR-007:16-20).** Refuted by
+repository precedent and by the criterion's own wording. #5574 requires that no
+superseded ADR *body* is rewritten; `git diff origin/main...HEAD` on both
+records touches only frontmatter `status` and `superseded-by` plus the Status
+block, leaving Decision, Context and Consequences untouched. A Status block that
+says what survives is the house convention: ADR-056 records that "the
+schema-consistency principle ADR-028 established for PowerShell output objects
+continues here", ADR-004 that "the body below is retained as historical
+rationale", and ADR-036 carries an entire "Still operative as procedure"
+paragraph.
+
+**"Retired decisions remain live dependencies" (8 skills bound to ADR-007 or
+ADR-037).** Real, already measured, and already disclosed in this ADR's Impact
+on Dependent Components table with the count and the note that no validator
+checks a declared ADR against its status. It is Stage 2 prose and frontmatter
+work under #5574, listed in Next Steps above. Fixing it here would widen an
+architecture record into a repository-wide sweep.
+
+**"Amendments lack reverse pointers".** Already stated by the ADR itself, in
+the paragraph recording that an amendment by reference leaves no trace in the
+amended record and that `git grep "ADR-089"` across ADR-038 and ADR-063 returns
+nothing six weeks on. It is the recorded dissent of the architect and
+high-level-advisor seats, carried deliberately rather than discovered late.
