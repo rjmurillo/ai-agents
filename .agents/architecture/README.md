@@ -95,7 +95,6 @@ These bind today.
 | [ADR-001](ADR-001-markdown-linting.md) | Markdown Linting Configuration | 2025-12-13 | Create `.markdownlint-cli2.yaml` in the repository root with rules appropriate for agent templates: |
 | [ADR-003](ADR-003-agent-tool-selection-criteria.md) | Role-Specific Tool Allocation for Multi-Agent System | 2025-12-16 | Chosen option: "Option 2: Role-specific tool allocation", because it provides the optimal balance of context efficiency, role clarity, and operational capability. |
 | [ADR-006](ADR-006-thin-workflows-testable-modules.md) | Thin Workflows, Testable Modules | 2026-04-29 | Chosen option: Option 1 - Thin Workflows, Testable Modules |
-| [ADR-007](ADR-007-memory-first-architecture.md) | Memory-First Architecture | 2026-08-16 | Memory retrieval MUST precede reasoning in all agent workflows. |
 | [ADR-008](ADR-008-protocol-automation-lifecycle-hooks.md) | Protocol Automation via Lifecycle Hooks | 2026-08-19 | Lifecycle hooks MUST automate SESSION-PROTOCOL enforcement. |
 | [ADR-009](ADR-009-parallel-safe-multi-agent-design.md) | Parallel-Safe Multi-Agent Design | 2025-12-20 | Multi-agent coordination MUST include consensus mechanisms for conflict resolution. |
 | [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern | 2025-12-20 | All significant outputs MUST pass through a formalized evaluator-optimizer loop. |
@@ -113,7 +112,6 @@ These bind today.
 | [ADR-033](ADR-033-routing-level-enforcement-gates.md) | Routing-Level Enforcement Gates | 2026-08-16 | Implement routing-level enforcement gates using Claude Code hooks. |
 | [ADR-034](ADR-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption | 2026-07-08 | Add investigation-only session exemption to pre-commit QA validation with staged-file guardrails. |
 | [ADR-035](ADR-035-exit-code-standardization.md) | Exit Code Standardization | 2025-12-30 | Chosen option: Option 1 - POSIX-Style Standard |
-| [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture | 2026-07-20 | Implement a Memory Router that provides: |
 | [ADR-040](ADR-040-skill-frontmatter-standardization.md) | Skill Frontmatter Standardization and Model Identifier Strategy | 2026-08-14 | Adopt the following standardization for all 27 Claude Code skills: |
 | [ADR-041](ADR-041-codeql-integration.md) | CodeQL Integration Multi-Tier Strategy | 2026-07-21 | Chosen option: Option 4 - Multi-Tier with Shared Configuration |
 | [ADR-042](ADR-042-python-migration-strategy.md) | Python Migration Strategy | 2026-08-25 | Migrate the ai-agents project from PowerShell to Python as the primary scripting language over a 12-24 month phased migration period. |
@@ -153,6 +151,7 @@ These bind today.
 | [ADR-102](ADR-102-session-qa-binding-field-precedence.md) | Replace session_qa_binding()'s Field-Equality Raise with Documented Precedence and a Diagnostic | 2026-08-21 | Delete the equality raise. |
 | [ADR-103](ADR-103-skill-output-python-contract-correction.md) | Skill Output Format Standardization, Python Contract Correction | 2026-08-25 | Supersede ADR-056 items 2 and 6, and its enforcement scope, as follows. |
 | [ADR-105](ADR-105-terminal-state-completion-contract.md) | Terminal-State Completion Contract | 2026-09-03 | Put the whole completion contract on the always-on rule path, and keep exactly one operational procedure delegated to the skill that already owned it. |
+| [ADR-106](ADR-106-serena-only-memory-architecture.md) | Serena-Only Memory Architecture | 2026-09-08 | The memory-first principle survives unchanged. |
 
 ## Proposed
 
@@ -198,10 +197,12 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-002](ADR-002-agent-model-selection-optimization.md) | Agent Model Selection Optimization | deprecated | not recorded |
 | [ADR-004](ADR-004-pre-commit-hook-architecture.md) | Pre-Commit Hook as Validation Orchestration Point | superseded | [ADR-086](ADR-086-lefthook-local-hook-orchestration.md) |
 | [ADR-005](ADR-005-powershell-only-scripting.md) | PowerShell-Only Scripting Standard | superseded | [ADR-042](ADR-042-python-migration-strategy.md) |
+| [ADR-007](ADR-007-memory-first-architecture.md) | Memory-First Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
 | [ADR-024](ADR-024-github-actions-runner-selection.md) | GitHub Actions Runner Selection | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-025](ADR-025-github-actions-arm-runners.md) | GitHub Actions ARM Runner Migration | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) (via ADR-056) |
 | [ADR-036](ADR-036-two-source-agent-template-architecture.md) | Two-Source Agent Template Architecture | superseded | [ADR-052](ADR-052-template-strategy.md) |
+| [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
 | [ADR-039](ADR-039-agent-model-cost-optimization.md) | Agent Model Cost Optimization | deprecated | not recorded |
 | [ADR-044](ADR-044-copilot-cli-frontmatter-compatibility.md) | Copilot CLI Frontmatter Compatibility | superseded | [ADR-094](ADR-094-govern-copilot-cli-compatibility.md) |
 | [ADR-056](ADR-056-skill-output-format-standardization.md) | Skill Output Format Standardization | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) |

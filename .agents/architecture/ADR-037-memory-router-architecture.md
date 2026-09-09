@@ -1,17 +1,17 @@
 ---
 id: ADR-037
-status: accepted
+status: superseded
 date: 2026-07-20
 decision-makers: [rjmurillo]
 supersedes: []
-superseded-by: null
+superseded-by: ADR-106
 explainer: null
 implemented: true
 ---
 
 # ADR-037: Memory Router Architecture
 
-**Status**: Accepted
+**Status**: Superseded by ADR-106 (2026-09-08, issue #5574). Previously Accepted.
 **Date**: 2026-01-01
 **Revised**: 2026-07-20
 **Author**: Session 123 (Phase 2A Memory System)
