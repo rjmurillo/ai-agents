@@ -143,8 +143,10 @@ distinction is worth keeping straight. See
 
 ## CI
 
-`.github/workflows/memory-validation.yml` runs verification on pull requests
-that touch `.serena/memories/**` or `scripts/memory_enhancement/**`.
+`.github/workflows/citation-verify.yml` runs verification on pull requests that
+touch `.serena/memories/**` or `scripts/memory_enhancement/**`, and exits 1 on a
+stale citation. It replaced `memory-validation.yml`, which issue #5626 deleted
+as redundant.
 
 Read the aggregate numbers before trusting a green result. A repository with
 many memories and no citations reports a perfect health score, because the score
@@ -155,4 +157,4 @@ citation count means nothing was checked.
 
 - [CITATION-SCHEMA.md](../architecture/CITATION-SCHEMA.md) - schema of record
 - [ADR-038: Reflexion Memory Schema](../architecture/ADR-038-reflexion-memory-schema.md)
-- [memory-validation.yml](../../.github/workflows/memory-validation.yml)
+- [citation-verify.yml](../../.github/workflows/citation-verify.yml)

@@ -271,11 +271,14 @@ dedicated workflows instead:
 | Vendor Portability | `validate-vendor-portability.yml` |
 | Plugin Version Bump | `validate-plugin-version-bump.yml` |
 | Hook Anchoring | `hook-contract-check.yml` |
-| Memory index and tier | `memory-validation.yml` |
+| Memory index count ratchet | `pr-validation.yml` |
 
-Two pre-push gates have no CI equivalent, so a local bypass is the only place
-they are enforced: `security-scan` (semgrep) and `python-type-check` (mypy).
-CI runs the type-ignore count ratchet, not mypy itself.
+Four pre-push gates have no CI equivalent, so a local bypass is the only place
+they are enforced: `security-scan` (semgrep), `python-type-check` (mypy), and,
+since issue #5626 deleted `memory-validation.yml`, `memory-index`
+(`scripts/validation/memory_index.py`) and `memory-tier`
+(`scripts/validate_memory_tier.py`). CI runs the type-ignore count ratchet, not
+mypy itself, and the unindexed-memory count ratchet, not those two validators.
 
 ### Developer workflow
 

@@ -12,7 +12,8 @@ workflow reported a permanent green Pass.
 
 A missing, empty, or unparseable report means the health command crashed. That
 is reported as an error rather than defaulting to a green banner, matching the
-sibling ``memory-validation.yml`` contract established by issue #2808. The
+contract established by issue #2808 for the since-deleted
+``memory-validation.yml`` (issue #5626). The
 producing workflow steps set ``continue-on-error``, so a crash there is silent
 and this script is the only place it can become visible.
 

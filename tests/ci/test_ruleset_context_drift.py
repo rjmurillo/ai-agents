@@ -305,9 +305,10 @@ def test_retired_review_contexts_are_not_pinned() -> None:
 def test_no_workflow_produces_a_retired_ai_review_context() -> None:
     """Nothing may reintroduce a producer for a retired AI review context.
 
-    Scoped to the six AI review contexts. "Validate memory citations" is also
-    unpinned but keeps its producer in memory-validation.yml, where it is
-    advisory rather than merge-blocking.
+    Scoped to the six AI review contexts. "Validate memory citations" was also
+    unpinned; issue #5626 deleted its producer, memory-validation.yml, so it now
+    has none. Citation verification itself survives, and blocking, in
+    citation-verify.yml.
     """
     workflow_dir = REPO_ROOT / ".github" / "workflows"
     offenders: list[str] = []

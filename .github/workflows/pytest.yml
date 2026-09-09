@@ -387,6 +387,25 @@ jobs:
           --cov --cov-report=
           --junitxml=${{ matrix.junit_file }}
 
+      # Issue #5610. The count-ratchet registry deadline is calibrated against
+      # a wall-clock measurement, and a wall clock taken inside the `-n auto
+      # --dist loadfile` shard above measures the runner's load, not the
+      # registry: `main` went red at 19f257b5b with 87.7s against an 85s
+      # deadline on a tree whose corpus had shrunk. The test skips unless
+      # COUNT_RATCHET_TIMING_MEASUREMENT is 1, so this is the only place it
+      # runs, and `-p no:xdist` keeps it alone on the runner. merge_group only:
+      # once per merge, not once per push, and never on a PR shard.
+      - name: Measure the count-ratchet registry (issue 5610)
+        if: github.event_name == 'merge_group' && matrix.partition == 'bulk-nested'
+        env:
+          PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
+          COUNT_RATCHET_TIMING_MEASUREMENT: "1"
+        run: >-
+          uv run --frozen python -m pytest
+          tests/ci/test_pre_pr_runs_lefthook_ratchets.py
+          -p no:xdist
+          -k test_the_real_registry_finishes_with_margin_inside_the_deadline
+
       # Issue #5382. Reads the JUnit report the step above already wrote, so it
       # runs no test of its own, and fails when a budgeted validator suite
       # exceeds the seconds recorded for it in [tool.slow-test-budget]. A

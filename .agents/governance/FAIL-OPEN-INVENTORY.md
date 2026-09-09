@@ -71,7 +71,8 @@ surface, each required to cite a line it had actually opened:
 
 Issue #2808 hardened four workflows against this same class:
 `audit-hook-bypass.yml`, `pytest.yml` (bandit step), `memory-validation.yml`,
-and `drift-detection.yml`. `tests/workflows/test_workflow_fail_open_guards.py`
+and `drift-detection.yml`. Issue #5626 later deleted `memory-validation.yml`
+outright as fully redundant, so three of the four remain live. `tests/workflows/test_workflow_fail_open_guards.py`
 pins those contracts so the suppression cannot return without a test failing
 first. Those four are listed below as `RETIRED` rows so a later reader does not
 rediscover them as open findings.
@@ -191,8 +192,8 @@ says why.
 | `pr-validation.yml:134` | `validate-pr` / Post PR Comment | `continue-on-error: true` | the validation report failing to post | partial, retry wrapper only | UNDOCUMENTED |
 | `ai-spec-validation.yml:154` | `validate-spec` / Requirements Traceability Check | `continue-on-error: true` | an analyst-agent crash or timeout at step level | partial, `check_spec_failures.py` reads `TRACE_VERDICT` and `TRACE_INFRA_FAILURE` downstream | UNDOCUMENTED |
 | `ai-spec-validation.yml:169` | `validate-spec` / Completeness Check | `continue-on-error: true` | a critic-agent crash or timeout | partial, same downstream gate | UNDOCUMENTED |
-| `memory-validation.yml:133` | `validate-memories` / Generate health report | `\|\| true` | a `verify-all` crash while writing the markdown narrative; the redirect still creates an empty file, so the PR comment posts with an empty narrative | no | DELIBERATE, though the stated guard covers the JSON at :123, not this markdown file |
-| `memory-validation.yml:112` | `validate-memories` / Verify all memories | `set +e`, rc captured and tolerated | rc=1, invalid-citation findings, by design; only an empty output file is caught by the `test -s` guard | partial | DELIBERATE |
+| `memory-validation.yml:133` | `validate-memories` / Generate health report | `\|\| true` | RESOLVED by deletion, issue #5626: the workflow no longer exists, so the construct cannot run | n/a | was DELIBERATE, and the stated guard covered the JSON at :123, not this markdown file |
+| `memory-validation.yml:112` | `validate-memories` / Verify all memories | `set +e`, rc captured and tolerated | RESOLVED by deletion, issue #5626 | n/a | was DELIBERATE |
 | `audit-hook-bypass.yml:68` | `detect-bypass` / Report findings | `\|\| true` | a second, redundant detector invocation swallows its own exit code, including the `>=2` crash contract | no | DELIBERATE for exit 1; the reasoning does not cover the crash path on this re-invocation |
 
 ### Group 3: scheduled or async workflows, not required checks
@@ -225,7 +226,8 @@ remove the re-assertion without touching the `continue-on-error` line.
 
 Not fail-open, recorded so the next scan does not re-triage them:
 `test-codeql-integration.yml:101,139`; the `memory-validation.yml` `set +e`
-pairs that end in an explicit `exit $rc`; `pytest.yml:600` and
+pairs that ended in an explicit `exit $rc`, now moot since issue #5626 deleted
+that workflow; `pytest.yml:600` and
 `auto-assign-reviewer.yml:64`, which are comments about historical or avoided
 patterns rather than live constructs; and `if: always()` artifact uploads plus
 the deliberate no-op skip jobs in `codeql-analysis.yml` and `pr-maintenance.yml`.
@@ -258,7 +260,7 @@ module, not the workflow YAML alone. 6 defects, 24 legitimate, 0 unclear.
 | `pytest.yml:74` filter, `:275,:313` steps | `test` | `ruff_count_ratchet.py`, `subprocess_encoding_count_ratchet.py` | both ratchets scan git-tracked files repo-wide, per `ruff_count_ratchet.py:11`, but sit inside a job gated on Python changes. The same file already extracted `zero-collection-guard` and `line-endings-guard` ungated for this exact reason, citing `ci-scripts.md` at `:100-107,130-147`, and did not extract these two |
 | `agent-drift-detection.yml:79` | `validate` | `build/generate_agents.py --validate` | the filter is a strict subset of the audited filter that `validate-generated-agents.yml` uses for the identical command. Missing `docs/agent-catalog.md`, `.claude/**`, `.github/agents/**`, `.github/instructions/**`, `.github/prompts/**`, and `.github/workflows/**`, so a change to only those triggers the sibling workflow and not this one |
 | `memory-health.yml:48` | `health-check` | `memory_enhancement health`, whole `.serena/memories/` tree then `verify_all_citations` | citations point at arbitrary target files anywhere in the repository. A change to a cited target outside `.serena/memories/**` and outside `scripts/**/*.py` does not trip the filter, so a citation staled by that change goes unverified |
-| `memory-validation.yml:38` | `validate-memories` | `memory_enhancement verify-all` | the same citation-target gap |
+| `memory-validation.yml:38` | `validate-memories` | `memory_enhancement verify-all` | RESOLVED by deletion, issue #5626; the same gap survives in the two rows above and below |
 | `citation-verify.yml:42` | `verify-citations` | `memory_enhancement verify-all` | the same gap, and the narrowest filter of the three: not even `scripts/**/*.py` is included |
 
 ### Legitimate, and why
@@ -316,7 +318,7 @@ so the suppression cannot return without a test failing first.
 |---|---|---|
 | `audit-hook-bypass.yml` detection step | `\|\| true` around the detector | the step classifies the exit code, fails on `>=2`, and treats missing JSON as a failure rather than `indicator_count=0`; the contract lives in `scripts/ci/run_hook_bypass_audit.py` per ADR-006 |
 | `pytest.yml` security job | bandit behind `\|\| true` | bandit gates on high severity and confidence with no `\|\| true`; a CodeQL `upload-sarif` step publishes findings with `if: always()` |
-| `memory-validation.yml` verify and parse steps | pipefail aborting before the exit code was captured, and a default-to-pass parse | the verify step captures the exit code first; the parse step fails on a missing or empty results file instead of posting a green Pass, via `scripts/ci/parse_memory_validation_results.py` |
+| `memory-validation.yml` verify and parse steps | pipefail aborting before the exit code was captured, and a default-to-pass parse | nothing, and nothing needs to: issue #5626 deleted the workflow and `scripts/ci/parse_memory_validation_results.py` with it. The checks it ran are enforced by lefthook, the required `Validate PR` check, and `citation-verify.yml` |
 | `drift-detection.yml` JSON re-run | stderr and the exit code both swallowed | fails on exit `>=2`, since exit 1 is the expected drift path for that step |
 
 Note that `audit-hook-bypass.yml:68` still carries a `\|\| true`, listed in
