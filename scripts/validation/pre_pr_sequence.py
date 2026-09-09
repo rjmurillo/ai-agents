@@ -75,6 +75,12 @@ from checks_plugin import (
     validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
+from checks_portability import (
+    validate_skill_contract_tests,
+    validate_skill_md_exec_portability,
+    validate_skill_resolver_anchoring,
+    validate_skill_script_portability,
+)
 from checks_ratchet import validate_count_ratchets
 from checks_spec import (
     validate_agent_catalog,
@@ -341,10 +347,27 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Generated Artifact Staleness", _root_only(validate_generated_staleness)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
+    # The six gates below are the six validators the CI job
+    # "Validate Vendor Portability" runs. They are kept together, and
+    # tests/validation/test_pre_pr_covers_vendor_portability.py reads that
+    # workflow and fails when the job gains a validator this sequence does not
+    # run. Four of them were missing until issue #5670: pre_pr reported all 65
+    # gates green on a branch whose new skill script failed
+    # check_skill_portability, so the required job went red after the push.
+    #
     # No new hard-coded upstream-only paths (issue #2050).
     _Gate("Vendor Portability", _root_only(validate_vendor_portability)),
+    # The same rule per skill script, keyed on skill_portability_baseline.json.
+    _Gate("Skill Script Portability", _root_only(validate_skill_script_portability)),
     # The same rule over .md path refs (issue #2050).
     _Gate("Skill Markdown Portability", _root_only(validate_skill_md_portability)),
+    # The subset of those .md refs a reader would execute (issue #2838).
+    _Gate("Skill Markdown Exec Portability", _root_only(validate_skill_md_exec_portability)),
+    # A SKILL.md resolver must not be able to select an out-of-repo copy.
+    _Gate("Skill Resolver Anchoring", _root_only(validate_skill_resolver_anchoring)),
+    # A documented exit code with no test binding it is prose, and prose
+    # does not go red.
+    _Gate("Skill Contract Tests", _root_only(validate_skill_contract_tests)),
     # Skill dir with tracked content but no SKILL.md (issue #2677). Catches an
     # "invisible" skill the catalog still counts after a prune removed its
     # SKILL.md but left tracked files behind.

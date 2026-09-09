@@ -106,6 +106,12 @@ from checks_plugin import (
     validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
+from checks_portability import (
+    validate_skill_contract_tests,
+    validate_skill_md_exec_portability,
+    validate_skill_resolver_anchoring,
+    validate_skill_script_portability,
+)
 from checks_spec import (
     validate_agent_catalog,
     validate_build_gates,
