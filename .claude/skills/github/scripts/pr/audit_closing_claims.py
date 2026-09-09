@@ -183,7 +183,14 @@ def fetch_repo_squash_setting(owner: str, repo: str) -> str:
     """Return the repository's `squash_merge_commit_message` REST setting.
 
     Raises RuntimeError on any `gh api` failure so callers can map it to the
-    same exit-3 (API error) handling used for GraphQL failures.
+    same exit-3 (API error) handling used for GraphQL failures. Also raises
+    when the field is missing from a successful response: GitHub omits every
+    merge-setting field for a caller without administration read, and
+    `gh api --jq` on a missing key exits 0 with empty stdout. Defaulting to
+    `PR_BODY` there would drop every commit-message claim out of
+    COMMIT_REACHING_SQUASH_SETTINGS and let the audit exit 0 clean for a
+    repository that is really on `COMMIT_MESSAGES`, the exact condition this
+    audit exists to find.
     """
     result = subprocess.run(
         ["gh", "api", f"repos/{owner}/{repo}", "--jq", ".squash_merge_commit_message"],
@@ -200,7 +207,15 @@ def fetch_repo_squash_setting(owner: str, repo: str) -> str:
             or f"gh api repos/{owner}/{repo} failed with no stderr or stdout output"
         )
     value = result.stdout.strip()
-    return value or "PR_BODY"
+    if not value:
+        raise RuntimeError(
+            f"repos/{owner}/{repo} returned no squash_merge_commit_message field. "
+            "GitHub omits repository merge settings for callers without "
+            "administration read access, so commit-message reachability cannot "
+            "be decided. Re-run with a token that has admin read on the "
+            "repository."
+        )
+    return value
 
 
 def fetch_open_prs(owner: str, repo: str) -> list[dict[str, Any]]:

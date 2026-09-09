@@ -1,8 +1,8 @@
 """Pure claim-extraction and classification helpers for audit_closing_claims.py.
 
 Split out of the main script (which orchestrates GraphQL/REST fetching, CLI
-parsing, and output) purely to keep that file under the repository's
-500-line taste-lint ceiling (`.claude/rules/code-quality.md`). Nothing here
+parsing, and output) purely to keep that file under the 500-line ceiling
+enforced by `.claude/skills/taste-lints/scripts/taste_lints.py`. Nothing here
 performs I/O: no `subprocess`, no `gh_graphql`. Every function is a plain
 text transform, which is also why `audit_closing_claims.py`'s tests patch
 this module's callers (`fetch_open_prs`, `fetch_repo_squash_setting`) rather
