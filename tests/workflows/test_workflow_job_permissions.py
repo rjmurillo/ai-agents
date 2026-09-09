@@ -62,8 +62,6 @@ _GRANDFATHERED: frozenset[tuple[str, str]] = frozenset(
         ("memory-health.yml", "check-paths"),
         ("memory-health.yml", "health-check"),
         ("memory-health.yml", "skip-health-check"),
-        ("memory-validation.yml", "check-paths"),
-        ("memory-validation.yml", "validate-memories"),
         ("milestone-tracking.yml", "assign-milestone"),
         ("post-pr-retrospective.yml", "retrospective"),
         ("pr-validation.yml", "validate-pr"),
