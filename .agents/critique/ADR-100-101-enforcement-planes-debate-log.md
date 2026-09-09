@@ -849,3 +849,21 @@ terminal-predicate rule in `.claude/rules/builder-ethos.md`:
 | The probe is specified against a canary and the branch conditions on ruleset 11104075, with no transfer argument | security | #5244 |
 | Split the measured audit out of the decision record | independent-thinker | owner |
 | ADR-100's frontmatter reads `proposed` while issue #5241 records owner acceptance on 2026-08-21 and a frontmatter update that never landed | analyst | owner |
+
+### The index trap, walked into with the warning already written down
+
+The generated ADR index strips the leading status word from each record's Status
+prose, so a first sentence written as a trailing clause renders headless.
+ADR-072's debate log records this exact trap and its fix: "Proposed. Amended ..."
+works, a trailing clause does not.
+
+Round 13's amendment opened ADR-101's Status with "Proposed, and concluded
+without consensus.", and the index rendered ", and concluded without consensus.".
+Repaired by making the first sentence stand alone.
+
+Worth one paragraph because of where the warning was. It was not in a rule file
+or a validator; it was in a sibling record's debate log, which nothing loads and
+nothing checks. The lesson generalises past this trap: a finding parked in a
+debate log is not persisted anywhere a later session will encounter it, and this
+is the second time in one session that a defect recurred with its own description
+already committed to the tree.

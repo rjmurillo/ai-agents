@@ -13,8 +13,9 @@ implemented: false
 
 ## Status
 
-Proposed, and concluded without consensus. Rounds 12 and 13 of `adr-review` ran
-on 2026-09-09 after the repository owner ruled the ten-round cap binding. Round
+Proposed. The `adr-review` panel concluded without consensus and does not run
+again on this record. Rounds 12 and 13 ran on 2026-09-09 after the repository
+owner ruled the ten-round cap binding. Round
 12 returned two Blocks, both settled by execution rather than argument:
 requirement 2's narrowed guarantee named the one value a candidate authors.
 Round 13 returned five Blocks and one Accept, and its findings are repaired
