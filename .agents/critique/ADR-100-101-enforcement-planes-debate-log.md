@@ -535,3 +535,124 @@ PR #5181 merged at `5b88ed23f` on the repository owner's direction, with the ten
 
 This is the fourteenth instance of the defect this pull request kept producing, and it landed in the load-bearing cell: the sentence rejecting the strongest surviving alternative rested on a characterization the cited source does not support. Worth recording plainly, because the merge went ahead while both were open.
 
+
+## Round 12, 2026-09-09
+
+The ten-round cap at `.claude/skills/adr-review/SKILL.md:100` was left to the
+repository owner three times in this log and never ruled. **The owner has now
+ruled it binding**, so round 11's tally does not settle the record and this round
+is a fresh review. It was run against HEAD, which carries commit `a1278384f`
+(PR #5231), three lines no seat had reviewed and whose own PR body says "No agent
+panel was run on this change".
+
+| Seat | Verdict |
+|---|---|
+| architect | Disagree-and-Commit |
+| critic | **Block** |
+| independent-thinker | Accept |
+| security | **Block** |
+| analyst | Disagree-and-Commit |
+| high-level-advisor | Accept |
+
+**No consensus. ADR-101 stays `proposed`.** The cap ruling was the right call:
+the two Blocks land on the three unreviewed lines, and they land independently
+and agree.
+
+### The blocking finding, and it was settled by execution rather than argument
+
+`a1278384f` narrowed requirement 2's guarantee to "the run terminated with an
+exit status the candidate cannot forge". The candidate authors exactly that
+value. The critic seat measured it and the orchestrator reproduced it before
+acting:
+
+```
+two failing tests under pytest                                 exit 1
++ a candidate-authored conftest.py whose pytest_sessionstart
+  calls os._exit(0)                                            exit 0
+```
+
+Three lines the candidate owns turn a failing run into a reported success, and
+because the harness is the sandbox's own init, the runtime reports 0. The
+boundary transports a number the candidate wrote.
+
+This is the fifth consecutive refusal of requirement 2, and the log already
+records the pattern: step boundary, job split, parent process, sandbox, each
+repair moving the boundary while the guarantee stayed where it was. The fifth
+moved it from the result file to the exit status, which is strictly weaker,
+because both are inside the sandbox and both are candidate-authored.
+
+What separates this refusal from the four before it: those left a coherent
+document that was wrong. This one left an incoherent one. `:182` still required
+a supervisor mechanism the next paragraph says cannot compose, `:188` claimed the
+boundary removes `os._exit` four lines after `:186` shows it does not, `:190`
+said one residual stayed open having just added a second, and `:192` assigned a
+parse determination to a conclusion that is a single integer. Requirement 2 had
+no satisfiable reading.
+
+### Repaired in this change
+
+The distinction the text kept losing is between **channel authenticity** (the
+report came from the runtime, not from a candidate assertion, which is
+unforgeable) and **value authenticity** (the number means the run succeeded,
+which is not). The word "forge" stayed attached to the value while the argument
+only ever established it for the channel.
+
+- `:186` now says the boundary authenticates the channel and the fact of
+  termination, not the exit status, and carries the measurement.
+- **The container form no longer satisfies requirement 2 at all.** It is defense
+  in depth beneath signed execution evidence, not an alternative to it. An
+  earlier revision left it described as sufficient.
+- `:182` routes the normative obligation to signed evidence and re-labels the
+  supervisor's three checks as defense in depth.
+- `:188` drops `os._exit` and keeps the `kill` and `ptrace` cases it does close.
+- `:190` names both residuals.
+- `:192` says plainly that an implementer holding only the container has not met
+  the requirement and must not read a green conclusion as though they had.
+
+### Citations, repaired
+
+Eleven citations across six targets no longer resolved: `git_hook_policy.py`
+1382 to 2018, `lefthook.yml` 193 to 217 and 198-199 to 222-223, `pytest.yml` 428
+to 508 and 545 to 634 and 546 to 635, `ruleset_required_contexts.py` 14 to 15.
+
+One of those was wrong when written, not drifted. The critic seat confirmed
+`ruleset_required_contexts.py` has not changed since `5b88ed23f`, so the
+citation in the sentence carrying this document's sharpest exhibit was off by one
+from the day it merged, and it survived eleven panel rounds and eleven bot
+passes. That is a one-line demonstration of this record's own Context claim that
+nothing here is caught by re-reading text.
+
+The citation-freshness gate cannot catch this class: it checks only lines added
+since the base ref, so a citation correct when written and rotting afterwards is
+invisible to it permanently.
+
+### Open, not fixed here
+
+| Finding | Seat | Why deferred |
+|---|---|---|
+| Requirement 1 covers conditions but not head-editable **selection** inputs; `scripts/test_selection/` and `scripts/ci/run_pytest_selected.py` narrow `Run Python Tests` from inside the job's own logic and appear nowhere in the record or in CODEOWNERS | security S6 | A scope change to an operative requirement, and a sixth exhibit. Needs its own round, not an edit appended to this one |
+| Phase 0 has no falsification branch: nothing says what happens if its own mutation probe shows an agent-runtime credential can write ruleset 11104075 | architect P1-3, security S4 | Same |
+| The Alternatives table never considers the cheap ruleset-anchored design, half of which already ships as `scripts/ci/ruleset_context_drift.py` | independent-thinker P1-1 | Same |
+| The impact table is a hand-written enumeration, which is the failure mode this record diagnoses twice elsewhere | critic P1 | Same |
+| Exhibit 2 (#5090) described as live; closed 2026-08-25 by PR #5310. Exhibit 3 (#5177) attributes to the PR body a "subagent invocation disabled" phrase the merged body does not contain | analyst P1-2, P1-3 | Factual repairs, but they change what the exhibits establish, so they belong with the round that re-reviews them |
+| The opening count is 294 by the document's own 18:00Z method, not 292 | critic P2 | Non-load-bearing |
+
+### On the seats that did not block
+
+architect, analyst, independent-thinker and the advisor all reached their verdicts
+without running the exit-status case. Two of them explicitly reasoned about the
+delta's argument and judged it sound. That is worth recording next to the round
+1 result on ADR-072, where five seats also converged on a wrong answer and only
+the seat that executed something moved the result. On both records in one day,
+the panel's textual judgment was the thing that failed and execution was the
+thing that worked.
+
+### Exit conditions for round 13
+
+1. The deferred findings above, in particular security S6, which is a scope
+   change to requirement 1 rather than a correction to it.
+2. Every `path:line` re-measured against the commit carrying the acceptance edit.
+3. A named Phase 0 tracker in the Status section, per the ADR-052 precedent.
+4. A ruling on whether ADR-100 settles in the same change. Four seats said yes
+   and two said no; the split is on whether the shared log is a dependency or a
+   review artifact.
