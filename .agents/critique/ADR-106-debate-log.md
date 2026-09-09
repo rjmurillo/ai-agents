@@ -40,8 +40,13 @@ ADR-070 and false for ADR-063. ADR-063 cites ADR-037 twice for two different
 things that share the word router: a skill-surface router that is alive, and a
 store-topology clause that is withdrawn. The independent-thinker further
 contradicted the Phase 0 research on which of the two breaks, and was right.
-The bullet is now split, and cites ADR-063:123 "Storage backends are out of
+The bullet is now split, and cites ADR-063:123-124 "Storage backends are out of
 scope" as that record's own evidence that its decision survives whole.
+
+**Corrected in Round 3.** The "cites ADR-037 twice" half of this finding is
+false. ADR-063 cites ADR-037 six times and every one is the router pattern; the
+store-topology clause cites ADR-007. The bullet's conclusion holds, its stated
+basis did not.
 
 The analyst audited every quotation and every commit SHA. All quotations from
 ADR-007, ADR-037 and ADR-089 verified character for character. Three factual
@@ -64,6 +69,10 @@ three of ADR-007's stated confirmation mechanisms at :202-206 are dead:
 SESSION-PROTOCOL Phase 2 is gone, session-log creation is discontinued, and
 `scripts/Validate-SessionJson.ps1` is absent from the tree. ADR-106 now has a
 Confirmation section that says so plainly rather than leaving the gap implied.
+
+**Corrected in Round 3.** Only two of the three are dead. The pre-commit hook is
+live; ADR-042 renamed it. The seat, and this log, reasoned from a missing
+filename rather than from the call path.
 
 The critic also found the draft's claim that "memory access is now a direct read
 of Serena" falsified by the shipped artifact:
@@ -188,12 +197,83 @@ paragraph.
 **"Retired decisions remain live dependencies" (8 skills bound to ADR-007 or
 ADR-037).** Real, already measured, and already disclosed in this ADR's Impact
 on Dependent Components table with the count and the note that no validator
-checks a declared ADR against its status. It is Stage 2 prose and frontmatter
-work under #5574, listed in Next Steps above. Fixing it here would widen an
-architecture record into a repository-wide sweep.
+checks a declared ADR against its status. Fixing it here would widen an
+architecture record into a repository-wide sweep, so it stays out, tracked under
+#5574 and listed in Next Steps above.
+
+**Corrected in Round 3.** An earlier wording called this "Stage 2 prose and
+frontmatter work". Stage 2 merged on 2026-09-05 and its scope could not have
+reached these files; see Round 3.
 
 **"Amendments lack reverse pointers".** Already stated by the ADR itself, in
 the paragraph recording that an amendment by reference leaves no trace in the
 amended record and that `git grep "ADR-089"` across ADR-038 and ADR-063 returns
 nothing six weeks on. It is the recorded dissent of the architect and
 high-level-advisor seats, carried deliberately rather than discovered late.
+
+## Round 3: pre-merge audit, 2026-09-09
+
+Run before merge, after Round 2, at head `3e95632bb`. Fourteen agents: seven
+file auditors over the diff, six lenses over the two review threads left open,
+one completeness critic. Three false statements were confirmed against the tree
+and are corrected in this push. All three are absence claims inferred from a
+name rather than from a call path, which is the failure mode Round 2 named and
+the retrospective in this PR classifies as failure mode 9.
+
+**1. "None is live" about ADR-007's three confirmation mechanisms.** False for
+the third. ADR-007:206 names a "Pre-commit hook: Validates session log
+compliance (`scripts/Validate-SessionJson.ps1`)". The PowerShell file is gone,
+but ADR-042 ported it: `scripts/validate_session_json.py` exists, and
+`lefthook.yml:101-103` runs it on every commit as the `session-policy` job via
+`scripts/validation/git_hook_policy.py session`. `git ls-files` matching no
+`Validate-SessionJson` was treated as the mechanism being dead. It was renamed,
+not retired. Corrected in the Confirmation section of ADR-106.
+
+**2. "ADR-063 cites ADR-037 twice."** False on both the count and the
+attribution. `grep -n "ADR-037"` over ADR-063 returns six lines: :63, :104,
+:117, :122, :145, :284. All six are the router pattern. The store-topology
+clause is a different sentence citing a different record, at ADR-063:118-119:
+"Serena remains the / canonical store and Forgetful the supplementary store
+(ADR-007)". Three seats converged on the paired-citation reading in Round 1 and
+none opened ADR-063 to check which record the clause names. The Neutral bullet's
+conclusion survives, because the clause is withdrawn either way; its stated
+basis does not.
+
+**3. "The rule binds memory files. Nothing extended it to ADR prose."** False,
+in the retrospective this PR adds. `.claude/rules/universal.md` frontmatter is
+`paths: ["**"]` with `priority: critical`, above the line "These rules apply to
+every change in this repository". MUST NOT 9 at :89-95 names no artifact class.
+`.claude/rules/knowledge-persistence.md:70` records that items 7, 8 and 9 were
+moved into Universal Rules precisely "because they bind before you open any of
+these trees". The absence-claim rule already bound this ADR while it was being
+written. That makes the miss worse rather than differently scoped, and it
+changes the remediation from extending a rule to enforcing one that already
+binds.
+
+**Also corrected, without having been false.** The Impact table understated the
+agent tree at 44 lines across two trees; the real figure is 110 across six,
+because `src/claude` (38), `.github/agents` (10), `src/copilot-cli/agents` (9)
+and `src/vs-code-agents` (9) also carry it, and `.claude/agents` is
+hand-maintained rather than generated from `templates/agents`
+(`build/scripts/detect_agent_drift.py:33-34`, naming "the hand-maintained /
+.claude/agents vs .github/agents" comparison). A new row discloses
+`.serena/memories/adr/adr-037-accepted.md`, whose `**Status**: Accepted` line
+and "Forgetful augmentation" decision this merge falsifies.
+
+**The two open threads keep their conclusions and lose two false grounds.**
+Neither finding blocks the merge: no validator reads `metadata.adr`, no
+validator models amendments, and `.agents/architecture/README.md` regenerates
+byte-identical on the merged tree, verified by running `build_all.py` inside a
+worktree holding the actual merge result. But two grounds offered for deferring
+them were wrong. Deferring because "Stage 2 owns it" fails on the merge date.
+Deferring the reverse pointers because they would need an ADR schema change
+fails twice: the convention already exists at body level in seven ADRs, with
+`ADR-005:255-259` showing the exact `**Amended by**:` shape, and three of the
+five amended records (ADR-038, ADR-064, ADR-070) are `proposed` rather than
+"five accepted bodies". The replies were corrected before the threads were
+resolved.
+
+**Measurement.** Round 1: 6 seats, 0 P0, 19 P1, 14 P2; missed all three of the
+above. Round 2: 1 external reviewer, caught 2 of the 2 sentences it examined,
+did not examine these. Round 3: 14 agents, 3 blockers, each re-verified by hand
+before any edit was made.
