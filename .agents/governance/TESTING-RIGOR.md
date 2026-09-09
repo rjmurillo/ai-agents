@@ -85,7 +85,9 @@ The cost of writing pos+neg+edge tests up front is small. The cost of shipping a
 ## Mutation Harness Safety: Bytecode Cache Invalidation
 
 **Source**: Issue #3896. Observed in mutation testing of
-`scripts/ci/parse_memory_validation_results.py`.
+`scripts/ci/parse_memory_validation_results.py`, since deleted with
+`memory-validation.yml` in issue #5626. The hazard below is a CPython property,
+not a property of that script, so it still binds every mutation harness here.
 
 ### The hazard
 
