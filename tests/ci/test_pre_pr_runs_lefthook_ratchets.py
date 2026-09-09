@@ -24,11 +24,15 @@ Coverage:
 - edge: an absent ``uv`` raises the SKIP signal rather than failing; a failed
   base-ref refresh warns and continues.
 - measured: the real registry, timed end to end, finishes far enough inside
-  ``_AGGREGATE_TIMEOUT_SECONDS`` to leave margin (issue #4876).
+  ``_AGGREGATE_TIMEOUT_SECONDS`` to leave margin (issue #4876). Opt-in via
+  ``COUNT_RATCHET_TIMING_MEASUREMENT=1``, which only the serialized
+  merge-group step in ``.github/workflows/pytest.yml`` sets; the guard and that
+  step are locked against each other (issue #5610).
 """
 
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import threading
@@ -144,10 +148,13 @@ class TestAggregateLefthookDelegation:
         assert job.get("glob") is None
 
     def test_registry_contains_every_registered_ratchet(self) -> None:
-        assert tuple(
-            (ratchet.job_name, ratchet.script, ratchet.extra_dev, ratchet.uses_base_ref)
-            for ratchet in checks_ratchet.RATCHETS
-        ) == _EXPECTED_RATCHETS
+        assert (
+            tuple(
+                (ratchet.job_name, ratchet.script, ratchet.extra_dev, ratchet.uses_base_ref)
+                for ratchet in checks_ratchet.RATCHETS
+            )
+            == _EXPECTED_RATCHETS
+        )
 
     def test_command_builder_adds_dev_extra_when_required(self) -> None:
         ratchet = next(r for r in checks_ratchet.RATCHETS if r.extra_dev)
@@ -310,9 +317,7 @@ class TestValidatorBehaviour:
         assert all(t > checks_ratchet._AGGREGATE_TIMEOUT_SECONDS - 5 for t in timeouts), timeouts
         assert all(t <= checks_ratchet._AGGREGATE_TIMEOUT_SECONDS for t in timeouts), timeouts
 
-    def test_the_ratchets_actually_overlap(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_the_ratchets_actually_overlap(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Prove concurrency, which a timeout assertion alone cannot.
 
         A stub that returns immediately gives every call nearly the whole
@@ -374,9 +379,7 @@ class TestValidatorBehaviour:
             sizes.append(max_workers)
             return real_pool(max_workers=max_workers, **kwargs)
 
-        monkeypatch.setattr(
-            checks_ratchet.concurrent.futures, "ThreadPoolExecutor", recording_pool
-        )
+        monkeypatch.setattr(checks_ratchet.concurrent.futures, "ThreadPoolExecutor", recording_pool)
 
         assert checks_ratchet.validate_count_ratchets(REPO_ROOT) is True
         assert sizes == [len(checks_ratchet.RATCHETS)], sizes
@@ -501,41 +504,25 @@ class TestNormalizeRemoteHead:
 
     def test_passes_through_a_ref_that_is_not_remote_head(self) -> None:
         with patch.object(checks_ratchet, "_run_subprocess") as run:
-            assert (
-                checks_ratchet._normalize_remote_head(REPO_ROOT, "origin/main")
-                == "origin/main"
-            )
+            assert checks_ratchet._normalize_remote_head(REPO_ROOT, "origin/main") == "origin/main"
         run.assert_not_called()
 
     def test_resolves_remote_head_to_its_branch(self) -> None:
-        with patch.object(
-            checks_ratchet, "_run_subprocess", return_value=(0, "origin/main\n", "")
-        ):
+        with patch.object(checks_ratchet, "_run_subprocess", return_value=(0, "origin/main\n", "")):
             assert (
-                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
-                == "origin/main"
+                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD) == "origin/main"
             )
 
-    def test_empty_output_fails_closed(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_empty_output_fails_closed(self, capsys: pytest.CaptureFixture[str]) -> None:
         with patch.object(checks_ratchet, "_run_subprocess", return_value=(0, "", "")):
-            assert (
-                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
-                is None
-            )
+            assert checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD) is None
         assert "cannot resolve remote HEAD" in capsys.readouterr().err
 
     def test_answer_outside_the_origin_namespace_fails_closed(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        with patch.object(
-            checks_ratchet, "_run_subprocess", return_value=(0, "upstream/main", "")
-        ):
-            assert (
-                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
-                is None
-            )
+        with patch.object(checks_ratchet, "_run_subprocess", return_value=(0, "upstream/main", "")):
+            assert checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD) is None
         assert "cannot resolve remote HEAD" in capsys.readouterr().err
 
     def test_nonzero_exit_is_rejected_even_with_a_plausible_answer(
@@ -554,10 +541,7 @@ class TestNormalizeRemoteHead:
             "_run_subprocess",
             return_value=(128, "origin/main", "fatal: ref not usable"),
         ):
-            assert (
-                checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD)
-                is None
-            )
+            assert checks_ratchet._normalize_remote_head(REPO_ROOT, self._REMOTE_HEAD) is None
         assert "ref not usable" in capsys.readouterr().err
 
 
@@ -610,6 +594,21 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
     # average 6.5, 59.9s in CI, 49.45s on a real push. Deadline 85s.
     _REPORTED_HEADROOM_TARGET = 1.5
 
+    # Issue #5610. The measurement is only meaningful on a runner that is not
+    # already saturated, and nothing about a pytest marker keeps it off one:
+    # `pyproject.toml` sets no `-m` filter and `scripts/ci/run_pytest_selected.py`
+    # passes none, so `@pytest.mark.integration` alone left this running inside
+    # a `-n auto --dist loadfile` shard of roughly 19k tests. Three sibling
+    # xdist workers competed for the same four vCPUs while the clock ran, and
+    # `main` went red at 19f257b5b with 87.7s measured against the 85s deadline
+    # on a tree whose corpus had shrunk, not grown. So the gate is opt-in: only
+    # a caller that has arranged an uncontended runner sets this variable, and
+    # `.github/workflows/pytest.yml` sets it on exactly one serialized
+    # merge-group step. Do not set it job-wide, and do not delete the guard to
+    # "restore coverage": running it contended measures the runner, not the
+    # registry.
+    _MEASUREMENT_OPT_IN_ENV = "COUNT_RATCHET_TIMING_MEASUREMENT"
+
     @pytest.mark.integration
     @pytest.mark.timeout(600)
     def test_the_real_registry_finishes_with_margin_inside_the_deadline(
@@ -630,10 +629,24 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
         people bypassing. So this runs in the merge-group suite on a controlled
         runner, and pre-push deselects it with `-m "not integration"`.
 
+        Valid on exactly one runner: the `Measure the count-ratchet registry`
+        step in `.github/workflows/pytest.yml`, which fires on `merge_group`
+        only, sets `COUNT_RATCHET_TIMING_MEASUREMENT=1`, and invokes pytest with
+        `-p no:xdist` so no sibling worker shares the cores. Everywhere else the
+        guard below skips it. A number measured anywhere else is not comparable
+        with the deadline and must not be used to move it (issue #5610).
+
         What still gates locally is the deadline-below-cap relationship in
         `test_aggregate_deadline_leaves_headroom_under_the_lefthook_cap`, which
         is a property of the constants and needs no clock.
         """
+        if os.environ.get(self._MEASUREMENT_OPT_IN_ENV) != "1":
+            pytest.skip(
+                f"{self._MEASUREMENT_OPT_IN_ENV} is not 1, so no caller has "
+                "claimed an uncontended runner; a wall-clock measurement taken "
+                "under shard contention reports the runner, not the registry "
+                "(issue #5610)"
+            )
         if shutil.which("uv") is None:
             pytest.skip("uv is absent; the registry cannot be run to be measured")
 
@@ -665,3 +678,131 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
             f"for a larger cap by cutting another (ci-scripts.md MUST-16). "
             f"Issue #4876."
         )
+
+
+class _NoCapture:
+    """Stand-in for ``capsys`` on the guard paths, which return before reading it.
+
+    Calling the measurement test directly is the only way to assert on its own
+    skip conditions; the real fixture cannot be requested from inside another
+    test. Any call here means a guard failed to fire, so it raises rather than
+    returning empty output.
+    """
+
+    def readouterr(self) -> None:  # pragma: no cover - reached only on regression
+        raise AssertionError(
+            "the measurement body ran under a guard test; a skip guard did not fire"
+        )
+
+
+class TestTheMeasurementRunsOnlyWhereItMeansSomething:
+    """The opt-in guard and the one step that sets it must stay in agreement.
+
+    Issue #5610. The guard on
+    ``test_the_real_registry_finishes_with_margin_inside_the_deadline`` is only
+    worth having while exactly one caller sets it, and while that caller has in
+    fact arranged an uncontended runner. Both halves drift independently: a
+    rename of the variable leaves a step exporting a name nothing reads, and
+    dropping ``-p no:xdist`` or the ``merge_group`` condition puts the clock
+    back inside a shard without touching the test file at all. Neither drift is
+    visible from either side alone, so the assertions below read both.
+
+    Coverage:
+
+    - positive: the workflow carries exactly one step setting the variable, and
+      that step names the guarded test, serializes with ``-p no:xdist``, and
+      fires only on ``merge_group``.
+    - negative: a step stripped of ``-p no:xdist``, of its ``merge_group``
+      condition, or of the env var fails the same predicates that pass above.
+    - edge: the guard skips when the variable is absent or carries any value
+      other than ``"1"``.
+    """
+
+    _ENV = TestBudgetHoldsAgainstMeasuredRuntime._MEASUREMENT_OPT_IN_ENV
+    _GUARDED_TEST = "test_the_real_registry_finishes_with_margin_inside_the_deadline"
+
+    @staticmethod
+    def _measurement_steps(env_name: str) -> list[dict]:
+        workflow = yaml.safe_load(
+            (REPO_ROOT / ".github/workflows/pytest.yml").read_text(encoding="utf-8")
+        )
+        return [
+            step
+            for step in workflow["jobs"]["test"]["steps"]
+            if env_name in (step.get("env") or {})
+        ]
+
+    def test_exactly_one_workflow_step_opts_the_measurement_in(self) -> None:
+        steps = self._measurement_steps(self._ENV)
+        assert len(steps) == 1, (
+            f"expected exactly one step setting {self._ENV}, found "
+            f"{[step.get('name') for step in steps]}. More than one puts the "
+            f"clock back inside a contended shard; none leaves the deadline "
+            f"uncalibrated (issue #5610)."
+        )
+        assert str(steps[0]["env"][self._ENV]) == "1", (
+            f"the step sets {self._ENV} to "
+            f"{steps[0]['env'][self._ENV]!r}; the guard compares against '1', "
+            f"so any other value silently skips the measurement."
+        )
+
+    def test_the_opting_step_serializes_and_names_the_guarded_test(self) -> None:
+        step = self._measurement_steps(self._ENV)[0]
+        run = step["run"]
+        assert "-p no:xdist" in run, (
+            "the measurement step must pass -p no:xdist, or sibling xdist "
+            "workers share the cores with the registry it is timing "
+            "(issue #5610)."
+        )
+        assert self._GUARDED_TEST in run, (
+            f"the measurement step must select {self._GUARDED_TEST}; a broader "
+            f"selection re-runs unguarded tests serially for no reason."
+        )
+
+    def test_the_opting_step_fires_only_on_merge_group(self) -> None:
+        condition = self._measurement_steps(self._ENV)[0].get("if", "")
+        assert "merge_group" in condition, (
+            "the measurement step must be conditioned on merge_group. On "
+            "pull_request it would run once per push on a runner that is "
+            "already busy, which is the failure issue #5610 reports."
+        )
+
+    def test_no_step_opts_in_under_a_renamed_variable(self) -> None:
+        """Negative control: the predicate above finds nothing for a name nobody sets."""
+        assert self._measurement_steps(self._ENV + "_RENAMED") == []
+
+    @pytest.mark.parametrize("value", [None, "", "0", "true", "yes", "2"])
+    def test_the_guard_skips_for_any_value_that_is_not_one(
+        self, monkeypatch: pytest.MonkeyPatch, value: str | None
+    ) -> None:
+        if value is None:
+            monkeypatch.delenv(self._ENV, raising=False)
+        else:
+            monkeypatch.setenv(self._ENV, value)
+
+        with pytest.raises(pytest.skip.Exception) as excinfo:
+            TestBudgetHoldsAgainstMeasuredRuntime().test_the_real_registry_finishes_with_margin_inside_the_deadline(
+                monkeypatch,
+                _NoCapture(),
+            )
+        assert self._ENV in str(excinfo.value)
+
+    def test_the_guard_admits_the_value_the_workflow_sets(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Positive control: '1' is not skipped by the opt-in check.
+
+        Proves the parametrized skips above come from the value and not from an
+        unconditional skip. The measurement is not run here; a later guard stops
+        it, so the assertion is only that the opt-in branch was passed.
+        """
+        monkeypatch.setenv(self._ENV, "1")
+        monkeypatch.setattr(shutil, "which", lambda _name: None)
+
+        with pytest.raises(pytest.skip.Exception) as excinfo:
+            TestBudgetHoldsAgainstMeasuredRuntime().test_the_real_registry_finishes_with_margin_inside_the_deadline(
+                monkeypatch,
+                _NoCapture(),
+            )
+        assert self._ENV not in str(excinfo.value)
+        assert "uv is absent" in str(excinfo.value)
