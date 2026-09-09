@@ -731,12 +731,23 @@ class TestFetchRepoSquashSetting:
         ):
             assert _audit_mod.fetch_repo_squash_setting("o", "r") == "COMMIT_MESSAGES"
 
-    def test_blank_stdout_defaults_to_pr_body(self):
-        with patch(
-            f"{_audit_mod.__name__}.subprocess.run",
-            return_value=_completed(stdout="\n"),
+    def test_blank_stdout_raises_instead_of_fabricating_pr_body(self):
+        """An absent field must not become a clean audit.
+
+        GitHub omits every merge-setting field for a caller without
+        administration read, and `gh api --jq` on a missing key exits 0 with
+        empty stdout. Returning PR_BODY there would drop every commit-message
+        claim out of COMMIT_REACHING_SQUASH_SETTINGS, so the audit would exit 0
+        clean for a repository really on COMMIT_MESSAGES.
+        """
+        with (
+            patch(
+                f"{_audit_mod.__name__}.subprocess.run",
+                return_value=_completed(stdout="\n"),
+            ),
+            pytest.raises(RuntimeError, match="no squash_merge_commit_message field"),
         ):
-            assert _audit_mod.fetch_repo_squash_setting("o", "r") == "PR_BODY"
+            _audit_mod.fetch_repo_squash_setting("o", "r")
 
     def test_nonzero_exit_raises_runtime_error(self):
         with (
@@ -767,7 +778,7 @@ class TestAuditRefusesUnsupportedReachableClaims:
         node.update(overrides)
         return node
 
-    def _run(self, node, squash_setting):
+    def _run(self, node, squash_setting, extra_args=()):
         with (
             patch(f"{_audit_mod.__name__}.assert_gh_authenticated"),
             patch(f"{_audit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
@@ -775,7 +786,7 @@ class TestAuditRefusesUnsupportedReachableClaims:
             patch(f"{_audit_mod.__name__}.fetch_open_prs", return_value=[node]),
             patch(f"{_audit_mod.__name__}.write_skill_output") as output,
         ):
-            rc = _audit_mod.main(["--output-format", "json"])
+            rc = _audit_mod.main(["--output-format", "json", *extra_args])
         result_data = output.call_args.args[0] if output.call_args else {}
         status = output.call_args.kwargs.get("status") if output.call_args else None
         return rc, status, result_data
@@ -790,6 +801,43 @@ class TestAuditRefusesUnsupportedReachableClaims:
         node = self._pr_node(commits={"nodes": [{"commit": {"message": "Fixes #999"}}]})
         rc, _, _ = self._run(node, "PR_BODY")
         assert rc == 0
+
+    def test_commit_only_claim_reaches_squash_under_pr_body_and_commit_details(self):
+        """The second member of COMMIT_REACHING_SQUASH_SETTINGS.
+
+        PR_BODY_AND_COMMIT_DETAILS folds commit messages into the squash body
+        alongside the PR body, so a commit-only claim reaches the squash commit
+        exactly as it does under COMMIT_MESSAGES.
+        """
+        node = self._pr_node(commits={"nodes": [{"commit": {"message": "Fixes #999"}}]})
+        rc, status, _ = self._run(node, "PR_BODY_AND_COMMIT_DETAILS")
+        assert rc == 1
+        assert status == "FAIL"
+
+    def test_commit_only_claim_is_inert_under_blank_setting(self):
+        """BLANK writes no commit text at all, so nothing can reach."""
+        node = self._pr_node(commits={"nodes": [{"commit": {"message": "Fixes #999"}}]})
+        rc, _, _ = self._run(node, "BLANK")
+        assert rc == 0
+
+    def test_artifact_is_written_before_the_refusal_exit(self, tmp_path):
+        """Exit 1 must not skip the evidence write.
+
+        The module header promises the audit still writes the full evidence,
+        including any --artifact, when it refuses. A refusal that dropped the
+        artifact would leave the operator with an exit code and no record of
+        which claim on which PR caused it.
+        """
+        artifact = tmp_path / "evidence.json"
+        node = self._pr_node(commits={"nodes": [{"commit": {"message": "Fixes #999"}}]})
+        rc, status, _ = self._run(
+            node, "COMMIT_MESSAGES", extra_args=("--artifact", str(artifact))
+        )
+        assert rc == 1
+        assert status == "FAIL"
+        written = json.loads(artifact.read_text(encoding="utf-8"))
+        assert written["UnsupportedReachableClaims"] == 1
+        assert written["RepoSquashMergeMessageSetting"] == "COMMIT_MESSAGES"
 
     def test_escaped_hash_in_commit_message_never_refuses(self):
         node = self._pr_node(

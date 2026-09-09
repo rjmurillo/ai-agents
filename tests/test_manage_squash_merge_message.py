@@ -50,9 +50,20 @@ class TestFetchCurrentSetting:
         ):
             assert _mod.fetch_current_setting("o", "r") == "COMMIT_MESSAGES"
 
-    def test_blank_stdout_defaults_to_pr_body(self):
-        with patch(f"{_mod.__name__}.subprocess.run", return_value=_completed(stdout="")):
-            assert _mod.fetch_current_setting("o", "r") == "PR_BODY"
+    def test_blank_stdout_raises_instead_of_fabricating_pr_body(self):
+        """An absent field is an unreadable setting, never an observed PR_BODY.
+
+        GitHub omits every merge-setting field for a caller without
+        administration read, and `gh api --jq` on a missing key exits 0 with
+        empty stdout. Returning PR_BODY here would invent the one value that
+        makes the repository look safe, so a `--set PR_BODY` run would report
+        a no-op and write nothing on a repository really on COMMIT_MESSAGES.
+        """
+        with (
+            patch(f"{_mod.__name__}.subprocess.run", return_value=_completed(stdout="")),
+            pytest.raises(RuntimeError, match="no squash_merge_commit_message field"),
+        ):
+            _mod.fetch_current_setting("o", "r")
 
     def test_nonzero_exit_raises_runtime_error(self):
         with (
@@ -109,6 +120,45 @@ class TestMainReadOnly:
         assert output["Data"]["action"] == "read"
         assert output["Data"]["before"] == "PR_BODY"
         assert output["Data"]["after"] == "PR_BODY"
+        mock_update.assert_not_called()
+
+
+class TestMainInitialReadFailure:
+    """The first fetch_current_setting call has its own exit-3 handler.
+
+    Without these, deleting that try/except leaves the suite green: every
+    other main() test supplies a successful first read.
+    """
+
+    def test_initial_read_failure_returns_api_error(self, capsys):
+        with (
+            patch(f"{_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_mod.__name__}.fetch_current_setting",
+                  side_effect=RuntimeError("404 Not Found")),
+        ):
+            rc = _mod.main(["--output-format", "json"])
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert output["Success"] is False
+        assert output["Error"]["Type"] == "ApiError"
+        assert "404 Not Found" in output["Error"]["Message"]
+
+    def test_unreadable_setting_never_reaches_the_write(self):
+        """An unknown current value must not be treated as a guard match."""
+        with (
+            patch(f"{_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_mod.__name__}.fetch_current_setting",
+                  side_effect=RuntimeError("no squash_merge_commit_message field")),
+            patch(f"{_mod.__name__}.update_setting") as mock_update,
+        ):
+            rc = _mod.main([
+                "--set", "BLANK",
+                "--expected-current", "PR_BODY",
+                "--output-format", "json",
+            ])
+        assert rc == 3
         mock_update.assert_not_called()
 
 
