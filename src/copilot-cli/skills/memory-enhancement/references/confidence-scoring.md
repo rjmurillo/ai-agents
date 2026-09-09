@@ -122,7 +122,7 @@ python -m memory_enhancement health --markdown
 ### CI Integration
 
 ```yaml
-# .github/workflows/memory-validation.yml
+# .github/workflows/citation-verify.yml
 - name: Verify memory citations
   run: python -m memory_enhancement verify-all --json
   continue-on-error: true
