@@ -710,3 +710,42 @@ its author repaired the citations and still got three of the four wrong in a way
 only execution surfaced. The gate reads only lines added since the base ref, so
 it caught these because the repair touched them; the same defects would have been
 invisible had the numbers been correct at merge and rotted afterwards.
+
+## Round 12 findings applied, 2026-09-09
+
+Round 12 deferred six findings as round 13 material rather than appending fixes
+to the round that found them. All six are now applied, each verified against the
+tree or the API before the edit rather than taken from the seat's report.
+
+| Finding | Seat | Applied |
+|---|---|---|
+| Requirement 1 covers conditions but not head-editable **selection** inputs | security S6 | Requirement 1 gains a scope clause and the sixth exhibit. `scripts/ci/run_pytest_selected.py:177` calls `select_tests.select(...)` and returns a subset of the partition, driven by `scripts/test_selection/`, all head-editable in the pull request the job gates. Neither path appeared anywhere in the record or in CODEOWNERS. |
+| Phase 0 has no falsification branch for its own mutation probe | architect P1-3, security S4 | Stated: a probe showing any agent-runtime credential or `BOT_PAT` can write ruleset 11104075 or its `bypass_actors` establishes a P0-to-P2 edge, and Phases 1 through 3 do not proceed on the current model. |
+| The Alternatives table never considers the cheap ruleset-anchored design | independent-thinker P1-1 | Added as a row, with the honest split: it closes case 2, leaves case 3 open, and should be built anyway as the cheap half of Phase 1. Half of it already ships as `scripts/ci/ruleset_context_drift.py`, wired at `ruleset-context-drift.yml:28`. |
+| The impact table is a hand-written enumeration, the failure mode this record diagnoses twice elsewhere | critic P1 | Declared a seed, and Phase 0 gains an item that computes the protected set from each pinned context's dependency closure. |
+| Exhibit 2 describes #5090 as live | analyst P1-2 | Corrected. `gh api` reports `state=closed closed_at=2026-08-25T20:16:07Z`, closed by PR #5310. One of the four is live, not two. |
+| Exhibit 3 attributes to PR #5177's body a phrase it does not contain | analyst P1-3 | Corrected. The merged body has no "subagent invocation disabled" statement; it says the trigger did not run, that it "went moot when PR #5179 deleted that file upstream", and that four debates ran on 2026-08-20. What the exhibit establishes survives without the reason. |
+| The opening count of 292 does not reproduce | critic P2 | Re-derived here: a deduplicated enumeration over 800 pull requests gives **298** in the full inclusive window and **294** under this sentence's own 18:00Z cutoff. Corrected to 294. |
+
+### What this round is not
+
+It is not a seventh review round. No seat was asked to re-verify, and no verdict
+changed: ADR-101 remains `proposed` with round 12's two Blocks on record. These
+are the repairs round 12's exit conditions named, applied so that a round 13 has
+something new to review. The two blocking findings from round 12 were already
+repaired in the previous change; these are the non-blocking remainder.
+
+### Standing exit conditions for round 13
+
+Unchanged from round 12, minus what is now applied:
+
+1. Every `path:line` re-measured against the commit carrying the acceptance edit.
+   Round 12 repaired eleven; the citation-freshness gate only checks lines added
+   since the base ref, so a citation correct at merge and rotting afterwards
+   stays invisible to it.
+2. A ruling on whether ADR-100 settles in the same change. Round 12 split four to
+   two, and the split is on whether the shared debate log is a dependency or a
+   review artifact.
+3. The falsification harness that gates Phases 2 and 3 has no owner and no phase.
+   Round 12's advisor called this the single highest-value fix, because an
+   unowned item is the sole gate on two phases that are abandoned by default.

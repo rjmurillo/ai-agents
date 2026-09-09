@@ -38,7 +38,7 @@ one change is unresolved, four seats saying yes and two no
 
 ## Context
 
-This repository opened 292 pull requests over the date-bounded window 2026-08-06 to 2026-08-20, which is 14 days and 18 hours against an 18:00Z cutoff because `created:` is date-granular, nearly all AI-authored. The operating goal is to run it without a human decision on any individual **ordinary** change. The qualifier is load-bearing and is not a hedge added late: Phase 0 below deliberately puts code-owner review in front of changes to the enforcement paths themselves, so the goal this decision pursues is zero human decisions over the code the loop is meant to change, and a retained human decision over the code that constrains it. The Negative consequences section states the same trade in full.
+This repository opened 294 pull requests over the date-bounded window 2026-08-06 to 2026-08-20, which is 14 days and 18 hours against an 18:00Z cutoff because `created:` is date-granular, nearly all AI-authored. An earlier revision said 292 and did not reproduce: a deduplicated enumeration of the pull request list gives 298 created in the full inclusive window and 294 once this sentence's own cutoff is applied, measured twice independently in round 12. Nothing downstream turns on the difference, and it is corrected rather than softened because the clause claims a precision the old number did not have. The operating goal is to run it without a human decision on any individual **ordinary** change. The qualifier is load-bearing and is not a hedge added late: Phase 0 below deliberately puts code-owner review in front of changes to the enforcement paths themselves, so the goal this decision pursues is zero human decisions over the code the loop is meant to change, and a retained human decision over the code that constrains it. The Negative consequences section states the same trade in full.
 
 Three incidents on record share one shape.
 
@@ -50,7 +50,7 @@ The fix matters more as confirmation than as an open problem: what closed the ho
 
 **Issue #5090**: `core.hooksPath` pointed at a directory that did not exist, silently disabling every pre-push job in the repository. The same review records this as a repeat of a fix already applied on 2026-07-19.
 
-**PR #5177**: it edited `.agents/SESSION-PROTOCOL.md`, which `AGENTS.md` then made a six-agent debate trigger. Its own body records that the debate did not run, because the authoring session had subagent invocation disabled. That was caught because the author disclosed it. Nothing blocked it.
+**PR #5177**: it edited `.agents/SESSION-PROTOCOL.md`, which `AGENTS.md` then made a six-agent debate trigger, and the mandated debate did not run on that edit. **The reason attributed here through several revisions is not in the record.** An earlier version said the body records the debate not running "because the authoring session had subagent invocation disabled". The merged body carries no such statement: it says the trigger did not run, that it "went moot when PR #5179 deleted that file upstream", and that four debates ran on 2026-08-20. Round 12's analyst caught this and it is corrected rather than deleted, because what the exhibit establishes does not depend on the reason. What it establishes is that the mandated review did not run and nothing blocked the merge, which the body does support. Recorded with the correction attached because this document's own Context section says its defects are found by reading primary sources, and this one was found exactly that way, four revisions in.
 
 That file no longer exists. PR #5179 removed it, along with the session skills, and narrowed the debate trigger to ADR files alone (`AGENTS.md:44`, "Any `ADR-*.md` edit fires adr-review"). The incident stands as evidence anyway, because what failed was not the trigger's breadth but the fact that a session could decline to run the mandated review and still commit. Removing one path from the trigger set does not change that, and the narrowing is a partial move toward Application A below rather than a fix for this.
 
@@ -88,7 +88,7 @@ An earlier draft of this decision assumed repository configuration was an availa
 The configuration is recorded in-tree. `scripts/ci/ruleset_required_contexts.py` pins nine required contexts for ruleset 11104075. `scripts/validation/ruleset_params_baseline.json` records the parameters as measured on 2026-08-14. Reading them:
 
 - `required_approving_review_count` is `0` in the recorded baseline, so on that measurement no review approval is required to merge. An earlier revision went one step further and concluded that CODEOWNERS entries therefore gate nothing. That does not follow, and a reviewer was right to reject it: `require_code_owner_review` is an independent parameter, it appears in no baseline key, and `check_ruleset_params_drift.py` ignores live parameters absent from the baseline (`tests/validation/test_check_ruleset_params_drift.py:143-177` pins that behavior). So the baseline cannot report its value in either direction. What CODEOWNERS gates today is **unknown**, and Phase 0 reads it live rather than inferring it. Note also that `.github/workflows/dependabot-approve-and-auto-merge.yml` describes ruleset-required reviews as though they do apply, so the baseline and that workflow disagree and one of them is stale.
-- `.github/CODEOWNERS` covers five path globs, all of them review-prompt and review-library paths. It does not cover `.github/workflows/`, `scripts/validation/`, or `lefthook.yml`, and it does not cover itself.
+- `.github/CODEOWNERS` covers five path globs, all of them review-prompt and review-library paths. It does not cover `.github/workflows/`, `scripts/validation/`, `scripts/workflows/`, `scripts/test_selection/`, `scripts/ci/`, or `lefthook.yml`, and it does not cover itself. Phase 0 widens it to the computed protected set rather than to a list written here.
 - `required_review_thread_resolution` is `true`, which is the one live review control in the baseline. The loop holds thread-resolution tooling and no rule forbids resolving one's own thread, so this control is satisfiable by the party it constrains.
 - `strict_required_status_checks_policy` is `false`, so a passing check need not be recomputed against the current base before merge.
 - `scripts/validation/check_ruleset_params_drift.py` compares one direction only. Its loop iterates the baseline's keys, so a rule added or a permission widened in the live ruleset produces no drift finding.
@@ -173,7 +173,11 @@ This is the invariant of this decision stated as tightly as the tree allows: a g
 
 Two requirements follow, and they are the operative content of this decision:
 
-1. **A job producing a required context reaches its verdict from its own execution over the pull request content.** No condition sourced outside that job's own logic, at job level or step level, may cause it to report success without running the verification its name claims.
+1. **A job producing a required context reaches its verdict from its own execution over the pull request content.** No condition sourced outside that job's own logic, at job level or step level, may cause it to report success without running the verification its name claims. **Nor may any head-editable input decide the scope, selection, or subject of that verification.** Round 12's security seat found the second clause missing and it is the sixth exhibit, so it is stated as a requirement rather than left implied.
+
+   **The scope half is not a generalisation, it is a live gap on a pinned context.** `Run Python Tests` narrows what it runs from inside its own job: `scripts/ci/run_pytest_selected.py:177` calls `select_tests.select(changed, repo_root)` and returns a subset of the partition, driven by `scripts/test_selection/`. Every one of those files is head-editable in the same pull request the job gates. So a candidate does not need the condition-shaped evasion the first clause forbids: it can let the job run, exit 0, and report success having executed none of the tests that would have caught the change. The first clause does not reach it, because the narrowing is sourced **inside** the job's own logic, which is exactly what that clause permits.
+
+   Neither `scripts/test_selection/` nor `scripts/ci/run_pytest_selected.py` appears anywhere else in this decision, in any impact row, or in `.github/CODEOWNERS`, whose five globs cover review-prompt and review-library paths only. That is the same shape as the `determine_should_run_from_filters.py` finding one level down: the gate decides **whether** the job runs, and the selection decides **what** it runs, and only the first was written down.
 
    **An earlier revision stated this syntactically, as "no job-level `if:` and no path filter", and that version was satisfiable by moving the condition down one level.** Round 7's architect raised it, round 8's architect raised it again with the measurement, and the measurement is the reason the wording changed rather than the objection. Of the nine contexts pinned in `scripts/ci/ruleset_required_contexts.py`, **seven are decided by a path filter**, and most of them already use the step-relocated form the syntactic rule permits: `codeql-analysis.yml:111-167` for `Analyze (actions)` and `Analyze (python)`, `validate-generated-agents.yml:85-105`, `validate-paths.yml:73-97`, and, on the actor and event rather than a path, `pr-validation.yml:42-76` and `semantic-pr-title-check.yml:23-39`. `pr-validation.yml:47-48` states the pattern's intent in its own comment: "No job-level if condition - job must always run to report status for required checks." That comment is correct about reporting and silent about verifying, which is exactly the gap. An implementer repairing `pytest.yml` under the impact table below would convert it to the `validate-paths.yml` shape and report the requirement met while changing nothing about whether tests run.
 
@@ -351,6 +355,7 @@ Client-side enforcement is cheap, fast, and adequate when the actor running the 
 | Human veto window on merges | Asynchronous, so cheaper than synchronous review | Still one human decision per change; the loop classifies its own changes, so a disguised change never reaches the window | A timer on a bottleneck is still a bottleneck |
 | Signed commits from the loop | Cryptographic | A loop that can commit can commit signed; the signature proves origin, not authorization | Proves the wrong property |
 | Keep client-side hooks, add more of them | No new infrastructure | Same plane as the actor; #5090 disabled all of them at once | Does not change the failing property |
+| Pin each required context to its producing job, enforced by a ruleset-reading script | Cheapest by a wide margin, and half of it already ships: `scripts/ci/ruleset_context_drift.py` reads the live ruleset against the pinned set and is wired at `.github/workflows/ruleset-context-drift.yml:28`. Extending it to assert one producing job per pinned context, with no same-name pass-through and no path gate, closes case 2 outright | Closes case 2 and leaves case 3 open: keep the job name, replace its body, and on a same-repository pull request the definition that runs comes from the head. Only requirement 2's base-ref publisher reaches that. It is also a P0 lint over P0 artifacts, so it is advisory under rule 1 | Not chosen as the whole answer, and it should be built anyway as the cheap half of Phase 1. Round 12's independent-thinker seat found this row missing, and the omission mattered: the body rebuts this option at two places roughly 170 lines apart, so a reader who trusted the table alone would conclude the space had been searched when it had not |
 | Enforcement plane classification (chosen) | Addresses all four incidents through one invariant; needs no per-change human | Depends on control-plane hardening that does not exist yet; more implementation work | Chosen, with the hardening stated as prerequisite |
 
 ### Trade-offs
@@ -361,7 +366,11 @@ This buys per-change autonomy at the cost of a single point of failure at the co
 
 ### Positive
 
-- The incidents become instances of a named class with a stated rule rather than recurring surprises. Two of the four are live: #5090's hook wiring and the credential path to the control plane. #5099 was fixed without this taxonomy, and #4402's flag is deleted by ADR-100.
+- The incidents become instances of a named class with a stated rule rather than recurring surprises. One of the four is live: the credential path to the control plane. An earlier
+revision said two and named #5090's hook wiring as the second; #5090 closed on
+2026-08-25 via PR #5310. The exhibit's evidentiary value is unchanged, since it
+happened and it was a repeat, but it is no longer an open defect and this
+sentence counted it as one. #5099 was fixed without this taxonomy, and #4402's flag is deleted by ADR-100.
 - Deleting a gate's workflow trigger deadlocks the change instead of passing it. Conditional on Phase 2, which the go/no-go abandons by default.
 - The debate mandate stops being satisfiable by writing a file. Also conditional on Phase 2, and therefore not expected to be delivered on current evidence.
 - Narrowing the trigger by reversibility would remove ceremony from whatever share of ADRs are process changes. The 10-of-96 sample suggests that share is large; it has no stated selection method, so the size of the benefit is not established here.
@@ -402,17 +411,46 @@ This buys per-change autonomy at the cost of a single point of failure at the co
 | `.github/workflows/passive-context-budget.yml` | Direct | Skip-job pattern forbidden on any required context. Its context is not required, so this is prevention rather than repair | Medium |
 | `scripts/validation/git_hook_policy.py` | Direct | `check_adr_review_policy` gains the digest check | Medium |
 | `lefthook.yml:222-223` | Direct | Remove the `skip:` / `- merge` pair or enumerate it as a known bypass | Medium |
+| `scripts/test_selection/` and `scripts/ci/run_pytest_selected.py` | Direct | Decide **what** `Run Python Tests` runs, from inside the job, in head-editable code; `run_pytest_selected.py:177` narrows the partition to a subset. Requirement 1's scope clause covers this. Same treatment as the `determine_should_run_from_filters.py` row: move the decision to a base-ref input or pin it, and add both paths to CODEOWNERS in the same change | High |
 | `.claude/rules/universal.md` MUST NOT 2 | Direct | Add the two unlisted bypasses | Low |
 | `AGENTS.md` | Direct | Debate trigger narrows by reversibility | Medium |
 
+**The table above is a seed, not the remediation set.** It is hand-written, and
+this decision twice diagnoses hand-written protected-path lists as the thing that
+drifts from the closure it covers. Round 12 then produced the demonstration:
+`scripts/test_selection/` and `scripts/ci/run_pytest_selected.py` decide what a
+pinned context actually runs and appear in no row, and one `git grep` found them.
+Treat the rows as the known starting set, and read Phase 0's computed-closure
+item as the thing that produces the real one.
+
 ## Implementation Notes
 
+- **Phase 0 computes the protected set rather than inheriting it.** Enumerate,
+  by walking the dependency closure of each pinned required context, every path
+  whose content decides whether that context runs, what it examines, or what
+  verdict it reports. The impact table above is the seed. This item exists
+  because four successive revisions shipped a hand-written list that came up
+  short, and the fifth came up short in review rather than in production.
 - **Phase 0, control plane hardening.** Every item in the hardening list. Nothing below is binding until this lands, because until then P2 is not an anchor. Independent of the rest and worth doing on its own merits.
 - **Phase 1, requirement 1 and integrity closure.** Requirement 1 was assigned to no phase in three revisions, which meant its repairs shipped nowhere under the expected Phases 0 and 1 outcome, since Phase 2 is abandoned by default. It is assigned here, and the `determine_should_run_from_filters.py` move is pulled forward into **Phase 0** rather than waiting, because it is a live one-pull-request path on six of the nine pinned contexts and does not depend on anything Phase 0 establishes. The rest of requirement 1 lands here: the lint over required-context workflows, the `pytest.yml` pass-through repair, and the `ai-spec-validation.yml` condition. Adding `scripts/workflows/` to CODEOWNERS goes in the same change as the move.
 - **Phase 1 also carries the integrity closure.** Starts from the verification PR #5146 already shipped, not from issue #5099, which is closed. Two pieces of work: cover the dispatched files a static closure cannot see, by either resolving the closure at runtime or failing closed on one that is not statically resolvable; and emit the computed closure manifest. Fail-closed alone is not obviously right here, because the pattern it would forbid is deliberate: `.claude/skills/github/scripts/pr/pr_validations.py` documents that `new_pr.py` loads it through `importlib.util.spec_from_file_location` precisely to preserve `python3 -I` isolation, and records that issue #5154 deleted the guard that used to pin its SHA. Decide between the two options against that case rather than in the abstract. Proceeds immediately and does not wait on Phase 0, because it repairs P0 code rather than making a trust claim. Until Phase 0 lands, a green closure manifest carries advisory strength only and must not be read as an anchored verdict. State the reason at the strength the evidence supports: what is established is that a same-repository pull request can reach `BOT_PAT` and mint the approvals a review control would count, so the review half of P2 is satisfiable from P0. Whether the ruleset itself is writable from P0 depends on the owning account and on the agent-runtime credential scopes, and is not established.
 - **Phase 0 also carries requirement 2's publisher pin**, which was assigned in prose at the pin item but named in no phase through four revisions. It belongs here rather than in Phase 2, and the distinction matters because requirement 1's lint is advisory and what closes the invariant is requirement 2's base-ref publisher: leaving it in a phase that is abandoned by default ships the expected terminal state with no closing control for the operative rule.
 - **Phase 2, debate attestation.** Base-ref job, digest keying, citation requirement, narrowed trigger. Requires Phase 0, and requires the go/no-go below to have returned go; absent a published catch rate it does not open.
 - **Phase 3, retire governance MUST-1** once Phases 0 and 2 are demonstrably holding. Not before, or the repository has neither control. Retiring MUST-1 reduces a review requirement, so `.claude/rules/governance.md` MUST NOT 1 applies and Phase 3 requires a unanimous-consensus ADR of its own. Abandoning Phase 2 under the clause below forecloses Phase 3: without a verified debate gate there is nothing to retire MUST-1 in favor of.
+
+**Phase 0's own probe can falsify this decision, and that branch needs stating.**
+The negative mutation probe and the credential inventory exist to answer whether
+any agent-runtime credential, or `BOT_PAT`, can write ruleset 11104075 or its
+`bypass_actors`. If the answer is yes, then a P0-to-P2 edge exists, P2 is not a
+root of trust, and the invariant's termination argument does not hold: the four
+rules stop composing and the taxonomy is a vocabulary with no anchor. **In that
+case Phases 1 through 3 do not proceed on the current model.** Scope the
+credential down or remove it from the loop first, then re-probe; if neither is
+possible, this decision needs reopening rather than implementing, because
+installing controls above a writable P2 ships a control the loop can rewrite.
+Stated because rounds 11 and 12 both found the probe specified and its failure
+branch unwritten, and an unwritten failure branch on a prerequisite reads as an
+expectation that it will pass.
 
 **Go or no-go before Phases 2 and 3. The default is no.** Phases 0 and 1 are net repair: they close named live defects rather than adding machinery to detect new ones. Phase 0 does add a blocking merge control, since it raises the approval count, enables code-owner review, and widens CODEOWNERS, so the distinction is repair versus accretion rather than gate versus no gate. Phases 2 and 3 add machinery, in a repository where the 2026-08-17 review measured 87 of 92 open issues (94%) as its own automation breaking itself.
 
