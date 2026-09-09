@@ -26,6 +26,7 @@ try:
         copilot_auth_failure_headline,
         copilot_auth_rejected,
         copilot_block_reason,
+        copilot_quota_exhausted,
         copilot_rate_limited,
         copilot_run_blocked,
         copilot_run_blocked_headline,
@@ -288,6 +289,111 @@ def test_rate_limited_takes_precedence_over_auth_absent_when_list_appears() -> N
     assert copilot_rate_limited(result) is True
     assert copilot_auth_absent(result) is False
     assert copilot_run_blocked(result) is True
+
+
+# ---------------------------------------------------------------------------
+# Quota-exhaustion detection
+# ---------------------------------------------------------------------------
+#
+# Both payloads below are verbatim captures from a real run of
+# tests/e2e/test_plugin_load_smoke.py against an account whose monthly Copilot
+# allowance was spent, with the request and session identifiers replaced.
+# Before this class existed, neither shape matched any marker set, so
+# copilot_block_reason returned None, _skip_on_copilot_block did not skip, and
+# the smoke reported a plugin-load failure that the branch could not have
+# caused.
+
+_QUOTA_STDERR = (
+    "\nYou have exceeded your monthly quota (Request ID: C612:60CD4:E4E4F:1063A0:6AA0928A)\n"
+    "\n\nChanges    +0 -0\n"
+    "AI Credits 0 (3s)\n"
+    "Resume     copilot --resume=e3d31814-eee1-4944-9d77-c27710b7b0b7\n"
+)
+
+# The agent path emits JSON events instead of prose. This fragment carries the
+# error code and the 402 but not the prose sentence, which is why the code is a
+# marker in its own right rather than a redundant second spelling.
+_QUOTA_AGENT_STDOUT = (
+    '{"type":"error","data":{"statusCode":402,'
+    '"providerCallId":"A52E:26C4B7:FF31F:12203A:6AA092B1",'
+    '"errorCode":"quota_exceeded"},"id":"1726daed"}\n'
+    '{"type":"result","exitCode":1}\n'
+)
+
+
+def test_quota_exhausted_detects_prose_on_stderr() -> None:
+    result = _completed(stderr=_QUOTA_STDERR, returncode=1)
+    assert copilot_quota_exhausted(result) is True
+    assert copilot_block_reason(result) == "quota_exhausted"
+
+
+def test_quota_exhausted_detects_json_error_code_on_stdout() -> None:
+    """The agent probe never prints the prose sentence, only the error code."""
+    result = _completed(stdout=_QUOTA_AGENT_STDOUT, returncode=1)
+    assert "exceeded your monthly quota" not in _QUOTA_AGENT_STDOUT
+    assert copilot_quota_exhausted(result) is True
+
+
+def test_quota_exhausted_false_on_healthy_run() -> None:
+    """A rc=0 run that echoes the phrase is not a blocked run."""
+    result = _completed(stdout=_QUOTA_STDERR, returncode=0)
+    assert copilot_quota_exhausted(result) is False
+    assert copilot_run_blocked(result) is False
+
+
+def test_quota_exhausted_tolerates_none_streams() -> None:
+    result = _completed(stdout=None, stderr=None, returncode=1)
+    assert copilot_quota_exhausted(result) is False
+
+
+def test_quota_exhausted_takes_precedence_over_auth_and_rate_limit() -> None:
+    """A 402 body can carry the same auth-method list and limit wording a 403 does."""
+    result = _completed(
+        stderr=(
+            "You have exceeded your monthly quota (Request ID: C612:60CD4).\n"
+            "API rate limit exceeded for user ID 123.\n"
+            "GitHub returned: Bad credentials\n"
+            "To authenticate, you can use any of the following methods:\n"
+            "  Set the COPILOT_GITHUB_TOKEN environment variable\n"
+        ),
+        returncode=1,
+    )
+    assert copilot_block_reason(result) == "quota_exhausted"
+    assert copilot_rate_limited(result) is False
+    assert copilot_auth_rejected(result) is False
+    assert copilot_auth_absent(result) is False
+    assert copilot_auth_failed(result) is False
+
+
+def test_secondary_rate_limit_wording_is_not_read_as_quota() -> None:
+    """A secondary-rate-limit sentence also starts with "you have exceeded"."""
+    result = _completed(
+        stderr="You have exceeded a secondary rate limit. Please wait a few minutes.",
+        returncode=1,
+    )
+    assert copilot_block_reason(result) == "rate_limit"
+    assert copilot_quota_exhausted(result) is False
+
+
+def test_quota_exhausted_is_transient_and_blocked_but_not_auth() -> None:
+    """Skipping is the whole point: the branch cannot cause a spent allowance."""
+    result = _completed(stderr=_QUOTA_STDERR, returncode=1)
+    assert copilot_run_blocked(result) is True
+    assert copilot_transient_failure(result) is True
+    assert copilot_auth_failed(result) is False
+    assert copilot_transport_failure(result) is False
+
+
+def test_quota_headline_says_out_of_credits_not_reset_window_or_rotate() -> None:
+    """Wrong advice here sends the operator to poll for a day or rotate a live token."""
+    headline = copilot_run_blocked_headline(
+        _completed(stderr=_QUOTA_STDERR, returncode=1)
+    ).lower()
+    assert "quota" in headline
+    assert "402" in headline
+    assert "reset window" not in headline
+    assert "rotate" not in headline
+    assert "provision" not in headline
 
 
 def test_run_blocked_covers_rate_limit_absent_and_rejected() -> None:
