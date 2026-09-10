@@ -16,11 +16,15 @@ Per SHOULD 6 the consumer is driven twice over the same repository, differing on
 in the condition the gate rejects, so a run that fails for an unrelated reason
 fails its own control too.
 
-The registration assertion reads the parsed `_SEQUENCE` tuple and compares
-callables by identity, never a substring of the module source. `testing.md` MUST 9
-is explicit that a substring check passes when the row has been deleted and the
-name survives in a comment or a neighbouring key, which is exactly the mistake a
-"is the gate wired" test invites.
+Registration is checked in two halves, because a missing row and a misrouted row
+are different defects. Both read the parsed `_SEQUENCE` tuple rather than a
+substring of the module source: `testing.md` MUST 9 is explicit that a text match
+passes when the row has been deleted and the name survives in a comment or a
+neighbouring key. The name half asserts one row claims this gate. The behavior
+half drives that row and asserts it reached THIS validator, which the name half
+structurally cannot see; an earlier version of this file asserted only the name
+while its docstring claimed an identity comparison, and a mutation swapping the
+row's callable passed all six tests.
 """
 
 from __future__ import annotations
@@ -181,12 +185,17 @@ def test_pre_pr_facade_reexports_the_adapter() -> None:
 # --------------------------------------------------------------------------
 
 
-def test_adapter_is_true_when_at_baseline(tmp_path: Path) -> None:
+def test_main_exits_ok_when_at_baseline(tmp_path: Path) -> None:
     """Control for the regression case below: same repo, satisfied ceiling.
 
-    Paired with `test_adapter_is_false_when_above_baseline`, which differs only
-    in the violation count. If this control ever fails, the discriminating test
-    below proves nothing, which is the trap SHOULD 6 names.
+    Paired with `test_main_exits_regression_above_baseline`, which differs only in
+    the violation count. If this control ever fails, the discriminating test below
+    proves nothing, which is the trap SHOULD 6 names.
+
+    Renamed off "adapter": both of these drive `main` and assert an exit code,
+    which is the CLI contract, not the adapter's int-to-bool conversion. Two tests
+    named for the adapter never called it, so that conversion was unexercised for
+    every outcome except the unrun-gate case.
     """
     repo = _repo_with(tmp_path, retired_skills=1)
     assert (
@@ -195,13 +204,41 @@ def test_adapter_is_true_when_at_baseline(tmp_path: Path) -> None:
     )
 
 
-def test_adapter_is_false_when_above_baseline(tmp_path: Path) -> None:
+def test_main_exits_regression_above_baseline(tmp_path: Path) -> None:
     """The discriminating half of the pair: only the violation count differs."""
     repo = _repo_with(tmp_path, retired_skills=2)
     assert (
         main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, 1))])
         == EXIT_REGRESSION
     )
+
+
+def test_adapter_is_true_when_at_baseline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Drives the adapter itself, which is what `pre_pr` calls.
+
+    The adapter takes only a repo root, so the ceiling it reads is the module's
+    `_BASELINE_PATH`. Rebinding that is the only way to reach its True and False
+    branches on a fixture; without it the shipped ceiling of 16 makes every small
+    fixture pass and the conversion is never discriminated.
+    """
+    import check_skill_adr_bindings as mod
+
+    repo = _repo_with(tmp_path, retired_skills=1)
+    monkeypatch.setattr(mod, "_BASELINE_PATH", _baseline(tmp_path, 1))
+    assert validate_skill_adr_bindings(repo) is True
+
+
+def test_adapter_is_false_when_above_baseline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The discriminating half: same repo shape, one more violation."""
+    import check_skill_adr_bindings as mod
+
+    repo = _repo_with(tmp_path, retired_skills=2)
+    monkeypatch.setattr(mod, "_BASELINE_PATH", _baseline(tmp_path, 1))
+    assert validate_skill_adr_bindings(repo) is False
 
 
 def test_adapter_is_false_on_an_unrun_gate(tmp_path: Path) -> None:

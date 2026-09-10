@@ -460,6 +460,17 @@ def _make_absent(repo: Path, relative: str, *, skip_worktree: bool) -> None:
             "user.name=fixture",
             "-c",
             "user.email=fixture@example.invalid",
+            # Isolation from ambient signing config, not a fix for an observed
+            # failure. What is measured here: the global gitconfig sets
+            # commit.gpgsign=true and gpg.format=ssh, and a fixture commit that
+            # inherits both exits 0 and yields `git log --format=%G?` = N, so it is
+            # NOT being signed and a signingkey pointing at a nonexistent path
+            # exits 0 too. The failure this was first written for could not be
+            # reproduced. The override stays because a fixture should not depend on
+            # the machine's signing setup either way; it is config for a throwaway
+            # repository, never a hook bypass.
+            "-c",
+            "commit.gpgsign=false",
             "commit",
             "-qm",
             "fixture",
@@ -516,7 +527,42 @@ def test_edge_one_absent_manifest_is_named_and_the_rest_still_scan(
     captured = capsys.readouterr()
     assert "skills/gone/SKILL.md" in captured.err
     assert "1 of 2 tracked" in captured.err
+    assert "more" not in captured.err, (
+        "one absent path is below the sample cap, so the note must not claim a "
+        "truncated remainder"
+    )
     assert "across 1 of 2 tracked SKILL.md file(s)" in captured.out
+
+
+def test_edge_absent_exactly_at_the_sample_cap_claims_no_remainder(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The boundary the note's truncation arithmetic turns on.
+
+    With `len(absent) == _ABSENT_SAMPLE` the remainder is exactly 0, which is the
+    only input that separates `more > 0` from `more > -1`. Every other case has a
+    negative remainder, so a probe flipping that comparison passed against them
+    and measured nothing, which `testing.md` SHOULD 17 names: a probe that cannot
+    fail is unfinished rather than passing.
+    """
+    from check_skill_adr_bindings import _ABSENT_SAMPLE
+
+    _write_skill(repo, "kept", "name: s\nmetadata:\n  adr: ADR-002")
+    for index in range(_ABSENT_SAMPLE):
+        _write_skill(repo, f"gone{index}", "name: s\nmetadata:\n  adr: ADR-002")
+    for index in range(_ABSENT_SAMPLE):
+        _make_absent(repo, f"skills/gone{index}/SKILL.md", skip_worktree=False)
+
+    baseline = repo / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8"
+    )
+    assert _run(repo, baseline) == EXIT_OK
+    err = capsys.readouterr().err
+    assert f"{_ABSENT_SAMPLE} of {_ABSENT_SAMPLE + 1} tracked" in err
+    assert "more" not in err, (
+        "the remainder is exactly 0 at the cap, so the note must not claim one"
+    )
 
 
 def test_pos_every_terminal_line_carries_the_examined_count(
