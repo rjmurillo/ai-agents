@@ -52,8 +52,9 @@ if _lib_dir not in sys.path:
 
 from github_core.api import (
     GhAuthStatus,
-    assert_gh_authenticated,
+    check_gh_auth,
     classify_gh_failure_text,
+    describe_gh_auth_failure,
     is_auth_failure_text,
     resolve_repo_params,
 )
@@ -115,17 +116,16 @@ def _exit_with_error(
     raise SystemExit(exit_code)
 
 
+def _require_gh_auth(fmt: str) -> None:
+    """Preserve the GitHub CLI failure classification at preflight."""
+    auth = check_gh_auth()
+    if auth.is_authenticated:
+        return
+    message, code, error_type = describe_gh_auth_failure(auth)
+    _exit_with_error(message, code, fmt, error_type)
+
+
 def _resolve_repo(args: argparse.Namespace, fmt: str) -> tuple[str, str]:
-    try:
-        assert_gh_authenticated()
-    except SystemExit as exc:
-        code = exc.code if isinstance(exc.code, int) else 4
-        _exit_with_error(
-            "GitHub CLI (gh) is not installed or not authenticated. Run 'gh auth login' first.",
-            code,
-            fmt,
-            "AuthError",
-        )
     stderr = io.StringIO()
     try:
         with contextlib.redirect_stderr(stderr):
@@ -312,6 +312,7 @@ def main(argv: list[str] | None = None) -> int:
             "InvalidParams",
         )
 
+    _require_gh_auth(fmt)
     owner, repo = _resolve_repo(args, fmt)
     issues = _run_issue_list(_build_issue_list_args(args, f"{owner}/{repo}"), fmt)
     output = [

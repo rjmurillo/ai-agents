@@ -35,6 +35,11 @@ def _import_script(name: str):
 _mod = _import_script("list_issues")
 main = _mod.main
 build_parser = _mod.build_parser
+_lib_api = sys.modules["github_core.api"]
+GhAuthResult = _lib_api.GhAuthResult
+GhAuthStatus = _lib_api.GhAuthStatus
+# Existing tests patch the former auth seam while exercising later paths.
+_mod.assert_gh_authenticated = _mod.check_gh_auth
 
 
 # ---------------------------------------------------------------------------
@@ -44,6 +49,16 @@ build_parser = _mod.build_parser
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
+
+
+@pytest.fixture(autouse=True)
+def _authenticated(monkeypatch):
+    """Keep existing listing tests past the authentication preflight."""
+    monkeypatch.setattr(
+        _mod,
+        "check_gh_auth",
+        lambda: GhAuthResult(GhAuthStatus.AUTHENTICATED),
+    )
 
 
 def _issue(
@@ -107,8 +122,8 @@ class TestBuildParser:
 class TestMain:
     def test_not_authenticated_exits_4(self, capsys):
         with patch(
-            "list_issues.assert_gh_authenticated",
-            side_effect=SystemExit(4),
+            "list_issues.check_gh_auth",
+            return_value=GhAuthResult(GhAuthStatus.INVALID_CREDENTIALS),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -117,6 +132,24 @@ class TestMain:
         assert payload["Success"] is False
         assert payload["Error"]["Code"] == 4
         assert payload["Error"]["Type"] == "AuthError"
+
+    def test_rate_limited_preflight_stays_api_error(self, capsys):
+        """A quota failure must not become the generic auth envelope."""
+        with patch(
+            "list_issues.check_gh_auth",
+            return_value=GhAuthResult(
+                GhAuthStatus.RATE_LIMITED,
+                "GraphQL: API rate limit exceeded for user ID 6811113",
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main([])
+            assert exc.value.code == 3
+        error = json.loads(capsys.readouterr().out)["Error"]
+        assert error["Code"] == 3
+        assert error["Type"] == "ApiError"
+        assert "rate limit" in error["Message"].lower()
+        assert "gh auth login" not in error["Message"]
 
     def test_success_open_issues(self, capsys):
         issues = [
