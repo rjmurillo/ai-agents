@@ -11,7 +11,7 @@ user-invocable: true
 
 # PR Autofix
 
-<!-- # taste-lint: ignore file-size, this skill is one end-to-end PR workflow; splitting it would hide required lease and mutation gates from the agent. -->
+<!-- # taste-lint: ignore file-size, this skill is one end-to-end PR workflow; splitting it would hide required mutation gates from the agent. -->
 
 <!--
 size-exception rationale (Issue #4016, carried forward under ADR-064).
@@ -24,11 +24,11 @@ protocol by design ("Nothing outside it is needed to run this skill"). The body
 includes the tier ladder, Ready-to-Merge gate definition, thread-lifecycle state
 machine, and CI-failure triage procedure, and the Process phases are one annotated
 bash program whose ordering IS the safety argument. Splitting it into references/
-moves a lease gate, a live-state gate, or a disarm gate out of the loaded body,
+moves a live-state gate or a disarm gate out of the loaded body,
 which is a behavioral change that must be measured against the eval harness before
 shipping (Issue #3953 doctrine). ADR-064 changed where this file lives, not what
 it carries, so the exception moves with it unchanged.
-Preserved invariant: One loaded workflow owns lease, mutation safety, live-state revalidation, and merge readiness.
+Preserved invariant: One loaded workflow owns mutation safety, live-state revalidation, and merge readiness.
 Behavioral tests: `tests/test_pr_autofix_late_live_state_gate.py`, `tests/test_pr_autofix_force_push_lease.py`, `tests/test_pr_autofix_worktree_identity.py`, `tests/skills/pr-autofix/test_check_pr_round_cap.py`
 Review trigger: Revisit when a measured split keeps those tests green and Ready-to-Merge behavior unchanged.
 vendor-portability: upstream-only. Test paths reference rjmurillo/ai-agents contributor fixtures; installed plugin consumers do not have these files.
@@ -102,7 +102,7 @@ the per-harness spelling for the operation names. On top of it:
    local commits or branch history, so it cannot stand in for `git push`.
 2. `test_pr_merge_ready.py`, `check_pr_live_state.py`, `why_pr_blocked.py`,
    `triage_red_check.py`, `run_completion_gate.py`, `check_pr_round_cap.py`,
-   and `pr_autofix_lease.py` have no MCP equivalent, because each computes a
+   have no MCP equivalent, because each computes a
    verdict from several `gh` calls plus local logic. `triage_red_check.py` is
    named explicitly because the CI-failure triage step below makes it
    mandatory before any log reading, and a blocked session must derive that
@@ -116,24 +116,17 @@ the per-harness spelling for the operation names. On top of it:
    merge. `test_pr_merge_ready.py` therefore cannot be reconstructed as a PASS
    at all. Report the checks and merge state you did read, say the
    required-context set was not read, and treat merge readiness as unknown.
-3. The lease and the round cap protect against two sessions fighting over one
-   branch, and single-PR mode does not replace them: two sessions can each be
-   handed the same PR explicitly and still race toward the same branch, which
-   is the case `pr_autofix_lease.py` exists to stop. So without a lease, MCP
-   mode is read-only. Triage, read threads, and report, but do not push, reply,
-   resolve, arm auto-merge, or merge. If a mutation is genuinely needed, either
-   implement acquire, renew, and release against the same marker-comment
-   protocol using MCP operations first, or hand the PR back and say a lease
-   could not be held. Do not sweep the open queue either way.
-   This rule is not enforced by the tool grant and cannot be. The frontmatter
-   withholds every MCP write, but `allowed-tools` is one static list for both
-   modes, and `gh` mode legitimately pushes, so `Bash` stays unrestricted and
-   `git push` remains available here. Git is also a separate transport from the
-   GitHub API: issue #3139 records a push succeeding while the API was failing,
-   so a refused session does not stop one. The read-only constraint is
-   therefore yours to keep, and pushing in this mode races a branch no lease
-   protects. Enforcing it needs a per-mode permission profile, which is #5519
-   (Copilot review on PR #5509).
+3. The round cap still applies in this mode: it is what stops a T3/T4 PR
+   iterating without bound, and it is reconstructed by hand here like the other
+   verdicts in rule 2. Concurrency between two sessions working the same branch
+   is held by the Force-Push Safety SHA gate below, which is a hard gate rather
+   than an advisory one: it re-reads the ref immediately before the push and
+   pins `--force-with-lease` to an observed SHA, so a competing session's commit
+   makes the push fail rather than silently win. Git is also a separate
+   transport from the GitHub API (issue #3139 records a push succeeding while
+   the API was failing), so a session refused for the API can still push, and
+   the SHA gate is what makes that safe.
+
 4. A transport failure is an unknown, never a verdict. Never classify a PR as
    T2 (CI fix), BLOCKED, or DIRTY because a call failed. Report the PR as
    untriaged with the transport as the reason.
@@ -170,205 +163,6 @@ resolve_pr_scripts_dir() {
 SCRIPTS_DIR="$(resolve_pr_scripts_dir)"
 
 # late-live-state-guard:start
-# lease-renewal:start
-LEASE_RENEW_PID=""
-LEASE_RENEW_FAILURE_FILE=""
-LEASE_RENEW_INTERVAL_SECONDS="${LEASE_RENEWAL_INTERVAL_SECONDS:-300}"
-LEASE_CLEANUP_DONE=0
-
-renew_lease_once() {
-    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" renew \
-        --pull-request "$PR" --session "$SESSION_ID" --output-format json >/dev/null
-}
-
-stop_lease_renewal() {
-    if [ -z "$LEASE_RENEW_PID" ]; then
-        return 0
-    fi
-    kill -- "-$LEASE_RENEW_PID" 2>/dev/null || true
-    kill "$LEASE_RENEW_PID" 2>/dev/null || true
-    wait "$LEASE_RENEW_PID" 2>/dev/null || true
-    LEASE_RENEW_PID=""
-}
-
-lease_renewal_failed() {
-    [ -n "$LEASE_RENEW_FAILURE_FILE" ] && [ -s "$LEASE_RENEW_FAILURE_FILE" ]
-}
-
-start_lease_renewal() {
-    stop_lease_renewal
-    LEASE_CLEANUP_DONE=0
-    LEASE_RENEW_INTERVAL_SECONDS="${LEASE_RENEWAL_INTERVAL_SECONDS:-300}"
-    LEASE_RENEW_FAILURE_FILE="$(mktemp)"
-    (
-        current_child=""
-        stop_current_child() {
-            if [ -n "$current_child" ]; then
-                kill "$current_child" 2>/dev/null || true
-                wait "$current_child" 2>/dev/null || true
-            fi
-        }
-        trap stop_current_child EXIT INT TERM
-        while true; do
-            sleep "$LEASE_RENEW_INTERVAL_SECONDS" &
-            current_child=$!
-            wait "$current_child" || break
-            current_child=""
-            renew_lease_once >/dev/null &
-            current_child=$!
-            if ! wait "$current_child"; then
-                printf '%s\n' "renewal failed while holding the lease" > "$LEASE_RENEW_FAILURE_FILE"
-                break
-            fi
-            current_child=""
-        done
-    ) &
-    LEASE_RENEW_PID=$!
-    trap cleanup_pr_autofix EXIT
-    trap 'cleanup_pr_autofix; exit 130' INT
-    trap 'cleanup_pr_autofix; exit 143' TERM
-}
-
-cleanup_pr_autofix() {
-    if [ "$LEASE_CLEANUP_DONE" -eq 1 ]; then
-        return 0
-    fi
-    LEASE_CLEANUP_DONE=1
-    stop_lease_renewal
-    python3 "$SCRIPTS_DIR/pr_autofix_lease.py" release \
-        --pull-request "$PR" --session "$SESSION_ID" --output-format json || true
-}
-
-release_pr_lease() {
-    cleanup_pr_autofix
-}
-
-prepare_lease_for_mutation() {
-    stop_lease_renewal
-    if ! renew_lease_once; then
-        printf '%s\n' "renewal failed before mutation" > "$LEASE_RENEW_FAILURE_FILE"
-        return 1
-    fi
-    start_lease_renewal
-}
-
-stop_mutation_group() {
-    local mutation_pid=$1 stop_attempt
-    kill -TERM -- "-$mutation_pid" 2>/dev/null || true
-    for stop_attempt in 1 2 3 4 5 6 7 8 9 10; do
-        if ! kill -0 -- "-$mutation_pid" 2>/dev/null; then
-            break
-        fi
-        sleep 0.05
-    done
-    kill -KILL -- "-$mutation_pid" 2>/dev/null || true
-}
-
-run_mutation_with_lease_monitor() {
-    local mutation_pid mutation_pgid mutation_rc mutation_state start_attempt
-    python3 -c \
-        'import errno, os, sys
-try:
-    os.setsid()
-except OSError as exc:
-    if exc.errno != errno.EPERM or os.getpgrp() != os.getpid():
-        raise
-os.execvp(sys.argv[1], sys.argv[1:])' \
-        "$@" &
-    mutation_pid=$!
-    mutation_pgid=""
-    for start_attempt in 1 2 3 4 5 6 7 8 9 10; do
-        mutation_pgid=$(ps -o pgid= -p "$mutation_pid" 2>/dev/null | tr -d ' ')
-        if [ "$mutation_pgid" = "$mutation_pid" ]; then
-            break
-        fi
-        mutation_state=$(ps -o stat= -p "$mutation_pid" 2>/dev/null | tr -d ' ')
-        if ! kill -0 "$mutation_pid" 2>/dev/null || [ "${mutation_state#Z}" != "$mutation_state" ]; then
-            if wait "$mutation_pid"; then
-                mutation_rc=0
-            else
-                mutation_rc=$?
-            fi
-            if lease_renewal_failed; then
-                stop_mutation_group "$mutation_pid"
-                echo "Mutation completed as lease ownership was lost for #$PR"
-                cleanup_pr_autofix
-                return 75
-            fi
-            stop_mutation_group "$mutation_pid"
-            return "$mutation_rc"
-        fi
-        sleep 0.01
-    done
-    if [ "$mutation_pgid" != "$mutation_pid" ]; then
-        mutation_state=$(ps -o stat= -p "$mutation_pid" 2>/dev/null | tr -d ' ')
-        if ! kill -0 "$mutation_pid" 2>/dev/null || [ "${mutation_state#Z}" != "$mutation_state" ]; then
-            if wait "$mutation_pid"; then
-                mutation_rc=0
-            else
-                mutation_rc=$?
-            fi
-            if lease_renewal_failed; then
-                stop_mutation_group "$mutation_pid"
-                echo "Mutation completed as lease ownership was lost for #$PR"
-                cleanup_pr_autofix
-                return 75
-            fi
-            stop_mutation_group "$mutation_pid"
-            return "$mutation_rc"
-        fi
-        kill "$mutation_pid" 2>/dev/null || true
-        wait "$mutation_pid" 2>/dev/null || true
-        echo "Stopping mutation for #$PR: process group setup failed"
-        cleanup_pr_autofix
-        return 75
-    fi
-    if lease_renewal_failed; then
-        stop_mutation_group "$mutation_pid"
-        wait "$mutation_pid" 2>/dev/null || true
-        echo "Stopping mutation for #$PR: lease ownership lost"
-        cleanup_pr_autofix
-        return 75
-    fi
-    while kill -0 "$mutation_pid" 2>/dev/null; do
-        if lease_renewal_failed; then
-            sleep 0.02
-            mutation_state=$(ps -o stat= -p "$mutation_pid" 2>/dev/null | tr -d ' ')
-            if ! kill -0 "$mutation_pid" 2>/dev/null || [ "${mutation_state#Z}" != "$mutation_state" ]; then
-                stop_mutation_group "$mutation_pid"
-                if wait "$mutation_pid"; then
-                    mutation_rc=0
-                else
-                    mutation_rc=$?
-                fi
-                echo "Mutation completed as lease ownership was lost for #$PR"
-                cleanup_pr_autofix
-                return 75
-            fi
-            stop_mutation_group "$mutation_pid"
-            wait "$mutation_pid" 2>/dev/null || true
-            echo "Stopping mutation for #$PR: lease ownership lost"
-            cleanup_pr_autofix
-            return 75
-        fi
-        sleep 0.05
-    done
-    if wait "$mutation_pid"; then
-        mutation_rc=0
-    else
-        mutation_rc=$?
-    fi
-    if lease_renewal_failed; then
-        stop_mutation_group "$mutation_pid"
-        echo "Mutation completed as lease ownership was lost for #$PR"
-        cleanup_pr_autofix
-        return 75
-    fi
-    stop_mutation_group "$mutation_pid"
-    return "$mutation_rc"
-}
-# lease-renewal:end
-
 recheck_pr_live_state() {
     local late_live late_rc late_action late_reason late_state late_head late_base
     if late_live=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" \
@@ -399,23 +193,12 @@ recheck_pr_live_state() {
         echo "Closed PR head SHA: $late_head"
         echo "Preserve unpushed commits or a net patch before leaving the old branch."
     fi
-    cleanup_pr_autofix
     return 75
 }
 
 run_pr_mutation_if_live() {
-    if lease_renewal_failed; then
-        echo "Skipping mutation for #$PR: lease renewal failed"
-        cleanup_pr_autofix
-        return 75
-    fi
-    if ! prepare_lease_for_mutation; then
-        echo "Skipping mutation for #$PR: lease renewal failed"
-        cleanup_pr_autofix
-        return 75
-    fi
     if recheck_pr_live_state; then
-        run_mutation_with_lease_monitor "$@"
+        "$@"
         return $?
     fi
     return 75
@@ -425,47 +208,13 @@ run_pr_mutation_if_live() {
 # SESSION_ID must be set before the loop (e.g. from the session log or a uuid).
 # Per PR, immediately before any per-tier action:
 
-# Step 1: Acquire the branch-ownership lease (issue #3413, ADR-076 Phase 1).
-# Exit 1 = SKIP. Branch on .Data.reason so a lease-store outage is surfaced as
-# a distinct diagnostic instead of being silently misreported as contention
-# (issue #4966 MEDIUM). .Data.held_by does not exist in the envelope; the
-# machine-readable field is .Data.reason (held-by:<owner> or
-# lease-store-unavailable).
-LEASE=$(python3 "$SCRIPTS_DIR/pr_autofix_lease.py" acquire \
-    --pull-request "$PR" --session "$SESSION_ID" --output-format json) || {
-    LEASE_RC=$?
-    if [ "$LEASE_RC" -eq 1 ]; then
-        LEASE_REASON=$(echo "$LEASE" | jq -r '.Data.reason // "unknown"')
-        case "$LEASE_REASON" in
-            lease-store-unavailable)
-                # Store unreachable: ownership is unknown and acquire fails
-                # CLOSED (issue #4966). This is NOT contention. Surface a clear
-                # diagnostic so a persistent outage cannot make every PR SKIP
-                # forever with no alert; investigate the API/network path.
-                echo "Lease store unreachable for #$PR (reason=$LEASE_REASON); ownership unknown, failing closed and skipping. Check GitHub API/network before retrying." >&2
-                ;;
-            held-by:*)
-                echo "Lease held by ${LEASE_REASON#held-by:} for #$PR; skipping."
-                ;;
-            *)
-                echo "Lease acquire returned SKIP for #$PR (reason=$LEASE_REASON); skipping."
-                ;;
-        esac
-        continue
-    fi
-    echo "Lease acquire failed (exit $LEASE_RC) for #$PR; skipping to avoid racing."
-    continue
-}
-start_lease_renewal
-
-# Step 2: Live-state gate (BLOCKING, issue #2455).
+# Step 1: Live-state gate (BLOCKING, issue #2455).
 LIVE=$(python3 "$SCRIPTS_DIR/check_pr_live_state.py" \
     --pull-request "$PR" --skip-fetch --output-format json)
 ACTION=$(echo "$LIVE" | jq -r '.Data.action')
 if [ "$ACTION" = "SKIP" ]; then
     REASON=$(echo "$LIVE" | jq -r '.Data.reason')
     echo "Skipping #$PR: $REASON"
-    cleanup_pr_autofix
     # If Data.superseded_by_base.fully_superseded == true, recommend close
     # via the queue's close-handling path; do NOT push or merge.
     continue
@@ -475,7 +224,6 @@ EXPECTED_BASE_REF=$(echo "$LIVE" | jq -r '.Data.base_ref // empty')
 EXPECTED_BASE_SHA=$(echo "$LIVE" | jq -r '.Data.base_sha // empty')
 if [ -z "$EXPECTED_HEAD_SHA" ] || [ -z "$EXPECTED_BASE_REF" ] || [ -z "$EXPECTED_BASE_SHA" ]; then
     echo "Cannot bind mutation to the live PR identity for #$PR; skipping."
-    cleanup_pr_autofix
     continue
 fi
 # ACTION == "ACT": proceed with the tier's planned action set.
@@ -492,8 +240,8 @@ fi
 # rjmurillo/ai-agents source, contributor-only); PRs #1965 and #1979 each ran
 # 18 rounds (see the CI-FEEDBACK-SUBLOOP governance doc, same source, line
 # 11). check_pr_round_cap.py records one round per call against a
-# hidden marker comment on the PR (same storage pattern as
-# pr_autofix_lease.py's ADR-076 lease) and returns Data.action=ESCALATE when
+# hidden marker comment on the PR (stored as
+# a hidden marker comment) and returns Data.action=ESCALATE when
 # either the round count or the wall-clock budget is exceeded. Call it once
 # per pass through this loop for a T3/T4 PR, after the tier is known and after
 # the auto-merge disarm gate below, before any thread-lifecycle or CI-fix
@@ -579,8 +327,7 @@ fi
 # this read is a verdict with a name.
 IS_BOT=${IS_BOT:-unknown}
 # Fail CLOSED: an author this session could not classify is treated as a bot.
-# Same direction as the lease store's `lease-store-unavailable` verdict
-# documented below, and for the same reason: the two errors are not symmetric.
+# Fail CLOSED here because the two errors are not symmetric.
 # Guessing "human" on an unreadable author hands a PR nobody vouched for to the
 # unattended loop, which is the outcome the T5 tier exists to prevent.
 # Guessing "bot" costs a human one manual look at a PR that may not have needed
@@ -727,7 +474,6 @@ TIER_TERMINAL=no
 case "$TIER" in
     SKIP)
         echo "Tier SKIP for #$PR (draft, merged, or closed); no action."
-        cleanup_pr_autofix
         continue
         ;;
     UNSUPPORTED)
@@ -776,7 +522,6 @@ fi
 AUTO_MERGE=${AUTO_MERGE:-unknown}
 if [ "$AUTO_MERGE" = "unknown" ]; then
     echo "Cannot read auto-merge state for #$PR (context fetch or parse failed); skipping."
-    cleanup_pr_autofix
     continue
 fi
 # "Not provably T1" rather than "not T1": a T1 whose evidence came from a
@@ -816,7 +561,6 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
             # avoid unguarded merge", named the opposite of the state it left.
             echo "Failed to disable auto-merge on #$PR (rc=$MUTATION_RC); auto-merge is still armed and GitHub can land the PR unattended. Skipping; this one needs a human."
         fi
-        cleanup_pr_autofix
         continue
     fi
 fi
@@ -824,7 +568,6 @@ fi
 # leaves, so both have had auto-merge stripped above. Everything below needs a
 # tier with an action behind it, and neither of these has one, so both stop now.
 if [ "$TIER_KNOWN" = "no" ] || [ "$TIER_TERMINAL" = "yes" ]; then
-    cleanup_pr_autofix
     continue
 fi
 # T5 terminates here, and making it reachable is what created the need. The
@@ -846,7 +589,6 @@ fi
 # one gate above, and stops before any tier action.
 if [ "$TIER" = "T5" ]; then
     echo "Tier T5 for #$PR (bot-authored, passed merge-state gates, has failure or threads); handing to a human."
-    cleanup_pr_autofix
     continue
 fi
 if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
@@ -860,26 +602,15 @@ if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
         # naming the round count, wall-clock elapsed, and both caps
         # (issue #5056 item 4: leave a note, do not just stop silently).
         # A human must review the remaining thread(s)/CI failure(s) directly.
-        cleanup_pr_autofix
         continue
     fi
 fi
 
 # tier-dispatch:end
 
-# Release the lease after all per-PR work (push + post-push CI wait + merge).
-# Pattern:
+# Per-PR work ends here (push + post-push CI wait + merge).
 #   ... (tier actions) ...
-#   cleanup_pr_autofix
 ```
-
-Lease SKIP verdicts: when exit code is 1 the lease was not acquired. Branch on
-the `reason` field: `held-by:<owner>` means another autofix loop holds the
-lease (real contention), and `lease-store-unavailable` means the lease store
-was unreachable so ownership could not be verified and acquire failed CLOSED
-(issue #4966). In both cases do NOT push, do NOT arm auto-merge, do NOT post
-threads. A persistent `lease-store-unavailable` is an infrastructure signal,
-not contention: investigate the GitHub API or network path.
 
 LIVE-STATE SKIP verdicts are binding: do NOT push commits, do NOT arm
 auto-merge, do NOT run `merge_pr.py` on a PR this gate classifies as SKIP.
@@ -893,15 +624,13 @@ Every command that mutates a branch or PR MUST run through
 auto-merge changes, and direct merges. The wrapper performs a new GitHub query
 immediately before the command and compares the result with the head and base
 identity captured by the current readiness cycle. A gate from an earlier review
-or validation phase is stale. Exit 75 means the wrapper logged the live-state skip
-and released the lease. Other nonzero exits come from the mutation command and
+or validation phase is stale. Exit 75 means the wrapper logged the live-state skip. Other nonzero exits come from the mutation command and
 retain their existing error handling.
 
 ### Phase 3: Verify and gate
 
 After all queued actions, re-check the 4-condition Ready-to-Merge gate. Enable
-auto-merge only when all four conditions hold. Release each PR's lease after its
-merge command (or skip) completes:
+auto-merge only when all four conditions hold:
 
 ```bash
 python3 "$SCRIPTS_DIR/run_completion_gate.py" \
@@ -909,7 +638,6 @@ python3 "$SCRIPTS_DIR/run_completion_gate.py" \
     --json \
     --evidence-path ".agents/pr-comments/PR-$PR/gate-evidence.json"
 
-cleanup_pr_autofix
 ```
 
 Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all criteria passed; exit 1 a criterion failed; exit 2 config error INCLUDING a `pr-review-config.yaml` that diverges from or is absent at the trusted ref (`origin/main`); exit 3 trust verification impossible (no git work tree, trusted ref missing or not remote-tracking). A trust halt (stderr starts with `HALT: completion-gate config`, statuses diverged/missing-base, and every exit 3) occurs before any dispatch, so NO criterion command was executed. Other exit-2 config errors (a malformed later criterion, an evidence-write failure) can fire mid- or post-dispatch, so earlier criterion commands may already have run; treat exit 2 as "verdict unusable", not "nothing happened". Neither exit is transient: do NOT retry, do NOT treat exit 3 as a passing external outage, and do NOT pass `--approve-untrusted-config` autonomously. The flag only applies to a trust-halt exit 2 (diverged or missing-at-base); an exit-3 halt cannot be overridden at all. Surface the stderr diff to a human and skip the PR.
@@ -919,7 +647,11 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
 1. Triage all open PRs into tiers T1-T5 using `test_pr_merge_ready.py`.
 2. Process T1 (land-ready) first, then T2 (CI fix), then T3/T4 (threads). T5 is not processed by this loop: a bot-authored PR that reaches work-tier classification with a failure or unresolved threads is handed to a human, and the tier-dispatch block terminates it after the auto-merge disarm gate (issue #5208). Bot PRs classified BEHIND, BLOCKED, or DIRTY retain that merge-state tier.
 3. **Before acting on any PR, call `check_pr_live_state.py`** and skip the row when it returns `Data.action=SKIP` (issue #2455). The triage snapshot from step 1 goes stale fast in a repo with heavy merge automation; the gate catches PRs merged/closed mid-walk and PRs whose diff is already on `main` via a sibling consolidated PR.
-4. **Before any branch mutation, acquire the branch lease** via `pr_autofix_lease.py acquire` (issue #3413). A SKIP result means another session holds the branch; exit before creating a worktree or pushing. Release the lease via `pr_autofix_lease.py release` when done or on error. The lease is advisory; the Force-Push Safety SHA gate is the hard backstop. For any remote mutation that can outlive the final pre-mutation poll, keep renewal supervision active through the whole critical section and re-verify lease ownership immediately before the mutation. If renewal ownership is lost, block the mutation and release the lease before continuing.
+4. **Before any branch mutation, re-read the ref and pin the push.** The
+   Force-Push Safety SHA gate below is the concurrency boundary: match
+   `git rev-parse "refs/heads/$BRANCH"` against the PR's expected head SHA, and
+   pin `--force-with-lease` to that observed SHA so a competing session's commit
+   rejects the push instead of being overwritten (issues #3653, #3413).
 5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE` (issue #5056). It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; PR #1887 ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to.
 6. For each PR that the live-state gate and round-cap gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
@@ -1272,10 +1004,7 @@ The dispatcher enforces the Issue #5072 trust boundary before dispatching anythi
 
 Per PR processed:
 
-- [ ] Lease acquired before per-PR action (issue #3413): `pr_autofix_lease.py acquire --pull-request $PR --session $SESSION_ID`. Exit 1 = SKIP (reason `held-by:<owner>` is contention; reason `lease-store-unavailable` is a store outage that fails CLOSED, issue #4966); exit 0 = ACT. Lease released after PR work completes or on live-state SKIP.
 - [ ] Tier classification recorded (T1-T5).
-- [ ] Branch lease acquired via `pr_autofix_lease.py acquire` before any branch mutation (issue #3413). SKIP result caused early exit; ACT result recorded with `base_sha`.
-- [ ] Remote mutations stayed under renewal supervision and were re-verified immediately before the mutation; if renewal ownership was lost, the mutation was blocked and the lease was released first.
 - [ ] Per-PR live-state gate ran immediately before the tier's action (issue #2455): `check_pr_live_state.py --pull-request $PR --skip-fetch --output-format json`. Verdict `Data.action=ACT` recorded; `Data.action=SKIP` aborted the action and recorded the reason (merged, closed, draft, or fully superseded by base).
 - [ ] Auto-merge disarm ran after live-state ACT on any PR that is not provably T1 (issue #3913, and issue #5094 for the completeness half): that is every non-T1 PR, and also a T1 whose `fetched_pages_complete` was not the boolean `true`, since a tier derived from a truncated fetch has not earned the exemption. `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
 - [ ] Round-cap circuit breaker ran on every pass through a T3/T4 PR, after the tier was known and after the auto-merge disarm gate above (issue #5056, ordering per issue #5094): `check_pr_round_cap.py --pull-request $PR --output-format json`. `Data.action=ACT` recorded and work continued; `Data.action=ESCALATE` stopped the thread-fix loop for that PR (round cap or wall-clock budget exceeded) and the script's own PR comment carries the reason, so nothing further was posted by the agent. The breaker's ESCALATE exit hands the PR to a human, so the disarm above has to have run first.
@@ -1297,13 +1026,12 @@ Per PR processed:
 | Avoid | Why | Instead |
 |-------|-----|---------|
 | Mutating on a readiness verdict computed earlier in the session | A PR can merge, close, or move mid-cycle, so an old verdict authorizes a push against a tree that no longer exists | Re-run the live-state gate immediately before every mutation, through `run_pr_mutation_if_live` |
-| Reading a lease-store outage as contention | `held-by:<owner>` means someone else owns the branch; `lease-store-unavailable` means nothing owns it and nothing can, which fails CLOSED | Branch on `.Data.reason`, and report the outage as itself |
 | Treating `TIER=UNKNOWN` as "the gates turn off" | It breaks the two gates in opposite directions: the round cap goes inert while the disarm gate fires on every armed PR and strips auto-merge from genuine T1s | Read the tier from `test_pr_merge_ready.py`, the authoritative producer, never from `check_pr_live_state.py` |
 | Swapping the disarm gate and the round cap back | The breaker's ESCALATE hands the PR to a human with auto-merge possibly still armed, which is the CWE-284 case the ordering closes | Keep disarm first, then the cap, as the tier-dispatch block states |
 | Reading CI logs before triaging the failing check | A check red on main is not this PR's failure, and investigating it on the PR spends a round on someone else's bug | Run `triage_red_check.py` first and attribute RED_ON_MAIN with its EvidenceUrl |
 | Letting a T3/T4 PR iterate without a cap | PR #1887 ran 11+ bot rounds over 46 hours and PRs #1965 and #1979 ran 18 each; prose caps have been ignored every time | Call `check_pr_round_cap.py` once per pass and honor ESCALATE |
 | Trusting `CanMerge=True` as the merge decision | It is one input, not the gate; all four Ready-to-Merge conditions have to hold | Evaluate the four conditions and pick the merge path from `mergeStateStatus` |
-| Force-pushing without re-reading the ref | The lease says you own the branch, not that the branch is where you left it | Match `git rev-parse "refs/heads/$BRANCH"` against the PR's expected head SHA first |
+| Force-pushing without re-reading the ref | A ref you read at triage is not where the branch is now, and a bare `--force-with-lease` reads a tracking ref any fetch can advance | Match `git rev-parse "refs/heads/$BRANCH"` against the PR's expected head SHA, then pin the lease to that SHA |
 
 ## Extension Points
 
@@ -1315,6 +1043,6 @@ Per PR processed:
   than fall through to a default; the test that pins that is deliberate.
 - **A different round budget.** `check_pr_round_cap.py` owns both the count and the
   wall-clock budget. Change them there and every caller moves together.
-- **A different lease store.** `pr_autofix_lease.py` owns acquisition, renewal, and
-  release. This file reads only the envelope, so a store swap needs no edit here as
-  long as `.Data.reason` keeps its two documented values.
+- **A different concurrency boundary.** The Force-Push Safety SHA gate owns it.
+  It is a hard gate (re-read the ref, pin `--force-with-lease` to the observed
+  SHA), so a replacement has to be at least as strong; an advisory marker is not.
