@@ -835,35 +835,63 @@ that move several times a day cannot be kept true by review, and
 cannot see any of them. Round 13's four citation-finding seats each did the work
 by hand.
 
-### Routed, not fixed
+### Disposition, after the repair pass
 
-Findings that need design rather than correction go to the trackers, per the
-terminal-predicate rule in `.claude/rules/builder-ethos.md`:
+The first draft of this section routed six findings to trackers and repaired
+none of them. The owner rejected that and the record was fixed instead. Every
+finding that was a defect **in the record** is now repaired in the record; what
+remains is implementation work and two decisions that are not the panel's to
+make.
 
-| Finding | Seat | Tracker |
+| Finding | Seat | Disposition |
 |---|---|---|
-| A candidate `pytest_collection_modifyitems` skip hook satisfies requirement 2's attestation honestly while executing nothing; no repository control measures skip counts | security | #5245 |
-| Requirement 2's only closing mechanism, signed execution evidence, has no instance, no named signer, and no phase | advisor | #5245 |
-| The invariant states one of three necessary conditions; publisher identity and the configuration binding it are the two that carried every exhibit | independent-thinker | #5244 |
-| Phase 0's falsification branch over-triggers, blocking Phase 1 repairs the record calls unconditional | independent-thinker | #5244 |
-| The probe is specified against a canary and the branch conditions on ruleset 11104075, with no transfer argument | security | #5244 |
-| Split the measured audit out of the decision record | independent-thinker | owner |
-| ADR-100's frontmatter reads `proposed` while issue #5241 records owner acceptance on 2026-08-21 and a frontmatter update that never landed | analyst | owner |
+| The invariant states one of three necessary conditions; publisher identity and the configuration binding it are the two that carried every exhibit | independent-thinker | **Fixed.** The invariant section now states the conjunction and names the ordinal as its weakest term |
+| A candidate `pytest_collection_modifyitems` skip hook satisfies requirement 2's attestation honestly while executing nothing | security | **Fixed, after reproducing it.** Two failing tests exit 1; the same tests under a candidate `conftest.py` that marks every collected item skipped report `2 skipped` and exit 0. Requirement 2 now carries the case and an executed-and-not-skipped floor |
+| Requirement 2's only closing mechanism has no instance, no named signer, and no phase | advisor, independent-thinker | **Fixed.** Requirement 2 is labelled a research item, Phase 1 explicitly does not claim it, and `git grep workflow_run: -- .github` returning nothing is stated as the reason |
+| The falsification branch over-triggers, blocking Phase 1 repairs the record calls unconditional | independent-thinker | **Fixed.** The branch is scoped to trust-claim work and no longer halts the net repairs |
+| The probe is mandated against a canary while the branch conditions on ruleset 11104075, with no transfer argument | security | **Fixed.** The transfer argument is stated, with the condition under which it fails |
+| Phase 0's closure item says "enumerate", binds to none of the typed-closure machinery, and states no exit condition | critic | **Fixed.** Rewritten against the resolver-per-edge-kind design with a checkable exit condition, and moved into the hardening list |
+| The Alternatives row calls a scheduled workflow P0-advisory | independent-thinker | **Fixed.** `ruleset-context-drift.yml` triggers on `schedule` and `workflow_dispatch`, which GitHub runs from the default branch, so it is P1 and binding; the "half already ships" claim is corrected to name what is actually built |
+| Eight stale `path:line` citations, plus `AGENTS.md:44` and a quotation of ADR-100's own stale citation | analyst, architect, independent-thinker | **Fixed and re-measured.** Every citation in the record was resolved against the shipping commit by script, not by eye |
+| #5090 shown as open at the exhibit and in Prior Art | architect | **Fixed** in both places |
+| The 292 to 294 correction changed instrument without saying so | architect | **Fixed.** ADR-093 requires naming it, so the search-API-to-REST change is stated and the claim narrowed to what the enumeration supports |
+| `test-result`'s `if:` quoted in simplified form | architect | **Fixed.** The real condition is quoted |
+| The falsification harness has no owner and no phase | independent-thinker, round 12 advisor | **Ruled, not fixed.** Round 13's advisor reversed round 12's: the harness gates only phases abandoned by default, so it fails safe. Recorded in the record rather than left silent |
+| Split the measured audit out of the decision record | independent-thinker | **Owner decision.** Not a defect; a judgment about the record's form |
+| ADR-100's frontmatter reads `proposed` while #5241 records owner acceptance, and ADR-099 retired its subject | analyst, architect | **Owner decision.** ADR-100 needs a re-baseline; neither is ADR-101's to make |
 
-### The index trap, walked into with the warning already written down
+### What the repair pass cost, and what that says
 
-The generated ADR index strips the leading status word from each record's Status
-prose, so a first sentence written as a trailing clause renders headless.
-ADR-072's debate log records this exact trap and its fix: "Proposed. Amended ..."
-works, a trailing clause does not.
+Round 13 found five Blocks in a commit whose entire purpose was applying round
+12's findings. Fixing them produced this pass, which found one more defect that
+no seat reported: reflowing the file to stay under its 500-line ceiling
+collapsed the YAML frontmatter onto a single line, which `check_adr_lifecycle.py`
+would have failed and which no seat could have caught because it did not exist
+when they read. It was caught by parsing the frontmatter after the edit rather
+than by reading the diff.
 
-Round 13's amendment opened ADR-101's Status with "Proposed, and concluded
-without consensus.", and the index rendered ", and concluded without consensus.".
-Repaired by making the first sentence stand alone.
+The index trap then fired a second time in the same pass. The rewritten Status
+opened "Proposed, and every defect...", the generator stripped the leading word
+again, and the index rendered ", and every defect...". Twice in one session,
+with the warning written down before the first occurrence and the correction
+written down before the second. A note in a debate log does not survive contact
+with the next edit; only regenerating the index and reading its output caught
+either one, and a repository-wide sweep for the same shape across all 106
+records found none, so the fix is not a rule anyone will remember but a check
+anyone can run.
 
-Worth one paragraph because of where the warning was. It was not in a rule file
-or a validator; it was in a sibling record's debate log, which nothing loads and
-nothing checks. The lesson generalises past this trap: a finding parked in a
-debate log is not persisted anywhere a later session will encounter it, and this
-is the second time in one session that a defect recurred with its own description
-already committed to the tree.
+A third check caught a third defect in the same pass, and this one is worth
+recording as a property of the tooling rather than as an author error.
+`check_citation_freshness.py` attributes every quoted anchor on a citing **line**
+to every citation on that line. A markdown table row is one line, so a row that
+cites `ruleset-context-drift.yml:28` for a workflow's wiring while also naming
+`schedule` and `workflow_dispatch`, which live at lines 4 to 6, fails the gate:
+the anchors are tested against line 28 and none of them is there. The fix is to
+cite each quoted fact at its own lines and to avoid stacking unrelated citations
+into one table row. Worth knowing before writing a table row that cites two
+places in one file, because the failure message reads like a stale line number
+and is not one.
+
+That is the same lesson the record already carries, arriving three times more
+from a new direction: both defects were found by running something, and the reading
+pass immediately before each had reported the file clean.
