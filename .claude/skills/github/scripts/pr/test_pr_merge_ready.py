@@ -1178,7 +1178,7 @@ def _disposition_unexpired(entry: dict[str, object], now: datetime) -> bool:
     rejects the ambiguous spellings on every host rather than on some.
 
     A trailing ``Z`` is rewritten to ``+00:00`` after the match, the same
-    normalization ``_parse_rfc3339_utc`` in ``pr_autofix_lease.py`` applies,
+    normalization ``_parse_rfc3339_utc`` applied,
     because ``fromisoformat`` only learned the zulu suffix in 3.11 as well.
     """
     expires = entry.get("expires")

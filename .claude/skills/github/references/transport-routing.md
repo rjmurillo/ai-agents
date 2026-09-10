@@ -144,7 +144,7 @@ because a false "unavailable" disables a path that works:
 - Composite repo helpers that wrap several `gh` calls behind local logic and
   return a verdict: `why_pr_blocked.py`, `test_pr_merge_ready.py`,
   `check_pr_live_state.py`, `triage_red_check.py`, `run_completion_gate.py`,
-  `check_pr_round_cap.py`, `pr_autofix_lease.py`. Their inputs can be gathered
+  `check_pr_round_cap.py`. Their inputs can be gathered
   through the operations above, but the verdicts they compute are not available
   as a single call. Two of these gate mandatory steps: `check_pr_live_state.py`
   runs before every autofix action, and `triage_red_check.py` runs before any

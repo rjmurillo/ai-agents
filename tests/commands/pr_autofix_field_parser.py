@@ -202,7 +202,7 @@ def _emitter_payload_names(tree: ast.Module) -> set[str]:
 
     The payload is the first positional argument to `write_skill_output`, or
     the `extra=` keyword on `write_skill_error`. A module may emit from several
-    branches (`pr_autofix_lease.py` uses three), so every name is collected and
+    branches, so every name is collected and
     the caller unions their keys: a field is legitimate if any emitted branch
     carries it.
     """

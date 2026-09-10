@@ -260,7 +260,6 @@ class DispatchRun:
         self.stdout = process.stdout
         self.round_cap_called = round_cap_log.exists()
         self.disarmed = disarm_log.exists()
-        self.cleaned_up = cleanup_log.exists()
         self.disarm_argv = disarm_log.read_text(encoding="utf-8") if self.disarmed else ""
         self.merge_ready_argv = (
             merge_ready_log.read_text(encoding="utf-8") if merge_ready_log.exists() else ""
@@ -384,10 +383,6 @@ def run_dispatch(
     harness = f"""\
 set -u
 SCRIPTS_DIR={shlex.quote(scripts_dir.as_posix())}
-
-cleanup_pr_autofix() {{
-    printf 'cleanup\\n' >> "$CLEANUP_LOG"
-}}
 
 run_pr_mutation_if_live() {{
     if [ -n "$MUTATION_RC_OVERRIDE" ]; then

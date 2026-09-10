@@ -124,7 +124,7 @@ def test_repository_pr_autofix_exception_has_auditable_safeguards():
 
     assert result is not None
     assert result.passed
-    assert "lease" in result.details["preservedInvariant"]
+    assert "live-state revalidation" in result.details["preservedInvariant"]
     assert "late_live_state" in result.details["behavioralTests"]
     assert "measured split" in result.details["reviewTrigger"]
 

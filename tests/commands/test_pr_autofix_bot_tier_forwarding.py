@@ -97,7 +97,6 @@ def test_a_t5_pr_is_handed_to_a_human_before_the_round_cap_breaker(
     assert "Tier T5" in run.stdout
     assert not run.round_cap_called, "the breaker fired on a tier its condition excludes"
     assert not run.reached_end, "a T5 PR fell through into the tier actions uncapped"
-    assert run.cleaned_up
     assert run.queue_completed, "the T5 arm aborted the queue instead of skipping one PR"
 
 
@@ -195,7 +194,7 @@ def test_an_unreadable_author_fails_closed_to_bot(
 ) -> None:
     """An author nobody could classify must not enter the unattended loop.
 
-    Same direction as the lease store's `lease-store-unavailable` verdict: the
+    Fails closed, because the two errors are not symmetric: the
     two errors are not symmetric. Guessing "human" hands a PR this session
     never classified to the automated thread-fix loop; guessing "bot" costs a
     human one look at a PR that may not have needed one.
@@ -430,7 +429,6 @@ def test_an_unreadable_context_terminates_on_auto_merge_guard(
     assert "Cannot read author bot state" not in run.stdout
     assert "Cannot read auto-merge state" in run.stdout
     assert not run.reached_end, "the loop acted on a PR whose context fetch failed"
-    assert run.cleaned_up
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
 
 
