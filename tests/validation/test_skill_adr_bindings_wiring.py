@@ -25,11 +25,14 @@ name survives in a comment or a neighbouring key, which is exactly the mistake a
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 _VALIDATION_DIR = Path(__file__).resolve().parents[2] / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
@@ -99,12 +102,69 @@ def _baseline(tmp_path: Path, count: int) -> Path:
 # --------------------------------------------------------------------------
 
 
-def test_gate_is_registered_in_the_pre_pr_sequence() -> None:
-    """Compares callables by identity against the parsed sequence, per MUST 9."""
+def _registered_row():
+    """The single `_SEQUENCE` row that claims to run this gate."""
     from pre_pr_sequence import _SEQUENCE
 
     wired = [gate for gate in _SEQUENCE if "Skill ADR Bindings" in gate.name]
-    assert len(wired) == 1, "exactly one row should run this gate"
+    assert len(wired) == 1, f"expected exactly one row, found {len(wired)}"
+    return wired[0]
+
+
+def test_gate_has_exactly_one_row_in_the_pre_pr_sequence() -> None:
+    """Reads the parsed `_SEQUENCE` tuple, never a substring of the module
+    source, per `testing.md` MUST 9: a text match passes when the row has been
+    deleted and the name survives in a comment or a neighbouring key.
+
+    A row's NAME is not its behavior, though, which is why this is only half the
+    check. `test_the_registered_row_actually_calls_this_gate` is the other half.
+    """
+    assert _registered_row() is not None
+
+
+def test_the_registered_row_actually_calls_this_gate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Drives the row and proves it reached THIS validator, not merely that a
+    row with this name exists.
+
+    Measured: a mutation swapping the row's callable for `validate_adr_links`
+    while leaving the name untouched passed all six wiring tests. The gate would
+    never have run, and `pre_pr` would have printed a passing
+    "Skill ADR Bindings (ratchet)" row for a check it never performed. Matching
+    on the name alone cannot see that, and the docstring on the earlier version
+    of this test claimed an identity comparison it did not make.
+
+    `_root_only` resolves the validator by name through `globals()` at call time
+    rather than capturing it at import, and its own docstring says that
+    indirection exists so a wiring test can rebind the module attribute and
+    observe the call. This is that test. Under the mutation the row resolves a
+    different name, the rebind is never seen, and `seen` stays empty.
+    """
+    import pre_pr_sequence as sequence
+
+    seen: list[Path] = []
+
+    def _spy(repo_root: Path) -> bool:
+        seen.append(repo_root)
+        return True
+
+    monkeypatch.setattr(sequence, "validate_skill_adr_bindings", _spy)
+    # An initialized repository, not a bare directory. A row that resolved the
+    # WRONG validator then runs that validator harmlessly and fails on the
+    # assertion below, so the failure names the wiring. Against a bare tmp_path
+    # the sibling ADR-links validator instead raised FileNotFoundError from its
+    # own `git ls-files`, which kills the mutation but reports a subprocess crash
+    # rather than the defect.
+    _git(tmp_path, "init", "--quiet")
+    root = tmp_path
+    result = _registered_row().run(root, argparse.Namespace())
+
+    assert seen == [root], (
+        "the registered row did not call validate_skill_adr_bindings; it "
+        "resolved some other validator, so this gate never runs"
+    )
+    assert result is True, "the row must return what this validator returned"
 
 
 def test_pre_pr_facade_reexports_the_adapter() -> None:
