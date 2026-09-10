@@ -13,7 +13,7 @@ This script follows `check_pr_live_state.py`'s shape (issue #2455): a
 machine-checked JSON envelope pr-autofix branches on, not another sentence
 in a SKILL.md.
 
-Storage decision (Search Before Building, Layer 1): `pr_autofix_lease.py`
+Storage decision (Search Before Building, Layer 1): the retired autofix lease
 (ADR-076) already solved "small per-PR state that survives a session
 restart" with a hidden-marker PR comment instead of counting commits or
 writing a file. This script reuses that shape:
@@ -56,7 +56,7 @@ from typing import Any, NoReturn
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Plugin-root resolution: matches check_pr_live_state.py and pr_autofix_lease.py.
+# Plugin-root resolution: matches check_pr_live_state.py.
 # ---------------------------------------------------------------------------
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -90,7 +90,7 @@ _SCRIPT_NAME = "check_pr_round_cap.py"
 
 
 class RoundCapStoreError(RuntimeError):
-    """Marker-comment store failure. Mirrors ``pr_autofix_lease.py``'s
+    """Marker-comment store failure. Mirrors the retired autofix lease's
     ``LeaseStoreError``: caught in ``main`` and reported through the same
     JSON-envelope error path ``check_pr_live_state.py`` uses.
     """
@@ -172,7 +172,7 @@ def _post_comment(owner: str, repo: str, pr_number: int, body: str) -> None:
         )
 
 #: Hidden marker prefix that makes every round-cap state comment findable in
-#: one timeline scan, matching pr_autofix_lease.py's marker-comment pattern.
+#: one timeline scan, using the same marker-comment pattern.
 _STATE_MARKER = "<!-- pr-autofix-round-cap-state:"
 #: Separate marker for the human-readable escalation notice, so a repeat
 #: `record` call after ESCALATE does not repost the same notice (issue #5056
@@ -235,7 +235,7 @@ def select_latest_state(
     chronological order, so the latest matching marker is the last one
     found scanning forward. Bounded to the newest 100 comments so a PR
     with a very long history cannot turn this into an unbounded scan
-    (same defensive bound as pr_autofix_lease.py's MAX_SCAN).
+    (same defensive bound the retired autofix lease used for MAX_SCAN).
     """
     latest: dict[str, Any] | None = None
     for comment in comments[-100:]:

@@ -228,7 +228,6 @@ _ENVELOPE_CLASSIFICATION: dict[str, bool] = {
     "check_pr_live_state": True,
     "check_pr_round_cap": True,
     "get_pr_context": True,
-    "pr_autofix_lease": True,
 }
 
 
