@@ -561,6 +561,37 @@ def test_pos_write_baseline_lowers_the_ceiling(repo: Path) -> None:
     assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 1
 
 
+def test_neg_write_baseline_refuses_an_unreadable_ceiling(repo: Path) -> None:
+    """An unreadable ceiling is not "no ceiling".
+
+    The raise-refusal above compares against the recorded value, so a baseline
+    that will not parse means the comparison never happened. Scoring that as
+    nothing-to-compare let a corrupted file launder a number the readable one
+    refuses. Measured before the distinction existed: a baseline holding
+    `not json at all` was overwritten with 16 at exit 0.
+    """
+    for index in range(3):
+        _write_skill(repo, f"s{index}", "name: s\nmetadata:\n  adr: ADR-002")
+    baseline = repo / "b.json"
+    baseline.write_text("not json at all\n", encoding="utf-8")
+
+    assert _run(repo, baseline, "--write-baseline") == EXIT_CONFIG
+    assert baseline.read_text(encoding="utf-8") == "not json at all\n"
+
+
+def test_pos_write_baseline_records_a_first_ceiling(repo: Path) -> None:
+    """Control for the refusal above: the only difference is that the file is
+    absent rather than present and unparseable. A first write has nothing to
+    compare against and must still be allowed, or the ceiling could never be
+    created."""
+    _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-002")
+    baseline = repo / "b.json"
+    assert not baseline.exists(), "the file must not pre-exist, or this proves nothing"
+
+    assert _run(repo, baseline, "--write-baseline") == EXIT_OK
+    assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 1
+
+
 def test_neg_write_baseline_refuses_a_partially_checked_out_tree(repo: Path) -> None:
     """A ceiling measured with manifests missing is lower than the same commit
     scores in a full checkout, so writing it makes every later full run a

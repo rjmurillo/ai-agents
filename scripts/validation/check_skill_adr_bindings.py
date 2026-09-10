@@ -677,6 +677,13 @@ def _write_baseline_command(repo_root: Path, adr_dir: Path, baseline_path: Path)
     sibling `check_adr_lifecycle.py` refuses the same way. Without this, the
     remedy line this gate itself prints is a one-command way to legalise a new
     violation.
+
+    An absent baseline is a first write and is allowed. A baseline that exists
+    and will not parse is refused, because the comparison that would have caught
+    a raise did not happen, and scoring that as nothing-to-compare would let a
+    corrupted file launder a number the readable one refuses. Measured before the
+    distinction existed: a baseline holding ``not json at all`` was overwritten
+    with 16 at exit 0.
     """
     result = _scan_or_report(repo_root, adr_dir)
     if result is None:
@@ -693,15 +700,29 @@ def _write_baseline_command(repo_root: Path, adr_dir: Path, baseline_path: Path)
 
     counts = tally(result.violations)
     current = counts[CHECK]
-    recorded = read_baseline(baseline_path)
-    if isinstance(recorded, dict) and current > recorded[CHECK]:
-        print(
-            f"[{CHECK}] config: --write-baseline would raise the ceiling from "
-            f"{recorded[CHECK]} to {current}. The baseline may only fall. Fix "
-            "the declaration instead",
-            file=sys.stderr,
-        )
-        return EXIT_CONFIG
+    if baseline_path.exists():
+        recorded = read_baseline(baseline_path)
+        if isinstance(recorded, str):
+            # An unreadable ceiling is not "no ceiling". The comparison that
+            # would have refused a raise could not happen, and treating that as
+            # nothing-to-compare is the same shape as every other defect this
+            # module fails closed on: it would let a corrupted baseline launder
+            # a number the readable one refuses.
+            print(
+                f"[{CHECK}] config: {recorded}, so the ceiling it records could "
+                "not be compared against the measured count and the write was "
+                "refused. Repair the file, or delete it to record a first ceiling",
+                file=sys.stderr,
+            )
+            return EXIT_CONFIG
+        if current > recorded[CHECK]:
+            print(
+                f"[{CHECK}] config: --write-baseline would raise the ceiling from "
+                f"{recorded[CHECK]} to {current}. The baseline may only fall. Fix "
+                "the declaration instead",
+                file=sys.stderr,
+            )
+            return EXIT_CONFIG
 
     write_baseline(baseline_path, counts)
     print(
