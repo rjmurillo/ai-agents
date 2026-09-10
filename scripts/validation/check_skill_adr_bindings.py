@@ -1,4 +1,22 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: one CLI owns the scan, the ratchet, and the
+# atomic baseline write. That is the same shape check_doc_interpreter_portability.py
+# and check_skill_md_exec_portability.py took this exemption for, and the direct
+# sibling check_adr_lifecycle.py took it with the same reasoning.
+#
+# The rule's remediation is to split helpers out. The three functions that would
+# move, tally/read_baseline/write_baseline, are already duplicated from
+# check_adr_lifecycle.py, whose copies are hard-keyed to its own eight-name CHECKS
+# tuple and its own baseline description, so they cannot be imported as they
+# stand. Extracting a fourth copy here would add a module without retiring either
+# existing one. Unifying them means parameterizing that gate, which has its own
+# ratchets and a 1717-line suite, so it is a separate change rather than a
+# side effect of this one.
+#
+# A large share of the lines are the module docstring, which canonical-source-mirror.md
+# requires to carry its quoted contracts verbatim rather than paraphrased.
 """Flag a SKILL.md that declares a retired ADR in `metadata.adr` (issue #5665).
 
 A skill names the decision records it depends on in nested frontmatter::

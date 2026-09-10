@@ -1,3 +1,11 @@
+# taste-lint: ignore file-size
+#
+# file-size suppression rationale: every test for one script belongs in one file,
+# which is the reason tests/validation/test_check_vendor_portability.py gives for
+# the same exemption. Splitting them would obscure which cases are covered and
+# would need a shared fixture module for the git-backed repo helpers, adding a
+# file without reducing complexity. The sibling gate's suite,
+# tests/validation/test_check_adr_lifecycle.py, is 1717 lines for the same reason.
 """Tests for scripts/validation/check_skill_adr_bindings.py (issue #5665).
 
 Pins the gate that resolves a skill's declared `metadata.adr` against that ADR's
