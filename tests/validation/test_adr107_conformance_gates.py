@@ -100,11 +100,37 @@ def cited_paths(cell: str) -> list[str]:
     return found
 
 
+def resolve_within(root: Path, cited: str) -> Path | None:
+    """Resolve `cited` under `root`, or return None when it escapes.
+
+    `_PATH_RE` accepts `.` and `-` inside a segment, so it also accepts `..`,
+    and a bare `(root / cited).exists()` would then answer about a file outside
+    the repository. Symlinks escape the same way, which is why this resolves
+    both sides before comparing rather than checking the string.
+
+    Containment is asserted where the check happens rather than by narrowing
+    the extractor, so a traversal citation fails with a message that names it
+    instead of vanishing from the candidate list.
+    """
+    root = root.resolve()
+    try:
+        candidate = (root / cited).resolve()
+    except OSError:  # pragma: no cover - unreadable path component
+        return None
+    if candidate == root or root in candidate.parents:
+        return candidate
+    return None
+
+
 def row_is_covered(row: Row) -> bool:
     """A row is covered when it names an existing gate or admits it has none."""
     if MISSING_MARKER in row.state:
         return True
-    return any((REPO_ROOT / path).exists() for path in cited_paths(row.gate))
+    for path in cited_paths(row.gate):
+        resolved = resolve_within(REPO_ROOT, path)
+        if resolved is not None and resolved.exists():
+            return True
+    return False
 
 
 def _rows() -> list[Row]:
@@ -149,9 +175,61 @@ def test_row_names_an_existing_gate_or_admits_it_has_none(row: Row) -> None:
 def test_every_cited_path_resolves(row: Row) -> None:
     """A row may cite several gates; a stale one among them is still stale."""
     for path in cited_paths(row.gate):
-        assert (REPO_ROOT / path).exists(), (
+        resolved = resolve_within(REPO_ROOT, path)
+        assert resolved is not None, (
+            f"ADR-107 class {row.class_id} cites {path!r}, which resolves outside "
+            "the repository. A conformance gate lives in this tree."
+        )
+        assert resolved.exists(), (
             f"ADR-107 class {row.class_id} cites {path!r}, which does not exist."
         )
+
+
+def test_the_extractor_still_yields_a_traversal_citation() -> None:
+    """`_PATH_RE` accepts `..`, which is why containment is checked separately."""
+    escape = "../../scripts/validation/pre_pr.py"
+    assert cited_paths(f"`{escape}`") == [escape]
+    assert resolve_within(REPO_ROOT, escape) is None
+
+
+def test_a_traversal_to_an_existing_file_outside_the_root_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """The discriminating case: the target exists, so only containment can reject it."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "gate.py").write_text("", encoding="utf-8")
+    escape = "../outside/gate.py"
+    assert (root / escape).exists()
+    assert resolve_within(root, escape) is None
+
+
+def test_a_symlink_out_of_the_root_is_rejected(tmp_path: Path) -> None:
+    """Resolving both sides catches an escape a string check would miss."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    target = outside / "gate.py"
+    target.write_text("", encoding="utf-8")
+    link = root / "gate.py"
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):  # pragma: no cover - platform without symlinks
+        pytest.skip("symlinks unavailable on this platform")
+    assert link.exists()
+    assert resolve_within(root, "gate.py") is None
+
+
+def test_a_real_path_inside_the_root_still_resolves(tmp_path: Path) -> None:
+    """Inverted control: containment must not reject a legitimate citation."""
+    gate = tmp_path / "gate.py"
+    gate.write_text("", encoding="utf-8")
+    resolved = resolve_within(tmp_path, "gate.py")
+    assert resolved is not None
+    assert resolved == gate.resolve()
 
 
 def test_negative_control_row_citing_only_a_missing_path_fails() -> None:
