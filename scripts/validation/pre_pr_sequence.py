@@ -54,6 +54,7 @@ from check_push_lock_paths import validate_push_lock_paths
 from check_serena_memory_worktree_scope import (
     validate_serena_memory_worktree_scope,
 )
+from check_skill_adr_bindings import validate_skill_adr_bindings
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_tmp_worktrees import validate_tmp_worktrees
@@ -316,6 +317,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # text says ADR-NNN targets that number (issue #5197). Unwired, this gate
     # cannot stop the rot that produced the ADR-033 repairs it protects.
     _Gate("ADR Link Resolution", _root_only(validate_adr_links)),
+    # Resolves a skill's declared `metadata.adr` against that ADR's own status
+    # (issue #5665). Sits with the other two ADR gates because it reads the same
+    # frontmatter, but its subject is the consumer rather than the record: this
+    # is the only one of the three that can fail on a file outside
+    # `.agents/architecture/`. Ratcheted, because 16 skills already declare a
+    # retired record and a hard gate would red every push until they are
+    # repointed.
+    _Gate("Skill ADR Bindings (ratchet)", _root_only(validate_skill_adr_bindings)),
     _Gate("Design Review Frontmatter", _root_only(validate_design_review_frontmatter)),
     # PR #1887 retrospective, Layer 2.
     _Gate("Build Command Exit Gates", _root_only(validate_build_gates)),
