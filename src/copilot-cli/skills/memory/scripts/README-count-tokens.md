@@ -66,9 +66,9 @@ cumulative budget line, so prefer the CLI when you only need the display.
 .serena/memories/memory-index.md: 1,234 tokens
 
 # Directory
-.serena/memories/memory-token-efficiency.md: 861 tokens
+.serena/memories/memory/memory-token-efficiency.md: 861 tokens
 .serena/memories/memory-index.md: 1,234 tokens
-.serena/memories/context-engineering-principles.md: 543 tokens
+.serena/memories/memory/context-engineering-principles.md: 543 tokens
 
 Total: 2,638 tokens across 3 files
 ```
