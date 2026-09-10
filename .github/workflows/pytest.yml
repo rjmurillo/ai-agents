@@ -710,6 +710,10 @@ jobs:
   # Windows and POSIX: path separators, PowerShell script resolution, Git's
   # Windows trace behavior, atomic-write durability, and install-tree layout.
   # The marker is the discovery mechanism. Do not hardcode test file paths.
+  # run_pytest_windows.py keeps that property: it discovers the candidate
+  # modules by scanning for the marker's name and hands only those to pytest,
+  # so a new marked file still needs no edit here. Issue #5380: passing the
+  # marker alone made pytest import all 33,326 items to select 1,115.
   test-windows-pwsh:
     name: Run Windows path-contract tests (pytest.mark.windows_path)
     needs: check-paths
@@ -741,7 +745,7 @@ jobs:
         shell: pwsh
         env:
           UV_PYTHON: '3.14'
-        run: uv run --frozen pytest -m windows_path -v
+        run: uv run --frozen python scripts/ci/run_pytest_windows.py -v
 
   main-failure-alert:
     name: Main failure alert
