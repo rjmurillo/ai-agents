@@ -897,3 +897,65 @@ and is not one.
 That is the same lesson the record already carries, arriving three times more
 from a new direction: both defects were found by running something, and the reading
 pass immediately before each had reported the file clean.
+
+## ADR-100 re-baselined, 2026-09-10
+
+Round 13 ruled that ADR-100 and ADR-101 do not settle together, and named two
+reasons that were the owner's to act on rather than the panel's. Both are now
+done, at the owner's direction.
+
+**The frontmatter said `proposed` for twenty days after acceptance.** Issue
+#5241 records the owner accepting ADR-100 on 2026-08-21 and states the
+frontmatter was updated to `accepted`. That update never landed: two commits
+have ever touched the file and both carry `status: proposed`. Every reader and
+every agent in those twenty days saw a settled decision as an open proposal.
+The frontmatter and the Status prose now both read accepted, with
+`implemented: false`, which is what #5241 describes.
+
+**ADR-099 retired one of ADR-100's two gates one day after it was written, and
+ADR-100 never mentioned it.** Verified rather than inferred: `_check_commit_limit`
+(`git_hook_policy.py:6727`) opens "Print an advisory notice for a large branch.
+Never blocks (issue #5233)" and returns 0 on every path;
+`scripts/ci/enforce_pr_validation.py` is 43 lines whose only failure is
+`OVERALL_STATUS`, and its own docstring names ADR-099. So Decision item 1 was
+delivered by another record, and this one went on calling the gate live.
+
+### The citation rot was worse here than in ADR-101, and for an instructive reason
+
+Every code citation in ADR-100 was re-measured. Fifteen were stale, against
+ADR-101's eight, on a record that had seen far fewer review rounds. The cause is
+not carelessness: ADR-099 **deleted the code ADR-100 cites**, so
+`pr_commit_count.py` shrank from over 500 lines to 323 and every line number
+past the deletion point moved or vanished. Five citations pointed past the end
+of the file.
+
+The mechanical lesson is about the checker, not the author. A script that
+extracts `path.py:NNN` finds nothing in `(`:461`, `:480`, `:483`)`, which is how
+this record spells most of its citations: the file is named once at the head of
+the sentence and the rest are bare. The first sweep of ADR-100 reported 27
+citations and all resolving. A second sweep for the bare form found 21 more, of
+which 8 were out of range. **A citation checker that only understands one
+spelling reports clean on a file where a third of the citations are broken**,
+which is the same shape as the gate that reports success without verifying.
+
+### The gate caught what both of my sweeps missed
+
+Two hand-written sweeps ran over ADR-100's citations, one for the `path.py:NNN`
+form and one for the bare `:NNN` form, and both reported clean. The repository's
+own `check_citation_freshness.py` then failed the push on a
+`enforce_pr_validation.py:64-84` still sitting mid-sentence inside a long
+paragraph, in the form the first sweep was written to catch. The first sweep had
+found and fixed its siblings and this one survived the pass that removed them.
+
+Worth recording because it is the third time in two days that a reading pass
+declared a file clean and an executed check disagreed, and the first two are
+already in this log. The pattern is not that reading is careless. It is that a
+reader who has just fixed six instances of a pattern stops seeing the seventh.
+
+### What was not changed
+
+The cost evidence, the enumerated populations, and the six first-hand refusals
+are left as measured. They are the argument for the decision and they were
+measured against the gate as it stood. Where the analysis describes a mechanism
+ADR-099 has since deleted, it is marked as history rather than rewritten,
+because a decision's evidence is what was true when it was taken.
