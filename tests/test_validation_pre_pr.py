@@ -72,6 +72,21 @@ def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # restated here, and the gate's registration is covered in
         # tests/validation/test_pre_pr_index_line_endings_wiring.py.
         "Index Line Endings",
+        # Same mock artifact as "ADR Link Resolution" above, from the same
+        # blanket `else: stdout = ""` branch. check_skill_adr_bindings.py
+        # enumerates candidates with `git ls-files -z -- *SKILL.md` through
+        # count_ratchet.tracked_files, so under this mock it sees zero
+        # candidates and fails closed with EXIT_CONFIG. That fail-closed is the
+        # point of the gate: a run that examined nothing must not report what a
+        # completed run reports (ci-scripts.md MUST 11 and 12), and a
+        # zero-candidate tree previously printed `improved: 0 of a permitted 16`
+        # and invited lowering the ceiling to nothing. Against a real git
+        # invocation the repository offers 222 manifests, so this is
+        # real-filesystem-dependent noise here rather than an empty corpus. The
+        # gate's own behavior is covered in
+        # tests/validation/test_check_skill_adr_bindings.py and its registration
+        # in tests/validation/test_skill_adr_bindings_wiring.py.
+        "Skill ADR Bindings (ratchet)",
         # Spawns `build/scripts/build_all.py --check` against the real
         # repository root. That child is not mocked: the gate reaches it
         # through `subprocess.Popen`
