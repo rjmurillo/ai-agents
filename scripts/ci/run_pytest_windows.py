@@ -38,6 +38,10 @@ EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
 
+class DiscoveryError(Exception):
+    """A module under ``tests/`` could not be read, so discovery is incomplete."""
+
+
 def marked_files(repo_root: Path) -> list[str]:
     """Repo-relative test modules whose text names :data:`MARKER`.
 
@@ -45,14 +49,23 @@ def marked_files(repo_root: Path) -> list[str]:
     substring over the file rather than an AST walk for a decorator: a match in
     a comment costs one imported module, while a decorator shape this did not
     model would silently drop a Windows test from the only job that runs it.
+
+    Raises:
+        DiscoveryError: a module under ``tests/`` could not be read. Skipping it
+            would drop whatever Windows contract it holds while the remaining
+            files still let the job report success, which is the silent pass
+            `ci-scripts.md` MUST-11 forbids. The caller turns this into a
+            non-zero exit.
     """
     tests_root = repo_root / TESTS_DIR
     found = []
     for path in sorted(tests_root.rglob("test_*.py")):
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
+        except OSError as exc:
+            raise DiscoveryError(
+                f"could not read {path.relative_to(repo_root).as_posix()}: {exc}"
+            ) from exc
         if MARKER in text:
             found.append(path.relative_to(repo_root).as_posix())
     return found
@@ -61,7 +74,11 @@ def marked_files(repo_root: Path) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     passthrough = list(sys.argv[1:] if argv is None else argv)
 
-    files = marked_files(PROJECT_ROOT)
+    try:
+        files = marked_files(PROJECT_ROOT)
+    except DiscoveryError as exc:
+        print(f"discovery is incomplete, refusing to run a partial suite: {exc}", file=sys.stderr)
+        return EXIT_EXTERNAL
     print(f"marker={MARKER} candidate_files={len(files)}", file=sys.stderr)
     if not files:
         print(
@@ -72,6 +89,16 @@ def main(argv: list[str] | None = None) -> int:
 
     command = [sys.executable, "-m", "pytest", "-m", MARKER, *passthrough, *files]
     try:
+        # The child inherits fd 1, so anything this process queued would print
+        # after pytest's own output. tests/test_stdout_flush_before_spawn.py.
+        #
+        # No `timeout=` here on purpose. The bound on this call is the job's own
+        # `timeout-minutes: 10` in pytest.yml. An inner cap would need a number
+        # sized from a loaded Windows runner, which nobody has measured yet, and
+        # `ci-scripts.md` MUST-16 is explicit that a cap sized from anything else
+        # is a cap a real run can exceed. A too-low guess turns a healthy slow
+        # runner red, which is worse than the outer cap this already has.
+        sys.stdout.flush()
         return subprocess.run(command, cwd=PROJECT_ROOT, check=False).returncode
     except OSError as exc:
         print(f"could not start pytest: {exc}", file=sys.stderr)

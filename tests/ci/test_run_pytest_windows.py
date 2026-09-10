@@ -37,6 +37,13 @@ _COLLECT_BASE = [
 ]
 
 
+# Whole-tree collection measured at 26.70s on a 4-CPU container and narrowed
+# collection at 1.67s. This bound is roughly 10x the slower of the two, so it
+# reports a hung collect rather than sitting until the job's own cap, and has
+# enough headroom that a loaded runner does not trip it.
+_COLLECT_TIMEOUT_SECONDS = 300
+
+
 def _collect(extra: list[str]) -> set[str]:
     """Node IDs `pytest -m windows_path` collects for ``extra`` arguments."""
     result = subprocess.run(
@@ -47,6 +54,7 @@ def _collect(extra: list[str]) -> set[str]:
         encoding="utf-8",
         errors="replace",
         check=False,
+        timeout=_COLLECT_TIMEOUT_SECONDS,
     )
     return {line.strip() for line in result.stdout.splitlines() if "::" in line}
 
@@ -132,3 +140,35 @@ def test_main_passes_the_marker_extra_args_and_files_to_pytest(
     marker_flag = command.index("pytest") + 1
     assert command[marker_flag : marker_flag + 2] == ["-m", _rpw.MARKER]
     assert "-v" in command
+
+
+def test_marked_files_raises_when_a_module_cannot_be_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable module must not be skipped into a smaller passing run."""
+    tests_dir = tmp_path / _rpw.TESTS_DIR
+    tests_dir.mkdir()
+    unreadable = tests_dir / "test_unreadable.py"
+    unreadable.write_text("x = 1\n", encoding="utf-8")
+
+    def boom(self: Path, *_args: object, **_kwargs: object) -> str:
+        if self == unreadable:
+            raise OSError("permission denied")
+        return ""
+
+    monkeypatch.setattr(Path, "read_text", boom)
+
+    with pytest.raises(_rpw.DiscoveryError) as excinfo:
+        _rpw.marked_files(tmp_path)
+    assert "test_unreadable.py" in str(excinfo.value)
+
+
+def test_main_exits_external_when_discovery_is_incomplete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def boom(_root: Path) -> list[str]:
+        raise _rpw.DiscoveryError("could not read tests/test_x.py: permission denied")
+
+    monkeypatch.setattr(_rpw, "marked_files", boom)
+
+    assert _rpw.main([]) == _rpw.EXIT_EXTERNAL
