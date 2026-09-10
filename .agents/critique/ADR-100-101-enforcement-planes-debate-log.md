@@ -710,3 +710,190 @@ its author repaired the citations and still got three of the four wrong in a way
 only execution surfaced. The gate reads only lines added since the base ref, so
 it caught these because the repair touched them; the same defects would have been
 invisible had the numbers been correct at merge and rotted afterwards.
+
+## Round 12 findings applied, 2026-09-09
+
+Round 12 deferred six findings as round 13 material rather than appending fixes
+to the round that found them. All six are now applied, each verified against the
+tree or the API before the edit rather than taken from the seat's report.
+
+| Finding | Seat | Applied |
+|---|---|---|
+| Requirement 1 covers conditions but not head-editable **selection** inputs | security S6 | Requirement 1 gains a scope clause and the sixth exhibit. `scripts/ci/run_pytest_selected.py:177` calls `select_tests.select(...)` and returns a subset of the partition, driven by `scripts/test_selection/`, all head-editable in the pull request the job gates. Neither path appeared anywhere in the record or in CODEOWNERS. |
+| Phase 0 has no falsification branch for its own mutation probe | architect P1-3, security S4 | Stated: a probe showing any agent-runtime credential or `BOT_PAT` can write ruleset 11104075 or its `bypass_actors` establishes a P0-to-P2 edge, and Phases 1 through 3 do not proceed on the current model. |
+| The Alternatives table never considers the cheap ruleset-anchored design | independent-thinker P1-1 | Added as a row, with the honest split: it closes case 2, leaves case 3 open, and should be built anyway as the cheap half of Phase 1. Half of it already ships as `scripts/ci/ruleset_context_drift.py`, wired at `ruleset-context-drift.yml:28`. |
+| The impact table is a hand-written enumeration, the failure mode this record diagnoses twice elsewhere | critic P1 | Declared a seed, and Phase 0 gains an item that computes the protected set from each pinned context's dependency closure. |
+| Exhibit 2 describes #5090 as live | analyst P1-2 | Corrected. `gh api` reports `state=closed closed_at=2026-08-25T20:16:07Z`, closed by PR #5310. One of the four is live, not two. |
+| Exhibit 3 attributes to PR #5177's body a phrase it does not contain | analyst P1-3 | Corrected. The merged body has no "subagent invocation disabled" statement; it says the trigger did not run, that it "went moot when PR #5179 deleted that file upstream", and that four debates ran on 2026-08-20. What the exhibit establishes survives without the reason. |
+| The opening count of 292 does not reproduce | critic P2 | Re-derived here: a deduplicated enumeration over 800 pull requests gives **298** in the full inclusive window and **294** under this sentence's own 18:00Z cutoff. Corrected to 294. |
+
+### What this round is not
+
+It is not a seventh review round. No seat was asked to re-verify, and no verdict
+changed: ADR-101 remains `proposed` with round 12's two Blocks on record. These
+are the repairs round 12's exit conditions named, applied so that a round 13 has
+something new to review. The two blocking findings from round 12 were already
+repaired in the previous change; these are the non-blocking remainder.
+
+### Standing exit conditions for round 13
+
+Unchanged from round 12, minus what is now applied:
+
+1. Every `path:line` re-measured against the commit carrying the acceptance edit.
+   Round 12 repaired eleven; the citation-freshness gate only checks lines added
+   since the base ref, so a citation correct at merge and rotting afterwards
+   stays invisible to it.
+2. A ruling on whether ADR-100 settles in the same change. Round 12 split four to
+   two, and the split is on whether the shared debate log is a dependency or a
+   review artifact.
+3. The falsification harness that gates Phases 2 and 3 has no owner and no phase.
+   Round 12's advisor called this the single highest-value fix, because an
+   unowned item is the sole gate on two phases that are abandoned by default.
+
+## Round 13, 2026-09-09: concluded without consensus
+
+Six seats reviewed ADR-101 at `87e7f769d`, the commit applying round 12's six
+deferred findings.
+
+| Seat | Verdict | The finding that decided it |
+|---|---|---|
+| architect | Block | ADR-100's subject was retired by ADR-099 on 2026-08-21 and ADR-100 does not mention it |
+| critic | Block | The corrected live-incident count names a non-member of its own set, and asserts a deletion that has not happened |
+| security | Block | The sixth exhibit's mechanism is false against `pytest.yml`, and requirements 1 and 2 were unsatisfiable together |
+| analyst | Block | Six `path:line` citations do not resolve, including the pair round 12 recorded as repaired |
+| independent-thinker | Block | `path_policy.yml` gates whether six pinned contexts run, and appears nowhere in the record |
+| high-level-advisor | Accept | No finding leaves an operative sentence unsatisfiable |
+
+### The cap was read backwards, and that is why rounds 11 to 13 happened
+
+`.claude/skills/adr-review/SKILL.md:100` says only `Max 10 rounds`, and this log
+deferred a ruling on it three times before the owner ruled it binding. The
+protocol file states what the cap does, and the advisor seat is the first
+participant to open it. `references/debate-protocol.md:200-202`:
+
+```
+- All 6 agents Accept OR Disagree-and-Commit = Consensus reached
+- Any agent Blocks = Another round required (if round < 10)
+- Round 10 with no consensus = Conclude with unresolved issues documented
+```
+
+The cap is the second exit, not a filter on a recorded consensus. Its stated
+consequence is to conclude, so a Block past round 10 documents rather than
+continues. The owner's ruling that the cap binds was right; its application was
+inverted, and the summary that produced the ruling had quoted `SKILL.md` without
+reading the protocol beneath it.
+
+Recording it because the cost is measurable in both directions. Rounds 11 to 13
+were out of protocol, and each returned a defect its predecessor had shipped:
+round 12 caught a forgeable exit status that round 11's tally would have merged,
+and round 13 caught four factual errors introduced by round 12's own correction
+pass. So the protocol's exit rule and this record's experience disagree, and the
+honest reading is that the cap is right about termination and wrong about what a
+terminated record is worth. The record concludes; it is not repaired further by
+panel.
+
+### What round 13 established that no prior round did
+
+**The narrowing is not where four revisions said it was.** The job named `Run
+Python Tests` is `test-result`, whose only step runs `require_job_results.py`
+over `needs.*.result`. The selection happens in the `test` job it depends on.
+Round 12's finding was right and its mechanism was wrong, and the wrong mechanism
+had already reached requirement 1 as a justification.
+
+**`path_policy.yml` is the sharper half of the same directory.** Issue #5318
+moved the paths-filter list out of `pytest.yml` into
+`scripts/test_selection/path_policy.yml`, handed to the action by name at
+`pytest.yml:74`. Its `python:` list decides `steps.filter.outputs.python`, so
+narrowing it to a glob matching nothing skips the matrix and lets the
+pass-through report the pinned context green. That is the sixth edge kind, scope
+configuration consumed by an action input, reached through a data file with no
+Python edit at all. Two seats found it independently.
+
+**ADR-100 is stale, not merely unsettled.** ADR-099 is `accepted` and
+`implemented: true` as of 2026-08-21 and removed the commit-count block and the
+`commit-limit-bypass` label. ADR-100 opens "Two gates cap pull request size in
+this repository", cites `enforce_pr_validation.py:64-84` in a file that is 43
+lines, cites `CONTRIBUTING.md:880` for a claim that file now contradicts, and
+mentions neither ADR-099 nor issue #5233. That answers the settle-together
+question on evidence: they do not, and ADR-100 needs a re-baseline rather than a
+round.
+
+### The citations moved again during this round
+
+Round 12 repaired eleven citations. Round 13 found eight more stale, including
+the `pytest.yml` pair at the impact table that round 12's own entry claims it
+fixed: the body was corrected and the paraphrase two hundred lines away was not.
+Then merging `origin/main` into this branch shifted `pytest.yml` by nineteen
+lines, moving `test-result` from 508 to 527 and `skip-tests` from 634 to 653, so
+every number a seat verified as correct was stale before the amendment landed.
+All of them are re-measured against the merged tree here.
+
+That is the strongest available argument for the record's own thesis and against
+its own form. A document carrying dozens of `path:line` citations into files
+that move several times a day cannot be kept true by review, and
+`check_citation_freshness.py` reads only lines added since the base ref, so it
+cannot see any of them. Round 13's four citation-finding seats each did the work
+by hand.
+
+### Disposition, after the repair pass
+
+The first draft of this section routed six findings to trackers and repaired
+none of them. The owner rejected that and the record was fixed instead. Every
+finding that was a defect **in the record** is now repaired in the record; what
+remains is implementation work and two decisions that are not the panel's to
+make.
+
+| Finding | Seat | Disposition |
+|---|---|---|
+| The invariant states one of three necessary conditions; publisher identity and the configuration binding it are the two that carried every exhibit | independent-thinker | **Fixed.** The invariant section now states the conjunction and names the ordinal as its weakest term |
+| A candidate `pytest_collection_modifyitems` skip hook satisfies requirement 2's attestation honestly while executing nothing | security | **Fixed, after reproducing it.** Two failing tests exit 1; the same tests under a candidate `conftest.py` that marks every collected item skipped report `2 skipped` and exit 0. Requirement 2 now carries the case and an executed-and-not-skipped floor |
+| Requirement 2's only closing mechanism has no instance, no named signer, and no phase | advisor, independent-thinker | **Fixed.** Requirement 2 is labelled a research item, Phase 1 explicitly does not claim it, and `git grep workflow_run: -- .github` returning nothing is stated as the reason |
+| The falsification branch over-triggers, blocking Phase 1 repairs the record calls unconditional | independent-thinker | **Fixed.** The branch is scoped to trust-claim work and no longer halts the net repairs |
+| The probe is mandated against a canary while the branch conditions on ruleset 11104075, with no transfer argument | security | **Fixed.** The transfer argument is stated, with the condition under which it fails |
+| Phase 0's closure item says "enumerate", binds to none of the typed-closure machinery, and states no exit condition | critic | **Fixed.** Rewritten against the resolver-per-edge-kind design with a checkable exit condition, and actually moved into the hardening list. The first attempt claimed the move in prose and left the item under Implementation Notes, which a pre-push review caught |
+| The Alternatives row calls a scheduled workflow P0-advisory | independent-thinker | **Fixed, on the second attempt.** The first correction said "being P1 it is binding by rule 1", which the plane table contradicts (P1 is binding *only under the conditions below*) and which the row's own Cons cell contradicted in the same breath. The row now says the scheduled path is P1 and detects, that `workflow_dispatch` runs the definition from the selected ref and carries no P1 property, and that nothing here gates a pull request because the job emits an issue rather than a check run |
+| Eight stale `path:line` citations, plus `AGENTS.md:44` and a quotation of ADR-100's own stale citation | analyst, architect, independent-thinker | **Fixed and re-measured.** Every citation in the record was resolved against the shipping commit by script, not by eye |
+| #5090 shown as open at the exhibit and in Prior Art | architect | **Fixed** in both places |
+| The 292 to 294 correction changed instrument without saying so | architect | **Fixed.** ADR-093 requires naming it, so the search-API-to-REST change is stated and the claim narrowed to what the enumeration supports |
+| `test-result`'s `if:` quoted in simplified form | architect | **Fixed.** The real condition is quoted |
+| The falsification harness has no owner and no phase | independent-thinker, round 12 advisor | **Ruled, not fixed.** Round 13's advisor reversed round 12's: the harness gates only phases abandoned by default, so it fails safe. Recorded in the record rather than left silent |
+| Split the measured audit out of the decision record | independent-thinker | **Owner decision.** Not a defect; a judgment about the record's form |
+| ADR-100's frontmatter reads `proposed` while #5241 records owner acceptance, and ADR-099 retired its subject | analyst, architect | **Owner decision.** ADR-100 needs a re-baseline; neither is ADR-101's to make |
+| The record claims no repository control measures a suite's skip count | pre-push review | **Corrected.** The claim was false inside its own stated search scope: `scripts/validation/assert_smoke_ran.py` parses pytest's JUnit XML, treats a skipped case as not-run, and fails below an expected collected count. It is nightly and scoped to the smoke set, so the gap is its application to the pinned context rather than the mechanism. `universal.md` MUST NOT 9 exists for exactly this, and the grep that produced the claim searched for `skip_count`-shaped identifiers while the shipped guard spells it `_is_skipped` |
+| Phase 0's hardening list did not implement the order the falsification branch asserts | pre-push review | **Fixed.** The branch said the probe is item one; the list ran secret containment first and a separate preamble argued for that order. The list is reordered so the probe and inventory come first, the computed closure second, and the preamble now states the whole order rather than one pair |
+
+### What the repair pass cost, and what that says
+
+Round 13 found five Blocks in a commit whose entire purpose was applying round
+12's findings. Fixing them produced this pass, which found one more defect that
+no seat reported: reflowing the file to stay under its 500-line ceiling
+collapsed the YAML frontmatter onto a single line, which `check_adr_lifecycle.py`
+would have failed and which no seat could have caught because it did not exist
+when they read. It was caught by parsing the frontmatter after the edit rather
+than by reading the diff.
+
+The index trap then fired a second time in the same pass. The rewritten Status
+opened "Proposed, and every defect...", the generator stripped the leading word
+again, and the index rendered ", and every defect...". Twice in one session,
+with the warning written down before the first occurrence and the correction
+written down before the second. A note in a debate log does not survive contact
+with the next edit; only regenerating the index and reading its output caught
+either one, and a repository-wide sweep for the same shape across all 106
+records found none, so the fix is not a rule anyone will remember but a check
+anyone can run.
+
+A third check caught a third defect in the same pass, and this one is worth
+recording as a property of the tooling rather than as an author error.
+`check_citation_freshness.py` attributes every quoted anchor on a citing **line**
+to every citation on that line. A markdown table row is one line, so a row that
+cites `ruleset-context-drift.yml:28` for a workflow's wiring while also naming
+`schedule` and `workflow_dispatch`, which live at lines 4 to 6, fails the gate:
+the anchors are tested against line 28 and none of them is there. The fix is to
+cite each quoted fact at its own lines and to avoid stacking unrelated citations
+into one table row. Worth knowing before writing a table row that cites two
+places in one file, because the failure message reads like a stale line number
+and is not one.
+
+That is the same lesson the record already carries, arriving three times more
+from a new direction: both defects were found by running something, and the reading
+pass immediately before each had reported the file clean.
