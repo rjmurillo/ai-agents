@@ -8,7 +8,7 @@ metadata:
   type: workflow
   inputs: [scope-description, session-log, git-history]
   outputs: [retrospective-markdown-file]
-  adr: ADR-008, ADR-017, ADR-037
+  adr: ADR-008, ADR-017, ADR-106
 ---
 
 # Retrospective
