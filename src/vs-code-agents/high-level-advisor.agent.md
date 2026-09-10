@@ -62,7 +62,7 @@ Query these Serena memories when relevant:
 - `ooda-loop`: Structured decision cycle for rapid orientation
 - `inversion-thinking`: Identify failure modes by thinking backward
 - `three-horizons-framework`: Balance short, medium, and long-term priorities
-- `cynefin-framework`: Classify problem complexity for appropriate response
+- `knowledge/cynefin-framework`: Classify problem complexity for appropriate response
 
 **Strategic Planning** (Secondary):
 
