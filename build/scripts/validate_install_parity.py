@@ -302,7 +302,14 @@ def _added_sections(
     deleted or renamed section; or a body edit to a section that already
     existed at base.
 
-    An empty dict means the file changed nothing this check can vouch for.
+    An empty dict is a POSITIVE result, not a degraded None. Reaching the
+    return past every guard above proves ``before_preamble ==
+    after_preamble``, ``set(before) - set(after) == set()``, and no edit to
+    any heading present in both. An empty result additionally means every
+    heading in ``after`` was already in ``before``, so the heading sets are
+    equal and no body differs: the modelled document is byte-identical to
+    base. ``_split_document`` drops YAML frontmatter, so the only thing such
+    a diff can have altered is frontmatter (Issue #4922).
     """
     try:
         after_doc = _split_document((root / rel).read_text(encoding="utf-8"))
@@ -346,14 +353,17 @@ def _missing_siblings_already_current(
     members_touched: Iterable[str],
     missing: Iterable[str],
 ) -> bool:
-    """True when this diff's content already exists in the missing siblings.
+    """True when this diff cannot have left the missing siblings behind.
 
-    A parity group can be left torn on ``main`` when an earlier PR used the
-    hand-maintained carve-out above to move only some members. Once torn,
-    the repair PR touches the remaining members and legitimately does NOT
-    touch the ones that are already correct. Co-change alone cannot tell
-    that repair apart from the bug this validator exists to catch, so for
-    exactly this case we look at content (Issue #4157).
+    Two shapes qualify, and both are content proofs rather than co-change
+    proxies.
+
+    **Torn-group repair (Issue #4157).** A parity group can be left torn on
+    ``main`` when an earlier PR used the hand-maintained carve-out above to
+    move only some members. Once torn, the repair PR touches the remaining
+    members and legitimately does NOT touch the ones that are already
+    correct. Co-change alone cannot tell that repair apart from the bug this
+    validator exists to catch, so for exactly this case we look at content.
 
     The comparison is scoped to the H2 sections THIS diff ADDS, not the
     whole file and not sections it edits. Sibling copies carry unrelated
@@ -369,6 +379,40 @@ def _missing_siblings_already_current(
     reference. Auditing the reference alone let a non-reference member
     smuggle an unverified body edit, or skip the repair entirely, while the
     reference's clean additive delta vouched for the whole group.
+
+    **Provably unchanged modelled content (Issue #4922).** ``_added_sections``
+    returns an empty dict when the modelled document is byte-identical to
+    base: preamble equal, heading sets equal, and no body differs. That is a
+    proof, not a parse failure, and the two must not be conflated. This
+    function previously tested ``if not changed`` and so treated both alike,
+    which blocked any diff whose entire content was YAML frontmatter --
+    frontmatter being precisely what ``_split_document`` drops, because
+    sibling copies legitimately disagree there. Verbatim, the ``critic``
+    group as committed carries four different values for one key::
+
+        templates/agents/critic.shared.md       model_tier: opus
+        .claude/agents/critic.md                model: opus
+        .github/agents/critic.agent.md          model: claude-opus-4.6
+        src/claude/critic.md                    model: opus
+        src/copilot-cli/agents/critic.agent.md  model: claude-opus-4.6
+        src/vs-code-agents/critic.agent.md      model: Claude Opus 4.6 (copilot)
+
+    Frontmatter parity therefore never held and is not the invariant this
+    validator protects. A diff that changes no modelled content in any file
+    it touches cannot change whether the touched and missing copies agree on
+    their H2 bodies, so no sibling needs to move with it and no evidence
+    about the missing siblings is required: they are already current with
+    respect to everything this diff changed.
+
+    The proof is demanded of EVERY touched member, not just the reference,
+    by the same loop and for the same reason as the repair case. A member
+    whose delta is unverifiable returns None, which is not equal to the
+    reference's empty dict, so the group fails closed.
+
+    This is a property of the diff's content, not of which tree the files
+    live in. No path prefix is consulted: a frontmatter-only change passes
+    here whether it lands in a generated tree, a hand-maintained copy, or
+    the template, and a body change fails here in all three.
 
     Returns False whenever the answer cannot be established, so the gate
     fails closed. See ``_added_sections`` for the per-file conditions.
@@ -386,20 +430,48 @@ def _missing_siblings_already_current(
         (m for m in touched if m.startswith("templates/agents/")), touched[0]
     )
     changed = _added_sections(root, base, reference)
-    if not changed:
-        # Either the delta was unverifiable (None) or nothing was added, so
-        # this carve-out cannot vouch for the missing siblings. Fail closed.
+    if changed is None:
+        # The delta is unverifiable: a file absent, unreadable, or not
+        # decodable; a document the section parser cannot model; a preamble
+        # edit; a removed or renamed section; or a body edit to a section
+        # that already existed at base. Fail closed.
+        #
+        # Testing ``not changed`` here instead would also swallow the empty
+        # dict, which is a proof of no modelled change rather than an
+        # absence of information (Issue #4922).
         return False
 
     for member in touched:
         if member == reference:
             continue
-        # Every touched member must carry the SAME addition and nothing else.
+        # Every touched member must carry the SAME delta and nothing else.
         # Checking only the reference would let a non-reference member smuggle
         # an unverified body edit, or skip the repair entirely, while the
-        # reference's clean additive delta vouched for the whole group.
+        # reference's clean additive delta vouched for the whole group. When
+        # the reference's delta is empty this is what proves the OTHER
+        # touched members are frontmatter-only too; ``None != {}``, so an
+        # unverifiable sibling still fails closed.
         if _added_sections(root, base, member) != changed:
             return False
+
+    if not changed:
+        # Provably unchanged modelled content in every touched member. There
+        # is no added section for a missing sibling to be missing, so the
+        # loop below has nothing to check and reading those files could only
+        # manufacture a failure out of pre-existing state this diff did not
+        # create (a duplicate heading in an untouched copy would otherwise
+        # block a frontmatter edit with no honest way to comply).
+        #
+        # Generated-tree staleness is not lost by passing here. It is owned
+        # by the generator's own byte-for-byte gate:
+        # ``build/generate_agents.py --validate`` compares
+        # ``normalized_existing != normalized_generated`` over the whole
+        # file, frontmatter included (``_handle_validate``), and runs at
+        # ``.github/workflows/validate-generated-agents.yml:149`` and via
+        # ``git_hook_policy.generate_agents_advisory``. This validator
+        # already delegates generated-file drift the same way for RULE
+        # mirrors (see ``find_violations``).
+        return True
 
     for member in missing:
         try:
@@ -602,13 +674,17 @@ def find_violations(
         ):
             continue
 
-        # Repair of a torn group. The carve-out above lets a PR move only
-        # the hand-maintained members, which can leave `main` torn. The
-        # PR that repairs the remaining members legitimately does not
-        # touch the ones already correct. Co-change cannot distinguish
-        # that repair from a forgotten install copy, so check content for
-        # this case only: no drift when every missing sibling already
-        # carries the reference member's sections (Issue #4157).
+        # Repair of a torn group, or a diff that provably changed no modelled
+        # content at all. The carve-out above lets a PR move only the
+        # hand-maintained members, which can leave `main` torn. The PR that
+        # repairs the remaining members legitimately does not touch the ones
+        # already correct. Co-change cannot distinguish that repair from a
+        # forgotten install copy, so check content: no drift when every
+        # missing sibling already carries the reference member's added
+        # sections (Issue #4157), and none either when every touched member's
+        # modelled body is byte-identical to base, which leaves YAML
+        # frontmatter as the only thing the diff can have altered and the
+        # H2-body invariant provably untouched (Issue #4922).
         if kind == "SHARED_AGENT" and _missing_siblings_already_current(
             root, base, members_touched, missing
         ):

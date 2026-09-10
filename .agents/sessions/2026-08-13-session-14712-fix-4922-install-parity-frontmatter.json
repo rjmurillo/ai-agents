@@ -1,0 +1,237 @@
+{
+  "schemaVersion": "1.0",
+  "session": {
+    "number": 14712,
+    "date": "2026-08-13",
+    "branch": "fix/issue-4922-install-parity-frontmatter",
+    "startingCommit": "784ad3d21a",
+    "objective": "Fix issue 4922: install parity blocks a frontmatter-only diff whose protected invariant is provably untouched"
+  },
+  "protocolCompliance": {
+    "sessionStart": {
+      "serenaActivated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Serena project active; ci parity-gate memory read and later edited"
+      },
+      "serenaInstructions": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Agent instructions loaded; AGENTS.md gates applied"
+      },
+      "handoffRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/HANDOFF.md read and preserved unmodified"
+      },
+      "sessionLogCreated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "This file"
+      },
+      "skillScriptsListed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "build/scripts and scripts/validation inspected for the parity gate wiring"
+      },
+      "usageMandatoryRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "AGENTS.md, CLAUDE.md, .agents/CLAUDE.md, .agents/AGENT-INSTRUCTIONS.md read"
+      },
+      "constraintsRead": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".claude/rules/generated-artifacts.md, canonical-source-mirror.md, testing.md, session-logs.md and .agents/governance/TESTING-RIGOR.md read"
+      },
+      "memoriesLoaded": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ci/ci-which-parity-gate-missed-an-agent-change.md loaded"
+      },
+      "branchVerified": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "fix/issue-4922-install-parity-frontmatter in external worktree /home/richard/sessions/wt-4922, branched from origin/main at 784ad3d21a"
+      },
+      "notOnMain": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "On fix/issue-4922-install-parity-frontmatter"
+      },
+      "gitStatusVerified": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "Worktree clean at branch creation; temp repro commits reset before final commit"
+      },
+      "startingCommitNoted": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "784ad3d21a"
+      }
+    },
+    "sessionEnd": {
+      "checklistComplete": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "All MUST items completed"
+      },
+      "handoffPreserved": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "HANDOFF.md not modified (read-only respected)"
+      },
+      "serenaMemoryUpdated": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".serena/memories/ci/ci-which-parity-gate-missed-an-agent-change.md now records the None-versus-empty-dict distinction"
+      },
+      "markdownLintRun": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "No markdown files changed except the Serena memory; memory linted by the pre-commit hook"
+      },
+      "qaValidation": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": ".agents/qa/000-issue-4922-install-parity-frontmatter-qa.md"
+      },
+      "changesCommitted": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "Fix and tests committed atomically; session log in a follow-up commit"
+      },
+      "validationPassed": {
+        "level": "MUST",
+        "Complete": true,
+        "Evidence": "ruff clean on all three touched Python files; validate_install_parity.py --base origin/main exits 0 on this branch"
+      },
+      "tasksUpdated": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "SQL todo fix-issue-4922 ensured at session start and completed at session end via scripts/todo_db.py"
+      },
+      "retrospectiveInvoked": {
+        "level": "SHOULD",
+        "Complete": false,
+        "Evidence": ""
+      },
+      "reworkWarning": {
+        "level": "SHOULD",
+        "Complete": true,
+        "Evidence": "rework-warning: none"
+      }
+    }
+  },
+  "workLog": [
+    {
+      "action": "Read issue 4922 discourse: body, CodeRabbit plan, generated PRD, and triage. Checked for an existing PR and found none; the local branch fix/4920-4922-gates-generated-files has no PR and was not used.",
+      "outcome": "Claimed the issue by self-assignment. Created external worktree /home/richard/sessions/wt-4922 from origin/main at 784ad3d21a."
+    },
+    {
+      "action": "Traced the root cause at level 1 in build/scripts/validate_install_parity.py rather than accepting the PRD's proposed tree-specific carve-out.",
+      "outcome": "_split_document drops YAML frontmatter by design. _added_sections therefore returns an empty dict for a frontmatter-only diff. _missing_siblings_already_current tested 'if not changed', which collapsed that empty dict together with None (a genuine parse failure) into one fail-closed verdict."
+    },
+    {
+      "action": "Proved the empty dict is a positive result, not an absence of information. Reaching the return past every guard in _added_sections establishes equal preambles, equal heading sets, and no differing body, so an empty result means the modelled document is byte-identical to base.",
+      "outcome": "Replaced 'if not changed' with 'if changed is None' and added an explicit early return True for the empty case, placed after the loop that demands the same delta from every touched member and before the missing-sibling scan."
+    },
+    {
+      "action": "Rejected the tree-specific carve-out the PRD proposed. No path prefix is consulted anywhere in the fix.",
+      "outcome": "A frontmatter-only diff now passes in the generated trees, in a hand-maintained copy, and in the template alike, and a body change fails in all three. Pinned by test_template_frontmatter_only_passes and test_body_section_edit_in_generated_trees_still_fails."
+    },
+    {
+      "action": "Verified every canonical-source claim before writing it into the docstring, per .claude/rules/canonical-source-mirror.md.",
+      "outcome": "The committed critic group carries four different values for one key: model_tier opus in the template, model opus in .claude/agents and src/claude, model claude-opus-4.6 in .github/agents and src/copilot-cli, and model 'Claude Opus 4.6 (copilot)' in src/vs-code-agents. Quoted verbatim in the docstring. Frontmatter parity never held and is not the invariant."
+    },
+    {
+      "action": "Confirmed generated-tree staleness is not lost by passing here. build/generate_agents.py _handle_validate compares normalized_existing against normalized_generated over the whole file including frontmatter, and runs at .github/workflows/validate-generated-agents.yml line 149 and via git_hook_policy.generate_agents_advisory.",
+      "outcome": "Cited both call sites in the code comment. This validator already delegates generated-file drift the same way for RULE mirrors."
+    },
+    {
+      "action": "Applied the mirror obligation: grepped for tests asserting the old contract and flipped them in the same diff.",
+      "outcome": "tests/build_scripts/test_install_parity_torn_repair.py::test_frontmatter_only_change_fails_closed asserted violations != []. Renamed to test_frontmatter_only_change_passes, flipped the assertion, and recorded why in a comment citing 4922. The suite docstring was updated with it."
+    },
+    {
+      "action": "Wrote tests/build_scripts/test_install_parity_frontmatter_only.py: 32 tests covering positive, negative, edge, unit, and CLI exit codes.",
+      "outcome": "All 32 pass. Negative control by stashing the source change: 11 positive tests fail without the fix and 21 negative and edge tests hold in both states, proving they guard rather than merely pass."
+    },
+    {
+      "action": "Mutation-tested the placement of the early return by deleting the short-circuit block.",
+      "outcome": "test_unmodellable_untouched_sibling_does_not_block failed, proving the return must precede the missing-sibling scan. Without it, a duplicate heading in an untouched copy would veto a frontmatter edit with no honest way to comply."
+    },
+    {
+      "action": "Reproduced the reported failure end to end against the real repository trees by applying the 60-file generated-tree diff from fix/2840-platform-model-default as a temporary commit.",
+      "outcome": "The origin/main validator reported drift with 30 violations, matching the issue. The fixed validator reported install-parity: OK and exit 0. Injecting one H2 body line into both generated analyst copies then produced exactly 1 violation, named analyst, while the other 29 frontmatter-only agents still passed. Temporary commits were reset."
+    },
+    {
+      "action": "Closed two pre-existing branch-coverage gaps in the function this diff changes, because the early return alters their reachability.",
+      "outcome": "Added test_unmodellable_missing_sibling_blocks_an_additive_repair and test_unreadable_missing_sibling_blocks_an_additive_repair. Coverage on validate_install_parity.py rose from 92 percent baseline to 96 percent. The only uncovered line inside the changed function is the unreachable 'if not touched' guard."
+    },
+    {
+      "action": "Updated the Serena memory that documented the old single-verdict behavior.",
+      "outcome": ".serena/memories/ci/ci-which-parity-gate-missed-an-agent-change.md now separates None (unverifiable, fails closed) from empty dict (provably unchanged, passes) so a future reader does not re-derive the collapsed rule."
+    }
+  ],
+  "outcomes": {
+    "deliverables": [
+      {
+        "type": "code",
+        "path": "build/scripts/validate_install_parity.py",
+        "description": "_missing_siblings_already_current now separates an unverifiable delta (None, fails closed) from a provably unchanged modelled document (empty dict, passes). No path prefix is consulted."
+      },
+      {
+        "type": "test",
+        "path": "tests/build_scripts/test_install_parity_frontmatter_only.py",
+        "description": "32 tests: positive frontmatter-only cases, negative body and mixed cases, fail-closed edges, unit-level None-versus-empty distinction, and CLI exit codes."
+      },
+      {
+        "type": "test",
+        "path": "tests/build_scripts/test_install_parity_torn_repair.py",
+        "description": "Flipped test_frontmatter_only_change_fails_closed to test_frontmatter_only_change_passes, the stale assertion of the old contract."
+      },
+      {
+        "type": "memory",
+        "path": ".serena/memories/ci/ci-which-parity-gate-missed-an-agent-change.md",
+        "description": "Records the two distinct verdicts so a future reader does not re-derive the collapsed rule."
+      }
+    ]
+  },
+  "learnings": {
+    "patterns": [
+      {
+        "pattern": "Read the parser before accepting a proposed carve-out",
+        "context": "The generated PRD proposed a carve-out keyed on the src/copilot-cli/agents/ and src/vs-code-agents/ path prefixes.",
+        "application": "Reading _split_document and _added_sections showed the property is a fact about the diff's content, not the tree, so a narrower fix covered the template and hand-maintained copies too."
+      },
+      {
+        "pattern": "Relax a gate only when another gate owns what you stopped checking",
+        "context": "Passing a frontmatter-only generated-tree diff could hide a stale generated file.",
+        "application": "build/generate_agents.py --validate compares whole files including frontmatter and runs in CI and the pre-commit hook, so nothing is lost. Cited both call sites in the code."
+      },
+      {
+        "pattern": "Mutation-test the placement of an early return",
+        "context": "The new return True could have gone after the missing-sibling scan instead of before it.",
+        "application": "Deleting the block failed exactly one test, proving the placement is pinned rather than incidental."
+      }
+    ],
+    "avoidances": [
+      {
+        "antipattern": "'if not x' over an Optional collection",
+        "consequence": "An empty result and a None result look alike under a truthiness test while meaning opposite things. Here it collapsed 'provably nothing changed' into 'cannot vouch' and blocked 30 agents.",
+        "correction": "Test 'x is None' for the failure case and handle the empty case on its own terms."
+      },
+      {
+        "antipattern": "Repeating a claim from an issue body without opening the file",
+        "consequence": "The issue's model-value table described a different branch state; asserting it verbatim would have shipped an unverified claim in a docstring.",
+        "correction": "Read all six committed copies before quoting them. Three distinct model values were confirmed at level 1 and quoted verbatim."
+      }
+    ]
+  },
+  "endingCommit": "",
+  "nextSteps": [
+    "Open one PR with Fixes #4922 and push the branch.",
+    "Issue #4920 (detect_scope_explosion.py counting the same 61 generated files) remains open and is the other half of the ADR-080 point 5 blocker.",
+    "Mark the SQL todo fix-issue-4922 done."
+  ]
+}

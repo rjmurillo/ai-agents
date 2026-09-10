@@ -11,6 +11,8 @@ Covers:
 - edge: unrelated pre-existing drift does not block the repair
 - edge: a missing or unresolvable base fails closed
 - edge: differing frontmatter does not defeat the section comparison
+- edge: a frontmatter-only diff passes (Issue #4922 flipped this case; the
+  full matrix lives in test_install_parity_frontmatter_only.py)
 - edge: the pre-existing hand-maintained carve-out is unaffected
 """
 
@@ -303,10 +305,17 @@ def test_reference_frontmatter_change_is_ignored(torn_repo: Path) -> None:
     assert violations == []
 
 
-# Negative: when the reference's only change is frontmatter, nothing in the
-# section model changed, so the carve-out has nothing to verify against the
-# missing siblings and must refuse rather than vouch vacuously.
-def test_frontmatter_only_change_fails_closed(torn_repo: Path) -> None:
+# Positive: when a touched member's only change is frontmatter, the modelled
+# body is byte-identical to base, so the H2-agreement invariant is provably
+# untouched and no sibling needs to move with it. Issue #4922 replaced the
+# old contract here (this test asserted ``violations != []``): the gate
+# conflated ``_added_sections`` returning ``{}`` -- a proof that nothing
+# modelled changed -- with it returning ``None`` -- a parse failure it cannot
+# vouch for. Frontmatter is exactly what ``_split_document`` drops, because
+# the six copies carry deliberately different ``model`` values, so demanding
+# co-change for a frontmatter edit demanded edits with no content change.
+# The full regression matrix lives in test_install_parity_frontmatter_only.py.
+def test_frontmatter_only_change_passes(torn_repo: Path) -> None:
     body = "---\nmodel: a\n---\n# alpha\n\n## Budget\n\nCap at 5.\n"
     _set_hand_copies(torn_repo, body)
     _write_lagging(torn_repo, body)
@@ -315,7 +324,7 @@ def test_frontmatter_only_change_fails_closed(torn_repo: Path) -> None:
         torn_repo, "---\nmodel: b\n---\n# alpha\n\n## Budget\n\nCap at 5.\n"
     )
     violations = vip.find_violations(_TOUCHED, repo_root=torn_repo, base="HEAD")
-    assert violations != []
+    assert violations == []
 
 
 # Negative: the carve-out must not launder a regression. A diff that ADDS one

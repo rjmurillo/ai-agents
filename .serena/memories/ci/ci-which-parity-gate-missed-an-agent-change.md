@@ -42,6 +42,27 @@ ever RELAXES the gate, and only when it can prove the missing siblings already
 carry the content. A `None` from `_added_sections` makes the gate stricter, not
 weaker.
 
+Since issue #4922 there are TWO verdicts to keep apart, and they are not the
+same thing:
+
+- `_added_sections` returns `None`: the delta is UNVERIFIABLE (file absent or
+  undecodable, unmodellable document, preamble edit, removed section, or a body
+  edit to a section that existed at base). Fails closed.
+- `_added_sections` returns `{}`: the modelled document is PROVABLY
+  byte-identical to base. Since `_split_document` drops YAML frontmatter, the
+  only thing such a diff can have altered is frontmatter, which the six copies
+  deliberately disagree on (`critic` carries four different `model` values).
+  The carve-out passes, and it short-circuits BEFORE reading the missing
+  siblings, because no evidence about them is needed.
+
+The gate used to test `if not changed`, which collapsed both into "cannot
+vouch" and blocked every frontmatter-only regeneration. The rule is
+content-shaped, not tree-shaped: no path prefix is consulted, so the same diff
+passes or fails identically in a generated tree, a hand-maintained copy, or the
+template. Generated-tree staleness is still caught, by
+`build/generate_agents.py --validate`, which compares whole files including
+frontmatter.
+
 ## What actually lets a change reach one copy
 
 `.claude/agents/`, `.github/agents/`, and `src/claude/` are classified
