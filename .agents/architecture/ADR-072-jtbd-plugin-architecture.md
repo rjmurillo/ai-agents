@@ -282,13 +282,13 @@ expressible via `keywords`; Cursor/Codex emission scope for v0.4.0 vs deferred.
 
 ### Negative / Costs
 
-- Cross-cutting change to the install contract for ~400 consumers.
+- Cross-cutting change to the install contract, for an installed population this repository does not measure. An earlier revision said ~400 consumers; "Distribution context" above withdraws that figure as ADR-045's future-tense target restated as a measurement, and this line kept it.
 - New emitters and drift checks for Codex and Cursor are net new code.
 - Transition window where directory-named and capability plugins coexist.
 
 ### Tracked follow-ups (not silent deferrals)
 
-- M1 to M5 issues opened under #1072 before implementation.
+- M1 to M5 issues opened before implementation, under issue #5669 rather than under epic #1072, which is closed. An earlier revision pointed this follow-up at the closed epic.
 - Analyst re-verification of #1148 coupling currency before M4.
 - ADR-045 amendment for the taxonomy relationship.
 - Deprecation note plus marketplace alias for directory-named plugins (M5).

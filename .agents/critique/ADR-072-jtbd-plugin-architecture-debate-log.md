@@ -129,3 +129,29 @@ Status` section with the leading status word stripped. So a Status opening
 the first sentence so the remainder stands alone: "Proposed. Amended ..." works,
 a trailing clause does not. The staleness gate catches the drift but not the
 awkwardness.
+
+## Two corrections the round 1 amendment did not carry through, 2026-09-09
+
+Round 1's amendment withdrew two premises and repaired the statement of each
+without repairing its restatement elsewhere in the same file. Both were found by
+reading the record straight through after the amendment merged, which is the same
+way round 1's surviving findings were found.
+
+**The installed-base figure.** "Distribution context" withdraws the ~400 figure
+as ADR-045's future-tense target restated as a measurement, quoting ADR-045 lines
+24, 38 and 56, all three of which verify verbatim. The Negative consequences list
+kept "Cross-cutting change to the install contract for ~400 consumers" as a
+statement of fact, so the record withdrew the number in one place and spent it in
+another.
+
+**The tracked follow-up pointed at a closed epic.** The Status section records
+epic #1072 and issue #1774 as closed and names successor **#5669**. The tracked
+follow-ups list still read "M1 to M5 issues opened under #1072 before
+implementation", which instructs an implementer to file against a closed epic and
+bypasses the successor filed precisely so the work has somewhere to live.
+
+Both are corrected in place with the correction visible rather than deleted, per
+this record's own treatment of the premises round 1 refuted. The shape is worth
+naming because it recurred on ADR-101 in the same session: a correction reaches
+the sentence that carries the argument and not the paraphrase two hundred lines
+away, and no gate in this repository looks for the second one.
