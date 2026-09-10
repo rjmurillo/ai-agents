@@ -125,6 +125,6 @@ Validated by: `scripts/validation/skill_size.py`
 
 ## Related References
 
-- Skill frontmatter standards: `.serena/memories/claude-code-skill-frontmatter-standards.md`
+- Skill frontmatter standards: `.serena/memories/claude/claude-code-skill-frontmatter-standards.md`
 - PowerShell standards: `scripts/AGENTS.md`
 - Official docs: <https://code.claude.com/docs/en/skills>
