@@ -3,6 +3,13 @@
 The Windows job uses a pytest marker (pytest.mark.windows_path) instead of a
 hardcoded file list. Adding pytestmark = pytest.mark.windows_path at module
 level in any test file automatically includes it in the Windows run (issue #4299).
+
+Issue #5380 moved the invocation behind `scripts/ci/run_pytest_windows.py`,
+which discovers the marked modules and narrows collection to them. The marker
+property above is unchanged: discovery is still automatic and still needs no
+workflow edit. What changed is that the run command now names a helper script,
+so "no hardcoded file list" can no longer be checked by the absence of `.py`.
+It is checked here as the absence of any `tests/` path.
 """
 
 from __future__ import annotations
@@ -18,7 +25,7 @@ _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pyt
 _JOB_NAME = "test-windows-pwsh"
 _PATHS_FILTER_ACTION = "dorny/paths-filter@"
 _POLICY_FILE_INPUT = "scripts/test_selection/path_policy.yml"
-_WINDOWS_COMMAND = "uv run --frozen pytest -m windows_path -v"
+_WINDOWS_COMMAND = "uv run --frozen python scripts/ci/run_pytest_windows.py -v"
 _LEFTHOOK_TRIGGER_PATHS = {
     "lefthook.yml",
     ".config/wt.toml",
@@ -82,14 +89,20 @@ def test_windows_job_uses_marker_not_hardcoded_files() -> None:
     """The job must run pytest with -m windows_path, not by naming files.
 
     A hardcoded file list drifts silently; the marker-based approach picks up
-    new files automatically (issue #4299).
+    new files automatically (issue #4299). Since issue #5380 the run command
+    names one helper script, which is itself a `.py` path, so the check is that
+    the command names no test file rather than no `.py` file at all.
     """
     step = _step_for(_WINDOWS_COMMAND)
     assert step is not None, "expected marker-based step; found a hardcoded file list"
 
     run_cmd: str = step.get("run", "")
-    # Confirm no explicit .py paths in the run command (files would end in .py)
-    assert ".py" not in run_cmd, f"step run command contains hardcoded .py paths: {run_cmd!r}"
+    assert "tests/" not in run_cmd and "tests\\" not in run_cmd, (
+        f"step run command names test paths, so discovery is no longer automatic: {run_cmd!r}"
+    )
+    assert run_cmd.count(".py") == 1, (
+        f"expected exactly one script path in the run command, got {run_cmd!r}"
+    )
 
 
 def test_lefthook_runtime_surfaces_trigger_windows_suite() -> None:
