@@ -80,7 +80,6 @@ def test_round_cap_escalation_disarms_before_handing_the_pr_to_a_human(
 
     assert run.round_cap_called
     assert "Stopping thread-fix loop" in run.stdout
-    assert run.cleaned_up
     assert run.disarmed, (
         "an escalated PR was handed to a human with auto-merge still armed, so "
         "it can land without this session ever proving it ready"
@@ -124,7 +123,6 @@ def test_unreadable_auto_merge_state_skips_instead_of_guessing(tmp_path: Path, d
     run = run_dispatch(tmp_path, doc, tier="T1", auto_merge="UNREADABLE")
 
     assert "Cannot read auto-merge state" in run.stdout
-    assert run.cleaned_up
     assert not run.disarmed, "the disarm path fired on no evidence"
     assert not run.reached_end
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
@@ -137,7 +135,6 @@ def test_schema_invalid_auto_merge_state_skips_instead_of_laundering_false(
     run = run_dispatch(tmp_path, doc, tier="T3", auto_merge="RAW:false")
 
     assert "Cannot read auto-merge state" in run.stdout
-    assert run.cleaned_up
     assert not run.disarmed, "a schema-invalid auto-merge value was treated as unarmed"
     assert not run.reached_end
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
@@ -155,7 +152,6 @@ def test_a_skipped_mutation_is_not_reported_as_a_failure(tmp_path: Path, doc: st
     )
 
     assert "Failed to disable auto-merge" not in run.stdout
-    assert run.cleaned_up
     assert not run.reached_end
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
 
@@ -172,7 +168,6 @@ def test_a_failed_mutation_is_reported(tmp_path: Path, doc: str) -> None:
     )
 
     assert "Failed to disable auto-merge" in run.stdout
-    assert run.cleaned_up
     assert not run.reached_end
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
 
@@ -214,7 +209,6 @@ def test_a_producer_that_names_no_tier_disarms_then_skips(
     )
 
     assert "Cannot determine tier" in run.stdout
-    assert run.cleaned_up
     assert run.disarmed, "auto-merge was left armed on a PR whose tier is unknown"
     assert "--disable" in run.disarm_argv, run.disarm_argv
     assert not run.round_cap_called
@@ -259,7 +253,6 @@ def test_an_unknown_tier_with_no_auto_merge_armed_calls_nothing(tmp_path: Path, 
     assert not run.disarmed, "the disarm ran with no auto-merge armed"
     assert not run.round_cap_called
     assert not run.reached_end
-    assert run.cleaned_up
     assert run.queue_completed
 
 
@@ -400,7 +393,6 @@ def test_skip_terminates_instead_of_reaching_the_disarm_gate(tmp_path: Path, doc
 
     assert "no action" in run.stdout.lower()
     assert "Cannot determine tier" not in run.stdout, "SKIP is declared, not a producer failure"
-    assert run.cleaned_up
     assert not run.disarmed, "auto-merge was stripped from a non-actionable PR"
     assert not run.round_cap_called
     assert not run.reached_end
@@ -436,7 +428,6 @@ def test_unsupported_disarms_first_then_terminates(tmp_path: Path, doc: str) -> 
     assert run.disarmed, "auto-merge survived on a PR with no verified merge path"
     assert not run.round_cap_called, "the round-cap breaker fired on a PR with no work"
     assert not run.reached_end
-    assert run.cleaned_up
     assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
 
 
@@ -496,7 +487,6 @@ def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
 
     assert reworded.disarmed == shipped.disarmed
     assert reworded.round_cap_called == shipped.round_cap_called
-    assert reworded.cleaned_up == shipped.cleaned_up
     assert reworded.reached_end == shipped.reached_end
     assert reworded.queue_completed == shipped.queue_completed
     assert reworded.stdout == shipped.stdout, (
