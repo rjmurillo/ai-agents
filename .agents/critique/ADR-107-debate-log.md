@@ -140,6 +140,25 @@ Discrimination probes run before commit: deleting the C2 row fails
   each named its unblock conditions; those conditions are addressed above. A second round would
   strengthen the record and is the obvious next step if the owner wants the vote on file.
 
+## Post-review gate findings
+
+Two repository gates found defects after the seats reported. Both are recorded here because they
+are the same class of failure the round was hunting: a claim that reads correctly and does not
+hold.
+
+**`scripts/validation/check_citation_freshness.py` rejected eight of the record's citations.**
+The gate reads the anchors a citing line names and checks they appear at the cited lines. Eight
+citations named only the evidence label (`repo-observed`, `docs-say`) and no text from the source,
+so nothing tied the line number to the content. Fixed by quoting real text from each cited
+location, which is what `.claude/rules/canonical-source-mirror.md` asks for anyway. No
+`citation-freshness: ignore` marker was used; suppressing the gate on a record about evidence
+quality would have been the wrong trade.
+
+**The taste count ratchet went to 567 against a baseline of 566.** The record is 671 lines, over
+the 500-line file-size rule. It takes the documented escape, a `# taste-lint: ignore file-size`
+comment with a reason, following the ADR-085 precedent for an accepted record whose value is its
+audit continuity. The baseline was not raised.
+
 ## Verdict
 
 Revision 2 ships as `proposed`. Every P0 from every seat is addressed in the record or in a linked

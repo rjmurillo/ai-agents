@@ -1,4 +1,5 @@
 ---
+# taste-lint: ignore file-size, one decision record; splitting it breaks the audit trail the review round produced.
 id: ADR-107
 status: proposed
 date: 2026-09-09
@@ -47,7 +48,8 @@ Unlabeled prose is argument, not evidence.
 
 The repository authors behavior once and ships it to several harnesses. Seven generators run from
 the `GENERATORS` list at `build/scripts/build_all.py:497-505` (`repo-observed`).
-`.agents/governance/GENERATOR-FILES.md:13-20` indexes source-to-output pairs (`repo-observed`).
+`.agents/governance/GENERATOR-FILES.md:13-20` indexes source-to-output pairs under the header
+`Source (edit here)` (`repo-observed`).
 **The two sets differ**, which matters later: the index has six rows and names
 `build/scripts/generate_pr_quality_prompts.py`, which is not in `GENERATORS`; the `GENERATORS`
 list has seven entries including `agent-catalog` and `adr-index`, which have no index row. Three
@@ -79,18 +81,23 @@ Each current gate substitutes a proxy for equivalence, because no predicate is d
   lists `.claude/agents/`, `.github/agents/`, and `src/claude/` as hand-maintained prefixes and
   `:205-208` applies the predicate (`repo-observed`). The measured asymmetry, that a solo edit to
   `src/claude/architect.md` exits 0 while a solo template edit exits 1, is stated at
-  `.claude/rules/claude-agents.md:20-22` (`docs-say`), along with 54 of 173 commits touching a
-  hand-maintained shared-agent member without touching the template.
+  `.claude/rules/claude-agents.md:20-22`, which records the two commands
+  (`validate_install_parity.py --files src/claude/architect.md`) and their exit codes (`docs-say`),
+  along with 54 of 173 commits touching a hand-maintained shared-agent member without touching
+  the template.
 - `templates/agents/*.shared.md` bodies are compared to `src/claude/*.md` bodies by nothing.
-  `.claude/rules/claude-agents.md:11` states no check compares that content, and `:52` records
+  `.claude/rules/claude-agents.md:11` describes those files as
+  `hand-maintained Claude agent prompts` and states no check compares that content, and `:52` records
   that `detect_agent_drift.py` reads the template directory for filenames only (`docs-say`).
 - `.github/agents/` content is held to a word-set similarity floor. `detect_agent_drift.py`
   hardcodes 100.0 for comparisons whose section allowlist matches nothing, treats install-pair
   drift as advisory unless `--fail-on-install-drift`, and runs that flag only in the weekly
-  `.github/workflows/drift-detection.yml` (`docs-say`, `.claude/rules/claude-agents.md:84`,
-  `:120-122`).
+  `.github/workflows/drift-detection.yml`. The hardcoded score is recorded as
+  `match zero sections and return a hardcoded 100.0` (`docs-say`,
+  `.claude/rules/claude-agents.md:84`, `:120-122`).
 - A lexical floor cannot see a contradiction. Sixty appended identical lines move the score by
-  zero, and a contradiction reusing the surrounding vocabulary scores high and passes
+  zero, and the rule states the surviving claim as
+  `contradiction that reuses the surrounding vocabulary scores high and passes`
   (`docs-say`, `.claude/rules/claude-agents.md:104-118`).
 
 So the honest scope of the claim is: **the contract is missing for the hand-maintained agent
@@ -102,7 +109,8 @@ have a working predicate under a different name.
 On PR #5059, round-cap wiring was hand-edited into `src/copilot-cli/skills/pr-autofix/SKILL.md`,
 which is generated. Twenty-six of twenty-six skill tests passed, the agent generator validated,
 `pre_pr.py` reported unrelated findings only, and CI then showed the generator stripping all 43
-lines (`docs-say`, `scripts/validation/check_generated_staleness.py:1-30`, issue #5079).
+lines. That docstring records the outcome as `would have merged as a silent no-op`
+(`docs-say`, `scripts/validation/check_generated_staleness.py:1-30`, issue #5079).
 
 **CI caught it.** The local gate also existed: `check_generated_staleness.py` is wired into
 `scripts/validation/pre_pr_sequence.py` (`repo-observed`). What failed is that nobody ran it
@@ -117,6 +125,7 @@ runtime observation, and the three are routinely conflated. The repository alrea
 corrective vocabulary in two places and uses neither as a general contract: the grading table in
 `.claude/skills/agent-harness-reference/SKILL.md` (`OFFICIAL`, `CODE`, `EMPIRICAL`,
 `DOCS SILENT`), and the fail-closed status lattice landed for issue #5423 in
+the CapabilityStatus and EvidenceKind enums at
 `scripts/eval/_harness_capability.py:52-73`: statuses `VERIFIED`, `UNSUPPORTED`, `UNVERIFIED`,
 and four evidence kinds `BACKEND`, `CLIENT_ECHO`, `CONFIG`, `NONE`, with `VERIFIED` reachable
 only from `BACKEND` (`repo-observed`). Issue #5423 itself is still open; the lattice landed, the
@@ -145,7 +154,7 @@ pros and cons with no shared criterion to compare them on.
 | D2 | **Single mechanism.** No second registry, routing authority, or generation system. | Issue #5391's scope correction and issue #5396's ownership rule both forbid it, and the repository already carries one orphaned second mechanism (see R3). |
 | D3 | **Debt visibility.** Unchecked classes must be countable, not implicit. | Three of five agent surfaces have no equivalence check today and nothing says so in a machine-readable place. |
 | D4 | **Blast radius.** Prefer the change that reverts in one commit. | 27 of 108 records in this corpus are decided and unbuilt. A record that moves generators before it is proven compounds that. |
-| D5 | **Cost to the schema validator and the generators.** | `build/scripts/validate_templates_schema.py:151` rejects unknown keys under `artifacts.<name>`, so any config-declared field is a code change, not a config change. |
+| D5 | **Cost to the schema validator and the generators.** | `build/scripts/validate_templates_schema.py:151` reports `unknown keys` for anything outside its allowlist, so any config-declared field is a code change, not a config change. |
 
 ## Decision
 
@@ -311,8 +320,8 @@ rather than preserved, and no gate reads it. Issue #5691 owns settling it, and t
   consumes whatever #5396 lands and does not invent a parallel one.
 - Every capability row carries grade, source, date, and harness version, using the existing
   vocabulary (`OFFICIAL`, `CODE`, `EMPIRICAL`, `DOCS SILENT`).
-- Runtime claims use the #5423 lattice as landed in `scripts/eval/_harness_capability.py:52-73`:
-  statuses `VERIFIED`, `UNSUPPORTED`, `UNVERIFIED`; evidence kinds `BACKEND`, `CLIENT_ECHO`,
+- Runtime claims use the #5423 lattice as landed in the CapabilityStatus and EvidenceKind enums
+  at `scripts/eval/_harness_capability.py:52-73`: statuses `VERIFIED`, `UNSUPPORTED`, `UNVERIFIED`; evidence kinds `BACKEND`, `CLIENT_ECHO`,
   `CONFIG`, `NONE`; `VERIFIED` reachable only from `BACKEND`. `CONFIG` is a static registry value
   and never supports `VERIFIED`, which is the case this record's no-second-registry rule turns on.
 - **Unknown is fail-closed, and the branch is named.** An unknown capability is not an invitation
@@ -413,7 +422,7 @@ Scored against drivers D1 to D5.
 | Alternative | D1 falsifiable | D2 single mechanism | D3 debt visible | D4 blast radius | D5 cost | Verdict |
 |---|---|---|---|---|---|---|
 | **Declare the predicate in `GENERATOR-FILES.md`, one row per class (selected)** | Yes, per class | Yes, extends the existing register | Yes, `none` rows are countable and ratcheted | One file plus a checker | Low: a Markdown table and a parser | **Chosen.** The only surface reaching both generated and hand-maintained trees |
-| Declare it in `templates/platforms/*.yaml` (first revision) | Yes for five classes | Yes | **No.** Cannot express the three hand-maintained trees; emits zero `none` rows | One file plus a schema change | Medium: `validate_templates_schema.py:151` rejects unknown keys | Rejected on D3. The classes needing `none` have no stanza |
+| Declare it in `templates/platforms/*.yaml` (first revision) | Yes for five classes | Yes | **No.** Cannot express the three hand-maintained trees; emits zero `none` rows | One file plus a schema change | Medium: `validate_templates_schema.py:151` reports `unknown keys` | Rejected on D3. The classes needing `none` have no stanza |
 | One universal prose contract, no per-harness projection | **No** | Yes | No | Large | Low | Rejected as R1 |
 | Model-by-harness overlay mesh | Partly | **No** | No | Large | High | Rejected as R2 |
 | A capability registry owned by this record | Yes | **No** | Yes | Medium | High | Rejected as R3. Issue #5396 owns that mechanism; issue #5391's scope correction forbids a second one |
