@@ -13,13 +13,16 @@ own lifecycle status. Coverage for the single check `skill-adr-binding`:
   `adr`, malformed YAML and a scalar frontmatter all read as clean rather than
   as findings that belong to another gate
 - I/O: an unreadable SKILL.md becomes a finding rather than a silent pass
-- pruning: a SKILL.md inside `.venv`, `node_modules` or `.git` is never scanned
+- tracked scope: an untracked SKILL.md is never counted, against a control that
+  differs only in whether the same file was staged; a tracked path a working-tree
+  deletion removed is skipped; and a root git cannot read is exit 3, not clean
 
 Ratchet and CLI: at baseline exits 0, above exits 1, below exits 0 and says so,
-and every unusable-baseline shape plus a missing ADR directory exits 2. The
-exit-2 cases are the point of the suite: a gate that cannot read its own
-baseline has not run, and scoring that as a pass is the silent-pass failure the
-repository's CI-script rules exist to stop.
+every unusable-baseline shape plus a missing ADR directory exits 2, and a root
+whose index cannot be listed exits 3. Those non-zero cases are the point of the
+suite: a gate that cannot read its own baseline, or cannot enumerate the files it
+is meant to scan, has not run, and scoring either as a pass is the silent-pass
+failure the repository's CI-script rules exist to stop.
 """
 
 from __future__ import annotations
@@ -27,6 +30,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -39,6 +43,7 @@ if str(_VALIDATION_DIR) not in sys.path:
 from check_skill_adr_bindings import (
     CHECK,
     EXIT_CONFIG,
+    EXIT_EXTERNAL,
     EXIT_OK,
     EXIT_REGRESSION,
     RETIRED_STATUSES,
@@ -61,17 +66,78 @@ def _write_adr(repo: Path, number: int, status: str) -> None:
     )
 
 
-def _write_skill(repo: Path, name: str, frontmatter: str, tree: str = "skills") -> Path:
+def _git(repo: Path, *argv: str) -> subprocess.CompletedProcess[str]:
+    """Run git in ``repo`` with a clean environment, failing loudly."""
+    return subprocess.run(
+        ["git", "-C", str(repo), *argv],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={k: v for k, v in os.environ.items() if not k.startswith("GIT_")},
+    )
+
+
+def _track(repo: Path, relative: str) -> None:
+    """Stage a file written without :func:`_write_skill`.
+
+    Without this the file is untracked, the gate never reads it, and a test
+    asserting the tree is clean passes because nothing was examined. That is the
+    vacuous shape `.claude/rules/testing.md` SHOULD 14 names.
+    """
+    _git(repo, "add", "--force", "--", relative)
+    assert relative in _git(repo, "ls-files", "--", relative).stdout
+
+
+def _init_repo(repo: Path) -> None:
+    """Make ``repo`` a git repository, idempotently.
+
+    The gate enumerates candidate paths from the index, so a fixture tree that is
+    not a repository exercises the git-failure path rather than detection. Only
+    `git add` is ever needed, never a commit: `git ls-files` reads the index.
+    """
+    if not (repo / ".git").exists():
+        _git(repo, "init", "--quiet")
+
+
+def _write_skill(
+    repo: Path,
+    name: str,
+    frontmatter: str,
+    tree: str = "skills",
+    *,
+    track: bool = True,
+) -> Path:
+    """Write a SKILL.md and, unless ``track`` is False, stage it.
+
+    ``track=False`` is the untracked case the gate must not count. It asserts the
+    file really is untracked rather than assuming it, because a helper that
+    silently staged it would make the discriminating test pass against the
+    filesystem-walk implementation it exists to reject.
+    """
+    _init_repo(repo)
     path = repo / tree / name
     path.mkdir(parents=True, exist_ok=True)
     skill = path / "SKILL.md"
     skill.write_text(f"---\n{frontmatter}\n---\n\n# {name}\n", encoding="utf-8")
+    rel = skill.relative_to(repo).as_posix()
+    if track:
+        _git(repo, "add", "--force", "--", rel)
+        assert rel in _git(repo, "ls-files", "--", rel).stdout, f"{rel} was not staged"
+    else:
+        assert not _git(repo, "ls-files", "--", rel).stdout.strip(), (
+            f"{rel} is tracked, so this case cannot observe untracked scope"
+        )
     return skill
 
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    """A repo root with one ADR per lifecycle status."""
+    """A git repo root with one ADR per lifecycle status.
+
+    Initialized here rather than lazily, so a test that writes a SKILL.md
+    directly can stage it without ordering its calls around the helper.
+    """
+    _init_repo(tmp_path)
     _write_adr(tmp_path, 1, "accepted")
     _write_adr(tmp_path, 2, "superseded")
     _write_adr(tmp_path, 3, "deprecated")
@@ -180,6 +246,7 @@ def test_edge_no_frontmatter_is_clean(repo: Path) -> None:
     path = repo / "skills" / "bare"
     path.mkdir(parents=True)
     (path / "SKILL.md").write_text("# bare skill\n", encoding="utf-8")
+    _track(repo, "skills/bare/SKILL.md")
     assert _scan(repo) == []
 
 
@@ -189,6 +256,7 @@ def test_edge_malformed_yaml_is_not_double_reported(repo: Path) -> None:
     path = repo / "skills" / "broken"
     path.mkdir(parents=True)
     (path / "SKILL.md").write_text("---\nname: [unclosed\n---\n\n# x\n", encoding="utf-8")
+    _track(repo, "skills/broken/SKILL.md")
     assert _scan(repo) == []
 
 
@@ -196,6 +264,7 @@ def test_edge_scalar_frontmatter_is_clean(repo: Path) -> None:
     path = repo / "skills" / "scalar"
     path.mkdir(parents=True)
     (path / "SKILL.md").write_text("---\njust-a-string\n---\n\n# x\n", encoding="utf-8")
+    _track(repo, "skills/scalar/SKILL.md")
     assert _scan(repo) == []
 
 
@@ -250,16 +319,127 @@ def test_edge_invalid_utf8_skill_is_a_finding(repo: Path) -> None:
     path = repo / "skills" / "binary"
     path.mkdir(parents=True)
     (path / "SKILL.md").write_bytes(b"---\nname: \xff\xfe\n---\n")
+    _track(repo, "skills/binary/SKILL.md")
     violations = _scan(repo)
     assert len(violations) == 1
     assert "not valid UTF-8" in violations[0].detail
 
 
-@pytest.mark.parametrize("pruned", [".venv", "node_modules", ".git", "__pycache__"])
-def test_edge_pruned_directories_are_never_scanned(repo: Path, pruned: str) -> None:
-    _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-002", tree=pruned)
+# --------------------------------------------------------------------------
+# Tracked scope: a ratchet baseline is a claim about a ref
+# --------------------------------------------------------------------------
+
+
+def test_pos_a_tracked_declaration_is_counted(repo: Path) -> None:
+    """Control for the untracked case below, differing only in whether the same
+    file was staged. Without it, a gate that counted nothing at all would pass
+    the discriminating test."""
+    _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-002", track=True)
+    assert len(_scan(repo)) == 1
+
+
+def test_neg_an_untracked_declaration_is_never_counted(repo: Path) -> None:
+    """`ci-scripts.md` MUST 9: a ratchet baseline must not read untracked state,
+    or the same commit scores differently on two machines.
+
+    Measured against the filesystem-walk implementation this replaced: one
+    untracked SKILL.md declaring a superseded record took the real repository's
+    count from 16 to 17 and exited 1, and the remedy it printed named a file the
+    repository does not contain.
+    """
+    skill = _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-002", track=False)
+    assert skill.is_file(), "the file must exist on disk, or this proves nothing"
     assert _scan(repo) == []
-    assert all(pruned not in p.parts for p in find_skill_files(repo))
+    assert skill not in (find_skill_files(repo) or [])
+
+
+def test_edge_a_gitignored_declaration_is_never_counted(repo: Path) -> None:
+    """The shape that turned main red in issue #4748: build output an author
+    happens to have generated and CI never will."""
+    (repo / ".gitignore").write_text("generated/\n", encoding="utf-8")
+    _write_skill(
+        repo, "s", "name: s\nmetadata:\n  adr: ADR-002", tree="generated", track=False
+    )
+    assert _scan(repo) == []
+
+
+def test_edge_a_suffix_named_file_is_not_a_manifest(repo: Path) -> None:
+    """`git ls-files -- "*SKILL.md"` is a suffix match, so it also offers
+    `LEGACY-SKILL.md`. The walk this replaced tested the exact basename, and a
+    manifest is the only subject this gate has."""
+    path = repo / "skills" / "archive"
+    path.mkdir(parents=True)
+    (path / "LEGACY-SKILL.md").write_text(
+        "---\nname: old\nmetadata:\n  adr: ADR-002\n---\n\n# old\n", encoding="utf-8"
+    )
+    _track(repo, "skills/archive/LEGACY-SKILL.md")
+    assert _scan(repo) == []
+    assert find_skill_files(repo) == []
+
+
+def test_edge_a_tracked_path_deleted_from_disk_is_skipped(repo: Path) -> None:
+    """The index still lists a file a working-tree deletion removed. That
+    intermediate state is not a finding, and must not become an I/O fault."""
+    skill = _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-002")
+    skill.unlink()
+    assert "skills/s/SKILL.md" in _git(repo, "ls-files").stdout, "still indexed"
+    assert _scan(repo) == []
+
+
+def test_neg_an_unlistable_root_is_external_not_a_clean_tree(tmp_path: Path) -> None:
+    """A root git cannot read has examined nothing. Reporting that as zero
+    violations is the silent-pass shape `ci-scripts.md` MUST 11 and 12 forbid."""
+    (tmp_path / ".agents" / "architecture").mkdir(parents=True)
+    assert not (tmp_path / ".git").exists(), "the root must not be a repository"
+    assert find_skill_files(tmp_path) is None
+    fault = _scan(tmp_path)
+    assert isinstance(fault, str), f"expected a fault reason, got {fault!r}"
+    assert "could not list tracked" in fault
+
+
+def test_neg_write_baseline_on_an_unlistable_root_writes_nothing(
+    tmp_path: Path,
+) -> None:
+    """The most costly shape of the fault: a failed enumeration counts zero, and
+    writing that as the ceiling would make every later run a 16-violation
+    regression against a number no tree ever held.
+
+    Closes with the isolating assertion `testing.md` SHOULD 7 asks for: a
+    `pytest.raises`-style check that the call failed passes just as well when the
+    effect happened first, so the assertion that matters is that the file is
+    still absent.
+    """
+    (tmp_path / ".agents" / "architecture").mkdir(parents=True)
+    baseline = tmp_path / "baseline.json"
+    assert not baseline.exists(), "the file must not pre-exist, or this proves nothing"
+
+    assert (
+        main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(baseline),
+                "--write-baseline",
+            ]
+        )
+        == EXIT_EXTERNAL
+    )
+    assert not baseline.exists(), "a baseline was written from a scan that never ran"
+
+
+def test_neg_an_unlistable_root_exits_external(tmp_path: Path) -> None:
+    """The process-level half of the case above, per `testing.md` MUST 8."""
+    (tmp_path / ".agents" / "architecture").mkdir(parents=True)
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8"
+    )
+    assert (
+        main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        == EXIT_EXTERNAL
+    )
+    assert validate_skill_adr_bindings(tmp_path) is False
 
 
 def test_declared_adr_numbers_reports_read_fault_separately(tmp_path: Path) -> None:

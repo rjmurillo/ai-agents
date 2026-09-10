@@ -26,6 +26,8 @@ name survives in a comment or a neighbouring key, which is exactly the mistake a
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -42,8 +44,30 @@ from check_skill_adr_bindings import (
 )
 
 
+def _git(repo: Path, *argv: str) -> subprocess.CompletedProcess[str]:
+    """Run git in ``repo`` with every GIT_* variable stripped.
+
+    The gate strips them too, through `count_ratchet.git_environment`. An
+    inherited `GIT_DIR`, which `git push` exports into the pre-push hook from a
+    linked worktree, would otherwise point both at the wrong index (issue #4914).
+    """
+    return subprocess.run(
+        ["git", "-C", str(repo), *argv],
+        capture_output=True,
+        text=True,
+        check=True,
+        env={k: v for k, v in os.environ.items() if not k.startswith("GIT_")},
+    )
+
+
 def _repo_with(tmp_path: Path, *, retired_skills: int) -> Path:
-    """A repo root with one superseded ADR and ``retired_skills`` skills naming it."""
+    """A git repo root with one superseded ADR and ``retired_skills`` skills naming it.
+
+    The skills are staged, not merely written: the gate enumerates candidate
+    paths from the index, so an unstaged fixture would be counted as zero and
+    both cases below would agree for the wrong reason.
+    """
+    _git(tmp_path, "init", "--quiet")
     adr_dir = tmp_path / ".agents" / "architecture"
     adr_dir.mkdir(parents=True)
     (adr_dir / "ADR-002-gone.md").write_text(
@@ -55,6 +79,9 @@ def _repo_with(tmp_path: Path, *, retired_skills: int) -> Path:
         (skill_dir / "SKILL.md").write_text(
             "---\nname: s\nmetadata:\n  adr: ADR-002\n---\n\n# s\n", encoding="utf-8"
         )
+        rel = f"skills/s{index}/SKILL.md"
+        _git(tmp_path, "add", "--force", "--", rel)
+        assert rel in _git(tmp_path, "ls-files", "--", rel).stdout, f"{rel} unstaged"
     return tmp_path
 
 
@@ -133,6 +160,10 @@ def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
 
     repo_root = Path(__file__).resolve().parents[2]
     violations = mod.scan(repo_root, repo_root / ".agents" / "architecture")
+    assert isinstance(violations, list), (
+        f"scan reported a fault, so the count below would measure a string: "
+        f"{violations!r}"
+    )
     baseline = mod.read_baseline(mod._BASELINE_PATH)
     assert isinstance(baseline, dict), f"shipped baseline is unusable: {baseline}"
     assert baseline[CHECK] == len(violations), (

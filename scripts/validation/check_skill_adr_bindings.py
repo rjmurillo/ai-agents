@@ -62,23 +62,41 @@ record whose own frontmatter will not parse is that gate's finding, not this
 one's: such a record is skipped here with no status, so the two gates cannot
 double-report the same file.
 
-Directory pruning mirrors `build/scripts/validate_plugin_manifests.py:331-344`,
-quoted verbatim::
+## Scope is git-tracked files
 
-    excluded_dirs = {
-        ".agent-tmp",
-        ".worktrees",
-        "worktrees",
-    ...
-        dirnames[:] = [d for d in dirnames if d not in excluded_dirs]
+Candidate paths come from the index, through ``tracked_files`` in
+`scripts/ci/count_ratchet.py`, and each path's content is then read off disk. A
+filesystem walk was the first implementation and is wrong for a ratchet.
+`scripts/ci/count_ratchet.py:18-21` states why, verbatim::
 
-Different than that canonical set: :data:`_PRUNED_DIRS` adds `.venv`, `.git`,
-`node_modules`, `__pycache__`, `.pytest_cache` and `.pytest_tmp`, because this
-gate walks for `SKILL.md` rather than `plugin.json` and a virtualenv can carry
-an installed copy of this repository's own skills. `evals/` is deliberately NOT
-pruned: its one tracked SKILL.md declares `metadata.issue` and no `adr`, so it
-passes today, and a frozen evaluation record that did declare a retired ADR is a
-finding a human should read rather than a case to hide in advance.
+    Scope is git-TRACKED files, never a directory walk. ``os.walk`` also visits
+    untracked scratch, nested worktrees, and vendored caches that a contributor
+    happens to have on disk, which inflated a local ruff run to 767 against a real
+    tracked count of 361 and made that gate report a phantom regression outside CI.
+
+`.claude/rules/ci-scripts.md` MUST 9 binds it: a ratchet baseline is a claim
+about a ref, so the measurement behind it must not read untracked state, or the
+same commit scores differently on two machines. Measured on this gate before the
+change: one untracked `SKILL.md` declaring ADR-007, on a tree byte-identical at
+HEAD and in the index, took the count from 16 to 17 and exited 1, and the remedy
+it printed sent the reader to repoint a file the repository does not contain.
+
+Reading each path's content off disk rather than out of the ref is deliberate,
+and matches the same sibling: a staged or unstaged edit to a tracked `SKILL.md`
+is counted like any other content, so the pre-push hook sees a declaration the
+author added locally, while ``git ls-files`` never offers an untracked path at
+all. That enumeration lists index entries, so an unmerged path arrives once per
+merge stage; ``tracked_files`` deduplicates it (issue #4746), which is the other
+reason to borrow it rather than call git here.
+
+A tracked path that is absent from disk is skipped rather than reported: the
+index still lists a file a working-tree deletion has removed, and that
+intermediate state is not a finding. A path that exists and cannot be read is.
+
+`evals/` is deliberately not excluded: its one tracked SKILL.md declares
+`metadata.issue` and no `adr`, so it passes today, and a frozen evaluation
+record that did declare a retired ADR is a finding a human should read rather
+than a case to hide in advance.
 
 ## Why a ratchet rather than a hard gate
 
@@ -89,9 +107,10 @@ today's count as a ceiling that may fall and never rise, which is the shape
 ``--write-baseline`` only when the count falls.
 
 Exit codes follow ADR-035: 0 ok, 1 the count rose above its baseline, 2 a
-configuration fault (unreadable or stale baseline, missing ADR directory). A
-gate that cannot read its own baseline has not run, and reporting that as a pass
-is the silent-pass failure `.claude/rules/ci-scripts.md` exists to stop.
+configuration fault (unreadable or stale baseline, missing ADR directory), 3 git
+could not list the tracked files. A gate that cannot read its own baseline, or
+cannot enumerate what it is meant to scan, has not run, and reporting either as
+a pass is the silent-pass failure `.claude/rules/ci-scripts.md` exists to stop.
 """
 
 from __future__ import annotations
@@ -112,11 +131,18 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+_REPO_ROOT = _SCRIPT_DIR.parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from check_adr_lifecycle import Record, collect_records  # noqa: E402
+
+from scripts.ci.count_ratchet import tracked_files  # noqa: E402
 
 EXIT_OK = 0
 EXIT_REGRESSION = 1
 EXIT_CONFIG = 2
+EXIT_EXTERNAL = 3
 
 #: The one check name this gate owns. Mirrors the per-check baseline shape of
 #: `check_adr_lifecycle.py` so both files read the same way, even though this
@@ -127,22 +153,6 @@ CHECKS = (CHECK,)
 #: Subset of ADR-073's status enum naming a record no skill should declare as a
 #: live dependency. See the module docstring for the verbatim enum.
 RETIRED_STATUSES = frozenset({"superseded", "deprecated", "rejected"})
-
-#: Directory names never walked. See "Stricter/looser/different than canonical".
-_PRUNED_DIRS = frozenset(
-    {
-        ".agent-tmp",
-        ".worktrees",
-        "worktrees",
-        "node_modules",
-        ".git",
-        "cache",
-        ".pytest_cache",
-        ".pytest_tmp",
-        ".venv",
-        "__pycache__",
-    }
-)
 
 #: An ADR id as it appears inside a `metadata.adr` value: "ADR-007", "adr-7",
 #: "ADR_37". Deliberately does not match a bare integer, because `metadata.adr`
@@ -212,14 +222,26 @@ def _status_of_record(record: Record) -> str:
     return str(value).strip().lower()
 
 
-def find_skill_files(repo_root: Path) -> list[Path]:
-    """Every `SKILL.md` under ``repo_root``, pruned and sorted for stable output."""
-    found: list[Path] = []
-    for dirpath, dirnames, filenames in os.walk(repo_root):
-        dirnames[:] = sorted(d for d in dirnames if d not in _PRUNED_DIRS)
-        if "SKILL.md" in filenames:
-            found.append(Path(dirpath) / "SKILL.md")
-    return sorted(found)
+def find_skill_files(repo_root: Path) -> list[Path] | None:
+    """Every git-tracked `SKILL.md` under ``repo_root``, sorted, or None on failure.
+
+    None means git could not list the index, which is an external fault and not
+    an empty result. See "Scope is git-tracked files" in the module docstring for
+    why the index rather than a filesystem walk.
+    """
+    relatives = tracked_files(repo_root, ("*SKILL.md",))
+    if relatives is None:
+        return None
+    # The pathspec is a suffix match, so it also offers `LEGACY-SKILL.md` and
+    # `notes.SKILL.md`. The walk this replaced tested `"SKILL.md" in filenames`,
+    # an exact basename, and a manifest is the only subject this gate has. No
+    # tracked path needs the filter today, which is exactly why it is written
+    # down rather than left to the tree's current shape.
+    return sorted(
+        repo_root / relative
+        for relative in relatives
+        if relative.rsplit("/", 1)[-1] == "SKILL.md"
+    )
 
 
 def declared_adr_numbers(skill_path: Path) -> tuple[list[int], str | None]:
@@ -268,11 +290,26 @@ def declared_adr_numbers(skill_path: Path) -> tuple[list[int], str | None]:
     return numbers, None
 
 
-def scan(repo_root: Path, adr_dir: Path) -> list[Violation]:
-    """Every SKILL.md declaring a retired ADR, in path order."""
+def scan(repo_root: Path, adr_dir: Path) -> list[Violation] | str:
+    """Every tracked SKILL.md declaring a retired ADR, in path order.
+
+    Returns the fault reason as a string when the tracked-file list could not be
+    read, mirroring :func:`read_baseline`, so a gate that could not enumerate
+    anything never reports an empty findings list as a clean tree.
+    """
     statuses = adr_statuses(repo_root, adr_dir)
+    skills = find_skill_files(repo_root)
+    if skills is None:
+        return (
+            f"git could not list tracked SKILL.md files under {repo_root}, so "
+            "nothing was examined and the gate did not run"
+        )
     violations: list[Violation] = []
-    for skill in find_skill_files(repo_root):
+    for skill in skills:
+        if not skill.exists():
+            # The index still lists a path a working-tree deletion has removed.
+            # That intermediate state is not a finding; an unreadable file is.
+            continue
         try:
             rel = skill.relative_to(repo_root).as_posix()
         except ValueError:
@@ -386,6 +423,19 @@ def write_baseline(path: Path, counts: dict[str, int]) -> None:
         raise
 
 
+def _scan_or_report(repo_root: Path, adr_dir: Path) -> list[Violation] | None:
+    """:func:`scan`'s findings, or None after writing the fault to stderr.
+
+    One owner for the external-fault message, so the `--write-baseline` path and
+    the checking path cannot drift into reporting the same failure differently.
+    """
+    scanned = scan(repo_root, adr_dir)
+    if isinstance(scanned, str):
+        print(f"[{CHECK}] external: {scanned}", file=sys.stderr)
+        return None
+    return scanned
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -419,19 +469,30 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_CONFIG
 
-    violations = scan(repo_root, adr_dir)
-    counts = tally(violations)
     baseline_path = Path(args.baseline)
 
     if args.write_baseline:
+        recorded = _scan_or_report(repo_root, adr_dir)
+        if recorded is None:
+            return EXIT_EXTERNAL
+        counts = tally(recorded)
         write_baseline(baseline_path, counts)
         print(f"[{CHECK}] baseline written to {baseline_path}: {counts[CHECK]}")
         return EXIT_OK
 
+    # The gate's own configuration is read before its environment is touched. An
+    # unusable baseline is the caller's fault and costs one small file read, so
+    # reporting it ahead of a git failure gives the more actionable message when
+    # both are true.
     baseline = read_baseline(baseline_path)
     if isinstance(baseline, str):
         print(f"[{CHECK}] config: {baseline}", file=sys.stderr)
         return EXIT_CONFIG
+
+    violations = _scan_or_report(repo_root, adr_dir)
+    if violations is None:
+        return EXIT_EXTERNAL
+    counts = tally(violations)
 
     for violation in violations:
         print(violation.render())
@@ -460,8 +521,9 @@ def main(argv: list[str] | None = None) -> int:
 def validate_skill_adr_bindings(repo_root: Path) -> bool:
     """Pre-PR gate adapter: True when the count is at or below its baseline.
 
-    A config error (exit 2) returns False. A gate that cannot read its own
-    baseline has not run, and reporting that as a pass is the silent-pass
+    A config error (exit 2) and an external fault (exit 3) both return False.
+    A gate that cannot read its own baseline, or cannot list the files it is
+    meant to scan, has not run, and reporting that as a pass is the silent-pass
     failure the repository's CI-script rules exist to stop.
     """
     return main(["--repo-root", str(repo_root)]) == EXIT_OK
