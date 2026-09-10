@@ -70,6 +70,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'CI Dependency Pins',
     'ADR Lifecycle Frontmatter (ratchet)',
     'ADR Link Resolution',
+    'Skill ADR Bindings (ratchet)',
     'Design Review Frontmatter',
     'Build Command Exit Gates',
     'Stale Script References',

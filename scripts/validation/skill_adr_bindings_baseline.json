@@ -1,0 +1,7 @@
+{
+  "schema_version": "1",
+  "description": "Ceiling on SKILL.md files declaring a retired ADR in metadata.adr (issue #5665). The count may fall but never rise. Regenerate with: uv run python scripts/validation/check_skill_adr_bindings.py --write-baseline",
+  "counts": {
+    "skill-adr-binding": 16
+  }
+}
