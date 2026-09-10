@@ -154,8 +154,21 @@ def repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def _scan(repo: Path):
+def _scan_result(repo: Path):
+    """The whole :class:`ScanResult`, for cases that assert on the counts."""
     return scan(repo, repo / ".agents" / "architecture")
+
+
+def _scan(repo: Path):
+    """Violations only, or the fault string unchanged.
+
+    `scan` returns candidate/examined counts alongside the findings so no caller
+    can print one without the other. Most cases here assert on findings, so this
+    unwraps them; a fault is passed through so an `isinstance(..., str)` check
+    still discriminates.
+    """
+    result = _scan_result(repo)
+    return result if isinstance(result, str) else result.violations
 
 
 # --------------------------------------------------------------------------
@@ -397,12 +410,228 @@ def test_edge_a_tracked_path_deleted_from_disk_is_skipped(repo: Path) -> None:
 def test_neg_an_unlistable_root_is_external_not_a_clean_tree(tmp_path: Path) -> None:
     """A root git cannot read has examined nothing. Reporting that as zero
     violations is the silent-pass shape `ci-scripts.md` MUST 11 and 12 forbid."""
-    (tmp_path / ".agents" / "architecture").mkdir(parents=True)
+    _write_adr(tmp_path, 2, "superseded")
     assert not (tmp_path / ".git").exists(), "the root must not be a repository"
     assert find_skill_files(tmp_path) is None
     fault = _scan(tmp_path)
     assert isinstance(fault, str), f"expected a fault reason, got {fault!r}"
     assert "could not list tracked" in fault
+
+
+# --------------------------------------------------------------------------
+# Examined-nothing: a run that looked at nothing must not read as a clean run
+# --------------------------------------------------------------------------
+
+
+def _make_absent(repo: Path, relative: str, *, skip_worktree: bool) -> None:
+    """Leave ``relative`` in the index while removing it from the working tree.
+
+    Two shapes reach the same state. ``skip_worktree`` is the sparse-checkout
+    shape, where `git status` reports the tree clean; without it the file is an
+    ordinary unstaged deletion. Both are states the gate must not score as a
+    manifest it examined.
+    """
+    if skip_worktree:
+        # --skip-worktree suppresses the working-tree comparison for a committed
+        # file. A staged-but-uncommitted path still shows as added, so the commit
+        # is what makes `git status` report the clean tree this shape needs.
+        _git(repo, "add", "--all")
+        _git(
+            repo,
+            "-c",
+            "user.name=fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "commit",
+            "-qm",
+            "fixture",
+        )
+        _git(repo, "update-index", "--skip-worktree", "--", relative)
+    (repo / relative).unlink()
+    assert relative in _git(repo, "ls-files", "--", relative).stdout, "still indexed"
+
+
+def test_neg_a_tree_with_no_examinable_manifest_is_a_config_fault(repo: Path) -> None:
+    """Reproduced before the guard existed: five tracked manifests removed under
+    `git update-index --skip-worktree`, `git status` clean, and the gate printed
+    `improved: 0 of a permitted 16` and exited 0. That does not merely fail to
+    warn, it asserts the tree got better and tells the reader to lower the
+    ceiling, which then writes a number no full checkout can ever match."""
+    for index in range(3):
+        _write_skill(repo, f"s{index}", "name: s\nmetadata:\n  adr: ADR-002")
+        _make_absent(repo, f"skills/s{index}/SKILL.md", skip_worktree=True)
+    assert _git(repo, "status", "--porcelain").stdout == "", "git must see it clean"
+
+    baseline = repo / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 16}}), encoding="utf-8"
+    )
+    assert _run(repo, baseline) == EXIT_CONFIG
+
+
+def test_pos_the_same_tree_checked_out_scans_normally(repo: Path) -> None:
+    """Control for the case above, differing only in whether the manifests are on
+    disk. Without it, a gate that refused every tree would pass that test."""
+    for index in range(3):
+        _write_skill(repo, f"s{index}", "name: s\nmetadata:\n  adr: ADR-002")
+    baseline = repo / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 16}}), encoding="utf-8"
+    )
+    assert _run(repo, baseline) == EXIT_OK
+
+
+def test_edge_one_absent_manifest_is_named_and_the_rest_still_scan(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A deletion in progress is not a finding and must not block, but it is also
+    not an examination, so it is named rather than dropped."""
+    _write_skill(repo, "gone", "name: s\nmetadata:\n  adr: ADR-002")
+    _write_skill(repo, "here", "name: s\nmetadata:\n  adr: ADR-002")
+    _make_absent(repo, "skills/gone/SKILL.md", skip_worktree=False)
+
+    baseline = repo / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8"
+    )
+    assert _run(repo, baseline) == EXIT_OK
+    captured = capsys.readouterr()
+    assert "skills/gone/SKILL.md" in captured.err
+    assert "1 of 2 tracked" in captured.err
+    assert "across 1 of 2 tracked SKILL.md file(s)" in captured.out
+
+
+def test_pos_every_terminal_line_carries_the_examined_count(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`ci-scripts.md` MUST 12 verbatim: "0 violations in 381 files" is
+    verifiable; "OK" is not. The sibling `check_adr_lifecycle.py:1195` prints the
+    same pairing, and the first revision of this gate dropped that half."""
+    _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-002")
+    baseline = repo / "b.json"
+
+    for ceiling, expected in ((1, "at baseline"), (5, "improved")):
+        baseline.write_text(
+            json.dumps({"schema_version": "1", "counts": {CHECK: ceiling}}),
+            encoding="utf-8",
+        )
+        assert _run(repo, baseline) == EXIT_OK
+        out = capsys.readouterr().out
+        assert expected in out
+        assert "across 1 of 1 tracked SKILL.md file(s)" in out, out
+
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8"
+    )
+    assert _run(repo, baseline) == EXIT_REGRESSION
+    assert "across 1 of 1 tracked SKILL.md file(s)" in capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------
+# The baseline may only fall
+# --------------------------------------------------------------------------
+
+
+def test_neg_write_baseline_refuses_to_raise_the_ceiling(repo: Path) -> None:
+    """`ci-scripts.md` MUST NOT 4 forbids raising a count baseline, and the shared
+    `scripts/ci/count_ratchet.py:1016` enforces it by reaching its writer only
+    inside `if count < baseline:`. Without this refusal the remedy line the gate
+    itself prints is a one-command way to legalise a new violation."""
+    for index in range(3):
+        _write_skill(repo, f"s{index}", "name: s\nmetadata:\n  adr: ADR-002")
+    baseline = repo / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8"
+    )
+
+    assert _run(repo, baseline, "--write-baseline") == EXIT_CONFIG
+    assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 1
+
+
+def test_pos_write_baseline_lowers_the_ceiling(repo: Path) -> None:
+    """Control for the refusal above, differing only in the direction of travel.
+    A gate that refused every write would pass that test and fail this one."""
+    _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-002")
+    baseline = repo / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 9}}), encoding="utf-8"
+    )
+
+    assert _run(repo, baseline, "--write-baseline") == EXIT_OK
+    assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 1
+
+
+def test_neg_write_baseline_refuses_a_partially_checked_out_tree(repo: Path) -> None:
+    """A ceiling measured with manifests missing is lower than the same commit
+    scores in a full checkout, so writing it makes every later full run a
+    permanent regression against a number no tree ever held."""
+    _write_skill(repo, "gone", "name: s\nmetadata:\n  adr: ADR-002")
+    _make_absent(repo, "skills/gone/SKILL.md", skip_worktree=True)
+    baseline = repo / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 7}}), encoding="utf-8"
+    )
+
+    assert _run(repo, baseline, "--write-baseline") == EXIT_CONFIG
+    assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 7
+
+
+# --------------------------------------------------------------------------
+# The ADR corpus must actually resolve statuses
+# --------------------------------------------------------------------------
+
+
+def test_neg_an_empty_adr_corpus_is_a_config_fault(tmp_path: Path) -> None:
+    """With no record to resolve, `statuses.get(number, "")` puts every declared
+    id outside RETIRED_STATUSES, so a violating skill scores clean. The sibling
+    `check_adr_lifecycle.py:1258` refuses the same tree; this gate copied the
+    `is_dir()` half and dropped the corpus-presence half."""
+    (tmp_path / ".agents" / "architecture").mkdir(parents=True)
+    _write_skill(tmp_path, "s", "name: s\nmetadata:\n  adr: ADR-002")
+    baseline = tmp_path / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8"
+    )
+    assert _run(tmp_path, baseline) == EXIT_CONFIG
+
+
+def test_pos_the_same_tree_with_one_record_flags_the_skill(tmp_path: Path) -> None:
+    """Control for the corpus guard: the only difference is one ADR file."""
+    _write_adr(tmp_path, 2, "superseded")
+    _write_skill(tmp_path, "s", "name: s\nmetadata:\n  adr: ADR-002")
+    baseline = tmp_path / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8"
+    )
+    assert _run(tmp_path, baseline) == EXIT_REGRESSION
+
+
+# --------------------------------------------------------------------------
+# A tracked symlink is reported, not followed
+# --------------------------------------------------------------------------
+
+
+def test_edge_a_tracked_symlink_is_reported_not_followed(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """For a mode-120000 entry the tracked content is the link target string, not
+    the manifest, so reading through it takes the count from bytes no ref holds.
+    That is the untracked-state read the tracked enumeration exists to prevent."""
+    outside = tmp_path_factory.mktemp("outside") / "not-in-any-ref.md"
+    outside.write_text(
+        "---\nname: s\nmetadata:\n  adr: ADR-002\n---\n\n# s\n", encoding="utf-8"
+    )
+    link_dir = repo / "skills" / "linked"
+    link_dir.mkdir(parents=True)
+    (link_dir / "SKILL.md").symlink_to(outside)
+    _track(repo, "skills/linked/SKILL.md")
+    mode = _git(repo, "ls-files", "-s", "--", "skills/linked/SKILL.md").stdout.split()[0]
+    assert mode == "120000", f"git did not record a symlink, it recorded mode {mode}"
+
+    violations = _scan(repo)
+    assert len(violations) == 1
+    assert "is a symlink" in violations[0].detail
+    assert "ADR-002 is superseded" not in violations[0].detail
 
 
 def test_neg_write_baseline_on_an_unlistable_root_writes_nothing(
@@ -417,7 +646,7 @@ def test_neg_write_baseline_on_an_unlistable_root_writes_nothing(
     effect happened first, so the assertion that matters is that the file is
     still absent.
     """
-    (tmp_path / ".agents" / "architecture").mkdir(parents=True)
+    _write_adr(tmp_path, 2, "superseded")
     baseline = tmp_path / "baseline.json"
     assert not baseline.exists(), "the file must not pre-exist, or this proves nothing"
 
@@ -438,7 +667,7 @@ def test_neg_write_baseline_on_an_unlistable_root_writes_nothing(
 
 def test_neg_an_unlistable_root_exits_external(tmp_path: Path) -> None:
     """The process-level half of the case above, per `testing.md` MUST 8."""
-    (tmp_path / ".agents" / "architecture").mkdir(parents=True)
+    _write_adr(tmp_path, 2, "superseded")
     baseline = tmp_path / "baseline.json"
     baseline.write_text(
         json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8"

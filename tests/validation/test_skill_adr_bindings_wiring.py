@@ -159,11 +159,15 @@ def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
     import check_skill_adr_bindings as mod
 
     repo_root = Path(__file__).resolve().parents[2]
-    violations = mod.scan(repo_root, repo_root / ".agents" / "architecture")
-    assert isinstance(violations, list), (
-        f"scan reported a fault, so the count below would measure a string: "
-        f"{violations!r}"
+    result = mod.scan(repo_root, repo_root / ".agents" / "architecture")
+    assert isinstance(result, mod.ScanResult), (
+        f"scan reported a fault, so the count below would measure a string: {result!r}"
     )
+    assert result.examined == result.candidates, (
+        f"only {result.examined} of {result.candidates} tracked manifests were "
+        f"examined, so this count is not a claim about the ref: {result.absent}"
+    )
+    violations = result.violations
     baseline = mod.read_baseline(mod._BASELINE_PATH)
     assert isinstance(baseline, dict), f"shipped baseline is unusable: {baseline}"
     assert baseline[CHECK] == len(violations), (

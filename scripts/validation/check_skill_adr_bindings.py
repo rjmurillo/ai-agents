@@ -107,9 +107,26 @@ all. That enumeration lists index entries, so an unmerged path arrives once per
 merge stage; ``tracked_files`` deduplicates it (issue #4746), which is the other
 reason to borrow it rather than call git here.
 
-A tracked path that is absent from disk is skipped rather than reported: the
-index still lists a file a working-tree deletion has removed, and that
-intermediate state is not a finding. A path that exists and cannot be read is.
+A tracked path the working tree does not hold is counted and named rather than
+dropped. The index lists it, but a deletion in progress, a sparse checkout and a
+skip-worktree entry all leave it unreadable, and none of those is a finding about
+the declaration. Dropping them silently was a defect: with every manifest absent
+the gate printed ``improved: 0 of a permitted 16`` and exited 0, which does not
+merely fail to warn, it asserts the tree got better and tells the reader to lower
+the ceiling. Reproduced on five tracked manifests removed under
+``git update-index --skip-worktree``, with ``git status`` reporting the tree
+clean. So an absent path prints a note, a tree where nothing could be examined is
+a configuration fault, and ``--write-baseline`` refuses outright, because a
+ceiling measured from a partial tree makes every later full run a permanent
+regression against a number no tree ever held.
+
+A tracked symlink is reported rather than followed. For a mode-120000 index entry
+the tracked content is the link target string, not the manifest, so reading
+through it would take the count from bytes no ref holds. That is the same
+untracked-state read this section exists to prevent, and it would be the one hole
+left in the claim above. No tracked `SKILL.md` is a symlink today.
+
+A path that exists, is not a symlink, and still cannot be read is a finding.
 
 `evals/` is deliberately not excluded: its one tracked SKILL.md declares
 `metadata.issue` and no `adr`, so it passes today, and a frozen evaluation
@@ -124,11 +141,18 @@ today's count as a ceiling that may fall and never rise, which is the shape
 `scripts/validation/adr_lifecycle_baseline.json` already uses. Regenerate with
 ``--write-baseline`` only when the count falls.
 
-Exit codes follow ADR-035: 0 ok, 1 the count rose above its baseline, 2 a
-configuration fault (unreadable or stale baseline, missing ADR directory), 3 git
-could not list the tracked files. A gate that cannot read its own baseline, or
-cannot enumerate what it is meant to scan, has not run, and reporting either as
+Exit codes follow ADR-035: 0 ok, 1 the count rose above its baseline, 3 git could
+not list the tracked files, and 2 for every configuration fault. Those are an
+unreadable or stale baseline, a missing ADR directory, an ADR directory holding
+no records, a working tree where none of the tracked manifests could be examined,
+and a ``--write-baseline`` that would raise the ceiling or was measured from a
+partial tree. A gate that cannot read its own baseline, cannot enumerate what it
+is meant to scan, or examined nothing has not run, and reporting any of those as
 a pass is the silent-pass failure `.claude/rules/ci-scripts.md` exists to stop.
+
+Every terminal line carries the examined count beside the violation count, which
+MUST 12 requires in as many words: "0 violations in 381 files" is verifiable,
+"OK" is not. `check_adr_lifecycle.py:1195` prints the same pairing.
 """
 
 from __future__ import annotations
@@ -153,7 +177,7 @@ _REPO_ROOT = _SCRIPT_DIR.parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from check_adr_lifecycle import Record, collect_records  # noqa: E402
+from check_adr_lifecycle import ADR_FILENAME_RE, Record, collect_records  # noqa: E402
 
 from scripts.ci.count_ratchet import tracked_files  # noqa: E402
 
@@ -308,7 +332,24 @@ def declared_adr_numbers(skill_path: Path) -> tuple[list[int], str | None]:
     return numbers, None
 
 
-def scan(repo_root: Path, adr_dir: Path) -> list[Violation] | str:
+@dataclass(frozen=True, slots=True)
+class ScanResult:
+    """What a scan found, and as importantly what it managed to look at.
+
+    `.claude/rules/ci-scripts.md` MUST 12 requires a run that examined nothing to
+    be distinguishable from a run that examined everything and found nothing. The
+    counts therefore travel together, so no caller can render one without the
+    other. ``candidates`` is what the index offered, ``examined`` is what was
+    actually read, and ``absent`` names the difference.
+    """
+
+    violations: list[Violation]
+    candidates: int
+    examined: int
+    absent: list[str]
+
+
+def scan(repo_root: Path, adr_dir: Path) -> ScanResult | str:
     """Every tracked SKILL.md declaring a retired ADR, in path order.
 
     Returns the fault reason as a string when the tracked-file list could not be
@@ -323,15 +364,38 @@ def scan(repo_root: Path, adr_dir: Path) -> list[Violation] | str:
             "nothing was examined and the gate did not run"
         )
     violations: list[Violation] = []
+    absent: list[str] = []
+    examined = 0
     for skill in skills:
-        if not skill.exists():
-            # The index still lists a path a working-tree deletion has removed.
-            # That intermediate state is not a finding; an unreadable file is.
-            continue
         try:
             rel = skill.relative_to(repo_root).as_posix()
         except ValueError:
             rel = skill.as_posix()
+        if skill.is_symlink():
+            # A mode-120000 index entry's tracked content is the link target
+            # string, not the YAML behind it. Reading through the link would take
+            # the count from bytes no ref holds, which is the untracked-state read
+            # this gate moved off `os.walk` to prevent, so it is reported rather
+            # than followed. No tracked SKILL.md is a symlink today.
+            violations.append(
+                Violation(
+                    CHECK,
+                    rel,
+                    "SKILL.md is a symlink, so its tracked content is a link "
+                    "target rather than a manifest and its declarations cannot "
+                    "be resolved from the index. Replace it with a regular file.",
+                )
+            )
+            continue
+        if not skill.exists():
+            # The index lists a path the working tree does not hold: a deletion in
+            # progress, a sparse checkout, or a skip-worktree entry. That is not a
+            # finding, but it is also not an examination, so it is counted and
+            # reported rather than dropped. See `_report_absent` for what the
+            # caller does with it.
+            absent.append(rel)
+            continue
+        examined += 1
         numbers, fault = declared_adr_numbers(skill)
         if fault is not None:
             violations.append(Violation(CHECK, rel, f"SKILL.md {fault}"))
@@ -352,7 +416,12 @@ def scan(repo_root: Path, adr_dir: Path) -> list[Violation] | str:
                 "Repoint it at the successor, or drop the declaration.",
             )
         )
-    return violations
+    return ScanResult(
+        violations=violations,
+        candidates=len(skills),
+        examined=examined,
+        absent=absent,
+    )
 
 
 def tally(violations: list[Violation]) -> dict[str, int]:
@@ -441,8 +510,8 @@ def write_baseline(path: Path, counts: dict[str, int]) -> None:
         raise
 
 
-def _scan_or_report(repo_root: Path, adr_dir: Path) -> list[Violation] | None:
-    """:func:`scan`'s findings, or None after writing the fault to stderr.
+def _scan_or_report(repo_root: Path, adr_dir: Path) -> ScanResult | None:
+    """:func:`scan`'s result, or None after writing the fault to stderr.
 
     One owner for the external-fault message, so the `--write-baseline` path and
     the checking path cannot drift into reporting the same failure differently.
@@ -452,6 +521,48 @@ def _scan_or_report(repo_root: Path, adr_dir: Path) -> list[Violation] | None:
         print(f"[{CHECK}] external: {scanned}", file=sys.stderr)
         return None
     return scanned
+
+
+#: How many absent paths to name before truncating. Enough to recognise a
+#: pattern, few enough that a bulk checkout state does not flood the terminal.
+_ABSENT_SAMPLE = 5
+
+
+def _report_absent(result: ScanResult) -> None:
+    """Name the tracked manifests the working tree does not hold.
+
+    Silence here is what made a sparse or unchecked-out tree print `improved: 0
+    of a permitted 16` and exit 0, which does not merely fail to warn: it asserts
+    the tree got better and tells the reader to lower the ceiling.
+    """
+    if not result.absent:
+        return
+    shown = ", ".join(result.absent[:_ABSENT_SAMPLE])
+    more = len(result.absent) - _ABSENT_SAMPLE
+    suffix = f", and {more} more" if more > 0 else ""
+    print(
+        f"[{CHECK}] note: {len(result.absent)} of {result.candidates} tracked "
+        f"SKILL.md file(s) are listed in the index but absent from the working "
+        f"tree, so they were not examined: {shown}{suffix}",
+        file=sys.stderr,
+    )
+
+
+def _corpus_is_empty(adr_dir: Path) -> bool:
+    """True when no `ADR-NNN-*.md` is present, so no status can resolve.
+
+    Mirrors the corpus-presence half of `check_adr_lifecycle.py:1258`, quoted
+    verbatim::
+
+        if not any(ADR_FILENAME_RE.match(md.name) for md in adr_dir.glob("ADR-*.md")):
+
+    That gate added this because an emptied or misrouted corpus still passes the
+    `is_dir()` check, so a missing corpus reads as a clean corpus. Here the
+    consequence is worse than a false pass on the records: with no statuses
+    resolved, `statuses.get(number, "")` puts every declared id outside
+    :data:`RETIRED_STATUSES`, so every violating skill scores clean.
+    """
+    return not any(ADR_FILENAME_RE.match(md.name) for md in adr_dir.glob("ADR-*.md"))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -487,16 +598,19 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_CONFIG
 
+    if _corpus_is_empty(adr_dir):
+        print(
+            f"[{CHECK}] config: no ADR records found under {adr_dir}, so every "
+            "declaration would resolve to no status and score clean. The gate "
+            "did not run",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
+
     baseline_path = Path(args.baseline)
 
     if args.write_baseline:
-        recorded = _scan_or_report(repo_root, adr_dir)
-        if recorded is None:
-            return EXIT_EXTERNAL
-        counts = tally(recorded)
-        write_baseline(baseline_path, counts)
-        print(f"[{CHECK}] baseline written to {baseline_path}: {counts[CHECK]}")
-        return EXIT_OK
+        return _write_baseline_command(repo_root, adr_dir, baseline_path)
 
     # The gate's own configuration is read before its environment is touched. An
     # unusable baseline is the caller's fault and costs one small file read, so
@@ -507,32 +621,93 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[{CHECK}] config: {baseline}", file=sys.stderr)
         return EXIT_CONFIG
 
-    violations = _scan_or_report(repo_root, adr_dir)
-    if violations is None:
+    result = _scan_or_report(repo_root, adr_dir)
+    if result is None:
         return EXIT_EXTERNAL
-    counts = tally(violations)
+    _report_absent(result)
 
-    for violation in violations:
+    if result.candidates and not result.examined:
+        print(
+            f"[{CHECK}] config: 0 of {result.candidates} tracked SKILL.md file(s) "
+            "could be examined, so this run measured nothing. Check out the "
+            "working tree before trusting a count from it",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
+
+    counts = tally(result.violations)
+    for violation in result.violations:
         print(violation.render())
 
     current = counts[CHECK]
     ceiling = baseline[CHECK]
+    scope = f"across {result.examined} of {result.candidates} tracked SKILL.md file(s)"
     if current > ceiling:
         print(
             f"[{CHECK}] REGRESSION: {current} SKILL.md file(s) declare a retired "
-            f"ADR, above the ceiling of {ceiling}. Repoint the declaration at the "
-            "successor record, or drop it.",
+            f"ADR {scope}, above the ceiling of {ceiling}. Repoint the "
+            "declaration at the successor record, or drop it.",
             file=sys.stderr,
         )
         return EXIT_REGRESSION
 
     if current < ceiling:
         print(
-            f"[{CHECK}] improved: {current} of a permitted {ceiling}. "
+            f"[{CHECK}] improved: {current} of a permitted {ceiling}, {scope}. "
             "Lower the ceiling with --write-baseline."
         )
     else:
-        print(f"[{CHECK}] at baseline: {current} of a permitted {ceiling}.")
+        print(f"[{CHECK}] at baseline: {current} of a permitted {ceiling}, {scope}.")
+    return EXIT_OK
+
+
+def _write_baseline_command(repo_root: Path, adr_dir: Path, baseline_path: Path) -> int:
+    """Record the current count as the ceiling, or refuse and say why.
+
+    Two refusals, both of which the first revision of this gate lacked.
+
+    A ceiling measured from a tree that does not hold every tracked manifest is
+    lower than the same commit scores in a full checkout, and writing it makes
+    every later full run a permanent regression against a number no tree ever
+    held. So any absent path refuses the write.
+
+    A ratchet may only fall. `.claude/rules/ci-scripts.md` MUST NOT 4 forbids
+    raising a count baseline, and the shared `scripts/ci/count_ratchet.py:1016`
+    enforces it by reaching its writer only inside ``if count < baseline:``. The
+    sibling `check_adr_lifecycle.py` refuses the same way. Without this, the
+    remedy line this gate itself prints is a one-command way to legalise a new
+    violation.
+    """
+    result = _scan_or_report(repo_root, adr_dir)
+    if result is None:
+        return EXIT_EXTERNAL
+    _report_absent(result)
+    if result.absent:
+        print(
+            f"[{CHECK}] config: refusing to write a ceiling measured with "
+            f"{len(result.absent)} of {result.candidates} tracked SKILL.md "
+            "file(s) absent from the working tree. Check the tree out first",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
+
+    counts = tally(result.violations)
+    current = counts[CHECK]
+    recorded = read_baseline(baseline_path)
+    if isinstance(recorded, dict) and current > recorded[CHECK]:
+        print(
+            f"[{CHECK}] config: --write-baseline would raise the ceiling from "
+            f"{recorded[CHECK]} to {current}. The baseline may only fall. Fix "
+            "the declaration instead",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
+
+    write_baseline(baseline_path, counts)
+    print(
+        f"[{CHECK}] baseline written to {baseline_path}: {current}, measured "
+        f"across {result.examined} of {result.candidates} tracked SKILL.md file(s)"
+    )
     return EXIT_OK
 
 
