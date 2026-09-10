@@ -245,8 +245,26 @@ def test_edge_bare_integer_is_not_an_id(repo: Path) -> None:
     assert _scan(repo) == []
 
 
-def test_edge_unknown_adr_number_is_clean(repo: Path) -> None:
+def test_neg_an_id_with_no_record_is_a_finding(repo: Path) -> None:
+    """Flipped from `test_edge_unknown_adr_number_is_clean`, which pinned the
+    opposite contract.
+
+    Reading an unresolvable id as clean is what let a wrong corpus score every
+    violating skill clean: `.agents/architecture` holding unrelated records
+    passes the presence guard, no declared id resolves, the count collapses, and
+    the gate prints `improved` and invites lowering the ceiling. Reproduced on a
+    corpus holding only ADR-999 while the skill declared ADR-002.
+    """
     _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-999")
+    violations = _scan(repo)
+    assert len(violations) == 1
+    assert "ADR-999" in violations[0].detail
+    assert "no record" in violations[0].detail
+
+
+def test_pos_an_id_with_a_record_is_not_reported_as_missing(repo: Path) -> None:
+    """Control: the only difference is that the declared record exists."""
+    _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-001")
     assert _scan(repo) == []
 
 
@@ -561,6 +579,106 @@ def test_pos_write_baseline_lowers_the_ceiling(repo: Path) -> None:
     assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 1
 
 
+def test_neg_a_tree_offering_no_manifest_measured_nothing(repo: Path) -> None:
+    """The zero-candidate half of the examined-nothing guard.
+
+    An earlier form asked `candidates and not examined`, which is False when
+    `candidates` is 0. A tree offering no manifest at all therefore printed
+    `improved: 0 of a permitted 16` at exit 0, which is the exact phantom
+    improvement the guard exists to kill, and `--write-baseline` then recorded 0
+    with no absent path to refuse on.
+    """
+    baseline = repo / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 16}}), encoding="utf-8"
+    )
+    assert _run(repo, baseline) == EXIT_CONFIG
+
+
+def test_neg_write_baseline_refuses_a_tree_offering_no_manifest(repo: Path) -> None:
+    """The costly half of the case above, asserted on the file, per SHOULD 7."""
+    baseline = repo / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 16}}), encoding="utf-8"
+    )
+    assert _run(repo, baseline, "--write-baseline") == EXIT_CONFIG
+    assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 16
+
+
+def test_pos_a_partial_read_still_scans_and_only_the_write_is_strict(
+    repo: Path,
+) -> None:
+    """The two thresholds differ on purpose, and this pins the difference.
+
+    A partial read can only undercount, which cannot manufacture a regression,
+    so blocking it would fail a contributor who removed a manifest without
+    staging the deletion. Writing an undercount as a ceiling does real damage,
+    so only that path refuses.
+    """
+    _write_skill(repo, "gone", "name: s\nmetadata:\n  adr: ADR-002")
+    _write_skill(repo, "here", "name: s\nmetadata:\n  adr: ADR-002")
+    _make_absent(repo, "skills/gone/SKILL.md", skip_worktree=False)
+    baseline = repo / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 4}}), encoding="utf-8"
+    )
+
+    assert _run(repo, baseline) == EXIT_OK, "a partial read must not block the check"
+    assert _run(repo, baseline, "--write-baseline") == EXIT_CONFIG
+    assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 4
+
+
+def test_edge_a_manifest_under_a_symlinked_parent_is_reported_not_read(
+    repo: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """`is_symlink()` on the final component answers False here: the manifest is
+    an ordinary file and its PARENT carries the link. The bytes still come from
+    outside the repository, which is the invariant, so `_escapes_repo` asks about
+    the resolved path instead of the last path component."""
+    # Git refuses `add` on a path beyond a symlink, so the entry cannot be
+    # created that way. The state is still reachable exactly as the absent case
+    # is: track the manifest normally, then let the working tree diverge from the
+    # index. The index keeps listing the path and the bytes now come from
+    # elsewhere, which is the whole point.
+    _write_skill(repo, "linked", "name: s\nmetadata:\n  adr: ADR-001")
+    outside = tmp_path_factory.mktemp("outside-tree")
+    (outside / "SKILL.md").write_text(
+        "---\nname: s\nmetadata:\n  adr: ADR-002\n---\n\n# s\n", encoding="utf-8"
+    )
+    linked = repo / "skills" / "linked"
+    (linked / "SKILL.md").unlink()
+    linked.rmdir()
+    linked.symlink_to(outside, target_is_directory=True)
+    assert "skills/linked/SKILL.md" in _git(repo, "ls-files").stdout, "still indexed"
+
+    manifest = repo / "skills" / "linked" / "SKILL.md"
+    assert not manifest.is_symlink(), "the final component must be a regular file"
+    violations = _scan(repo)
+    assert len(violations) == 1
+    assert "outside the repository" in violations[0].detail
+    assert "ADR-002 is superseded" not in violations[0].detail
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root bypasses the permission bit")
+def test_neg_write_baseline_refuses_an_unstattable_ceiling(repo: Path) -> None:
+    """`Path.exists()` swallows the OSError and answers False, which would
+    classify a present-but-unreadable ceiling as "no ceiling" and allow the
+    write, the same fail-open the unparseable case closes."""
+    _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-002")
+    hidden = repo / "hidden"
+    hidden.mkdir()
+    baseline = hidden / "b.json"
+    baseline.write_text(
+        json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8"
+    )
+    hidden.chmod(0)
+    try:
+        assert _run(repo, baseline, "--write-baseline") == EXIT_CONFIG
+    finally:
+        hidden.chmod(stat.S_IRWXU)
+    assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 1
+
+
 def test_neg_write_baseline_refuses_an_unreadable_ceiling(repo: Path) -> None:
     """An unreadable ceiling is not "no ceiling".
 
@@ -749,6 +867,10 @@ def test_neg_above_baseline_exits_regression(repo: Path, tmp_path: Path) -> None
 def test_edge_below_baseline_exits_ok_and_says_so(
     repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """The manifest is not decoration. Without one the repo offers no candidate,
+    the run measures nothing, and this would exercise the improvement path
+    against a tree the gate now refuses outright."""
+    _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-002")
     assert _run(repo, _baseline(tmp_path, 3)) == EXIT_OK
     assert "improved" in capsys.readouterr().out
 

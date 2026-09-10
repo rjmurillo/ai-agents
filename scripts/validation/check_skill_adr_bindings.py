@@ -115,18 +115,37 @@ the gate printed ``improved: 0 of a permitted 16`` and exited 0, which does not
 merely fail to warn, it asserts the tree got better and tells the reader to lower
 the ceiling. Reproduced on five tracked manifests removed under
 ``git update-index --skip-worktree``, with ``git status`` reporting the tree
-clean. So an absent path prints a note, a tree where nothing could be examined is
-a configuration fault, and ``--write-baseline`` refuses outright, because a
-ceiling measured from a partial tree makes every later full run a permanent
-regression against a number no tree ever held.
+clean. So an absent path prints a note naming it, a run that examined NOTHING is
+a configuration fault, and ``--write-baseline`` refuses anything short of a
+complete read.
 
-A tracked symlink is reported rather than followed. For a mode-120000 index entry
-the tracked content is the link target string, not the manifest, so reading
-through it would take the count from bytes no ref holds. That is the same
-untracked-state read this section exists to prevent, and it would be the one hole
-left in the claim above. No tracked `SKILL.md` is a symlink today.
+The two thresholds differ on purpose. A partial read can only undercount, which
+cannot manufacture a regression, and blocking it would fail a contributor who
+removed a manifest and has not staged the deletion yet. An undercount written as
+a ceiling does real damage, so the write path requires
+``examined == candidates > 0``. An earlier form of the check asked
+``candidates and not examined``, which is False when ``candidates`` is 0, so a
+tree offering no manifest at all printed the same ``improved: 0 of a permitted
+16`` line, and its ``--write-baseline`` recorded 0 with no absent path to refuse
+on.
 
-A path that exists, is not a symlink, and still cannot be read is a finding.
+A manifest whose bytes come from outside the repository is reported rather than
+read. Two shapes share one invariant: a mode-120000 entry's tracked content is
+the link target string, and a manifest under a symlinked PARENT resolves outside
+the tree while its own final component is an ordinary file. Testing
+``is_symlink()`` on the final component saw the first and missed the second, so
+:func:`_escapes_repo` asks the question the invariant is about. No tracked
+`SKILL.md` is a symlink today.
+
+A declared id with no record is reported too. Without that, an
+`.agents/architecture` holding unrelated records passes the presence check, no
+declared id resolves, every violating skill scores clean, and the gate prints
+``improved`` and invites lowering the ceiling. Measured on this tree: 106 records
+resolve and no skill declares an id without one, so this cannot move today's
+count.
+
+A path that exists, resolves inside the tree, and still cannot be read is a
+finding.
 
 `evals/` is deliberately not excluded: its one tracked SKILL.md declares
 `metadata.issue` and no `adr`, so it passes today, and a frozen evaluation
@@ -143,8 +162,8 @@ today's count as a ceiling that may fall and never rise, which is the shape
 
 Exit codes follow ADR-035: 0 ok, 1 the count rose above its baseline, 3 git could
 not list the tracked files, and 2 for every configuration fault. Those are an
-unreadable or stale baseline, a missing ADR directory, an ADR directory holding
-no records, a working tree where none of the tracked manifests could be examined,
+unreadable, unstattable or stale baseline, a missing ADR directory, an ADR
+directory holding no records, a run that examined nothing,
 and a ``--write-baseline`` that would raise the ceiling or was measured from a
 partial tree. A gate that cannot read its own baseline, cannot enumerate what it
 is meant to scan, or examined nothing has not run, and reporting any of those as
@@ -332,6 +351,22 @@ def declared_adr_numbers(skill_path: Path) -> tuple[list[int], str | None]:
     return numbers, None
 
 
+def _escapes_repo(skill: Path, repo_root: Path) -> bool:
+    """True when reading ``skill`` would take bytes from outside the repository.
+
+    Covers a symlinked manifest and a manifest under a symlinked parent with one
+    question, because the invariant is about where the bytes come from rather
+    than which path component carries the link. A resolve that raises is treated
+    as escaping: a path this cannot place is not one to read through.
+    """
+    if skill.is_symlink():
+        return True
+    try:
+        return not skill.resolve().is_relative_to(repo_root.resolve())
+    except OSError:
+        return True
+
+
 @dataclass(frozen=True, slots=True)
 class ScanResult:
     """What a scan found, and as importantly what it managed to look at.
@@ -347,6 +382,55 @@ class ScanResult:
     candidates: int
     examined: int
     absent: list[str]
+
+
+def _declaration_finding(
+    skill: Path, rel: str, statuses: dict[int, str], adr_dir: Path
+) -> Violation | None:
+    """The one finding this manifest's declarations earn, or None when clean.
+
+    Split out of :func:`scan` so that function keeps one subject. `scan` decides
+    whether a path can be read at all, which is a question about the index and
+    the working tree; this decides what the bytes say, which is a question about
+    the corpus. Merging them put six branches in one loop and took `scan` to
+    cyclomatic complexity 11 against this repository's ceiling of 10.
+    """
+    numbers, fault = declared_adr_numbers(skill)
+    if fault is not None:
+        return Violation(CHECK, rel, f"SKILL.md {fault}")
+
+    unknown = [number for number in numbers if number not in statuses]
+    if unknown:
+        # A declared id with no record is drift too, and reporting it is what
+        # keeps the count honest when the corpus itself is wrong. Without this,
+        # an `.agents/architecture` holding unrelated records passes the presence
+        # check, no declared id resolves, every violating skill scores clean, and
+        # the gate prints `improved` and invites lowering the ceiling. Measured
+        # on this tree: 106 records resolve and no skill declares an id without
+        # one, so this cannot move today's count.
+        missing = ", ".join(f"ADR-{number:03d}" for number in unknown)
+        return Violation(
+            CHECK,
+            rel,
+            f"metadata.adr declares {missing}, which no record under "
+            f"{adr_dir.name}/ defines. Either the id is wrong or the corpus this "
+            "ran against is not the one that holds it.",
+        )
+
+    retired = [
+        (number, statuses[number])
+        for number in numbers
+        if statuses[number] in RETIRED_STATUSES
+    ]
+    if not retired:
+        return None
+    named = ", ".join(f"ADR-{number:03d} is {status}" for number, status in retired)
+    return Violation(
+        CHECK,
+        rel,
+        f"metadata.adr declares a retired record: {named}. "
+        "Repoint it at the successor, or drop the declaration.",
+    )
 
 
 def scan(repo_root: Path, adr_dir: Path) -> ScanResult | str:
@@ -371,19 +455,23 @@ def scan(repo_root: Path, adr_dir: Path) -> ScanResult | str:
             rel = skill.relative_to(repo_root).as_posix()
         except ValueError:
             rel = skill.as_posix()
-        if skill.is_symlink():
-            # A mode-120000 index entry's tracked content is the link target
-            # string, not the YAML behind it. Reading through the link would take
-            # the count from bytes no ref holds, which is the untracked-state read
-            # this gate moved off `os.walk` to prevent, so it is reported rather
-            # than followed. No tracked SKILL.md is a symlink today.
+        if _escapes_repo(skill, repo_root):
+            # Two shapes, one invariant: the bytes read must come from inside the
+            # repository. A mode-120000 entry's tracked content is the link target
+            # string rather than the manifest, and a manifest under a symlinked
+            # PARENT resolves outside the tree while its own final component is an
+            # ordinary file. Testing `is_symlink()` on the final component alone
+            # saw the first and missed the second. Either way the count would come
+            # from bytes no ref holds, which is the untracked-state read this gate
+            # moved off `os.walk` to prevent, so it is reported, not followed.
             violations.append(
                 Violation(
                     CHECK,
                     rel,
-                    "SKILL.md is a symlink, so its tracked content is a link "
-                    "target rather than a manifest and its declarations cannot "
-                    "be resolved from the index. Replace it with a regular file.",
+                    "SKILL.md is a symlink or resolves outside the repository, so "
+                    "its tracked content is a link target rather than a manifest "
+                    "and its declarations cannot be resolved from the index. "
+                    "Replace it with a regular file inside the tree.",
                 )
             )
             continue
@@ -396,26 +484,9 @@ def scan(repo_root: Path, adr_dir: Path) -> ScanResult | str:
             absent.append(rel)
             continue
         examined += 1
-        numbers, fault = declared_adr_numbers(skill)
-        if fault is not None:
-            violations.append(Violation(CHECK, rel, f"SKILL.md {fault}"))
-            continue
-        retired = [
-            (number, statuses[number])
-            for number in numbers
-            if statuses.get(number, "") in RETIRED_STATUSES
-        ]
-        if not retired:
-            continue
-        named = ", ".join(f"ADR-{number:03d} is {status}" for number, status in retired)
-        violations.append(
-            Violation(
-                CHECK,
-                rel,
-                f"metadata.adr declares a retired record: {named}. "
-                "Repoint it at the successor, or drop the declaration.",
-            )
-        )
+        finding = _declaration_finding(skill, rel, statuses, adr_dir)
+        if finding is not None:
+            violations.append(finding)
     return ScanResult(
         violations=violations,
         candidates=len(skills),
@@ -626,11 +697,23 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_EXTERNAL
     _report_absent(result)
 
-    if result.candidates and not result.examined:
+    if not result.examined:
+        # Nothing was read, whether because the index offered nothing or because
+        # every candidate was absent. Both reach the same wrong outcome and the
+        # earlier form caught only the second: `candidates and not examined` is
+        # False when `candidates` is 0, so a tree offering no manifest printed
+        # `improved: 0 of a permitted 16` and invited lowering the ceiling to
+        # nothing.
+        #
+        # A PARTIAL read is deliberately not blocked here. It can only undercount,
+        # which cannot manufacture a regression, and blocking it would fail a
+        # contributor who has removed a manifest but not yet staged the deletion.
+        # The note from `_report_absent` says what was skipped, and
+        # `--write-baseline`, where an undercount does real damage, stays strict.
         print(
-            f"[{CHECK}] config: 0 of {result.candidates} tracked SKILL.md file(s) "
-            "could be examined, so this run measured nothing. Check out the "
-            "working tree before trusting a count from it",
+            f"[{CHECK}] config: examined 0 of {result.candidates} tracked SKILL.md "
+            "file(s), so this run measured nothing. Check out the working tree, or "
+            "point --repo-root at the repository that holds the manifests",
             file=sys.stderr,
         )
         return EXIT_CONFIG
@@ -689,18 +772,38 @@ def _write_baseline_command(repo_root: Path, adr_dir: Path, baseline_path: Path)
     if result is None:
         return EXIT_EXTERNAL
     _report_absent(result)
-    if result.absent:
+    if result.examined != result.candidates or not result.candidates:
         print(
-            f"[{CHECK}] config: refusing to write a ceiling measured with "
-            f"{len(result.absent)} of {result.candidates} tracked SKILL.md "
-            "file(s) absent from the working tree. Check the tree out first",
+            f"[{CHECK}] config: refusing to write a ceiling from a run that "
+            f"examined {result.examined} of {result.candidates} tracked SKILL.md "
+            "file(s). A ceiling measured from a partial tree is lower than the "
+            "same commit scores in a full checkout, which makes every later full "
+            "run a permanent regression against a number no tree ever held",
             file=sys.stderr,
         )
         return EXIT_CONFIG
 
     counts = tally(result.violations)
     current = counts[CHECK]
-    if baseline_path.exists():
+    try:
+        baseline_path.stat()
+    except FileNotFoundError:
+        present = False
+    except OSError as exc:
+        # `Path.exists()` swallows this and answers False, which would classify a
+        # ceiling that is present but unreadable as "no ceiling" and allow the
+        # write. Same fail-closed rule as the unparseable case below.
+        print(
+            f"[{CHECK}] config: baseline {baseline_path} could not be stat'd "
+            f"({exc}), so whether it records a ceiling is unknown and the write "
+            "was refused",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
+    else:
+        present = True
+
+    if present:
         recorded = read_baseline(baseline_path)
         if isinstance(recorded, str):
             # An unreadable ceiling is not "no ceiling". The comparison that
