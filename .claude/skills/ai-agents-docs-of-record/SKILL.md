@@ -125,7 +125,7 @@ retros and memories, not git archaeology, are the durable history (depth in
 `ai-agents-failure-archaeology`).
 
 Retro learnings MUST be persisted to Serena in the same session, not left as
-prose in the artifact (`.serena/memories/retrospective-accuracy.md`: "learnings
+prose in the artifact (`.serena/memories/agent-behavior/retrospective-accuracy.md`: "learnings
 were proposed in the retrospective but then not persisted to Serena, so they
 will be lost").
 

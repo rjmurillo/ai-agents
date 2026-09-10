@@ -269,6 +269,6 @@ python3 "$SCRIPTS_DIR/validate_slash_command.py" <skill-dir>
 
 - `.agents/analysis/custom-slash-commands-research.md`
 - `.agents/archive/planning/slashcommandcreator-skill-spec.md`
-- `.serena/memories/slashcommand-best-practices.md`
+- `.serena/memories/skills/slashcommand-best-practices.md`
 
 <!-- vendor-portability: declared. This skill writes research and analysis notes under .agents/analysis/ and .agents/planning/ and cites AGENTS.md and a research doc. The analysis/planning paths are write targets created on demand; the AGENTS.md and research references are documentation citations. Issue #2050. -->

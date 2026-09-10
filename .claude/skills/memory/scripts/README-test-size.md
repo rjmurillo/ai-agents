@@ -62,7 +62,7 @@ echo "✅ Memory sizes within thresholds"
 ### Passing File
 
 ```text
-✅ PASS: .serena/memories/memory-token-efficiency.md
+✅ PASS: .serena/memories/memory/memory-token-efficiency.md
   Characters: 3,875
   Skills: 15
   Categories: 3

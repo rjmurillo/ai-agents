@@ -122,7 +122,7 @@ Remember testing preferences:
 - **Assertion styles**: Preferred assertion libraries, patterns
 - **Test naming**: Convention for test method names
 
-**Example memory**: `.serena/memories/testing-observations.md`
+**Example memory**: `.serena/memories/testing/testing-observations.md`
 
 ### 4. Documentation Skills
 
@@ -133,7 +133,7 @@ Learn documentation patterns:
 - **Tone preferences**: Formal vs casual, active vs passive voice
 - **Diagram styles**: Mermaid vs ASCII, detail level
 
-**Example memory**: `.serena/memories/documentation-observations.md`
+**Example memory**: `.serena/memories/documentation/documentation-observations.md`
 
 ## Anti-Patterns
 
