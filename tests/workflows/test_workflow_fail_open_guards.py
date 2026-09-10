@@ -1,4 +1,4 @@
-"""Contract tests for the fail-open fixes in four CI workflows (Issue #2808).
+"""Contract tests for the fail-open fixes in three CI workflows (Issue #2808).
 
 Each of these workflows had a step meant to DETECT a problem that converted its
 own crash (or findings) into a green run via `|| true`, `2>/dev/null`, or a
@@ -13,14 +13,14 @@ Covered:
   - pytest.yml (security job): bandit gates on high severity/confidence with no
     `|| true`, the job has actions: read plus security-events: write, and a
     codeql upload-sarif step publishes findings with if: always().
-  - memory-validation.yml: verify step captures the exit code before pipefail
-    aborts, and the parse step fails on a missing/empty results file instead of
-    posting a green Pass. The parse branch now lives in
-    scripts/ci/parse_memory_validation_results.py (ADR-006) and is driven
-    directly here.
   - drift-detection.yml: the JSON re-run stops swallowing stderr and the exit
     code, failing only on exit >=2 (config/crash) since exit 1 is the expected
     drift path for this step.
+
+memory-validation.yml was the fourth. It was deleted in issue #5626 as fully
+redundant, and its guards went with it: the tier, index, and count-ratchet steps
+it ran are enforced by lefthook and the required ``Validate PR`` check, and
+citation-verify.yml runs the same ``verify-all`` blocking.
 """
 
 from __future__ import annotations
@@ -60,33 +60,6 @@ def _run_bypass_audit(detector_body: str, *, write_output: bool) -> tuple[int, s
                 "origin/main",
                 "--output",
                 str(output),
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-    return result.returncode, result.stdout, result.stderr
-
-
-def _run_memory_parse(contents: str | None) -> tuple[int, str, str]:
-    """Drive parse_memory_validation_results.py against a results file.
-
-    Pass None to omit the file entirely. Returns (returncode, stdout, stderr).
-    """
-    with tempfile.TemporaryDirectory() as tmp:
-        results = Path(tmp) / "memory-validation-results.json"
-        if contents is not None:
-            results.write_text(contents, encoding="utf-8")
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(_SCRIPTS_CI / "parse_memory_validation_results.py"),
-                "--input",
-                str(results),
-                "--output",
-                str(Path(tmp) / "github_output.txt"),
             ],
             check=False,
             capture_output=True,
@@ -251,68 +224,6 @@ class TestPytestBanditSecurity:
         assert "github.event.pull_request.head.repo.full_name == github.repository" in condition
         assert step["with"]["sarif_file"] == "bandit.sarif"
         assert step["with"]["category"] == "bandit"
-
-
-class TestMemoryValidation:
-    """memory-validation.yml must not post a green Pass on a crashed run."""
-
-    def _workflow(self) -> dict[str, Any]:
-        return _load_workflow("memory-validation.yml")
-
-    def _verify_step(self) -> dict[str, Any]:
-        steps = _job_steps(self._workflow(), "validate-memories")
-        step = _find_step_by_run(steps, "verify-all --json")
-        assert step is not None
-        return step
-
-    def _parse_step(self) -> dict[str, Any]:
-        steps = _job_steps(self._workflow(), "validate-memories")
-        step = _find_step_by_run(steps, "parse_memory_validation_results.py")
-        assert step is not None
-        return step
-
-    def _index_step(self) -> dict[str, Any]:
-        steps = _job_steps(self._workflow(), "validate-memories")
-        step = _find_step_by_run(steps, "memory_index.py")
-        assert step is not None
-        return step
-
-    def test_verify_captures_exit_code_before_pipefail(self) -> None:
-        run = self._verify_step()["run"]
-        assert "set +e" in run
-        assert "rc=$?" in run
-        assert "set -e" in run
-        assert "exit_code=$rc" in run
-        # The buggy form captured $? on a separate line after the redirect.
-        assert 'echo "exit_code=$?"' not in run
-
-    def test_parse_treats_empty_results_as_failure(self) -> None:
-        # The jq pipeline moved into a tested script (ADR-006). Assert the
-        # behavior: an empty results file is a crashed run, not a clean one.
-        rc, _, _ = _run_memory_parse("")
-        assert rc != 0
-
-    def test_parse_does_not_default_missing_file_to_pass(self) -> None:
-        # A missing file previously set has_stale=false and posted a green Pass.
-        rc, out, _ = _run_memory_parse(None)
-        assert rc != 0
-        assert "::error::memory-validation-results.json missing or empty" in out
-
-    def test_index_validation_uses_selected_base_ref(self) -> None:
-        step = self._index_step()
-
-        assert step["env"]["BASE_REF"] == (
-            "origin/${{ github.event.pull_request.base.ref "
-            "|| github.event.repository.default_branch }}"
-        )
-        assert '--base-ref "$BASE_REF"' in step["run"]
-
-    def test_index_validation_checkout_fetches_base_history(self) -> None:
-        steps = _job_steps(self._workflow(), "validate-memories")
-        checkout = _find_step_by_uses(steps, "actions/checkout@")
-
-        assert checkout is not None
-        assert checkout["with"]["fetch-depth"] == 0
 
 
 class TestDriftDetection:

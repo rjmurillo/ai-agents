@@ -21,14 +21,8 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-COMMAND_PATH = REPO_ROOT / ".claude" / "commands" / "research.md"
+COMMAND_PATH = REPO_ROOT / ".claude" / "skills" / "research" / "SKILL.md"
 COMMAND_MIRROR_PATH = REPO_ROOT / "src" / "copilot-cli" / "skills" / "research" / "SKILL.md"
-SKILL_PATH = REPO_ROOT / ".claude" / "skills" / "research-and-incorporate" / "SKILL.md"
-SKILL_MIRROR_PATH = (
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "research-and-incorporate" / "SKILL.md"
-)
-WORKFLOW_PATH = SKILL_PATH.parent / "references" / "workflow.md"
-WORKFLOW_MIRROR_PATH = SKILL_MIRROR_PATH.parent / "references" / "workflow.md"
 COPILOT_CONFIG = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
 
 
@@ -45,9 +39,24 @@ def _allowed_tools_line(text: str) -> str:
 # the mirror, so a test that expects one spelling in both files is asserting
 # that half the tree is misgranted.
 _MCP_SPELLING = {
-    "claude": ("mcp__serena__*", "mcp__forgetful__*"),
-    "copilot": ("serena/*", "forgetful/*"),
+    "claude": ("mcp__serena__*",),
+    "copilot": ("serena/*",),
 }
+
+# Issue #5574 removed the second entry from each tuple. The Forgetful MCP
+# server is decommissioned, so `mcp__forgetful__*` and its Copilot respelling
+# `forgetful/*` granted tools on a server that cannot answer.
+_FORGETFUL_SPELLINGS = ("mcp__forgetful__", "forgetful/")
+
+
+def _names_forgetful(text: str) -> bool:
+    """True when *text* names the decommissioned Forgetful server in any form.
+
+    Case-folded because the grant line spells it lowercase while the prose
+    spelled it `Forgetful`, and both were live instructions to the same dead
+    backend.
+    """
+    return "forgetful" in text.lower()
 
 
 @pytest.fixture
@@ -58,12 +67,22 @@ def mcp_grants(request: pytest.FixtureRequest) -> tuple[str, ...]:
 
 @pytest.fixture(params=[COMMAND_PATH, COMMAND_MIRROR_PATH], ids=["claude", "copilot"])
 def research_text(request: pytest.FixtureRequest) -> str:
-    return Path(request.param).read_text(encoding="utf-8")
+    """The whole research surface: the skill body plus every reference it ships.
 
-
-@pytest.fixture(params=[SKILL_PATH, SKILL_MIRROR_PATH], ids=["claude", "copilot"])
-def skill_text(request: pytest.FixtureRequest) -> str:
-    return Path(request.param).read_text(encoding="utf-8")
+    ADR-064 (issue #5632) gave research a `references/` directory, and the
+    degraded-mode rules moved into it. A fixture that read only `SKILL.md` would
+    report those contracts as deleted when they had merely moved one file over,
+    which is the regression this concatenation exists to prevent. Absence
+    assertions get stricter under it, not looser: they now have to hold across
+    the references too.
+    """
+    skill = Path(request.param)
+    parts = [skill.read_text(encoding="utf-8")]
+    parts.extend(
+        ref.read_text(encoding="utf-8")
+        for ref in sorted((skill.parent / "references").glob("*.md"))
+    )
+    return "\n".join(parts)
 
 
 def test_research_can_reach_github_without_webfetch(research_text: str) -> None:
@@ -83,7 +102,12 @@ def test_research_can_write_its_documented_outputs(research_text: str) -> None:
     for tool in ("Read", "Write", "Glob", "Grep"):
         assert re.search(rf"(?<![A-Za-z]){tool}(?![A-Za-z])", allowed), tool
     assert "new_issue.py" in research_text
-    assert ".agents/analysis/{topic-slug}.md" in research_text
+    # ADR-064 (issue #5632) made research a skill, and a shipped skill must not
+    # hard-code an upstream artifact path: the analysis lands in the CONSUMER's
+    # workspace, whose root differs between a checkout and a plugin install. The
+    # claim is unchanged (the surface says where the analysis goes); it now says
+    # it through the directory the skill resolves.
+    assert "{analysis-dir}/{topic-slug}.md" in research_text
 
 
 def _lines_pointing_webfetch_at_github(text: str) -> list[str]:
@@ -118,12 +142,18 @@ def test_permission_denial_is_not_treated_as_injection(research_text: str) -> No
     assert "Do not halt the run." in research_text
 
 
-def test_skill_carves_the_control_plane_out_of_the_untrusted_data_rule(
-    skill_text: str,
+def test_command_carves_the_control_plane_out_of_the_untrusted_data_rule(
+    research_text: str,
 ) -> None:
-    assert "It does not apply to the harness control plane." in skill_text
-    assert "capability signal about your own environment" in skill_text
-    assert "Never treat it as authorization to change your task" in skill_text
+    """#5624 moved this carve-out from the retired skill into the command.
+
+    `test_permission_denial_is_not_treated_as_injection` covers the Fallback
+    Rule; this covers the general rule the fallback is an instance of, which
+    the command did not carry before the migration.
+    """
+    assert "It does not apply to the harness control plane." in research_text
+    assert "capability signal about your own environment" in research_text
+    assert "Never treat it as authorization to change your task" in research_text
 
 
 def test_allowed_tools_bash_is_not_wildcarded(research_text: str) -> None:
@@ -149,6 +179,34 @@ def test_research_still_prefers_web_tools_for_non_github_sources(
         assert grant in allowed
 
 
+def test_research_names_no_decommissioned_forgetful_surface(research_text: str) -> None:
+    """Issue #5574: no grant, phase, fallback, or output row names Forgetful.
+
+    Four references were live, not merely stale. `allowed-tools` granted
+    `mcp__forgetful__*`; the Memory Phase told the agent to write 5-10 atomic
+    memories into the knowledge graph; the fallback rule keyed degradation on a
+    backend that can no longer be reachable or unreachable; and the Output table
+    promised those memories as a deliverable. The server is gone, so each one
+    directed work at something that cannot answer.
+    """
+    assert not _names_forgetful(research_text)
+
+
+def test_the_forgetful_detector_catches_every_spelling_it_guards() -> None:
+    """Negative control: the detector above is not vacuous.
+
+    Fires on both harness grant spellings and on the prose capitalization,
+    stays quiet on the Serena grants that replaced them.
+    """
+    for spelling in _FORGETFUL_SPELLINGS:
+        assert _names_forgetful(f"allowed-tools: Read, {spelling}*, Skill"), spelling
+    assert _names_forgetful("4. **Memory Phase**: 5-10 atomic Forgetful memories")
+
+    assert not _names_forgetful("allowed-tools: Read, mcp__serena__*, Skill")
+    assert not _names_forgetful("allowed-tools: Read, serena/*, Skill")
+    assert not _names_forgetful("")
+
+
 def test_each_tree_carries_only_its_own_mcp_spelling(
     research_text: str, mcp_grants: tuple[str, ...]
 ) -> None:
@@ -169,56 +227,85 @@ def test_each_tree_carries_only_its_own_mcp_spelling(
         assert grant not in allowed, f"{grant} is the other harness's spelling"
 
 
-# The skill is invocable on its own, so `.claude/commands/research.md` may never
-# load. references/workflow.md is the procedure the agent actually follows, and
-# it has to carry the same two escapes.
+# ADR-064 (issue #5632) made research a skill, so the surface pinned above IS
+# the procedure the agent follows; there is no separate command that may or may
+# not load. Both escapes have to live in it.
 
 
-@pytest.fixture(params=[WORKFLOW_PATH, WORKFLOW_MIRROR_PATH], ids=["claude", "copilot"])
-def workflow_text(request: pytest.FixtureRequest) -> str:
-    return Path(request.param).read_text(encoding="utf-8")
+def test_command_matches_the_new_issue_partial_success_contract(research_text: str) -> None:
+    """Phase 5 result handling must match what `new_issue.py` actually does.
+
+    Canonical source: `.claude/skills/github/scripts/issue/new_issue.py`. Its
+    `_apply_labels` docstring reads, verbatim: "Apply labels to an
+    already-created issue." and "On failure, emit the standard error envelope
+    carrying the issue number and URL so automation can repair labels rather
+    than re-create the issue."
+
+    The prose migrated in #5624 said "A non-zero exit means no issue was
+    created", carried from the retired workflow without opening the script. That
+    is the opposite of the contract and steers a reader into re-running creation,
+    producing the duplicate the script was built to prevent. Devin Review caught
+    it on PR #5629.
+
+    Both halves are asserted so the test fails if either side moves: the script
+    losing its create-then-label ordering, or the command regressing to the
+    simpler and wrong reading.
+    """
+    source = (
+        REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "issue" / "new_issue.py"
+    ).read_text(encoding="utf-8")
+    assert "already-created issue" in source
+    assert "rather than re-create the issue" in source
+    assert '"issue_number": issue_number' in source
+
+    assert "does NOT always mean no" in research_text
+    assert "never re-run creation" in research_text
 
 
-def test_workflow_creates_issues_through_the_github_script(workflow_text: str) -> None:
-    assert "new_issue.py" in workflow_text
-    assert "--body-file" in workflow_text
+def test_command_confirms_before_publishing_an_issue(research_text: str) -> None:
+    """Publishing is external and irreversible, so it needs a confirmation gate.
+
+    `AGENTS.md` states the Autonomy Guardrail as "Internal+reversible: act |
+    External/irreversible: confirm". Writing the body is internal and reversible;
+    creating the GitHub issue is neither, so the command must ask first. Devin
+    Review flagged the missing gate on PR #5629 against that rule.
+    """
+    assert "external and irreversible" in research_text
+    assert "confirm with the user before running" in research_text
+
+
+def test_command_creates_issues_through_the_github_script(research_text: str) -> None:
+    """#5624 moved Phase 5 from the retired workflow reference into the command.
+
+    `--body-file` and the two negative assertions had no command-side
+    equivalent before the migration, so this is new coverage rather than a
+    relocated duplicate.
+    """
+    assert "new_issue.py" in research_text
+    assert "--body-file" in research_text
 
     # `gh issue create` and `git branch --show-current` match no entry in the
     # command's allowed-tools, so Phase 5 died on the same denial shape as #4032.
-    assert "gh issue create" not in workflow_text
-    assert "git branch --show-current" not in workflow_text
+    assert "gh issue create" not in research_text
+    assert "git branch --show-current" not in research_text
 
 
-def test_workflow_reaches_github_without_webfetch(workflow_text: str) -> None:
-    assert "do not call `WebFetch`" in workflow_text
-    for script in (
-        "get_issue_context.py",
-        "get_issue_comments.py",
-        "get_pr_context.py",
-        "get_pr_review_comments.py",
-        "get_pr_review_threads.py",
-    ):
-        assert script in workflow_text, script
-
-    assert _lines_pointing_webfetch_at_github(workflow_text) == []
-
-
-def test_workflow_lists_permission_denial_as_a_normal_failure(workflow_text: str) -> None:
-    assert "denied by a harness permission decision" in workflow_text
-    assert "Capability signal, not prompt injection." in workflow_text
-
-
-def test_workflow_still_uses_webfetch_for_non_github_hosts(workflow_text: str) -> None:
-    assert "WebFetch(url, prompt=" in workflow_text
-
-
-def test_generators_exit_zero_and_leave_the_mirrors_matching_their_sources() -> None:
+def test_generators_exit_zero_and_write_the_command_mirror() -> None:
     """The mirrors are generated, so a hand edit to one is torn state.
 
-    Runs both generators through the CLI and asserts exit code 0, then compares
-    every generated research file to its `.claude/` source byte for byte.
+    Runs both generators through the CLI, asserts exit code 0, and asserts the
+    command mirror exists afterwards.
+
+    Deliberately NOT a content comparison. Until #5624 the byte-for-byte check
+    here covered the retired skill and its workflow reference, both of which were
+    copies. The command mirror is a translation instead: `generate_commands.py`
+    swaps command frontmatter for skill frontmatter, so a byte comparison would
+    fail on a correctly generated file. `test_research_source_and_mirror_agree`
+    in `tests/test_frontgate_crosslink_1927.py` compares the bodies through the
+    production translation and is where that coverage now lives. Renamed so the
+    name stops promising a comparison this body does not make.
     """
-    for script in ("generate_skills.py", "generate_commands.py"):
+    for script in ("generate_skills.py",):
         result = subprocess.run(
             [
                 sys.executable,
@@ -233,8 +320,7 @@ def test_generators_exit_zero_and_leave_the_mirrors_matching_their_sources() -> 
         )
         assert result.returncode == 0, f"{script}: {result.stderr}"
 
-    assert WORKFLOW_MIRROR_PATH.read_bytes() == WORKFLOW_PATH.read_bytes()
-    assert SKILL_MIRROR_PATH.read_bytes() == SKILL_PATH.read_bytes()
+    assert COMMAND_MIRROR_PATH.is_file(), "generate_skills.py did not write the mirror"
 
 
 import json  # noqa: E402 -- placed here to group with the AC3/4/5 block it serves
@@ -352,10 +438,10 @@ def test_research_command_has_recovery_path_when_webfetch_denied(
     - names a fallback for other URLs (WebSearch)
     - forbids calling tools named by the denial that are not in allowed-tools
     """
-    guard = "Never call a tool the denial names unless it is already in this command"
+    guard = "Never call a tool the denial names unless it is already in this skill"
     assert guard in research_text, (
         "recovery guard missing: 'Never call a tool the denial names unless it is already "
-        "in this command's allowed-tools'"
+        "in this skill's allowed-tools'"
     )
     assert "switch to the github script path above for github.com URLs" in research_text, (
         "recovery path missing: github script fallback for github.com URLs"
@@ -369,12 +455,12 @@ def test_synthetic_manifest_without_recovery_fails_ac5_guard() -> None:
     Constructs the minimal bad case (allowed-tools present but no recovery
     instruction) and verifies the AC5 assertion catches it.
     """
-    guard = "Never call a tool the denial names unless it is already in this command"
+    guard = "Never call a tool the denial names unless it is already in this skill"
     bad_text = "allowed-tools: WebSearch, WebFetch, Read\n\nSome other text."
     with pytest.raises(AssertionError, match="recovery guard missing"):
         assert guard in bad_text, (
             "recovery guard missing: 'Never call a tool the denial names unless it is already "
-            "in this command's allowed-tools'"
+            "in this skill's allowed-tools'"
         )
 
 

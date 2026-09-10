@@ -18,13 +18,15 @@ Coverage:
 - positive: the default run emits every gate in order with no skips.
 - negative: a reorder, an added gate, or a dropped gate fails the order
   assertion; ``--quick`` marks exactly four gates skipped and no others.
-- edge: ``--skip-tests`` drops Pester from the record list entirely (rather
-  than recording it as a skip) and prints its own notice, which is the one
-  place the sequence bypasses ``run_validation``.
+- edge: no gate bypasses ``run_validation``. ``_Gate`` used to carry a
+  ``skip_flag`` escape that dropped a gate from the record list entirely
+  instead of recording a skip; it served ``--skip-tests``, no gate ever set it,
+  and both are gone. ``TestNoGateBypassesTheRunner`` pins that.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import io
 import sys
 from contextlib import redirect_stdout
@@ -45,6 +47,8 @@ if str(_VALIDATION_DIR) not in sys.path:
 import pre_pr
 import pre_pr_sequence
 
+from scripts.validation.pre_pr import ValidationState
+
 EXPECTED_ORDER: tuple[str, ...] = (
     'Python Syntax (compile gate)',
     'Count Ratchets',
@@ -57,6 +61,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Index Line Endings',
     'Worktree Recipe Destinations',
     'Temp-filesystem Worktrees (advisory)',
+    'Serena Memory Worktree Scope (advisory)',
     'Session End Validation',
     'Mypy Changed Files (ratchet)',
     'Markdown Linting',
@@ -75,10 +80,15 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Spec ID Uniqueness',
     'Traceability',
     'Vendor Portability',
+    'Skill Script Portability',
     'Skill Markdown Portability',
+    'Skill Markdown Exec Portability',
+    'Skill Resolver Anchoring',
+    'Skill Contract Tests',
     'Skill Shell Detection',
     'Skill SKIP Clause Routing',
     'Skill Memory References',
+    'Commands Retired (ADR-064)',
     'Colocated Skill Tests',
     'Rule Activation Coverage',
     'Copilot Routing Exclusions',
@@ -125,6 +135,7 @@ FAST_STAGE_DUPLICATES = frozenset(
         "Unreachable Code Detection",
         "Path Normalization",
         "Planning Artifacts",
+        "Em/en-dash Prohibition",
     }
 )
 
@@ -134,22 +145,28 @@ def _clear_fast_stage_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(pre_pr_sequence.FAST_STAGE_RAN_ENV, raising=False)
 
 
-def _record(**flags: bool) -> tuple[list[tuple[str, bool]], SimpleNamespace, str]:
-    """Drive the real sequence with a fake runner and capture what it emits."""
+def _record(**flags: bool) -> tuple[list[tuple[str, bool]], ValidationState, str]:
+    """Drive the real sequence with a fake runner and capture what it emits.
+
+    ``state`` is the real ``ValidationState`` rather than a SimpleNamespace of
+    counters. Since issue #5635 the sequence writes through ``state.record``,
+    which owns both the appended row and the per-state counter, so a fake that
+    carries only the integers cannot stand in for it.
+    """
     recorded: list[tuple[str, bool]] = []
 
     def fake_run_validation(
         name: str,
-        _state: SimpleNamespace,
+        _state: ValidationState,
         _callback: object,
         skip: bool = False,
     ) -> bool:
         recorded.append((name, bool(skip)))
         return True
 
-    defaults = {"quick": False, "skip_tests": False, "verbose": False}
+    defaults = {"quick": False}
     args = SimpleNamespace(**{**defaults, **flags})
-    state = SimpleNamespace(total=0, passed=0, failed=0, skipped=0)
+    state = ValidationState()
     buffer = io.StringIO()
     with redirect_stdout(buffer):
         pre_pr_sequence.run_all_validations(
@@ -189,17 +206,28 @@ class TestQuickFlag:
         assert {name for name, skip in recorded if skip} == QUICK_SKIPPED
 
 
-class TestSkipTestsFlag:
-    """--skip-tests is a no-op now that Pester is removed (issue #4661)."""
+class TestNoGateBypassesTheRunner:
+    """Every gate reaches ``run_validation``; none is dropped by an args flag.
 
-    def test_skip_tests_does_not_alter_the_gate_list(self) -> None:
-        recorded, _state, _out = _record(skip_tests=True)
-        names = [name for name, _ in recorded]
-        assert tuple(names) == EXPECTED_ORDER
+    ``_Gate.skip_flag`` named an ``args`` attribute that, when truthy, skipped
+    ``run_validation`` entirely and only bumped the totals. It existed for
+    ``--skip-tests``, no gate in ``_SEQUENCE`` ever set it, and it is removed.
+    """
 
-    def test_skip_tests_bumps_no_totals(self) -> None:
-        _recorded, state, _out = _record(skip_tests=True)
-        assert (state.total, state.skipped) == (0, 0)
+    def test_gate_carries_no_args_driven_bypass_field(self) -> None:
+        fields = {f.name for f in dataclasses.fields(pre_pr_sequence._Gate)}
+        assert not fields & {"skip_flag", "skip_note"}
+
+    def test_quick_is_the_only_args_attribute_the_sequence_reads(self) -> None:
+        """An args namespace carrying only ``quick`` must drive the full run."""
+        recorded, _state, _out = _record()
+        assert tuple(name for name, _ in recorded) == EXPECTED_ORDER
+
+    def test_unknown_args_attributes_change_nothing(self) -> None:
+        """Negative: a stale ``skip_tests`` attribute must not skip anything."""
+        recorded, state, out = _record(skip_tests=True, verbose=True)
+        assert tuple(name for name, _ in recorded) == EXPECTED_ORDER
+        assert (state.total, state.skipped, out) == (0, 0, "")
 
     def test_default_run_leaves_the_totals_to_the_runner(self) -> None:
         _recorded, state, out = _record()

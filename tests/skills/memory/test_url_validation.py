@@ -125,12 +125,29 @@ def test_allowlist_is_frozen(url_validation) -> None:
     assert url_validation.ALLOWED_URL_SCHEMES == {"http", "https"}
 
 
-# Consumer-side smoke: both downstream modules MUST import the helper -------
+# Consumer-side smoke: neither memory module may reach the network ---------
+#
+# These two assertions were the inverse until issue #5574: each required its
+# module to import `validate_http_url`, because each POSTed to a memory server
+# and the scheme allowlist was what kept that URL off an attacker-chosen
+# scheme (CWE-918). Neither module makes a request now, so an import guard
+# would assert nothing. Absence of the HTTP machinery is the stronger
+# invariant: it fails if an outbound call returns, with or without the
+# validator. `validate_http_url` itself stays; `memory_core/__init__.py` and
+# the github-url-intercept scripts still consume it.
 
 
-def test_memory_router_imports_validate_http_url() -> None:
-    """memory_router uses `from .url_validation import validate_http_url`;
-    verify the symbol is exported from the canonical module."""
+def test_memory_router_makes_no_outbound_request() -> None:
+    """memory_router MUST NOT reach the network at all.
+
+    This assertion used to require the opposite: that the module imported
+    `validate_http_url`, because it POSTed to a memory server and the
+    allowlist was what kept that URL off an attacker-chosen scheme (CWE-918).
+    The module no longer makes that request, so the import guard had nothing
+    left to guard. Asserting the absence of any HTTP or socket machinery is
+    the stronger invariant: it fails if the outbound call is ever
+    reintroduced, with or without the validator.
+    """
     text = (
         REPO_ROOT
         / ".claude"
@@ -139,12 +156,20 @@ def test_memory_router_imports_validate_http_url() -> None:
         / "memory_core"
         / "memory_router.py"
     ).read_text(encoding="utf-8")
-    assert "from .url_validation import validate_http_url" in text
+    for forbidden in ("urllib", "socket", "http://", "https://", "requests"):
+        assert forbidden not in text, (
+            f"memory_router.py names {forbidden!r}; it must stay offline, "
+            "and an outbound call needs validate_http_url re-wired first"
+        )
 
 
-def test_measure_memory_imports_validate_http_url() -> None:
-    """measure_memory_performance uses
-    `from memory_core.url_validation import validate_http_url`."""
+def test_measure_memory_makes_no_outbound_request() -> None:
+    """measure_memory_performance MUST NOT reach the network at all.
+
+    It benchmarked a second backend over HTTP. That benchmark is gone, so the
+    module must stay offline; see the section comment above for why this
+    asserts absence rather than the validator import.
+    """
     text = (
         REPO_ROOT
         / ".claude"
@@ -153,4 +178,8 @@ def test_measure_memory_imports_validate_http_url() -> None:
         / "scripts"
         / "measure_memory_performance.py"
     ).read_text(encoding="utf-8")
-    assert "from memory_core.url_validation import validate_http_url" in text
+    for forbidden in ("urllib", "socket", "http://", "https://", "requests"):
+        assert forbidden not in text, (
+            f"measure_memory_performance.py names {forbidden!r}; it must stay "
+            "offline, and an outbound call needs validate_http_url re-wired first"
+        )

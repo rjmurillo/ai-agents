@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Benchmark memory search performance across Serena and Forgetful systems.
+"""Benchmark Serena memory search performance.
 
-Implements M-008 from Phase 2A: Create memory search benchmarks.
-Measures Serena lexical search, Forgetful semantic search, and outputs
-performance metrics for comparison against claude-flow baseline (96-164x target).
+Implements M-008 from Phase 2A: Create memory search benchmarks. Times the
+three phases of a lexical search, listing, keyword matching, and reading the
+matched files, so a slow search can be attributed to one of them.
+
+This benchmarked two backends and reported a speedup factor between them until
+the second was decommissioned (issue #5574). A one-backend benchmark reports
+latency, not a ratio, so `SpeedupFactor` and its claude-flow target are gone
+rather than left pinned at zero.
 
 Exit codes follow ADR-035:
     0 - Success
@@ -14,16 +19,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import socket
 import sys
 import time
-import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import urlparse
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from memory_core.url_validation import validate_http_url
 
 DEFAULT_QUERIES = [
     "PowerShell array handling patterns",
@@ -35,21 +34,6 @@ DEFAULT_QUERIES = [
     "CI workflow patterns",
     "memory-first architecture",
 ]
-
-FORGETFUL_ENDPOINT = "http://localhost:8020/mcp"
-
-
-def test_forgetful_available(endpoint: str = FORGETFUL_ENDPOINT) -> bool:
-    """Check if Forgetful MCP is reachable."""
-    try:
-        parsed = urlparse(endpoint)
-        host = parsed.hostname or "localhost"
-        port = parsed.port or 8020
-        with socket.create_connection((host, port), timeout=2):
-            return True
-    except OSError:
-        return False
-
 
 def measure_serena_search(
     query: str,
@@ -144,113 +128,9 @@ def measure_serena_search(
     return result
 
 
-def measure_forgetful_search(
-    query: str,
-    endpoint: str,
-    iterations: int,
-    warmup_iterations: int,
-) -> dict:
-    """Benchmark Forgetful's semantic memory search."""
-    result: dict = {
-        "Query": query,
-        "System": "Forgetful",
-        "SearchTimeMs": 0.0,
-        "TotalTimeMs": 0.0,
-        "MatchedMemories": 0,
-        "IterationTimes": [],
-    }
-
-    if not test_forgetful_available(endpoint):
-        result["Error"] = f"Forgetful MCP not available at {endpoint}"
-        return result
-
-    search_body = json.dumps({
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tools/call",
-        "params": {
-            "name": "memory_search",
-            "arguments": {"query": query, "limit": 10},
-        },
-    }).encode("utf-8")
-
-    # Validate endpoint scheme once before any network call (CWE-918 SSRF
-    # mitigation; rejects file:// and other unintended schemes).
-    try:
-        validate_http_url(endpoint)
-    except ValueError as exc:
-        result["Error"] = str(exc)
-        return result
-
-    # Warmup
-    for _ in range(warmup_iterations):
-        try:
-            req = urllib.request.Request(  # nosemgrep: insecure-transport,dynamic-urllib-use-detected
-                endpoint, data=search_body,
-                headers={"Content-Type": "application/json"},
-            )  # loopback-only dev MCP endpoint; CWE-918 SSRF mitigated by validate_http_url scheme allowlist
-            # nosemgrep: request-with-tainted-url-from-urllib
-            # endpoint scheme validated above; only http/https reach this call.
-            urllib.request.urlopen(req, timeout=10)
-        except Exception:
-            pass
-
-    # Measured iterations
-    search_times = []
-    memory_counts = []
-
-    for _ in range(iterations):
-        start = time.perf_counter()
-        try:
-            req = urllib.request.Request(  # nosemgrep: insecure-transport,dynamic-urllib-use-detected
-                endpoint, data=search_body,
-                headers={"Content-Type": "application/json"},
-            )  # loopback-only dev MCP endpoint; CWE-918 SSRF mitigated by validate_http_url scheme allowlist
-            # nosemgrep: request-with-tainted-url-from-urllib
-            # endpoint scheme validated above; only http/https reach this call.
-            response = urllib.request.urlopen(req, timeout=30)
-            end = time.perf_counter()
-            search_times.append((end - start) * 1000)
-
-            data = json.loads(response.read())
-            if data.get("result", {}).get("content"):
-                memory_counts.append(1)
-            else:
-                memory_counts.append(0)
-        except Exception as e:
-            end = time.perf_counter()
-            search_times.append((end - start) * 1000)
-            memory_counts.append(0)
-            result["Error"] = str(e)
-
-    if search_times:
-        result["SearchTimeMs"] = round(
-            sum(search_times) / len(search_times), 2,
-        )
-        result["TotalTimeMs"] = result["SearchTimeMs"]
-        result["MatchedMemories"] = round(
-            sum(memory_counts) / len(memory_counts),
-        )
-        result["IterationTimes"] = search_times
-
-    return result
-
-
 def format_console(benchmark: dict) -> str:
     """Format benchmark results for console output."""
-    lines = []
-    lines.append(f"Serena Average: {benchmark['Summary']['SerenaAvgMs']}ms")
-    if benchmark["Summary"]["ForgetfulAvgMs"] > 0:
-        lines.append(
-            f"Forgetful Average: {benchmark['Summary']['ForgetfulAvgMs']}ms",
-        )
-        lines.append(
-            f"Speedup Factor: {benchmark['Summary']['SpeedupFactor']}x",
-        )
-        lines.append(f"Target: {benchmark['Summary']['Target']}")
-    else:
-        lines.append("Forgetful: Not available")
-    return "\n".join(lines)
+    return f"Serena Average: {benchmark['Summary']['SerenaAvgMs']}ms"
 
 
 def format_markdown(benchmark: dict) -> str:
@@ -271,27 +151,11 @@ def format_markdown(benchmark: dict) -> str:
         "",
         "## Results",
         "",
-        "| System | Average (ms) | Status |",
-        "|--------|-------------|--------|",
-        f"| Serena | {benchmark['Summary']['SerenaAvgMs']} | Baseline |",
+        "| System | Average (ms) |",
+        "|--------|-------------|",
+        f"| Serena | {benchmark['Summary']['SerenaAvgMs']} |",
+        "",
     ]
-
-    if benchmark["Summary"]["ForgetfulAvgMs"] > 0:
-        status = (
-            "Target Met"
-            if benchmark["Summary"]["SpeedupFactor"] >= 10
-            else "Below Target"
-        )
-        lines.append(
-            f"| Forgetful | {benchmark['Summary']['ForgetfulAvgMs']} | {status} |",
-        )
-
-    lines.append("")
-    if benchmark["Summary"]["SpeedupFactor"] > 0:
-        lines.append(
-            f"**Speedup Factor**: {benchmark['Summary']['SpeedupFactor']}x",
-        )
-        lines.append(f"**Target**: {benchmark['Summary']['Target']}")
 
     return "\n".join(lines)
 
@@ -311,10 +175,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--warmup", type=int, default=2,
         help="Number of warmup iterations (default: 2)",
-    )
-    parser.add_argument(
-        "--serena-only", action="store_true",
-        help="Only benchmark Serena (skip Forgetful)",
     )
     parser.add_argument(
         "--format", choices=["console", "markdown", "json"],
@@ -345,15 +205,10 @@ def main(argv: list[str] | None = None) -> int:
             "Iterations": args.iterations,
             "WarmupIterations": args.warmup,
             "SerenaPath": str(serena_path),
-            "ForgetfulEndpoint": FORGETFUL_ENDPOINT,
         },
         "SerenaResults": [],
-        "ForgetfulResults": [],
         "Summary": {
             "SerenaAvgMs": 0.0,
-            "ForgetfulAvgMs": 0.0,
-            "SpeedupFactor": 0.0,
-            "Target": "96-164x (claude-flow baseline)",
         },
     }
 
@@ -400,54 +255,6 @@ def main(argv: list[str] | None = None) -> int:
     if valid_serena:
         avg = sum(r["TotalTimeMs"] for r in valid_serena) / len(valid_serena)
         benchmark["Summary"]["SerenaAvgMs"] = round(avg, 2)
-
-    # Benchmark Forgetful
-    if not args.serena_only:
-        if args.output_format == "console":
-            print()
-            print("Benchmarking Forgetful (semantic search)...")
-
-        if test_forgetful_available():
-            for query in queries:
-                if args.output_format == "console":
-                    print(f"  Query: '{query}'")
-
-                forgetful_result = measure_forgetful_search(
-                    query, FORGETFUL_ENDPOINT, args.iterations, args.warmup,
-                )
-                benchmark["ForgetfulResults"].append(forgetful_result)
-
-                if args.output_format == "console":
-                    if forgetful_result.get("Error"):
-                        print(f"    Error: {forgetful_result['Error']}")
-                    else:
-                        print(f"    Total: {forgetful_result['TotalTimeMs']}ms")
-                        print(
-                            f"    Matched: "
-                            f"{forgetful_result['MatchedMemories']} memories",
-                        )
-
-            valid_forgetful = [
-                r for r in benchmark["ForgetfulResults"] if not r.get("Error")
-            ]
-            if valid_forgetful:
-                avg = (
-                    sum(r["TotalTimeMs"] for r in valid_forgetful)
-                    / len(valid_forgetful)
-                )
-                benchmark["Summary"]["ForgetfulAvgMs"] = round(avg, 2)
-        else:
-            if args.output_format == "console":
-                print(f"  Forgetful MCP not available at {FORGETFUL_ENDPOINT}")
-                print("  Skipping Forgetful benchmarks")
-
-    # Calculate speedup factor
-    serena_avg = benchmark["Summary"]["SerenaAvgMs"]
-    forgetful_avg = benchmark["Summary"]["ForgetfulAvgMs"]
-    if serena_avg > 0 and forgetful_avg > 0:
-        benchmark["Summary"]["SpeedupFactor"] = round(
-            serena_avg / forgetful_avg, 2,
-        )
 
     # Output results
     if args.output_format == "console":

@@ -26,10 +26,10 @@ uv run --frozen python scripts/validation/pre_pr.py
 
 # Skip the four quick-skippable gates
 uv run --frozen python scripts/validation/pre_pr.py --quick
-
-# Verbose output
-uv run --frozen python scripts/validation/pre_pr.py --verbose
 ```
+
+`--quick` and `--markdown-lint-only` are the only flags. The runner reads every
+argument it declares.
 
 `--quick` skips YAML Style Validation, Path Normalization, Planning Artifacts,
 and Agent Drift Detection. Measured 2026-08-19, those four gates cost 1.89s of
@@ -37,8 +37,11 @@ a 103.25s run, so `--quick` now saves under 2 percent. It was worth 50 to 90
 seconds when the sequence had six gates; it is not a meaningful lever today.
 Run the full sequence.
 
-`--skip-tests` and its `SKIP_TESTS` environment default are parsed but inert:
-no gate in `_SEQUENCE` sets `skip_flag`, so the flag skips nothing.
+`--skip-tests`, its `SKIP_TESTS` environment default, and `--verbose` are gone.
+All three were parsed and never read: no gate in `_SEQUENCE` set `skip_flag`,
+and nothing read `verbose`. `--skip-tests` also described a Pester stage in a
+repository tracking zero `.ps1` files. Passing any of them now fails with
+argparse exit code 2 rather than being silently accepted.
 
 ## Validation Sequence
 
@@ -90,15 +93,132 @@ SKIP_AUTOFIX=1 uv run --frozen python scripts/validation/pre_pr.py
 
 The per-gate durations print in the Detailed Results block at the end.
 
+## Evidence States
+
+Since issue #5635 a gate reports one of five typed states rather than a boolean,
+defined in `scripts/validation/evidence.py`. The distinction the boolean could
+not carry is between a check that ran and one that only appeared to.
+
+| State | Meaning | Blocks the push |
+|-------|---------|-----------------|
+| PASS | Ran against the named revision and scope, and proved the contract | No |
+| FAIL | Ran, and found a violation | Yes |
+| SKIP | Intentionally did not apply | No, by the exception below |
+| BLOCKED | Could not run: a dependency or service was unavailable | Yes |
+| UNKNOWN | Evidence incomplete, malformed, stale, or truncated | Yes |
+
+Every non-PASS state carries a machine-readable reason code (`base_ref.unresolved`,
+`diff.failed`, `script.absent`, `tool.absent`, `timeout`, `output.malformed`,
+`aggregate.no_outcomes`, and the rest are constants in `evidence.py`), and the runner prints it next to
+the gate name. A PASS must name the revision and the scope it ran against, so
+the state cannot be reached without the proof it claims.
+
+The gate accepts PASS and nothing else, with three declared exceptions in
+`default_pre_pr_policy()`.
+
+The first licenses SKIP for every gate. That is not new policy, it is this
+document's prior sentence made executable: ADR-042 expunged the PowerShell
+validators, so a downstream install legitimately lacks scripts this repository
+ships, and `--quick` plus the pre-push fast stage skip gates on purpose.
+
+The other two license BLOCKED, each for one named validator on the single
+reason code `tool.absent`: `validate_workflow_yaml` when actionlint is not on
+PATH, and `validate_yaml_style` when yamllint is not. Both tools are optional
+developer-machine installs rather than repository dependencies, and neither
+gate blocked on their absence before the typed states existed; the licences
+make that prior behavior reviewable instead of implicit. The BLOCKED state is
+still recorded and still printed, and since issue #5646 the RESULT line names
+the licensed rows too, so a degraded run and a clean one are distinguishable.
+
+UNKNOWN gets no exception at all, and BLOCKED gets none outside those two named
+pairs. Correction, 2026-09-07: the paragraph this replaces claimed one exception
+and that BLOCKED got none. Both halves were false when they shipped in PR #5641,
+against the same function they described (issue #5646 item 4).
+
+Add an exception only through `PolicyException`, which requires a written
+justification so a reviewer can evaluate it.
+
+### Boundary cases the states must not smooth over
+
+Three cases sit where a plausible reading collapses two states into one. Each
+is pinned by a test rather than left to the reader, because each one was wrong
+in the first draft of this contract and was caught in review of PR #5641.
+
+- **A run with no outcomes blocks.** `aggregate` reports UNKNOWN with
+  `aggregate.no_outcomes`. A sequence that executed no gate examined nothing
+  and so proved nothing. Before the reason was wired, the empty rejected list
+  left `blocking` False and the runner exited 0, reporting a clean run of zero
+  gates: the contract's own fail-open, reached through the aggregate instead of
+  through a validator.
+- **Applicability outranks tool absence.** A checkout with no
+  `.github/workflows` reports SKIP `tree.absent` whether or not actionlint is
+  installed. Probing the tool first told a downstream install holding neither
+  to go install actionlint for a gate that did not apply to it.
+- **An advisory gate still separates a finding from a failure.**
+  `validate_yaml_style` tolerates yamllint findings and returns PASS, but a
+  timeout returns UNKNOWN `timeout` and a failed exec returns BLOCKED
+  `tool.absent`. A tool that never finished produced no findings, which is not
+  the same as having found nothing.
+
 ## Exit Codes
+
+The worst state that blocked the gate picks the code
+(`evidence.py:exit_code_for`).
 
 | Code | Meaning | Action |
 |------|---------|--------|
-| 0 | PASS | All gates passed |
-| 1 | FAIL | One or more gates failed; fix and re-run |
-| 2 | ERROR | Environment or configuration fault |
+| 0 | Nothing blocked | All gates passed or were licensed by the policy |
+| 1 | FAIL or UNKNOWN | Fix the violation, or read the gate's output |
+| 2 | Config error | Bad repository root, or a SKIP the policy refused |
+| 3 | BLOCKED | Install or authenticate the dependency the reason names |
 
-Gates that raise `MissingScriptSkip` record SKIP and do not fail the run.
+## Machine-readable summary
+
+`--summary-json PATH` (or `PRE_PR_SUMMARY_JSON`) writes the run as JSON: the
+parent state, the counts per state, the declared policy, one row per gate with
+its state, reason code, scope, revision, and counts, and the subset that
+blocked.
+
+```bash
+uv run --frozen python scripts/validation/pre_pr.py --summary-json /tmp/pre-pr.json
+```
+
+## Unmigrated validators
+
+The migration is deliberately partial. A gate that still returns `bool` is
+adapted by `evidence.coerce_outcome`, which tags its failing side with the
+reason code `legacy.boolean_contract` and its passing side with the scope
+`whole validator (unmigrated boolean contract)`. Both are greppable in the JSON
+summary, so the remaining work is countable rather than invisible.
+
+Migrated so far: `checks_tooling.validate_session_end`,
+`checks_tooling.validate_workflow_yaml`, `checks_tooling.validate_yaml_style`,
+and `checks_mypy.validate_mypy_changed_files`.
+
+Known unmigrated, verified on this tree:
+
+- `checks_plugin.validate_workflow_local_run` returns `True` on four
+  not-checked conditions: an unresolved base ref, a failed `git diff`, and the
+  child script's exit 3 (tools unavailable) and exit 4 (auth unavailable).
+- Three `checks_spec` gates return `True` when their child script is absent,
+  printing a warning instead of raising `MissingScriptSkip`, so the skip is
+  invisible to the runner.
+- `checks_coverage.validate_review_marker` returns `True` on an advisory
+  failure and rewrites the child's `[FAIL]` tokens to `[WARN]` to match. That
+  one is a deliberate advisory (issue #1938), not a fail-open, but it still
+  reports PASS for a check that found something.
+
+All four are tracked in #5635.
+
+The capability probes under `scripts/eval/` are a deliberate exception rather
+than unmigrated work. `_harness_capability.py` already carries its own typed
+contract from #5630 (`CapabilityStatus` with `VERIFIED`/`UNSUPPORTED`/
+`UNVERIFIED`, a separate `EvidenceKind`, and worst-wins aggregation over an
+explicit precedence tuple), and its vocabulary answers a different question:
+whether a harness supports a capability, not whether a gate proved a contract.
+`evidence.py` borrowed its shape. Collapsing the two would lose the
+evidence-kind distinction that makes only backend evidence able to support
+`VERIFIED`.
 
 ## Integration with Workflows
 
@@ -151,11 +271,14 @@ dedicated workflows instead:
 | Vendor Portability | `validate-vendor-portability.yml` |
 | Plugin Version Bump | `validate-plugin-version-bump.yml` |
 | Hook Anchoring | `hook-contract-check.yml` |
-| Memory index and tier | `memory-validation.yml` |
+| Memory index count ratchet | `pr-validation.yml` |
 
-Two pre-push gates have no CI equivalent, so a local bypass is the only place
-they are enforced: `security-scan` (semgrep) and `python-type-check` (mypy).
-CI runs the type-ignore count ratchet, not mypy itself.
+Four pre-push gates have no CI equivalent, so a local bypass is the only place
+they are enforced: `security-scan` (semgrep), `python-type-check` (mypy), and,
+since issue #5626 deleted `memory-validation.yml`, `memory-index`
+(`scripts/validation/memory_index.py`) and `memory-tier`
+(`scripts/validate_memory_tier.py`). CI runs the type-ignore count ratchet, not
+mypy itself, and the unindexed-memory count ratchet, not those two validators.
 
 ### Developer workflow
 

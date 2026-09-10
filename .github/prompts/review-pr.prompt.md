@@ -18,11 +18,9 @@ tools:
   - edit/createFile
   - edit/editFiles
   - search
-  - forgetful/*
   - serena/*
   - todo
   - memory
-model: Claude Opus 4.5 (copilot)
 ---
 
 # Comprehensive PR Review

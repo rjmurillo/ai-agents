@@ -265,12 +265,14 @@ class TestConcurrencyGroupExtraction:
         assert get_concurrency_group(run) == "label-pr-100"
 
     def test_memory_workflow_pr(self):
+        # memory-validation.yml was deleted in issue #5626, so "Memory Health"
+        # is the run the "memory" keyword now matches.
         run = _make_run(
-            name="memory-validation",
+            name="memory-health",
             event="pull_request",
             pull_requests=[{"number": 200}],
         )
-        assert get_concurrency_group(run) == "memory-validation-200"
+        assert get_concurrency_group(run) == "memory-health-200"
 
     def test_assign_workflow_pr(self):
         run = _make_run(

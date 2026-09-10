@@ -301,8 +301,9 @@ context.
 
 Claude Code loads `CLAUDE.md` files in full. The vendor's first 200 lines or
 25 KB limit applies to auto-memory `MEMORY.md`, not `CLAUDE.md`. This
-repository's 200-line command ratchet is separate local policy in
-`command_size.py`.
+repository's own size ratchet is separate local policy in `skill_size.py`, which
+gates `SKILL.md` at 500 lines and 24576 bytes. It replaced a 200-line command
+ratchet that ADR-064 retired along with the command surface itself.
 
 Source:
 <https://docs.anthropic.com/en/docs/claude-code/memory>

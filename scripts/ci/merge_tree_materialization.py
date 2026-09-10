@@ -178,11 +178,21 @@ def materialize_tree(repo_root: Path, tree_oid: str, destination: Path) -> bool:
 
 
 def _initialize_repo(scratch: Path, env: dict[str, str]) -> bool:
+    # `--force` is load bearing, not noise (issue #5539). The materialized tree
+    # carries its own `.gitignore`, and without `--force` that file decides what
+    # enters the snapshot, so the scratch repository the ratchets measure is the
+    # merged tree minus whatever the merged tree chose to hide. A branch could
+    # then shrink what the gate can see by editing the one file the gate has no
+    # reason to trust. Measured on `main`: `git ls-files -i -c
+    # --exclude-standard` reports 47 tracked-but-ignored paths, none of them
+    # `.py`, so no counter in `merge_tree_ratchet_registry.py` undercounts
+    # today. The invariant is what is being fixed; the first Markdown, YAML, or
+    # whole-tree counter added to that registry is what would have paid for it.
     commands = (
         ("init", "-q", "-b", "main", str(scratch)),
         ("config", "user.email", "ci@example.com"),
         ("config", "user.name", "ci"),
-        ("add", "-A"),
+        ("add", "-A", "--force"),
         ("commit", "-qm", "merge-tree snapshot"),
     )
     for index, argv in enumerate(commands):

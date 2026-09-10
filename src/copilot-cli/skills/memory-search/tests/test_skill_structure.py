@@ -108,8 +108,12 @@ def test_no_vendor_forbidden_path_references() -> None:
 
 
 @pytest.mark.parametrize(
+    # A fourth term naming the retired semantic backend was here until issue
+    # #5574. Replaced rather than dropped: the assertion's job is to keep this
+    # sub-skill a deep module, so it needs concepts it actually owns.
+    # "episode" and "token" are the two the search operation still carries.
     "term",
-    ["progressive disclosure", "serena", "forgetful"],
+    ["progressive disclosure", "serena", "episode", "token"],
 )
 def test_carries_search_operation_concepts(term: str) -> None:
     # Arrange: the sub-skill must be a deep module (carry the search operation

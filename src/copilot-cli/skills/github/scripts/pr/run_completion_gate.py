@@ -365,8 +365,21 @@ except ImportError:  # pragma: no cover - exercised when PyYAML missing
 # ---------------------------------------------------------------------------
 
 
+# The last-resort config location when no ``--config`` is passed. The
+# ``.claude`` segment is the CONSUMER's own directory, not a plugin root:
+# _PROJECT_ROOT resolves to the user's repository (see _resolve_project_root
+# above), so this reads a file the installing repository owns. That is the
+# consumer-workspace case in .claude/rules/plugin-self-containment.md, not an
+# upstream-only dependency, and the resolver in the pr-review skill reaches
+# every plugin root before falling back here.
+#
+# check_skill_portability.py counts it as an upstream reference anyway: its
+# pattern set matches ``.claude/skills`` and cannot tell the two cases apart,
+# which that rule states outright. The reference is not new. It moved here from
+# ``.claude/commands/pr-review-config.yaml`` under ADR-064, a directory the
+# pattern set does not cover, so the count rose without the dependency changing.
 _DEFAULT_CONFIG_PATH = (
-    _PROJECT_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+    _PROJECT_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
 )
 
 
@@ -475,7 +488,7 @@ TRUST_MALFORMED_REF = "malformed-ref"
 TRUST_INSTALL_TRUSTED = "install-trusted"
 
 # Host-declared plugin roots, in the order resolve_pr_review_config() in
-# .claude/commands/pr-review.md consults them. Quoted verbatim from that
+# .claude/skills/pr-review/SKILL.md consults them. Quoted verbatim from that
 # function per .claude/rules/canonical-source-mirror.md, first two list
 # entries only (the rest are the in-repo and installed-plugin fallbacks,
 # which this constant deliberately does not cover):
@@ -484,7 +497,7 @@ TRUST_INSTALL_TRUSTED = "install-trusted"
 #       "${COPILOT_PLUGIN_ROOT:-}" \
 #       "${CLAUDE_PLUGIN_ROOT:-}" \
 #       ...
-#       if [ -n "$root" ] && [ -f "$root/commands/pr-review-config.yaml" ]; then
+#       if [ -n "$root" ] && [ -f "$root/skills/pr-review/pr-review-config.yaml" ]; then
 #
 # The loop CONTINUES when a root is set but does not hold the config, so
 # COPILOT_PLUGIN_ROOT being set does not by itself exclude
@@ -513,8 +526,9 @@ _PLUGIN_ROOT_ENV_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
 # each candidate before use; this function did not.
 #
 # Reproduced before the fix (Copilot review, PR #5329): a co-installed plugin
-# root exported as COPILOT_PLUGIN_ROOT, holding its own
-# commands/pr-review-config.yaml, was install-trusted, and its criterion
+# root exported as COPILOT_PLUGIN_ROOT, holding its own config at the
+# then-current commands/pr-review-config.yaml, was install-trusted, and its
+# criterion
 # `sh -c '...'` EXECUTED, printing its marker to stderr. Command trust caught
 # nothing because a bare `sh`, an option `-c`, and an option VALUE are all
 # skipped, so no argv token resolved to a work-tree file (CWE-829).
@@ -2451,7 +2465,7 @@ def _install_trusted_root(config_arg: str) -> InstallTrust | None:
     and trusted-ref verification unchanged).
 
     Issue #5112: ``resolve_pr_review_config()`` in
-    ``.claude/commands/pr-review.md`` offers plugin roots as config
+    ``.claude/skills/pr-review/SKILL.md`` offers plugin roots as config
     sources, but containment refused any ``--config`` outside
     ``_PROJECT_ROOT``, so an installed ``/pr-review`` whose config
     resolved to the bundled copy could not dispatch at all. Option 1 of
@@ -2554,7 +2568,8 @@ def _install_trusted_root(config_arg: str) -> InstallTrust | None:
         # and skip byte-identity verification entirely (CWE-829).
         # Reproduced on this branch before the fix: declared root
         # /home/user install-trusted
-        # /home/user/ai-agents/.claude/commands/pr-review-config.yaml.
+        # the repository's own config, then at
+        # .claude/commands/pr-review-config.yaml.
         # Found by Copilot review on PR #5329.
         if work_tree is None:
             work_tree = _consumer_work_tree()

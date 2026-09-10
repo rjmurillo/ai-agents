@@ -97,7 +97,6 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".diffray",
         ".env.example",
         ".factory",
-        ".forgetful",
         ".gemini",
         ".gitattributes",
         ".github",
@@ -106,6 +105,10 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".mcp.json",
         ".python-version",
         ".qualityrc.json",
+        # semgrep discovers this by walking from the scan cwd up to the git
+        # root (ProjectConfig.load_all), so the repository root is the only
+        # place it is found for a scan rooted here. Refs #4725.
+        ".semgrepconfig.yml",
         ".serena",
         ".vscode",
         ".worktreeinclude",
@@ -6857,27 +6860,22 @@ def run_skillforge(paths: Sequence[str], repo_root: Path) -> int:
 
 
 def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
-    """Skip evals and the command mirrors build/scripts/generate_commands.py writes.
+    """Skip eval fixtures, which are not authored skills.
 
-    A mirror is not an authored skill, so the SkillForge schema (Triggers, Process,
-    Verification) does not describe it and editing it is not how you fix it. The
-    mirror set is derived from `.claude/commands/<name>.md`, the generator's own
-    input, so do not restate the names here or in lefthook.yml.
+    The second clause this used to carry covered the command mirrors that
+    build/scripts/generate_commands.py wrote under src/copilot-cli/skills/. It
+    probed `.claude/commands/<name>.md` to decide, so it self-emptied when
+    ADR-064 converted the last command and stopped being reachable when the
+    generator was deleted (issue #5632). Every Copilot skill is now mirrored from
+    an authored `.claude/skills/<name>/SKILL.md` by generate_skills.py, and those
+    do carry the SkillForge schema, so validating them is correct rather than
+    noise.
 
-    Derived is not the same as in sync. Nothing regenerates a mirror at commit
-    time, so a command edit that skips the generator ships a stale mirror; one
-    did, leaving the Copilot pr-autofix skill prescribing a push the pre-push
-    guard rejects. `test_committed_command_mirrors_match_the_generator` in
-    tests/build_scripts/test_generate_commands.py is what catches that.
+    `repo_root` is kept in the signature: callers pass it positionally, and the
+    parameter is what a future path-relative skip would need.
     """
-    if path.startswith("evals/"):
-        return True
-    parts = PurePosixPath(path).parts
-    if len(parts) != 5 or parts[:3] != ("src", "copilot-cli", "skills"):
-        return False
-    if parts[4] != "SKILL.md":
-        return False
-    return (repo_root / ".claude" / "commands" / f"{parts[3]}.md").is_file()
+    del repo_root
+    return path.startswith("evals/")
 
 
 def run_planning_advisory(repo_root: Path) -> int:
@@ -7090,20 +7088,6 @@ def cross_reference_memories(paths: Sequence[str], repo_root: Path) -> int:
             file=sys.stderr,
         )
         return 1
-    return 0
-
-
-def run_memory_sync(repo_root: Path) -> int:
-    if os.environ.get("SKIP_MEMORY_SYNC") == "1":
-        print("Memory sync skipped (SKIP_MEMORY_SYNC=1)")
-        return 0
-    command = [sys.executable, "-m", "scripts.memory_sync.cli", "hook"]
-    if os.environ.get("MEMORY_SYNC_IMMEDIATE") == "1":
-        command.append("--immediate")
-    result = _run_command(command, repo_root)
-    _print_process_output(result)
-    if result.returncode != 0:
-        print("WARNING: memory sync failed without blocking", file=sys.stderr)
     return 0
 
 
@@ -7856,71 +7840,6 @@ def validate_branch_sessions(paths: Sequence[str], repo_root: Path) -> int:
     return 1 if failed else 0
 
 
-# The observation-sync-advisory lefthook job carries a 5m timeout, and a
-# lefthook timeout kill cannot be absorbed by a shell guard (ci-scripts rule:
-# the kill lands before any || branch runs), so this advisory's worst case must
-# be held under the cap from the inside. Each file costs up to ~10s when the
-# Forgetful MCP handshake times out (memory_sync.mcp_client.DEFAULT_TIMEOUT is
-# 10.0 seconds per request), and the first push of a new branch sweeps every
-# tracked observation file into the job, so an unreachable MCP server
-# overruns the cap and blocks the push. Invariant, pinned by
-# test_observation_sync_budget_sits_below_the_lefthook_cap: this budget plus
-# one worst-case child (DEFAULT_SUBPROCESS_TIMEOUT_SECONDS) stays at or
-# under the lefthook cap, so even an unclamped straggler cannot outlive it;
-# the remainder is headroom for uv startup on a loaded machine. Each child is
-# additionally clamped to the remaining budget inside the loop.
-_OBSERVATION_SYNC_BUDGET_SECONDS = 200.0
-
-
-def sync_observations(paths: Sequence[str], repo_root: Path) -> int:
-    """Import pushed observation files into forgetful, best-effort.
-
-    The job is advisory by contract: every per-file failure is a WARNING and
-    the return value is always 0. The one failure mode that contract cannot
-    absorb is lefthook's own ``timeout:`` kill (a killed job exits non-zero
-    before any guard runs), so the loop holds an internal budget below the
-    configured 5m cap. When forgetful is unreachable, each import burns one
-    ~10s MCP-call timeout per observation entry, up to the 90s child cap, so
-    a push whose file set carries 30+ observation files otherwise outlives
-    the lefthook cap deterministically. Skipped files are named per the
-    no-silent-caps rule; they import on the next push that carries them.
-    """
-    deadline = time.monotonic() + _OBSERVATION_SYNC_BUDGET_SECONDS
-    for index, path in enumerate(paths):
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            skipped = len(paths) - index
-            print(
-                f"WARNING: observation sync budget "
-                f"({_OBSERVATION_SYNC_BUDGET_SECONDS:g}s) exhausted after "
-                f"{index} of {len(paths)} file(s); skipped {skipped} of "
-                f"{len(paths)}: " + ", ".join(repr(p) for p in paths[index:]),
-                file=sys.stderr,
-            )
-            break
-        result = _run_command(
-            [
-                sys.executable,
-                ".serena/scripts/import_observations_to_forgetful.py",
-                "--observation-file",
-                path,
-                "--confidence-levels",
-                "HIGH",
-                "MED",
-            ],
-            repo_root,
-            # Clamp the child to the remaining budget so total wall clock is
-            # bounded by the budget, not budget plus one full child timeout.
-            # A clamped kill returns 3 and lands in the WARNING below, which
-            # keeps the advisory contract intact.
-            timeout_seconds=min(DEFAULT_SUBPROCESS_TIMEOUT_SECONDS, remaining),
-        )
-        _print_process_output(result)
-        if result.returncode != 0:
-            print(f"WARNING: observation sync failed for {path!r}", file=sys.stderr)
-    return 0
-
-
 def bot_cascade_advisory(repo_root: Path) -> int:
     try:
         pr = _run_command(
@@ -8044,6 +7963,24 @@ def _handle_staged_dashes(args: argparse.Namespace) -> int:
     return check_staged_dashes(args.paths, _repo_root(args))
 
 
+def _handle_branch_dashes(args: argparse.Namespace) -> int:
+    """Branch-wide em/en-dash scan as a standalone pre-push job (issue #5086).
+
+    Delegates to the one authoritative implementation,
+    ``checks_dash.validate_dash_prohibition``, which owns the detection regex
+    and the vendored/fixture carve-out. This handler adds only the exit-code
+    translation, so the fast-stage job and ``pre_pr.py`` cannot disagree about
+    what a violation is.
+
+    Imported inside the handler rather than at module scope: every other
+    subcommand of this module pays for a top-level import, and none of them
+    needs the branch scan.
+    """
+    from checks_dash import validate_dash_prohibition
+
+    return 0 if validate_dash_prohibition(_repo_root(args)) else 1
+
+
 def _handle_staged_action_pins(args: argparse.Namespace) -> int:
     return check_staged_action_pins(args.paths, _repo_root(args))
 
@@ -8127,10 +8064,6 @@ def _handle_memory_size(args: argparse.Namespace) -> int:
 
 def _handle_memory_cross_reference(args: argparse.Namespace) -> int:
     return cross_reference_memories(args.paths, _repo_root(args))
-
-
-def _handle_memory_sync(args: argparse.Namespace) -> int:
-    return run_memory_sync(_repo_root(args))
 
 
 def _handle_pytest(args: argparse.Namespace) -> int:
@@ -8263,11 +8196,9 @@ def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
     # These mirror the glob: list for plugin-load-e2e in lefthook.yml.
     plugin_e2e_globs = (
         ".claude/.claude-plugin/plugin.json",
-        ".claude/commands/**",
         ".claude/skills/**",
         "src/copilot-cli/.claude-plugin/plugin.json",
         "src/copilot-cli/skills/**",
-        "build/scripts/generate_commands.py",
         "build/scripts/generate_skills.py",
         "templates/platforms/copilot-cli.yaml",
         "tests/e2e/test_plugin_load_smoke.py",
@@ -8280,44 +8211,6 @@ def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
         print("plugin-load-e2e skipped: no relevant files in push range")
         return 0
     return run_cli_e2e("tests/e2e/test_plugin_load_smoke.py", repo_root)
-
-
-def _handle_observations_push(args: argparse.Namespace) -> int:
-    # Mirrors the glob for observation-sync-advisory in lefthook.yml:
-    #     glob: ".serena/memories/**/*-observations.md"
-    # plus the top-level spelling, because fnmatch requires the "**/" segment
-    # while lefthook's glob does not. Lefthook's glob is a secondary filter
-    # only (ADR-006); the guard logic lives here.
-    #
-    # Stricter/looser/different than the e2e handlers above: on an
-    # unresolvable push range this handler SKIPS instead of failing open.
-    # The job is advisory (sync_observations always returns 0), and failing
-    # open means syncing every tracked observation file; without a reachable
-    # Forgetful service each file burns a 10s MCP timeout, so the full corpus
-    # (50 files when this landed) overruns the job's 5m lefthook cap and the
-    # timeout kill blocks the push (issue #5071 push evidence; same class as
-    # issue #4492).
-    observation_globs = (
-        ".serena/memories/*-observations.md",
-        ".serena/memories/**/*-observations.md",
-    )
-    repo_root = _repo_root(args)
-    changed = _push_range_changed_files(sys.stdin, repo_root)
-    if changed is None:
-        print("observation-sync advisory skipped: push range unresolvable")
-        return 0
-    targets = sorted(
-        path
-        for path in changed
-        if _any_glob_match({path}, observation_globs) and (repo_root / path).is_file()
-    )
-    print(
-        f"observation-sync: {len(targets)} observation file(s) among "
-        f"{len(changed)} changed in push range"
-    )
-    if not targets:
-        return 0
-    return sync_observations(targets, repo_root)
 
 
 def _handle_sessions(args: argparse.Namespace) -> int:
@@ -8341,10 +8234,6 @@ def _handle_sessions(args: argparse.Namespace) -> int:
         print("ERROR: session files on disk differ from the pushed HEAD", file=sys.stderr)
         return 2
     return validate_branch_sessions(sessions, repo_root)
-
-
-def _handle_observations(args: argparse.Namespace) -> int:
-    return sync_observations(args.paths, _repo_root(args))
 
 
 def _handle_bot_cascade(args: argparse.Namespace) -> int:
@@ -8411,7 +8300,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("memory-cross-reference", _handle_memory_cross_reference),
         ("workflow-local", _handle_workflow_local),
         ("sessions", _handle_sessions),
-        ("observations", _handle_observations),
         ("extract-episodes", _handle_extract_episodes),
         ("adr-review", _handle_adr_review),
         ("retrospective", _handle_retrospective),
@@ -8425,18 +8313,17 @@ def build_parser() -> argparse.ArgumentParser:
         ("generate-agents", _handle_generate_agents),
         ("memory-token-update", _handle_memory_tokens),
         ("memory-size", _handle_memory_size),
-        ("memory-sync", _handle_memory_sync),
         ("placeholder-identity", _handle_placeholder_identity),
         ("additions", _handle_additions),
         ("bot-cascade", _handle_bot_cascade),
         ("semgrep", _handle_semgrep),
         ("semgrep-push", _handle_semgrep_push),
         ("security-suppressions-push", _handle_suppressions_push),
-        ("observations-push", _handle_observations_push),
         ("security-suppressions-staged", _handle_staged_suppressions),
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),
         ("atomic-commit", _handle_atomic_commit),
+        ("branch-dashes", _handle_branch_dashes),
     )
     for name, handler in path_commands:
         _add_path_command(subparsers, name, handler)

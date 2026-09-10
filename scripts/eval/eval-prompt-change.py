@@ -8,7 +8,7 @@ security-critical tier, and flakiness protocol from ADR-057.
 Usage:
     # Compare working copy against base branch:
     uv run python scripts/eval/eval-prompt-change.py \\
-        --prompt .claude/commands/research.md \\
+        --prompt .claude/skills/research/SKILL.md \\
         --scenarios tests/evals/research-scenarios.json \\
         --base-ref main
 
@@ -25,7 +25,7 @@ Usage:
 
     # Dry run (validate scenario file, no API calls):
     uv run python scripts/eval/eval-prompt-change.py \\
-        --prompt .claude/commands/research.md \\
+        --prompt .claude/skills/research/SKILL.md \\
         --scenarios tests/evals/research-scenarios.json \\
         --dry-run
 
@@ -65,7 +65,7 @@ import re
 import subprocess
 import sys
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from _anthropic_api import (
@@ -227,6 +227,53 @@ def load_prompt_from_file(path: str) -> str:
     if not p.exists():
         raise RuntimeError(f"Prompt file not found: {path}")
     return p.read_text(encoding="utf-8")
+
+
+
+def _reference_names_from_ref(prompt_path: str, ref: str) -> list[str]:
+    """Reference Markdown filenames beside *prompt_path* at *ref*, sorted."""
+    refs_dir = f"{PurePosixPath(prompt_path).parent}/references"
+    try:
+        listing = subprocess.run(
+            ["git", "ls-tree", "--name-only", f"{ref}:{refs_dir}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+            timeout=30,
+        ).stdout
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return []
+    return sorted(n for n in listing.split() if n.endswith(".md"))
+
+
+def load_prompt_surface_from_ref(prompt_path: str, ref: str) -> str:
+    """Prompt text at *ref*, plus every reference Markdown beside it.
+
+    A command held its whole procedure in one file. A skill splits it across
+    `SKILL.md` and `references/`, so reading only the body compares a body
+    against a body-plus-procedure and reports a regression that is pure
+    relocation. Both sides are read the same way, so a file with no
+    `references/` directory is unaffected. Refs ADR-064 (issue #5632).
+    """
+    parts = [load_prompt_from_ref(prompt_path, ref)]
+    parent = PurePosixPath(prompt_path).parent
+    parts.extend(
+        load_prompt_from_ref(f"{parent}/references/{name}", ref)
+        for name in _reference_names_from_ref(prompt_path, ref)
+    )
+    return "\n".join(parts)
+
+
+def load_prompt_surface_from_file(path: str) -> str:
+    """Working-copy twin of :func:`load_prompt_surface_from_ref`."""
+    parts = [load_prompt_from_file(path)]
+    parts.extend(
+        ref.read_text(encoding="utf-8")
+        for ref in sorted((Path(path).parent / "references").glob("*.md"))
+    )
+    return "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -558,6 +605,15 @@ def _parse_args() -> argparse.Namespace:
     prompt_group.add_argument(
         "--base-ref", type=str, default="main", help="Git ref for 'before' version (default: main)"
     )
+    prompt_group.add_argument(
+        "--renamed-from",
+        type=str,
+        help=(
+            "Path the prompt had before it was renamed. Used only when --prompt "
+            "is absent at --base-ref, so the same invocation works while a "
+            "rename is in flight and after it merges."
+        ),
+    )
     prompt_group.add_argument("--before", type=str, help="Explicit 'before' prompt file")
     prompt_group.add_argument("--after", type=str, help="Explicit 'after' prompt file")
 
@@ -622,10 +678,41 @@ def _load_prompts(args: argparse.Namespace) -> tuple[str, str, str]:
         after_text = load_prompt_from_file(args.after)
         source = f"explicit: {args.before} -> {args.after}"
     else:
-        before_text = load_prompt_from_ref(args.prompt, args.base_ref)
-        after_text = load_prompt_from_file(args.prompt)
-        source = f"git: {args.base_ref}:{args.prompt} -> working copy"
+        before_path, before_text = _load_before_across_rename(args)
+        after_text = load_prompt_surface_from_file(args.prompt)
+        source = f"git: {args.base_ref}:{before_path} -> working copy"
     return before_text, after_text, source
+
+
+def _load_before_across_rename(args: argparse.Namespace) -> tuple[str, str]:
+    """Return (path_used, text) for the 'before' side, following a rename.
+
+    A prompt that moved in the change under test does not exist at the base ref
+    under its new path, and `git show <ref>:<new>` fails rather than returning
+    nothing. That aborts the whole eval with exit 2, so a rename would make the
+    behavioral comparison unrunnable exactly when it is most worth running.
+
+    `--renamed-from` is consulted ONLY after the primary path fails, which is
+    what makes one invocation correct on both sides of the merge: while the
+    rename is in flight the new path is missing at the base and the old one
+    resolves, and once it merges the new path resolves and the old one is never
+    tried. A flag that always won would break the day the rename landed.
+
+    Refs ADR-064 (issue #5632), which renames every lifecycle prompt.
+    """
+    try:
+        return args.prompt, load_prompt_surface_from_ref(args.prompt, args.base_ref)
+    except RuntimeError:
+        if not getattr(args, "renamed_from", None):
+            raise
+        print(
+            f"  NOTE: {args.prompt} is absent at {args.base_ref}; "
+            f"reading the 'before' side from {args.renamed_from}",
+            file=sys.stderr,
+        )
+        return args.renamed_from, load_prompt_surface_from_ref(
+            args.renamed_from, args.base_ref
+        )
 
 
 def _run_and_report(

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Memory search performance benchmarking tool for measuring Serena (lexical) and Forgetful (semantic) search latency.
+Memory search performance benchmarking tool for measuring Serena lexical search latency, split into its listing, matching, and reading phases.
 
 **Script**: `skills/memory/scripts/measure_memory_performance.py`, relative to the plugin root
 
@@ -48,9 +48,6 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/sc
 #
 # === Summary ===
 # Serena Average: 530.12ms
-# Forgetful Average: 245.67ms
-# Speedup Factor: 2.16x
-# Target: 96-164x (claude-flow baseline)
 ```
 
 ### Custom Queries
@@ -64,13 +61,6 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/sc
         "Agent coordination protocols" \
         "Memory-first architecture" \
     --iterations 10
-```
-
-### Serena-Only Testing
-
-```bash
-# Skip Forgetful benchmarks (useful when MCP unavailable)
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/measure_memory_performance.py" --serena-only
 ```
 
 ### Output Formats
@@ -90,9 +80,6 @@ Benchmarking Serena (lexical search)...
 
 === Summary ===
 Serena Average: 530.12ms
-Forgetful Average: 245.67ms
-Speedup Factor: 2.16x
-Target: 96-164x (claude-flow baseline)
 ```
 
 #### Markdown
@@ -115,13 +102,9 @@ Structured report for documentation:
 
 ## Results
 
-| System | Average (ms) | Status |
-|--------|-------------|--------|
-| Serena | 530.12 | Baseline |
-| Forgetful | 245.67 | Below Target |
-
-**Speedup Factor**: 2.16x
-**Target**: 96-164x (claude-flow baseline)
+| System | Average (ms) |
+|--------|-------------|
+| Serena | 530.12 |
 ```
 
 #### JSON
@@ -135,8 +118,7 @@ Programmatic output for analysis:
     "Queries": 8,
     "Iterations": 5,
     "WarmupIterations": 2,
-    "SerenaPath": ".serena/memories",
-    "ForgetfulEndpoint": "http://localhost:8020/mcp"
+    "SerenaPath": ".serena/memories"
   },
   "SerenaResults": [
     {
@@ -151,12 +133,8 @@ Programmatic output for analysis:
       "IterationTimes": [530.1, 535.2, 531.8, 533.0, 532.1]
     }
   ],
-  "ForgetfulResults": [...],
   "Summary": {
-    "SerenaAvgMs": 530.12,
-    "ForgetfulAvgMs": 245.67,
-    "SpeedupFactor": 2.16,
-    "Target": "96-164x (claude-flow baseline)"
+    "SerenaAvgMs": 530.12
   }
 }
 ```
@@ -168,7 +146,6 @@ Programmatic output for analysis:
 | --queries | str[] | Default set | List of test queries to benchmark |
 | --iterations | int | 5 | Number of iterations per query for averaging |
 | --warmup-iterations | int | 2 | Number of warmup iterations before measurement |
-| --serena-only | flag | - | Only benchmark Serena (skip Forgetful) |
 | --format | str | console | Output format: console, markdown, json |
 
 ### Default Query Set
@@ -203,21 +180,15 @@ The script includes 8 default queries covering different domains:
 | MatchedFiles | Number of files matching keywords | 0-20 |
 | TotalFiles | Total files in memory directory | 460+ |
 
-### Forgetful Metrics
-
-| Metric | Description | Typical Range |
-|--------|-------------|---------------|
-| SearchTimeMs | HTTP roundtrip + embedding + vector search | 200-400ms |
-| TotalTimeMs | Same as SearchTimeMs (single operation) | 200-400ms |
-| MatchedMemories | Number of semantic matches returned | 0-10 |
-
 ### Summary Metrics
 
 | Metric | Description | Target |
 |--------|-------------|--------|
 | SerenaAvgMs | Average Serena search latency | 530ms (baseline) |
-| ForgetfulAvgMs | Average Forgetful search latency | <100ms (goal) |
-| SpeedupFactor | Serena / Forgetful ratio | >10x (goal) |
+
+The summary carried two more metrics, a second backend's average and the ratio
+between the two, until issue #5574 retired that backend. A ratio needs two
+operands, so both were removed rather than reported as zero.
 
 ## Measurement Methodology
 
@@ -226,8 +197,7 @@ The script includes 8 default queries covering different domains:
 Warmup iterations run before measurement to:
 
 - Populate file system caches
-- Warm up Forgetful embedding model
-- Establish network connections
+- Reach steady-state directory listing cost
 - Stabilize CPU frequency scaling
 
 **Default**: 2 warmup iterations (not measured)
@@ -242,12 +212,7 @@ Each query is executed multiple times (default: 5 iterations):
    - Read matched file contents
    - Calculate total latency
 
-2. **Forgetful** (if available):
-   - Send HTTP POST with query
-   - Receive and parse JSON response
-   - Calculate total latency
-
-3. **Averaging**:
+2. **Averaging**:
    - Calculate mean latency across iterations
    - Round to 2 decimal places
    - Store iteration times for variance analysis
@@ -255,8 +220,6 @@ Each query is executed multiple times (default: 5 iterations):
 ### Cache Behavior
 
 **Serena**: File system caching improves performance after warmup. Measured latency reflects steady-state (cached) performance.
-
-**Forgetful**: HTTP connection pooling and model caching improve performance after warmup.
 
 **Implication**: Benchmarks measure typical performance, not worst-case cold start.
 
@@ -267,10 +230,6 @@ Each query is executed multiple times (default: 5 iterations):
 | Metric | Current | Target | Status |
 |--------|---------|--------|--------|
 | Serena latency | 530ms | 530ms | Baseline |
-| Forgetful latency | Pending | <100ms | Pending M-008 |
-| Router overhead | Pending | <50ms | Pending M-008 |
-| Total latency (augmented) | Pending | <700ms | Pending M-008 |
-| Speedup (Forgetful vs Serena) | Pending | >5x | Goal |
 
 ### Long-Term Goals
 
@@ -280,13 +239,9 @@ Each query is executed multiple times (default: 5 iterations):
 - Add LRU caching for frequently accessed memories - Target: <100ms
 - Use memory-mapped files for large memory sets - Target: <150ms
 
-**Forgetful Optimization**:
-
-- Local embedding caching - Target: <50ms
-- HNSW index tuning - Target: <30ms
-- Connection pooling - Target: <20ms
-
-**Combined Target**: 96-164x vs claude-flow baseline (once baseline is measured)
+The claude-flow comparison target that sat here was a ratio against a second
+backend. It is gone with that backend (issue #5574); the remaining target is
+the absolute Serena latency above.
 
 ## Interpreting Results
 
@@ -294,38 +249,25 @@ Each query is executed multiple times (default: 5 iterations):
 
 ```text
 Serena Average: 520ms
-Forgetful Average: 85ms
-Speedup Factor: 6.12x
 ```
 
 **Indicators**:
 
 - Serena < 600ms (file system performing well)
-- Forgetful < 150ms (MCP server responsive)
-- Speedup > 3x (semantic search providing value)
+- ReadTimeMs dominating TotalTimeMs is expected: reading matched files is the
+  bulk of the work
 
 ### Performance Issues
 
 ```text
 Serena Average: 1250ms
-Forgetful Average: 450ms
-Speedup Factor: 2.78x
 ```
 
 **Possible Causes**:
 
-- Serena: Disk I/O bottleneck, too many memory files, slow filesystem
-- Forgetful: Network latency, cold embedding model, database overhead
-- Both: CPU throttling, memory pressure, background processes
-
-### Forgetful Unavailable
-
-```text
-Serena Average: 530ms
-Forgetful: Not available
-```
-
-**Expected**: When Forgetful MCP not running. Serena-only performance is baseline.
+- Disk I/O bottleneck, too many memory files, slow filesystem
+- A broad query matching many files, so ReadTimeMs dominates
+- CPU throttling, memory pressure, background processes
 
 ## Troubleshooting
 
@@ -350,29 +292,6 @@ find .serena/memories -name "*.md" -exec wc -c {} + | awk '{total += $1; count++
 3. **Slow disk**: Use SSD, check disk health, reduce I/O contention
 4. **Filesystem**: NTFS fragmentation (Windows), ext4 vs btrfs (Linux)
 
-### High Forgetful Latency
-
-**Symptoms**: Forgetful > 500ms consistently
-
-**Diagnosis**:
-
-```bash
-# Check Forgetful server logs
-journalctl --user -u forgetful -n 50
-
-# Test HTTP endpoint directly
-time curl -X POST http://localhost:8020/mcp \
-    -H "Content-Type: application/json" \
-    -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"memory_search","arguments":{"query":"test"}}}'
-```
-
-**Solutions**:
-
-1. **Cold embedding model**: Run warmup queries before benchmarking
-2. **Database overhead**: Check ChromaDB performance, restart if stale
-3. **Network latency**: Ensure localhost connectivity, check firewall
-4. **Resource contention**: Close other applications, increase memory allocation
-
 ### Inconsistent Results
 
 **Symptoms**: High variance in iteration times (>20% standard deviation)
@@ -383,23 +302,6 @@ time curl -X POST http://localhost:8020/mcp \
 2. **Increase warmup**: Use `--warmup-iterations 5`
 3. **Reduce background load**: Close applications, disable background tasks
 4. **Check CPU throttling**: Monitor CPU frequency during benchmarks
-
-### Forgetful Not Detected
-
-**Symptoms**: Benchmark shows "Forgetful: Not available" despite running server
-
-**Diagnosis**:
-
-```bash
-# Test availability manually
-curl -s -o /dev/null -w "%{http_code}" http://localhost:8020/health
-```
-
-**Solutions**:
-
-1. **Port mismatch**: Verify Forgetful running on port 8020
-2. **Firewall blocking**: Check localhost firewall rules
-3. **Server not ready**: Wait for Forgetful startup (check logs)
 
 ## Advanced Usage
 
@@ -461,7 +363,6 @@ data = json.load(sys.stdin)
 entry = {
     'timestamp': '$TIMESTAMP',
     'serena_avg': data['Summary']['SerenaAvgMs'],
-    'forgetful_avg': data['Summary'].get('ForgetfulAvgMs')
 }
 print(json.dumps(entry))
 " >> "$LOG_FILE"
@@ -508,9 +409,6 @@ DEFAULT_QUERIES = [
 
 # Serena memory path
 SERENA_MEMORY_PATH = ".serena/memories"
-
-# Forgetful endpoint
-FORGETFUL_ENDPOINT = "http://localhost:8020/mcp"
 ```
 
 ### Environment Variables

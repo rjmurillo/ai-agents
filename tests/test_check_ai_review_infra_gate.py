@@ -17,6 +17,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.test_selection import path_policy
+
 pytestmark = pytest.mark.windows_path
 
 _MODULE_PATH = (
@@ -274,7 +276,15 @@ def test_windows_contract_jobs_run_for_action_changes():
     workflow = _PYTEST_WORKFLOW_PATH.read_text(encoding="utf-8")
 
     # The ai-review action change still triggers the Windows path-contract job.
-    assert "- '.github/actions/ai-review/action.yml'" in workflow
+    #
+    # Read from the shared policy rather than the workflow text. Issue #5318
+    # moved the path list out of this workflow's inline filter and into
+    # `scripts/test_selection/path_policy.yml`, so that the CI filter and the
+    # local test selector cannot drift apart. Asserting against the workflow
+    # text here would pass only while the list was duplicated, which is the
+    # state that move exists to end. The property under test is unchanged: a
+    # change to the ai-review action must still reach this filter.
+    assert ".github/actions/ai-review/action.yml" in path_policy.load_patterns()
     # The single marker-based step replaces the old hardcoded per-file steps
     # (issue #4299). Both test_pytest_head_guard.py and this file carry
     # pytestmark = pytest.mark.windows_path, so they still run on Windows.

@@ -14,6 +14,11 @@ from unittest.mock import patch
 import pytest
 
 from scripts.validation.checks_tooling import validate_always_on_corpus_claims
+from scripts.validation.evidence import (
+    REASON_BASE_REF_UNRESOLVED,
+    REASON_INCOMPLETE_EVIDENCE,
+    EvidenceState,
+)
 from scripts.validation.pre_pr import (
     ValidationState,
     _find_latest_session_log,
@@ -67,6 +72,22 @@ def _sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # restated here, and the gate's registration is covered in
         # tests/validation/test_pre_pr_index_line_endings_wiring.py.
         "Index Line Endings",
+        # Spawns `build/scripts/build_all.py --check` against the real
+        # repository root. That child is not mocked: the gate reaches it
+        # through `subprocess.Popen`
+        # (scripts/validation/check_generated_staleness.py:239) and
+        # TestMain patches `subprocess.run` only. So this gate is not merely
+        # real-corpus-dependent like the ones above, it MUTATES the real
+        # corpus: build_all regenerates every generator-owned file and then
+        # restores its snapshot, and a sibling xdist worker reading one of
+        # those files mid-write sees it truncated. Issue #5502 recorded that
+        # as `src/vs-code-agents/skillbook.agent.md` read empty; the same
+        # window turned `tests/test_pr_identity_gate.py` red on
+        # `src/copilot-cli/agents/analyst.agent.md`. The gate's own behavior
+        # is covered by tests/validation/test_check_generated_staleness.py,
+        # and its registration by
+        # tests/validation/test_pre_pr_sequence_registry.py.
+        "Generated Artifact Staleness",
     }
     return tuple(
         replace(gate, run=lambda _repo_root, _args: True)
@@ -229,9 +250,20 @@ class TestRunValidation:
 class TestValidateSessionEnd:
     """Tests for session end validation."""
 
-    def test_no_session_log_returns_true(self, tmp_path: Path) -> None:
+    def test_unresolvable_base_ref_reports_blocked(self, tmp_path: Path) -> None:
+        """tmp_path is not a git checkout, so no base ref resolves.
+
+        This test used to assert ``is True`` and was named
+        ``test_no_session_log_returns_true``. It pinned the defect issue #5635
+        exists to remove: a gate that could not compute its changed-file set
+        reported the same value as a gate that computed an empty one. The name
+        was wrong too, since no session log was ever examined.
+        """
         result = validate_session_end(tmp_path)
-        assert result is True
+
+        assert result.state is EvidenceState.BLOCKED
+        assert result.reason == REASON_BASE_REF_UNRESOLVED
+        assert result.examined is None
 
     def test_missing_script_raises_skip(self, tmp_path: Path) -> None:
         """When validate_session_json.py is absent and there ARE changed logs,
@@ -288,7 +320,7 @@ class TestValidateSessionEnd:
             "checks_tooling.new_session_logs",
             return_value={".agents/sessions/2025-12-01-session-1.json"},
         ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
-            assert validate_session_end(tmp_path) is True
+            assert validate_session_end(tmp_path).state is EvidenceState.PASS
 
         assert seen[-1][-2:] == ["--validation-head", head]
 
@@ -320,12 +352,21 @@ class TestValidateSessionEnd:
             "checks_tooling.new_session_logs",
             return_value=set(),
         ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
-            assert validate_session_end(tmp_path) is True
+            assert validate_session_end(tmp_path).state is EvidenceState.PASS
 
         assert seen[-1][-1] == "--existing-log"
         assert "--validation-head" not in seen[-1]
 
-    def test_unresolvable_head_fails_closed(self, tmp_path: Path) -> None:
+    def test_unresolvable_head_reports_unknown(self, tmp_path: Path) -> None:
+        """Was test_unresolvable_head_fails_closed (issue #5646 item 2).
+
+        The old contract let ``git rev-parse HEAD`` fail, substituted the
+        literal ``INVALID_HEAD``, passed that to the child validator as
+        ``--validation-head``, and reported the child's non-zero exit as FAIL.
+        FAIL was the wrong finding: nothing about the session logs was proven,
+        and a reader sent to fix a session log would find nothing wrong with it.
+        The run now stops at the unreadable revision and says so.
+        """
         sessions = tmp_path / ".agents" / "sessions"
         sessions.mkdir(parents=True)
         log = sessions / "2025-12-01-session-1.json"
@@ -350,9 +391,14 @@ class TestValidateSessionEnd:
             "checks_tooling.new_session_logs",
             return_value={".agents/sessions/2025-12-01-session-1.json"},
         ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
-            assert validate_session_end(tmp_path) is False
+            outcome = validate_session_end(tmp_path)
 
-        assert seen[-1][-2:] == ["--validation-head", "INVALID_HEAD"]
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_INCOMPLETE_EVIDENCE
+        # The child validator is never reached, so the placeholder that used to
+        # travel to it as ``--validation-head`` cannot exist to be passed.
+        assert all("--validation-head" not in command for command in seen)
+        assert all("INVALID_HEAD" not in command for command in seen)
 
 
 class TestBuildParser:
@@ -362,23 +408,85 @@ class TestBuildParser:
         parser = build_parser()
         args = parser.parse_args([])
         assert args.quick is False
-        assert args.skip_tests is False
-        assert args.verbose is False
 
     def test_quick_flag(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["--quick"])
         assert args.quick is True
 
-    def test_skip_tests_flag(self) -> None:
+    def test_markdown_lint_only_flag(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["--skip-tests"])
-        assert args.skip_tests is True
+        args = parser.parse_args(["--markdown-lint-only", "README.md"])
+        assert (args.markdown_lint_only, args.markdown_files) == (True, ["README.md"])
 
-    def test_verbose_flag(self) -> None:
+    def test_parser_declares_no_argument_the_runner_ignores(self) -> None:
+        """Every declared destination must be read by pre_pr or the sequence.
+
+        The defect this pins: --skip-tests and --verbose were declared, parsed,
+        and never read by any consumer, so the parser advertised behavior the
+        runner did not have. Asserting the destination set (rather than the
+        absence of two names) also fails when a future flag is added without a
+        consumer.
+
+        ``summary_json`` joined the set with issue #5635; ``main`` reads it in
+        ``_write_summary_json``.
+        """
+        dests = {
+            action.dest
+            for action in build_parser()._actions
+            if action.dest != "help"
+        }
+        assert dests == {"quick", "markdown_lint_only", "markdown_files", "summary_json"}
+
+
+class TestRemovedFlagsAreRejected:
+    """--skip-tests and --verbose were parsed and discarded; both are gone.
+
+    Deleting their old tests would only prove the flags are untested. These
+    assert argparse actively rejects them, so reintroducing a parsed-and-ignored
+    flag under either name fails here.
+    """
+
+    @pytest.mark.parametrize("flag", ["--skip-tests", "--verbose"])
+    def test_parser_rejects_removed_flag(self, flag: str) -> None:
         parser = build_parser()
-        args = parser.parse_args(["--verbose"])
-        assert args.verbose is True
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args([flag])
+        assert exc.value.code == 2
+
+    @pytest.mark.parametrize("flag", ["--skip-tests", "--verbose"])
+    def test_main_exits_two_on_removed_flag(self, flag: str) -> None:
+        """CLI exit code, not just the parser: ADR-035 reserves 2 for config."""
+        with pytest.raises(SystemExit) as exc:
+            main([flag])
+        assert exc.value.code == 2
+
+    def test_removed_flags_are_rejected_together(self) -> None:
+        parser = build_parser()
+        with pytest.raises(SystemExit) as exc:
+            parser.parse_args(["--quick", "--skip-tests", "--verbose"])
+        assert exc.value.code == 2
+
+    def test_parsed_namespace_has_no_removed_destinations(self) -> None:
+        """Edge: absent from the namespace, not merely absent from the CLI."""
+        args = build_parser().parse_args([])
+        assert not hasattr(args, "skip_tests")
+        assert not hasattr(args, "verbose")
+
+    def test_skip_tests_env_var_no_longer_feeds_the_parser(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """SKIP_TESTS was the flag's env default; it must now be inert."""
+        monkeypatch.setenv("SKIP_TESTS", "true")
+        args = build_parser().parse_args([])
+        assert not hasattr(args, "skip_tests")
+
+    def test_quick_still_reads_its_env_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Positive control: the surviving env default still works."""
+        monkeypatch.setenv("QUICK_MODE", "true")
+        assert build_parser().parse_args([]).quick is True
 
 
 class TestMain:
@@ -403,7 +511,7 @@ class TestMain:
         mock_which.return_value = "/usr/bin/tool"
 
         # Quick mode should skip path normalization, planning, agent drift, yaml style
-        result = main(["--quick", "--skip-tests"])
+        result = main(["--quick"])
         assert result == 0
 
     @patch(
@@ -422,7 +530,7 @@ class TestMain:
         mock_which.return_value = "/usr/bin/tool"
 
         # All external tools pass
-        result = main(["--quick", "--skip-tests"])
+        result = main(["--quick"])
         assert result == 0
 
 
@@ -459,7 +567,7 @@ class TestHookModeBanner:
             import os
 
             os.environ.pop("SKIP_AUTOFIX", None)
-            result = main(["--quick", "--skip-tests"])
+            result = main(["--quick"])
 
         assert result == 0
         captured = capsys.readouterr()
@@ -485,7 +593,7 @@ class TestHookModeBanner:
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):
-            result = main(["--quick", "--skip-tests"])
+            result = main(["--quick"])
 
         assert result == 0
         captured = capsys.readouterr()
@@ -510,7 +618,7 @@ class TestHookModeBanner:
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {"SKIP_AUTOFIX": "0"}):
-            result = main(["--quick", "--skip-tests"])
+            result = main(["--quick"])
 
         assert result == 0
         captured = capsys.readouterr()
@@ -534,7 +642,7 @@ class TestHookModeBanner:
         mock_which.return_value = "/usr/bin/tool"
 
         with patch.dict("os.environ", {"SKIP_AUTOFIX": "1"}):
-            result = main(["--quick", "--skip-tests"])
+            result = main(["--quick"])
 
         assert result == 1
         captured = capsys.readouterr()
@@ -558,7 +666,7 @@ class TestHookModeBanner:
         mock_run.side_effect = _healthy_git_run
         mock_which.return_value = "/usr/bin/tool"
 
-        result = main(["--quick", "--skip-tests"])
+        result = main(["--quick"])
         assert result == 0
         out = capsys.readouterr().out
         assert "Verify the push landed" in out

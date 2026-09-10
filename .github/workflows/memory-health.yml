@@ -9,7 +9,7 @@
 # IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
 # but skips actual health checks when no relevant files are changed.
 #
-# Related: citation-verify.yml (per-citation verification), memory-validation.yml (legacy)
+# Related: citation-verify.yml (per-citation verification)
 
 name: Memory Health
 

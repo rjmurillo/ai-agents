@@ -12,6 +12,7 @@ import runpy
 import shutil
 import subprocess
 import sys
+import sysconfig
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, tzinfo
@@ -30,7 +31,29 @@ from scripts.validation import git_hook_policy as policy
 pytestmark = pytest.mark.windows_path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-LEFTHOOK = shutil.which("lefthook")
+
+
+def _resolve_lefthook(scripts: str | None = None) -> str | None:
+    """Locate lefthook, preferring the running interpreter's own environment.
+
+    lefthook is a pinned dev dependency (`lefthook==` in pyproject's dev extra),
+    so the binary that matches the pin sits in this interpreter's scripts
+    directory. A bare PATH lookup agrees only while that directory leads PATH,
+    which `uv run` arranges and a directly invoked `.venv/bin/pytest` does not.
+    Measured with a stub `lefthook` placed earlier on PATH: `uv run` resolved
+    `.venv/bin/lefthook` either way, while `.venv/bin/python` resolved the stub
+    under PATH and the pinned 2.1.12 under the scripts directory. Binary
+    identity is not incidental here, because the assertions below pin lefthook's
+    own scheduling, skip, and templating behavior, which moves between releases.
+
+    PATH remains the fallback so a host without the dev extra installed keeps
+    whatever lefthook it has instead of failing every test that needs one.
+    """
+    directory = scripts if scripts is not None else sysconfig.get_path("scripts")
+    return shutil.which("lefthook", path=directory) or shutil.which("lefthook")
+
+
+LEFTHOOK = _resolve_lefthook()
 SEMGREP = shutil.which("semgrep")
 # The Semgrep carve-out proves a `run:` body parses by shelling out to `bash -n`,
 # and fails closed when the host has no Bash. Windows runners put Git's `cmd`
@@ -761,7 +784,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "stage-memory-index",
         "memory-cross-reference",
         "stage-memory-cross-references",
-        "memory-sync-advisory",
         "extract-session-episodes",
         "commit-file-count",
     }
@@ -786,7 +808,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "hook-anchoring-e2e",
         "plugin-load-e2e",
         "review-axis-drift",
-        "observation-sync-advisory",
         "bot-cascade-advisory",
     }
     assert expected_pre_commit <= set(_job_map(config, "pre-commit"))
@@ -817,9 +838,6 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert pre_commit_names.index("memory-size") < pre_commit_names.index("memory-cross-reference")
     assert pre_commit_names.index("memory-cross-reference") < pre_commit_names.index(
         "memory-skill-format"
-    )
-    assert pre_commit_names.index("memory-skill-format") < pre_commit_names.index(
-        "memory-sync-advisory"
     )
     assert pre_commit_names.index("extract-session-episodes") < pre_commit_names.index(
         "commit-file-count"
@@ -948,7 +966,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "stage-memory-index",
         "memory-cross-reference",
         "stage-memory-cross-references",
-        "memory-sync-advisory",
         "extract-session-episodes",
         "commit-file-count",
         "memory-size",
@@ -1039,15 +1056,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         run = pre_push_jobs[name]["run"]
         assert isinstance(run, str)
         assert "{push_files}" in run
-    # observation-sync-advisory derives its file set from the push refs on
-    # stdin instead of {push_files}: the first-push fallback fed the whole
-    # observation corpus to the sync and overran the job's cap (#5071).
-    observation_job = pre_push_jobs["observation-sync-advisory"]
-    observation_run = observation_job["run"]
-    assert isinstance(observation_run, str)
-    assert observation_run.endswith("git_hook_policy.py observations-push")
-    assert "{push_files}" not in observation_run
-    assert observation_job.get("use_stdin") is True
     workflow_run = pre_push_jobs["workflow-local-run"]["run"]
     branch_scope_run = pre_push_jobs["branch-scope"]["run"]
     assert isinstance(workflow_run, str)
@@ -1305,6 +1313,59 @@ def test_pinned_lefthook_version_ignores_a_non_exact_requirement(
 
     with pytest.raises(ValueError, match="exactly one 'lefthook==' pin"):
         _pinned_lefthook_version(pyproject)
+
+
+def _stub_lefthook(directory: Path) -> Path:
+    """Create an executable file named like lefthook inside ``directory``."""
+    directory.mkdir(parents=True, exist_ok=True)
+    stub = directory / ("lefthook.bat" if os.name == "nt" else "lefthook")
+    stub.write_text("", encoding="utf-8")
+    stub.chmod(0o755)
+    return stub
+
+
+def test_resolve_lefthook_prefers_the_interpreter_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Positive and negative control: the scripts directory beats PATH.
+
+    Reverting the helper to a bare ``shutil.which("lefthook")`` returns the PATH
+    copy here and fails this assertion, which is the whole point: an IDE that
+    runs ``.venv/bin/pytest`` directly leaves PATH pointing at whatever global
+    lefthook the developer installed, and the behavioral assertions in this
+    module would then describe a release nobody pinned.
+    """
+    pinned = _stub_lefthook(tmp_path / "env")
+    monkeypatch.setenv("PATH", str(_stub_lefthook(tmp_path / "elsewhere").parent))
+
+    resolved = _resolve_lefthook(str(pinned.parent))
+
+    # samefile, not string equality: Windows resolution applies PATHEXT and can
+    # return an extension whose case does not match the file on disk.
+    assert resolved is not None
+    assert Path(resolved).samefile(pinned)
+
+
+def test_resolve_lefthook_falls_back_to_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative: an environment without the dev extra still finds a lefthook."""
+    on_path = _stub_lefthook(tmp_path / "elsewhere")
+    monkeypatch.setenv("PATH", str(on_path.parent))
+
+    resolved = _resolve_lefthook(str(tmp_path / "empty"))
+
+    assert resolved is not None
+    assert Path(resolved).samefile(on_path)
+
+
+def test_resolve_lefthook_returns_none_when_no_binary_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Edge: neither source has one, so callers see None and fail loudly."""
+    monkeypatch.setenv("PATH", str(tmp_path / "nothing"))
+
+    assert _resolve_lefthook(str(tmp_path / "empty")) is None
 
 
 def test_lefthook_timeout_stops_hung_job(tmp_path: Path) -> None:
@@ -3387,7 +3448,7 @@ def test_yamllint_advisory_honors_scope_and_skip(
     assert "SKIP_YAMLLINT=1" in capsys.readouterr().out
 
 
-def test_skillforge_excludes_fixtures_and_command_mirrors(
+def test_skillforge_excludes_only_eval_fixtures(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3401,9 +3462,11 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         calls.append(list(args))
         return _completed(0)
 
-    # `build` is a generated command mirror because .claude/commands/build.md
-    # exists; `hand-written` sits in the same directory with no command source,
-    # so it is an authored skill and must still reach the validator.
+    # `build` used to be exempt as a generated command mirror, because
+    # .claude/commands/build.md existed. ADR-064 converted it (issue #5632), so
+    # the Copilot copy is an ordinary generated skill and reaches the validator
+    # like any other. The commands directory is created here anyway: it must not
+    # be able to reinstate the exemption.
     commands = tmp_path / ".claude" / "commands"
     commands.mkdir(parents=True)
     (commands / "build.md").write_text("# build\n", encoding="utf-8")
@@ -3419,8 +3482,7 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
         tmp_path,
     )
 
-    # Fixtures and command mirrors are skipped before any subprocess runs, so
-    # the skills that reach SkillForge are the authored ones. The
+    # Only the fixture is skipped before any subprocess runs. The
     # frontmatter-only exemption probes HEAD and index blobs via _run_command
     # first, so filter to the validator invocation rather than counting every
     # subprocess call.
@@ -3429,48 +3491,46 @@ def test_skillforge_excludes_fixtures_and_command_mirrors(
     ]
     assert result == 0
     assert [call[-1] for call in validate_calls] == [
+        "src/copilot-cli/skills/build",
         "src/copilot-cli/skills/hand-written",
         ".claude/skills/real-skill",
     ]
 
 
-def test_skillforge_mirror_skip_is_derived_from_the_commands_directory(
+def test_skillforge_skips_eval_fixtures_and_gates_every_real_skill(
     tmp_path: Path,
 ) -> None:
-    """The mirror set has one source of truth: .claude/commands/<name>.md.
+    """The skip is one clause now: eval fixtures.
 
-    Enumerating names in lefthook.yml and again in git_hook_policy.py is what
-    let the two lists drift (9 of 14 in one, 14 in the other).
+    It used to carry a second, deriving the generated command mirrors from
+    `.claude/commands/<name>.md` so that lefthook.yml and git_hook_policy.py
+    could not hold two copies of the list that drifted (9 of 14 in one, 14 in the
+    other). ADR-064 removed the mirrors along with the generator that wrote them
+    (issue #5632), so every Copilot skill is now mirrored from an authored
+    `.claude/skills/<name>/SKILL.md` and does carry the SkillForge schema.
+
+    The three cases below are the ones the deleted clause used to answer
+    differently: a Copilot skill whose name matches a would-be command, the
+    Claude source it mirrors, and a nested reference under it. All three are
+    gated now, which is the behavior change this asserts rather than describes.
     """
     commands = tmp_path / ".claude" / "commands"
     commands.mkdir(parents=True)
     (commands / "research.md").write_text("# research\n", encoding="utf-8")
 
-    # Positive: a mirror whose command source exists is skipped.
-    assert (
-        policy._skip_skillforge_path("src/copilot-cli/skills/research/SKILL.md", tmp_path) is True
-    )
-    # Positive: eval fixtures are skipped regardless of the commands directory.
+    # Eval fixtures are the only skip, and the commands directory cannot
+    # reinstate the old one even when it exists.
     assert policy._skip_skillforge_path("evals/example/SKILL.md", tmp_path) is True
 
-    # Negative: no command source, so the skill is authored and stays gated.
     assert (
-        policy._skip_skillforge_path("src/copilot-cli/skills/analyze/SKILL.md", tmp_path) is False
+        policy._skip_skillforge_path("src/copilot-cli/skills/research/SKILL.md", tmp_path)
+        is False
     )
-    # Negative: the Claude tree is never a mirror, even for a command name.
     assert policy._skip_skillforge_path(".claude/skills/research/SKILL.md", tmp_path) is False
-
-    # Edge: a nested file under a mirror directory is not the mirror itself.
     assert (
         policy._skip_skillforge_path(
             "src/copilot-cli/skills/research/references/workflow.md", tmp_path
         )
-        is False
-    )
-    # Edge: a sub-directory command (forgetful/memory-save.md) has no flat
-    # mirror, so the flat path must not be skipped on its account.
-    assert (
-        policy._skip_skillforge_path("src/copilot-cli/skills/memory-save/SKILL.md", tmp_path)
         is False
     )
 
@@ -7251,31 +7311,6 @@ def test_pytest_policy_cleans_hook_environment(
         assert key not in env
 
 
-def test_memory_sync_preserves_skip_and_immediate_semantics(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[list[str]] = []
-
-    def fake_run(
-        args: Sequence[str],
-        _root: Path,
-        **_kwargs: object,
-    ) -> subprocess.CompletedProcess[str]:
-        calls.append(list(args))
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", fake_run)
-    monkeypatch.setenv("SKIP_MEMORY_SYNC", "1")
-    assert policy.run_memory_sync(tmp_path) == 0
-    assert calls == []
-
-    monkeypatch.delenv("SKIP_MEMORY_SYNC")
-    monkeypatch.setenv("MEMORY_SYNC_IMMEDIATE", "1")
-    assert policy.run_memory_sync(tmp_path) == 0
-    assert calls[0][-1] == "--immediate"
-
-
 def test_workflow_local_maps_secret_skip_but_blocks_tool_gap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -7328,7 +7363,6 @@ def test_advisories_warn_but_generators_block_before_staging(
     assert policy.generate_agents_advisory(tmp_path) == 1
     assert policy.update_memory_tokens(tmp_path) == 1
     assert policy.cross_reference_memories(["memory.md"], tmp_path) == 1
-    assert policy.run_memory_sync(tmp_path) == 0
 
 
 def test_memory_cross_reference_requires_successful_json(
@@ -7690,7 +7724,7 @@ def test_cli_e2e_without_cli_fails_closed(
     assert policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 2
 
 
-def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
+def test_session_helpers_aggregate_without_blocking_advisory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -7718,83 +7752,6 @@ def test_session_and_observation_helpers_aggregate_without_blocking_advisory(
         == 1
     )
     assert all("../" not in " ".join(command) for command in commands)
-
-    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: _completed(1))
-    assert policy.sync_observations(["memory-observations.md"], tmp_path) == 0
-
-
-def test_sync_observations_stops_at_its_internal_budget(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The advisory must finish under its lefthook cap from the inside.
-
-    A lefthook `timeout:` kill cannot be absorbed by a shell guard, so an
-    advisory job that overruns its cap blocks the push. Each file costs up to
-    the MCP client timeout when the Forgetful server is unreachable, and the
-    first push of a new branch sweeps every tracked observation file into the
-    job, so the loop needs a wall-clock deadline of its own.
-    """
-    synced: list[str] = []
-
-    def _record(command: list[str], _root: Path, **_kwargs: object) -> object:
-        synced.append(command[3])
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", _record)
-    clock = iter([0.0, 0.0, 500.0])
-    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
-
-    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
-
-    assert synced == ["a.md"]
-    assert "skipped 1 of 2" in capsys.readouterr().err
-
-
-def test_sync_observations_clamps_the_child_timeout_to_the_remaining_budget(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A child spawned near the deadline must not outlive the budget.
-
-    The deadline check runs between spawns, so without a clamp a child started
-    just under the deadline keeps the 90s subprocess default and carries the
-    job past the lefthook cap whose kill cannot be absorbed by a shell guard.
-    """
-    seen: list[float] = []
-
-    def _record(command: list[str], _root: Path, *, timeout_seconds: float) -> object:
-        seen.append(timeout_seconds)
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", _record)
-    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 200.0)
-    clock = iter([0.0, 150.0, 199.0, 250.0])
-    monkeypatch.setattr(policy.time, "monotonic", lambda: next(clock))
-
-    assert policy.sync_observations(["a.md", "b.md", "c.md"], tmp_path) == 0
-
-    # 50s left at the first spawn, 1s at the second; both beat the 90s default.
-    assert seen == [50.0, 1.0]
-
-
-def test_sync_observations_reports_a_fully_exhausted_budget(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Edge: the deadline can pass before the first file is attempted."""
-    monkeypatch.setattr(
-        policy,
-        "_run_command",
-        lambda *_args, **_kwargs: pytest.fail("budget was exhausted; nothing may sync"),
-    )
-    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", 0.0)
-
-    assert policy.sync_observations(["a.md", "b.md"], tmp_path) == 0
-
-    assert "skipped 2 of 2" in capsys.readouterr().err
 
 
 def test_placeholder_identity_handles_malformed_deletion_and_failure(
@@ -8514,7 +8471,6 @@ def test_remaining_policy_success_and_error_branches(
     assert policy.generate_mcp_advisory(tmp_path) == 0
     assert policy.generate_agents_advisory(tmp_path) == 0
     assert policy.update_memory_tokens(tmp_path) == 0
-    assert policy.sync_observations(["observations.md"], tmp_path) == 0
 
     ref = policy.PushRef("refs/heads/a", "1" * 40, "refs/heads/a", "2" * 40)
     monkeypatch.setattr(policy, "parse_push_refs", lambda _stream: [ref])
@@ -8524,125 +8480,6 @@ def test_remaining_policy_success_and_error_branches(
     monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "10\t0\tfile\n"))
     assert policy.additions_advisory(tmp_path) == 0
     assert "recommended maximum" not in capsys.readouterr().out
-
-
-def test_observation_sync_runs_every_file_within_budget(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Positive: with budget headroom every pushed file is imported once,
-    each child clamped to at most the remaining budget."""
-    commands: list[list[str]] = []
-    timeouts: list[float] = []
-
-    def _record(command, *_args, **_kwargs):
-        commands.append(command)
-        timeouts.append(_kwargs["timeout_seconds"])
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", _record)
-    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
-    imported = [command[3] for command in commands]
-    assert imported == ["a-observations.md", "b-observations.md"]
-    assert all(t <= policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS for t in timeouts)
-    assert all(t > 0 for t in timeouts)
-    assert "budget" not in capsys.readouterr().err
-
-
-def test_observation_sync_stays_advisory_on_per_file_failure(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Negative: a failing import warns, continues, and never blocks the push."""
-    results = iter([_completed(1), _completed(0)])
-    monkeypatch.setattr(policy, "_run_command", lambda *_args, **_kwargs: next(results))
-    assert policy.sync_observations(["bad-observations.md", "ok-observations.md"], tmp_path) == 0
-    err = capsys.readouterr().err
-    assert "observation sync failed for 'bad-observations.md'" in err
-    assert "budget" not in err
-
-
-def test_observation_sync_budget_exhaustion_skips_remaining_and_stays_green(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Edge: lefthook's 5m timeout kill cannot be absorbed by an advisory job,
-    so the loop's own budget must stop it first, name every skipped file (no
-    silent caps), and still return 0."""
-    monkeypatch.setattr(policy, "_OBSERVATION_SYNC_BUDGET_SECONDS", -1.0)
-    calls: list[list[str]] = []
-
-    def _forbidden(command, *_args, **_kwargs):
-        calls.append(command)
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", _forbidden)
-    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
-    assert calls == []
-    err = capsys.readouterr().err
-    assert "budget" in err
-    assert "skipped 2" in err
-    assert "'a-observations.md', 'b-observations.md'" in err
-
-
-def test_observation_sync_mid_loop_expiry_keeps_progress_and_names_the_rest(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """Edge: the deadline passing between files keeps the files already
-    imported and skips exactly the remainder, naming them."""
-    clock = iter([0.0, 0.0, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0])
-
-    def _tick() -> float:
-        return next(clock, policy._OBSERVATION_SYNC_BUDGET_SECONDS + 1.0)
-
-    monkeypatch.setattr(policy.time, "monotonic", _tick)
-    commands: list[list[str]] = []
-
-    def _record(command, *_args, **_kwargs):
-        commands.append(command)
-        return _completed(0)
-
-    monkeypatch.setattr(policy, "_run_command", _record)
-    assert policy.sync_observations(["a-observations.md", "b-observations.md"], tmp_path) == 0
-    assert [command[3] for command in commands] == ["a-observations.md"]
-    err = capsys.readouterr().err
-    assert "exhausted after 1 of 2" in err
-    assert "'b-observations.md'" in err
-    assert "'a-observations.md'," not in err
-
-
-def test_observation_sync_budget_sits_below_the_lefthook_cap() -> None:
-    """The budget protects the job only if budget plus one worst-case child
-    (the unclamped straggler bound) stays at or under lefthook.yml's cap."""
-    import yaml
-
-    repo_root = Path(__file__).resolve().parents[1]
-    config = yaml.safe_load((repo_root / "lefthook.yml").read_text(encoding="utf-8"))
-
-    def _find(jobs):
-        for job in jobs:
-            if job.get("name") == "observation-sync-advisory":
-                return job
-            if "group" in job:
-                found = _find(job["group"].get("jobs", []))
-                if found is not None:
-                    return found
-        return None
-
-    job = _find(config["pre-push"]["jobs"])
-    assert job is not None, "observation-sync-advisory job missing from lefthook.yml"
-    cap_text = job["timeout"]
-    assert cap_text.endswith("m")
-    cap_seconds = float(cap_text[:-1]) * 60
-    assert (
-        policy._OBSERVATION_SYNC_BUDGET_SECONDS + policy.DEFAULT_SUBPROCESS_TIMEOUT_SECONDS
-        <= cap_seconds
-    )
 
 
 def test_changed_commit_path_and_scan_edge_cases(
@@ -8798,7 +8635,6 @@ def test_old_bot_review_does_not_warn(
         ("memory-cross-reference", ["memory.md"], "cross_reference_memories"),
         ("workflow-local", ["workflow.yml"], "run_workflow_local"),
         ("sessions", ["session.json"], "validate_branch_sessions"),
-        ("observations", ["observations.md"], "sync_observations"),
         ("stage-generated", ["mcp"], "stage_generated"),
         ("extract-episodes", ["session.json"], "extract_session_episodes"),
         ("atomic-commit", [], "check_atomic_commit"),
@@ -8809,7 +8645,6 @@ def test_old_bot_review_does_not_warn(
         ("generate-agents", [], "generate_agents_advisory"),
         ("memory-token-update", [], "update_memory_tokens"),
         ("memory-size", [], "validate_memory_sizes"),
-        ("memory-sync", [], "run_memory_sync"),
         ("pytest", [], "run_pytest"),
         ("placeholder-identity", [], "check_placeholder_identities"),
         ("additions", [], "additions_advisory"),

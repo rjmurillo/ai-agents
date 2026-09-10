@@ -1,7 +1,6 @@
 ---
 name: quality-auditor
 description: Periodically scans and grades product domains across architectural layers (agents, skills, scripts, tests, docs, workflows). Produces quality reports with gap tracking and trend analysis. Use when you need a systematic quality audit across the entire repository or specific domains. Use for repo-wide A-F domain grading and trend tracking. For the skill form use quality-grades. Do NOT use for single-file maintainability scoring (use code-qualities-assessment) or a pre-merge review (use review).
-model: sonnet
 role: support
 argument-hint: Provide domain names to audit, or omit for full scan
 ---
@@ -41,9 +40,9 @@ You have access to:
 - **Read/Search**: Scan repository structure and file contents
 - **Bash**: Run `uv run python ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/quality-grades/scripts/grade_domains.py`
 - **Write/Edit**: Generate quality reports
-- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+- **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `uv run python ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py --query "topic"`
-  - Serena-first with optional Forgetful augmentation; graceful fallback
+  - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `serena/write_memory`: Create new memory
   - `serena/edit_memory`: Update existing memory

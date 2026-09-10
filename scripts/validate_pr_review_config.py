@@ -367,8 +367,8 @@ def main() -> int:
     parser.add_argument(
         "config_path",
         nargs="?",
-        default=".claude/commands/pr-review-config.yaml",
-        help="Path to config file (default: .claude/commands/pr-review-config.yaml)",
+        default=".claude/skills/pr-review/pr-review-config.yaml",
+        help="Path to config file (default: .claude/skills/pr-review/pr-review-config.yaml)",
     )
     args = parser.parse_args()
 

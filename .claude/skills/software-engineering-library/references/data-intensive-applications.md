@@ -3,7 +3,7 @@
 
 This rule consolidates the patterns from Martin Kleppmann's _Designing Data-Intensive Applications_ (DDIA) that recur in this codebase. Apply it whenever you change how data is owned, written, replicated, exchanged, or replayed across agent boundaries.
 
-ai-agents has multiple persistent and semi-persistent stores: session logs on disk, agent memory (Serena, Forgetful), workspace files, git history, and event-driven inter-agent traffic. Each one has an implicit consistency model. The point of this rule is to make those models explicit and force every author to answer the same questions before adding a new write path: who owns this data, what happens on retry, and how does the schema evolve.
+ai-agents has multiple persistent and semi-persistent stores: session logs on disk, agent memory (Serena), workspace files, git history, and event-driven inter-agent traffic. Each one has an implicit consistency model. The point of this rule is to make those models explicit and force every author to answer the same questions before adding a new write path: who owns this data, what happens on retry, and how does the schema evolve.
 
 ## Core Vocabulary
 
@@ -141,7 +141,7 @@ Smell: an architecture diagram with an arrow labeled "exactly once." Replace it 
 The codebase already has implicit consistency contracts. Make them explicit; do not invent parallel ones.
 
 - **Session logs** are the system of record for protocol compliance and per-session work history. The narrative summary inside a memory entry that describes "what happened in session N" is derived data from that log; if the summary disagrees with the log, the log wins and the summary is stale.
-- **Agent memory (Serena, Forgetful)** has two data streams that follow different consistency models. Track them separately when reasoning about correctness.
+- **Agent memory (Serena)** has two data streams that follow different consistency models. Track them separately when reasoning about correctness.
   - **Memory content** (the entry's summary, observations, decisions) is an indexed projection of source artifacts (ADRs, code, session logs). Source wins on disagreement; the memory entry is stale and should be rebuilt or invalidated.
   - **Memory operational metadata** (confidence scores, link counts, freshness timestamps, citation-validity flags as written by `scripts/memory_enhancement/reflection.py::reinforce_memories`) is its own SoR. It accumulates over time from usage signals that are not present in any log, so rebuild-from-log does not apply. Updates are at-least-once and must use idempotency keys (entry id + timestamp) so retries do not double-count reinforcement.
 - **Workspace state** (files in the working tree, scratch directories) is process-local. Do not assume another agent or another session sees it. Either commit, push, or persist through a known store.

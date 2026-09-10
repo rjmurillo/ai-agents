@@ -5,7 +5,7 @@ The pr-autofix workflow fixes review feedback on open PRs. A remote
 automated review/autofix routine (CodeRabbit autofix, a CI workflow, a
 sibling agent) can commit to the same PR branch while a local pr-autofix
 session has staged but unpushed work. The Force-Push Safety SHA gate
-(`.claude/commands/pr-autofix.md`) prevents the dangerous overwrite, but
+(`.claude/skills/pr-autofix/SKILL.md`) prevents the dangerous overwrite, but
 only at push time, after the duplicate fix work is already done and a
 conflict is already likely.
 

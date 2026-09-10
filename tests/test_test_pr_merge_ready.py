@@ -1771,7 +1771,7 @@ class TestDispositionRegistryWiring:
 class TestShippedDispositionsFile:
     """The committed file has to satisfy the validator that reads it.
 
-    `.claude/commands/pr-review-config.yaml` passes this exact path to the
+    `.claude/skills/pr-review/pr-review-config.yaml` passes this exact path to the
     readiness check, so a file that fails its own bounds is a silent no-op.
 
     Stricter than the validator on one point: `_disposition_accepts` treats
@@ -2243,7 +2243,7 @@ def _clean_pr_in_state(merge_state):
 class TestUnsupportedMergeStatesNeverReachT1:
     """Issue #4899 reopen: only a state with a merge path may reach T1.
 
-    `.claude/commands/pr-autofix.md` "Ready-to-Merge Definition" item 4 reads:
+    `.claude/skills/pr-autofix/SKILL.md` "Ready-to-Merge Definition" item 4 reads:
 
         4. `mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with
            documented non-required failures).
@@ -2493,7 +2493,7 @@ class TestUnsupportedMergeStatesNeverReachT1:
         )
         command = (
             Path(__file__).resolve().parents[1]
-            / ".claude" / "commands" / "pr-autofix.md"
+            / ".claude" / "skills" / "pr-autofix" / "SKILL.md"
         ).read_text(encoding="utf-8")
         assert (
             "`mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with "
@@ -2666,8 +2666,8 @@ class TestSupportedStatesClearTheCompletionGate:
         `mergeStateStatus` values reach tier `T1`, the auto-merge tier.
       * the `MergeStateStatus in (...)` clause of the `pass_when_python`
         predicate for "PR is ready to merge (CI green, no conflicts)" in
-        `.claude/commands/pr-review-config.yaml` decides which values clear the
-        completion gate that `.claude/commands/pr-autofix.md` Phase 3 runs
+        `.claude/skills/pr-review/pr-review-config.yaml` decides which values clear the
+        completion gate that `.claude/skills/pr-autofix/SKILL.md` Phase 3 runs
         before any merge is enabled.
 
     A state accepted by the first and rejected by the second is a PR that
@@ -2680,7 +2680,7 @@ class TestSupportedStatesClearTheCompletionGate:
 
     _CONFIG_PATH = (
         Path(__file__).resolve().parents[1]
-        / ".claude" / "commands" / "pr-review-config.yaml"
+        / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
     )
     _CRITERION = "PR is ready to merge (CI green, no conflicts)"
 

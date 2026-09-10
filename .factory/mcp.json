@@ -19,13 +19,6 @@
     "deepwiki": {
       "type": "http",
       "url": "https://mcp.deepwiki.com/mcp"
-    },
-    "forgetful": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": [
-        "forgetful-ai"
-      ]
     }
   }
 }

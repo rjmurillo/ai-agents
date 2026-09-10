@@ -44,15 +44,16 @@ from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_citation_freshness import validate_citation_freshness
-from check_doc_interpreter_portability import (
-    validate_doc_interpreter_portability,
-)
+from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_generated_staleness import validate_generated_staleness
 from check_git_hook_health import validate_git_hook_health
 from check_index_line_endings import validate_index_line_endings
 from check_nested_tests import validate_no_nested_tests
 from check_push_lock_paths import validate_push_lock_paths
+from check_serena_memory_worktree_scope import (
+    validate_serena_memory_worktree_scope,
+)
 from check_subprocess_encoding import validate_subprocess_encoding
 from check_test_tree_writes import validate_test_tree_writes
 from check_tmp_worktrees import validate_tmp_worktrees
@@ -74,11 +75,18 @@ from checks_plugin import (
     validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
+from checks_portability import (
+    validate_skill_contract_tests,
+    validate_skill_md_exec_portability,
+    validate_skill_resolver_anchoring,
+    validate_skill_script_portability,
+)
 from checks_ratchet import validate_count_ratchets
 from checks_spec import (
     validate_agent_catalog,
     validate_build_gates,
     validate_canonical_citations,
+    validate_commands_retired,
     validate_model_pins,
     validate_orchestrator_citations,
     validate_rule_activation_coverage,
@@ -114,6 +122,16 @@ from validate_no_orphaned_build_deferrals import (
 )
 from validate_python_syntax import validate_python_syntax
 
+# The typed evidence contract (issue #5635). PACKAGE path, matching
+# ``pre_pr.py``: a flat ``import evidence`` and a package
+# ``import scripts.validation.evidence`` yield two distinct ``EvidenceState``
+# enums, so the sequence and the runner must resolve the same one.
+from scripts.validation.evidence import (
+    REASON_ALREADY_RUN,
+    CheckOutcome,
+    GateResult,
+)
+
 if TYPE_CHECKING:
     import argparse
     from collections.abc import Callable
@@ -125,10 +143,19 @@ class _ValidationStateLike(Protocol):
     Typed structurally rather than imported from ``pre_pr`` so this module never
     references ``pre_pr``. ``pre_pr`` imports this module; a back-reference would
     make mypy resolve ``pre_pr`` under two module names (Issue #3073).
+
+    ``record`` is the only write, and the only requirement. The counters move
+    with the recorded state inside it, so a row the sequence short-circuits
+    still appears in the summary with its reason code instead of incrementing a
+    counter and vanishing (issue #5635). Before that, this Protocol also
+    required ``total`` and ``skipped`` because the short-circuit incremented
+    them directly; requiring them now would constrain implementers over fields
+    this module never reads.
     """
 
-    total: int
-    skipped: int
+    def record(self, name: str, outcome: CheckOutcome) -> CheckOutcome:
+        """Append one gate's typed outcome and update its state counter."""
+        ...
 
 
 FAST_STAGE_RAN_ENV = "AI_AGENTS_PRE_PR_FAST_STAGE_RAN"
@@ -143,9 +170,11 @@ class _Gate:
     three gates that need more than a repo root do not need a second mechanism.
 
     ``skip_when_quick`` maps to ``run_validation(..., skip=...)``, which records a
-    SKIP result. ``skip_flag`` is different: it names an ``args`` attribute that,
-    when truthy, bypasses ``run_validation`` entirely and only bumps the totals.
-    Only ``--skip-tests`` behaves that way, and it predates the SKIP record.
+    SKIP result. That is the only per-gate skip mechanism. A second one,
+    ``skip_flag``, named an ``args`` attribute that bypassed ``run_validation``
+    entirely; it existed for ``--skip-tests``, which was removed with the Pester
+    stage, and no gate in ``_SEQUENCE`` ever set it. Both are gone. A new gate
+    that must be skippable uses ``skip_when_quick`` so the skip is recorded.
 
     ``already_run_by`` names an unconditional pre-push fast-stage job that runs
     the same whole-tree check. The piped hook cannot start pre-pr-validation
@@ -154,15 +183,15 @@ class _Gate:
     """
 
     name: str
-    run: Callable[[Path, argparse.Namespace], bool]
+    run: Callable[[Path, argparse.Namespace], GateResult]
     skip_when_quick: bool = False
-    skip_flag: str | None = None
-    skip_note: str = ""
     already_run_by: str = ""
     notes: str = field(default="", repr=False)
 
 
-def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
+def _root_only(
+    validator: Callable[[Path], GateResult],
+) -> Callable[[Path, argparse.Namespace], GateResult]:
     """Adapt a ``validate_x(repo_root)`` validator to the uniform gate signature.
 
     The validator is resolved by name at call time, not captured at import.
@@ -175,8 +204,8 @@ def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Na
 
     name = validator.__name__
 
-    def _run(repo_root: Path, _args: argparse.Namespace) -> bool:
-        current = cast("Callable[[Path], bool]", globals().get(name, validator))
+    def _run(repo_root: Path, _args: argparse.Namespace) -> GateResult:
+        current = cast("Callable[[Path], GateResult]", globals().get(name, validator))
         return current(repo_root)
 
     return _run
@@ -254,6 +283,17 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Never fails; see the validator's docstring for why machine state does not
     # get to block a push. Issue #5111.
     _Gate("Temp-filesystem Worktrees (advisory)", _root_only(validate_tmp_worktrees)),
+    # Advisory sibling of the gate above, same reasoning, different subject:
+    # an untracked .serena/memories/**/*.md file in another linked worktree,
+    # the symptom of issue #5061 (Serena's MCP server resolves its project
+    # root at activation time, not per call, so a worktree-scoped subagent's
+    # write_memory can land in a different checkout entirely). Never fails;
+    # see the validator's docstring for why another worktree's uncommitted
+    # state does not get to block this push.
+    _Gate(
+        "Serena Memory Worktree Scope (advisory)",
+        _root_only(validate_serena_memory_worktree_scope),
+    ),
     _Gate("Session End Validation", _root_only(validate_session_end)),
     # Type-check changed Python files with ratchet semantics (issue #4674).
     # Surfaces regressions at pre-PR time rather than waiting for push CI.
@@ -307,10 +347,27 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Generated Artifact Staleness", _root_only(validate_generated_staleness)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
+    # The six gates below are the six validators the CI job
+    # "Validate Vendor Portability" runs. They are kept together, and
+    # tests/validation/test_pre_pr_covers_vendor_portability.py reads that
+    # workflow and fails when the job gains a validator this sequence does not
+    # run. Four of them were missing until issue #5670: pre_pr reported all 65
+    # gates green on a branch whose new skill script failed
+    # check_skill_portability, so the required job went red after the push.
+    #
     # No new hard-coded upstream-only paths (issue #2050).
     _Gate("Vendor Portability", _root_only(validate_vendor_portability)),
+    # The same rule per skill script, keyed on skill_portability_baseline.json.
+    _Gate("Skill Script Portability", _root_only(validate_skill_script_portability)),
     # The same rule over .md path refs (issue #2050).
     _Gate("Skill Markdown Portability", _root_only(validate_skill_md_portability)),
+    # The subset of those .md refs a reader would execute (issue #2838).
+    _Gate("Skill Markdown Exec Portability", _root_only(validate_skill_md_exec_portability)),
+    # A SKILL.md resolver must not be able to select an out-of-repo copy.
+    _Gate("Skill Resolver Anchoring", _root_only(validate_skill_resolver_anchoring)),
+    # A documented exit code with no test binding it is prose, and prose
+    # does not go red.
+    _Gate("Skill Contract Tests", _root_only(validate_skill_contract_tests)),
     # Skill dir with tracked content but no SKILL.md (issue #2677). Catches an
     # "invisible" skill the catalog still counts after a prune removed its
     # SKILL.md but left tracked files behind.
@@ -323,6 +380,13 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # pr-comment-responder's BLOCKING Phase 0 named an unscoped memory, so the
     # blocking step failed for any agent that ran the instruction literally.
     _Gate("Skill Memory References", _root_only(validate_skill_memory_references)),
+    # Fails when a user-invocable command reappears under a plugin root.
+    # ADR-064 / issue #5632: the command-to-skill bridge is gone, so such a
+    # file ships to Claude Code and to nothing else, and no skill gate scans
+    # the directory it sits in. Placed after the skill-validator cluster, not
+    # inside it: Skill Memory References pins that it runs immediately after
+    # Skill SKIP Clause Routing.
+    _Gate("Commands Retired (ADR-064)", _root_only(validate_commands_retired)),
     # Block new test files colocated in customer-shipped skill dirs. Issue #4838.
     _Gate("Colocated Skill Tests", _root_only(validate_colocated_skill_tests)),
     # Ratchet (issue #3457). Fails when a rule or skill has no activation
@@ -342,11 +406,19 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Heuristic; soft warn unless STRICT_CANONICAL_CHECK=1. PR #1887
     # retrospective, Layer 4.
     _Gate("Canonical Citation Check", _root_only(validate_canonical_citations)),
-    # Fails when a backtick path citation in .claude/commands/pr-quality/all.md
+    # Fails when a backtick path citation in .claude/skills/pr-quality-all/SKILL.md
     # points to a file that no longer exists. Issue #1966.
     _Gate("Orchestrator Citation Check", _root_only(validate_orchestrator_citations)),
-    # Branch-wide em/en-dash check (issue #1923, REQ-006-AC7).
-    _Gate("Em/en-dash Prohibition", _root_only(validate_dash_prohibition)),
+    # Branch-wide em/en-dash check (issue #1923, REQ-006-AC7). Deferred to the
+    # unconditional `dash-prohibition` fast-stage job (issue #5086) so the
+    # repository's most-flagged defect class fails a push in seconds rather
+    # than after pytest. Direct and CI callers leave FAST_STAGE_RAN_ENV unset
+    # and still run it here.
+    _Gate(
+        "Em/en-dash Prohibition",
+        _root_only(validate_dash_prohibition),
+        already_run_by="dash-prohibition",
+    ),
     # Advisory (issue #1920). Catches the PR #1897 round-7 loop (linked issue
     # claims one model tier, committed agent frontmatter ships another) locally
     # instead of after each push.
@@ -455,25 +527,21 @@ def run_all_validations(
 
     ``run_validation`` and ``state`` are owned by ``pre_pr.main()`` and injected
     to avoid importing ``pre_pr`` (which runs as ``__main__``). ``args`` supplies
-    the CLI flags (``quick``, ``skip_tests``, ``verbose``) the sequence reads.
+    the only CLI flag the sequence reads, ``quick``.
 
     The order is ``_SEQUENCE``. Read that table, not this loop.
     """
     fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == "1"
     for gate in _SEQUENCE:
-        if gate.skip_flag is not None and getattr(args, gate.skip_flag, False):
-            print(f"[SKIP] {gate.name} ({gate.skip_note})")
-            state.total += 1
-            state.skipped += 1
-            continue
-
         if fast_stage_ran and gate.already_run_by:
-            print(
-                f"[SKIP] {gate.name} (already passed as the unconditional "
-                f"pre-push job {gate.already_run_by})"
+            detail = (
+                f"already passed as the unconditional pre-push job {gate.already_run_by}"
             )
-            state.total += 1
-            state.skipped += 1
+            print(f"[SKIP] {gate.name} ({detail})")
+            state.record(
+                gate.name,
+                CheckOutcome.skipped(gate.name, reason=REASON_ALREADY_RUN, detail=detail),
+            )
             continue
 
         run_validation(

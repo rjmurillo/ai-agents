@@ -5,7 +5,7 @@ Validates that all components of the tiered memory system are operational.
 Returns structured status for each tier to enable agent decision-making.
 
 Tier 0: Working Memory (always available, Claude context)
-Tier 1: Semantic Memory (Serena + Forgetful)
+Tier 1: Semantic Memory (Serena)
 Tier 2: Episodic Memory (episodes directory)
 
 Exit codes follow ADR-035:
@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import socket
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -54,26 +53,6 @@ def test_serena_available(serena_path: Path) -> dict:
             "message": f"Failed to enumerate Serena memories: {e}",
             "count": -1,
             "path": str(serena_path),
-        }
-
-
-def test_forgetful_available(
-    host: str = "localhost", port: int = 8020,
-) -> dict:
-    """Check if Forgetful MCP is accessible."""
-    uri = f"http://{host}:{port}/mcp"
-    try:
-        with socket.create_connection((host, port), timeout=5):
-            return {
-                "available": True,
-                "message": f"Forgetful MCP reachable at {uri}",
-                "endpoint": uri,
-            }
-    except OSError as e:
-        return {
-            "available": False,
-            "message": f"Forgetful MCP not reachable: {e}",
-            "endpoint": uri,
         }
 
 
@@ -185,29 +164,24 @@ def main(argv: list[str] | None = None) -> int:
     }
 
     # Tier 1: Semantic Memory
+    #
+    # Serena is the whole tier now. The second store this tier reported on was
+    # decommissioned (issue #5574), and with it the "degraded" state: a tier
+    # backed by committed markdown in the working tree is either readable or
+    # it is not.
     serena = test_serena_available(serena_path)
-    forgetful = test_forgetful_available()
 
-    tier1_available = serena["available"]
-    if serena["available"] and forgetful["available"]:
-        tier1_message = "Full semantic memory: Serena + Forgetful"
-    elif serena["available"]:
-        tier1_message = "Degraded: Serena only (use --lexical-only)"
+    if serena["available"]:
+        tier1_message = f"Serena reachable at {serena['path']}"
     else:
         tier1_message = "UNAVAILABLE: Serena not accessible"
 
     health["tiers"]["tier1_semantic"] = {
         "name": "Semantic Memory",
-        "available": tier1_available,
+        "available": serena["available"],
         "serena": serena,
-        "forgetful": forgetful,
         "message": tier1_message,
     }
-
-    if not forgetful["available"]:
-        health["recommendations"].append(
-            "Forgetful MCP unavailable - use --lexical-only flag for search_memory.py",
-        )
 
     # Tier 2: Episodic Memory
     episodes = test_episodes_available(episodes_path)

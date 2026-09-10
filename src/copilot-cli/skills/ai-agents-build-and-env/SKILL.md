@@ -112,7 +112,7 @@ uv run python -c "import yaml; print(yaml.__version__)"
 
 ### Phase 4: MCP Layer
 
-`.mcp.json` at repo root defines three servers. Copy `.env.example` to `.env`
+`.mcp.json` at repo root defines two servers. Copy `.env.example` to `.env`
 and fill keys (`ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `TAVILY_API_KEY`,
 `CONTEXT7_API_KEY`, `YDC_API_KEY`; optional `COMPRESS_TOKENIZER`). Never commit
 `.env` (universal.md MUST 5: no secrets).
@@ -120,11 +120,10 @@ and fill keys (`ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `TAVILY_API_KEY`,
 | Server | Transport | Role | When absent |
 |--------|-----------|------|-------------|
 | serena | stdio, `uvx --from git+https://github.com/oraios/serena` (port 24282, context claude-code) | Canonical memory (ADR-007) plus LSP symbol navigation | Memories stay readable as plain files under `.serena/memories/` (122 files as of 2026-07-03). The LSP read gate that could misfire on code files was retired in #3216 |
-| forgetful | stdio, `uvx forgetful-ai` | Supplementary semantic memory search | ADR-007 fallback: use the Serena `memory-index` memory for keyword discovery. MUST NOT block work or skip memory retrieval because Forgetful is down (ADR-007 "Graceful degradation") |
 | deepwiki | http, `https://mcp.deepwiki.com/mcp` | External GitHub repo documentation | No local impact; fall back to web search |
 
-Proxy and TLS note (generic, not environment-specific): the two stdio servers
-are fetched by `uvx` on first launch, so a corporate proxy must allow uv's
+Proxy and TLS note (generic, not environment-specific): the stdio server is
+fetched by `uvx` on first launch, so a corporate proxy must allow uv's
 downloads and uv must trust the proxy CA. Use standard `HTTPS_PROXY` plus uv's
 system-certificate option (`UV_SYSTEM_CERTS`; the older `UV_NATIVE_TLS` name is
 deprecated as of uv 0.11.26). Never disable TLS verification.
@@ -165,7 +164,7 @@ The 15-minute smoke checklist. All boxes checked means the environment works.
 - [ ] `python3 --version` matches `cat .python-version`
 - [ ] `node --version` prints v22.x, `gh --version` prints 2.60+, `pwsh --version` prints 7.5+
 - [ ] `.env` exists locally (copied from `.env.example`) and is NOT tracked: `git ls-files .env` prints nothing
-- [ ] Optional, requires network: Serena and Forgetful MCP servers start (harness lists `mcp__serena__*` tools); if not, confirm the ADR-007 fallbacks in Phase 4 before proceeding
+- [ ] Optional, requires network: the Serena MCP server starts (harness lists `mcp__serena__*` tools); if not, confirm the ADR-007 fallbacks in Phase 4 before proceeding
 
 ## Anti-Patterns
 
@@ -201,9 +200,8 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | Zero .ps1 files (ADR-042) | repo tree | `git ls-files "*.ps1"` prints nothing |
 | Stale pwsh commands | `CONTRIBUTING.md:155,741` | `grep -n pwsh CONTRIBUTING.md` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
-| MCP servers serena/deepwiki/forgetful | `.mcp.json` | `cat .mcp.json` |
+| MCP servers serena/deepwiki | `.mcp.json` | `cat .mcp.json` |
 | .env key names | `.env.example` | `cat .env.example` |
-| Forgetful fallback table | `ADR-007` (`.agents/architecture/ADR-007-memory-first-architecture.md:108-130`) | `grep -n "Graceful degradation" .agents/architecture/ADR-007-memory-first-architecture.md` |
 | LF enforcement rationale | `.gitattributes:59` and header comments | `grep -n "eol=lf" .gitattributes` |
 | Serena memory file count (122) | `.serena/memories/` | `python3 -c "from pathlib import Path; print(sum(1 for _ in Path('.serena/memories').iterdir()))"` |
 | tests/test_paths.py count (28) | pytest | `uv run pytest tests/test_paths.py --collect-only -q` |

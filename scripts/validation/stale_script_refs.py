@@ -24,7 +24,6 @@ HISTORICAL_ROOTS = (
     ".agents/audits/",
     ".serena/",
     ".claude-mem/",
-    ".forgetful/",
 )
 DEFAULT_ALLOWLIST = Path("scripts/validation/stale_script_refs_allowlist.txt")
 

@@ -171,5 +171,12 @@ def test_discovery_index_and_output_contract() -> None:
         assert "never merges or deletes serena files" in curating
         assert "never edits serena index files" in curating
         assert "use `memory-consolidate` for cross-file serena merges" in curating
-        assert "`how do i deduplicate forgetful memories`" in curating
+        # Issue #5574 flipped the next assertion. It required the trigger
+        # `how do I deduplicate Forgetful memories`, which kept the two skills'
+        # dedup vocabularies apart by naming a separate store. That store is
+        # decommissioned, and deduplication across Serena files is a merge,
+        # which memory-consolidate owns. So curating-memories must now claim no
+        # dedup trigger in either spelling, and the boundary this block guards
+        # is preserved by both negatives rather than by one positive.
+        assert "`how do i deduplicate forgetful memories`" not in curating
         assert "`how do i deduplicate memories`" not in curating

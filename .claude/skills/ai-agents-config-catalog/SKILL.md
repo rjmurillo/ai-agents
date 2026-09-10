@@ -49,7 +49,7 @@ using or documenting an environment variable.
 | Name | Status as of 2026-07-03 | Story |
 |---|---|---|
 | `SKIP_PREPUSH` | REMOVED | Historical: abused 3x within hours of creation (session 1187, retro `.agents/retrospective/2026-02-08-session-1187-skip-prepush-abuse.md`) |
-| `SKIP_TESTS` | REMOVED | Historical: stale contributor guidance was removed during the Lefthook migration |
+| `SKIP_TESTS` | REMOVED | Removed from the pre-push hook during the Lefthook migration, but it outlived that as the env default for `pre_pr.py --skip-tests`, which was parsed and never read; flag, env default, and the `--verbose` beside it were deleted once no gate set `skip_flag` |
 
 Lesson encoded: a global bypass with no teeth (no telemetry, no approval step) will be reached for under pressure. New escape hatches must be narrow, announced in output, and observable.
 
@@ -197,6 +197,7 @@ moved or died: update this catalog before relying on it.
 | hook registration surfaces | `uv run --frozen python -c "import json; s=json.load(open('.claude/settings.json'))['hooks']; print({k: len(v) for k, v in s.items()})"` |
 | repository-local Copilot sub-agent gate retired | `test ! -e .github/hooks/require-subagent-model.json && echo retired` (ADR-097 deleted this surface) |
 | removed flags absent from CONTRIBUTING | `grep -n -e "SKIP_PREPUSH" -e "SKIP_TESTS" CONTRIBUTING.md` (expect no matches) |
+| `SKIP_TESTS` no longer defaults a flag | `grep -n "SKIP_TESTS" scripts/validation/pre_pr.py` (expect no matches; `pre_pr_sequence.py` still names `--skip-tests` in its `_Gate` docstring, on purpose, to say why `skip_flag` is gone) |
 | SKIP_PUSH_LOCK_COMMIT_GUARD | `grep -n "SKIP_PUSH_LOCK_COMMIT_GUARD" scripts/validation/check_push_lock_before_commit.py lefthook.yml` |
 
 `COMPRESS_TOKENIZER` consumer not located; verify before documenting it as live.

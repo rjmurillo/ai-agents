@@ -28,7 +28,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Every agent-facing document that hands out a force-push command.
 GUARDED_DOCS = (
-    ".claude/commands/pr-autofix.md",
+    ".claude/skills/pr-autofix/SKILL.md",
     "docs/autonomous-pr-monitor.md",
     "src/copilot-cli/skills/pr-autofix/SKILL.md",
 )

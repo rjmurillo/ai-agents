@@ -304,32 +304,6 @@
         "expected": "Curation modifies existing entries. Creation adds new ones. Curation prevents fragmentation; should be tried before creation when overlap exists."
       }
     ],
-    "exploring-knowledge-graph": [
-      {
-        "prompt": "Walk through deep memory traversal for the question 'what do you know about ADR-007?'",
-        "expected": "Start with memory-index. Follow ADR-007 entity. Traverse relations: depends-on, references, observations. Read each linked entry. Aggregate into structured answer."
-      },
-      {
-        "prompt": "When should I use exploring-knowledge-graph instead of a single memory search?",
-        "expected": "When question requires comprehensive context, not a specific fact. Investigating cross-cutting concept like 'session protocol' or 'memory architecture'. Single search misses related entries."
-      },
-      {
-        "prompt": "What relations does the knowledge graph track?",
-        "expected": "Entity references, observations, depends-on, supersedes, related-to. Stored in memory frontmatter or inline links. Forms a directed graph for traversal."
-      },
-      {
-        "prompt": "How deep should graph traversal go?",
-        "expected": "Two hops typically. Beyond two hops dilutes signal. Stop when answer covers the question or new entries become tangential."
-      },
-      {
-        "prompt": "If I find an orphan memory (no incoming or outgoing links), what does it indicate?",
-        "expected": "Possible curation gap. Run curating-memories to add links if relevant. Or mark for review: orphans may indicate the memory is stale or never integrated."
-      },
-      {
-        "prompt": "Can graph traversal answer 'what changed since X'?",
-        "expected": "Partially. Graph captures structure not history. For temporal questions, combine traversal with git log or session log replay."
-      }
-    ],
     "doc-coverage": [
       {
         "prompt": "Audit my Python module for missing docstrings.",

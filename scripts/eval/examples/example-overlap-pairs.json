@@ -1,8 +1,7 @@
 {
-  "_comment": "Phase 1 example for eval-skill-overlap.py. The Issue #1932 body named four pairs, but doc-coverage, doc-sync, and session-qa-eligibility were deleted in the M1 catalog prune (commit 5c4729345, #1942). Only live, currently-overlapping pairs are listed here: memory-enhancement/curating-memories (both maintain memory quality) and curating-memories/exploring-knowledge-graph (both touch the memory knowledge graph). Prompts below are illustrative; replace with the per-skill 5-6 native prompts from the triage report before a production run.",
+  "_comment": "Phase 1 example for eval-skill-overlap.py. The Issue #1932 body named four pairs, but doc-coverage, doc-sync, and session-qa-eligibility were deleted in the M1 catalog prune (commit 5c4729345, #1942), and exploring-knowledge-graph was retired by the memory-backend decommission (#5574). Only live, currently-overlapping pairs are listed here: memory-enhancement/curating-memories (both maintain memory quality). Prompts below are illustrative; replace with the per-skill 5-6 native prompts from the triage report before a production run.",
   "pairs": [
-    ["memory-enhancement", "curating-memories"],
-    ["curating-memories", "exploring-knowledge-graph"]
+    ["memory-enhancement", "curating-memories"]
   ],
   "prompts": {
     "memory-enhancement": [
@@ -27,18 +26,6 @@
         "prompt": "When should I merge two near-duplicate memory entries versus keep them separate?",
         "expected": "Merge when they encode the same knowledge (true duplication). Keep separate when the similarity is coincidental or the distinction is load-bearing. Preserve the higher-confidence observations on merge.",
         "owner": "curating-memories"
-      }
-    ],
-    "exploring-knowledge-graph": [
-      {
-        "prompt": "I need to find every memory entry related to a decision three hops away from a given symbol. How do I traverse the graph?",
-        "expected": "Use graph traversal from the symbol node, following relation edges up to the hop limit, reading observations at each node. Semantic search seeds the entry point; relations carry the traversal.",
-        "owner": "exploring-knowledge-graph"
-      },
-      {
-        "prompt": "What is the difference between a semantic search over memories and a relation-based graph walk?",
-        "expected": "Semantic search ranks entries by similarity to a query string. A graph walk follows explicit relation edges between entities, preserving causal and structural links that similarity alone misses.",
-        "owner": "exploring-knowledge-graph"
       }
     ]
   }

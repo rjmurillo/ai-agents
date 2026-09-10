@@ -154,7 +154,6 @@ HISTORICAL_ROOTS: tuple[str, ...] = (
     ".agents/sessions/",
     ".agents/specs/",
     ".claude-mem/",
-    ".forgetful/",
     ".serena/",
     "evals/",
 )

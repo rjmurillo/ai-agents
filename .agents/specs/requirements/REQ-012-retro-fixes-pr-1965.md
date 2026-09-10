@@ -320,13 +320,13 @@ REQ-012-07 (same implementation).
 
 ### Requirement Statement
 
-WHEN `tests/skills/session-end/test_rework_warning.py` runs against a stubbed git log with one file at 6 commits and one at 3 commits,
+WHEN `tests/skills/session-end/test_rework_warning.py` runs against a stubbed git log with one file at 6 commits and one at 3 commits, <!-- orphan-ref-ignore -->
 THE SYSTEM SHALL assert the 6-edit file appears in the warning and the 3-edit file does not,
 SO THAT the threshold is pinned.
 
 ### Acceptance Criteria
 
-- [ ] A test file exists at `tests/skills/session-end/test_rework_warning.py`.
+- [ ] A test file exists at `tests/skills/session-end/test_rework_warning.py`. <!-- orphan-ref-ignore -->
 - [ ] The test stubs `git log` output with two files: one at 6 commits, one at 3 commits.
 - [ ] The test asserts the 6-commit file appears in the warning output.
 - [ ] The test asserts the 3-commit file does not appear in the warning output.

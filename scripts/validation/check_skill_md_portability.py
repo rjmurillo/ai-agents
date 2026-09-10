@@ -44,12 +44,10 @@ Baseline ratchet:
 
 Scope: ``*.md`` under the ``skills/`` tree of every plugin root listed in
 ``PLUGIN_ROOTS``, plus the flat source and generated trees in
-``EXTRA_SCAN_ROOTS`` (``.claude/commands``, ``templates/agents``, and
+``EXTRA_SCAN_ROOTS`` (``templates/agents`` and
 ``src/copilot-cli/instructions``). These extra directories ship or generate
 shipped output, but sit outside plugin-root ``skills/`` sources.
-``.claude/commands`` generates Copilot CLI skills under
-``src/copilot-cli/skills/`` via ``build/scripts/generate_commands.py``; that
-mirror is scanned by the plugin-root pass. ``templates/agents`` generates
+``templates/agents`` generates
 Copilot CLI agents under ``src/copilot-cli/agents/`` via
 ``build/generate_agents.py``; this validator does not scan agent outputs, so
 the template source is the only covered surface. ``src/copilot-cli/instructions``
@@ -65,7 +63,7 @@ unchanged". ``outputDirs`` (documented at that file's lines 8-14) fans the
 same transformed content out to every configured destination, including
 ``src/copilot-cli/instructions``. It is scanned directly because it is
 itself the shipped artifact, not a source that generates one. See issues
-#3578 (plugin-root widening), #3646 (commands and templates/agents
+#3578 (plugin-root widening), #3646 (templates/agents
 widening), and #5214 (instructions widening).
 
 Exit codes:
@@ -290,12 +288,17 @@ PLUGIN_ROOTS: tuple[str, ...] = (".claude", "src/claude", "src/copilot-cli")
 REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"})
 
 # Non-skills directories that also ship to consumers or generate shipped output
-# and carry upstream-path prose. ``.claude/commands`` generates Copilot CLI
-# skills, whose mirror under ``src/copilot-cli/skills`` is covered by the
-# plugin-root scan. ``templates/agents`` generates Copilot CLI agents under
-# ``src/copilot-cli/agents``, which this validator deliberately does not scan.
-# Scanning these source trees covers the otherwise unscanned source surface and
-# avoids double-counting command mirrors. Issue #3646.
+# and carry upstream-path prose. ``templates/agents`` generates Copilot CLI
+# agents under ``src/copilot-cli/agents``, which this validator deliberately
+# does not scan, so scanning the source tree covers the otherwise unscanned
+# source surface. Issue #3646.
+#
+# ``.claude/commands`` was the third entry, scanned because it generated Copilot
+# CLI skills whose mirrors the plugin-root scan already read, so reading the
+# source instead avoided double-counting. ADR-064 (issue #5632) converted every
+# command into a skill and deleted that bridge, and
+# ``scripts/validation/check_commands_retired.py`` now blocks the directory
+# coming back, so there is no source surface left for this entry to cover.
 #
 # ``src/copilot-cli/instructions`` is the generated Copilot instruction mirror
 # of ``.claude/rules/*.md`` via ``build/scripts/generate_rules.py``; see the
@@ -310,15 +313,14 @@ REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"}
 # ``.claude/rules/plugin-self-containment.md``), so a repo-only reference
 # there is not a defect.
 EXTRA_SCAN_ROOTS: tuple[str, ...] = (
-    ".claude/commands",
     "templates/agents",
     "src/copilot-cli/instructions",
 )
 
 # Extra scan roots whose absence is a broken checkout, not a legitimate minimal
 # clone, mirroring the ``REQUIRED_SKILLS_ROOTS`` distinction above.
-# ``.claude/commands`` and ``templates/agents`` are sources; a checkout may
-# reasonably omit them. ``src/copilot-cli/instructions`` is the shipped
+# ``templates/agents`` is a source; a checkout may reasonably omit it.
+# ``src/copilot-cli/instructions`` is the shipped
 # artifact this validator exists to gate: unlike a source directory, its
 # absence means the exact surface issue #5214 found undeclared paths in would
 # go unscanned while the run still reports clean, which is the same silent
@@ -510,8 +512,10 @@ def skills_dirs(root: Path) -> list[Path]:
     A plugin root is a directory that ships to a consumer, so its ``skills/``
     tree reaches the same reader whichever root it came from. Scanning only one
     of them left thirty nine references unratcheted in ``src/copilot-cli``,
-    which is generated from ``.claude/commands`` and therefore never passed
-    under the ``.claude/skills`` scan either. See issue #3578.
+    whose skills were then generated partly from ``.claude/commands`` and so
+    never passed under the ``.claude/skills`` scan either. See issue #3578.
+    ADR-064 retired that second source; every Copilot skill is mirrored from
+    ``.claude/skills`` now, and both roots are scanned regardless.
 
     Absent roots are skipped rather than reported. ``src/claude`` ships agents
     and rules but has no skills tree, and a root that grows one later is picked
@@ -545,14 +549,12 @@ def extra_scan_dirs(root: Path) -> list[Path]:
 
     These are flat source trees that ship to consumers or generate shipped
     output, but are not under a plugin root's ``skills/`` subtree.
-    ``.claude/commands`` mirrors into ``src/copilot-cli/skills``, which the
-    plugin-root scan covers. ``templates/agents`` mirrors into
-    ``src/copilot-cli/agents``, which this validator deliberately does not
-    scan. Listing the source keeps those template references covered without
-    double-counting command mirrors (issue #3646).
+    ``templates/agents`` mirrors into ``src/copilot-cli/agents``, which this
+    validator deliberately does not scan, so listing the source is what keeps
+    those template references covered (issue #3646).
 
     Absent directories are skipped: a checkout that does not have
-    ``.claude/commands`` is not broken, it may just be a minimal clone.
+    ``templates/agents`` is not broken, it may just be a minimal clone.
 
     Directories symlinked outside the repository are refused for the same
     reason as plugin roots (see ``skills_dirs``).
@@ -630,8 +632,8 @@ def scan_all(
 
     Keys in ref_counts and marker_counts are repo-relative posix paths.
     ``marker_counts`` covers plugin roots and extra scan dirs because
-    vendor-portability markers in ``.claude/commands`` and
-    ``templates/agents`` feed the same exact-count marker baseline. Keys in
+    vendor-portability markers in ``templates/agents`` and
+    ``src/copilot-cli/instructions`` feed the same exact-count marker baseline. Keys in
     files_by_root are the posix path of the scan root relative to the repo
     root, covering both plugin ``skills/`` dirs and extra scan dirs, so the
     success report can name every root actually examined rather than only
@@ -781,8 +783,8 @@ def _is_measured_input(rel_path: str) -> bool:
     """Return whether a repo-relative path feeds this scanner's counts.
 
     Covers both the plugin ``skills/`` trees and ``EXTRA_SCAN_ROOTS``
-    (``.claude/commands``, ``templates/agents``,
-    ``src/copilot-cli/instructions``): ``scan_all()`` folds both into the same
+    (``templates/agents``, ``src/copilot-cli/instructions``):
+    ``scan_all()`` folds both into the same
     ``ref_counts``/``marker_counts`` baseline, so a co-change to either can
     launder new drift past ``--base-ref``'s semantic-conflict guard the same
     way a plugin-root skill edit can. Missing the extra roots here was itself

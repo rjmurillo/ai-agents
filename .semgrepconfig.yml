@@ -1,0 +1,42 @@
+# Semgrep project configuration for rjmurillo/ai-agents.
+#
+# WHAT READS THIS FILE: `semgrep ci`, the entry point behind the
+# `semgrep-cloud-platform/scan` check. It loads the file through
+# semgrep.app.project_config.ProjectConfig.load_all() and ships the result in
+# the scan request as `project_config`.
+#
+# WHAT THIS FILE CANNOT DO: exclude a rule. The schema is closed. ProjectConfig
+# declares exactly `version` and `tags` and constructs itself with
+# `cls(**loaded)`, so any other key raises SemgrepError with exit code 5 and
+# fails the entire scan rather than being ignored. Measured against the pinned
+# semgrep 1.175.0: adding `exclude_rules:` produced
+#   SemgrepError code=5: ProjectConfig.__init__() got an unexpected keyword
+#   argument 'exclude_rules'
+# Rules travel the other direction, arriving from the Platform as
+# scan_response.config.rules. Do not add a rule key here; it will not be
+# ignored, it will break the scan.
+#
+# WHY THE TAG EXISTS: pyproject.toml sets `requires-python = ">=3.14"`, so every
+# finding from the python36 and python37 compatibility families is a guaranteed
+# false positive in this repository. Those four rules are:
+#
+#   python.lang.compatibility.python36.python36-compatibility-Popen1
+#   python.lang.compatibility.python36.python36-compatibility-Popen2
+#   python.lang.compatibility.python37.python37-compatibility-Popen1
+#   python.lang.compatibility.python37.python37-compatibility-Popen2
+#
+# Full ids are required wherever they are excluded. `--exclude-rule` matches an
+# id exactly, not by prefix. Measured on semgrep 1.175.0 against a local
+# ruleset: excluding the full id removed the finding; excluding the family
+# prefix `python.lang.compatibility.python36` left every finding in place.
+#
+# WHAT THIS FILE DOES NOT DO: it does not turn `semgrep-cloud-platform/scan`
+# green. No repository file can. The exclusion is Platform state, set once in
+# the Semgrep AppSec Platform detection policy and scoped to this project or to
+# the tag below. This file is the git-tracked, reviewable record of which rules
+# that exception must cover and why, so the scope lives in version control
+# rather than only as dashboard state. Refs #4725.
+
+version: v1
+tags:
+  - python-314-floor

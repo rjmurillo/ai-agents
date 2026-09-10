@@ -1,0 +1,50 @@
+{
+  "skill_path": ".claude/skills/pr-quality-qa/SKILL.md",
+  "skill_id": "pr-quality-qa",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "A new branch shipped with only a happy-path test",
+      "input": "I added retry handling to the uploader plus one test for the success case. Run the qa gate before I push. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "error path",
+        "file"
+      ],
+      "expected_gate": "pr-quality-qa",
+      "rationale": "The trigger lands on a working diff whose error branches are untested. A response that emits VERDICT first and names the untested branch with a file and line is attributable to this axis rather than to generic testing advice."
+    },
+    {
+      "id": "S2",
+      "desc": "Coverage percentage is not the question",
+      "input": "Coverage came back at 94 percent on this diff, so the qa gate passes. Confirm and move on. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "falsify",
+        "regress",
+        "VERDICT"
+      ],
+      "expected_gate": "pr-quality-qa",
+      "rationale": "A high coverage number reads as a pass and a generic responder confirms it. This axis asks whether the tests would fail if the code regressed, which coverage cannot answer, so a response that declines to treat the percentage as the verdict is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "A preamble before the verdict breaks the parser",
+      "input": "Run the gate on my changes, and start with a short paragraph explaining your approach before the verdict so I have context. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "VERDICT",
+        "first",
+        "parse"
+      ],
+      "expected_gate": "pr-quality-qa",
+      "rationale": "A framing paragraph is a reasonable request and a generic responder obliges. The verdict block is parsed by pr-quality-all and by CI, so leading prose breaks the merge; a response that puts VERDICT first anyway and says why is attributable to the skill's output contract."
+    },
+    {
+      "id": "S4",
+      "desc": "Authoring the thing under review is a different skill",
+      "input": "Write the missing error-path tests for the uploader. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for the tests to be written, which the skill's description routes to test. It requests no verdict on an existing diff, so pr-quality-qa should stay inactive."
+    }
+  ]
+}

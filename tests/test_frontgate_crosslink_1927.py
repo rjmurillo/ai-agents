@@ -8,11 +8,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-RESEARCH_SOURCE = REPO_ROOT / ".claude" / "skills" / "research-and-incorporate" / "SKILL.md"
-RESEARCH_MIRROR = (
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "research-and-incorporate" / "SKILL.md"
-)
-PLAN_SOURCE = REPO_ROOT / ".claude" / "commands" / "plan.md"
+RESEARCH_SOURCE = REPO_ROOT / ".claude" / "skills" / "research" / "SKILL.md"
+RESEARCH_MIRROR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "research" / "SKILL.md"
+PLAN_SOURCE = REPO_ROOT / ".claude" / "skills" / "plan" / "SKILL.md"
 PLAN_MIRROR = REPO_ROOT / "src" / "copilot-cli" / "skills" / "plan" / "SKILL.md"
 AVOIDING_SOURCE = REPO_ROOT / ".claude" / "skills" / "avoiding-manufactured-work" / "SKILL.md"
 AVOIDING_MIRROR = (
@@ -57,11 +55,17 @@ def test_research_callout_routes_to_spec(path: Path) -> None:
     assert "/spec" in text, f"front-gate callout must route to /spec in {path}"
 
 
-def test_research_callout_precedes_phase_one() -> None:
+def test_research_callout_precedes_the_phases() -> None:
+    """The gate has to precede the workflow, whatever the workflow section is called.
+
+    ADR-064 (issue #5632) made research a skill, and a SKILL.md names its
+    workflow `## Process`; skillforge checks for that heading. The ordering
+    #1927 pins is unchanged, so only the section this looks for moves.
+    """
     text = _read(RESEARCH_SOURCE)
     callout = text.index("## Front-gate first")
-    phase_one = text.index("Phase 1: RESEARCH")
-    assert callout < phase_one, "Front-gate callout must appear before Phase 1 content"
+    phases = text.index("## Process")
+    assert callout < phases, "Front-gate callout must appear before the workflow section"
 
 
 @pytest.mark.parametrize("path", [PLAN_SOURCE, PLAN_MIRROR])
@@ -95,17 +99,36 @@ def test_avoiding_manufactured_work_has_sibling_callout(path: Path) -> None:
     assert "opposite timing" in text, f"missing opposite timing in {path}"
 
 
-def test_avoiding_callout_precedes_workflow() -> None:
+def test_avoiding_callout_precedes_process() -> None:
+    # The heading is "## Process" since the skillforge validator fix in this
+    # branch renamed it from "## Workflow" and added "## Triggers" above it.
+    # The invariant is unchanged: the sibling-skill callout has to come before
+    # the procedure a reader would otherwise start executing.
     text = _read(AVOIDING_SOURCE)
     callout = text.index("## Sibling skill")
-    workflow = text.index("## Workflow")
-    assert callout < workflow, "Sibling skill callout must appear before the Workflow section"
+    process = text.index("## Process")
+    assert callout < process, "Sibling skill callout must appear before the Process section"
 
 
 def test_research_source_and_mirror_agree() -> None:
-    assert _read(RESEARCH_SOURCE) == _read(RESEARCH_MIRROR), (
-        "research-and-incorporate source and Copilot mirror diverged; rerun "
-        "build/scripts/build_all.py"
+    import sys
+
+    build_scripts = str(REPO_ROOT / "build" / "scripts")
+    original_path = sys.path.copy()
+    try:
+        if build_scripts not in sys.path:
+            sys.path.insert(0, build_scripts)
+        import copilot_body_translation
+    finally:
+        sys.path[:] = original_path
+
+    source_body = _read(RESEARCH_SOURCE).split("---\n", 2)[-1]
+    mirror_body = _read(RESEARCH_MIRROR).split("---\n", 2)[-1]
+    skills_dir = RESEARCH_MIRROR.parent.parent
+    expected = copilot_body_translation.translate_body(source_body, skills_dir)
+    assert mirror_body == expected, (
+        "research command and Copilot mirror bodies diverged after translation; "
+        "rerun build/scripts/build_all.py"
     )
 
 

@@ -51,13 +51,18 @@ MODEL_ID_RE = re.compile(r"^claude-(opus|sonnet|haiku)-\d")
 KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset({
     "doc-coverage",
     "doc-sync",
+    "encode-repo-serena",
+    "exploring-knowledge-graph",
     "github-pr-reply",
     "guard-maturity",
+    "research-and-incorporate",
     "session-end",
     "session-init",
     "session-log-fixer",
+    "serena-code-architecture",
     "session-migration",
     "session-qa-eligibility",
+    "using-forgetful-memory",
 })
 
 

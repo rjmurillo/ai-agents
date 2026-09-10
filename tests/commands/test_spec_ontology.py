@@ -33,7 +33,24 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SPEC_PATH = REPO_ROOT / ".claude" / "commands" / "spec.md"
+SPEC_PATH = REPO_ROOT / ".claude" / "skills" / "spec" / "SKILL.md"
+
+
+def _spec_surface() -> str:
+    """The whole spec surface: the skill body plus every reference it ships.
+
+    ADR-064 (issue #5632) made spec a skill and moved the Step 0.5 gate, with
+    its pointers to the spec-generator reference files, into
+    `references/step-0-5-memory-gate.md`. Reading only `SKILL.md` would report
+    those pointers as deleted when they had moved one file over.
+    """
+    parts = [SPEC_PATH.read_text(encoding="utf-8")]
+    parts.extend(
+        ref.read_text(encoding="utf-8")
+        for ref in sorted((SPEC_PATH.parent / "references").glob("*.md"))
+    )
+    return "\n".join(parts)
+
 GENERATOR_PATH = REPO_ROOT / ".claude" / "skills" / "spec-generator" / "SKILL.md"
 INTERVIEW_PATH = (
     REPO_ROOT / ".claude" / "skills" / "requirements-interview" / "SKILL.md"
@@ -51,7 +68,7 @@ ONTOLOGY_PROMPTS = ["O1", "O2", "O3", "O4", "O5", "O6", "O7"]
 
 @pytest.fixture(scope="module")
 def spec_text() -> str:
-    return SPEC_PATH.read_text(encoding="utf-8")
+    return _spec_surface()
 
 
 @pytest.fixture(scope="module")
@@ -626,13 +643,13 @@ def test_spec_prior_art_reference_file_exists() -> None:
 
 
 def test_spec_md_pointers_to_reference_files() -> None:
-    """spec.md must contain pointers to both extracted reference files."""
-    text = SPEC_PATH.read_text(encoding="utf-8")
+    """The spec surface must contain pointers to both extracted reference files."""
+    text = _spec_surface()
     assert "spec-step0-gates.md" in text, (
-        "spec.md is missing a pointer to spec-step0-gates.md"
+        "the spec surface is missing a pointer to spec-step0-gates.md"
     )
     assert "spec-prior-art-schema.md" in text, (
-        "spec.md is missing a pointer to spec-prior-art-schema.md"
+        "the spec surface is missing a pointer to spec-prior-art-schema.md"
     )
 
 

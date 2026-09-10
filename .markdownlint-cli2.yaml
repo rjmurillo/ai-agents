@@ -138,7 +138,6 @@ ignores:
   - ".agents/**"
   - ".serena/**"
   - ".claude-mem/**"
-  - ".forgetful/**"
   - ".diffray/**"
   - ".flowbaby/**"
   - ".factory/**"
@@ -172,27 +171,12 @@ ignores:
   # HTML tags, violating MD033 and MD041. These are tool-managed metadata, not authored markdown.
   - "**/CLAUDE.md"
 
-  # Lifecycle command files have only YAML frontmatter, no H1 heading. MD041 not applicable.
-  # Only the 5 lifecycle commands are excluded; other command files retain full linting.
-  # /review is excluded from this list because it was converted from a lifecycle
-  # command to a proper skill in #2042; its SKILL.md has an H1 heading and is
-  # fully linted.
-  - ".claude/commands/spec.md"
-  - ".claude/commands/plan.md"
-  - ".claude/commands/build.md"
-  - ".claude/commands/test.md"
-  - ".claude/commands/ship.md"
-
-  # Copilot CLI mirrors of the lifecycle command files. Same structure as
-  # `.claude/commands/{spec,plan,build,test,ship}.md`: YAML frontmatter
-  # followed by `@CLAUDE.md` and prose, with no H1 heading. The Claude Code
-  # paths above were excluded; the Copilot CLI mirrors were missed in that
-  # PR and only surface when hooks are configured (see CONTRIBUTING.md).
-  - "src/copilot-cli/skills/spec/SKILL.md"
-  - "src/copilot-cli/skills/plan/SKILL.md"
-  - "src/copilot-cli/skills/build/SKILL.md"
-  - "src/copilot-cli/skills/test/SKILL.md"
-  - "src/copilot-cli/skills/ship/SKILL.md"
+  # The lifecycle-command exemptions are gone. They existed because a command
+  # file is YAML frontmatter followed by `@CLAUDE.md` and prose with no H1, so
+  # MD041 did not apply. ADR-064 (issue #5632) converted the last of them,
+  # spec, into a skill; a SKILL.md carries an H1, so the reason no longer holds
+  # and every former lifecycle path now lints clean. /review left the same list
+  # earlier for the same reason (#2042).
 
   # Reference files extracted from spec.md (issue #3632). These are embedded-prose reference
   # documents: they use heading levels (####, ###) relative to the original document's nesting,

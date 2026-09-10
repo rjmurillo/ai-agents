@@ -3,25 +3,16 @@
     {
       "id": "D1",
       "desc": "Step 0 PASS triggers Step 0.5 before Step 1",
-      "input": "Invoke /spec in auto mode. Step 0 has already PASSed with Q1=Maintainer, Q2=Manual D-checks remain, Q3=.claude/commands/spec.md, Q4=Promote LLM-required D-checks to eval harness, Q5=Review deferred QA F1, Q6=Future /spec PRs should be gated. No Step 0 halt conditions apply. Determine the next action before asking any Step 1 clarification questions.",
+      "input": "Invoke /spec in auto mode. Step 0 has already PASSed with Q1=Maintainer, Q2=Manual D-checks remain, Q3=.claude/skills/spec/SKILL.md, Q4=Promote LLM-required D-checks to eval harness, Q5=Review deferred QA F1, Q6=Future /spec PRs should be gated. No Step 0 halt conditions apply. Determine the next action before asking any Step 1 clarification questions.",
       "expected_verdict": "RUN_STEP_0_5",
       "verdict_options": ["RUN_STEP_0_5", "PROCEED_STEP_1", "SKIP_STEP_0_5", "HALT"],
       "expected_reason_contains": "Step 0.5",
       "rationale": "AC-01 is behavioral: Step 0.5 must run only after Step 0 PASS and before Step 1, then append a pass tally if no halt fires."
     },
     {
-      "id": "D6",
-      "desc": "Forgetful unavailable degrades to Serena-only and completes",
-      "input": "Invoke /spec after Step 0 PASS. During Step 0.5, Forgetful MCP is unavailable. Serena memory search is available and returns one relevant prior-art entry. chestertons-fence and exploring-knowledge-graph are available. No halt trigger fires. Determine the Step 0.5 outcome and the required record in PriorArtBlock/Coverage notes.",
-      "expected_verdict": "DEGRADED_PASS",
-      "verdict_options": ["DEGRADED_PASS", "HALT", "SKIP_MEMORY"],
-      "expected_reason_contains": "Serena-only",
-      "rationale": "AC-07 requires graceful degradation: log the Forgetful outage in coverage notes, run Serena-only search, complete Step 0.5, and append a pass tally."
-    },
-    {
       "id": "D7",
-      "desc": "Graph traversal discovers an entity requiring proposer adjudication",
-      "input": "Invoke /spec after Step 0 PASS. Step 0 Q1+Q3+Q4 mention maintainer, .claude/commands/spec.md, and ADR-057. exploring-knowledge-graph discovers connected entity ADR-060, which is absent from Q1, Q3, and Q4 after normalization. No prior adjudication exists. Determine the required next action.",
+      "desc": "Prior-art search discovers an entity requiring proposer adjudication",
+      "input": "Invoke /spec after Step 0 PASS. Step 0 Q1+Q3+Q4 mention maintainer, .claude/skills/spec/SKILL.md, and ADR-057. The Step 0.5 prior-art search discovers connected entity ADR-060, which is absent from Q1, Q3, and Q4 after normalization. No prior adjudication exists. Determine the required next action.",
       "expected_verdict": "REQUEST_ADJUDICATION",
       "verdict_options": ["REQUEST_ADJUDICATION", "AUTO_DISCARD", "HALT"],
       "expected_reason_contains": "ADR-060",
@@ -42,8 +33,8 @@
       "input": "Run Step 9 critic on a PRD containing ## Prior Art / Constraints with a non-empty ### Direct prior art from memory subsection citing ADR-057 and a non-empty ### Coverage notes subsection. Checks 9a, 9b, and 9c pass. Determine the Check 9d verdict.",
       "expected_verdict": "PASS",
       "verdict_options": ["PASS", "FAIL"],
-      "expected_reason_contains": "Prior Art / Constraints",
-      "rationale": "AC-12 pass condition is a populated PriorArtBlock with at least one evidence subsection or justified coverage note."
+      "expected_reason_contains": "PriorArtBlock",
+      "rationale": "AC-12 pass condition is a populated PriorArtBlock with at least one evidence subsection or justified coverage note. The graded literal is PriorArtBlock rather than the heading text: the heading appears verbatim in this scenario's own input, so a grader echoing the prompt would match it, while PriorArtBlock is a schema term the grader has to supply from the command itself."
     },
     {
       "id": "D13",
@@ -56,12 +47,12 @@
     },
     {
       "id": "D14",
-      "desc": "Tier upgrade from 3 to 4 triggers supplemental Phase 5 traversal",
-      "input": "Invoke /spec after Step 0.5 computed ProvisionalTier=3 from Q4='3 days' and entity_count=3, so Phases 1-4 already ran. Later Step 3 classifies actual tier as 4. Existing PriorArtBlock has all three original subsections populated. Determine the required supplemental traversal behavior.",
+      "desc": "Tier upgrade from 3 to 4 triggers a supplemental Phase 5 search",
+      "input": "Invoke /spec after Step 0.5 computed ProvisionalTier=3 from Q4='3 days' and entity_count=3, so Phases 1-4 already ran. Later Step 3 classifies actual tier as 4. Existing PriorArtBlock has all three original subsections populated. Determine the required supplemental search behavior.",
       "expected_verdict": "RUN_SUPPLEMENTAL",
       "verdict_options": ["RUN_SUPPLEMENTAL", "NO_SUPPLEMENTAL", "REPLACE_PRIOR_ART"],
       "expected_reason_contains": "supplemental",
-      "rationale": "AC-10 requires supplemental traversal when actual_tier > provisional_tier and the actual tier needs more phases, preserving original PriorArtBlock subsections."
+      "rationale": "AC-10 requires a supplemental search when actual_tier > provisional_tier and the actual tier needs more phases, preserving original PriorArtBlock subsections."
     }
   ]
 }

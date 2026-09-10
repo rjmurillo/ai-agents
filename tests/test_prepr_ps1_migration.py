@@ -12,9 +12,18 @@ import ast
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
+
+from scripts.validation.evidence import (
+    REASON_BASE_REF_UNRESOLVED,
+    REASON_DIFF_FAILED,
+    REASON_TIMEOUT,
+    CheckOutcome,
+    EvidenceState,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHECKS_TOOLING = REPO_ROOT / "scripts" / "validation" / "checks_tooling.py"
@@ -73,6 +82,25 @@ class TestPesterGateRemoved:
         assert not hasattr(checks_tooling, "validate_pester_tests")
 
 
+def _session_git_fake(head: str) -> Any:
+    """Return a ``_run_subprocess`` replacement keyed on the git subcommand.
+
+    A blanket ``return_value=(0, "", "")`` answers ``git rev-parse HEAD`` with
+    empty stdout. Since issue #5646 item 2 that is UNKNOWN rather than a PASS
+    naming the ``INVALID_HEAD`` placeholder, so the revision has to be supplied
+    for a no-changed-logs run to reach PASS. Dispatching on ``argv`` rather than
+    on call order per ``.claude/rules/testing.md`` SHOULD 11: the diff and the
+    rev-parse are issued from two different branches.
+    """
+
+    def run(args: list[str], **_kwargs: Any) -> tuple[int, str, str]:
+        if "rev-parse" in args:
+            return 0, f"{head}\n", ""
+        return 0, "", ""
+
+    return run
+
+
 class TestSessionEndGate:
     """Issue #4658: validate_session_end calls validate_session_json.py."""
 
@@ -80,9 +108,15 @@ class TestSessionEndGate:
         from checks_tooling import validate_session_end
 
         # No changed session logs on branch -> PASS
+        head = "a" * 40
         with patch("checks_tooling._resolve_branch_base_ref", return_value="main"):
-            with patch("checks_tooling._run_subprocess", return_value=(0, "", "")):
-                assert validate_session_end(REPO_ROOT) is True
+            with patch(
+                "checks_tooling._run_subprocess", side_effect=_session_git_fake(head)
+            ):
+                outcome = validate_session_end(REPO_ROOT)
+
+        assert outcome.state is EvidenceState.PASS
+        assert outcome.revision == head
 
     def test_fails_on_invalid_log(self, tmp_path: Path) -> None:
         from checks_tooling import validate_session_end
@@ -110,18 +144,24 @@ class TestSessionEndGate:
                     (1, "[FAIL] Invalid session log", ""),
                 ],
             ):
-                assert validate_session_end(tmp_path) is False
+                assert validate_session_end(tmp_path).state is EvidenceState.FAIL
 
     def test_no_missing_script_skip_when_script_present(self) -> None:
         from checks_tooling import validate_session_end
 
         # With a valid base ref and changed log, should NOT raise MissingScriptSkip
         # when validate_session_json.py exists (which it does in this repo).
+        head = "b" * 40
         with patch("checks_tooling._resolve_branch_base_ref", return_value="main"):
-            with patch("checks_tooling._run_subprocess", return_value=(0, "", "")):
+            with patch(
+                "checks_tooling._run_subprocess", side_effect=_session_git_fake(head)
+            ):
                 # No changed logs -> passes without needing the script
                 result = validate_session_end(REPO_ROOT)
-                assert result is True
+
+        assert result.state is EvidenceState.PASS
+        assert result.examined == 0
+        assert result.revision == head
 
 
 class TestPathNormalizationGate:
@@ -214,13 +254,21 @@ class TestMypyChangedFilesGate:
 
         with patch("checks_mypy._resolve_branch_base_ref", return_value="main"):
             with patch("checks_mypy._run_subprocess", return_value=(0, "", "")):
-                assert validate_mypy_changed_files(REPO_ROOT) is True
+                assert validate_mypy_changed_files(REPO_ROOT).state is EvidenceState.PASS
 
-    def test_passes_when_no_base_ref(self) -> None:
+    def test_reports_blocked_when_no_base_ref(self) -> None:
+        """Was test_passes_when_no_base_ref, asserting PASS (issue #5635).
+
+        No base ref means no changed-file set, so mypy type-checked nothing.
+        Reporting that as PASS is the defect; BLOCKED names the remedy.
+        """
         from checks_mypy import validate_mypy_changed_files
 
         with patch("checks_mypy._resolve_branch_base_ref", return_value=None):
-            assert validate_mypy_changed_files(REPO_ROOT) is True
+            outcome = validate_mypy_changed_files(REPO_ROOT)
+
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_BASE_REF_UNRESOLVED
 
     def test_fails_when_new_type_error_added(self, tmp_path: Path) -> None:
         """A file that ADDS a new type error on a changed line must FAIL.
@@ -327,3 +375,63 @@ class TestMypyChangedFilesGate:
 
         # The error is pre-existing and NOT on a changed line, so ratchet allows it.
         assert result == 0, "Expected PASS: pre-existing error not on a changed line"
+
+
+class TestDiffFailureReachesTheGateAsUnknown:
+    """The UNKNOWN branch of both migrated validators, driven end to end.
+
+    classify_subprocess_failure has its own unit tests, but a correct helper
+    nobody calls delivers nothing (`.claude/rules/testing.md` SHOULD 6). These
+    drive each validator with a real _run_subprocess return value and assert on
+    the reason code that reaches the caller, so a validator that stops calling
+    the classifier, or passes the wrong default, fails here.
+    """
+
+    _TIMEOUT = (-1, "", "Command timed out after 30s")
+    _BAD_REV = (128, "", "fatal: bad revision 'origin/main...HEAD'")
+
+    @staticmethod
+    def _session_end(diff_result: tuple[int, str, str]) -> CheckOutcome:
+        from checks_tooling import validate_session_end
+
+        with patch("checks_tooling._resolve_branch_base_ref", return_value="origin/main"):
+            with patch("checks_tooling._run_subprocess", return_value=diff_result):
+                return validate_session_end(REPO_ROOT)
+
+    @staticmethod
+    def _mypy(diff_result: tuple[int, str, str]) -> CheckOutcome:
+        from checks_mypy import validate_mypy_changed_files
+
+        with patch("checks_mypy._resolve_branch_base_ref", return_value="origin/main"):
+            with patch("checks_mypy._run_subprocess", return_value=diff_result):
+                return validate_mypy_changed_files(REPO_ROOT)
+
+    def test_session_end_reports_timeout_when_the_diff_times_out(self) -> None:
+        """The sentinel exit plus the marker must reach the gate as timeout."""
+        outcome = self._session_end(self._TIMEOUT)
+
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_TIMEOUT
+
+    def test_session_end_reports_diff_failed_on_a_real_git_error(self) -> None:
+        """A child that ran and exited non-zero keeps the caller reason."""
+        outcome = self._session_end(self._BAD_REV)
+
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_DIFF_FAILED
+        assert outcome.revision == "origin/main...HEAD"
+
+    def test_mypy_gate_reports_timeout_when_the_diff_times_out(self) -> None:
+        """Same wiring on the second migrated validator."""
+        outcome = self._mypy(self._TIMEOUT)
+
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_TIMEOUT
+
+    def test_mypy_gate_reports_diff_failed_on_a_real_git_error(self) -> None:
+        """Control for the timeout case above: same branch, different reason."""
+        outcome = self._mypy(self._BAD_REV)
+
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_DIFF_FAILED
+        assert outcome.revision == "origin/main...HEAD"

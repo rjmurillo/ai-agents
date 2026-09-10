@@ -1,5 +1,5 @@
 ---
-applyTo: .claude/agents/**,.claude/commands/**,build/scripts/**,templates/**,src/copilot-cli/**,.github/agents/**,.github/prompts/**,.github/skills/**,.github/instructions/**,.claude/hooks/**,.claude/rules/**,.claude/skills/**,tests/build_scripts/**,tests/e2e/**
+applyTo: .claude/agents/**,build/scripts/**,templates/**,src/copilot-cli/**,.github/agents/**,.github/prompts/**,.github/skills/**,.github/instructions/**,.claude/hooks/**,.claude/rules/**,.claude/skills/**,tests/build_scripts/**,tests/e2e/**
 ---
 
 # Customer-Facing Generated Artifacts

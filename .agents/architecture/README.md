@@ -95,7 +95,6 @@ These bind today.
 | [ADR-001](ADR-001-markdown-linting.md) | Markdown Linting Configuration | 2025-12-13 | Create `.markdownlint-cli2.yaml` in the repository root with rules appropriate for agent templates: |
 | [ADR-003](ADR-003-agent-tool-selection-criteria.md) | Role-Specific Tool Allocation for Multi-Agent System | 2025-12-16 | Chosen option: "Option 2: Role-specific tool allocation", because it provides the optimal balance of context efficiency, role clarity, and operational capability. |
 | [ADR-006](ADR-006-thin-workflows-testable-modules.md) | Thin Workflows, Testable Modules | 2026-04-29 | Chosen option: Option 1 - Thin Workflows, Testable Modules |
-| [ADR-007](ADR-007-memory-first-architecture.md) | Memory-First Architecture | 2026-08-16 | Memory retrieval MUST precede reasoning in all agent workflows. |
 | [ADR-008](ADR-008-protocol-automation-lifecycle-hooks.md) | Protocol Automation via Lifecycle Hooks | 2026-08-19 | Lifecycle hooks MUST automate SESSION-PROTOCOL enforcement. |
 | [ADR-009](ADR-009-parallel-safe-multi-agent-design.md) | Parallel-Safe Multi-Agent Design | 2025-12-20 | Multi-agent coordination MUST include consensus mechanisms for conflict resolution. |
 | [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern | 2025-12-20 | All significant outputs MUST pass through a formalized evaluator-optimizer loop. |
@@ -113,7 +112,6 @@ These bind today.
 | [ADR-033](ADR-033-routing-level-enforcement-gates.md) | Routing-Level Enforcement Gates | 2026-08-16 | Implement routing-level enforcement gates using Claude Code hooks. |
 | [ADR-034](ADR-034-investigation-session-qa-exemption.md) | Investigation Session QA Exemption | 2026-07-08 | Add investigation-only session exemption to pre-commit QA validation with staged-file guardrails. |
 | [ADR-035](ADR-035-exit-code-standardization.md) | Exit Code Standardization | 2025-12-30 | Chosen option: Option 1 - POSIX-Style Standard |
-| [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture | 2026-07-20 | Implement a Memory Router that provides: |
 | [ADR-040](ADR-040-skill-frontmatter-standardization.md) | Skill Frontmatter Standardization and Model Identifier Strategy | 2026-08-14 | Adopt the following standardization for all 27 Claude Code skills: |
 | [ADR-041](ADR-041-codeql-integration.md) | CodeQL Integration Multi-Tier Strategy | 2026-07-21 | Chosen option: Option 4 - Multi-Tier with Shared Configuration |
 | [ADR-042](ADR-042-python-migration-strategy.md) | Python Migration Strategy | 2026-08-25 | Migrate the ai-agents project from PowerShell to Python as the primary scripting language over a 12-24 month phased migration period. |
@@ -131,6 +129,7 @@ These bind today.
 | [ADR-060](ADR-060-rework-warning-session-log-persistence.md) | Rework Warning Evidence Persistence in Session Log JSON | 2026-07-27 | Add an optional `reworkWarning` object under `protocolCompliance.sessionEnd` in the session log JSON. |
 | [ADR-062](ADR-062-conditional-lsp-first-enforcement.md) | Conditional LSP-First Navigation Enforcement | 2026-07-27 | Adopt a conditional, availability-gated LSP-first enforcement layer, ported to Python, wired into both harnesses, covering every LSP-navigable file type. |
 | [ADR-063](ADR-063-memory-skill-decomposition.md) | Decompose the Memory Skill Into Focused Sub-Skills | 2026-07-27 | Decompose the monolithic `memory` skill into focused sub-skills split by operation, keep `memory` as a thin router that delegates, and preserve the `memory` skill name so existing callers do not... |
+| [ADR-064](ADR-064-commands-to-skills-migration.md) | Retire `.claude/commands/` as a Canonical Authoring Surface; Skills Are the Single User-Invocable Surface | 2026-06-01 | Retire `.claude/commands/` as a canonical authoring surface. |
 | [ADR-066](ADR-066-hook-fail-open-reconciliation.md) | Hook Fail-Open Reconciliation (Prevention-First, Fail-Closed-and-Loud) | 2026-07-19 | Chosen option: 3 - prevention-first, fail-closed-and-loud, because the #2205 incident proved that launcher-level fail-open does not protect users. |
 | [ADR-068](ADR-068-consolidated-hook-dispatcher.md) | Consolidated Per-Event Hook Dispatcher | 2026-07-31 | Generate one dispatcher host entry per active, safely consolidatable Copilot hook event. |
 | [ADR-071](ADR-071-plugin-hook-runtime-contract-verification.md) | Plugin Hook Runtime-Contract Verification | 2026-08-19 | Anchor every plugin hook command to the plugin root. |
@@ -151,6 +150,8 @@ These bind today.
 | [ADR-099](ADR-099-remove-commit-limit-bypass-gate.md) | Remove the commit-count block and its commit-limit-bypass label | 2026-08-21 | Remove the commit-count block and the `commit-limit-bypass` label mechanism entirely, from both the CI workflow (`pr-validation.yml`, `scripts/ci/enforce_pr_validation.py`) and the local pre-push... |
 | [ADR-102](ADR-102-session-qa-binding-field-precedence.md) | Replace session_qa_binding()'s Field-Equality Raise with Documented Precedence and a Diagnostic | 2026-08-21 | Delete the equality raise. |
 | [ADR-103](ADR-103-skill-output-python-contract-correction.md) | Skill Output Format Standardization, Python Contract Correction | 2026-08-25 | Supersede ADR-056 items 2 and 6, and its enforcement scope, as follows. |
+| [ADR-105](ADR-105-terminal-state-completion-contract.md) | Terminal-State Completion Contract | 2026-09-03 | Put the whole completion contract on the always-on rule path, and keep exactly one operational procedure delegated to the skill that already owned it. |
+| [ADR-106](ADR-106-serena-only-memory-architecture.md) | Serena-Only Memory Architecture | 2026-09-08 | The memory-first principle survives unchanged. |
 
 ## Proposed
 
@@ -169,12 +170,11 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-049](ADR-049-pre-pr-validation-gates.md) | Pre-PR Validation Gates | 2026-02-24 | All PRs MUST pass a local validation gate before creation. | - |
 | [ADR-058](ADR-058-agent-eval-discipline.md) | Agent Eval Discipline (Agent-vs-Baseline Efficacy) | 2026-05-03 | Adopt the agent-vs-baseline efficacy methodology defined below as the standard for empirical validation of agent specialization. | - |
 | [ADR-059](ADR-059-pr-review-completion-gate-dispatcher.md) | /pr-review Completion Gate Dispatcher and pass_when DSL | 2026-05-08 | Replace the narrative completion gate with a dispatcher. | - |
-| [ADR-064](ADR-064-commands-to-skills-migration.md) | Retire `.claude/commands/` as a Canonical Authoring Surface; Skills Are the Single User-Invocable Surface | 2026-06-01 | Retire `.claude/commands/` as a canonical authoring surface. | - |
 | [ADR-065](ADR-065-orchestrator-as-router.md) | Orchestrator Is a Deterministic Router and Retry Policy, Not a Supervisor | 2026-05-29 | The orchestrator is a deterministic router with a retry policy. | - |
 | [ADR-067](ADR-067-validate-pr-change-claim-context.md) | validate-pr Check 1 default-flip - change-claim context required | 2026-06-02 | Adopt Option (c) Hybrid: keep patterns 1 (bold `path.ext`) and 2 (bullet-list `^[-*+] path.ext`) firing in any context. | - |
 | [ADR-069](ADR-069-context-corpus-is-the-product.md) | The Curated Context Corpus IS the Product, Orchestration Is Plumbing | 2026-05-02 | Adopt the following architectural principle: | - |
 | [ADR-070](ADR-070-memory-first-gate-spec-pipeline.md) | Memory-First Gate Is a BLOCKING Step in the Spec Pipeline | 2026-07-27 | The Memory-First Gate is a BLOCKING step (Step 0.5) in the `/spec` pipeline, running after Step 0 and before Step 1. | - |
-| [ADR-072](ADR-072-jtbd-plugin-architecture.md) | JTBD-Based Plugin Architecture with Per-Harness Emission | 2026-06-09 | Adopt two coupled changes. | Architect design review completed (verdict: APPROVE WITH CHANGES); this ADR may exist as `Proposed` but MUST clear the five approval conditions in "Conditions to reach Accepted" before its status... |
+| [ADR-072](ADR-072-jtbd-plugin-architecture.md) | JTBD-Based Plugin Architecture with Per-Harness Emission | 2026-06-09 | Adopt two coupled changes. | Amended 2026-09-09 after a six-seat `adr-review` round. This ADR may exist as `Proposed` but MUST clear the conditions in "Conditions to reach Accepted" before its status moves to `Accepted` and any... |
 | [ADR-075](ADR-075-form-factor-eval-methodology.md) | Form-Factor Evaluation Methodology (Agent vs Skill) | 2026-07-20 | Adopt a three-variant eval. | Requested by issue [#1875](https://github.com/rjmurillo/ai-agents/issues/1875). Follow-on to ADR-058 (agent eval discipline), which scoped the form-factor question out and tracked it here. |
 | [ADR-077](ADR-077-flip-stale-contract-tests.md) | Flip Stale Contract Tests | 2026-06-29 | Add a governance rule to `.agents/governance/TESTING-RIGOR.md`: when a change alters an observable contract, the author must find and flip stale tests in the same diff. | This is a 90-day experimental governance rule. The review checkpoint is 2026-09-27. |
 | [ADR-078](ADR-078-autoplan-orchestrator-router-boundary.md) | Autoplan and Orchestrator Router Boundary | 2026-08-20 | Adopt an explicit two-layer boundary and document it in both routing surfaces: the autoplan skill and the orchestrator shared source. | - |
@@ -185,7 +185,7 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-093](ADR-093-verify-red-checks-with-the-same-checker.md) | A local run clears a red remote check only when it is the same checker | 2026-08-07 | Add one MUST to `.claude/rules/universal.md`, which is always-on: | - |
 | [ADR-098](ADR-098-agent-role-metadata-replaces-tier-hierarchy.md) | Agent Role Metadata Replaces the Tier Hierarchy | 2026-08-20 | Retire the four-tier agent hierarchy. | - |
 | [ADR-100](ADR-100-retire-pr-size-ceilings.md) | Retire the Pull Request Size Ceilings | 2026-08-20 | Retire both size ceilings as blocking gates. | - |
-| [ADR-101](ADR-101-enforcement-planes.md) | Enforcement Planes | 2026-08-20 | Adopt enforcement plane classification as this repository's rule for gate design, and treat the control plane's current gaps as prerequisites rather than as background. | - |
+| [ADR-101](ADR-101-enforcement-planes.md) | Enforcement Planes | 2026-08-20 | Adopt enforcement plane classification as this repository's rule for gate design, and treat the control plane's current gaps as prerequisites rather than as background. | Round 12 of `adr-review` ran on 2026-09-09 after the repository owner ruled the ten-round cap binding, so round 11's no-Block tally does not settle this record. Round 12 returned two Blocks (critic... |
 | [ADR-104](ADR-104-gate-tier-placement-and-budgets.md) | Gate Tier Placement | 2026-08-25 | Three tiers, each with a stated job. | Six-seat adr-review debate held 2026-08-25; log at `.agents/critique/ADR-104-debate-log.md`. The first revision was blocked by two seats and this record is the rewrite. `implemented` stays false... |
 
 ## Retired
@@ -197,10 +197,12 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-002](ADR-002-agent-model-selection-optimization.md) | Agent Model Selection Optimization | deprecated | not recorded |
 | [ADR-004](ADR-004-pre-commit-hook-architecture.md) | Pre-Commit Hook as Validation Orchestration Point | superseded | [ADR-086](ADR-086-lefthook-local-hook-orchestration.md) |
 | [ADR-005](ADR-005-powershell-only-scripting.md) | PowerShell-Only Scripting Standard | superseded | [ADR-042](ADR-042-python-migration-strategy.md) |
+| [ADR-007](ADR-007-memory-first-architecture.md) | Memory-First Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
 | [ADR-024](ADR-024-github-actions-runner-selection.md) | GitHub Actions Runner Selection | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-025](ADR-025-github-actions-arm-runners.md) | GitHub Actions ARM Runner Migration | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) (via ADR-056) |
 | [ADR-036](ADR-036-two-source-agent-template-architecture.md) | Two-Source Agent Template Architecture | superseded | [ADR-052](ADR-052-template-strategy.md) |
+| [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
 | [ADR-039](ADR-039-agent-model-cost-optimization.md) | Agent Model Cost Optimization | deprecated | not recorded |
 | [ADR-044](ADR-044-copilot-cli-frontmatter-compatibility.md) | Copilot CLI Frontmatter Compatibility | superseded | [ADR-094](ADR-094-govern-copilot-cli-compatibility.md) |
 | [ADR-056](ADR-056-skill-output-format-standardization.md) | Skill Output Format Standardization | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) |

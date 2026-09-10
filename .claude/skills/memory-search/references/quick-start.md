@@ -81,7 +81,7 @@ python3 .claude/skills/memory/scripts/search_memory.py \
 python3 .claude/skills/memory/scripts/test_memory_health.py --format table
 
 # Memory Router status (via MCP tools)
-# Use mcp__serena__list_memories() or mcp__forgetful__execute_forgetful_tool("query_memory", {...})
+# Use mcp__serena__list_memories()
 ```
 
 ### Extract Episode from Session
@@ -212,7 +212,7 @@ from memory_router import search_memory
 from reflexion_memory import get_episodes
 
 # 1. Read usage-mandatory memory
-mandatory = search_memory(query="usage-mandatory", lexical_only=True)
+mandatory = search_memory(query="usage-mandatory")
 
 # 2. Search for relevant project memories
 project_context = search_memory(query="project phase 2A", max_results=10)
@@ -237,36 +237,6 @@ git commit -m "session: Extract episode"
 ```
 
 ## Performance Optimization
-
-### When to Use LexicalOnly
-
-```python
-from memory_router import search_memory
-
-# Use lexical_only when:
-# - Forgetful is unavailable
-# - Performance is critical
-# - Exact keyword matching is needed
-
-results = search_memory(query="exact term", lexical_only=True)
-```
-
-### When to Use SemanticOnly
-
-```python
-from memory_router import search_memory
-
-# Use semantic_only when:
-# - Need conceptual similarity
-# - Keywords are ambiguous
-# - Exploring related topics
-
-try:
-    results = search_memory(query="authentication security", semantic_only=True)
-except RuntimeError:
-    print("WARNING: Forgetful unavailable, falling back to lexical")
-    results = search_memory(query="authentication security", lexical_only=True)
-```
 
 ### Caching Results
 
@@ -321,22 +291,6 @@ if [ ! -f "$EPISODE_PATH" ]; then
             "$SESSION_LOG"
     fi
 fi
-```
-
-### Forgetful Not Available
-
-```python
-from memory_router import test_forgetful_available, search_memory
-
-# Check Forgetful health
-available = test_forgetful_available(force=True)
-
-if not available:
-    print("WARNING: Forgetful not available")
-    print("Solutions:")
-    print("  1. Start Forgetful: systemctl --user start forgetful")
-    print("  2. Check port: ss -tlnp | grep 8020")
-    print("  3. Use lexical_only: search_memory(query='test', lexical_only=True)")
 ```
 
 ## Best Practices

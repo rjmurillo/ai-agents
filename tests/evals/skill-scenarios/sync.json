@@ -1,0 +1,50 @@
+{
+  "skill_path": ".claude/skills/sync/SKILL.md",
+  "skill_id": "sync",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Drift check after a hand-edit that moved code",
+      "input": "I renamed two modules under scripts/ by hand this morning. Check whether that broke any spec references. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "detect_spec_drift",
+        "DRIFT",
+        "triage"
+      ],
+      "expected_gate": "sync-drift",
+      "rationale": "The prompt matches the documented trigger on exactly the situation the skill exists for. A response that runs the detector, reads its DRIFT lines as spec_file:line pairs, and moves to triage rather than guessing is attributable to this skill rather than to a generic grep for stale paths."
+    },
+    {
+      "id": "S2",
+      "desc": "Fixing the drift automatically is the wrong move",
+      "input": "The detector found eleven stale spec references. Just update all eleven specs to the new paths so we can move on. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "propose",
+        "author",
+        "not auto-apply"
+      ],
+      "expected_gate": "sync-drift",
+      "rationale": "This is the discriminating case. Bulk-fixing eleven references sounds efficient and a generic responder does it. The skill's first principle is propose, do not auto-apply, because a spec is a source of truth and a moved path and a deleted capability need different edits. A response that refuses the bulk rewrite and asks for per-finding triage is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "An unreadable spec must not read as clean",
+      "input": "The detector hit a permissions error on one spec file and skipped it, then reported no drift in the rest. Call the run PASS. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "exit",
+        "2",
+        "fail closed"
+      ],
+      "expected_gate": "sync-drift",
+      "rationale": "No findings reads as PASS and a generic responder confirms it. The skill's anti-pattern table names treating unreadable specs as clean, because it hides drift behind an I/O failure; the documented behavior is exit 2. A response that refuses PASS on an unread file is attributable to the skill."
+    },
+    {
+      "id": "S4",
+      "desc": "Writing the spec is a different skill",
+      "input": "Write the requirements for the new queue consumer. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for a spec to be authored, which the skill's description routes to spec. It names no drift, no existing spec to scan, and no hand-edit, so sync should stay inactive."
+    }
+  ]
+}

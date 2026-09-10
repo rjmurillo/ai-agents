@@ -58,7 +58,7 @@ pytest collects only `testpaths = ["tests"]` (`pyproject.toml [tool.pytest.ini_o
 
 | Location | Collected by default | What lives there | Run it |
 |----------|---------------------|------------------|--------|
-| `tests/` | Yes | Root suite: scripts, hooks (`tests/hooks/`), build scripts (`tests/build_scripts/`), workflows, harness-specific suites (`tests/claude_mem/`, `tests/forgetful/`, `tests/claude/skills/`) | `uv run pytest tests/ -x` |
+| `tests/` | Yes | Root suite: scripts, hooks (`tests/hooks/`), build scripts (`tests/build_scripts/`), workflows, harness-specific suites (`tests/claude_mem/`, `tests/claude/skills/`) | `uv run pytest tests/ -x` |
 | `tests/skills/NAME/` | Yes | Structure and behavior tests for a skill; kept outside customer installs | `uv run pytest tests/skills/NAME/ -x` |
 | `.claude/skills/NAME/tests/` | Via bundle-suite runner | Legacy colocated skill tests; do not add new ones | `uv run pytest .claude/skills/NAME/tests/ -q` |
 

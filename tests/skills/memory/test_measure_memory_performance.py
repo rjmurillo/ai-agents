@@ -36,24 +36,35 @@ class TestMeasureSerenaSearch:
         assert result["MatchedFiles"] >= 1
 
 
-class TestTestForgetfulAvailable:
-    """Tests for test_forgetful_available function."""
+class TestRetiredBackendBenchmark:
+    """Negative control: the second backend's benchmark path is gone."""
 
-    def test_unavailable_endpoint(self):
-        result = measure_memory_performance.test_forgetful_available(
-            "http://localhost:59999/fake"
+    def test_module_makes_no_network_call(self):
+        """The benchmark must stay offline.
+
+        It POSTed to an MCP endpoint over HTTP, which is why the module
+        imported `validate_http_url` for scheme validation. With the request
+        gone the validator has nothing to guard, so this asserts the absence
+        of the machinery instead: the import is not a substitute for the
+        request never being made.
+        """
+        measured = [
+            name
+            for name in dir(measure_memory_performance)
+            if name.startswith("measure_")
+        ]
+        assert measured == ["measure_serena_search"]
+        endpoints = [
+            name
+            for name in dir(measure_memory_performance)
+            if name.endswith("_ENDPOINT")
+        ]
+        assert endpoints == []
+        source = Path(measure_memory_performance.__file__).read_text(
+            encoding="utf-8"
         )
-        assert result is False
-
-
-class TestMeasureForgetfulSearch:
-    """Tests for measure_forgetful_search function."""
-
-    def test_returns_error_when_unavailable(self):
-        result = measure_memory_performance.measure_forgetful_search(
-            "test", "http://localhost:59999/fake", 1, 0
-        )
-        assert "Error" in result
+        for forbidden in ("urllib", "socket", "http://"):
+            assert forbidden not in source
 
 
 class TestFormatConsole:
@@ -61,12 +72,7 @@ class TestFormatConsole:
 
     def test_returns_serena_avg(self):
         benchmark = {
-            "Summary": {
-                "SerenaAvgMs": 5.0,
-                "ForgetfulAvgMs": 0.0,
-                "SpeedupFactor": 0.0,
-                "Target": "96-164x",
-            }
+            "Summary": {"SerenaAvgMs": 5.0}
         }
         # format_console returns a string, does not print
         result = measure_memory_performance.format_console(benchmark)
@@ -83,12 +89,7 @@ class TestFormatMarkdown:
                 "Iterations": 5,
                 "WarmupIterations": 2,
             },
-            "Summary": {
-                "SerenaAvgMs": 5.0,
-                "ForgetfulAvgMs": 0.0,
-                "SpeedupFactor": 0.0,
-                "Target": "96-164x",
-            },
+            "Summary": {"SerenaAvgMs": 5.0},
         }
         result = measure_memory_performance.format_markdown(benchmark)
         assert "# Memory Performance Benchmark Report" in result

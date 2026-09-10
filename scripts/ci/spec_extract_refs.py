@@ -34,6 +34,142 @@ from pathlib import Path
 EXIT_OK = 0
 EXIT_EXTERNAL = 3
 
+# GitHub resolves closing keywords case-insensitively, in every tense, and
+# tolerates a colon before the reference. This pattern also accepts the
+# non-closing linkage this repository mandates: `.claude/rules/universal.md`
+# MUST 2 offers `Refs #<n>`, and MUST 3 tells authors to downgrade an
+# unsupported `Fixes` claim to `Refs`. While `Refs` was absent here, following
+# that rule set `has_specs=false`, every judging step in
+# `.github/workflows/ai-spec-validation.yml` skipped on its
+# `has_specs == 'true'` guard, and the required `Validate Spec Coverage` check
+# reported success having evaluated nothing (issue #5489). The missing GitHub
+# spellings (`closed`, `fixed`, `resolved`, `Closes: #10`, `owner/repo.name#10`)
+# opened the same fail-open (issue #5620). `AB#` work-item tokens are issue
+# #5621 and are out of scope here.
+#
+# `See #<n>` is deliberately excluded. It reads as ordinary prose and in this
+# repository most often points at a pull request rather than an issue, which
+# `gh issue view` cannot resolve.
+#
+# The leading `\b` is load-bearing: without it `prefixes #42` matched on
+# `fixes`. The trailing guard and the `[1-9][0-9]*` number are load-bearing for
+# the same reason in the other direction: `#\d+` with no guard read
+# `Refs #4054garbage` as issue 4054 and loaded an unrelated issue into the
+# judge's context, and it accepted `#0` and `#007`, neither of which can resolve.
+# Ordinary sentence punctuation after a reference still matches, because the
+# guard excludes only identifier characters.
+_ISSUE_REF_PATTERN = re.compile(
+    r"\b(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?|implement(?:s|ed)?|refs?|part\s+of)"
+    r"(?:\s*:\s*|\s+)"
+    r"((?:[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*)?#[1-9][0-9]*)"
+    r"(?![0-9A-Za-z_])",
+    re.IGNORECASE,
+)
+
+# GitHub does not link an issue from a keyword inside a code span or a fenced
+# block, so neither may arm this gate. Measured on PR #5648's own run: the body
+# discussed the bug using `Closes: #10`, `Refs #5600` and `Refs #5623` as
+# examples inside backticks, and the widened parser reported
+# `ISSUE_REFS: 10 5489 5600 5620 5621 5623`. Three of those six are prose, two
+# of them pull request numbers, and the loader fed all of them to the judge as
+# if they were this PR's requirements. `validate_pr_description.py` already
+# treats a closing keyword in a code span as not-a-link, for the same reason.
+#
+# Deliberately not applied to `_extract_spec_refs`: `.github/PULL_REQUEST_TEMPLATE.md`
+# writes spec paths in backticks (`| **Spec** | `.agents/planning/...` |`), so
+# masking there would disarm the gate on the template's own convention. The
+# asymmetry is real, because a code span suppresses GitHub's issue linking and
+# says nothing about a file path.
+# Masking is a scanner rather than a regex because the delimiters carry length
+# semantics a regex backreference gets wrong in both directions, and both
+# directions were live defects found in review of PR #5648:
+#
+#   1. A fence closes on a run of the same character at least as long as the
+#      opener. `\1` demanded an exact-length match, so an opener of three
+#      backticks closed by four never matched, the block ran to `\Z`, and every
+#      reference after it in the body was masked. That is the same
+#      `has_specs=false` fail-open this file exists to close, reintroduced.
+#   2. A code span closes on a backtick run of exactly the opener's length and
+#      may contain shorter runs. ``a ` b`` ended the span at the inner single
+#      backtick, exposing the rest of the span as prose.
+#
+# Masked characters become NUL rather than a space so the keyword-to-reference
+# separator (`\s`) cannot bridge across removed content: `Fixes `x` #12` must
+# not become a link that the unmasked body never had.
+_MASK = "\x00"
+_FENCE_OPENER = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})")
+
+
+def _mask_fenced_blocks(text: str) -> str:
+    """Blank fenced code blocks, honoring the same-character, at-least-as-long closer."""
+    masked: list[str] = []
+    fence_char = ""
+    fence_len = 0
+    for line in text.split("\n"):
+        if not fence_char:
+            opener = _FENCE_OPENER.match(line)
+            if opener:
+                run = opener.group(1)
+                fence_char, fence_len = run[0], len(run)
+                masked.append(_MASK)
+                continue
+            masked.append(line)
+            continue
+        closer = line.strip()
+        if closer and set(closer) == {fence_char} and len(closer) >= fence_len:
+            fence_char, fence_len = "", 0
+        masked.append(_MASK)
+    # An unclosed fence stays masked through the end of the body, which is what
+    # a Markdown renderer does with it too.
+    return "\n".join(masked)
+
+
+def _mask_inline_code(text: str) -> str:
+    """Blank inline code spans, closing each on a backtick run of the opener's length."""
+    masked: list[str] = []
+    index = 0
+    length = len(text)
+    while index < length:
+        if text[index] != "`":
+            masked.append(text[index])
+            index += 1
+            continue
+        after_opener = index
+        while after_opener < length and text[after_opener] == "`":
+            after_opener += 1
+        opener_len = after_opener - index
+        close_at = _find_closing_run(text, after_opener, opener_len)
+        if close_at < 0:
+            # No closer of the right length: this is literal text, not a span.
+            masked.append("`" * opener_len)
+            index = after_opener
+            continue
+        masked.append(_MASK * (close_at + opener_len - index))
+        index = close_at + opener_len
+    return "".join(masked)
+
+
+def _find_closing_run(text: str, start: int, run_len: int) -> int:
+    """Return the index of the next backtick run of exactly run_len, or -1."""
+    index = start
+    length = len(text)
+    while index < length:
+        if text[index] != "`":
+            index += 1
+            continue
+        run_end = index
+        while run_end < length and text[run_end] == "`":
+            run_end += 1
+        if run_end - index == run_len:
+            return index
+        index = run_end
+    return -1
+
+
+def _strip_code(text: str) -> str:
+    """Blank out fenced blocks and inline code spans, keeping the rest intact."""
+    return _mask_inline_code(_mask_fenced_blocks(text))
+
 
 def write_github_output(key: str, value: str) -> None:
     """Append key=value to GITHUB_OUTPUT; fall back to stdout."""
@@ -95,11 +231,13 @@ def _extract_spec_refs(combined: str) -> str:
 
 
 def _extract_issue_refs(combined: str) -> str:
-    """Return space-delimited issue refs (numeric or owner/repo#N)."""
-    raw = re.findall(
-        r"(?:Closes|Fixes|Resolves|Implements)\s+((?:[A-Za-z0-9_-]+/[A-Za-z0-9_-]+)?#\d+)",
-        combined,
-    )
+    """Return space-delimited issue refs (numeric or owner/repo#N).
+
+    Accepts every GitHub closing keyword plus non-closing linkage, ignoring
+    anything inside a code span or fenced block. See `_ISSUE_REF_PATTERN` and
+    `_strip_code` for why each of those is a gate defect.
+    """
+    raw = [match.group(1) for match in _ISSUE_REF_PATTERN.finditer(_strip_code(combined))]
     results: list[str] = []
     for ref in sorted(set(raw)):
         if ref.startswith("#"):

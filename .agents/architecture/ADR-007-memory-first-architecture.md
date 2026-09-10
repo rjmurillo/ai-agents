@@ -1,10 +1,10 @@
 ---
 id: ADR-007
-status: accepted
+status: superseded
 date: 2026-08-16
 decision-makers: [rjmurillo]
 supersedes: []
-superseded-by: null
+superseded-by: ADR-106
 explainer: null
 implemented: true
 ---
@@ -13,7 +13,11 @@ implemented: true
 
 ## Status
 
-Accepted (Revised 2026-01-01)
+Superseded by ADR-106 (2026-09-08, issue #5574). Previously Accepted
+(Revised 2026-01-01). The memory-first principle this record established is
+carried forward unchanged by ADR-106 Decision item 1 and remains binding; the
+Dual Memory Architecture table below describes a second backend that was
+decommissioned under #5574. The body is preserved as written.
 
 ### Current-State Amendment (2026-08-16)
 

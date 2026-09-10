@@ -34,9 +34,18 @@ if TYPE_CHECKING:
     # ``tuple[int, str, str]`` return type is preserved. Runtime uses the bare
     # import because ``pre_pr`` and ``checks_ratchet`` load this module as a
     # top-level name after inserting ``_SCRIPT_DIR`` on ``sys.path``.
-    from scripts.validation.subprocess_runner import _run_subprocess
+    # ``classify_subprocess_failure`` reads that wrapper's return contract, so
+    # it lives beside it and is re-exported here to keep one shared subprocess
+    # surface for the ``checks_*`` modules. Unused here by design (noqa below).
+    from scripts.validation.subprocess_runner import (
+        _run_subprocess,
+        classify_subprocess_failure,
+    )
 else:
-    from subprocess_runner import _run_subprocess
+    from subprocess_runner import (  # noqa: F401
+        _run_subprocess,
+        classify_subprocess_failure,
+    )
 
 
 

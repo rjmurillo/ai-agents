@@ -83,6 +83,19 @@ def _validate_path_field(name: str, value: object) -> list[str]:
     ]
 
 
+# Measured against Claude Code 2.1.122 (commit a4ed5850c, 2026-05-01). Re-probed
+# on 2.1.266 (2026-09-09): `claude plugin validate` accepts explicit `skills` and
+# `commands` path keys, and an unrecognized key only warns ("Claude Code ignores
+# it at load time") while a wrong-typed known key hard-fails, so the two are
+# distinguishable. The narrow rejection this constant guards was NOT re-probed
+# against a real marketplace install, so the guard stays until someone does that.
+#
+# Read the version as the date of a measurement, not as a standing platform law.
+# Five of six reviewers in the 2026-09-09 ADR-072 round read this comment as the
+# latter and blocked a decision on it. The check is also narrower than it reads:
+# _is_repo_marketplace_manifest matches three hardcoded paths, so a plugin root
+# anywhere else is unaffected.
+#
 # Claude Code 2.1.122 rejects explicit discovery keys in the manifests shipped
 # by this repo's marketplace, even though the published schema still documents
 # these fields. Auto-discovery works when the keys are omitted.

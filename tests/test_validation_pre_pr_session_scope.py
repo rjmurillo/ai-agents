@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+from scripts.validation.evidence import EvidenceState
 from scripts.validation.pre_pr import validate_session_end
 
 
@@ -36,7 +37,7 @@ def test_session_newness_is_computed_from_head(tmp_path: Path) -> None:
         "checks_tooling.new_session_logs",
         return_value=set(),
     ) as new_session_logs_mock:
-        assert validate_session_end(tmp_path) is True
+        assert validate_session_end(tmp_path).state is EvidenceState.PASS
 
     new_session_logs_mock.assert_called_once_with(
         [path],
@@ -67,7 +68,7 @@ def test_missing_worktree_copy_of_branch_session_fails_closed(
         "checks_tooling.new_session_logs",
         return_value={path},
     ):
-        assert validate_session_end(tmp_path) is False
+        assert validate_session_end(tmp_path).state is EvidenceState.FAIL
 
     assert seen[-1][1].endswith("validate_session_json.py")
     assert seen[-1][-2:] == ["--validation-head", "c" * 40]

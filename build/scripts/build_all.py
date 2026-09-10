@@ -96,7 +96,6 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
 import generate_adr_index  # noqa: E402
-import generate_commands  # noqa: E402
 import generate_hooks  # noqa: E402
 import generate_rules  # noqa: E402
 import generate_skills  # noqa: E402
@@ -256,43 +255,6 @@ def _build_adr_index(repo_root: Path, _config_path: Path, _platform: str) -> Gen
         if generate_adr_index.is_adr_filename(path.name)
     )
     result.outputs = 1 if output_path.is_file() else 0
-    return result
-
-
-def _build_commands(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
-    """Bridge Claude commands to user-invocable skills (REQ-003-001, M4-T1).
-
-    Skips silently when the platform has no ``artifacts.commands`` stanza
-    (e.g. visual-studio, vscode platforms today). Tallies are read from
-    the configured directories so the audit row reflects on-disk state,
-    not generator internals.
-    """
-    try:
-        cfg = load_platform_config(config_path)
-    except ConfigError:
-        cfg = {}
-    artifacts = cfg.get("artifacts") if isinstance(cfg.get("artifacts"), dict) else {}
-    stanza = artifacts.get("commands") if isinstance(artifacts, dict) else None
-    if not isinstance(stanza, dict):
-        result = GeneratorResult(artifact="commands", platform=platform, exit_code=0)
-        result.notices.append(f"{platform}: no artifacts.commands stanza; skipped")
-        return result
-
-    rc = generate_commands.generate_commands(config_path, repo_root)
-    result = GeneratorResult(artifact="commands", platform=platform, exit_code=rc)
-    src = repo_root / str(stanza.get("sourceDir", ""))
-    out = repo_root / str(stanza.get("outputDir", ""))
-    if src.is_dir():
-        # Top-level *.md files only (sub-directories are namespaced sub-
-        # commands the generator skips). Mirrors generate_commands logic.
-        result.inputs = sum(
-            1 for p in src.glob("*.md") if p.is_file() and p.name != "CLAUDE.md"
-        )
-    if out.is_dir():
-        # We can't distinguish command-bridged skills from skills generator
-        # output by file alone, so report 0 and let the per-generator log
-        # carry the truth. Inputs is the load-bearing number for staleness.
-        result.outputs = 0
     return result
 
 
@@ -537,7 +499,6 @@ GENERATORS: list[tuple[str, Callable[[Path, Path, str], GeneratorResult]]] = [
     ("agent-catalog", _build_agent_catalog),
     ("adr-index", _build_adr_index),
     ("skills", _build_skills),
-    ("commands", _build_commands),
     ("rules", _build_rules),
     ("lib", _build_lib),
     ("hooks", _build_hooks),
@@ -1308,6 +1269,74 @@ def _write_bytes_no_redirect(
         os.close(fd)
 
 
+def _publish_bytes_atomically(
+    path: Path, content: bytes, *, mode: int | None = None
+) -> None:
+    """Put ``content`` at ``path`` in one step, via a sibling temp file.
+
+    Only :func:`_restore_owned_prefixes` calls this. It replaces that
+    function's former remove-then-recreate sequence, which left the
+    destination observably absent and then observably empty while
+    ``--check`` was still running. Measured on this branch by polling
+    ``src/copilot-cli/agents/analyst.agent.md`` during
+    ``build/scripts/build_all.py --check`` against a stale tree:
+    ``13147 -> 13110 -> -1 -> 0 -> 8192 -> 12288 -> 13147``, where ``-1`` is
+    the file missing entirely. 74 missing samples and 28 zero-size samples.
+    A reader in another process inside that window gets ``FileNotFoundError``
+    or an empty file that still passes ``Path.is_file()``, which is issue
+    #5502. ``os.replace`` swaps one directory entry, so a concurrent reader
+    opens either the old inode or the new one and never a partial state.
+
+    Follows ``build/generate_agents.py``, function ``_atomic_write_bytes``,
+    which in turn follows ``build/scripts/generate_adr_index.py``, function
+    ``_atomic_write_text``. That chain's load-bearing property, quoted
+    verbatim from the latter:
+
+        ``os.replace``
+        does not follow a symlink destination: it replaces the directory entry
+        itself, so a symlink at ``path`` is unlinked and swapped for a regular
+        file rather than written through.
+
+    Stricter/looser/different than canonical:
+
+    - Different: the temp file is created by :func:`_write_bytes_no_redirect`
+      rather than ``tempfile.mkstemp``. That helper opens with
+      ``O_CREAT | O_EXCL | O_NOFOLLOW`` at ``0o600`` and then ``fchmod``s to
+      ``mode``, which is what ``mkstemp`` does plus the mode handling this
+      caller already needed, so reusing it keeps that helper's contract and
+      its three direct unit tests untouched. The random name supplies the
+      uniqueness ``mkstemp`` would; a collision raises ``FileExistsError``,
+      an ``OSError`` the caller already turns into a ``WARN``.
+    - Looser than the sequence it replaces, deliberately, and this is the one
+      behavior change a reviewer must weigh. Before, a redirect raced in
+      between the removal and the write made ``O_EXCL`` refuse, printing a
+      ``WARN`` and returning ``False``. Now the raced entry is replaced.
+      Nothing is ever opened at ``path``, so the CWE-367 exposure the refusal
+      existed to close (PR #5343 review thread ``PRRT_kwDOQoWRls6epgus``,
+      build_all.py:1843) is closed here by construction instead: the
+      snapshot's bytes cannot travel through a planted link because no
+      descriptor is ever obtained on the destination path.
+      ``test_restore_owned_prefixes_replaces_a_raced_symlink_without_writing_through_it``
+      pins that. The restore contract also strictly improves: the old
+      sequence unlinked first, so a refused write left the file DELETED and
+      the tree further from its pre-run state than when the run started,
+      while a failed ``os.replace`` leaves the destination exactly as it
+      was. ``WARN`` and the ``False`` return survive for every ``OSError``
+      ``os.replace`` can still raise, so
+      :func:`run`'s exit-2 escalation is unchanged.
+    """
+    temporary = path.parent / f".{path.name}.{os.urandom(8).hex()}.tmp"
+    try:
+        _write_bytes_no_redirect(temporary, content, mode=mode)
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
+        raise
+
+
 def _reject_redirecting_ancestors(repo_root: Path, path: Path) -> None:
     """Fail the strict snapshot when a component above ``path`` redirects.
 
@@ -1756,10 +1785,9 @@ def _restore_owned_prefixes(
     printed for each one as it happens). :func:`run` uses this to escalate
     ``--check``'s exit code: this function has always been best-effort
     internally (one failed path must not abort the rest of the restore),
-    but the caller silently ignored the outcome, so a raced redirect that
-    :func:`_write_bytes_no_redirect` correctly refused to write through
-    still let ``--check`` exit 0 with the rollback incomplete (PR #5343
-    review, build_all.py:1724). A directory left over after
+    but the caller silently ignored the outcome, so a restore write that
+    failed still let ``--check`` exit 0 with the rollback incomplete
+    (PR #5343 review, build_all.py:1724). A directory left over after
     :func:`_prune_empty_dirs` fails is not counted: pruning is cosmetic
     (an empty directory carries no content to diverge from the snapshot),
     not a break in the read-only content-restoration contract this return
@@ -1797,15 +1825,19 @@ def _restore_owned_prefixes(
 
     # Cases 1 & 2: restore every file that was in the snapshot.
     #
-    # Both the "already matches" read and the write below go through
-    # _read_bytes_no_redirect / _write_bytes_no_redirect rather than
-    # Path.read_bytes() / Path.write_bytes(), so a symlink or junction raced
-    # in after the is_symlink() checks here and before the actual I/O is
-    # refused instead of written through (CWE-367, PR #5343 review thread at
-    # build_all.py:1843). The write also passes the path's captured mode, so
-    # a restored file keeps its pre-run permissions instead of always coming
-    # back at the write helper's restrictive create default (PR #5343
-    # review, build_all.py:1261).
+    # The "already matches" read goes through _read_bytes_no_redirect rather
+    # than Path.read_bytes(), so a symlink or junction raced in after the
+    # is_symlink() check here and before the read is refused instead of
+    # followed (CWE-367, PR #5343 review thread at build_all.py:1843). The
+    # write goes through _publish_bytes_atomically, which never opens the
+    # destination at all: it fills a fresh sibling temp file and swaps the
+    # directory entry, so the same raced redirect cannot receive the
+    # snapshot's bytes either. Read that helper's divergence section before
+    # changing this; it is the one place the refuse-and-WARN behavior of the
+    # old remove-then-recreate sequence changed. The write also passes the
+    # path's captured mode, so a restored file keeps its pre-run permissions
+    # instead of always coming back at the write helper's restrictive create
+    # default (PR #5343 review, build_all.py:1261).
     for path, content in snapshot.items():
         try:
             if (
@@ -1815,11 +1847,14 @@ def _restore_owned_prefixes(
             ):
                 continue  # already matches snapshot
             if path.is_dir() and not path.is_symlink():
+                # os.replace cannot put a file over a directory, so this one
+                # case still needs an explicit removal first.
                 shutil.rmtree(path)
-            elif path.exists() or path.is_symlink():
-                path.unlink()
             path.parent.mkdir(parents=True, exist_ok=True)
-            _write_bytes_no_redirect(path, content, mode=modes.get(path))
+            # A file or symlink destination is NOT removed first: publishing
+            # over it in one step is what keeps a concurrent reader from ever
+            # seeing it absent or empty (issue #5502).
+            _publish_bytes_atomically(path, content, mode=modes.get(path))
         except OSError as exc:
             # Best-effort restore; surface so CI logs show what was missed,
             # and tell the caller so --check does not report success over an
@@ -2129,9 +2164,9 @@ def run(
                 snapshot,
                 preexisting_boundaries=boundaries,
             )
-            # A raced redirect _write_bytes_no_redirect correctly refused to
-            # write through only prints a WARN, so without this, --check
-            # could still exit 0 over an incomplete rollback (PR #5343
+            # A restore write that failed only prints a WARN, so without
+            # this, --check could still exit 0 over an incomplete
+            # rollback (PR #5343
             # review, build_all.py:1724). Only escalate when generation
             # itself did not already report a failure: a genuine generator
             # error keeps its own, more specific exit code.

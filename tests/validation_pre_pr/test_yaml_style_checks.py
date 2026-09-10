@@ -3,8 +3,9 @@
 Covers ``_yaml_style_targets`` (the branch-scoping helper) and the wiring in
 ``validate_yaml_style`` that decides between an immediate pass, a scoped
 yamllint invocation, and the full-repo fallback. yamllint findings are
-advisory: a scoped or full-repo run that finds style issues still returns
-``True`` (see ``validate_yaml_style``'s docstring in ``checks_tooling.py``).
+advisory: a scoped or full-repo run that finds style issues still reports PASS,
+with the tolerance recorded in the outcome scope rather than as a finding count
+(see ``validate_yaml_style``'s docstring in ``checks_tooling.py``).
 """
 
 from __future__ import annotations
@@ -15,6 +16,12 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.validation.evidence import (
+    REASON_TIMEOUT,
+    REASON_TOOL_ABSENT,
+    EvidenceState,
+    default_pre_pr_policy,
+)
 from scripts.validation.pre_pr import validate_yaml_style
 
 
@@ -106,17 +113,26 @@ class TestYamlStyleTargetsWorktreeOnly:
 class TestValidateYamlStyle:
     """Wiring tests: ``validate_yaml_style`` honors the three scope outcomes."""
 
-    def test_returns_true_when_yamllint_missing(self, tmp_path: Path) -> None:
+    def test_reports_blocked_when_yamllint_missing(self, tmp_path: Path) -> None:
+        """Was test_returns_true_when_yamllint_missing (issue #5635).
+
+        No YAML file was examined. The pre-PR policy licenses this validator
+        and reason by name, so the advisory gate stays non-blocking.
+        """
         with patch("checks_tooling.shutil.which", return_value=None):
             with patch("checks_tooling._run_subprocess") as mock_run:
-                assert validate_yaml_style(tmp_path) is True
+                outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_TOOL_ABSENT
+        assert default_pre_pr_policy().accepts(outcome)
         mock_run.assert_not_called()
 
     def test_empty_scope_passes_without_invoking_yamllint(self, tmp_path: Path) -> None:
         with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
             with patch("checks_tooling._yaml_style_targets", return_value=[]):
                 with patch("checks_tooling._run_subprocess") as mock_run:
-                    assert validate_yaml_style(tmp_path) is True
+                    assert validate_yaml_style(tmp_path).state is EvidenceState.PASS
         mock_run.assert_not_called()
 
     def test_scoped_subset_is_passed_to_yamllint(self, tmp_path: Path) -> None:
@@ -127,7 +143,7 @@ class TestValidateYamlStyle:
             ):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
-                    assert validate_yaml_style(tmp_path) is True
+                    assert validate_yaml_style(tmp_path).state is EvidenceState.PASS
 
         command = mock_run.call_args.args[0]
         assert command == [
@@ -144,7 +160,7 @@ class TestValidateYamlStyle:
             with patch("checks_tooling._yaml_style_targets", return_value=None):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
-                    assert validate_yaml_style(tmp_path) is True
+                    assert validate_yaml_style(tmp_path).state is EvidenceState.PASS
 
         command = mock_run.call_args.args[0]
         assert command == ["yamllint", "-f", "parsable", str(tmp_path)]
@@ -159,7 +175,7 @@ class TestValidateYamlStyle:
                         "config.yml:1:1: [warning] missing document start (document-start)",
                         "",
                     )
-                    assert validate_yaml_style(tmp_path) is True
+                    assert validate_yaml_style(tmp_path).state is EvidenceState.PASS
 
     def test_scoped_path_with_space_is_quoted_as_a_single_argv_element(
         self, tmp_path: Path
@@ -178,7 +194,7 @@ class TestValidateYamlStyle:
             ):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
-                    assert validate_yaml_style(tmp_path) is True
+                    assert validate_yaml_style(tmp_path).state is EvidenceState.PASS
 
         command = mock_run.call_args.args[0]
         assert command == [
@@ -189,3 +205,78 @@ class TestValidateYamlStyle:
         ]
         # Exactly one argv element for the file, not two from a whitespace split.
         assert len(command) == 4
+
+
+class TestYamlStyleExecutionFailures:
+    """A yamllint that never ran must not read as a tolerated-findings PASS.
+
+    Findings are advisory here by design (issue #2374), and the first form of
+    that tolerance collapsed *every* non-zero exit into PASS. But
+    ``_run_subprocess`` signals a timeout and a failed exec with the same
+    non-zero shape as a finding, so the tolerance also swallowed the two cases
+    where nothing was examined at all: the gate reported "advisory findings
+    tolerated" for a run that produced no findings because it never completed.
+    Found by review on PR #5641.
+    """
+
+    def test_a_timeout_reports_unknown(self, tmp_path: Path) -> None:
+        """The discriminating case: an advisory PASS before the fix."""
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (-1, "", "Command timed out after 120s")
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.UNKNOWN
+        assert outcome.reason == REASON_TIMEOUT
+
+    def test_a_timeout_is_not_licensed_by_the_documented_policy(
+        self, tmp_path: Path
+    ) -> None:
+        """The policy licenses an absent yamllint, never an unfinished one.
+
+        An absent tool and a tool that timed out have different remedies, which
+        is why they get different states: install it versus find out why it
+        hung. Licensing the second the way the first is licensed would restore
+        the fail-open in a new place.
+        """
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (-1, "", "Command timed out after 120s")
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert not default_pre_pr_policy().accepts(outcome)
+
+    def test_a_failed_exec_reports_blocked(self, tmp_path: Path) -> None:
+        """yamllint passed the PATH probe and then could not be executed."""
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (-1, "", "Command not found: yamllint")
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.BLOCKED
+        assert outcome.reason == REASON_TOOL_ABSENT
+
+    def test_an_ordinary_finding_exit_is_still_an_advisory_pass(
+        self, tmp_path: Path
+    ) -> None:
+        """Negative control: the fix must not turn real findings into failures.
+
+        Without this, classifying non-zero exits could have made every style
+        finding block the push, which is the behavior issue #2374 removed on
+        purpose.
+        """
+        with patch("checks_tooling.shutil.which", return_value="/usr/bin/yamllint"):
+            with patch("checks_tooling._yaml_style_targets", return_value=["config.yml"]):
+                with patch("checks_tooling._run_subprocess") as mock_run:
+                    mock_run.return_value = (
+                        1,
+                        "config.yml:1:1: [warning] missing document start (document-start)",
+                        "",
+                    )
+                    outcome = validate_yaml_style(tmp_path)
+
+        assert outcome.state is EvidenceState.PASS
+        assert "advisory findings tolerated" in outcome.scope

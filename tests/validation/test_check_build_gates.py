@@ -1,14 +1,14 @@
 """Tests for ``scripts/validation/check_build_gates.py``.
 
-Lock the contract that ``.claude/commands/build.md`` keeps the three
+Lock the contract that ``.claude/skills/build/SKILL.md`` keeps the three
 mandatory exit-gate skill invocations and the ``Mandatory Exit Gates``
 section heading. PR #1887's retrospective documents the failure mode the
 script defends against.
 
 Most tests use temporary file trees so the result does not depend on
-whether someone has just edited build.md. ``test_real_repo_build_md_passes``
+whether someone has just edited the build skill. ``test_real_repo_build_md_passes``
 is the deliberate exception: it runs against the real
-``.claude/commands/build.md`` to guard against regressions in the
+``.claude/skills/build/SKILL.md`` to guard against regressions in the
 file itself, complementing the synthetic fixtures.
 """
 
@@ -85,12 +85,12 @@ Some text.
 @pytest.fixture()
 def fake_repo(tmp_path: Path) -> Path:
     """Create the directory tree the script inspects."""
-    (tmp_path / ".claude" / "commands").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".claude" / "skills" / "build").mkdir(parents=True, exist_ok=True)
     return tmp_path
 
 
 def _write_build_md(repo: Path, content: str) -> Path:
-    target = repo / ".claude" / "commands" / "build.md"
+    target = repo / ".claude" / "skills" / "build" / "SKILL.md"
     target.write_text(content, encoding="utf-8")
     return target
 
@@ -127,10 +127,10 @@ def test_extra_whitespace_in_invocation_is_tolerated(fake_repo: Path) -> None:
 
 
 def test_real_repo_build_md_passes() -> None:
-    """The actual ``.claude/commands/build.md`` in this repo must pass.
+    """The actual ``.claude/skills/build/SKILL.md`` in this repo must pass.
 
     This test guards against regressions in the file itself, complementing
-    the synthetic fixtures above. If someone edits build.md to drop a
+    the synthetic fixtures above. If someone edits the build skill to drop a
     gate, this fails alongside the pre-PR validator.
     """
     violations = cbg.collect_violations(REPO_ROOT)

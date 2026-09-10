@@ -112,10 +112,10 @@ is committed, so it outlives the session that produced it.
 
 ## Graceful Degradation
 
-The reflexion write path is local-only and does not depend on Forgetful. Serena
-is the canonical store and travels with the repository (ADR-007). Episode
-extraction reads a session log and writes an episode record. It requires no
-network store, so there is no Forgetful fallback to invoke here.
+The reflexion write path is local-only. Serena is the canonical store and
+travels with the repository (ADR-007). Episode extraction reads a session log
+and writes an episode record. It requires no network store, so there is no
+fallback to invoke here.
 
 ## Verification
 

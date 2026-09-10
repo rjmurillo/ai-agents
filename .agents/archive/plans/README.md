@@ -47,6 +47,7 @@ tracking issue and the named deliverable present in the working tree.
 | `req-012-retro-fixes-pr-1965.md` | Complete | PR #1965 merged. M1 `wait_for_unresolved_zero.py`, M3 co-change checklist in `spec.md`, M4 `complete_session_log.py`, M5 `bot_cascade_advisory` in `git_hook_policy.py` all present. |
 | `req-017-step-0-5-memory-first-gate.md` | Complete | All five milestones checked off in the plan. Step 0.5 gate present in `.claude/commands/spec.md`. |
 | `review-axes-convergence.md` | Complete, then superseded | #1934 closed as completed by PR #1965. `.claude/review-axes/` later deleted in `c3ddc571` (PR #2043); the 6 axes became 12 under `.claude/skills/review/references/`. Stale references to the old path tracked in #3425. |
+| `model-assignment-unification.md` | Abandoned, superseded | Abandoned 2026-09-03 after the research it depended on landed elsewhere. Successors: issue #5282 and ADR-052. Moved here from `.agents/plans/abandoned/` because the plans README requires both staging directories to be empty at rest (#3426). |
 | `spec-005-command-skill-bundling-implementation.md` | Landed partial, registry now stale | `scripts/validation/bundle_registry.py` and `tests/test_command_bundles.py` exist, but all 15 registry rows fail and the check never left advisory mode. Tracked in #3424. |
 
 ## Reading these files

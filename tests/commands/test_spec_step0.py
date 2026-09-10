@@ -3,7 +3,7 @@
 Refs #1926, REQ-016, DESIGN-016, TASK-016, PLAN-1926.
 
 Verifies the static structure and parser-checkable behavior of Step 0
-instructions in `.claude/commands/spec.md` and its Copilot CLI mirror at
+instructions in `.claude/skills/spec/SKILL.md` and its Copilot CLI mirror at
 `src/copilot-cli/skills/spec/SKILL.md`. The parser logic lives in
 `tests/commands/step0_parser.py`; this file holds only test cases.
 
@@ -35,8 +35,24 @@ from tests.commands.step0_parser import (
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SPEC_MD = PROJECT_ROOT / ".claude" / "commands" / "spec.md"
+SPEC_MD = PROJECT_ROOT / ".claude" / "skills" / "spec" / "SKILL.md"
 SKILL_MD = PROJECT_ROOT / "src" / "copilot-cli" / "skills" / "spec" / "SKILL.md"
+
+
+def _spec_surface(skill_md: Path) -> str:
+    """The whole spec surface: the skill body plus every reference it ships.
+
+    ADR-064 (issue #5632) made spec a skill and moved the Step 0.5 gate into
+    `references/step-0-5-memory-gate.md`, so the contract these tests pin now
+    spans two files. Concatenating in body-then-references order preserves the
+    heading ordering the AC-01 test asserts.
+    """
+    parts = [skill_md.read_text(encoding="utf-8")]
+    parts.extend(
+        ref.read_text(encoding="utf-8")
+        for ref in sorted((skill_md.parent / "references").glob("*.md"))
+    )
+    return "\n".join(parts)
 # The Copilot mirror lives under `.../skills/spec/SKILL.md`; the skills output
 # tree is two levels up. Translation needs it to resolve the agent_type plugin
 # namespace from the tree's plugin.json.

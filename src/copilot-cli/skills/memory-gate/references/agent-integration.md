@@ -23,8 +23,8 @@ This guide explains how AI agents integrate with the memory system. The memory s
 │                                                              │
 │  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐ │
 │  │  Skill Script  │  │  Python        │  │   MCP Tools    │ │
-│  │  search_memory │  │   Module       │  │  Serena/       │ │
-│  │     .py        │  │   Import       │  │  Forgetful     │ │
+│  │  search_memory │  │   Module       │  │  Serena        │ │
+│  │     .py        │  │   Import       │  │                │ │
 │  └───────┬────────┘  └───────┬────────┘  └───────┬────────┘ │
 └──────────┼───────────────────┼───────────────────┼──────────┘
            │                   │                   │
@@ -34,7 +34,7 @@ This guide explains how AI agents integrate with the memory system. The memory s
 │                                                              │
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │                   Memory Router                         │ │
-│  │              (Serena-first + Forgetful)                 │ │
+│  │                    (Serena)                             │ │
 │  └────────────────────────┬───────────────────────────────┘ │
 │                           │                                  │
 │  ┌────────────────────────▼───────────────────────────────┐ │
@@ -104,18 +104,13 @@ mcp__serena__list_memories()
 mcp__serena__read_memory(memory_file_name="powershell/powershell-array-handling")
 mcp__serena__write_memory(memory_file_name="new-pattern", content="...")
 
-# Forgetful (semantic search, requires service)
-mcp__forgetful__execute_forgetful_tool("query_memory", {
-    "query": "authentication patterns",
-    "query_context": "looking for security best practices"
-})
 ```
 
 **Advantages**:
 
 - Native Claude tool integration
 - No subprocess required
-- Direct semantic search capability
+- Reads the committed corpus directly, with no service to be up
 
 ## Agent Workflows
 
@@ -179,7 +174,6 @@ At session end, extract and persist learnings:
 │  Step 2: Store Key Memories                                  │
 │                                                              │
 │  mcp__serena__write_memory(...)                              │
-│  mcp__forgetful__execute_forgetful_tool("create_memory",...) │
 │                                                              │
 │  → Persist important patterns for future sessions            │
 └─────────────────────────────────────────────────────────────┘
@@ -316,8 +310,7 @@ git commit -m "session: Extract episode and update memory"
 
 1. **Be Specific**: "shell array handling" not "arrays"
 2. **Use Filters**: Limit results to avoid information overload
-3. **Check Availability**: Handle Forgetful unavailability gracefully
-4. **Cache Results**: Reuse within a session to reduce latency
+3. **Cache Results**: Reuse within a session to reduce latency
 
 ### For Episode Management
 
@@ -326,16 +319,6 @@ git commit -m "session: Extract episode and update memory"
 3. **Store Lessons**: Make lessons actionable and specific
 
 ## Error Handling
-
-### Forgetful Unavailable
-
-```python
-try:
-    results = search_memory("[topic]", semantic_only=True)
-except RuntimeError:
-    logger.warning("Forgetful unavailable, using lexical search")
-    results = search_memory("[topic]", lexical_only=True)
-```
 
 ### Episode Not Found
 
@@ -349,17 +332,15 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 | Operation | Typical Latency | Notes |
 |-----------|----------------|-------|
 | Skill script invocation | 50-100ms | Python interpreter startup |
-| `search_memory` (lexical) | 300-500ms | File-based search |
-| `search_memory` (semantic) | 500-1000ms | Depends on Forgetful |
+| `search_memory` | 300-500ms | File-based search |
 | `get_episodes` | 100-200ms | File enumeration |
 | Episode extraction | 2-5s | Parsing and analysis |
 
 ### Optimization Tips
 
 1. **Cache module imports**: import once per session
-2. **Use `lexical_only=True` for known terms**: faster, no network
-3. **Limit `max_results`**: reduce processing overhead
-4. **Batch episode queries**: one `get_episodes` call beats a loop of `get_episode`
+2. **Limit `max_results`**: reduce processing overhead, since every matched file is read in full
+3. **Batch episode queries**: one `get_episodes` call beats a loop of `get_episode`
 
 ## Related Documentation
 

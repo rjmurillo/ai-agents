@@ -13,7 +13,7 @@
 | ADR-032 EARS adoption requirements specification | [adr/adr-032-ears-adoption](adr/adr-032-ears-adoption.md) |
 | ADR-035 exit code standardization convention | [adr/adr-035-exit-code-standardization](adr/adr-035-exit-code-standardization.md) |
 | ADR-036 platform capability research MCP | [adr/adr-036-platform-capability-research](adr/adr-036-platform-capability-research.md) |
-| ADR-037 accepted memory router unified search | [adr/adr-037-accepted](adr/adr-037-accepted.md) |
+| ADR-037 superseded by ADR-106 memory router unified search historical | [adr/adr-037-accepted](adr/adr-037-accepted.md) |
 | ADR-037 review findings memory router analysis | [adr/adr-037-review-findings](adr/adr-037-review-findings.md) |
 | ADR-037 sync evidence gaps memory router | [adr/adr-037-sync-evidence-gaps](adr/adr-037-sync-evidence-gaps.md) |
 | ADR-038 reflexion memory schema learning | [adr/adr-038-reflexion-memory-schema](adr/adr-038-reflexion-memory-schema.md) |

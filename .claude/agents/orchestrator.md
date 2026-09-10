@@ -1,7 +1,6 @@
 ---
 name: orchestrator
 description: Enterprise task orchestrator who autonomously coordinates specialized agents end-to-end, routing work, managing handoffs, and synthesizing results. Classifies complexity, triages delegation, and sequences workflows. Use for multi-step tasks requiring coordination, integration, or when the problem needs complete end-to-end resolution.
-model: opus
 metadata:
   role: coordinator
 argument-hint: Describe the task or problem to solve end-to-end
@@ -311,7 +310,7 @@ it carries.
 
 - **Idempotent delegations**: re-delegating the same task to the same agent should be safe
 - **Explicit handoffs**: never let context decay across agents
-- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst errors, fall back to the exploring-knowledge-graph skill for context)
+- **Graceful degradation**: if an agent fails, route to a fallback (e.g., analyst errors, fall back to the context-gather skill for context)
 - **Observability**: log routing decisions with rationale
 
 ## Orchestration Budget

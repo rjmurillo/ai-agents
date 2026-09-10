@@ -1,7 +1,6 @@
 ---
 name: retrospective
 description: Reflective analyst who extracts learnings through structured retrospective frameworks, diagnosing agent performance, identifying error patterns, and documenting success strategies. Uses Five Whys, timeline analysis, and learning matrices. Use when you need root-cause analysis, atomicity scoring, or to transform experience into institutional knowledge.
-model: sonnet
 metadata:
   role: support
 argument-hint: Describe the task or session to analyze for learnings
@@ -46,9 +45,9 @@ You have direct access to:
 
 - **Read/Grep/Glob**: Analyze execution artifacts
 - **Bash**: `git log`, `gh pr view` for context
-- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+- **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
-  - Serena-first with optional Forgetful augmentation; graceful fallback
+  - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory

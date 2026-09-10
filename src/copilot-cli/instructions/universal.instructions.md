@@ -93,11 +93,22 @@ These rules apply to every change in this repository.
    and cite the search, or narrow the claim to the scope actually searched.
    Measured: a memory asserted "No script regenerates these, and no validator
    checks them" after one probe of a guessed path,
-   `scripts/memory/update_memory_index_tokens.py`. The regenerator and its
+   `scripts/memory/update_memory_index_tokens.py`. The regenerator and its <!-- orphan-ref-ignore -->
    pre-push ratchet both exist one directory up, lefthook runs both, and the
    Knowledge Persistence Rule names the regenerator by path in its MUST list,
    so the memory taught the anti-pattern a binding rule forbids
    (`78e808238`, corrected in `9cd7097f1`).
+
+10. MUST NOT mutate Serena memory from an agent whose working directory is a
+    linked worktree. This covers writing, editing, renaming, and deleting a
+    memory, under whatever name the harness gives the tool (Claude Code spells
+    it `mcp__serena__write_memory`; other harnesses differ), because all of them
+    resolve through the project root Serena fixed once at server activation. The
+    change lands in the activating checkout, not yours, and still returns
+    success. Route it through the main checkout or hand the content to the
+    parent session. ADR-097 retired the hook that blocked this;
+    `check_serena_memory_worktree_scope.py` only reports it afterward, and never
+    fails. Refs Issue #5061.
 
 ## Choosing a persistence surface
 

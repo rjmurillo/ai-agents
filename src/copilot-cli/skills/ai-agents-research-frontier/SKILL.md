@@ -234,8 +234,9 @@ What is NOT yet built (state this in any pitch):
   tier-classifier report appeared to be the only consumer, invoked
   manually. Both the emitter and that classifier are gone now, so there is
   no producer and no consumer.
-- UNVERIFIED: Forgetful memory population size and freshness are unknown; do
-  not assume Tier 1 supplementary recall works until you query it.
+- Cross-project supplementary recall does not exist: the memory server that
+  backed it was decommissioned in #5574, so Serena memories scoped to this
+  repo are the whole of Tier 1.
 - The Graduate step has no calibration gate: nothing today forces a promoted
   pattern to prove it would have fired correctly on real history (#1989 M4
   shipped a threshold that could never fire; #1887 Phase-6 audit found its own
@@ -313,5 +314,5 @@ Sources and re-verification:
 - Incident claims (#2205, #2290, #1887, #1989, #2230): see `ai-agents-failure-archaeology` for evidence paths; do not re-litigate settled battles.
 
 Unverified in this document (flagged inline): per-rule traffic data, automated
-EVENT consumer pipeline, Forgetful population status, issue #1345 and #1859
+EVENT consumer pipeline, issue #1345 and #1859
 original text (cited via on-disk docstrings and ADR references only).

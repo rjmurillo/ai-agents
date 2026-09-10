@@ -577,6 +577,100 @@ def test_write_baseline_round_trips_a_nested_only_tree(tmp_path: Path) -> None:
     assert frozen == len(pins)
 
 
+class TestDrainedRatchet:
+    """The baseline reached zero (issue #5605), which made two write paths load-bearing.
+
+    Before the drain, ``frozen_count`` was never zero, so the branch that reads
+    zero as "no baseline yet" was unreachable and nothing guarded a rise.
+    """
+
+    def test_update_baseline_on_a_compliant_tree_stays_at_zero(self, tmp_path: Path) -> None:
+        """A drained ratchet must not re-derive its ceiling from the tree.
+
+        The compliant haiku pin is a pin, so the old code counted it, wrote
+        frozen_count 1, and restored grandfathering for it.
+        """
+        _skill(tmp_path, "cheap", "name: cheap\nmodel: haiku\nmodel-rationale: cost.")
+        out = tmp_path / "baseline.json"
+        out.write_text(
+            json.dumps({"schema_version": "1", "frozen_count": 0, "pins": {}}) + "\n",
+            encoding="utf-8",
+        )
+
+        written = cmp.write_baseline(cmp.scan_units(tmp_path), out)
+
+        pins, frozen = cmp.load_baseline(out)
+        assert written == 0
+        assert pins == {}
+        assert frozen == 0
+
+    def test_update_baseline_refuses_to_raise_the_frozen_count(self, tmp_path: Path) -> None:
+        """A rise is refused, not written. The ratchet may only fall."""
+        _skill(tmp_path, "new-debt", "name: new-debt\nmodel: claude-opus-4-6")
+        out = tmp_path / "baseline.json"
+        out.write_text(
+            json.dumps({"schema_version": "1", "frozen_count": 0, "pins": {}}) + "\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(cmp.BaselineWouldRiseError):
+            cmp.write_baseline(cmp.scan_units(tmp_path), out)
+
+        pins, frozen = cmp.load_baseline(out)
+        assert pins == {}
+        assert frozen == 0
+
+    def test_first_write_with_no_baseline_file_seeds_the_count(self, tmp_path: Path) -> None:
+        """Keying on file existence must not break a genuine first write."""
+        _skill(tmp_path, "debt", "name: debt\nmodel: claude-opus-4-6")
+        out = tmp_path / "baseline.json"
+        assert not out.is_file()
+
+        cmp.write_baseline(cmp.scan_units(tmp_path), out)
+
+        pins, frozen = cmp.load_baseline(out)
+        assert pins == {".claude/skills/debt/SKILL.md": "claude-opus-4-6"}
+        assert frozen == 1
+
+    def test_a_drained_baseline_makes_a_new_pin_a_hard_violation(self, tmp_path: Path) -> None:
+        """The point of zero: nothing is grandfathered, so nothing lands as backlog."""
+        _agent(tmp_path, "fresh", "name: fresh\nmodel: opus")
+        report = _run(tmp_path, baseline={}, manifest=[])
+        assert report.backlog == []
+        assert len(report.violations) == 1
+        assert "[new pin]" in report.violations[0]
+
+
+class TestHandAuthoredTreesAreScanned:
+    """src/claude and .github/prompts are hand-authored, so a pin there ships unseen."""
+
+    def test_src_claude_agent_pin_is_scanned(self, tmp_path: Path) -> None:
+        path = tmp_path / "src" / "claude" / "rogue.md"
+        _write(path, "name: rogue\nmodel: claude-opus-4-6")
+
+        report = _run(tmp_path, baseline={}, manifest=[])
+
+        assert any("src/claude/rogue.md" in v for v in report.violations)
+
+    def test_github_prompt_pin_is_scanned(self, tmp_path: Path) -> None:
+        path = tmp_path / ".github" / "prompts" / "rogue.prompt.md"
+        _write(path, "name: rogue\nmodel: Claude Opus 4.5 (copilot)")
+
+        report = _run(tmp_path, baseline={}, manifest=[])
+
+        assert any("rogue.prompt.md" in v for v in report.violations)
+
+    def test_generated_mirrors_stay_out_of_scope(self, tmp_path: Path) -> None:
+        """A mirror pin is a copy of a source pin, so reporting it twice misleads."""
+        _write(tmp_path / "src" / "copilot-cli" / "skills" / "m" / "SKILL.md", "model: opus")
+        _write(tmp_path / "src" / "vs-code-agents" / "m.agent.md", "model: opus")
+
+        report = _run(tmp_path, baseline={}, manifest=[])
+
+        assert report.violations == []
+        assert report.scanned == 0
+
+
 def test_quoted_model_rationale_key_is_read_from_typed_view(tmp_path: Path) -> None:
     # The flat frontmatter view misses alternate YAML key spellings like quoted
     # keys, but the typed view sees them. A valid cost rationale must not be

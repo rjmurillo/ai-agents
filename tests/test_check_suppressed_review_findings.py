@@ -275,7 +275,8 @@ def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
 
 
 def test_pr_review_config_contains_suppressed_gate() -> None:
-    config = yaml.safe_load((_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text())
+    config_path = _ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
+    config = yaml.safe_load(config_path.read_text())
     criteria = config["completion_criteria"]
     suppressed_gate = next(
         item for item in criteria if item["name"] == "No suppressed Copilot review findings"

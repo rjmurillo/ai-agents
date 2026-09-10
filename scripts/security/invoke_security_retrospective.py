@@ -3,7 +3,7 @@
 Security Retrospective Script
 
 Analyzes security reports and external review comments to identify false negatives.
-Stores findings in Forgetful (semantic memory) and Serena (project memory).
+Stores findings in Serena (project memory) and a local JSON audit trail.
 Updates security.md prompt and benchmark suite when vulnerabilities are missed.
 
 Usage:
@@ -138,8 +138,8 @@ class SecurityRetrospective:
             len(self.false_negatives),
         )
 
-        # Step 4: Store in memory systems (Forgetful is best-effort, Serena blocks)
-        self._store_in_forgetful()
+        # Step 4: Store in memory systems (audit trail is best-effort, Serena blocks)
+        self._write_audit_trail()
         serena_success = self._store_in_serena()
 
         # Serena is BLOCKING per plan requirements
@@ -381,12 +381,24 @@ class SecurityRetrospective:
                 return match.group(1).strip()
         return "Review external comment for remediation guidance"
 
-    def _store_in_forgetful(self) -> bool:
-        """Store false negatives in Forgetful semantic memory."""
+    def _write_audit_trail(self) -> bool:
+        """Append each false negative to the local JSON audit trail.
+
+        This method was named for a semantic memory backend retired in issue
+        #5574. It never reached that backend:
+        the try block below logged an intent and the real write was always
+        the local JSON fallback, which is why the rename loses no behaviour.
+        The record it writes is unchanged, including the fields the backend
+        would have consumed, because `.agents/security/false-negatives.json`
+        is the audit trail the security retrospective reads back.
+        """
         if not self.false_negatives:
             return True
 
-        logger.info("Storing %d false negative(s) in Forgetful memory", len(self.false_negatives))
+        logger.info(
+            "Recording %d false negative(s) in the local audit trail",
+            len(self.false_negatives),
+        )
 
         for fn in self.false_negatives:
             memory_data = {
@@ -404,29 +416,13 @@ class SecurityRetrospective:
 
             if self.dry_run:
                 logger.info(
-                    "[DRY RUN] Would store in Forgetful: %s",
+                    "[DRY RUN] Would record: %s",
                     json.dumps(memory_data, indent=2),
                 )
                 continue
 
-            # Write to local JSON fallback (always, for audit trail)
             self._write_local_fallback(fn, memory_data)
-
-            # Attempt Forgetful MCP storage
-            try:
-                # Note: In production, this would call the Forgetful MCP server
-                # For now, we write to the local fallback and log the intent
-                logger.info(
-                    "Forgetful memory queued: %s",
-                    memory_data["title"],
-                )
-            except (OSError, RuntimeError) as e:
-                # OSError: I/O failures (file system, network)
-                # RuntimeError: MCP server errors
-                logger.warning(
-                    "[WARNING] Forgetful unavailable: %s. Using local JSON fallback.",
-                    e,
-                )
+            logger.info("Recorded false negative: %s", memory_data["title"])
 
         return True
 

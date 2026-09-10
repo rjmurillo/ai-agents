@@ -1,6 +1,6 @@
 ---
 paths:
-  - ".claude/commands/spec.md"
+  - ".claude/skills/spec/**"
   - ".agents/sessions/**"
   - ".agents/retrospective/**"
   - ".claude/rules/secret-redaction.md"

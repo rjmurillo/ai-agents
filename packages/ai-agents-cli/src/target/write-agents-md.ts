@@ -10,9 +10,10 @@ Compatible with Claude Code, GitHub Copilot CLI, and other harness-aware tools.
 
 ## What is here
 
-- \`.claude/commands/\` — slash commands for lifecycle phases
 - \`.claude/agents/\` — specialized agent definitions
-- \`.claude/skills/\` — domain knowledge and workflows
+- \`.claude/skills/\` — domain knowledge and workflows, including the
+  user-invocable lifecycle phases (\`spec\`, \`plan\`, \`build\`, \`test\`,
+  \`review\`, \`ship\`)
 
 ## Interop
 

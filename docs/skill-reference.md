@@ -67,14 +67,6 @@ Generates evidence-based documentary reports by searching across the full memory
 
 Guidance for maintaining memory quality through curation. Covers deduplication, freshness scoring, and relevance assessment.
 
-### exploring-knowledge-graph
-
-Guidance for deep knowledge graph traversal across memories, entities, and relationships.
-
-### using-forgetful-memory
-
-Guidance for using Forgetful semantic memory effectively. Covers query formulation, result interpretation, and storage patterns.
-
 ## Security
 
 ### security-scan
@@ -134,10 +126,6 @@ Systematic abstraction discovery using Commonality Variability Analysis. Identif
 ### decision-critic
 
 Structured decision critic that systematically stress-tests recommendations. Evaluates evidence quality, alternative coverage, and risk assessment.
-
-### serena-code-architecture
-
-Architectural analysis workflow using Serena symbols and knowledge graphs. Maps dependencies, coupling, and cohesion across the codebase.
 
 ### chaos-experiment
 
@@ -201,10 +189,6 @@ Resolves merge conflicts by analyzing git history and commit intent. Produces cl
 
 Collects agent usage metrics from git history and generates health dashboards for monitoring agent effectiveness.
 
-### encode-repo-serena
-
-Systematically populates the knowledge base using Serena's code analysis tools. Maps symbols, relationships, and patterns.
-
 ### steering-matcher
 
 Matches file paths against steering file glob patterns to determine which governance rules apply to changed files.
@@ -224,10 +208,6 @@ Autonomous meta-skill for creating high-quality custom slash commands. Follows f
 Critical learning capture. Extracts HIGH/MED/LOW confidence patterns from session work and stores them as reusable knowledge.
 
 ## Research
-
-### research-and-incorporate
-
-Researches external topics, creates comprehensive analysis, and determines how findings should be incorporated into the project.
 
 ### programming-advisor
 

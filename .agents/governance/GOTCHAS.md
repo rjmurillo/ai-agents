@@ -35,7 +35,7 @@ for executable invocations of exactly that tree. All four live in
 |---|---|---|
 | `scripts/validation/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
 | `scripts/validation/check_skill_portability.py` | skill scripts | drift against the script baseline |
-| `scripts/validation/check_skill_md_portability.py` | skill `.md`, `.claude/commands/`, `templates/agents/` | an upstream path cited in **prose** |
+| `scripts/validation/check_skill_md_portability.py` | skill `.md`, `templates/agents/`, `src/copilot-cli/instructions/` | an upstream path cited in **prose** |
 | `scripts/validation/check_skill_md_exec_portability.py` | skill `.md` | a bare `.claude/skills/...` script **invocation** |
 
 Symptom: the first two pass, you commit, and the push is rejected by
@@ -839,8 +839,8 @@ binary. Each has its own `glob:` list in `lefthook.yml`, and the two lists are
 different: `hook-anchoring-e2e` watches the hook surface (`.claude/hooks/**`,
 `src/copilot-cli/hooks/**`, `.claude/settings.json`, `generate_hooks.py`, and
 its own e2e files), while `plugin-load-e2e` watches the plugin surface
-(`.claude/skills/**`, `.claude/commands/**`, both `plugin.json` manifests,
-`src/copilot-cli/skills/**`, `generate_commands.py`, `generate_skills.py`,
+(`.claude/skills/**`, both `plugin.json` manifests,
+`src/copilot-cli/skills/**`, `generate_skills.py`,
 `templates/platforms/copilot-cli.yaml`). Read `lefthook.yml` for the current
 lists rather than trusting a union of them; touching one surface arms one job,
 not both.

@@ -117,7 +117,7 @@ SO THAT placeholder session logs cannot reach review.
 
 **Context**
 
-Session logs with placeholder values (`endingCommit: "pending"`, missing `schemaVersion`, empty or placeholder `markdownLintRun.Evidence`) are flagged in every PR review. These placeholders indicate an incomplete `session-end` flow. The fix is always the same field-level edit. A narrow validator at push time catches this class of error before the log appears in the PR diff.
+Session logs with placeholder values (`endingCommit: "pending"`, missing `schemaVersion`, empty or placeholder `markdownLintRun.Evidence`) are flagged in every PR review. These placeholders indicate an incomplete `session-end` flow. The fix is always the same field-level edit. A narrow validator at push time catches this class of error before the log appears in the PR diff. <!-- orphan-ref-ignore -->
 
 The real session log schema is `markdownLintRun: {Complete: bool, Evidence: str}`. There is no `.scanned: list[str]` field. The validator checks structural completeness (placeholder detection), not semantic accuracy of the evidence string against the diff (semantic accuracy is intractable: session log evidence may predate the final diff).
 

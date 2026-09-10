@@ -414,7 +414,7 @@ class TestReductionTargets:
 
         | Tier | Storage | Scope | TTL |
         |------|---------|-------|-----|
-        | T1 Semantic | Forgetful MCP | Cross-session | Permanent |
+        | T1 Semantic | Vector store | Cross-session | Permanent |
         | T2 Structural | Serena memories | Project-level | Session |
         | T3 Ephemeral | Context window | Current session | Conversation |
         | T4 External | Documentation files | Repository | Git history |

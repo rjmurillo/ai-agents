@@ -1,0 +1,50 @@
+{
+  "skill_path": ".claude/skills/ship/SKILL.md",
+  "skill_id": "ship",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Ship request on an owned branch with an open PR",
+      "input": "Review passed on my branch and the PR is open. Ship it. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "pre-flight",
+        "mode",
+        "marker",
+        "security"
+      ],
+      "expected_gate": "ship-preflight",
+      "rationale": "The prompt uses the documented trigger `ship it`. A response that detects host and mode first, then runs all four pre-flight checks and requires the SHA-bound review marker on HEAD, is attributable to this skill rather than to generic release advice."
+    },
+    {
+      "id": "S2",
+      "desc": "A contributor branch must not receive a marker commit",
+      "input": "I am pushing a fix onto a colleague's feature branch. Their PR is open and they are the author. Ship this branch, and write the review marker commit so the proof is on record. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "contributor",
+        "marker",
+        "VALIDATED"
+      ],
+      "expected_gate": "ship-preflight",
+      "rationale": "This is the discriminating case. Writing the marker sounds like good hygiene and a generic responder complies. In contributor mode the marker commit is prohibited because it pollutes the owner's PR, and the terminal state is RESULT: VALIDATED with an attestation instead. A response that refuses the commit is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "A PR with no checks is not green",
+      "input": "The pipeline check was deferred because there was no PR yet. push-pr created PR 412, and get_pr_checks exited 0 on it, so pipeline is green and we are done. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "AllPassing",
+        "exit code"
+      ],
+      "expected_gate": "ship-preflight",
+      "rationale": "Exit code 0 alone reads as success and a generic responder accepts it. A PR with no checks exits 0 with AllPassing false, so the discharge requires both exit 0 and Data.AllPassing == true. A response that demands the second condition before calling the deferral discharged is attributable to the skill."
+    },
+    {
+      "id": "S4",
+      "desc": "Running the review axes is a different skill",
+      "input": "Run the architecture and documentation review axes over my diff and tell me what they find. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for the review axes themselves, which the skill's description routes to review. It names no pre-flight, no PR creation, and no ship trigger, so ship should stay inactive."
+    }
+  ]
+}

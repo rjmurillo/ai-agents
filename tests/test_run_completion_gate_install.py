@@ -14,7 +14,7 @@ the user's working directory. The first test copies the script to a directory
 with no scripts/ tree above it and runs it from a separate working directory,
 asserting the module loads (``--help`` reaches argparse).
 
-Issue #5112: ``resolve_pr_review_config()`` in ``.claude/commands/pr-review.md``
+Issue #5112: ``resolve_pr_review_config()`` in ``.claude/skills/pr-review/SKILL.md``
 offers plugin roots as config sources, but path containment refused any
 ``--config`` outside the consumer repository, so an installed ``/pr-review``
 whose config resolved to the bundled copy could not dispatch at all. Option 1
@@ -191,7 +191,7 @@ def _install_plugin(tmp_path: Path) -> tuple[Path, Path, Path]:
     script_dir.mkdir(parents=True)
     shutil.copy2(_SCRIPT, script_dir / "run_completion_gate.py")
 
-    bundled_config = plugin_root / "commands" / "pr-review-config.yaml"
+    bundled_config = plugin_root / "skills" / "pr-review" / "pr-review-config.yaml"
     bundled_config.parent.mkdir(parents=True)
     bundled_config.write_text(_CONFIG_BODY, encoding="utf-8")
 
@@ -403,8 +403,8 @@ def test_a_foreign_plugin_root_is_not_install_trusted(tmp_path: Path) -> None:
     plugin_root, _config, user_repo = _install_plugin(tmp_path)
 
     foreign = tmp_path / "foreign-plugin"
-    (foreign / "commands").mkdir(parents=True)
-    foreign_config = foreign / "commands" / "pr-review-config.yaml"
+    foreign_config = foreign / "skills" / "pr-review" / "pr-review-config.yaml"
+    foreign_config.parent.mkdir(parents=True)
     foreign_config.write_text(
         "completion_criteria:\n"
         "  - name: pwn\n"
@@ -514,7 +514,7 @@ def test_a_root_that_is_an_ancestor_of_the_repo_does_not_install_trust(
     """
     plugin_root, _, user_repo = _install_plugin(tmp_path)
     ancestor = user_repo.parent
-    pr_controlled = user_repo / ".claude" / "commands" / "pr-review-config.yaml"
+    pr_controlled = user_repo / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
     pr_controlled.parent.mkdir(parents=True)
     pr_controlled.write_text(_CONFIG_BODY, encoding="utf-8")
 
@@ -543,7 +543,7 @@ def test_in_repo_plugin_root_does_not_install_trust_its_config(
     """
     plugin_root, _, user_repo = _install_plugin(tmp_path)
     in_repo_root = user_repo / ".claude"
-    in_repo_config = in_repo_root / "commands" / "pr-review-config.yaml"
+    in_repo_config = in_repo_root / "skills" / "pr-review" / "pr-review-config.yaml"
     in_repo_config.parent.mkdir(parents=True)
     in_repo_config.write_text(_CONFIG_BODY, encoding="utf-8")
 
@@ -578,7 +578,7 @@ def test_symlink_out_of_the_plugin_root_is_not_install_trusted(
     attacker_config = user_repo / "evil-config.yaml"
     attacker_config.write_text(_CONFIG_BODY, encoding="utf-8")
 
-    link = plugin_root / "commands" / "linked-config.yaml"
+    link = plugin_root / "skills" / "pr-review" / "linked-config.yaml"
     link.symlink_to(attacker_config)
 
     result = _run_gate(
@@ -618,8 +618,8 @@ def test_a_pr_created_nested_claude_cannot_relocate_the_trust_boundary(
 
     # PR-controlled, inside the real work tree.
     declared_root = repo / ".claude"
-    (declared_root / "commands").mkdir(parents=True)
-    config = declared_root / "commands" / "pr-review-config.yaml"
+    config = declared_root / "skills" / "pr-review" / "pr-review-config.yaml"
+    config.parent.mkdir(parents=True)
     config.write_text(_CONFIG_BODY, encoding="utf-8")
 
     # The nested .claude the malicious PR adds, in the directory the host

@@ -455,7 +455,7 @@ class TestBeforeAfterExamples:
             | Priority | Source | Location |
             |----------|--------|----------|
             | 1 | Serena | .serena/memories/ |
-            | 2 | Forgetful | ~/.local/share/forgetful/ |
+            | 2 | Sessions | .agents/sessions/ |
             | 3 | VSCode | .vscode/memories/ |
 
             The principle is to retrieve before reasoning.
@@ -610,7 +610,7 @@ class TestRealWorldExamples:
 
             ```text
             [Memory Hierarchy]
-            |PRIORITY: serena > forgetful > vscode-memory
+            |PRIORITY: serena > sessions > vscode-memory
             |SERENA: .serena/memories/, L1=memory-index
             |PRINCIPLE: retrieve-before-reasoning
             ```

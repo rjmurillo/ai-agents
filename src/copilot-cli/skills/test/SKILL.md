@@ -1,15 +1,32 @@
 ---
 name: test
-description: Prove it works. Multi-dimensional quality validation across functional, non-functional, security, DevOps, DX, and observability. Run after /build.
-argument-hint: component-or-failure-description
+version: 1.0.0
+description: Prove a change works across six gates covering functional, non-functional, security, DevOps, developer experience, and observability quality. Use when you say `prove this works`, `run the test gates`, or `validate this change`, and run it after build. Do NOT use to write the implementation or its first tests (use build), and do NOT use to run pre-flight and open a PR (use ship).
+license: MIT
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
+argument-hint: component-or-failure-description
 user-invocable: true
 ---
 
+# Test
+
+Six quality gates, each dispatching its own agent, skipped by PR type so no
+agent burns on a dimension the diff cannot touch.
+
+Migrated from `.claude/commands/test.md` under ADR-064, which makes skills the
+single user-invocable surface.
+
 <!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+## Triggers
+
+`prove this works`, `run the test gates`, `validate this change`,
+`is this ready for review`
+
+## Arguments
+
 Test: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
-If the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message) is empty, test the current branch diff against the base branch.
+If `$ARGUMENTS` is empty, test the current branch diff against the base branch.
 
 ## Cross-Harness Hook Routing
 
@@ -94,7 +111,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 5: Developer Experience (DX)
 
-Invoke `skill: "orphan-ref-validator"`. Reject the gate on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`; `VERDICT: WARN` is non-blocking and surfaces in the test summary. This mirrors `/build` Mandatory Exit Gate 4 (per `.claude/commands/build.md:56`) so a reference to a deleted skill or a missing script path is caught at `/test` as well as at `/build`. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. Manifest count claims are not validated by anything: the marketplace count validator was retired in #2187 and orphan-ref-validator never took the work over. Its scanner emits only skill_name, script_path, and scan_truncated findings. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
+Invoke `skill: "orphan-ref-validator"`. Reject the gate on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`; `VERDICT: WARN` is non-blocking and surfaces in the test summary. This mirrors the `build` skill's Mandatory Exit Gate 4 so a reference to a deleted skill or a missing script path is caught at `/test` as well as at `/build`. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. Manifest count claims are not validated by anything: the marketplace count validator was retired in #2187 and orphan-ref-validator never took the work over. Its scanner emits only skill_name, script_path, and scan_truncated findings. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
 
 `agent_type: "project-toolkit:critic"`: You are a developer advocate reviewing from the consumer perspective. Would a new contributor understand this code? Would the API frustrate or delight? Evaluate:
 
@@ -157,3 +174,31 @@ Synthesize into overall report:
 | Observability | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
 
 **Overall verdict**: CRITICAL_FAIL if any gate fails. WARN if any gate warns. PASS if all gates pass.
+
+## Verification
+
+- [ ] PR type classified before any gate ran, and the skipped gates named
+- [ ] Every applicable gate produced a `VERDICT:` line and a findings array
+- [ ] Every finding cites `file:line`, and every security finding cites a CWE
+- [ ] A CRITICAL_FAIL in one gate did not stop the remaining gates
+- [ ] Each test failure was diagnosed by hypothesis before any code changed
+- [ ] Gate verdicts synthesized into one overall verdict via quality-grades
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Stopping at the first CRITICAL_FAIL | Findings are additive, so an early stop hides the rest and buys a second round | Mark the overall verdict and keep running the gates |
+| Running all six gates on a docs-only diff | Burns five agent invocations on dimensions the diff cannot affect | Classify in Step 0 and skip |
+| A finding with no `file:line` | The reader cannot act on it, and it cannot be verified or refuted | Cite the location, and a CWE for security findings |
+| Changing code to make a red test pass | Fixes the symptom and often moves the defect | Form a hypothesis, verify it, then fix |
+| Treating a passing suite as proof of coverage | A green run says the tests that exist pass, not that the risky paths have any | Check error paths and edge cases per Gate 1 |
+
+## Extension Points
+
+- **A seventh gate.** Add a `## Gate 7` section, a row in the Step 0 type table,
+  and a row in the output table together, so a gate cannot run unreported.
+- **New PR type.** Step 0's table maps patterns to gates; a new file class is a
+  new row, not new prose.
+- **Different synthesis.** Process step 6 delegates to `quality-grades`. A
+  project scoring differently swaps that one call.

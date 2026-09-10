@@ -1,0 +1,39 @@
+{
+  "skill_path": ".claude/skills/build/SKILL.md",
+  "skill_id": "build",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Implementation request following a plan",
+      "input": "The plan is done. Implement milestone 1: add the retry loop to the uploader with its regression test. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "failing test",
+        "tier",
+        "pre-mortem",
+        "atomic"
+      ],
+      "expected_gate": "build-slice",
+      "rationale": "The prompt uses the documented trigger `implement this slice` in substance and follows a plan. A response that assigns a complexity tier, runs a pre-mortem before code, and writes the failing test before the implementation is attributable to this skill rather than to generic coding help."
+    },
+    {
+      "id": "S2",
+      "desc": "A new detector must be self-applied before it is committed",
+      "input": "Add a pre-push linter that flags any function over 80 lines, plus a unit test for it against a fixture. The fixture test passes, so we are done. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "self-apply",
+        "branch",
+        "fire"
+      ],
+      "expected_gate": "build-slice",
+      "rationale": "This is the discriminating case. A fixture test proves the detector's logic and proves nothing about its threshold, so a generic responder accepts the claim of done. Step 6 requires running the new detector against the current branch and confirming it fires on conditions already present. A response that demands that run before the commit is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "Reviewing a finished diff is not building",
+      "input": "Read the diff on this branch and tell me whether the architecture is sound. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for review of finished work, which the skill's description routes elsewhere. It names no slice, no plan step, and no implementation trigger, so build should stay inactive."
+    }
+  ]
+}

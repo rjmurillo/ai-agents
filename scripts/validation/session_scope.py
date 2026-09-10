@@ -65,6 +65,47 @@ def _git(
     )
 
 
+_ADJUDICABLE_CACHE: dict[str, bool] = {}
+
+
+def _can_adjudicate_reachability(repo_root: Path) -> bool:
+    """Whether this checkout can answer a reachability question at all.
+
+    Two git probes decide it: the directory has to be a work tree, and the
+    clone must not be shallow, because a shallow clone is genuinely missing the
+    older commits a log names. Neither answer depends on the SHA being asked
+    about, and neither changes while a process runs, so the pair is asked once
+    per repository root instead of once per commit.
+
+    Uncached, validating the committed session-log corpus spawned 878 of each,
+    1756 of the 2735 git processes that one test started, for two answers that
+    were identical every time. Refs #5382, and #5379 for the same shape in the
+    test harness.
+
+    Only a completed probe is memoized. ``OSError`` and ``SubprocessError``
+    propagate to the caller's fail-open handler and record nothing, so a git
+    that was momentarily unavailable does not pin its own absence for the rest
+    of the process.
+
+    Call ``_adjudication_cache_clear()`` to force rediscovery. That is the
+    supported seam for a test that changes a checkout's shape in place.
+    """
+    key = str(Path(repo_root).resolve())
+    cached = _ADJUDICABLE_CACHE.get(key)
+    if cached is not None:
+        return cached
+    if _git(["rev-parse", "--is-inside-work-tree"], repo_root).returncode != 0:
+        answer = False
+    else:
+        shallow = _git(["rev-parse", "--is-shallow-repository"], repo_root)
+        answer = shallow.returncode == 0 and shallow.stdout.strip() != "true"
+    _ADJUDICABLE_CACHE[key] = answer
+    return answer
+
+
+_adjudication_cache_clear = _ADJUDICABLE_CACHE.clear
+
+
 def commit_reachability_problem(sha: str, repo_root: Path) -> str | None:
     """Describe why ``sha`` is not a usable commit reference here, else None.
 
@@ -90,10 +131,7 @@ def commit_reachability_problem(sha: str, repo_root: Path) -> str | None:
     if not _COMMIT_SHA.match(sha):
         return NOT_A_COMMIT_SHA
     try:
-        if _git(["rev-parse", "--is-inside-work-tree"], repo_root).returncode != 0:
-            return None
-        shallow = _git(["rev-parse", "--is-shallow-repository"], repo_root)
-        if shallow.returncode != 0 or shallow.stdout.strip() == "true":
+        if not _can_adjudicate_reachability(repo_root):
             return None
         if _git(["cat-file", "-e", f"{sha}^{{commit}}"], repo_root).returncode != 0:
             return NO_SUCH_COMMIT

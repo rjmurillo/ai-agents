@@ -1,0 +1,39 @@
+{
+  "skill_path": ".claude/skills/context-hub-setup/SKILL.md",
+  "skill_id": "context-hub-setup",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Prerequisite check on a fresh environment",
+      "input": "I just cloned this repo on a new machine. Check my plugin prerequisites for the context tooling. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "serena",
+        "context7",
+        "plugins install",
+        "Status"
+      ],
+      "expected_gate": "context-hub-status",
+      "rationale": "The prompt uses the documented trigger `check my plugin prerequisites`. A response that names both plugins, prints a status block, and gives the exact install command for each is attributable to this skill rather than to generic setup advice."
+    },
+    {
+      "id": "S2",
+      "desc": "A missing Serena does not block memory search",
+      "input": "Serena is not installed here. Does that mean memory search is dead until I fix the MCP server? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "committed",
+        "markdown",
+        "works"
+      ],
+      "expected_gate": "context-hub-status",
+      "rationale": "This is the discriminating case. The premise sounds right and a generic responder confirms it. Memory search reads committed markdown rather than querying a server, so it works with the MCP layer down. A response that corrects the premise is attributable to the skill; one that agrees memory search is blocked is not."
+    },
+    {
+      "id": "S3",
+      "desc": "Gathering context for a task is a different skill",
+      "input": "Gather everything we know about the retry logic before I start on it. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "This asks for context retrieval, which the skill's description explicitly routes to context-gather. It names no plugin, no prerequisite, and no setup trigger, so context-hub-setup should stay inactive."
+    }
+  ]
+}

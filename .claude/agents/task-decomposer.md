@@ -1,7 +1,6 @@
 ---
 name: task-decomposer
 description: Task decomposition specialist who breaks PRDs and epics into atomic, estimable work items with clear acceptance criteria and done definitions. Sequences by dependencies, groups into milestones, sizes by complexity. Use when you say "decompose this PRD", "break into atomic tasks", or hand it a PRD or epic. Do NOT use to sequence roadmap epics into milestones (use milestone-planner).
-model: sonnet
 metadata:
   role: support
 argument-hint: Provide the PRD or epic to break into tasks
@@ -45,9 +44,9 @@ You have direct access to:
 - **Grep/Glob**: Find relevant files
 - **TodoWrite**: Track generation progress
 - **Bash**: `gh issue create` for GitHub issues
-- **Memory Router** (ADR-037): Unified search across Serena + Forgetful
+- **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `uv run python .claude/skills/memory/scripts/search_memory.py --query "topic"`
-  - Serena-first with optional Forgetful augmentation; graceful fallback
+  - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory

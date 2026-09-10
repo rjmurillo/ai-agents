@@ -18,11 +18,11 @@ The memory system exposes functionality through Claude Code skills - standardize
 
 ### Synopsis
 
-Unified memory search across Serena and Forgetful.
+Unified memory search across Serena and the episode store.
 
 ### Description
 
-Agent-facing skill script that wraps the memory router module. Provides unified memory search with Serena-first routing and optional Forgetful augmentation per ADR-037.
+Agent-facing skill script that searches the two file-based memory stores. The semantic backend it also queried, and the two flags that selected between the stores, were removed in issue #5574.
 
 ### Syntax
 
@@ -30,8 +30,6 @@ Agent-facing skill script that wraps the memory router module. Provides unified 
 search_memory.py
     --query <String>
     [--max-results <Int32>]
-    [--lexical-only]
-    [--semantic-only]
     [--format <String>]
 ```
 
@@ -77,42 +75,6 @@ Maximum number of results to return.
 | Default | 10 |
 | Range | 1-100 |
 
-#### --lexical-only
-
-Search only Serena (lexical/file-based). Faster and requires no network access.
-
-| Property | Value |
-|----------|-------|
-| Type | Switch |
-| Position | Named |
-| Required | No |
-
-**Use When**:
-
-- Forgetful is unavailable
-- Performance is critical
-- Exact keyword matching is needed
-- Offline operation required
-
-#### --semantic-only
-
-Search only Forgetful (semantic/vector). Requires Forgetful MCP server running.
-
-| Property | Value |
-|----------|-------|
-| Type | Switch |
-| Position | Named |
-| Required | No |
-
-**Use When**:
-
-- Need conceptual similarity matching
-- Keywords are ambiguous
-- Exploring related topics
-- Finding context without exact terms
-
-**Note**: Will fail if Forgetful is not available. Use try/catch with fallback to --lexical-only.
-
 #### --format
 
 Output format for results.
@@ -135,9 +97,7 @@ Output format for results.
   "Results": [...],
   "Diagnostic": {
     "Serena": { "Available": true, "Path": ".serena/memories" },
-    "Forgetful": { "Available": true, "Endpoint": "http://localhost:8020/mcp" },
-    "Cache": { "AgeSeconds": 5.2, "TTLSeconds": 30 },
-    "Configuration": {...}
+    "Episodes": { "Available": true, "Path": ".agents/memory/episodes" }
   }
 }
 ```
@@ -148,7 +108,7 @@ Output format for results.
 Name                    Source    Score Preview
 ----                    ------    ----- -------
 powershell-arrays       Serena    1.0   PowerShell arrays need @() for...
-array-handling          Forgetful 0.85  Common array gotchas include...
+array-handling          Episodes  0.85  Common array gotchas include...
 ```
 
 ### Output Structure
@@ -159,11 +119,11 @@ array-handling          Forgetful 0.85  Common array gotchas include...
 {
   "Query": "string",
   "Count": 0,
-  "Source": "Unified|Serena|Forgetful",
+  "Source": "Unified",
   "Results": [
     {
       "Name": "memory-name",
-      "Source": "Serena|Forgetful",
+      "Source": "Serena|Episodes",
       "Score": 1.0,
       "Path": "/path/to/memory",
       "Content": "Full memory content..."
@@ -174,19 +134,9 @@ array-handling          Forgetful 0.85  Common array gotchas include...
       "Available": true,
       "Path": ".serena/memories"
     },
-    "Forgetful": {
+    "Episodes": {
       "Available": true,
-      "Endpoint": "http://localhost:8020/mcp"
-    },
-    "Cache": {
-      "AgeSeconds": 5.2,
-      "TTLSeconds": 30
-    },
-    "Configuration": {
-      "SerenaPath": ".serena/memories",
-      "ForgetfulPort": 8020,
-      "ForgetfulTimeout": 500,
-      "MaxResults": 10
+      "Path": ".agents/memory/episodes"
     }
   }
 }
@@ -229,12 +179,11 @@ Output:
 }
 ```
 
-#### Example 2: Lexical Only with Table Format
+#### Example 2: Table Format
 
 ```bash
 python3 .claude/skills/memory/scripts/search_memory.py \
     --query "PowerShell arrays" \
-    --lexical-only \
     --format table
 ```
 
@@ -253,14 +202,6 @@ powershell-arrays        Serena 1.0   Common array operations incl...
 python3 .claude/skills/memory/scripts/search_memory.py \
     --query "authentication" \
     --max-results 3
-```
-
-#### Example 4: Semantic Search
-
-```bash
-python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "user login security" \
-    --semantic-only
 ```
 
 #### Example 5: From Shell Script
@@ -287,7 +228,6 @@ echo "$result" | python3 -c "import sys,json; data=json.load(sys.stdin); [print(
 | Python 3.12+ | Yes | Script execution |
 | memory router module | Yes | Core search functionality |
 | Serena MCP | Yes | Lexical memory search |
-| Forgetful MCP | No | Semantic memory search |
 
 ### Validation
 
@@ -359,30 +299,13 @@ if data['Count'] > 0:
 ```bash
 # Before making technical decisions
 patterns=$(python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "[decision topic] patterns" \
-    --lexical-only)
+    --query "[decision topic] patterns")
 
 echo "$patterns" | python3 -c "
 import sys, json, re
 data = json.load(sys.stdin)
 relevant = [r for r in data['Results'] if re.search('success|recommended|best practice', r['Content'])]
 "
-```
-
-#### Fallback Pattern
-
-```bash
-# Try semantic, fall back to lexical
-result=$(python3 .claude/skills/memory/scripts/search_memory.py \
-    --query "[topic]" \
-    --semantic-only 2>&1)
-
-if [ $? -ne 0 ]; then
-    echo "Semantic search failed, using lexical" >&2
-    result=$(python3 .claude/skills/memory/scripts/search_memory.py \
-        --query "[topic]" \
-        --lexical-only)
-fi
 ```
 
 ## Additional Scripts
@@ -407,7 +330,7 @@ The following skills are planned for future releases:
 
 ### save_memory.py (Planned)
 
-Store new memories to Serena with optional Forgetful sync.
+Store new memories to Serena.
 
 ## Related Documentation
 

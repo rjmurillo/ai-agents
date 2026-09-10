@@ -152,7 +152,7 @@ def test_out_of_scope_paths_are_excluded(path: str) -> None:
         ".claude/skills/planner/scripts/planner.py",
         ".claude/hooks/invoke_dispatch_claude.py",
         ".claude/lib/paths.py",
-        ".claude/commands/ship.md",
+        ".claude/skills/ship/SKILL.md",
         ".claude/rules/universal.md",
         "src/claude/qa.md",
         ".serena/memories/github/github-observations.md",
@@ -168,7 +168,6 @@ def test_shipped_paths_are_scanned(path: str) -> None:
     "prefix",
     [
         ".claude/agents/",
-        ".claude/commands/",
         ".claude/hooks/",
         ".claude/lib/",
         ".claude/rules/",

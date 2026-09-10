@@ -369,7 +369,8 @@ def test_cli_live_probe_fills_copilot_version(tmp_path: Path, monkeypatch) -> No
     by_harness = {row["harness"]: row for row in report["harnesses"]}
     assert by_harness["copilot"]["version"] == "copilot 9.9.9"
     assert by_harness["copilot"]["version_evidence"] == "backend"
-    # Codex is not probe-capable and stays UNVERIFIED.
+    # Codex is probe-capable (see PROBE_HARNESS) but absent from PATH in this
+    # fake, so it stays UNVERIFIED rather than being fabricated.
     assert by_harness["codex"]["version"] == ""
     assert by_harness["codex"]["version_evidence"] == "none"
 

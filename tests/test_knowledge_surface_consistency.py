@@ -181,13 +181,22 @@ def test_other_detector_guidance_surfaces_state_actual_inputs() -> None:
 
 
 def test_rules_agree_src_claude_is_hand_maintained() -> None:
-    expected_contract = (
-        "`src/claude/*.md` are hand-maintained Claude agent prompts with unique "
-        "Claude-specific content (`name`/`model` frontmatter). They are NOT generated."
-    )
+    # Pinned as separate claims rather than one contiguous sentence. The
+    # single-string form also pinned the parenthetical listing the
+    # Claude-specific fields, and that list is not the invariant: it named
+    # `model` frontmatter, which ADR-080 made wrong when the model-pin ratchet
+    # drained to zero and 30 of 31 agents lost their pin. A guard that fails on
+    # a correction to its own incidental half teaches the next author to loosen
+    # it under time pressure.
+    hand_maintained = "`src/claude/*.md` are hand-maintained Claude agent prompts"
+    not_generated = "They are NOT generated."
     for path in (_CLAUDE_AGENTS_RULE, *_CLAUDE_AGENTS_MIRRORS):
         text = _read(path)
-        assert expected_contract in text
+        assert hand_maintained in text
+        assert not_generated in text
+        # The Claude-specific content still has to be named, or the sentence
+        # stops explaining why the tree is hand-maintained at all.
+        assert "Claude-specific content" in text
 
     for path in (_TEMPLATES_RULE, *_TEMPLATES_MIRRORS):
         must_not = _section(_read(path), "## MUST NOT")

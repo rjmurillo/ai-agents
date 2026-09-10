@@ -397,7 +397,6 @@ All AI-powered and validation workflows use GitHub Actions `concurrency` groups 
 | ai-spec-validation | `spec-validation-${{ github.event.pull_request.number &#124;&#124; inputs.pr_number }}` | Cancels in-progress runs for same PR |
 | pr-validation | `pr-validation-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
 | label-pr | `pr-labeler-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
-| memory-validation | `memory-validation-${{ github.ref }}` | Cancels in-progress runs for same branch |
 | auto-assign-reviewer | `auto-reviewer-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
 | codeql-analysis | `codeql-analysis-${{ github.event.pull_request.number &#124;&#124; github.ref }}` | Cancels in-progress runs for same PR/ref |
 

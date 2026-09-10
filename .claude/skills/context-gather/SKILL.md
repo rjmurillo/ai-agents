@@ -1,13 +1,13 @@
 ---
 name: context-gather
-version: 1.0.0
-description: Gather comprehensive context from Forgetful Memory, Context7 docs, DeepWiki, and web sources before planning or implementation. Follows the exploring-knowledge-graph skill to search across all knowledge tiers and returns a focused summary with a parseable CONTEXT_LOADED marker for downstream skip detection. Use when you say "gather context before planning", "what do we know before I start". Do NOT use for compressing or placing skill text (use context-optimizer).
+version: 1.1.0
+description: Gather comprehensive context from Serena memory, Context7 docs, DeepWiki, and web sources before planning or implementation. Searches across all knowledge tiers and returns a focused summary with a parseable CONTEXT_LOADED marker for downstream skip detection. Use when you say "gather context before planning", "what do we know before I start". Do NOT use for compressing or placing skill text (use context-optimizer).
 license: MIT
 ---
 
 # Context Gather
 
-Collect multi-source context before planning or implementation. Searches Forgetful Memory, Serena, Context7, DeepWiki, and web sources, then returns a focused summary that downstream commands can detect and skip redundant fetches.
+Collect multi-source context before planning or implementation. Searches Serena, Context7, DeepWiki, and web sources, then returns a focused summary that downstream commands can detect and skip redundant fetches.
 
 > **Model choice (behavior change from prior `/context-gather` slash command)**: this skill declares `model: claude-sonnet-4-6`, downgraded from the slash command's `opus`. Context retrieval is search-and-synthesis work, not deep reasoning; the cost-appropriate tier per ADR-002 model selection is sonnet. Skill behavior is otherwise unchanged.
 
@@ -34,7 +34,7 @@ Use this skill when:
 - Starting a complex task that needs multi-source context before planning or implementation.
 - A lifecycle command (`/build`, `/plan`, `/research`) triggers preflight context loading.
 - You need to pull framework-specific guidance from Context7 alongside project memory.
-- Exploring what the knowledge graph knows about a topic before committing to an approach.
+- Exploring what the memory tiers already record about a topic before committing to an approach.
 
 ## When to Skip
 
@@ -54,14 +54,12 @@ Skip this skill when:
 
 ### Phase 2: Search Across Knowledge Tiers
 
-Follow the [`exploring-knowledge-graph`](../exploring-knowledge-graph/SKILL.md)
-skill for the five-source strategy, the untrusted-content guard, and the
-synthesis and citation discipline (see its
-[references/context-retrieval.md](../exploring-knowledge-graph/references/context-retrieval.md)).
+Follow [references/context-retrieval.md](references/context-retrieval.md) for
+the source-priority strategy, the untrusted-content guard, and the synthesis and
+citation discipline.
 
 1. Search the following tiers, in parallel where possible:
-   - **Forgetful Memory**: Search across ALL projects for relevant patterns, decisions, and code artifacts.
-   - **Serena Memory**: Read linked entities, observations, and relations for the topic.
+   - **Serena Memory**: Always first. Read this project's memories for prior decisions, patterns, and ADRs on the topic.
    - **Context7**: Query framework-specific documentation if the topic involves a known library or SDK.
    - **DeepWiki**: Read repository-level documentation for relevant GitHub repos.
    - **Web Search**: Fall back to web sources only when memory and docs are insufficient.
@@ -72,7 +70,7 @@ synthesis and citation discipline (see its
 TIER_QUERIED: <tier>
 ```
 
-Where `<tier>` is one of: `forgetful`, `serena`, `context7`, `deepwiki`, `web`. Emit one `TIER_QUERIED:` line per tier actually queried.
+Where `<tier>` is one of: `serena`, `context7`, `deepwiki`, `web`. Emit one `TIER_QUERIED:` line per tier actually queried.
 
 ### Phase 3: Synthesize, Emit Marker, and Return
 
@@ -100,7 +98,6 @@ Where `<topic>` is a short, normalized label for the subject (e.g., `pytest-fixt
 
 This skill searches the knowledge tiers using:
 
-- `mcp__forgetful__execute_forgetful_tool`
 - `mcp__serena__read_memory`, `mcp__serena__list_memories`
 - `mcp__context7__resolve-library-id`, `mcp__context7__get-library-docs`
 - `mcp__deepwiki__read_wiki_structure`, `mcp__deepwiki__read_wiki_contents`, `mcp__deepwiki__ask_question`

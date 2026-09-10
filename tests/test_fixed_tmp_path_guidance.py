@@ -6,7 +6,7 @@ _FORBIDDEN_PATHS = [
     "/" + "tmp" + "/push.log",
 ]
 _GUIDANCE_FILES = [
-    Path(".claude/commands/push-pr.md"),
+    Path(".claude/skills/push-pr/SKILL.md"),
     Path("src/copilot-cli/skills/push-pr/SKILL.md"),
     Path(".serena/memories/git/git-stale-branch-fails-repo-state-tests.md"),
 ]
@@ -40,7 +40,7 @@ def test_guidance_uses_unique_per_run_paths():
 
 def test_push_pr_body_path_is_confined_by_its_tool_allowlist():
     for relative_path in (
-        Path(".claude/commands/push-pr.md"),
+        Path(".claude/skills/push-pr/SKILL.md"),
         Path("src/copilot-cli/skills/push-pr/SKILL.md"),
     ):
         text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")

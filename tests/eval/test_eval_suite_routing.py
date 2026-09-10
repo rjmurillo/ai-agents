@@ -35,6 +35,8 @@ from pathlib import Path
 
 import pytest
 
+from scripts.validation import check_commands_retired
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EVAL_DIR = REPO_ROOT / "scripts" / "eval"
 
@@ -244,11 +246,18 @@ def test_negative_control_reordering_skills_after_agents_breaks_references() -> 
 # ---------------------------------------------------------------------------
 
 # Rows with a filesystem predicate cannot use a synthetic name, because the
-# predicate asks the tree a question about it. `spec` is a real command mirror:
-# `.claude/commands/spec.md` exists and `.claude/skills/spec/` does not.
-PREDICATE_ROW_REPRESENTATIVES = {
-    "command_mirrors": "src/copilot-cli/skills/spec/SKILL.md",
-}
+# predicate asks the tree a question about it. The representative has to be a
+# name that is still a real command mirror: `.claude/commands/<name>.md` exists
+# and `.claude/skills/<name>/` does not. ADR-064 (issue #5632) is draining that
+# set, so this moves each time one converts; it was `spec` until spec became a
+# skill. When the last mirror converts, this row has no representative left and
+# the row itself should go with it.
+# One entry per routing row that carries a predicate, since a predicate row's
+# representative path cannot be derived from its prefix and suffix alone. Empty
+# since ADR-064 removed the `command_mirrors` row; a new predicate row needs an
+# entry here or the shadow test below raises KeyError rather than passing
+# vacuously.
+PREDICATE_ROW_REPRESENTATIVES: dict[str, str] = {}
 
 
 def _representative_path(rule) -> str:
@@ -293,7 +302,6 @@ def test_no_routing_row_is_shadowed_by_an_earlier_row(index: int) -> None:
 # pins: if either name reappears under `.claude/agents/` by accident, this
 # still has to classify it as `entrypoints`, not `agents` or `other`.
 SHADOWED_ENTRYPOINTS = [
-    ".claude/commands/CLAUDE.md",
     ".claude/skills/CLAUDE.md",
     ".claude/skills/adr-review/CLAUDE.md",
     ".claude/skills/adr-review/scripts/CLAUDE.md",
@@ -343,54 +351,60 @@ def test_negative_control_entrypoints_after_prefixes_recreates_the_shadowing() -
     entry_row = suite.ROUTING_RULES[0]
     rest = suite.ROUTING_RULES[1:]
     shadowed = (*rest, entry_row)
-    assert _classify_with(shadowed, ".claude/commands/CLAUDE.md") == "prompts"
     assert _classify_with(shadowed, ".claude/skills/github/CLAUDE.md") == "skills"
-    assert suite.classify_path(".claude/commands/CLAUDE.md") == "entrypoints"
+    assert suite.classify_path(".claude/skills/github/CLAUDE.md") == "entrypoints"
 
 
 # ---------------------------------------------------------------------------
-# Command mirrors: same tree as skills, different generator
+# Converted commands: once mirrors, now ordinary skills
 # ---------------------------------------------------------------------------
 
-COMMAND_MIRROR_SKILLS = [
-    "build", "checkpoint", "context-hub-setup", "plan", "pr-autofix",
-    "pr-review", "push-pr", "research", "retro", "ship", "spec", "sync",
-    "test", "validate-pr-description",
+# ADR-064 (issue #5632) converted every command into a skill, so the
+# `command_mirrors` category and its predicate row are gone from the suite along
+# with the three tests that exercised them. The category existed for a Copilot
+# skill with no `.claude/skills/<name>/` behind it, which the skill evaluator
+# cannot resolve; every name below now has one, which is what makes these
+# evaluable for the first time. `test_the_command_tree_is_empty` is the guard
+# that fails if a command comes back and the category is needed again.
+CONVERTED_COMMAND_SKILLS = [
+    "build", "checkpoint", "context-hub-setup", "plan", "pr-autofix", "pr-review",
+    "push-pr", "research", "retro", "ship", "spec", "sync", "test",
+    "validate-pr-description",
 ]
 
 
-@pytest.mark.parametrize("name", COMMAND_MIRROR_SKILLS)
-def test_command_mirror_skills_do_not_route_to_the_skill_evaluator(name: str) -> None:
-    """The skill evaluator resolves only .claude/skills/ and exits 1 otherwise."""
-    path = f"src/copilot-cli/skills/{name}/SKILL.md"
-    assert suite.classify_path(path) == "command_mirrors"
-    assert suite.RUNNER_BY_CATEGORY.get("command_mirrors") is None
-
-
-@pytest.mark.parametrize("name", COMMAND_MIRROR_SKILLS)
-def test_command_mirror_premise_holds_in_the_tree(name: str) -> None:
-    """Negative control for the premise: no Claude skill, but a Claude command."""
-    assert not (REPO_ROOT / ".claude" / "skills" / name).is_dir()
-    assert (REPO_ROOT / ".claude" / "commands" / f"{name}.md").is_file()
-
-
-@pytest.mark.parametrize("name", ["analyze", "github", "review", "planner"])
+@pytest.mark.parametrize(
+    "name", ["analyze", "github", "review", "planner", *CONVERTED_COMMAND_SKILLS]
+)
 def test_mirrored_claude_skills_still_route_as_skills(name: str) -> None:
     """The narrowing must not capture ordinary mirrored skills."""
     assert (REPO_ROOT / ".claude" / "skills" / name).is_dir()
     assert suite.classify_path(f"src/copilot-cli/skills/{name}/SKILL.md") == "skills"
 
 
-def test_command_mirror_predicate_ignores_paths_outside_the_copilot_skill_tree() -> None:
-    assert suite.is_command_mirror_skill(".claude/skills/spec/SKILL.md") is False
-    assert suite.is_command_mirror_skill("src/copilot-cli/skills") is False
-    assert suite.is_command_mirror_skill("README.md") is False
+def test_the_command_tree_is_empty() -> None:
+    """The premise behind removing the `command_mirrors` category.
+
+    That category, its predicate row, and its not-evaluated reason existed only
+    for a Copilot skill generated from `.claude/commands/<name>.md` with no
+    `.claude/skills/<name>/` behind it. ADR-064 emptied that tree, so the row
+    could never match again, and a routing row that cannot match is one the
+    shadow test above cannot check. Removing it is only correct while this
+    holds.
+
+    Driven through the guard's own CLI rather than re-implementing the scan:
+    `check_commands_retired.py` is what pre-push and CI enforce, and a second
+    implementation here would drift from it and would not be the thing that
+    actually blocks a command coming back.
+    """
+    assert check_commands_retired.main(["--repo-root", str(REPO_ROOT)]) == 0
 
 
-def test_command_mirror_reason_points_at_the_generating_command() -> None:
-    reason = suite.NOT_EVALUATED_REASONS["command_mirrors"]
-    assert ".claude/commands/" in reason
-    assert ".claude/skills/" in reason
+def test_no_routing_category_names_command_mirrors() -> None:
+    """Negative control: the category is gone from every table, not just one."""
+    assert "command_mirrors" not in suite.CATEGORIES
+    assert "command_mirrors" not in suite.NOT_EVALUATED_REASONS
+    assert "command_mirrors" not in {rule.category for rule in suite.ROUTING_RULES}
 
 
 def test_references_rows_precede_the_trees_that_contain_them() -> None:

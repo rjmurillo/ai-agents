@@ -158,7 +158,7 @@ def test_repository_removes_false_vendor_attribution_from_both_skill_trees():
 
     assert all("Anthropic recommendation" not in content for content in contents)
     assert all("MEMORY.md" in content for content in contents[1::2])
-    assert all("command_size.py" in content for content in contents[1::2])
+    assert all("skill_size.py" in content for content in contents[1::2])
 
 
 def test_compliance_scope_names_excluded_layers_and_separate_check(temp_repo, monkeypatch):

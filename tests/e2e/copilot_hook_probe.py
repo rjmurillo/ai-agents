@@ -146,6 +146,29 @@ COPILOT_AUTH_REJECTED_MARKERS = ("github returned: bad credentials",)
 # correct advice is to retry after the reset window, not to rotate the token.
 # This predicate takes precedence over both auth predicates.
 COPILOT_RATE_LIMIT_MARKERS = ("api rate limit exceeded", "secondary rate limit")
+
+# Quota-exhaustion detection. A Copilot plan whose monthly allowance is spent
+# gets an HTTP 402 whose body is neither a rate limit nor an auth failure: the
+# token is valid and the request is well formed, the account is out of credits.
+# None of the marker sets above match that wording, so the run fell through to
+# unclassified and the smoke failed as though the branch were broken. That
+# blocked every push touching the plugin-load-e2e globs until the billing
+# period rolled over.
+#
+# Two markers because the CLI surfaces the same condition two ways: the plain
+# ``-p`` path prints the prose sentence on stderr, and the agent path emits a
+# JSON event carrying ``"errorCode":"quota_exceeded"`` (the prose also appears
+# there, escaped, inside ``errorMessage``). Matching either keeps both probe
+# shapes classified.
+#
+# This class takes precedence over every other marker set: a 402 body can carry
+# the same auth-method boilerplate a 403 does, and "out of credits" needs
+# different operator advice from both "wait for the reset window" and "rotate
+# the token".
+COPILOT_QUOTA_EXHAUSTED_MARKERS = (
+    "exceeded your monthly quota",
+    "quota_exceeded",
+)
 COPILOT_TRANSPORT_FAILURE_MARKERS = (
     "failed to fetch pat user login",
     "your token may still be valid",
@@ -158,7 +181,9 @@ COPILOT_TRANSPORT_FAILURE_MARKERS = (
     "tls handshake timeout",
 )
 
-CopilotBlockReason = Literal["rate_limit", "transport", "auth_rejected", "auth_absent"]
+CopilotBlockReason = Literal[
+    "quota_exhausted", "rate_limit", "transport", "auth_rejected", "auth_absent"
+]
 
 
 def _copilot_haystack(result: subprocess.CompletedProcess[str]) -> str:
@@ -189,6 +214,8 @@ def copilot_block_reason(
         return None
 
     haystack = _copilot_haystack(result)
+    if any(marker in haystack for marker in COPILOT_QUOTA_EXHAUSTED_MARKERS):
+        return "quota_exhausted"
     if any(marker in haystack for marker in COPILOT_RATE_LIMIT_MARKERS):
         return "rate_limit"
     if any(marker in haystack for marker in COPILOT_AUTH_REJECTED_MARKERS):
@@ -198,6 +225,17 @@ def copilot_block_reason(
     if any(marker in haystack for marker in COPILOT_TRANSPORT_FAILURE_MARKERS):
         return "transport"
     return None
+
+
+def copilot_quota_exhausted(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when the account's Copilot allowance is spent for the billing period.
+
+    Distinct from :func:`copilot_rate_limited`: a rate limit clears in minutes
+    or an hour, so "re-run shortly" is right advice. A spent monthly quota does
+    not clear until the plan resets or someone buys more credits, so telling the
+    operator to wait for a reset window would send them to poll for a day.
+    """
+    return copilot_block_reason(result) == "quota_exhausted"
 
 
 def copilot_rate_limited(result: subprocess.CompletedProcess[str]) -> bool:
@@ -211,8 +249,13 @@ def copilot_transport_failure(result: subprocess.CompletedProcess[str]) -> bool:
 
 
 def copilot_transient_failure(result: subprocess.CompletedProcess[str]) -> bool:
-    """True when retrying later can succeed without changing credentials."""
-    return copilot_block_reason(result) in {"rate_limit", "transport"}
+    """True when retrying later can succeed without changing credentials.
+
+    Includes quota exhaustion. "Later" is a longer wait there than for a rate
+    limit, but the remediation class is the same: wait or add capacity, do not
+    touch the token. The headline separates the two.
+    """
+    return copilot_block_reason(result) in {"quota_exhausted", "rate_limit", "transport"}
 
 
 def _transient_diagnostics(result: subprocess.CompletedProcess[str]) -> str:
@@ -224,8 +267,16 @@ def _transient_diagnostics(result: subprocess.CompletedProcess[str]) -> str:
 
 
 def copilot_transient_failure_headline(result: subprocess.CompletedProcess[str]) -> str:
-    """Skip reason that separates rate limiting from transport failure."""
+    """Skip reason that separates quota, rate limiting, and transport failure."""
     reason = copilot_block_reason(result)
+    if reason == "quota_exhausted":
+        return (
+            "Copilot monthly quota is exhausted (HTTP 402). This is not an auth "
+            "failure and not a rate limit. The account is out of credits until "
+            "the plan's billing period resets or more capacity is purchased. Do "
+            "not change credentials based on this result. "
+            f"{_transient_diagnostics(result)}"
+        )
     if reason == "rate_limit":
         return (
             "GitHub rate limit blocked Copilot CLI. This is not an auth failure. "
@@ -255,6 +306,8 @@ def copilot_auth_rejected(result: subprocess.CompletedProcess[str]) -> bool:
 
     Rate-limited runs are excluded: the CLI may print the same auth-method list
     after a 403 refusal, so rate-limit detection takes precedence (issue #4504).
+    Quota-exhausted runs are excluded for the same reason and take precedence
+    over both.
     """
     return copilot_block_reason(result) == "auth_rejected"
 
@@ -279,7 +332,8 @@ def copilot_auth_absent(result: subprocess.CompletedProcess[str]) -> bool:
     caller checking :func:`copilot_auth_rejected` first.
 
     Rate-limited runs are also excluded: they share auth-boilerplate wording but
-    have healthy credentials (issue #4504).
+    have healthy credentials (issue #4504). Quota-exhausted runs are excluded on
+    the same grounds.
     """
     return copilot_block_reason(result) == "auth_absent"
 
@@ -297,8 +351,8 @@ def copilot_run_blocked(result: subprocess.CompletedProcess[str]) -> bool:
 def copilot_auth_failed(result: subprocess.CompletedProcess[str]) -> bool:
     """True when the run died at the auth gate, whether absent or rejected.
 
-    Does not include rate-limited runs: those have healthy auth and should
-    not trigger a credential-rotation or provision headline.
+    Does not include rate-limited or quota-exhausted runs: those have healthy
+    auth and should not trigger a credential-rotation or provision headline.
     """
     return copilot_block_reason(result) in {"auth_rejected", "auth_absent"}
 

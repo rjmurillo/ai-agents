@@ -13,9 +13,9 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-AUTOFIX = REPO_ROOT / ".claude" / "commands" / "pr-autofix.md"
-REVIEW = REPO_ROOT / ".claude" / "commands" / "pr-review.md"
-CONFIG = REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml"
+AUTOFIX = REPO_ROOT / ".claude" / "skills" / "pr-autofix" / "SKILL.md"
+REVIEW = REPO_ROOT / ".claude" / "skills" / "pr-review" / "SKILL.md"
+CONFIG = REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
 PROMPT = REPO_ROOT / ".github" / "prompts" / "pr-review.prompt.md"
 COPILOT_AUTOFIX = REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-autofix" / "SKILL.md"
 COPILOT_REVIEW = REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-review" / "SKILL.md"
@@ -216,7 +216,7 @@ class TestMcpGrantsAreEnumerated:
         import yaml
 
         config = yaml.safe_load(
-            (REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text(
+            (REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml").read_text(
                 encoding="utf-8"
             )
         )
@@ -244,7 +244,7 @@ class TestMcpGrantsAreEnumerated:
         import yaml
 
         config = yaml.safe_load(
-            (REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text(
+            (REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml").read_text(
                 encoding="utf-8"
             )
         )
@@ -259,7 +259,7 @@ class TestMcpGrantsAreEnumerated:
     @pytest.mark.parametrize(
         "consumer",
         [
-            (".claude/commands/pr-review.md", "claude_code"),
+            (".claude/skills/pr-review/SKILL.md", "claude_code"),
             ("src/copilot-cli/skills/pr-review/SKILL.md", "copilot"),
             (".github/prompts/pr-review.prompt.md", "copilot"),
         ],
@@ -273,7 +273,7 @@ class TestMcpGrantsAreEnumerated:
 
         path, harness = consumer
         config = yaml.safe_load(
-            (REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text(
+            (REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml").read_text(
                 encoding="utf-8"
             )
         )
@@ -302,7 +302,7 @@ class TestMcpGrantsAreEnumerated:
         import yaml
 
         config = yaml.safe_load(
-            (REPO_ROOT / ".claude" / "commands" / "pr-review-config.yaml").read_text(
+            (REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml").read_text(
                 encoding="utf-8"
             )
         )
@@ -319,10 +319,36 @@ class TestMcpGrantsAreEnumerated:
             f"every documented outcome needs a meaning; got {sorted(exits)}"
         )
 
+    def test_verify_trust_names_the_config_file_it_lives_in(self):
+        """The trust check must verify ITS OWN file, not a path that moved.
+
+        `verify_trust` passes `--config <path>` as a literal, so the file it
+        verifies is whatever that literal names rather than whatever loaded
+        this config. ADR-064 moved the config from `.claude/commands/` into
+        `.claude/skills/pr-review/`; had the literal stayed behind, the
+        preflight would have byte-compared a file that no longer exists,
+        exited 2 on every run, and the fail-closed halt would have read as a
+        config error rather than as a stale path. Worse, had a copy survived
+        at the old location, the check would have verified that copy while the
+        dispatcher loaded this one: fail-closed in name, fail-open in fact.
+
+        Deriving the expected path from CONFIG rather than restating it is
+        what makes this discriminate: the assertion follows the file wherever
+        it moves next, and fails the moment the literal stops following it.
+        """
+        config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+        command = config["transport_preflight"]["verify_trust"]
+        expected = CONFIG.relative_to(REPO_ROOT).as_posix()
+
+        assert f"--config {expected}" in command, (
+            f"verify_trust passes --config for some other path; it must name "
+            f"{expected}, the file it is declared in. Got: {command}"
+        )
+
     @pytest.mark.parametrize(
         "path",
         [
-            ".claude/commands/pr-review.md",
+            ".claude/skills/pr-review/SKILL.md",
             ".github/prompts/pr-review.prompt.md",
         ],
     )

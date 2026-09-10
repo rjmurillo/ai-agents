@@ -8,7 +8,7 @@ description: Reflective consolidation pass over Serena memory files. Separates
   absolute ones, and tidies memory-index.md so a future session orients fast
   without re-asking. Use when you say `consolidate memory`, `consolidate
   Serena memory`, `merge memory files`, or `tidy the memory index`. Do NOT use
-  for Forgetful-store curation (use curating-memories) or health, token, or
+  for in-file supersession markers (use curating-memories) or health, token, or
   size checks (use memory-maintenance).
 license: MIT
 ---
@@ -21,9 +21,10 @@ they like to work, by reading a small, current set of memories instead of
 re-deriving that context or re-asking the user.
 
 This is separate from `memory-maintenance`, which measures store health, and
-`curating-memories`, which curates the Forgetful store. It owns the reflective
-Serena file pass because neither sibling merges duplicate topic memories or
-separates durable user context from dated work.
+`curating-memories`, which marks superseded content in place without merging or
+deleting files. It owns the reflective Serena file pass because neither sibling
+merges duplicate topic memories or separates durable user context from dated
+work.
 
 ## Triggers
 

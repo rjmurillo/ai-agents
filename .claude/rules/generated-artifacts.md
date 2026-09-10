@@ -1,7 +1,6 @@
 ---
 paths:
   - ".claude/agents/**"
-  - ".claude/commands/**"
   - "build/scripts/**"
   - "templates/**"
   - "src/copilot-cli/**"

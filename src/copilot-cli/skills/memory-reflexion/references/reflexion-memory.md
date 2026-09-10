@@ -411,7 +411,7 @@ before the discontinuation, or cherry-picked from an older one):
 
 ### With Memory Router
 
-`memory_router.search_memory` covers Serena and Forgetful only. The episode store is searched by the CLI wrapper:
+`memory_router.search_memory` covers Serena only. The episode store is searched by the CLI wrapper:
 
 ```bash
 uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "routing decision"
@@ -505,7 +505,7 @@ for outcome, episodes in by_outcome.items():
 
 ## Related Documentation
 
-- [Memory Router](../../memory-search/references/memory-router.md). Tier 1 semantic memory (Serena + Forgetful).
+- [Memory Router](../../memory-search/references/memory-router.md). Tier 1 semantic memory (Serena).
 - [Benchmarking](../../memory-maintenance/references/benchmarking.md). Performance measurement.
 - [API Reference](../../memory-search/references/api-reference.md). Complete function signatures.
 - ADR-038. Reflexion Memory schema.

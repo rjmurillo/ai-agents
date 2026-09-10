@@ -15,14 +15,11 @@ from unittest.mock import patch
 
 import pytest
 from memory_core.memory_router import (
-    MemoryResult,
     get_content_hash,
     get_memory_router_status,
     invoke_serena_search,
-    merge_memory_results,
     reset_caches,
     search_memory,
-    test_forgetful_available,
 )
 
 # ---------------------------------------------------------------------------
@@ -160,123 +157,12 @@ class TestInvokeSerenaSearch:
 
 
 # ---------------------------------------------------------------------------
-# merge_memory_results tests
-# ---------------------------------------------------------------------------
-
-
-class TestMergeMemoryResults:
-    """Tests for merge_memory_results function."""
-
-    def test_serena_results_come_first(self) -> None:
-        serena = [
-            MemoryResult(
-                name="s1", content="a", source="Serena", score=80, hash="aaa"
-            )
-        ]
-        forgetful = [
-            MemoryResult(
-                name="f1", content="b", source="Forgetful", score=90, hash="bbb"
-            )
-        ]
-        merged = merge_memory_results(serena, forgetful)
-        assert merged[0].source == "Serena"
-
-    def test_deduplicates_by_hash(self) -> None:
-        same_hash = get_content_hash("same content")
-        serena = [
-            MemoryResult(
-                name="s1",
-                content="same content",
-                source="Serena",
-                score=80,
-                hash=same_hash,
-            )
-        ]
-        forgetful = [
-            MemoryResult(
-                name="f1",
-                content="same content",
-                source="Forgetful",
-                score=90,
-                hash=same_hash,
-            )
-        ]
-        merged = merge_memory_results(serena, forgetful)
-        assert len(merged) == 1
-        assert merged[0].source == "Serena"
-
-    def test_includes_null_hash_results(self) -> None:
-        serena = [
-            MemoryResult(
-                name="s1", content=None, source="Serena", score=80, hash=None
-            )
-        ]
-        forgetful = [
-            MemoryResult(
-                name="f1", content=None, source="Forgetful", score=90, hash=None
-            )
-        ]
-        merged = merge_memory_results(serena, forgetful)
-        assert len(merged) == 2
-
-    def test_limits_total_results(self) -> None:
-        serena = [
-            MemoryResult(
-                name=f"s{i}",
-                content=f"c{i}",
-                source="Serena",
-                score=80,
-                hash=f"h{i}",
-            )
-            for i in range(10)
-        ]
-        merged = merge_memory_results(serena, max_results=5)
-        assert len(merged) == 5
-
-    def test_handles_empty_inputs(self) -> None:
-        merged = merge_memory_results()
-        assert merged == []
-
-
-# ---------------------------------------------------------------------------
-# test_forgetful_available tests
-# ---------------------------------------------------------------------------
-
-
-class TestTestForgetfulAvailable:
-    """Tests for test_forgetful_available function."""
-
-    def test_returns_false_when_port_not_listening(self) -> None:
-        # Use a high port that's very unlikely to be in use
-        result = test_forgetful_available(port=59999, force=True)
-        assert result is False
-
-    def test_caches_result(self) -> None:
-        test_forgetful_available(port=59999, force=True)
-        # Second call should use cache (no TCP connection)
-        result = test_forgetful_available(port=59999)
-        assert result is False
-
-    def test_force_bypasses_cache(self) -> None:
-        test_forgetful_available(port=59999, force=True)
-        # Force should bypass cache
-        result = test_forgetful_available(port=59999, force=True)
-        assert result is False
-
-
-# ---------------------------------------------------------------------------
 # search_memory tests
 # ---------------------------------------------------------------------------
 
 
 class TestSearchMemory:
     """Tests for search_memory function."""
-
-    def test_raises_for_both_flags(self) -> None:
-        with pytest.raises(
-            ValueError, match="Cannot specify both"
-        ):
-            search_memory("test", semantic_only=True, lexical_only=True)
 
     def test_raises_for_empty_query(self) -> None:
         with pytest.raises(ValueError, match="1-500 characters"):
@@ -294,34 +180,44 @@ class TestSearchMemory:
         with pytest.raises(ValueError, match="between 1 and 100"):
             search_memory("test", max_results=0)
 
-    def test_semantic_only_raises_when_unavailable(self) -> None:
-        with patch(
-            "memory_core.memory_router.test_forgetful_available",
-            return_value=False,
-        ):
-            with pytest.raises(RuntimeError, match="Forgetful is not available"):
-                search_memory("test", semantic_only=True)
+    @pytest.mark.parametrize(
+        "removed_parameter", ["semantic_only", "lexical_only"]
+    )
+    def test_rejects_removed_backend_selection_parameters(
+        self, removed_parameter: str
+    ) -> None:
+        """Both parameters chose between backends; one backend remains.
 
-    def test_lexical_only_skips_content(self, memory_dir: Path) -> None:
+        Negative control for the contract change. Without this a caller
+        passing the old parameter would fail somewhere downstream instead of
+        at the call site, and a later reader could not tell the removal was
+        deliberate.
+        """
+        with pytest.raises(TypeError, match=removed_parameter):
+            search_memory("test", **{removed_parameter: True})
+
+    def test_returns_results_carrying_content(self, memory_dir: Path) -> None:
+        """The single path reads content, as the two-backend default did.
+
+        Content was skipped only under the lexical-only parameter. Dropping
+        that parameter must not silently promote its cheaper behaviour to the
+        default, because callers read `content` off the result.
+        """
         with patch(
             "memory_core.memory_router._config",
-            {
-                **{
-                    "serena_path": str(memory_dir),
-                    "forgetful_port": 8020,
-                    "forgetful_timeout": 0.5,
-                    "max_results": 10,
-                },
-            },
+            {"serena_path": str(memory_dir), "max_results": 10},
         ), patch(
             "memory_core.memory_router.invoke_serena_search",
             wraps=invoke_serena_search,
         ) as mock_serena:
-            search_memory("memory", lexical_only=True)
-            # Should have called invoke_serena_search with skip_content=True
-            mock_serena.assert_called_once()
-            _, kwargs = mock_serena.call_args
-            assert kwargs.get("skip_content") is True
+            results = search_memory("memory")
+
+        mock_serena.assert_called_once()
+        _, kwargs = mock_serena.call_args
+        assert "skip_content" not in kwargs
+        assert results
+        assert all(r.content is not None for r in results)
+        assert all(r.source == "Serena" for r in results)
 
 
 # ---------------------------------------------------------------------------
@@ -335,8 +231,6 @@ class TestGetMemoryRouterStatus:
     def test_returns_diagnostic_info(self) -> None:
         status = get_memory_router_status()
         assert "Serena" in status
-        assert "Forgetful" in status
-        assert "Cache" in status
         assert "Configuration" in status
 
     def test_serena_section_has_available_and_path(self) -> None:
@@ -344,10 +238,18 @@ class TestGetMemoryRouterStatus:
         assert "Available" in status["Serena"]
         assert "Path" in status["Serena"]
 
-    def test_forgetful_section_has_available_and_endpoint(self) -> None:
+    def test_omits_retired_backend_and_its_probe_cache(self) -> None:
+        """Negative control: no status block for a backend that is gone.
+
+        The `Cache` block reported the age of the availability probe's
+        30-second result cache. With no probe there is nothing to report, and
+        leaving an always-empty block would read as a backend that is merely
+        down.
+        """
         status = get_memory_router_status()
-        assert "Available" in status["Forgetful"]
-        assert "Endpoint" in status["Forgetful"]
+        assert "Cache" not in status
+        assert set(status) == {"Serena", "Configuration"}
+        assert not any("port" in key for key in status["Configuration"])
 
 
 @pytest.fixture()

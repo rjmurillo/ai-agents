@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -16,9 +15,6 @@ from ..scripts.search_memory import (
     search_episodes,
     search_serena,
     validate_query,
-)
-from ..scripts.search_memory import (
-    test_forgetful_available as check_forgetful,
 )
 
 
@@ -147,19 +143,6 @@ class TestSearchSerena:
             assert results[0]["Score"] >= results[1]["Score"]
 
 
-class TestForgetfulAvailable:
-    """Tests for Forgetful availability check."""
-
-    def test_unavailable(self) -> None:
-        with patch("socket.create_connection", side_effect=OSError("refused")):
-            assert check_forgetful() is False
-
-    def test_available(self) -> None:
-        mock_conn = type("MockConn", (), {"__enter__": lambda s: s, "__exit__": lambda *a: None})()
-        with patch("socket.create_connection", return_value=mock_conn):
-            assert check_forgetful() is True
-
-
 class TestGetMemoryRouterStatus:
     """Tests for memory router status."""
 
@@ -168,10 +151,10 @@ class TestGetMemoryRouterStatus:
         serena.mkdir()
         (serena / "test.md").write_text("content")
 
-        with patch("socket.create_connection", side_effect=OSError("refused")):
-            status = get_memory_router_status(serena)
-            assert status["Serena"]["Available"] is True
-            assert status["Serena"]["MemoryCount"] == 1
+        status = get_memory_router_status(serena)
+        assert status["Serena"]["Available"] is True
+        assert status["Serena"]["MemoryCount"] == 1
+        assert set(status) == {"Serena", "Episodes"}
 
     def test_with_missing_path(self, tmp_path: Path) -> None:
         status = get_memory_router_status(tmp_path / "missing")
@@ -184,16 +167,14 @@ class TestGetMemoryRouterStatus:
         episodes.mkdir()
         _write_episode(episodes, "episode-2026-01-02-alpha", "alpha task")
 
-        with patch("socket.create_connection", side_effect=OSError("refused")):
-            status = get_memory_router_status(serena, episodes)
+        status = get_memory_router_status(serena, episodes)
         assert status["Episodes"]["Available"] is True
         assert status["Episodes"]["MemoryCount"] == 1
 
     def test_episode_store_absent(self, tmp_path: Path) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()
-        with patch("socket.create_connection", side_effect=OSError("refused")):
-            status = get_memory_router_status(serena, tmp_path / "missing")
+        status = get_memory_router_status(serena, tmp_path / "missing")
         assert status["Episodes"]["Available"] is False
         assert status["Episodes"]["MemoryCount"] == 0
 
@@ -298,14 +279,13 @@ class TestMainFunction:
             "git hooks",
             "--serena-path", str(serena),
             "--episodes-path", str(episodes),
-            "--lexical-only",
         ])
         assert result == 0
 
         captured = capsys.readouterr()
         output = json.loads(captured.out)
         assert output["Query"] == "git hooks"
-        assert output["Source"] == "Lexical"
+        assert output["Source"] == "Unified"
         assert isinstance(output["Results"], list)
 
     def test_searches_episodes_alongside_serena(
@@ -322,7 +302,6 @@ class TestMainFunction:
             "ratchet",
             "--serena-path", str(serena),
             "--episodes-path", str(episodes),
-            "--lexical-only",
         ])
         assert result == 0
 
@@ -339,7 +318,6 @@ class TestMainFunction:
         result = main([
             "alpha",
             "--episodes-path", "../../etc",
-            "--lexical-only",
         ])
         assert result == 2
         assert "traversal" in json.loads(capsys.readouterr().out)["Error"]
@@ -354,7 +332,6 @@ class TestMainFunction:
             "test query",
             "--serena-path", str(serena),
             "--episodes-path", str(episodes),
-            "--lexical-only",
             "--format", "table",
         ])
         assert result == 0
@@ -364,6 +341,52 @@ class TestMainFunction:
     def test_invalid_query_returns_1(self, capsys: pytest.CaptureFixture[str]) -> None:
         result = main(["test<invalid>"])
         assert result == 1
+
+    @pytest.mark.parametrize(
+        "removed_flag", ["--lexical-only", "--semantic-only"]
+    )
+    def test_removed_backend_flags_are_rejected(
+        self, removed_flag: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Both flags named a backend choice; one backend remains.
+
+        argparse exits 2 on an unrecognised argument rather than raising, so
+        this asserts SystemExit. Without it a doc or agent prompt still
+        passing the old flag would look like a silent no-op instead of the
+        hard failure it actually is.
+        """
+        with pytest.raises(SystemExit) as excinfo:
+            main(["test", removed_flag])
+        assert excinfo.value.code == 2
+        assert removed_flag in capsys.readouterr().err
+
+    def test_search_status_omits_retired_backend(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """No status key for a store that is no longer queried.
+
+        A `<backend>Succeeded: false` key would read as a store that is down,
+        which is the wrong signal now that nothing tries to reach one.
+        """
+        serena = tmp_path / "memories"
+        serena.mkdir()
+        episodes = tmp_path / "episodes"
+        episodes.mkdir()
+
+        assert main([
+            "alpha",
+            "--serena-path", str(serena),
+            "--episodes-path", str(episodes),
+        ]) == 0
+
+        output = json.loads(capsys.readouterr().out)
+        assert set(output["SearchStatus"]) == {
+            "SerenaQueried",
+            "EpisodesQueried",
+            "SerenaSucceeded",
+            "EpisodesSucceeded",
+        }
+        assert set(output["Diagnostic"]) == {"Serena", "Episodes"}
 
     def test_empty_results(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         serena = tmp_path / "memories"
@@ -375,7 +398,6 @@ class TestMainFunction:
             "nonexistent",
             "--serena-path", str(serena),
             "--episodes-path", str(episodes),
-            "--lexical-only",
         ])
         assert result == 0
         captured = capsys.readouterr()

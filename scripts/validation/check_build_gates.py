@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static check that ``.claude/commands/build.md`` wires the required exit gates.
+"""Static check that the ``build`` skill wires the required exit gates.
 
 The /build command is the implementer's exit path. Layer 2 of the PR #1887
 retrospective (`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md`)
@@ -8,7 +8,7 @@ taste-lints, doc-accuracy) were invoke-on-demand and not on the exit path,
 so review-time bots flagged what they should have caught.
 
 This validator pins the contract: any future edit that drops one of the
-three exit gates from ``.claude/commands/build.md`` fails CI before merge,
+three exit gates from ``.claude/skills/build/SKILL.md`` fails CI before merge,
 not after. It is intentionally a small surface area; it does not validate
 that the gates *run* (the implementer does that), only that they are
 listed as required invocations.
@@ -16,7 +16,7 @@ listed as required invocations.
 EXIT CODES (`AGENTS.md`, ADR-035):
   0 - All required gates present.
   1 - One or more required gates missing.
-  2 - Configuration error (build.md missing or unreadable).
+  2 - Configuration error (the build skill is missing or unreadable).
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ _REQUIRED_GATES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
 )
 
-# The build.md file must contain a section heading that frames the gates
+# The build skill must contain a section heading that frames the gates
 # as mandatory rather than advisory. Layer 2 of the retrospective is
 # explicit: advisory output produced the iteration paradox.
 _MANDATORY_SECTION: re.Pattern[str] = re.compile(
@@ -58,12 +58,12 @@ _MANDATORY_SECTION: re.Pattern[str] = re.compile(
 )
 _INLINE_CODE = re.compile(r"`([^`\n]+)`")
 
-_BUILD_MD_RELPATH = Path(".claude/commands/build.md")
+_BUILD_MD_RELPATH = Path(".claude/skills/build/SKILL.md")
 
 
 @dataclass(frozen=True)
 class GateViolation:
-    """One missing required item in build.md."""
+    """One missing required item in the build skill."""
 
     kind: str  # "skill" or "section"
     name: str
@@ -101,16 +101,16 @@ def _has_regression_arguments(line: str) -> bool:
 
 
 def collect_violations(repo_root: Path) -> list[GateViolation]:
-    """Return the list of missing required gates in build.md.
+    """Return the list of missing required gates in the build skill.
 
     Empty list means the file passes the contract. This function reads
-    ``.claude/commands/build.md`` from ``repo_root`` and applies the
+    ``.claude/skills/build/SKILL.md`` from ``repo_root`` and applies the
     static checks above. It does not import anything; the caller decides
     how to surface the result.
     """
     build_md = repo_root / _BUILD_MD_RELPATH
     if not build_md.is_file():
-        raise FileNotFoundError(f"missing build.md at {build_md}")
+        raise FileNotFoundError(f"missing build skill at {build_md}")
 
     try:
         text = build_md.read_text(encoding="utf-8")

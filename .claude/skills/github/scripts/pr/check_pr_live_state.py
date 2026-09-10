@@ -32,7 +32,7 @@ Stricter/looser/different than canonical
 ========================================
 This script is **purely advisory** with respect to the four-condition
 Ready-to-Merge gate (`docs/autonomous-pr-monitor.md` Ready-to-Merge
-Definition; `.claude/commands/pr-autofix.md` Ready-to-Merge Definition).
+Definition; `.claude/skills/pr-autofix/SKILL.md` Ready-to-Merge Definition).
 An action="ACT" verdict means "the PR is still actionable", NOT "merge
 this PR". The caller still runs `test_pr_merge_ready.py` and the
 4-condition cross-check before any merge.

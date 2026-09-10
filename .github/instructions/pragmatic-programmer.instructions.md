@@ -9,16 +9,6 @@ applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*
 
 This repository follows **The Pragmatic Programmer** in the sense of Andrew Hunt and David Thomas: work pragmatically, take responsibility for quality, automate what is repetitive, and keep code and process adaptable.
 
-All code generation, edits, and reviews must optimize for:
-
-- clear ownership and responsibility
-- DRY at the knowledge level
-- orthogonality
-- incremental delivery
-- ruthless feedback
-- automation of repetitive work
-- code that is easy to change and easy to reason about
-
 This file is a binding engineering policy for Claude.
 
 For deeper design decisions, apply the same engineering qualities directly: maximize cohesion, minimize coupling, preserve encapsulation, prioritize testability, and avoid redundant knowledge.
@@ -223,34 +213,6 @@ Anti-patterns:
 2. Fix small quality problems before they signal that nobody cares.
 3. Tidy the code you touch where the cost is low and the value is immediate.
 4. Avoid leaving behind "temporary" hacks with no cleanup plan.
-
----
-
-## Forbidden Patterns
-
-### Cargo-Cult Process
-
-- rituals followed with no benefit
-- documentation and checklists replacing automation
-
-### Knowledge Duplication
-
-- same rule in many places
-- copied logic because "layers need it too"
-
-### Non-Orthogonal Design
-
-- modules with overlapping responsibilities
-- changes leaking across boundaries by default
-
-### Manual Everything
-
-- repeated human steps for build, test, release, setup, or validation
-- hidden local environment assumptions
-
-### Prototype Fossilization
-
-- experimental code promoted to production without redesign or hardening
 
 ---
 

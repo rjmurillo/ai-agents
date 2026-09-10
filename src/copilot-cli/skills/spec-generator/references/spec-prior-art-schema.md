@@ -13,11 +13,11 @@ The gate emits a Markdown block embedded into the PRD as its first section, name
 - Episode YYYY-MM-DD ("[title]"): [one-line]. Relevance: [one-line]. Decision: [as above].
 - (chestertons-fence recommendation: PRESERVE | MODIFY | REPLACE | REMOVE; rationale.)
 
-### Connected context from exploring-knowledge-graph
+### Connected context from prior-art search
 
 - Connected entity: [normalized name, type]. Adjudication: [in-scope | out-of-scope | blast-radius]. Note: [one-line].
 - Linked project: [name]. Why it matters: [one-line].
-- (Traversal depth: shallow | medium | deep, matched to Tier N.)
+- (Search depth: shallow | medium | deep, matched to Tier N.)
 
 ### Coverage notes
 
@@ -103,7 +103,7 @@ phases_needed(T) = 5  if T >= 4
 run_supplemental = (actual_tier > provisional_tier) AND (phases_needed(actual_tier) > phases_needed(provisional_tier))
 ```
 
-Example: ProvisionalTier was 2 (ran Phases 1-2 shallow). Step 3 classifies actual tier as 4. `phases_needed(4) = 5` and `phases_needed(2) = 2`, so run Phases 3-5 as supplemental and append `### Supplemental (Phase 5)` listing the new entity-linked memories surfaced. The original `### Connected context from exploring-knowledge-graph` subsection is preserved unchanged; the supplemental sub-block sits beneath it.
+Example: ProvisionalTier was 2 (ran Phases 1-2 shallow). Step 3 classifies actual tier as 4. `phases_needed(4) = 5` and `phases_needed(2) = 2`, so run Phases 3-5 as supplemental and append `### Supplemental (Phase 5)` listing the newly named entities surfaced. The original `### Connected context from prior-art search` subsection is preserved unchanged; the supplemental sub-block sits beneath it.
 
 #### Step 0.5 metrics tally
 
@@ -309,7 +309,7 @@ Absence of the file does not block `/spec`; the tally is review-only data for th
      - FAIL if any acceptance criterion adds scope beyond Q4 without a documented wedge revision. On FAIL: cite Q4 verbatim and list the AC entries that exceed the wedge.
    - **Check 9d, Prior Art / Constraints elicitation**:
      - Evaluate 9d independently from ontology checks: missing or present `## Ontology` and `## Data model` content cannot satisfy, fail, or distract from the required `## Prior Art / Constraints` section. Locate the literal prior-art section first; if it exists with the required subsection evidence or coverage note, 9d passes even when ontology coverage is checked later.
-     - PASS: the PRD contains a "## Prior Art / Constraints" section with at least one sub-section ("### Direct prior art from memory", "### Connected context from exploring-knowledge-graph", or "### Coverage notes") that has either evidence content or a justified coverage note.
-     - FAIL conditions (any one triggers a blocking FAIL): (a) the section is absent; (b) all three sub-sections are empty AND no coverage note is present; (c) the Step 0.5 BLOCK itself in `.claude/commands/spec.md` (between the `### Step 0.5: Memory-First Gate` heading and the next `\n---\n` delimiter) contains the partial-implementation guard token (string `step0.5:incomplete-without-2b` wrapped in HTML-comment delimiters). Note: the same token appears in this 9d FAIL clause as documentation; check 9d MUST scope its match to the Step 0.5 block boundaries to avoid a tautological self-trigger from this Step 9 text.
+     - PASS: the PRD contains a "## Prior Art / Constraints" section with at least one sub-section ("### Direct prior art from memory", "### Connected context from prior-art search", or "### Coverage notes") that has either evidence content or a justified coverage note.
+     - FAIL conditions (any one triggers a blocking FAIL): (a) the section is absent; (b) all three sub-sections are empty AND no coverage note is present; (c) the Step 0.5 BLOCK itself in the spec skill's `references/step-0-5-memory-gate.md` (between the `## Step 0.5: Memory-First Gate` heading and the next `\n---\n` delimiter; ADR-064 moved the block out of the command and up one heading level) contains the partial-implementation guard token (string `step0.5:incomplete-without-2b` wrapped in HTML-comment delimiters). Note: the same token appears in this 9d FAIL clause as documentation; check 9d MUST scope its match to the Step 0.5 block boundaries to avoid a tautological self-trigger from this Step 9 text.
      - On FAIL: report the verdict as FAIL and surface the gap as a blocking finding. The critic SHALL NOT return APPROVED while check 9d is a FAIL: a missing, absent, or empty Prior Art / Constraints section is a blocking gap, so the critic reports a FAIL verdict with a blocking finding and withholds APPROVED.
 

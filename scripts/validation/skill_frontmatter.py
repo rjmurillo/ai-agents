@@ -108,7 +108,6 @@ VALID_TOOLS: frozenset[str] = frozenset(
         "github-mcp-server",
         "deepwiki",
         "serena",
-        "forgetful",
     }
 )
 

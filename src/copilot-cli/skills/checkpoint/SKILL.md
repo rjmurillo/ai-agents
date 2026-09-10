@@ -1,19 +1,43 @@
 ---
 name: checkpoint
-description: Write a timestamped mid-session checkpoint snapshot of decisions, progress, and next actions to .agents/checkpoints/, then link it from the active session log.
-argument-hint: optional-short-label
+version: 1.0.0
+description: Write a timestamped, secret-redacted snapshot of decisions, progress and next actions to the checkpoints directory, then link it from the active session log. Use when you say `checkpoint this`, `save a recovery point`, or `snapshot where we are` before a risky change or at the end of a working block. Do NOT use to commit or push (it never does either), and do NOT use to write a retrospective (use retro).
+license: MIT
 allowed-tools: Bash(date:*), Bash(git branch:*), Bash(python3 -m json.tool:*), Bash(python3 scripts/redact_secrets.py:*), Glob, Read, Edit, Write
+argument-hint: optional-short-label
 user-invocable: true
 ---
 
-# Checkpoint Command
+# Checkpoint
+
+<!-- vendor-portability: the redactor this skill pipes every checkpoint body
+     through is scripts/redact_secrets.py, which lives upstream in the
+     rjmurillo/ai-agents repo and ships in no plugin root. The checkpoint and
+     session directories it reads and writes are the CONSUMER's own agent
+     artifacts, resolved rather than hard-coded (ADR-083, issue #5632). -->
+
+<!-- vendor-portability-exec: the redaction step invokes
+     scripts/redact_secrets.py, which lives upstream in the rjmurillo/ai-agents
+     repo. A prose declaration does not exempt an executable invocation, which
+     migrates independently (issue #2838), so it is declared here too. -->
+
+Migrated from the checkpoint command under ADR-064, which makes skills the
+single user-invocable surface. The command file is gone, so its path is named
+here in plain text rather than as a citation to something a reader could open.
+
+<!-- Copilot CLI: project instructions (CLAUDE.md) load via the plugin instructions tree; no include directive needed. -->
+## The checkpoint and session directories
+
+Resolve them the way `paths.artifact_dir` does, then take its `checkpoints/` and
+`sessions/` subdirectories. Do not hard-code an agent-artifacts path: the tree
+this skill writes into lives in the CONSUMER's workspace, and its root differs
+between an upstream checkout and a plugin install. Every `{checkpoints-dir}` and
+`{sessions-dir}` below means those resolved directories.
 
 Capture the current state of work as a durable, timestamped snapshot. Use this
 mid-session when you want a recoverable save point before a risky change, at the
 end of a working block, or whenever the user asks to "checkpoint" progress. The
 file is the human-readable record; the session log keeps a reference to it.
-
-Optional label for this checkpoint: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
 ## Triggers
 
@@ -21,6 +45,10 @@ Optional label for this checkpoint: the problem statement from the conversation 
 | --- | --- |
 | `/checkpoint` | Write a timestamped checkpoint and link it from the active session log. |
 | `/checkpoint label` | Write a labeled checkpoint and link it from the active session log. |
+
+## Arguments
+
+Optional label for this checkpoint: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
 
 ## Process
 
@@ -42,115 +70,12 @@ the JSON.
 
 ## Steps
 
-1. Get the current UTC timestamp for the filename and the file body:
-
-   ```bash
-   date -u +%Y%m%d-%H%M%S
-   ```
-
-   Use the output as `YYYYMMDD-HHMMSS`. Also record the full ISO 8601 UTC time
-   (`date -u +%Y-%m-%dT%H:%M:%SZ`) for the body.
-
-2. Identify the active session log and default label:
-
-   - Get the current branch with `git branch --show-current`.
-   - Find `.agents/sessions/*.json` files and sort by filename descending. The
-    filename order is the canonical "newest" order because session logs are
-    named with `YYYY-MM-DD-session-NN`.
-   - Read candidates in that order until you find the first log whose normalized
-    `session.branch` equals the current branch. Normalize `session.branch` by
-    trimming whitespace and removing one matching pair of surrounding backticks.
-    That file is the active session log.
-   - If `$ARGUMENTS` is empty after trimming, derive the label from the active
-    session log's `session.objective`. If no active session log exists, derive
-    it from the current branch. If that is empty, use `checkpoint`.
-
-3. Build the filename slug from the label:
-
-   - Lowercase the label, replace every run of non-alphanumeric characters with a
-     single hyphen, and strip leading and trailing hyphens.
-   - Truncate the slug to 40 characters.
-   - Filename: `CHECKPOINT-YYYYMMDD-HHMMSS-<slug>.md`.
-   - If slug generation returns an empty string, use `checkpoint` as the slug.
-
-4. Select the checkpoint path. The directory already exists (tracked via
-   `.gitkeep`). Do not overwrite an existing file. Use this collision loop before
-   writing:
-
-   - Start with `CHECKPOINT-YYYYMMDD-HHMMSS-<slug>.md`.
-   - Check whether `.agents/checkpoints/<candidate>` already exists with Glob.
-   - If it exists, try `CHECKPOINT-YYYYMMDD-HHMMSS-<slug>-2.md`, then `-3`, and
-    continue until Glob returns no match.
-   - Select the first path that does not already exist, but do not use Write yet.
-
-5. Use this exact section structure. Fill each section from the current
-   conversation and git state. Write "(none)" under a heading when a section has
-   no content; never leave a heading empty.
-
-   ```markdown
-   # Checkpoint YYYYMMDD-HHMMSS
-
-   - Created: <ISO 8601 UTC>
-   - Label: <the raw label, or "none">
-   - Branch: <current git branch>
-
-   ## Decisions
-
-   Decisions made so far this session and the reasoning behind each.
-
-   ## Completed
-
-   Work finished and verified, with file paths or short commit SHAs (7-12
-   characters) as evidence.
-
-   ## Pending
-
-   Work started but not finished, and work known to remain.
-
-   ## Open Questions
-
-   Unresolved questions, ambiguities, or blockers needing a human decision.
-
-   ## Next Action
-
-   The single next concrete step to take when work resumes.
-
-   ## Context References
-
-   Files, issues, PRs, ADRs, session logs, and memories a reader needs to resume.
-   ```
-
-6. Redact secrets before writing, then write the checkpoint. The checkpoint lands in git history; treat it
-   as durable. Do not paste live credentials, tokens, or PII. Before using Write,
-   run the checkpoint body through `python3 scripts/redact_secrets.py` and write
-   the redacted output. If the redactor is unavailable or fails, stop and report
-   the failure instead of writing unredacted durable text. Only after redaction
-   succeeds, use Write on the collision-free path from step 4. Use short commit
-   SHAs rather than full 40-character SHAs because the redactor masks long hex
-   strings.
-
-7. Link the checkpoint from the active session log:
-
-   - If no active session log was found in step 2, report that no active session
-     log was found. Do not invent or modify a log.
-   - If the active session log exists, read the full original JSON first. Build
-     the complete updated JSON in memory with a top-level `checkpoints` array.
-     Create the array when it is absent. Append an object with `path`, `created`,
-     `label`, and `branch` fields for this checkpoint.
-   - Validate the complete updated JSON string before editing the file. Use a JSON
-     parser that reads the full candidate from stdin, such as
-     `python3 -m json.tool`. Never pass the JSON payload as a shell argument. If
-     your harness cannot validate the candidate without writing a scratch file,
-     leave the original session log unchanged and report that the session-log
-     link was skipped.
-   - Persist the updated JSON only after the validate-first step succeeds.
-   - Run `python3 -m json.tool <session-log-path>` after editing. If JSON
-     validation fails, report the failure and do not claim the checkpoint was
-     linked from the session log.
-
-8. Report the path you wrote, the session log path you updated or the reason no
-   log was updated, and a one-line summary of what the checkpoint captured. Do
-   not commit the file; leave that to the user or the session-end flow.
+The three phases expand into eight steps: resolve the timestamp and branch, find
+the active session log, build the path, render the body, redact it, write it to a
+path that does not exist, link and validate the session log, then report. Each
+step, with its exact commands and failure handling, is in
+`references/steps.md`. Read it before writing anything; the redaction and
+validate-before-edit ordering is the part that matters.
 
 ## Verification
 
