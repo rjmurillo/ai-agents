@@ -756,10 +756,29 @@ def _write_baseline_command(repo_root: Path, adr_dir: Path, baseline_path: Path)
 
     A ratchet may only fall. `.claude/rules/ci-scripts.md` MUST NOT 4 forbids
     raising a count baseline, and the shared `scripts/ci/count_ratchet.py:1016`
-    enforces it by reaching its writer only inside ``if count < baseline:``. The
-    sibling `check_adr_lifecycle.py` refuses the same way. Without this, the
-    remedy line this gate itself prints is a one-command way to legalise a new
-    violation.
+    enforces it by reaching its writer only inside ``if count < baseline:``.
+    Without this, the remedy line this gate itself prints is a one-command way to
+    legalise a new violation.
+
+    Weaker than the sibling, deliberately and for now. An earlier revision of this
+    docstring claimed `check_adr_lifecycle.py` "refuses the same way". That was
+    false: it resolves a base ref and compares against the value recorded there
+    (`_resolve_default_base_ref`, `baseline_absent_at_ref` and `_counts_at_ref`,
+    wired at `scripts/validation/check_adr_lifecycle.py:1146-1150`), while this
+    gate reads the ceiling only from the working-tree file. The gap that leaves is
+    real and was reproduced in three ordinary commits: add a violation, `git rm`
+    the baseline, then run the remedy line above, which sees no ceiling, treats it
+    as a first write, and records the raised number. Nothing else catches it,
+    because this gate is registered in no merge-tree backstop
+    (`scripts/ci/merge_tree_ratchet_registry.py` holds five `scripts/ci` ratchets
+    and not this one).
+
+    It is disclosed rather than closed here because it differs in kind from the
+    holes this module does close. Those were tree states that leave the diff
+    untouched, so review cannot see them; this one deletes a tracked file and
+    therefore appears in the diff as a deletion beside the rewritten ceiling.
+    Closing it properly means a base-ref read, which is the follow-up named in the
+    pull request rather than another behavioral change on top of this one.
 
     An absent baseline is a first write and is allowed. A baseline that exists
     and will not parse is refused, because the comparison that would have caught
