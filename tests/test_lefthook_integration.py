@@ -7057,12 +7057,15 @@ def test_atomic_commit_at_limit(tmp_path: Path) -> None:
     assert policy.check_atomic_commit(repo) == 0
 
 
-def test_atomic_commit_above_limit(tmp_path: Path) -> None:
+def test_atomic_commit_above_limit(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Six authored files report an advisory and exit 0 (ADR-100 item 2)."""
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "README.md", "init\n")
     _stage_files(repo, ["a.py", "b.py", "c.py", "d.py", "e.py", "f.py"])
-    assert policy.check_atomic_commit(repo) == 1
+    assert policy.check_atomic_commit(repo) == 0
+    captured = capsys.readouterr()
+    assert "ADVISORY" in captured.out + captured.err
 
 
 def test_atomic_commit_generated_episode_exempt(tmp_path: Path) -> None:
@@ -7076,15 +7079,19 @@ def test_atomic_commit_generated_episode_exempt(tmp_path: Path) -> None:
     assert policy.check_atomic_commit(repo) == 0
 
 
-def test_atomic_commit_generated_episode_not_enough_to_hide_violation(tmp_path: Path) -> None:
-    """Six authored files are a violation even if a generated episode is also staged."""
+def test_atomic_commit_generated_episode_not_enough_to_hide_violation(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Six authored files still report the advisory when a generated episode is staged."""
     repo = tmp_path / "repo"
     _init_repo(repo)
     _commit_file(repo, "README.md", "init\n")
     authored = ["a.py", "b.py", "c.py", "d.py", "e.py", "f.py"]
     generated = [".agents/memory/episodes/episode-abc123.json"]
     _stage_files(repo, authored + generated)
-    assert policy.check_atomic_commit(repo) == 1
+    assert policy.check_atomic_commit(repo) == 0
+    captured = capsys.readouterr()
+    assert "ADVISORY" in captured.out + captured.err
 
 
 def test_atomic_commit_git_failure_returns_error(
