@@ -288,11 +288,11 @@ not a running system.
 
 ## Deferred
 
-- A follow-up correction to
-  `.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md` itself
-  (the memory's "same work runs twice" section is now factually wrong).
-  This worktree session cannot write Serena memory; flagged here for a
-  main-checkout session to action.
+- The correction to
+  `.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md` (its
+  "same work runs twice" section predates PR #5418) is done in this PR as
+  a tracked file edit, not an MCP memory write, so nothing remains for a
+  main-checkout session.
 - ADR-100 item 6, as noted above (owned by #5238/#5239, not run here).
 - A mechanized version of this ledger (structured YAML/JSON instead of
   markdown prose) if a future cohort needs to query dispositions

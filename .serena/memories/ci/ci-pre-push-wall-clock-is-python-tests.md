@@ -77,7 +77,7 @@ discover anything.
 **Correction, 2026-09-11**: fixed. PR #5418 (`perf(hooks): consolidate
 pre-push ratchets`, merge commit `4e33c4baa0b070ef35ffe4b491fcd9ff16d49223`)
 added `AI_AGENTS_PRE_PR_FAST_STAGE_RAN` (`lefthook.yml:590`) and the skip
-check at `scripts/validation/pre_pr_sequence.py:543-552`, so
+check at `scripts/validation/pre_pr_sequence.py:543-554`, so
 `pre-pr-validation` now skips `Count Ratchets`, `Unreachable Code
 Detection`, `Path Normalization`, `Planning Artifacts`, and `Em/en-dash
 Prohibition` when the pre-push hook set the env flag, pinned by

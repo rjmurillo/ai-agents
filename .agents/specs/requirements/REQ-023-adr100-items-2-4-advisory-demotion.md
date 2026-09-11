@@ -156,7 +156,7 @@ sense-categorize-respond (apply the already-decided change; do not
 re-derive it).
 
 Independent of REQ-021 and REQ-022 within this cohort; no shared code path,
-though REQ-022's ledger records ADR-100 item 5 as deferred, adjacent to
+though REQ-022's ledger records ADR-100 item 5 as `DELETE`, adjacent to
 this REQ's items 2-4.
 
 ## Ontology
