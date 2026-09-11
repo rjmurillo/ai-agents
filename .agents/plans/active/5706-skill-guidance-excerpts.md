@@ -8,12 +8,12 @@
 | **Created** | 2026-09-11 |
 | **Owner** | claude (session 017M4qLAptnWDBp4aHuFUs6L) |
 | **Complexity** | High |
-| **Spec** | REQ-024, DESIGN-023, TASK-028 (A0), TASK-025 (A1), TASK-027 (A2), ADR-108 |
+| **Spec** | REQ-025, DESIGN-024, TASK-030 (A0), TASK-025 (A1), TASK-027 (A2), ADR-108 |
 
 ## Objectives
 
 - [x] D1: owner chose the mustache-compile design with an ADR-107 amendment over the no-amendment excerpt design (2026-09-11).
-- [ ] A0: ADR-108 reviewed through `adr-review`, ADR-107 cross-reference, REQ-003-010 amendment note, spec artifacts, regenerated ADR index; PR merged (TASK-028).
+- [ ] A0: ADR-108 reviewed through `adr-review`, ADR-107 cross-reference, REQ-003-010 amendment note, spec artifacts, regenerated ADR index; PR merged (TASK-030).
 - [ ] A1: compile module, `generate_skills.py --validate`, `build_all.py` allowlist and check mode, `chevron` dev dependency, `Skill Template Drift` gate, tests, governance and rule lines; PR merged (TASK-025).
 - [ ] A2: eight templates, six partials, rendered files, regenerated mirrors, contract tests, byte report; PR merged and issue #5706 closed (TASK-027).
 
@@ -27,7 +27,7 @@ Exit criteria: `check_adr_lifecycle.py` passes; `adr-review` round recorded at `
 |------|------|-----------|
 | A0-T1 ADR-108 | M | Record written; lifecycle gate passes; no dashes or banned words |
 | A0-T2 cross-references | S | ADR-107 Related Decisions line; REQ-003-010 amendment note |
-| A0-T3 spec artifacts | S | REQ-024, DESIGN-023, TASK-028 to 026, ontology, this plan; frontmatter validator passes |
+| A0-T3 spec artifacts | S | REQ-025, DESIGN-024, TASK-030 to 026, ontology, this plan; frontmatter validator passes |
 | A0-T4 adr-review | L | Six-seat round run; findings folded; log committed |
 | A0-T5 index and PR | S | README regenerated; PR opened; owner asked whether ADR-108 moves to `accepted` on merge |
 
@@ -37,22 +37,22 @@ Exit criteria: TASK-025 done definition; with no template on disk, `build_all.py
 
 | Task | Size | Done when |
 |------|------|-----------|
-| A1-T1 `skill_templates.py` | M | `discover`, `owned_targets`, `check_grammar`, `render`, `compile_all` per DESIGN-023 |
+| A1-T1 `skill_templates.py` | M | `discover`, `owned_targets`, `check_grammar`, `render`, `compile_all` per DESIGN-024 |
 | A1-T2 `generate_skills.py` | S | Compile before copy; `--validate`; docstring cites ADR-108 |
 | A1-T3 `build_all.py` | M | Allowlist argument; check mode runs validate; tests for allowlisted and non-allowlisted writes |
 | A1-T4 dependency | S | `chevron==0.14.0` in both dev tables; `uv lock`; parity test passes; mypy override if needed |
-| A1-T5 compile tests | M | Nine cases in DESIGN-023; subprocess exit codes 0, 1, 2 |
+| A1-T5 compile tests | M | Nine cases in DESIGN-024; subprocess exit codes 0, 1, 2 |
 | A1-T6 pre_pr gate | S | Wrapper, `_Gate` row, facade re-export, `EXPECTED_ORDER` entry in the same commit |
 | A1-T7 governance and rule lines | S | `GENERATOR-FILES.md` row and paragraph; `build/AGENTS.md` no-write line; `generated-artifacts.md` REQ-003-010 sentence; `templates.md` MUST 1; `templates/AGENTS.md`; rule mirrors regenerated |
 
 ### A2: the pilot
 
-Exit criteria: REQ-024 acceptance criteria 1, 2, 3, 8, 9, 10, 12, 13 hold; `build_all.py --check` exits 0; `check_skill_md_portability.py` reports no new offender; PR body quotes the byte report and uses `Fixes #5706`.
+Exit criteria: REQ-025 acceptance criteria 1, 2, 3, 8, 9, 10, 12, 13 hold; `build_all.py --check` exits 0; `check_skill_md_portability.py` reports no new offender; PR body quotes the byte report and uses `Fixes #5706`.
 
 | Task | Size | Done when |
 |------|------|-----------|
 | A2-T1 six partials | S | Each opens with a `rule-source` line; parity test passes with a negative control |
-| A2-T2 eight templates | M | `@CLAUDE.md` deleted; `{{> slug}}` lines at the DESIGN-023 steps; grammar check passes |
+| A2-T2 eight templates | M | `@CLAUDE.md` deleted; `{{> slug}}` lines at the DESIGN-024 steps; grammar check passes |
 | A2-T3 render and mirrors | S | `build_all.py` run; eight rendered files and eight mirrors committed; `git status` shows no unrelated drift |
 | A2-T4 contract tests | S | Helper plus eight per-directory tests; crosslink test flipped |
 | A2-T5 byte report | S | `wc -c` before and after quoted in the PR body |

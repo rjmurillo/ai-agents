@@ -59,4 +59,4 @@ Source: issue #5706 (epic #5698). Elicited 2026-09-11 from the issue body, ADR-1
 
 ## O7 Open ontology questions
 
-- Whether `references/*.md` files inside skills should get templates. Out of scope for the pilot; recorded under Deferred in REQ-024.
+- Whether `references/*.md` files inside skills should get templates. Out of scope for the pilot; recorded under Deferred in REQ-025.
