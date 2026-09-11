@@ -57,7 +57,7 @@ import pytest
 import yaml
 
 from scripts.ci import count_ratchet
-from tests.ci.lefthook_budget_model import (
+from scripts.ci.lefthook_budget_model import (
     LEFTHOOK,
     REPO_ROOT,
     declared_budget,
