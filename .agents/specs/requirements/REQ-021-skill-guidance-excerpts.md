@@ -32,7 +32,7 @@ Three requesters by name. (1) The repository owner, `rjmurillo`, in epic #5698: 
 
 ### Q2 Status Quo
 
-A skill author who wants rule guidance at a step has three moves today. Paste the rule text by hand into `SKILL.md`, which duplicates it with no drift check. Name the rule file by path in prose, which Copilot consumers cannot open. Or add the line `@CLAUDE.md`, which eight skills do (`sync`, `test`, `spec`, `ship`, `research`, `plan`, `checkpoint`, `build`), and which `generate_skills.py` rewrites into an HTML comment for the Copilot mirror (`src/copilot-cli/skills/spec/SKILL.md:37`). No mechanism pins copied guidance to its source.
+A skill author who wants rule guidance at a step has three moves today. Paste the rule text by hand into `SKILL.md`, which duplicates it with no drift check. Name the rule file by path in prose, which Copilot consumers cannot open. Or add the line `@CLAUDE.md`, which eight skills do (`sync`, `test`, `spec`, `ship`, `research`, `plan`, `checkpoint`, `build`), and which `generate_skills.py` rewrites into an HTML comment for the Copilot mirror (`no include directive needed`, `src/copilot-cli/skills/spec/SKILL.md:37`). No mechanism pins copied guidance to its source.
 
 ### Q3 Desperate Specificity
 

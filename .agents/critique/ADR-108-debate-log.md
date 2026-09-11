@@ -1,3 +1,4 @@
+<!-- # taste-lint: ignore file-size, append-only review record; four rounds are cited by number from ADR-108 and the pull request; splitting breaks those references and the audit continuity. -->
 # ADR Debate Log: Template-Owned Skill Files Under `.claude/skills/`
 
 Record under review: `.agents/architecture/ADR-108-template-owned-skill-files.md`

@@ -43,7 +43,7 @@ Exit criteria: TASK-025 done definition; with no template on disk, `build_all.py
 | A1-T4 dependency | S | `chevron==0.14.0` in both dev tables; `uv lock`; parity test passes; mypy override if needed |
 | A1-T5 compile tests | M | Nine cases in DESIGN-020; subprocess exit codes 0, 1, 2 |
 | A1-T6 pre_pr gate | S | Wrapper, `_Gate` row, facade re-export, `EXPECTED_ORDER` entry in the same commit |
-| A1-T7 governance and rule lines | S | `GENERATOR-FILES.md` row and paragraph; `build/AGENTS.md:8`; `generated-artifacts.md:196`; `templates.md` MUST 1; `templates/AGENTS.md`; rule mirrors regenerated |
+| A1-T7 governance and rule lines | S | `GENERATOR-FILES.md` row and paragraph; `build/AGENTS.md` no-write line; `generated-artifacts.md` REQ-003-010 sentence; `templates.md` MUST 1; `templates/AGENTS.md`; rule mirrors regenerated |
 
 ### A2: the pilot
 
