@@ -151,8 +151,8 @@ def validate_skill_template_drift(repo_root: Path) -> bool:
 
     Unlike the other three validators in this module, the wrapped script is
     ``build/scripts/generate_skills.py``, not a ``scripts/validation/*`` file,
-    because the drift predicate DESIGN-023 specifies
-    (``.agents/specs/design/DESIGN-023-skill-guidance-excerpt-sync.md``,
+    because the drift predicate DESIGN-024 specifies
+    (``.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``,
     "Wiring": "``scripts/validation/checks_portability.py``:
     ``validate_skill_template_drift(repo_root)`` wrapping
     ``generate_skills.py --validate``") lives in the generator that already
