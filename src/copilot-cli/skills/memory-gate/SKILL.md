@@ -10,7 +10,7 @@ description: Memory-First Gate (BLOCKING) and the Chesterton's Fence investigati
   memory-reflexion).
 license: MIT
 metadata:
-  adr: ADR-007, ADR-037, ADR-063, ADR-070
+  adr: ADR-063, ADR-070, ADR-106
   type: operation
   parent: memory
 ---

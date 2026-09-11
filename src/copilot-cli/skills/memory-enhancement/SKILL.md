@@ -9,7 +9,7 @@ license: MIT
 metadata:
   domains: [memory, citations, verification]
   type: utility
-  adr: ADR-007, ADR-038
+  adr: ADR-038, ADR-106
 ---
 
 # Memory Enhancement

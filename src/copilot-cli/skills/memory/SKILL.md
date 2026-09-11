@@ -9,7 +9,7 @@ description: Thin router for the tiered memory system. Points callers at the
   memory-enhancement) or narrative cross-system reports (use memory-documentary).
 license: MIT
 metadata:
-  adr: ADR-037, ADR-038, ADR-063
+  adr: ADR-038, ADR-063, ADR-106
   timelessness: 8/10
 ---
 # Memory System Skill
