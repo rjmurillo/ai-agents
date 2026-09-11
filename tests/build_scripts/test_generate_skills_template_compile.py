@@ -153,6 +153,49 @@ def test_render_byte_identical_to_fixture_with_two_partials(tmp_path: Path) -> N
     assert rendered == "# sync\nhello\nmiddle\nbye\n"
 
 
+def test_render_preserves_crlf_line_endings(tmp_path: Path) -> None:
+    """MINOR 3 (ADR review): a CRLF template is not normalized to LF on read.
+
+    ``Path.read_text()`` with no ``newline=`` argument performs universal-
+    newline translation (CRLF -> LF) regardless of platform; render() must
+    read with ``newline=""`` so a template's original line endings pass
+    through unchanged. Verified separately that chevron itself returns a
+    tag-free CRLF string byte-identical, so this isolates render()'s own
+    read behavior rather than chevron's.
+    """
+    templates_dir = tmp_path / "templates" / "skills"
+    (templates_dir / "partials").mkdir(parents=True)
+    tmpl = templates_dir / "sync.SKILL.md.tmpl"
+    tmpl.write_bytes(b"first line\r\nsecond line\r\n")
+
+    rendered = skill_templates.render(tmpl, templates_dir / "partials")
+
+    assert rendered == "first line\r\nsecond line\r\n"
+
+
+def test_compile_all_write_preserves_crlf_bytes_on_disk(tmp_path: Path) -> None:
+    """MINOR 3 (ADR review): compile_all's write does not re-expand newlines.
+
+    ``Path.write_text()`` with no ``newline=`` argument substitutes
+    ``os.linesep`` for every ``\\n`` in the string, a no-op on POSIX but a
+    CRLF re-expansion on Windows. Writing with ``newline="\\n"`` forces
+    exactly what the string contains onto disk. Asserted via the target's
+    raw bytes, not a text-mode re-read, which would mask the very
+    translation this test exists to catch (mirrors
+    ``generate_pr_quality_prompts.py``'s ``open(..., newline="\\n")`` write).
+    """
+    templates_dir = tmp_path / "templates" / "skills"
+    (templates_dir / "partials").mkdir(parents=True)
+    (templates_dir / "sync.SKILL.md.tmpl").write_bytes(b"first line\r\nsecond line\r\n")
+    _seed_target_dir(tmp_path, "sync")
+
+    result = skill_templates.compile_all(tmp_path, validate=False)
+
+    assert result.exit_code == 0
+    target = _target(tmp_path, "sync")
+    assert target.read_bytes() == b"first line\r\nsecond line\r\n"
+
+
 def test_render_missing_partial_raises_with_slug_and_path(tmp_path: Path) -> None:
     """Config error (DESIGN-020 case 2): exit 2, slug and path printed."""
     tmpl = _write_template(tmp_path, "sync", "{{> nope}}\n")
@@ -239,6 +282,129 @@ def test_render_unclosed_tag_in_partial_raises_grammar_error_not_a_traceback(
 
     with pytest.raises(skill_templates.TemplateGrammarError):
         skill_templates.render(tmpl, tmp_path / "templates" / "skills" / "partials")
+
+
+# Recursive partial validation (BLOCKING, ADR review) -----------------------
+#
+# Probe that motivated this section, reproduced against this branch before
+# the fix: partial greet.mustache = "Hello {{name}} and {{> nonexistent}}!\n",
+# template = "{{> greet}}\n" rendered "Hello  and !\n" at exit 0, file
+# written. The grammar and missing-partial checks ran on the template's own
+# text only; a defect inside a partial's content was invisible to both.
+
+
+def test_render_grammar_violation_inside_partial_raises_with_partial_path(
+    tmp_path: Path,
+) -> None:
+    """A partial carrying {{var}} (a disallowed tag) exits 2, target untouched.
+
+    Reproduces the BLOCKING probe's grammar half: greet.mustache containing
+    a plain variable tag must fail exactly like a template containing one,
+    not render as empty text.
+    """
+    partial_path = _write_partial(tmp_path, "greet", "Hello {{name}}!\n")
+    tmpl = _write_template(tmp_path, "sync", "{{> greet}}\n")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+
+    with pytest.raises(skill_templates.TemplateGrammarError) as excinfo:
+        skill_templates.render(tmpl, partials_dir)
+
+    assert str(partial_path) in str(excinfo.value)
+    assert "{{name}}" in str(excinfo.value)
+
+
+def test_render_partial_referencing_missing_nested_partial_raises(tmp_path: Path) -> None:
+    """A partial referencing a nonexistent nested partial exits 2.
+
+    Reproduces the BLOCKING probe's missing-partial half: greet.mustache
+    naming a partial that does not exist must fail the same way a template
+    naming one directly does, not render the reference away as empty text.
+    """
+    partial_path = _write_partial(tmp_path, "greet", "Hello {{> nonexistent}}!\n")
+    tmpl = _write_template(tmp_path, "sync", "{{> greet}}\n")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+
+    with pytest.raises(skill_templates.MissingPartialError) as excinfo:
+        skill_templates.render(tmpl, partials_dir)
+
+    assert str(partial_path) in str(excinfo.value)
+    assert "nonexistent" in str(excinfo.value)
+
+
+def test_render_nested_partial_grammar_violation_two_levels_deep(tmp_path: Path) -> None:
+    """Recursion goes past one level: a violation inside a partial's own
+    included partial is caught too, not only one level below the template.
+    """
+    inner_path = _write_partial(tmp_path, "inner", "bad {{var}}\n")
+    _write_partial(tmp_path, "outer", "wraps: {{> inner}}\n")
+    tmpl = _write_template(tmp_path, "sync", "{{> outer}}\n")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+
+    with pytest.raises(skill_templates.TemplateGrammarError) as excinfo:
+        skill_templates.render(tmpl, partials_dir)
+
+    assert str(inner_path) in str(excinfo.value)
+
+
+def test_render_partial_cycle_raises_config_error(tmp_path: Path) -> None:
+    """A partial that transitively includes itself is a config error, exit 2.
+
+    a -> b -> a. Without cycle detection this would recurse until Python's
+    call-stack limit raised RecursionError, an unrelated crash rather than a
+    controlled exit code.
+    """
+    _write_partial(tmp_path, "a", "{{> b}}\n")
+    _write_partial(tmp_path, "b", "{{> a}}\n")
+    tmpl = _write_template(tmp_path, "sync", "{{> a}}\n")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+
+    with pytest.raises(skill_templates.TemplateGrammarError) as excinfo:
+        skill_templates.render(tmpl, partials_dir)
+
+    assert "cycle" in str(excinfo.value)
+
+
+def test_render_partial_self_cycle_raises_config_error(tmp_path: Path) -> None:
+    """Edge: a partial referencing itself directly is also a cycle."""
+    _write_partial(tmp_path, "loop", "{{> loop}}\n")
+    tmpl = _write_template(tmp_path, "sync", "{{> loop}}\n")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+
+    with pytest.raises(skill_templates.TemplateGrammarError) as excinfo:
+        skill_templates.render(tmpl, partials_dir)
+
+    assert "cycle" in str(excinfo.value)
+
+
+def test_render_diamond_shaped_partial_reuse_is_not_a_cycle(tmp_path: Path) -> None:
+    """Positive control: two siblings both including the same leaf partial
+    is legitimate reuse, not a cycle, and must render cleanly.
+    """
+    _write_partial(tmp_path, "leaf", "shared\n")
+    _write_partial(tmp_path, "a", "{{> leaf}}\n")
+    _write_partial(tmp_path, "b", "{{> leaf}}\n")
+    tmpl = _write_template(tmp_path, "sync", "{{> a}}{{> b}}")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+
+    rendered = skill_templates.render(tmpl, partials_dir)
+
+    assert rendered == "shared\nshared\n"
+
+
+def test_compile_all_partial_grammar_violation_leaves_target_untouched(
+    tmp_path: Path,
+) -> None:
+    """compile_all-level: a defect inside a partial exits 2 and never writes."""
+    _write_partial(tmp_path, "greet", "Hello {{name}}!\n")
+    _write_template(tmp_path, "sync", "{{> greet}}\n")
+    target = _seed_target_dir(tmp_path, "sync")
+    target.write_text("original\n", encoding="utf-8")
+
+    result = skill_templates.compile_all(tmp_path, validate=False)
+
+    assert result.exit_code == 2
+    assert target.read_text(encoding="utf-8") == "original\n"
+    assert result.written == []
 
 
 def test_render_raises_unresolved_tag_error_when_output_still_carries_braces(
@@ -346,11 +512,38 @@ def test_compile_all_skips_skill_with_no_template(tmp_path: Path) -> None:
     assert other_target.read_text(encoding="utf-8") == "hand maintained\n"
 
 
+def _apply_html_comment_sentinel(target: Path) -> None:
+    target.write_text("<!-- NO-REGEN: manual edit -->\nhand edited\n", encoding="utf-8")
+
+
+def _apply_hash_comment_sentinel(target: Path) -> None:
+    target.write_text("# NO-REGEN: manual edit\nhand edited\n", encoding="utf-8")
+
+
+def _apply_sidecar_sentinel(target: Path) -> None:
+    target.write_text("hand edited\n", encoding="utf-8")
+    target.with_suffix(target.suffix + ".noregen").write_text("", encoding="utf-8")
+
+
+_NO_REGEN_SENTINEL_FORMS = pytest.mark.parametrize(
+    "apply_sentinel",
+    [_apply_html_comment_sentinel, _apply_hash_comment_sentinel, _apply_sidecar_sentinel],
+    ids=["html-comment", "hash-comment", "sidecar"],
+)
+
+
+@_NO_REGEN_SENTINEL_FORMS
 def test_compile_all_skips_no_regen_target_with_warn_and_fails_closed(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    apply_sentinel: Callable[[Path], None],
 ) -> None:
     """Edge (DESIGN-020 case 6, diverged in ADR review): NO-REGEN sentinel
     on a template-owned target -> unchanged, WARN, exit 1 (not exit 0).
+
+    Covers all three sentinel forms ``regen_guard.detect_reason`` recognizes
+    (MINOR 1, ADR review): an in-file ``<!-- NO-REGEN`` HTML comment, an
+    in-file ``# NO-REGEN`` hash comment, and a ``.noregen`` sidecar file.
 
     WARN, not NOTICE: the sentinel exempts a template-owned file from this
     class's only gate (ADR-108 section 4), so the skip is louder than the
@@ -363,7 +556,8 @@ def test_compile_all_skips_no_regen_target_with_warn_and_fails_closed(
     _write_partial(tmp_path, "greet", "hi\n")
     _write_template(tmp_path, "sync", "{{> greet}}\n")
     target = _seed_target_dir(tmp_path, "sync")
-    target.write_text("<!-- NO-REGEN: manual edit -->\nhand edited\n", encoding="utf-8")
+    apply_sentinel(target)
+    original = target.read_text(encoding="utf-8")
 
     result = skill_templates.compile_all(tmp_path, validate=False)
 
@@ -372,7 +566,7 @@ def test_compile_all_skips_no_regen_target_with_warn_and_fails_closed(
     out = capsys.readouterr().out
     assert "WARN" in out
     assert "template-owned file exempt from drift gate" in out
-    assert target.read_text(encoding="utf-8") == "<!-- NO-REGEN: manual edit -->\nhand edited\n"
+    assert target.read_text(encoding="utf-8") == original
 
 
 def test_compile_all_validate_mode_never_writes_on_missing_target(tmp_path: Path) -> None:
@@ -403,20 +597,7 @@ def test_compile_all_validate_on_hand_edited_target(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8") == "hand edited, not the template render\n"
 
 
-def _apply_html_comment_sentinel(target: Path) -> None:
-    target.write_text("<!-- NO-REGEN: manual edit -->\nhand edited\n", encoding="utf-8")
-
-
-def _apply_sidecar_sentinel(target: Path) -> None:
-    target.write_text("hand edited\n", encoding="utf-8")
-    target.with_suffix(target.suffix + ".noregen").write_text("", encoding="utf-8")
-
-
-@pytest.mark.parametrize(
-    "apply_sentinel",
-    [_apply_html_comment_sentinel, _apply_sidecar_sentinel],
-    ids=["html-comment", "sidecar"],
-)
+@_NO_REGEN_SENTINEL_FORMS
 def test_compile_all_validate_skips_no_regen_target_not_counted_as_drift(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -428,8 +609,9 @@ def test_compile_all_validate_skips_no_regen_target_not_counted_as_drift(
     decision, exit 1 rather than exit 0, since the sentinel must fail
     closed in every mode.
 
-    Covers both sentinel forms regen_guard.detect_reason recognizes: an
-    in-file ``<!-- NO-REGEN`` HTML comment, and a ``.noregen`` sidecar file.
+    Covers all three sentinel forms regen_guard.detect_reason recognizes
+    (MINOR 1, ADR review): an in-file ``<!-- NO-REGEN`` HTML comment, an
+    in-file ``# NO-REGEN`` hash comment, and a ``.noregen`` sidecar file.
 
     The sentinel is the author's declared intent to diverge from the
     template; validate mode's job is to catch an UNDECLARED divergence, so

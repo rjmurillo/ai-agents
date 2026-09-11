@@ -18,16 +18,19 @@ module: ``build/scripts/skill_templates.py``":
         Offending tags; empty when only partial and comment tags are
         present.
     ``render(tmpl_path, partials_dir) -> str``
-        Grammar check, partial existence check, partial trailing-newline
-        check, ``chevron.render(text, {}, partials_path=...,
+        Recursive grammar check, partial existence check, and partial
+        trailing-newline check over the template and every partial it
+        (transitively) includes, with cycle detection, then
+        ``chevron.render(text, {}, partials_path=...,
         partials_ext="mustache")``, then a ``{{`` scan of the output.
     ``compile_all(repo_root, *, validate, what_if) -> CompileResult``
         For each template: skip (unchanged, WARN, exit 1) when
         ``regen_guard.detect_reason(target)`` is not ``None``; in validate
         mode compare and record drift; otherwise write when the bytes
         differ. Returns written, skipped, drifted, and an exit code (0
-        pass, 1 drift, unresolved ``{{``, or a NO-REGEN skip, 2 grammar,
-        missing partial, a partial missing its trailing newline, or
+        pass, 1 drift, unresolved ``{{``, or a NO-REGEN skip, 2 grammar
+        (template or any included partial), a missing or cyclic partial,
+        a partial missing its trailing newline, or
         missing target directory).
 
 Stricter/looser/different than canonical: DESIGN-020's table above says a
@@ -38,9 +41,19 @@ NO-REGEN skip on a template-owned target is "skipped, NOTICE printed, exit
 the sentinel on every OTHER skill file. :func:`compile_all` diverges on
 both counts for a template-owned target: it prints ``WARN: skipped ... ;
 template-owned file exempt from drift gate`` instead of a NOTICE, and it
-raises ``exit_code`` to at least 1 for that file in every mode (write,
-validate, and therefore ``generate_skills.py --validate`` and
-``build_all.py --check``), never only 0.
+raises ``exit_code`` to at least 1 for that file, never 0, in ``compile_all``
+itself under both its modes (write, ``validate=False``, and validate,
+``validate=True``). That 1 reaches a caller unchanged through
+``generate_skills.py`` (both the normal path and ``--validate``): neither
+wraps or remaps ``compile_all``'s exit code. It does NOT surface as 1 through
+``build_all.py --check``: ``build_all._build_skills`` coerces any nonzero
+``generate_skills.generate_skills(..., validate=check)`` result to exit 2
+when ``check`` is set (``build/scripts/build_all.py``, the
+``if check and rc != 0: rc = 2`` line in ``_build_skills``), the same code
+that function already uses for staleness and config errors under ``--check``.
+So a NO-REGEN-skipped template-owned target is exit 1 from ``compile_all``
+and ``generate_skills.py --validate``, but exit 2 as observed from
+``build_all.py --check``.
 
 The reason for both: for every OTHER file ``_copy_skill_tree`` mirrors, a
 NO-REGEN skip means "this destination is not generated at all", the routine
@@ -89,10 +102,13 @@ than by chevron raising on its own:
     'AB'
 
 Both return ``"AB"``, not an error and not a literal ``"{{> nope}}"`` or
-``"{{x}}"`` in the output. This is why :func:`check_grammar` and
-:func:`_missing_partials` run BEFORE ``chevron.render`` in :func:`render`
-below: chevron itself has no failure mode for either case, so it cannot be
-the thing that turns a typo'd slug or a disallowed tag into a build failure.
+``"{{x}}"`` in the output. This is why :func:`check_grammar` and the
+partial-existence check inside :func:`_validate_partial_tree` run BEFORE
+``chevron.render`` in :func:`render` below, and why they recurse through
+every partial the template (transitively) includes rather than checking the
+template text alone: chevron itself has no failure mode for either case, so
+it cannot be the thing that turns a typo'd slug or a disallowed tag into a
+build failure, wherever in the include chain it appears.
 
 A third silent case, found in ADR review round 4 for #5706: a partial file
 that does not end with exactly one trailing newline gets glued to whatever
@@ -120,9 +136,10 @@ EXIT CODES (per ``compile_all``, and surfaced by callers unchanged):
       rendered text still contains an unresolved ``{{`` after render, or a
       NO-REGEN-skipped template-owned target (see the "Stricter/looser/
       different than canonical" section below)
-  2 - a template used a disallowed tag, named a partial that does not exist,
-      named a partial that does not end with exactly one trailing newline,
-      or its target's parent directory does not exist
+  2 - the template, or any partial it (transitively) includes, used a
+      disallowed tag or named a partial that does not exist or forms an
+      include cycle; a referenced partial that does not end with exactly
+      one trailing newline; or the target's parent directory does not exist
 
 Per AGENTS.md Standards (``0=ok|1=logic|2=config``); the worst code wins
 across all discovered templates in one ``compile_all`` call, matching
@@ -250,76 +267,89 @@ def _partial_slugs(text: str) -> list[str]:
     return slugs
 
 
-def _missing_partials(text: str, partials_dir: Path) -> list[str]:
-    return [
-        slug
-        for slug in _partial_slugs(text)
-        if not (partials_dir / f"{slug}.{_PARTIAL_EXT}").is_file()
-    ]
+def _validate_partial_tree(
+    text: str,
+    partials_dir: Path,
+    *,
+    source: Path,
+    visited: frozenset[Path],
+) -> None:
+    """Recursively validate grammar, partial existence, and trailing newlines.
 
+    ``text`` is the content of ``source`` (the top-level template on the
+    first call, one partial's content on every recursive call). Runs
+    :func:`check_grammar` on it, then for each partial slug it references:
+    the partial file must exist; it must not already be in ``visited`` (a
+    partial that transitively includes itself is a config error, the same
+    as any other malformed reference, not a silent infinite expansion); and
+    its content must end with exactly one trailing newline (module
+    docstring). Then recurses into that partial's own content with the same
+    three checks.
 
-def _partials_missing_trailing_newline(text: str, partials_dir: Path) -> list[str]:
-    """Return the path of every referenced, existing partial that does not end
-    with exactly one trailing newline.
+    BLOCKING finding, ADR review round for #5706: the three checks
+    originally ran on the top-level template only. A partial carrying
+    ``{{name}}`` or referencing a nonexistent nested partial rendered
+    silently (chevron drops both to empty text, per the module docstring's
+    probe) and the file was written with exit 0. Recursing through every
+    reachable partial, not only the ones the template names directly,
+    closes that: the same three checks that already gated the template now
+    gate everything the template pulls in.
 
-    Scoped to partials the template actually references (mirroring
-    :func:`_missing_partials`), not every file under ``partials_dir``: this
-    runs once per template at render time, the same seam the existence check
-    uses, rather than a separate repo-wide walk. A missing partial is
-    :func:`_missing_partials`'s finding, not this one's, so a slug with no
-    matching file is skipped here rather than reported twice.
+    Raises on the first problem found, naming ``source``: the exact file
+    (the template, or the specific partial) the offending text came from,
+    not always the top-level ``tmpl_path``.
     """
-    violations: list[str] = []
-    seen: set[str] = set()
+    offending = check_grammar(text)
+    if offending:
+        raise TemplateGrammarError(
+            f"{source}: disallowed tag(s) outside {{> slug}} / {{! comment}}: "
+            f"{', '.join(offending)}"
+        )
+
+    seen_here: set[str] = set()
     for slug in _partial_slugs(text):
-        if slug in seen:
+        if slug in seen_here:
             continue
-        seen.add(slug)
+        seen_here.add(slug)
+
         partial_path = partials_dir / f"{slug}.{_PARTIAL_EXT}"
         if not partial_path.is_file():
-            continue
-        content = partial_path.read_text(encoding="utf-8")
+            raise MissingPartialError(
+                f"{source}: missing partial(s) under {partials_dir}: {slug}"
+            )
+        if partial_path in visited:
+            raise TemplateGrammarError(
+                f"{source}: partial cycle detected: {partial_path} is already "
+                "being expanded earlier in this include chain"
+            )
+
+        content = partial_path.read_text(encoding="utf-8", newline="")
         if not content.endswith("\n") or content.endswith("\n\n"):
-            violations.append(str(partial_path))
-    return violations
+            raise PartialNewlineError(
+                f"{source}: partial missing exactly one trailing newline: {partial_path}"
+            )
+
+        _validate_partial_tree(
+            content, partials_dir, source=partial_path, visited=visited | {partial_path}
+        )
 
 
 def render(tmpl_path: Path, partials_dir: Path) -> str:
     """Render one template to text, per the compile module's ``render`` contract.
 
-    Order: grammar check (exit 2), partial existence check (exit 2), partial
-    trailing-newline check (exit 2), chevron render, then a ``{{`` scan of the
-    OUTPUT (exit 1). The output scan exists because chevron renders a missing
-    partial and an unknown variable as empty text with no error (DESIGN-020,
-    "Template grammar"), so a partial file that itself carries literal ``{{``
-    text (unlikely, but not excluded by the grammar check, which only scans
-    the template) would otherwise leak an unresolved tag into the rendered
-    ``SKILL.md`` undetected. The trailing-newline check exists because a
-    missing final newline glues the partial to the next template line with no
-    unresolved ``{{`` left for that same output scan to catch (module
-    docstring, ADR review round 4).
+    Order: recursive grammar / partial-existence / trailing-newline
+    validation of the template and every partial it (transitively)
+    includes (exit 2; see :func:`_validate_partial_tree`), then chevron
+    render, then a ``{{`` scan of the OUTPUT (exit 1). The output scan
+    exists because chevron renders a missing partial and an unknown
+    variable as empty text with no error (DESIGN-020, "Template grammar"),
+    so a partial file that itself carries literal ``{{`` text (unlikely,
+    but not excluded by the grammar check) would otherwise leak an
+    unresolved tag into the rendered ``SKILL.md`` undetected.
     """
-    text = tmpl_path.read_text(encoding="utf-8")
+    text = tmpl_path.read_text(encoding="utf-8", newline="")
 
-    offending = check_grammar(text)
-    if offending:
-        raise TemplateGrammarError(
-            f"{tmpl_path}: disallowed tag(s) outside {{> slug}} / {{! comment}}: "
-            f"{', '.join(offending)}"
-        )
-
-    missing = _missing_partials(text, partials_dir)
-    if missing:
-        raise MissingPartialError(
-            f"{tmpl_path}: missing partial(s) under {partials_dir}: {', '.join(missing)}"
-        )
-
-    newline_violations = _partials_missing_trailing_newline(text, partials_dir)
-    if newline_violations:
-        raise PartialNewlineError(
-            f"{tmpl_path}: partial(s) missing exactly one trailing newline: "
-            f"{', '.join(newline_violations)}"
-        )
+    _validate_partial_tree(text, partials_dir, source=tmpl_path, visited=frozenset())
 
     try:
         # chevron ships no type stubs (pyproject.toml's chevron.* mypy
@@ -371,12 +401,16 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
     ``drifted`` (a hand edit the author marked NO-REGEN is a declared
     divergence, not drift), reported at WARN rather than the plain NOTICE a
     routine skip gets, and ``exit_code`` is raised to at least 1 for every
-    such target in every mode. This is a deliberate module-level divergence
-    from DESIGN-020's "skipped, NOTICE printed, exit 0" and from ADR-108
-    section 4's own wording (see the module docstring's "Stricter/looser/
-    different than canonical" section): a sentinel that could silence
-    ADR-108's only gate and still report a clean run would make the gate
-    advisory the moment anyone reached for it.
+    such target in both of THIS function's modes (write, validate). That 1
+    reaches ``generate_skills.py`` unchanged; it is ``build_all.py --check``
+    specifically that turns it into exit 2, by coercion in
+    ``build_all._build_skills``, not by anything this function does (module
+    docstring's "Stricter/looser/different than canonical" section has the
+    precise chain). This is a deliberate module-level divergence from
+    DESIGN-020's "skipped, NOTICE printed, exit 0" and from ADR-108 section
+    4's own wording: a sentinel that could silence ADR-108's only gate and
+    still report a clean run would make the gate advisory the moment anyone
+    reached for it.
     """
     result = CompileResult()
     partials_dir = repo_root / "templates" / "skills" / "partials"
@@ -418,7 +452,9 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
             result.exit_code = max(result.exit_code, 2)
             continue
 
-        current = target.read_text(encoding="utf-8") if target.is_file() else None
+        current = (
+            target.read_text(encoding="utf-8", newline="") if target.is_file() else None
+        )
         if current == rendered:
             continue
 
@@ -432,7 +468,7 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
             print(f"  Would write: {target}")
             continue
 
-        target.write_text(rendered, encoding="utf-8")
+        target.write_text(rendered, encoding="utf-8", newline="\n")
         result.written.append(str(target))
 
     return result
