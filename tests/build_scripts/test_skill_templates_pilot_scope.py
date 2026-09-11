@@ -37,13 +37,19 @@ import skill_templates  # noqa: E402
 # TASK-027 (A2): widens in step with the templates landing in the same
 # commit, so this test is never red at any commit on the branch (review
 # finding: an earlier history widened PILOT to all eight names one commit
-# before any template existed). First four: sync, test, spec, ship.
+# before any template existed). Complete: all eight DESIGN-020 "Pilot
+# content" names, each of which carries an @CLAUDE.md line (ADR-108
+# Context).
 PILOT: frozenset[str] = frozenset(
     {
         "sync",
         "test",
         "spec",
         "ship",
+        "research",
+        "plan",
+        "checkpoint",
+        "build",
     }
 )
 
