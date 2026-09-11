@@ -246,7 +246,14 @@ def _validator_count(repo: Path) -> int:
 
 def _git_output(repo: Path, args: list[str]) -> str:
     result = subprocess.run(
-        ["git", *args], cwd=repo, capture_output=True, text=True, timeout=30, check=False
+        ["git", *args],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+        check=False,
     )
     if result.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
