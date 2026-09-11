@@ -11,10 +11,13 @@ module: ``build/scripts/skill_templates.py``":
     ``discover(repo_root) -> dict[str, Path]``
         ``{name: templates/skills/<name>.SKILL.md.tmpl}``; name is the
         filename minus ``.SKILL.md.tmpl``. Excludes a candidate whose name
-        fails validation (PR review of ADR-108): ``name`` MUST match
-        ``^[a-z0-9]+(-[a-z0-9]+)*$`` and ``.claude/skills/<name>/`` MUST
-        already exist as a directory. Either failure means that candidate
-        never appears in this mapping, so it is never a target
+        fails validation (two rounds of ADR-108 PR review, see
+        :func:`_name_validation_error`): ``name`` MUST match
+        ``^[a-z0-9]+(-[a-z0-9]+)*$``; ``.claude/skills/<name>/`` MUST
+        already exist as a directory; it MUST NOT be a symlink; and its
+        resolved path MUST lie inside the resolved ``.claude/skills/``
+        root (CWE-22 defense). Any failure means that candidate never
+        appears in this mapping, so it is never a target
         :func:`owned_targets` allowlists or :func:`compile_all` writes.
     ``discover_errors(repo_root) -> list[str]``
         One message per candidate :func:`discover` excluded, naming the
@@ -41,10 +44,11 @@ module: ``build/scripts/skill_templates.py``":
         differ. Returns written, skipped, drifted, and an exit code (0
         pass, 1 drift, unresolved ``{{``, or a NO-REGEN skip, 2 grammar
         (template or any included partial), a missing or cyclic partial, an
-        invalid template name or a template with no existing
-        ``.claude/skills/<name>/`` directory (the latter two caught by
-        :func:`discover_errors`, before this loop ever sees the template),
-        or a partial missing its trailing newline).
+        invalid template name, a symlinked or out-of-root
+        ``.claude/skills/<name>/``, or a template with no existing
+        ``.claude/skills/<name>/`` directory (all four of the name/skill-dir
+        failures caught by :func:`discover_errors`, before this loop ever
+        sees the template), or a partial missing its trailing newline).
 
 Stricter/looser/different than canonical: DESIGN-020's table above says a
 NO-REGEN skip on a template-owned target is "skipped, NOTICE printed, exit
@@ -149,12 +153,14 @@ EXIT CODES (per ``compile_all``, and surfaced by callers unchanged):
       rendered text still contains an unresolved ``{{`` after render, or a
       NO-REGEN-skipped template-owned target (see the "Stricter/looser/
       different than canonical" section below)
-  2 - a discovered template's name does not match ``^[a-z0-9]+(-[a-z0-9]+)*$``
-      or names a skill with no existing ``.claude/skills/<name>/`` directory
-      (that template is excluded from every other check below, and its
-      target directory is therefore guaranteed to exist for every template
-      the checks below DO run on); the template, or any partial it
-      (transitively) includes, used a disallowed tag or named a partial
+  2 - a discovered template's name does not match ``^[a-z0-9]+(-[a-z0-9]+)*$``,
+      names a skill with no existing ``.claude/skills/<name>/`` directory, or
+      that directory is a symlink or resolves outside ``.claude/skills/``
+      (CWE-22 defense; that template is excluded from every other check
+      below, and its target directory is therefore guaranteed to exist AND
+      be a real, in-root directory for every template the checks below DO
+      run on); the template, or any partial it (transitively) includes,
+      used a disallowed tag or named a partial
       that does not exist or forms an include cycle; or a referenced
       partial that does not end with exactly one trailing newline
 
@@ -244,19 +250,40 @@ def _iter_template_candidates(repo_root: Path) -> Iterator[tuple[str, Path]]:
 def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str | None:
     """Return why ``name`` is not a valid template-owned skill name, or ``None``.
 
-    Two checks, from ADR-108's PR review: ``name`` MUST match the same slug
-    pattern a partial's slug does (``^[a-z0-9]+(-[a-z0-9]+)*$``), and
-    ``.claude/skills/<name>/`` MUST already exist as a directory. The second
-    check is the class boundary ADR-108 section 1 and section 7 both draw:
-    every template-owned skill converts an EXISTING skill directory (the
-    pilot, and whatever follows it); nothing in this class creates a new
-    skill out of nothing. A misspelled or freshly-invented name failing
-    either check is a configuration error, not silently a new skill.
+    Four checks, from two rounds of ADR-108 review. ``name`` MUST match the
+    same slug pattern a partial's slug does (``^[a-z0-9]+(-[a-z0-9]+)*$``).
+    ``.claude/skills/<name>/`` MUST already exist as a directory: the class
+    boundary ADR-108 section 1 and section 7 both draw is that every
+    template-owned skill converts an EXISTING skill directory; nothing in
+    this class creates a new skill out of nothing, so a misspelled or
+    freshly-invented name is a configuration error, not silently a new
+    skill. ``.claude/skills/<name>/`` MUST NOT be a symlink, and its
+    resolved path MUST lie inside the resolved ``.claude/skills/`` root
+    (second ADR review round, CWE-22 defense): ``name`` cannot itself carry
+    a path-traversal segment (the slug pattern admits no ``/`` or ``.``),
+    but a symlink at that exact location could still point the directory
+    the allowlist trusts at an arbitrary path outside ``.claude/skills/``,
+    which is exactly the tree :func:`owned_targets` promises
+    :func:`build_all.assert_no_claude_writes` a write is confined to.
     """
     if not _NAME_RE.match(name):
         return f"{tmpl_path}: invalid template name {name!r}; must match {_NAME_RE.pattern!r}"
-    if not (repo_root / ".claude" / "skills" / name).is_dir():
+
+    skills_root = repo_root / ".claude" / "skills"
+    skill_dir = skills_root / name
+
+    if skill_dir.is_symlink():
+        return f"{tmpl_path}: .claude/skills/{name}/ is a symlink, not a real directory"
+    if not skill_dir.is_dir():
         return f"{tmpl_path}: no existing .claude/skills/{name}/ directory"
+
+    resolved_root = skills_root.resolve()
+    resolved_skill = skill_dir.resolve()
+    if not resolved_skill.is_relative_to(resolved_root):
+        return (
+            f"{tmpl_path}: .claude/skills/{name}/ resolves to {resolved_skill}, "
+            f"outside {resolved_root}"
+        )
     return None
 
 

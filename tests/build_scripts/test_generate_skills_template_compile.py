@@ -116,6 +116,40 @@ def test_discover_excludes_a_name_with_no_skill_directory(tmp_path: Path) -> Non
     assert skill_templates.discover(tmp_path) == {}
 
 
+def test_discover_excludes_a_symlinked_skill_directory_outside_the_root(
+    tmp_path: Path,
+) -> None:
+    """Second ADR-108 review round, CWE-22 defense: a symlinked
+    ``.claude/skills/<name>/`` pointing outside ``.claude/skills/`` is a
+    config error, exit 2, never a template-owned skill. ``name`` itself
+    cannot carry a path-traversal segment (the slug pattern admits no
+    ``/`` or ``.``), but a symlink at that exact location could still point
+    the allowlist's trusted directory at an arbitrary path.
+
+    Skipped where this platform or the current permission set cannot
+    create a symlink (e.g. Windows without the privilege), rather than
+    failing the suite over an environment limitation unrelated to the
+    check under test.
+    """
+    _write_template(tmp_path, "sync", "body\n")
+    outside = tmp_path / "outside-the-skills-root"
+    outside.mkdir()
+    skills_root = tmp_path / ".claude" / "skills"
+    skills_root.mkdir(parents=True)
+    link = skills_root / "sync"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("cannot create a symlink on this platform/permission set")
+
+    assert skill_templates.discover(tmp_path) == {}
+    errors = skill_templates.discover_errors(tmp_path)
+    assert len(errors) == 1
+    assert "sync" in errors[0]
+    assert "symlink" in errors[0].lower()
+    assert skill_templates.owned_targets(tmp_path) == set()
+
+
 def test_discover_errors_reports_the_bad_name_with_template_path(tmp_path: Path) -> None:
     tmpl = _write_template(tmp_path, "Bad_Name", "body\n")
     (tmp_path / ".claude" / "skills" / "Bad_Name").mkdir(parents=True)
