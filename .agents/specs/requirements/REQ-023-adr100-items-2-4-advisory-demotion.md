@@ -125,7 +125,7 @@ resulting state."
 
 ### Coverage notes
 
-- Topic `adr-100-items`: 3 grep variants (see REQ-021's Coverage notes for
+- Topic `adr-100-items`: 3 grep variants (see REQ-024's Coverage notes for
   the exact patterns). Two tangential hits read and adjudicated
   out-of-relevance above; no memory documents items 2-4 specifically,
   expected since ADR-100 itself is the canonical, committed record and this
@@ -155,7 +155,7 @@ accepted decision rather than analyzing a new one. Methodology:
 sense-categorize-respond (apply the already-decided change; do not
 re-derive it).
 
-Independent of REQ-021 and REQ-022 within this cohort; no shared code path,
+Independent of REQ-024 and REQ-022 within this cohort; no shared code path,
 though REQ-022's ledger records ADR-100 item 5 as `DELETE`, adjacent to
 this REQ's items 2-4.
 
@@ -340,7 +340,7 @@ dependency, so the Step 4a buy-vs-build gate does not apply.
 
 Engineering tier: 3 (shared cohort tier for consistency, though this REQ's
 individual mechanics are closer to Tier 2 in isolation; kept at 3 because it
-shares a `/spec` invocation and review gate with REQ-021/REQ-022 and touches
+shares a `/spec` invocation and review gate with REQ-024/REQ-022 and touches
 shared always-on rule text, which the epic treats as governance-sensitive).
 Problem domain: Clear (Cynefin), since ADR-100 already specifies the
 decision; this REQ applies it rather than deriving it. Methodology:

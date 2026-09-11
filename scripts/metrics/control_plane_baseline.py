@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: E402
-"""Measure the repository's control-plane baseline (REQ-021, epic #5456).
+"""Measure the repository's control-plane baseline (REQ-024, epic #5456).
 
 Read-only CLI over seven dimensions: canonical, policy_owners,
 always_loaded, generated_historical, gate_budget, activation,
@@ -12,7 +12,7 @@ changing at all (review F2). Never gates (DR1, measurement-only,
 ``.agents/specs/ontology/control-plane-subtraction-cohort-1.md`` O5): the
 only nonzero exits are a dirty tree without ``--allow-dirty`` (1, ADR-035)
 and a missing/non-git ``--repo`` (2). No metric value changes the exit code
-(REQ-021 AC-08).
+(REQ-024 AC-08).
 
 DR4 (reuse over duplication): the token estimator (``token_budget``), the
 always-on glob matcher (``instruction_budget_globs``), the always-loaded base
@@ -26,12 +26,12 @@ when their one data source is absent; the four multi-source dimensions
 instead log one exclusion per missing subdirectory and keep counting the
 rest.
 
-Design note (2026-09-11 review): DESIGN-020 originally specified a
+Design note (2026-09-11 review): DESIGN-023 originally specified a
 ``dimensions/`` package of eight files with per-dimension dataclasses; both
 were dropped for this one module returning plain ``dict[str, Any] | None``
 per dimension (builder-ethos.md's lazy-ladder guidance against an
 unrequested structural abstraction). Only ``Baseline``, the O4 aggregate
-root, stays a dataclass. See DESIGN-020's Component Architecture section.
+root, stays a dataclass. See DESIGN-023's Component Architecture section.
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ class SymlinkRefusedError(Exception):
 
 @dataclass
 class Baseline:
-    """REQ-021's O4 aggregate root: the JSON/markdown pair as one unit."""
+    """REQ-024's O4 aggregate root: the JSON/markdown pair as one unit."""
 
     commit_sha: str
     captured_at: str
@@ -396,7 +396,7 @@ def gate_budget(repo: Path, exclusions: Exclusions) -> dict[str, Any] | None:
     script's test fixtures), so this function reads ``lefthook.yml`` itself;
     that two-line read is not logic DR4 protects. The summation this must
     never diverge from (``test_lefthook_declared_budget.py``'s total,
-    REQ-021 AC-06) is ``declared_budget`` itself, called here unmodified.
+    REQ-024 AC-06) is ``declared_budget`` itself, called here unmodified.
     """
     config = _lefthook_config(repo)
     if config is None:

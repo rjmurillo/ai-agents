@@ -8,7 +8,7 @@ category: functional
 epic: EPIC-5456
 source: GH-5456
 related:
-  - REQ-021
+  - REQ-024
   - DESIGN-021
 created: 2026-09-11
 updated: 2026-09-11
@@ -23,9 +23,9 @@ tags:
 
 ## Step 0 First Principles
 
-Answers below are cohort-level and identical in substance to REQ-021's Step
+Answers below are cohort-level and identical in substance to REQ-024's Step
 0 block; restated here per spec-generator's requirement that each emitted
-REQ be self-contained. See REQ-021 for the full evidentiary citations.
+REQ be self-contained. See REQ-024 for the full evidentiary citations.
 
 ### Q1 Demand Reality
 
@@ -58,14 +58,14 @@ exists to satisfy them into.
 
 Approximately 2-3 hours: one committed markdown ledger
 (`.agents/metrics/control-plane-dispositions-v0.7.0.md`) with one row per
-named candidate (the eight the epic lists) plus every redundancy REQ-021's
-baseline surfaces, classified using REQ-021's already-computed numbers. No
+named candidate (the eight the epic lists) plus every redundancy REQ-024's
+baseline surfaces, classified using REQ-024's already-computed numbers. No
 new script; this REQ is a writing and classification task over existing
 data, not new measurement.
 
 ### Q5 Observation
 
-The same commit `cd0f9561d` and live-number evidence cited in REQ-021 Q5
+The same commit `cd0f9561d` and live-number evidence cited in REQ-024 Q5
 apply here too. This cohort also made a directly observed finding, in
 ancestry back to PR #5418 (`4e33c4baa`): the `FAST_STAGE_RAN_ENV` skip
 mechanism. `scripts/validation/pre_pr_sequence.py:543` reads
@@ -89,12 +89,12 @@ accumulate without one place recording what was already checked.
 ### Direct prior art from memory
 
 - `.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md`: see
-  REQ-021's Prior Art block. Decision: propose-amend, consumed directly as
+  REQ-024's Prior Art block. Decision: propose-amend, consumed directly as
   this REQ's first ledger row (below). This is the clearest illustration in
   this cohort of why REQ-022 exists: a disposition ledger turns a stale
   claim into a recorded, evidenced KEEP instead of a re-proposed fix.
 - `.serena/memories/decision-the-instruction-budget-gate-already-exists.md`:
-  same relevance as REQ-021; also directly on point for this REQ's own
+  same relevance as REQ-024; also directly on point for this REQ's own
   purpose (checking whether a gap is already closed before building
   something for it): the disposition ledger generalizes exactly this
   check across every named candidate rather than leaving it to be
@@ -119,12 +119,12 @@ accumulate without one place recording what was already checked.
   in the ledger as a named candidate with disposition `DELETE`, since the
   construct item 5 describes is absent from the file, not silently
   dropped.
-- (Search depth: same medium/degraded search as REQ-021; see its Coverage
+- (Search depth: same medium/degraded search as REQ-024; see its Coverage
   notes for the method.)
 
 ### Coverage notes
 
-- Same four grep variants as REQ-021's `control-plane-baseline` topic,
+- Same four grep variants as REQ-024's `control-plane-baseline` topic,
   reused here since the two REQs share a search space (one `/spec`
   invocation, one cohort). No additional topic-specific search was run for
   "disposition ledger" as a term because it names no prior system this
@@ -133,7 +133,7 @@ accumulate without one place recording what was already checked.
 
 ## Requirement Statement
 
-WHEN the control-plane baseline (REQ-021) is committed,
+WHEN the control-plane baseline (REQ-024) is committed,
 THE SYSTEM SHALL classify every epic-named candidate mechanism plus every
 redundancy the baseline surfaces as KEEP, MERGE, DELETE, or EXPERIMENT in a
 committed markdown ledger, with each KEEP row carrying all five epic-required
@@ -144,12 +144,12 @@ silently dropped or re-litigated from scratch by a later contributor.
 
 ## Context
 
-Engineering tier: 3, same rationale as REQ-021 (shared cohort tier; see
-REQ-021 Complexity classification). Problem domain: Complicated (classifying
+Engineering tier: 3, same rationale as REQ-024 (shared cohort tier; see
+REQ-024 Complexity classification). Problem domain: Complicated (classifying
 a known, enumerable list of candidates against a defined rubric is expert
 analysis, not experimentation). Methodology: sense-analyze-respond.
 
-This REQ depends on REQ-021 (the ledger classifies using the baseline's
+This REQ depends on REQ-024 (the ledger classifies using the baseline's
 numbers) and is independent of REQ-023.
 
 ## Ontology
@@ -176,7 +176,7 @@ gates every row's validity.
 
 ## Integrations
 
-- Reads REQ-021's committed baseline JSON for `evidence` figures where a
+- Reads REQ-024's committed baseline JSON for `evidence` figures where a
   row's justification is numeric (for example a KEEP row citing
   `always_loaded` headroom).
 - No new script; this is a hand-authored (or lightly templated) markdown
@@ -206,7 +206,7 @@ gates every row's validity.
   numbers, or test name), never a paraphrase. **Detection**: reviewer
   judgment at PR time. **Response**: request the concrete citation before
   merge.
-- **Scenario**: the ledger and REQ-021's baseline diverge later (baseline
+- **Scenario**: the ledger and REQ-024's baseline diverge later (baseline
   re-run, numbers change) and nobody notices the ledger is stale.
   **Category**: process. **Prevention**: out of scope for this cohort (no
   automated staleness check is proposed, per the epic's Abort-if clause 3
@@ -284,7 +284,7 @@ not a running system.
   `EXPERIMENT` owned by #5238/#5239; the measurement itself is not run
   here.
 - The reduced-configuration comparison and final release report (same
-  exclusion as REQ-021).
+  exclusion as REQ-024).
 
 ## Deferred
 
@@ -301,7 +301,7 @@ not a running system.
 ## Open Questions
 
 - **OQ1**: Should the ledger's row order follow the epic's own candidate
-  list order, or group by disposition class? Owner: implementer at TASK-025
+  list order, or group by disposition class? Owner: implementer at TASK-029
   time. Assumption made here: epic's listed order, because that makes the
   ledger easiest to cross-check against the epic body directly, and a
   reader wanting a by-class view can `grep` the `class` column.
@@ -310,7 +310,7 @@ not a running system.
   implicit threshold, or literally every item the baseline enumerates?
   Assumption: the former, narrowed to redundancies actually found during
   this cohort's own research (the pre-push duplicate-gate finding is the
-  only one confirmed at spec time); TASK-025 re-reads REQ-021's committed
+  only one confirmed at spec time); TASK-029 re-reads REQ-024's committed
   baseline once it lands and adds any additional redundancy it surfaces,
   rather than speculatively listing candidates this spec has not verified.
 
@@ -321,7 +321,7 @@ class, owner, consumers, evidence) regardless of disposition class.
 **Variabilities**: only `KEEP` rows carry the additional five-field
 justification block; `DELETE`/`MERGE`/`EXPERIMENT` rows carry a shorter
 rationale instead. **Relationships**: every row's `evidence` field, where
-numeric, traces back to REQ-021's `Baseline` aggregate (O3 relationship
+numeric, traces back to REQ-024's `Baseline` aggregate (O3 relationship
 `ReleaseTarget bounds-one Baseline metric`, applied here as `Disposition
 cites Baseline`).
 
@@ -335,7 +335,7 @@ changes... skip this step").
 
 ## Complexity classification
 
-Engineering tier: 3, same as REQ-021 (shared cohort). Problem domain:
+Engineering tier: 3, same as REQ-024 (shared cohort). Problem domain:
 Complicated. Methodology: sense-analyze-respond.
 
 ## Rationale
@@ -344,12 +344,12 @@ The epic's Release gates checklist cannot pass without a recorded KEEP
 justification for every retained candidate, and this cohort's own research
 demonstrated concretely why a ledger matters: without one, a stale claim
 (the duplicate pre-push gate) would have produced a redundant fix PR for a
-problem already solved. Writing the ledger from REQ-021's baseline, rather
+problem already solved. Writing the ledger from REQ-024's baseline, rather
 than before it, keeps every numeric claim traceable to one committed source.
 
 ## Dependencies
 
-- REQ-021 (baseline numbers this ledger cites)
+- REQ-024 (baseline numbers this ledger cites)
 - `.agents/architecture/ADR-100-retire-pr-size-ceilings.md`
 - `scripts/validation/pre_pr_sequence.py`, `lefthook.yml`,
   `tests/validation/test_pre_pr_sequence_registry.py` (the duplicate-gate
