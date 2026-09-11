@@ -1,8 +1,8 @@
 """Tests for build/scripts/skill_templates.py and its generate_skills.py wiring.
 
 Covers ``discover``, ``discover_errors``, ``owned_targets``, ``compile_all``,
-the ``generate_skills.py`` wiring, and the CLI: DESIGN-020's Tests table
-(``.agents/specs/design/DESIGN-020-skill-guidance-excerpt-sync.md``), plus
+the ``generate_skills.py`` wiring, and the CLI: DESIGN-023's Tests table
+(``.agents/specs/design/DESIGN-023-skill-guidance-excerpt-sync.md``), plus
 NO-REGEN-fails-closed and partial-trailing-newline cases from later ADR
 review rounds for #5706 (see ``compile_all``'s own docstring). Grammar,
 partial-tree validation, and ``render`` are in the sibling
@@ -186,7 +186,7 @@ def test_owned_targets_maps_each_template_to_its_claude_skills_path(tmp_path: Pa
 
 
 def test_compile_all_writes_rendered_bytes_when_target_missing(tmp_path: Path) -> None:
-    """Positive (DESIGN-020 case 1, end to end): exit 0, file written. The
+    """Positive (DESIGN-023 case 1, end to end): exit 0, file written. The
     skill directory already exists but carries no ``SKILL.md`` yet.
     """
     write_partial(tmp_path, "greet", "hi\n")
@@ -260,8 +260,8 @@ def test_compile_all_skips_no_regen_target_with_warn_and_fails_closed(
     capsys: pytest.CaptureFixture[str],
     apply_sentinel: Callable[[Path], None],
 ) -> None:
-    """Edge (DESIGN-020 case 6, diverged): NO-REGEN sentinel -> unchanged,
-    WARN (not NOTICE), exit 1 (not DESIGN-020's exit 0; see compile_all's
+    """Edge (DESIGN-023 case 6, diverged): NO-REGEN sentinel -> unchanged,
+    WARN (not NOTICE), exit 1 (not DESIGN-023's exit 0; see compile_all's
     "Stricter/looser/different than canonical" section). All three sentinel
     forms (MINOR 1, ADR review).
     """
@@ -334,7 +334,7 @@ def test_compile_all_validate_skips_no_regen_target_not_counted_as_drift(
 
 
 def test_compile_all_validate_on_clean_tree(tmp_path: Path) -> None:
-    """Positive (DESIGN-020 case 8): --validate on a clean tree -> exit 0."""
+    """Positive (DESIGN-023 case 8): --validate on a clean tree -> exit 0."""
     write_partial(tmp_path, "greet", "hi\n")
     write_template(tmp_path, "sync", "{{> greet}}\n")
     dst = seed_target_dir(tmp_path, "sync")

@@ -69,7 +69,7 @@ def test_check_grammar_empty_text_is_clean() -> None:
 
 
 def test_render_byte_identical_to_fixture_with_two_partials(tmp_path: Path) -> None:
-    """Positive (DESIGN-020 case 1): template with two partials renders clean."""
+    """Positive (DESIGN-023 case 1): template with two partials renders clean."""
     write_partial(tmp_path, "greet", "hello\n")
     write_partial(tmp_path, "farewell", "bye\n")
     tmpl = write_template(
@@ -141,7 +141,7 @@ def test_compile_all_partial_grammar_violation_leaves_target_untouched(
 
 
 def test_render_missing_partial_raises_with_slug_and_path(tmp_path: Path) -> None:
-    """Config error (DESIGN-020 case 2): exit 2, slug and path printed."""
+    """Config error (DESIGN-023 case 2): exit 2, slug and path printed."""
     tmpl = write_template(tmp_path, "sync", "{{> nope}}\n")
     partials_dir = tmp_path / "templates" / "skills" / "partials"
     partials_dir.mkdir(parents=True)
@@ -201,7 +201,7 @@ def test_render_partial_with_exactly_one_trailing_newline_separates_lines(
 
 
 def test_render_disallowed_tag_raises_with_tag_text(tmp_path: Path) -> None:
-    """Config error (DESIGN-020 case 3): exit 2, tag printed."""
+    """Config error (DESIGN-023 case 3): exit 2, tag printed."""
     tmpl = write_template(tmp_path, "sync", "before {{var}} after\n")
     partials_dir = tmp_path / "templates" / "skills" / "partials"
     partials_dir.mkdir(parents=True)
@@ -339,7 +339,7 @@ def test_render_diamond_shaped_partial_reuse_is_not_a_cycle(tmp_path: Path) -> N
 def test_render_raises_unresolved_tag_error_when_output_still_carries_braces(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Negative (DESIGN-020 case 4): rendered output containing '{{' -> exit 1.
+    """Negative (DESIGN-023 case 4): rendered output containing '{{' -> exit 1.
 
     No naturally occurring chevron document was found (probed 2026-09-11)
     that both renders successfully AND leaves a literal '{{' in its output;

@@ -13,7 +13,7 @@ four exception classes), so ``skill_templates.render(...)``,
 every existing caller and test.
 
 Template grammar, quoted verbatim from
-``.agents/specs/design/DESIGN-020-skill-guidance-excerpt-sync.md``, "Template
+``.agents/specs/design/DESIGN-023-skill-guidance-excerpt-sync.md``, "Template
 grammar" section:
 
     A template is the current ``SKILL.md`` text with two kinds of tag and no

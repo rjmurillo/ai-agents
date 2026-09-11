@@ -5,7 +5,7 @@ ADR-108 (Template-Owned Skill Files Under ``.claude/skills/``) amends
 REQ-003-010 and ADR-107 property 1 for exactly one artifact class: a skill
 whose canonical source is a mustache template under ``templates/skills/``.
 This module is that class's compile step, per
-``.agents/specs/design/DESIGN-020-skill-guidance-excerpt-sync.md``, "Compile
+``.agents/specs/design/DESIGN-023-skill-guidance-excerpt-sync.md``, "Compile
 module: ``build/scripts/skill_templates.py``":
 
     ``discover(repo_root) -> dict[str, Path]``
@@ -63,7 +63,7 @@ sibling's public names (``render``, ``check_grammar``, and the four
 exception classes) so every existing caller and test that reaches them
 through ``skill_templates.<name>`` keeps working unchanged.
 
-Stricter/looser/different than canonical: DESIGN-020's table above says a
+Stricter/looser/different than canonical: DESIGN-023's table above says a
 NO-REGEN skip on a template-owned target is "skipped, NOTICE printed, exit
 0" and ADR-108 section 4 describes the same sentinel "the same way
 ``_copy_skill_tree`` skips it", both matching the plain ``NOTICE: skipped
@@ -98,7 +98,7 @@ instead: the skip is unchanged (never written, never treated as drift
 either), reported louder than a routine skip, and the run does not report
 clean while a target-owned file sits outside the gate's coverage. This
 diverges from issue #5706 step 10's own acceptance line by design, decided
-in ADR review for #5706 after DESIGN-020 and ADR-108 were already recorded;
+in ADR review for #5706 after DESIGN-023 and ADR-108 were already recorded;
 neither document is amended by this file, the divergence lives here.
 
 EXIT CODES (per ``compile_all``, and surfaced by callers unchanged):
@@ -347,7 +347,7 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
     ``build_all._build_skills``, not by anything this function does (module
     docstring's "Stricter/looser/different than canonical" section has the
     precise chain). This is a deliberate module-level divergence from
-    DESIGN-020's "skipped, NOTICE printed, exit 0" and from ADR-108 section
+    DESIGN-023's "skipped, NOTICE printed, exit 0" and from ADR-108 section
     4's own wording: a sentinel that could silence ADR-108's only gate and
     still report a clean run would make the gate advisory the moment anyone
     reached for it.
