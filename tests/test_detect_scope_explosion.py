@@ -22,6 +22,7 @@ from scripts.detect_scope_explosion import (
     WARN_THRESHOLD,
     ScopeDetectionError,
     ScopeResult,
+    _is_process_record,
     detect_scope,
     format_bar,
     get_current_branch,
@@ -802,7 +803,8 @@ class TestMergeHeadRealGit:
         assert result is not None
         assert result.file_count == 57
         assert set(result.files) == expected_paths
-        assert _run_main(repo, monkeypatch) == 1
+        # Over BLOCK_THRESHOLD (50); advisory only since ADR-100 item 3.
+        assert _run_main(repo, monkeypatch) == 0
 
     def test_attached_and_detached_merge_have_distinct_exit_codes(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -847,7 +849,8 @@ class TestMergeHeadRealGit:
         result = detect_scope()
         assert result is not None
         assert result.file_count == 55
-        assert _run_main(repo, monkeypatch) == 1
+        # Over BLOCK_THRESHOLD (50); advisory only since ADR-100 item 3.
+        assert _run_main(repo, monkeypatch) == 0
 
     def test_unrelated_history_merge_uses_base_ref_index_without_merge_base(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -945,8 +948,11 @@ class TestReport:
         captured = capsys.readouterr()
         assert "BLOCKED" not in captured.out
 
-    def test_just_over_block_threshold_blocks(self, capsys: CaptureFixture[str]) -> None:
-        # 51 is the first blocking count.
+    def test_just_over_block_threshold_reports_advisory(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        # 51 is the first count over the guidance. Advisory since ADR-100
+        # item 3 (issue #5241): reports, never blocks.
         result = ScopeResult(
             file_count=BLOCK_THRESHOLD + 1,
             merge_base="abc123",
@@ -954,19 +960,22 @@ class TestReport:
             files=tuple(f"file{i}.py" for i in range(BLOCK_THRESHOLD + 1)),
         )
         exit_code = report(result)
-        assert exit_code == 1
+        assert exit_code == 0
         captured = capsys.readouterr()
-        assert "BLOCKED" in captured.out
+        assert "ADVISORY" in captured.out
 
-    def test_over_block_threshold(self, capsys: CaptureFixture[str]) -> None:
+    def test_over_block_threshold_never_blocks(self, capsys: CaptureFixture[str]) -> None:
+        """Negative control for ADR-100 item 3: no file count blocks, ever."""
         result = ScopeResult(
-            file_count=60,
+            file_count=200,
             merge_base="abc123",
             current_branch="feat/test",
-            files=tuple(f"file{i}.py" for i in range(60)),
+            files=tuple(f"file{i}.py" for i in range(200)),
         )
         exit_code = report(result)
-        assert exit_code == 1
+        assert exit_code == 0
+        captured = capsys.readouterr()
+        assert "ADVISORY" in captured.out
 
     def test_quiet_suppresses_below_warn(self, capsys: CaptureFixture[str]) -> None:
         result = ScopeResult(
@@ -1024,8 +1033,9 @@ class TestMain:
         captured = capsys.readouterr()
         assert "detached HEAD" in captured.err
 
-    def test_returns_one_when_blocked(self) -> None:
-        blocked_result = ScopeResult(
+    def test_returns_zero_when_over_the_guidance(self) -> None:
+        """Advisory since ADR-100 item 3: over the guidance still exits 0."""
+        over_guidance_result = ScopeResult(
             file_count=55,
             merge_base="abc123",
             current_branch="feat/big",
@@ -1037,18 +1047,24 @@ class TestMain:
             patch.dict(os.environ, env, clear=True),
             patch(
                 "scripts.detect_scope_explosion.detect_scope",
-                return_value=blocked_result,
+                return_value=over_guidance_result,
             ),
             patch("sys.argv", ["detect_scope_explosion.py"]),
         ):
             exit_code = main()
-            assert exit_code == 1
+            assert exit_code == 0
 
 
-class TestBypassHintContext:
-    """The bypass hint must match the hook stage where it will be used."""
+class TestAdvisoryRemediationContext:
+    """The remediation text must match the hook stage where it is printed.
 
-    def _blocked_result(self) -> ScopeResult:
+    ADR-100 item 3 (issue #5241) removed the SKIP_SCOPE_CHECK bypass hint
+    from this branch of report(): there is nothing left to bypass once the
+    over-guidance tier never blocks. What remains stage-specific is the
+    stash-based remediation, which only makes sense pre-commit.
+    """
+
+    def _over_guidance_result(self) -> ScopeResult:
         return ScopeResult(
             file_count=BLOCK_THRESHOLD + 5,
             merge_base="abc123",
@@ -1056,58 +1072,23 @@ class TestBypassHintContext:
             files=tuple(f"file{i}.py" for i in range(BLOCK_THRESHOLD + 5)),
         )
 
-    def test_pre_commit_hint_says_git_commit(self, capsys: CaptureFixture[str]) -> None:
-        """Pre-commit invocation (no --base-branch) prints 'git commit' bypass."""
-        report(self._blocked_result(), from_prepush=False)
+    def test_over_guidance_never_prints_a_bypass_hint(
+        self, capsys: CaptureFixture[str]
+    ) -> None:
+        report(self._over_guidance_result(), from_prepush=False)
         out = capsys.readouterr().out
-        assert "SKIP_SCOPE_CHECK=1 git commit" in out
-        assert "git push" not in out
-
-    def test_pre_push_hint_says_git_push(self, capsys: CaptureFixture[str]) -> None:
-        """Pre-push invocation (--base-branch set) prints 'git push' bypass."""
-        report(self._blocked_result(), from_prepush=True)
-        out = capsys.readouterr().out
-        assert "SKIP_SCOPE_CHECK=1 git push" in out
-        assert "git commit" not in out.split("Bypass")[1]
-
-    def test_main_without_base_branch_arg_is_pre_commit(self, capsys: CaptureFixture[str]) -> None:
-        """main() with no --base-branch passes from_prepush=False to report."""
-        blocked = self._blocked_result()
-        env = {k: v for k, v in os.environ.items() if k != "SKIP_SCOPE_CHECK"}
-        with (
-            patch.dict(os.environ, env, clear=True),
-            patch("scripts.detect_scope_explosion.detect_scope", return_value=blocked),
-            patch("sys.argv", ["detect_scope_explosion.py"]),
-        ):
-            main()
-        out = capsys.readouterr().out
-        assert "SKIP_SCOPE_CHECK=1 git commit" in out
-
-    def test_main_with_base_branch_arg_is_pre_push(self, capsys: CaptureFixture[str]) -> None:
-        """main() with --base-branch origin/main passes from_prepush=True to report."""
-        blocked = self._blocked_result()
-        env = {k: v for k, v in os.environ.items() if k != "SKIP_SCOPE_CHECK"}
-        with (
-            patch.dict(os.environ, env, clear=True),
-            patch("scripts.detect_scope_explosion.detect_scope", return_value=blocked),
-            patch(
-                "sys.argv",
-                ["detect_scope_explosion.py", "--base-branch", "origin/main"],
-            ),
-        ):
-            main()
-        out = capsys.readouterr().out
-        assert "SKIP_SCOPE_CHECK=1 git push" in out
+        assert "SKIP_SCOPE_CHECK" not in out
+        assert "Bypass" not in out
 
     def test_pre_commit_remediation_mentions_stash(self, capsys: CaptureFixture[str]) -> None:
-        """Pre-commit block message includes stash-based remediation steps."""
-        report(self._blocked_result(), from_prepush=False)
+        """Pre-commit advisory message includes stash-based remediation steps."""
+        report(self._over_guidance_result(), from_prepush=False)
         out = capsys.readouterr().out
         assert "git stash" in out
 
     def test_pre_push_remediation_omits_stash(self, capsys: CaptureFixture[str]) -> None:
-        """Pre-push block message does not suggest stash; work is already committed."""
-        report(self._blocked_result(), from_prepush=True)
+        """Pre-push advisory message does not suggest stash; work is already committed."""
+        report(self._over_guidance_result(), from_prepush=True)
         out = capsys.readouterr().out
         assert "git stash" not in out
 
@@ -1453,8 +1434,12 @@ class TestRescopeAgainstPrBase:
         assert "52" in err
 
 
-class TestMainConsultsPrBaseOnlyWhenBlocking:
-    """Tests for the main() gate around rescope_against_pr_base."""
+class TestMainConsultsPrBaseOnlyOverTheGuidance:
+    """Tests for the main() gate around rescope_against_pr_base.
+
+    Advisory since ADR-100 item 3 (issue #5241): every branch here exits 0.
+    The gate still exists to decide whether the rescope lookup runs at all.
+    """
 
     @staticmethod
     def _result(count: int) -> ScopeResult:
@@ -1496,8 +1481,8 @@ class TestMainConsultsPrBaseOnlyWhenBlocking:
             assert main() == 0
         assert rescope.call_count == 1
 
-    def test_still_blocks_a_genuinely_large_pr(self) -> None:
-        """Re-measuring does not rescue a PR that is large against its own base."""
+    def test_still_reports_a_genuinely_large_pr(self) -> None:
+        """Re-measuring does not change the outcome for a PR large against its own base."""
         with (
             patch.dict(os.environ, {}, clear=True),
             patch("sys.argv", ["detect_scope_explosion.py"]),
@@ -1510,9 +1495,9 @@ class TestMainConsultsPrBaseOnlyWhenBlocking:
                 return_value=self._result(BLOCK_THRESHOLD + 30),
             ),
         ):
-            assert main() == 1
+            assert main() == 0
 
-    def test_blocks_when_no_pr_base_resolves(self) -> None:
+    def test_reports_when_no_pr_base_resolves(self) -> None:
         """Unchanged behavior when gh cannot answer: the main count stands."""
         with (
             patch.dict(os.environ, {}, clear=True),
@@ -1526,7 +1511,7 @@ class TestMainConsultsPrBaseOnlyWhenBlocking:
                 return_value=None,
             ),
         ):
-            assert main() == 1
+            assert main() == 0
 
 
 class TestGeneratedFileExclusion:
@@ -1671,3 +1656,106 @@ class TestGeneratedFileExclusion:
         assert result.generated_count == 20
         # authored: feature.py + authored.py = 2
         assert result.file_count == 2
+
+
+class TestProcessRecordExclusion:
+    """Tests for process-record exclusion from scope count (ADR-100 item 3).
+
+    Session logs, QA reports, and memory episodes are process record rather
+    than reviewable change; `_partition_generated` excludes them the same
+    way it excludes generated files.
+    """
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            ".agents/sessions/2026-09-11-session-1-example.json",
+            ".agents/qa/session-1-example-qa-report.md",
+            ".agents/memory/episodes/episode-2026-09-11-session-1.json",
+            ".agents/memory/episodes/subdir/nested.json",
+        ],
+    )
+    def test_process_record_paths_are_excluded(self, path: str) -> None:
+        assert _is_process_record(path) is True
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "scripts/real.py",
+            ".agents/architecture/ADR-100-retire-pr-size-ceilings.md",
+            ".agents/session-notes.md",  # not under .agents/sessions/
+            ".agents/qa.md",  # not under .agents/qa/
+        ],
+    )
+    def test_ordinary_and_near_miss_paths_still_count(self, path: str) -> None:
+        assert _is_process_record(path) is False
+
+    def test_session_log_excluded_from_count(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = tmp_path / "repo"
+        _init_scope_repo(repo)
+        _check_git(repo, "checkout", "-qb", "feature")
+
+        _write_file(repo, ".agents/sessions/2026-09-11-session-1.json", "{}")
+        _write_file(repo, "scripts/real.py", "x = 1\n")
+        _commit_all(repo, "session log + authored")
+
+        monkeypatch.chdir(repo)
+        result = detect_scope(base_branch="main")
+        assert result is not None
+        assert result.file_count == 1
+        assert result.generated_count == 1
+
+    def test_qa_report_excluded_from_count(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        repo = tmp_path / "repo"
+        _init_scope_repo(repo)
+        _check_git(repo, "checkout", "-qb", "feature")
+
+        _write_file(repo, ".agents/qa/session-1-qa-report.md", "# QA\n")
+        _write_file(repo, "scripts/real.py", "x = 1\n")
+        _commit_all(repo, "qa report + authored")
+
+        monkeypatch.chdir(repo)
+        result = detect_scope(base_branch="main")
+        assert result is not None
+        assert result.file_count == 1
+        assert result.generated_count == 1
+
+    def test_memory_episode_directory_excluded_from_count(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Broader than the episode-*.json glob: any file under the directory."""
+        repo = tmp_path / "repo"
+        _init_scope_repo(repo)
+        _check_git(repo, "checkout", "-qb", "feature")
+
+        _write_file(repo, ".agents/memory/episodes/not-episode-shaped.txt", "note\n")
+        _write_file(repo, "scripts/real.py", "x = 1\n")
+        _commit_all(repo, "episode-adjacent file + authored")
+
+        monkeypatch.chdir(repo)
+        result = detect_scope(base_branch="main")
+        assert result is not None
+        assert result.file_count == 1
+        assert result.generated_count == 1
+
+    def test_large_process_record_change_never_reports_advisory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A branch touching only process record never crosses any tier."""
+        repo = tmp_path / "repo"
+        _init_scope_repo(repo)
+        _check_git(repo, "checkout", "-qb", "feature")
+
+        for i in range(60):
+            _write_file(repo, f".agents/sessions/session-{i}.json", "{}")
+        _commit_all(repo, "session churn only")
+
+        monkeypatch.chdir(repo)
+        result = detect_scope(base_branch="main")
+        assert result is not None
+        assert result.file_count == 0
+        assert result.generated_count == 60
