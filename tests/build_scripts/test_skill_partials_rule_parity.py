@@ -1,7 +1,7 @@
 """Pins every ``templates/skills/partials/*.mustache`` to the rule it excerpts.
 
-DESIGN-020 "Template grammar"
-(``.agents/specs/design/DESIGN-020-skill-guidance-excerpt-sync.md``):
+DESIGN-024 "Template grammar"
+(``.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``):
 
     A partial's first line MAY be ``{{! rule-source: <file>.md }}``. When
     present, the rest of the file MUST be a verbatim contiguous substring of
@@ -43,7 +43,7 @@ _RULE_SOURCE_RE = re.compile(r"^\{\{!\s*rule-source:\s*(\S+\.md)\s*\}\}\n")
 def _rule_source(partial_text: str) -> str | None:
     """Return the pinned rule filename, or ``None`` when the partial carries no pin.
 
-    Per DESIGN-020 "Template grammar", the pin is the partial's first line
+    Per DESIGN-024 "Template grammar", the pin is the partial's first line
     only: ``{{! rule-source: <file>.md }}``. A comment tag anywhere else in
     the file is not a pin (there is none in the pilot partials today, but
     the regex anchors to the start of the string so it cannot false-positive
@@ -68,7 +68,7 @@ def _assert_verbatim_substring(
     ``check_grammar``/the partial loader already requires exactly one
     trailing newline on every partial (module docstring of
     ``build/scripts/skill_templates.py``); this strips exactly that one
-    newline before comparing, per DESIGN-020's "The rule-source substring
+    newline before comparing, per DESIGN-024's "The rule-source substring
     check strips exactly that one trailing newline before comparing."
     """
     assert body.endswith("\n") and not body.endswith("\n\n"), (

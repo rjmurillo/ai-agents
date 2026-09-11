@@ -16,7 +16,7 @@ existing gate would say so.
 
 ``PILOT`` is that assertion. A1 shipped the compile module with zero
 templates on disk, so ``PILOT`` was the empty set there. TASK-027 (A2, this
-change) widens it to the eight pilot names DESIGN-020 lists under "Pilot
+change) widens it to the eight pilot names DESIGN-024 lists under "Pilot
 content", in the same commit that adds their ``.tmpl`` files. A PR that
 adds a ``.tmpl`` file without updating this constant fails
 ``test_discover_matches_the_declared_pilot_set`` below, which is the point:
@@ -37,7 +37,7 @@ import skill_templates  # noqa: E402
 # TASK-027 (A2): widens in step with the templates landing in the same
 # commit, so this test is never red at any commit on the branch (review
 # finding: an earlier history widened PILOT to all eight names one commit
-# before any template existed). Complete: all eight DESIGN-020 "Pilot
+# before any template existed). Complete: all eight DESIGN-024 "Pilot
 # content" names, each of which carries an @CLAUDE.md line (ADR-108
 # Context).
 PILOT: frozenset[str] = frozenset(

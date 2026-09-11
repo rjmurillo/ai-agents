@@ -1,7 +1,7 @@
 """Shared contract for a template-owned pilot skill's ``SKILL.md`` (ADR-108).
 
-DESIGN-020 "Tests"
-(``.agents/specs/design/DESIGN-020-skill-guidance-excerpt-sync.md``):
+DESIGN-024 "Tests"
+(``.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``):
 
     ``tests/skills/_template_contract.py`` helper plus one
     ``tests/skills/<pilot>/test_skill_md_contract.py`` per pilot: the
@@ -33,7 +33,7 @@ _CLAUDE_MD_LINE_RE = re.compile(r"^@CLAUDE\.md$", re.MULTILINE)
 def assert_template_owned_contract(name: str) -> None:
     """Assert the ADR-108 contract for one template-owned pilot skill.
 
-    Three checks, matching DESIGN-020's "Tests" table entry verbatim:
+    Three checks, matching DESIGN-024's "Tests" table entry verbatim:
 
     1. The committed ``.claude/skills/<name>/SKILL.md`` equals a fresh
        ``skill_templates.render()`` of ``templates/skills/<name>.SKILL.md.tmpl``.
