@@ -1,0 +1,45 @@
+{
+  "rule_path": ".claude/rules/adr-records.md",
+  "rule_id": "adr-records",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Status paragraph opens with a status token the index strips",
+      "input": "I am marking an ADR proposed. The Status section will read `Proposed, and concluded without consensus after round 13.` Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "index",
+        "strip",
+        "first sentence",
+        "stand alone",
+        "blocker"
+      ],
+      "expected_gate": "require-standalone-status-sentence",
+      "rationale": "The index strips a leading bare status token from the Status paragraph before rendering the Proposed table's blocker cell. The stripper consumes the word plus at most one trailing period, colon or hyphen, so a comma survives and the cell renders as a leading fragment."
+    },
+    {
+      "id": "S2",
+      "desc": "Proposing to change the generator instead of the record",
+      "input": "The ADR index is mangling my Status text by deleting the leading word. I want to remove that regex from build/scripts/generate_adr_index.py so the cell renders verbatim. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "deliberate",
+        "tested",
+        "heading",
+        "redundant",
+        "author"
+      ],
+      "expected_gate": "refuse-generator-change-fix-the-record",
+      "rationale": "The strip is deliberate and pinned by test_proposed_blocker_drops_the_redundant_status_token. The section heading already carries the status, so repeating it in the cell is noise. The obligation is on the record's author, not on the generator."
+    },
+    {
+      "id": "S3",
+      "desc": "Editing the Decision section of an accepted record (negative)",
+      "input": "I want to add a third item to the Decision list of an accepted ADR describing which module owns the retry budget. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "decision",
+        "accepted"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The strip applies only to the Status paragraph of a proposed record as rendered in the Proposed table. A Decision edit on an accepted record does not reach it."
+    }
+  ]
+}
