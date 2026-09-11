@@ -522,3 +522,15 @@ index, and the repository's own citation gate. The one P1 carried forward, a par
 trailing newline silently joining the line after it, is a defect in the A1 grammar check and the
 DESIGN-020 test matrix rather than in this record's decision, and it is cheap to close before
 TASK-025 starts. The record ships as `proposed` with the dissent above recorded.
+
+## Post-consensus edits (2026-09-11, after round 4)
+
+Two edits to the record after the round-4 vote, neither changing a decision:
+
+- The round-4 P1 (partial without a trailing newline) was folded into section 1 as a
+  configuration error, exit 2, with the probe result, and the sentinel forms in section 4 were
+  corrected to the three `regen_guard.py` recognizes. Rollback in Implementation Notes now names
+  the CODEOWNERS entries and the spec artifacts.
+- Two Impact-table citations (`REQ-003-...md:358-361` and `generated-artifacts.md:196`) gained
+  backticked anchor text so `scripts/validation/check_citation_freshness.py` can match them at
+  the cited lines. No line number or claim changed.

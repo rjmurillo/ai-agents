@@ -156,10 +156,10 @@ One new dev dependency against writing a partial expander by hand. `chevron` is 
 | `build/scripts/skill_templates.py` (new) | Direct | Discovery, grammar check, render, compare | Medium |
 | `pyproject.toml`, `uv.lock` | Direct | `chevron==0.14.0` in `[project.optional-dependencies].dev` and `[dependency-groups].dev` | Low |
 | `.agents/governance/GENERATOR-FILES.md` | Direct | New generated-trees row for the class; the hand-maintained paragraph gains the exception | Low |
-| `.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md:358-361` | Direct | Exception clause in the requirement sentence and the verification sentence, plus a dated note | Low |
+| `.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md:358-361` (`The build shall never write`, `Verification:`) | Direct | Exception clause in the requirement sentence and the verification sentence, plus a dated note | Low |
 | `.agents/architecture/ADR-107-canonical-skill-contracts-and-harness-projections.md:61-62` and its Related Decisions | Direct | Exception clause in property 1; re-anchored guard line numbers; one Related Decisions bullet | Low |
 | `build/AGENTS.md:8` | Direct | The no-write sentence gains the exception | Low |
-| `.claude/rules/generated-artifacts.md:196`, `.claude/rules/templates.md` | Direct | One sentence each: the exception, and the regeneration command for skill templates | Low |
+| `.claude/rules/generated-artifacts.md:196` (`REQ-003-010 forbids generators from writing under`), `.claude/rules/templates.md` | Direct | One sentence each: the exception, and the regeneration command for skill templates | Low |
 | `scripts/validation/pre_pr_sequence.py`, `tests/validation/test_pre_pr_sequence_registry.py` | Direct | `Skill Template Drift` gate row and its `EXPECTED_ORDER` entry | Low |
 | `tests/test_frontgate_crosslink_1927.py:163` | Indirect | Asserts `@CLAUDE.md` is present in the plan skill; flips to absence when the pilot lands | Low |
 | `tests/build_scripts/test_build_all.py` | Indirect | Allowlisted write passes; other `.claude/` writes still exit 2 | Low |
