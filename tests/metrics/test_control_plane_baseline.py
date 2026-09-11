@@ -1,4 +1,4 @@
-"""Tests for control_plane_baseline.py (REQ-021, TASK-024-AC5/AC6).
+"""Tests for control_plane_baseline.py (REQ-024, TASK-028-AC5/AC6).
 
 Positive, negative, edge, CLI exit-code, parity (AC-06), reproducibility
 (AC-11), and no-content-leak (AC-09) coverage, plus the exit-0-regardless

@@ -125,7 +125,7 @@ resulting state."
 
 ### Coverage notes
 
-- Topic `adr-100-items`: 3 grep variants (see REQ-021's Coverage notes for
+- Topic `adr-100-items`: 3 grep variants (see REQ-024's Coverage notes for
   the exact patterns). Two tangential hits read and adjudicated
   out-of-relevance above; no memory documents items 2-4 specifically,
   expected since ADR-100 itself is the canonical, committed record and this
@@ -155,8 +155,8 @@ accepted decision rather than analyzing a new one. Methodology:
 sense-categorize-respond (apply the already-decided change; do not
 re-derive it).
 
-Independent of REQ-021 and REQ-022 within this cohort; no shared code path,
-though REQ-022's ledger records ADR-100 item 5 as deferred, adjacent to
+Independent of REQ-024 and REQ-022 within this cohort; no shared code path,
+though REQ-022's ledger records ADR-100 item 5 as `DELETE`, adjacent to
 this REQ's items 2-4.
 
 ## Ontology
@@ -279,11 +279,13 @@ or alert; this is a one-time behavior change to an existing gate.
 ## Out of Scope
 
 - ADR-100 item 5 (`post_qa_code_changes` rebind churn fix in
-  `.claude/lib/qa_report.py`). Recorded by REQ-022 as
-  `DEFERRED-TO-LATER-COHORT`; ADR-100's own text states the obvious first
-  fix (diff against the merge's first parent) is wrong and a reviewer
-  caught it before it shipped, so this item needs its own design pass, not
-  a mechanical demotion like items 2-4.
+  `.claude/lib/qa_report.py`). Recorded by REQ-022 as `DELETE`: the
+  specific fix item 5 names (replace `-m` with `-c`) is absent from
+  `qa_report.py`, superseded before this cohort started by
+  `--first-parent --cc` (issue #5064), a different, more careful fix a
+  reviewer's earlier catch on the naive first attempt led to. This item
+  needs no mechanical demotion like items 2-4 because there is nothing
+  left in the file for that demotion to apply to.
 - ADR-100 item 6 (not named in the excerpt this cohort read; out of scope
   by the same "additions, not subtractions, stay with #5241" boundary the
   original seed plan drew for items 5-6).
@@ -338,7 +340,7 @@ dependency, so the Step 4a buy-vs-build gate does not apply.
 
 Engineering tier: 3 (shared cohort tier for consistency, though this REQ's
 individual mechanics are closer to Tier 2 in isolation; kept at 3 because it
-shares a `/spec` invocation and review gate with REQ-021/REQ-022 and touches
+shares a `/spec` invocation and review gate with REQ-024/REQ-022 and touches
 shared always-on rule text, which the epic treats as governance-sensitive).
 Problem domain: Clear (Cynefin), since ADR-100 already specifies the
 decision; this REQ applies it rather than deriving it. Methodology:

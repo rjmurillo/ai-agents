@@ -12,11 +12,11 @@
 ## Objectives
 
 - [ ] Commit a reproducible control-plane baseline from one pinned `main`
-      SHA (REQ-021 / DESIGN-020 / TASK-024).
+      SHA (REQ-024 / DESIGN-023 / TASK-028).
 - [ ] Commit a disposition ledger classifying every epic-named candidate,
       including the already-fixed duplicate pre-push gate finding, as KEEP
       with evidence rather than a re-proposed fix (REQ-022 / DESIGN-021 /
-      TASK-025).
+      TASK-029).
 - [ ] Deliver ADR-100 items 2-4: demote `check_atomic_commit` and
       `detect_scope_explosion.py` to advisory, remove `SKIP_SCOPE_CHECK`
       (REQ-023 / DESIGN-022 / TASK-026).
@@ -64,13 +64,13 @@
 
 | Task | Size | Done definition |
 |---|---|---|
-| TASK-024: build and commit the baseline | L | REQ-021's 12 ACs pass; test suite green; baseline doc committed at pinned SHA |
+| TASK-028: build and commit the baseline | L | REQ-024's 12 ACs pass; test suite green; baseline doc committed at pinned SHA |
 
 ### M2
 
 | Task | Size | Done definition |
 |---|---|---|
-| TASK-025: author and commit the disposition ledger | S | REQ-022's 7 ACs pass; every epic-named candidate has one row; duplicate-gate row cites the confirmed fix |
+| TASK-029: author and commit the disposition ledger | S | REQ-022's 7 ACs pass; every epic-named candidate has one row; duplicate-gate row cites the confirmed fix |
 
 ### M3
 
@@ -81,25 +81,25 @@
 ## Dependency Graph
 
 ```text
-TASK-024 (M1, baseline) ----data----> TASK-025 (M2, ledger)
-TASK-026 (M3, ADR-100 items 2-4) -- independent, no edge to TASK-024/025
+TASK-028 (M1, baseline) ----data----> TASK-029 (M2, ledger)
+TASK-026 (M3, ADR-100 items 2-4) -- independent, no edge to TASK-028/025
 ```
 
-TASK-025 is blocked on TASK-024's data (the ledger cites the baseline's
-committed numbers), not on its code; TASK-024 and TASK-026 can run in
+TASK-029 is blocked on TASK-028's data (the ledger cites the baseline's
+committed numbers), not on its code; TASK-028 and TASK-026 can run in
 parallel. All three can be reviewed and merged as separate PRs, in any
-order that respects the TASK-024 -> TASK-025 data edge.
+order that respects the TASK-028 -> TASK-029 data edge.
 
 ## Risk Register
 
 | Risk | Likelihood | Impact | P0? | Mitigation |
 |---|---|---|---|---|
-| R1: the baseline script drifts into a gate (nonzero exit on a metric value) in a future edit | Low | High (violates epic Abort-if clause 3) | Yes | REQ-021 AC-08: a synthetic-value test matrix asserts exit 0 across values exceeding every release target; this test is written before the release-target numbers are even final, so the guarantee is structural, not aspirational |
-| R2: `.agents/metrics/` becomes a write target #5420's generated-state separation wants to move, creating a conflicting PR | Medium | Low (relocation is a `git mv`, epic counts it apart from deletion) | No | Recorded in REQ-021 Deferred; no action needed now, sequencing note only |
+| R1: the baseline script drifts into a gate (nonzero exit on a metric value) in a future edit | Low | High (violates epic Abort-if clause 3) | Yes | REQ-024 AC-08: a synthetic-value test matrix asserts exit 0 across values exceeding every release target; this test is written before the release-target numbers are even final, so the guarantee is structural, not aspirational |
+| R2: `.agents/metrics/` becomes a write target #5420's generated-state separation wants to move, creating a conflicting PR | Medium | Low (relocation is a `git mv`, epic counts it apart from deletion) | No | Recorded in REQ-024 Deferred; no action needed now, sequencing note only |
 | R3: `.claude/rules/universal.md` MUST-6 edit trips `test_always_on_corpus_claims.py` or `test_audit_procedure_claims.py` | Medium | Medium (blocks TASK-026's PR, does not affect M1/M2) | No (P1 risk, not P0; scoped to one milestone, cheap to fix) | REQ-023 AC-06: run both test files locally (about one second) before push; TASK-026 Implementation Notes require this explicitly |
 | R4: item 4 (`SKIP_SCOPE_CHECK` removal) lands before item 3 (scope-check demotion), leaving a blocking gate with no relief valve | Low | High (blocks every push above the file threshold with no bypass) | Yes | REQ-023 AC-07: items 3 and 4 land in one combined change, item 4's commit never preceding item 3's; TASK-026 Implementation Notes state this explicitly as the single most important ordering constraint in M3 |
-| R5: a disposition ledger row is classified without evidence a reader can verify, reproducing the exact stale-claim failure this cohort's own research found | Medium | Medium (misleads a future contributor, but is self-correcting via a dated addendum, not data loss) | No | REQ-022 AC-04: every evidence citation must be a concrete artifact (SHA, path:line, test name, ADR id, memory path); TASK-025 Implementation Notes require reading the source issue/ADR before writing each row, not classifying from the epic's one-line description |
-| R6: `gate_budget`'s summation logic diverges from `test_lefthook_declared_budget.py`'s, producing two numbers nobody can reconcile | Low | Medium (undermines the baseline's credibility on one dimension, not all eight) | No | REQ-021 AC-06: a parity test asserts the two totals match on the same commit; DR4 requires import, not re-derivation |
+| R5: a disposition ledger row is classified without evidence a reader can verify, reproducing the exact stale-claim failure this cohort's own research found | Medium | Medium (misleads a future contributor, but is self-correcting via a dated addendum, not data loss) | No | REQ-022 AC-04: every evidence citation must be a concrete artifact (SHA, path:line, test name, ADR id, memory path); TASK-029 Implementation Notes require reading the source issue/ADR before writing each row, not classifying from the epic's one-line description |
+| R6: `gate_budget`'s summation logic diverges from `test_lefthook_declared_budget.py`'s, producing two numbers nobody can reconcile | Low | Medium (undermines the baseline's credibility on one dimension, not all eight) | No | REQ-024 AC-06: a parity test asserts the two totals match on the same commit; DR4 requires import, not re-derivation |
 
 Every P0 risk (R1, R4) carries a mitigation that is structural (a test that
 must exist, an ordering constraint stated as an acceptance criterion), not
@@ -107,9 +107,9 @@ a process reminder alone.
 
 ## Deferred Items
 
-- A wall-clock ceiling for the baseline script itself (REQ-021 Deferred).
-- Relocating `.agents/metrics/` if #5420 lands first (REQ-021 Deferred).
-- A real gate p50/p95 sampler (REQ-021 Out of Scope).
+- A wall-clock ceiling for the baseline script itself (REQ-024 Deferred).
+- Relocating `.agents/metrics/` if #5420 lands first (REQ-024 Deferred).
+- A real gate p50/p95 sampler (REQ-024 Out of Scope).
 - An automated staleness check keeping the disposition ledger in sync with
   future baseline re-runs (REQ-022 Deferred; would itself be a new
   governance layer, forbidden by the epic's Abort-if clause 3).
@@ -130,10 +130,10 @@ a process reminder alone.
 
 | Date | Decision | Rationale | Alternatives Considered |
 |------|----------|-----------|------------------------|
-| 2026-09-11 | Drop the seed plan's PR3 ("delete duplicate gate execution in `pre_pr_sequence.py:252-254`") entirely. Retired the candidate as already fixed on `main`, no work required. | Main already defers the five duplicated pre-push gates (Count Ratchets, Unreachable Code Detection, Em/en-dash Prohibition, Path Normalization, Planning Artifacts) through the `AI_AGENTS_PRE_PR_FAST_STAGE_RAN` flag, set at `lefthook.yml:590` and read at `scripts/validation/pre_pr_sequence.py:543-552`, pinned by `tests/validation/test_pre_pr_sequence_registry.py:133-266` (`FAST_STAGE_DUPLICATES`). The memory this cohort's original seed plan cited (`.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md`, dated 2026-08-19, "The same work runs twice in one hook" section) was stale: the fix landed via PR #5418 (`4e33c4baa`, confirmed by `git log -S`), and the memory was never corrected. This is recorded in REQ-022 as a KEEP disposition (evidence: the three citations above) rather than a re-proposed fix, per this cohort's own decision rule DR3 ("already-fixed is KEEP, not DELETE"). | (a) Keep PR3 as originally scoped and write it anyway, verifying no regression: rejected, since the mechanism already works and a redundant PR adds review cost for zero behavior change, violating the epic's "no new mechanism unless it removes or consolidates" gate in spirit (there is nothing left to remove). (b) Keep PR3 but rescope it to "verify and document" only: rejected as a separate PR, folded instead into REQ-022's disposition ledger as one row, since a one-row ledger entry is a smaller and more honest artifact than a standalone PR whose diff would be zero lines of production code. <!-- citation-freshness: ignore -- the pre_pr_sequence.py:543-552 citation names the fast-stage skip block by its enclosing function, not a literal quoted token at that exact range; verified present by direct read during REQ-021/TASK-024 implementation, 2026-09-11. --> |
+| 2026-09-11 | Drop the seed plan's PR3 ("delete duplicate gate execution in `pre_pr_sequence.py:252-254`") entirely. Retired the candidate as already fixed on `main`, no work required. | Main already defers the five duplicated pre-push gates (Count Ratchets, Unreachable Code Detection, Em/en-dash Prohibition, Path Normalization, Planning Artifacts) through the `AI_AGENTS_PRE_PR_FAST_STAGE_RAN` flag, set at `lefthook.yml:590` and read at `scripts/validation/pre_pr_sequence.py:543-552`, pinned by `tests/validation/test_pre_pr_sequence_registry.py:133-266` (`FAST_STAGE_DUPLICATES`). The memory this cohort's original seed plan cited (`.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md`, dated 2026-08-19, "The same work runs twice in one hook" section) was stale: the fix landed via PR #5418 (`4e33c4baa`, confirmed by `git log -S`), and the memory was never corrected. This is recorded in REQ-022 as a KEEP disposition (evidence: the three citations above) rather than a re-proposed fix, per this cohort's own decision rule DR3 ("already-fixed is KEEP, not DELETE"). | (a) Keep PR3 as originally scoped and write it anyway, verifying no regression: rejected, since the mechanism already works and a redundant PR adds review cost for zero behavior change, violating the epic's "no new mechanism unless it removes or consolidates" gate in spirit (there is nothing left to remove). (b) Keep PR3 but rescope it to "verify and document" only: rejected as a separate PR, folded instead into REQ-022's disposition ledger as one row, since a one-row ledger entry is a smaller and more honest artifact than a standalone PR whose diff would be zero lines of production code. <!-- citation-freshness: ignore -- the pre_pr_sequence.py:543-552 citation names the fast-stage skip block by its enclosing function, not a literal quoted token at that exact range; verified present by direct read during REQ-024/TASK-028 implementation, 2026-09-11. --> |
 | 2026-09-11 | Cohort is three PRs (baseline, disposition ledger, ADR-100 items 2-4), not four. | Direct consequence of the PR3 drop above; task-giver correction confirmed the finding independently. | N/A, this is the resulting scope, not a choice among alternatives. |
 | 2026-09-11 | One shared OntologyFragment (`control-plane-subtraction-cohort-1.md`) for all three REQs, rather than three near-duplicate fragments. | The three REQs share one `/spec` invocation and one domain vocabulary (CandidateMechanism, Disposition, Baseline, and related terms recur across all three); three separate fragments would either diverge or duplicate each other verbatim. | Three independent per-REQ ontology files, each mostly `N/A` except the shared terms: rejected as the same information written three times with drift risk on every future edit. |
-| 2026-09-11 | Propagated the seven-dimension, single-module revision (review F2 amendment) into DESIGN-020's normative overview, REQ-021's requirement statement, TASK-024's scope line, and this file's Critic Verdict, per CodeRabbit review on PR #5725. | The four artifacts still mixed the removed `fanout_residue` dimension and the rejected eight-module architecture with the shipped seven-dimension, single-module design, breaking traceability between requirement, design, task, and execution plan. | Leaving the historical "eight"/"four" language stand with only the existing amendment notes: rejected, since the four flagged spans were normative text, not historical framing, and needed the same correction the amendment notes already state elsewhere in each file. |
+| 2026-09-11 | Propagated the seven-dimension, single-module revision (review F2 amendment) into DESIGN-023's normative overview, REQ-024's requirement statement, TASK-028's scope line, and this file's Critic Verdict, per CodeRabbit review on PR #5725. | The four artifacts still mixed the removed `fanout_residue` dimension and the rejected eight-module architecture with the shipped seven-dimension, single-module design, breaking traceability between requirement, design, task, and execution plan. | Leaving the historical "eight"/"four" language stand with only the existing amendment notes: rejected, since the four flagged spans were normative text, not historical framing, and needed the same correction the amendment notes already state elsewhere in each file. |
 
 ## Pre-mortem
 
@@ -185,16 +185,16 @@ introduced a regression nobody caught before merge.
 5. **Organizational -- scope creep at review time**: a reviewer asks for
    the baseline script to also gate on a threshold "since we're here
    anyway," reintroducing exactly what R1 and the epic's Abort-if clause 3
-   forbid. *Likelihood 2, Impact 4, Score 8 (High).* Mitigation: REQ-021's
+   forbid. *Likelihood 2, Impact 4, Score 8 (High).* Mitigation: REQ-024's
    Rationale and DR1 are explicit enough to cite directly in review pushback;
    this is a documentation mitigation, weaker than a test, and is named as
    such.
 6. **Unknown unknowns -- a ninth epic-named candidate surfaces after M2
    ships**: the epic's Execution section list is treated as complete at
-   spec time, but a new candidate is found during TASK-024's baseline run
+   spec time, but a new candidate is found during TASK-028's baseline run
    that nobody anticipated. *Likelihood 3, Impact 2, Score 6 (Medium).*
-   Mitigation: REQ-022 OQ2 already anticipates this ("TASK-025 re-reads
-   REQ-021's committed baseline once it lands and adds any additional
+   Mitigation: REQ-022 OQ2 already anticipates this ("TASK-029 re-reads
+   REQ-024's committed baseline once it lands and adds any additional
    redundancy it surfaces"), so the plan's own process, not a new
    mechanism, absorbs this.
 
@@ -212,10 +212,10 @@ against this plan and its three REQ/DESIGN/TASK sets.
 
 **Scope integrity**: PASS. The plan matches the corrected three-PR cohort;
 the dropped PR3 is recorded, not silently vanished. Every epic Baseline
-bullet is covered by REQ-021's seven dimensions, or explicitly excluded
-with a reason (REQ-021 Out of Scope).
+bullet is covered by REQ-024's seven dimensions, or explicitly excluded
+with a reason (REQ-024 Out of Scope).
 
-**Dependency ordering**: PASS. TASK-025 correctly depends on TASK-024's
+**Dependency ordering**: PASS. TASK-029 correctly depends on TASK-028's
 data, not code; TASK-026 is correctly independent. No cycle.
 
 **Risk coverage**: PASS with one flagged gap. Both P0 risks (R1, R4) carry
@@ -236,7 +236,7 @@ the frontmatter/structure of each file, containing all three required
 subsections with evidence, not just coverage notes). Checks 9a-9c
 (Demand Reality, Desperate Specificity, Narrowest Wedge drift) pass: every
 REQ's Acceptance Criteria trace to its own Q1/Q3/Q4 answers without adding
-unstated scope (spot-checked: REQ-021's twelve ACs all trace to the eight
+unstated scope (spot-checked: REQ-024's twelve ACs all trace to the eight
 Baseline-bullet dimensions Q4 names; REQ-022's seven ACs all trace to the
 Disposition-contract fields Q3/Q4 name; REQ-023's eight ACs all trace to
 ADR-100 items 2-4 as Q3/Q4 name them, with no fourth item smuggled in).
@@ -250,7 +250,7 @@ treat it as reviewed and accepted, not unreviewed.
 
 | Date | Update | Agent |
 |------|--------|-------|
-| 2026-09-11 | Created plan; produced REQ-021/022/023, DESIGN-020/021/022, TASK-024/025/026, and this plan, per epic #5456's first-cohort scope (corrected to three PRs after confirming the seed's PR3 candidate is already fixed on `main`) | spec/plan (worktree session) |
+| 2026-09-11 | Created plan; produced REQ-024/022/023, DESIGN-023/021/022, TASK-028/025/026, and this plan, per epic #5456's first-cohort scope (corrected to three PRs after confirming the seed's PR3 candidate is already fixed on `main`) | spec/plan (worktree session) |
 
 ## Blockers
 
@@ -261,9 +261,9 @@ treat it as reviewed and accepted, not unreviewed.
 - Issue: #5456
 - Issue: #5241 (REQ-023's tracking issue)
 - ADR: ADR-100, ADR-099 (item 1's delivery), ADR-104 (300s ceiling cited by
-  REQ-021)
+  REQ-024)
 - PR: (pending, three separate PRs expected: baseline, ledger, ADR-100
   items 2-4)
-- Specs: REQ-021/DESIGN-020/TASK-024, REQ-022/DESIGN-021/TASK-025,
+- Specs: REQ-024/DESIGN-023/TASK-028, REQ-022/DESIGN-021/TASK-029,
   REQ-023/DESIGN-022/TASK-026
 - Ontology: `.agents/specs/ontology/control-plane-subtraction-cohort-1.md`
