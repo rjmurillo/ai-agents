@@ -65,6 +65,23 @@ def test_check_grammar_empty_text_is_clean() -> None:
     assert skill_templates.check_grammar("") == []
 
 
+def test_check_grammar_accepts_an_indented_standalone_partial() -> None:
+    """Grammar allows a partial "optionally indented" (module docstring)."""
+    assert skill_templates.check_grammar("  {{> greet}}\n") == []
+
+
+def test_check_grammar_rejects_a_partial_sharing_its_line_with_other_text() -> None:
+    """CodeRabbit review, PR #5726: the own-line rule is part of the grammar
+    the module docstring quotes from DESIGN-024, but a partial tag whose own
+    syntax is valid previously passed even mid-sentence.
+    """
+    assert skill_templates.check_grammar("See {{> greet}} for details.\n") != []
+
+
+def test_check_grammar_rejects_two_partials_sharing_one_line() -> None:
+    assert skill_templates.check_grammar("{{> a}}{{> b}}\n") != []
+
+
 # render() -------------------------------------------------------------------
 
 
@@ -265,7 +282,7 @@ def test_render_partial_referencing_missing_nested_partial_raises(tmp_path: Path
     naming a partial that does not exist must fail the same way a template
     naming one directly does, not render the reference away as empty text.
     """
-    partial_path = write_partial(tmp_path, "greet", "Hello {{> nonexistent}}!\n")
+    partial_path = write_partial(tmp_path, "greet", "Hello\n{{> nonexistent}}\n")
     tmpl = write_template(tmp_path, "sync", "{{> greet}}\n")
     partials_dir = tmp_path / "templates" / "skills" / "partials"
 
@@ -281,7 +298,7 @@ def test_render_nested_partial_grammar_violation_two_levels_deep(tmp_path: Path)
     included partial is caught too, not only one level below the template.
     """
     inner_path = write_partial(tmp_path, "inner", "bad {{var}}\n")
-    write_partial(tmp_path, "outer", "wraps: {{> inner}}\n")
+    write_partial(tmp_path, "outer", "wraps:\n{{> inner}}\n")
     tmpl = write_template(tmp_path, "sync", "{{> outer}}\n")
     partials_dir = tmp_path / "templates" / "skills" / "partials"
 
@@ -328,7 +345,7 @@ def test_render_diamond_shaped_partial_reuse_is_not_a_cycle(tmp_path: Path) -> N
     write_partial(tmp_path, "leaf", "shared\n")
     write_partial(tmp_path, "a", "{{> leaf}}\n")
     write_partial(tmp_path, "b", "{{> leaf}}\n")
-    tmpl = write_template(tmp_path, "sync", "{{> a}}{{> b}}")
+    tmpl = write_template(tmp_path, "sync", "{{> a}}\n{{> b}}\n")
     partials_dir = tmp_path / "templates" / "skills" / "partials"
 
     rendered = skill_templates.render(tmpl, partials_dir)
