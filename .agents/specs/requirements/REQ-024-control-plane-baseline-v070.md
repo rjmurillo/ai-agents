@@ -1,6 +1,6 @@
 ---
 type: requirement
-id: REQ-021
+id: REQ-024
 title: Control-plane baseline capture for v0.7.0
 status: draft
 priority: P0
@@ -8,7 +8,7 @@ category: functional
 epic: EPIC-5456
 source: GH-5456
 related:
-  - DESIGN-020
+  - DESIGN-023
 created: 2026-09-11
 updated: 2026-09-11
 author: spec
@@ -19,7 +19,7 @@ tags:
   - v0.7.0
 ---
 
-# REQ-021: Control-plane baseline capture for v0.7.0
+# REQ-024: Control-plane baseline capture for v0.7.0
 
 ## Step 0 First Principles
 
@@ -108,7 +108,7 @@ as the corpus and its history grow, because nobody has one place to check
   full"): documents the exact failure this REQ's DR4 exists to prevent, an
   analysis note prescribing a new instrument for a gap `main` had already
   closed a day earlier. Relevance: direct precedent for reuse-over-rebuild
-  on this REQ's `always_loaded` dimension. Decision: honor; REQ-021 AC-04
+  on this REQ's `always_loaded` dimension. Decision: honor; REQ-024 AC-04
   imports `instruction_budget`'s estimator rather than re-implementing it.
 - `.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md`
   ("Pre-push wall clock is python-tests; everything else is noise", dated
@@ -116,7 +116,7 @@ as the corpus and its history grow, because nobody has one place to check
   stale. `scripts/validation/pre_pr_sequence.py:253-257` (`_Gate("Count
   Ratchets", ..., already_run_by="count-ratchets")`) and the
   `FAST_STAGE_RAN_ENV` skip at `pre_pr_sequence.py:543-556` resolve exactly
-  the duplication this memory describes, wired to `lefthook.yml:590`, and <!-- citation-freshness: ignore -- lefthook.yml:590 holds the literal env var name `AI_AGENTS_PRE_PR_FAST_STAGE_RAN`, not the Python constant `FAST_STAGE_RAN_ENV` that stores it; verified present by direct read during REQ-021/TASK-024 implementation, 2026-09-11. -->
+  the duplication this memory describes, wired to `lefthook.yml:590`, and <!-- citation-freshness: ignore -- lefthook.yml:590 holds the literal env var name `AI_AGENTS_PRE_PR_FAST_STAGE_RAN`, not the Python constant `FAST_STAGE_RAN_ENV` that stores it; verified present by direct read during REQ-024/TASK-028 implementation, 2026-09-11. -->
   pinned by `tests/validation/test_pre_pr_sequence_registry.py:133-266`
   (`FAST_STAGE_DUPLICATES`, five gates: Count Ratchets, Unreachable Code
   Detection, Path Normalization, Planning Artifacts, Em/en-dash
@@ -124,7 +124,7 @@ as the corpus and its history grow, because nobody has one place to check
   ("delete duplicate gate execution") in this cohort's original seed plan;
   the mechanism it targeted is already fixed. Decision: propose-amend. The
   cohort drops that PR; the baseline script's `dispositions` reuse note in
-  DESIGN-020 records this finding so the memory itself can be corrected in
+  DESIGN-023 records this finding so the memory itself can be corrected in
   a later, non-worktree session.
 - `.serena/memories/ci/run-count-ratchets-before-the-expensive-pre-push.md`:
   documents the staging fix (issue #5066) that moved count ratchets to a
@@ -352,57 +352,57 @@ user-facing latency or availability target).
 
 ## Acceptance Criteria
 
-- [ ] REQ-021-AC1: WHEN `control_plane_baseline.py` runs against a clean
+- [ ] REQ-024-AC1: WHEN `control_plane_baseline.py` runs against a clean
       checkout with `--repo <path>`, THE SYSTEM SHALL emit both `--json PATH`
       and `--markdown PATH` outputs containing all seven dimensions
       (`canonical`, `policy_owners`, `always_loaded`, `generated_historical`,
       `gate_budget`, `activation`, `accepted_tasks`; `fanout_residue`
       removed per the Data model Amendment note) SO THAT no dimension is
       silently omitted.
-- [ ] REQ-021-AC2: WHEN the working tree is dirty (uncommitted changes)
+- [ ] REQ-024-AC2: WHEN the working tree is dirty (uncommitted changes)
       AND `--allow-dirty` is not passed, THE SYSTEM SHALL exit 1 without
       writing output SO THAT a baseline is never captured from an
       unreproducible state.
-- [ ] REQ-021-AC3: WHEN the repository path does not exist or is not a git
+- [ ] REQ-024-AC3: WHEN the repository path does not exist or is not a git
       repository, THE SYSTEM SHALL exit 2 SO THAT configuration errors are
       distinguishable from logic errors, per ADR-035.
-- [ ] REQ-021-AC4: WHEN `always_loaded` tokens are computed, THE SYSTEM
+- [ ] REQ-024-AC4: WHEN `always_loaded` tokens are computed, THE SYSTEM
       SHALL call `instruction_budget`'s token estimator rather than
       reimplementing token counting SO THAT the script and
       `instruction_budget.py` never disagree on the same file (DR4).
-- [ ] REQ-021-AC5: WHEN `canonical` and `generated_historical` are computed
+- [ ] REQ-024-AC5: WHEN `canonical` and `generated_historical` are computed
       for overlapping directories (for example `src/copilot-cli/`), THE
       SYSTEM SHALL report `generated_historical` separately from
       `canonical` and SHALL NOT sum them into one total SO THAT the epic's
       "reported separately from canonical product inputs" requirement holds.
-- [ ] REQ-021-AC6: WHEN `gate_budget` is computed, THE SYSTEM SHALL produce
+- [ ] REQ-024-AC6: WHEN `gate_budget` is computed, THE SYSTEM SHALL produce
       the same total as `tests/ci/test_lefthook_declared_budget.py` on the
       same commit SO THAT the two never silently diverge (a parity test
       asserts this in CI).
-- [ ] REQ-021-AC7: WHEN any dimension's underlying data is absent (for
+- [ ] REQ-024-AC7: WHEN any dimension's underlying data is absent (for
       example no `.serena/memories/` directory), THE SYSTEM SHALL record
       that dimension as `null` with a logged reason and SHALL exit 0 SO
       THAT a missing optional signal never blocks measurement (DR1).
-- [ ] REQ-021-AC8: WHEN the script runs to completion on any input, THE
+- [ ] REQ-024-AC8: WHEN the script runs to completion on any input, THE
       SYSTEM SHALL exit 0 regardless of the numeric values measured SO THAT
       the script can never function as a gate, ratchet, or evaluator, per
       the epic's "Abort if" clause 3 and decision rule DR1. A test matrix
       of synthetic metric values (including values exceeding every plan-seed
       release target) SHALL assert exit 0 in every case.
-- [ ] REQ-021-AC9: WHEN the script emits JSON or markdown output, THE
+- [ ] REQ-024-AC9: WHEN the script emits JSON or markdown output, THE
       SYSTEM SHALL emit counts, paths, and byte/token figures only, and
       SHALL NOT include full file contents, SO THAT the baseline artifact
       cannot leak secrets or large bodies of text.
-- [ ] REQ-021-AC10: WHEN `--json PATH` or `--markdown PATH` resolves to a
+- [ ] REQ-024-AC10: WHEN `--json PATH` or `--markdown PATH` resolves to a
       symlink, THE SYSTEM SHALL refuse to write and exit 1 SO THAT the
       script cannot be used to overwrite an arbitrary file via a symlink
       swap (CWE-59).
-- [ ] REQ-021-AC11: WHEN run twice against the same pinned commit with the
+- [ ] REQ-024-AC11: WHEN run twice against the same pinned commit with the
       same flags, THE SYSTEM SHALL produce byte-identical `dimensions`
       content in both JSON outputs (excluding the `captured_at` timestamp)
       SO THAT the baseline is reproducible, per the epic's Baseline
       section.
-- [ ] REQ-021-AC12: WHEN the committed baseline doc pair is written at
+- [ ] REQ-024-AC12: WHEN the committed baseline doc pair is written at
       commit `cd0f9561d` (or the pinned SHA current when this REQ lands),
       THE SYSTEM SHALL record the exact command, every exclusion with its
       reason, and the release targets from this REQ's Deferred and Out of
@@ -458,7 +458,7 @@ user-facing latency or availability target).
 - **OQ1**: Should `.agents/metrics/control-plane-baseline-v0.7.0.json`
   additionally be validated by a schema file, the way spec frontmatter is
   validated by `validate_spec_frontmatter.py`? Owner: implementer, at
-  TASK-024 time. Assumption made here: no, a Python dataclass-to-dict
+  TASK-028 time. Assumption made here: no, a Python dataclass-to-dict
   serialization with a test asserting the eight top-level keys is
   sufficient at this scale; the epic does not ask for a new schema registry
   and one would itself be a new mechanism (Abort-if clause 3).
@@ -477,7 +477,7 @@ user-facing latency or availability target).
   REQ, or a separate PR? Assumption: within scope, because AC-06 cannot
   otherwise be satisfied without either duplicating the function (violates
   DR4) or importing test code from production code (a code-quality
-  violation this repo's standards forbid). TASK-024 verifies the current
+  violation this repo's standards forbid). TASK-028 verifies the current
   location before implementation and adjusts scope only if the function
   already lives in an importable module.
 

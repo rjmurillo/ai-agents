@@ -1,11 +1,11 @@
 ---
 type: design
-id: DESIGN-020
+id: DESIGN-023
 title: Control-plane baseline capture for v0.7.0
 status: draft
 priority: P0
 related:
-  - REQ-021
+  - REQ-024
 created: 2026-09-11
 updated: 2026-09-11
 author: spec-generator
@@ -15,11 +15,11 @@ tags:
   - measurement
 ---
 
-# DESIGN-020: Control-plane baseline capture for v0.7.0
+# DESIGN-023: Control-plane baseline capture for v0.7.0
 
 ## Requirements Addressed
 
-- REQ-021: Control-plane baseline capture for v0.7.0
+- REQ-024: Control-plane baseline capture for v0.7.0
 
 ## Design Overview
 
@@ -106,12 +106,12 @@ instead.
 |---|---|---|
 | DR1 (measurement-only) | `control-plane-subtraction-cohort-1.md` O5 | Exit-code contract in `control_plane_baseline.py`'s `main()`; AC-08's synthetic-value test matrix |
 | DR2 (KEEP completeness) | same | Not enforced by this design; DR2 governs REQ-022's ledger, not this baseline script |
-| DR3 (already-fixed is KEEP) | same | Not enforced by this design; recorded as prior art in REQ-021's Prior Art block for REQ-022 to consume |
+| DR3 (already-fixed is KEEP) | same | Not enforced by this design; recorded as prior art in REQ-024's Prior Art block for REQ-022 to consume |
 | DR4 (reuse over duplication) | same | `always_loaded()` and `gate_budget()` import rather than reimplement; AC-04 and AC-06 test the parity |
 
 ## Security Considerations
 
-See REQ-021's Security section for the full threat-modeling summary (T1-T3).
+See REQ-024's Security section for the full threat-modeling summary (T1-T3).
 Design-level mitigations:
 
 - `write_json()` and `write_markdown()` share one `_safe_open(path)`
@@ -171,14 +171,14 @@ plan's test plan for PR1.
 ## Open Questions
 
 - Whether `gate_budget`'s summation function is currently importable or
-  test-local (REQ-021 OQ3); TASK-024 resolves this before writing
+  test-local (REQ-024 OQ3); TASK-028 resolves this before writing
   `gate_budget()`, and if extraction is needed, the extraction itself is
   a small, in-scope refactor (moving a pure function, not changing its
   behavior).
 - Whether `policy_owners`'s always-on-membership parser should be its own
   small YAML-frontmatter reader or should also import from
   `instruction_budget`'s `is_language_universal` if that function is
-  reusable outside its current module; TASK-024 checks the module's public
+  reusable outside its current module; TASK-028 checks the module's public
   surface before deciding to import vs. write a narrower parser scoped to
   frontmatter only (this design's own read is narrower: `is_language_universal`
   answers "does this rule apply to this language", while `policy_owners`
