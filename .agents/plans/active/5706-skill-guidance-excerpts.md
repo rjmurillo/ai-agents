@@ -8,14 +8,14 @@
 | **Created** | 2026-09-11 |
 | **Owner** | claude (session 017M4qLAptnWDBp4aHuFUs6L) |
 | **Complexity** | High |
-| **Spec** | REQ-021, DESIGN-020, TASK-024 (A0), TASK-025 (A1), TASK-026 (A2), ADR-108 |
+| **Spec** | REQ-021, DESIGN-020, TASK-024 (A0), TASK-025 (A1), TASK-027 (A2), ADR-108 |
 
 ## Objectives
 
 - [x] D1: owner chose the mustache-compile design with an ADR-107 amendment over the no-amendment excerpt design (2026-09-11).
 - [ ] A0: ADR-108 reviewed through `adr-review`, ADR-107 cross-reference, REQ-003-010 amendment note, spec artifacts, regenerated ADR index; PR merged (TASK-024).
 - [ ] A1: compile module, `generate_skills.py --validate`, `build_all.py` allowlist and check mode, `chevron` dev dependency, `Skill Template Drift` gate, tests, governance and rule lines; PR merged (TASK-025).
-- [ ] A2: eight templates, six partials, rendered files, regenerated mirrors, contract tests, byte report; PR merged and issue #5706 closed (TASK-026).
+- [ ] A2: eight templates, six partials, rendered files, regenerated mirrors, contract tests, byte report; PR merged and issue #5706 closed (TASK-027).
 
 ## Milestones
 
