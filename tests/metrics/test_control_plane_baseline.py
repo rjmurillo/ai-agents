@@ -6,11 +6,11 @@ CLI exit-code, parity (AC-06), reproducibility (AC-11), and no-content-leak
 verifiable (AC-08).
 
 The full-fixture ``repo`` builds one small git repository with known counts
-for every one of the eight dimensions, so the positive test asserts exact
-numbers rather than "it ran". Edge cases that do not need git (a missing
-directory, a missing single-source file) call the dimension functions
-directly against a bare ``tmp_path``, since only ``main()`` requires a real
-repository.
+for every one of the seven dimensions (``fanout_residue`` removed, review
+F2), so the positive test asserts exact numbers rather than "it ran". Edge
+cases that do not need git (a missing directory, a missing single-source
+file) call the dimension functions directly against a bare ``tmp_path``,
+since only ``main()`` requires a real repository.
 """
 
 from __future__ import annotations
@@ -100,7 +100,7 @@ def repo(tmp_path: Path) -> Path:
     git(root, "config", "user.name", "Test")
 
     _write(root, "CLAUDE.md", "claude root file\n")
-    _write(root, "AGENTS.md", "AGENTS mentions skill-one for routing.\n")
+    _write(root, "AGENTS.md", "See `skill-one` for routing details.\n")
     _write(root, ".claude/CLAUDE.md", "claude nested file\n")
     _write(root, ".github/copilot-instructions.md", "copilot root file\n")
 
@@ -108,7 +108,7 @@ def repo(tmp_path: Path) -> Path:
     _write(root, ".claude/agents/a2.md", "agent two\n")
     _write(root, ".claude/skills/skill-one/SKILL.md", "skill one\n")
     _write(root, ".claude/skills/skill-two/SKILL.md", "skill two\n")
-    _write(root, ".claude/skills/autoplan/SKILL.md", "autoplan mentions skill-two for routing.\n")
+    _write(root, ".claude/skills/autoplan/SKILL.md", "Route via /skill-two for details.\n")
     _write(root, ".claude/rules/always.md", _ALWAYS_ON_RULE)
     _write(root, ".claude/rules/scoped.md", _SCOPED_RULE)
     _write(root, ".claude/hooks/hook_one.py", "# a claude hook\n")
@@ -117,6 +117,11 @@ def repo(tmp_path: Path) -> Path:
     _write(root, "scripts/validation/check_foo.py", "# validator\n")
     _write(root, "scripts/validation/checks_bar.py", "# validator\n")
     _write(root, "scripts/validate_baz.py", "# validator\n")
+    _write(root, "scripts/validation/nested/validate_deep.py", "# nested validator\n")
+    _write(root, "scripts/validation/tests/check_excluded.py", "# excluded: tests/ segment\n")
+    _write(
+        root, "scripts/validation/__pycache__/checks_excluded.py", "# excluded: pycache segment\n"
+    )
     _write(root, ".github/workflows/ci.yml", "name: ci\n")
     _write(root, "lefthook.yml", _LEFTHOOK_YML)
 
@@ -148,7 +153,6 @@ def test_positive_all_dimensions_present_with_known_counts(repo: Path) -> None:
         "always_loaded",
         "generated_historical",
         "gate_budget",
-        "fanout_residue",
         "activation",
         "accepted_tasks",
     }
@@ -157,10 +161,12 @@ def test_positive_all_dimensions_present_with_known_counts(repo: Path) -> None:
     assert canonical["agents"] == 2
     assert canonical["skills"] == 3
     assert canonical["rules"] == 2
-    assert canonical["hooks"] == 3
+    assert "hooks" not in canonical  # review F5: combined key dropped, double counted
     assert canonical["hooks_by_event"] == {"SessionStart": 2}
     assert canonical["hooks_python_files"] == 1
-    assert canonical["validators"] == 3
+    # review F4: rglob under scripts/, excluding tests/ and __pycache__/; the fixture
+    # adds a nested validator plus one decoy under each excluded segment.
+    assert canonical["validators"] == 4
     assert canonical["workflows"] == 1
     assert canonical["lefthook_jobs"] == 5
     assert canonical["lefthook_jobs_by_hook"] == {"pre-commit": 2, "pre-push": 3}
@@ -199,19 +205,33 @@ def test_positive_all_dimensions_present_with_known_counts(repo: Path) -> None:
     assert hist["generated_projections"]["github_instructions"]["count"] == 1
 
     assert dims["gate_budget"] == {"seconds_by_hook": {"pre-commit": 15.0, "pre-push": 30.0}}
-    assert dims["fanout_residue"] == {"total": 1, "prunable": 0}
-    # "autoplan" appears in its own SKILL.md body ("autoplan mentions skill-two..."),
-    # so it counts as referenced too; this also proves the scan aggregates AGENTS.md,
-    # CLAUDE.md, and the autoplan routing file rather than just one of the three.
-    assert dims["activation"]["referenced_count"] == 3
-    assert set(dims["activation"]["referenced_names"]) == {"autoplan", "skill-one", "skill-two"}
+    # review F3: structured references only. AGENTS.md backticks `skill-one`;
+    # autoplan/SKILL.md uses the slash form for skill-two. Neither file mentions
+    # "autoplan" in backtick or slash form, so autoplan itself is not referenced,
+    # proving the scan aggregates all three sources rather than just one.
+    assert dims["activation"]["referenced_count"] == 2
+    assert set(dims["activation"]["referenced_names"]) == {"skill-one", "skill-two"}
     assert dims["activation"]["tested_count"] == 1
     assert dims["activation"]["tested_names"] == ["skill-one"]
     assert dims["accepted_tasks"] == {"verified": 1, "unverified": 2, "other": 0, "total": 3}
     assert baseline.exclusions == []
 
+    # review F1: release_targets is populated by the script, not hand-typed.
+    owner_total = (
+        2 + 3 + 2 + 2 + 4 + 1 + 5
+    )  # agents+skills+rules+registered hooks+validators+workflows+lefthook_jobs
+    metrics = {t["metric"]: t for t in baseline.release_targets}
+    assert metrics["canonical owner total"]["target"] == f"strictly below {owner_total}"
+    assert metrics["always_loaded.claude_code.tokens"]["target"] == (
+        f"strictly below {dims['always_loaded']['claude_code']['tokens']}"
+    )
+    assert (
+        metrics["gate_budget.seconds_by_hook.pre-push"]["target"]
+        == "must not rise above 30.0 seconds"
+    )
 
-def test_positive_cli_writes_json_and_markdown_with_all_eight_keys(
+
+def test_positive_cli_writes_json_and_markdown_with_all_seven_keys(
     repo: Path, tmp_path: Path
 ) -> None:
     json_path = tmp_path / "out.json"
@@ -225,15 +245,28 @@ def test_positive_cli_writes_json_and_markdown_with_all_eight_keys(
         "always_loaded",
         "generated_historical",
         "gate_budget",
-        "fanout_residue",
         "activation",
         "accepted_tasks",
     }
     assert data["commit_sha"]
+    assert data["release_targets"], "release_targets must be populated by the script (review F1)"
     md_text = md_path.read_text(encoding="utf-8")
     assert "# Control-plane baseline" in md_text
     assert "## canonical" in md_text
     assert "## Exclusions" in md_text
+    # review F1: Measurement command and Release targets are rendered by the
+    # script, not hand-typed, so a rerun cannot erase them.
+    assert "## Measurement command" in md_text
+    assert data["command"] in md_text
+    assert "any clean checkout" in md_text.lower()
+    assert "## Definitions" in md_text
+    for glob in cpb.VALIDATOR_GLOBS:  # review F4: globs documented in the markdown
+        assert glob in md_text
+    assert "## Release targets for v0.7.0" in md_text
+    assert "canonical owner total" in md_text
+    assert "fanout_residue dimension was removed" in md_text  # review F2 exclusion note
+    # review F1: no more 200-line bullet dump, one compact table per dimension.
+    assert "| key | value |" in md_text
 
 
 def test_negative_dirty_tree_without_allow_dirty_exits_1_and_writes_nothing(
@@ -329,18 +362,6 @@ def test_edge_pycache_under_tests_skills_is_not_a_tested_skill(tmp_path: Path) -
     assert result["tested_names"] == ["skill-one"]
 
 
-def test_edge_git_worktree_command_unavailable_degrades_fanout_to_null(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    def _raise(*args: object, **kwargs: object) -> None:
-        raise OSError("git not found")
-
-    monkeypatch.setattr(cpb.subprocess, "run", _raise)
-    exclusions: list[dict[str, str]] = []
-    assert cpb.fanout_residue(tmp_path, exclusions) is None
-    assert exclusions[0]["dimension"] == "fanout_residue"
-
-
 def test_cli_exit_code_matrix_success_dirty_config(repo: Path, tmp_path: Path) -> None:
     ok = cpb.main(["--repo", str(repo), "--allow-dirty"])
     assert ok == 0
@@ -354,26 +375,57 @@ def test_cli_exit_code_matrix_success_dirty_config(repo: Path, tmp_path: Path) -
 def test_ac08_synthetic_extreme_values_never_change_exit_code(
     monkeypatch: pytest.MonkeyPatch, repo: Path, tmp_path: Path
 ) -> None:
-    """A metric value, however extreme, must never flip the exit code (DR1)."""
-    huge = {"whatever": 10**9, "seconds_by_hook": {"pre-commit": 10**9, "pre-push": 10**9}}
+    """A metric value, however extreme, must never flip the exit code (DR1).
 
-    for name in ("canonical", "policy_owners", "generated_historical"):
-        monkeypatch.setattr(cpb, name, lambda repo, exclusions, huge=huge: huge)
-    for name in ("gate_budget", "fanout_residue", "activation", "accepted_tasks"):
-        monkeypatch.setattr(cpb, name, lambda repo, exclusions, huge=huge: huge)
-    monkeypatch.setattr(cpb, "always_loaded", lambda repo, exclusions: {"claude_code": huge})
+    Values are extreme (10**9) but shaped like the real dimension dicts,
+    since release_targets (review F1) reads specific fields out of
+    canonical/always_loaded/gate_budget and an arbitrarily-shaped
+    replacement would fail for its own reason, not prove DR1.
+    """
+    huge_canonical = {
+        "agents": 10**9,
+        "skills": 10**9,
+        "rules": 10**9,
+        "hooks_by_event": {"x": 10**9},
+        "hooks_python_files": 10**9,
+        "validators": 10**9,
+        "workflows": 10**9,
+        "lefthook_jobs": 10**9,
+        "lefthook_jobs_by_hook": {"x": 10**9},
+    }
+    huge_gate_budget = {"seconds_by_hook": {"pre-commit": 10**9, "pre-push": 10**9}}
+    huge_loaded = {
+        h: {"bytes": 10**9, "tokens": 10**9, "files": []}
+        for h in ("claude_code", "copilot", "codex")
+    }
+    huge_activation = {
+        "referenced_count": 10**9,
+        "referenced_names": [],
+        "tested_count": 10**9,
+        "tested_names": [],
+    }
+    huge_accepted = {"verified": 10**9, "unverified": 10**9, "other": 0, "total": 2 * 10**9}
+
+    monkeypatch.setattr(cpb, "canonical", lambda repo, exclusions: huge_canonical)
+    monkeypatch.setattr(cpb, "gate_budget", lambda repo, exclusions: huge_gate_budget)
+    monkeypatch.setattr(cpb, "always_loaded", lambda repo, exclusions: huge_loaded)
+    monkeypatch.setattr(cpb, "activation", lambda repo, exclusions: huge_activation)
+    monkeypatch.setattr(cpb, "accepted_tasks", lambda repo, exclusions: huge_accepted)
 
     json_path = tmp_path / "extreme.json"
     rc = cpb.main(["--repo", str(repo), "--json", str(json_path), "--allow-dirty"])
     assert rc == 0
     data = json.loads(json_path.read_text(encoding="utf-8"))
-    assert data["dimensions"]["canonical"]["whatever"] == 10**9
+    assert data["dimensions"]["canonical"]["agents"] == 10**9
+    metrics = {t["metric"]: t for t in data["release_targets"]}
+    # agents+skills+rules+registered hooks+validators+workflows+lefthook_jobs, all 10**9
+    assert metrics["canonical owner total"]["target"] == f"strictly below {7 * 10**9}"
 
 
 def test_ac08_none_for_every_dimension_still_exits_0(
     monkeypatch: pytest.MonkeyPatch, repo: Path
 ) -> None:
-    for name in ("gate_budget", "fanout_residue", "activation", "accepted_tasks"):
+    for name in ("gate_budget", "activation", "accepted_tasks"):
         monkeypatch.setattr(cpb, name, lambda repo, exclusions: None)
     rc = cpb.main(["--repo", str(repo), "--allow-dirty"])
     assert rc == 0
@@ -467,14 +519,42 @@ def test_git_output_raises_runtime_error_on_failure(tmp_path: Path) -> None:
         cpb._git_output(tmp_path, ["rev-parse", "HEAD"])
 
 
-def test_validator_count_sums_all_three_patterns(tmp_path: Path) -> None:
+def test_validator_count_sums_all_three_patterns_recursively(tmp_path: Path) -> None:
+    """review F4: recursive under scripts/, excluding tests/ and __pycache__/."""
     _write(tmp_path, "scripts/validation/check_a.py", "")
     _write(tmp_path, "scripts/validation/checks_b.py", "")
     _write(tmp_path, "scripts/validate_c.py", "")
-    assert cpb._validator_count(tmp_path) == 3
+    _write(tmp_path, "scripts/validation/nested/deep/validate_d.py", "")
+    _write(tmp_path, "scripts/validation/tests/check_excluded.py", "")
+    _write(tmp_path, "scripts/validation/__pycache__/checks_excluded.py", "")
+    assert cpb._validator_count(tmp_path) == 4
+
+
+def test_validator_count_missing_scripts_dir_is_zero(tmp_path: Path) -> None:
+    assert cpb._validator_count(tmp_path) == 0
 
 
 def test_job_names_ignores_non_dict_entries() -> None:
     acc: list[str] = []
     cpb._job_names([{"name": "a"}, "not-a-dict", {"group": {"jobs": [{"name": "b"}]}}], acc)
     assert acc == ["a", "b"]
+
+
+def test_skill_referenced_matches_structured_forms_only() -> None:
+    """review F3: backticked, slash-prefixed, or skills/name path segment only."""
+    assert cpb._skill_referenced("test", "Run the `test` skill.")
+    assert cpb._skill_referenced("test", "Invoke /test now.")
+    assert cpb._skill_referenced("test", "See .claude/skills/test/SKILL.md for details.")
+    assert not cpb._skill_referenced("test", "Run a runtime test suite.")
+    assert not cpb._skill_referenced("autoplan", "autoplan handles routing.")
+    assert not cpb._skill_referenced("test", "contest this")
+    assert not cpb._skill_referenced("test", "/testing is a different skill")
+
+
+def test_lefthook_config_reuses_shared_load_config() -> None:
+    """review F7: no second parse-and-validate implementation."""
+    from scripts.ci.lefthook_budget_model import load_config as shared_load_config
+
+    assert cpb.load_config is shared_load_config
+    exclusions: list[dict[str, str]] = []
+    assert cpb.gate_budget(REPO_ROOT, exclusions) is not None

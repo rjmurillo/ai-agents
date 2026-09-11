@@ -23,6 +23,14 @@ tags:
 
 ## Design Overview
 
+**Amendment (independent review, post-implementation, 2026-09-11)**:
+`fanout_residue` was removed (review F2). It measured `git worktree list`
+on the machine running the script, not a property of the repository, so
+a rerun elsewhere changed the number with no repository change at all.
+Seven dimensions remain; "eight"/"four" counts below are historical (as
+originally specced) and superseded by this note, per this task's
+minimal-edit instruction.
+
 `scripts/metrics/control_plane_baseline.py` is a read-only CLI that measures
 eight dimensions of the repository's control plane as of one pinned commit
 and emits `--json PATH` and `--markdown PATH` reports. It is a thin
@@ -60,7 +68,6 @@ scripts/metrics/control_plane_baseline.py
 ├── always_loaded(repo)                 -> dict[str, AlwaysLoadedContext] | None
 ├── generated_historical(repo)          -> GeneratedHistorical | None
 ├── gate_budget(repo)                   -> GateBudget | None
-├── fanout_residue(repo)                -> FanoutResidue | None
 ├── activation(repo)                    -> Activation | None
 ├── accepted_tasks(repo)                -> AcceptedTasks | None
 ├── Baseline                            (O4 aggregate root dataclass)
@@ -115,11 +122,14 @@ Design-level mitigations:
   hash a size; `policy_owners()`'s always-on-membership check parses only
   the YAML frontmatter block of each rule file, not its body (AC-09).
 - The script accepts `--repo PATH` but never executes arbitrary commands
-  constructed from repository content; `fanout_residue()`'s only subprocess
-  call is a fixed argv list (`["git", "worktree", "list", "--porcelain"]`),
-  not a string built from file contents, closing the CWE-78 class this
-  repository's `search-before-building.md` rule specifically calls out for
-  any subprocess invocation over author-controlled input.
+  constructed from repository content; `_git_output()`'s only subprocess
+  calls are fixed argv lists (`["git", "rev-parse", "HEAD"]`,
+  `["git", "status", "--porcelain"]`), not a string built from file
+  contents, closing the CWE-78 class this repository's
+  `search-before-building.md` rule specifically calls out for any
+  subprocess invocation over author-controlled input. (`fanout_residue()`,
+  this bullet's original subject, was removed per review F2; the fixed-argv
+  discipline it demonstrated still applies to the git calls that remain.)
 
 ## Testing Strategy
 

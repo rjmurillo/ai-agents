@@ -70,7 +70,8 @@ baseline" and there is nothing to decrease from yet.
 
 Approximately 7-8 hours: a read-only measurement CLI
 (`scripts/metrics/control_plane_baseline.py`) covering the eight dimensions
-the epic's Baseline section lists, its test suite
+the epic's Baseline section lists (reduced to seven post-implementation;
+see the Amendment note under Data model), its test suite
 (`tests/metrics/test_control_plane_baseline.py`), and the committed baseline
 doc pair (`.agents/metrics/control-plane-baseline-v0.7.0.md` and `.json`)
 generated from one pinned `main` SHA.
@@ -219,6 +220,15 @@ every dimension that an existing script already measures.
 
 ## Data model
 
+**Amendment (independent review, post-implementation, 2026-09-11)**:
+`fanout_residue` (below) was removed. It measured `git worktree list` on
+the machine running the script, a property of that machine, not of the
+repository; a rerun on a different machine or a different day changed the
+number with no repository change at all. Seven dimensions remain; every
+"eight" below is historical (as originally specced) and superseded by
+this note, kept rather than rewritten throughout per this task's
+minimal-edit instruction.
+
 - `Baseline` (aggregate root): `commit_sha`, `captured_at` (UTC ISO-8601),
   `command` (the exact invocation), `dimensions` (the eight sub-objects
   below), `exclusions` (list of `{dimension, reason}`), `release_targets`
@@ -239,8 +249,7 @@ every dimension that an existing script already measures.
   the way `tests/ci/test_lefthook_declared_budget.py` sums it (reused, not
   reimplemented, per DR4; if the summation helper is test-local, this
   requirement's design moves it to an importable module both callers share).
-- `fanout_residue`: `git worktree list --porcelain` total and prunable
-  counts.
+- `fanout_residue`: removed; see the Amendment note above this list.
 - `activation`: skills referenced by name from `AGENTS.md`, `CLAUDE.md`, and
   `.claude/skills/autoplan/SKILL.md`'s routing table; skills with a
   `tests/skills/<name>/` directory.
@@ -345,10 +354,11 @@ user-facing latency or availability target).
 
 - [ ] REQ-021-AC1: WHEN `control_plane_baseline.py` runs against a clean
       checkout with `--repo <path>`, THE SYSTEM SHALL emit both `--json PATH`
-      and `--markdown PATH` outputs containing all eight dimensions
+      and `--markdown PATH` outputs containing all seven dimensions
       (`canonical`, `policy_owners`, `always_loaded`, `generated_historical`,
-      `gate_budget`, `fanout_residue`, `activation`, `accepted_tasks`) SO
-      THAT no dimension is silently omitted.
+      `gate_budget`, `activation`, `accepted_tasks`; `fanout_residue`
+      removed per the Data model Amendment note) SO THAT no dimension is
+      silently omitted.
 - [ ] REQ-021-AC2: WHEN the working tree is dirty (uncommitted changes)
       AND `--allow-dirty` is not passed, THE SYSTEM SHALL exit 1 without
       writing output SO THAT a baseline is never captured from an

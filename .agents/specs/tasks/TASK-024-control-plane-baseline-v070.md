@@ -42,10 +42,12 @@ sampling, fan-out routing changes).
       exposes `--repo`, `--json`, `--markdown`, `--allow-dirty`, and
       implements the exit-code contract (0 success, 1 dirty tree or
       symlink refusal, 2 config error).
-- [ ] TASK-024-AC2: Each of the eight dimension functions in
-      `control_plane_baseline.py` (not a `dimensions/*.py` package; see
-      DESIGN-020's Component Architecture revision) exists and returns its
-      dataclass or `None`-with-reason independently testable.
+- [ ] TASK-024-AC2: Each of the seven dimension functions (`fanout_residue`
+      removed post-implementation per independent review F2, see
+      DESIGN-020's Data model Amendment note) in `control_plane_baseline.py`
+      (not a `dimensions/*.py` package; see DESIGN-020's Component
+      Architecture revision) exists and returns its dict or
+      `None`-with-reason, independently testable.
 - [ ] TASK-024-AC3: `always_loaded.py` imports `instruction_budget`'s token
       estimator; no second token-counting implementation exists in this
       script (REQ-021 AC-04, DR4).

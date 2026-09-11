@@ -2,9 +2,13 @@
 # ruff: noqa: E402
 """Measure the repository's control-plane baseline (REQ-021, epic #5456).
 
-Read-only CLI over eight dimensions: canonical, policy_owners, always_loaded,
-generated_historical, gate_budget, fanout_residue, activation,
-accepted_tasks. Never gates (DR1, measurement-only,
+Read-only CLI over seven dimensions: canonical, policy_owners,
+always_loaded, generated_historical, gate_budget, activation,
+accepted_tasks. An eighth, ``fanout_residue`` (worktree count on the
+measuring machine), was dropped: it measured the laptop running the
+script, not a property of the repository, so a rerun on a different
+machine or a different day changed the number without the repository
+changing at all (review F2). Never gates (DR1, measurement-only,
 ``.agents/specs/ontology/control-plane-subtraction-cohort-1.md`` O5): the
 only nonzero exits are a dirty tree without ``--allow-dirty`` (1, ADR-035)
 and a missing/non-git ``--repo`` (2). No metric value changes the exit code
@@ -12,14 +16,15 @@ and a missing/non-git ``--repo`` (2). No metric value changes the exit code
 
 DR4 (reuse over duplication): the token estimator (``token_budget``), the
 always-on glob matcher (``instruction_budget_globs``), the always-loaded base
-file list (``validate_workspace_budget``), and the declared-budget summation
-(``scripts.ci.lefthook_budget_model``) are imported, not reimplemented.
+file list (``validate_workspace_budget``), and the declared-budget config
+loader and summation (``scripts.ci.lefthook_budget_model``) are imported,
+not reimplemented.
 
-AC-07: the four single-source dimensions (``gate_budget``,
-``fanout_residue``, ``activation``, ``accepted_tasks``) return ``None`` with
-a logged reason when their one data source is absent; the four multi-source
-dimensions instead log one exclusion per missing subdirectory and keep
-counting the rest.
+AC-07: the three single-source dimensions (``gate_budget``,
+``activation``, ``accepted_tasks``) return ``None`` with a logged reason
+when their one data source is absent; the four multi-source dimensions
+instead log one exclusion per missing subdirectory and keep counting the
+rest.
 
 Design note (2026-09-11 review): DESIGN-020 originally specified a
 ``dimensions/`` package of eight files with per-dimension dataclasses; both
@@ -51,7 +56,7 @@ _SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
 if _SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.ci.lefthook_budget_model import declared_budget
+from scripts.ci.lefthook_budget_model import declared_budget, load_config
 from scripts.validate_workspace_budget import WORKSPACE_FILES
 from scripts.validation.instruction_budget_globs import is_language_universal, parse_applyto
 from scripts.validation.token_budget import estimate_token_count
@@ -156,14 +161,19 @@ def _always_on_instructions(repo: Path, exclusions: Exclusions) -> list[Path]:
 
 
 def _lefthook_config(repo: Path) -> dict[str, Any] | None:
+    """Parse ``repo``'s ``lefthook.yml``, or ``None`` if absent or invalid.
+
+    Delegates the read-and-parse step to the shared
+    ``lefthook_budget_model.load_config`` (review F7) instead of
+    reimplementing it; only the null-safety this script's AC-07 contract
+    needs (a missing or malformed file degrades a dimension, it never
+    raises) is new here.
+    """
     path = repo / "lefthook.yml"
-    if not path.is_file():
-        return None
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except yaml.YAMLError:
+        return load_config(path)
+    except (OSError, yaml.YAMLError, AssertionError):
         return None
-    return data if isinstance(data, dict) else None
 
 
 def _job_names(jobs: list[Any], acc: list[str]) -> None:
@@ -209,13 +219,29 @@ def _claude_hooks(repo: Path, exclusions: Exclusions) -> tuple[dict[str, int], i
     return by_event, python_files
 
 
+VALIDATOR_GLOBS = ("check_*.py", "checks_*.py", "validate_*.py")
+
+
 def _validator_count(repo: Path) -> int:
-    validation_dir = repo / "scripts" / "validation"
-    return (
-        _count_glob(validation_dir, "check_*.py")
-        + _count_glob(validation_dir, "checks_*.py")
-        + _count_glob(repo / "scripts", "validate_*.py")
-    )
+    """Count validator scripts anywhere under ``scripts/``.
+
+    Recursive (review F4): a depth-1 glob under ``scripts/`` missed
+    validators nested under ``scripts/validation/`` and similar
+    subdirectories. Excludes ``tests/`` and ``__pycache__/`` segments so a
+    validator's own test fixtures or bytecode cache never count as a
+    second validator.
+    """
+    scripts_dir = repo / "scripts"
+    if not scripts_dir.is_dir():
+        return 0
+    count = 0
+    for pattern in VALIDATOR_GLOBS:
+        for path in scripts_dir.rglob(pattern):
+            parts = path.relative_to(scripts_dir).parts
+            if "tests" in parts or "__pycache__" in parts:
+                continue
+            count += 1
+    return count
 
 
 def _git_output(repo: Path, args: list[str]) -> str:
@@ -236,7 +262,6 @@ def canonical(repo: Path, exclusions: Exclusions) -> dict[str, Any]:
         "agents": _count_glob(repo / ".claude" / "agents", "*.md"),
         "skills": skills,
         "rules": _count_glob(repo / ".claude" / "rules", "*.md"),
-        "hooks": sum(hooks_by_event.values()) + hooks_python_files,
         "hooks_by_event": hooks_by_event,
         "hooks_python_files": hooks_python_files,
         "validators": _validator_count(repo),
@@ -347,25 +372,21 @@ def gate_budget(repo: Path, exclusions: Exclusions) -> dict[str, Any] | None:
     return {"seconds_by_hook": seconds_by_hook}
 
 
-def fanout_residue(repo: Path, exclusions: Exclusions) -> dict[str, int] | None:
-    try:
-        result = subprocess.run(
-            ["git", "worktree", "list", "--porcelain"],
-            cwd=repo,
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-    except OSError as exc:
-        _exclude(exclusions, "fanout_residue", f"git unavailable: {exc}")
-        return None
-    if result.returncode != 0:
-        _exclude(exclusions, "fanout_residue", result.stderr.strip() or "git worktree list failed")
-        return None
-    lines = result.stdout.splitlines()
-    total = sum(1 for line in lines if line.startswith("worktree "))
-    prunable = sum(1 for line in lines if line.startswith("prunable"))
-    return {"total": total, "prunable": prunable}
+def _skill_referenced(name: str, text: str) -> bool:
+    """True when ``name`` appears as a structured reference, not a bare word.
+
+    Bare-word matching (the prior implementation, review F3) let ordinary
+    prose such as "runtime test" count the `test` skill as referenced. A
+    structured reference is a backticked name (`` `name` ``) or a
+    slash-prefixed occurrence (``/name``, which also matches a
+    ``skills/name`` path segment as a substring, since that segment
+    contains ``/name`` literally). ``(?![\\w-])`` blocks a longer name
+    from matching a shorter one's prefix (``/autoplan-x`` must not count
+    as a reference to ``autoplan``).
+    """
+    escaped = re.escape(name)
+    pattern = rf"`{escaped}`|/{escaped}(?![\w-])"
+    return re.search(pattern, text) is not None
 
 
 def activation(repo: Path, exclusions: Exclusions) -> dict[str, Any] | None:
@@ -380,7 +401,7 @@ def activation(repo: Path, exclusions: Exclusions) -> dict[str, Any] | None:
         repo / ".claude" / "skills" / "autoplan" / "SKILL.md",
     ]
     text = "".join(p.read_text(encoding="utf-8", errors="replace") for p in sources if p.is_file())
-    referenced = sorted(name for name in skill_names if re.search(rf"\b{re.escape(name)}\b", text))
+    referenced = sorted(name for name in skill_names if _skill_referenced(name, text))
     tests_dir = repo / "tests" / "skills"
     tested = (
         sorted(
@@ -425,6 +446,71 @@ def accepted_tasks(repo: Path, exclusions: Exclusions) -> dict[str, int] | None:
     }
 
 
+def _canonical_owner_total(canonical: dict[str, Any]) -> int:
+    """Sum the seven owner-count fields, per the Definitions note (review F5).
+
+    Excludes ``hooks_python_files``: a Claude hook that is both a registered
+    ``settings.json`` entry and a ``.py`` source file must count once, as
+    the registered entry, not twice.
+    """
+    return (
+        canonical["agents"]
+        + canonical["skills"]
+        + canonical["rules"]
+        + sum(canonical["hooks_by_event"].values())
+        + canonical["validators"]
+        + canonical["workflows"]
+        + canonical["lefthook_jobs"]
+    )
+
+
+def _release_targets(dims: dict[str, Any]) -> list[dict[str, str]]:
+    """Build the four v0.7.0 release targets from this run's own numbers.
+
+    Rendered by ``write_markdown`` (review F1): a rerun no longer erases a
+    hand-typed Release targets section, because there is no hand-typed
+    section left to erase.
+    """
+    owner_total = _canonical_owner_total(dims["canonical"])
+    targets = [
+        {
+            "metric": "canonical owner total",
+            "target": f"strictly below {owner_total}",
+            "direction": "decrease",
+        },
+    ]
+    for harness in sorted(dims["always_loaded"]):
+        tokens = dims["always_loaded"][harness]["tokens"]
+        targets.append(
+            {
+                "metric": f"always_loaded.{harness}.tokens",
+                "target": f"strictly below {tokens}",
+                "direction": "decrease",
+            }
+        )
+    gate_budget_dim = dims["gate_budget"]
+    pre_push = gate_budget_dim["seconds_by_hook"].get("pre-push") if gate_budget_dim else None
+    targets.append(
+        {
+            "metric": "gate_budget.seconds_by_hook.pre-push",
+            "target": (
+                f"must not rise above {pre_push} seconds"
+                if pre_push is not None
+                else "N/A (gate_budget unavailable this run)"
+            ),
+            "direction": "hold",
+        }
+    )
+    targets.append(
+        {
+            "metric": "measured push duration (once real push samples exist)",
+            "target": "must not exceed ADR-104's 300 second ceiling",
+            "direction": "hold",
+        }
+    )
+    return targets
+
+
 def build_baseline(repo: Path, command: str) -> Baseline:
     exclusions: Exclusions = []
     dims: dict[str, Any] = {
@@ -433,7 +519,6 @@ def build_baseline(repo: Path, command: str) -> Baseline:
         "always_loaded": always_loaded(repo, exclusions),
         "generated_historical": generated_historical(repo, exclusions),
         "gate_budget": gate_budget(repo, exclusions),
-        "fanout_residue": fanout_residue(repo, exclusions),
         "activation": activation(repo, exclusions),
         "accepted_tasks": accepted_tasks(repo, exclusions),
     }
@@ -445,7 +530,7 @@ def build_baseline(repo: Path, command: str) -> Baseline:
         command=command,
         dimensions=dims,
         exclusions=unique,
-        release_targets=[],
+        release_targets=_release_targets(dims),
     )
 
 
@@ -471,25 +556,58 @@ def write_json(baseline: Baseline, path: Path) -> None:
         fh.write("\n")
 
 
-def _render_value(value: object, indent: int = 0) -> list[str]:
-    pad = "  " * indent
-    lines: list[str] = []
+_METHODOLOGY_EXCLUSIONS = [
+    "Gate p50/p95: no sampler exists. gate_budget is the declared worst "
+    "case from lefthook.yml, not a measured distribution. ADR-104 cites "
+    "two single-push measurements as provisional evidence: 142.39s "
+    "against 679s recorded for a comparable push on the same container "
+    "class.",
+    "Fan-out: routed to the harness per #5651; worktree residue is "
+    "machine-local, not a repository property, so it is not measured "
+    "(the fanout_residue dimension was removed for this reason).",
+    "Activation: two static proxies (referenced-name matching in "
+    "AGENTS.md/CLAUDE.md/the autoplan routing table, and "
+    "tests/skills/<name>/ presence), not invocation telemetry.",
+    "Accepted-task outcomes: accepted_tasks counts VERIFIED/UNVERIFIED "
+    "cells in the harness-capability-matrix, not task outcomes. Per "
+    "issue #5423 every cell is UNVERIFIED at authoring time; paid "
+    "live-harness probes are unavailable.",
+]
+
+_DEFINITIONS = [
+    "canonical owner total = agents + skills + rules + registered hook "
+    "entries (canonical.hooks_by_event; canonical.hooks_python_files is "
+    "excluded so a hook that is both a settings.json registration and a "
+    "source file counts once) + validators + workflows + lefthook jobs.",
+    "validators are counted by three globs, recursive under scripts/, "
+    "excluding tests/ and __pycache__/ segments: "
+    + ", ".join(f"`{glob}`" for glob in VALIDATOR_GLOBS)
+    + ".",
+    "activation.referenced_names matches a structured reference only: a "
+    "backticked name, or a /name slash-prefixed occurrence (which also "
+    "matches a skills/name path segment, since that segment contains "
+    "/name as a substring). A bare word in prose does not count.",
+]
+
+
+def _flatten(value: object, prefix: str = "") -> list[tuple[str, str]]:
     if isinstance(value, dict):
+        rows: list[tuple[str, str]] = []
         for key in sorted(value):
-            item = value[key]
-            if isinstance(item, dict | list) and item:
-                lines.append(f"{pad}- **{key}**:")
-                lines.extend(_render_value(item, indent + 1))
-            else:
-                lines.append(f"{pad}- **{key}**: {item}")
-    elif isinstance(value, list):
-        for item in value:
-            if isinstance(item, dict | list):
-                lines.extend(_render_value(item, indent))
-            else:
-                lines.append(f"{pad}- {item}")
-    else:
-        lines.append(f"{pad}{value}")
+            rows.extend(_flatten(value[key], f"{prefix}{key}."))
+        return rows
+    label = prefix.rstrip(".")
+    rendered = ", ".join(str(v) for v in value) if isinstance(value, list) else str(value)
+    return [(label, rendered or "(none)")]
+
+
+def _dimension_table(name: str, value: object) -> list[str]:
+    lines = [f"## {name}", ""]
+    if value is None:
+        return [*lines, "null", ""]
+    lines += ["| key | value |", "|---|---|"]
+    lines += [f"| {key} | {rendered} |" for key, rendered in _flatten(value)]
+    lines.append("")
     return lines
 
 
@@ -500,20 +618,39 @@ def write_markdown(baseline: Baseline, path: Path) -> None:
         "",
         f"- Commit: `{baseline.commit_sha}`",
         f"- Captured at: `{baseline.captured_at}`",
-        f"- Command: `{baseline.command}`",
+        "",
+        "## Measurement command",
+        "",
+        "```",
+        baseline.command,
+        "```",
+        "",
+        "Any clean checkout of `main` at the commit recorded above "
+        "produces the same dimension values; `--repo` may point at any "
+        "such checkout. The script itself lives on the branch that ran "
+        "it, not necessarily on `main`.",
+        "",
+        "## Definitions",
         "",
     ]
+    lines += [f"- {definition}" for definition in _DEFINITIONS]
+    lines.append("")
     for name in sorted(baseline.dimensions):
-        value = baseline.dimensions[name]
-        lines += [f"## {name}", ""]
-        lines += ["null"] if value is None else _render_value(value)
-        lines.append("")
+        lines += _dimension_table(name, baseline.dimensions[name])
     lines += ["## Exclusions", ""]
     if baseline.exclusions:
         lines += ["| dimension | reason |", "|---|---|"]
         lines += [f"| {exc['dimension']} | {exc['reason']} |" for exc in baseline.exclusions]
     else:
-        lines.append("None.")
+        lines.append("No per-dimension data was missing on this run.")
+    lines.append("")
+    lines += [f"- {note}" for note in _METHODOLOGY_EXCLUSIONS]
+    lines.append("")
+    lines += ["## Release targets for v0.7.0", ""]
+    lines += ["| metric | target | direction |", "|---|---|---|"]
+    lines += [
+        f"| {t['metric']} | {t['target']} | {t['direction']} |" for t in baseline.release_targets
+    ]
     lines.append("")
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
