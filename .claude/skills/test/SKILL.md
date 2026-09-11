@@ -16,8 +16,6 @@ agent burns on a dimension the diff cannot touch.
 Migrated from `.claude/commands/test.md` under ADR-064, which makes skills the
 single user-invocable surface.
 
-@CLAUDE.md
-
 ## Triggers
 
 `prove this works`, `run the test gates`, `validate this change`,
@@ -156,6 +154,8 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 Each gate MUST produce a verdict line and findings array:
 
+A gate is any check whose failure would falsify your conclusion. Only a current result on the exact state and scope clears it. Failure, timeout, stale run, skip, or subset leaves the claim unproved. Say what ran and what returned. If blocked, name who can clear it.
+
 ```text
 GATE: [name]
 VERDICT: PASS|WARN|CRITICAL_FAIL
@@ -175,6 +175,8 @@ Synthesize into overall report:
 | Observability | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
 
 **Overall verdict**: CRITICAL_FAIL if any gate fails. WARN if any gate warns. PASS if all gates pass.
+
+> After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction.
 
 ## Verification
 

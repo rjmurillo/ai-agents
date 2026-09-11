@@ -43,7 +43,7 @@ This command detects Spec->Code drift and reports it. It does NOT auto-rewrite s
 
 ## Arguments
 
-Sync: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
+Sync: $ARGUMENTS
 
 If `$ARGUMENTS` names a spec tier, scan that tier only by passing it to
 `--target`. Otherwise scan all three tiers.
@@ -81,7 +81,7 @@ Do not auto-apply edits. Confirm each case with the author of the change before 
 
 ### Step 3: Propose spec patches (follow-up, not in this slice)
 
-Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wired, `/sync` will hand the drift findings to `agent_type: "project-toolkit:spec-generator"` to draft REQ/DESIGN/TASK edits and write a sync-log record, in a directory alongside the spec tiers, carrying the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
+Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wired, `/sync` will hand the drift findings to `Task(subagent_type="spec-generator")` to draft REQ/DESIGN/TASK edits and write a sync-log record, in a directory alongside the spec tiers, carrying the commit range it covered. Until then, apply the triage from Step 2 by hand and record the rationale in the PR description.
 
 ## Principles
 
@@ -92,7 +92,7 @@ Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wi
 ## Output
 
 No em dashes or en dashes in anything this skill writes.
-Use commas, periods, colons, parentheses, hyphens, or restructure.
+{{> no-dashes}}
 
 - The detector's `VERDICT` line (`PASS` or `DRIFT`) and per-finding `spec_file:line -> path` list.
 - A triage decision per finding (moved / deleted / intentional).
@@ -100,7 +100,7 @@ Use commas, periods, colons, parentheses, hyphens, or restructure.
 
 ## Verification
 
-A gate is any check whose failure would falsify your conclusion. Only a current result on the exact state and scope clears it. Failure, timeout, stale run, skip, or subset leaves the claim unproved. Say what ran and what returned. If blocked, name who can clear it.
+{{> clear-the-gate}}
 
 - [ ] Detector exits `0` only when no drift exists.
 - [ ] Detector exits `1` when stale references exist.

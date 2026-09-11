@@ -25,8 +25,6 @@ Migrated from the checkpoint command under ADR-064, which makes skills the
 single user-invocable surface. The command file is gone, so its path is named
 here in plain text rather than as a citation to something a reader could open.
 
-@CLAUDE.md
-
 ## The checkpoint and session directories
 
 Resolve them the way `paths.artifact_dir` does, then take its `checkpoints/` and
@@ -69,6 +67,9 @@ Write the redacted checkpoint to a path that does not already exist. Append
 checkpoint metadata to the active JSON session log when one exists, then validate
 the JSON.
 
+When a checkpoint file is later committed, the commit message still follows the repository convention.
+Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
+
 ## Steps
 
 The three phases expand into eight steps: resolve the timestamp and branch, find
@@ -79,6 +80,8 @@ step, with its exact commands and failure handling, is in
 validate-before-edit ordering is the part that matters.
 
 ## Verification
+
+A gate is any check whose failure would falsify your conclusion. Only a current result on the exact state and scope clears it. Failure, timeout, stale run, skip, or subset leaves the claim unproved. Say what ran and what returned. If blocked, name who can clear it.
 
 - [ ] Checkpoint file path did not already exist before Write.
 - [ ] Checkpoint body was redacted with `scripts/redact_secrets.py` before Write.

@@ -3,7 +3,7 @@ name: research
 version: 1.0.0
 description: Research an external topic, write a 3000-to-5000-word analysis, map it onto this project, and file the follow-up issue. Use when you say `research this topic`, `what does the literature say about X`, or `analyze this external practice for us`. Do NOT use to search this repository (use memory or grep), and do NOT use when no spec, issue, or artifact consumes the result.
 license: MIT
-allowed-tools: WebSearch, WebFetch, Read, Write, Glob, Grep, Bash(python3:*/skills/github/scripts/*), serena/*, Skill
+allowed-tools: WebSearch, WebFetch, Read, Write, Glob, Grep, Bash(python3:*/skills/github/scripts/*), mcp__serena__*, Skill
 argument-hint: topic-and-context
 user-invocable: true
 ---
@@ -31,7 +31,7 @@ Bash tool executor must sanitize arguments to prevent command injection
 
 ## Arguments
 
-Research: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
+Research: $ARGUMENTS
 
 Expected shape, with topic and context both required:
 
@@ -76,12 +76,12 @@ resolved directory.
 1. **Research.** Check existing knowledge, fetch the given URLs, search the web,
    then synthesize principles, frameworks, examples, and failure modes.
 
-   **Bound the search.** If three tool calls have not surfaced anything useful, stop searching and switch to first-principles reasoning. Document what you tried (which tool, what query, what came back) so the user can extend the search if the answer matters more than your time budget suggests.
+   {{> bound-the-search}}
 2. **Analysis.** Write the analysis document to the location in the Output table,
    using the skeleton in `references/templates.md`.
 
    No em dashes or en dashes in anything this skill writes.
-   Use commas, periods, colons, parentheses, hyphens, or restructure.
+   {{> no-dashes}}
 3. **Applicability.** Map integration points and prioritize them, using the five
    assessment areas in `references/templates.md`.
 4. **Memory.** Write a Serena memory at `{topic-slug}-integration` that

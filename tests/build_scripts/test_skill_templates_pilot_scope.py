@@ -14,12 +14,10 @@ of the review that is supposed to gate them, would silently widen the set of
 paths this repository's generators may write under ``.claude/``, and no
 existing gate would say so.
 
-``PILOT`` is that assertion. A1 (this change) ships the compile module with
-zero templates on disk, so ``PILOT`` is the empty set here. Widening it is an
-owner decision, recorded by editing this constant in the same commit that adds
-the templates it names: TASK-025's dependency on TASK-024 landing before this
-gate, and TASK-026 (the pilot templates themselves) is where ``PILOT`` next
-changes, to the eight names DESIGN-020 lists under "Pilot content". A PR that
+``PILOT`` is that assertion. A1 shipped the compile module with zero
+templates on disk, so ``PILOT`` was the empty set there. TASK-027 (A2, this
+change) widens it to the eight pilot names DESIGN-024 lists under "Pilot
+content", in the same commit that adds their ``.tmpl`` files. A PR that
 adds a ``.tmpl`` file without updating this constant fails
 ``test_discover_matches_the_declared_pilot_set`` below, which is the point:
 the failure names the mismatch instead of letting the allowlist grow quietly.
@@ -36,11 +34,24 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import skill_templates  # noqa: E402
 
-# Empty in A1 (this change): no templates exist under templates/skills/ yet.
-# TASK-026 sets this to the eight pilot names DESIGN-020 "Pilot content"
-# lists (sync, test, spec, ship, research, plan, checkpoint, build) in the
-# same commit that adds their .tmpl files.
-PILOT: frozenset[str] = frozenset()
+# TASK-027 (A2): widens in step with the templates landing in the same
+# commit, so this test is never red at any commit on the branch (review
+# finding: an earlier history widened PILOT to all eight names one commit
+# before any template existed). Complete: all eight DESIGN-024 "Pilot
+# content" names, each of which carries an @CLAUDE.md line (ADR-108
+# Context).
+PILOT: frozenset[str] = frozenset(
+    {
+        "sync",
+        "test",
+        "spec",
+        "ship",
+        "research",
+        "plan",
+        "checkpoint",
+        "build",
+    }
+)
 
 
 def test_discover_matches_the_declared_pilot_set() -> None:
@@ -71,6 +82,14 @@ def test_discover_reports_an_extra_template_the_pilot_set_does_not_name(
         shutil.copytree(real_templates_dir, fixture_templates_dir)
     else:
         fixture_templates_dir.mkdir(parents=True)
+
+    # discover() also requires .claude/skills/<name>/ to exist (PR review of
+    # ADR-108); the fixture copies only templates/skills/, so give every real
+    # pilot template a matching (empty) skill directory here, mirroring what
+    # the real tree already has, or discover() would exclude every one of
+    # them and `before` would not match PILOT.
+    for name in PILOT:
+        (tmp_path / ".claude" / "skills" / name).mkdir(parents=True, exist_ok=True)
 
     before = set(skill_templates.discover(tmp_path))
     assert before == PILOT

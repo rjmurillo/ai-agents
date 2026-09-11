@@ -27,8 +27,6 @@ Migrated from the sync command under ADR-064, which makes skills the single
 user-invocable surface. The command file is gone, so its path is named here in
 plain text rather than as a citation to something a reader could open.
 
-@CLAUDE.md
-
 The forward path (`/spec` -> `/plan` -> `/build`) turns intent into code. There is no clean reverse path. When you hand-edit code (refactor, hotfix, taste change), the spec drifts silently and the staleness surfaces only at `/review` time, late and often misattributed as "the spec was wrong" instead of "the spec needs updating". `/sync` closes that loop: it finds the drift while you still remember why you made the change.
 
 ## What this slice does
@@ -93,11 +91,16 @@ Patch proposal via the `spec-generator` agent is tracked as a follow-up. When wi
 
 ## Output
 
+No em dashes or en dashes in anything this skill writes.
+Use commas, periods, colons, parentheses, hyphens, or restructure.
+
 - The detector's `VERDICT` line (`PASS` or `DRIFT`) and per-finding `spec_file:line -> path` list.
 - A triage decision per finding (moved / deleted / intentional).
 - The spec edits applied or proposed, with rationale recorded in the PR description.
 
 ## Verification
+
+A gate is any check whose failure would falsify your conclusion. Only a current result on the exact state and scope clears it. Failure, timeout, stale run, skip, or subset leaves the claim unproved. Say what ran and what returned. If blocked, name who can clear it.
 
 - [ ] Detector exits `0` only when no drift exists.
 - [ ] Detector exits `1` when stale references exist.

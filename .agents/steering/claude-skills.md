@@ -41,6 +41,8 @@ Every skill MUST have this directory layout:
 └── references/           # Optional supporting docs
 ```
 
+Eight pilot skills (`sync`, `test`, `spec`, `ship`, `research`, `plan`, `checkpoint`, `build`) are template-owned (ADR-108): their `SKILL.md` is rendered from `templates/skills/<name>.SKILL.md.tmpl`, so edit the template, not `SKILL.md`, and rerun `build/scripts/build_all.py`.
+
 ### SKILL.md Frontmatter
 
 Every SKILL.md MUST include valid YAML frontmatter:

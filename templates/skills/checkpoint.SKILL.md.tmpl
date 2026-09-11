@@ -47,7 +47,7 @@ file is the human-readable record; the session log keeps a reference to it.
 
 ## Arguments
 
-Optional label for this checkpoint: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
+Optional label for this checkpoint: $ARGUMENTS
 
 ## Process
 
@@ -68,7 +68,7 @@ checkpoint metadata to the active JSON session log when one exists, then validat
 the JSON.
 
 When a checkpoint file is later committed, the commit message still follows the repository convention.
-Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
+{{> conventional-commits}}
 
 ## Steps
 
@@ -81,7 +81,7 @@ validate-before-edit ordering is the part that matters.
 
 ## Verification
 
-A gate is any check whose failure would falsify your conclusion. Only a current result on the exact state and scope clears it. Failure, timeout, stale run, skip, or subset leaves the claim unproved. Say what ran and what returned. If blocked, name who can clear it.
+{{> clear-the-gate}}
 
 - [ ] Checkpoint file path did not already exist before Write.
 - [ ] Checkpoint body was redacted with `scripts/redact_secrets.py` before Write.

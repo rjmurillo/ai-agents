@@ -23,7 +23,7 @@ single user-invocable surface.
 
 ## Arguments
 
-Test: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
+Test: $ARGUMENTS
 
 If `$ARGUMENTS` is empty, test the current branch diff against the base branch.
 
@@ -32,9 +32,9 @@ If `$ARGUMENTS` is empty, test the current branch diff against the base branch.
 If the diff touches Claude Code or GitHub Copilot CLI hooks, dispatchers,
 generated shims, event translation, or hook output:
 
-1. Invoke `skill: "agent-harness-reference"` to load the pinned contract.
+1. Invoke `Skill(skill="agent-harness-reference")` to load the pinned contract.
 2. Run the verification path in
-   `skill: "ai-agents-portability-campaign"`.
+   `Skill(skill="ai-agents-portability-campaign")`.
 3. Require unit coverage for translation plus a real-harness smoke test for
    each affected harness.
 4. Treat documentation silence as an unknown to probe, not permission to guess.
@@ -57,9 +57,9 @@ Skip non-applicable gates. Do not waste agent invocations on irrelevant dimensio
 
 ## Gate 1: Functional Testing
 
-Invoke `skill: "code-qualities-assessment"` for quality baseline.
+Invoke Skill(skill="code-qualities-assessment") for quality baseline.
 
-`agent_type: "project-toolkit:qa"`: You are a senior QA engineer. Your job is to catch issues that will cause production incidents. Be skeptical. Cite specific file:line evidence for every finding. Evaluate:
+Task(subagent_type="qa"): You are a senior QA engineer. Your job is to catch issues that will cause production incidents. Be skeptical. Cite specific file:line evidence for every finding. Evaluate:
 
 1. **Unit coverage** - Each method in isolation, dependencies injected. Every new function has at least 1 test.
 2. **Integration coverage** - Contracts between components verified. Cross-module boundaries exercised.
@@ -72,7 +72,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 2: Non-Functional Testing
 
-`agent_type: "project-toolkit:analyst"`: You are a performance and reliability engineer. Focus on failure modes, not the happy path. Use measurable criteria, not subjective judgments. Evaluate:
+Task(subagent_type="analyst"): You are a performance and reliability engineer. Focus on failure modes, not the happy path. Use measurable criteria, not subjective judgments. Evaluate:
 
 1. **Performance** - No N+1 queries, no O(n*m) in hot paths, no blocking calls in async context.
 2. **Scalability** - Will this bottleneck under load? Connection pooling, caching strategy, pagination.
@@ -84,9 +84,9 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 3: Security Testing
 
-Invoke `skill: "security-scan"` for CWE pattern detection.
+Invoke Skill(skill="security-scan") for CWE pattern detection.
 
-`agent_type: "project-toolkit:security"`: You are a security auditor performing OWASP Top 10 review. Assume every input is malicious. Reference CWE numbers for every finding. Evaluate:
+Task(subagent_type="security"): You are a security auditor performing OWASP Top 10 review. Assume every input is malicious. Reference CWE numbers for every finding. Evaluate:
 
 1. **Injection** - Shell (CWE-78), XSS (CWE-79), SQL (CWE-89). No string interpolation in queries.
 2. **Authentication** - Session handling, credential storage, token validation.
@@ -98,7 +98,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array including CWE ref
 
 ## Gate 4: DevOps Testing
 
-`agent_type: "project-toolkit:devops"`: You are a build and release engineer. Focus on pipeline safety, reproducibility, and supply chain security. Evaluate:
+Task(subagent_type="devops"): You are a build and release engineer. Focus on pipeline safety, reproducibility, and supply chain security. Evaluate:
 
 1. **Pipeline impact** - Do changes affect CI/CD? Are workflow files valid YAML?
 2. **Actions security** - Pinned to SHA? Permissions scoped minimally? No secrets in logs?
@@ -110,9 +110,9 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 ## Gate 5: Developer Experience (DX)
 
-Invoke `skill: "orphan-ref-validator"`. Reject the gate on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`; `VERDICT: WARN` is non-blocking and surfaces in the test summary. This mirrors the `build` skill's Mandatory Exit Gate 4 so a reference to a deleted skill or a missing script path is caught at `/test` as well as at `/build`. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. Manifest count claims are not validated by anything: the marketplace count validator was retired in #2187 and orphan-ref-validator never took the work over. Its scanner emits only skill_name, script_path, and scan_truncated findings. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
+Invoke Skill(skill="orphan-ref-validator"). Reject the gate on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`; `VERDICT: WARN` is non-blocking and surfaces in the test summary. This mirrors the `build` skill's Mandatory Exit Gate 4 so a reference to a deleted skill or a missing script path is caught at `/test` as well as at `/build`. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. Manifest count claims are not validated by anything: the marketplace count validator was retired in #2187 and orphan-ref-validator never took the work over. Its scanner emits only skill_name, script_path, and scan_truncated findings. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
 
-`agent_type: "project-toolkit:critic"`: You are a developer advocate reviewing from the consumer perspective. Would a new contributor understand this code? Would the API frustrate or delight? Evaluate:
+Task(subagent_type="critic"): You are a developer advocate reviewing from the consumer perspective. Would a new contributor understand this code? Would the API frustrate or delight? Evaluate:
 
 1. **API ergonomics** - Consumer perspective. Are signatures intuitive? Error messages helpful?
 2. **Documentation** - Is changed behavior documented? Are code comments accurate (not stale)?
@@ -124,7 +124,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL|ERROR` with findings array.
 
 ## Gate 6: Observability and Monitoring
 
-`agent_type: "project-toolkit:architect"`: You are an SRE reviewing production readiness. If this code fails at 3am, can oncall diagnose it without reading the source? Evaluate:
+Task(subagent_type="architect"): You are an SRE reviewing production readiness. If this code fails at 3am, can oncall diagnose it without reading the source? Evaluate:
 
 1. **Logging** - Are meaningful events logged? Structured logging with correlation IDs?
 2. **Metrics** - Are SLIs defined for new features? Latency, error rate, throughput tracked?
@@ -148,13 +148,13 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 3. Run applicable gates sequentially. Each gate dispatches its own agent.
 4. If any gate produces CRITICAL_FAIL: continue remaining gates (findings are additive). Mark overall verdict as CRITICAL_FAIL immediately.
 5. For test failures: hypothesis, verify, fix (never change code without understanding why)
-6. Invoke `skill: "quality-grades"` to synthesize gate verdicts into overall quality score.
+6. Invoke Skill(skill="quality-grades") to synthesize gate verdicts into overall quality score.
 
 ## Output
 
 Each gate MUST produce a verdict line and findings array:
 
-A gate is any check whose failure would falsify your conclusion. Only a current result on the exact state and scope clears it. Failure, timeout, stale run, skip, or subset leaves the claim unproved. Say what ran and what returned. If blocked, name who can clear it.
+{{> clear-the-gate}}
 
 ```text
 GATE: [name]
@@ -176,7 +176,7 @@ Synthesize into overall report:
 
 **Overall verdict**: CRITICAL_FAIL if any gate fails. WARN if any gate warns. PASS if all gates pass.
 
-> After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction.
+{{> completion-tail-audit}}
 
 ## Verification
 

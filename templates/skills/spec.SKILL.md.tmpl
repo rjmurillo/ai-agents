@@ -29,7 +29,7 @@ plain text rather than as a citation to something a reader could open.
 
 ## Arguments
 
-Spec: the problem statement from the conversation (under Copilot CLI the skill tool takes no argument vector, so state it in your message)
+Spec: $ARGUMENTS
 
 If `$ARGUMENTS` is empty, ask the user what problem to solve. Do not proceed
 without a problem statement.
@@ -57,7 +57,7 @@ The pass criteria, hedge phrase validation table, script-resolution rules, kill 
 
 ### Step 0.5: Memory-First Gate
 
-**Bound the search.** If three tool calls have not surfaced anything useful, stop searching and switch to first-principles reasoning. Document what you tried (which tool, what query, what came back) so the user can extend the search if the answer matters more than your time budget suggests.
+{{> bound-the-search}}
 
 Runs after Step 0 and before Step 1. It searches prior art before any new spec
 work, halts when the search shows the question is already answered, and runs the
@@ -85,7 +85,7 @@ conditions are the point, and a summary of them is not the gate.
 ## Output
 
 No em dashes or en dashes in anything this skill writes.
-Use commas, periods, colons, parentheses, hyphens, or restructure.
+{{> no-dashes}}
 
 Structured requirements document. Mirror the PRD schema produced in step 2; do not collapse to acceptance criteria alone.
 

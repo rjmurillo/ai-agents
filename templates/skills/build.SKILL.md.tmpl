@@ -103,7 +103,7 @@ For each slice:
 7. Commit with a conventional message. Each commit is one logical change. Test
    file and implementation file committed together.
 
-   Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
+   {{> conventional-commits}}
 
 ## Quality Signals
 
@@ -116,7 +116,7 @@ The agent should self-check:
 
 ## Mandatory Exit Gates
 
-> When every requested deliverable satisfies the frozen task contract and no blocker remains, the current task is terminal. Stop autonomous work.
+{{> terminal-predicate}}
 
 The build is not complete until all four gates below return clean. These are
 **hard preconditions for declaring done**, not advisory output. If any gate
@@ -146,7 +146,7 @@ the rationale in the PR body or issue handoff and link to the follow-up issue.
 - [ ] All four exit gates returned clean, or each finding has a documented out-of-scope rationale and a linked issue
 - [ ] Commits are atomic, with test and implementation committed together
 
-> After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction.
+{{> completion-tail-audit}}
 
 ## Anti-Patterns
 
