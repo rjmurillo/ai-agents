@@ -34,7 +34,7 @@ through `PATH`.
 
 | Rule | Limit | Enforcement |
 |------|-------|-------------|
-| Files per commit | 5 or fewer | `.claude/rules/universal.md` MUST 4; AGENTS.md Boundaries |
+| Files per commit | Advisory only: 5 or fewer, reports and does not block | `.claude/rules/universal.md` SHOULD 5; `check_atomic_commit` in `scripts/validation/git_hook_policy.py` (issue #5241, ADR-100 item 2) |
 | Commits per PR | Advisory only: notice at 10, alert at 15, no block | `scripts/validation/pr_commit_count.py` (`WARNING_THRESHOLD = 10`, `ALERT_THRESHOLD = 15`), wired at `pr-validation.yml`. The former 20/40-commit block and its `commit-limit-bypass` human-only label were removed (issue #5233): the block required local, pre-push verification of a GitHub label that a sandboxed harness cannot always perform, and the only way through an unverifiable-but-satisfied gate was an expensive stacked-branch workaround |
 | Mid-session check | Notice at 10, alert at 15, no block | `git rev-list --count HEAD ^origin/main` (thresholds from `scripts/validation/pr_commit_count.py`) |
 | Lint scope | Changed files only | PR #908 fix: scope `markdownlint --fix` to `git diff --name-only` output, never `**/*.md` |
