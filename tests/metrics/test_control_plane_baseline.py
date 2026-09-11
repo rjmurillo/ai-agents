@@ -338,7 +338,7 @@ def test_ac08_synthetic_extreme_values_never_change_exit_code(
         "workflows",
         "lefthook_jobs",
     )
-    huge_canonical = dict.fromkeys(simple_fields, n)
+    huge_canonical: dict[str, object] = dict.fromkeys(simple_fields, n)
     huge_canonical |= {"hooks_by_event": {"x": n}, "lefthook_jobs_by_hook": {"x": n}}
     huge_gate_budget = {"seconds_by_hook": {"pre-commit": n, "pre-push": n}}
     huge_loaded = {

@@ -453,7 +453,7 @@ def _canonical_owner_total(canonical: dict[str, Any]) -> int:
     ``settings.json`` entry and a ``.py`` source file must count once, as
     the registered entry, not twice.
     """
-    return (
+    return int(
         canonical["agents"]
         + canonical["skills"]
         + canonical["rules"]
