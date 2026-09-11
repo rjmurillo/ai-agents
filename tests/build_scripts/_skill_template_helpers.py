@@ -62,11 +62,18 @@ def minimal_platform_config(tmp_path: Path) -> Path:
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
+    # timeout=60: CodeRabbit review, PR #5726. generate_skills.py on a
+    # tmp_path fixture (a handful of templates at most) returns in well
+    # under a second; 60s is margin for a loaded CI runner, not an expected
+    # runtime, and turns a hung child process into a reported test failure
+    # instead of a wedged test job. Mirrors the same-purpose 60s timeout on
+    # the python3 subprocess in test_generate_pr_quality_prompts.py:586.
     return subprocess.run(
         [sys.executable, str(_GENERATE_SKILLS_PATH), *args],
         capture_output=True,
         text=True,
         check=False,
+        timeout=60,
     )
 
 

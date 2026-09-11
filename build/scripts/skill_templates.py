@@ -183,7 +183,7 @@ def _iter_template_candidates(repo_root: Path) -> Iterator[tuple[str, Path]]:
 def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str | None:
     """Return why ``name`` is not a valid template-owned skill name, or ``None``.
 
-    Four checks, from two rounds of ADR-108 review. ``name`` MUST match the
+    Five checks, from three rounds of ADR-108 review. ``name`` MUST match the
     same slug pattern a partial's slug does (``^[a-z0-9]+(-[a-z0-9]+)*$``).
     ``.claude/skills/<name>/`` MUST already exist as a directory: the class
     boundary ADR-108 section 1 and section 7 both draw is that every
@@ -198,6 +198,22 @@ def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str |
     the allowlist trusts at an arbitrary path outside ``.claude/skills/``,
     which is exactly the tree :func:`owned_targets` promises
     :func:`build_all.assert_no_claude_writes` a write is confined to.
+
+    The ``.claude/skills/`` root itself MUST resolve inside ``repo_root``
+    (CodeRabbit on PR #5726): an intermediate symlink at ``.claude`` or
+    ``.claude/skills`` pointing at an external tree would make both the root
+    and the skill directory resolve there, so the per-skill containment check
+    below would pass while every write landed outside the repository.
+
+    ``.claude/skills/<name>/SKILL.md`` itself MUST NOT be a symlink (third
+    ADR review round, CodeRabbit on PR #5726, CWE-22/CWE-59 defense): the
+    four checks above only ever look at the DIRECTORY. A real, non-symlinked
+    directory can still hold a symlinked ``SKILL.md`` pointing anywhere on
+    the filesystem, and :func:`compile_all`'s ``target.write_text(...)``
+    follows a symlink the same way any ``open()`` call does, so without this
+    check a symlinked file inside an otherwise-legitimate skill directory
+    would let a render escape ``.claude/skills/`` even though the directory
+    containment check above passed clean.
     """
     if not _NAME_RE.match(name):
         return f"{tmpl_path}: invalid template name {name!r}; must match {_NAME_RE.pattern!r}"
@@ -211,12 +227,22 @@ def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str |
         return f"{tmpl_path}: no existing .claude/skills/{name}/ directory"
 
     resolved_root = skills_root.resolve()
+    resolved_repo = repo_root.resolve()
+    if not resolved_root.is_relative_to(resolved_repo):
+        return (
+            f"{tmpl_path}: .claude/skills/ resolves to {resolved_root}, "
+            f"outside the repository root {resolved_repo}"
+        )
     resolved_skill = skill_dir.resolve()
     if not resolved_skill.is_relative_to(resolved_root):
         return (
             f"{tmpl_path}: .claude/skills/{name}/ resolves to {resolved_skill}, "
             f"outside {resolved_root}"
         )
+
+    if (skill_dir / "SKILL.md").is_symlink():
+        return f"{tmpl_path}: .claude/skills/{name}/SKILL.md is a symlink, not a real file"
+
     return None
 
 

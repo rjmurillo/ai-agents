@@ -133,19 +133,49 @@ def _iter_tags(text: str) -> Iterator[re.Match[str]]:
     yield from _TAG_RE.finditer(text)
 
 
+def _is_standalone(text: str, match: re.Match[str]) -> bool:
+    """True when ``match`` is alone on its line in ``text``, apart from whitespace.
+
+    The grammar (module docstring, "Template grammar", quoted from
+    DESIGN-024) requires ``{{> slug}}`` "on its own line, optionally
+    indented". ``_PARTIAL_TAG_RE`` on its own only checks the TAG STRING in
+    isolation (``^\\{\\{>...\\}\\}$``), which is anchored against
+    ``match.group(0)``, not against the line the tag sits on, so it matches
+    identically whether the tag is alone on a line or embedded mid-sentence.
+    This checks the surrounding text instead: the line containing the
+    match, after stripping leading/trailing whitespace, must equal the
+    matched tag text exactly.
+    """
+    line_start = text.rfind("\n", 0, match.start()) + 1
+    line_end = text.find("\n", match.end())
+    if line_end == -1:
+        line_end = len(text)
+    return text[line_start:line_end].strip() == match.group(0)
+
+
 def check_grammar(text: str) -> list[str]:
     """Return every tag in ``text`` outside the restricted grammar.
 
-    A tag is allowed when it is a partial reference (``{{> slug}}``, slug
-    matching ``^[a-z0-9]+(-[a-z0-9]+)*$``) or a comment (``{{! ... }}``).
-    Everything else (a variable, a section, an inverted section, a raw
-    triple-brace, a set-delimiter change, or a malformed partial tag) is
-    offending. Empty list means the template is clean.
+    A tag is allowed when it is a comment (``{{! ... }}``) or a partial
+    reference (``{{> slug}}``, slug matching ``^[a-z0-9]+(-[a-z0-9]+)*$``)
+    that also sits alone on its own line, optionally indented
+    (:func:`_is_standalone`; CodeRabbit review, PR #5726, "own-line partial
+    rule documented but not enforced": the grammar the module docstring
+    quotes from DESIGN-024 requires this placement, but until this check
+    existed only the tag's own syntax was validated, so ``See {{> greet}}
+    for details.`` passed ``check_grammar`` clean even though the partial
+    was never on its own line). Everything else (a variable, a section, an
+    inverted section, a raw triple-brace, a set-delimiter change, a
+    malformed partial tag, or a syntactically valid partial tag sharing its
+    line with other text or another tag) is offending. Empty list means the
+    template is clean.
     """
     offending: list[str] = []
     for match in _iter_tags(text):
         tag = match.group(0)
-        if _PARTIAL_TAG_RE.match(tag) or _COMMENT_TAG_RE.match(tag):
+        if _COMMENT_TAG_RE.match(tag):
+            continue
+        if _PARTIAL_TAG_RE.match(tag) and _is_standalone(text, match):
             continue
         offending.append(tag)
     return offending

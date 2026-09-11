@@ -172,10 +172,26 @@ def _build_skills(
     drifted template and a malformed one; this function does not need to
     distinguish drift from a config error the way :mod:`skill_templates`
     does internally.
+
+    CodeRabbit review, PR #5726: a platform with no ``artifacts.skills``
+    stanza used to return here without running the ADR-108 compile/drift
+    gate at all. That gate (``skill_templates.compile_all``) is repo-global,
+    not platform-scoped: it takes no platform config and validates the one
+    canonical ``.claude/skills/`` tree every platform shares. copilot-cli is
+    the only platform config with a stanza today, so a full, unfiltered
+    ``build_all.py --check`` run still exercised the gate through it, but
+    ``build_all.py --check --platform vscode`` (the module docstring's own
+    ``--platform`` example, applied to a stanza-less platform) reported
+    exit 0 over a drifted or malformed ``.claude/skills/<name>/SKILL.md``
+    without ever comparing it against its template. The stanza still gates
+    the copy loop below (there is no ``outputDir`` to copy into without
+    one); it must not also gate the compile step.
     """
-    # If the platform has no skills stanza, treat as not-applicable rather
-    # than a config error. visual-studio and vscode platforms ship without
-    # one today; they should not break the orchestrator.
+    # If the platform has no skills stanza, the copy loop below has nothing
+    # to copy into. visual-studio and vscode platforms ship without one
+    # today; that is not applicable, not a config error. The compile/drift
+    # gate itself is not platform-scoped (see docstring above) and still
+    # runs on this path.
     try:
         cfg = load_platform_config(config_path)
     except ConfigError:
@@ -183,8 +199,12 @@ def _build_skills(
     artifacts = cfg.get("artifacts")
     stanza = (artifacts or {}).get("skills") if isinstance(artifacts, dict) else None
     if not isinstance(stanza, dict):
-        result = GeneratorResult(artifact="skills", platform=platform, exit_code=0)
-        result.notices.append(f"{platform}: no artifacts.skills stanza; skipped")
+        compile_result = skill_templates.compile_all(repo_root, validate=check)
+        rc = compile_result.exit_code
+        if check and rc != 0:
+            rc = 2
+        result = GeneratorResult(artifact="skills", platform=platform, exit_code=rc)
+        result.notices.append(f"{platform}: no artifacts.skills stanza; copy step skipped")
         return result
 
     rc = generate_skills.generate_skills(config_path, repo_root, validate=check)
