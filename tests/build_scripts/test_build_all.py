@@ -414,6 +414,38 @@ def test_build_skills_skips_when_stanza_absent(tmp_path: Path) -> None:
     assert any("no artifacts.skills stanza" in n for n in result.notices)
 
 
+def test_build_skills_check_mode_catches_drift_even_when_stanza_absent(
+    tmp_path: Path,
+) -> None:
+    """CodeRabbit review, PR #5726: the ADR-108 compile/drift gate is
+    repo-global, not platform-scoped, so a stanza-less platform (vscode,
+    visual-studio) must still run it. Before this fix, ``build_all.py
+    --check --platform vscode`` reported exit 0 over a drifted
+    ``.claude/skills/<name>/SKILL.md`` because the whole function returned
+    before ``skill_templates.compile_all`` was ever called.
+    """
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+    partials_dir.mkdir(parents=True)
+    (partials_dir / "greet.mustache").write_text("hi\n", encoding="utf-8")
+    (tmp_path / "templates" / "skills" / "sync.SKILL.md.tmpl").write_text(
+        "{{> greet}}\n", encoding="utf-8"
+    )
+    skill_dir = tmp_path / ".claude" / "skills" / "sync"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "hand edited, not the template render\n", encoding="utf-8"
+    )
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "p"\n')  # no artifacts.skills stanza
+
+    result = build_all._build_skills(tmp_path, cfg, "vscode", check=True)
+
+    assert result.exit_code == 2
+    assert (
+        skill_dir / "SKILL.md"
+    ).read_text(encoding="utf-8") == "hand edited, not the template render\n"
+
+
 def _skills_platform_config(tmp_path: Path) -> Path:
     cfg = tmp_path / "p.yaml"
     cfg.write_text(
