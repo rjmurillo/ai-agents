@@ -17,7 +17,7 @@ Source of truth for Copilot CLI, VS Code, and Visual Studio agent mirrors only; 
 - `agents/<name>.shared.md`: edit here to change an agent's shared behavior.
 - `platforms/{copilot-cli,vscode,visual-studio}.yaml`: per-platform output config.
 - `toolsets.yaml`: named tool groups referenced via `$toolset:<name>`.
-- `uv run python build/generate_agents.py`: the only supported way to produce output from a template edit.
+- `uv run python build/generate_agents.py`: the only supported way to produce output from an `agents/<name>.shared.md` edit. `skills/<name>.SKILL.md.tmpl` is the one exception (ADR-108, see Matters above): regenerate those with `uv run python build/scripts/build_all.py` instead.
 
 ## Where to look
 
