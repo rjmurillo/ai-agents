@@ -58,9 +58,10 @@ plugin roots ship: `.claude/`, `src/claude/`, and `src/copilot-cli/` (`docs-say`
 
 Two properties of that pipeline are settled and are not reopened here.
 
-1. Generators read canonical trees and write mirror trees. They never write under `.claude/`.
-   `assert_no_claude_writes` at `build/scripts/build_all.py:788` is called at `:2221`, and a
-   violation sets `audit.overall_exit = 2` at `:2227` (`repo-observed`).
+1. Generators read canonical trees and write mirror trees. They never write under `.claude/`,
+   except the template-owned skill files ADR-108 enumerates (amended 2026-09-11).
+   `assert_no_claude_writes` at `build/scripts/build_all.py:793` is called at `:2226`, and a
+   violation sets `audit.overall_exit = 2` at `:2232` (`repo-observed`, re-anchored 2026-09-11).
 2. The seam is asymmetric. There is no single template-in, everything-out pipeline. Agents for
    Copilot CLI and VS Code come from `templates/agents/*.shared.md`; rules, skills, hooks, and lib
    come from `.claude/` directly; `src/claude/`, `.claude/agents/`, and `.github/agents/` are
@@ -653,6 +654,9 @@ Findings outside this record's scope, reported rather than fixed.
 - ADR-072 (JTBD plugin architecture, `proposed`): **not** a dependency. Issue #5669 tracks settling
   it.
 - ADR-069 (context corpus is the product, `proposed`): thesis only.
+- ADR-108 (template-owned skill files, `proposed`): amends settled property 1 in Context for one
+  enumerated class, canonical skill files rendered from `templates/skills/`. Read property 1 with
+  that exception from 2026-09-11 on.
 
 ## References
 
