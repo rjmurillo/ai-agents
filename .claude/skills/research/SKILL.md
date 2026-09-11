@@ -24,8 +24,6 @@ without raw shell. Wildcards are Claude Code tool patterns, not shell globs; the
 Bash tool executor must sanitize arguments to prevent command injection
 (CWE-78).
 
-@CLAUDE.md
-
 ## Triggers
 
 `research this topic`, `what does the literature say about X`,
@@ -77,8 +75,13 @@ resolved directory.
 
 1. **Research.** Check existing knowledge, fetch the given URLs, search the web,
    then synthesize principles, frameworks, examples, and failure modes.
+
+   **Bound the search.** If three tool calls have not surfaced anything useful, stop searching and switch to first-principles reasoning. Document what you tried (which tool, what query, what came back) so the user can extend the search if the answer matters more than your time budget suggests.
 2. **Analysis.** Write the analysis document to the location in the Output table,
    using the skeleton in `references/templates.md`.
+
+   No em dashes or en dashes in anything this skill writes.
+   Use commas, periods, colons, parentheses, hyphens, or restructure.
 3. **Applicability.** Map integration points and prioritize them, using the five
    assessment areas in `references/templates.md`.
 4. **Memory.** Write a Serena memory at `{topic-slug}-integration` that

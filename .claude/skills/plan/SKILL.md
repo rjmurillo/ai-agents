@@ -16,8 +16,6 @@ what blocks what, what fails first, and what is explicitly out of scope.
 Migrated from `.claude/commands/plan.md` under ADR-064, which makes skills the
 single user-invocable surface.
 
-@CLAUDE.md
-
 ## Triggers
 
 `plan how to build this`, `break this into milestones`, `decompose this spec`,
@@ -46,6 +44,8 @@ none is found, ask what to plan rather than inferring it.
 1. Read the spec or issue.
 2. Map sub-problems to existing code. What already exists? Use Grep and Glob to
    verify rather than assuming.
+
+   **Bound the search.** If three tool calls have not surfaced anything useful, stop searching and switch to first-principles reasoning. Document what you tried (which tool, what query, what came back) so the user can extend the search if the answer matters more than your time budget suggests.
 3. `Task(subagent_type="milestone-planner")`: You are a project planner. Break
    the spec into milestones with clear exit criteria. Each milestone is
    independently shippable. Sequence by dependencies. Flag parallel
@@ -82,6 +82,9 @@ none is found, ask what to plan rather than inferring it.
   not exist.
 
 ## Output
+
+No em dashes or en dashes in anything this skill writes.
+Use commas, periods, colons, parentheses, hyphens, or restructure.
 
 | Section | Contents |
 |---------|----------|

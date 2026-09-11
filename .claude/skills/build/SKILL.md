@@ -16,8 +16,6 @@ declare done until four gates return clean.
 Migrated from `.claude/commands/build.md` under ADR-064, which makes skills the
 single user-invocable surface.
 
-@CLAUDE.md
-
 ## Triggers
 
 `build this`, `implement this slice`, `write the code for this task`,
@@ -105,6 +103,8 @@ For each slice:
 7. Commit with a conventional message. Each commit is one logical change. Test
    file and implementation file committed together.
 
+   Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
+
 ## Quality Signals
 
 The agent should self-check:
@@ -115,6 +115,8 @@ The agent should self-check:
 - Would a stranger understand this code without asking questions?
 
 ## Mandatory Exit Gates
+
+> When every requested deliverable satisfies the frozen task contract and no blocker remains, the current task is terminal. Stop autonomous work.
 
 The build is not complete until all four gates below return clean. These are
 **hard preconditions for declaring done**, not advisory output. If any gate
@@ -143,6 +145,8 @@ the rationale in the PR body or issue handoff and link to the follow-up issue.
 - [ ] Any guard or detector added in this build was run against the branch and observed firing
 - [ ] All four exit gates returned clean, or each finding has a documented out-of-scope rationale and a linked issue
 - [ ] Commits are atomic, with test and implementation committed together
+
+> After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction.
 
 ## Anti-Patterns
 
