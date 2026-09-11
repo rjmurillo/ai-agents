@@ -7,7 +7,7 @@
 - `SKILL.md` is the contract per skill; `scripts/` holds executable code, `references/` long-form material, `templates/` output shapes, all optional.
 - Skills are the only user-invocable surface (ADR-064); a commands directory under any plugin root is refused by a blocking validator.
 - Mirrored to the Copilot CLI plugin by `generate_skills.py`; never hand-edit the mirror, edit the source skill and regenerate.
-- Eight pilot skills (`sync`, `test`, `spec`, `ship`, `research`, `plan`, `checkpoint`, `build`) are template-owned (ADR-108): edit `templates/skills/<name>.SKILL.md.tmpl`, not `SKILL.md`, then rerun the build pipeline (`build_all.py`, in the `rjmurillo/ai-agents` repository) to regenerate both this file and its Copilot mirror.
+- Eight pilot skills (`sync`, `test`, `spec`, `ship`, `research`, `plan`, `checkpoint`, `build`) are template-owned (ADR-108): edit `templates/skills/<name>.SKILL.md.tmpl`, not `SKILL.md`. That template directory exists only in the `rjmurillo/ai-agents` repository, not in an installed plugin. Rerun the build pipeline (`build_all.py`, same repository) to regenerate each skill's `SKILL.md` and its Copilot mirror.
 - `model:` is normally omitted (harness default). The only other valid state is a bare alias (`haiku`/`sonnet`/`opus`) plus `model-rationale:` (ADR-080); a versioned id fails the model-pin check. 7 skills use `model: haiku` today, none use a versioned id.
 - Size: warns at 300 lines, blocks at 500; `size-exception: true` in frontmatter, with a rationale comment, declares a justified overage.
 - Before a skill that configures, generates, or tests Claude Code or Copilot CLI artifacts: read the `agent-harness-reference` skill; cross-harness mutations go through the `ai-agents-portability-campaign` skill.
