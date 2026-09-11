@@ -1,10 +1,6 @@
-## Model Delegation For Token Efficiency
+## Delegate To Cheaper Models
 
-Delegate non-trivial work to subagents (`Agent` tool) or, when the user has opted into multi-agent orchestration, the `Workflow` tool, instead of doing it inline in the primary session. This keeps the primary context window, which carries the full conversation, smaller and cheaper than doing the work directly.
-
-- **Delegate down to Sonnet or Haiku.** Pass `model: "sonnet"` or `model: "haiku"` on `Agent` calls for implementation, research, and other bounded subtasks. Haiku for mechanical work (search, formatting, simple edits); Sonnet for anything needing more judgment.
-- **Reserve Opus for review.** Use Opus to review completed work, code review, architecture review, critique, rather than for the first implementation pass. If the primary session is already running on Opus, that review can happen there instead of a separate agent call.
-- Applies to both delegation surfaces: `Agent`/`Task` subagent calls and `Workflow` orchestration. The goal is spending expensive-model tokens on judgment (review), not throughput (execution).
+Push non-trivial implementation and research to subagents (`Agent`) or `Workflow`, on Sonnet or Haiku (`model: "sonnet"`/`"haiku"`), rather than working inline. Reserve Opus for reviewing finished work, not the first pass.
 
 <claude-mem-context>
 # Recent Activity
