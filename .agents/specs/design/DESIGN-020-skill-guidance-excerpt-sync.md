@@ -30,7 +30,7 @@ Two designs were drafted on 2026-09-11. The first kept `.claude/skills/<name>/SK
 
 | Constraint | Where | Effect on the issue's design |
 |---|---|---|
-| REQ-003-010 | `.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md:358` | "The build shall never write to `.claude/<artifact>/`" |
+| REQ-003-010 | `.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md:358-359` | "The build shall never write to `.claude/<artifact>/`" |
 | The guard | `build/scripts/build_all.py:793` `assert_no_claude_writes`, called at `:2226`, exit 2 | A before-and-after content diff of `.claude/`: a compile step that writes `.claude/skills/<name>/SKILL.md` exits 2 whenever the render differs from the committed file, which is every regeneration that does work |
 | ADR-107 property 1 | `ADR-107-...md:61` | "Generators read canonical trees and write mirror trees. They never write under `.claude/`", listed as settled |
 | REQ-003 D4 | `REQ-003-...md:80` | `.claude/<artifact>/` is canonical |
