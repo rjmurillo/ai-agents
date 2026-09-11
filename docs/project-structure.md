@@ -1,98 +1,70 @@
-# Project Structure
+# Repo Map
 
-This page explains the high-level layout of `rjmurillo/ai-agents` and (most importantly) what files you should edit vs avoid.
+Agent-first navigation: what to edit, what is generated, what to skip.
+Root `AGENTS.md` owns protocol and gates. `.claude/rules/*.md` owns conventions
+(auto-loaded by each file's `paths:` glob). This file owns navigation only.
 
-## Quick orientation
+## Sources of truth (edit here)
 
-- If you want to change an agent’s behavior, you usually edit **templates**, then regenerate outputs.
-- If you want to *use* agents in a repo, look at **.github/agents/** (Copilot/VS Code) and **.claude/agents/** (Claude Code).
-- If you want to understand the overall system, start with **README.md** and **AGENTS.md**.
+| Path | Owns | Regen / gate |
+|---|---|---|
+| `templates/agents/*.shared.md` | Copilot CLI + VS Code agent bodies (31) | `uv run python build/generate_agents.py` |
+| `src/claude/*.md`, `.claude/agents/*.md`, `.github/agents/*.agent.md` | Hand-maintained agent copies; shared edits touch template + all three | `build/scripts/validate_install_parity.py` (co-change only) |
+| `.claude/rules/*.md` (29) | Cross-harness conventions, canonical | `generate_rules.py` -> `.github/instructions/`, `src/copilot-cli/instructions/` |
+| `.claude/skills/<name>/` (111) | Skills, the only user-invocable surface (ADR-064) | `generate_skills.py` -> `src/copilot-cli/skills/` |
+| `.claude/hooks/`, `.claude/settings.json` | Claude Code hooks | `generate_hooks.py` -> `src/copilot-cli/hooks/` |
+| `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source | `scripts/sync_plugin_lib.py` -> `.claude/lib/` -> `build_all.py` -> `src/copilot-cli/lib/` (run sync first) |
+| `.claude/skills/review/references/<role>.md` | PR quality-gate prompts | `generate_pr_quality_prompts.py` -> `.github/prompts/pr-quality-gate-<role>.md` |
+| `.agents/architecture/ADR-*.md` (108) | Decisions; frontmatter `status` is truth | `generate_adr_index.py` -> `.agents/architecture/README.md`; any edit fires `adr-review` |
+| `.agents/governance/` | Constraints; `PROJECT-CONSTRAINTS.md` is index of record | ADR + human approval for changes |
+| `scripts/` | Automation, Python only (ADR-042) | tests in `tests/` |
+| `build/` | Generators, drift and parity gates | `tests/build_scripts/` |
+| `lefthook.yml` | Hook wiring; logic in `scripts/validation/git_hook_policy.py <subcmd>` | ADR-006 |
+| `.github/workflows/` | CI wiring; logic in `scripts/ci/`, `.github/scripts/` | SHA-pinned actions |
 
-## Top-level layout (annotated)
+Per-directory agent docs: `build/AGENTS.md`, `scripts/AGENTS.md`, `templates/AGENTS.md`,
+`src/AGENTS.md`, `src/claude/AGENTS.md`, `.github/AGENTS.md`, `.agents/AGENTS.md`,
+`.claude/skills/CLAUDE.md`.
 
-```text
-ai-agents/
-├── README.md                 # Project overview + install + examples
-├── AGENTS.md                 # Canonical usage guide + session protocol
-├── CONTRIBUTING.md           # How to contribute (prereqs, tests, regeneration)
-├── CLAUDE.md                 # Claude Code integration instructions
-├── CRITICAL-CONTEXT.md       # Blocking constraints for agent sessions
-├── LICENSE
-│
-├── docs/                     # Human documentation (this folder)
-│   ├── installation.md       # Native marketplace and repository install paths
-│   ├── ideation-workflow.md  # "shower thought" → PRD/plan workflow
-│   ├── autonomous-*.md       # Autonomous workflows (PR monitor, issue dev)
-│   └── project-structure.md  # (this file)
-│
-├── templates/                # SOURCE OF TRUTH for most agent content
-│   ├── agents/               # `*.shared.md` agent templates (edit these)
-│   └── platforms/            # Platform-specific generation config (YAML)
-│
-├── build/                    # Build + generation scripts
-│   └── generate_agents.py    # Regenerates platform agent files from templates
-│
-├── src/                      # GENERATED agent files for distribution
-│   ├── vs-code-agents/       # Generated VS Code prompt/agent files (don’t edit)
-│   ├── copilot-cli/          # Generated Copilot CLI agent files (don’t edit)
-│   └── claude/               # Claude Code agent files + skills (some generated)
-│
-├── .github/                  # GitHub automation + Copilot integration
-│   ├── agents/               # Copilot/VS Code agents used by GitHub tooling
-│   ├── plugin/               # Copilot CLI native marketplace manifest
-│   │   └── marketplace.json  # `/plugin marketplace add rjmurillo/ai-agents`
-│   ├── prompts/              # Prompts used by workflows (quality gates, triage)
-│   └── workflows/            # CI workflows (keep logic in scripts, not YAML)
-│
-├── .claude/                  # Claude Code local integration
-│   ├── agents/               # Claude Code agents for this repo
-│   ├── skills/               # Claude Code skills used by the system
-│   └── hooks/                # Hook dependencies + optional automation
-│
-├── scripts/                  # Shared scripts used by workflows and local tooling
-├── tests/                    # pytest tests (Python)
-└── test/                     # Additional test assets / harness
-```
+## Generated (never edit)
 
-## What you should edit (common tasks)
+`src/copilot-cli/**` | `src/vs-code-agents/**` | `.github/instructions/**` |
+`.github/prompts/pr-quality-gate-*.md` | `docs/agent-catalog.md` | `.agents/architecture/README.md`
 
-### Modify an agent
+Regen: `uv run python build/scripts/build_all.py`. Drift gate: `--check` (CI and `pre_pr.py`).
+Full inventory: `.agents/governance/GENERATOR-FILES.md`.
 
-Edit the shared template:
+## Skip unless the task names it
 
-- `templates/agents/<agent>.shared.md`
+| Path | Why |
+|---|---|
+| `.agents/{sessions/*.json,archive,retrospective,critique,analysis,qa,planning,plans,projects,audits,audit,checkpoints,eval-results,metrics,pr-checks,pr-consolidation,incidents,devops,debt,benchmarks,roadmap}` | Historical artifacts; evidence, not instructions |
+| `.agents/sessions/handoffs/` | The one live subtree: per-issue continuity (read latest at start, update at end) |
+| `.agents/memory/episodes/` (751) | Auto-extracted; searched via memory skill, never read whole |
+| `.serena/memories/` (197) | Retrieval aid; `/memory-search` or `uv run python .claude/skills/memory/scripts/search_memory.py "<query>"` |
+| `evals/`, `tests/evals/`, `tests/eval_scenarios/` | Eval corpora and reports; runners in `scripts/eval/` |
+| `.claude-mem/`, `.factory/`, `.diffray/`, `.codeql/`, `.baseline/`, `.serena/cache/` | Tool state |
+| `packages/ai-agents-cli/` (bun, TS), `packages/semantic-hooks/` (own uv project) | Separate toolchains |
+| `src/*.ts`, `src/transforms/` | Copilot target emitter; `tests/*.test.ts` run by `cli-smoke.yml` (`bun test`) |
+| `*/CLAUDE.md` seven-line `<claude-mem-context>` stubs | Plugin placeholders; edit only outside the tags |
+| `README.md`, `CONTRIBUTING.md`, other `docs/*.md` | Human onboarding prose |
 
-Then regenerate:
+## Commands
 
-```bash
-uv run python build/generate_agents.py
-```
+| Task | Command |
+|---|---|
+| Tests | `uv run pytest tests/ -x` (120s per-test timeout; skill tests in `tests/skills/<name>/`) |
+| Lint | `uv run ruff check .` (line length 100; syntax target py310, runtime 3.14) |
+| Pre-PR gate | `uv run python scripts/validation/pre_pr.py` (`--quick` skips slow gates) |
+| Regen or drift | `uv run python build/scripts/build_all.py [--check]` |
+| Agents only | `uv run python build/generate_agents.py` (`--validate`, `--what-if`) |
+| Push | `/push-pr` skill; PRs via `github` skill, never raw `gh` when a skill exists |
 
-Commit both the template and the generated outputs.
+## Traps
 
-### Add documentation
-
-Add docs under:
-
-- `docs/`
-
-And link them from **README.md** (keep the root README focused on getting started).
-
-### Contribute code / scripts
-
-- Python dependencies and packaging: `pyproject.toml`
-- Shared automation scripts: `scripts/`
-- Tests: `tests/`
-
-## What you should generally NOT edit
-
-- `src/vs-code-agents/` and `src/copilot-cli/` are generated outputs.
-
-## “Where do artifacts go?”
-
-This repo uses two main artifact locations:
-
-- `.agents/` for plans, ADRs, reviews, session logs, and workflow artifacts.
-- `.serena/` for curated, reusable “memories” and project metadata.
-
-If you are building new automation, prefer writing artifacts to these folders so the rest of the system can discover them.
+- Docs: `python3 <tracked>.py` fails the doc-interpreter gate; write `uv run python`.
+- Em or en dash anywhere authored fails `staged-dashes` (fixtures under `tests/hooks/fixtures/` exempt).
+- More than 5 authored files per commit fails `atomic-commit`; `detect_scope_explosion.py` warns at 10 files, blocks at 50.
+- Hook bypass (`--no-verify`, `LEFTHOOK=0`, `LEFTHOOK_EXCLUDE`, ...) is forbidden; hand the branch back with the measurement.
+- `git ls-files '*.ps1'` is empty; PowerShell in older docs is history, not guidance.
+- Serena writes from a linked worktree land in the activating checkout, not yours.
