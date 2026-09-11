@@ -43,7 +43,7 @@ Extract from user request:
 Before any web search, check whether the capability already exists in the current repo or org:
 
 - grep the codebase for the capability's keywords and likely symbol names
-- if Serena is available, run a symbol search; if Forgetful memory is available, query it
+- if Serena is available, run a symbol search and query its memories
 - check existing dependencies (`package.json` / `requirements.txt` / `Cargo.toml` / `go.mod`) for a library already pulled in
 
 If an internal implementation exists, recommend **Leverage** (use as-is) or **Extend** (adapt it) before proposing a build or an external buy. Internal reuse beats both a new dependency and a rewrite.
