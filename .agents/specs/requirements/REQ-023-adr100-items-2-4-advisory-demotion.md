@@ -279,11 +279,13 @@ or alert; this is a one-time behavior change to an existing gate.
 ## Out of Scope
 
 - ADR-100 item 5 (`post_qa_code_changes` rebind churn fix in
-  `.claude/lib/qa_report.py`). Recorded by REQ-022 as
-  `DEFERRED-TO-LATER-COHORT`; ADR-100's own text states the obvious first
-  fix (diff against the merge's first parent) is wrong and a reviewer
-  caught it before it shipped, so this item needs its own design pass, not
-  a mechanical demotion like items 2-4.
+  `.claude/lib/qa_report.py`). Recorded by REQ-022 as `DELETE`: the
+  specific fix item 5 names (replace `-m` with `-c`) is absent from
+  `qa_report.py`, superseded before this cohort started by
+  `--first-parent --cc` (issue #5064), a different, more careful fix a
+  reviewer's earlier catch on the naive first attempt led to. This item
+  needs no mechanical demotion like items 2-4 because there is nothing
+  left in the file for that demotion to apply to.
 - ADR-100 item 6 (not named in the excerpt this cohort read; out of scope
   by the same "additions, not subtractions, stay with #5241" boundary the
   original seed plan drew for items 5-6).
