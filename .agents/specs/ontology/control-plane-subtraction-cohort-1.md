@@ -1,6 +1,6 @@
 # Control-plane Subtraction Cohort 1 Ontology
 
-Shared by REQ-021, REQ-022, and REQ-023. One `/spec` invocation covers the
+Shared by REQ-024, REQ-022, and REQ-023. One `/spec` invocation covers the
 first cohort of epic #5456 (three PRs); the domain vocabulary is the same
 across all three, so one OntologyFragment serves all three REQ files rather
 than three near-duplicates. Each REQ's `## Ontology` section cites this file
@@ -51,7 +51,7 @@ by path and lists only the entities that requirement touches.
 - ReleaseTarget bounds-one Baseline metric (canonical-owner count,
   always-loaded tokens, gate p95).
 - GeneratedArtifact reported-apart-from CanonicalOwner (epic requires the two
-  never merge into one total; REQ-021 AC enforces this).
+  never merge into one total; REQ-024 AC enforces this).
 
 ## O4 Aggregate boundaries
 
@@ -98,7 +98,7 @@ cost. It stops at two seams:
    or EXPERIMENT.
 2. **Release evaluation** (the reduced-configuration comparison against the
    full baseline, and the final release report) belongs to #5422-#5426 and
-   is explicitly out of scope for this cohort (see REQ-021 Out of Scope);
+   is explicitly out of scope for this cohort (see REQ-024 Out of Scope);
    this cohort produces the Baseline those comparisons will later consume.
 
 ## O7 Open ontology questions
@@ -109,7 +109,7 @@ cost. It stops at two seams:
   (REQ-022) states its own classification with a one-line reason rather than
   forcing one global rule.
 - Is a lefthook job that wraps a validator a distinct CanonicalOwner from the
-  validator it wraps, or the same owner counted twice? REQ-021's baseline
+  validator it wraps, or the same owner counted twice? REQ-024's baseline
   script counts lefthook job names and validator files as two separate
   `canonical` dimensions on purpose (the epic's baseline bullet lists
   "agents, skills, rules, commands, hooks, validators, and workflows"

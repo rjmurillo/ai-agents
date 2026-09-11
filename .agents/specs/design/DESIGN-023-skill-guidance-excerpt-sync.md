@@ -1,14 +1,14 @@
 ---
 type: design
-id: DESIGN-020
+id: DESIGN-023
 title: Mustache-compiled pilot skills under a template-owned class
 status: draft
 priority: P1
 source: GH-5706
 related:
-  - REQ-021
+  - REQ-024
   - REQ-003
-  - TASK-024
+  - TASK-028
   - TASK-025
   - TASK-027
 created: 2026-09-11
@@ -20,7 +20,7 @@ tags:
   - templates
 ---
 
-# DESIGN-020: Mustache-compiled pilot skills under a template-owned class
+# DESIGN-023: Mustache-compiled pilot skills under a template-owned class
 
 ## Decision history
 
