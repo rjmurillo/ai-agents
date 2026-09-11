@@ -30,8 +30,7 @@ PowerShell is grandfathered for existing scripts only.
 Each commit addresses a single logical change with 5 or fewer files.
 
 - **Rationale**: Small commits are easier to review, revert, and bisect. Issue #934 retrospective.
-- **Enforcement**: Pre-push hook, PR review checklist.
-- **Exception**: Large renames or generated files may exceed 5 files with reviewer approval.
+- **Enforcement**: advisory only. `check_atomic_commit` (pre-commit `commit-file-count`) reports over five authored files and exits 0; ADR-100 item 2, issue #5241. PR review checklist.
 
 ### GP-003: Skill Frontmatter Required
 

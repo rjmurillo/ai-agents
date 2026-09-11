@@ -5,7 +5,7 @@ description: CRITICAL learning capture. Extracts HIGH/MED/LOW confidence pattern
 license: MIT
 metadata:
   timelessness: 8/10
-  adr: ADR-007, ADR-017
+  adr: ADR-017, ADR-106
 ---
 
 # Reflect Skill

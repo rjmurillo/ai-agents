@@ -9,7 +9,7 @@ description: Tier 1 semantic memory search across the Serena corpus with
   memory-enhancement).
 license: MIT
 metadata:
-  adr: ADR-007, ADR-037, ADR-038, ADR-056, ADR-063
+  adr: ADR-038, ADR-063, ADR-103, ADR-106
   type: operation
   parent: memory
 ---
