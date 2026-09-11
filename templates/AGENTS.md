@@ -10,6 +10,7 @@ Source of truth for Copilot CLI, VS Code, and Visual Studio agent mirrors only; 
 - `tools` / `tools_vscode` / `tools_copilot` MUST stay block-style YAML lists. Inline arrays (`['a','b']`) break Copilot CLI on CRLF line endings (issue #893).
 - A `model:` pin appears in generated output only for the `haiku` tier or a validated ADR-080 `KEEP_PIN` manifest entry; `opus`, `sonnet`, or no `model_tier` all resolve to no pin.
 - Regenerating and committing output is not optional: an uncommitted generator run after a template edit is a protocol failure (`.claude/rules/templates.md` MUST-1/2).
+- `skills/<name>.SKILL.md.tmpl` and `skills/partials/*.mustache` are a second, unrelated template class (ADR-108): `build/scripts/skill_templates.py`, invoked from `build/scripts/generate_skills.py`, compiles them into `.claude/skills/<name>/SKILL.md`, the one exception to `.claude/` being off-limits to generators. Regenerate with `uv run python build/scripts/build_all.py`, not `generate_agents.py`.
 
 ## Entry points
 
