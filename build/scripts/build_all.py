@@ -838,12 +838,18 @@ def assert_no_claude_writes(
         ``.github/instructions/``."
 
     ``allowed_paths`` is that allowlist: absolute paths this call must not
-    report even though they changed relative to ``baseline``. Callers pass
-    :func:`skill_templates.owned_targets`, computed at run time from
-    whatever templates currently exist under ``templates/skills/`` (so a
-    skill leaves the template-owned class the moment its ``.tmpl`` file is
-    deleted, with no second list to keep in sync). Every other path under
-    ``.claude/`` is still reported and still fails the build.
+    report as CREATED or MODIFIED even though they changed relative to
+    ``baseline``. Callers pass :func:`skill_templates.owned_targets`,
+    computed at run time from whatever templates currently exist under
+    ``templates/skills/`` (so a skill leaves the template-owned class the
+    moment its ``.tmpl`` file is deleted, with no second list to keep in
+    sync). Every other path under ``.claude/`` is still reported and still
+    fails the build. The allowlist does NOT excuse a deletion: a
+    template-owned target that disappears between the baseline snapshot and
+    this call is still reported, because ``compile_all`` (ADR-108) only ever
+    writes or leaves a target unchanged, never deletes one, so a deleted
+    allowlisted path is exactly as suspicious as a deleted path outside the
+    allowlist.
 
     ``baseline`` is a snapshot of the .claude/ tree captured BEFORE any
     generator ran (see :func:`_snapshot_owned_prefixes`). This function
@@ -885,14 +891,19 @@ def assert_no_claude_writes(
         exclude_ignored=True,
         opaque_boundaries=preexisting_boundaries,
     )
-    offending: set[Path] = set()
+    created_or_modified: set[Path] = set()
     for path, content in current.items():
         if baseline.get(path) != content:
-            offending.add(path)  # created or modified by a generator
-    for path in baseline.keys() - current.keys():
-        offending.add(path)  # deleted by a generator
+            created_or_modified.add(path)  # created or modified by a generator
     if allowed_paths:
-        offending -= allowed_paths
+        # The allowlist excuses a create/modify at an owned target; it does
+        # NOT excuse a deletion, which is folded in below AFTER this
+        # subtraction so it is never removed by it.
+        created_or_modified -= allowed_paths
+
+    deleted: set[Path] = baseline.keys() - current.keys()  # deleted by a generator
+
+    offending = created_or_modified | deleted
     offending -= _confirm_ignored(repo_root, offending)
     return sorted(str(p.relative_to(repo_root)) for p in offending)
 

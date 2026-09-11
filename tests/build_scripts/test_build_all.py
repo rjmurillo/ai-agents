@@ -382,6 +382,27 @@ def test_assert_no_claude_writes_empty_allowed_paths_behaves_like_none(
     ) == [".claude/agents/leak.md"]
 
 
+def test_assert_no_claude_writes_still_flags_a_deleted_allowlisted_path(
+    tmp_path: Path,
+) -> None:
+    """MINOR 2 (ADR review): the allowlist excuses a create/modify, never a
+    deletion. compile_all (ADR-108) only ever writes or leaves a
+    template-owned target unchanged; it never deletes one, so a deleted
+    allowlisted path is exactly as suspicious as any other deletion.
+    """
+    claude = tmp_path / ".claude" / "skills" / "sync"
+    claude.mkdir(parents=True)
+    target = claude / "SKILL.md"
+    target.write_text("original\n", encoding="utf-8")
+    baseline = build_all._snapshot_owned_prefixes(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
+
+    target.unlink()
+
+    assert build_all.assert_no_claude_writes(
+        tmp_path, baseline, allowed_paths={target}
+    ) == [".claude/skills/sync/SKILL.md"]
+
+
 # _build_skills missing-stanza handling --------------------------------------
 
 
