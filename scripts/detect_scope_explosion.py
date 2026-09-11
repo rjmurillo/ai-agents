@@ -4,8 +4,10 @@
 
 Tracks cumulative PR size and provides early warnings before PRs grow too large.
 
-Advisory since ADR-100 item 3 (issue #5241): every tier, including over the
-50-file threshold, reports and exits 0. Nothing here blocks a commit or push.
+Advisory since ADR-100 items 3-4 (issue #5241): every tier, including over
+the 50-file threshold, reports and exits 0. Nothing here blocks a commit or
+push, and the former SKIP_SCOPE_CHECK bypass no longer exists; there is
+nothing left to bypass.
 
 Thresholds:
   10 files: Warning (suggest reviewing scope)
@@ -24,7 +26,6 @@ Related: Issue #944, PR #908 (95 files), ADR-100 (issue #5241)
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -505,11 +506,6 @@ def main() -> int:
     """
     try:
         args = parse_args()
-
-        # Check bypass
-        if os.environ.get("SKIP_SCOPE_CHECK") == "1":
-            print("Scope check bypassed (SKIP_SCOPE_CHECK=1)")
-            return 0
 
         result = detect_scope(args.base_branch or "main")
         if result is None:

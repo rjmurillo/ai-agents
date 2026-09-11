@@ -100,11 +100,7 @@ def _make_merge_scope_repo(repo: Path) -> tuple[str, str]:
 
 
 def _run_main(repo: Path, monkeypatch: pytest.MonkeyPatch) -> int:
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if key != "SKIP_SCOPE_CHECK" and not key.startswith("GIT_")
-    }
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     monkeypatch.chdir(repo)
     with patch.dict(os.environ, env, clear=True), patch("sys.argv", ["detect_scope_explosion.py"]):
         return main()
@@ -993,43 +989,44 @@ class TestReport:
 class TestMain:
     """Tests for main entry point."""
 
-    def test_bypass_with_env_var(self, capsys: CaptureFixture[str]) -> None:
+    def test_skip_scope_check_env_var_no_longer_bypasses(self) -> None:
+        """Negative control for ADR-100 item 4: the flag is gone, not honored.
+
+        Setting SKIP_SCOPE_CHECK=1 must not short-circuit detection; main()
+        has to reach detect_scope like any other invocation.
+        """
         with (
             patch.dict(os.environ, {"SKIP_SCOPE_CHECK": "1"}),
+            patch("sys.argv", ["detect_scope_explosion.py"]),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=None,
+            ) as detect,
+        ):
+            exit_code = main()
+            assert exit_code == 0
+        detect.assert_called_once()
+
+    def test_returns_zero_when_no_result(self) -> None:
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("scripts.detect_scope_explosion.detect_scope", return_value=None),
             patch("sys.argv", ["detect_scope_explosion.py"]),
         ):
             exit_code = main()
             assert exit_code == 0
-            captured = capsys.readouterr()
-            assert "bypassed" in captured.out.lower()
-
-    def test_returns_zero_when_no_result(self) -> None:
-        with (
-            patch.dict(os.environ, {}, clear=False),
-            patch("scripts.detect_scope_explosion.detect_scope", return_value=None),
-            patch("sys.argv", ["detect_scope_explosion.py"]),
-        ):
-            # Remove SKIP_SCOPE_CHECK if set
-            env = os.environ.copy()
-            env.pop("SKIP_SCOPE_CHECK", None)
-            with patch.dict(os.environ, env, clear=True):
-                exit_code = main()
-                assert exit_code == 0
 
     def test_returns_two_when_scope_cannot_be_determined(self, capsys: CaptureFixture[str]) -> None:
         with (
-            patch.dict(os.environ, {}, clear=False),
+            patch.dict(os.environ, {}, clear=True),
             patch(
                 "scripts.detect_scope_explosion.detect_scope",
                 side_effect=ScopeDetectionError("detached HEAD"),
             ),
             patch("sys.argv", ["detect_scope_explosion.py"]),
         ):
-            env = os.environ.copy()
-            env.pop("SKIP_SCOPE_CHECK", None)
-            with patch.dict(os.environ, env, clear=True):
-                exit_code = main()
-                assert exit_code == 2
+            exit_code = main()
+            assert exit_code == 2
         captured = capsys.readouterr()
         assert "detached HEAD" in captured.err
 
@@ -1041,10 +1038,8 @@ class TestMain:
             current_branch="feat/big",
             files=tuple(f"file{i}.py" for i in range(55)),
         )
-        env = os.environ.copy()
-        env.pop("SKIP_SCOPE_CHECK", None)
         with (
-            patch.dict(os.environ, env, clear=True),
+            patch.dict(os.environ, {}, clear=True),
             patch(
                 "scripts.detect_scope_explosion.detect_scope",
                 return_value=over_guidance_result,
