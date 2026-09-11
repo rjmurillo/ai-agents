@@ -1,3 +1,7 @@
+## Delegate To Cheaper Models
+
+Push non-trivial implementation and research to subagents (`Agent`) or `Workflow`, on Sonnet or Haiku (`model: "sonnet"`/`"haiku"`), rather than working inline. Reserve Opus for reviewing finished work, not the first pass.
+
 <claude-mem-context>
 # Recent Activity
 
