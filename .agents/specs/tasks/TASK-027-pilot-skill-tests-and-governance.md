@@ -1,6 +1,6 @@
 ---
 type: task
-id: TASK-026
+id: TASK-027
 title: Eight pilot templates, six partials, rendered files, mirrors, contract tests (A2)
 status: todo
 priority: P1
@@ -15,7 +15,7 @@ updated: 2026-09-11
 author: spec
 ---
 
-# TASK-026: Eight pilot templates, six partials, rendered files, mirrors, contract tests (A2)
+# TASK-027: Eight pilot templates, six partials, rendered files, mirrors, contract tests (A2)
 
 ## Done definition
 

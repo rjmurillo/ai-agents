@@ -10,7 +10,7 @@ related:
   - REQ-003
   - TASK-024
   - TASK-025
-  - TASK-026
+  - TASK-027
 created: 2026-09-11
 updated: 2026-09-11
 author: spec
