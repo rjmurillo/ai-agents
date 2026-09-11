@@ -160,10 +160,18 @@ def test_plan_source_and_mirror_agree() -> None:
 
     source = _read(PLAN_SOURCE)
     mirror = _read(PLAN_MIRROR)
-    assert "@CLAUDE.md" in source, "missing @CLAUDE.md marker in plan source"
+    # ADR-108 (TASK-027, A2): plan is now a template-owned pilot skill.
+    # templates/skills/plan.SKILL.md.tmpl carries no @CLAUDE.md line (Claude
+    # Code loads CLAUDE.md as project instructions on its own; the include
+    # bought nothing there and was literal text on Copilot), so neither the
+    # rendered source nor its mirror carries one, in either direction.
+    assert "@CLAUDE.md" not in source, (
+        "plan source still carries an @CLAUDE.md line; ADR-108 removed it "
+        "when plan became template-owned"
+    )
     assert "@CLAUDE.md" not in mirror, (
-        "plan mirror still carries a bare @CLAUDE.md include; the #2743 "
-        "translation should replace it with a Copilot plugin-tree note"
+        "plan mirror still carries a bare @CLAUDE.md include; ADR-108 removed "
+        "the line from the rendered source it mirrors"
     )
 
     # Both files carry frontmatter; the bridge swaps command frontmatter for
