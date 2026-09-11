@@ -535,3 +535,4 @@ Two edits to the record after the round-4 vote, neither changing a decision:
 - Two Impact-table citations (`REQ-003-...md:358-361` and `generated-artifacts.md:196`) gained
   backticked anchor text so `scripts/validation/check_citation_freshness.py` can match them at
   the cited lines. No line number or claim changed.
+- Two more Impact-table citations (`ADR-107...md:61-62`, `build/AGENTS.md:8`) gained anchor text for the same gate. No claim changed.
