@@ -37,7 +37,7 @@ Claude Code lifecycle hooks for this plugin root; consumed by the Claude Code ha
 ## Skip
 
 - `__pycache__/` under any hook directory: gitignored bytecode, never a source.
-- Every per-directory `CLAUDE.md` (`.claude/hooks/CLAUDE.md` and the one under each event directory): a claude-mem auto-context stub with no authored content.
+- `.claude/hooks/CLAUDE.md` and the stubs under `PostToolUse/`, `PreCompact/`, `PreToolUse/`, and `SessionStart/`: claude-mem auto-context stubs with no authored content. `SessionEnd/` and `UserPromptSubmit/` carry no such stub.
 - `PostToolUse/README.md`: a hook-authoring template for a hook class that currently ships zero scripts; useful only if you are adding the first one back.
 - `PreToolUse/_bootstrap.py`: shared plugin-path bootstrap for a future tool-use guard; not imported by any hook that ships today. Dead until a new `PreToolUse`/`PostToolUse` hook is added.
 - `PreToolUse/markdownlint-safe-config.yaml`: static config data, not a hook script.
@@ -58,14 +58,14 @@ Claude Code lifecycle hooks for this plugin root; consumed by the Claude Code ha
 - "This tree mirrors 1:1 into the Copilot plugin" is false. The Copilot mirror carries only an empty `hooks.json` and one config file; none of the `SessionStart`/`UserPromptSubmit`/`SessionEnd`/`PreCompact` scripts here are generated into it.
 - "`_bootstrap.py` being present under `PreToolUse/` means a tool-use hook is registered" is false; it is unused scaffolding until the first new tool-use hook lands.
 - "Editing a per-directory `CLAUDE.md` documents the hook" is false; those files are claude-mem stubs, not authored docs. This `AGENTS.md` is the doc surface.
-- "Fail-open means uninstrumented" is false: nearly every hook writes a best-effort audit log line (e.g. under `.agents/.hook-state/` in a checkout that has one) even when it degrades.
+- "Fail-open means uninstrumented" is false for 2 of the 6 registered invokers, and true for the other 4. `invoke_context_loader.py` and `invoke_checkout_freshness_check.py` each write a best-effort audit log line under `.agents/.hook-state/` (in a checkout that has one) even when they degrade; `invoke_plugin_hook_drift_check.py`, `invoke_memory_recall.py`, `invoke_memory_reflection.py`, and `invoke_compact_checkpoint.py` write none and degrade silently.
 
 ## Dependencies
 
 - Feeds a generated Copilot CLI mirror under `src/copilot-cli/hooks/` via a hook generator in the `rjmurillo/ai-agents` repository's `build/` tree; regeneration order matters (a shared lib mirror must sync before hooks regenerate) and is owned outside this directory.
 - `.claude/lib/` is a sibling dependency, not vendored here: `claude_hook_dispatch.py`, `claude_hook_protocol.py`, and `hook_utilities/` are imported by every `invoke_*.py` and by `invoke_dispatch_claude.py` itself.
 - CI gates this tree from two directions, both re-run by a pre-push job in the `rjmurillo/ai-agents` repository whenever this directory, the Copilot mirror, or the generator changes: a hook-contract check validates every registered group's shims exist and expose valid exit-code semantics, and an installed-plugin hook guard materializes the shipped Copilot plugin as a consumer would install it and loads its hooks from a non-repo directory on Linux, macOS, and Windows, including a Python-less "vanilla" environment, to prove a broken or empty install degrades rather than wedging.
-- `.serena/memories/` and the retrospective directory (both outside this plugin root) are read by `invoke_context_loader.py`; absent in a consumer checkout, which is why it fails open rather than erroring.
+- `.agents/retrospective/` (outside this plugin root) is read by `invoke_context_loader.py`, which prints the consumer-repo skip line and exits 0 when absent. `.serena/memories/` is read instead by `UserPromptSubmit/invoke_memory_recall.py`, whose docstring names `memory_enhancement.hooks.user_prompt_submit_memory` under `scripts/`.
 
 ## Architecture
 
@@ -74,6 +74,8 @@ Claude Code lifecycle hooks for this plugin root; consumed by the Claude Code ha
 - The plugin-hook-drift check (`SessionStart/plugin_hook_drift_*.py`, four files split by concern: model, report, safety, state) expands both this checkout's registrations and any installed plugin copy's registrations down to their real shim membership before diffing, specifically so a stale install that still routes through the same dispatcher group id is not mistaken for a match.
 
 ## Commands
+
+These commands run only in the `rjmurillo/ai-agents` repository checkout, not in a consumer plugin install.
 
 ```bash
 # Run one dispatch group by hand, feeding a JSON payload on stdin.
