@@ -22,8 +22,8 @@ CI workflows, generated Copilot-CLI mirrors, and hand-maintained agent parity co
 
 | Path | Why |
 |---|---|
-| `workflows/*.yml` (60 tracked) | Hand-edited; schema-checked by `scripts/validate_workflows.py` inside `pr-validation.yml` |
-| `agents/*.agent.md` (32) + `agents/security/references/*.md` | Hand copy, parity group with `templates/agents/*.shared.md`, `src/claude/`, `.claude/agents/`; the `references/` subdir backs `security.agent.md` only |
+| `workflows/*.yml` (58 tracked, plus 2 `.yml.disabled`) | Hand-edited; schema-checked by `scripts/validate_workflows.py` inside `pr-validation.yml` |
+| `agents/*.agent.md` (31) + `agents/security/references/*.md` | Hand copy, parity group with `templates/agents/*.shared.md`, `src/claude/`, `.claude/agents/`; the `references/` subdir backs `security.agent.md` only |
 | `instructions/*.instructions.md` (29) | Generated mirror of `.claude/rules/*.md`; `paths:` becomes `applyTo:` |
 | `prompts/pr-quality-gate-*.md` | Generated from `.claude/skills/review/references/*.md`; owned in `CODEOWNERS` |
 | `prompts/*.md` (other) | Hand prompts for workflow steps (spec checks, triage, drift issue, synthesis) |

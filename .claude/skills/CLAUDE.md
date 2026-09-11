@@ -14,8 +14,9 @@
 ## Entry points
 
 - New skill: the `skillforge` skill creates and reviews it end to end.
-- `SKILL.md` frontmatter, line 1: `name` (`^[a-z0-9-]{1,64}$`), `version`, `description` (max 1024 chars, no XML tags, 3-5 trigger phrases plus a "Do NOT use ... (use X)" discriminator), `license`. `version` and `model` are top-level fields, never nested under `metadata:`.
-- Process section heading is `## Process` or `### Phase N` (110 of 111 skills use the former today).
+- `SKILL.md` frontmatter, line 1: `name` (`^[a-z0-9-]{1,64}$`), `version`, `description` (max 1024 chars, no XML tags, a "Do NOT use ... (use X)" discriminator), `license`. `version` and `model` are top-level fields, never nested under `metadata:`.
+- Trigger phrases are a body `## Triggers` H2, not part of frontmatter `description`: 1 to 5 backtick-wrapped phrases (an unwrapped phrase counts as zero), shell metacharacters rejected. `skillforge`'s validator enforces this at commit time.
+- Process section heading is `## Process` or `### Phase N` (110 of 111 skills use the former today); one of `## Verification`, `## Success Criteria`, `## Checklist` is also required.
 
 ## Where to look
 
@@ -53,7 +54,7 @@
 
 - Feeds the Copilot CLI plugin's mirrored skills tree via the generator named in Matters.
 - Pre-commit gates: skill-format validation on every `**/SKILL.md`, a size check, and a colocated-test check.
-- Pre-push: the shift-left validation runner's `Skill*` gates: ADR bindings, script portability, markdown portability, markdown exec portability, resolver anchoring, contract tests, shell detection, colocated tests, shipped skill routes.
+- Pre-push: the shift-left validation runner's skill gates (9 named `Skill*`: ADR bindings, script portability, markdown portability, markdown exec portability, resolver anchoring, contract tests, shell detection, SKIP clause routing, memory references; plus `Colocated Skill Tests` and `Shipped Skill Routes`).
 - CI workflows: an agent/skill discriminator check, a passive-compliance check, and a description-budget check.
 
 ## Architecture
@@ -67,7 +68,7 @@
 Repository-only checks (not part of the shipped plugin); run from the `rjmurillo/ai-agents` repository root:
 
 ```bash
-uv run python skill_size.py --staged-only --ci
-uv run python check_colocated_skill_tests.py --staged-only
-uv run python pre_pr.py
+uv run python scripts/validation/skill_size.py --staged-only --ci
+uv run python scripts/validation/check_colocated_skill_tests.py --staged-only
+uv run python scripts/validation/pre_pr.py
 ```

@@ -49,13 +49,13 @@ Agent governance, planning, and history for the `rjmurillo/ai-agents` repository
 - Never amend a commit that already carries a recorded `endingCommit`; commit the SHA in a follow-up commit instead (`session-logs.md` MUST-2), and re-point it after any rebase (MUST-3).
 - `validate-planning-artifacts.yml` fires on `planning/**`: estimate divergence, orphan conditions, task coverage.
 - `sessions/**` and `retrospective/**` content must be secret-redacted before it is written (`secret-redaction.md`).
-- Serena memory writes from a linked worktree land in the activating checkout, not yours (`universal.md` MUST NOT 10): write from the main checkout instead.
+- Worktree Serena writes: behavior and the binding rule live in `.claude/rules/universal.md` MUST NOT 10; not restated here.
 
 ## Dangerous assumptions
 
 - `hooks/hooks.yaml` looks like the live hook manifest. Its own `hooks/README.md` says otherwise: "a retired inventory. No generator or runtime reads it." The real sources of truth are `.claude/settings.json`, `.claude/hooks/`, and `templates/platforms/copilot-cli.yaml`.
 - `governance/naming-conventions.md` documents a lowercase `prd-name.md` PRD pattern under `.agents/planning/`. Tracked PRDs mostly use `PRD-Name.md` (uppercase) under `specs/`, `plans/`, or `archive/planning/`; go by the tracked files, not the doc alone.
-- There is no `TASK-EPIC-NNN-MM` naming pattern anywhere in `naming-conventions.md` or the tracked tree. Tasks are `TASK-NNN-[kebab-name].md` under `specs/tasks/`.
+- `naming-conventions.md` defines no `TASK-EPIC-NNN-MM` pattern; the only other tracked occurrence is `.agents/archive/phase3-complete-handoff.md`, a retired PowerShell validator's pattern list. Live tasks are `TASK-NNN-<kebab-name>.md` under `specs/tasks/`.
 
 ## Dependencies
 

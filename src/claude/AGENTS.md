@@ -23,7 +23,7 @@
 | `<name>.md` | One agent's full prompt: frontmatter plus body |
 | `claude-instructions.template.md` | Shared preamble text, not an agent; carries no frontmatter and no template counterpart |
 | `security/references/` | Threat-model and checklist references the `security` agent's prompt points to |
-| `merge-resolver.md`, `pr-comment-responder.md` | The only two agents that hard-code a `${CLAUDE_PLUGIN_ROOT:-.claude}/skills/...` script path (see Dangerous assumptions) |
+| `merge-resolver.md`, `pr-comment-responder.md`, `quality-auditor.md` | The three agents that hard-code a `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` script path (merge-resolver uses the older single-variable form; see Dangerous assumptions) |
 
 ## Skip
 
@@ -42,7 +42,7 @@
 ## Dangerous assumptions
 
 - Assuming a passing drift check means an agent here agrees with its `src/vs-code-agents/` counterpart is wrong: the check is a word-set similarity floor over an allowlist of section names, not equality, and several comparisons score a hardcoded 100.0 when the agent has none of the allowlisted sections at all.
-- Assuming the shared-template "required sections" list (Core Identity, Activation Profile, Core Mission, Key Responsibilities, Constraints, Memory Protocol, Handoff Options) holds for files in this tree is wrong: none of those headings reaches even 17 of the 31 files, and nothing enforces the list here.
+- Assuming the shared-template "required sections" list (`templates/README.md`: Core Identity, Core Mission, Key Responsibilities, Constraints, Memory Protocol, Handoff Options; Activation Profile is common but not on that list) holds for files in this tree is wrong: none of those headings appears in more than 17 of the 31 files, and nothing enforces the list here.
 - Assuming `${CLAUDE_PLUGIN_ROOT:-.claude}/skills/...` always resolves for a `claude-agents`-only install is wrong: this plugin ships no `skills/` directory of its own (see Constraints).
 - Assuming a solo edit here is safe because "the agent still works" ignores that no automated check requires the matching template edit in the same change; only the co-change diff check runs, and it does not require this direction.
 
@@ -55,7 +55,7 @@
 ## Architecture
 
 - This tree is a hand-maintained fork of the shared template body, not a generated copy: the shared source lives in a separate file per agent in the repository, and the two are kept in step by author discipline plus the co-change check, never by a tool that compares their content.
-- `claude-instructions.template.md` has no template counterpart at all, unlike every one of the 31 agent files, which the repository's drift checker reports as `NO COUNTERPART`.
+- Every one of the 31 agent files has a `templates/agents/<name>.shared.md` counterpart; `claude-instructions.template.md` has none, and the drift checker's skip list (`_NON_AGENT_FILENAMES`) covers only `AGENTS` and `CLAUDE`, so it is reported as `NO COUNTERPART`.
 
 ## Commands
 
