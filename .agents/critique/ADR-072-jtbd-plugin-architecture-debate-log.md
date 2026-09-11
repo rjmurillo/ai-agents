@@ -275,3 +275,31 @@ chain was followed one link and not two.
   `agents`, `skills` and `commands` path fields never get. Pre-existing, unrelated
   to this record, and cheapest to close in the same PR as M4 since that PR opens
   the file anyway.
+
+### Round 3 addendum, same day: the third line citation drifted while the round ran
+
+Four commits landed on `main` between this round's commit and its first check-in,
+one of them ADR-108, which amended REQ-003 in the same file this round had just
+started citing. Two things moved at once:
+
+- **The line number.** REQ-003-010 sat at line 358 when the Cursor and Codex
+  paragraph was written and at 359 about an hour later.
+- **The quoted sentence.** ADR-108 added an "except the template-owned skill
+  files" carve-out, so the verbatim quote in this record stopped one clause
+  early and presented an amended requirement as unamended.
+
+The substance was unaffected: REQ-003-010 still constrains where the build may
+write rather than which filenames it may emit, the carve-out adds no filename
+exclusion, and `generate_skills.py` is unchanged (`_DEFAULT_EXCLUDES` at line 39,
+the docstring attribution at line 7). ADR-107 also still names this record and
+still declares it "**not** a dependency", so the reference added this round
+holds.
+
+The paragraph now cites REQ-003-010 by requirement id and names the
+ADR-108 amendment. Counting the two this round already corrected (an ADR-073
+reference off by one, and a validator line pair where one of the two cited lines
+was blank), that is three line citations wrong out of three checked in a single
+round. The generalization worth keeping: in this repository, cite a stable
+identifier (a requirement id, a symbol name, a heading) and quote the contract
+verbatim. Reserve a line number for a file the citation-freshness gate actually
+covers, and expect it to rot everywhere else.

@@ -284,15 +284,23 @@ capability-plugin root at any other path is unaffected by it today.
   `_DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")`.
 
   That exclusion is real in code, and its stated requirement backing is one hop
-  short. The generator's docstring at line 7 attributes it to "the
-  AGENTS.md/CLAUDE.md exclude policy (REQ-003-010)", but REQ-003-010 itself
-  (`.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md:358` to
-  `:359`) reads "`.claude/` is read-only to the build. The build shall never
-  write to `.claude/<artifact>/` or `.claude/settings.json`", which is a no-write
-  invariant and says nothing about excluding these two filenames from generated
-  output. An earlier revision of this paragraph said a Codex emitter would
-  "reverse a requirement"; it would reverse a generator policy whose cited
-  requirement does not carry it. The docstring citation is a separable defect in
+  short. The generator's docstring attributes it to "the AGENTS.md/CLAUDE.md
+  exclude policy (REQ-003-010)". REQ-003-010, in
+  `.agents/specs/requirements/REQ-003-multi-tool-artifact-build.md`, is titled
+  "`.claude/` is read-only to the build" and constrains where the build may
+  write, not which filenames it may emit. It says nothing about excluding these
+  two. ADR-108 amended it on 2026-09-11 to carve out template-owned skill files,
+  which changes what the build may write and still adds no filename exclusion.
+
+  Cited by requirement id rather than by line number on purpose. This round
+  already corrected two drifted line citations, and this particular file's line
+  numbers moved again while the round was running: REQ-003-010 sat at line 358
+  when the paragraph above was written and at 359 an hour later. A stable
+  identifier survives that; a line number does not.
+
+  An earlier revision of this paragraph said a Codex emitter would "reverse a
+  requirement". It would reverse a generator policy whose cited requirement does
+  not carry it. The docstring citation is a separable defect in
   `generate_skills.py`, not in this record.
 
   A Codex emitter therefore means converting hand-authored guides into generated
