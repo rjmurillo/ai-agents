@@ -1,6 +1,6 @@
 """Tests for build/scripts/validate_plugin_manifests.py.
 
-Covers the regression class from PR #1773 (broken plugin install for
+Covers the regression class from PR #1776 (broken plugin install for
 all consumers due to invalid `agents`/`hooks` shapes in plugin.json),
 plus the Claude-specific manifest regression from issue #1833.
 """
@@ -285,11 +285,11 @@ def test_issue_1833_rejects_copilot_marketplace_manifest_too(tmp_path: Path) -> 
     assert "`skills`" in scoped[0]
 
 
-# --- Regression: PR #1773 bug -----------------------------------------------
+# --- Regression: PR #1776 bug -----------------------------------------------
 
 
 def test_regression_hooks_as_dict_of_strings_rejected(tmp_path: Path) -> None:
-    """PR #1773 bug: pointing hook events at directories breaks plugin install."""
+    """PR #1776 bug: pointing hook events at directories breaks plugin install."""
     target = _write(
         tmp_path,
         {
@@ -302,7 +302,7 @@ def test_regression_hooks_as_dict_of_strings_rejected(tmp_path: Path) -> None:
     )
     errors = vpm.validate_manifest(target)
     assert errors
-    assert any("PR #1773" in e for e in errors)
+    assert any("PR #1776" in e for e in errors)
     assert any("PreToolUse" in e for e in errors)
 
 
