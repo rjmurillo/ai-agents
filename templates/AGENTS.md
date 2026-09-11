@@ -46,7 +46,7 @@ Source of truth for Copilot CLI, VS Code, and Visual Studio agent mirrors only; 
 ## Dangerous assumptions
 
 - "Parity gate passed" does not mean the hand-maintained copies agree with the template. `validate_install_parity.py` checks that files changed together in a diff; nothing compares their text.
-- "Drift check passed" does not mean a template edit reached `src/claude` or `.claude/agents`. `detect_agent_drift.py` never reads template content, only template filenames (to pick which agents to compare), and it scores only 18 allowlisted sections, so a whole section can differ on one side and still pass.
+- "Drift check passed" does not mean a template edit reached `src/claude` or `.claude/agents`. `detect_agent_drift.py` never reads template content, only template filenames (to pick which agents to compare). It scores 23 allowlisted sections (`SECTIONS_TO_COMPARE`). A heading present on only one side always fails, but a section outside that allowlist that exists on both sides is never compared, so its text can diverge freely.
 - A `src/claude/`-only edit with no matching template edit is not caught by any gate: the co-change check does not require the template side.
 
 ## Dependencies

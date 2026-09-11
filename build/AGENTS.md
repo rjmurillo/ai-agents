@@ -1,9 +1,6 @@
 # build/
 
-Generators, mirror-sync helpers, and drift/parity gates for the agent, skill,
-rule, and hook pipeline. Consumed by contributors editing a canonical source
-(`.claude/`, `templates/`, `src/claude/`) and by CI (`build_all.py --check`,
-the parity validators). Python only, invoked with `uv run python`.
+Generators, mirror-sync helpers, and drift/parity gates for the agent, skill, rule, and hook pipeline. Consumed by contributors editing a canonical source (`.claude/`, `templates/`, `src/claude/`) and by CI (`build_all.py --check`, the parity validators). Python only, invoked with `uv run python`.
 
 ## Matters
 
@@ -15,12 +12,10 @@ the parity validators). Python only, invoked with `uv run python`.
 
 ## Entry points
 
-| Command | Effect |
-|---|---|
-| `uv run python build/scripts/build_all.py` | Regenerate everything from canonical sources |
-| `uv run python build/scripts/build_all.py --check` | CI drift gate; no writes |
-| `uv run python build/generate_agents.py` | Agents only, standalone |
-| `uv run python build/scripts/detect_agent_drift.py` | Similarity gate, standalone |
+- `uv run python build/scripts/build_all.py`: regenerate everything from canonical sources.
+- `uv run python build/scripts/build_all.py --check`: CI drift gate; no writes.
+- `uv run python build/generate_agents.py`: agents only, standalone.
+- `uv run python build/scripts/detect_agent_drift.py`: similarity gate, standalone.
 
 ## Where to look
 
@@ -50,6 +45,7 @@ the parity validators). Python only, invoked with `uv run python`.
 - `build/scripts/validate_install_parity.py` checks co-change only (did the sibling paths move together in the diff), not content equality; `AGENTS.md`/`CLAUDE.md` names are excluded from every parity group.
 - `build/scripts/check_agent_content_parity.py` is the content gate `validate_install_parity.py` does not provide: byte-for-byte `.claude/agents/` vs `src/claude/`.
 - Regenerating with a mismatched sync order (see Matters) is a silent failure: both scripts exit 0.
+- `build/scripts/validate_path_normalization.py --fail-on-violation` scans every Markdown file for a Windows drive, macOS, or Linux home path and fails the build on a hit; it is wired into `scripts/validation/pre_pr_sequence.py`, the `lefthook.yml` pre-push group, and `.github/workflows/validate-paths.yml`.
 
 ## Dangerous assumptions
 
@@ -68,7 +64,7 @@ the parity validators). Python only, invoked with `uv run python`.
 ## Architecture
 
 - Plugin lib is a two-hop mirror chain, not a single copy: `scripts/{hook_utilities,github_core,ai_review_common}` -> (`scripts/sync_plugin_lib.py`) -> `.claude/lib/` -> (`build/scripts/build_all.py`, `_build_lib`) -> `src/copilot-cli/lib/`. Neither script calls the other.
-- Hook generation retains per-matcher shim wrappers, then additionally emits one dispatcher registration per event when the target platform config enables dispatcher mode (ADR-068). Publication and cleanup of dispatcher artifacts, stale shims, and orphaned event files run through `HookGenerationTransaction`; files carrying a `NO-REGEN` sentinel (`build/scripts/regen_guard.py`) are preserved untouched.
+- Hook generation retains per-matcher shim wrappers and also emits one dispatcher registration per event when the target platform config enables dispatcher mode (ADR-068). Publication and cleanup of dispatcher artifacts, stale shims, and orphaned event files run through `HookGenerationTransaction`; files carrying a `NO-REGEN` sentinel (`build/scripts/regen_guard.py`) are preserved untouched.
 
 ## Commands
 

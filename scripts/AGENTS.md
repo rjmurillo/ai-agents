@@ -38,7 +38,7 @@ Repo automation for developers, lefthook, and CI; consumed by contributors runni
 - `scripts/__pycache__/` and every nested `__pycache__/`: bytecode cache, not source.
 - `scripts/ci/*_baseline.txt`: ratchet floors; read them, never hand-edit (use each script's `--update`).
 - `scripts/migrations/`: one-off migrations already applied; historical, not a pattern to extend.
-- `scripts/dev/`: MCPorter dogfood wrapper, single file, not part of the gate chain.
+- `scripts/dev/`: `dogfood_copilot_plugin.py`, copies the working tree's Copilot plugin over the installed dogfood copy; single file, not part of the gate chain.
 - `scripts/bootstrap-vm.sh`: legacy exception to the Python-only rule; do not model new scripts on it.
 
 ## Constraints

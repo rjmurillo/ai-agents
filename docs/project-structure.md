@@ -57,16 +57,13 @@ Repo root map: what an agent edits, what is generated, and what to skip before t
 - No em or en dash in authored text; `staged-dashes` (`scripts/validation/git_hook_policy.py staged-dashes`) blocks the commit. `tests/hooks/fixtures/` is exempt.
 - More than 5 authored files in one commit fails `atomic-commit` (`scripts/validation/git_hook_policy.py atomic-commit`); `scripts/detect_scope_explosion.py` warns at 10 files and blocks a push over 50.
 - A documented `python3 <tracked>.py` invocation fails the doc-interpreter-portability gate (`scripts/validation/check_doc_interpreter_portability.py`); the fixed form is `uv run python <path>`.
-- Hook bypass is forbidden outright: `--no-verify`, `LEFTHOOK=0`, an overridden `LEFTHOOK_BIN`, a lefthook config override, a direct edit to an installed hook, or `LEFTHOOK_EXCLUDE` (`.claude/rules/universal.md` MUST NOT 2).
-- New GitHub Actions references must pin to a commit SHA, never a floating tag (`.claude/rules/universal.md` MUST 8).
-- Worktrees must be external: a sibling of the checkout or `~/worktrees/`, never under the clone or a system temp directory (`.claude/rules/universal.md` MUST 6).
+- `build/scripts/validate_path_normalization.py --fail-on-violation` scans every Markdown file for a Windows drive, macOS, or Linux home path (`lefthook.yml` pre-push, `.github/workflows/validate-paths.yml`, `scripts/validation/pre_pr_sequence.py`).
+- Always-on bans (hook bypass, floating Action tags, in-clone worktrees, local-clears-remote, worktree Serena writes) live in `.claude/rules/universal.md`; not restated here.
 
 ## Dangerous assumptions
 
 - "`src/claude/` is a generated mirror, so I don't need to hand-edit it" is false: no generator writes it, and the parity validator excludes `AGENTS.md`/`CLAUDE.md` from every group, so this tree had no drift gate at all until the gap was named.
 - "PowerShell docs mean a `.ps1` script exists somewhere" is false: `git ls-files '*.ps1'` returns zero tracked files; PowerShell mentions in older docs are history, not a live target.
-- "A green local test run clears a red remote check" is false unless the checker, ruleset, flags, and version are demonstrably identical (`.claude/rules/universal.md` MUST 4).
-- "Serena memory writes always land where I'm sitting" is false from a linked worktree: the write resolves through the checkout that activated the Serena project, not the worktree's own directory, and still reports success.
 - "This map's file counts are a contract" is false: they are a freshness signal. `.agents/memory/episodes/` and `.serena/memories/` grow every session; re-verify with `git ls-files` before citing a count elsewhere.
 
 ## Dependencies
@@ -82,11 +79,11 @@ Repo root map: what an agent edits, what is generated, and what to skip before t
 
 ## Commands
 
-| Task | Command |
-|---|---|
-| Tests | `uv run pytest tests/ -x` (120s per-test timeout; skill tests in `tests/skills/<name>/`) |
-| Lint | `uv run ruff check .` (line length 100; syntax target py310, runtime 3.14) |
-| Pre-PR gate | `uv run python scripts/validation/pre_pr.py` (`--quick` skips slow gates) |
-| Regen or drift | `uv run python build/scripts/build_all.py` (add `--check` for the drift gate) |
-| Agents only | `uv run python build/generate_agents.py` (`--validate`, `--what-if`) |
-| Push | `/push-pr` skill; PRs and comments via the `github` skill, never raw `gh` when a skill exists |
+```bash
+uv run pytest tests/ -x                       # 120s per-test timeout; skill tests in tests/skills/<name>/
+uv run ruff check .                           # line length 100; syntax target py310, runtime 3.14
+uv run python scripts/validation/pre_pr.py    # pre-PR gate (--quick skips slow gates)
+uv run python build/scripts/build_all.py      # regen or drift (add --check for the drift gate)
+uv run python build/generate_agents.py        # agents only (--validate, --what-if)
+# Push: /push-pr skill; PRs and comments via the github skill, never raw gh when a skill exists.
+```
