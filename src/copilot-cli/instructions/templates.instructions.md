@@ -6,6 +6,12 @@ applyTo: templates/**
 
 `templates/` is the source of truth for the agent copies that `build/generate_agents.py` writes: `src/copilot-cli/agents/` and `src/vs-code-agents/`. It does NOT cascade everywhere. `src/claude/`, `.claude/agents/`, and `.github/agents/` are hand-maintained and no generator writes them, so a template edit reaches them only if you make the matching edit yourself in the same change. Forgetting either half leaves the platforms out of sync.
 
+<!-- vendor-portability: this rule names contributor-facing regeneration
+commands (`build/generate_agents.py`, `build/scripts/build_all.py`) under the
+upstream-only `build/` tree, absent from every vendored plugin install. A
+consumer never runs either; the mentions are dev workflow, not runtime
+instructions the shipped skill would execute. Issue #2050. -->
+
 ## MUST
 
 1. **Regenerate after edits**. Changes MUST be followed by running `uv run python build/generate_agents.py` before commit. Uncommitted generator output is a protocol failure. `templates/skills/<name>.SKILL.md.tmpl` is the one exception to this file's agents-only scope (ADR-108, template-owned skill files under `.claude/skills/`): its regeneration command is `uv run python build/scripts/build_all.py`, not `generate_agents.py`.
