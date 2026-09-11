@@ -6,9 +6,15 @@ applyTo: templates/**
 
 `templates/` is the source of truth for the agent copies that `build/generate_agents.py` writes: `src/copilot-cli/agents/` and `src/vs-code-agents/`. It does NOT cascade everywhere. `src/claude/`, `.claude/agents/`, and `.github/agents/` are hand-maintained and no generator writes them, so a template edit reaches them only if you make the matching edit yourself in the same change. Forgetting either half leaves the platforms out of sync.
 
+<!-- vendor-portability: this rule names contributor-facing regeneration
+commands (`build/generate_agents.py`, `build/scripts/build_all.py`) under the
+upstream-only `build/` tree, absent from every vendored plugin install. A
+consumer never runs either; the mentions are dev workflow, not runtime
+instructions the shipped skill would execute. Issue #2050. -->
+
 ## MUST
 
-1. **Regenerate after edits**. Changes MUST be followed by running `uv run python build/generate_agents.py` before commit. Uncommitted generator output is a protocol failure.
+1. **Regenerate after edits**. Changes MUST be followed by running `uv run python build/generate_agents.py` before commit. Uncommitted generator output is a protocol failure. `templates/skills/<name>.SKILL.md.tmpl` is the one exception to this file's agents-only scope (ADR-108, template-owned skill files under `.claude/skills/`): its regeneration command is `uv run python build/scripts/build_all.py`, not `generate_agents.py`.
 2. **Commit generated output**. Regenerated files under `src/copilot-cli/agents/` and `src/vs-code-agents/` MUST be committed in the same PR as the template change. Those two are the only trees `build/generate_agents.py` writes; `src/claude/`, `.claude/agents/`, and `.github/agents/` are hand-maintained and the generator does not touch them (see `.agents/governance/GENERATOR-FILES.md`).
 3. **Toolset integrity**. Changes that add or remove tools MUST update `templates/toolsets.yaml` consistently.
 4. **Frontmatter fields**. Agent templates MUST keep `description` present and valid. `name` is not a template field: no shipped agent template defines it, and the generator derives the generated agent's name from the template's own filename before platform conversion, adding it back only for a platform whose config sets `includeNameField: true`. `model_tier` is optional: ADR-080 governs whether a generated agent may carry a `model:` pin at all (see MUST-5). ADR-002, formerly cited here, is deprecated in favor of ADR-080 (2026-08-25).

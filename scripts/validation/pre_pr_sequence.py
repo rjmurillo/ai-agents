@@ -81,6 +81,7 @@ from checks_portability import (
     validate_skill_md_exec_portability,
     validate_skill_resolver_anchoring,
     validate_skill_script_portability,
+    validate_skill_template_drift,
 )
 from checks_ratchet import validate_count_ratchets
 from checks_spec import (
@@ -354,6 +355,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Issue #5079: without it, a hand-edit to a generated file cleared every
     # local gate and the generator silently reverted it in CI (PR #5059).
     _Gate("Generated Artifact Staleness", _root_only(validate_generated_staleness)),
+    # ADR-108: a template-owned .claude/skills/<name>/SKILL.md that drifted
+    # from templates/skills/<name>.SKILL.md.tmpl. Runs generate_skills.py
+    # --validate, which never writes.
+    _Gate("Skill Template Drift", _root_only(validate_skill_template_drift)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
     # The six gates below are the six validators the CI job
