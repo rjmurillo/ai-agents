@@ -115,7 +115,7 @@ as the corpus and its history grow, because nobody has one place to check
   stale. `scripts/validation/pre_pr_sequence.py:253-257` (`_Gate("Count
   Ratchets", ..., already_run_by="count-ratchets")`) and the
   `FAST_STAGE_RAN_ENV` skip at `pre_pr_sequence.py:543-556` resolve exactly
-  the duplication this memory describes, wired to `lefthook.yml:590`, and
+  the duplication this memory describes, wired to `lefthook.yml:590`, and <!-- citation-freshness: ignore -- lefthook.yml:590 holds the literal env var name `AI_AGENTS_PRE_PR_FAST_STAGE_RAN`, not the Python constant `FAST_STAGE_RAN_ENV` that stores it; verified present by direct read during REQ-021/TASK-024 implementation, 2026-09-11. -->
   pinned by `tests/validation/test_pre_pr_sequence_registry.py:133-266`
   (`FAST_STAGE_DUPLICATES`, five gates: Count Ratchets, Unreachable Code
   Detection, Path Normalization, Planning Artifacts, Em/en-dash
