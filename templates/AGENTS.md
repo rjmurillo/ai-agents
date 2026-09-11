@@ -36,6 +36,7 @@ Source of truth for Copilot CLI, VS Code, and Visual Studio agent mirrors only; 
 
 ## Constraints
 
+- Cross-harness behavior: read `agent-harness-reference` first; hook, event, or generated-Copilot changes run through `ai-agents-portability-campaign`.
 - Regenerate after every edit and commit both generated trees in the same PR (`templates.md` MUST-1/2).
 - Adding or removing a tool from any template MUST update `toolsets.yaml` consistently (`templates.md` MUST-3).
 - `model_tier` MUST comply with ADR-080; only `haiku` or a fresh manifest `KEEP_PIN` entry resolves to a `model:` pin (`templates.md` MUST-5).

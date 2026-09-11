@@ -32,6 +32,7 @@
 
 ## Constraints
 
+- Cross-harness behavior: read `agent-harness-reference` first; hook, event, or generated-Copilot changes run through `ai-agents-portability-campaign`.
 - An agent file here MUST NOT reference `.agents/`, `build/`, or `scripts/` paths that will not exist for a downstream installer of this plugin.
 - A `model:` field MUST NOT be added without an ADR-080 `KEEP_PIN` manifest entry, or the `haiku` cost exception plus a `model-rationale:` line.
 - Changing shared behavior MUST also touch `templates/agents/<name>.shared.md` in the repository; the repository's parity check fails a solo template edit but does not fail a solo edit to this file alone, so the discipline is on the author, not the gate.
