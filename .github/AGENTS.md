@@ -1,578 +1,90 @@
-# GitHub Actions Agents
+# .github/
 
-This document describes the automated CI/CD agents in GitHub Actions that enforce quality gates, run AI-powered reviews, and maintain repository health.
+CI workflows, generated Copilot-CLI mirrors, and hand-maintained agent parity copies; consumed by GitHub Actions and by GitHub Copilot CLI when it runs inside this repo.
 
-## Overview
+## Matters
 
-The `.github/` directory contains GitHub Actions workflows, composite actions, and prompt templates that automate code review, validation, and quality assurance using both traditional CI and AI-powered analysis.
+- ADR-006: workflow YAML has no branching logic. Every job calls a module under `scripts/ci/` or `.github/scripts/`, tested under `tests/`.
+- Two surfaces here are generated and must never be hand-edited: `instructions/*.instructions.md` (from `.claude/rules/`, via `build/scripts/generate_rules.py`) and `prompts/pr-quality-gate-*.md` (from `.claude/skills/review/references/`, via `build/scripts/generate_pr_quality_prompts.py`).
+- `agents/*.agent.md` is the opposite: hand-maintained, not generated. It must move in lockstep with `.claude/agents/*.md` (`build/scripts/validate_install_parity.py` blocks a solo diff) and is checked for semantic drift weekly (`build/scripts/detect_agent_drift.py`).
+- `copilot-instructions.md` is Copilot's always-on entry point for this repo; it carries its own byte ratchet (6351 bytes, `scripts/validate_workspace_budget.py`), separate from the 2000-token cap on root `AGENTS.md`/`CLAUDE.md`.
+- Before touching an agent, prompt, instruction, or hook file shared with Copilot CLI, read the `agent-harness-reference` skill first and route the change through `ai-agents-portability-campaign`.
+- No merge queue on this repo. Count ratchets under `scripts/ci/` accept a count at or below their own baseline, so two concurrent cleanup PRs never both red `main` on the same violation.
 
-Before changing agents, prompts, instructions, hooks, or generated runtime
-surfaces shared by Claude Code and Copilot CLI, load
-`agent-harness-reference`. Execute contract changes through
-`ai-agents-portability-campaign`. Do not infer one harness from another.
+## Entry points
+
+- `workflows/pr-validation.yml`: the required check every PR runs (PR body shape, commit count, ADR-006 scan, rule `paths:` keys, bare-`python3` doc entrypoints, memory-index token ratchet).
+- `copilot-instructions.md`: loaded into every Copilot CLI session in this repo.
+- `PULL_REQUEST_TEMPLATE.md`: the body shape `pr-validation.yml` checks every PR against.
+- `scripts/ci/*.py` and `scripts/*.py`: the logic behind every workflow above.
+
+## Where to look
+
+| Path | Why |
+|---|---|
+| `workflows/*.yml` (58 tracked, plus 2 `.yml.disabled`) | Hand-edited; schema-checked by `scripts/validate_workflows.py` inside `pr-validation.yml` |
+| `agents/*.agent.md` (31) + `agents/security/references/*.md` | Hand copy, parity group with `templates/agents/*.shared.md`, `src/claude/`, `.claude/agents/`; the `references/` subdir backs `security.agent.md` only |
+| `instructions/*.instructions.md` (29) | Generated mirror of `.claude/rules/*.md`; `paths:` becomes `applyTo:` |
+| `prompts/pr-quality-gate-*.md` | Generated from `.claude/skills/review/references/*.md`; owned in `CODEOWNERS` |
+| `prompts/*.md` (other) | Hand prompts for workflow steps (spec checks, triage, drift issue, synthesis) |
+| `copilot-instructions.md`, `copilot-code-review.md` | Copilot always-on entry (see Matters); review-comment volume/confidence rules for AI reviewers (issue #326) |
+| `scripts/*.py` (19, plus `ci/`) | Workflow helper modules; tests live at repo-root `tests/`, not `.github/tests/` |
+| `actions/` | Composites: `ai-review`, `setup-code-env`, `test-installed-plugin-hooks`, `validate-plugin-manifests`, `workflow-debounce` |
+| `plugin/marketplace.json`, `copilot/settings.json`, `codeql/*.yml` | Copilot marketplace entry (`src/copilot-cli` source, no `version` per ADR-092), Copilot CLI settings, CodeQL config/suppressions |
+| `CODEOWNERS`, `labeler.yml`, `bot-authors.yml` | Owner review gates, path-based PR labels, bot-actor identification |
+
+## Skip
+
+- `workflows/*.yml.disabled` (`droid-review.yml.disabled`, `droid.yml.disabled`): tracked but inert, GitHub never runs a `.disabled` workflow file.
+- `scripts/__pycache__/`, `actions/workflow-debounce/__pycache__/`: untracked bytecode, ignore if seen on disk.
+- `ISSUE_TEMPLATE/`, `FUNDING.yml`: boilerplate, no gate reads them.
+
+## Constraints
+
+- Actions pin to a commit SHA, never a floating tag: enforced locally by `git_hook_policy.py staged-action-pins` and remotely by `scripts/validate_workflows.py` inside the required `pr-validation.yml` (`security.md` MUST-4).
+- A workflow whose gate reads the *whole tree*, not just the diff, must run unconditionally on `push` to `main`; a path filter there manufactures a false-green skip job (`ci-scripts.md`). `instruction-budget.yml` has no path filter for this reason.
+- A step invoked with bare `python3` (no preceding `uv`/`astral-sh/setup-uv` step) may only import the standard library; a third-party import fails before the script runs, with no local reproduction (`ci-scripts.md` MUST-18). Several `ai-spec-validation.yml` steps are in this shape.
+- A new gate PR must quote the gate passing against the full corpus before merge, not just a fixture test (`ci-scripts.md` MUST-13).
+- New workflow concurrency groups register in `.github/scripts/measure_workflow_coalescing.py`'s `DEFAULT_WORKFLOWS` and use `cancel-in-progress: true`; coalescing is best-effort (over 20% duplicate runs is a bug, ADR-026, issue #803).
+- `gh` calls from `.github/scripts/*.py` pass `--repo`/`--repository` explicitly.
+
+## Dangerous assumptions
+
+- "SHA pinning is enforced by `check_ci_dependency_pins.py`": wrong, that script checks hand-written `pkg==version` pins against `pyproject.toml`. The Action-SHA gate is `staged-action-pins` locally and `scripts/validate_workflows.py` in CI.
+- "`instruction-budget.yml` caps root `AGENTS.md`/`CLAUDE.md`": wrong, it gates the always-on rule corpus per language. The 2000-token cap on root docs (4000 on `.claude/CLAUDE.md`) is `passive-context-budget.yml`, a different workflow.
+- "`.github/agents/*.agent.md` is generated like `src/copilot-cli/agents/`": wrong, only `src/copilot-cli/agents` and `src/vs-code-agents` are generated (`build/generate_agents.py --validate`). `.github/agents/` is hand-copied and only parity-checked.
+- A green `validate-generated-agents.yml` or `drift-detection.yml` run on a PR that touched no agent files is not proof the trees still match; both use internal path filters or a weekly cron, not a full-corpus run on every push.
+
+## Dependencies
+
+- Feeds `build/generate_rules.py` (-> `instructions/`) and `build/generate_pr_quality_prompts.py` (-> `prompts/pr-quality-gate-*.md`); both regenerate and commit in the same change as their source.
+- `agents/*.agent.md` feeds `build/scripts/validate_install_parity.py` (structural) and `build/scripts/detect_agent_drift.py` (semantic, wired into `workflows/drift-detection.yml`).
+- `pr-validation.yml` mirrors `scripts/validation/pre_pr.py`'s constituent checks; several of its steps are also lefthook pre-push jobs.
+- `copilot-instructions.md` and `instructions/*.instructions.md` are what Copilot CLI loads; a change here has no effect on Claude Code, which reads `.claude/rules/*.md` directly.
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    subgraph Triggers["Event Triggers"]
-        PR[Pull Request]
-        SCH[Schedule]
-        MAN[Manual Dispatch]
-    end
+- Two independent parity chains meet at `.claude/agents/`: generated (`templates/agents/*.shared.md` -> `build/generate_agents.py` -> `src/copilot-cli/agents/`, `src/vs-code-agents/`) and hand-copied (`.claude/agents/` <-> `.github/agents/`, enforced by parity + drift checks instead of a generator).
+- `instructions/*.instructions.md` and `src/copilot-cli/instructions/*.instructions.md` are two separately generated mirrors of `.claude/rules/`; a rule scoped entirely to internal paths is skipped from the plugin mirror but kept here, so file counts between the two trees need not match.
+- `prompts/pr-quality-gate-*.md` is a one-way generation edge from `.claude/skills/review/references/`; `CODEOWNERS` pins both ends under one required review.
 
-    subgraph AIWorkflows["AI-Powered Workflows"]
-        SV[ai-spec-validation.yml]
-    end
-
-    subgraph ValidationWorkflows["Validation Workflows"]
-        DD[drift-detection.yml]
-        VG[validate-generated-agents.yml]
-        VP[validate-paths.yml]
-        VPA[validate-planning-artifacts.yml]
-        VPV[validate-plugin-version-bump.yml]
-        PT[pytest.yml]
-        CQ[codeql-analysis.yml]
-    end
-
-    subgraph Outputs["Outputs"]
-        ISS2[GitHub Issues]
-        CHK[Status Checks]
-    end
-
-    PR --> SV
-    PR --> VG
-    PR --> VP
-    PR --> VPA
-    PR --> VPV
-    PR --> PT
-    PR --> CQ
-
-    SCH --> DD
-
-    MAN --> DD
-
-    DD --> ISS2
-    VG --> CHK
-    VP --> CHK
-    VPA --> CHK
-    VPV --> CHK
-    PT --> CHK
-    CQ --> CHK
-
-    style Triggers fill:#e1f5fe
-    style AIWorkflows fill:#fff3e0
-    style ValidationWorkflows fill:#e8f5e9
-    style Outputs fill:#fce4ec
-```
-
-## AI-Powered Workflow Agents
-
-> **IMPORTANT**: When creating a new AI-powered workflow with concurrency control, you MUST:
->
-> 1. Add the workflow name to `.github/scripts/measure_workflow_coalescing.py` (the `DEFAULT_WORKFLOWS` list)
-> 2. Follow concurrency group naming pattern: `{prefix}-${{ github.event.pull_request.number || inputs.pr_number }}` (include `inputs.pr_number` for `workflow_dispatch` runs)
-> 3. Document the workflow in this file
->
-> This ensures the workflow is included in coalescing effectiveness monitoring.
-
-### ai-spec-validation.yml
-
-**Role**: Specification completeness and traceability checker
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | PR modifying `.agents/specs/**` |
-| **Agents** | analyst, critic |
-| **Output** | Spec validation report |
-| **Exit Behavior** | Fails on gaps in requirement chain |
-
-**Validations**:
-
-- Requirements have EARS format (WHEN/SHALL/SO THAT)
-- Design traces back to requirements
-- Tasks trace back to design
-- No orphaned requirements
-
-### Optional Debouncing
-
-**Feature**: Workflows support optional debouncing to reduce race condition probability.
-
-**How to Enable**:
+## Commands
 
 ```bash
-# Manual workflow dispatch with debouncing
-gh workflow run ai-spec-validation.yml \
-  --ref main \
-  -f pr_number=123 \
-  -f enable_debouncing=true
+# Reproduce the ADR-006 run-block scan pr-validation.yml runs
+uv run python scripts/ci/adr006_run_block_scanner.py --max 0
+# Reproduce the workflow-schema check (structure, action SHA pinning)
+uv run python scripts/validate_workflows.py
+# Regenerate Copilot instruction mirrors after a .claude/rules/ edit
+uv run python build/scripts/generate_rules.py
+# Regenerate pr-quality-gate prompts after a review/references/ edit
+uv run python build/scripts/generate_pr_quality_prompts.py
+# Check .github/agents/ vs .claude/agents/ parity and semantic drift
+uv run python build/scripts/validate_install_parity.py
+uv run python build/scripts/detect_agent_drift.py
+# Check copilot-instructions.md and root doc byte/token budgets
+uv run python -m scripts.validation.passive_context_budget --ci
+uv run python -m scripts.validation.instruction_budget --ci
+# Full pre-push gate (runs the above plus everything else pre_pr.py owns)
+uv run python scripts/validation/pre_pr.py
 ```
-
-**Tradeoffs**:
-
-| Aspect | Impact |
-|--------|--------|
-| Latency | +10 seconds per run |
-| Race conditions | Reduced by ~50% (estimated) |
-| Coalescing effectiveness | Improved by 5-8% (estimated) |
-| Cost | +10s runner time per run |
-
-**When to Use**:
-
-- Race condition rate consistently >10%
-- Coalescing effectiveness <90%
-- Specific PRs with rapid commit patterns
-- High-value PRs where duplicate runs are costly
-
-**Monitoring**: Use `measure_workflow_coalescing.py` to track effectiveness before/after enabling debouncing.
-
----
-
-## Validation Workflow Agents
-
-### drift-detection.yml
-
-**Role**: Weekly semantic drift detection between Claude and generated agents
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | Weekly (Monday 9 AM UTC), manual |
-| **Script** | `build/scripts/detect_agent_drift.py` |
-| **Output** | GitHub issue if drift detected |
-| **Threshold** | 80% similarity |
-
-**Process**:
-
-```mermaid
-sequenceDiagram
-    participant Schedule
-    participant Workflow
-    participant Script as detect_agent_drift.py
-    participant GitHub
-
-    Schedule->>Workflow: Cron trigger
-    Workflow->>Script: Run detection
-    Script->>Script: Compare Claude vs VS Code
-    alt Similarity < 80%
-        Script-->>Workflow: Exit 1 (drift)
-        Workflow->>GitHub: Create issue
-    else Similarity >= 80%
-        Script-->>Workflow: Exit 0 (OK)
-    end
-```
-
----
-
-### validate-generated-agents.yml
-
-**Role**: Ensures generated agent files match templates
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | PR modifying `templates/**` or `src/**` |
-| **Script** | `uv run python build/generate_agents.py --validate` |
-| **Output** | Pass/fail status |
-| **Exit Behavior** | Fails if generated files don't match |
-
----
-
-### validate-paths.yml
-
-**Role**: Path normalization validator for documentation
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | PR modifying `**/*.md` |
-| **Script** | `build/scripts/validate_path_normalization.py` |
-| **Output** | Pass/fail status |
-| **Forbidden** | Absolute paths (`C:\`, `/Users/`, `/home/`) |
-
----
-
-### validate-planning-artifacts.yml
-
-**Role**: Planning document consistency checker
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | PR modifying `.agents/planning/**` |
-| **Script** | `build/scripts/validate_planning_artifacts.py` |
-| **Output** | Consistency report |
-| **Checks** | Effort estimates, orphan conditions, coverage |
-
----
-
-### validate-plugin-version-bump.yml
-
-**Role**: Plugin version-field gate (ADR-092, Issue #4080)
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | PR/push touching `.claude/**`, `src/claude/**`, or `src/copilot-cli/**` |
-| **Script** | `scripts/validation/run_plugin_version_bump_ci.py` (delegates to `build/scripts/validate_plugin_version_bump.py`) |
-| **Output** | Pass/fail status |
-| **Checks** | No `.claude-plugin/plugin.json` carries a `version` field; Claude Code resolves freshness from the commit SHA instead |
-
----
-
-### pytest.yml
-
-**Role**: Python unit test runner (pytest)
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | PR modifying `scripts/**` or `build/**` |
-| **Script** | `uv run pytest` |
-| **Output** | Test results XML, pass/fail status |
-| **Coverage** | Installation, sync, validation scripts |
-
----
-
-### codeql-analysis.yml
-
-**Role**: Static security analysis using CodeQL
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | PR to main, push to main, weekly schedule |
-| **Languages** | PowerShell, GitHub Actions, Python |
-| **Output** | SARIF files uploaded to GitHub Security tab |
-| **Exit Behavior** | Blocks merge on critical/high severity findings |
-
-**Matrix Strategy**: Analyzes each language independently in parallel
-
-**Configuration**: Uses shared config at `.github/codeql/codeql-config.yml`
-
-**Query Packs**:
-
-- `codeql/powershell-queries:codeql-suites/powershell-security-extended.qls`
-- `codeql/actions-queries:codeql-suites/actions-security-extended.qls`
-- `codeql/python-queries:codeql-suites/python-security-extended.qls`
-
-**Severity Filtering**: Medium+ severity (excludes low severity and recommendations)
-
-**Architecture**:
-
-```mermaid
-flowchart LR
-    subgraph Jobs
-        CP[check-paths]
-        PS[analyze powershell]
-        AC[analyze actions]
-        PY[analyze python]
-        SK[skip-analysis]
-        BL[check-blocking-issues]
-    end
-
-    CP --> PS & AC & PY
-    CP --> SK
-    PS & AC & PY --> BL
-    BL --> GH[GitHub Security Tab]
-```
-
----
-
-### test-codeql-integration.yml
-
-**Role**: CodeQL integration test runner
-
-| Attribute | Value |
-|-----------|-------|
-| **Trigger** | PR modifying `.codeql/**`, `.github/codeql/**`, or CodeQL workflows |
-| **Tests** | CLI installation, config validation, scan execution, language matrix |
-| **Output** | Test results summary in job summary |
-| **Exit Behavior** | Fails if any integration test fails |
-
-**Test Coverage**:
-
-- CodeQL CLI installation and PATH configuration
-- Configuration YAML syntax and query pack availability
-- Scan execution and SARIF output generation
-- Per-language database creation and analysis
-
----
-
-## Composite Actions
-
-### ai-review/action.yml
-
-**Role**: Reusable action for AI-powered code review
-
-| Attribute | Value |
-|-----------|-------|
-| **Location** | `.github/actions/ai-review/` |
-| **Purpose** | Encapsulates Copilot CLI invocation |
-| **Consumers** | All `ai-*.yml` workflows |
-
-**Inputs**:
-
-| Input | Required | Description |
-|-------|----------|-------------|
-| `agent` | Yes | Agent name (security, qa, analyst, etc.) |
-| `prompt-template` | Yes | Path to prompt template |
-| `context` | No | Additional context to include |
-| `bot-pat` | Yes | GitHub token for Copilot CLI |
-| `copilot-token` | No | Dedicated Copilot auth token |
-
-**Features**:
-
-- 6-point diagnostic health check
-- Separate stdout/stderr capture
-- Detailed failure analysis
-- Multiple output formats
-
----
-
-## Prompt Templates
-
-Located in `.github/prompts/`:
-
-| Template | Used By | Purpose |
-|----------|---------|---------|
-| `spec-check-completeness.md` | ai-spec-validation | Spec completeness |
-| `spec-trace-requirements.md` | ai-spec-validation | Requirement tracing |
-
----
-
-## Data Flow
-
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant GH as GitHub
-    participant WF as Workflow
-    participant CLI as Copilot CLI
-    participant PR as PR Comment
-
-    Dev->>GH: Push PR
-    GH->>WF: Trigger workflow
-    WF->>WF: Check for code changes
-    alt Code changed
-        par Run parallel reviews
-            WF->>CLI: Security review
-            WF->>CLI: QA review
-            WF->>CLI: Analyst review
-            WF->>CLI: Architect review
-            WF->>CLI: DevOps review
-            WF->>CLI: Roadmap review
-        end
-        CLI-->>WF: Review results
-        WF->>WF: Aggregate findings
-        WF->>PR: Post combined comment
-        alt CRITICAL_FAIL found
-            WF-->>GH: Block merge
-        end
-    else Docs only
-        WF-->>GH: Skip AI review
-    end
-```
-
-## Error Handling
-
-| Workflow | Error Scenario | Behavior |
-|----------|---------------|----------|
-| drift-detection | Detection error | Exit 2, no issue created |
-| validate-* | Script failure | Fail workflow, block merge |
-| pytest | Test failure | Report details, fail workflow |
-
-## Security Considerations
-
-| Workflow | Security Control |
-|----------|-----------------|
-| All workflows | Minimal permissions (contents: read) |
-| AI workflows | `pull-requests: write` only for comments |
-| drift-detection | `issues: write` only for issue creation |
-| All workflows | Bot actor exclusion (dependabot, actions) |
-| All workflows | Concurrency groups prevent duplicate runs |
-| All workflows | **Actions pinned to SHA** (supply chain security) - See [security-practices.md](../.agents/steering/security-practices.md#github-actions-security) |
-
-## Workflow Concurrency and Coalescing Behavior
-
-All AI-powered and validation workflows use GitHub Actions `concurrency` groups with `cancel-in-progress: true` to prevent duplicate runs when multiple events trigger rapidly (e.g., rapid commits to a PR).
-
-### How Concurrency Control Works
-
-| Workflow | Concurrency Group | Behavior |
-|----------|------------------|----------|
-| ai-spec-validation | `spec-validation-${{ github.event.pull_request.number &#124;&#124; inputs.pr_number }}` | Cancels in-progress runs for same PR |
-| pr-validation | `pr-validation-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
-| label-pr | `pr-labeler-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
-| auto-assign-reviewer | `auto-reviewer-${{ github.event.pull_request.number }}` | Cancels in-progress runs for same PR |
-| codeql-analysis | `codeql-analysis-${{ github.event.pull_request.number &#124;&#124; github.ref }}` | Cancels in-progress runs for same PR/ref |
-
-### The "No Guarantee" Limitation
-
-**Important**: GitHub Actions does **not guarantee** that runs will be coalesced. Race conditions can occur where multiple runs start before cancellation takes effect.
-
-#### Race Condition Scenarios
-
-##### Scenario 1: Rapid Commits
-
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant GH as GitHub
-    participant W1 as Workflow Run 1
-    participant W2 as Workflow Run 2
-
-    Dev->>GH: Push commit A
-    GH->>W1: Start run 1
-    Note over W1: Starting up...
-    Dev->>GH: Push commit B (1 second later)
-    GH->>W2: Queue run 2
-    Note over W1,W2: Both runs may execute in parallel
-    W2-->>W1: Attempt cancel (may be too late)
-```
-
-##### Scenario 2: Upstream Workflow Triggers
-
-```mermaid
-sequenceDiagram
-    participant PR as PR Event
-    participant SV as ai-spec-validation
-    participant PV as pr-validation
-
-    PR->>SV: Trigger (t=0)
-    PR->>PV: Trigger (t=0)
-    Note over SV,PV: Both start simultaneously
-    Note over SV,PV: Concurrency groups are per-workflow
-    Note over SV,PV: No cross-workflow coordination
-```
-
-### Mitigation Strategies
-
-The repository implements several strategies to reduce the impact of race conditions:
-
-| Strategy | Implementation | Effectiveness |
-|----------|---------------|---------------|
-| **Path filtering** | `dorny/paths-filter` action skips runs when irrelevant files change | High - Reduces unnecessary runs by 60-80% |
-| **Timeouts** | All jobs have `timeout-minutes` (2-15 min) | Medium - Prevents runaway costs |
-| **PR-specific temp files** | `/tmp/ai-review-context-pr${PR_NUMBER}.txt` | High - Prevents context collision |
-| **Explicit repo context** | `--repo "$GITHUB_REPOSITORY"` on all `gh` CLI commands | High - Prevents wrong-PR analysis |
-| **Artifact-based passing** | Matrix jobs use artifacts instead of outputs | High - Avoids matrix output limitations |
-
-### Cost Impact
-
-**Acceptable duplicate run rate**: 5-10% of workflow runs may execute in parallel despite `cancel-in-progress: true`
-
-**Cost mitigation**:
-
-- ARM runners (ADR-025): 37.5% cost savings vs x64
-- Path filtering: Skips 60-80% of potential runs
-- Timeouts: Caps maximum cost per run
-
-### When to Worry
-
-**Normal behavior** (no action needed):
-
-- Occasional duplicate runs (5-10%)
-- Runs cancelled within 30 seconds
-- No wrong-PR analysis (validated by PR number checks)
-
-**Investigate if**:
-
-- Duplicate run rate exceeds 20%
-- Runs not cancelled within 2 minutes
-- Wrong-PR analysis detected (check logs for "PR number mismatch")
-- Multiple PRs consistently analyze each other's contexts
-
-### Further Reading
-
-- [ADR-026](../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md) - Architectural decision on concurrency control
-- [Issue #803](https://github.com/rjmurillo/ai-agents/issues/803) - Real-world example of race condition impact
-- [PR #806](https://github.com/rjmurillo/ai-agents/pull/806) - Fix for PR context confusion
-
-### Ratchet Baselines and the Concurrent Merge Race
-
-Concurrency groups coalesce runs on one branch. They do nothing about two
-branches whose results are each correct alone and wrong together. The count
-ratchets (`scripts/ci/ruff_count_ratchet.py`, `scripts/ci/taste_count_ratchet.py`)
-hit that case, and issue #4057 is where it was reported.
-
-**The race.** Each ratchet freezes a repo-wide violation total in a one-line
-file. Two PRs can each remove one violation and lower the same file from 331 to
-330. Both pass their own leg. Both write byte-identical content, so git merges
-them without a conflict. The merged tree has improved twice while the file fell
-once, so `main` measures 329 against a baseline of 330.
-
-**Resolution: the ratchet does not block that state.** PR #4214 made a count
-below the baseline pass (`scripts/ci/count_ratchet.py`, `count < baseline`
-returns exit 0), so the merged tree above is green and concurrent cleanup PRs
-never conflict on the shared line. Arming
-`strict_required_status_checks_policy` on ruleset `11104075` so the second PR
-had to be current before merging is not needed for this race: with the ratchet
-tolerating the drift there is no red `main` to prevent. Strict was armed on
-2026-08-04 (ruleset version `45433643`) as remediation for the red-`main`
-incident of that date, then reverted to `false` on 2026-08-10 (ruleset last
-updated). The ratchet tolerance alone prevents the race.
-
-**Status note, measured 2026-08-14.** That policy reads `false` on ruleset
-`11104075`. Being behind `main` does not block merge via the ruleset. The count
-ratchets still enforce practical freshness for PRs touching ratcheted counts.
-There is still no merge queue. Issue #4608 records an unverified hypothesis
-about how a future merge group would behave. See issue #4646.
-
-**Residual cost.** The baseline sits above the true count until someone records
-it, and that gap absorbs one later regression without firing. `--update` closes
-it. `tests/ci/test_count_ratchet_concurrent_merge.py` pins both the tolerance
-and the cost, including the case where a reintroduced violation lands inside the
-slack unnoticed.
-
-**Rejected alternatives.**
-
-| Option | Why not |
-|--------|---------|
-| Block on a count below the baseline | What this replaced. It turns every concurrent cleanup pair into a red `main` or a stuck queue, which is the harm rather than the fix. |
-| Merge queue (`merge_group` trigger) | Not available to this repository. GitHub gates merge queues to organization-owned repositories, and `rjmurillo/ai-agents` is public but owned by a user account (`owner.type` is `User`, and `GET /orgs/rjmurillo` returns 404). Source: `data/reusables/gated-features/merge-queue.md` in `github/docs`. Were it available, every required workflow would still have to answer the `merge_group` event or the queue stalls with no way to merge, which is a change to 17 contexts for a race the ratchet no longer treats as a failure. |
-| Self-healing baseline commit on push to `main` | A workflow that commits a corrected baseline to the default branch needs write access, bot-actor exclusion, and loop prevention, to repair a state that is no longer an error. |
-| Make the baseline conflict on concurrent edits | Two branches would have to write different bytes for git to refuse the merge, which means the file stops being a count. That redesigns what both ratchets measure and every consumer that reads them. |
-
-**Scope.** This covers the two single-integer baselines only. The JSON allowlist
-(`rule_activation_coverage_baseline.json`) and the inline `--max` in
-`pr-validation.yml` do not share the race: removing an entry from either
-produces a real merge conflict rather than an identical edit.
-
-### Monitoring Coalescing Effectiveness
-
-The repository includes automated monitoring of workflow run coalescing effectiveness:
-
-**Script**: `.github/scripts/measure_workflow_coalescing.py`
-
-**Usage**:
-
-```bash
-# Analyze last 30 days
-python3 .github/scripts/measure_workflow_coalescing.py
-
-# Analyze last 90 days with JSON output
-python3 .github/scripts/measure_workflow_coalescing.py --since 90 --output json
-
-# Analyze specific workflows
-python3 .github/scripts/measure_workflow_coalescing.py --workflows ai-spec-validation
-```
-
-**Metrics Collected**:
-
-- Coalescing effectiveness rate (target: 90%+)
-- Race condition rate (target: <10%)
-- Average time to cancellation (target: <5 seconds)
-- Per-workflow and per-PR breakdown
-
-**Report Location**: `.agents/metrics/workflow-coalescing.md`
-
-**Automated Collection**: Weekly via `.github/workflows/workflow-coalescing-metrics.yml`
-
-## Monitoring
-
-| Workflow | Success Indicator | Failure Indicator |
-|----------|-------------------|-------------------|
-| drift-detection | No issue created | New drift alert issue |
-| validate-* | Green check | Red X on PR |
-| pytest | All tests pass | Test failures reported |
-
-## Related Documentation
-
-- [templates/AGENTS.md](../templates/AGENTS.md) - Template system agents
-- [build/AGENTS.md](../build/AGENTS.md) - Build automation agents
-- [scripts/AGENTS.md](../scripts/AGENTS.md) - Installation agents
-- [docs/copilot-cli-setup.md](../docs/copilot-cli-setup.md) - Copilot CLI authentication

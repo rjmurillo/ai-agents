@@ -1,425 +1,86 @@
-# Build System Agents
+# build/
 
-This document describes the automated actors in the build system that generate, validate, and monitor AI agent definitions.
+Generators, mirror-sync helpers, and drift/parity gates for the agent, skill, rule, and hook pipeline. Consumed by contributors editing a canonical source (`.claude/`, `templates/`, `src/claude/`) and by CI (`build_all.py --check`, the parity validators). Python only, invoked with `uv run python`.
 
-## Overview
+## Matters
 
-The `build/` directory contains scripts that automate agent generation, drift detection, and quality validation. These scripts ensure consistency across platforms and prevent regression.
+- `build/scripts/build_all.py --check` is the drift gate every PR must pass. Red means regenerate, never hand-edit the output tree.
+- REQ-003-010: no generator may write under `.claude/`. `build_all.py` asserts this after every run by snapshotting `.claude/` before and diffing after.
+- Three trees are hand-maintained siblings, not generator output: `src/claude/<name>.md`, `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`. Editing one means editing all three plus `templates/agents/<name>.shared.md`; nothing regenerates them for you.
+- `scripts/sync_plugin_lib.py` (top-level `scripts/`, not `build/`) MUST run before `build/scripts/build_all.py`. Reversed order exits 0 on both and ships a stale `src/copilot-cli/lib/`; only `scripts/ci/check_plugin_lib_mirrors.py` in CI catches it.
+- No plugin manifest carries a `version` key (ADR-092). A source change needs no manifest bump; adding one back fails `build/scripts/validate_plugin_version_bump.py`.
+
+## Entry points
+
+- `uv run python build/scripts/build_all.py`: regenerate everything from canonical sources.
+- `uv run python build/scripts/build_all.py --check`: CI drift gate; no writes.
+- `uv run python build/generate_agents.py`: agents only, standalone.
+- `uv run python build/scripts/detect_agent_drift.py`: similarity gate, standalone.
+
+## Where to look
+
+| Path | Why |
+|---|---|
+| `.agents/governance/GENERATOR-FILES.md` | Canonical source-to-output inventory; edit the source it names, never the output |
+| `build/scripts/build_all.py` | Orchestrator: `GENERATORS` list, CLI flags, the REQ-003-010 guard |
+| `build/generate_agents.py` | Agent template renderer; `--validate`, `--what-if` |
+| `build/scripts/detect_agent_drift.py` | Similarity gate; all CLI flags and exit codes |
+| `build/scripts/generate_hooks*.py`, `build/scripts/generate_dispatcher.py` | Hook/dispatcher generation, split by concern (body, emit, events, expand, shim, transaction) |
+| `build/sync_slim_agents.py`, `build/sync_slim_agents_reconcile.py` | Hand-copy propagation helper for `src/claude/` slimmed bodies; not a generator, not run by `build_all.py` |
+| `build/model_pin_manifest.py`, `build/model_pin_sweep_evidence.py` | ADR-080 model-pin sidecar resolution and evidence validation |
+| `tests/build_scripts/` | Test suite for `build/scripts/*.py` |
+| `tests/test_generate_agents*.py`, `tests/test_detect_agent_drift.py` | Test suite for the two top-level `build/*.py` modules |
+
+## Skip
+
+- `build/__pycache__/` and `build/scripts/__pycache__/`: gitignored bytecode, never a source.
+- `build/CLAUDE.md` (one line, `@AGENTS.md`) and `build/scripts/__init__.py` (empty package marker): nothing to read.
+- Any file under `src/copilot-cli/`, `.github/instructions/`, `docs/agent-catalog.md`, `.agents/architecture/README.md`: these are generator OUTPUT. Edit the source `GENERATOR-FILES.md` names instead.
+
+## Constraints
+
+- `build_all.py` runs generators in a fixed order (agents, agent-catalog, adr-index, skills, rules, lib, hooks); `lib` MUST land before `hooks` because the hook manifest expects the lib mirror already in place (`build/scripts/build_all.py:491-496`).
+- A deferral inside `build_all.py` must cite an OPEN issue; `scripts/validation/validate_no_orphaned_build_deferrals.py` fails on a closed one. Zero deferrals on the tracked tree today.
+- `build/scripts/detect_agent_drift.py` does not read `templates/agents/*.shared.md`; it compares only the rendered output trees (`src/claude` vs `src/vs-code-agents`, blocking; `.claude/agents` vs `.github/agents`, advisory unless `--fail-on-install-drift`). A generator bug in template rendering is invisible to it.
+- `build/scripts/validate_install_parity.py` checks co-change only (did the sibling paths move together in the diff), not content equality; `AGENTS.md`/`CLAUDE.md` names are excluded from every parity group.
+- `build/scripts/check_agent_content_parity.py` is the content gate `validate_install_parity.py` does not provide: byte-for-byte `.claude/agents/` vs `src/claude/`.
+- Regenerating with a mismatched sync order (see Matters) is a silent failure: both scripts exit 0.
+- `build/scripts/validate_path_normalization.py --fail-on-violation` scans every Markdown file for a Windows drive, macOS, or Linux home path and fails the build on a hit; it is wired into `scripts/validation/pre_pr_sequence.py`, the `lefthook.yml` pre-push group, and `.github/workflows/validate-paths.yml`.
+
+## Dangerous assumptions
+
+- "The gate script lives next to what it checks" is false for the lib mirror: the source sync (`scripts/sync_plugin_lib.py`) sits outside `build/`, one directory up, and nothing in `build/` calls it.
+- "`--check` failing means hand-edit the diff to match" is backwards: `--check` failing means the SOURCE changed and the output is stale. Hand-editing output is overwritten on the next real regen and never reviewed against source intent.
+- "`src/claude/` is generated like `src/copilot-cli/agents/`" is false. It is hand-maintained; `GENERATOR-FILES.md` calls this out explicitly because it was misclassified once (Issue #2882).
+- "Fixing drift means raising the similarity threshold" is a gate defeat, not a fix (mirrors `.claude/rules/ci-scripts.md` MUST NOT 4 on count ratchets); the fix is regenerating or hand-syncing the sibling.
+
+## Dependencies
+
+- Feeds `.claude/skills/review/references/<role>.md` -> `.github/prompts/pr-quality-gate-<role>.md` via `build/scripts/generate_pr_quality_prompts.py`; pre-push runs `--dry-run`, and `build/scripts/run_drift_check_ci.py` wraps the same `--dry-run` for the `validate-generated-agents.yml` workflow step (ADR-006: logic stays in the module, not the YAML).
+- Feeds `.github/instructions/` and `src/copilot-cli/instructions/` via `build/scripts/generate_rules.py`, which drops the `priority:` frontmatter key on the way out.
+- Two lefthook pre-commit jobs fire on `templates/agents/*.shared.md` / `templates/platforms/**` changes: `generate-agents` (regenerates agent output) and the separately named `generate-agent-catalog` (runs `build/generate_agent_catalog.py` directly).
+- Consumed by `scripts/validation/pre_pr.py`, the canonical pre-PR runner, which chains the drift and parity gates in this tree.
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    subgraph Sources["Source Files"]
-        T[templates/agents/*.shared.md]
-        C[src/claude/*.md]
-        V[src/vs-code-agents/*.agent.md]
-    end
+- Plugin lib is a two-hop mirror chain, not a single copy: `scripts/{hook_utilities,github_core,ai_review_common}` -> (`scripts/sync_plugin_lib.py`) -> `.claude/lib/` -> (`build/scripts/build_all.py`, `_build_lib`) -> `src/copilot-cli/lib/`. Neither script calls the other.
+- Hook generation retains per-matcher shim wrappers and also emits one dispatcher registration per event when the target platform config enables dispatcher mode (ADR-068). Publication and cleanup of dispatcher artifacts, stale shims, and orphaned event files run through `HookGenerationTransaction`; files carrying a `NO-REGEN` sentinel (`build/scripts/regen_guard.py`) are preserved untouched.
 
-    subgraph Build["Build Agents"]
-        GEN[generate_agents.py]
-        DFT[detect_agent_drift.py]
-        VPA[validate_planning_artifacts.py]
-        VPN[validate_path_normalization.py]
-        IPT[pytest]
-    end
-
-    subgraph Outputs["Outputs"]
-        OUT[Generated Agent Files]
-        REP[Drift Reports]
-        VAL[Validation Results]
-        TST[Test Results]
-    end
-
-    T --> GEN
-    GEN --> OUT
-    OUT --> V
-
-    C --> DFT
-    V --> DFT
-    DFT --> REP
-
-    T --> VPA
-    VPA --> VAL
-
-    OUT --> VPN
-    VPN --> VAL
-
-    Build --> IPT
-    IPT --> TST
-
-    style Sources fill:#e1f5fe
-    style Build fill:#fff3e0
-    style Outputs fill:#e8f5e9
-```
-
-## Critical Workflow Rules
-
-### Rule 1: Always Regenerate After Template Changes
-
-After modifying ANY file in `templates/`:
+## Commands
 
 ```bash
-# Regenerate platform-specific files
+# Regenerate everything from canonical sources.
+uv run python build/scripts/build_all.py
+# CI drift gate: verify generated trees match sources, no writes.
+uv run python build/scripts/build_all.py --check
+# Agents only, standalone (also supports --validate, --what-if).
 uv run python build/generate_agents.py
-
-# Verify generation succeeded
-uv run python build/generate_agents.py --validate
-
-# Commit ALL affected files together
-git add templates/ src/vs-code-agents/ src/copilot-cli/
-git commit -m "feat(agents): update template and regenerate"
+# Sync the plugin lib mirror BEFORE build_all.py touches lib/hooks.
+uv run python scripts/sync_plugin_lib.py
+# Drift similarity gate, standalone.
+uv run python build/scripts/detect_agent_drift.py
+# PR-quality prompt drift check (what pre-push runs).
+uv run python build/scripts/generate_pr_quality_prompts.py --dry-run
+# Full pre-PR gate chain (run before every push).
+uv run python scripts/validation/pre_pr.py
 ```
-
-### Rule 2: Claude-to-Template Synchronization
-
-When `src/claude/` agents receive **universal changes**:
-
-```text
-1. Edit src/claude/{agent}.md (Claude-specific source)
-2. Duplicate changes to templates/agents/{agent}.shared.md
-3. Run: uv run python build/generate_agents.py
-4. Commit all files atomically
-```
-
-See: [src/claude/AGENTS.md](../src/claude/AGENTS.md) for full rules.
-
-### Rule 3: Never Edit Generated Files
-
-Files in `src/vs-code-agents/` and `src/copilot-cli/` are **generated**:
-
-```text
-WRONG: Edit src/vs-code-agents/analyst.agent.md
-RIGHT: Edit templates/agents/analyst.shared.md, then regenerate
-```
-
-### Rule 4: CI Validation
-
-Two automated checks enforce these rules:
-
-| Workflow | Purpose | Failure Action |
-|----------|---------|----------------|
-| `validate-generated-agents.yml` | Verify generated files match templates | Must regenerate |
-| `drift-detection.yml` | Check Claude/VS Code consistency | Review and sync |
-
-#### Staleness deferrals (issue #2770)
-
-`build_all.py --check` is a "commit all generator output" gate. SkillForge is a
-"block a broken skill" gate. When a generator mirrors an upstream-broken skill,
-the two deadlock: the clean mirror cannot be committed, so `--check` cannot pass.
-The historical fix was an ad-hoc `STALENESS_DEFERRALS` constant exempting the
-broken mirror. It got orphaned: after the skill was fixed nobody removed the
-exemption, and it hid stale mirrors until caught by hand (#2780).
-
-Sanctioned protocol for a NEW upstream-broken skill you genuinely cannot mirror:
-
-1. Open a tracking issue for the upstream breakage. Keep it OPEN until fixed.
-2. Add a deferral entry in `build_all.py` that cites that OPEN issue as
-   `#<number>` plus a one-line reason.
-3. When the skill is fixed, regenerate the mirror, commit it, remove the
-   deferral, and close the tracking issue.
-
-`scripts/validation/validate_no_orphaned_build_deferrals.py` auto-polices step 3:
-it scans `build_all.py` for any deferral-style exemption, reads each cited issue
-state, and FAILS the gate when a deferral references a CLOSED issue. A closed
-tracking issue is the orphan signature, so you cannot leave a dead exemption
-behind. There are zero deferrals today; the gate passes until someone adds one.
-
----
-
-## Agent Catalog
-
-### generate_agents.py
-
-**Role**: Platform-specific agent file generator
-
-| Attribute | Value |
-|-----------|-------|
-| **Input** | `templates/agents/*.shared.md`, `templates/platforms/*.yaml` |
-| **Output** | `src/vs-code-agents/*.agent.md`, `src/copilot-cli/agents/*.agent.md` |
-| **Trigger** | Manual, CI validation |
-| **Dependencies** | `generate_agents_common.py`, Python 3.12+ |
-
-**Transformations Applied**:
-
-- YAML frontmatter generation (model, name, tools)
-- Handoff syntax transformation (`#runSubagent` vs `/agent`)
-- Platform-specific tool array selection
-
-**Invocation**:
-
-```powershell
-# Generate all agents
-uv run python build/generate_agents.py
-
-# Preview changes (dry run)
-uv run python build/generate_agents.py --what-if
-
-# CI validation mode
-uv run python build/generate_agents.py --validate
-```
-
-**Exit Codes**:
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Generation failed or validation mismatch |
-
----
-
-### detect_agent_drift.py
-
-**Role**: Semantic drift detector across agent copies. (The legacy
-`Detect-AgentDrift.ps1` was expunged per ADR-042; this Python port replaces it.)
-
-| Attribute | Value |
-|-----------|-------|
-| **Input** | `src/claude/*.md`, `src/vs-code-agents/*.agent.md`, `.claude/agents/*.md`, `.github/agents/*.agent.md`, `templates/agents/*.shared.md` |
-| **Output** | Drift report (Text, JSON, or Markdown) |
-| **Trigger** | `scripts/validation/pre_pr.py` (Agent Drift gate), weekly `drift-detection.yml`, manual |
-| **Dependencies** | Python 3.10+ |
-
-**Two comparisons** (Issue #2267):
-
-1. **Vendored** (blocking): `src/claude/*.md` vs `src/vs-code-agents/*.agent.md`.
-   The Claude self-host source vs the generated VS Code agent.
-2. **Install** (advisory): `.claude/agents/*.md` vs `.github/agents/*.agent.md`,
-   scoped to shared-template agents (those with
-   `templates/agents/{name}.shared.md`). Freestanding Claude-only or
-   GitHub-only agents are skipped.
-
-**What It Compares** (ignoring platform-specific differences):
-
-- Core Identity / Core Mission sections
-- Key Responsibilities
-- Constraints
-- Review criteria / checklists
-- Templates and output formats
-
-**What It Ignores**:
-
-- YAML frontmatter format differences
-- Tool invocation syntax (`mcp__*` vs path notation)
-- Claude Code Tools section
-- Platform-specific tool references
-
-**Invocation**:
-
-```bash
-# Both comparisons, 80% threshold (install drift advisory)
-python3 build/scripts/detect_agent_drift.py
-
-# Vendored comparison only
-python3 build/scripts/detect_agent_drift.py --skip-install-comparison
-
-# Promote install drift to blocking (after the install copies are reconciled)
-python3 build/scripts/detect_agent_drift.py --fail-on-install-drift
-
-# Strict threshold, JSON or Markdown output
-python3 build/scripts/detect_agent_drift.py --similarity-threshold 90
-python3 build/scripts/detect_agent_drift.py --output-format json
-python3 build/scripts/detect_agent_drift.py --output-format markdown
-```
-
-**Exit Codes** (per ADR-035):
-
-| Code | Meaning |
-|------|---------|
-| 0 | No blocking drift |
-| 1 | Blocking drift detected (vendored, or install when `--fail-on-install-drift`) |
-| 2 | Execution error (a required path is missing) |
-
-The install comparison is advisory by default because the two self-host copies
-carry large pre-existing structural differences. It reports drift but does not
-flip the exit code, so it does not block PRs on day one. Promote it with
-`--fail-on-install-drift` once the install copies are reconciled.
-
----
-
-## Hand-Maintained Agent Copies
-
-Three agent trees are **hand-maintained**: no generator writes them.
-
-| Tree | Loaded by | Why not generated |
-|------|-----------|-------------------|
-| `.claude/agents/*.md` | Claude Code (this repo's self-host) | REQ-003-010 forbids generators from writing under `.claude/`; `build_all.py` asserts no `.claude/` writes |
-| `.github/agents/*.agent.md` | GitHub Copilot (this repo's self-host) | Hand-maintained self-host copy; not a generator target |
-| `src/claude/*.md` | Vendored Claude install source | Edited directly, then propagated to the generated `src/copilot-cli/` and `src/vs-code-agents/` copies |
-
-Only `src/copilot-cli/agents/*.agent.md` and `src/vs-code-agents/*.agent.md` are
-generated from `templates/agents/*.shared.md` by `build/generate_agents.py`.
-
-Two gates keep the hand-maintained copies honest:
-
-- `build/scripts/validate_install_parity.py` (wired into `pre_pr.py`): when one
-  member of a shared-agent group changes, every other member must change in the
-  same diff. This catches a forgotten copy. It does NOT check content
-  similarity.
-- `build/scripts/detect_agent_drift.py` (above): adds the semantic-similarity
-  check across the `.claude/agents` vs `.github/agents` install copies that
-  parity enforcement omits.
-
-When you edit a shared-template agent, update the template
-(`templates/agents/{name}.shared.md`), regenerate the `src/copilot-cli` and
-`src/vs-code-agents` copies (`uv run python build/generate_agents.py`), and hand-edit
-`.claude/agents/{name}.md`, `.github/agents/{name}.agent.md`, and
-`src/claude/{name}.md` to match.
-
----
-
-### validate_planning_artifacts.py
-
-**Role**: Planning document consistency validator
-
-| Attribute | Value |
-|-----------|-------|
-| **Input** | `.agents/planning/*.md` |
-| **Output** | Validation report |
-| **Trigger** | CI on planning changes, manual |
-| **Dependencies** | Python 3.12+ |
-
-**Validations Performed**:
-
-| Check | Description |
-|-------|-------------|
-| Effort estimate divergence | Compares epic/PRD estimates with task breakdown totals |
-| Orphan conditions | Specialist conditions without task assignments |
-| Missing task coverage | PRD requirements without corresponding tasks |
-
-**Invocation**:
-
-```bash
-# Validate specific feature
-python3 build/scripts/validate_planning_artifacts.py --feature-name "agent-consolidation"
-
-# CI mode (exit on error)
-python3 build/scripts/validate_planning_artifacts.py --fail-on-error
-
-# Strict mode (warnings as errors)
-python3 build/scripts/validate_planning_artifacts.py --fail-on-warning
-```
-
----
-
-### validate_path_normalization.py
-
-**Role**: Path format validator for documentation
-
-| Attribute | Value |
-|-----------|-------|
-| **Input** | `**/*.md` (documentation files) |
-| **Output** | Path validation report |
-| **Trigger** | CI on PR, manual |
-| **Dependencies** | Python 3.12+ |
-
-**Forbidden Patterns**:
-
-| Pattern | Reason |
-|---------|--------|
-| `[A-Z]:\` | Windows absolute paths |
-| `/Users/` | macOS home paths |
-| `/home/` | Linux home paths |
-
-**Invocation**:
-
-```bash
-python3 build/scripts/validate_path_normalization.py --fail-on-violation
-```
-
----
-
-### pytest
-
-**Role**: Reusable pytest test runner
-
-| Attribute | Value |
-|-----------|-------|
-| **Input** | Test files (`tests/**/*.py`) |
-| **Output** | Test results (XML, console) |
-| **Trigger** | CI, pre-commit, manual |
-| **Dependencies** | pytest, uv, Python 3.12+ |
-
-**Invocation**:
-
-```bash
-# Local development (detailed output)
-uv run pytest
-
-# CI mode (exit on failure)
-uv run pytest
-
-# Specific test directory
-uv run pytest tests/build_scripts/
-
-# Maximum verbosity
-uv run pytest -vv
-```
-
----
-
-## Data Flow
-
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant Gen as generate_agents.py
-    participant Drift as detect_agent_drift.py
-    participant CI as GitHub Actions
-
-    Dev->>Gen: Edit template
-    Gen->>Gen: Read templates + configs
-    Gen->>Gen: Transform content
-    Gen-->>Dev: Generated files
-
-    Dev->>CI: Push changes
-    CI->>Gen: Validate (--validate)
-    alt Files match
-        Gen-->>CI: Exit 0
-    else Files differ
-        Gen-->>CI: Exit 1 (fail)
-    end
-
-    CI->>Drift: Weekly check
-    Drift->>Drift: Compare Claude vs VS Code
-    alt Similarity >= 80%
-        Drift-->>CI: Exit 0
-    else Similarity < 80%
-        Drift-->>CI: Exit 1 (create issue)
-    end
-```
-
-## Error Handling
-
-| Agent | Error Scenario | Behavior |
-|-------|---------------|----------|
-| generate_agents.py | Missing template | Exit 1 with path info |
-| generate_agents.py | Invalid YAML | Parse error with line number |
-| detect_agent_drift.py | Missing agent | Report as "NO COUNTERPART" |
-| validate_planning_artifacts.py | Missing artifacts | Warning (not error) |
-| pytest | Test failure | Report details, exit 1 in CI |
-
-## Security Considerations
-
-| Agent | Security Control |
-|-------|-----------------|
-| generate_agents.py | Output path validation (no traversal) |
-| All scripts | No external input (static file sources) |
-| All scripts | No network access required |
-| All scripts | Code review required for changes |
-
-## Monitoring
-
-| Agent | CI Workflow | Schedule |
-|-------|------------|----------|
-| generate_agents.py | `validate-generated-agents.yml` | On PR |
-| detect_agent_drift.py | `drift-detection.yml` | Monday 9 AM UTC |
-| validate_planning_artifacts.py | `validate-planning-artifacts.yml` | On PR |
-| validate_path_normalization.py | `validate-paths.yml` | On PR |
-| pytest | `pytest.yml` | On PR |
-
-## Related Documentation
-
-- [templates/AGENTS.md](../templates/AGENTS.md) - Template system agents
-- [templates/README.md](../templates/README.md) - Template usage guide
-- [.github/AGENTS.md](../.github/AGENTS.md) - GitHub Actions agents

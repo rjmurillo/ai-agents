@@ -26,10 +26,16 @@ INJECTED_FILES = WORKSPACE_FILES
 
 
 def _repo_root() -> Path:
-    """Walk up from this file to find the repo root (contains AGENTS.md)."""
+    """Walk up from this file to find the repo root.
+
+    The marker is ``pyproject.toml`` next to ``AGENTS.md``. ``AGENTS.md`` alone
+    is not a root marker: per-directory guides carry that name too (``tests/``
+    gained one in PR #5713), and stopping at the first match measured
+    ``tests/AGENTS.md`` against the root budget.
+    """
     current = Path(__file__).resolve().parent
     while current != current.parent:
-        if (current / "AGENTS.md").exists():
+        if (current / "pyproject.toml").exists() and (current / "AGENTS.md").exists():
             return current
         current = current.parent
     pytest.skip("Could not locate repo root")

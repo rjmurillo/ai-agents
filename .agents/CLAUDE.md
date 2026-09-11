@@ -5,3 +5,4 @@
 
 *No recent activity*
 </claude-mem-context>
+@AGENTS.md
