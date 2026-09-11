@@ -29,8 +29,9 @@ criteria and DESIGN-020's component architecture.
 
 ## In/Out of Scope
 
-In scope: the CLI, its eight dimension modules, the JSON/markdown writers,
-the test suite, and the committed baseline artifact at one pinned SHA.
+In scope: the CLI, its seven dimension functions in one module, the
+JSON/markdown writers, the test suite, and the committed baseline artifact
+at one pinned SHA.
 
 Out of scope: anything REQ-021's Out of Scope section names (reduced-config
 comparison, final release report, mechanism deletions, gate p50/p95

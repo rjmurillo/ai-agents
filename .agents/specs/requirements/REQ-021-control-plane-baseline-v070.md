@@ -189,9 +189,9 @@ WHEN a contributor runs `scripts/metrics/control_plane_baseline.py` against a
 clean `main` checkout,
 THE SYSTEM SHALL emit a JSON and Markdown report covering canonical owners,
 policy owners, always-loaded context per harness, generated/historical
-volume, declared gate budget, worktree fan-out residue, skill activation
-evidence, and accepted-task verification counts, all as of the pinned commit
-SHA, with exit code 0 regardless of the values measured,
+volume, declared gate budget, skill activation evidence, and accepted-task
+verification counts, all as of the pinned commit SHA, with exit code 0
+regardless of the values measured,
 SO THAT every later deletion cohort under epic #5456 has one committed number
 to decrease from, per the epic's Release gates checklist.
 

@@ -32,13 +32,13 @@ originally specced) and superseded by this note, per this task's
 minimal-edit instruction.
 
 `scripts/metrics/control_plane_baseline.py` is a read-only CLI that measures
-eight dimensions of the repository's control plane as of one pinned commit
+seven dimensions of the repository's control plane as of one pinned commit
 and emits `--json PATH` and `--markdown PATH` reports. It is a thin
 aggregator: four dimensions call into existing measurement authorities
 (`instruction_budget`, `validate_workspace_budget`, `skill_registry`, the
 pre-push budget summation `tests/ci/test_lefthook_declared_budget.py` uses),
-and four dimensions (`fanout_residue`, `activation`, `accepted_tasks`, and
-the lefthook-job-name portion of `canonical`) are new counting logic written
+and three dimensions (`activation`, `accepted_tasks`, and the
+lefthook-job-name portion of `canonical`) are new counting logic written
 for this script because no prior authority exists for them.
 
 The script never returns a nonzero exit for a metric value. Its only
