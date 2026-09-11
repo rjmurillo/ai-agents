@@ -11,6 +11,13 @@ change, must fail closed with exit 1 in every mode (write, validate), not
 exit 0. See ``skill_templates.compile_all``'s "Stricter/looser/different
 than canonical" docstring section for why this diverges from DESIGN-020's
 own "skipped, NOTICE printed, exit 0" table entry.
+
+An eleventh case, added in ADR review round 4: a referenced partial missing
+exactly one trailing newline is a config error, exit 2, reported with the
+partial's path, target untouched -- chevron glues a newline-less partial
+onto the template text that follows its tag with no error and no ``{{`` left
+over, so nothing else in this module would have caught it. See
+``skill_templates``'s module docstring for the reproduction.
 """
 
 from __future__ import annotations
@@ -159,6 +166,52 @@ def test_render_missing_partial_raises_with_slug_and_path(tmp_path: Path) -> Non
     assert str(tmpl) in str(excinfo.value)
 
 
+def test_render_partial_missing_trailing_newline_raises_with_partial_path(
+    tmp_path: Path,
+) -> None:
+    """Eleventh case (ADR review round 4): a partial with no exactly-one
+    trailing newline is a config error, exit 2, reported with the partial
+    path, before chevron ever runs.
+
+    Reproduced against chevron==0.14.0 (module docstring): without this
+    check, ``chevron.render("Line before.\\n{{> p}}\\nLine after.\\n", {},
+    partials_dict={"p": "X"})`` returns ``'Line before.\\nXLine after.\\n'``,
+    silently gluing "Line after." onto the partial with no error and no
+    leftover ``{{`` for the post-render scan to catch.
+    """
+    partial_path = _write_partial(tmp_path, "no-newline", "no trailing newline")
+    tmpl = _write_template(tmp_path, "sync", "before\n{{> no-newline}}\nafter\n")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+
+    with pytest.raises(skill_templates.PartialNewlineError) as excinfo:
+        skill_templates.render(tmpl, partials_dir)
+
+    assert str(partial_path) in str(excinfo.value)
+
+
+def test_render_partial_with_two_trailing_newlines_also_raises(tmp_path: Path) -> None:
+    """Edge: "exactly one" trailing newline, not "at least one"."""
+    _write_partial(tmp_path, "double-newline", "content\n\n")
+    tmpl = _write_template(tmp_path, "sync", "{{> double-newline}}\n")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+
+    with pytest.raises(skill_templates.PartialNewlineError):
+        skill_templates.render(tmpl, partials_dir)
+
+
+def test_render_partial_with_exactly_one_trailing_newline_separates_lines(
+    tmp_path: Path,
+) -> None:
+    """Positive control: a well-formed partial does not glue the next line."""
+    _write_partial(tmp_path, "ok", "content\n")
+    tmpl = _write_template(tmp_path, "sync", "before\n{{> ok}}\nafter\n")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+
+    rendered = skill_templates.render(tmpl, partials_dir)
+
+    assert rendered == "before\ncontent\nafter\n"
+
+
 def test_render_disallowed_tag_raises_with_tag_text(tmp_path: Path) -> None:
     """Config error (DESIGN-020 case 3): exit 2, tag printed."""
     tmpl = _write_template(tmp_path, "sync", "before {{var}} after\n")
@@ -243,6 +296,26 @@ def test_compile_all_missing_partial_leaves_target_untouched(tmp_path: Path) -> 
 
     assert result.exit_code == 2
     assert target.read_text(encoding="utf-8") == "original\n"
+
+
+def test_compile_all_partial_missing_trailing_newline_leaves_target_untouched(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Eleventh case (ADR review round 4): a referenced partial with no
+    exactly-one trailing newline is a config error, exit 2, reported with
+    the partial path, target untouched.
+    """
+    partial_path = _write_partial(tmp_path, "no-newline", "no trailing newline")
+    _write_template(tmp_path, "sync", "{{> no-newline}}\n")
+    target = _seed_target_dir(tmp_path, "sync")
+    target.write_text("original\n", encoding="utf-8")
+
+    result = skill_templates.compile_all(tmp_path, validate=False)
+
+    assert result.exit_code == 2
+    assert target.read_text(encoding="utf-8") == "original\n"
+    assert result.written == []
+    assert str(partial_path) in capsys.readouterr().err
 
 
 def test_compile_all_disallowed_tag_leaves_target_untouched(tmp_path: Path) -> None:
