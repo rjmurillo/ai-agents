@@ -1,40 +1,73 @@
 # .claude/skills/
 
-111 skills. `SKILL.md` is the contract; code under `scripts/`, long reference under `references/`,
-output shapes under `templates/`. Skills are the only user-invocable surface (ADR-064; a
-commands directory is refused by `check_commands_retired.py`). Mirrored to
-the Copilot CLI plugin root by `generate_skills.py`; never edit the mirror.
-Rules firing here: `claude-agents.md`, `plugin-self-containment.md`, `generated-artifacts.md`, `ci-scripts.md`.
+111 skills; the single user-invocable surface in this repository (ADR-064). Consumed directly by Claude Code and, mirrored, by the Copilot CLI plugin.
 
-Before a skill that configures, generates, or tests Claude Code or Copilot CLI artifacts: read
-`agent-harness-reference`; cross-harness mutations go through `ai-agents-portability-campaign`.
+## Matters
 
-## SKILL.md contract
+- `SKILL.md` is the contract per skill; `scripts/` holds executable code, `references/` long-form material, `templates/` output shapes, all optional.
+- Skills are the only user-invocable surface (ADR-064); a commands directory under any plugin root is refused by a blocking validator.
+- Mirrored to the Copilot CLI plugin by `generate_skills.py`; never hand-edit the mirror, edit the source skill and regenerate.
+- `model:` is normally omitted (harness default). The only other valid state is a bare alias (`haiku`/`sonnet`/`opus`) plus `model-rationale:` (ADR-080); a versioned id fails the model-pin check. 7 skills use `model: haiku` today, none use a versioned id.
+- Size: warns at 300 lines, blocks at 500; `size-exception: true` in frontmatter, with a rationale comment, declares a justified overage.
+- Before a skill that configures, generates, or tests Claude Code or Copilot CLI artifacts: read the `agent-harness-reference` skill; cross-harness mutations go through the `ai-agents-portability-campaign` skill.
 
-- Frontmatter on line 1: `name` (`^[a-z0-9-]{1,64}$`), `version`, `description` (max 1024 chars; 3-5 backtick-wrapped trigger phrases; a "Do NOT use ... (use X)" discriminator), `license`. `version` and `model` are top-level, never under `metadata:`.
-- `model:` omitted (harness default). Only `model: haiku` plus `model-rationale:` is allowed (ADR-080); versioned ids fail `check_model_pins.py`.
-- Size: warn at 300 lines, block at 500 (`skill_size.py`); `size-exception: true` declares a justified overage.
-- Process section heading is `## Process` or `### Phase N`.
-- Documented script + exit code = executable contract; a test under `tests/` must assert it (`check_skill_contract_tests.py`).
-- In-root executables: `"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<name>/scripts/<file>"`, never bare `.claude/skills/...` (`check_skill_md_exec_portability.py`, `check_plugin_frontmatter_self_containment.py`).
-- Upstream-only repository trees (governance, build, automation scripts) do not exist in a vendored install: drop the reference or declare it with a `vendor-portability` HTML comment (`check_skill_md_portability.py`, `check_vendor_portability.py`); say "in the `rjmurillo/ai-agents` repository".
-- Retired ADR in `metadata.adr` fails `check_skill_adr_bindings.py`.
-- Scripts: Python (ADR-042), exit codes ADR-035, subprocess `encoding="utf-8", errors="replace"`, resolver anchored on `git rev-parse --show-toplevel` (`check_skill_resolver_anchoring.py`).
+## Entry points
 
-## Tests
+- New skill: the `skillforge` skill creates and reviews it end to end.
+- `SKILL.md` frontmatter, line 1: `name` (`^[a-z0-9-]{1,64}$`), `version`, `description` (max 1024 chars, no XML tags, 3-5 trigger phrases plus a "Do NOT use ... (use X)" discriminator), `license`. `version` and `model` are top-level fields, never nested under `metadata:`.
+- Process section heading is `## Process` or `### Phase N` (110 of 111 skills use the former today).
 
-`tests/skills/<name>/` only. New files under `.claude/skills/<name>/tests/` are blocked
-(`check_colocated_skill_tests.py`, #4838): colocated tests ship to consumers.
+## Where to look
 
-## Gates
+| Path | Why |
+|---|---|
+| `<skill>/SKILL.md` | The contract: frontmatter plus process |
+| `<skill>/scripts/` | Executable code the skill invokes |
+| `<skill>/references/` | Long-form reference material, loaded on demand |
+| `<skill>/templates/` | Output-shape templates the skill fills in |
+| `tests/skills/<name>/` | The only place a skill's tests may live, outside this tree |
 
-Pre-commit `skillforge`, `skill-size`, `colocated-skill-tests`; pre-push `pre_pr.py` Skill* gates
-(`validate_skill_format.py --staged-only --ci`, ADR bindings, skip clauses, memory references,
-resolver anchoring, shells); CI `agent-skill-discriminator-check.yml`, `skill-passive-compliance.yml`,
-`skill_description_budget.py`.
+## Skip
 
-## Authoring
+- The generated Copilot CLI mirror of this tree: edit the source skill here and regenerate, never the mirror.
+- `__pycache__/` under a skill's scripts directory: bytecode cache, not source.
+- `<skill>/tests/`: new test files here are blocked; tests live only under `tests/skills/<name>/` (see Constraints).
 
-`skillforge` skill creates and reviews. In the `rjmurillo/ai-agents` repository: schema authority is
-steering `claude-skills.md`; criteria are governance `SKILL-CREATION-CRITERIA.md` and `SKILL-AUTHORING.md` under docs.
-New capability: buy-vs-build quick pass before `/spec` (root `AGENTS.md`).
+## Constraints
+
+- New skill scripts must be Python; new skills must ship pytest coverage under `tests/skills/<name>/`, not colocated (issue #4838): colocated tests ship to consumers.
+- In-root executables named in `SKILL.md` must resolve through `"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<name>/scripts/<file>"`, never a bare `.claude/skills/...` path, which only resolves when the consumer's cwd happens to match.
+- A path that exists only in the `rjmurillo/ai-agents` repository (governance, build, or other upstream-only automation trees) must not appear undeclared in a skill's prose: drop the reference, say "in the `rjmurillo/ai-agents` repository" instead of the path, or declare it with a `vendor-portability` HTML comment.
+- A retired ADR named in a skill's `metadata.adr` fails a portability gate (issue #5665).
+- A documented script plus exit code is an executable contract; a test under `tests/` must assert that exit code, not just a helper's return value.
+- Subprocess text capture in a skill script must use `encoding="utf-8", errors="replace"`.
+- Skill resolvers must anchor their in-repo lookup on `git rev-parse --show-toplevel`, ahead of any out-of-repo fallback, or an invocation from a subdirectory can silently resolve an arbitrarily old cached copy.
+
+## Dangerous assumptions
+
+- A script named `validate_skill_format.py` exists in the `rjmurillo/ai-agents` repository, but it validates the memory/skillbook atomic-format convention (scoped to Serena memory files), not `SKILL.md`. It is not part of this tree's gates; `skillforge` is what validates `**/SKILL.md` at commit time.
+- A green frontmatter or drift check on the mirrored Copilot copy is not proof the mirror agrees with the source by content. Some checks enforce only co-change or a similarity floor, not textual agreement: read the checking script's own docstring before trusting a "matches" claim.
+- The model-pin check reads as full ADR-080 enforcement; it is a draining ratchet. It fails only a new pin, a baselined pin whose value changed without evidence, or a baseline whose entry count grew, not every pin that predates the policy.
+
+## Dependencies
+
+- Feeds the Copilot CLI plugin's mirrored skills tree via the generator named in Matters.
+- Pre-commit gates: skill-format validation on every `**/SKILL.md`, a size check, and a colocated-test check.
+- Pre-push: the shift-left validation runner's `Skill*` gates: ADR bindings, script portability, markdown portability, markdown exec portability, resolver anchoring, contract tests, shell detection, colocated tests, shipped skill routes.
+- CI workflows: an agent/skill discriminator check, a passive-compliance check, and a description-budget check.
+
+## Architecture
+
+- Skill test location is inverted from most repository conventions: tests live in a parallel `tests/skills/<name>/` tree, never colocated with the skill (issue #4838).
+- The pre-push `Skill*` gates are individually named checks over this same tree, not one monolithic validator; a failure names one gate, not "skills failed."
+- Authoring standards live in three places, in the `rjmurillo/ai-agents` repository: schema authority is `claude-skills.md` (steering docs); creation criteria are `SKILL-CREATION-CRITERIA.md` (governance) and `SKILL-AUTHORING.md` (docs).
+
+## Commands
+
+Repository-only checks (not part of the shipped plugin); run from the `rjmurillo/ai-agents` repository root:
+
+```bash
+uv run python skill_size.py --staged-only --ci
+uv run python check_colocated_skill_tests.py --staged-only
+uv run python pre_pr.py
+```
