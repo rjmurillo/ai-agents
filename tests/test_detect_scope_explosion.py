@@ -1087,6 +1087,37 @@ class TestAdvisoryRemediationContext:
         out = capsys.readouterr().out
         assert "git stash" not in out
 
+    def test_main_without_base_branch_arg_is_pre_commit(self, capsys: CaptureFixture[str]) -> None:
+        """main() with no --base-branch passes from_prepush=False to report."""
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._over_guidance_result(),
+            ),
+            patch("sys.argv", ["detect_scope_explosion.py"]),
+        ):
+            main()
+        out = capsys.readouterr().out
+        assert "git stash" in out
+
+    def test_main_with_base_branch_arg_is_pre_push(self, capsys: CaptureFixture[str]) -> None:
+        """main() with --base-branch origin/main passes from_prepush=True to report."""
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch(
+                "scripts.detect_scope_explosion.detect_scope",
+                return_value=self._over_guidance_result(),
+            ),
+            patch(
+                "sys.argv",
+                ["detect_scope_explosion.py", "--base-branch", "origin/main"],
+            ),
+        ):
+            main()
+        out = capsys.readouterr().out
+        assert "git stash" not in out
+
 
 class TestRescopeAgainstPrBase:
     """Tests for rescope_against_pr_base.
@@ -1593,7 +1624,7 @@ class TestGeneratedFileExclusion:
         exit_code = report(result)
         assert exit_code == 0
         captured = capsys.readouterr()
-        assert "61 generated excluded" in captured.out
+        assert "61 excluded: generated or process record" in captured.out
 
     def test_report_omits_note_when_no_generated(self, capsys: CaptureFixture[str]) -> None:
         """Report output has no generated note when count is 0."""
@@ -1606,7 +1637,7 @@ class TestGeneratedFileExclusion:
         )
         report(result)
         captured = capsys.readouterr()
-        assert "generated" not in captured.out
+        assert "excluded" not in captured.out
 
     def test_episode_files_excluded(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Episode JSON files are recognized as generated."""

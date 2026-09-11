@@ -429,7 +429,11 @@ def report(result: ScopeResult, quiet: bool = False, from_prepush: bool = False)
         item 3).
     """
     count = result.file_count
-    gen_note = f" ({result.generated_count} generated excluded)" if result.generated_count else ""
+    gen_note = (
+        f" ({result.generated_count} excluded: generated or process record)"
+        if result.generated_count
+        else ""
+    )
 
     if count < WARN_THRESHOLD:
         if not quiet:
