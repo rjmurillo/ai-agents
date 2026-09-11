@@ -382,7 +382,13 @@ def activation(repo: Path, exclusions: Exclusions) -> dict[str, Any] | None:
     text = "".join(p.read_text(encoding="utf-8", errors="replace") for p in sources if p.is_file())
     referenced = sorted(name for name in skill_names if re.search(rf"\b{re.escape(name)}\b", text))
     tests_dir = repo / "tests" / "skills"
-    tested = sorted(p.name for p in tests_dir.iterdir() if p.is_dir()) if tests_dir.is_dir() else []
+    tested = (
+        sorted(
+            p.name for p in tests_dir.iterdir() if p.is_dir() and not p.name.startswith(("_", "."))
+        )
+        if tests_dir.is_dir()
+        else []
+    )
     return {
         "referenced_count": len(referenced),
         "referenced_names": referenced,

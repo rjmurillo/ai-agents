@@ -317,6 +317,18 @@ def test_edge_missing_skills_dir_degrades_activation_to_null(tmp_path: Path) -> 
     assert exclusions[0]["dimension"] == "activation"
 
 
+def test_edge_pycache_under_tests_skills_is_not_a_tested_skill(tmp_path: Path) -> None:
+    """A bytecode-cache directory is not a tested skill (regression: main checkout)."""
+    _write(tmp_path, ".claude/skills/skill-one/SKILL.md", "skill one\n")
+    _write(tmp_path, "tests/skills/skill-one/test_placeholder.py", "# placeholder\n")
+    _write(tmp_path, "tests/skills/__pycache__/cache.pyc", "not real bytecode\n")
+    _write(tmp_path, "tests/skills/.hidden/marker", "should also be excluded\n")
+    exclusions: list[dict[str, str]] = []
+    result = cpb.activation(tmp_path, exclusions)
+    assert result is not None
+    assert result["tested_names"] == ["skill-one"]
+
+
 def test_edge_git_worktree_command_unavailable_degrades_fanout_to_null(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
