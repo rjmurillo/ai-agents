@@ -1,7 +1,7 @@
 {
-  "captured_at": "2026-09-11T17:20:11.858615+00:00",
-  "command": "scripts/metrics/control_plane_baseline.py --repo . --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md --allow-dirty",
-  "commit_sha": "c27d98b724d7776cdee40be16e0bd2dbd25bcd3b",
+  "captured_at": "2026-09-11T17:24:42.324214+00:00",
+  "command": "scripts/metrics/control_plane_baseline.py --repo /home/richard/src/GitHub/rjmurillo/ai-agents2 --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md",
+  "commit_sha": "53ffe92c264884904865bf437cbb3ab043e79a27",
   "dimensions": {
     "accepted_tasks": {
       "other": 0,
@@ -167,8 +167,8 @@
       },
       "generated_projections": {
         "copilot_cli_src": {
-          "bytes": 20632637,
-          "count": 747
+          "bytes": 21029452,
+          "count": 783
         },
         "github_instructions": {
           "bytes": 277702,
@@ -176,7 +176,7 @@
         }
       },
       "serena_memories": {
-        "bytes": 3133171,
+        "bytes": 3127483,
         "count": 1041
       },
       "sessions": {

@@ -1,8 +1,8 @@
 # Control-plane baseline
 
-- Commit: `c27d98b724d7776cdee40be16e0bd2dbd25bcd3b`
-- Captured at: `2026-09-11T17:20:11.858615+00:00`
-- Command: `scripts/metrics/control_plane_baseline.py --repo . --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md --allow-dirty`
+- Commit: `53ffe92c264884904865bf437cbb3ab043e79a27`
+- Captured at: `2026-09-11T17:24:42.324214+00:00`
+- Command: `scripts/metrics/control_plane_baseline.py --repo /home/richard/src/GitHub/rjmurillo/ai-agents2 --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md`
 
 ## accepted_tasks
 
@@ -161,13 +161,13 @@
   - **count**: 4
 - **generated_projections**:
   - **copilot_cli_src**:
-    - **bytes**: 20632637
-    - **count**: 747
+    - **bytes**: 21029452
+    - **count**: 783
   - **github_instructions**:
     - **bytes**: 277702
     - **count**: 30
 - **serena_memories**:
-  - **bytes**: 3133171
+  - **bytes**: 3127483
   - **count**: 1041
 - **sessions**:
   - **bytes**: 8854391
@@ -228,22 +228,21 @@ Scope):
 ## Measurement command
 
 ```
-scripts/metrics/control_plane_baseline.py --repo . --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md --allow-dirty
+scripts/metrics/control_plane_baseline.py --repo /home/richard/src/GitHub/rjmurillo/ai-agents2 --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md
 ```
 
-`--allow-dirty` was required because sibling spec files for this same
-epic cohort (REQ-022/DESIGN-021/TASK-025, REQ-023/DESIGN-022/TASK-026)
-were present untracked in this worktree at capture time, per this task's
-explicit instruction not to commit or move them from this branch. They
-carry no path this script measures (`.agents/specs/**` is not a
-dimension source), so they do not change any number above; the commit
-SHA in this document's header is the pinned, reproducible anchor, not the
-working tree state.
+The script itself lives on the PR branch (`feat/5456-control-plane-baseline`)
+and was not present on `main` at capture time; it was pointed at the main
+checkout's clean, fast-forwarded working tree via `--repo`, so the numbers
+above describe `main` at the commit below, not the PR branch. The main
+checkout was read-only for this capture: verified clean before and after
+via `git status --short`.
 
 ## Release targets for v0.7.0
 
 Targets are relative to this document's own numbers, captured at commit
-`c27d98b724d7776cdee40be16e0bd2dbd25bcd3b`.
+`53ffe92c264884904865bf437cbb3ab043e79a27` (`main`, not the PR branch;
+see Measurement command above).
 
 - **Canonical owner total** (`canonical.agents + skills + rules + hooks +
   validators + workflows + lefthook_jobs`) must decrease from 398
