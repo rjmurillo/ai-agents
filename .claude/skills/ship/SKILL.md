@@ -16,8 +16,6 @@ whether the branch is yours.
 Migrated from `.claude/commands/ship.md` under ADR-064, which makes skills the
 single user-invocable surface.
 
-@CLAUDE.md
-
 ## Triggers
 
 `ship it`, `ship this branch`, `run pre-flight and open the PR`,
@@ -76,6 +74,8 @@ Set `pr` from fact (b): `pr=#<number>` when an open PR exists for this branch, `
 
 ## Pre-flight Checks
 
+A gate is any check whose failure would falsify your conclusion. Only a current result on the exact state and scope clears it. Failure, timeout, stale run, skip, or subset leaves the claim unproved. Say what ran and what returned. If blocked, name who can clear it.
+
 Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight checks below, branching by the `host`, `mode`, and `pr` set in Mode Detection. Report pass/fail for each with specific evidence. Any failure blocks shipping.
 
 1. **Pipeline health**
@@ -116,6 +116,8 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
 2. If any blocking check fails: report what failed, why, and how to fix. Stop. (In `mode=contributor`, check 3 is advisory and never blocks. A `Pipeline: DEFERRED` result from check 1 is not a failure and does not stop the run.)
 3. If no blocking check failed:
    - `mode=owner`, `host=github`: run /validate-pr-description to validate PR metadata, then run /push-pr to commit, push, and open the GitHub PR.
+
+     Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
    - `mode=owner`, `host=ado`: run /validate-pr-description, then create the PR with `az repos pr create` (the gh-based /push-pr does not apply to ADO).
    - `mode=contributor`: do NOT create a PR and do NOT merge. The PR already exists and is the owner's call. Emit the ship report with `RESULT: VALIDATED` and the recorded `/review` attestation.
 4. Discharge a deferred pipeline check. When check 1 recorded `Pipeline: DEFERRED` (`host=github`, `mode=owner`, `pr=none`), validate CI on the PR that `/push-pr` just created. Capture the PR number from the `/push-pr` output. The pipeline-validator skill is host-aware only for ADO; for GitHub, query CI status directly through the GitHub skill's check-status flow (`python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <number> --wait --timeout-seconds 300`, where `SCRIPTS_DIR` is resolved per the GitHub skill pattern). The discharge requires BOTH exit code 0 AND `Data.AllPassing == true` in the structured output; a no-check PR exits 0 with `AllPassing: false`, so exit code alone is insufficient. All CI checks green and `Data.AllPassing == true` makes the check `DEFERRED->PASS`. Otherwise it is `DEFERRED->FAIL`, `RESULT: BLOCKED`, and the report names the failing checks; the PR stays open and the fix lands on the branch. A deferred check MUST NOT be reported as PASS without this run.
@@ -151,7 +153,11 @@ NEXT: [monitoring, follow-up items]
 
 `RESULT: VALIDATED` is the contributor-mode terminal state: readiness checks and `/review` axes ran, no marker commit was written, no PR was created, and nothing was merged.
 
+> After reporting a completed requested result, remove any unsolicited offer, question, or invitation whose only function is to continue the interaction.
+
 A bare `Pipeline: DEFERRED` in a finished report is a defect: the deferral is discharged by Process step 4, so a completed run reports `DEFERRED->PASS` or `DEFERRED->FAIL`.
+
+> When every requested deliverable satisfies the frozen task contract and no blocker remains, the current task is terminal. Stop autonomous work.
 
 ## Verification
 

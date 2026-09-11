@@ -34,8 +34,6 @@ Spec: $ARGUMENTS
 If `$ARGUMENTS` is empty, ask the user what problem to solve. Do not proceed
 without a problem statement.
 
-@CLAUDE.md
-
 ## Process
 
 ### Step 0: First Principles Gate (blocking, runs before Step 1)
@@ -58,6 +56,8 @@ Write the answers as a structured block (the `## Step 0 First Principles` block)
 The pass criteria, hedge phrase validation table, script-resolution rules, kill criteria, and archival policy are in the `spec-generator` skill's `references/spec-step0-gates.md`.
 
 ### Step 0.5: Memory-First Gate
+
+**Bound the search.** If three tool calls have not surfaced anything useful, stop searching and switch to first-principles reasoning. Document what you tried (which tool, what query, what came back) so the user can extend the search if the answer matters more than your time budget suggests.
 
 Runs after Step 0 and before Step 1. It searches prior art before any new spec
 work, halts when the search shows the question is already answered, and runs the
@@ -83,6 +83,9 @@ conditions are the point, and a summary of them is not the gate.
 - **Output schema**: Include a `Buy-vs-build decision` section recording: core-vs-context classification, alternatives evaluated, recommendation (build/buy/partner/defer), and rationale. Required for any spec that introduces a new capability; mark `N/A (bug fix / doc / refactor)` otherwise.
 
 ## Output
+
+No em dashes or en dashes in anything this skill writes.
+Use commas, periods, colons, parentheses, hyphens, or restructure.
 
 Structured requirements document. Mirror the PRD schema produced in step 2; do not collapse to acceptance criteria alone.
 
