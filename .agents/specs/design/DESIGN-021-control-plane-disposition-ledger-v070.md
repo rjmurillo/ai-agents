@@ -37,7 +37,7 @@ control-plane-dispositions-v0.7.0.md
 ├── Table: | Candidate | Class | Owner | Consumers | Evidence |
 ├── Per-KEEP-row expansion (five fields, as a sub-list under the row or a
 │   linked ## section per candidate -- see Open Question OQ1 resolution
-│   deferred to TASK-025)
+│   deferred to TASK-029)
 └── Footer: candidates whose resolution mechanism is owned elsewhere,
     classified as one of the epic's four dispositions with a one-line
     reason naming the owning mechanism
@@ -47,7 +47,7 @@ A small check script is optional but not required: AC-02's "all five fields
 non-empty" check can be a one-off `grep`/manual review at PR time rather
 than a new validator, because writing a validator for an eight-to-a-dozen
 row document is disproportionate tooling (YAGNI) and the epic's Abort-if
-clause 3 discourages new governance mechanisms. TASK-025's Implementation
+clause 3 discourages new governance mechanisms. TASK-029's Implementation
 Notes record this as a deliberate choice, not an oversight.
 
 ## Technology Decisions
@@ -84,7 +84,7 @@ whole per repository convention).
 ## Open Questions
 
 - Row-detail layout (inline sub-list vs. linked per-candidate section) is
-  resolved at TASK-025 time based on how many KEEP rows actually need the
+  resolved at TASK-029 time based on how many KEEP rows actually need the
   five-field expansion; if only one or two rows are KEEP (as expected at
   this cohort's scale), an inline sub-list under the table row is simplest
   and avoids a second document structure.
