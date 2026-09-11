@@ -23,11 +23,12 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.176.0",
+    "semgrep==1.176.1",
     "lefthook==2.1.12",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",
+    "chevron==0.14.0",
 ]
 eval = [
     # OpenAI + GitHub Models providers (scripts/eval/_providers.py).
@@ -216,6 +217,12 @@ module = "semantic_hooks.*"
 disallow_any_generics = false
 
 [[tool.mypy.overrides]]
+# chevron 0.14.0 ships no py.typed marker and no stub package (ADR-108: the
+# skill-template compile engine, build/scripts/skill_templates.py).
+module = "chevron.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 # Pre-existing type debt (arg-type at serena_integration.py:246,
 # return-value at :326) unrelated to the atomic-write hardening. Scoped
 # here rather than suppressed in-file so the debt stays visible and
@@ -282,11 +289,12 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.176.0",
+    "semgrep==1.176.1",
     "lefthook==2.1.12",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",
+    "chevron==0.14.0",
 ]
 
 # Seconds a validator suite's tests may sum to in one JUnit report, enforced by

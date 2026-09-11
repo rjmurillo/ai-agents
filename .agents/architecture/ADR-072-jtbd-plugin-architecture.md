@@ -280,8 +280,9 @@ capability-plugin root at any other path is unaffected by it today.
   '*.mdc'` returns nothing outside `.git/`, so that emitter writes into empty
   space. Codex is not: `git ls-files '*AGENTS.md'` returns eleven tracked files,
   from the repository root down to per-directory guides, and generation
-  deliberately excludes them. `build/scripts/generate_skills.py:39` sets
-  `_DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")`.
+  deliberately excludes them. `build/scripts/generate_skills.py` sets
+  `_DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")` and applies it wherever a
+  platform stanza supplies no `excludeFilenames`.
 
   That exclusion is real in code, and its stated requirement backing is one hop
   short. The generator's docstring attributes it to "the AGENTS.md/CLAUDE.md
@@ -292,11 +293,15 @@ capability-plugin root at any other path is unaffected by it today.
   two. ADR-108 amended it on 2026-09-11 to carve out template-owned skill files,
   which changes what the build may write and still adds no filename exclusion.
 
-  Cited by requirement id rather than by line number on purpose. This round
-  already corrected two drifted line citations, and this particular file's line
-  numbers moved again while the round was running: REQ-003-010 sat at line 358
-  when the paragraph above was written and at 359 an hour later. A stable
-  identifier survives that; a line number does not.
+  Cited by requirement id and symbol name rather than by line number on
+  purpose. Four line citations in this record have now drifted, three of them
+  within hours of being written. REQ-003-010 sat at line 358 when the paragraph
+  above was written and at 359 an hour later, when ADR-108 amended the file.
+  `_DEFAULT_EXCLUDES` sat at line 39 and moved to 59 when PR #5726 landed the
+  skill-template compiler. The first correction fixed only the requirement
+  citation and left the symbol citation beside it as a line number, which is why
+  the same failure recurred in the same paragraph. A requirement id and a symbol
+  name survive an edit above them; a line number does not.
 
   An earlier revision of this paragraph said a Codex emitter would "reverse a
   requirement". It would reverse a generator policy whose cited requirement does

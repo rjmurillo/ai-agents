@@ -35,12 +35,17 @@ from checks_common import (  # noqa: E402
 )
 
 
-def _run_portability_validator(repo_root: Path, relative: str, module: str = "") -> bool:
+def _run_portability_validator(
+    repo_root: Path, relative: str, module: str = "", *extra_args: str
+) -> bool:
     """Run one portability validator and report whether it exited clean.
 
     The four validators below share a CLI: a single ``--repo-root`` and an exit
     code of 0 for clean, non-zero for drift or a configuration error. One runner
     for all four keeps a fifth from arriving as a fifth near-identical copy.
+    ``extra_args`` appends flags after ``--repo-root`` for a wrapped script
+    whose validate-only behavior needs one, e.g. ``generate_skills.py
+    --validate`` for :func:`validate_skill_template_drift`.
 
     ``cwd`` is the repository root so the ``-m`` form resolves the
     ``scripts.validation`` package the way the CI job does. It is passed for the
@@ -56,7 +61,7 @@ def _run_portability_validator(repo_root: Path, relative: str, module: str = "")
         raise MissingScriptSkip(f"{relative} not present")
     target = ["-m", module] if module else [str(script)]
     exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, *target, "--repo-root", str(repo_root)],
+        [sys.executable, *target, "--repo-root", str(repo_root), *extra_args],
         cwd=repo_root,
     )
     output = (stdout or "") + (stderr or "")
@@ -122,4 +127,37 @@ def validate_skill_contract_tests(repo_root: Path) -> bool:
     """
     return _run_portability_validator(
         repo_root, "scripts/validation/check_skill_contract_tests.py"
+    )
+
+
+def validate_skill_template_drift(repo_root: Path) -> bool:
+    """Fail when a template-owned SKILL.md differs from its rendered template.
+
+    Wraps ``build/scripts/generate_skills.py --validate`` (ADR-108). That flag
+    renders every ``templates/skills/<name>.SKILL.md.tmpl`` in memory and
+    compares the result, byte for byte, against the committed
+    ``.claude/skills/<name>/SKILL.md``; it never writes. Exit 0 covers both "no
+    template exists yet" (an empty ``templates/skills/`` directory, the state
+    this repository is in before the pilot templates land in TASK-026) and
+    "every render matches its committed file". Exit 1 or 2 names the drifted or
+    malformed file on stdout/stderr, printed by the shared runner below.
+
+    Same shape as :func:`validate_skill_contract_tests` above: a subprocess
+    wrapper around a script with its own ``--repo-root``/exit-code CLI, run
+    through :func:`_run_portability_validator` so a fifth near-identical copy
+    of that plumbing does not accrete here (see the module docstring). The
+    ``--validate`` flag is passed as an extra arg, since this is the one
+    caller in this module whose wrapped script needs one.
+
+    Unlike the other three validators in this module, the wrapped script is
+    ``build/scripts/generate_skills.py``, not a ``scripts/validation/*`` file,
+    because the drift predicate DESIGN-024 specifies
+    (``.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``,
+    "Wiring": "``scripts/validation/checks_portability.py``:
+    ``validate_skill_template_drift(repo_root)`` wrapping
+    ``generate_skills.py --validate``") lives in the generator that already
+    owns rendering, not in a second copy of the compile logic.
+    """
+    return _run_portability_validator(
+        repo_root, "build/scripts/generate_skills.py", "", "--validate"
     )

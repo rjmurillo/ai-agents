@@ -9,10 +9,29 @@ the AGENTS.md/CLAUDE.md exclude policy (REQ-003-010).
 Mode supported: ``directory-copy`` (whole tree). Other modes raise
 :class:`ValueError`.
 
+Before the copy loop, :func:`generate_skills` runs
+``skill_templates.compile_all`` (ADR-108, "Template-Owned Skill Files Under
+``.claude/skills/``"). That record amends REQ-003-010 and ADR-107 property 1
+for exactly one artifact class: a skill whose canonical source is a mustache
+template under ``templates/skills/``. Quoted verbatim from ADR-108 section 2:
+
+    "The build shall never write to ``.claude/<artifact>/`` or
+    ``.claude/settings.json``, except the template-owned skill files whose
+    template exists under ``templates/skills/`` at run time (ADR-108). All
+    other generation targets ``src/copilot-cli/`` or ``.github/instructions/``."
+
+A repository with no ``templates/skills/`` directory yet (this module's own
+first landing) compiles zero templates and behaves exactly as before this
+change: :func:`skill_templates.discover` returns an empty mapping and
+``compile_all`` is a no-op, exit 0.
+
 EXIT CODES:
   0 - success (or validate passed)
-  1 - logic error (no SKILL.md found in source, copy failure, etc.)
-  2 - configuration error (config missing, stanza absent, mode unknown)
+  1 - logic error (no SKILL.md found in source, copy failure, a template
+      rendered content that drifted from the committed file under
+      ``--validate``, etc.)
+  2 - configuration error (config missing, stanza absent, mode unknown, a
+      template used a disallowed tag or named a missing partial)
 
 Per ADR-035 Exit Code Standardization.
 """
@@ -32,6 +51,7 @@ if TYPE_CHECKING:
 _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
+import skill_templates  # noqa: E402
 from copilot_body_translation import translate_skill_file  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
@@ -129,8 +149,20 @@ def generate_skills(
     repo_root: Path,
     *,
     what_if: bool = False,
+    validate: bool = False,
 ) -> int:
     """Generate skill outputs per the artifacts.skills stanza.
+
+    ``validate`` controls only the template compile step's write mode
+    (ADR-108): ``True`` renders every ``templates/skills/*.SKILL.md.tmpl``
+    and compares against the committed ``.claude/skills/<name>/SKILL.md``
+    without writing; ``False`` writes when the render differs. Either way
+    the copy loop below still runs once the compile step returns 0, so
+    ``build/scripts/build_all.py --check`` can pass ``validate=True`` and
+    still exercise the existing Copilot-mirror staleness detection over the
+    (untouched) compiled output. The standalone ``--validate`` CLI flag is a
+    separate code path in :func:`main` that skips this function entirely,
+    because that flag's contract is "check templates only, do not copy".
 
     Returns:
         Exit code (0/1/2) per ADR-035.
@@ -141,6 +173,24 @@ def generate_skills(
     print(f"Repo root: {repo_root}")
     print(f"Mode: {'WhatIf' if what_if else 'Generate'}")
     print()
+
+    compile_result = skill_templates.compile_all(repo_root, validate=validate, what_if=what_if)
+    if compile_result.written:
+        print(f"Templates compiled: {len(compile_result.written)}")
+    if compile_result.skipped:
+        print(f"Templates skipped (NO-REGEN): {len(compile_result.skipped)}")
+    if compile_result.drifted:
+        print(f"Templates drifted from committed SKILL.md: {len(compile_result.drifted)}")
+    if compile_result.exit_code != 0:
+        # int(...): mypy resolves this sibling sys.path import as
+        # `scripts.skill_templates` (its build/scripts/__init__.py-derived
+        # qualified name) rather than the bare `skill_templates` this module
+        # imports it as, so it cannot match the two names and treats the
+        # attribute access as Any. Pre-existing for every sibling import in
+        # this file (regen_guard, copilot_body_translation, yaml_loader);
+        # this is the first place a value crosses a typed function boundary
+        # directly enough for --warn-return-any to notice.
+        return int(compile_result.exit_code)
 
     try:
         cfg = load_platform_config(config_path)
@@ -234,6 +284,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Repository root (defaults to script's grandparent: build/scripts/../..).",
     )
     parser.add_argument("--what-if", action="store_true", help="Dry-run mode.")
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help=(
+            "Check every templates/skills/*.SKILL.md.tmpl against its committed "
+            ".claude/skills/<name>/SKILL.md and exit; never writes, never copies."
+        ),
+    )
     return parser
 
 
@@ -241,6 +299,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     repo_root = args.repo_root or _SCRIPT_DIR.parent.parent
+
+    if args.validate:
+        # Skips generate_skills() entirely: --validate's contract is "check
+        # the templates, don't touch the copy loop or require a platform
+        # config at all" (ADR-108 section 4, "Drift is a gate, not a header").
+        result = skill_templates.compile_all(repo_root, validate=True, what_if=False)
+        if result.drifted:
+            print("DRIFTED (template renders differ from committed SKILL.md):")
+            for path in result.drifted:
+                print(f"  {path}")
+        elif result.exit_code == 0:
+            print("Templates match their compiled SKILL.md files.")
+        return int(result.exit_code)  # see the compile_result int(...) note above
+
     config_path = args.config or (repo_root / "templates" / "platforms" / "copilot-cli.yaml")
     if not config_path.is_file():
         print(f"Error: config not found: {config_path}", file=sys.stderr)

@@ -5,7 +5,7 @@ Generators, mirror-sync helpers, and drift/parity gates for the agent, skill, ru
 ## Matters
 
 - `build/scripts/build_all.py --check` is the drift gate every PR must pass. Red means regenerate, never hand-edit the output tree.
-- REQ-003-010: no generator may write under `.claude/`. `build_all.py` asserts this after every run by snapshotting `.claude/` before and diffing after.
+- REQ-003-010: no generator may write under `.claude/`, except the template-owned skill files ADR-108 enumerates (`.claude/skills/<name>/SKILL.md` for each `templates/skills/<name>.SKILL.md.tmpl` present at run time). `build_all.py` asserts this after every run by snapshotting `.claude/` before and diffing after, passing that allowlist to `assert_no_claude_writes`.
 - Three trees are hand-maintained siblings, not generator output: `src/claude/<name>.md`, `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`. Editing one means editing all three plus `templates/agents/<name>.shared.md`; nothing regenerates them for you.
 - `scripts/sync_plugin_lib.py` (top-level `scripts/`, not `build/`) MUST run before `build/scripts/build_all.py`. Reversed order exits 0 on both and ships a stale `src/copilot-cli/lib/`; only `scripts/ci/check_plugin_lib_mirrors.py` in CI catches it.
 - No plugin manifest carries a `version` key (ADR-092). A source change needs no manifest bump; adding one back fails `build/scripts/validate_plugin_version_bump.py`.

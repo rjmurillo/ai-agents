@@ -327,6 +327,82 @@ def test_assert_no_claude_writes_clean_when_unchanged(tmp_path: Path) -> None:
     assert build_all.assert_no_claude_writes(tmp_path, baseline) == []
 
 
+# .claude/ guard allowlist (ADR-108) -----------------------------------------
+
+
+def test_assert_no_claude_writes_allows_allowlisted_template_owned_write(
+    tmp_path: Path,
+) -> None:
+    """ADR-108: a write at an allowlisted .claude/skills/<name>/SKILL.md passes."""
+    claude = tmp_path / ".claude" / "skills" / "sync"
+    claude.mkdir(parents=True)
+    target = claude / "SKILL.md"
+    target.write_text("original\n", encoding="utf-8")
+    baseline = build_all._snapshot_owned_prefixes(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
+
+    target.write_text("rendered by the compile step\n", encoding="utf-8")
+
+    assert (
+        build_all.assert_no_claude_writes(tmp_path, baseline, allowed_paths={target}) == []
+    )
+
+
+def test_assert_no_claude_writes_still_flags_a_write_outside_the_allowlist(
+    tmp_path: Path,
+) -> None:
+    """A write to any other .claude/ path still fails, even with an allowlist active."""
+    claude = tmp_path / ".claude" / "skills" / "sync"
+    claude.mkdir(parents=True)
+    allowed_target = claude / "SKILL.md"
+    allowed_target.write_text("original\n", encoding="utf-8")
+    other = tmp_path / ".claude" / "agents" / "x.md"
+    other.parent.mkdir(parents=True)
+    other.write_text("original\n", encoding="utf-8")
+    baseline = build_all._snapshot_owned_prefixes(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
+
+    allowed_target.write_text("rendered\n", encoding="utf-8")  # allowlisted
+    other.write_text("leaked\n", encoding="utf-8")  # NOT allowlisted
+
+    assert build_all.assert_no_claude_writes(
+        tmp_path, baseline, allowed_paths={allowed_target}
+    ) == [".claude/agents/x.md"]
+
+
+def test_assert_no_claude_writes_empty_allowed_paths_behaves_like_none(
+    tmp_path: Path,
+) -> None:
+    """An empty allowlist set is the same as omitting the argument."""
+    claude = tmp_path / ".claude" / "agents"
+    claude.mkdir(parents=True)
+    baseline = build_all._snapshot_owned_prefixes(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
+    (claude / "leak.md").write_text("generated", encoding="utf-8")
+
+    assert build_all.assert_no_claude_writes(
+        tmp_path, baseline, allowed_paths=set()
+    ) == [".claude/agents/leak.md"]
+
+
+def test_assert_no_claude_writes_still_flags_a_deleted_allowlisted_path(
+    tmp_path: Path,
+) -> None:
+    """MINOR 2 (ADR review): the allowlist excuses a create/modify, never a
+    deletion. compile_all (ADR-108) only ever writes or leaves a
+    template-owned target unchanged; it never deletes one, so a deleted
+    allowlisted path is exactly as suspicious as any other deletion.
+    """
+    claude = tmp_path / ".claude" / "skills" / "sync"
+    claude.mkdir(parents=True)
+    target = claude / "SKILL.md"
+    target.write_text("original\n", encoding="utf-8")
+    baseline = build_all._snapshot_owned_prefixes(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
+
+    target.unlink()
+
+    assert build_all.assert_no_claude_writes(
+        tmp_path, baseline, allowed_paths={target}
+    ) == [".claude/skills/sync/SKILL.md"]
+
+
 # _build_skills missing-stanza handling --------------------------------------
 
 
@@ -336,6 +412,98 @@ def test_build_skills_skips_when_stanza_absent(tmp_path: Path) -> None:
     result = build_all._build_skills(tmp_path, cfg, "p")
     assert result.exit_code == 0
     assert any("no artifacts.skills stanza" in n for n in result.notices)
+
+
+def test_build_skills_check_mode_catches_drift_even_when_stanza_absent(
+    tmp_path: Path,
+) -> None:
+    """CodeRabbit review, PR #5726: the ADR-108 compile/drift gate is
+    repo-global, not platform-scoped, so a stanza-less platform (vscode,
+    visual-studio) must still run it. Before this fix, ``build_all.py
+    --check --platform vscode`` reported exit 0 over a drifted
+    ``.claude/skills/<name>/SKILL.md`` because the whole function returned
+    before ``skill_templates.compile_all`` was ever called.
+    """
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+    partials_dir.mkdir(parents=True)
+    (partials_dir / "greet.mustache").write_text("hi\n", encoding="utf-8")
+    (tmp_path / "templates" / "skills" / "sync.SKILL.md.tmpl").write_text(
+        "{{> greet}}\n", encoding="utf-8"
+    )
+    skill_dir = tmp_path / ".claude" / "skills" / "sync"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "hand edited, not the template render\n", encoding="utf-8"
+    )
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "p"\n')  # no artifacts.skills stanza
+
+    result = build_all._build_skills(tmp_path, cfg, "vscode", check=True)
+
+    assert result.exit_code == 2
+    assert (
+        skill_dir / "SKILL.md"
+    ).read_text(encoding="utf-8") == "hand edited, not the template render\n"
+
+
+def _skills_platform_config(tmp_path: Path) -> Path:
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\n'
+        'provider: "p"\n'
+        "artifacts:\n"
+        "  skills:\n"
+        "    mode: directory-copy\n"
+        "    sourceDir: .claude/skills\n"
+        "    outputDir: out/skills\n"
+    )
+    return cfg
+
+
+def test_build_skills_check_mode_reports_drift_as_staleness_without_writing(
+    tmp_path: Path,
+) -> None:
+    """--check with a drifted template exits 2 and writes nothing under .claude/."""
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+    partials_dir.mkdir(parents=True)
+    (partials_dir / "greet.mustache").write_text("hi\n", encoding="utf-8")
+    (tmp_path / "templates" / "skills" / "sync.SKILL.md.tmpl").write_text(
+        "{{> greet}}\n", encoding="utf-8"
+    )
+    skill_dir = tmp_path / ".claude" / "skills" / "sync"
+    skill_dir.mkdir(parents=True)
+    target = skill_dir / "SKILL.md"
+    target.write_text("hand edited, not the template render\n", encoding="utf-8")
+    cfg = _skills_platform_config(tmp_path)
+
+    result = build_all._build_skills(tmp_path, cfg, "p", check=True)
+
+    assert result.exit_code == 2
+    assert target.read_text(encoding="utf-8") == "hand edited, not the template render\n"
+    assert not (tmp_path / "out" / "skills").exists()
+
+
+def test_build_skills_check_mode_clean_template_still_runs_copy_loop(
+    tmp_path: Path,
+) -> None:
+    """--check with a clean (matching) template still exercises the copy loop."""
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+    partials_dir.mkdir(parents=True)
+    (partials_dir / "greet.mustache").write_text("hi\n", encoding="utf-8")
+    (tmp_path / "templates" / "skills" / "sync.SKILL.md.tmpl").write_text(
+        "{{> greet}}\n", encoding="utf-8"
+    )
+    skill_dir = tmp_path / ".claude" / "skills" / "sync"
+    skill_dir.mkdir(parents=True)
+    target = skill_dir / "SKILL.md"
+    target.write_text("hi\n", encoding="utf-8")
+    cfg = _skills_platform_config(tmp_path)
+
+    result = build_all._build_skills(tmp_path, cfg, "p", check=True)
+
+    assert result.exit_code == 0
+    assert target.read_text(encoding="utf-8") == "hi\n"
+    assert (tmp_path / "out" / "skills" / "sync" / "SKILL.md").is_file()
 
 
 # _build_lib (M7-T1) --------------------------------------------------------
