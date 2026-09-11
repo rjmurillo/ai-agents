@@ -546,7 +546,10 @@ def _safe_open(path: Path) -> int:
     if path.is_symlink():
         raise SymlinkRefusedError(f"refusing to write to symlink target: {path}")
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | _O_NOFOLLOW
-    return os.open(path, flags, 0o644)
+    # Owner-only mode: git tracks no mode beyond the exec bit, so the
+    # committed artifact is unaffected and CodeQL py/overly-permissive-file
+    # stays quiet.
+    return os.open(path, flags, 0o600)
 
 
 def write_json(baseline: Baseline, path: Path) -> None:
