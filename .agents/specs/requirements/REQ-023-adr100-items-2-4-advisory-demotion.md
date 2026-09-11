@@ -38,8 +38,8 @@ blocking behavior rather than adding it.
 ### Q2 Status Quo
 
 `check_atomic_commit` still blocks on the five-file commit ceiling (ADR-100
-item 2 target). `scripts/detect_scope_explosion.py:50`
-(`BLOCK_THRESHOLD = 50`) still returns 1 above the threshold, blocking pushes
+item 2 target). `scripts/detect_scope_explosion.py`'s
+`BLOCK_THRESHOLD = 50` still returns 1 above the threshold, blocking pushes
 (item 3 target). `SKIP_SCOPE_CHECK` still exists as a self-attested bypass
 flag with a recorded abuse history
 (`.agents/retrospective/2026-08-07-pr-4402-scope-bypass.md`, cited directly
