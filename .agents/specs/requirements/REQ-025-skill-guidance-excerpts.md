@@ -1,6 +1,6 @@
 ---
 type: requirement
-id: REQ-024
+id: REQ-025
 title: Pilot skills compiled from mustache templates with single-sourced guidance
 status: draft
 priority: P1
@@ -9,8 +9,8 @@ source: GH-5706
 related:
   - REQ-003
   - ADR-108
-  - DESIGN-023
-  - TASK-028
+  - DESIGN-024
+  - TASK-030
   - TASK-025
   - TASK-027
 created: 2026-09-11
@@ -22,7 +22,7 @@ tags:
   - generation
 ---
 
-# REQ-024: Pilot skills compiled from mustache templates with single-sourced guidance
+# REQ-025: Pilot skills compiled from mustache templates with single-sourced guidance
 
 ## Step 0 First Principles
 
@@ -54,7 +54,7 @@ The repository has 111 skill directories. A skill joins the class by the presenc
 
 Searched: Serena memories (`copilot/copilot-skill-mirror-has-two-sources`, `architecture/always-on-membership-lives-in-the-mirror`, `agent-workflow/agent-generation-edit-locations`, `decision-agent-files-are-not-canonical`), ADR-107 and its debate log, REQ-003, `.agents/governance/GENERATOR-FILES.md`, `tests/skills/test_spec_bundle_parity.py`, `scripts/validation/check_generated_staleness.py`, `build/generate_agents.py --validate`. No existing mechanism pins an excerpt inside a skill to a rule file, so the gate does not halt. Two precedents shape the design: `test_spec_bundle_parity.py` pins byte-identical bundled copies to their canonical source, and `check_generated_staleness.py` wires a regenerate-then-diff gate into `pre_pr_sequence.py`.
 
-Constraint found during the search, and it changes the design issue #5706 sketches: `build/scripts/build_all.py:793` (`assert_no_claude_writes`, REQ-003-010) exits 2 when any generator writes under `.claude/`. ADR-107 lists "Generators read canonical trees and write mirror trees. They never write under `.claude/`" as a settled property it does not reopen. REQ-003 decision D4 makes `.claude/<artifact>/` canonical. Epic #5698's review corrections state that #5706 "must not create a second ADR-107 or a generator that writes over canonical `.claude/` content". `assert_no_claude_writes` is a before-and-after content diff, so a compile step that renders `templates/skills/<name>.SKILL.md.tmpl` into `.claude/skills/<name>/SKILL.md` through `build_all.py` exits 2 whenever the render differs from the committed file, which is every regeneration that does work. Beyond the guard, the design is blocked by policy text: ADR-107 property 1, REQ-003 D4, and the epic correction. So the issue's design needs an amendment before it can land, and issue #5706 step 1 routes exactly that. The owner chose the amendment path on 2026-09-11 (decision D1) over a no-amendment excerpt design; ADR-108 carries the amendment and DESIGN-023 the chosen mechanism, with the declined design kept at its end.
+Constraint found during the search, and it changes the design issue #5706 sketches: `build/scripts/build_all.py:793` (`assert_no_claude_writes`, REQ-003-010) exits 2 when any generator writes under `.claude/`. ADR-107 lists "Generators read canonical trees and write mirror trees. They never write under `.claude/`" as a settled property it does not reopen. REQ-003 decision D4 makes `.claude/<artifact>/` canonical. Epic #5698's review corrections state that #5706 "must not create a second ADR-107 or a generator that writes over canonical `.claude/` content". `assert_no_claude_writes` is a before-and-after content diff, so a compile step that renders `templates/skills/<name>.SKILL.md.tmpl` into `.claude/skills/<name>/SKILL.md` through `build_all.py` exits 2 whenever the render differs from the committed file, which is every regeneration that does work. Beyond the guard, the design is blocked by policy text: ADR-107 property 1, REQ-003 D4, and the epic correction. So the issue's design needs an amendment before it can land, and issue #5706 step 1 routes exactly that. The owner chose the amendment path on 2026-09-11 (decision D1) over a no-amendment excerpt design; ADR-108 carries the amendment and DESIGN-024 the chosen mechanism, with the declined design kept at its end.
 
 ## Requirement Statement
 
@@ -81,7 +81,7 @@ Entities from `.agents/specs/ontology/skill-guidance-excerpts.md` (revised for D
 9. [ ] `grep -l '^@CLAUDE\.md' src/copilot-cli/skills/*/SKILL.md .claude/skills/{sync,test,spec,ship,research,plan,checkpoint,build}/SKILL.md` SHALL print nothing.
 10. [ ] Every partial under `templates/skills/partials/` whose first line is `{{! rule-source: <file>.md }}` SHALL be a verbatim contiguous substring of `.claude/rules/<file>.md`, enforced by `tests/build_scripts/test_skill_partials_rule_parity.py` with a negative control.
 11. [ ] `uv run python scripts/validation/pre_pr.py` SHALL include a gate named `Skill Template Drift` that runs the validate command and fails closed on exit 1 or 2.
-12. [ ] `uv run pytest tests/build_scripts/test_generate_skills_template_compile.py tests/skills/{sync,test,spec,ship,research,plan,checkpoint,build} -v` SHALL pass with the positive, negative, config, and edge cases listed in DESIGN-023.
+12. [ ] `uv run pytest tests/build_scripts/test_generate_skills_template_compile.py tests/skills/{sync,test,spec,ship,research,plan,checkpoint,build} -v` SHALL pass with the positive, negative, config, and edge cases listed in DESIGN-024.
 13. [ ] The PR body SHALL quote `wc -c` on the five always-on rule files and on the eight pilot `SKILL.md` files, before (on `origin/main`) and after (on the branch).
 14. [ ] `git diff --name-only origin/main... | grep -E '\.(sh|ps1)$'` SHALL print nothing under `build/` or `scripts/`.
 15. [ ] `chevron==0.14.0` SHALL appear in both `[project.optional-dependencies].dev` and `[dependency-groups].dev` of `pyproject.toml`, and `tests/test_pyproject_dev_deps_parity.py` SHALL pass.

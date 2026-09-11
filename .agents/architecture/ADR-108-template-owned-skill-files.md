@@ -14,7 +14,7 @@ review-by: 2027-03-11
 
 ## Status
 
-Proposed. This record amends ADR-107 settled property 1, REQ-003-010, and REQ-003 decision D4 for exactly one artifact class: canonical skill files rendered from `templates/skills/`. The repository owner selected this path on 2026-09-11 over an in-file excerpt design that needed no amendment; that alternative is recorded in `.agents/specs/design/DESIGN-023-skill-guidance-excerpt-sync.md` and in the Alternatives table below. It enforces nothing until the first implementation slice lands; the amendment is policy text plus one allowlist argument on an existing guard.
+Proposed. This record amends ADR-107 settled property 1, REQ-003-010, and REQ-003 decision D4 for exactly one artifact class: canonical skill files rendered from `templates/skills/`. The repository owner selected this path on 2026-09-11 over an in-file excerpt design that needed no amendment; that alternative is recorded in `.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md` and in the Alternatives table below. It enforces nothing until the first implementation slice lands; the amendment is policy text plus one allowlist argument on an existing guard.
 
 ## Evidence labels
 
@@ -108,7 +108,7 @@ The eight skills carrying `@CLAUDE.md` are the pilot. Converting any other skill
 ### Why change now
 
 - **Has the original problem changed?** No. Inversion is still the risk, which is why section 4 gates drift and section 2 keeps the guard on every non-enumerated path.
-- **Is there a better solution now?** The owner wants guidance authored once and bundled at the step that needs it. That needs a template layer skills do not have. The no-amendment alternative exists (DESIGN-023) and the owner declined it on 2026-09-11.
+- **Is there a better solution now?** The owner wants guidance authored once and bundled at the step that needs it. That needs a template layer skills do not have. The no-amendment alternative exists (DESIGN-024) and the owner declined it on 2026-09-11.
 - **Risks of change**: eight files whose canonical location moves from `.claude/skills/<name>/SKILL.md` to `templates/skills/<name>.SKILL.md.tmpl`; a contributor who edits the rendered file loses the edit at the next build. Mitigations: the drift gate at pre-PR and CI, the NO-REGEN sentinel, and the `GENERATOR-FILES.md` row that names the source.
 
 ## Rationale
@@ -117,12 +117,12 @@ The eight skills carrying `@CLAUDE.md` are the pilot. Converting any other skill
 
 | Alternative | Pros | Cons | Why not chosen |
 |---|---|---|---|
-| Excerpt blocks in the hand-maintained file, pinned by a validator (DESIGN-023, declined alternative) | No amendment, no dependency, canonical file stays hand-edited | The canonical file stays under `.claude/` and the excerpt files are secondary, so a whole-skill migration to templates would need a second design later; a `--fix` mode writes spans into a canonical file | Owner decision D1, 2026-09-11: the canonical file moves out of `.claude/` into a template, matching issue #5706 and the path to migrating all 111 skills |
+| Excerpt blocks in the hand-maintained file, pinned by a validator (DESIGN-024, declined alternative) | No amendment, no dependency, canonical file stays hand-edited | The canonical file stays under `.claude/` and the excerpt files are secondary, so a whole-skill migration to templates would need a second design later; a `--fix` mode writes spans into a canonical file | Owner decision D1, 2026-09-11: the canonical file moves out of `.claude/` into a template, matching issue #5706 and the path to migrating all 111 skills |
 | Compile before the guard's baseline snapshot so the write is invisible | No guard change | Implements around REQ-003-010 rather than amending it; a compile bug writing elsewhere under `.claude/` would also be invisible | Rejected by issue #5706 step 1 and by the guard's own reason for existing |
 | Render into a new tree and point Claude Code at it | No `.claude/` write | Claude Code discovers project skills under `.claude/skills/` (`docs-say`, Claude Code documentation); a second tree is a second source | Rejected: ADR-107 R3 forbids a second generation authority |
 | Translate `@CLAUDE.md` only, no bundling | Portability fixed today | Does nothing for the epic's outcome; the always-on set cannot shrink | Rejected: solves the smaller of the two problems |
 | Full mustache grammar (sections, lambdas, variables) | Future flexibility | Every feature is a way for a template to render differently from what a reader expects; `chevron` renders a missing partial and an unknown variable as empty text silently (`docs-say`: a probe run outside the tree on 2026-09-11 with `chevron==0.14.0`, `render("A{{> nope}}B", {}, partials_dict={})` and `render("A{{x}}B", {})` both return `AB`) | Rejected: partials and comments are the whole need; the grammar is enforced, exit 2 |
-| In-tree restricted-grammar expander, no dependency | About 40 lines; no unmaintained dependency; no mypy override or dev-table entry | A second mustache-like syntax to document and test; `chevron` 0.14.0 is 746 lines across five modules (`docs-say`, measured 2026-09-11) implementing sections, lambdas, and set-delimiter, all forbidden by section 1, so the dependency buys standard syntax and nothing else | Not chosen for A1: issue #5706 step 3 names `chevron` and the owner's D1 selection cited it; the restricted grammar makes the swap a bounded change, and REQ-024 defers it |
+| In-tree restricted-grammar expander, no dependency | About 40 lines; no unmaintained dependency; no mypy override or dev-table entry | A second mustache-like syntax to document and test; `chevron` 0.14.0 is 746 lines across five modules (`docs-say`, measured 2026-09-11) implementing sections, lambdas, and set-delimiter, all forbidden by section 1, so the dependency buys standard syntax and nothing else | Not chosen for A1: issue #5706 step 3 names `chevron` and the owner's D1 selection cited it; the restricted grammar makes the swap a bounded change, and REQ-025 defers it |
 
 ### Trade-offs
 
@@ -195,7 +195,7 @@ Rollback: revert A2, then A1, then move this record to `rejected`. A rejection b
 ## References
 
 - Issue #5706 and epic #5698, read with `gh issue view` on 2026-09-11.
-- `.agents/specs/requirements/REQ-024-skill-guidance-excerpts.md`, `.agents/specs/design/DESIGN-023-skill-guidance-excerpt-sync.md`, `.agents/plans/active/5706-skill-guidance-excerpts.md`.
+- `.agents/specs/requirements/REQ-025-skill-guidance-excerpts.md`, `.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md`, `.agents/plans/active/5706-skill-guidance-excerpts.md`.
 - `build/scripts/build_all.py:793` and `:2226`; `build/scripts/generate_skills.py:76-124`; `build/scripts/regen_guard.py:52`; `build/scripts/copilot_body_translation.py:14`, `:140`.
 - `build/scripts/copilot_body_translation.py:9-14`, the recorded Copilot CLI 1.0.66-1 probe: "`@CLAUDE.md` first line -> treated as LITERAL-TEXT (not auto-inlined)". That docstring names a Serena memory as its source; the memory directory it points at is empty in the tree, so the docstring is the citable source.
 - `chevron` on PyPI: version 0.14.0, uploaded 2021-01-02, MIT, no `requires_dist`.
