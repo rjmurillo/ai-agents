@@ -65,7 +65,7 @@ the two statements disagree inside one record.
 
 **The write allowlist has no bound and the scope fence has no lock.** Line 54 states membership is
 read from the directory at run time with no list of names kept anywhere else, and line 82 says
-converting any other skill waits on the owner's word. `.agents/specs/design/DESIGN-020-skill-guidance-excerpt-sync.md:72-73`
+converting any other skill waits on the owner's word. `.agents/specs/design/DESIGN-023-skill-guidance-excerpt-sync.md:72-73`
 gives `discover(repo_root)` and `owned_targets(repo_root)` no allowlist parameter, and
 `.github/CODEOWNERS` carries no entry for `templates/skills/`; its only skills entry is
 `/.claude/skills/review/references/ @rjmurillo` at line 11. A ninth template file therefore widens
@@ -107,7 +107,7 @@ and reference `.md` files" and which is the gate a bundled partial carrying a re
 would trip. Line 183 cites Serena memory `decisions/decision-copilot-cli-skill-task-arguments-claude-import-contract`;
 `.serena/memories/decisions/` exists and is empty, and a repository-wide grep for
 `claude-import-contract` returns only `build/scripts/copilot_body_translation.py`, this record, and
-REQ-021. Line 27 says `templates/` holds `agents/`, `platforms/`, and `toolsets.yaml` only, and it
+REQ-024. Line 27 says `templates/` holds `agents/`, `platforms/`, and `toolsets.yaml` only, and it
 also holds `AGENTS.md`, `CLAUDE.md`, and `README.md`. Line 101 says the outcome needs a template
 layer skills do not have, while the declined design already specifies `templates/skills/partials/`.
 The record names none of issues #5686 to #5691, which issue #5706 step 1 and the epic #5698
@@ -240,10 +240,10 @@ because the change is staged and uncommitted.
 resolves outside `.claude/skills/`, though that name is spliced straight into the `allowed_paths`
 set described at `:68`. The "About 40 lines" figure for the in-tree expander at `:125` carries no
 evidence label while the chevron figure beside it carries one; it is taken from
-`REQ-021-skill-guidance-excerpts.md:96`, which calls it an estimate. The trailing "which" at `:59`
+`REQ-024-skill-guidance-excerpts.md:96`, which calls it an estimate. The trailing "which" at `:59`
 can read as saying the mirror is unchanged rather than the translation. ADR-108:111 still says the
 outcome "needs a template layer skills do not have"; the declined design at
-`DESIGN-020-skill-guidance-excerpt-sync.md:154`, inside its "Declined alternative" section that
+`DESIGN-023-skill-guidance-excerpt-sync.md:154`, inside its "Declined alternative" section that
 begins at `:152`, also pins excerpts under `templates/skills/partials/`, so the real difference is
 which file is canonical. The record names the byte-growth regret at `:144` but ties it to no
 trigger: a grep for `revisit`, `trigger`, `5400`, `5492`, and `4871` in the record returns nothing,
@@ -265,7 +265,7 @@ template design.
   ADR-108 quotes line 56 faithfully. The contradiction is inside the skill file, not in this
   record, and is flagged below.
 - **Independent-thinker: the declined design specifies a partials tree in five places.**
-  Corrected. Four lines of `DESIGN-020-skill-guidance-excerpt-sync.md` contain
+  Corrected. Four lines of `DESIGN-023-skill-guidance-excerpt-sync.md` contain
   `templates/skills/partials`, and only `:154` sits inside the declined-alternative section that
   begins at `:152`. The other three describe the chosen design. The finding stands on `:154` alone.
 - **Analyst and security: the chevron measurements and the issue quotes are unverifiable.**
@@ -274,7 +274,7 @@ template design.
   read with `gh issue view`.
 - **Round-1 item on ADR-108:111 ("a template layer skills do not have").** The orchestrator had
   provisionally dropped this as defensible, since `templates/skills/` does not exist in the tree.
-  The independent-thinker seat's evidence at `DESIGN-020:154` restores it as a P2: the sentence
+  The independent-thinker seat's evidence at `DESIGN-023:154` restores it as a P2: the sentence
   describes the wrong differentiator, not a false fact.
 
 ### Adjacent defects flagged, not fixed
@@ -350,7 +350,7 @@ three texts that forbid it: REQ-003-010, REQ-003 decision D4, and ADR-107 proper
 `uv run python build/scripts/generate_adr_index.py --check` reports
 `DRIFT: .agents/architecture/README.md differs from generated output`. Two seats reported the index
 drift; the Status sentence is its root cause, because the index blocker cell is generated from that
-paragraph. `TASK-024-skill-excerpt-parity-gate.md:24` names a green `build_all.py --check` as A0's
+paragraph. `TASK-028-skill-excerpt-parity-gate.md:24` names a green `build_all.py --check` as A0's
 own done-condition, and it is red.
 
 **CODEOWNERS does not protect itself.** `.github/CODEOWNERS` carries seven entries and none covers
@@ -365,7 +365,7 @@ although it blocks at 500 lines and warns at 300 (`:61-62`), and the pilot files
 lines today, so bundled guidance consumes real headroom; the A2 report is specified in bytes only.
 The "About 40 lines" figure for the in-tree expander at `:125` carries no evidence label while the
 chevron figure beside it carries one; it is an estimate taken from
-`REQ-021-skill-guidance-excerpts.md:96`. The record names the byte-growth regret at `:144` but ties
+`REQ-024-skill-guidance-excerpts.md:96`. The record names the byte-growth regret at `:144` but ties
 it to no trigger other than the calendar `review-by`. The Alternatives table's reason for paying
 the amendment cost cites "the path to migrating all 111 skills", which section 7 at `:92` declares
 out of scope pending a separate owner decision. Three seats again flagged `:140` as pointing at the
@@ -446,12 +446,12 @@ commas, periods, colons, parentheses, hyphens, or restructure."})` returns
 `'Line before.\nUse commas, periods, colons, parentheses, hyphens, or restructure.Line after.\n'`.
 Adding one trailing newline to the partial restores the separator. The corrupted output contains
 no `{{`, so the record's two stated defenses at `:58`, the restricted grammar and the
-literal-brace scan, both pass. The partials in DESIGN-020 are specified as substrings of rule
+literal-brace scan, both pass. The partials in DESIGN-023 are specified as substrings of rule
 files, which carry no trailing newline of their own, and a repository-wide search of ADR-108,
-DESIGN-020, TASK-024, TASK-025 and TASK-027 returns no trailing-newline requirement. Because the
+DESIGN-023, TASK-028, TASK-025 and TASK-027 returns no trailing-newline requirement. Because the
 drift gate compares against the committed rendered file, a first render carrying this defect
 becomes the baseline the gate then protects. The fix belongs in the A1 grammar check and the
-DESIGN-020 test matrix, not in this record's decision.
+DESIGN-023 test matrix, not in this record's decision.
 
 **The record undercounts the sentinel forms.** `:80` says the sentinel is recognized "in either
 form it recognizes (the in-file `<!-- NO-REGEN` token in the first 4 KiB, or the `.noregen`
@@ -463,8 +463,8 @@ failure rather than a silent one, because of the exit-1 rule this revision added
 
 **The record describes its own design document as the record of the declined alternative.**
 `:17` says the declined alternative "is recorded in
-`.agents/specs/design/DESIGN-020-skill-guidance-excerpt-sync.md`" and `:111` says "The
-no-amendment alternative exists (DESIGN-020)". That file's frontmatter title is "Mustache-compiled
+`.agents/specs/design/DESIGN-023-skill-guidance-excerpt-sync.md`" and `:111` says "The
+no-amendment alternative exists (DESIGN-023)". That file's frontmatter title is "Mustache-compiled
 pilot skills under a template-owned class" and its own line 27 says "This document describes the
 chosen design. The declined alternative is kept at the end for the record." The declined design
 occupies its closing section from `:152`. The statements are imprecise rather than false, which is
@@ -495,7 +495,7 @@ must scan the raw template before rendering. Three seats again flagged `:140` as
   generated output; the commit was reverted". ADR-108 quotes line 56. The file states the incident
   in both directions, at `:56` and at `:106`, and that contradiction is the defect, in the skill
   file and not in this record. It is flagged below for the third round running.
-- **Critic: the DESIGN-020 mischaracterization is P1.** Downgraded to P2. DESIGN-020 does record
+- **Critic: the DESIGN-023 mischaracterization is P1.** Downgraded to P2. DESIGN-023 does record
   the declined alternative, in its closing section, so the references are imprecise rather than
   wrong.
 - **Independent-thinker: the exit-1 rule is a repo-wide hard block with an unexamined blast
@@ -521,7 +521,7 @@ Consensus reached on revision 4: three Accept, three Disagree-and-Commit, no Blo
 condition raised in rounds 1, 2 and 3 is verified closed against the amended files, the generated
 index, and the repository's own citation gate. The one P1 carried forward, a partial without a
 trailing newline silently joining the line after it, is a defect in the A1 grammar check and the
-DESIGN-020 test matrix rather than in this record's decision, and it is cheap to close before
+DESIGN-023 test matrix rather than in this record's decision, and it is cheap to close before
 TASK-025 starts. The record ships as `proposed` with the dissent above recorded.
 
 ## Post-consensus edits (2026-09-11, after round 4)
@@ -537,4 +537,5 @@ Two edits to the record after the round-4 vote, neither changing a decision:
   the cited lines. No line number or claim changed.
 - Two more Impact-table citations (`ADR-107...md:61-62`, `build/AGENTS.md:8`) gained anchor text for the same gate. No claim changed.
 - Pull request #5724 review (CodeRabbit) and CI: `<name>` gains a pattern and an existing-directory check in section 1; section 4 states the `build_all.py` exit precisely (compile 1, orchestrator 2); REQ-003-008 and the ontology DR4 were reconciled to the WARN and exit-1 rule; TASK-026 was renumbered to TASK-027 after `main` took the number. No decision changed.
-- Second CodeRabbit round on #5724: section 1 adds the non-symlink and resolved-containment rule for `.claude/skills/<name>/`; REQ-003-005 names the template as the regeneration trigger and the two drift gates; REQ-003-008 gains a template-owned verification fixture; TASK-024 lists task ids explicitly. No decision changed.
+- Second CodeRabbit round on #5724: section 1 adds the non-symlink and resolved-containment rule for `.claude/skills/<name>/`; REQ-003-005 names the template as the regeneration trigger and the two drift gates; REQ-003-008 gains a template-owned verification fixture; TASK-028 lists task ids explicitly. No decision changed.
+- 2026-09-11, after merge: PR #5725 merged with its own REQ-021, DESIGN-020, and TASK-024, so the three artifacts this record cites were renumbered to REQ-024, DESIGN-023, and TASK-028; references in this log were updated in place. No decision changed.

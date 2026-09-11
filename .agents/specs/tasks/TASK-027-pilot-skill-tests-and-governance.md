@@ -7,8 +7,8 @@ priority: P1
 complexity: M
 source: GH-5706
 related:
-  - REQ-021
-  - DESIGN-020
+  - REQ-024
+  - DESIGN-023
   - TASK-025
 created: 2026-09-11
 updated: 2026-09-11
@@ -19,7 +19,7 @@ author: spec
 
 ## Done definition
 
-- `templates/skills/{sync,test,spec,ship,research,plan,checkpoint,build}.SKILL.md.tmpl` exist: each is the current `SKILL.md` with the `@CLAUDE.md` line deleted and the `{{> slug}}` lines from the DESIGN-020 placement table inserted at the named steps.
+- `templates/skills/{sync,test,spec,ship,research,plan,checkpoint,build}.SKILL.md.tmpl` exist: each is the current `SKILL.md` with the `@CLAUDE.md` line deleted and the `{{> slug}}` lines from the DESIGN-023 placement table inserted at the named steps.
 - `templates/skills/partials/{no-dashes,completion-tail-audit,clear-the-gate,conventional-commits,bound-the-search,terminal-predicate}.mustache` exist, each opening with `{{! rule-source: <file>.md }}` and each body a verbatim contiguous span of that rule file.
 - `uv run python build/scripts/build_all.py` rendered the eight `.claude/skills/<name>/SKILL.md` files and regenerated their `src/copilot-cli/skills/<name>/SKILL.md` mirrors; both sets committed; `build_all.py --check` exits 0; `git status` shows no unrelated drift.
 - `tests/build_scripts/test_skill_partials_rule_parity.py` passes with a negative control.
