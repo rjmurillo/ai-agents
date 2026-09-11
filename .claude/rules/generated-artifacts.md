@@ -193,8 +193,11 @@ sync is expected to run first; it is not an enforcement of it, and nothing
 fails when you skip it.
 
 Do not resolve this by having `build_all.py` invoke `sync_plugin_lib.py`.
-REQ-003-010 forbids generators from writing under `.claude/`, and the sync
-writes there by design. The two stay separate; the order is the contract.
+REQ-003-010 forbids generators from writing under `.claude/` (ADR-108 carves
+out exactly one exception, the template-owned skill files under
+`.claude/skills/<name>/SKILL.md`; the plugin-lib sync is not that class), and
+the sync writes there by design. The two stay separate; the order is the
+contract.
 
 ## Quick Self-Review
 
