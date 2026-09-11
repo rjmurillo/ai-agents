@@ -94,6 +94,27 @@ def _exclude(exclusions: Exclusions, dim: str, reason: str) -> None:
     exclusions.append({"dimension": dim, "reason": reason})
 
 
+def _load_json_object(path: Path, exclusions: Exclusions, dim: str) -> dict[str, Any] | None:
+    """Parse ``path`` as JSON and require an object at the root (review, PR #5725).
+
+    Both JSON readers below accepted syntactically valid JSON and then
+    assumed object-shaped records; a list- or scalar-rooted file raised
+    ``AttributeError`` instead of degrading through the documented
+    exclusion path. Returns ``None`` and logs one exclusion for invalid
+    JSON or a non-object root; callers treat ``None`` as "nothing to
+    count" rather than raising.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        _exclude(exclusions, dim, f"invalid JSON: {exc}")
+        return None
+    if not isinstance(data, dict):
+        _exclude(exclusions, dim, f"{path} root is not a JSON object")
+        return None
+    return data
+
+
 def _count_glob(directory: Path, pattern: str) -> int:
     return len(list(directory.glob(pattern))) if directory.is_dir() else 0
 
@@ -207,12 +228,15 @@ def _claude_hooks(repo: Path, exclusions: Exclusions) -> tuple[dict[str, int], i
     if not settings.is_file():
         _exclude(exclusions, "canonical.hooks", f"missing {settings}")
     else:
-        try:
-            data = json.loads(settings.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            _exclude(exclusions, "canonical.hooks", f"invalid JSON: {exc}")
-            data = {}
-        for event, matchers in data.get("hooks", {}).items():
+        data = _load_json_object(settings, exclusions, "canonical.hooks") or {}
+        hooks = data.get("hooks", {})
+        if not isinstance(hooks, dict):
+            _exclude(exclusions, "canonical.hooks", f"{settings} 'hooks' is not an object")
+            hooks = {}
+        for event, matchers in hooks.items():
+            if not isinstance(matchers, list):
+                _exclude(exclusions, "canonical.hooks", f"{settings} hooks.{event} is not a list")
+                continue
             by_event[event] = sum(len(m.get("hooks", [])) for m in matchers if isinstance(m, dict))
     hooks_dir = repo / ".claude" / "hooks"
     python_files = len(list(hooks_dir.rglob("*.py"))) if hooks_dir.is_dir() else 0
@@ -245,16 +269,23 @@ def _validator_count(repo: Path) -> int:
 
 
 def _git_output(repo: Path, args: list[str]) -> str:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-        check=False,
-    )
+    # UnicodeDecodeError is not reachable here: encoding="utf-8" plus
+    # errors="replace" decodes any byte sequence without raising (review,
+    # PR #5725). TimeoutExpired is reachable, so it is converted to
+    # RuntimeError below to reach main()'s existing exit-code-2 handlers.
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"git {' '.join(args)} timed out after 30 seconds") from exc
     if result.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout.strip()
@@ -425,19 +456,19 @@ def activation(repo: Path, exclusions: Exclusions) -> dict[str, Any] | None:
     }
 
 
-def accepted_tasks(repo: Path, exclusions: Exclusions) -> dict[str, int] | None:
-    path = repo / "scripts" / "eval" / "examples" / "harness-capability-matrix.json"
-    if not path.is_file():
-        _exclude(exclusions, "accepted_tasks", f"missing {path}")
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        _exclude(exclusions, "accepted_tasks", f"invalid JSON: {exc}")
-        return None
+def _capability_statuses(
+    harnesses: list[Any], exclusions: Exclusions, path: Path
+) -> tuple[int, int, int]:
     verified = unverified = other = 0
-    for harness in data.get("harnesses", []):
-        for cap in harness.get("capabilities", {}).values():
+    for harness in harnesses:
+        if not isinstance(harness, dict):
+            _exclude(exclusions, "accepted_tasks", f"{path} harness entry is not an object")
+            continue
+        capabilities = harness.get("capabilities", {})
+        if not isinstance(capabilities, dict):
+            _exclude(exclusions, "accepted_tasks", f"{path} harness capabilities is not an object")
+            continue
+        for cap in capabilities.values():
             status = cap.get("status") if isinstance(cap, dict) else None
             if status == "VERIFIED":
                 verified += 1
@@ -445,6 +476,22 @@ def accepted_tasks(repo: Path, exclusions: Exclusions) -> dict[str, int] | None:
                 unverified += 1
             else:
                 other += 1
+    return verified, unverified, other
+
+
+def accepted_tasks(repo: Path, exclusions: Exclusions) -> dict[str, int] | None:
+    path = repo / "scripts" / "eval" / "examples" / "harness-capability-matrix.json"
+    if not path.is_file():
+        _exclude(exclusions, "accepted_tasks", f"missing {path}")
+        return None
+    data = _load_json_object(path, exclusions, "accepted_tasks")
+    if data is None:
+        return None
+    harnesses = data.get("harnesses", [])
+    if not isinstance(harnesses, list):
+        _exclude(exclusions, "accepted_tasks", f"{path} 'harnesses' is not a list")
+        return None
+    verified, unverified, other = _capability_statuses(harnesses, exclusions, path)
     return {
         "verified": verified,
         "unverified": unverified,
@@ -555,8 +602,17 @@ def _safe_open(path: Path) -> int:
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | _O_NOFOLLOW
     # Owner-only mode: git tracks no mode beyond the exec bit, so the
     # committed artifact is unaffected and CodeQL py/overly-permissive-file
-    # stays quiet.
-    return os.open(path, flags, 0o600)
+    # stays quiet. The mode argument to os.open() affects only a newly
+    # created file; fchmod narrows a pre-existing file's broader mode too
+    # (review, PR #5725).
+    fd = os.open(path, flags, 0o600)
+    if hasattr(os, "fchmod"):  # not available on Windows
+        try:
+            os.fchmod(fd, 0o600)
+        except OSError:
+            os.close(fd)
+            raise
+    return fd
 
 
 def write_json(baseline: Baseline, path: Path) -> None:
@@ -685,6 +741,32 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _normalized_command_args(args_list: list[str]) -> list[str]:
+    """Replace the ``--repo`` value with the portable token ``<repo>``.
+
+    The recorded ``command`` field is committed to the repository (review,
+    PR #5725): an author's absolute checkout path (``--repo
+    /home/alice/worktrees/...``) has no meaning to a later reader, while
+    ``--repo <repo>`` plus the markdown's "any clean checkout... reproduces
+    the dimensions" sentence does. Output paths (``--json``, ``--markdown``)
+    are recorded as given; only the repository argument is replaced.
+    """
+    result: list[str] = []
+    skip_next = False
+    for tok in args_list:
+        if skip_next:
+            result.append("<repo>")
+            skip_next = False
+        elif tok == "--repo":
+            result.append(tok)
+            skip_next = True
+        elif tok.startswith("--repo="):
+            result.append("--repo=<repo>")
+        else:
+            result.append(tok)
+    return result
+
+
 def main(argv: list[str] | None = None) -> int:
     args_list = list(sys.argv[1:] if argv is None else argv)
     args = _build_parser().parse_args(args_list)
@@ -700,7 +782,9 @@ def main(argv: list[str] | None = None) -> int:
     if dirty and not args.allow_dirty:
         print("error: working tree is dirty; pass --allow-dirty or commit first", file=sys.stderr)
         return 1
-    command = "scripts/metrics/control_plane_baseline.py " + " ".join(args_list)
+    command = "scripts/metrics/control_plane_baseline.py " + " ".join(
+        _normalized_command_args(args_list)
+    )
     try:
         baseline = build_baseline(repo, command)
     except RuntimeError as exc:

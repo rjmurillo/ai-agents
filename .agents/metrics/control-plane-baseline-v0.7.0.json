@@ -1,6 +1,6 @@
 {
-  "captured_at": "2026-09-11T17:55:57.247741+00:00",
-  "command": "scripts/metrics/control_plane_baseline.py --repo /home/richard/worktrees/ai-agents2-baseline-ref --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md",
+  "captured_at": "2026-09-11T18:45:52.847080+00:00",
+  "command": "scripts/metrics/control_plane_baseline.py --repo <repo> --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md",
   "commit_sha": "53ffe92c264884904865bf437cbb3ab043e79a27",
   "dimensions": {
     "accepted_tasks": {

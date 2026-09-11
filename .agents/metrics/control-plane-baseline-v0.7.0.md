@@ -1,12 +1,12 @@
 # Control-plane baseline
 
 - Commit: `53ffe92c264884904865bf437cbb3ab043e79a27`
-- Captured at: `2026-09-11T17:55:57.247741+00:00`
+- Captured at: `2026-09-11T18:45:52.847080+00:00`
 
 ## Measurement command
 
 ```
-scripts/metrics/control_plane_baseline.py --repo /home/richard/worktrees/ai-agents2-baseline-ref --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md
+scripts/metrics/control_plane_baseline.py --repo <repo> --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md
 ```
 
 Any clean checkout of `main` at the commit recorded above produces the same dimension values; `--repo` may point at any such checkout. The script itself lives on the branch that ran it, not necessarily on `main`.

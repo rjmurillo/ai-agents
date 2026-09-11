@@ -2,10 +2,9 @@
 
 Positive, negative, edge, CLI exit-code, parity (AC-06), reproducibility
 (AC-11), and no-content-leak (AC-09) coverage, plus the exit-0-regardless
-matrix that makes DR1 verifiable (AC-08). ``repo`` builds a small git
-fixture with known counts for all seven dimensions (``fanout_residue``
-removed, review F2); dimension-level edge cases use a bare ``tmp_path``
-instead, since only ``main()`` needs a real repository.
+matrix that makes DR1 verifiable (AC-08). ``repo`` builds a small git fixture with known counts for
+all seven dimensions (``fanout_residue`` removed, review F2); dimension-level edge cases use a bare
+``tmp_path`` instead, since only ``main()`` needs a real repository.
 """
 
 from __future__ import annotations
@@ -238,6 +237,7 @@ def test_positive_cli_writes_json_and_markdown_with_all_seven_keys(
     # review F1: Measurement command/Release targets are script-rendered, not hand-typed.
     assert "## Measurement command" in md_text
     assert data["command"] in md_text
+    assert "<repo>" in data["command"] and str(repo) not in data["command"]
     assert "any clean checkout" in md_text.lower()
     assert "## Definitions" in md_text
     for glob in cpb.VALIDATOR_GLOBS:  # review F4: globs documented in the markdown
