@@ -3,13 +3,17 @@
 Covers the nine cases in DESIGN-020's Tests table
 (``.agents/specs/design/DESIGN-020-skill-guidance-excerpt-sync.md``, "Tests")
 for the ADR-108 compile module, plus positive/negative/edge unit coverage on
-each exported function per ``.agents/governance/TESTING-RIGOR.md``.
+each exported function per ``.agents/governance/TESTING-RIGOR.md``, plus a
+tenth case (ADR review round for #5706, before merge): a NO-REGEN-protected
+target must be skipped, not counted as drift, in validate mode too, for both
+sentinel forms ``regen_guard.detect_reason`` recognizes.
 """
 
 from __future__ import annotations
 
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -265,10 +269,16 @@ def test_compile_all_skips_skill_with_no_template(tmp_path: Path) -> None:
     assert other_target.read_text(encoding="utf-8") == "hand maintained\n"
 
 
-def test_compile_all_skips_no_regen_target_with_notice(
+def test_compile_all_skips_no_regen_target_with_warn(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Edge (DESIGN-020 case 6): NO-REGEN sentinel -> skipped, NOTICE, exit 0."""
+    """Edge (DESIGN-020 case 6): NO-REGEN sentinel -> skipped, exit 0.
+
+    WARN, not NOTICE: the sentinel exempts a template-owned file from this
+    class's only gate (ADR-108 section 4), so the skip is louder than the
+    NOTICE ``generate_skills._copy_skill_tree`` prints for an ordinary
+    non-generated skill file.
+    """
     _write_partial(tmp_path, "greet", "hi\n")
     _write_template(tmp_path, "sync", "{{> greet}}\n")
     target = _seed_target_dir(tmp_path, "sync")
@@ -278,7 +288,9 @@ def test_compile_all_skips_no_regen_target_with_notice(
 
     assert result.exit_code == 0
     assert str(target) in result.skipped
-    assert "NOTICE" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "WARN" in out
+    assert "template-owned file exempt from drift gate" in out
     assert target.read_text(encoding="utf-8") == "<!-- NO-REGEN: manual edit -->\nhand edited\n"
 
 
@@ -310,11 +322,30 @@ def test_compile_all_validate_on_hand_edited_target(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8") == "hand edited, not the template render\n"
 
 
+def _apply_html_comment_sentinel(target: Path) -> None:
+    target.write_text("<!-- NO-REGEN: manual edit -->\nhand edited\n", encoding="utf-8")
+
+
+def _apply_sidecar_sentinel(target: Path) -> None:
+    target.write_text("hand edited\n", encoding="utf-8")
+    target.with_suffix(target.suffix + ".noregen").write_text("", encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "apply_sentinel",
+    [_apply_html_comment_sentinel, _apply_sidecar_sentinel],
+    ids=["html-comment", "sidecar"],
+)
 def test_compile_all_validate_skips_no_regen_target_not_counted_as_drift(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    apply_sentinel: Callable[[Path], None],
 ) -> None:
-    """Validate mode honors NO-REGEN too: skipped with the same NOTICE as the
+    """Validate mode honors NO-REGEN too: skipped with the same WARN as the
     write path, and NOT reported as drift (exit stays 0 for that file).
+
+    Covers both sentinel forms regen_guard.detect_reason recognizes: an
+    in-file ``<!-- NO-REGEN`` HTML comment, and a ``.noregen`` sidecar file.
 
     The sentinel is the author's declared intent to diverge from the
     template; validate mode's job is to catch an UNDECLARED divergence, so
@@ -324,15 +355,18 @@ def test_compile_all_validate_skips_no_regen_target_not_counted_as_drift(
     _write_partial(tmp_path, "greet", "hi\n")
     _write_template(tmp_path, "sync", "{{> greet}}\n")
     target = _seed_target_dir(tmp_path, "sync")
-    target.write_text("<!-- NO-REGEN: manual edit -->\nhand edited\n", encoding="utf-8")
+    apply_sentinel(target)
+    original = target.read_text(encoding="utf-8")
 
     result = skill_templates.compile_all(tmp_path, validate=True)
 
     assert result.exit_code == 0
     assert result.drifted == []
     assert str(target) in result.skipped
-    assert "NOTICE" in capsys.readouterr().out
-    assert target.read_text(encoding="utf-8") == "<!-- NO-REGEN: manual edit -->\nhand edited\n"
+    out = capsys.readouterr().out
+    assert "WARN" in out
+    assert "template-owned file exempt from drift gate" in out
+    assert target.read_text(encoding="utf-8") == original
 
 
 def test_compile_all_validate_on_clean_tree(tmp_path: Path) -> None:

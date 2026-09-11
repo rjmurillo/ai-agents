@@ -42,7 +42,7 @@
     "src/copilot-cli/instructions/retros.instructions.md": 3,
     "src/copilot-cli/instructions/search-before-building.instructions.md": 1,
     "src/copilot-cli/instructions/security.instructions.md": 5,
-    "src/copilot-cli/instructions/templates.instructions.md": 8,
+    "src/copilot-cli/instructions/templates.instructions.md": 9,
     "src/copilot-cli/instructions/testing.instructions.md": 12,
     "src/copilot-cli/instructions/voice.instructions.md": 1,
     "src/copilot-cli/skills/analysis-provenance/SKILL.md": 1,
