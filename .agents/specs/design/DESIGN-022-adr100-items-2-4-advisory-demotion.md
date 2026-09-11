@@ -33,8 +33,8 @@ Three small, ordered edits against ADR-100's own text, no new components:
    `BLOCK_THRESHOLD` return path from exit 1 to a report-only exit 0, and
    extend `_partition_generated`'s exclusion list with
    `.agents/sessions/**`, `.agents/qa/**`, `.agents/memory/episodes/**`.
-3. **Item 4**: remove the `SKIP_SCOPE_CHECK` env-var honor at
-   `scripts/detect_scope_explosion.py:492`, in the same commit as item 3
+3. **Item 4**: remove the `SKIP_SCOPE_CHECK` env-var honor in
+   `scripts/detect_scope_explosion.py`, in the same commit as item 3
    (never before it).
 
 ## Component Architecture
@@ -45,7 +45,7 @@ No new components. Existing components touched:
 .claude/rules/universal.md          (MUST-6 text)
 scripts/detect_scope_explosion.py   (BLOCK_THRESHOLD path, SKIP_SCOPE_CHECK)
 scripts/validation/pre_pr_sequence.py (verify no gate-registration change needed)
-lefthook.yml:395, :527              (verify invocation sites unaffected by
+lefthook.yml                        (verify invocation sites unaffected by
                                       the report-only exit-code change)
 tests/validation/test_always_on_corpus_claims.py  (updated expectations)
 tests/validation/test_audit_procedure_claims.py   (updated expectations)

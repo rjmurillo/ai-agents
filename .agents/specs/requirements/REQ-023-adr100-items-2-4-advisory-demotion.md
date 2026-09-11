@@ -52,9 +52,9 @@ of an already-accepted decision.
 ### Q3 Desperate Specificity
 
 Issue #5241 and the specific code paths ADR-100 names: `check_atomic_commit`
-(item 2), `scripts/detect_scope_explosion.py:50` and its `_partition_generated`
-exclusion list (item 3), and the `SKIP_SCOPE_CHECK` env-var honor at
-`scripts/detect_scope_explosion.py:492` (item 4). These are blocked purely
+(item 2), `scripts/detect_scope_explosion.py`'s `BLOCK_THRESHOLD` and its
+`_partition_generated` exclusion list (item 3), and the `SKIP_SCOPE_CHECK`
+env-var honor in `scripts/detect_scope_explosion.py` (item 4). These are blocked purely
 on someone implementing an already-accepted decision, not on any open
 design question.
 
