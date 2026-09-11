@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Status** | In Progress |
+| **Status** | Completed |
 | **Created** | 2026-09-11 |
 | **Owner** | claude (session 017M4qLAptnWDBp4aHuFUs6L) |
 | **Complexity** | High |
@@ -13,9 +13,9 @@
 ## Objectives
 
 - [x] D1: owner chose the mustache-compile design with an ADR-107 amendment over the no-amendment excerpt design (2026-09-11).
-- [ ] A0: ADR-108 reviewed through `adr-review`, ADR-107 cross-reference, REQ-003-010 amendment note, spec artifacts, regenerated ADR index; PR merged (TASK-030).
-- [ ] A1: compile module, `generate_skills.py --validate`, `build_all.py` allowlist and check mode, `chevron` dev dependency, `Skill Template Drift` gate, tests, governance and rule lines; PR merged (TASK-025).
-- [ ] A2: eight templates, six partials, rendered files, regenerated mirrors, contract tests, byte report; PR merged and issue #5706 closed (TASK-027).
+- [x] A0: ADR-108 reviewed through `adr-review`, ADR-107 cross-reference, REQ-003-010 amendment note, spec artifacts, regenerated ADR index; PR #5724 merged as `5159f30da` (TASK-030).
+- [x] A1: compile module, `generate_skills.py --validate`, `build_all.py` allowlist and check mode, `chevron` dev dependency, `Skill Template Drift` gate, tests, governance and rule lines; PR #5726 merged as `02f7a589b` (TASK-025).
+- [x] A2: eight templates, six partials, rendered files, regenerated mirrors, contract tests, byte report; PR #5731 merged as `8a79d7e83` and issue #5706 closed (TASK-027).
 
 ## Milestones
 
@@ -98,10 +98,14 @@ A1 code can be written in a worktree while A0 is in review, since it does not to
 | 2026-09-11 | Spec written for the no-amendment design; critic and analyst reviews folded | claude |
 | 2026-09-11 | D1 asked; owner chose the amendment path | claude |
 | 2026-09-11 | ADR-108 written; ADR-107 and REQ-003 cross-referenced; spec and tasks revised for A0/A1/A2 | claude |
+| 2026-09-11 | `adr-review` reached consensus in round 4 (3 Accept, 3 Disagree-and-Commit); PR #5724 merged as `5159f30da` | claude |
+| 2026-09-11 | Spec ids collided twice with PRs #5725 and #5727; hotfixes #5729 and #5730 renumbered to REQ-025, DESIGN-024, TASK-030 | claude |
+| 2026-09-11 | A1 built by a sonnet implementer, reviewed by an opus reviewer and two CodeRabbit rounds; PR #5726 merged as `02f7a589b`; ADR-108 `implemented: true` | claude |
+| 2026-09-11 | A2 built and reviewed the same way; PR #5731 merged as `8a79d7e83`; issue #5706 closed; always-on bytes unchanged at 56,984, pilot files grew 380 to 688 bytes each | claude |
 
 ## Blockers
 
-- None. A0 proceeds to `adr-review`.
+- None. Plan complete.
 
 ## Deferred items
 
@@ -115,5 +119,5 @@ A1 code can be written in a worktree while A0 is in review, since it does not to
 ## Related
 
 - Issue: #5706 (epic #5698)
-- PR: (pending, A0)
+- PRs: #5724 (A0), #5729 and #5730 (spec id hotfixes), #5726 (A1), #5731 (A2)
 - ADR: ADR-108 (amends ADR-107 property 1 and REQ-003-010)
