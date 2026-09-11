@@ -4,27 +4,28 @@
 
 Tracks cumulative PR size and provides early warnings before PRs grow too large.
 
+Advisory since ADR-100 items 3-4 (issue #5241): every tier, including over
+the 50-file threshold, reports and exits 0. Nothing here blocks a commit or
+push, and the former SKIP_SCOPE_CHECK bypass no longer exists; there is
+nothing left to bypass.
+
 Thresholds:
   10 files: Warning (suggest reviewing scope)
   20 files: Strong warning (suggest splitting)
-  50 files: Hard limit, still allowed (strong warning)
-  Over 50:  Block commit
-
-Bypass: Set SKIP_SCOPE_CHECK=1 environment variable for justified large PRs.
+  50 files: Strong warning, still allowed
+  Over 50:  Strong warning, still allowed
 
 EXIT CODES:
-  0  - Success: File count within limits (or warnings issued)
-  1  - Block: File count exceeds hard limit (over 50 files)
+  0  - Success: file count reported, at any tier (advisory only)
   2  - Error: Could not determine branch state
 
 See: ADR-035 Exit Code Standardization
-Related: Issue #944, PR #908 (95 files)
+Related: Issue #944, PR #908 (95 files), ADR-100 (issue #5241)
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -243,8 +244,27 @@ def is_ancestor(commit: str, ref: str) -> bool:
     return result.returncode == 0
 
 
+# Process record, not reviewable change (ADR-100 item 3, issue #5241):
+# session logs, QA reports, and memory episodes narrate what an agent did
+# rather than what changed, so counting them inflates scope with no
+# corresponding review surface. `.agents/memory/episodes/` is broader than
+# the `episode-*.json` glob `_is_generated` already exempts for the
+# atomic-commit check, because a scope diff can also touch episode-adjacent
+# files that glob does not match.
+_PROCESS_RECORD_PREFIXES = (
+    ".agents/sessions/",
+    ".agents/qa/",
+    ".agents/memory/episodes/",
+)
+
+
+def _is_process_record(path: str) -> bool:
+    """Return True when ``path`` is process record rather than reviewable change."""
+    return path.startswith(_PROCESS_RECORD_PREFIXES)
+
+
 def _partition_generated(files: list[str], repo_root: Path | None = None) -> tuple[list[str], int]:
-    """Separate authored files from generated files.
+    """Separate authored files from generated and process-record files.
 
     Returns:
         Tuple of (authored_files, generated_count).
@@ -252,7 +272,7 @@ def _partition_generated(files: list[str], repo_root: Path | None = None) -> tup
     authored = []
     generated = 0
     for f in files:
-        if _is_generated(f, repo_root=repo_root):
+        if _is_generated(f, repo_root=repo_root) or _is_process_record(f):
             generated += 1
         else:
             authored.append(f)
@@ -401,13 +421,19 @@ def report(result: ScopeResult, quiet: bool = False, from_prepush: bool = False)
         result: Detection result.
         quiet: Suppress non-error output.
         from_prepush: True when invoked from the pre-push hook (files already
-            committed; bypass requires ``git push``, not ``git commit``).
+            committed; remediation is phrased for ``git push``, not
+            ``git commit``).
 
     Returns:
-        Exit code: 0 for pass/warn, 1 for block.
+        Exit code: always 0 for a determined result (advisory only, ADR-100
+        item 3).
     """
     count = result.file_count
-    gen_note = f" ({result.generated_count} generated excluded)" if result.generated_count else ""
+    gen_note = (
+        f" ({result.generated_count} excluded: generated or process record)"
+        if result.generated_count
+        else ""
+    )
 
     if count < WARN_THRESHOLD:
         if not quiet:
@@ -434,11 +460,11 @@ def report(result: ScopeResult, quiet: bool = False, from_prepush: bool = False)
             print("  Remediation: split commits onto separate branches and push each.")
         return 0
 
-    # Block: count exceeds the hard limit (50 is allowed; 51+ blocks).
-    print(f"BLOCKED: PR scope explosion detected. {format_bar(count, BLOCK_THRESHOLD)}{gen_note}")
+    # Over the 50-file guidance (ADR-100 item 3): report only, never block.
+    print(f"ADVISORY: PR scope is very large. {format_bar(count, BLOCK_THRESHOLD)}{gen_note}")
     print(f"  Branch: {result.current_branch}")
-    print(f"  {count} files changed (over the {BLOCK_THRESHOLD}-file hard limit).{gen_note}")
-    print("  This PR is too large to review effectively.")
+    print(f"  {count} files changed (over the {BLOCK_THRESHOLD}-file guidance).{gen_note}")
+    print("  This PR is likely too large to review effectively.")
     print("")
     if not from_prepush:
         print("  Remediation:")
@@ -447,11 +473,7 @@ def report(result: ScopeResult, quiet: bool = False, from_prepush: bool = False)
         print("    3. Create a PR for the current scope, then continue")
     else:
         print("  Remediation: split commits onto separate branches and push each.")
-    print("")
-    print("  Bypass (justified large PRs only):")
-    bypass_cmd = "git push" if from_prepush else "git commit"
-    print(f"    SKIP_SCOPE_CHECK=1 {bypass_cmd} ...")
-    return 1
+    return 0
 
 
 def parse_args() -> argparse.Namespace:
@@ -483,15 +505,11 @@ def main() -> int:
     """Main entry point. Returns exit code.
 
     Returns:
-        0 on success/warning, 1 on block, 2 on error.
+        0 on a determined result, at any tier (advisory only, ADR-100 item
+        3); 2 on error.
     """
     try:
         args = parse_args()
-
-        # Check bypass
-        if os.environ.get("SKIP_SCOPE_CHECK") == "1":
-            print("Scope check bypassed (SKIP_SCOPE_CHECK=1)")
-            return 0
 
         result = detect_scope(args.base_branch or "main")
         if result is None:
@@ -499,8 +517,8 @@ def main() -> int:
             return 0
 
         # Consult the PR base only when the cheap measurement is about to
-        # block. On the path almost every commit takes this adds no work and
-        # no network call.
+        # cross the top tier. On the path almost every commit takes this adds
+        # no work and no network call.
         if result.file_count > BLOCK_THRESHOLD:
             rescoped = rescope_against_pr_base(args.base_branch, result)
             if rescoped is not None:

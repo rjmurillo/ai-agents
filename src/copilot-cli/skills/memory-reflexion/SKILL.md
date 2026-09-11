@@ -9,7 +9,7 @@ description: Tier 2 episode extraction, the reflexion write path split out of th
   or for adding citations (use memory-enhancement).
 license: MIT
 metadata:
-  adr: ADR-007, ADR-037, ADR-038, ADR-056, ADR-063, ADR-089
+  adr: ADR-038, ADR-063, ADR-089, ADR-103, ADR-106
   type: operation
   parent: memory
 ---

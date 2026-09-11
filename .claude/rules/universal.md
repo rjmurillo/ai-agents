@@ -14,13 +14,12 @@ These rules apply to every change in this repository.
 3. **Verify closing keywords against the diff before merging.** `Fixes #<n>` closes on merge; tie each claim to a named hunk. Downgrade unsupported claims to `Refs #<n>` with reason. Missing closing keywords are not automatically defects. Agent-authored PR bodies SHOULD use `These references do not close their linked items:` for bare `Refs`. Read the body before adding a closing keyword to another author's PR. Post-merge body edits are inert; close orphaned issues with a comment citing the merge commit. Evidence: on 2026-08-03, 15 claimed closing keywords across five PRs were unsupported, and four of seven keyword-free PRs repaired from title matches explicitly should not close the issue.
 4. **Verify a red remote check with equivalent evidence, or report it unreproduced.** MUST NOT claim a red remote check is cleared by a local run unless the checker, ruleset, flags, and version are demonstrably identical. State the command and why it is the same check; if you cannot, say the check is red and you could not reproduce it. A different tool produces evidence about a different check, and calling that "resolved" tells the reader to disregard a live finding.
 5. **Conventional commits**. Commit messages MUST follow `<type>(<scope>): <desc>` and include a `Co-Authored-By:` trailer when authored with an AI agent.
-6. **Atomic commits**. Each commit MUST touch five or fewer authored files (see `AGENTS.md` boundaries). Hook-generated companions (session episodes, MCP config, agent catalog, memory index) are exempt and do not count toward the limit.
-7. **No secrets**. MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
-8. **Pin Actions to SHA**. New GitHub Actions references MUST pin to a commit SHA, never a floating tag.
-9. **Session continuity**. Long-running issue work MUST preserve continuity in
+6. **No secrets**. MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
+7. **Pin Actions to SHA**. New GitHub Actions references MUST pin to a commit SHA, never a floating tag.
+8. **Session continuity**. Long-running issue work MUST preserve continuity in
    the per-issue handoff and Serena memory. Session log creation is
    discontinued; a log that is already staged still validates.
-10. **Git identity cannot prove a human acted.**
+9. **Git identity cannot prove a human acted.**
 
 ## SHOULD
 
@@ -28,6 +27,7 @@ These rules apply to every change in this repository.
 2. **Skill-first**. SHOULD prefer an existing skill (`.claude/skills/<name>`) over inline `gh`, `git`, or shell scripting when a skill exists.
 3. **Python for new scripts**. SHOULD use Python per ADR-042. MUST NOT create new bash scripts.
 4. **Minimal diff**. SHOULD NOT introduce unrelated refactors in a change. Keep the blast radius small.
+5. **Atomic commits (advisory)**. Keep commits to five or fewer authored files (see `AGENTS.md` boundaries); `check_atomic_commit` reports over the limit and does not block. Hook-generated companions are exempt.
 
 ## MUST NOT
 

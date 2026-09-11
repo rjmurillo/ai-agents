@@ -9,7 +9,7 @@ description: Memory-system maintenance operations, split out of the memory route
   memory-search) or recording a session (use memory-reflexion).
 license: MIT
 metadata:
-  adr: ADR-007, ADR-037, ADR-063
+  adr: ADR-063, ADR-106
   type: operation
   parent: memory
 ---

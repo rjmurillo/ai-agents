@@ -3293,16 +3293,21 @@ def _merge_brought_paths(repo_root: Path, staged_paths: list[str]) -> set[str]:
 
 
 def check_atomic_commit(repo_root: Path) -> int:
-    """Block when authored staged files exceed MAX_AUTHORED_FILES_PER_COMMIT.
+    """Report when authored staged files exceed MAX_AUTHORED_FILES_PER_COMMIT.
+
+    Advisory since ADR-100 item 2 (issue #5241): prints the same guidance the
+    former blocking check printed, but never fails the commit for exceeding
+    the limit. Commit granularity is left to author judgment, which ADR-100
+    names as the honest description of the resulting state.
 
     Generated companions (episodes, mcp, agents, memory-index) are exempt from
     the count so that a hook-generated sixth file cannot silently produce a
-    policy-violating commit. During a merge commit, files brought in by the
+    guidance-violating commit. During a merge commit, files brought in by the
     merge parent without author modification are also exempt (issue #4307).
 
     EXIT CODES:
-      0 - staged authored files are within the limit
-      1 - staged authored files exceed the limit
+      0 - always, for a staged set determined successfully (advisory only;
+          the file count no longer affects the exit code)
       2 - unexpected error determining the staged set
     """
     result = _run_git(
@@ -3347,18 +3352,18 @@ def check_atomic_commit(repo_root: Path) -> int:
         return 0
 
     print(
-        f"ERROR: commit touches {authored_count} authored files"
-        f" (limit is {MAX_AUTHORED_FILES_PER_COMMIT}).",
+        f"ADVISORY: commit touches {authored_count} authored files"
+        f" (guidance is {MAX_AUTHORED_FILES_PER_COMMIT}).",
         file=sys.stderr,
     )
     print("Authored files staged:", file=sys.stderr)
     for ap in authored:
         print(f"  {ap}", file=sys.stderr)
     print(
-        "Split this commit. This local pre-commit check has no PR-label bypass.",
+        "Consider splitting this commit. Advisory only, does not block (ADR-100 item 2).",
         file=sys.stderr,
     )
-    return 1
+    return 0
 
 
 def _episode_id_from_output(stdout: str) -> str | None:
