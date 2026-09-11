@@ -10,10 +10,20 @@ module: ``build/scripts/skill_templates.py``":
 
     ``discover(repo_root) -> dict[str, Path]``
         ``{name: templates/skills/<name>.SKILL.md.tmpl}``; name is the
-        filename minus ``.SKILL.md.tmpl``.
+        filename minus ``.SKILL.md.tmpl``. Excludes a candidate whose name
+        fails validation (PR review of ADR-108): ``name`` MUST match
+        ``^[a-z0-9]+(-[a-z0-9]+)*$`` and ``.claude/skills/<name>/`` MUST
+        already exist as a directory. Either failure means that candidate
+        never appears in this mapping, so it is never a target
+        :func:`owned_targets` allowlists or :func:`compile_all` writes.
+    ``discover_errors(repo_root) -> list[str]``
+        One message per candidate :func:`discover` excluded, naming the
+        template path and the reason. :func:`compile_all` grades each one
+        exit 2.
     ``owned_targets(repo_root) -> set[Path]``
-        ``{.claude/skills/<name>/SKILL.md}`` for every discovered template;
-        the allowlist ``build_all.py`` passes to the guard.
+        ``{.claude/skills/<name>/SKILL.md}`` for every discovered
+        (validated) template; the allowlist ``build_all.py`` passes to the
+        guard.
     ``check_grammar(text) -> list[str]``
         Offending tags; empty when only partial and comment tags are
         present.
@@ -24,14 +34,17 @@ module: ``build/scripts/skill_templates.py``":
         ``chevron.render(text, {}, partials_path=...,
         partials_ext="mustache")``, then a ``{{`` scan of the output.
     ``compile_all(repo_root, *, validate, what_if) -> CompileResult``
-        For each template: skip (unchanged, WARN, exit 1) when
+        Reports each of :func:`discover_errors`'s findings as exit 2, then
+        for each VALID template: skip (unchanged, WARN, exit 1) when
         ``regen_guard.detect_reason(target)`` is not ``None``; in validate
         mode compare and record drift; otherwise write when the bytes
         differ. Returns written, skipped, drifted, and an exit code (0
         pass, 1 drift, unresolved ``{{``, or a NO-REGEN skip, 2 grammar
-        (template or any included partial), a missing or cyclic partial,
-        a partial missing its trailing newline, or
-        missing target directory).
+        (template or any included partial), a missing or cyclic partial, an
+        invalid template name or a template with no existing
+        ``.claude/skills/<name>/`` directory (the latter two caught by
+        :func:`discover_errors`, before this loop ever sees the template),
+        or a partial missing its trailing newline).
 
 Stricter/looser/different than canonical: DESIGN-020's table above says a
 NO-REGEN skip on a template-owned target is "skipped, NOTICE printed, exit
@@ -136,10 +149,14 @@ EXIT CODES (per ``compile_all``, and surfaced by callers unchanged):
       rendered text still contains an unresolved ``{{`` after render, or a
       NO-REGEN-skipped template-owned target (see the "Stricter/looser/
       different than canonical" section below)
-  2 - the template, or any partial it (transitively) includes, used a
-      disallowed tag or named a partial that does not exist or forms an
-      include cycle; a referenced partial that does not end with exactly
-      one trailing newline; or the target's parent directory does not exist
+  2 - a discovered template's name does not match ``^[a-z0-9]+(-[a-z0-9]+)*$``
+      or names a skill with no existing ``.claude/skills/<name>/`` directory
+      (that template is excluded from every other check below, and its
+      target directory is therefore guaranteed to exist for every template
+      the checks below DO run on); the template, or any partial it
+      (transitively) includes, used a disallowed tag or named a partial
+      that does not exist or forms an include cycle; or a referenced
+      partial that does not end with exactly one trailing newline
 
 Per AGENTS.md Standards (``0=ok|1=logic|2=config``); the worst code wins
 across all discovered templates in one ``compile_all`` call, matching
@@ -173,6 +190,7 @@ _PARTIAL_EXT = "mustache"
 _TAG_RE = re.compile(r"\{\{\{.*?\}\}\}|\{\{.*?\}\}", re.DOTALL)
 _SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 _PARTIAL_TAG_RE = re.compile(rf"^\{{\{{>\s*({_SLUG})\s*\}}\}}$")
+_NAME_RE = re.compile(rf"^{_SLUG}$")
 _COMMENT_TAG_RE = re.compile(r"^\{\{!.*\}\}$", re.DOTALL)
 
 
@@ -207,29 +225,89 @@ class CompileResult:
     exit_code: int = 0
 
 
+def _iter_template_candidates(repo_root: Path) -> Iterator[tuple[str, Path]]:
+    """Yield ``(name, path)`` for every ``templates/skills/*.SKILL.md.tmpl``.
+
+    Unvalidated: ``name`` here is only the filename with the
+    ``.SKILL.md.tmpl`` suffix stripped, not yet checked against
+    :func:`_name_validation_error`. Shared by :func:`discover` and
+    :func:`discover_errors` so the glob and the suffix-stripping live in one
+    place instead of two.
+    """
+    templates_dir = repo_root / "templates" / "skills"
+    if not templates_dir.is_dir():
+        return
+    for path in sorted(templates_dir.glob(f"*{_TEMPLATE_SUFFIX}")):
+        yield path.name[: -len(_TEMPLATE_SUFFIX)], path
+
+
+def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str | None:
+    """Return why ``name`` is not a valid template-owned skill name, or ``None``.
+
+    Two checks, from ADR-108's PR review: ``name`` MUST match the same slug
+    pattern a partial's slug does (``^[a-z0-9]+(-[a-z0-9]+)*$``), and
+    ``.claude/skills/<name>/`` MUST already exist as a directory. The second
+    check is the class boundary ADR-108 section 1 and section 7 both draw:
+    every template-owned skill converts an EXISTING skill directory (the
+    pilot, and whatever follows it); nothing in this class creates a new
+    skill out of nothing. A misspelled or freshly-invented name failing
+    either check is a configuration error, not silently a new skill.
+    """
+    if not _NAME_RE.match(name):
+        return f"{tmpl_path}: invalid template name {name!r}; must match {_NAME_RE.pattern!r}"
+    if not (repo_root / ".claude" / "skills" / name).is_dir():
+        return f"{tmpl_path}: no existing .claude/skills/{name}/ directory"
+    return None
+
+
 def discover(repo_root: Path) -> dict[str, Path]:
-    """Return ``{name: template path}`` for every ``templates/skills/*.SKILL.md.tmpl``.
+    """Return ``{name: template path}`` for every VALID ``templates/skills/*.SKILL.md.tmpl``.
 
     ``name`` is the filename with the ``.SKILL.md.tmpl`` suffix stripped.
     An absent ``templates/skills/`` directory yields an empty mapping rather
     than an error: membership in the template-owned class is read from the
     directory at run time (ADR-108 section 1), so "no templates yet" is a
     valid, non-error state during migration.
+
+    A candidate whose name fails :func:`_name_validation_error` is excluded
+    here entirely (PR review of ADR-108): it is never a value this function
+    returns, so it can never reach :func:`owned_targets`'s allowlist or have
+    a target computed for it. :func:`discover_errors` reports the same
+    candidates as configuration errors, so the exclusion is not silent; it
+    is silent only from THIS function's own return value, which is the
+    point, since this function's return value is what the ``.claude/``
+    write guard trusts.
     """
-    templates_dir = repo_root / "templates" / "skills"
-    if not templates_dir.is_dir():
-        return {}
-    result: dict[str, Path] = {}
-    for path in sorted(templates_dir.glob(f"*{_TEMPLATE_SUFFIX}")):
-        name = path.name[: -len(_TEMPLATE_SUFFIX)]
-        result[name] = path
-    return result
+    return {
+        name: path
+        for name, path in _iter_template_candidates(repo_root)
+        if _name_validation_error(repo_root, name, path) is None
+    }
+
+
+def discover_errors(repo_root: Path) -> list[str]:
+    """Return one message per discovered template :func:`discover` excluded.
+
+    :func:`compile_all` calls this to grade an invalid template name exit 2
+    alongside its other per-template findings, naming the template's path,
+    even though :func:`discover` itself never returns that template (and so
+    never writes it, and never allowlists it).
+    """
+    errors: list[str] = []
+    for name, path in _iter_template_candidates(repo_root):
+        error = _name_validation_error(repo_root, name, path)
+        if error is not None:
+            errors.append(error)
+    return errors
 
 
 def owned_targets(repo_root: Path) -> set[Path]:
     """Return the allowlist :func:`build_all.assert_no_claude_writes` accepts.
 
-    One absolute path per discovered template: ``.claude/skills/<name>/SKILL.md``.
+    One absolute path per VALID discovered template:
+    ``.claude/skills/<name>/SKILL.md``. Built from :func:`discover`, so an
+    invalid template name never reaches this allowlist (see that function's
+    docstring).
     """
     return {
         repo_root / ".claude" / "skills" / name / "SKILL.md" for name in discover(repo_root)
@@ -378,6 +456,43 @@ def render(tmpl_path: Path, partials_dir: Path) -> str:
     return rendered
 
 
+def _try_render(tmpl_path: Path, partials_dir: Path, result: CompileResult) -> str | None:
+    """Render one template, recording any failure onto ``result``.
+
+    Returns the rendered text, or ``None`` when :func:`render` raised: the
+    exception's message is printed and ``exit_code`` is raised to the floor
+    that exception's own contract names (2 for a grammar, missing-partial,
+    or newline defect; 1 for an unresolved tag). Extracted out of
+    :func:`compile_all`'s loop body, alongside :func:`_report_discover_errors`,
+    to hold that function's cyclomatic complexity down: four except clauses
+    inline cost four branches there, one helper call costs one.
+    """
+    try:
+        return render(tmpl_path, partials_dir)
+    except (TemplateGrammarError, MissingPartialError, PartialNewlineError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        result.exit_code = max(result.exit_code, 2)
+        return None
+    except UnresolvedTagError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        result.exit_code = max(result.exit_code, 1)
+        return None
+
+
+def _report_discover_errors(repo_root: Path, result: CompileResult) -> None:
+    """Print each of :func:`discover_errors`'s findings and grade it exit 2.
+
+    Extracted out of :func:`compile_all`'s own body (kept as a single
+    statement there) to hold that function's cyclomatic complexity down;
+    this loop's only job is turning a list of strings into stderr lines and
+    an exit-code floor, with nothing else in :func:`compile_all` to weigh
+    against it.
+    """
+    for error in discover_errors(repo_root):
+        print(f"Error: {error}", file=sys.stderr)
+        result.exit_code = max(result.exit_code, 2)
+
+
 def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> CompileResult:
     """Compile every discovered template into its ``.claude/skills/`` target.
 
@@ -415,6 +530,8 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
     result = CompileResult()
     partials_dir = repo_root / "templates" / "skills" / "partials"
 
+    _report_discover_errors(repo_root, result)
+
     for name, tmpl_path in sorted(discover(repo_root).items()):
         target = repo_root / ".claude" / "skills" / name / "SKILL.md"
 
@@ -428,29 +545,15 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
             result.exit_code = max(result.exit_code, 1)
             continue
 
-        try:
-            rendered = render(tmpl_path, partials_dir)
-        except TemplateGrammarError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            result.exit_code = max(result.exit_code, 2)
-            continue
-        except MissingPartialError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            result.exit_code = max(result.exit_code, 2)
-            continue
-        except PartialNewlineError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            result.exit_code = max(result.exit_code, 2)
-            continue
-        except UnresolvedTagError as exc:
-            print(f"Error: {exc}", file=sys.stderr)
-            result.exit_code = max(result.exit_code, 1)
+        rendered = _try_render(tmpl_path, partials_dir, result)
+        if rendered is None:
             continue
 
-        if not target.parent.is_dir():
-            print(f"Error: target directory missing: {target.parent}", file=sys.stderr)
-            result.exit_code = max(result.exit_code, 2)
-            continue
+        # No "target.parent.is_dir()" check here: discover() already
+        # required .claude/skills/<name>/ to exist (PR review of ADR-108)
+        # before `name` could appear in the mapping this loop iterates, so
+        # target.parent is guaranteed to exist for every (name, tmpl_path)
+        # reached this far.
 
         current = (
             target.read_text(encoding="utf-8", newline="") if target.is_file() else None

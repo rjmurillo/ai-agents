@@ -76,6 +76,8 @@ def test_discover_returns_empty_mapping_when_templates_dir_absent(tmp_path: Path
 def test_discover_finds_templates_by_stripped_filename(tmp_path: Path) -> None:
     _write_template(tmp_path, "sync", "body\n")
     _write_template(tmp_path, "test", "body\n")
+    _seed_target_dir(tmp_path, "sync")
+    _seed_target_dir(tmp_path, "test")
 
     found = skill_templates.discover(tmp_path)
 
@@ -92,6 +94,90 @@ def test_discover_ignores_files_without_the_exact_suffix(tmp_path: Path) -> None
     assert skill_templates.discover(tmp_path) == {}
 
 
+def test_discover_excludes_a_bad_name(tmp_path: Path) -> None:
+    """PR review of ADR-108: a name that does not match
+    ``^[a-z0-9]+(-[a-z0-9]+)*$`` never reaches discover()'s mapping.
+    """
+    _write_template(tmp_path, "Bad_Name", "body\n")
+    (tmp_path / ".claude" / "skills" / "Bad_Name").mkdir(parents=True)
+
+    assert skill_templates.discover(tmp_path) == {}
+
+
+def test_discover_excludes_a_name_with_no_skill_directory(tmp_path: Path) -> None:
+    """PR review of ADR-108: a valid-shaped name with no existing
+    ``.claude/skills/<name>/`` never reaches discover()'s mapping. Every
+    template-owned skill converts an EXISTING skill; nothing in this class
+    creates one from nothing.
+    """
+    _write_template(tmp_path, "sync", "body\n")
+    # No .claude/skills/sync/ directory created at all.
+
+    assert skill_templates.discover(tmp_path) == {}
+
+
+def test_discover_errors_reports_the_bad_name_with_template_path(tmp_path: Path) -> None:
+    tmpl = _write_template(tmp_path, "Bad_Name", "body\n")
+    (tmp_path / ".claude" / "skills" / "Bad_Name").mkdir(parents=True)
+
+    errors = skill_templates.discover_errors(tmp_path)
+
+    assert len(errors) == 1
+    assert str(tmpl) in errors[0]
+    assert "Bad_Name" in errors[0]
+
+
+def test_discover_errors_reports_the_missing_skill_directory_with_template_path(
+    tmp_path: Path,
+) -> None:
+    tmpl = _write_template(tmp_path, "sync", "body\n")
+
+    errors = skill_templates.discover_errors(tmp_path)
+
+    assert len(errors) == 1
+    assert str(tmpl) in errors[0]
+    assert ".claude/skills/sync" in errors[0]
+
+
+def test_discover_errors_empty_on_a_clean_tree(tmp_path: Path) -> None:
+    _write_template(tmp_path, "sync", "body\n")
+    _seed_target_dir(tmp_path, "sync")
+
+    assert skill_templates.discover_errors(tmp_path) == []
+
+
+def test_compile_all_reports_a_bad_name_as_exit_2_and_writes_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tmpl = _write_template(tmp_path, "Bad_Name", "body\n")
+    (tmp_path / ".claude" / "skills" / "Bad_Name").mkdir(parents=True)
+
+    result = skill_templates.compile_all(tmp_path, validate=False)
+
+    assert result.exit_code == 2
+    assert result.written == []
+    assert str(tmpl) in capsys.readouterr().err
+
+
+def test_compile_all_reports_a_missing_skill_directory_as_exit_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    tmpl = _write_template(tmp_path, "sync", "body\n")
+
+    result = skill_templates.compile_all(tmp_path, validate=False)
+
+    assert result.exit_code == 2
+    assert result.written == []
+    assert str(tmpl) in capsys.readouterr().err
+
+
+def test_owned_targets_excludes_an_invalid_name(tmp_path: Path) -> None:
+    _write_template(tmp_path, "Bad_Name", "body\n")
+    (tmp_path / ".claude" / "skills" / "Bad_Name").mkdir(parents=True)
+
+    assert skill_templates.owned_targets(tmp_path) == set()
+
+
 # owned_targets() ---------------------------------------------------------------
 
 
@@ -101,6 +187,7 @@ def test_owned_targets_empty_when_no_templates(tmp_path: Path) -> None:
 
 def test_owned_targets_maps_each_template_to_its_claude_skills_path(tmp_path: Path) -> None:
     _write_template(tmp_path, "sync", "body\n")
+    _seed_target_dir(tmp_path, "sync")
 
     assert skill_templates.owned_targets(tmp_path) == {
         tmp_path / ".claude" / "skills" / "sync" / "SKILL.md"
@@ -653,6 +740,12 @@ def test_compile_all_validate_on_clean_tree(tmp_path: Path) -> None:
 
 
 def test_compile_all_missing_target_directory_is_a_config_error(tmp_path: Path) -> None:
+    """No ``.claude/skills/sync/`` at all: caught by ``discover_errors()``
+    before this template ever reaches compile_all's per-template loop (PR
+    review of ADR-108), not by a separate ``target.parent.is_dir()`` check
+    inside that loop, which discover()'s new precondition made unreachable
+    and which was removed.
+    """
     _write_partial(tmp_path, "greet", "hi\n")
     _write_template(tmp_path, "sync", "{{> greet}}\n")
     # No .claude/skills/sync/ directory created at all.

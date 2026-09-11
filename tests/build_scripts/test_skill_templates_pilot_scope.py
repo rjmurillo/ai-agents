@@ -75,9 +75,14 @@ def test_discover_reports_an_extra_template_the_pilot_set_does_not_name(
     before = set(skill_templates.discover(tmp_path))
     assert before == PILOT
 
+    # discover() (PR review of ADR-108) now also requires a valid, slug-
+    # shaped name AND an existing .claude/skills/<name>/ directory, so the
+    # added candidate needs both to prove discover() picked up a genuinely
+    # new, VALID entry rather than being excluded by the newer checks.
     (fixture_templates_dir / "unplanned-extra.SKILL.md.tmpl").write_text(
         "# unplanned\nno partials\n", encoding="utf-8"
     )
+    (tmp_path / ".claude" / "skills" / "unplanned-extra").mkdir(parents=True)
 
     after = set(skill_templates.discover(tmp_path))
 
