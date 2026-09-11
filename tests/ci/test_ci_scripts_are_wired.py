@@ -63,6 +63,14 @@ _NOT_WORKFLOW_INVOKED: dict[str, str] = {
         "main() and no shebang; tests/ci/test_count_ratchet.py covers it "
         "directly (issue #3779)."
     ),
+    "lefthook_budget_model.py": (
+        "Library holding the lefthook scheduling model shared by "
+        "scripts/metrics/control_plane_baseline.py and the declared-budget "
+        "tests. It has no main() and no shebang; "
+        "tests/ci/test_lefthook_declared_budget.py and "
+        "tests/ci/test_lefthook_container_bound.py cover it directly "
+        "(issue #5456)."
+    ),
     "failure_classification.py": (
         "Library holding PR-fetch failure classification for "
         "build_ai_review_context.py, which ai-review.yml invokes. It has no "
