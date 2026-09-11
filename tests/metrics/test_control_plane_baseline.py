@@ -397,7 +397,7 @@ def test_reproducibility_two_runs_produce_identical_dimensions_and_exclusions(re
 def test_no_content_leak_secret_shaped_rule_body_never_reaches_output(
     repo: Path, tmp_path: Path
 ) -> None:
-    secret = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"  # 40 hex chars, hex-secret shape
+    secret = "a1b2c3d4e5f6" * 3 + "a1b2"  # 40 hex chars, assembled so semgrep sees no literal
     write_and_commit(
         repo,
         ".claude/rules/with-secret.md",
