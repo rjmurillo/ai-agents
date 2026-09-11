@@ -1016,7 +1016,7 @@ class TestWorkflowContract:
         workflow changed, the test did not, and it went red on main for a
         reason unrelated to anything it tests. Asserting the pin *shape*, a
         full 40-character commit SHA rather than a floating tag
-        (universal.md MUST-8), keeps the real contract and survives the bump.
+        (universal.md MUST-7), keeps the real contract and survives the bump.
 
         Restating a SHA is right only when the assertion depends on that
         specific build. Contrast
