@@ -22,6 +22,11 @@ full: nothing in the pre-push graph scopes `python-tests` to the push range,
 while CI's `pytest.yml` does apply a paths filter and skips the suite for
 unrelated markdown.
 
+The `pre-pr-validation 110.12s` and `Total about 679s` figures above are now
+stale for the lefthook pre-push path specifically, since PR #5418 (see the
+2026-09-11 correction below) removed five duplicated gates from that job;
+this has not been re-measured, so no replacement number is given here.
+
 ## Where the time actually is
 
 `python-tests` runs four partitions in a `for` loop
@@ -68,6 +73,21 @@ The fast stage runs all eight count ratchets as parallel lefthook jobs. Then
 jobs the same way. The hook is `piped: true`, so `pre-pr-validation` cannot
 start unless the fast-stage copies already passed; the second run cannot
 discover anything.
+
+**Correction, 2026-09-11**: fixed. PR #5418 (`perf(hooks): consolidate
+pre-push ratchets`, merge commit `4e33c4baa0b070ef35ffe4b491fcd9ff16d49223`)
+added `AI_AGENTS_PRE_PR_FAST_STAGE_RAN` (`lefthook.yml:590`) and the skip
+check at `scripts/validation/pre_pr_sequence.py:543-554`, so
+`pre-pr-validation` now skips `Count Ratchets`, `Unreachable Code
+Detection`, `Path Normalization`, `Planning Artifacts`, and `Em/en-dash
+Prohibition` when the pre-push hook set the env flag, pinned by
+`tests/validation/test_pre_pr_sequence_registry.py:133-266`
+(`FAST_STAGE_DUPLICATES`, five gate names). The duplicate no longer runs
+under `lefthook` pre-push. `uv run python
+scripts/validation/pre_pr.py`, run by hand, still executes every gate
+(the env flag is unset outside the hook), so the measurements above stay
+accurate for that invocation path. Recorded in
+`.agents/metrics/control-plane-dispositions-v0.7.0.md` as a `KEEP` row.
 
 ## Measured non-levers, so nobody re-derives them
 

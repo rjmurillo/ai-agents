@@ -148,8 +148,15 @@ def declared_budget(
     return sum(cost for cost, _ in rows), rows
 
 
-def load_config() -> dict[str, Any]:
-    data = yaml.safe_load(LEFTHOOK.read_text(encoding="utf-8"))
+def load_config(path: Path = LEFTHOOK) -> dict[str, Any]:
+    """Parse ``path`` (default: this repository's ``lefthook.yml``) as a mapping.
+
+    ``path`` lets a caller outside this repository (for example a
+    measurement script pointed at a different checkout via ``--repo``)
+    reuse this parse step instead of re-deriving it; the default keeps
+    every existing caller unchanged.
+    """
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert isinstance(data, dict), "lefthook.yml must parse to a YAML mapping."
     return data
 

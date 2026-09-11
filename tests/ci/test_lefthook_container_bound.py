@@ -32,7 +32,7 @@ from types import ModuleType
 
 import pytest
 
-from tests.ci.lefthook_budget_model import (
+from scripts.ci.lefthook_budget_model import (
     CONTAINER_UNCLAMPED_JOBS,
     REPO_ROOT,
     flatten,
