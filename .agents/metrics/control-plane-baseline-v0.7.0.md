@@ -1,15 +1,17 @@
 # Control-plane baseline
 
-- Commit: `efdfe5b3190340e363737ec92033da720fc259c0`
-- Captured at: `2026-09-11T17:41:27.750182+00:00`
+- Commit: `53ffe92c264884904865bf437cbb3ab043e79a27`
+- Captured at: `2026-09-11T17:55:57.247741+00:00`
 
 ## Measurement command
 
 ```
-scripts/metrics/control_plane_baseline.py --repo /home/richard/src/GitHub/rjmurillo/ai-agents2 --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md
+scripts/metrics/control_plane_baseline.py --repo /home/richard/worktrees/ai-agents2-baseline-ref --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md
 ```
 
 Any clean checkout of `main` at the commit recorded above produces the same dimension values; `--repo` may point at any such checkout. The script itself lives on the branch that ran it, not necessarily on `main`.
+
+PR #5723 merged before this capture; the baseline is taken at 53ffe92c2, the last main commit before that merge, so every v0.7.0 subtraction is measured against a pre-cohort tree.
 
 ## Definitions
 
@@ -39,15 +41,15 @@ Any clean checkout of `main` at the commit recorded above produces the same dime
 
 | key | value |
 |---|---|
-| claude_code.bytes | 63263 |
+| claude_code.bytes | 63290 |
 | claude_code.files | .claude/CLAUDE.md, .claude/rules/builder-ethos.md, .claude/rules/claude-model-patches.md, .claude/rules/search-before-building.md, .claude/rules/universal.md, .claude/rules/voice.md, AGENTS.md, CLAUDE.md |
-| claude_code.tokens | 16870 |
-| codex.bytes | 2998 |
+| claude_code.tokens | 16879 |
+| codex.bytes | 2999 |
 | codex.files | AGENTS.md |
-| codex.tokens | 964 |
-| copilot.bytes | 64568 |
+| codex.tokens | 965 |
+| copilot.bytes | 64595 |
 | copilot.files | .github/copilot-instructions.md, .github/instructions/builder-ethos.instructions.md, .github/instructions/claude-model-patches.instructions.md, .github/instructions/search-before-building.instructions.md, .github/instructions/universal.instructions.md, .github/instructions/voice.instructions.md, AGENTS.md |
-| copilot.tokens | 17273 |
+| copilot.tokens | 17281 |
 
 ## canonical
 
@@ -88,12 +90,12 @@ Any clean checkout of `main` at the commit recorded above produces the same dime
 | episodes.count | 752 |
 | eval_results.bytes | 50403 |
 | eval_results.count | 4 |
-| generated_projections.copilot_cli_src.bytes | 21029511 |
-| generated_projections.copilot_cli_src.count | 783 |
-| generated_projections.github_instructions.bytes | 277676 |
+| generated_projections.copilot_cli_src.bytes | 20632601 |
+| generated_projections.copilot_cli_src.count | 747 |
+| generated_projections.github_instructions.bytes | 277702 |
 | generated_projections.github_instructions.count | 30 |
-| serena_memories.bytes | 3127483 |
-| serena_memories.count | 1041 |
+| serena_memories.bytes | 3101466 |
+| serena_memories.count | 1040 |
 | sessions.bytes | 8854391 |
 | sessions.count | 1538 |
 
@@ -123,9 +125,9 @@ No per-dimension data was missing on this run.
 | metric | target | direction |
 |---|---|---|
 | canonical owner total | strictly below 412 | decrease |
-| always_loaded.claude_code.tokens | strictly below 16870 | decrease |
-| always_loaded.codex.tokens | strictly below 964 | decrease |
-| always_loaded.copilot.tokens | strictly below 17273 | decrease |
+| always_loaded.claude_code.tokens | strictly below 16879 | decrease |
+| always_loaded.codex.tokens | strictly below 965 | decrease |
+| always_loaded.copilot.tokens | strictly below 17281 | decrease |
 | gate_budget.seconds_by_hook.pre-push | must not rise above 3450.0 seconds | hold |
 | measured push duration (once real push samples exist) | must not exceed ADR-104's 300 second ceiling | hold |
 

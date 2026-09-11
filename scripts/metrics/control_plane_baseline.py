@@ -556,6 +556,12 @@ def write_json(baseline: Baseline, path: Path) -> None:
         fh.write("\n")
 
 
+_PRE_COHORT_NOTE = (
+    "PR #5723 merged before this capture; the baseline is taken at "
+    "53ffe92c2, the last main commit before that merge, so every v0.7.0 "
+    "subtraction is measured against a pre-cohort tree."
+)
+
 _METHODOLOGY_EXCLUSIONS = [
     "Gate p50/p95: no sampler exists. gate_budget is the declared worst "
     "case from lefthook.yml, not a measured distribution. ADR-104 cites "
@@ -629,6 +635,8 @@ def write_markdown(baseline: Baseline, path: Path) -> None:
         "produces the same dimension values; `--repo` may point at any "
         "such checkout. The script itself lives on the branch that ran "
         "it, not necessarily on `main`.",
+        "",
+        _PRE_COHORT_NOTE,
         "",
         "## Definitions",
         "",

@@ -1,7 +1,7 @@
 {
-  "captured_at": "2026-09-11T17:41:27.750182+00:00",
-  "command": "scripts/metrics/control_plane_baseline.py --repo /home/richard/src/GitHub/rjmurillo/ai-agents2 --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md",
-  "commit_sha": "efdfe5b3190340e363737ec92033da720fc259c0",
+  "captured_at": "2026-09-11T17:55:57.247741+00:00",
+  "command": "scripts/metrics/control_plane_baseline.py --repo /home/richard/worktrees/ai-agents2-baseline-ref --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md",
+  "commit_sha": "53ffe92c264884904865bf437cbb3ab043e79a27",
   "dimensions": {
     "accepted_tasks": {
       "other": 0,
@@ -67,7 +67,7 @@
     },
     "always_loaded": {
       "claude_code": {
-        "bytes": 63263,
+        "bytes": 63290,
         "files": [
           ".claude/CLAUDE.md",
           ".claude/rules/builder-ethos.md",
@@ -78,17 +78,17 @@
           "AGENTS.md",
           "CLAUDE.md"
         ],
-        "tokens": 16870
+        "tokens": 16879
       },
       "codex": {
-        "bytes": 2998,
+        "bytes": 2999,
         "files": [
           "AGENTS.md"
         ],
-        "tokens": 964
+        "tokens": 965
       },
       "copilot": {
-        "bytes": 64568,
+        "bytes": 64595,
         "files": [
           ".github/copilot-instructions.md",
           ".github/instructions/builder-ethos.instructions.md",
@@ -98,7 +98,7 @@
           ".github/instructions/voice.instructions.md",
           "AGENTS.md"
         ],
-        "tokens": 17273
+        "tokens": 17281
       }
     },
     "canonical": {
@@ -145,17 +145,17 @@
       },
       "generated_projections": {
         "copilot_cli_src": {
-          "bytes": 21029511,
-          "count": 783
+          "bytes": 20632601,
+          "count": 747
         },
         "github_instructions": {
-          "bytes": 277676,
+          "bytes": 277702,
           "count": 30
         }
       },
       "serena_memories": {
-        "bytes": 3127483,
-        "count": 1041
+        "bytes": 3101466,
+        "count": 1040
       },
       "sessions": {
         "bytes": 8854391,
@@ -198,17 +198,17 @@
     {
       "direction": "decrease",
       "metric": "always_loaded.claude_code.tokens",
-      "target": "strictly below 16870"
+      "target": "strictly below 16879"
     },
     {
       "direction": "decrease",
       "metric": "always_loaded.codex.tokens",
-      "target": "strictly below 964"
+      "target": "strictly below 965"
     },
     {
       "direction": "decrease",
       "metric": "always_loaded.copilot.tokens",
-      "target": "strictly below 17273"
+      "target": "strictly below 17281"
     },
     {
       "direction": "hold",
