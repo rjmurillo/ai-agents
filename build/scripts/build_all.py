@@ -488,12 +488,17 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
     return result
 
 
-# Order matters: agents → agent-catalog → adr-index → skills → commands → rules → lib → hooks.
-# The skills generator copies .claude/skills/* first; the commands bridge
-# layers user-invocable skills beside them; rules write to a separate dir
-# (.github/instructions/); lib MUST land before hooks so the manifest-
-# walk-up bootstrap in shimmed hooks finds .claude-plugin/plugin.json
+# Order matters: agents → agent-catalog → adr-index → skills → rules → lib → hooks.
+# The skills generator copies .claude/skills/* first; rules write to a
+# separate dir (.github/instructions/); lib MUST land before hooks so the
+# manifest-walk-up bootstrap in shimmed hooks finds .claude-plugin/plugin.json
 # alongside lib/; hooks write src/copilot-cli/hooks/.
+#
+# A `commands` step sat between skills and rules until ADR-064 made skills the
+# single user-invocable surface and issue #5632 deleted the command-to-skill
+# bridge (build/scripts/generate_commands.py). Do not add it back:
+# scripts/validation/check_commands_retired.py fails on any command file under
+# a plugin root.
 GENERATORS: list[tuple[str, Callable[[Path, Path, str], GeneratorResult]]] = [
     ("agents", _build_agents),
     ("agent-catalog", _build_agent_catalog),
@@ -911,8 +916,8 @@ def clean_outputs(repo_root: Path, config_path: Path) -> int:
     # Only clean output dirs whose contents are exclusively generator
     # output. Skills outputs to src/<provider>/skills/ — safe to nuke.
     # Agents legacy outputDir is src/copilot-cli (not a subdir), so
-    # cleaning would destroy unrelated content. Hooks/commands/rules
-    # share dirs with hand-authored files. Restrict to skills for now.
+    # cleaning would destroy unrelated content. Hooks and rules share dirs
+    # with hand-authored files. Restrict to skills for now.
     cleanable = {"skills"}
     removed = 0
     for name, stanza in artifacts.items():

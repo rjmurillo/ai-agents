@@ -392,7 +392,7 @@ $result.number | Should -Be 123
 
 ## Test File Placement
 
-Place test files according to the standards in [AGENTS.md](../../AGENTS.md#test-location-standards):
+Place test files according to [`.agents/governance/test-location-standards.md`](../governance/test-location-standards.md), whose rules the placement gates enforce:
 
 | Category | Location |
 |----------|----------|
