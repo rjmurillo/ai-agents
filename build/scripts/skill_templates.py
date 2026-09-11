@@ -22,28 +22,40 @@ module: ``build/scripts/skill_templates.py``":
         ``chevron.render(text, {}, partials_path=..., partials_ext="mustache")``,
         then a ``{{`` scan of the output.
     ``compile_all(repo_root, *, validate, what_if) -> CompileResult``
-        For each template: skip when ``regen_guard.detect_reason(target)``
-        is not ``None``; in validate mode compare and record drift;
-        otherwise write when the bytes differ. Returns written, skipped,
-        drifted, and an exit code (0 pass, 1 drift or unresolved ``{{``, 2
-        grammar, missing partial, or missing target directory).
+        For each template: skip (unchanged, WARN, exit 1) when
+        ``regen_guard.detect_reason(target)`` is not ``None``; in validate
+        mode compare and record drift; otherwise write when the bytes
+        differ. Returns written, skipped, drifted, and an exit code (0
+        pass, 1 drift, unresolved ``{{``, or a NO-REGEN skip, 2 grammar,
+        missing partial, or missing target directory).
 
-Stricter/looser/different than canonical: DESIGN-020's table above (and ADR-108
-section 4) both say a NO-REGEN skip is reported "with a NOTICE", matching the
-plain ``NOTICE: skipped ...`` line ``generate_skills._copy_skill_tree`` already
-prints for the same sentinel on other skill files. :func:`compile_all` prints
-``WARN: skipped ... ; template-owned file exempt from drift gate`` instead, in
-both write and validate mode. The distinction: for every OTHER file
-``_copy_skill_tree`` mirrors, a NO-REGEN skip means "this destination is not
-generated at all", the routine case a plain NOTICE fits. For a template-owned
-target, the file IS generated, so a NO-REGEN sentinel on it is the file's
-sole declared exemption from ADR-108's only gate (the drift check this same
-function performs in validate mode) and from the write this function
-otherwise performs. A skip that silences a gate warrants the louder level, so
-a reader scanning build output for actionable lines does not read past it as
-routine. Kept out of ``drifted`` and does not raise ``exit_code`` above 0 for
-that file either way, matching DESIGN-020's "skipped, NOTICE printed, exit 0"
-outcome exactly; only the log level and message text diverge.
+Stricter/looser/different than canonical: DESIGN-020's table above says a
+NO-REGEN skip on a template-owned target is "skipped, NOTICE printed, exit
+0" and ADR-108 section 4 describes the same sentinel "the same way
+``_copy_skill_tree`` skips it", both matching the plain ``NOTICE: skipped
+...`` / exit-0 treatment ``generate_skills._copy_skill_tree`` already gives
+the sentinel on every OTHER skill file. :func:`compile_all` diverges on
+both counts for a template-owned target: it prints ``WARN: skipped ... ;
+template-owned file exempt from drift gate`` instead of a NOTICE, and it
+raises ``exit_code`` to at least 1 for that file in every mode (write,
+validate, and therefore ``generate_skills.py --validate`` and
+``build_all.py --check``), never only 0.
+
+The reason for both: for every OTHER file ``_copy_skill_tree`` mirrors, a
+NO-REGEN skip means "this destination is not generated at all", the routine
+case a silent, exit-0 NOTICE fits. For a template-owned target, the file IS
+generated, so a NO-REGEN sentinel on it is the file's sole declared
+exemption from ADR-108's only gate (the drift check this same function
+performs in validate mode) and from the write this function otherwise
+performs. Section 4 also says drift "is a gate, not a header": a gate that
+a sentinel can silence and still report success is not closed, it degrades
+to advisory the moment anyone reaches for the escape hatch. Fail closed
+instead: the skip is unchanged (never written, never treated as drift
+either), reported louder than a routine skip, and the run does not report
+clean while a target-owned file sits outside the gate's coverage. This
+diverges from issue #5706 step 10's own acceptance line by design, decided
+in ADR review for #5706 after DESIGN-020 and ADR-108 were already recorded;
+neither document is amended by this file, the divergence lives here.
 
 Template grammar, quoted verbatim from the same design document's "Template
 grammar" section:
@@ -285,11 +297,17 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
 
     The sentinel exempts a target from this class's only gate (ADR-108
     section 4: "A rendered file carrying a NO-REGEN sentinel ... is skipped
-    with a NOTICE"), in validate mode as much as in write mode: a hand edit
-    the author marked NO-REGEN is a declared divergence, not drift, so it is
-    reported at WARN rather than the plain NOTICE a routine skip gets, kept
-    out of ``drifted``, and does not raise ``exit_code`` above 0 for that
-    file.
+    with a NOTICE"), in validate mode as much as in write mode. Fails
+    closed rather than open: the target is left unchanged, kept out of
+    ``drifted`` (a hand edit the author marked NO-REGEN is a declared
+    divergence, not drift), reported at WARN rather than the plain NOTICE a
+    routine skip gets, and ``exit_code`` is raised to at least 1 for every
+    such target in every mode. This is a deliberate module-level divergence
+    from DESIGN-020's "skipped, NOTICE printed, exit 0" and from ADR-108
+    section 4's own wording (see the module docstring's "Stricter/looser/
+    different than canonical" section): a sentinel that could silence
+    ADR-108's only gate and still report a clean run would make the gate
+    advisory the moment anyone reached for it.
     """
     result = CompileResult()
     partials_dir = repo_root / "templates" / "skills" / "partials"
@@ -304,6 +322,7 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
                 "template-owned file exempt from drift gate"
             )
             result.skipped.append(str(target))
+            result.exit_code = max(result.exit_code, 1)
             continue
 
         try:

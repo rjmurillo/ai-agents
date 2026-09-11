@@ -4,9 +4,13 @@ Covers the nine cases in DESIGN-020's Tests table
 (``.agents/specs/design/DESIGN-020-skill-guidance-excerpt-sync.md``, "Tests")
 for the ADR-108 compile module, plus positive/negative/edge unit coverage on
 each exported function per ``.agents/governance/TESTING-RIGOR.md``, plus a
-tenth case (ADR review round for #5706, before merge): a NO-REGEN-protected
-target must be skipped, not counted as drift, in validate mode too, for both
-sentinel forms ``regen_guard.detect_reason`` recognizes.
+tenth case added in ADR review for #5706, before merge: a NO-REGEN-protected
+target must be left unchanged, not counted as drift, for both sentinel forms
+``regen_guard.detect_reason`` recognizes -- and, per a final review-round
+change, must fail closed with exit 1 in every mode (write, validate), not
+exit 0. See ``skill_templates.compile_all``'s "Stricter/looser/different
+than canonical" docstring section for why this diverges from DESIGN-020's
+own "skipped, NOTICE printed, exit 0" table entry.
 """
 
 from __future__ import annotations
@@ -269,15 +273,19 @@ def test_compile_all_skips_skill_with_no_template(tmp_path: Path) -> None:
     assert other_target.read_text(encoding="utf-8") == "hand maintained\n"
 
 
-def test_compile_all_skips_no_regen_target_with_warn(
+def test_compile_all_skips_no_regen_target_with_warn_and_fails_closed(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Edge (DESIGN-020 case 6): NO-REGEN sentinel -> skipped, exit 0.
+    """Edge (DESIGN-020 case 6, diverged in ADR review): NO-REGEN sentinel
+    on a template-owned target -> unchanged, WARN, exit 1 (not exit 0).
 
     WARN, not NOTICE: the sentinel exempts a template-owned file from this
     class's only gate (ADR-108 section 4), so the skip is louder than the
     NOTICE ``generate_skills._copy_skill_tree`` prints for an ordinary
-    non-generated skill file.
+    non-generated skill file. Exit 1, not DESIGN-020's exit 0: a sentinel
+    that could silence the drift gate and still report a clean run would
+    make the gate advisory (see compile_all's "Stricter/looser/different
+    than canonical" docstring section).
     """
     _write_partial(tmp_path, "greet", "hi\n")
     _write_template(tmp_path, "sync", "{{> greet}}\n")
@@ -286,7 +294,7 @@ def test_compile_all_skips_no_regen_target_with_warn(
 
     result = skill_templates.compile_all(tmp_path, validate=False)
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert str(target) in result.skipped
     out = capsys.readouterr().out
     assert "WARN" in out
@@ -341,16 +349,22 @@ def test_compile_all_validate_skips_no_regen_target_not_counted_as_drift(
     capsys: pytest.CaptureFixture[str],
     apply_sentinel: Callable[[Path], None],
 ) -> None:
-    """Validate mode honors NO-REGEN too: skipped with the same WARN as the
-    write path, and NOT reported as drift (exit stays 0 for that file).
+    """Tenth case (ADR review, final round): validate mode honors NO-REGEN
+    too: skipped with the same WARN as the write path, NOT reported as
+    drift, target left unchanged -- and, per the final review-round
+    decision, exit 1 rather than exit 0, since the sentinel must fail
+    closed in every mode.
 
     Covers both sentinel forms regen_guard.detect_reason recognizes: an
     in-file ``<!-- NO-REGEN`` HTML comment, and a ``.noregen`` sidecar file.
 
     The sentinel is the author's declared intent to diverge from the
     template; validate mode's job is to catch an UNDECLARED divergence, so
-    treating a NO-REGEN target as drift would flag exactly the case the
-    sentinel exists to silence.
+    treating a NO-REGEN target as drift-in-the-``drifted``-list sense would
+    flag exactly the case the sentinel exists to silence. It still has to
+    surface as a non-zero exit, or a target that opted all the way out of
+    ADR-108's gate would report success right alongside a target the gate
+    actually checked.
     """
     _write_partial(tmp_path, "greet", "hi\n")
     _write_template(tmp_path, "sync", "{{> greet}}\n")
@@ -360,7 +374,7 @@ def test_compile_all_validate_skips_no_regen_target_not_counted_as_drift(
 
     result = skill_templates.compile_all(tmp_path, validate=True)
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert result.drifted == []
     assert str(target) in result.skipped
     out = capsys.readouterr().out
