@@ -1,0 +1,224 @@
+{
+  "captured_at": "2026-09-11T18:45:52.847080+00:00",
+  "command": "scripts/metrics/control_plane_baseline.py --repo <repo> --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md",
+  "commit_sha": "53ffe92c264884904865bf437cbb3ab043e79a27",
+  "dimensions": {
+    "accepted_tasks": {
+      "other": 0,
+      "total": 22,
+      "unverified": 22,
+      "verified": 0
+    },
+    "activation": {
+      "referenced_count": 13,
+      "referenced_names": [
+        "autoplan",
+        "build",
+        "context-gather",
+        "memory",
+        "memory-search",
+        "plan",
+        "push-pr",
+        "research",
+        "review",
+        "ship",
+        "software-engineering-library",
+        "spec",
+        "test"
+      ],
+      "tested_count": 35,
+      "tested_names": [
+        "adr-review",
+        "business-strategy",
+        "chestertons-fence",
+        "codebase_documenter",
+        "codeql-scan",
+        "context-gather",
+        "curating-memories",
+        "doc-accuracy",
+        "dx-review",
+        "fix-markdown-fences",
+        "github",
+        "github_url_intercept",
+        "golden-principles",
+        "memory",
+        "memory-consolidate",
+        "merge-resolver",
+        "metrics",
+        "orphan-ref-validator",
+        "panning-for-gold",
+        "pipeline_validator",
+        "pr-autofix",
+        "pr-comment-responder",
+        "prose-self-check",
+        "requirements_interview",
+        "retrospective",
+        "review",
+        "reviewer-findings",
+        "security-detection",
+        "security-review",
+        "skillforge",
+        "slashcommandcreator",
+        "steering-matcher",
+        "stuck-detection",
+        "taste-lints",
+        "work-operating-model"
+      ]
+    },
+    "always_loaded": {
+      "claude_code": {
+        "bytes": 63290,
+        "files": [
+          ".claude/CLAUDE.md",
+          ".claude/rules/builder-ethos.md",
+          ".claude/rules/claude-model-patches.md",
+          ".claude/rules/search-before-building.md",
+          ".claude/rules/universal.md",
+          ".claude/rules/voice.md",
+          "AGENTS.md",
+          "CLAUDE.md"
+        ],
+        "tokens": 16879
+      },
+      "codex": {
+        "bytes": 2999,
+        "files": [
+          "AGENTS.md"
+        ],
+        "tokens": 965
+      },
+      "copilot": {
+        "bytes": 64595,
+        "files": [
+          ".github/copilot-instructions.md",
+          ".github/instructions/builder-ethos.instructions.md",
+          ".github/instructions/claude-model-patches.instructions.md",
+          ".github/instructions/search-before-building.instructions.md",
+          ".github/instructions/universal.instructions.md",
+          ".github/instructions/voice.instructions.md",
+          "AGENTS.md"
+        ],
+        "tokens": 17281
+      }
+    },
+    "canonical": {
+      "agents": 31,
+      "hooks_by_event": {
+        "PreCompact": 1,
+        "SessionEnd": 1,
+        "SessionStart": 4,
+        "UserPromptSubmit": 1
+      },
+      "hooks_python_files": 12,
+      "lefthook_jobs": 76,
+      "lefthook_jobs_by_hook": {
+        "commit-msg": 1,
+        "pre-commit": 45,
+        "pre-merge-commit": 1,
+        "pre-push": 29
+      },
+      "rules": 30,
+      "skills": 111,
+      "validators": 99,
+      "workflows": 58
+    },
+    "gate_budget": {
+      "seconds_by_hook": {
+        "commit-msg": 30.0,
+        "pre-commit": 6230.0,
+        "pre-merge-commit": 120.0,
+        "pre-push": 3450.0
+      }
+    },
+    "generated_historical": {
+      "archive": {
+        "bytes": 6206564,
+        "count": 816
+      },
+      "episodes": {
+        "bytes": 3280080,
+        "count": 752
+      },
+      "eval_results": {
+        "bytes": 50403,
+        "count": 4
+      },
+      "generated_projections": {
+        "copilot_cli_src": {
+          "bytes": 20632601,
+          "count": 747
+        },
+        "github_instructions": {
+          "bytes": 277702,
+          "count": 30
+        }
+      },
+      "serena_memories": {
+        "bytes": 3101466,
+        "count": 1040
+      },
+      "sessions": {
+        "bytes": 8854391,
+        "count": 1538
+      }
+    },
+    "policy_owners": {
+      "adrs": 108,
+      "always_on": {
+        "claude_rules": [
+          ".claude/rules/builder-ethos.md",
+          ".claude/rules/claude-model-patches.md",
+          ".claude/rules/search-before-building.md",
+          ".claude/rules/universal.md",
+          ".claude/rules/voice.md"
+        ],
+        "github_instructions": [
+          ".github/instructions/builder-ethos.instructions.md",
+          ".github/instructions/claude-model-patches.instructions.md",
+          ".github/instructions/search-before-building.instructions.md",
+          ".github/instructions/universal.instructions.md",
+          ".github/instructions/voice.instructions.md"
+        ]
+      },
+      "governance_docs": 42,
+      "rule_mirrors": {
+        "copilot_cli_instructions": 24,
+        "github_instructions": 30
+      },
+      "serena_memories": 1037
+    }
+  },
+  "exclusions": [],
+  "release_targets": [
+    {
+      "direction": "decrease",
+      "metric": "canonical owner total",
+      "target": "strictly below 412"
+    },
+    {
+      "direction": "decrease",
+      "metric": "always_loaded.claude_code.tokens",
+      "target": "strictly below 16879"
+    },
+    {
+      "direction": "decrease",
+      "metric": "always_loaded.codex.tokens",
+      "target": "strictly below 965"
+    },
+    {
+      "direction": "decrease",
+      "metric": "always_loaded.copilot.tokens",
+      "target": "strictly below 17281"
+    },
+    {
+      "direction": "hold",
+      "metric": "gate_budget.seconds_by_hook.pre-push",
+      "target": "must not rise above 3450.0 seconds"
+    },
+    {
+      "direction": "hold",
+      "metric": "measured push duration (once real push samples exist)",
+      "target": "must not exceed ADR-104's 300 second ceiling"
+    }
+  ]
+}

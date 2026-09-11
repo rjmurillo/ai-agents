@@ -19,3 +19,9 @@
 # both so gate-logic changes (verdict.py merge rules) cannot bypass owner review.
 /scripts/ai_review_common/                @rjmurillo
 /.claude/lib/ai_review_common/            @rjmurillo
+
+# Template-owned skill files (ADR-108). A template under templates/skills/ is
+# the only class permitted to write under .claude/ during the build, and the
+# pilot-scope test pins which names may. Widening either needs owner review.
+/templates/skills/                                            @rjmurillo
+/tests/build_scripts/test_skill_templates_pilot_scope.py      @rjmurillo
