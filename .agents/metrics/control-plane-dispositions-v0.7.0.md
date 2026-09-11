@@ -117,10 +117,10 @@ merge after it.
   this branch, its `_scope_note` field naming issue #5404 directly as a
   regression backstop for the completion-tail audit. Both files were
   opened and confirmed present this session.
-- **Current outcome protected**: agents that satisfy a request and then
-  continue autonomously, or append an unsolicited continuation prompt
-  ("Want me to also...") after a terminal response, per #5404's Problem
-  section.
+- **Current outcome protected**: an agent that satisfies a request and
+  then keeps working on scope nobody asked for, or appends an unsolicited
+  continuation prompt ("Want me to also...") after a terminal response,
+  per #5404's Problem section.
 - **Evidence failure occurs**: #5404's body cites the concrete failure
   pattern (execution continuation, response reopening) and its own
   scenario matrix (14 scenarios); the mechanism ships as always-on rule
