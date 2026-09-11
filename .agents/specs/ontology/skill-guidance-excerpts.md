@@ -46,7 +46,7 @@ Source: issue #5706 (epic #5698). Elicited 2026-09-11 from the issue body, ADR-1
 - DR1: a template-owned skill file MUST equal the render of its template byte for byte.
 - DR2: a partial with a `rule-source` MUST appear verbatim and contiguously in that rule file.
 - DR3: the build writes under `.claude/` only to template-owned skill files enumerated at run time from `templates/skills/`; every other write is a REQ-003-010 violation (ADR-108).
-- DR4: a template-owned skill file carrying a NO-REGEN sentinel is skipped with a NOTICE, never overwritten.
+- DR4: a template-owned skill file carrying a NO-REGEN sentinel (any of the three forms `regen_guard.py` recognizes) is never overwritten; the skip is reported at WARN and the compile exits 1 in write and validate mode (ADR-108 section 4).
 - DR5: a skill with no template is untouched by the compile step.
 - DR6: a template contains only partial tags and comment tags; any other tag is a configuration error.
 

@@ -288,7 +288,7 @@ Verification: add a fake artifact entry to the YAML; counter validates without t
 **REQ-003-005 : Source change triggers regeneration**
 When any file under `.claude/<artifact>/` or `.claude/settings.json` changes, the build system shall regenerate `src/copilot-cli/<artifact>/`. CI shall fail when `git diff` shows uncommitted regeneration deltas.
 
-Verification: pre-commit hook OR CI step runs `python3 build/build_all.py --check` and fails on staleness.
+Verification: pre-commit hook OR CI step runs `python3 build/scripts/build_all.py --check` and fails on staleness.
 
 **REQ-003-006 : Frontmatter remap for rules → instructions**
 
@@ -343,12 +343,13 @@ If a `.claude/<artifact>/<name>` source is deleted, the corresponding `src/copil
 **Manual-edit opt-out**: any generated file containing the line `# NO-REGEN` (Python/markdown comment) or `<!-- NO-REGEN -->` (HTML comment for `.md` files), OR sitting next to a sidecar `<filename>.noregen` file, shall be treated by the generator as customer-owned. The generator shall:
 
 - skip overwriting it during regeneration,
+  (amended by ADR-108, 2026-09-11: for a template-owned skill file under `.claude/skills/`, the skip is reported at WARN and the compile exits 1, because the sentinel exempts that file from its only drift gate; every other generated file keeps the NOTICE and exit 0 behavior below),
 - skip removing it during `--clean`,
 - emit a NOTICE listing the protected file in the audit log (REQ-003-011) so customers see drift between the protected file and what the source would generate today.
 
 This protects emergency hotfixes a customer applied to `src/copilot-cli/` between releases without forcing them to commit changes upstream.
 
-Verification: delete a source file → `python3 build/build_all.py --check` returns non-zero with orphan(s) listed; touch `src/copilot-cli/hooks/PreToolUse/foo.py.noregen` → re-run generator → file unchanged; audit log lists `foo.py` as protected.
+Verification: delete a source file → `python3 build/scripts/build_all.py --check` returns non-zero with orphan(s) listed; touch `src/copilot-cli/hooks/PreToolUse/foo.py.noregen` → re-run generator → file unchanged; audit log lists `foo.py` as protected.
 
 **REQ-003-009 : Path traversal in template paths is rejected**
 Generators shall reject any `templates/platforms/copilot-cli.yaml` whose path values (`sourceDir`, `outputDir`, etc.) contain `..` or absolute paths, returning exit 2 (config error). Same applies to substitution-value paths.
@@ -356,9 +357,9 @@ Generators shall reject any `templates/platforms/copilot-cli.yaml` whose path va
 Verification: malformed YAML causes deterministic config error; no file write occurs outside repo root.
 
 **REQ-003-010 : `.claude/` is read-only to the build**
-The build shall never write to `.claude/<artifact>/` or `.claude/settings.json`, except the template-owned skill files whose template exists under `templates/skills/<name>.SKILL.md.tmpl` at run time (ADR-108). All other generation targets `src/copilot-cli/` or `.github/instructions/`. Customers editing `.claude/` directly shall not have their changes overwritten.
+The build shall never write to `.claude/<artifact>/` or `.claude/settings.json`, except the template-owned skill files whose template exists under `templates/skills/<name>.SKILL.md.tmpl` at run time (ADR-108). All other generation targets `src/copilot-cli/` or `.github/instructions/`. Customers editing any other path under `.claude/` directly shall not have their changes overwritten; a template-owned skill file is edited through its template, and a hand edit to it is drift the gate reports.
 
-Verification: `git diff` after running `python3 build/build_all.py` shows changes only under `src/copilot-cli/`, `.github/instructions/`, and template-owned `.claude/skills/<name>/SKILL.md` files.
+Verification: `git diff` after running `python3 build/scripts/build_all.py` shows changes only under `src/copilot-cli/`, `.github/instructions/`, and template-owned `.claude/skills/<name>/SKILL.md` files.
 
 > [!NOTE]
 > **Amended in place by ADR-108, 2026-09-11.** The exception clause and the verification

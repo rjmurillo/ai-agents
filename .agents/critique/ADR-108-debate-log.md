@@ -448,7 +448,7 @@ Adding one trailing newline to the partial restores the separator. The corrupted
 no `{{`, so the record's two stated defenses at `:58`, the restricted grammar and the
 literal-brace scan, both pass. The partials in DESIGN-020 are specified as substrings of rule
 files, which carry no trailing newline of their own, and a repository-wide search of ADR-108,
-DESIGN-020, TASK-024, TASK-025 and TASK-026 returns no trailing-newline requirement. Because the
+DESIGN-020, TASK-024, TASK-025 and TASK-027 returns no trailing-newline requirement. Because the
 drift gate compares against the committed rendered file, a first render carrying this defect
 becomes the baseline the gate then protects. The fix belongs in the A1 grammar check and the
 DESIGN-020 test matrix, not in this record's decision.
@@ -536,3 +536,4 @@ Two edits to the record after the round-4 vote, neither changing a decision:
   backticked anchor text so `scripts/validation/check_citation_freshness.py` can match them at
   the cited lines. No line number or claim changed.
 - Two more Impact-table citations (`ADR-107...md:61-62`, `build/AGENTS.md:8`) gained anchor text for the same gate. No claim changed.
+- Pull request #5724 review (CodeRabbit) and CI: `<name>` gains a pattern and an existing-directory check in section 1; section 4 states the `build_all.py` exit precisely (compile 1, orchestrator 2); REQ-003-008 and the ontology DR4 were reconciled to the WARN and exit-1 rule; TASK-026 was renumbered to TASK-027 after `main` took the number. No decision changed.
