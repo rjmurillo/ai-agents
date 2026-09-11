@@ -69,9 +69,9 @@ Compact operation: summarize long comment threads into main item description to 
 
 | Memory Skill Concept | Zettelkasten Equivalent |
 |---|---|
-| Serena memories | Forgetful knowledge base |
+| Serena memories | The slip-box |
 | Memory router search | Auto-linking via similarity |
 | Single-agent sessions | Multi-agent shared knowledge base |
 | Size validation thresholds | Atomic note constraint |
 
-The multi-agent knowledge sharing is the capability gap. Zettelkasten-style tools like Forgetful provide persistent memory graphs across agent sessions.
+The multi-agent knowledge sharing is the capability gap. Zettelkasten-style tools provide persistent memory graphs across agent sessions.

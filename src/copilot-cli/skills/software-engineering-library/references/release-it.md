@@ -235,7 +235,7 @@ ai-agents already has the seams these patterns belong on. Reuse them; do not dup
 - Lifecycle hooks (SessionStart, PreToolUse, PostToolUse, UserPromptSubmit, Stop) run in line with user-facing work. They MUST be fast, MUST timeout external calls, and MUST never block the agent on an unbounded retry. Hooks that do real work belong behind a circuit-broken adapter, not a raw network call.
 - Skills are entry points. Keep them thin: parse, call a service or adapter, format. Do not embed timeouts, retries, or breakers inside skill bodies; lift those into the adapter the skill uses.
 - MCP servers and external tooling (gh CLI, search APIs, model providers) are integration points. Treat them with the rules above, even when they are convenient.
-- Memory systems (Serena, Forgetful) are integration points too. A failed memory call must degrade to a documented fallback, not silently swallow context loss.
+- Serena is an integration point too. A failed memory call must degrade to a documented fallback, not silently swallow context loss.
 
 When you find code that deviates from this rule, prefer a small focused refactor on the path you are already touching over a sweeping cleanup. Note the deviation in the PR description so future readers see your reasoning.
 
