@@ -631,7 +631,9 @@ every time: break the thing on purpose and watch the guard react.
 
 **Splitting followed, not led.** The base-ref ratchet pushed
 `test_lefthook_declared_budget.py` past the 500-line taste threshold. The model
-moved to `tests/ci/lefthook_budget_model.py` and the container bound to
+moved to `scripts/ci/lefthook_budget_model.py` (later relocated from
+`tests/ci/lefthook_budget_model.py` by REQ-021/TASK-024 so a non-test module
+could import it) and the container bound to
 `tests/ci/test_lefthook_container_bound.py`, along the seam the module's own
 comments already drew: a workstation asks how long a job may take, a container
 asks whether anything can outlive it. A size ignore would have asserted the
