@@ -99,6 +99,7 @@ import generate_adr_index  # noqa: E402
 import generate_hooks  # noqa: E402
 import generate_rules  # noqa: E402
 import generate_skills  # noqa: E402
+import skill_templates  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
 
 # Path to the agent generator. Imported lazily because build/ is on a
@@ -146,7 +147,32 @@ class BuildAudit:
 # --- Artifact registry ----------------------------------------------------
 
 
-def _build_skills(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
+def _build_skills(
+    repo_root: Path, config_path: Path, platform: str, *, check: bool = False
+) -> GeneratorResult:
+    """Run the skills generator, threading ``check`` into the template compile.
+
+    ``check`` is passed as ``validate`` to :func:`generate_skills.generate_skills`
+    (ADR-108): under ``build_all.py --check`` the compile step must never write
+    under ``.claude/skills/``, so a drifted template is caught by comparison
+    rather than by a write the outer snapshot/restore would otherwise have to
+    revert. When the compile is clean, the Copilot-mirror copy loop still
+    runs afterward, preserving today's staleness detection for that tree; a
+    drifted or malformed template returns before the copy loop, same as a
+    normal (non-check) run (``generate_skills`` docstring).
+
+    Threading ``check`` here, as one explicit keyword at this call site, is the
+    smaller diff DESIGN-020 ("Wiring") asked for: the alternative was a new
+    parameter on every entry in ``GENERATORS`` (``Callable[[Path, Path, str],
+    GeneratorResult]``), which would touch six unrelated generator functions
+    that have no compile step to gate.
+
+    Exit code 2 is build_all's own staleness/config code
+    (module docstring's exit-code table), which already covers both a
+    drifted template and a malformed one; this function does not need to
+    distinguish drift from a config error the way :mod:`skill_templates`
+    does internally.
+    """
     # If the platform has no skills stanza, treat as not-applicable rather
     # than a config error. visual-studio and vscode platforms ship without
     # one today; they should not break the orchestrator.
@@ -161,7 +187,9 @@ def _build_skills(repo_root: Path, config_path: Path, platform: str) -> Generato
         result.notices.append(f"{platform}: no artifacts.skills stanza; skipped")
         return result
 
-    rc = generate_skills.generate_skills(config_path, repo_root)
+    rc = generate_skills.generate_skills(config_path, repo_root, validate=check)
+    if check and rc != 0:
+        rc = 2
     result = GeneratorResult(artifact="skills", platform=platform, exit_code=rc)
     # Tally inputs and outputs from the actual configured directories.
     src = repo_root / str(stanza.get("sourceDir", ""))
@@ -795,8 +823,27 @@ def assert_no_claude_writes(
     baseline: dict[Path, bytes],
     *,
     preexisting_boundaries: set[Path] | None = None,
+    allowed_paths: set[Path] | None = None,
 ) -> list[str]:
-    """REQ-003-010: generators MUST NOT write under .claude/.
+    """REQ-003-010: generators MUST NOT write under .claude/, with one amendment.
+
+    ADR-108 ("Template-Owned Skill Files Under ``.claude/skills/``") amends
+    REQ-003-010 for exactly one artifact class. Quoted verbatim from ADR-108
+    section 2:
+
+        "The build shall never write to ``.claude/<artifact>/`` or
+        ``.claude/settings.json``, except the template-owned skill files
+        whose template exists under ``templates/skills/`` at run time
+        (ADR-108). All other generation targets ``src/copilot-cli/`` or
+        ``.github/instructions/``."
+
+    ``allowed_paths`` is that allowlist: absolute paths this call must not
+    report even though they changed relative to ``baseline``. Callers pass
+    :func:`skill_templates.owned_targets`, computed at run time from
+    whatever templates currently exist under ``templates/skills/`` (so a
+    skill leaves the template-owned class the moment its ``.tmpl`` file is
+    deleted, with no second list to keep in sync). Every other path under
+    ``.claude/`` is still reported and still fails the build.
 
     ``baseline`` is a snapshot of the .claude/ tree captured BEFORE any
     generator ran (see :func:`_snapshot_owned_prefixes`). This function
@@ -844,6 +891,8 @@ def assert_no_claude_writes(
             offending.add(path)  # created or modified by a generator
     for path in baseline.keys() - current.keys():
         offending.add(path)  # deleted by a generator
+    if allowed_paths:
+        offending -= allowed_paths
     offending -= _confirm_ignored(repo_root, offending)
     return sorted(str(p.relative_to(repo_root)) for p in offending)
 
@@ -2140,6 +2189,11 @@ def run(
     claude_baseline = _snapshot_owned_prefixes(
         repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
     )
+    # ADR-108: the allowlist is read from templates/skills/ at run time, on
+    # the same pre-generation filesystem state the baseline snapshot above
+    # just read, so a template added or removed by this same run cannot
+    # change which paths are allowlisted mid-build.
+    claude_allowed_paths = skill_templates.owned_targets(repo_root)
 
     exit_code = 2
     try:
@@ -2150,6 +2204,7 @@ def run(
             audit_format=audit_format,
             claude_baseline=claude_baseline,
             claude_boundaries=claude_boundaries,
+            claude_allowed_paths=claude_allowed_paths,
         )
     finally:
         # #2440: ALWAYS restore on --check, including on exception paths.
@@ -2188,6 +2243,7 @@ def _run_generators(
     audit_format: str,
     claude_baseline: dict[Path, bytes],
     claude_boundaries: set[Path] | None = None,
+    claude_allowed_paths: set[Path] | None = None,
 ) -> int:
     """Execute the generator pipeline and emit the audit log.
 
@@ -2215,7 +2271,13 @@ def _run_generators(
         for artifact, fn in GENERATORS:
             if artifact in {"agents", "agent-catalog", "adr-index"}:
                 continue  # ran once above
-            result = fn(repo_root, cfg, platform_name)
+            if artifact == "skills":
+                # See _build_skills docstring: threading `check` explicitly
+                # here is the smaller diff than a new parameter on every
+                # GENERATORS entry (DESIGN-020 "Wiring").
+                result = _build_skills(repo_root, cfg, platform_name, check=check)
+            else:
+                result = fn(repo_root, cfg, platform_name)
             audit.results.append(result)
             if result.exit_code != 0:
                 audit.overall_exit = max(audit.overall_exit, result.exit_code)
@@ -2224,7 +2286,10 @@ def _run_generators(
 
     # REQ-003-010: enforce .claude/ no-write invariant.
     claude_writes = assert_no_claude_writes(
-        repo_root, claude_baseline, preexisting_boundaries=claude_boundaries
+        repo_root,
+        claude_baseline,
+        preexisting_boundaries=claude_boundaries,
+        allowed_paths=claude_allowed_paths,
     )
     if claude_writes:
         for p in claude_writes:
