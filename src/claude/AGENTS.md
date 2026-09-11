@@ -3,6 +3,8 @@
 31 hand-maintained Claude Code agents (`<name>.md`) plus `claude-instructions.template.md` and
 `security/references/`. Not generated. Installed copy lands at `.claude/agents/<name>.md`; edit
 here, never the install. Rules: `claude-agents.md`, `plugin-self-containment.md`, `plugin-version-bump.md`.
+Cross-harness behavior: read `agent-harness-reference` first; event handling, hook routing, or generated
+Copilot agent changes go through `ai-agents-portability-campaign`.
 
 ## Change protocol
 

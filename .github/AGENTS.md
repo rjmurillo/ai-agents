@@ -4,7 +4,8 @@ CI and Copilot integration. Logic lives in `scripts/ci/` and `.github/scripts/`;
 only wires steps (ADR-006; `scripts/ci/adr006_run_block_scanner.py --max 0` in `pr-validation.yml`).
 Actions are SHA-pinned (`staged-action-pins` hook, `check_ci_dependency_pins.py`).
 Rules firing here: `ci-scripts.md`, `security.md`, `generated-artifacts.md`, `token-economy.md`.
-Before touching agents, prompts, instructions, or hooks shared with Copilot CLI: `agent-harness-reference`.
+Before touching agents, prompts, instructions, or hooks shared with Copilot CLI: read `agent-harness-reference`;
+execute contract changes through `ai-agents-portability-campaign`.
 
 | Path | Status |
 |---|---|
