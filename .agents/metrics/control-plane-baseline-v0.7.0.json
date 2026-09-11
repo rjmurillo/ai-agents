@@ -1,7 +1,7 @@
 {
-  "captured_at": "2026-09-11T17:24:42.324214+00:00",
+  "captured_at": "2026-09-11T17:41:27.750182+00:00",
   "command": "scripts/metrics/control_plane_baseline.py --repo /home/richard/src/GitHub/rjmurillo/ai-agents2 --json .agents/metrics/control-plane-baseline-v0.7.0.json --markdown .agents/metrics/control-plane-baseline-v0.7.0.md",
-  "commit_sha": "53ffe92c264884904865bf437cbb3ab043e79a27",
+  "commit_sha": "efdfe5b3190340e363737ec92033da720fc259c0",
   "dimensions": {
     "accepted_tasks": {
       "other": 0,
@@ -10,37 +10,20 @@
       "verified": 0
     },
     "activation": {
-      "referenced_count": 30,
+      "referenced_count": 13,
       "referenced_names": [
-        "adr-generator",
-        "adr-review",
-        "agent-harness-reference",
-        "ai-agents-portability-campaign",
-        "analyze",
         "autoplan",
         "build",
-        "buy-vs-build-framework",
         "context-gather",
-        "github",
         "memory",
         "memory-search",
-        "merge-resolver",
         "plan",
-        "pr-comment-responder",
         "push-pr",
-        "quality-grades",
-        "reflect",
         "research",
-        "retro",
         "review",
-        "security-detection",
-        "security-review",
-        "security-scan",
         "ship",
-        "skillforge",
         "software-engineering-library",
         "spec",
-        "sync",
         "test"
       ],
       "tested_count": 35,
@@ -84,7 +67,7 @@
     },
     "always_loaded": {
       "claude_code": {
-        "bytes": 63290,
+        "bytes": 63263,
         "files": [
           ".claude/CLAUDE.md",
           ".claude/rules/builder-ethos.md",
@@ -95,17 +78,17 @@
           "AGENTS.md",
           "CLAUDE.md"
         ],
-        "tokens": 16879
+        "tokens": 16870
       },
       "codex": {
-        "bytes": 2999,
+        "bytes": 2998,
         "files": [
           "AGENTS.md"
         ],
-        "tokens": 965
+        "tokens": 964
       },
       "copilot": {
-        "bytes": 64595,
+        "bytes": 64568,
         "files": [
           ".github/copilot-instructions.md",
           ".github/instructions/builder-ethos.instructions.md",
@@ -115,12 +98,11 @@
           ".github/instructions/voice.instructions.md",
           "AGENTS.md"
         ],
-        "tokens": 17281
+        "tokens": 17273
       }
     },
     "canonical": {
       "agents": 31,
-      "hooks": 19,
       "hooks_by_event": {
         "PreCompact": 1,
         "SessionEnd": 1,
@@ -137,12 +119,8 @@
       },
       "rules": 30,
       "skills": 111,
-      "validators": 73,
+      "validators": 99,
       "workflows": 58
-    },
-    "fanout_residue": {
-      "prunable": 8,
-      "total": 27
     },
     "gate_budget": {
       "seconds_by_hook": {
@@ -167,11 +145,11 @@
       },
       "generated_projections": {
         "copilot_cli_src": {
-          "bytes": 21029452,
+          "bytes": 21029511,
           "count": 783
         },
         "github_instructions": {
-          "bytes": 277702,
+          "bytes": 277676,
           "count": 30
         }
       },
@@ -211,5 +189,36 @@
     }
   },
   "exclusions": [],
-  "release_targets": []
+  "release_targets": [
+    {
+      "direction": "decrease",
+      "metric": "canonical owner total",
+      "target": "strictly below 412"
+    },
+    {
+      "direction": "decrease",
+      "metric": "always_loaded.claude_code.tokens",
+      "target": "strictly below 16870"
+    },
+    {
+      "direction": "decrease",
+      "metric": "always_loaded.codex.tokens",
+      "target": "strictly below 964"
+    },
+    {
+      "direction": "decrease",
+      "metric": "always_loaded.copilot.tokens",
+      "target": "strictly below 17273"
+    },
+    {
+      "direction": "hold",
+      "metric": "gate_budget.seconds_by_hook.pre-push",
+      "target": "must not rise above 3450.0 seconds"
+    },
+    {
+      "direction": "hold",
+      "metric": "measured push duration (once real push samples exist)",
+      "target": "must not exceed ADR-104's 300 second ceiling"
+    }
+  ]
 }
