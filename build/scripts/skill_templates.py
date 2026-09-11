@@ -278,8 +278,10 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
 
     A target carrying a NO-REGEN sentinel (``regen_guard.detect_reason``) is
     skipped before rendering is attempted, in both modes, the same way
-    ``generate_skills._copy_skill_tree`` skips a protected file at
-    ``build/scripts/generate_skills.py:125-127``.
+    ``generate_skills._copy_skill_tree`` skips a protected file (no line
+    citation here: both functions' NO-REGEN branch moves as this module
+    grows, and a stale ``path:line`` fails the pre-PR citation-freshness
+    gate faster than either function's line count changes).
 
     The sentinel exempts a target from this class's only gate (ADR-108
     section 4: "A rendered file carrying a NO-REGEN sentinel ... is skipped
