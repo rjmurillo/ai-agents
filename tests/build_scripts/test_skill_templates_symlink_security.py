@@ -63,3 +63,33 @@ def test_discover_excludes_a_symlinked_skill_md_inside_a_real_directory(
     assert link.is_symlink()
     assert outside.read_text(encoding="utf-8") == "do not overwrite me\n"
     assert result.exit_code == 2
+
+
+def test_discover_excludes_every_skill_when_the_skills_root_is_a_symlink_outside_the_repo(
+    tmp_path: Path,
+) -> None:
+    """An intermediate ``.claude/skills`` symlink to an external tree makes
+    every template a config error, and ``compile_all`` never writes there.
+    """
+    write_template(tmp_path, "sync", "hello\n")
+    external = tmp_path.parent / f"{tmp_path.name}-external-skills"
+    (external / "sync").mkdir(parents=True)
+    target = external / "sync" / "SKILL.md"
+    target.write_text("do not overwrite me\n", encoding="utf-8")
+    claude_dir = tmp_path / ".claude"
+    claude_dir.mkdir()
+    try:
+        (claude_dir / "skills").symlink_to(external, target_is_directory=True)
+    except OSError:
+        pytest.skip("cannot create a symlink on this platform/permission set")
+
+    assert skill_templates.discover(tmp_path) == {}
+    errors = skill_templates.discover_errors(tmp_path)
+    assert len(errors) == 1
+    assert "outside the repository root" in errors[0]
+    assert skill_templates.owned_targets(tmp_path) == set()
+
+    result = skill_templates.compile_all(tmp_path, validate=False)
+
+    assert target.read_text(encoding="utf-8") == "do not overwrite me\n"
+    assert result.exit_code == 2

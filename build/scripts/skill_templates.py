@@ -199,6 +199,12 @@ def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str |
     which is exactly the tree :func:`owned_targets` promises
     :func:`build_all.assert_no_claude_writes` a write is confined to.
 
+    The ``.claude/skills/`` root itself MUST resolve inside ``repo_root``
+    (CodeRabbit on PR #5726): an intermediate symlink at ``.claude`` or
+    ``.claude/skills`` pointing at an external tree would make both the root
+    and the skill directory resolve there, so the per-skill containment check
+    below would pass while every write landed outside the repository.
+
     ``.claude/skills/<name>/SKILL.md`` itself MUST NOT be a symlink (third
     ADR review round, CodeRabbit on PR #5726, CWE-22/CWE-59 defense): the
     four checks above only ever look at the DIRECTORY. A real, non-symlinked
@@ -221,6 +227,12 @@ def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str |
         return f"{tmpl_path}: no existing .claude/skills/{name}/ directory"
 
     resolved_root = skills_root.resolve()
+    resolved_repo = repo_root.resolve()
+    if not resolved_root.is_relative_to(resolved_repo):
+        return (
+            f"{tmpl_path}: .claude/skills/ resolves to {resolved_root}, "
+            f"outside the repository root {resolved_repo}"
+        )
     resolved_skill = skill_dir.resolve()
     if not resolved_skill.is_relative_to(resolved_root):
         return (
