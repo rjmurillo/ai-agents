@@ -1,130 +1,40 @@
-# Skill Development Conventions
+# .claude/skills/
 
-> **Scope**: Skills directory only. Auto-loaded when working in `.claude/skills/`.
-> **Primary Reference**: Root CLAUDE.md and AGENTS.md take precedence.
+111 skills. `SKILL.md` is the contract; code under `scripts/`, long reference under `references/`,
+output shapes under `templates/`. Skills are the only user-invocable surface (ADR-064;
+`.claude/commands/` is refused by `check_commands_retired.py`). Mirrored to
+`src/copilot-cli/skills/` by `build/scripts/generate_skills.py`; never edit the mirror.
+Rules firing here: `claude-agents.md`, `plugin-self-containment.md`, `generated-artifacts.md`, `ci-scripts.md`.
 
-For any skill that configures, generates, tests, or documents Claude Code or
-Copilot CLI artifacts, read `agent-harness-reference` first. Route cross-harness
-mutations through `ai-agents-portability-campaign`. The official source sidecar
-is the contract; Serena memories are retrieval aids.
+Before a skill that configures, generates, or tests Claude Code or Copilot CLI artifacts: read
+`agent-harness-reference`; cross-harness mutations go through `ai-agents-portability-campaign`.
 
-## Skill Structure
+## SKILL.md contract
 
-```text
-.claude/skills/{skill-name}/
-├── SKILL.md              # Required: Frontmatter + prompt
-├── modules/              # Optional: PowerShell modules
-│   └── {Module}.psm1
-├── scripts/              # Optional: PowerShell scripts
-│   └── {Script}.ps1
-├── templates/            # Optional: Templates, specs
-│   └── {template}.md
-└── tests/               # Optional: Pester tests
-    └── {Module}.Tests.ps1
-```
+- Frontmatter on line 1: `name` (`^[a-z0-9-]{1,64}$`), `version`, `description` (max 1024 chars; 3-5 backtick-wrapped trigger phrases; a "Do NOT use ... (use X)" discriminator), `license`. `version` and `model` are top-level, never under `metadata:`.
+- `model:` omitted (harness default). Only `model: haiku` plus `model-rationale:` is allowed (ADR-080); versioned ids fail `check_model_pins.py`.
+- Size: warn at 300 lines, block at 500 (`scripts/validation/skill_size.py`); `size-exception: true` declares a justified overage.
+- Process section heading is `## Process` or `### Phase N`.
+- Documented script + exit code = executable contract; a test under `tests/` must assert it (`check_skill_contract_tests.py`).
+- In-root executables: `"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<name>/scripts/<file>"`, never bare `.claude/skills/...` (`check_skill_md_exec_portability.py`, `check_plugin_frontmatter_self_containment.py`).
+- Upstream-only paths (`.agents/`, `build/`, `scripts/`) need a `vendor-portability` declaration (`check_skill_md_portability.py`, `check_vendor_portability.py`); say "in the `rjmurillo/ai-agents` repository".
+- Retired ADR in `metadata.adr` fails `check_skill_adr_bindings.py`.
+- Scripts: Python (ADR-042), exit codes ADR-035, subprocess `encoding="utf-8", errors="replace"`, resolver anchored on `git rev-parse --show-toplevel` (`check_skill_resolver_anchoring.py`).
 
-## Frontmatter Standards
+## Tests
 
-### Required (Minimal)
+`tests/skills/<name>/` only. New files under `.claude/skills/<name>/tests/` are blocked
+(`check_colocated_skill_tests.py`, #4838): colocated tests ship to consumers.
 
-```yaml
----
-name: skill-identifier  # lowercase, alphanumeric + hyphens, max 64 chars
-description: What the skill does and when to use it  # max 1024 chars
----
-```
+## Gates
 
-### Required (Full, for SkillForge validation)
+Pre-commit `skillforge`, `skill-size`, `colocated-skill-tests`; pre-push `pre_pr.py` Skill* gates
+(`validate_skill_format.py --staged-only --ci`, ADR bindings, skip clauses, memory references,
+resolver anchoring, shells); CI `agent-skill-discriminator-check.yml`, `skill-passive-compliance.yml`,
+`scripts/skill_description_budget.py`.
 
-```yaml
----
-name: skill-identifier
-version: 1.0.0
-description: What the skill does and when to use it
-license: MIT
----
-```
+## Authoring
 
-### Model Selection
-
-Per ADR-080, skills default to the harness-inherited model. Omit the `model:`
-field; that is the correct, evidence-free default and the state most skills use.
-Skills cannot be swept by the eval harness, so a versioned id (for example
-`claude-sonnet-4-6`) can never be justified and the model-pin check rejects it.
-
-The only allowed pin is a bare rolling alias that prices below the default,
-which today means `haiku`, and it MUST carry a `model-rationale:` field:
-
-```yaml
-model: haiku
-model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the default; this unit is cheap routing/mechanical work.
-```
-
-## Validation Rules
-
-- Frontmatter MUST start with `---` on line 1 (no blank lines)
-- Use spaces for indentation (no tabs)
-- Name format: `^[a-z0-9-]{1,64}$`
-- Description: non-empty, max 1024 chars, include trigger keywords
-- SKILL.md under 500 lines (use progressive disclosure)
-
-### Prompt Size Limits
-
-| Threshold | Lines | Behavior |
-|-----------|-------|----------|
-| Normal | 0-300 | No action |
-| Warning | 301-500 | Warning in pre-commit output |
-| Error | 501+ | Blocks commit (CI mode) |
-
-When a skill exceeds 500 lines, refactor using progressive disclosure:
-
-- Move reference documentation to `references/`
-- Extract reusable logic to `modules/` or `scripts/`
-- Use templates in `templates/` for structured output
-
-To declare a justified exception, add `size-exception: true` to frontmatter:
-
-```yaml
----
-name: complex-skill
-size-exception: true
-description: Justified overage due to embedded decision trees
----
-```
-
-Validated by: `scripts/validation/skill_size.py`
-
-## SkillForge Validator Gotchas
-
-- `version` and `model` MUST be top-level YAML keys, not nested under `metadata:`
-- Trigger phrases must be backtick-wrapped (`` `phrase` ``), not quote-wrapped
-- Validator requires 3-5 trigger phrases per skill
-- Process section: matches `## Process` (h2) or `### Phase N` (h3), not `## Phase N`
-- Parallel agents staging files can lock git index; use `git diff --staged` to check
-
-## PowerShell Conventions
-
-- Module imports: Use `-Force` for reloading during development
-- Script structure: Param block, functions, main logic
-- Error handling: `$ErrorActionPreference = 'Stop'` for failures
-- Cross-platform: Test on Windows, Linux, macOS
-
-## Testing
-
-- Pester tests in `tests/` directory
-- Test isolation: No global state modification
-- Parameterized tests for multiple scenarios
-- CI runs all tests on push
-
-## Documentation
-
-- SKILL.md is the primary documentation
-- Include examples in frontmatter description
-- Link to related skills/ADRs where applicable
-- Keep skill-specific patterns in SKILL.md, not root docs
-
-## Related References
-
-- Skill frontmatter standards: `.serena/memories/claude/claude-code-skill-frontmatter-standards.md`
-- PowerShell standards: `scripts/AGENTS.md`
-- Official docs: <https://code.claude.com/docs/en/skills>
+`skillforge` skill creates and reviews. Schema authority: `.agents/steering/claude-skills.md`.
+Criteria: `.agents/governance/SKILL-CREATION-CRITERIA.md`, `docs/SKILL-AUTHORING.md`.
+New capability: buy-vs-build quick pass before `/spec` (root `AGENTS.md`).
