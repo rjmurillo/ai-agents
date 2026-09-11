@@ -537,3 +537,4 @@ Two edits to the record after the round-4 vote, neither changing a decision:
   the cited lines. No line number or claim changed.
 - Two more Impact-table citations (`ADR-107...md:61-62`, `build/AGENTS.md:8`) gained anchor text for the same gate. No claim changed.
 - Pull request #5724 review (CodeRabbit) and CI: `<name>` gains a pattern and an existing-directory check in section 1; section 4 states the `build_all.py` exit precisely (compile 1, orchestrator 2); REQ-003-008 and the ontology DR4 were reconciled to the WARN and exit-1 rule; TASK-026 was renumbered to TASK-027 after `main` took the number. No decision changed.
+- Second CodeRabbit round on #5724: section 1 adds the non-symlink and resolved-containment rule for `.claude/skills/<name>/`; REQ-003-005 names the template as the regeneration trigger and the two drift gates; REQ-003-008 gains a template-owned verification fixture; TASK-024 lists task ids explicitly. No decision changed.

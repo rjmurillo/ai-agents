@@ -20,7 +20,7 @@ author: spec
 
 - `.agents/architecture/ADR-108-template-owned-skill-files.md` exists, passes `uv run python scripts/validation/check_adr_lifecycle.py`, and has completed an `adr-review` round with the debate log at `.agents/critique/ADR-108-debate-log.md`; every P0 and P1 finding is resolved in the record or deferred with an issue.
 - ADR-107 carries one Related Decisions line naming ADR-108 and the amended property; REQ-003-010 carries the amendment note.
-- REQ-021, DESIGN-020, TASK-024 to TASK-027, the ontology fragment, and the plan are committed; `validate_spec_frontmatter.py` passes on the five spec files.
+- REQ-021, DESIGN-020, TASK-024, TASK-025, and TASK-027, the ontology fragment, and the plan are committed; `validate_spec_frontmatter.py` passes on the five spec files.
 - `uv run python build/scripts/build_all.py` regenerated `.agents/architecture/README.md` (the ADR index) and `build_all.py --check` exits 0.
 - No em dash or en dash in any file; `uv run python scripts/validation/pre_pr.py` reports no BLOCKING finding.
 - A pull request is open with `Refs #5706` (the record does not close the issue), the D1 decision quoted, and the ADR-108 status question put to the owner.

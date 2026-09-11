@@ -286,7 +286,7 @@ Verification: add a fake artifact entry to the YAML; counter validates without t
 ### Event-driven
 
 **REQ-003-005 : Source change triggers regeneration**
-When any file under `.claude/<artifact>/` or `.claude/settings.json` changes, the build system shall regenerate `src/copilot-cli/<artifact>/`. CI shall fail when `git diff` shows uncommitted regeneration deltas.
+When any file under `.claude/<artifact>/` or `.claude/settings.json` changes, the build system shall regenerate `src/copilot-cli/<artifact>/`. CI shall fail when `git diff` shows uncommitted regeneration deltas. For a template-owned skill file (ADR-108), the source is `templates/skills/<name>.SKILL.md.tmpl` and its partials: a change there regenerates `.claude/skills/<name>/SKILL.md` first and the Copilot mirror second, and `generate_skills.py --validate` plus `build_all.py --check` detect drift between template and rendered file.
 
 Verification: pre-commit hook OR CI step runs `python3 build/scripts/build_all.py --check` and fails on staleness.
 
@@ -349,7 +349,7 @@ If a `.claude/<artifact>/<name>` source is deleted, the corresponding `src/copil
 
 This protects emergency hotfixes a customer applied to `src/copilot-cli/` between releases without forcing them to commit changes upstream.
 
-Verification: delete a source file → `python3 build/scripts/build_all.py --check` returns non-zero with orphan(s) listed; touch `src/copilot-cli/hooks/PreToolUse/foo.py.noregen` → re-run generator → file unchanged; audit log lists `foo.py` as protected.
+Verification: delete a source file → `python3 build/scripts/build_all.py --check` returns non-zero with orphan(s) listed; touch `src/copilot-cli/hooks/PreToolUse/foo.py.noregen` → re-run generator → file unchanged; audit log lists `foo.py` as protected. For a template-owned skill file (ADR-108): touch `.claude/skills/<name>/SKILL.md.noregen` where `templates/skills/<name>.SKILL.md.tmpl` exists → `python3 build/scripts/build_all.py` exits non-zero, the file is unchanged, and the audit log carries a WARN naming it.
 
 **REQ-003-009 : Path traversal in template paths is rejected**
 Generators shall reject any `templates/platforms/copilot-cli.yaml` whose path values (`sourceDir`, `outputDir`, etc.) contain `..` or absolute paths, returning exit 2 (config error). Same applies to substitution-value paths.
