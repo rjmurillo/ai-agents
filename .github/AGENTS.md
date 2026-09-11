@@ -1,45 +1,90 @@
 # .github/
 
-CI and Copilot integration. Logic lives in `scripts/ci/` and `.github/scripts/`; workflow YAML
-only wires steps (ADR-006; `scripts/ci/adr006_run_block_scanner.py --max 0` in `pr-validation.yml`).
-Actions are SHA-pinned (`staged-action-pins` hook, `check_ci_dependency_pins.py`).
-Rules firing here: `ci-scripts.md`, `security.md`, `generated-artifacts.md`, `token-economy.md`.
-Before touching agents, prompts, instructions, or hooks shared with Copilot CLI: read `agent-harness-reference`;
-execute contract changes through `ai-agents-portability-campaign`.
+CI workflows, generated Copilot-CLI mirrors, and hand-maintained agent parity copies; consumed by GitHub Actions and by GitHub Copilot CLI when it runs inside this repo.
 
-| Path | Status |
+## Matters
+
+- ADR-006: workflow YAML has no branching logic. Every job calls a module under `scripts/ci/` or `.github/scripts/`, tested under `tests/`.
+- Two surfaces here are generated and must never be hand-edited: `instructions/*.instructions.md` (from `.claude/rules/`, via `build/scripts/generate_rules.py`) and `prompts/pr-quality-gate-*.md` (from `.claude/skills/review/references/`, via `build/scripts/generate_pr_quality_prompts.py`).
+- `agents/*.agent.md` is the opposite: hand-maintained, not generated. It must move in lockstep with `.claude/agents/*.md` (`build/scripts/validate_install_parity.py` blocks a solo diff) and is checked for semantic drift weekly (`build/scripts/detect_agent_drift.py`).
+- `copilot-instructions.md` is Copilot's always-on entry point for this repo; it carries its own byte ratchet (6351 bytes, `scripts/validate_workspace_budget.py`), separate from the 2000-token cap on root `AGENTS.md`/`CLAUDE.md`.
+- Before touching an agent, prompt, instruction, or hook file shared with Copilot CLI, read the `agent-harness-reference` skill first and route the change through `ai-agents-portability-campaign`.
+- No merge queue on this repo. Count ratchets under `scripts/ci/` accept a count at or below their own baseline, so two concurrent cleanup PRs never both red `main` on the same violation.
+
+## Entry points
+
+- `workflows/pr-validation.yml`: the required check every PR runs (PR body shape, commit count, ADR-006 scan, rule `paths:` keys, bare-`python3` doc entrypoints, memory-index token ratchet).
+- `copilot-instructions.md`: loaded into every Copilot CLI session in this repo.
+- `PULL_REQUEST_TEMPLATE.md`: the body shape `pr-validation.yml` checks every PR against.
+- `scripts/ci/*.py` and `scripts/*.py`: the logic behind every workflow above.
+
+## Where to look
+
+| Path | Why |
 |---|---|
-| `workflows/*.yml` (60) | Hand-edited. `scripts/validate_workflows.py`; run changed workflows locally pre-push (`git_hook_policy.py workflow-local`) |
-| `agents/*.agent.md` | HAND copy; parity group with `templates/agents/`, `src/claude/`, `.claude/agents/` |
-| `instructions/*.instructions.md` | GENERATED from `.claude/rules/` (`applyTo` frontmatter only) |
-| `prompts/pr-quality-gate-*.md` | GENERATED from `.claude/skills/review/references/` |
-| `prompts/*.md` (other) | Hand prompts for workflows (spec checks, triage, drift issue, synthesis) |
-| `copilot-instructions.md` | Copilot always-on entry; byte ratchet in `scripts/validate_workspace_budget.py` |
-| `scripts/*.py` | Workflow helpers; tests in `tests/` |
+| `workflows/*.yml` (60 tracked) | Hand-edited; schema-checked by `scripts/validate_workflows.py` inside `pr-validation.yml` |
+| `agents/*.agent.md` (32) + `agents/security/references/*.md` | Hand copy, parity group with `templates/agents/*.shared.md`, `src/claude/`, `.claude/agents/`; the `references/` subdir backs `security.agent.md` only |
+| `instructions/*.instructions.md` (29) | Generated mirror of `.claude/rules/*.md`; `paths:` becomes `applyTo:` |
+| `prompts/pr-quality-gate-*.md` | Generated from `.claude/skills/review/references/*.md`; owned in `CODEOWNERS` |
+| `prompts/*.md` (other) | Hand prompts for workflow steps (spec checks, triage, drift issue, synthesis) |
+| `copilot-instructions.md`, `copilot-code-review.md` | Copilot always-on entry (see Matters); review-comment volume/confidence rules for AI reviewers (issue #326) |
+| `scripts/*.py` (19, plus `ci/`) | Workflow helper modules; tests live at repo-root `tests/`, not `.github/tests/` |
 | `actions/` | Composites: `ai-review`, `setup-code-env`, `test-installed-plugin-hooks`, `validate-plugin-manifests`, `workflow-debounce` |
-| `plugin/marketplace.json`, `copilot/settings.json`, `codeql/` | Copilot marketplace, Copilot settings, CodeQL config (`python`, `actions`) |
-| `PULL_REQUEST_TEMPLATE.md`, `CODEOWNERS`, `labeler.yml`, `bot-authors.yml` | PR body layout (validated by `pr-validation.yml`), ownership, labels, bot identities |
+| `plugin/marketplace.json`, `copilot/settings.json`, `codeql/*.yml` | Copilot marketplace entry (`src/copilot-cli` source, no `version` per ADR-092), Copilot CLI settings, CodeQL config/suppressions |
+| `CODEOWNERS`, `labeler.yml`, `bot-authors.yml` | Owner review gates, path-based PR labels, bot-actor identification |
 
-## Workflows to know
+## Skip
 
-| Workflow | Trigger | Backs |
-|---|---|---|
-| `pr-validation.yml` | PR | PR body standards, commit count, ADR-006 scan, rule `paths:` keys, `check_python3_entrypoints.py`, memory-index token ratchet |
-| `pytest.yml` | PR, push; gated by `scripts/test_selection/path_policy.yml` | `uv run pytest` |
-| `validate-generated-agents.yml` | PR (internal paths-filter) | `build/generate_agents.py --validate` |
-| `drift-detection.yml` | Mon 09:00 UTC, manual | `detect_agent_drift.py` -> alert issue via `scripts/ci/drift_*.py` |
-| `validate-plugin-version-bump.yml` | `.claude/**`, `src/claude/**`, `src/copilot-cli/**` | No `version` in plugin manifests (ADR-092) |
-| `validate-plugin-manifests.yml`, `installed-plugin-hook-guard.yml`, `hook-contract-check.yml` | Plugin and hook changes | Manifest schema, installed-hook runtime contract |
-| `cli-smoke.yml`, `nightly-cli-smoke.yml` | CLI and plugin changes, nightly | Install smoke, `bun test` for `tests/*.test.ts` |
-| `passive-context-budget.yml`, `instruction-budget.yml` | Doc changes | 2000-token cap on root `AGENTS.md`, `CLAUDE.md`; mirror byte budgets |
-| `codeql-analysis.yml`, `dependency-review.yml`, `test-codeql-integration.yml` | PR, push, weekly | Security scanning |
-| `claude.yml`, `rjmurillo-bot.yml`, `pr-maintenance.yml`, `post-pr-retrospective.yml`, `auto-assign-reviewer.yml`, `label-pr.yml` | Events, schedules | Bot automation |
-| `validate-*.yml` (paths, planning artifacts, ADR numbers, spec IDs, rule activation coverage, vendor portability, artifact retention) | Path-filtered PRs | Corpus gates |
+- `workflows/*.yml.disabled` (`droid-review.yml.disabled`, `droid.yml.disabled`): tracked but inert, GitHub never runs a `.disabled` workflow file.
+- `scripts/__pycache__/`, `actions/workflow-debounce/__pycache__/`: untracked bytecode, ignore if seen on disk.
+- `ISSUE_TEMPLATE/`, `FUNDING.yml`: boilerplate, no gate reads them.
 
-## Conventions
+## Constraints
 
-- New AI workflow with concurrency: add to `.github/scripts/measure_workflow_coalescing.py` `DEFAULT_WORKFLOWS`; group `{prefix}-${{ github.event.pull_request.number || inputs.pr_number }}` with `cancel-in-progress: true`. Coalescing is best-effort: 5-10% duplicate runs is normal, over 20% is a bug (ADR-026, #803).
-- No merge queue (user-owned repo). Count ratchets accept count below baseline so concurrent cleanup PRs never red `main` (#4057, #4214).
-- Path filtering via `dorny/paths-filter` plus `scripts/workflows/determine_should_run_from_filters.py`; required checks still emit a skip job.
-- Minimal permissions per job; bot actors excluded; `gh` calls pass `--repo "$GITHUB_REPOSITORY"`.
-- A new gate PR must quote the gate passing against the full corpus before merge (ci-scripts MUST-13).
+- Actions pin to a commit SHA, never a floating tag: enforced locally by `git_hook_policy.py staged-action-pins` and remotely by `scripts/validate_workflows.py` inside the required `pr-validation.yml` (`security.md` MUST-4).
+- A workflow whose gate reads the *whole tree*, not just the diff, must run unconditionally on `push` to `main`; a path filter there manufactures a false-green skip job (`ci-scripts.md`). `instruction-budget.yml` has no path filter for this reason.
+- A step invoked with bare `python3` (no preceding `uv`/`astral-sh/setup-uv` step) may only import the standard library; a third-party import fails before the script runs, with no local reproduction (`ci-scripts.md` MUST-18). Several `ai-spec-validation.yml` steps are in this shape.
+- A new gate PR must quote the gate passing against the full corpus before merge, not just a fixture test (`ci-scripts.md` MUST-13).
+- New workflow concurrency groups register in `.github/scripts/measure_workflow_coalescing.py`'s `DEFAULT_WORKFLOWS` and use `cancel-in-progress: true`; coalescing is best-effort (over 20% duplicate runs is a bug, ADR-026, issue #803).
+- `gh` calls from `.github/scripts/*.py` pass `--repo`/`--repository` explicitly.
+
+## Dangerous assumptions
+
+- "SHA pinning is enforced by `check_ci_dependency_pins.py`": wrong, that script checks hand-written `pkg==version` pins against `pyproject.toml`. The Action-SHA gate is `staged-action-pins` locally and `scripts/validate_workflows.py` in CI.
+- "`instruction-budget.yml` caps root `AGENTS.md`/`CLAUDE.md`": wrong, it gates the always-on rule corpus per language. The 2000-token cap on root docs (4000 on `.claude/CLAUDE.md`) is `passive-context-budget.yml`, a different workflow.
+- "`.github/agents/*.agent.md` is generated like `src/copilot-cli/agents/`": wrong, only `src/copilot-cli/agents` and `src/vs-code-agents` are generated (`build/generate_agents.py --validate`). `.github/agents/` is hand-copied and only parity-checked.
+- A green `validate-generated-agents.yml` or `drift-detection.yml` run on a PR that touched no agent files is not proof the trees still match; both use internal path filters or a weekly cron, not a full-corpus run on every push.
+
+## Dependencies
+
+- Feeds `build/generate_rules.py` (-> `instructions/`) and `build/generate_pr_quality_prompts.py` (-> `prompts/pr-quality-gate-*.md`); both regenerate and commit in the same change as their source.
+- `agents/*.agent.md` feeds `build/scripts/validate_install_parity.py` (structural) and `build/scripts/detect_agent_drift.py` (semantic, wired into `workflows/drift-detection.yml`).
+- `pr-validation.yml` mirrors `scripts/validation/pre_pr.py`'s constituent checks; several of its steps are also lefthook pre-push jobs.
+- `copilot-instructions.md` and `instructions/*.instructions.md` are what Copilot CLI loads; a change here has no effect on Claude Code, which reads `.claude/rules/*.md` directly.
+
+## Architecture
+
+- Two independent parity chains meet at `.claude/agents/`: generated (`templates/agents/*.shared.md` -> `build/generate_agents.py` -> `src/copilot-cli/agents/`, `src/vs-code-agents/`) and hand-copied (`.claude/agents/` <-> `.github/agents/`, enforced by parity + drift checks instead of a generator).
+- `instructions/*.instructions.md` and `src/copilot-cli/instructions/*.instructions.md` are two separately generated mirrors of `.claude/rules/`; a rule scoped entirely to internal paths is skipped from the plugin mirror but kept here, so file counts between the two trees need not match.
+- `prompts/pr-quality-gate-*.md` is a one-way generation edge from `.claude/skills/review/references/`; `CODEOWNERS` pins both ends under one required review.
+
+## Commands
+
+```bash
+# Reproduce the ADR-006 run-block scan pr-validation.yml runs
+uv run python scripts/ci/adr006_run_block_scanner.py --max 0
+# Reproduce the workflow-schema check (structure, action SHA pinning)
+uv run python scripts/validate_workflows.py
+# Regenerate Copilot instruction mirrors after a .claude/rules/ edit
+uv run python build/scripts/generate_rules.py
+# Regenerate pr-quality-gate prompts after a review/references/ edit
+uv run python build/scripts/generate_pr_quality_prompts.py
+# Check .github/agents/ vs .claude/agents/ parity and semantic drift
+uv run python build/scripts/validate_install_parity.py
+uv run python build/scripts/detect_agent_drift.py
+# Check copilot-instructions.md and root doc byte/token budgets
+uv run python -m scripts.validation.passive_context_budget --ci
+uv run python -m scripts.validation.instruction_budget --ci
+# Full pre-push gate (runs the above plus everything else pre_pr.py owns)
+uv run python scripts/validation/pre_pr.py
+```
