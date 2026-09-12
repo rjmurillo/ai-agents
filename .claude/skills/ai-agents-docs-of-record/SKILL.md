@@ -181,20 +181,25 @@ Prose rules (canonical: `.claude/rules/voice.md`, `.claude/rules/universal.md`):
 - No em-dashes or en-dashes anywhere in authored text (universal.md MUST NOT
   item 4; only `tests/hooks/fixtures/` is exempt). Every dash costs a bot
   review thread.
+- No banned vocabulary (voice.md "Banned Vocabulary" section).
+- No auto-generated headers or timestamps-as-headers in any authored or
+  generated file (universal.md MUST NOT item 5; rejected by the user three
+  times as of 2025-12-17).
+- Block-style YAML arrays only in frontmatter
+  (`.agents/governance/PROJECT-CONSTRAINTS.md`, Frontmatter constraints table;
+  ADR-040 Amendment). Inline `['a', 'b']` breaks Copilot CLI parsing.
+- Run `prose-self-check` before emitting any session-log narrative, ADR
+  context section, retro, or PR description.
+
+Rule text these bullets apply:
 
 Use commas, periods, colons, parentheses, hyphens, or restructure.
-
-- No banned vocabulary (voice.md "Banned Vocabulary" section).
 
 Do not use these words in prose. They mark AI output and add nothing:
 
 `delve`, `crucial`, `robust`, `comprehensive`, `nuanced`, `multifaceted`, `furthermore`, `moreover`, `additionally`, `pivotal`, `landscape`, `tapestry`, `underscore`, `foster`, `showcase`, `intricate`, `vibrant`, `fundamental`, `significant`.
 
 Replacements: be specific instead. "Robust error handling" becomes "handles network timeout, schema mismatch, and partial write." "Significant performance improvement" becomes "p99 drops from 1.2s to 180ms."
-
-- No auto-generated headers or timestamps-as-headers in any authored or
-  generated file (universal.md MUST NOT item 5; rejected by the user three
-  times as of 2025-12-17).
 
 MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
    comments to any file (agent prompts, documentation, code, template outputs).
@@ -203,12 +208,6 @@ MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
    this pattern repeatedly (three corrections as of 2025-12-17). If a script
    grows a helper that emits such headers, delete the helper instead of
    calling it.
-
-- Block-style YAML arrays only in frontmatter
-  (`.agents/governance/PROJECT-CONSTRAINTS.md`, Frontmatter constraints table;
-  ADR-040 Amendment). Inline `['a', 'b']` breaks Copilot CLI parsing.
-- Run `prose-self-check` before emitting any session-log narrative, ADR
-  context section, retro, or PR description.
 
 Markdown lint is SCOPED to files you changed. The PR #908 Five Whys traced 53
 unrelated memory-file changes to `markdownlint --fix **/*.md` run repo-wide
