@@ -27,7 +27,6 @@ WORKFLOW_CONSUMERS = [
     ("pr-maintenance.yml", "discover-prs"),
     ("ai-metrics-analysis.yml", "analyze-metrics"),
     ("update-reviewer-stats.yml", "update-stats"),
-    ("auto-assign-reviewer.yml", "assign-reviewer"),
 ]
 
 
