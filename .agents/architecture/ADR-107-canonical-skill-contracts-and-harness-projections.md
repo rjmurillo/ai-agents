@@ -369,10 +369,11 @@ register; `templates/platforms/copilot-cli.yaml` plus the generators own the tra
 them. The cost of ignoring this is visible: `src/copilot-target-emitter.ts`, `src/types.ts`,
 `src/agent-registry-schema.ts`, `src/transforms/command-syntax-translator.ts`, and their tests at
 `tests/copilot-target-emitter.test.ts` and `tests/command-syntax-translator.test.ts` were added by
-PR #1645 and are orphaned. There is no root `package.json`, `tsconfig.json`, or `bunfig.toml`; the
-live CLI is `packages/ai-agents-cli/`, and `.github/workflows/cli-smoke.yml:156` sets
+PR #1645, sat orphaned with no root `package.json`, `tsconfig.json`, or `bunfig.toml` wiring them
+to any runner, and were deleted by the 2026-09-04 ponytail audit cleanup (issue #5456): the live
+CLI is `packages/ai-agents-cli/`, and `.github/workflows/cli-smoke.yml:156` sets
 `working-directory: packages/ai-agents-cli` before `bun test` at `:179` (`repo-observed`). Those
-files carry passing-looking tests that nothing runs.
+files carried passing-looking tests that nothing ran.
 
 ## Prior Art Investigation
 
