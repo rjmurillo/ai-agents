@@ -161,6 +161,11 @@ def test_routing_success(
             "GhApi",
             'gh api "repos/rjmurillo/ai-agents/issues/comments/789123456"',
         ),
+        (
+            "https://github.com/rjmurillo/ai-agents/pull/123#issuecomment-123456789",
+            "GhApi",
+            'gh api "repos/rjmurillo/ai-agents/issues/comments/123456789"',
+        ),
     ],
 )
 def test_fragment_routes_success(
@@ -187,9 +192,10 @@ def test_fragment_routes_success(
         "https://github.com/rjmurillo/ai-agents/commit/abcxyz",
         "https://github.com/rjmurillo/ai-agents/pull/123/checks/extra",
         "https://github.com/rjmurillo/ai-agents/actions/runs/123/job/456/extra",
-        "https://github.com/rjmurillo/ai-agents/pull/123#issuecomment-123456789",
         "https://github.com/rjmurillo/ai-agents/pull/123/files#issuecomment-789",
         "https://github.com/rjmurillo/ai-agents/pull/123/changes#issuecomment-789",
+        "https://github.com/rjmurillo/ai-agents/pull/123/checks#issuecomment-789",
+        "https://github.com/rjmurillo/ai-agents/pull/123/commits#issuecomment-789",
         "https://github.com/rjmurillo/ai-agents/issues/456#discussion_r123",
         "https://github.com/rjmurillo/ai-agents/discussions/789#issuecomment-123",
         "https://github.com/rjmurillo/ai-agents/actions/runs/123#issuecomment-123",

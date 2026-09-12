@@ -222,16 +222,39 @@ def _parse_repo_path(split: SplitResult) -> tuple[str, str, str] | None:
     return owner, repo, rest
 
 
-def _fragment_matches_url_type(fragment_type: str | None, url_type: UrlType) -> bool:
+# A pull request's conversation comments ARE issue comments in the REST API, so
+# `#issuecomment-` is legitimate on `/issues/{n}` and on `/pull/{n}` alike. GitHub
+# emits the pull form itself: the comment's own `html_url` for
+# https://github.com/rjmurillo/ai-agents/pull/5710#issuecomment-5620280328 is that
+# exact string. Mapping the fragment to ISSUE alone rejected the more common of the
+# two shapes (issue #5719).
+_FRAGMENT_URL_TYPES: dict[str, frozenset[UrlType]] = {
+    "pullrequestreview": frozenset({UrlType.PULL}),
+    "discussion_r": frozenset({UrlType.PULL}),
+    "issuecomment": frozenset({UrlType.ISSUE, UrlType.PULL}),
+}
+
+
+def _fragment_matches_url_type(
+    fragment_type: str | None,
+    url_type: UrlType,
+    subroute: str | None,
+) -> bool:
     if fragment_type is None:
         return True
 
-    expected_url_type = {
-        "pullrequestreview": UrlType.PULL,
-        "discussion_r": UrlType.PULL,
-        "issuecomment": UrlType.ISSUE,
-    }.get(fragment_type)
-    return expected_url_type == url_type
+    allowed = _FRAGMENT_URL_TYPES.get(fragment_type)
+    if allowed is None or url_type not in allowed:
+        return False
+
+    # Stricter than the fragment grammar alone: GitHub anchors a conversation
+    # comment on the bare pull view and never on a tab, so `/pull/{n}/files` and
+    # `/pull/{n}/changes` keep rejecting it. Widening those would accept a shape
+    # GitHub does not produce and would undo the tightening from PR #5002.
+    if fragment_type == "issuecomment" and url_type == UrlType.PULL:
+        return subroute is None
+
+    return True
 
 
 def parse_github_url(url: str) -> dict[str, Any] | None:
@@ -265,7 +288,7 @@ def parse_github_url(url: str) -> dict[str, Any] | None:
         return None
     url_type, resource_id, subroute, secondary_id, ref, path = resource
 
-    if not _fragment_matches_url_type(fragment_type, url_type):
+    if not _fragment_matches_url_type(fragment_type, url_type, subroute):
         return None
 
     return {
