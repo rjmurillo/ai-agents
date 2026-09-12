@@ -1,26 +1,9 @@
----
-applyTo: '**'
----
+{{! standalone: migrated from the retired .claude/rules/claude-model-patches.md (epic #5456, M4) }}
+## Claude Model Behavioral Patches
 
-# Claude Model Behavioral Patches
+These nudges are tuned for the Claude model family (Anthropic models) and bind whenever Claude is the runtime model, regardless of harness. They are subordinate to this skill's own workflow steps, STOP points, and exit gates: when a patch below conflicts with one of those, the skill wins.
 
-These nudges are tuned for the Claude model family (Anthropic models). They apply whenever Claude is the runtime model, regardless of harness (Claude Code CLI, GitHub Copilot CLI invoking Anthropic, the Anthropic API, an IDE extension wrapping Claude). The patches encode behaviors that the model tends to drift from without explicit prompting.
-
-**Loading vs. obeying.** In the canonical source under `.claude/rules/` this file's frontmatter sets `priority: critical`, meaning the rule loader MUST include the file in every session's context. That key is intentionally stripped from the generated Copilot instruction mirrors (`.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.instructions.md`) because those trees use a different frontmatter contract (`applyTo` only). The CONTENT priority of each patch against other rules is set by the Precedence section below. Critical-to-load is not the same as critical-to-obey; the next section sets the obey order.
-
-## Precedence
-
-These patches are subordinate to:
-
-- Skill workflows (any `.claude/skills/<name>/SKILL.md` instruction in this repo, or `.github/skills/<name>/SKILL.md` or any installed plugins).
-- STOP points and confirmation gates inside skills.
-- `AskUserQuestion` (or harness equivalent) blocking on user decision.
-- Plan-mode safety in Claude Code.
-- The `/ship` review gate and equivalent push-time checks.
-
-When a patch below conflicts with one of those, the skill or gate wins. Treat the patches as preferences in those conflicts. Outside of those conflicts the patches still apply: they encode default behavior that the model otherwise drifts from.
-
-## Todo-list Discipline
+### Todo-list Discipline
 
 When working through a multi-step plan, mark each task complete individually as you finish it. Do not batch-complete at the end. If a task turns out to be unnecessary, mark it skipped with a one-line reason.
 
@@ -30,7 +13,7 @@ Applies to: the harness's todo or task tool (Claude Code's `TaskCreate` / `TaskU
 
 **Parallel tasks.** Mark each task complete as soon as its work is verified, regardless of other in-progress tasks. Do not wait for siblings to finish.
 
-## Think Before Heavy Actions
+### Think Before Heavy Actions
 
 For complex operations, state your approach in 2 to 3 sentences before executing. What you intend to do, in what order, and what you are deliberately leaving out.
 
@@ -46,7 +29,7 @@ The cost of a two-sentence preamble is roughly zero. The cost of a 30-minute rol
 
 **When a heavy action fails midway.** Mark the in-flight task as failed with a one-line reason. If partial changes are reversible (uncommitted edits, unpushed commits), revert them. If not (pushed commits, mutated external state), state what was changed and what was not. Ask the user before retrying; do not retry blindly.
 
-## Dedicated Tools Over Bash
+### Dedicated Tools Over Bash
 
 Prefer Read, Edit, Write, Glob, Grep over their shell equivalents (`cat`, `sed`, `find`, `grep`).
 
@@ -76,7 +59,7 @@ Allowed Bash patterns:
 - `mkdir`, `rm`, `mv` for directory operations.
 - One-shot diagnostics (`uname`, `which`, `ls -la <specific path>`) when a dedicated tool does not cover it.
 
-## Quick Self-Check
+### Quick Self-Check
 
 Run this check only at decision points: starting a heavy action, switching tasks, or about to call Bash. Not every turn; the per-turn overhead would compete with throughput.
 
@@ -85,3 +68,5 @@ Run this check only at decision points: starting a heavy action, switching tasks
 - If I am about to call Bash, is there a dedicated tool that would do this better?
 
 If any answer is "no" or "not sure," adjust before proceeding.
+
+<!-- vendor-portability: declared. `build/scripts/build_all.py` and `build/scripts/<name>.py` above are example Bash-allowed runners describing what the upstream checkout permits, not a runtime instruction a vendored install resolves; `build/` ships in neither plugin root. Migrated from the retired `.claude/rules/claude-model-patches.md` (epic #5456). Issue #2050. -->
