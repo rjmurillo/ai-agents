@@ -1,6 +1,6 @@
 """Tests for build/scripts/validate_plugin_manifests.py.
 
-Covers the regression class from PR #1773 (broken plugin install for
+Covers the regression class from PR #1776 (broken plugin install for
 all consumers due to invalid `agents`/`hooks` shapes in plugin.json),
 plus the Claude-specific manifest regression from issue #1833.
 """
@@ -285,11 +285,11 @@ def test_issue_1833_rejects_copilot_marketplace_manifest_too(tmp_path: Path) -> 
     assert "`skills`" in scoped[0]
 
 
-# --- Regression: PR #1773 bug -----------------------------------------------
+# --- Regression: PR #1776 bug -----------------------------------------------
 
 
 def test_regression_hooks_as_dict_of_strings_rejected(tmp_path: Path) -> None:
-    """PR #1773 bug: pointing hook events at directories breaks plugin install."""
+    """PR #1776 bug: pointing hook events at directories breaks plugin install."""
     target = _write(
         tmp_path,
         {
@@ -302,7 +302,7 @@ def test_regression_hooks_as_dict_of_strings_rejected(tmp_path: Path) -> None:
     )
     errors = vpm.validate_manifest(target)
     assert errors
-    assert any("PR #1773" in e for e in errors)
+    assert any("PR #1776" in e for e in errors)
     assert any("PreToolUse" in e for e in errors)
 
 
@@ -349,6 +349,84 @@ def test_hook_type_must_be_command(tmp_path: Path) -> None:
     )
     errors = vpm.validate_manifest(target)
     assert any("'command'" in e for e in errors)
+
+
+# --- dependencies (ADR-072 Decision 3, issue #5669 item 5) ------------------
+
+
+def test_dependencies_valid_list_passes(tmp_path: Path) -> None:
+    """A manifest declaring bare plugin-name dependencies must pass."""
+    target = _write(tmp_path, {"name": "p", "dependencies": ["quality-gates", "agent-team"]})
+    assert vpm.validate_manifest(target) == []
+
+
+def test_dependencies_marketplace_alias_form_passes(tmp_path: Path) -> None:
+    """`name@marketplace` is an alias, not a version, and must pass."""
+    target = _write(tmp_path, {"name": "p", "dependencies": ["cap-b@probe-mkt"]})
+    assert vpm.validate_manifest(target) == []
+
+
+def test_dependencies_empty_list_is_valid(tmp_path: Path) -> None:
+    """Declaring no cross-plugin dependencies is not an error."""
+    target = _write(tmp_path, {"name": "p", "dependencies": []})
+    assert vpm.validate_manifest(target) == []
+
+
+def test_dependencies_as_string_rejected(tmp_path: Path) -> None:
+    """Measured host behavior: `dependencies: "nope"` fails on Claude Code too."""
+    target = _write(tmp_path, {"name": "p", "dependencies": "nope"})
+    errors = vpm.validate_manifest(target)
+    assert any("`dependencies`" in e and "array of strings" in e for e in errors)
+
+
+def test_dependencies_with_non_string_element_rejected(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "dependencies": ["quality-gates", 3]})
+    errors = vpm.validate_manifest(target)
+    assert any("`dependencies`" in e and "array of strings" in e for e in errors)
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        "cap-b@1.2.3",
+        "cap-b==1.2.3",
+        "cap-b>=1.0.0",
+        "cap-b~1.0.0",
+        "cap-b^1.0.0",
+        # The ADR-072 round 4 security seat found the first regex missed these
+        # three, so `cap-b<2.0.0` passed as a bare name and contradicted the
+        # stated intent that any version specifier is rejected.
+        "cap-b<2.0.0",
+        "cap-b<=2.0.0",
+        "cap-b!=1.0.0",
+    ],
+)
+def test_dependencies_version_constrained_entry_rejected(tmp_path: Path, entry: str) -> None:
+    """ADR-092 deleted `version` from every manifest; a dependency can only ever
+    be a bare name or `name@marketplace`, never version-constrained."""
+    target = _write(tmp_path, {"name": "p", "dependencies": [entry]})
+    errors = vpm.validate_manifest(target)
+    assert any("version-constrained" in e for e in errors), (
+        f"entry {entry!r} should be rejected, got errors={errors}"
+    )
+
+
+def test_dependencies_empty_string_entry_rejected(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "dependencies": [""]})
+    errors = vpm.validate_manifest(target)
+    assert any("empty or whitespace-only" in e for e in errors)
+
+
+def test_dependencies_whitespace_only_entry_rejected(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "dependencies": ["   "]})
+    errors = vpm.validate_manifest(target)
+    assert any("empty or whitespace-only" in e for e in errors)
+
+
+def test_dependencies_untrimmed_entry_rejected(tmp_path: Path) -> None:
+    target = _write(tmp_path, {"name": "p", "dependencies": [" quality-gates "]})
+    errors = vpm.validate_manifest(target)
+    assert any("leading or trailing whitespace" in e for e in errors)
 
 
 # --- Schema basics ----------------------------------------------------------

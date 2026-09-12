@@ -53,7 +53,7 @@ Former divergence, now closed: the ADR-034 text (`.agents/architecture/ADR-034-i
 
 One staged file outside the enforced list voids the exemption. The session then needs real QA evidence, or you split the work into two sessions.
 
-Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents/` are generated from `templates/agents/*.shared.md`. The `.github/instructions/` tree and most of `src/copilot-cli/` are generated from `.claude/` sources. Never hand-edit a generated tree; edit the canonical source and regenerate (the operating procedure lives in `ai-agents-generation-and-release`, the seam rationale in `ai-agents-architecture-contract`). The generator enforces one direction itself: `build/scripts/build_all.py:962-967` fails the build if any generator writes into `.claude/` (REQ-003-010). History note: on 2025-12-15 an agent "fixed" a drift failure by editing the canonical source to match the generated output; the commit was reverted. Drift output shows difference, not direction. Always ask which side is canonical before touching either.
+Special case, generated trees. `src/vs-code-agents/` and `src/copilot-cli/agents/` are generated from `templates/agents/*.shared.md`. The `.github/instructions/` tree and most of `src/copilot-cli/` are generated from `.claude/` sources. Never hand-edit a generated tree; edit the canonical source and regenerate (the operating procedure lives in `ai-agents-generation-and-release`, the seam rationale in `ai-agents-architecture-contract`). The generator enforces one direction itself: `assert_no_claude_writes` (`build/scripts/build_all.py:841`) diffs the `.claude/` tree before and after the run, and any generator write there prints `REQ-003-010 VIOLATION` and exits 2 (lines 2327 to 2328 of the same file). ADR-108 carves out exactly one class, the template-owned skill files under `.claude/skills/`, which reach the guard as an allowlist. History note: on 2025-12-15 an agent "fixed" a drift failure by editing the canonical source to match the generated output; the commit was reverted. Drift output shows difference, not direction. Always ask which side is canonical before touching either.
 
 ### Phase 2: Map the class to its triggered gates
 
@@ -103,7 +103,7 @@ Six of the table's incidents compress a multi-round failure and are told in full
 
 | Anti-pattern | Why it fails here |
 |--------------|-------------------|
-| Editing a generated tree to silence a drift gate | Inverts the source of truth (2025-12-15 incident, reverted). Ask which side is canonical first |
+| Editing the canonical side to match a generated tree, to silence a drift gate | Inverts the source of truth (2025-12-15 incident: the source was edited to match generated output; commit reverted). Ask which side is canonical first |
 | Using `[skip-drift-check]` without a stated reason and human approval | Bypass markers are audited; unexplained use reads as the session 1187 pattern |
 | Adding a `version` back to a plugin.json or marketplace entry | The gate fails on the field's presence (ADR-092). Freshness already tracks the commit SHA, so the field only re-creates the merge conflict it was deleted for |
 | Adding a fail-open wrapper so a broken hook "does not block anyone" | Rejected pattern (#2230, recorded in ADR-071): silent exit 0 disables the hook while looking like success, exactly the #2205 failure |

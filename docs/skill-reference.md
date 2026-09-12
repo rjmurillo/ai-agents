@@ -53,7 +53,7 @@ Intercepts GitHub URLs in user input and routes them to the appropriate skill or
 
 ### memory
 
-Unified four-tier memory system for AI agents. Supports semantic search, knowledge graphs, and cross-session context persistence via Serena and Forgetful.
+Thin router for the tiered memory system. Points callers at focused sub-skills for Tier 1 semantic search over Serena memories and Tier 2 episode extraction.
 
 ### memory-enhancement
 

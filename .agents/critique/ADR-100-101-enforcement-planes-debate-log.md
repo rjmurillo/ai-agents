@@ -959,3 +959,47 @@ are left as measured. They are the argument for the decision and they were
 measured against the gate as it stood. Where the analysis describes a mechanism
 ADR-099 has since deleted, it is marked as history rather than rewritten,
 because a decision's evidence is what was true when it was taken.
+
+## Owner acceptance of ADR-101, 2026-09-12
+
+The repository owner directed that ADR-101 reach `accepted`. No round 14 ran.
+Recording the basis, because accepting over a round that concluded without
+consensus is the kind of act that looks arbitrary later unless the reasoning is
+written down at the time.
+
+**What the tally was.** Round 13: five Blocks, one Accept. Round 12: two Blocks.
+Neither reached the consensus bar the `adr-review` skill states, which is all six
+seats at Accept or Disagree-and-Commit.
+
+**Why the tally is not the whole answer.** Each of round 13's five blocking
+findings names a specific defect, and each is repaired in the record: the
+invariant states all three conjuncts, requirement 2 carries the reproduced
+skip-hook evasion and its executed-and-not-skipped floor and is labelled a
+research item with no phase claiming it, the falsification branch is ordered and
+scoped with a transfer argument for its canary evidence, the closure item is bound
+to the typed-closure machinery with an exit condition, and the Alternatives row's
+plane is corrected from P0 to P1. The record's own protocol note already set the
+rule this acceptance follows: a seat that blocked on a finding since repaired has
+its ground removed rather than overruled. Nobody is being outvoted. The premises
+the votes rested on are gone.
+
+**The honest residue.** No seat has re-read the repaired text and withdrawn its
+Block, because no round 14 was run. So this is an owner acceptance on repaired
+grounds, not a panel consensus, and the record says so in its Status section
+rather than implying the panel came around. Anyone reopening this should check
+whether the repairs land, not whether the vote was close.
+
+**One owner decision resolved itself between rounds.** ADR-101 listed ADR-100's
+re-baseline against ADR-099 as open. ADR-100 was re-baselined on 2026-09-10, the
+day after round 13, and now cites ADR-099 ten times and issue #5233 six times.
+ADR-101's clause describing ADR-100 as citing neither was true when written and
+false a day later. That is the eighth instance logged here of a correction landing
+in one record while a second goes on describing the old state. Measured 2026-09-12
+against `origin/main`.
+
+**The second owner decision.** Splitting this record's audit into
+`.agents/analysis/` is declined, because no sentence in ADR-101 defines a boundary
+for what "this record's audit" is, nothing in the validation tree reads
+`.agents/analysis/`, and the content is the measured evidence sitting beside the
+claims it supports. Separating proof from claim is the failure this record exists
+to make expensive.

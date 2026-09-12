@@ -157,7 +157,7 @@ See `docs/SKILL-AUTHORING.md` ("Portable Script Invocations") for the full rule.
 ## Invocation Examples
 
 ```text
-SlashCommandCreator: create command for exporting Forgetful memories to JSON
+SlashCommandCreator: create command for exporting Serena memories to JSON
 
 SlashCommandCreator: design slash command for running security audit
 

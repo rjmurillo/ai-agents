@@ -37,9 +37,10 @@ import skill_templates  # noqa: E402
 # TASK-027 (A2): widens in step with the templates landing in the same
 # commit, so this test is never red at any commit on the branch (review
 # finding: an earlier history widened PILOT to all eight names one commit
-# before any template existed). Complete: all eight DESIGN-024 "Pilot
-# content" names, each of which carries an @CLAUDE.md line (ADR-108
-# Context).
+# before any template existed). The eight DESIGN-024 "Pilot content" names
+# each carry an @CLAUDE.md line (ADR-108 Context). Wave 2 (issue #5706
+# follow-on) widens the class past that pilot, one owner-approved skill at
+# a time, each name landing in the same commit as its own template.
 PILOT: frozenset[str] = frozenset(
     {
         "sync",
@@ -55,6 +56,11 @@ PILOT: frozenset[str] = frozenset(
         "orphan-ref-validator",
         "prose-self-check",
         "agent-harness-reference",
+        "ai-agents-empirical-probe-toolkit",
+        "ai-agents-external-claims",
+        "ai-agents-failure-archaeology",
+        "ai-agents-portability-campaign",
+        "ai-agents-research-methodology",
     }
 )
 

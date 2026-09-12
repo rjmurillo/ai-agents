@@ -1,6 +1,6 @@
 # Claude Code Plugin Manifest Schema
 
-Captured 2026-04-27 during P0 incident response (PR #1773 broke plugin install
+Captured 2026-04-27 during P0 incident response (PR #1776 broke plugin install
 for all consumers; fixed in PR #1795). Hook events refreshed 2026-07-19 from
 <https://code.claude.com/docs/en/hooks>.
 
@@ -51,7 +51,7 @@ The April 2026 ten-event list was a historical docs snapshot. Do not use it to
 reject current events. See `agent-harness-reference` for the Claude and Copilot
 delta.
 
-## Common bug patterns (regression class from PR #1773)
+## Common bug patterns (regression class from PR #1776)
 
 1. **`hooks` as dict-of-directories** (`{ "PreToolUse": "./hooks/PreToolUse" }`): rejected by Claude Code with "Validation errors: hooks: Invalid input". Use inline matcher format or string ref to `*.json` file.
 2. **`agents`/`skills`/`commands` as array of dir paths without `./`**: rejected with "Invalid input".

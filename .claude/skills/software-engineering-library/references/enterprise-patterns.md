@@ -146,7 +146,7 @@ ai-agents already has implicit versions of these patterns. Reuse, do not duplica
 - Sessions and the session log live behind a session-management seam. Treat that seam as the Repository for session state and the Service Layer for session lifecycle.
 - The orchestrator is the Service Layer for agent runs. New use cases that need a transactional or retryable boundary go here, not into a hook or skill.
 - Skills and hooks are entry points. Keep them thin: parse inputs, call a service, format output. They are not the place for business rules.
-- Memory systems (Serena, Forgetful) act as Repositories of long-lived knowledge. Do not bypass them with direct file reads when the named operation already exists.
+- Serena acts as a Repository of long-lived knowledge. Do not bypass it with direct file reads when the named operation already exists.
 
 When you find a place where the codebase deviates from this rule, prefer a small focused refactor on the path you are already touching over a large rewrite. Note the deviation in the PR description so future readers see your reasoning.
 
