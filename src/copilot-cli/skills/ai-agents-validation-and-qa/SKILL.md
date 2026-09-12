@@ -48,7 +48,7 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 
 Origin story: in PR #1756, the original 20 unit tests gave 24% block coverage; adding negative, edge, and branch tests raised it to 100% and caught real defects the happy-path tests missed (whitespace handling on verdict matching, conditional OTHER-hint emission, type validation). That review created TESTING-RIGOR.md (TESTING-RIGOR.md:3-16). The rule exists because bots (Copilot, CodeRabbit, Gemini) reliably catch what happy-path tests skip, at roughly 10x the cost of writing the tests up front (TESTING-RIGOR.md:81).
 
-Coverage targets by risk tier (AGENTS.md Standards; TESTING-ANTI-PATTERNS.md:112-118): 100% security-critical, 80% business logic, 60-70% docs/glue. "Security-critical" includes secret handling, input validation, command execution, path sanitization, auth checks.
+Coverage targets by risk tier (AGENTS.md Standards; TESTING-ANTI-PATTERNS.md:165-172): 100% security-critical, 80% business logic, 60-70% docs/glue. "Security-critical" includes secret handling, input validation, command execution, path sanitization, auth checks.
 
 Quality trumps quantity: `.agents/governance/TESTING-ANTI-PATTERNS.md` bans coverage theater (assertion-free tests), brittle mocks for impossible scenarios, unit-tests-as-only-testing, quantity over quality, and testing entirely after the fact. A test that never failed during development may not be testing anything (TESTING-ANTI-PATTERNS.md:91).
 
@@ -85,9 +85,19 @@ Stale doc warning: `.agents/governance/test-location-standards.md` still describ
 
 Beyond pos+neg+edge, this repo demands five specific disciplines:
 
-**1. Isolation from the real repo.** The root `conftest.py` (repo root, lines 315-386) fails any test that moves the REAL repo HEAD (issue #2316): every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (issue #2548, tests/conftest.py:26-61), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (issue #2610, tests/conftest.py:64-76). Consumer-repo simulation tests override that env var to `"0"`.
+**1. Isolation from the real repo.** The root `conftest.py` (repo root, lines 435-548) fails any test that moves the REAL repo HEAD (issue #2316): every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (issue #2548, tests/conftest.py:26-61), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (issue #2610, tests/conftest.py:64-76). Consumer-repo simulation tests override that env var to `"0"`.
 
-**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:28, index row 11; the #2205 incident wedged every plugin customer for 33 days). `.claude/rules/generated-artifacts.md:67-73` requires: execute the shipped artifact under the host's real contract (foreign cwd, host-set env vars), assert the intended effect, and include a negative control proving the test CAN fail (a bare relative path must fail the same harness). The exemplar is `tests/build_scripts/test_generate_hooks_runtime_contract.py`: see `test_negative_control_bare_relative_path_fails` and `test_anchor_is_load_bearing_when_no_plugin_root_var_set`.
+**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:28, index row 11; the #2205 incident wedged every plugin customer for 33 days). `.claude/rules/generated-artifacts.md:67-73` requires:
+
+The artifact MUST have a test that executes
+   it under the verified contract: set the cwd the host sets (for a plugin hook,
+   a directory that is NOT the plugin root), set the env vars the host exports,
+   run the command, and assert the intended effect (the script is found and
+   runs). Include a negative control that proves the test fails when the artifact
+   is wrong (a bare relative path must fail the same harness). See
+   `tests/build_scripts/test_generate_hooks_runtime_contract.py`.
+
+See `test_negative_control_bare_relative_path_fails` and `test_anchor_is_load_bearing_when_no_plugin_root_var_set`.
 
 **3. Negative controls beat self-reference.** A test that string-matches the generator's own output passes when the generator is consistently wrong. The first #2205 fix shipped exactly this (retro 2026-06-02-pr-2205-customer-wedge-incident.md:49,83) and it hid two more defects. Every contract test needs a case where the wrong artifact fails.
 
@@ -156,7 +166,7 @@ Each row cost real time. Do not re-earn these lessons.
 | Happy-path-only test suite | PR #1756: 20 tests, 24% coverage, bots caught the rest | TESTING-RIGOR.md pos+neg+edge, BLOCKING |
 | Threshold detector never calibrated | #1989 M4: threshold 6, repo max 4, could never fire | Calibration table against last ~5 real PRs before commit |
 | Guard not run on its own branch | #1989 M5: bot-cascade hook shipped but never applied to its own PR | Guard output on the shipping branch in the PR description |
-| Test mutates the real repo | Repo-root conftest.py:315-386 (#2316) | Isolate in `tmp_path`, run git with `cwd=` the tmp repo |
+| Test mutates the real repo | Repo-root conftest.py:435-548 (#2316) | Isolate in `tmp_path`, run git with `cwd=` the tmp repo |
 | Silent default for missing signal | PR #1965 verdict parser defaulted missing to PASS, 3 fix rounds (FM-10) | Test the missing-signal case; assert raise/block |
 | Coverage theater (assertion-free tests, tautologies) | Issue #749 philosophy work | TESTING-ANTI-PATTERNS.md 1: each test answers a stakeholder concern |
 | Trusting the Pester test-location doc | `test-location-standards.md` predates ADR-042; zero `.Tests.ps1` files remain | Use Phase 2 table + `pyproject.toml [tool.pytest.ini_options].testpaths` |
@@ -176,13 +186,13 @@ Before claiming a change meets the evidence bar:
 
 ## Provenance and Maintenance
 
-Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55,77-81`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml [tool.pytest.ini_options]`, repo-root `conftest.py:315-386`, `tests/conftest.py:19-76`, `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`.
+Verified 2026-07-29 against the working tree (issue #3828 re-verification pass; the earlier 2026-07-03 pass had rotted for `pyproject.toml`, both `conftest.py` files, `.github/workflows/pytest.yml`, and `.claude/rules/generated-artifacts.md`). Sources: `.agents/governance/TESTING-RIGOR.md:3-55,77-81`, `.agents/governance/TESTING-ANTI-PATTERNS.md:9-118`, `pyproject.toml [tool.pytest.ini_options]`, repo-root `conftest.py` (`#2316` guard, cited with its line range in the Anti-Patterns table above), `tests/conftest.py` (cited with precise ranges at :26-61 and :64-76 above), `.github/workflows/pytest.yml:196-222`, `.claude/rules/generated-artifacts.md:67-73`, `.claude/rules/claude-agents.md:18`, `.agents/architecture/ADR-034-investigation-session-qa-exemption.md:62-110`, `scripts/validate_session_json.py` (`_QA_SKIP_CHECKERS`), `.agents/governance/FAILURE-MODES.md:14-30,387`, `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:110-157`, `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:23-83`. <!-- citation-freshness: ignore -- dense bibliography line; the checker's anchor pool is shared across the whole line (citation_anchors.py _anchor_candidates), so editing one citation's neighboring prose can fail an unrelated citation on the same line regardless of its own accuracy; every range above is verified directly against HEAD -->
 
 Re-verify volatile facts:
 
 ```bash
 grep -n testpaths pyproject.toml                                  # collection roots
-sed -n '315,386p' conftest.py                                     # #2316 HEAD guard still present
+sed -n '435,548p' conftest.py                                     # #2316 HEAD guard still present
 grep -n "cov-fail-under" .github/workflows/pytest.yml             # coverage pins and forms
 grep -n "_QA_SKIP_CHECKERS" -A5 scripts/validate_session_json.py   # QA skip evidence strings
 ls tests/skills/ .claude/skills/prose-self-check/tests/           # both skill-test locations alive
