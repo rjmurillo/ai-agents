@@ -1,0 +1,20 @@
+---
+role: coordinator
+description: Review GitHub feature requests with constructive skepticism. Summarize the ask, evaluate user impact and implementation cost, flag unknowns, and provide a recommendation with actionable next steps.
+argument-hint: Provide the issue title, issue body, and any known repository context
+model_tier: sonnet
+tools_vscode:
+  - $toolset:editor
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - $toolset:knowledge
+tools_copilot:
+  - $toolset:editor
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - $toolset:knowledge
+{{> issue-feature-review-intro}}
