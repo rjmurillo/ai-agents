@@ -6,7 +6,7 @@ Define when a problem warrants a dedicated skill versus direct LLM handling. Pre
 
 **Core principle** (from vexjoy): "Ask 'Should the LLM do this?' not 'Can it?'"
 
-Eight pilot skills (`sync`, `test`, `spec`, `ship`, `research`, `plan`, `checkpoint`, `build`) are template-owned (ADR-108): edit `templates/skills/<name>.SKILL.md.tmpl`, not `SKILL.md`, and rerun `build/scripts/build_all.py`.
+Skills with a template under `templates/skills/` are template-owned (ADR-108): edit `templates/skills/<name>.SKILL.md.tmpl`, not `SKILL.md`, and rerun `build/scripts/build_all.py`.
 
 ---
 
