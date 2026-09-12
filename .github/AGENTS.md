@@ -30,7 +30,7 @@ CI workflows, generated Copilot-CLI mirrors, and hand-maintained agent parity co
 | `copilot-instructions.md`, `copilot-code-review.md` | Copilot always-on entry (see Matters); review-comment volume/confidence rules for AI reviewers (issue #326) |
 | `scripts/*.py` (19, plus `ci/`) | Workflow helper modules; tests live at repo-root `tests/`, not `.github/tests/` |
 | `actions/` | Composites: `ai-review`, `setup-code-env`, `test-installed-plugin-hooks`, `validate-plugin-manifests`, `workflow-debounce` |
-| `plugin/marketplace.json`, `copilot/settings.json`, `codeql/*.yml` | Copilot marketplace entry (`src/copilot-cli` source, no `version` per ADR-092), Copilot CLI settings, CodeQL config/suppressions |
+| `plugin/marketplace.json`, `copilot/settings.json`, `codeql/*.yml` | Copilot marketplace entry (`src/copilot-cli` source, no `version` per ADR-092), Copilot CLI settings, CodeQL config |
 | `CODEOWNERS`, `labeler.yml`, `bot-authors.yml` | Owner review gates, path-based PR labels, bot-actor identification |
 
 ## Skip
