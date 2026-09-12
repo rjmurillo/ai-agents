@@ -124,3 +124,5 @@ Consensus reached on revision 2: six Accept, no Disagree-and-Commit, no Block. T
 - 2026-09-11: spec review (REQ-026 critic pass) surfaced two Implementation Notes gaps: B1 must ship the skills manifest row and widen `OWNED_PREFIXES`, and B3 must move the skill render target into `src/claude/skills/` and add the prompts row. Both rows amended; no decision changed.
 - 2026-09-11: CodeRabbit on PR #5745: rollback paragraph now reverts the B0 edits on every rejection path; the absolute worktree path in this log header removed.
 - 2026-09-11: owner accepted the record; frontmatter `status: accepted`, `supersedes: [ADR-052]`; ADR-052 `superseded`; the ADR-107 and REQ-003 clauses made unconditional.
+- 2026-09-12: CodeRabbit on PR #5745 (three threads): ADR-052 Not-implemented paragraph reads as history and points at ADR-109 B1 to B6; ADR-107 Related Decisions bullet marks ADR-052 superseded; the write exception in ADR-107, REQ-003-010, and the B0 row is target-state policy activated per class as each migration lands.
+  Re-anchoring note: the REQ-003-010 and ADR-107 citations in Decision section 6 moved with the per-class wording; re-anchored the same day.
