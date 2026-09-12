@@ -125,9 +125,7 @@ def validate_skill_contract_tests(repo_root: Path) -> bool:
     reading it back, the script drifts away from it and every gate stays green,
     because prose does not go red.
     """
-    return _run_portability_validator(
-        repo_root, "scripts/validation/check_skill_contract_tests.py"
-    )
+    return _run_portability_validator(repo_root, "scripts/validation/check_skill_contract_tests.py")
 
 
 def validate_skill_template_drift(repo_root: Path) -> bool:
@@ -160,4 +158,20 @@ def validate_skill_template_drift(repo_root: Path) -> bool:
     """
     return _run_portability_validator(
         repo_root, "build/scripts/generate_skills.py", "", "--validate"
+    )
+
+
+def validate_agent_template_drift(repo_root: Path) -> bool:
+    """Fail when a rendered src/claude/agents file differs from its template.
+
+    Wraps ``build/scripts/agent_templates.py --validate`` (ADR-109 B1), the
+    agents counterpart of :func:`validate_skill_template_drift` above: it
+    renders every ``templates/agents/<stem>.claude.md.tmpl`` in memory and
+    compares the result, byte for byte, against the committed
+    ``src/claude/agents/<stem>.md``; it never writes. Exit 0 covers "no
+    template pair exists" and "every render matches". Exit 1 or 2 names the
+    drifted or malformed file, printed by the shared runner.
+    """
+    return _run_portability_validator(
+        repo_root, "build/scripts/agent_templates.py", "", "--validate"
     )
