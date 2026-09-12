@@ -81,8 +81,8 @@ made after seeing the data is a description, not a test. Concretely:
    fixture; `ls tests/evals/` lists what is available.)
 
    `--dry-run` validates inputs and makes no API calls
-   (scripts/eval/eval-prompt-change.py:567). It is the only no-spend path;
-   there is no `--mock`.
+   (scripts/eval/eval-prompt-change.py:633, `Validate inputs, no API calls`).
+   It is the only no-spend path; there is no `--mock`.
 3. Run the real eval, compare against the written prediction, and record both
    in the write-up. A miss is a finding, not an embarrassment.
 
@@ -154,7 +154,7 @@ when citing.
 
 A result becomes enforcement (a hook, a validator, a CI gate) or capability (a
 skill via `SkillForge`). Any threshold-based detector must ship with a
-calibration table. The rule, from the #1989 retro (Process Change 3,
+calibration table. The rule, from the #1989 retro ("Process Change 3",
 .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:149-157): show
 the threshold, a sample of real PRs measured against it, and the expected
 firing rate. "A detector that cannot fire on the last 5 PRs in the repo is not
@@ -216,9 +216,8 @@ is a future duplicate proposal.
   contract all trace to specific incidents.
 - **Cross-model disagreement.** When Claude and another model disagree, or
   agree against the user's direction, that is signal, not a mandate. Per
-  `.claude/rules/builder-ethos.md` (User Sovereignty): present the
-  recommendation, state what context you may be missing, and ask. Never act on
-  model consensus alone.
+  `.claude/rules/builder-ethos.md` (User Sovereignty):
+  **The rule:** When you and another model agree on something that changes the user's stated direction, present the recommendation, explain why you both think it is better, state what context you might be missing, and ask. Never act.
 
 ## Writing Up Results
 
@@ -264,13 +263,14 @@ volatile facts:
 
 | Fact | Source | Re-verify |
 |---|---|---|
-| #1989 false premise, calibration rule, M4 numbers | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:20,72-73,149-157` | `grep -n "calibrat" .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
-| #2230 rejection record | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` | `grep -n 2230 .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
+| #1989 false premise, calibration rule, M4 numbers | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
+| #2230 rejection record | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` (`addressed-by-prevention`) | `grep -n 2230 .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
 | adr-review auto-fire + 6-agent debate | AGENTS.md "ADR Review"; `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
-| buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:40`; `.claude/skills/buy-vs-build-framework/SKILL.md:66` | `grep -n "13" AGENTS.md` |
-| eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:567`; `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
+| buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:40` (`13wk`) | `grep -n "13" AGENTS.md` |
+| buy-vs-build Quick tier ends in a Go/No-go | `.claude/skills/buy-vs-build-framework/SKILL.md:65` (`Go/No-go`) | verified directly against the cited line; no command needed that would read a sibling skill's directory |
+| eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:633` (`Validate inputs, no API calls`); `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/rules/search-before-building.md` | `grep -n "decision-" .claude/rules/search-before-building.md` |
-| ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
+| ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:3` (`status: proposed`) | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
 | Retro corpus size | `.agents/retrospective/` | `python3 -c "import pathlib;print(sum(1 for p in pathlib.Path('.agents/retrospective').glob('*.md') if p.name != 'INDEX.md'))"` |
 
 Uncertainty flag: the `EVENT=` telemetry consumer pipeline was never fully

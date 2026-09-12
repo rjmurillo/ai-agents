@@ -77,6 +77,7 @@ A source with a stake in the framing is not disqualified, but its self-favorable
 - A named authority invoked second-hand ("Gartner says"): the primary source is the named authority's own publication, not the party invoking it.
 
 State the stake explicitly in the artifact when it is material, so a reader can weigh it too. This is the `.claude/rules/voice.md` "Ownership: See Something, Say Something" discipline applied to provenance: a flag with a hypothesis, not a silent pass.
+You own everything you touch and everything adjacent to it. Scope is not an excuse. If you walked past a broken thing on the way to the thing you were asked to fix, you saw it. You are on the hook for at least flagging it.
 
 ### Phase 4: Walk the gate, or file conservative
 
