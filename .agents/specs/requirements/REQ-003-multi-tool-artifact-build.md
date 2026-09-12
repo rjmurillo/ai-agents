@@ -77,12 +77,12 @@ guide, and official CLI changelog. Pinned URLs live in
 | D1 | Outputs are **fully native** per platform | Customers install and run; no extra runtime translation |
 | D2 | **One plugin per provider** | Provider is axis of variation per CVA |
 | D3 | **Cursor + Codex out of scope** | User scoped to Claude + Copilot CLI |
-| D4 | **`.claude/<artifact>/` is canonical**, except template-owned skill files, whose canonical source is `templates/skills/<name>.SKILL.md.tmpl` (amended by ADR-108, 2026-09-11); `.claude/settings.json` is canonical for hook registration | Single canonical authoring location |
+| D4 | **`.claude/<artifact>/` is canonical**, except template-owned skill files, whose canonical source is `templates/skills/<name>.SKILL.md.tmpl` (amended by ADR-108, 2026-09-11); `.claude/settings.json` is canonical for hook registration. ADR-109 (proposed 2026-09-11) generalizes this: `templates/<class>/` becomes canonical for every plugin artifact class and `.claude/` becomes a binplace output once each class's migration PR lands. | Single canonical authoring location |
 | D5 | **Hook config is generated** with native `version: 1` wrapper, PascalCase compatibility events, host matchers where safe, script-side filters, and plugin-root anchored paths | Customers receive native payload casing plus defense in depth |
 | D6 | **Codex CLI out of scope** | User confirmed |
 | D7 | **Claude commands → Copilot skills with `user-invocable: true`** (bridge `/cmd` ↔ `/SKILL-NAME`) | Copilot CLI has no custom slash commands native to plugins; user-invocable skill is the documented equivalent |
 | D8 | **Custom instructions (`applyTo:`) generation is CONDITIONAL.** Generated under `.github/instructions/` IFF the source rule has a path scope, but since Copilot CLI per current docs does not consume them, ship a runtime warning until verified | Avoid shipping dead artifacts |
-| D9 | **Only `.claude-plugin/marketplace.json` is shared.** Each provider has its OWN `plugin.json` inside its own source dir: Claude at `.claude/.claude-plugin/plugin.json`, Copilot CLI at `src/copilot-cli/.claude-plugin/plugin.json`. The marketplace entry's `source:` path determines which `plugin.json` each provider reads : no field collision (e.g., Claude `mcpServers` declarations cannot accidentally load on Copilot side). | Verified marketplace discovery order; per-source isolation prevents cross-provider load |
+| D9 | **Only `.claude-plugin/marketplace.json` is shared.** Each provider has its OWN `plugin.json` inside its own source dir: Claude at `.claude/.claude-plugin/plugin.json`, Copilot CLI at `src/copilot-cli/.claude-plugin/plugin.json`. The marketplace entry's `source:` path determines which `plugin.json` each provider reads : no field collision (e.g., Claude `mcpServers` declarations cannot accidentally load on Copilot side). ADR-109 moves the Claude-side manifest to `src/claude/.claude-plugin/plugin.json` and deletes `.claude/.claude-plugin/plugin.json` at its marketplace-switch step. | Verified marketplace discovery order; per-source isolation prevents cross-provider load |
 | D10 | **Generate a safe host matcher and retain the script-side filter.** Literal tool unions run at the host. Argument-sensitive Claude patterns remain enforced inside the shim. | Current Copilot supports matchers, but its host matcher filters tool names, not command arguments |
 | D11 | **`${CLAUDE_PLUGIN_ROOT}` references in Claude hooks become plugin-root anchored Copilot commands** | `cwd` is repository-relative; generated commands anchor through `${COPILOT_PLUGIN_ROOT}` with `${CLAUDE_PLUGIN_ROOT}` fallback |
 
@@ -364,7 +364,10 @@ Verification: `git diff` after running `python3 build/scripts/build_all.py` show
 > [!NOTE]
 > **Amended in place by ADR-108, 2026-09-11.** The exception clause and the verification
 > sentence above were added by that record. `assert_no_claude_writes` takes the template-owned
-> set as `allowed_paths`; every other write under `.claude/` is still a violation.
+> set as `allowed_paths`; every other write under `.claude/` is still a violation. ADR-109, once
+> accepted, widens this exception to every path in its binplace manifest, written by the binplace
+> step from `src/claude/`, and `assert_no_claude_writes`'s `allowed_paths` then equals that
+> manifest.
 
 **REQ-003-011 : Generation audit log: bounded content + same-process CI parse**
 The generator's NOTICE/WARN audit shall be written to `build/audit/GENERATION-AUDIT.md` (NOT inside `src/copilot-cli/` : keeps internal build metadata out of customer plugin install) and shall ALSO be emitted to stdout during `build_all.py` so CI can parse from the same process invocation.
