@@ -52,7 +52,7 @@ The interpreter version has ONE source of truth: `.python-version` (currently
 |------|-------|--------|
 | uv | Must resolve the `.python-version` pin (old container uv builds cannot; reinstall via the astral.sh standalone installer, never `uv self update`, which hits GitHub API rate limits on shared egress IPs) | `uv python list "$(cat .python-version)"` prints a row |
 | Python | Exactly the `.python-version` pin, installed by uv | `python3 --version` |
-| Node.js | 22 LTS (`NODE_MAJOR=22` in `scripts/bootstrap-vm.sh:40`; AGENTS.md floor says "Node LTS") | `node --version` |
+| Node.js | 22 LTS (`NODE_MAJOR=22` in `scripts/bootstrap-vm.sh:84`; AGENTS.md floor says "Node LTS") | `node --version` |
 | PowerShell | 7.5.4+ per AGENTS.md Stack. Note: zero `.ps1` files remain in the repo (ADR-042 Python migration), so pwsh is rarely exercised, but the floor is still declared | `pwsh --version` |
 | gh CLI | 2.60+ per AGENTS.md Stack | `gh --version` |
 | git, jq, curl | any recent | `git --version` |
@@ -84,7 +84,7 @@ What these do:
 - `uv sync --frozen --extra dev` builds `.venv/` from `uv.lock` exactly as
   locked (`--frozen` never rewrites the lockfile) with dev extras. The pre-push
   gate runs validation through `uv run --frozen`, so this `.venv` is the
-  environment a push validates against (`scripts/bootstrap-vm.sh:109-115`).
+  environment a push validates against (`scripts/bootstrap-vm.sh:208-209`).
 - `lefthook install` installs Git shims for the events in `lefthook.yml`.
   `check-install` verifies that the shims are active. Lefthook reads the
   configuration at runtime, so editing the jobs under an already-installed hook
@@ -116,6 +116,7 @@ uv run python -c "import yaml; print(yaml.__version__)"
 and fill keys (`ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `TAVILY_API_KEY`,
 `CONTEXT7_API_KEY`, `YDC_API_KEY`; optional `COMPRESS_TOKENIZER`). Never commit
 `.env` (universal.md MUST 5: no secrets).
+MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
 
 | Server | Transport | Role | When absent |
 |--------|-----------|------|-------------|
@@ -143,8 +144,8 @@ Each row verified 2026-07-03. Longer stories live with the sibling skills
 
 | Trap | Symptom | Fix |
 |------|---------|-----|
-| CONTRIBUTING.md build commands were DEAD before PR #2871 | `CONTRIBUTING.md:155` said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871 repointed it to `build/generate_agents.py`; zero `.ps1` files exist in the repo (ADR-042) | Real commands: `uv run python build/generate_agents.py` and `uv run python build/scripts/build_all.py` |
-| PEP 668: bare pip fails | `pip install X` errors with externally-managed-environment on uv-managed interpreters | Everything goes through uv: `uv sync`, `uv add`, `uv run` (`scripts/bootstrap-vm.sh:118-123`) |
+| CONTRIBUTING.md build commands were DEAD before PR #2871 | CONTRIBUTING.md said `build/Generate-Agents.ps1` PowerShell invocation until PR #2871 repointed it to `build/generate_agents.py` (`git show b320f4ac1 -- CONTRIBUTING.md`); zero `.ps1` files exist in the repo (ADR-042) | Real commands: `uv run python build/generate_agents.py` and `uv run python build/scripts/build_all.py` |
+| PEP 668: bare pip fails | `pip install X` errors with externally-managed-environment on uv-managed interpreters | Everything goes through uv: `uv sync`, `uv add`, `uv run` (`scripts/bootstrap-vm.sh:205-218`) |
 | Skill scripts need the project venv | `.claude/skills/github/scripts/pr/*.py` import `github_core`, which imports `yaml` at load; bare `python3` throws `ModuleNotFoundError: No module named 'yaml'` unless `.venv/bin` is first on PATH (bootstrap-vm.sh arranges that; a manual setup usually does not) | Run skill scripts with `uv run python`, which resolves the venv deterministically |
 | Moving a worktree leaves the uv shebangs stale | Direct `.venv/bin/pytest` fails with "bad interpreter" after `mv`; the shebangs in `.venv/bin/*` (POSIX) or `.venv/Scripts/*` (Windows) still name the old worktree path (issue #3170) | Run `scripts/maintenance/repair_worktree_venv.py` with `uv run python` (or `uv sync --frozen --extra dev --reinstall`: `--reinstall` recreates the launchers a bare `--frozen` sync would leave stale, `--extra dev` keeps pytest/ruff/mypy, `--frozen` matches CI); prefer `uv run python -m pytest` for move-safe validation |
 | Two floors, not one | `pyproject.toml project.requires-python` says `requires-python = ">=3.14"` (the dev/install contract), but plugin hooks run under the host's ambient interpreter, which may be older | Develop and test against `.python-version` (3.14.6). The blocking CI syntax gate parses every file at the hook-portability floor (3.10), NOT 3.14, so hooks stay portable to older hosts (issue #2655, decoupled from `requires-python` in issue #3008); see `ai-agents-debugging-playbook` |
@@ -194,11 +195,11 @@ the repo on that date. Re-verify volatile facts before trusting them:
 | `requires-python >=3.14` install floor | `pyproject.toml project.requires-python` | `grep -n requires-python pyproject.toml` |
 | Syntax-gate hook floor 3.10 (separate from install floor) | `scripts/validation/validate_python_syntax.py` `_SUPPORT_FLOOR` | `grep -n _SUPPORT_FLOOR scripts/validation/validate_python_syntax.py` |
 | PyYAML 6.0.3 pin | `pyproject.toml project.dependencies` | `grep -n PyYAML pyproject.toml` |
-| `uv sync --frozen --extra dev` is the canonical sync | `scripts/bootstrap-vm.sh:114` | `grep -n "uv sync --frozen" scripts/bootstrap-vm.sh` |
-| Node 22 LTS | `scripts/bootstrap-vm.sh:40` | `grep -n NODE_MAJOR scripts/bootstrap-vm.sh` |
+| `uv sync --frozen --extra dev` is the canonical sync | `scripts/bootstrap-vm.sh:211` | `grep -n "uv sync --frozen" scripts/bootstrap-vm.sh` |
+| Node 22 LTS (`NODE_MAJOR=22`) | `scripts/bootstrap-vm.sh:84` | `grep -n NODE_MAJOR scripts/bootstrap-vm.sh` |
 | pwsh 7.5.4+, gh 2.60+ floors | AGENTS.md Stack section | `grep -n "gh 2.60" AGENTS.md` |
 | Zero .ps1 files (ADR-042) | repo tree | `git ls-files "*.ps1"` prints nothing |
-| Stale pwsh commands | `CONTRIBUTING.md:155,741` | `grep -n pwsh CONTRIBUTING.md` |
+| Stale pwsh commands (historical, fixed by PR #2871) | CONTRIBUTING.md, pre-#2871 | `git show b320f4ac1 -- CONTRIBUTING.md` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | MCP servers serena/deepwiki | `.mcp.json` | `cat .mcp.json` |
 | .env key names | `.env.example` | `cat .env.example` |
