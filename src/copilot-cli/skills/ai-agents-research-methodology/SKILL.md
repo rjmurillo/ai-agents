@@ -216,9 +216,8 @@ is a future duplicate proposal.
   contract all trace to specific incidents.
 - **Cross-model disagreement.** When Claude and another model disagree, or
   agree against the user's direction, that is signal, not a mandate. Per
-  `.claude/rules/builder-ethos.md` (User Sovereignty): present the
-  recommendation, state what context you may be missing, and ask. Never act on
-  model consensus alone.
+  `.claude/rules/builder-ethos.md` (User Sovereignty):
+  **The rule:** When you and another model agree on something that changes the user's stated direction, present the recommendation, explain why you both think it is better, state what context you might be missing, and ask. Never act.
 
 ## Writing Up Results
 

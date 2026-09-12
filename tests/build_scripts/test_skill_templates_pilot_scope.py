@@ -55,6 +55,7 @@ PILOT: frozenset[str] = frozenset(
         "ai-agents-external-claims",
         "ai-agents-failure-archaeology",
         "ai-agents-portability-campaign",
+        "ai-agents-research-methodology",
     }
 )
 
