@@ -66,7 +66,7 @@ path in `ai-agents-change-control`, not a fresh opinion.
 | Session-file merge conflicts | Always `git checkout --theirs` (keep main's file), rename yours to the next number. Main's session files are immutable audit records | `2026-02-08-session-1187-skip-prepush-abuse.md:334`; merge-resolver agent |
 | Threshold-based detectors | MUST ship with a calibration table replaying the last ~5 real merged PRs. A detector that cannot fire on real history is not calibrated | `2026-05-10-pr-1989-recursive-failure.md:149-157` |
 | Drift-gate failures | The output shows a difference, not a direction. Identify the canonical side before editing anything | `2025-12-15-drift-detection-disaster.md:283-286` |
-| Silent defaults | No neutral default for a missing signal: raise or block, never assume PASS | `.agents/governance/FAILURE-MODES.md:387` (FM-10: `no neutral default for a missing signal`) |
+| Silent defaults | No neutral default for a missing signal: raise or block, never assume PASS | `.agents/governance/FAILURE-MODES.md:389` (FM-10: `no neutral default for a missing signal`) |
 | Frictionless escape hatches | Get teeth (logging, guards, approval) or get abused within hours. SKIP_PREPUSH is the proof | `2026-02-08-session-1187-skip-prepush-abuse.md:706`; catalog in `ai-agents-config-catalog` |
 | Guards shipped without self-application | A guard PR must show the guard's output run against its own branch | `2026-05-10-pr-1989-recursive-failure.md:129-137` |
 | CLI subcommands proposed from analogy | BANNED. Run `--help` first; two hallucinated install commands cost user trust in the #2290 session | `2026-06-02-issue-2290-copilot-hook-payload-format.md:74-82` |
