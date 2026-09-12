@@ -43,6 +43,7 @@ jobs:
     name: Scan Artifacts for Insights
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
+    environment: bot-secrets
     # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 10.
     timeout-minutes: 37
 
