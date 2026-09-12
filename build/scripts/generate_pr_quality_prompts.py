@@ -68,9 +68,7 @@ _CI_HEADER_TEMPLATE = (
 )
 
 # Frontmatter keys stripped from canonical before emitting CI prompt.
-_STRIP_FRONTMATTER_KEYS: frozenset[str] = frozenset(
-    {"name", "role", "version", "description"}
-)
+_STRIP_FRONTMATTER_KEYS: frozenset[str] = frozenset({"name", "role", "version", "description"})
 
 
 class GeneratePromptsError(Exception):
@@ -105,9 +103,7 @@ def _strip_keys_from_frontmatter(frontmatter: str, keys: frozenset[str]) -> str:
                 out_lines.append(line)
             continue
         first_char = line[0]
-        is_top_level_key = (
-            first_char != " " and first_char != "\t" and ":" in line
-        )
+        is_top_level_key = first_char != " " and first_char != "\t" and ":" in line
         if is_top_level_key:
             key = line.split(":", 1)[0].strip()
             if key in keys:
@@ -147,8 +143,7 @@ def _validate_required_frontmatter(frontmatter: str, role: str) -> None:
     missing = required - keys
     if missing:
         raise GeneratePromptsError(
-            f"canonical {role}.md missing required frontmatter keys: "
-            f"{sorted(missing)}"
+            f"canonical {role}.md missing required frontmatter keys: {sorted(missing)}"
         )
 
 
@@ -180,8 +175,7 @@ def transform(canonical_text: str, role: str) -> str:
         # Skipping validation when frontmatter is absent let malformed files
         # produce CI prompts with no provenance metadata.
         raise GeneratePromptsError(
-            f"canonical {role}.md has no frontmatter; "
-            f"name/role/version/description are required"
+            f"canonical {role}.md has no frontmatter; name/role/version/description are required"
         )
     _validate_required_frontmatter(frontmatter, role)
     if frontmatter:
@@ -211,14 +205,10 @@ def _atomic_write(path: Path, content: str) -> None:
     hardening per PR #1965 coderabbit H_3.
     """
     if path.is_symlink():
-        raise GeneratePromptsError(
-            f"generated path must not be a symlink: {path}"
-        )
+        raise GeneratePromptsError(f"generated path must not be a symlink: {path}")
     parent = path.parent
     if parent.is_symlink():
-        raise GeneratePromptsError(
-            f"generated parent dir must not be a symlink: {parent}"
-        )
+        raise GeneratePromptsError(f"generated parent dir must not be a symlink: {parent}")
     tmp = path.with_suffix(path.suffix + ".tmp")
     with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(content)
@@ -237,9 +227,7 @@ def _list_canonical_files(canonical_dir: Path) -> list[Path]:
             # the generator to read content outside the canonical dir, including
             # outside the repo. Canonical files must be plain regular files.
             # CWE-22 path traversal hardening (issue #1934 /test gate finding F6).
-            raise GeneratePromptsError(
-                f"canonical file must not be a symlink: {child.name}"
-            )
+            raise GeneratePromptsError(f"canonical file must not be a symlink: {child.name}")
         if not child.is_file() or child.suffix != ".md":
             continue
         _validate_filename(child.name)

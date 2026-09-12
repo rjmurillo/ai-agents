@@ -52,9 +52,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from generate_hooks_emit import GenerateHooksError  # noqa: E402
 
-_DISPATCH_COMMAND_RE = re.compile(
-    r"dispatch_claude\.py\"?\s+--group\s+([A-Za-z0-9_-]+)"
-)
+_DISPATCH_COMMAND_RE = re.compile(r"dispatch_claude\.py\"?\s+--group\s+([A-Za-z0-9_-]+)")
 _ISSUE_REFERENCE_RE = re.compile(r"#\d+")
 _ADR_REFERENCE_RE = re.compile(r"ADR-\d+")
 
@@ -72,18 +70,12 @@ def _load_dispatch_groups(script_source: Path) -> dict[str, Any]:
     try:
         data = json.loads(manifest.read_text(encoding="utf-8"))
     except OSError as exc:
-        raise GenerateHooksError(
-            f"cannot read dispatch manifest {manifest}: {exc}"
-        ) from exc
+        raise GenerateHooksError(f"cannot read dispatch manifest {manifest}: {exc}") from exc
     except ValueError as exc:
-        raise GenerateHooksError(
-            f"malformed dispatch manifest {manifest}: {exc}"
-        ) from exc
+        raise GenerateHooksError(f"malformed dispatch manifest {manifest}: {exc}") from exc
     groups = data.get("groups") if isinstance(data, dict) else None
     if not isinstance(groups, dict):
-        raise GenerateHooksError(
-            f"dispatch manifest {manifest} has no 'groups' object"
-        )
+        raise GenerateHooksError(f"dispatch manifest {manifest} has no 'groups' object")
     return groups
 
 
@@ -91,9 +83,7 @@ def _expanded_hook_entry(shim: dict[str, Any], group_id: str) -> dict[str, Any]:
     """Rebuild one pre-consolidation hook dict from a manifest shim."""
     file_rel = shim.get("file")
     if not isinstance(file_rel, str) or not file_rel:
-        raise GenerateHooksError(
-            f"dispatch group {group_id!r} has a shim without a 'file'"
-        )
+        raise GenerateHooksError(f"dispatch group {group_id!r} has a shim without a 'file'")
     hook: dict[str, Any] = {
         "type": "command",
         "command": f"python3 -u .claude/hooks/{file_rel}",
@@ -208,9 +198,7 @@ def _expand_one_dispatch_group(
     partitions: list[tuple[Any, list[dict[str, Any]]]] = []
     for shim in spec.get("shims", []) or []:
         if not isinstance(shim, dict):
-            raise GenerateHooksError(
-                f"dispatch group {group_id!r} has a non-object shim entry"
-            )
+            raise GenerateHooksError(f"dispatch group {group_id!r} has a non-object shim entry")
         if _copilot_exclude_flag(shim, group_id):
             # Issue #5013: the push-pr identity guard registered on the bare
             # Bash matcher denied unrelated commands after a child-process

@@ -1203,9 +1203,7 @@ def generate_hooks(
 
     if not what_if:
         try:
-            config_reason = _strict_regen_reason(
-                output_config, context="hooks.json generation"
-            )
+            config_reason = _strict_regen_reason(output_config, context="hooks.json generation")
         except OSError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1, result
@@ -1312,9 +1310,7 @@ def generate_hooks(
         # script. Recheck NO-REGEN immediately before publication so a sentinel
         # created during generation rolls back the entire artifact set.
         try:
-            config_reason = _strict_regen_reason(
-                output_config, context="hooks.json generation"
-            )
+            config_reason = _strict_regen_reason(output_config, context="hooks.json generation")
         except OSError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1, result

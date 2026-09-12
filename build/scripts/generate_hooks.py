@@ -195,9 +195,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = args.repo_root or _SCRIPT_DIR.parent.parent
-    config_path = args.config or (
-        repo_root / "templates" / "platforms" / "copilot-cli.yaml"
-    )
+    config_path = args.config or (repo_root / "templates" / "platforms" / "copilot-cli.yaml")
     if not config_path.is_file():
         print(f"Error: config not found: {config_path}", file=sys.stderr)
         return 2

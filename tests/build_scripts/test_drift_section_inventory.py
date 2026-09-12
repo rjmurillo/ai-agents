@@ -341,7 +341,7 @@ class TestRealCorpusSectionInventory:
     """
 
     def test_vendored_corpus_has_no_unbaselined_missing_sections(self) -> None:
-        claude_path = REPO_ROOT / "src" / "claude"
+        claude_path = REPO_ROOT / "src" / "claude" / "agents"
         vscode_path = REPO_ROOT / "src" / "vs-code-agents"
         results = drift.run_detection(claude_path, vscode_path, 80)
 

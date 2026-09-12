@@ -67,9 +67,7 @@ _FRONTMATTER_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
 # a call on a whole document respelled the body too and broke the promise to
 # touch one key. A YAML list under a key is indented, so nothing legitimate is
 # lost (Copilot review on PR #5509).
-_ALLOWED_TOOLS_LINE_RE = re.compile(
-    r"^allowed-tools:.*(?:\n[ \t].*)*$", re.MULTILINE
-)
+_ALLOWED_TOOLS_LINE_RE = re.compile(r"^allowed-tools:.*(?:\n[ \t].*)*$", re.MULTILINE)
 # `mcp__<server>__<op>`; `<op>` is `*` for a whole-namespace grant. Hyphens are
 # legal in both halves and this repository uses them: `mcp__context7__` names
 # `resolve-library-id`, and `mcp__plugin_claude-mem_mcp-search__` hyphenates the
@@ -86,9 +84,7 @@ _ALLOWED_TOOLS_LINE_RE = re.compile(
 # the one it replaced. Skipping leaves `mcp__` in the mirror, which the
 # committed-artifact gate fails on, so the case surfaces to a human instead of
 # shipping silently.
-_MCP_TOOL_NAME_RE = re.compile(
-    r"mcp__(?!plugin_)([A-Za-z0-9_-]+?)__([A-Za-z0-9_-]+|\*)"
-)
+_MCP_TOOL_NAME_RE = re.compile(r"mcp__(?!plugin_)([A-Za-z0-9_-]+?)__([A-Za-z0-9_-]+|\*)")
 
 # Locate the start of a `Skill(` / `Task(` call. The matching close paren is
 # found by a quote-aware balanced scan (a `prompt="..."` argument can contain
@@ -162,9 +158,7 @@ def _replace_arguments_outside_inline_code(line: str, replacement: str) -> str:
 
 def _replace_arguments_in_segment(segment: str, replacement: str) -> str:
     lines = segment.splitlines(keepends=True)
-    return "".join(
-        _replace_arguments_outside_inline_code(line, replacement) for line in lines
-    )
+    return "".join(_replace_arguments_outside_inline_code(line, replacement) for line in lines)
 
 
 def _translate_arguments(body: str) -> str:
