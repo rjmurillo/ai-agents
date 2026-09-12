@@ -108,7 +108,6 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Path Normalization',
     'Planning Artifacts',
     'Agent Drift Detection',
-    'Install Parity (agents and rules)',
     'Agent Content Parity (.claude/agents vs src/claude)',
     'Agent Tree Frontmatter (.claude/agents)',
     'Plugin Version Bump',

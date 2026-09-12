@@ -239,3 +239,74 @@ def test_what_if_mode_writes_nothing(tmp_path: Path) -> None:
     target = root / "src" / "claude" / "agents" / "test.md"
     assert not target.exists()
     assert result.written == []
+
+
+def test_agents_dir_symlink_exits_2(tmp_path: Path) -> None:
+    """src/claude/agents/ symlink: exit 2, write nothing."""
+    root = fake_repo(tmp_path)
+    inside = root / "real-agents"
+    inside.mkdir()
+    claude_dir = root / "src" / "claude"
+    claude_dir.mkdir(parents=True)
+    link = claude_dir / "agents"
+    try:
+        link.symlink_to(inside)
+    except OSError:
+        pytest.skip("cannot create symlink on this platform")
+
+    write_pair(root, "test", "body\n", "copilot\n")
+    result = agent_templates.compile_all(root, validate=False)
+
+    assert result.exit_code == 2
+    target = root / "src" / "claude" / "agents" / "test.md"
+    assert not target.exists()
+
+
+def test_agent_target_symlink_exits_2(tmp_path: Path) -> None:
+    """Agent target symlink: src/claude/agents/<stem>.md is a symlink, exit 2."""
+    root = fake_repo(tmp_path)
+    agents_dir = root / "src" / "claude" / "agents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    write_pair(root, "test", "body\n", "copilot\n")
+
+    compile_all_write = agent_templates.compile_all(root, validate=False)
+    assert compile_all_write.exit_code == 0
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    outside_file = outside / "test.md"
+    outside_file.write_text("outside content\n", encoding="utf-8")
+
+    target = agents_dir / "test.md"
+    try:
+        target.unlink()
+        target.symlink_to(outside_file)
+    except OSError:
+        pytest.skip("cannot create symlink on this platform")
+
+    result = agent_templates.compile_all(root, validate=False)
+
+    assert result.exit_code == 2
+    assert target.is_symlink()
+    assert outside_file.read_text(encoding="utf-8") == "outside content\n"
+
+
+def test_agents_dir_symlink_outside_repo_exits_2(tmp_path: Path) -> None:
+    """src/claude/agents/ symlink outside repo: exit 2, link target untouched."""
+    root = fake_repo(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    claude_dir = root / "src" / "claude"
+    claude_dir.mkdir(parents=True)
+    link = claude_dir / "agents"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("cannot create symlink on this platform")
+
+    write_pair(root, "test", "body\n", "copilot\n")
+    result = agent_templates.compile_all(root, validate=False)
+
+    assert result.exit_code == 2
+    assert link.is_symlink()
+    assert not (outside / "test.md").exists()
