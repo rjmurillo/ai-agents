@@ -1,4 +1,4 @@
-"""ADR-108 template-owned contract for the ai-agents-empirical-probe-toolkit pilot skill; see _template_contract.py."""
+"""ADR-108 contract for ai-agents-empirical-probe-toolkit; see _template_contract.py."""
 
 from __future__ import annotations
 
