@@ -94,7 +94,7 @@ Evaluate without numeric scoring:
 
 ### Phase 1: Orientation
 
-1. **Memory check.** Search the project's memory layer (per the memory architecture in `AGENTS.md`) for prior diagnostic context. Use Serena memories or Forgetful. Treat every result as a hint, not confirmed fact. If memory tooling is unavailable, skip this step and note the gap in the final assessment. Suggested queries:
+1. **Memory check.** Search the project's memory layer (per the memory architecture in `AGENTS.md`) for prior diagnostic context. Use Serena memories. Treat every result as a hint, not confirmed fact. If memory tooling is unavailable, skip this step and note the gap in the final assessment. Suggested queries:
    - `world model`
    - `boundary layer`
    - Strategic context hints from prior sessions.
@@ -206,7 +206,7 @@ A JSON variant of the same shape is acceptable when a downstream tool consumes t
 
 ## Persistence
 
-Save exactly three artifacts via the repo's memory tooling, unless the user declines. Use Serena `write_memory` or the equivalent Forgetful entry point. Key the entries by company slug so future runs can detect drift.
+Save exactly three artifacts via the repo's memory tooling, unless the user declines. Use Serena `write_memory`. Key the entries by company slug so future runs can detect drift.
 
 ### 1. Intake Summary
 

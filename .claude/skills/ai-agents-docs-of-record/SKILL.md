@@ -260,7 +260,7 @@ relying on them:
 | FM-9 verbatim-quote rule | `.agents/governance/FAILURE-MODES.md:284-307` | `grep -n "character-for-character" .agents/governance/FAILURE-MODES.md` |
 | PR #908 lint scope story | `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-296` | `grep -n "markdownlint" .agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
 | CONTRIBUTING.md pre-PR #2871 staleness example | PR #2871 repointed `CONTRIBUTING.md` to `build/generate_agents.py` | `git show b320f4ac1 -- CONTRIBUTING.md` |
-| Serena canonical, Forgetful supplementary | `.agents/architecture/ADR-007-memory-first-architecture.md:83-102` | `grep -n "Canonical" .agents/architecture/ADR-007-memory-first-architecture.md` |
+| Serena is the only memory backend | `.agents/architecture/ADR-106-serena-only-memory-architecture.md:87` | `grep -n "the only memory backend" .agents/architecture/ADR-106-serena-only-memory-architecture.md` |
 
 Maintenance: when a validator, template path, or protocol phase changes, update
 the matching row here in the same PR. This file is itself a document of record;

@@ -243,7 +243,7 @@ ai-agents already has implicit bounded contexts. Reuse, do not duplicate.
 
 - **Agent runtime**: agent definitions, agent invocation, the orchestrator, and the agent's view of the world. The ubiquitous language uses _agent_, _delegation_, _skill_, _tool_. New behavior that lives in this context belongs in the project agent sources or the orchestrator service.
 - **Session lifecycle**: session start, session end, handoff, retrospective. The language uses _session_, _handoff_, _retrospective_, _gate_. Session state is its own aggregate; the session log is the audit trail. New session-shape concepts go behind the session-management seam, not into hooks or skills.
-- **Memory**: long-lived knowledge across sessions. The language uses _memory_, _entity_, _observation_, _relation_. Serena and Forgetful are repositories of long-lived knowledge in this context; the named operation already exists for most use cases.
+- **Memory**: long-lived knowledge across sessions. The language uses _memory_, _entity_, _observation_, _relation_. Serena is a repository of long-lived knowledge in this context; the named operation already exists for most use cases.
 - **Skills and hooks**: entry points that translate between user or harness input and the agent runtime. Treat them as ACLs from the harness to the agent runtime. Keep them thin: parse, call a service, format output.
 - **GitHub integration**: a supporting subdomain. Reuse the established `gh` CLI patterns and PR template; do not invent a parallel issue model.
 
