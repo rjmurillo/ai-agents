@@ -84,7 +84,7 @@ What these do:
 - `uv sync --frozen --extra dev` builds `.venv/` from `uv.lock` exactly as
   locked (`--frozen` never rewrites the lockfile) with dev extras. The pre-push
   gate runs validation through `uv run --frozen`, so this `.venv` is the
-  environment a push validates against (`scripts/bootstrap-vm.sh:208-209`).
+  environment a push validates against (`scripts/bootstrap-vm.sh:208-211`).
 - `lefthook install` installs Git shims for the events in `lefthook.yml`.
   `check-install` verifies that the shims are active. Lefthook reads the
   configuration at runtime, so editing the jobs under an already-installed hook
