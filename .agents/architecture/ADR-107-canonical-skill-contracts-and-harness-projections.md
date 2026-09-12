@@ -654,7 +654,7 @@ Findings outside this record's scope, reported rather than fixed.
 - ADR-072 (JTBD plugin architecture, `proposed`): **not** a dependency. Issue #5669 tracks settling
   it.
 - ADR-069 (context corpus is the product, `proposed`): thesis only.
-- ADR-108 (template-owned skill files, `proposed`): amends settled property 1 in Context for one
+- ADR-108 (template-owned skill files, `accepted`): amends settled property 1 in Context for one
   enumerated class, canonical skill files rendered from `templates/skills/`. Read property 1 with
   that exception from 2026-09-11 on.
 
