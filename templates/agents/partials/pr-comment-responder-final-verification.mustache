@@ -1,0 +1,42 @@
+# Re-derive the counts. This fence is a separate shell from Phase 8.1, so
+# $TOTAL and $TERMINAL do not survive into it and the summary would otherwise
+# report an empty numerator over an empty denominator.
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] $PENDING comment(s) not terminal"
+  exit 1
+fi
+
+echo "=== Completion Criteria ==="
+echo "[ ] Comments: $TERMINAL/$TOTAL resolved"
+echo "[ ] New comments: None after 45s wait"
+
+# CI check verification using skill

@@ -1,0 +1,13 @@
+#### Phase 8.5: Completion Criteria Checklist
+
+**ALL criteria must be true before completion**:
+
+| Criterion | Check | Status |
+|-----------|-------|--------|
+| All comments resolved | Phase 8.1 reports `PENDING` (`TOTAL` minus `TERMINAL`) of 0 | [ ] |
+| No new comments | Re-check returned 0 new | [ ] |
+| CI checks pass | `get_pr_checks.py --pull-request [number]` MergeRefUsable = true and AllPassing = true | [ ] |
+| No unresolved threads | `gh pr view --json reviewThreads` all resolved | [ ] |
+| Commits pushed | `git status` shows "up to date with origin" | [ ] |
+
+```bash

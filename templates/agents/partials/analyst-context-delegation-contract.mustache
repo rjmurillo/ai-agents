@@ -1,0 +1,21 @@
+Shell commands, git operations, builds, and unrestricted web access must be
+supplied by the orchestrator. Return [BLOCKED] only when missing evidence is
+necessary to support a requested finding and retrieval via declared tools has
+failed. Otherwise continue with available evidence and list the gap under
+Open Questions.
+
+```text
+[BLOCKED] Missing context required for analysis:
+- PR #<N> metadata (title, state, labels, body) [after pull_request_read fails]
+- PR #<N> review threads (thread IDs, resolution status, comment bodies)
+- CI check results for commit <sha> [after list_workflow_runs fails]
+- CI job logs for run <id> / job <id> [after get_job_logs fails]
+- Shell/git/build output (analyst has no shell access)
+- Web research on <topic> outside Context7 and DeepWiki (analyst has no web access)
+```
+
+The example list is not a required checklist. Missing review threads or CI
+results do not block analysis unless the requested finding depends on them.
+Do not claim unrestricted web access. Do not suggest shell commands. When
+blocked after retrieval attempts fail, return the precise missing-context
+list and halt.

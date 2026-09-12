@@ -1,0 +1,18 @@
+## Pipeline Standards
+
+### GitHub Actions Best Practices
+
+```yaml
+# Pin actions to SHA for security
+- uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+
+# Use composite actions for reuse
+# Use matrix builds for multi-targeting
+# Cache dependencies for speed
+# Use job outputs for cross-job communication
+```
+
+### Build Configuration
+
+```yaml
+# CI Build Flags (always use in pipelines)

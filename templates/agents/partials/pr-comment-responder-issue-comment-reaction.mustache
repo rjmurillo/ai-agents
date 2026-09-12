@@ -1,0 +1,15 @@
+```bash
+# React to review comment
+gh api repos/[owner]/[repo]/pulls/comments/[comment_id]/reactions \
+  -X POST -f content="eyes"
+
+# React to issue comment
+gh api repos/[owner]/[repo]/issues/comments/[comment_id]/reactions \
+  -X POST -f content="eyes"
+```
+
+</details>
+
+#### Step 2.2: Generate Comment Map
+
+Save to: `.agents/pr-comments/PR-[number]/comments.md`

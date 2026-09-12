@@ -1,0 +1,100 @@
+```
+
+**Metrics to capture:**
+
+| Metric | Description | Target |
+|--------|-------------|--------|
+| Valid Chains | Complete REQ -> DESIGN -> TASK traces | 100% of designs |
+| Orphaned REQs | Requirements with no implementing design | 0 |
+| Orphaned Designs | Designs with no implementing tasks | 0 |
+| Broken References | References to non-existent specs | 0 |
+| Untraced Tasks | Tasks without design reference | 0 |
+
+**Template:**
+
+````markdown
+## Traceability Health
+
+### Current State
+
+| Metric | Count | Status |
+|--------|-------|--------|
+| Requirements | [N] | - |
+| Designs | [N] | - |
+| Tasks | [N] | - |
+| Valid Chains | [N] | [PASS/WARN/FAIL] |
+| Errors | [N] | [PASS/FAIL] |
+| Warnings | [N] | [PASS/WARN] |
+
+### Issues Found
+
+#### Errors (Blocking)
+- [List broken references, untraced tasks]
+
+#### Warnings (Non-Blocking)
+- [List orphaned specs]
+
+### Remediation Actions
+
+| Issue | Fix | Owner |
+|-------|-----|-------|
+| [Issue] | [Action] | [spec-generator/milestone-planner] |
+````
+
+**Integration with Learning Extraction:**
+
+Traceability failures are skill gaps. Extract learnings:
+
+- If broken reference: "Verify spec IDs exist before adding to related field"
+- If orphaned REQ: "Create design specs when requirements are approved"
+- If untraced task: "Add related field to task front matter during creation"
+
+### Diagnosis Template
+
+````markdown
+## Diagnostic Analysis
+
+### Outcome
+[Success | Partial Success | Failure]
+
+### What Happened
+[Concrete description of actual execution]
+
+### Root Cause Analysis
+- **If Success**: What strategies contributed?
+- **If Failure**: Where exactly did it fail? Why?
+
+### Evidence
+[Specific tools, steps, error messages, metrics]
+
+### Priority Classification
+| Finding | Priority | Category | Evidence |
+|---------|----------|----------|----------|
+| [Finding] | P0/P1/P2 | [Critical/Success/NearMiss/Efficiency/Gap] | [Ref] |
+````
+
+---
+
+## Phase 3: Decide What to Do
+
+Move from insights to action.
+
+### Activity: Action Classification
+
+Adapted from Keep/Drop/Add. Categorize what to do with findings.
+
+| Category | Agent Action | Criteria |
+|----------|--------------|----------|
+| **Keep** | TAG as helpful, increase validation count | Worked, should continue |
+| **Drop** | REMOVE or TAG as harmful | Failed, should stop |
+| **Add** | ADD new skill | Novel learning, no existing pattern |
+| **Modify** | UPDATE existing skill | Refinement to existing pattern |
+
+**Template:**
+
+````markdown
+## Action Classification
+
+### Keep (TAG as helpful)
+| Finding | Skill ID | Validation Count |
+|---------|----------|------------------|

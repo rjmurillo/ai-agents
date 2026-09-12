@@ -1,0 +1,58 @@
+- `Id`: Comment ID for reactions and replies
+- `CommentType`: "Review" (code-level) or "Issue" (top-level PR comments)
+- `Author`: Reviewer username
+- `Path`: File path (null for issue comments)
+- `Line`: Line number (null for issue comments)
+- `Body`: Comment text
+- `DiffHunk`: Surrounding code context (null for issue comments)
+- `CreatedAt`: Timestamp
+- `InReplyToId`: Parent comment for threads (null for issue comments)
+
+**Note**: Issue comments include AI Quality Gate reviews, spec validation, and CodeRabbit summaries that would otherwise be missed.
+
+<details>
+<summary>Alternative: Raw gh CLI extraction</summary>
+
+```bash
+# Extract review comments with context
+gh api repos/[owner]/[repo]/pulls/[number]/comments --jq '.[] | {
+  id: .id,
+  author: .user.login,
+  path: .path,
+  line: (.line // .original_line),
+  body: .body,
+  diff_hunk: .diff_hunk,
+  created_at: .created_at,
+  in_reply_to_id: .in_reply_to_id
+}'
+
+# Extract issue comments
+gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
+  id: .id,
+  author: .user.login,
+  body: .body,
+  created_at: .created_at
+}'
+```
+
+</details>
+
+### Comment Map Status Vocabulary
+
+The `Comment Map Status Vocabulary` section near the top of this agent holds the one
+authoritative table. Do not restate the values here. A second copy is how `[DUPLICATE]`
+and `[DEFERRED]` ended up missing from one table while the gates disagreed about what
+counted as done (issue #4054).
+
+Phase 8.1 subtracts the terminal count from the total and blocks with `exit 1` when any
+comment remains. Phase 8.2 requires all GitHub conversation threads resolved before merge.
+
+### Phase 2: Comment Map Generation
+
+Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number]/comments.md`.
+
+#### Step 2.1: Acknowledge All Comments (Batch)
+
+React with eyes emoji to acknowledge all comments. Use batch mode for 88% faster acknowledgment:
+
+```bash

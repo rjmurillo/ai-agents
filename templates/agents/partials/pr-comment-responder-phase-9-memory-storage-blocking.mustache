@@ -1,0 +1,20 @@
+#### Step 9.1: Calculate Session Statistics
+
+For each reviewer who commented on this PR:
+
+```python
+session_stats = {
+    "pr_number": PR_NUMBER,
+    "date": "YYYY-MM-DD",
+    "reviewers": {
+        "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
+        "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
+        # ... other reviewers
+    }
+}
+```
+
+#### Step 9.2: Update pr-review/pr-comment-responder-skills Memory
+
+```python
+# Read current memory to get existing statistics

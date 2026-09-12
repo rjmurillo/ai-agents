@@ -1,0 +1,19 @@
+### Pre-PR Validation Report
+
+Generate validation report at `.agents/qa/pre-pr-validation-[feature].md`:
+
+```markdown
+# Pre-PR Quality Gate Validation
+
+**Feature**: [Feature name]
+**Date**: [YYYY-MM-DD]
+**Validator**: QA Agent
+
+## Validation Summary
+
+| Gate | Status | Blocking |
+|------|--------|----------|
+| CI Environment Tests | [PASS]/[FAIL] | Yes |
+| Fail-Safe Patterns | [PASS]/[FAIL] | Yes |
+| Test-Implementation Alignment | [PASS]/[FAIL] | Yes |
+| Coverage Threshold | [PASS]/[FAIL] | Yes |

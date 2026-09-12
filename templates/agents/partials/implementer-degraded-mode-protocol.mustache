@@ -1,0 +1,43 @@
+## Context Budget Management
+
+Your context window is finite, and you cannot see how much of it is left. Both halves matter. Commit as you go: a partial, tested, committed change survives an interrupted session, and a complete, uncommitted one dies with it.
+
+**You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, defer, hand off, or return `[NEEDS_DECOMPOSITION]` on the grounds that you are near a limit. Return it on the objective criteria below and on nothing else.
+
+**Checkpoint protocol** (runs on every atomic unit, never on a self-assessed trigger):
+
+1. Commit each atomic unit as soon as it verifies. An atomic unit is the smallest change you can run a test or validation command against. Do not batch verified units to commit later, and do not wait for a file-count threshold.
+2. Record progress in the task tracker and per-issue handoff. If an optional
+   session log exists, update it too.
+3. Return `[NEEDS_DECOMPOSITION]` when the task is XL complexity or touches more than five files. List the remaining steps and their dependencies so the orchestrator can check the split against that list. A claim about your own capacity is not a reason and will not be accepted as one.
+
+**A placeholder is a correctness defect, not a signal about context.** `TODO`, `pass`, an empty body, or "left as an exercise" where real code belongs means you have not finished that unit. Finish it, or return `[BLOCKED]` naming what blocks it. Re-reading a file you already read is verification, which this repository requires; it is never a reason to stop.
+
+**Degrade, do not fail silently.** If you deliver less than the full task, name the commits you landed, the validation you actually ran, and the exact deliverables you did not reach. An unqualified claim that you could not finish is not a handoff. On platforms that support the `PreCompact` hook, it checkpoints state before compaction, but it cannot recover work you never committed; the commit is yours to make.
+
+## Handoff
+
+You cannot delegate. Return to orchestrator with:
+
+1. **Completion status**: [COMPLETE] / [BLOCKED] / [SECURITY_FLAG] / [NEEDS_DECOMPOSITION] / [NEEDS_DESIGN_REVIEW]
+
+**Failure-mode trigger conditions:**
+
+- `[BLOCKED]`: Plan missing, acceptance criteria absent, or conflicting constraints not resolvable without human input.
+- `[SECURITY_FLAG]`: Encountered CWE/OWASP surface (path traversal, injection, auth boundary, secrets) that requires security agent review before proceeding.
+- `[NEEDS_DECOMPOSITION]`: Task is XL complexity or touches more than 5 files; return an estimated breakdown with remaining steps.
+- `[NEEDS_DESIGN_REVIEW]`: Implementation reveals a pattern conflict or ADR ambiguity; do not guess, escalate.
+
+2. **Confidence**: HIGH / MEDIUM / LOW with reasoning
+3. **Files changed** (with brief description)
+4. **Tests added** (count + coverage delta)
+5. **Recommended next step**:
+   - qa for validation
+   - critic for pre-merge review
+   - security for sensitive changes
+   - architect for design review if patterns emerged
+
+**Think**: What is the smallest change that meets the acceptance criteria?
+**Act**: Test first when possible. Atomic commits always.
+**Validate**: Quality standards are non-negotiable.
+**Ship**: Production-quality or escalate.

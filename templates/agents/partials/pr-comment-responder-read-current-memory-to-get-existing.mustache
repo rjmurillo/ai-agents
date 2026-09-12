@@ -1,0 +1,52 @@
+# Calculate new cumulative totals from session_stats
+# Example: If cursor[bot] had 9 comments (100%) and this PR adds 2 more (100%)
+# New totals: 11 comments, 11 actionable, 100%
+
+# Update Per-Reviewer Performance table with new totals
+# Find the row for each reviewer and update their cumulative stats
+mcp__serena__edit_memory(
+    memory_file_name="pr-review/pr-comment-responder-skills",
+    needle=r"\| cursor\[bot\] \| \d+ \| \d+ \| \*\*\d+%\*\* \|",
+    repl=f"| cursor[bot] | {new_total_comments} | {new_actionable} | **{new_rate}%** |",
+    mode="regex"
+)
+
+# Add new Per-PR Breakdown entry (prepend to existing entries)
+new_pr_section = f"""### Per-PR Breakdown
+
+#### PR #{PR_NUMBER} ({date})
+
+| Reviewer | Comments | Actionable | Rate |
+|----------|----------|------------|------|
+| cursor[bot] | {cursor_comments} | {cursor_actionable} | {cursor_rate}% |
+| copilot-pull-request-reviewer | {copilot_comments} | {copilot_actionable} | {copilot_rate}% |
+
+"""
+
+mcp__serena__edit_memory(
+    memory_file_name="pr-review/pr-comment-responder-skills",
+    needle="### Per-PR Breakdown",
+    repl=new_pr_section,
+    mode="literal"
+)
+```
+
+#### Step 9.3: Update Required Fields
+
+The following MUST be updated in `pr-review/pr-comment-responder-skills`:
+
+| Section | What to Update |
+|---------|----------------|
+| Per-Reviewer Performance | Add PR to PRs list, update totals |
+| Per-PR Breakdown | Add new PR section with per-reviewer stats |
+| Metrics | Update cumulative totals |
+
+#### Step 9.4: Verify Memory Updated
+
+Confirm that the `pr-review/pr-comment-responder-skills` memory reflects the new PR:
+
+- [ ] In **Per-Reviewer Performance (Cumulative)**, the PR appears in each relevant reviewer's PR list and their totals are updated
+- [ ] In **Per-PR Breakdown**, a new section for this PR exists with per-reviewer stats populated
+- [ ] In **Metrics**, cumulative totals (PR counts, comment counts, resolution stats) include this PR
+
+**Verification Command**:
