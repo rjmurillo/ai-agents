@@ -123,19 +123,19 @@ A new function, `_binplace(repo_root, *, check) -> int`, runs after every class'
 
 ## Binplace manifest schema
 
-`templates/platforms/binplace.yaml`. One top-level list, `rows`, each entry:
+`templates/platforms/binplace.yaml`. One top-level list, `rows`, each entry. A row is the unit of binplace ownership; several rows may share one `plugin_tree` to reach multiple install destinations from a single source compile step.
 
 ```yaml
 rows:
   - class: agents
-    source: templates/agents        # .claude.md.tmpl / .copilot.md.tmpl pairs, per agent_templates.py
+    source: templates/agents
     plugin_tree: src/claude/agents
     install_tree: .claude/agents
   - class: skills
-    source: templates/skills        # existing ADR-108 tree, unchanged by this row's addition
-    plugin_tree: null                # B1: no plugin-tree hop yet; B3 repoints this to src/claude/skills
+    source: templates/skills
+    plugin_tree: null
     install_tree: .claude/skills
-    compile: skill_templates          # delegates to skill_templates.owned_targets, not a class-wide prefix
+    compile: skill_templates
   - class: rules
     source: templates/rules
     plugin_tree: src/claude/rules
@@ -144,14 +144,29 @@ rows:
     source: templates/hooks
     plugin_tree: src/claude/hooks
     install_tree: .claude/hooks
+  - class: hooks-github
+    plugin_tree: src/copilot-cli/hooks
+    install_tree: .github/hooks
   - class: settings
     source: templates/hooks/settings.tmpl
     plugin_tree: null
     install_tree: .claude/settings.json
-  - class: lib
+  - class: lib-hook_utilities
     source: scripts/hook_utilities
     plugin_tree: src/claude/lib/hook_utilities
     install_tree: .claude/lib/hook_utilities
+  - class: lib-github_core
+    source: scripts/github_core
+    plugin_tree: src/claude/lib/github_core
+    install_tree: .claude/lib/github_core
+  - class: lib-ai_review_common
+    source: scripts/ai_review_common
+    plugin_tree: src/claude/lib/ai_review_common
+    install_tree: .claude/lib/ai_review_common
+  - class: skills-sidecar
+    source: scripts/validation/validate_review_marker.py
+    plugin_tree: null
+    install_tree: .claude/skills/review/scripts/validate_review_marker.py
   - class: prompts
     source: .claude/skills/review/references
     plugin_tree: null
@@ -159,13 +174,13 @@ rows:
     compile: generate_pr_quality_prompts
 ```
 
-Each row's `install_tree` value is a path prefix under `.claude/` or `.github/`; the binplace step and `assert_no_claude_writes`'s derived allowlist both treat every path under that prefix as owned. A row with `plugin_tree: null` skips the plugin-tree render hop and copies straight from `source` to `install_tree`. Two surfaces carry `plugin_tree: null` permanently, because ADR-109 section 3 names them as having no plugin stage at all (`settings`, `prompts`); the `skills` row carries `plugin_tree: null` only until B3, when the skills class gains its own `src/claude/skills` plugin tree and the row's `plugin_tree` value and `compile` delegation both change (Per-class compile modules, below). The `compile` key is optional and names a Python callable already used for the class's render (skills and prompts reuse existing functions; a class with no such override uses its own compile module's `compile_all`).
+Each row's owned set is the file-level mapping of every file under its `plugin_tree` to `install_tree` (no bare prefix); the binplace step and `assert_no_claude_writes`'s derived allowlist both own only the file-level set the row exposes. A row with `compile: skill_templates` delegates to `skill_templates.owned_targets(repo_root)` for that one row, since skills' allowlist is scoped per skill directory, not per class-wide prefix. A write to a path under `.claude/skills/` that no row maps is refused by `assert_no_claude_writes`. A row with `plugin_tree: null` skips the plugin-tree render hop and copies straight from `source` to `install_tree`. B1 shipped only the `agents` and `skills` rows; other rows are added by their respective migration tasks (B2 rules, B4 hooks and settings, B5 lib). Note that `.github/agents` is rendered by the `github` platform in `templates/platforms/github.yaml` rather than binplaced, because GitHub rejects a `model:` field in the plugin manifest (PR #5040, issue #4938); only `.github/hooks` and the twelve `pr-quality-gate-*.md` prompts under `.github/prompts` are binplace targets from this manifest. Two surfaces carry `plugin_tree: null` permanently, because ADR-109 section 3 names them as having no plugin stage at all (`settings`, `prompts`); the `skills` row carries `plugin_tree: null` only until B3, when the skills class gains its own `src/claude/skills` plugin tree and the row's `plugin_tree` value and `compile` delegation both change (Per-class compile modules, below). The `compile` key is optional and names a Python callable already used for the class's render (skills and prompts reuse existing functions; a class with no such override uses its own compile module's `compile_all`).
 
 B1 ships the manifest with two active rows, `agents` and `skills`, not one. Without a `skills` row from B1 on, `assert_no_claude_writes`'s manifest-derived allowlist would have no entry covering `.claude/skills/<name>/SKILL.md`, and every commit against an ADR-108-templated skill would trip the REQ-003-010 guard the moment the allowlist stops falling back to the old ADR-108-only call (Technology Decisions, above). The `skills` row's `install_tree` stays `.claude/skills` and its targets keep delegating to `skill_templates.owned_targets(repo_root)` (per-skill-directory paths, not a blanket `.claude/skills/` prefix) until B3 moves the class's render target to `src/claude/skills/<name>/SKILL.md` and repoints the row's `plugin_tree` there (TASK-033).
 
 ## How `--check` extends to the binplaced trees
 
-`build_all.py --check` runs every class's compile in validate mode (unchanged shape), then runs `_binplace(check=True)`, which performs the same plugin-tree-to-install-tree comparison without writing. A drift at either hop, template-to-plugin-tree or plugin-tree-to-install-tree, produces the same staleness exit code (2) and the same "leave every tree unchanged" guarantee ADR-109 section 3 requires: `--check` verifies all four trees (`src/claude`, `src/copilot-cli`, `.claude`, the manifest-named `.github` paths) are byte-identical to what the templates render, in one pass, reusing the existing `_root_only` gate wrapper convention `pre_pr_sequence.py` already uses for every other validator.
+`build_all.py --check` runs every class's compile in validate mode (unchanged shape), then runs `_binplace(check=True)`, which performs the same plugin-tree-to-install-tree comparison without writing. A drift at either hop, template-to-plugin-tree or plugin-tree-to-install-tree, produces the same staleness exit code (2) and the same "leave every tree unchanged" guarantee ADR-109 section 3 requires: `--check` verifies all four trees (`src/claude`, `src/copilot-cli`, `.claude`, manifest-named `.github` paths including `.github/hooks`, `.github/agents`, and `.github/prompts`) are byte-identical to what the templates render, in one pass, reusing the existing `_root_only` gate wrapper convention `pre_pr_sequence.py` already uses for every other validator.
 
 ## How `assert_no_claude_writes` derives its allowlist
 
@@ -230,7 +245,7 @@ Per module, positive, negative, and edge cases, mirroring `tests/build_scripts/t
 | `rule_templates.py` (B2) | Template renders byte-identical to a fixture; both `.claude/rules/` and both Copilot instruction mirrors match | Disallowed tag (`{{var}}`, `{{#s}}`): exit 2, tag printed | Rule with no template during migration: untouched; NO-REGEN sentinel on a rendered rule: unchanged, WARN, exit 1 |
 | `hook_templates.py` (B4) | Hook script byte-copies identically; rendered `settings.json` and `hooks.json` match a fixture; `tests/build_scripts/test_generate_hooks_runtime_contract.py`'s pattern is extended with a case that generates `.github/hooks/*.json` and runs the emitted command under the Copilot cloud-agent contract (cwd set to the working directory, `bash` as the only honored interpreter) with a negative control proving a bare relative command fails the same harness | Malformed `settings.json` template (invalid JSON after render): exit 2 | A hook script with no corresponding template during migration: untouched; symlinked `.github/hooks/` directory: exit 2 |
 | Binplace step | Manifest row with both `plugin_tree` and `install_tree` binplaces correctly; a row with `plugin_tree: null` copies straight from `source` | Manifest row naming a path outside the repository root: exit 2 at load, before any class compiles | A class with no `templates/<class>/` directory contributes no rows' worth of writes; `--check` on a drifted binplaced file exits 2 and writes nothing |
-| `assert_no_claude_writes` allowlist | An allowlisted class-wide write (post-B2, a rule file) passes the guard | A write to a `.claude/` path outside every manifest row still exits 2 | A manifest with rows present but no `skills` row is a FAILING case: `.claude/skills/<name>/SKILL.md` writes are then unallowlisted and the guard must reject them, proving the allowlist never silently reintroduces the pre-B1 ADR-108-only fallback once the manifest exists |
+| `assert_no_claude_writes` allowlist | An allowlisted class-wide write (post-B2, a rule file) passes the guard | A write to a `.claude/` path outside every manifest row still exits 2; a write to `.claude/skills/unowned-file` (under `.claude/skills/` but not matching `skill_templates.owned_targets()`) exits 2 | A manifest with rows present but no `skills` row is a FAILING case: `.claude/skills/<name>/SKILL.md` writes are then unallowlisted and the guard must reject them, proving the allowlist never silently reintroduces the pre-B1 ADR-108-only fallback once the manifest exists |
 
 `tests/build_scripts/test_binplace_manifest.py` is new: loads the real `templates/platforms/binplace.yaml` once each class lands and asserts every row's `install_tree` resolves inside the repository and every `class` name is unique. `tests/build_scripts/test_build_all.py` gains the binplace positive and negative cases above, alongside its existing allowlist tests.
 
