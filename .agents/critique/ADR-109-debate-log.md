@@ -2,7 +2,7 @@
 # ADR Debate Log: Template-First Plugin Distribution
 
 Record under review: `.agents/architecture/ADR-109-template-first-plugin-distribution.md`
-Tracker: none assigned at review time; issue #5282 (ADR-052's migration tracker) is the item this record re-scopes. Branch: `feat/adr-109-template-first-distribution`, worktree `/home/richard/worktrees/adr109`.
+Tracker: none assigned at review time; issue #5282 (ADR-052's migration tracker) is the item this record re-scopes. Branch: `feat/adr-109-template-first-distribution`.
 Tree state at review: HEAD `5cad780a2`, the record untracked and its four cross-references (ADR-052, ADR-107, REQ-003, the ADR index) modified and unstaged, read from disk.
 
 ## Summary
@@ -122,3 +122,4 @@ Consensus reached on revision 2: six Accept, no Disagree-and-Commit, no Block. T
 - 2026-09-11, independent review, finding 6 (nit, 33 files for 31 stems). Section 2's `src/claude/` layout paragraph now states 33 `.md` files exist for 31 agent stems, and that `AGENTS.md` and `claude-instructions.template.md` are not agents and stay at the plugin root after the `agents/` move. Evidence: `ls src/claude/*.md | wc -l`; `ls templates/agents/*.shared.md | wc -l`.
 - 2026-09-11, independent review, finding 8 (nit, ADR-107 line re-anchor). ADR-107's property 1 citation of `assert_no_claude_writes` re-anchored from `:793`/`:2226`/`:2232` to `:841`/`:2319`/`:2328`, matching this branch's `build/scripts/build_all.py`. Evidence: `grep -n 'def assert_no_claude_writes' build/scripts/build_all.py`; `grep -n 'assert_no_claude_writes(' build/scripts/build_all.py`; `grep -n 'overall_exit = 2' build/scripts/build_all.py`.
 - 2026-09-11: spec review (REQ-026 critic pass) surfaced two Implementation Notes gaps: B1 must ship the skills manifest row and widen `OWNED_PREFIXES`, and B3 must move the skill render target into `src/claude/skills/` and add the prompts row. Both rows amended; no decision changed.
+- 2026-09-11: CodeRabbit on PR #5745: rollback paragraph now reverts the B0 edits on every rejection path; the absolute worktree path in this log header removed.
