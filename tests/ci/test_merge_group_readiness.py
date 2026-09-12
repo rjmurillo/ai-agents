@@ -18,7 +18,6 @@ WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 # Only workflows that produce a required context need a merge_group trigger.
 # AI PR reviews and memory citation validation are advisory and therefore absent.
 REQUIRED_WORKFLOWS = {
-    "ai-spec-validation.yml",
     "codeql-analysis.yml",
     "pr-validation.yml",
     "pytest.yml",
@@ -29,7 +28,6 @@ REQUIRED_WORKFLOWS = {
 }
 
 REQUIRED_PRODUCERS = {
-    "ai-spec-validation.yml": {"validate-spec": {"Validate Spec Coverage"}},
     "codeql-analysis.yml": {
         "analyze": {"Analyze (actions)", "Analyze (python)"},
     },
@@ -63,13 +61,7 @@ class SkipPolicy(TypedDict):
     direct: set[str]
 
 
-SKIPPED_PRODUCERS: dict[str, SkipPolicy] = {
-    "ai-spec-validation.yml": {
-        "gate": None,
-        "indirect": set(),
-        "direct": {"validate-spec"},
-    },
-}
+SKIPPED_PRODUCERS: dict[str, SkipPolicy] = {}
 
 IN_JOB_BYPASS = {
     "pr-validation.yml": ("validate-pr", "merge_group"),
@@ -77,16 +69,12 @@ IN_JOB_BYPASS = {
 }
 
 PR_REAL_JOBS = {
-    "ai-spec-validation.yml": {"validate-spec"},
     "pr-validation.yml": {"validate-pr"},
     "pytest.yml": {"test-result"},
     "semantic-pr-title-check.yml": {"main"},
 }
 
 PR_REAL_JOB_MARKERS = {
-    "ai-spec-validation.yml": {
-        "validate-spec": "scripts/ci/spec_extract_refs.py",
-    },
     "pr-validation.yml": {
         "validate-pr": "scripts/ci/enforce_pr_validation.py",
     },
@@ -329,12 +317,6 @@ def test_required_checks_are_merge_group_ready() -> None:
             "drop-bypass-marker",
             "merge_group bypass step is missing",
             None,
-        ),
-        (
-            "ai-spec-validation.yml",
-            "erase-required-marker",
-            "real job validate-spec lost its required action",
-            "validate-spec",
         ),
         (
             "pr-validation.yml",
