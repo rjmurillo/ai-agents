@@ -256,6 +256,7 @@ See `.agents/projects/v0.4.0/PLAN.md` for the detailed phased implementation pla
 - [ADR-042: Python Migration Strategy](ADR-042-python-migration-strategy.md) (prerequisite, must complete first)
 - [ADR-005: PowerShell-Only Scripting](ADR-005-powershell-only-scripting.md) (superseded by ADR-042)
 - [ADR-006: Thin Workflows, Testable Modules](ADR-006-thin-workflows-testable-modules.md) (still applies to CI templates)
+- [ADR-072: JTBD-Based Plugin Architecture](ADR-072-jtbd-plugin-architecture.md) (refines this record's plugin taxonomy within the same epic; `accepted` 2026-09-12). ADR-072 slices plugins by job to be done rather than by concern, and cites this record as binding precedent. The refinement was legible from only one side until now: ADR-072 cited this record throughout while this record named it nowhere.
 
 ## References
 
@@ -276,3 +277,4 @@ See `.agents/projects/v0.4.0/PLAN.md` for the detailed phased implementation pla
 | 2026-02-07 | Initial proposal | Session 1180 research |
 | 2026-02-07 | Revision addressing 9 P0 + 4 P1 issues from 6-agent review | Debate log Round 1 |
 | 2026-02-07 | Added "in-repo directory reorganization" alternative per D&C condition. Status changed to Accepted. | Debate log Round 2 (3 Accept + 3 D&C, consensus reached) |
+| 2026-09-12 | Added the reciprocal ADR-072 cross-reference. No decision in this record changes. | ADR-072 condition 3, which required this record be amended where its taxonomy is refined |

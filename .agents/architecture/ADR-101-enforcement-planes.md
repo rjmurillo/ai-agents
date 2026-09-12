@@ -1,6 +1,6 @@
 ---
 id: ADR-101
-status: proposed
+status: accepted
 date: 2026-08-20
 decision-makers: [rjmurillo]
 supersedes: []
@@ -13,7 +13,18 @@ implemented: false
 
 ## Status
 
-Proposed. Every defect the panel found in this record is repaired in it. Rounds 12 and 13 of `adr-review` ran on 2026-09-09 after the repository owner ruled the ten-round cap binding. Round 12 returned two Blocks. Round 13 returned five Blocks and one Accept, and its five blocking seats are answered here rather than deferred: the invariant now states all three of its conjuncts, requirement 2 carries the reproduced skip-hook evasion and an executed-and-not-skipped floor, requirement 2 is labelled a research item with no phase claiming it, the falsification branch is ordered and scoped and its canary evidence given a transfer argument, the closure item is bound to the typed-closure machinery with an exit condition, the Alternatives row's plane is corrected from P0 to P1, and every `path:line` is re-measured against the commit that ships this text. **What remains open is implementation and two owner decisions, not review.** The trackers below carry the implementation; the owner decisions are ADR-100's re-baseline against ADR-099 and whether to split this record's audit into `.agents/analysis/`.
+Accepted.
+
+Accepted by the repository owner on 2026-09-12. Every defect the panel found in this record is repaired in it. Rounds 12 and 13 of `adr-review` ran on 2026-09-09 after the repository owner ruled the ten-round cap binding. Round 12 returned two Blocks. Round 13 returned five Blocks and one Accept, and its five blocking seats are answered here rather than deferred: the invariant now states all three of its conjuncts, requirement 2 carries the reproduced skip-hook evasion and an executed-and-not-skipped floor, requirement 2 is labelled a research item with no phase claiming it, the falsification branch is ordered and scoped and its canary evidence given a transfer argument, the closure item is bound to the typed-closure machinery with an exit condition, the Alternatives row's plane is corrected from P0 to P1, and every `path:line` is re-measured against the commit that ships this text.
+
+**This record was accepted over a round that concluded without consensus, and that is stated plainly rather than dressed up.** Round 13's tally was five Blocks and one Accept. No round 14 was run. What changed is not the tally but the ground under it: each blocking finding is repaired in the text above, and this record's own protocol note says a seat that blocked on a finding since repaired "has its ground removed rather than overruled". A reader who wants to reopen this should read the round 13 seat positions in `.agents/critique/ADR-100-101-enforcement-planes-debate-log.md` and check whether the repair actually lands, not whether the vote was close.
+
+**Both owner decisions are now resolved, and the first resolved itself.**
+
+- *ADR-100's re-baseline against ADR-099.* Done, and it was already done when this clause was written. ADR-100 was re-baselined on 2026-09-10, one day after round 13, and now reads `status: accepted` with `implemented: false`, cites ADR-099 ten times and issue #5233 six times, and its own Status section opens "Re-baselined 2026-09-10, and the reason matters more than the edit." The clause above describing ADR-100 as mentioning neither was true at round 13 and false the next day. It is the eighth instance in this repository of a correction landing in one record while a second record goes on describing the old state, which is the failure mode this decision exists to make expensive.
+- *Splitting this record's audit into `.agents/analysis/`.* Decided: do not split. No sentence in this record defines a boundary for "this record's audit", so the split has no agreed scope to execute. Nothing reads or depends on such a split: neither ADR-073, nor `scripts/validation/check_adr_lifecycle.py`, nor `check_adr_review_policy` touches `.agents/analysis/`. And the content in question is the measured evidence under Context and Decision, which is load-bearing for the claims beside it. Moving proof away from the claim it supports is the shape this record was written to fight. Revisit only if the file becomes unreadable, which is a size problem with a size trigger, not a governance one.
+
+`implemented` stays `false`. Accepting the decision moves no code, and Phase 0 and Phase 1 are unstarted. ADR-097 and ADR-100 both sit on `main` today as `accepted` with `implemented: false`, so this pairing is the corpus norm rather than an anomaly. **What remains open is implementation, not review.** The trackers below carry it.
 
 **On termination.** `.claude/skills/adr-review/references/debate-protocol.md:200-202` makes the ten-round cap the second exit rather than a filter on consensus: a Block requires another round only "if round < 10", and "Round 10 with no consensus" concludes and documents. Under that reading rounds 11 through 13 were out of protocol, and they were not wasted, since each returned a defect its predecessor shipped. The record does not get a round 14 on its own motion. It gets one if the owner asks for one, and a seat that blocked on a finding repaired above has its ground removed rather than overruled. The full disposition, seat by seat, is in `.agents/critique/ADR-100-101-enforcement-planes-debate-log.md`.
 
