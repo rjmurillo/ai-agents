@@ -470,18 +470,18 @@ worse signal than reading `evals/reports/`.
 Always-on status used to be declared three different ways, and only one of them
 survives: `applyTo: '**'` (zero rules), `alwaysApply: true` (zero, since
 `scripts/validation/check_rule_scope_keys.py` fails the build on either key),
-and `paths:` carrying `**` (five, in the block-list form or the inline
+and `paths:` carrying `**` (four, in the block-list form or the inline
 `paths: ["**"]`). Both shapes of the surviving form still matter to a survey:
 a regex written for the inline form misses the block list. That is how an
 earlier draft got the ranking wrong and then, after a correction that added
 only the second form, still undercounted. Enumerate by parsing frontmatter.
 
-Five rules is the corpus. Do not hardcode its size; it changes on every rule
+Four rules is the corpus. Do not hardcode its size; it changes on every rule
 edit. Regenerate it below, and say which basis you mean: this gate reads the
-generated `.github/instructions/` mirrors, which total 95 bytes less than the
+generated `.github/instructions/` mirrors, which total 76 bytes less than the
 `.claude/rules/` sources. One frontmatter rewrite produces that delta now, not
-two. `generate_rules.py` strips `priority:` from the five rules that carry it,
-worth 95 bytes, and its second rewrite, turning `alwaysApply: true` into
+two. `generate_rules.py` strips `priority:` from the four rules that carry it,
+worth 76 bytes, and its second rewrite, turning `alwaysApply: true` into
 `applyTo: '**'`, is worth the remaining 0 bytes because issue #4871 retyped the
 last rule that declared that key.
 
