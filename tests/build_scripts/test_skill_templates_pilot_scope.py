@@ -52,6 +52,7 @@ PILOT: frozenset[str] = frozenset(
         "checkpoint",
         "build",
         "ai-agents-empirical-probe-toolkit",
+        "ai-agents-external-claims",
     }
 )
 
