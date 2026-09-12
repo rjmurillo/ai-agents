@@ -57,7 +57,7 @@ CARRIER_PATHS: tuple[Path, ...] = (
     REPO_ROOT / ".claude/agents/pr-comment-responder.md",
     REPO_ROOT / ".github/agents/pr-comment-responder.agent.md",
     REPO_ROOT / ".github/agents/pr-comment-responder.prompt.md",
-    REPO_ROOT / "src/claude/pr-comment-responder.md",
+    REPO_ROOT / "src/claude/agents/pr-comment-responder.md",
     REPO_ROOT / "src/copilot-cli/agents/pr-comment-responder.agent.md",
     REPO_ROOT / "src/vs-code-agents/pr-comment-responder.agent.md",
     REPO_ROOT / ".claude/skills/pr-comment-responder/references/gates.md",

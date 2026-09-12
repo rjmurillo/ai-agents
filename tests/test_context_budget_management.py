@@ -74,7 +74,7 @@ PLATFORM_PATHS = (
     ("templates/agents", "{name}.shared.md"),
     (".claude/agents", "{name}.md"),
     (".github/agents", "{name}.agent.md"),
-    ("src/claude", "{name}.md"),
+    ("src/claude/agents", "{name}.md"),
     ("src/copilot-cli/agents", "{name}.agent.md"),
     ("src/vs-code-agents", "{name}.agent.md"),
 )

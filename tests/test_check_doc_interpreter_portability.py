@@ -456,7 +456,7 @@ def test_hand_maintained_github_prompt_is_in_scope() -> None:
 
 @pytest.mark.parametrize(
     "path",
-    ["src/claude/AGENTS.md", "src/claude/architect.md"],
+    ["src/claude/AGENTS.md", "src/claude/agents/architect.md"],
 )
 def test_hand_maintained_src_claude_is_in_scope(path: str) -> None:
     """`src/claude/` looks like a generated mirror and is not one.

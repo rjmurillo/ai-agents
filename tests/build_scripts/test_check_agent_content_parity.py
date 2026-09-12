@@ -92,7 +92,7 @@ def test_content_mismatch_fails(tmp_path: Path) -> None:
 def test_missing_from_src_fails(tmp_path: Path) -> None:
     claude, src = _make_trees(tmp_path)
     (claude / "new-agent.md").write_bytes(b"# New agent\n")
-    # src/claude/new-agent.md absent
+    # src/claude/agents/new-agent.md absent
 
     rc = main(["--repo-root", str(tmp_path)])
     assert rc == 1

@@ -87,7 +87,7 @@ ROUTING_CASES = [
     (".claude/skills/analyze/references/deep-dive.md", "skill_references"),
     # Agents, which must keep routing as agents.
     (".claude/agents/implementer.md", "agents"),
-    ("src/claude/architect.md", "agents"),
+    ("src/claude/agents/architect.md", "agents"),
     ("src/copilot-cli/agents/implementer.agent.md", "agents"),
     ("src/vs-code-agents/analyst.agent.md", "agents"),
     # Agent-tree reference material: same failure shape as the skill case.

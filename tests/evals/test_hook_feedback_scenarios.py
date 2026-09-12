@@ -40,7 +40,7 @@ _REQUIRED_SCENARIO_FIELDS = {"id", "desc", "input", "expected_verdict"}
 # authorization.
 _ORCHESTRATOR_FILES = (
     "templates/agents/orchestrator.shared.md",
-    "src/claude/orchestrator.md",
+    "src/claude/agents/orchestrator.md",
     ".claude/agents/orchestrator.md",
     ".github/agents/orchestrator.agent.md",
     "src/copilot-cli/agents/orchestrator.agent.md",

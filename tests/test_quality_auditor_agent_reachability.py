@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 QUALITY_AUDITOR_SURFACES = {
     "template": REPO_ROOT / "templates" / "agents" / "quality-auditor.shared.md",
     "github-install": REPO_ROOT / ".github" / "agents" / "quality-auditor.agent.md",
-    "src-claude": REPO_ROOT / "src" / "claude" / "quality-auditor.md",
+    "src-claude": REPO_ROOT / "src" / "claude" / "agents" / "quality-auditor.md",
     "copilot-cli": REPO_ROOT / "src" / "copilot-cli" / "agents" / "quality-auditor.agent.md",
     "vscode": REPO_ROOT / "src" / "vs-code-agents" / "quality-auditor.agent.md",
 }
@@ -20,7 +20,7 @@ QUALITY_AUDITOR_SURFACES = {
 ORCHESTRATOR_SURFACES = {
     "template": REPO_ROOT / "templates" / "agents" / "orchestrator.shared.md",
     "github-install": REPO_ROOT / ".github" / "agents" / "orchestrator.agent.md",
-    "src-claude": REPO_ROOT / "src" / "claude" / "orchestrator.md",
+    "src-claude": REPO_ROOT / "src" / "claude" / "agents" / "orchestrator.md",
     "copilot-cli": REPO_ROOT / "src" / "copilot-cli" / "agents" / "orchestrator.agent.md",
     "vscode": REPO_ROOT / "src" / "vs-code-agents" / "orchestrator.agent.md",
 }

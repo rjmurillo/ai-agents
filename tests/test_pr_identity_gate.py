@@ -33,7 +33,7 @@ ANALYST_AGENT_PATHS = (
     REPO_ROOT / "templates" / "agents" / "analyst.shared.md",
     REPO_ROOT / ".claude" / "agents" / "analyst.md",
     REPO_ROOT / ".github" / "agents" / "analyst.agent.md",
-    REPO_ROOT / "src" / "claude" / "analyst.md",
+    REPO_ROOT / "src" / "claude" / "agents" / "analyst.md",
     REPO_ROOT / "src" / "copilot-cli" / "agents" / "analyst.agent.md",
     REPO_ROOT / "src" / "vs-code-agents" / "analyst.agent.md",
 )

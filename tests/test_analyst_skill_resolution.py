@@ -13,7 +13,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-CLAUDE_CANONICAL = REPO_ROOT / "src" / "claude" / "analyst.md"
+CLAUDE_CANONICAL = REPO_ROOT / "src" / "claude" / "agents" / "analyst.md"
 CLAUDE_RUNTIME = REPO_ROOT / ".claude" / "agents" / "analyst.md"
 SHARED_TEMPLATE = REPO_ROOT / "templates" / "agents" / "analyst.shared.md"
 COPILOT_RUNTIME = REPO_ROOT / ".github" / "agents" / "analyst.agent.md"
@@ -21,7 +21,7 @@ COPILOT_GENERATED = REPO_ROOT / "src" / "copilot-cli" / "agents" / "analyst.agen
 VSCODE_GENERATED = REPO_ROOT / "src" / "vs-code-agents" / "analyst.agent.md"
 TOOLSETS = REPO_ROOT / "templates" / "toolsets.yaml"
 ORCHESTRATOR_CONTRACTS = (
-    REPO_ROOT / "src" / "claude" / "orchestrator.md",
+    REPO_ROOT / "src" / "claude" / "agents" / "orchestrator.md",
     REPO_ROOT / ".claude" / "agents" / "orchestrator.md",
     REPO_ROOT / "templates" / "agents" / "orchestrator.shared.md",
     REPO_ROOT / ".github" / "agents" / "orchestrator.agent.md",
@@ -267,7 +267,7 @@ def test_reviewed_read_only_allowlists_are_inverted_controls() -> None:
 
 ALL_ANALYST_SURFACES = (
     REPO_ROOT / ".claude" / "agents" / "analyst.md",
-    REPO_ROOT / "src" / "claude" / "analyst.md",
+    REPO_ROOT / "src" / "claude" / "agents" / "analyst.md",
     REPO_ROOT / ".github" / "agents" / "analyst.agent.md",
     REPO_ROOT / "src" / "copilot-cli" / "agents" / "analyst.agent.md",
     REPO_ROOT / "src" / "vs-code-agents" / "analyst.agent.md",

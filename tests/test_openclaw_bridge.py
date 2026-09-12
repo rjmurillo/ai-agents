@@ -30,7 +30,7 @@ def sample_agent():
         role="support",
         argument_hint="Describe the topic to research",
         body="# Analyst Agent\n\nCore identity text.",
-        source_path="src/claude/analyst.md",
+        source_path="src/claude/agents/analyst.md",
     )
 
 

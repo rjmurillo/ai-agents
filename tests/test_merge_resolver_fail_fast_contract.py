@@ -28,14 +28,14 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # The shared template generates VS Code and Copilot CLI source copies via
-# build/generate_agents.py. src/claude/merge-resolver.md is hand-maintained per
+# build/generate_agents.py. src/claude/agents/merge-resolver.md is hand-maintained per
 # src/claude/AGENTS.md. The .claude and .github installed copies are
 # hand-maintained install siblings and must be synced manually.
 AGENT_PATHS: tuple[Path, ...] = (
     REPO_ROOT / "templates/agents/merge-resolver.shared.md",
     REPO_ROOT / ".claude/agents/merge-resolver.md",
     REPO_ROOT / ".github/agents/merge-resolver.agent.md",
-    REPO_ROOT / "src/claude/merge-resolver.md",
+    REPO_ROOT / "src/claude/agents/merge-resolver.md",
     REPO_ROOT / "src/copilot-cli/agents/merge-resolver.agent.md",
     REPO_ROOT / "src/vs-code-agents/merge-resolver.agent.md",
 )

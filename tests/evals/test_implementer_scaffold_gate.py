@@ -11,7 +11,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _SCENARIOS = _REPO_ROOT / "tests" / "evals" / "implementer-scenarios.json"
 _IMPLEMENTER_FILES = (
     "templates/agents/implementer.shared.md",
-    "src/claude/implementer.md",
+    "src/claude/agents/implementer.md",
     ".claude/agents/implementer.md",
     ".github/agents/implementer.agent.md",
     "src/copilot-cli/agents/implementer.agent.md",

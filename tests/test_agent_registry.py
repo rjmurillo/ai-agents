@@ -33,7 +33,7 @@ from scripts.validation.agent_registry import (
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-AGENT_DIR = REPO_ROOT / "src" / "claude"
+AGENT_DIR = REPO_ROOT / "src" / "claude" / "agents"
 
 
 @pytest.fixture()

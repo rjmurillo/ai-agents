@@ -3,7 +3,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROMPT_PATHS = (
     PROJECT_ROOT / "templates/agents/implementer.shared.md",
-    PROJECT_ROOT / "src/claude/implementer.md",
+    PROJECT_ROOT / "src/claude/agents/implementer.md",
     PROJECT_ROOT / ".claude/agents/implementer.md",
     PROJECT_ROOT / ".github/agents/implementer.agent.md",
     PROJECT_ROOT / "src/copilot-cli/agents/implementer.agent.md",
