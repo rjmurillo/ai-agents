@@ -193,21 +193,11 @@ Prose rules (canonical: `.claude/rules/voice.md`, `.claude/rules/universal.md`):
 
 The following text defines these rules:
 
-Use commas, periods, colons, parentheses, hyphens, or restructure.
+{{> no-dashes}}
 
-Do not use these words in prose. They mark AI output and add nothing:
+{{> voice-banned-vocabulary}}
 
-`delve`, `crucial`, `robust`, `comprehensive`, `nuanced`, `multifaceted`, `furthermore`, `moreover`, `additionally`, `pivotal`, `landscape`, `tapestry`, `underscore`, `foster`, `showcase`, `intricate`, `vibrant`, `fundamental`, `significant`.
-
-Replacements: be specific instead. "Robust error handling" becomes "handles network timeout, schema mismatch, and partial write." "Significant performance improvement" becomes "p99 drops from 1.2s to 180ms."
-
-MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
-   comments to any file (agent prompts, documentation, code, template outputs).
-   Generated output must be indistinguishable from hand-written content:
-   metadata headers waste tokens for AI consumers, and the user has rejected
-   this pattern repeatedly (three corrections as of 2025-12-17). If a script
-   grows a helper that emits such headers, delete the helper instead of
-   calling it.
+{{> no-generated-headers}}
 
 Markdown lint is SCOPED to files you changed. The PR #908 Five Whys traced 53
 unrelated memory-file changes to `markdownlint --fix **/*.md` run repo-wide

@@ -274,14 +274,6 @@ class TestConcurrencyGroupExtraction:
         )
         assert get_concurrency_group(run) == "memory-health-200"
 
-    def test_assign_workflow_pr(self):
-        run = _make_run(
-            name="auto-assign-reviewer",
-            event="pull_request",
-            pull_requests=[{"number": 300}],
-        )
-        assert get_concurrency_group(run) == "auto-assign-300"
-
     def test_default_pr_validation(self):
         run = _make_run(
             name="pr-validation",
@@ -589,7 +581,7 @@ class TestDefaultWorkflows:
         assert "codeql-analysis" in DEFAULT_WORKFLOWS
 
     def test_default_workflows_count(self):
-        assert len(DEFAULT_WORKFLOWS) == 7
+        assert len(DEFAULT_WORKFLOWS) == 6
 
 
 # ---------------------------------------------------------------------------

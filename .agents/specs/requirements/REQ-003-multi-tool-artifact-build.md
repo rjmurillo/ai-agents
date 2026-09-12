@@ -364,10 +364,12 @@ Verification: `git diff` after running `python3 build/scripts/build_all.py` show
 > [!NOTE]
 > **Amended in place by ADR-108, 2026-09-11.** The exception clause and the verification
 > sentence above were added by that record. `assert_no_claude_writes` takes the template-owned
-> set as `allowed_paths`; every other write under `.claude/` is still a violation. ADR-109
-> (accepted 2026-09-11) widens this exception to every path in its binplace manifest, written by
-> the binplace step from `src/claude/`, and `assert_no_claude_writes`'s `allowed_paths` then
-> equals that manifest.
+> set as `allowed_paths`; every other write under `.claude/` is still a violation. ADR-109 widens
+> this exception to every path in its binplace manifest, each path effective once its class's
+> migration PR lands the manifest row, the guard update, and its tests (accepted 2026-09-11).
+> `assert_no_claude_writes`'s `allowed_paths` still equals `skill_templates.owned_targets`
+> (`build/scripts/build_all.py:2227`) until B1 lands; it grows to the full manifest one class at
+> a time, not on this acceptance alone.
 
 **REQ-003-011 : Generation audit log: bounded content + same-process CI parse**
 The generator's NOTICE/WARN audit shall be written to `build/audit/GENERATION-AUDIT.md` (NOT inside `src/copilot-cli/` : keeps internal build metadata out of customer plugin install) and shall ALSO be emitted to stdout during `build_all.py` so CI can parse from the same process invocation.
