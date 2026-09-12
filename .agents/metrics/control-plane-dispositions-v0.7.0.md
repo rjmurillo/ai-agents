@@ -688,11 +688,138 @@ below.
   first; confirm the archival convention with the owner) rather than
   open-ended. Neither was touched in this PR.
 
+## Cohort 3 deletions and dispositions, epic #5456 (this PR)
+
+### `rjmurillo-bot.yml`, disabled bot mention handler
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: `gh api repos/rjmurillo/ai-agents/actions/workflows` shows
+  the workflow `disabled_manually` since 2026-05-17 (four months), with
+  no re-enable plan recorded in any issue, PR, memory, or retrospective.
+  Renovate bumped `anthropics/claude-code-action` in it 12 times across
+  11 days with zero effect (PRs #5458 through #5732), since a disabled
+  workflow never runs the bumped action.
+- Status: deleted in this PR. Files: 1. Bytes: 2,736. Commit: `704e75111`.
+
+### `auto-assign-reviewer.yml` and `assign_bot_reviewer.py`, dead trigger source
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: `.github/scripts/assign_bot_reviewer.py`'s own module
+  docstring states that routing the review request through the job's
+  own `GITHUB_TOKEN` "would silence the bot review it exists to start",
+  because `rjmurillo-bot.yml` triggers on `pull_request_target:
+  review_requested`. The workflow's only purpose is firing that trigger.
+  With `rjmurillo-bot.yml` deleted, the workflow, its script, and the
+  script's test are a dead compatibility shell under the epic's gate 8.
+- Status: deleted in this PR. Files: 3 (workflow, script, test). Bytes:
+  18,975 (2,966 + 7,186 + 8,823, measured via `git cat-file -s` per
+  file, this session). Commit: `704e75111`; dangling-reference cleanup
+  in `8bf37392c` and `43136599a`.
+
+### `pr-maintenance.yml`
+
+- Class: `KEEP`
+- Owner: `rjmurillo`
+- Consumers: every contributor PR (automated conflict resolution and
+  comment triage)
+- Evidence: issue #4607 state `OPEN` (BOT_PAT identity mis-issuance);
+  workflow disabled 2026-08-15 after five consecutive hourly runs
+  exited 3 from `invoke_pr_comment_processing.py`.
+- **Current outcome protected**: automated conflict resolution and
+  comment triage across up to 20 PRs per hour, against a measured 294
+  PRs opened or updated in the trailing 14 days per ADR-101's PR-volume
+  citation.
+- **Evidence failure occurs**: PR volume (294 / 14 days) exceeds what
+  manual triage absorbs without a backlog; the workflow's own five
+  consecutive exit-3 failures on 2026-08-15 are why it is disabled
+  rather than deleted.
+- **Why simpler insufficient**: manual triage does not scale to the
+  measured PR volume; a scheduled or on-demand human pass would still
+  need the same conflict-detection and comment-classification logic
+  this workflow already carries.
+- **Owner and consumers**: as above.
+- **Cost**: about 98 KB of scripts and tests idle while the workflow
+  stays disabled.
+- Rationale: re-enable after #4607 resolves the BOT_PAT identity issue,
+  or record the pause as a deliberate decision if #4607 stalls further;
+  not a candidate for deletion while its protected outcome (PR triage at
+  scale) has no cheaper substitute.
+
+### Always-on rule subtraction: `claude-model-patches.md` nudge sections
+
+- Class: `EXPERIMENT`
+- Owner: not assigned
+- Consumers: every Claude Code session in this repository (always-loaded
+  rule content)
+- Evidence: `claude-model-patches.md`'s "Todo-list Discipline", "Think
+  Before Heavy Actions", and "Dedicated Tools Over Bash" sections
+  (3,740 bytes, about 980 tokens per harness) overlap in intent with the
+  gstack skill preamble's equivalent nudges (todo discipline, heavy-action
+  preambles, tool preference), a redundancy this cohort's research
+  surfaced rather than an epic-named candidate.
+- Bar to clear, quoted from
+  `.claude/skills/context-optimizer/references/rule-audit-procedure.md`:
+  Step 0a requires "Write down the decision rule in plain text" before
+  any scored run, for example "I will accept a progressive-disclosure
+  recommendation if and only if `description` ties or beats `full` in
+  at least 3 of 4 runs, with no run showing `full` beating"; Step 1 runs
+  `eval-rule-activation.py` against `--model claude-opus-5` then "Repeat
+  with `--model gpt-5.6-sol`. Run both, always. They disagree, and the
+  disagreement is the point." The procedure's own calibration precedent
+  (line 233) is eight runs total, followed by adversarial review, then
+  `model-context-doctrine.md` and `canonical-source-mirror.md` updated
+  to reflect the result.
+- Blocker: no scenario file exists yet under
+  `tests/evals/rule-scenarios/` for this candidate, and the eight runs
+  the procedure requires are paid (Copilot CLI credits or API spend);
+  neither has been run this session.
+- Status: not started. `EXPERIMENT`, pending the scenario file and the
+  eight-run bar above.
+
+### Business-strategy skill (optional pack)
+
+- Class: `EXPERIMENT`
+- Owner: not assigned
+- Consumers: none measured
+- Evidence: documented as an optional pack in `docs/installation.md:143`
+  and `docs/skill-reference.md:160`; a strict-form activation proxy
+  (backtick, slash, or `skill=` invocation forms) run this session found
+  zero hits across 1,467 session logs, 750 episodes, and 200 merged PR
+  bodies. It is one of 2 skills the proxy classed strict-zero (21 more
+  classed near-zero).
+- Blocker: zero measured use does not by itself prove zero value; the
+  pack ships opt-in (`npx ai-agents init --pack business`) and a
+  founder-facing user may simply not have installed it. Owner decision
+  needed on whether to retire the pack, keep it as a documented optional
+  install, or instrument it before deciding.
+- Status: not started. `EXPERIMENT`, owner decision needed.
+
+### Skill-activation proxy (measurement note, not a scored disposition)
+
+- Class: note, not scored
+- Owner: this cohort
+- Consumers: this ledger's `business-strategy` row above
+- Evidence: proxy script and its output CSV live in this session's
+  scratchpad, not the repository. Method: a strict-form regex over
+  backtick-fenced, slash-command, and `skill=` invocation spellings
+  across session logs, episodes, and merged PR bodies. Result: 2 skills
+  classed strict-zero, 21 classed near-zero. `security-review` is
+  routed by `.claude/skills/autoplan/SKILL.md:130` ("Review a diff or
+  snippet for vulnerabilities | Skill: security-review; injection scan
+  via security-scan"), so despite a low direct-invocation count it stays
+  `KEEP`: it is reached through autoplan's routing table rather than by
+  named invocation, and the proxy's method does not observe that path.
+- Status: informational; not itself a DELETE/KEEP/EXPERIMENT candidate.
+
 ## Release gate status
 
 | # | Gate | Status | Evidence / blocker |
 |---|---|---|---|
-| 1 | Canonical behavior owners decrease from the pinned baseline | Unchecked | This ledger classifies candidates; it performs no deletion (REQ-022 AC-05 forbids it). The baseline's own `release_targets[0]` names the figure to beat directly: `{"direction": "decrease", "metric": "canonical owner total", "target": "strictly below 412"}`. That total has not been re-measured after this PR. |
+| 1 | Canonical behavior owners decrease from the pinned baseline | Unchecked | This ledger classifies candidates; it performs no deletion (REQ-022 AC-05 forbids it). The baseline's own `release_targets[0]` names the figure to beat directly: `{"direction": "decrease", "metric": "canonical owner total", "target": "strictly below 412"}`. That total has not been fully re-measured after this PR. One component is: this cohort's two workflow deletions (`rjmurillo-bot.yml`, `auto-assign-reviewer.yml`) drop the canonical `workflows/*.yml` count from 58 to 56 (`.github/AGENTS.md`), which moves the 412 owner total to 410 by that definition alone; no other owner category was recounted. |
 | 2 | Always-loaded instruction tokens decrease for every supported harness | Unchecked | No token-reducing change lands in this PR; this PR adds four markdown files plus two memory edits, none of which is always-loaded. |
 | 3 | Required local-gate p95 does not regress | Unchecked | No p95 measurement was re-run this session; `gate_budget.seconds_by_hook.pre-push` (3,450.0s) is the baseline figure, not re-measured here. |
 | 4 | No new agent/skill/rule/hook/validator/workflow/ADR/registry lands unless it removes or consolidates | Unchecked, named exception | This PR alone (four markdown files plus two memory edits) adds no agent, skill, rule, hook, validator, workflow, ADR, or registry. But its sibling PR #5725 lands `scripts/metrics/control_plane_baseline.py` and `scripts/ci/lefthook_budget_model.py` alongside three spec files and four test files, and removes nothing, so release scope is not clean against this gate. Named exception, argued against the epic's Abort-if clause 3 (forbidding "a new registry, evaluator, ratchet, or governance layer before deleting the mechanism it was meant to simplify"): `control_plane_baseline.py` is measurement-only, exits 0 for any metric value (not a pass/fail evaluator), is wired into no gate this session verified (`grep -rn control_plane_baseline lefthook.yml scripts/validation/pre_pr_sequence.py .github/workflows/*.yml` returns nothing), and the epic's own Baseline section requires exactly this script's output ("Before the first deletion cohort, capture a reproducible baseline from one pinned `main` SHA") before any classification, including this ledger's, could be trusted. It is a precondition for subtraction, not a competing governance layer. |
@@ -700,7 +827,7 @@ below.
 | 6 | Smaller configuration non-inferior on deterministic acceptance and residual defects | Unchecked | Same blocker as gate 5: no reduced configuration exists yet to compare. |
 | 7 | Human correction time, total model cost, wall time reported per accepted task | Unchecked | Same blocker as gate 5; `accepted_tasks.total: 22, verified: 0` in the baseline. |
 | 8 | Deleted mechanisms include exclusive scripts, tests, projections, docs, baselines, allowlists; no dead compatibility shell | Evidenced this PR | ADR-100 items 1-4 (already delivered) meet this per their own PRs' acceptance criteria (PR #5234, PR #5723 both assert no dead references remain). This PR's own Cohort 2 deletions section adds eleven candidates, each with its allowlist entry, doc row, or test assertion removed alongside the mechanism (`.baseline` root-hygiene entry, `.diffray` allowlist plus three doc/config references, four docs for the TypeScript island, `.github/AGENTS.md`'s droid bullet and codeql row, the reachability test's `_NO_CALLER` entry and docstring count, `docs/project-structure.md`'s checkpoints entry): no dead compatibility shell was left for any of the ten file deletions, with one documented exception: a `.diffray/**` ignore line stays in the two vendor-pinned markdownlint configs until the next `validate_vendor_provenance.py` bootstrap PR re-pins them (see the `.diffray` row). #5420/#5421 stays `EXPERIMENT` (relocation, now measured, see that row) and #5436 stays `DELETE` with zero files removed here (no repository mechanism ever existed to leave a shell behind). |
-| 9 | Every retained candidate has a recorded KEEP justification | Checked | Four `KEEP` rows remain after this revision (#5404, duplicate pre-push ratchet, five always-on rules, rule mirror trees); each carries the five epic-required fields (REQ-022 AC-02). Tally by class after this revision: `KEEP` 4; `DELETE` 15 (`#5436`; ADR-100 items 1, 2-4, 5; the eleven Cohort 2 rows above); `EXPERIMENT` 7 (`#5394`, `#5395`, `#5396`, `#5420`/`#5421`, ADR-100 item 6, `control_plane_baseline.py`, the two held-back exclusions row). `control_plane_baseline.py` and the exclusions row do not need the five-field KEEP block since neither is classed `KEEP`. |
+| 9 | Every retained candidate has a recorded KEEP justification | Checked | Five `KEEP` rows remain after this revision (#5404, duplicate pre-push ratchet, five always-on rules, rule mirror trees, `pr-maintenance.yml`); each carries the five epic-required fields (REQ-022 AC-02). Tally by class after this revision: `KEEP` 5; `DELETE` 17 (`#5436`; ADR-100 items 1, 2-4, 5; the eleven Cohort 2 rows above; `rjmurillo-bot.yml` and `auto-assign-reviewer.yml`/`assign_bot_reviewer.py` in Cohort 3 above); `EXPERIMENT` 9 (`#5394`, `#5395`, `#5396`, `#5420`/`#5421`, ADR-100 item 6, `control_plane_baseline.py`, the two held-back exclusions row, the `claude-model-patches.md` rule-subtraction row, the `business-strategy` skill row). `control_plane_baseline.py`, the exclusions row, and the skill-activation-proxy note do not need the five-field KEEP block since none is classed `KEEP`. |
 | 10 | Final release report distinguishes deletion from relocation, generation, and archival | Partially evidenced | No final release report has been written; this ledger is an input to that report, not the report itself. This revision separates the three by row: `DELETE` rows in Cohort 2 above are subtraction (files gone, byte counts given); the #5420/#5421 row is now measured as relocation (about 5.9 MB moved, 12.7 MB retained as protected history, 1 file/0 bytes actually deleted); the two-exclusions row is explicit archival/retention (owner convention, documented import procedure), not deletion. |
 
 Gates 5, 6, and 7 cannot be met until the epic's #5422-#5426 eval chain
