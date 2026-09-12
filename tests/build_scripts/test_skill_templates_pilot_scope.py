@@ -40,6 +40,10 @@ import skill_templates  # noqa: E402
 # before any template existed). Complete: all eight DESIGN-024 "Pilot
 # content" names, each of which carries an @CLAUDE.md line (ADR-108
 # Context).
+#
+# Second wave (issue #5706 follow-on, no @CLAUDE.md line involved): widens
+# the class to further skills, one name per commit alongside its own
+# template, same discipline as A2.
 PILOT: frozenset[str] = frozenset(
     {
         "sync",
@@ -50,6 +54,8 @@ PILOT: frozenset[str] = frozenset(
         "plan",
         "checkpoint",
         "build",
+        "ai-agents-architecture-contract",
+        "ai-agents-change-control",
     }
 )
 
