@@ -129,7 +129,7 @@ jobs:
           ESCALATE: ${{ needs.prepare.outputs.escalate_depth }}
         run: python3 scripts/ci/build_retrospective_prompt.py
 
-      # Pin to SHA matches rjmurillo-bot.yml.
+      # Pin to SHA per repository convention (see AGENTS.md).
       # https://github.com/anthropics/claude-code-action/releases/tag/v1.0.139
       #
       # Failure isolation (Issue #2015):
