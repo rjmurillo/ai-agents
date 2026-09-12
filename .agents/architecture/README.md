@@ -121,7 +121,6 @@ These bind today.
 | [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-04-29 | All hooks and skills run in plugin mode. |
 | [ADR-050](ADR-050-adr-protocol-sync.md) | ADR-to-Protocol Sync Process | 2026-02-21 | Establish a two-tier ADR-to-Protocol sync process: an automated audit script and a manual integration checklist. |
 | [ADR-051](ADR-051-synthesis-panel-frontmatter-standard.md) | Synthesis Panel Frontmatter Standard | 2026-03-07 | All DESIGN-REVIEW documents MUST include YAML frontmatter with structured metadata. |
-| [ADR-052](ADR-052-template-strategy.md) | Template Strategy for Multi-Platform Agent Distribution | 2026-08-25 | Option B: Claude-First. |
 | [ADR-053](ADR-053-adr-exception-criteria.md) | ADR Exception Criteria (Chesterton's Fence) | 2026-03-07 | ADR exceptions MUST include a Chesterton's Fence analysis before approval. |
 | [ADR-054](ADR-054-local-security-scanning.md) | Local Security Scanning | 2026-07-20 | Add a Lefthook pre-push job that scans changed code files. |
 | [ADR-055](ADR-055-github-actions-runner-selection.md) | GitHub Actions Runner Selection | 2026-08-25 | Default to ARM64 runners for all Linux workflows unless documented architectural constraints exist. |
@@ -156,6 +155,7 @@ These bind today.
 | [ADR-105](ADR-105-terminal-state-completion-contract.md) | Terminal-State Completion Contract | 2026-09-03 | Put the whole completion contract on the always-on rule path, and keep exactly one operational procedure delegated to the skill that already owned it. |
 | [ADR-106](ADR-106-serena-only-memory-architecture.md) | Serena-Only Memory Architecture | 2026-09-08 | The memory-first principle survives unchanged. |
 | [ADR-108](ADR-108-template-owned-skill-files.md) | Template-Owned Skill Files Under `.claude/skills/` | 2026-09-11 | Adopt one new artifact class and amend the three texts that forbid it: REQ-003-010, REQ-003 decision D4, and ADR-107 property 1. |
+| [ADR-109](ADR-109-template-first-plugin-distribution.md) | Template-First Plugin Distribution | 2026-09-11 | Adopt template-first distribution for every artifact class the plugins ship, with one stated exception for imported Python library code, and supersede ADR-052 with an inverted direction. |
 
 ## Proposed
 
@@ -203,10 +203,11 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-024](ADR-024-github-actions-runner-selection.md) | GitHub Actions Runner Selection | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-025](ADR-025-github-actions-arm-runners.md) | GitHub Actions ARM Runner Migration | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) (via ADR-056) |
-| [ADR-036](ADR-036-two-source-agent-template-architecture.md) | Two-Source Agent Template Architecture | superseded | [ADR-052](ADR-052-template-strategy.md) |
+| [ADR-036](ADR-036-two-source-agent-template-architecture.md) | Two-Source Agent Template Architecture | superseded | [ADR-109](ADR-109-template-first-plugin-distribution.md) (via ADR-052) |
 | [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
 | [ADR-039](ADR-039-agent-model-cost-optimization.md) | Agent Model Cost Optimization | deprecated | not recorded |
 | [ADR-044](ADR-044-copilot-cli-frontmatter-compatibility.md) | Copilot CLI Frontmatter Compatibility | superseded | [ADR-094](ADR-094-govern-copilot-cli-compatibility.md) |
+| [ADR-052](ADR-052-template-strategy.md) | Template Strategy for Multi-Platform Agent Distribution | superseded | [ADR-109](ADR-109-template-first-plugin-distribution.md) |
 | [ADR-056](ADR-056-skill-output-format-standardization.md) | Skill Output Format Standardization | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) |
 | [ADR-079](ADR-079-merge-time-plugin-version-bump.md) | Plugin Version Bump Stays at PR Time (Reject Merge-Time Automation) | superseded | [ADR-092](ADR-092-omit-plugin-manifest-version.md) (via ADR-091) |
 | [ADR-091](ADR-091-post-merge-version-bot.md) | Post-Merge Bot Owns Plugin Version and Count Baselines | superseded | [ADR-092](ADR-092-omit-plugin-manifest-version.md) |

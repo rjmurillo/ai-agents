@@ -59,9 +59,11 @@ plugin roots ship: `.claude/`, `src/claude/`, and `src/copilot-cli/` (`docs-say`
 Two properties of that pipeline are settled and are not reopened here.
 
 1. Generators read canonical trees and write mirror trees. They never write under `.claude/`,
-   except the template-owned skill files ADR-108 enumerates (amended 2026-09-11).
-   `assert_no_claude_writes` at `build/scripts/build_all.py:793` is called at `:2226`, and a
-   violation sets `audit.overall_exit = 2` at `:2232` (`repo-observed`, re-anchored 2026-09-11).
+   except the template-owned skill files ADR-108 enumerates (amended 2026-09-11), and
+   every path in ADR-109's binplace manifest, each path effective once its class's migration PR
+   lands the manifest row, the guard update, and its tests (accepted 2026-09-11).
+   `assert_no_claude_writes` at `build/scripts/build_all.py:841` is called at `:2319`, and a
+   violation sets `audit.overall_exit = 2` at `:2328` (`repo-observed`, re-anchored 2026-09-11).
 2. The seam is asymmetric. There is no single template-in, everything-out pipeline. Agents for
    Copilot CLI and VS Code come from `templates/agents/*.shared.md`; rules, skills, hooks, and lib
    come from `.claude/` directly; `src/claude/`, `.claude/agents/`, and `.github/agents/` are
@@ -645,8 +647,8 @@ Findings outside this record's scope, reported rather than fixed.
   configuration is the version record; ADR prose must not freeze versions or counts.
 - ADR-080 (model pin justification policy): owns `model:` on any authored artifact. Source of the
   evidence, owner, and expiry shape used by the adapter exception process.
-- ADR-052 (template strategy, `accepted`, `implemented: false`): the governing target for agent
-  canonicalization. Do not assume it has landed.
+- ADR-052 (template strategy, `superseded` by ADR-109 2026-09-11, `implemented: false`): kept as
+  history. ADR-109 is the governing agent-direction record.
 - ADR-036 (two-source agent templates, superseded by ADR-052, procedure still operative).
 - ADR-064 (commands to skills migration, `implemented: true` 2026-09-08): skills are the single
   user-invocable surface.
@@ -658,6 +660,8 @@ Findings outside this record's scope, reported rather than fixed.
 - ADR-108 (template-owned skill files, `accepted`): amends settled property 1 in Context for one
   enumerated class, canonical skill files rendered from `templates/skills/`. Read property 1 with
   that exception from 2026-09-11 on.
+- ADR-109 (template-first plugin distribution, `accepted` 2026-09-11): widens
+  settled property 1 to every artifact class via its binplace manifest, superseding ADR-052.
 
 ## References
 
