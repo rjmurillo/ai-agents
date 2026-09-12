@@ -1,10 +1,10 @@
 ---
 id: ADR-052
-status: accepted
+status: superseded
 date: 2026-08-25
 decision-makers: [rjmurillo]
 supersedes: [ADR-036]
-superseded-by: null
+superseded-by: ADR-109
 explainer: null
 implemented: false
 ---
@@ -13,9 +13,11 @@ implemented: false
 
 ## Status
 
+**Superseded by ADR-109 (2026-09-11).** ADR-109 inverts this record's direction: `templates/` is canonical for every plugin artifact class and `src/claude/` becomes a generated tree. The Migration Plan below is not carried forward; issue #5282 is re-scoped by ADR-109's per-class PRs.
+
 **Accepted (2026-08-25) as the target architecture.** Supersedes ADR-036. Recorded via owner authorization plus the 6-agent `adr-review` debate at `.agents/critique/ADR-052-debate-log.md`, resolving the dangling supersession issue #5192 opened against this pair.
 
-**Not implemented.** All three Migration Plan phases below are outstanding: no `build/scripts/generate_platform_agents.py` exists, no `platform-overrides/` directory exists. Until Phase 2 of this plan merges, `templates/agents/*.shared.md` (31 files) remains the generator source for `src/copilot-cli/agents/` and `src/vs-code-agents/`, and ADR-036's manual dual-edit procedure remains the operating procedure every contributor and agent follows: see ADR-036's Status for the specific live artifacts. **Do not delete `templates/agents/`, retire `build/generate_agents.py`, or relax any parity or drift gate on the authority of this status line alone.** The authority to change the pipeline arrives with a merged Phase 1/2 implementation, not with this acceptance. Implementation is tracked at issue #5282 (successor to #124, which closed once this ADR's text merged and never tracked delivery).
+**Not implemented, and never was.** All three Migration Plan phases below stayed outstanding for the life of this record: no `build/scripts/generate_platform_agents.py` was built, no `platform-overrides/` directory was created. While this record stood, `templates/agents/*.shared.md` (31 files) remained the generator source for `src/copilot-cli/agents/` and `src/vs-code-agents/`, and ADR-036's manual dual-edit procedure remained the operating procedure every contributor and agent followed at the time: see ADR-036's Status for the specific live artifacts. The status line's prohibition against deleting `templates/agents/`, retiring `build/generate_agents.py`, or relaxing any parity or drift gate applied only while this acceptance stood; no Phase 1/2 implementation ever merged to unlock that authority. Implementation was tracked at issue #5282 (successor to #124, which closed once this ADR's text merged and never tracked delivery); ADR-109 re-scopes issue #5282 to its own B1 step. Current work follows ADR-109's B1 through B6 steps (`.agents/specs/tasks/TASK-031-agents-template-migration.md` onward), and `templates/agents/*.shared.md` stays the VS Code source under ADR-109.
 
 This acceptance does not contest ADR-036 §Intentional Divergence (the reading that 2-13% Claude-to-template similarity reflects deliberate platform differentiation, not sync failure). See the note under "Evidence of Failure" below.
 
