@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Propagate a slimmed agent body from `src/claude/` to its sibling copies.
+"""Propagate a slimmed agent body from `src/claude/agents/` to its sibling copies.
 
 `build/AGENTS.md` Rule 2 states the manual procedure this automates: when a
 Claude agent receives a universal change, the same change is duplicated into
@@ -17,12 +17,12 @@ A destination it cannot reproduce blocks the run: `--write` exits 2 and writes
 nothing, and `--check` counts those files apart from the ones it can sync. On
 the live tree that is 7 of the 18 declared files.
 
-`src/claude/` is the source and never a destination. Its own `AGENTS.md`
-tabulates `src/claude/` as the source for Claude Code agents, marked "Edit
+`src/claude/agents/` is the source and never a destination. Its own `AGENTS.md`
+tabulates `src/claude/agents/` as the source for Claude Code agents, marked "Edit
 here", against `.claude/agents/` as the installed runtime copy, marked "DO NOT
 edit directly", and names copying the installed tree back over the source as a
 common mistake that can drop blocking gates. So `.claude/agents/` is neither
-read nor written here, and an edit that started in `src/claude/` still has to
+read nor written here, and an edit that started in `src/claude/agents/` still has to
 reach that installed copy by its own route;
 `build/scripts/check_agent_content_parity.py` compares those two trees
 byte-for-byte on every PR through `pre_pr.py` and fails until it does.
@@ -62,7 +62,7 @@ from typing import TYPE_CHECKING
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Source of truth for the body. Every destination below takes its body from here.
-AGENT_SOURCE = REPO_ROOT / "src" / "claude"
+AGENT_SOURCE = REPO_ROOT / "src" / "claude" / "agents"
 
 # os.O_NOFOLLOW is absent on some platforms, notably Windows, and os.O_BINARY
 # exists only there. Fall back to 0 so the flags compose either way. Follows
@@ -308,7 +308,7 @@ def apply_sync(drift: Drift) -> list[str]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Sync slimmed agent bodies from src/claude/ to its mirrors."
+        description="Sync slimmed agent bodies from src/claude/agents/ to its mirrors."
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
@@ -416,7 +416,7 @@ def _report_check(drift: Drift) -> int:
         print(f"  cannot mechanize: {_relative(comparison.target)}")
         print_blockages(comparison.blockages, sys.stdout)
     if drift.applicable:
-        print("Run with --write to propagate the src/claude/ bodies.")
+        print("Run with --write to propagate the src/claude/agents/ bodies.")
     if drift.blocked:
         print(
             "Reconcile the lines above by hand. --write refuses the whole run"

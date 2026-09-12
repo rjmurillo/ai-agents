@@ -23,7 +23,7 @@ Scanned trees, all of which carry copies of the same matrices:
   templates/agents/       canonical shared templates
   .claude/agents/         hand-maintained Claude Code copy
   .github/agents/         hand-maintained Copilot copy
-  src/claude/             hand-maintained claude-agents plugin copy
+  src/claude/agents/      hand-maintained claude-agents plugin copy
   src/copilot-cli/agents/ generated Copilot plugin copy
   src/vs-code-agents/     generated VS Code copy
 
@@ -156,7 +156,7 @@ AGENT_TREES: tuple[tuple[Path, str], ...] = (
     (Path("templates/agents"), ".shared.md"),
     (Path(".claude/agents"), ".md"),
     (Path(".github/agents"), ".agent.md"),
-    (Path("src/claude"), ".md"),
+    (Path("src/claude/agents"), ".md"),
     (Path("src/copilot-cli/agents"), ".agent.md"),
     (Path("src/vs-code-agents"), ".agent.md"),
 )
@@ -346,9 +346,7 @@ class FrontmatterLoader(yaml.SafeLoader):
             if getattr(key_node, "value", None) != FRONTMATTER_KEY:
                 continue
             if first_seen is not None:
-                raise DuplicateFrontmatterKey(
-                    FRONTMATTER_KEY, first_seen, key_node.start_mark.line
-                )
+                raise DuplicateFrontmatterKey(FRONTMATTER_KEY, first_seen, key_node.start_mark.line)
             first_seen = key_node.start_mark.line
         mapping: dict[Any, Any] = super().construct_mapping(node, deep)
         return mapping

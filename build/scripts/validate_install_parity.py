@@ -7,11 +7,14 @@ example: ``templates/agents/X.shared.md`` is the source of truth that the
 ``generate_agents`` script propagates to ``src/copilot-cli/agents/`` and
 ``src/vs-code-agents/``. Those two are the only generator outputs, enforced
 by the ``allowed_output_dirs`` allowlist at ``generate_agents.py:269-272``.
-Three copies are hand-maintained and are NOT touched by the generator: the
-Claude prompt source ``src/claude/X.md``, the Claude-Code self-host copy
-``.claude/agents/X.md``, and the GitHub-Copilot self-host copy
-``.github/agents/X.agent.md`` (REQ-003-010 forbids generators from writing
-under ``.claude/``).
+Since ADR-109 B1 no shared-agent copy is hand-maintained: ``src/claude/agents/X.md``
+renders from ``templates/agents/X.claude.md.tmpl``, and the binplace step in
+``build_all.py`` copies ``src/claude/agents`` to ``.claude/agents`` and
+``src/copilot-cli/agents`` to ``.github/agents``. SHARED_AGENT groups are
+therefore classified for observability only and their drift is delegated to
+``build_all.py --check``, exactly as RULE groups already are. The
+hand-maintained carve-outs below stay in place for the next class that still
+has a hand-maintained copy, with an empty membership tuple today.
 
 When an author updates the template but forgets to refresh the install copies,
 ``main`` ends up in a state where the published vendored copies and the
@@ -38,7 +41,7 @@ them is in the diff, every other member of the group that exists on disk
      - ``templates/agents/{name}.shared.md``
      - ``.claude/agents/{name}.md``
      - ``.github/agents/{name}.agent.md``
-     - ``src/claude/{name}.md``
+     - ``src/claude/agents/{name}.md``
      - ``src/copilot-cli/agents/{name}.agent.md``
      - ``src/vs-code-agents/{name}.agent.md``
    Notes: a freestanding ``.github/agents/X.agent.md`` (no template) is not
@@ -101,9 +104,7 @@ _AGENT_FILENAME_BLOCKLIST: frozenset[str] = frozenset(
 )
 
 # Names excluded from rule groups; same rationale.
-_RULE_FILENAME_BLOCKLIST: frozenset[str] = frozenset(
-    {"CLAUDE.md", "AGENTS.md", "AGENTS", "CLAUDE"}
-)
+_RULE_FILENAME_BLOCKLIST: frozenset[str] = frozenset({"CLAUDE.md", "AGENTS.md", "AGENTS", "CLAUDE"})
 
 
 # --- Parity group model --------------------------------------------------
@@ -138,7 +139,7 @@ _SHARED_AGENT_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^templates/agents/(?P<name>[^/]+)\.shared\.md$"), "template"),
     (re.compile(r"^\.claude/agents/(?P<name>[^/]+)\.md$"), "claude-install"),
     (re.compile(r"^\.github/agents/(?P<name>[^/]+)\.agent\.md$"), "github-install"),
-    (re.compile(r"^src/claude/(?P<name>[^/]+)\.md$"), "src-claude"),
+    (re.compile(r"^src/claude/agents/(?P<name>[^/]+)\.md$"), "src-claude"),
     (re.compile(r"^src/copilot-cli/agents/(?P<name>[^/]+)\.agent\.md$"), "src-copilot"),
     (re.compile(r"^src/vs-code-agents/(?P<name>[^/]+)\.agent\.md$"), "src-vscode"),
 )
@@ -167,7 +168,7 @@ def _shared_agent_members(name: str) -> tuple[str, ...]:
         f"templates/agents/{name}.shared.md",
         f".claude/agents/{name}.md",
         f".github/agents/{name}.agent.md",
-        f"src/claude/{name}.md",
+        f"src/claude/agents/{name}.md",
         f"src/copilot-cli/agents/{name}.agent.md",
         f"src/vs-code-agents/{name}.agent.md",
     )
@@ -180,283 +181,6 @@ def _rule_members(name: str) -> tuple[str, ...]:
         f"src/copilot-cli/instructions/{name}.instructions.md",
     )
 
-
-# Hand-maintained shared-agent copies. When ONLY these paths move in a
-# diff (no template anchor, no generated ``src/`` copy), the change is a
-# catch-up resync that brings a hand-maintained copy back in line with an
-# already-current canonical. Block-on-asymmetry would prevent the very
-# fix the validator's existence motivates; allow the resync.
-#
-# Membership rule: a copy belongs here iff it is hand-maintained, i.e. NOT
-# emitted by ``build/generate_agents.py``. The generator writes only
-# ``src/copilot-cli/agents`` and ``src/vs-code-agents`` (see
-# ``templates/platforms/*.yaml`` ``outputDir``), so those two stay strict.
-# ``.claude/agents``, ``.github/agents``, and ``src/claude`` have no
-# generator and are hand-maintained, so all three are catch-up targets
-# (Issue #2882: ``src/claude`` was previously misclassified as a strict
-# vendored copy, blocking hand-maintained backfills such as #2878).
-_SHARED_AGENT_HAND_MAINTAINED_PREFIXES: tuple[str, ...] = (
-    ".claude/agents/",
-    ".github/agents/",
-    "src/claude/",
-)
-
-
-def _shared_agent_is_hand_maintained(member: str) -> bool:
-    return any(
-        member.startswith(p) for p in _SHARED_AGENT_HAND_MAINTAINED_PREFIXES
-    )
-
-
-_H2_RE = re.compile(r"^## ")
-_FENCE_RE = re.compile(r"^ {0,3}(?P<marker>`{3,}|~{3,})")
-
-
-def _git_show(base: str, path: str, root: Path) -> str | None:
-    """Return ``path`` content at ``base``, or None when unavailable.
-
-    ``UnicodeDecodeError`` is caught alongside ``OSError`` because it is a
-    ``ValueError``, not an ``OSError``: ``text=True`` decodes git's stdout
-    with the locale codec and strict errors, so a base revision holding
-    undecodable bytes raised out of here even when the current file was
-    clean UTF-8. That crashed the run with a traceback instead of failing
-    closed, which is what every caller is written to expect.
-    """
-    try:
-        proc = subprocess.run(
-            ["git", "show", f"{base}:{path}"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except (OSError, UnicodeDecodeError):
-        return None
-    return proc.stdout if proc.returncode == 0 else None
-
-
-def _split_document(text: str) -> tuple[str, dict[str, str]] | None:
-    """Split into (preamble, H2 sections), or None if it cannot be modelled.
-
-    Frontmatter is dropped: sibling agent copies legitimately differ there
-    (each harness carries its own ``name``/``model`` keys), so whole-file
-    equality is the wrong comparison. The shared prompt lives in the H2
-    sections, and everything before the first H2 is the preamble.
-
-    ``## `` inside a fenced code block is sample text, not a heading. Agent
-    prompts are full of it (242 to 258 fenced ``## `` lines per agent tree
-    as of Issue #4157), so a fence-blind parser invents sections that do not
-    exist and, worse, lets a fenced heading shadow a real one.
-
-    Returns None when a heading repeats, because a flat map would silently
-    keep only the last occurrence and hide a real change in the earlier one.
-    Callers treat None as "cannot vouch" and fail closed.
-    """
-    body = text
-    if body.startswith("---\n"):
-        end = body.find("\n---\n", 4)
-        if end != -1:
-            body = body[end + 5 :]
-
-    preamble: list[str] = []
-    order: list[str] = []
-    blocks: dict[str, list[str]] = {}
-    current: str | None = None
-    fence: str | None = None
-
-    for line in body.splitlines():
-        match = _FENCE_RE.match(line)
-        if match:
-            marker = match.group("marker")
-            if fence is None:
-                fence = marker
-            elif marker[0] == fence[0] and len(marker) >= len(fence):
-                fence = None
-        elif fence is None and _H2_RE.match(line):
-            heading = line.strip()
-            if heading in blocks:
-                return None
-            order.append(heading)
-            blocks[heading] = []
-            current = heading
-            continue
-        (preamble if current is None else blocks[current]).append(line)
-
-    if fence is not None:
-        # Unterminated fence: the rest of the document was swallowed, so the
-        # section map is not trustworthy.
-        return None
-    sections = {h: (h + "\n" + "\n".join(blocks[h])).strip() for h in order}
-    return "\n".join(preamble).strip(), sections
-
-
-def _added_sections(
-    root: Path, base: str, rel: str
-) -> dict[str, str] | None:
-    """The H2 sections ``rel`` ADDS relative to ``base``, or None if unsafe.
-
-    Returns None whenever the delta is anything other than pure addition, so
-    every caller fails closed. That covers: a file absent, unreadable, or not
-    decodable as UTF-8; a document the section parser cannot model (repeated
-    or fenced-shadowed headings, unterminated fence); a preamble edit; a
-    deleted or renamed section; or a body edit to a section that already
-    existed at base.
-
-    An empty dict means the file changed nothing this check can vouch for.
-    """
-    try:
-        after_doc = _split_document((root / rel).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError):
-        return None
-
-    before_text = _git_show(base, rel, root)
-    if before_text is None:
-        return None
-    before_doc = _split_document(before_text)
-    if before_doc is None or after_doc is None:
-        return None
-    before_preamble, before = before_doc
-    after_preamble, after = after_doc
-
-    if before_preamble != after_preamble:
-        # A preamble edit is a real change this carve-out cannot verify
-        # against the missing siblings, because it lives outside the section
-        # model. Fail closed rather than let it ride along with a repair.
-        return None
-    if set(before) - set(after):
-        # A removed or renamed section is likewise unverifiable.
-        return None
-    if any(heading in before and before[heading] != block
-           for heading, block in after.items()):
-        # A body edit to a section that already existed at base can move the
-        # file *backwards* onto whatever the missing siblings already say,
-        # which would launder a regression as a repair. Only a section that
-        # is absent at base is safe to vouch for: there is no prior text for
-        # it to regress to.
-        return None
-
-    return {
-        heading: block for heading, block in after.items() if heading not in before
-    }
-
-
-def _missing_siblings_already_current(
-    root: Path,
-    base: str | None,
-    members_touched: Iterable[str],
-    missing: Iterable[str],
-) -> bool:
-    """True when this diff's content already exists in the missing siblings.
-
-    A parity group can be left torn on ``main`` when an earlier PR used the
-    hand-maintained carve-out above to move only some members. Once torn,
-    the repair PR touches the remaining members and legitimately does NOT
-    touch the ones that are already correct. Co-change alone cannot tell
-    that repair apart from the bug this validator exists to catch, so for
-    exactly this case we look at content (Issue #4157).
-
-    The comparison is scoped to the H2 sections THIS diff ADDS, not the
-    whole file and not sections it edits. Sibling copies carry unrelated
-    pre-existing drift (Issue #4082 counts 16 such files); demanding
-    whole-file agreement would force every PR to also repair drift it did
-    not cause, and would make this carve-out unreachable in practice.
-    Restricting to additions is what makes the content check safe to trust:
-    an edit to a section that already existed at base could move a file
-    backwards onto stale sibling text and pass as a "repair", while an added
-    section has no prior text to regress to.
-
-    EVERY touched member must carry that identical addition, not just the
-    reference. Auditing the reference alone let a non-reference member
-    smuggle an unverified body edit, or skip the repair entirely, while the
-    reference's clean additive delta vouched for the whole group.
-
-    Returns False whenever the answer cannot be established, so the gate
-    fails closed. See ``_added_sections`` for the per-file conditions.
-    """
-    if base is None:
-        # Explicit at the boundary. ``_git_show`` also returns None for an
-        # unusable ref, so this is redundant defense and a mutation here
-        # survives; end-to-end behavior is pinned by test_no_base_fails_closed.
-        return False
-    touched = sorted(members_touched)
-    if not touched:
-        return False
-    # Prefer the shared template as reference; it is the canonical body.
-    reference = next(
-        (m for m in touched if m.startswith("templates/agents/")), touched[0]
-    )
-    changed = _added_sections(root, base, reference)
-    if not changed:
-        # Either the delta was unverifiable (None) or nothing was added, so
-        # this carve-out cannot vouch for the missing siblings. Fail closed.
-        return False
-
-    for member in touched:
-        if member == reference:
-            continue
-        # Every touched member must carry the SAME addition and nothing else.
-        # Checking only the reference would let a non-reference member smuggle
-        # an unverified body edit, or skip the repair entirely, while the
-        # reference's clean additive delta vouched for the whole group.
-        if _added_sections(root, base, member) != changed:
-            return False
-
-    for member in missing:
-        try:
-            member_doc = _split_document((root / member).read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError):
-            return False
-        if member_doc is None:
-            return False
-        member_sections = member_doc[1]
-        for heading, block in changed.items():
-            if member_sections.get(heading) != block:
-                return False
-    return True
-
-
-
-
-def _diff_is_frontmatter_only(root: Path, base: str, members: Iterable[str]) -> bool:
-    """True when every member's diff touches only YAML frontmatter.
-
-    The invariant this validator protects is H2 body-section agreement.
-    When every touched file's body text (everything after the YAML
-    frontmatter block) is identical between base and HEAD, the diff can
-    only have changed YAML frontmatter. Frontmatter parity was never an
-    invariant -- sibling copies legitimately carry different name/model
-    keys -- so co-change is the wrong requirement for this diff shape.
-
-    Compares the raw body text (not parsed dicts) so that section
-    reordering is correctly detected as a body change.
-
-    Returns False whenever the answer cannot be established (file missing,
-    unreadable, or has a body change), so the gate fails closed.
-    Issue #4922, #5043.
-    """
-    for member in members:
-        try:
-            after_text = (root / member).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            return False
-        before_text = _git_show(base, member, root)
-        if before_text is None:
-            return False
-        # Strip frontmatter and compare remaining body text directly.
-        # Using _split_document's dict would miss section reordering
-        # because Python dict equality ignores insertion order.
-        if _strip_frontmatter(before_text) != _strip_frontmatter(after_text):
-            return False
-    return True
-
-
-def _strip_frontmatter(text: str) -> str:
-    """Remove YAML frontmatter block, return remaining body text."""
-    if text.startswith("---\n"):
-        end = text.find("\n---\n", 4)
-        if end != -1:
-            return text[end + 5:]
-    return text
 
 # --- Path normalization -------------------------------------------------
 
@@ -614,9 +338,7 @@ def find_violations(
         # .github/agents/context-retrieval.agent.md which does not exist.
         # However, when the diff itself touches the template (delete or
         # rename), the parity contract still binds.
-        if kind == "SHARED_AGENT" and not _is_shared_agent_group(
-            root, name, touched_frozen
-        ):
+        if kind == "SHARED_AGENT" and not _is_shared_agent_group(root, name, touched_frozen):
             continue
 
         expected = _expected_members(root, group, touched_frozen)
@@ -631,44 +353,17 @@ def find_violations(
         # Copilot-neutral source changes such as `applyTo` -> `paths`.
         if kind == "RULE":
             continue
-
-        # Asymmetric rule: when the diff touches ONLY hand-maintained members
-        # of a SHARED_AGENT group (.claude/agents/, .github/agents/, and
-        # src/claude/ -- the copies with no generator), treat the diff as a
-        # catch-up resync and allow it. Those copies are being brought back in
-        # line with an already-current canonical and the two generated
-        # ``src/*`` copies (src/copilot-cli, src/vs-code). Without this
-        # carve-out the validator blocks the very fix it exists to motivate.
-        # RULE groups have no hand-maintained-only role and are always strict.
-        if kind == "SHARED_AGENT" and all(
-            _shared_agent_is_hand_maintained(m) for m in members_touched
-        ):
+        # ADR-109 B1: every SHARED_AGENT member is generated now. The
+        # compile renders src/claude/agents from templates/agents/<stem>
+        # .claude.md.tmpl, generate_agents renders src/copilot-cli/agents
+        # and src/vs-code-agents, and the binplace step copies the plugin
+        # trees into .claude/agents and .github/agents. A Claude-only
+        # template edit legitimately moves only the Claude-side members, so
+        # co-change is the wrong requirement; build_all.py --check owns the
+        # drift for all six, the same delegation RULE already has.
+        if kind == "SHARED_AGENT":
             continue
 
-        # Repair of a torn group. The carve-out above lets a PR move only
-        # the hand-maintained members, which can leave `main` torn. The
-        # PR that repairs the remaining members legitimately does not
-        # touch the ones already correct. Co-change cannot distinguish
-        # that repair from a forgotten install copy, so check content for
-        # this case only: no drift when every missing sibling already
-        # carries the reference member's sections (Issue #4157).
-        if kind == "SHARED_AGENT" and _missing_siblings_already_current(
-            root, base, members_touched, missing
-        ):
-            continue
-
-        # Frontmatter-only change in generated members (Issue #4922).
-        # The validator protects H2 body-section agreement. When every
-        # touched member's preamble and sections are unchanged from base,
-        # the diff can only have edited YAML frontmatter (e.g. removing a
-        # model: key). That metadata never had parity across siblings, so
-        # co-change is the wrong requirement for this diff shape. Fail
-        # closed when the frontmatter-only property cannot be established.
-        if kind == "SHARED_AGENT" and base is not None and all(
-            m.startswith(("src/copilot-cli/", "src/vs-code-agents/"))
-            for m in members_touched
-        ) and _diff_is_frontmatter_only(root, base, members_touched):
-            continue
         violations.append(
             Violation(
                 kind=kind,
@@ -705,10 +400,7 @@ def _git_diff_files(base: str, repo_root: Path) -> tuple[list[str], int, str]:
     except (OSError, subprocess.SubprocessError) as exc:
         return [], 2, f"git diff failed: {exc}"
     if proc.returncode != 0:
-        msg = (
-            f"git diff --name-only {base}..HEAD exit {proc.returncode}: "
-            f"{proc.stderr.strip()}"
-        )
+        msg = f"git diff --name-only {base}..HEAD exit {proc.returncode}: {proc.stderr.strip()}"
         return [], 2, msg
     return [ln for ln in proc.stdout.splitlines() if ln.strip()], 0, ""
 
@@ -835,9 +527,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"error: {err}", file=sys.stderr)
             return 2
 
-    violations = find_violations(
-        touched, repo_root=repo_root, base=resolved_base
-    )
+    violations = find_violations(touched, repo_root=repo_root, base=resolved_base)
     output = _format_json(violations) if args.format == "json" else _format_text(violations)
     print(output)
     return 1 if violations else 0
