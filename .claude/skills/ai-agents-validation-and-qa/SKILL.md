@@ -85,7 +85,7 @@ Stale doc warning: `.agents/governance/test-location-standards.md` still describ
 
 Beyond pos+neg+edge, this repo demands five specific disciplines:
 
-**1. Isolation from the real repo.** The root `conftest.py` (repo root, lines 315-386) fails any test that moves the REAL repo HEAD (issue #2316): every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (issue #2548, tests/conftest.py:26-61), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (issue #2610, tests/conftest.py:64-76). Consumer-repo simulation tests override that env var to `"0"`.
+**1. Isolation from the real repo.** The root `conftest.py` (repo root, lines 435-548) fails any test that moves the REAL repo HEAD (issue #2316): every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (issue #2548, tests/conftest.py:26-61), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (issue #2610, tests/conftest.py:64-76). Consumer-repo simulation tests override that env var to `"0"`.
 
 **2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:28, index row 11; the #2205 incident wedged every plugin customer for 33 days). `.claude/rules/generated-artifacts.md:67-73` requires:
 
