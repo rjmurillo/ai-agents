@@ -266,7 +266,8 @@ volatile facts:
 | #1989 false premise, calibration rule, M4 numbers | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
 | #2230 rejection record | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` (`addressed-by-prevention`) | `grep -n 2230 .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
 | adr-review auto-fire + 6-agent debate | AGENTS.md "ADR Review"; `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
-| buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:40` (`13wk`); `.claude/skills/buy-vs-build-framework/SKILL.md:65` (`Go/No-go`) | `grep -n "13" AGENTS.md` |
+| buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:40` (`13wk`) | `grep -n "13" AGENTS.md` |
+| buy-vs-build Quick tier ends in a Go/No-go | `.claude/skills/buy-vs-build-framework/SKILL.md:65` (`Go/No-go`) | `sed -n '65p' .claude/skills/buy-vs-build-framework/SKILL.md` |
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:633` (`Validate inputs, no API calls`); `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
 | Contradiction log format | `.claude/rules/search-before-building.md` | `grep -n "decision-" .claude/rules/search-before-building.md` |
 | ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:3` (`status: proposed`) | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
