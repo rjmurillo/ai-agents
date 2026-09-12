@@ -115,7 +115,8 @@ uv run python -c "import yaml; print(yaml.__version__)"
 `.mcp.json` at repo root defines two servers. Copy `.env.example` to `.env`
 and fill keys (`ANTHROPIC_API_KEY`, `PERPLEXITY_API_KEY`, `TAVILY_API_KEY`,
 `CONTEXT7_API_KEY`, `YDC_API_KEY`; optional `COMPRESS_TOKENIZER`). Never commit
-`.env` (universal.md MUST 5: no secrets).
+`.env` (universal.md MUST 6: no secrets).
+
 MUST NOT commit credentials, tokens, or API keys. Secrets live in environment variables or the secrets manager.
 
 | Server | Transport | Role | When absent |
