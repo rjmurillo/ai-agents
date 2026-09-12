@@ -702,6 +702,9 @@ below.
   11 days with zero effect (PRs #5458 through #5732), since a disabled
   workflow never runs the bumped action.
 - Status: deleted in this PR. Files: 1. Bytes: 2,736. Commit: `704e75111`.
+- Note: ADR-101 line 267 lists five `pull_request_target` workflows as of
+  its decision date; that list is historical, three remain after this
+  cohort, and the record is left unedited on purpose.
 
 ### `auto-assign-reviewer.yml` and `assign_bot_reviewer.py`, dead trigger source
 
@@ -719,6 +722,9 @@ below.
   18,975 (2,966 + 7,186 + 8,823, measured via `git cat-file -s` per
   file, this session). Commit: `704e75111`; dangling-reference cleanup
   in `8bf37392c` and `43136599a`.
+- Note: `auto-assign-reviewer.yml` was `active` on GitHub at deletion time;
+  its only consumer was the disabled handler, so the deletion stops a live
+  no-op, not a live behavior.
 
 ### `pr-maintenance.yml`
 
