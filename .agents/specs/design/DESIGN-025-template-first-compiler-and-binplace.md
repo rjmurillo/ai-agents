@@ -147,22 +147,40 @@ rows:
   - class: hooks-github
     plugin_tree: src/copilot-cli/hooks
     install_tree: .github/hooks
+  - class: hooks-json
+    source: templates/hooks/hooks.json
+    plugin_tree: null
+    install_tree: .claude/hooks/hooks.json
+    compile: hook_templates
   - class: settings
     source: templates/hooks/settings.tmpl
     plugin_tree: null
     install_tree: .claude/settings.json
+    compile: hook_templates
   - class: lib-hook_utilities
     source: scripts/hook_utilities
     plugin_tree: src/claude/lib/hook_utilities
     install_tree: .claude/lib/hook_utilities
+  - class: lib-hook_utilities-copilot
+    source: scripts/hook_utilities
+    plugin_tree: src/copilot-cli/lib/hook_utilities
+    install_tree: null
   - class: lib-github_core
     source: scripts/github_core
     plugin_tree: src/claude/lib/github_core
     install_tree: .claude/lib/github_core
+  - class: lib-github_core-copilot
+    source: scripts/github_core
+    plugin_tree: src/copilot-cli/lib/github_core
+    install_tree: null
   - class: lib-ai_review_common
     source: scripts/ai_review_common
     plugin_tree: src/claude/lib/ai_review_common
     install_tree: .claude/lib/ai_review_common
+  - class: lib-ai_review_common-copilot
+    source: scripts/ai_review_common
+    plugin_tree: src/copilot-cli/lib/ai_review_common
+    install_tree: null
   - class: skills-sidecar
     source: scripts/validation/validate_review_marker.py
     plugin_tree: null
