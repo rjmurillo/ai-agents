@@ -87,7 +87,17 @@ Beyond pos+neg+edge, this repo demands five specific disciplines:
 
 **1. Isolation from the real repo.** The root `conftest.py` (repo root, lines 315-386) fails any test that moves the REAL repo HEAD (issue #2316): every git mutation must run in a `tmp_path` repo with `cwd=` that repo. Supporting fixtures in `tests/conftest.py`: `GIT_CONFIG_COUNT` injection neutralizes host `commit.gpgsign` so tmp-repo commits work in signing environments (issue #2548, tests/conftest.py:26-61), and `AI_AGENTS_PROJECT_REPO=1` defaults identity for guards that check the origin remote (issue #2610, tests/conftest.py:64-76). Consumer-repo simulation tests override that env var to `"0"`.
 
-**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:28, index row 11; the #2205 incident wedged every plugin customer for 33 days). `.claude/rules/generated-artifacts.md:67-73` requires: execute the shipped artifact under the host's real contract (foreign cwd, host-set env vars), assert the intended effect, and include a negative control proving the test CAN fail (a bare relative path must fail the same harness). The exemplar is `tests/build_scripts/test_generate_hooks_runtime_contract.py`: see `test_negative_control_bare_relative_path_fails` and `test_anchor_is_load_bearing_when_no_plugin_root_var_set`.
+**2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:28, index row 11; the #2205 incident wedged every plugin customer for 33 days). `.claude/rules/generated-artifacts.md` requires:
+
+The artifact MUST have a test that executes
+   it under the verified contract: set the cwd the host sets (for a plugin hook,
+   a directory that is NOT the plugin root), set the env vars the host exports,
+   run the command, and assert the intended effect (the script is found and
+   runs). Include a negative control that proves the test fails when the artifact
+   is wrong (a bare relative path must fail the same harness). See
+   `tests/build_scripts/test_generate_hooks_runtime_contract.py`.
+
+The exemplar is `tests/build_scripts/test_generate_hooks_runtime_contract.py`: see `test_negative_control_bare_relative_path_fails` and `test_anchor_is_load_bearing_when_no_plugin_root_var_set`.
 
 **3. Negative controls beat self-reference.** A test that string-matches the generator's own output passes when the generator is consistently wrong. The first #2205 fix shipped exactly this (retro 2026-06-02-pr-2205-customer-wedge-incident.md:49,83) and it hid two more defects. Every contract test needs a case where the wrong artifact fails.
 

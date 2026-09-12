@@ -89,13 +89,7 @@ Beyond pos+neg+edge, this repo demands five specific disciplines:
 
 **2. Runtime-contract tests for generated artifacts (FM-11).** A generated artifact that has never been executed is not done (FAILURE-MODES.md:28, index row 11; the #2205 incident wedged every plugin customer for 33 days). `.claude/rules/generated-artifacts.md` requires:
 
-The artifact MUST have a test that executes
-   it under the verified contract: set the cwd the host sets (for a plugin hook,
-   a directory that is NOT the plugin root), set the env vars the host exports,
-   run the command, and assert the intended effect (the script is found and
-   runs). Include a negative control that proves the test fails when the artifact
-   is wrong (a bare relative path must fail the same harness). See
-   `tests/build_scripts/test_generate_hooks_runtime_contract.py`.
+{{> runtime-contract-test}}
 
 The exemplar is `tests/build_scripts/test_generate_hooks_runtime_contract.py`: see `test_negative_control_bare_relative_path_fails` and `test_anchor_is_load_bearing_when_no_plugin_root_var_set`.
 

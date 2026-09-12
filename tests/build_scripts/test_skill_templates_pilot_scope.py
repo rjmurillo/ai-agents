@@ -50,6 +50,7 @@ PILOT: frozenset[str] = frozenset(
         "plan",
         "checkpoint",
         "build",
+        "ai-agents-validation-and-qa",
     }
 )
 

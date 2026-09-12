@@ -1,0 +1,8 @@
+{{! rule-source: generated-artifacts.md }}
+The artifact MUST have a test that executes
+   it under the verified contract: set the cwd the host sets (for a plugin hook,
+   a directory that is NOT the plugin root), set the env vars the host exports,
+   run the command, and assert the intended effect (the script is found and
+   runs). Include a negative control that proves the test fails when the artifact
+   is wrong (a bare relative path must fail the same harness). See
+   `tests/build_scripts/test_generate_hooks_runtime_contract.py`.
