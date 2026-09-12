@@ -177,7 +177,7 @@ The 15-minute smoke checklist. All boxes checked means the environment works.
 - Pushing with `--no-verify` or recreating a skip flag for the pre-push hook.
   Escape hatches here get teeth or get abused (session 1187); skipping hooks is
   on the AGENTS.md Never list.
-- Committing `.env`, or putting keys anywhere but env vars (universal.md MUST 5).
+- Committing `.env`, or putting keys anywhere but env vars (universal.md MUST 6).
 - Editing files with a CRLF editor profile. One CRLF save can break Copilot CLI
   YAML frontmatter parsing downstream.
 - Treating a missing MCP server as a blocker. ADR-007 mandates graceful
