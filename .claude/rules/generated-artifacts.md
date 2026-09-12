@@ -192,12 +192,13 @@ sync performed *before* the build does not trip it. That guard is evidence the
 sync is expected to run first; it is not an enforcement of it, and nothing
 fails when you skip it.
 
-Do not resolve this by having `build_all.py` invoke `sync_plugin_lib.py`.
-REQ-003-010 forbids generators from writing under `.claude/` (ADR-108 carves
-out exactly one exception, the template-owned skill files under
-`.claude/skills/<name>/SKILL.md`; the plugin-lib sync is not that class), and
-the sync writes there by design. The two stay separate; the order is the
-contract.
+The build now writes under `.claude/` only through the binplace step for the paths
+the binplace manifest (`binplace.yaml` beside the platform configs) names (agent_templates.py and binplace_manifest.py
+generators per ADR-109). REQ-003-010 forbids other generators from writing `.claude/`
+(ADR-108 carves out skill-template SKILL.md files, ADR-109 carves out agent files);
+the plugin-lib sync is neither of those classes and continues to stay separate from
+the build. The lib sync is not yet a manifest row, so the ordering is currently implicit.
+B5 folds it into the binplace manifest and retires this ordering rule.
 
 ## Quick Self-Review
 

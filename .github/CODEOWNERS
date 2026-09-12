@@ -24,4 +24,6 @@
 # the only class permitted to write under .claude/ during the build, and the
 # pilot-scope test pins which names may. Widening either needs owner review.
 /templates/skills/                                            @rjmurillo
+/templates/agents/partials/                                   @rjmurillo
+/templates/platforms/binplace.yaml                            @rjmurillo
 /tests/build_scripts/test_skill_templates_pilot_scope.py      @rjmurillo
