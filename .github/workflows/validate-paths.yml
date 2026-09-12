@@ -111,5 +111,5 @@ jobs:
           echo "  1. Review the violations reported above"
           echo "  2. Replace absolute paths with relative paths"
           echo "  3. Use forward slashes (/) for cross-platform compatibility"
-          echo "  4. See src/claude/agents/explainer.md for path normalization guidelines"
+          echo "  4. See src/claude/explainer.md for path normalization guidelines"
           echo ""
