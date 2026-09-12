@@ -1,6 +1,6 @@
 # tests/
 
-Pytest suite for the Python codebase (root guards + `tests/conftest.py` + ~400 flat `test_*.py` plus ~25 topic subdirs), and two unrelated bun/TS suites. Consumed by contributors, lefthook, and CI (`pytest.yml`, `cli-smoke.yml`).
+Pytest suite for the Python codebase (root guards + `tests/conftest.py` + ~400 flat `test_*.py` plus ~25 topic subdirs). Consumed by contributors, lefthook, and CI (`pytest.yml`, `cli-smoke.yml`).
 
 ## Matters
 
@@ -38,7 +38,6 @@ Pytest suite for the Python codebase (root guards + `tests/conftest.py` + ~400 f
 ## Skip
 
 - `tests/__pycache__/` and every nested `__pycache__/`: gitignored bytecode.
-- Repo-root `tests/*.test.ts` (2 files): orphaned, nothing runs them; see Dangerous assumptions.
 - `.agents/governance/test-location-standards.md`: stale Pester doc, superseded by `testing.md`.
 - `tests/fixtures/guard_corpus_baseline.json` is a pinned finding set, not scratch; `tests/test_guard_diff.py` fails when the guard loses a baseline finding, and the documented repair is to edit the baseline and justify it in the commit message. `tests/ci/fixtures/triage_summary/*.golden` are golden-output fixtures, not ratchet baselines.
 - `tests/evals/*-scenarios.json`: data fixtures, not tests; consumed by the `tests/evals/test_*.py` runners beside them.
@@ -54,7 +53,6 @@ Pytest suite for the Python codebase (root guards + `tests/conftest.py` + ~400 f
 
 ## Dangerous assumptions
 
-- "`tests/*.test.ts` runs via `cli-smoke.yml`'s `bun test`" (`docs/project-structure.md:51` says so) is false. `bun test` at `cli-smoke.yml:179` runs with `working-directory: packages/ai-agents-cli`, a sibling tree; the two repo-root `.test.ts` files import repo-root `src/transforms/` and `src/copilot-target-emitter.ts`, and no root `package.json`/`tsconfig.json`/`bunfig.toml` wires either to any runner. Confirmed orphaned in `.agents/audit/2026-09-04-ponytail-audit-over-engineering.md`, finding 9 / Evidence 9.
 - "`check_nested_tests.py` scans every test file" is false, but not for depth: its `git ls-files` patterns (`tests/*/test_*.py`, `tests/test_*.py`) match at every depth, because a bare `*` crosses `/`. The real gap is helper modules that do not match `test_*.py`, for example `tests/hook_test_helpers.py`, `tests/ci/ratchet_test_helpers.py`, and `tests/eval/_harness_capability_test_support.py`, among others: the checker never opens them, so a `test_*` function nested inside one is invisible to this gate.
 - "`checks_coverage.py` enforces the 100/80/60 coverage table" is false; see Matters.
 - "`test-location-standards.md` is the placement authority" is false; it describes a Pester layout the repo no longer has. `testing.md` plus the `check_*` gates above are what actually run.
@@ -66,11 +64,10 @@ Pytest suite for the Python codebase (root guards + `tests/conftest.py` + ~400 f
 - Feeds `.github/workflows/pytest.yml`'s `zero-collection-guard` (blocking) and `check-paths` job; `scripts/test_selection/path_policy.yml` is read by both that workflow (via `dorny/paths-filter`) and `scripts/test_selection/select_tests.py` locally, so local and CI selection cannot drift apart.
 - lefthook.yml pre-push: `python-tests` (`git_hook_policy.py pytest`, 15m cap, `AI_AGENTS_PYTEST_WORKER_CAP=4`) then `zero-collection-tests` (`check_zero_collection_tests.py`, 4m cap), both unconditional on the path filter, per the whole-tree rule in `ci-scripts.md`.
 - `mutation-safety` (`scripts.testing.mutation_workspace`) runs as a pre-push singleton ahead of the parallel job group.
-- `packages/ai-agents-cli/tests/*.test.ts` feeds `cli-smoke.yml`'s `verify` job (`bun test`, `bun run typecheck`): the ACTIVE bun suite; do not confuse with the orphaned repo-root pair.
+- `packages/ai-agents-cli/tests/*.test.ts` feeds `cli-smoke.yml`'s `verify` job (`bun test`, `bun run typecheck`): the only bun/TS suite in this repo.
 
 ## Architecture
 
-- Two unrelated TypeScript test trees share the same `*.test.ts` shape: `packages/ai-agents-cli/tests/` (live, wired to `cli-smoke.yml`) and repo-root `tests/*.test.ts` (2 files, an orphaned TS island per the audit cited above).
 - `tests/` is flat by default (398 `test_*.py` directly under `tests/`) with topic subdirs carved out where a concern needs isolation: `tests/ci/` (workflow-script tests), `tests/hooks/` (hook contract tests), `tests/skills/<name>/` (per-skill tests), `tests/mutation/` (mutation harnesses). `--import-mode=importlib` lets same-named modules coexist across dirs that do and do not carry `__init__.py`.
 - `tests/evals/` (JSON scenarios + `test_*.py` runners) implements ADR-057/058 regression and agent-vs-baseline checks; top-level `evals/` (outside `tests/`, sibling of `tests/`) holds held-out research corpora and spike write-ups: same first six letters, unrelated content and unrelated consumers.
 - Two files, `tests/skills/github/test_helpers.py` and `tests/workflows/test_claude_authorization.py`, carry a `pytest-zero-collection:` marker declaring themselves non-suites (an import helper and a production checker `claude.yml` invokes); `check_zero_collection_tests.py` checks that declaration in both directions.

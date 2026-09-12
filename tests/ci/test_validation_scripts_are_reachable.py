@@ -27,13 +27,14 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 ``SKILL.md`` names a helper script, the graph follows that helper's imports and
 executable string literals.
 
-Under that model the same 89 scripts yield two unreachable, each of which is a
-real decision recorded in ``_NO_CALLER`` below rather than a bulk exemption.
+Under that model the scripts (127 under scripts/validation plus 30 under
+build/scripts at the time of this edit) yield one unreachable, a real decision
+recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
-pass if run. Both of the entries below are unreachable precisely because
-they fail against the current tree, which is tracked separately. Reachability
-is the floor, not the ceiling.
+pass if run. The entry below is unreachable precisely because it fails
+against the current tree, which is tracked separately. Reachability is the
+floor, not the ceiling.
 """
 
 from __future__ import annotations
@@ -88,13 +89,6 @@ _NO_CALLER: dict[str, str] = {
         "REQ-008 were seeded. Wiring it would make it a gate it was explicitly "
         "written not to be."
     ),
-    "scripts/validation/check_dual_priority_labels.py": (
-        "Queries the GitHub issue and PR label sets, so it needs a token and "
-        "network and gates nothing in a diff. It is a triage report for #2623, "
-        "not a code gate: a PR cannot introduce a duplicate priority label on "
-        "an issue. Belongs on a schedule, which does not exist yet."
-    ),
-
 }
 
 
@@ -781,7 +775,12 @@ class TestCommentedHookLinesDoNotSeedReachability:
         the helper being applied, and that gap is the state this module
         shipped in before the fix.
         """
-        guarded = next(iter(_source_paths()))
+        # Pick a source that the real corpus does not already reach; rglob
+        # order is filesystem order, so "first file" can land on a live entry
+        # point after any deletion under scripts/ (seen on PR #5743).
+        _entry_points.cache_clear()
+        live = _entry_points()
+        guarded = next(p for p in _source_paths() if p not in live)
         module = "tests.ci.test_validation_scripts_are_reachable"
         monkeypatch.setattr(f"{module}._live_run_blocks", lambda: ())
         monkeypatch.setattr(

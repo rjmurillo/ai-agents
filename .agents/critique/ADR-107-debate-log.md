@@ -166,3 +166,32 @@ issue, the two false citations are removed and their root cause is documented in
 and the branch's own C1 gate is green. The dissent above is part of the record rather than a
 footnote to it: the strongest objection, that M0 governs without enforcing, is true, and the
 tracker scoped it that way on purpose.
+
+## Round 3: evidence-only correction (self-review, issue #5456)
+
+**Trigger**: the R3 section cites `src/copilot-target-emitter.ts`, `src/types.ts`,
+`src/agent-registry-schema.ts`, `src/transforms/command-syntax-translator.ts`, and their tests at
+`tests/copilot-target-emitter.test.ts` and `tests/command-syntax-translator.test.ts` as orphaned
+evidence for the cost of a second registry system. The 2026-09-04 ponytail audit (finding 9)
+confirmed those six files still have zero readers and no root `package.json`/`tsconfig.json`
+wiring them to any runner, and issue #5456 deleted them in this same cohort (commits
+`0312411`, `b4875a7`).
+
+**Scope**: this round is a self-review of a single evidentiary sentence, not a re-litigation of
+R3. The decision (reject a second registry/routing/generation system; extend
+`GENERATOR-FILES.md` and `templates/platforms/copilot-cli.yaml` instead) is unaffected by whether
+the orphaned files it cites still exist on disk. Re-running the full six-seat debate over a tense
+change would be Copy Edit (Zimmermann): the content under review has not changed.
+
+**Verification performed**: read the R3 paragraph in full; confirmed via `git log` and `git
+status` in this session that the six named files were removed by the two commits above; confirmed
+no other paragraph in this ADR depends on the files existing (grepped the whole document for each
+basename before editing).
+
+**Position**: self-review. Accept the edit: it changes verb tense and adds the deletion citation,
+and changes no other word in the R3 paragraph or the decision it supports.
+
+### Outcome
+
+Accepted. The evidence sentence now reads in the past tense and names the deleting commits; the
+R3 decision, its rationale, and every other section of the record are unchanged.
