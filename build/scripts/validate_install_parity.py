@@ -6,7 +6,14 @@ NOT auto-generate end-to-end. The shared-agent family is the canonical
 example: ``templates/agents/X.shared.md`` is the source of truth that the
 ``generate_agents`` script propagates to ``src/copilot-cli/agents/`` and
 ``src/vs-code-agents/``. Those two are the only generator outputs, enforced
-by the ``allowed_output_dirs`` allowlist at ``generate_agents.py:269-272``.
+by the ``allowed_output_dirs`` set in ``build/generate_agents.py`` (search for that name).
+As of ADR-109 B1, ``find_violations`` cannot return a violation for any
+input: RULE groups were already delegated to ``build_all.py --check``, and
+SHARED_AGENT groups now are too (below). The module stays for ``classify``,
+``group_for_anchor``, and the tests that pin the group shapes; its pre-PR gate
+row is retired, and it re-arms only if a later class keeps a hand-maintained
+copy that ``build_all.py --check`` cannot see.
+
 Since ADR-109 B1 no shared-agent copy is hand-maintained: ``src/claude/agents/X.md``
 renders from ``templates/agents/X.claude.md.tmpl``, and the binplace step in
 ``build_all.py`` copies ``src/claude/agents`` to ``.claude/agents`` and
@@ -328,18 +335,6 @@ def find_violations(
     violations: list[Violation] = []
     for (kind, name), members_touched in sorted(by_group.items()):
         group = group_for_anchor(kind, name)
-
-        # Special case: freestanding agents (no template anchor and the
-        # template path is not in the touched set).
-        # When no shared template exists, .claude/agents/ and .github/agents/
-        # paths are independent one-member groups. Solo edits to either are
-        # valid and should not require siblings. Without this check, editing
-        # a Claude-only agent like context-retrieval falsely requires
-        # .github/agents/context-retrieval.agent.md which does not exist.
-        # However, when the diff itself touches the template (delete or
-        # rename), the parity contract still binds.
-        if kind == "SHARED_AGENT" and not _is_shared_agent_group(root, name, touched_frozen):
-            continue
 
         expected = _expected_members(root, group, touched_frozen)
         missing = tuple(sorted(m for m in expected if m not in touched_set))

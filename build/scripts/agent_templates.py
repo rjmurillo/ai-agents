@@ -50,9 +50,11 @@ Stricter/looser/different than canonical (``skill_templates.py``):
   layout move"). :func:`_name_validation_error` below therefore checks only
   the slug shape and the containment/symlink invariants, not directory
   pre-existence.
-- Same as canonical, deliberately: the symlink and resolved-containment
-  checks (CWE-22/CWE-59) mirror ``skill_templates._name_validation_error``'s
-  shape one-for-one, per ADR-109 section 6's instruction that "each of B1
+- Same as canonical in shape, with one difference: the symlink and
+  resolved-containment checks (CWE-22/CWE-59) follow
+  ``skill_templates._name_validation_error``, but containment resolves
+  against the repository root here, not against a class root the way
+  ``.claude/skills/`` does for skills; per ADR-109 section 6's instruction that "each of B1
   through B4 MUST implement the same drift gate, NO-REGEN handling, and
   symlink and resolved-containment checks for its own class and install
   paths."
@@ -91,6 +93,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from atomic_write import publish_bytes_atomically  # noqa: E402
 from regen_guard import detect_reason  # noqa: E402
 from skill_template_grammar import (  # noqa: E402,F401 (F401: re-exported for callers)
     _SLUG,
@@ -319,7 +322,7 @@ def _compile_one_pair(
         return
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(rendered, encoding="utf-8", newline="\n")
+    publish_bytes_atomically(target, rendered.encode("utf-8"))
     result.written.append(str(target))
 
 

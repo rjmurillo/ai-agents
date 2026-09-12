@@ -165,8 +165,7 @@ def _validate_install_tree_prefix(label: str, value: str) -> None:
     ``claude_allowlist``'s and ``binplace``'s reach past the two plugin
     install roots this record governs.
     """
-    if value in (".claude", ".github"):
-        return
+    # A bare root would allowlist the whole tree; require a segment past it.
     if value.startswith(".claude/") or value.startswith(".github/"):
         return
     raise BinplaceConfigError(f"{label} {value!r} must be under .claude/ or .github/")
@@ -364,7 +363,7 @@ def _binplace_one_file(
     src_path: Path, dst_path: Path, *, check: bool, result: BinplaceResult
 ) -> None:
     """Compare one plugin-tree file to its install-tree counterpart and act."""
-    content = src_path.read_bytes()
+    content = read_bytes_no_redirect(src_path)
     if _current_bytes(dst_path) == content:
         return
     if check:

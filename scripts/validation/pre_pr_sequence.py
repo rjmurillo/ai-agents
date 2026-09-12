@@ -70,7 +70,6 @@ from checks_plugin import (
     validate_colocated_skill_tests,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
-    validate_install_parity,
     validate_lefthook_installed,
     validate_plugin_version_bump,
     validate_shipped_skill_routes,
@@ -463,10 +462,6 @@ _SEQUENCE: tuple[_Gate, ...] = (
     ),
     _Gate("Agent Drift Detection", _root_only(validate_agent_drift), skip_when_quick=True),
     # Changed-together sibling check; cheap, always on.
-    _Gate("Install Parity (agents and rules)", _root_only(validate_install_parity)),
-    # validate_install_parity checks co-change; it does not compare on-disk
-    # content. This gate catches drift that already exists regardless of what
-    # changed in the current PR. Issue #4082.
     _Gate(
         "Agent Content Parity (.claude/agents vs src/claude)",
         _root_only(validate_agent_content_parity),
