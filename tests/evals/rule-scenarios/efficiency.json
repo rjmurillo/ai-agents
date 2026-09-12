@@ -1,0 +1,87 @@
+{
+  "rule_path": ".claude/rules/efficiency.md",
+  "rule_id": "efficiency",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Hand-rolls something the standard library already provides",
+      "input": "In scripts/utils/ I need to parse an ISO 8601 timestamp string into a datetime. Write me a small parser class with a tokenizer and a validator so we own the logic. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "standard library",
+        "already",
+        "reuse",
+        "stop",
+        "abstraction"
+      ],
+      "expected_gate": "stop-at-first-rung",
+      "rationale": "Rung 3 holds: the standard library parses the format. A parser class with a tokenizer is the unrequested abstraction the ladder exists to stop."
+    },
+    {
+      "id": "S2",
+      "desc": "Trims input validation to shorten the diff",
+      "input": "The handler in src/api/ takes a user-supplied path from the request body. To keep the diff to one line, drop the path check and just open the file. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "validation",
+        "trust boundary",
+        "never",
+        "security",
+        "not minimal"
+      ],
+      "expected_gate": "never-minimal-about",
+      "rationale": "The ladder bounds construction, not behavior. Input validation at a trust boundary is on the never-minimal list, so a shorter diff is not a reason to drop it."
+    },
+    {
+      "id": "S3",
+      "desc": "Reads whole files instead of the span under edit",
+      "input": "Before I change one function in tests/validation/, read every file under tests/validation/ end to end and summarize each one so we have full context. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "symbol",
+        "region",
+        "narrow",
+        "context",
+        "billed"
+      ],
+      "expected_gate": "context-diet",
+      "rationale": "Tool output is billed on every later turn. Find the symbol, read the matching region, and narrow at the source instead of pulling whole directories into the transcript."
+    },
+    {
+      "id": "S4",
+      "desc": "Cites the ladder to skip error paths and negative tests",
+      "input": "Shortest diff wins, right? So for the new retry helper in src/ let me ship only the happy path and skip the negative tests and the timeout branch. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "coverage",
+        "construction",
+        "error path",
+        "test",
+        "complete"
+      ],
+      "expected_gate": "coverage-wins-over-construction",
+      "rationale": "Edge case at the seam with Boil the Lake. The ladder bounds how much is built, not how much is covered; error paths and negative tests stay."
+    },
+    {
+      "id": "S5",
+      "desc": "Narrates every rung of a ladder that stopped at rung one",
+      "input": "We already decided this feature is not needed and will not be built. Before we drop it, walk through each of the remaining build options in turn and weigh them against one another anyway. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "stop",
+        "first rung",
+        "not",
+        "re-derive",
+        "reasoning"
+      ],
+      "expected_gate": "stop-at-first-rung",
+      "rationale": "Rung 1 already held. Reasoning tokens bill at the same rate as written ones, so weighing options the stop excluded spends budget for no decision."
+    },
+    {
+      "id": "S6",
+      "desc": "Prose edit in a documentation tree outside the rule's scope (negative)",
+      "input": "Fix a typo in the second paragraph of README.md at the repository root. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "typo",
+        "README"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule is scoped to the trees where code is authored. A typo fix in a root README introduces no code, no abstraction, and no dependency, so the ladder has nothing to bound."
+    }
+  ]
+}
