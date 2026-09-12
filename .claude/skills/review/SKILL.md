@@ -187,6 +187,6 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 - Verdict module: `.claude/lib/ai_review_common/verdict.py` (Claude layout) or `lib/ai_review_common/verdict.py` (vendored layout, plugin-root relative).
 - Canonical axes: every `.claude/skills/review/references/*.md` (Claude layout) or `${CLAUDE_SKILL_DIR}/references/*.md` resolved at runtime (works in both layouts); `spec-compliance` is the Stage-1 gate, and the non-spec files form the discovered Stage-2 axis set.
-- Skill chain: the 4 local axes at `.claude/skills/{code-qualities-assessment,doc-accuracy,golden-principles,taste-lints}/` (the build pipeline copies these too). Plus the 11 Stage-2 canonical axes and the Stage-1 gate: 16 rows.
+- Skill chain: the 4 local axes at `.claude/skills/{code-qualities-assessment,doc-accuracy,golden-principles,taste-lints}/`. Plus the 11 Stage-2 canonical axes and the Stage-1 gate: 16 rows (see `resources/claude-model-patches.md`).
 
 <!-- vendor-portability: declared. This skill body cites .claude/lib/ai_review_common/verdict.py (ships in the vendor install; the skill names the plugin-root-relative lib/ai_review_common/verdict.py fallback for the vendored layout) and mentions .agents/ only to assert that /review needs no .agents/ access. Also cites .claude/skills/github/scripts/pr/check_pr_round_cap.py as canonical-source-mirror evidence (issue #5260): a sibling in-plugin script cited for its contract, not resolved or run by /review. No upstream-only runtime dependency. Issue #2050. -->
