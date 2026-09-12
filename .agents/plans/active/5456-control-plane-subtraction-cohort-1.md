@@ -267,3 +267,30 @@ treat it as reviewed and accepted, not unreviewed.
 - Specs: REQ-024/DESIGN-023/TASK-028, REQ-022/DESIGN-021/TASK-029,
   REQ-023/DESIGN-022/TASK-026
 - Ontology: `.agents/specs/ontology/control-plane-subtraction-cohort-1.md`
+
+## M4: fold always-on rule content into skills (mapped 2026-09-11, not started)
+
+Owner direction: no deletions; combine rule content into the skills that use it, keep always-on only cross-cutting text, send language idioms to path-scoped rules. Section map of the five always-on rules (byte figures are source-basis estimates within 15 percent; `voice.md` 19,748 and the five-rule mirror total 56,863 are exact):
+
+| Rule section | Bytes | Class | Destination |
+|---|---|---|---|
+| voice.md Confusion Protocol (with Unattended runs) | 2,548 | move | spec, plan |
+| voice.md Completeness Principle (with scores) | 2,084 | move | spec, plan |
+| search-before-building.md The Contradiction Log | 2,030 | move | memory-gate |
+| voice.md Writing Style (with User-Turn Override) | 1,853 | move | spec, plan, review, autoplan |
+| search-before-building.md The Three Layers | 1,624 | move | programming-advisor |
+| search-before-building.md Where To Search | 1,160 | move (spec and plan already quote the bound-the-search sentence) | memory-search |
+| search-before-building.md When To Apply, intro, self-review | 2,262 | move | programming-advisor, memory-gate |
+| claude-model-patches.md all sections | 4,434 | move (gstack preambles already carry the three nudges) | build, ship, test, plan, review |
+| builder-ethos.md Decision Procedure | 1,334 | move | autoplan |
+| builder-ethos.md Task Completion Contract: Forming, Reactivation | 1,044 | move | avoiding-manufactured-work (Finding disposition already there) |
+| builder-ethos.md Terminal predicate; voice.md Completion-Tail Audit; voice.md Clear The Gate | 3,070 | already in build, ship, test; residual copies to spec, plan, review | lifecycle skills |
+| builder-ethos.md Precedence Stack, Boil the Lake, User Sovereignty, Golden Age, How They Work Together | 7,769 | stays | always-on |
+| voice.md Definitions, Tier And Tension, prose rules, Banned Vocabulary, dash ban, Ownership, Quick Self-Review | 11,417 | stays | always-on |
+| universal.md MUST, SHOULD, MUST NOT, persistence surface | 9,720 | stays | always-on |
+
+Totals: stays about 31,400 bytes (56 percent); moves about 24,500 bytes (44 percent). No idiomatic-Python or PowerShell text exists in the five files; `python.md` and `powershell.md` already hold that content under path scopes.
+
+Gate: `.claude/skills/context-optimizer/references/rule-audit-procedure.md` Step 3 separates authoring guidance ("does not need an eval") from cutting existing always-on content ("changes measured behavior and does"). Copying a section into a skill needs no eval. Removing it from the always-on file afterwards is a cut under that procedure: scenario files, eight runs across two model families, adversarial review, and the two doctrine documents updated. Owner decides whether to run that procedure or waive it for a move whose text survives in a skill.
+
+Exit criteria: every "move" row has its text in the named skills; always-on files shrink by the moved bytes only after the owner's gate decision; `tests/validation/test_always_on_corpus_claims.py` and the doctrine figures updated in the same PR.

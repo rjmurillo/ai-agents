@@ -61,7 +61,7 @@ Out of scope: changing `skill_template_grammar.py`'s grammar or render behavior;
 - The render-target move (`.claude/skills/` to `src/claude/skills/`, binplaced back) is a separate commit from the 93 template additions: land it early in this task's batch sequence, with its own byte-identity test against a pre-move snapshot, so every subsequent batch PR compiles into the new target from the start rather than needing a second pass.
 - Batch by logical grouping (skills sharing a domain, or an author's existing PR queue) rather than alphabetically, so each batch is independently reviewable; ADR-109 section 7 sets the ceiling (five to eight files per PR, ten-file cap) but not the grouping, which is this task's own call, recorded per batch's PR body.
 - Track batch progress under one tracking issue so the 93-file total is visible across however many PRs the batching produces; do not open 93 separate issues.
-- Delete the pilot-scope pin test only in the batch that completes the full 111-skill set; every earlier batch keeps it in place (with its `PILOT` set inapplicable until 111, since that test asserts `discover()` matches `PILOT` exactly, not a superset).
+- Each batch widens the `PILOT` frozenset to the migrated set in the same commit, so the exact-equality test passes at every intermediate step. Delete the pilot-scope pin test and the `PILOT` constant only once the set equals `discover()` (at the final batch that completes the full 111-skill set).
 - Per `.claude/rules/claude-agents.md` MUST item 4, "File cap per PR", skill additions SHOULD ship at most 10 files per PR; batch accordingly.
 
 ## Testing Requirements
