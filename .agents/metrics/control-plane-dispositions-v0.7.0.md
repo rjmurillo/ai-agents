@@ -788,39 +788,36 @@ below.
 
 ### Business-strategy skill (optional pack)
 
-- Class: `EXPERIMENT`
-- Owner: not assigned
-- Consumers: none measured
-- Evidence: documented as an optional pack at `docs/installation.md:143`
-  (`business-strategy`) and `docs/skill-reference.md:160` (heading
-  "business-strategy (optional pack)"). A strict-form activation proxy
-  run this session (invocation spellings: backtick-fenced, slash-command,
-  or a skill-equals argument) found zero hits across 1,467 session logs, 750
-  episodes, and 200 merged PR bodies. It is one of 2 skills the proxy
-  classed strict-zero (21 more classed near-zero).
-- Blocker: zero measured use does not by itself prove zero value; the
-  pack ships opt-in (`npx ai-agents init --pack business`) and a
-  founder-facing user may simply not have installed it. Owner decision
-  needed on whether to retire the pack, keep it as a documented optional
-  install, or instrument it before deciding.
-- Status: not started. `EXPERIMENT`, owner decision needed.
+- Class: `KEEP`
+- Owner: rjmurillo
+- Consumers: opt-in installs of the `business` pack
+  (`docs/installation.md:143`, `docs/skill-reference.md:160`); users
+  outside this repository's history.
+- Current outcome protected: customer discovery, positioning, pricing,
+  sales, and growth frameworks for the founder-facing install.
+- Evidence the outcome is demanded: owner statement on issue #5456,
+  2026-09-11: skills and agents are `KEEP` while they exist, because
+  development also happens in environments this repository cannot observe
+  and local activation counts are blind to them.
+- Why a simpler mechanism is insufficient: no other skill carries this
+  content; retention will be re-evaluated with telemetry or another
+  cross-environment signal, not with local history.
+- Cost: 8,625 bytes shipped opt-in; zero always-on cost.
+- Status: `KEEP` by owner policy.
 
-### Skill-activation proxy (measurement note, not a scored disposition)
+### Skill-activation proxy (measurement note, withdrawn as a basis)
 
 - Class: note, not scored
 - Owner: this cohort
-- Consumers: this ledger's `business-strategy` row above
-- Evidence: proxy script and its output CSV live in this session's
-  scratchpad, not the repository. Method: a strict-form regex over
-  backtick-fenced, slash-command, and skill-equals invocation spellings
-  across session logs, episodes, and merged PR bodies. Result: 2 skills
-  classed strict-zero, 21 classed near-zero. `security-review` is
-  routed by `.claude/skills/autoplan/SKILL.md:130` ("Review a diff or
-  snippet for vulnerabilities | Skill: security-review; injection scan
-  via security-scan"), so despite a low direct-invocation count it stays
-  `KEEP`: it is reached through autoplan's routing table rather than by
-  named invocation, and the proxy's method does not observe that path.
-- Status: informational; not itself a DELETE/KEEP/EXPERIMENT candidate.
+- Consumers: none
+- Evidence: a strict-form regex over session logs, episodes, and merged
+  PR bodies on one machine found 2 skills with zero hits and 21 with one
+  or two. The owner ruled on 2026-09-11 (issue #5456) that this is not a
+  deletion basis: it sees one machine, and development also happens in
+  environments this repository cannot observe. Skills and agents are
+  `KEEP` while they exist; retention is a later, telemetry-backed
+  decision.
+- Status: withdrawn. No skill or agent row derives a class from it.
 
 ## Release gate status
 
@@ -834,7 +831,7 @@ below.
 | 6 | Smaller configuration non-inferior on deterministic acceptance and residual defects | Unchecked | Same blocker as gate 5: no reduced configuration exists yet to compare. |
 | 7 | Human correction time, total model cost, wall time reported per accepted task | Unchecked | Same blocker as gate 5; `accepted_tasks.total: 22, verified: 0` in the baseline. |
 | 8 | Deleted mechanisms include exclusive scripts, tests, projections, docs, baselines, allowlists; no dead compatibility shell | Evidenced this PR | ADR-100 items 1-4 (already delivered) meet this per their own PRs' acceptance criteria (PR #5234, PR #5723 both assert no dead references remain). This PR's own Cohort 2 deletions section adds eleven candidates, each with its allowlist entry, doc row, or test assertion removed alongside the mechanism (`.baseline` root-hygiene entry, `.diffray` allowlist plus three doc/config references, four docs for the TypeScript island, `.github/AGENTS.md`'s droid bullet and codeql row, the reachability test's `_NO_CALLER` entry and docstring count, `docs/project-structure.md`'s checkpoints entry): no dead compatibility shell was left for any of the ten file deletions, with one documented exception: a `.diffray/**` ignore line stays in the two vendor-pinned markdownlint configs until the next `validate_vendor_provenance.py` bootstrap PR re-pins them (see the `.diffray` row). #5420/#5421 stays `EXPERIMENT` (relocation, now measured, see that row) and #5436 stays `DELETE` with zero files removed here (no repository mechanism ever existed to leave a shell behind). |
-| 9 | Every retained candidate has a recorded KEEP justification | Checked | Five `KEEP` rows remain after this revision (#5404, duplicate pre-push ratchet, five always-on rules, rule mirror trees, `pr-maintenance.yml`); each carries the five epic-required fields (REQ-022 AC-02). Tally by class after this revision: `KEEP` 5; `DELETE` 17 (`#5436`; ADR-100 items 1, 2-4, 5; the eleven Cohort 2 rows above; `rjmurillo-bot.yml` and `auto-assign-reviewer.yml`/`assign_bot_reviewer.py` in Cohort 3 above); `EXPERIMENT` 9 (`#5394`, `#5395`, `#5396`, `#5420`/`#5421`, ADR-100 item 6, `control_plane_baseline.py`, the two held-back exclusions row, the `claude-model-patches.md` rule-subtraction row, the `business-strategy` skill row). `control_plane_baseline.py`, the exclusions row, and the skill-activation-proxy note do not need the five-field KEEP block since none is classed `KEEP`. |
+| 9 | Every retained candidate has a recorded KEEP justification | Checked | Six `KEEP` rows remain after this revision (#5404, duplicate pre-push ratchet, five always-on rules, rule mirror trees, `pr-maintenance.yml`, `business-strategy` by owner policy); each carries the five epic-required fields (REQ-022 AC-02). Tally by class after this revision: `KEEP` 6; `DELETE` 17 (`#5436`; ADR-100 items 1, 2-4, 5; the eleven Cohort 2 rows above; `rjmurillo-bot.yml` and `auto-assign-reviewer.yml`/`assign_bot_reviewer.py` in Cohort 3 above); `EXPERIMENT` 8 (`#5394`, `#5395`, `#5396`, `#5420`/`#5421`, ADR-100 item 6, `control_plane_baseline.py`, the two held-back exclusions row, the `claude-model-patches.md` rule-subtraction row, the `business-strategy` skill row). `control_plane_baseline.py`, the exclusions row, and the skill-activation-proxy note do not need the five-field KEEP block since none is classed `KEEP`. |
 | 10 | Final release report distinguishes deletion from relocation, generation, and archival | Partially evidenced | No final release report has been written; this ledger is an input to that report, not the report itself. This revision separates the three by row: `DELETE` rows in Cohort 2 above are subtraction (files gone, byte counts given); the #5420/#5421 row is now measured as relocation (about 5.9 MB moved, 12.7 MB retained as protected history, 1 file/0 bytes actually deleted); the two-exclusions row is explicit archival/retention (owner convention, documented import procedure), not deletion. |
 
 Gates 5, 6, and 7 cannot be met until the epic's #5422-#5426 eval chain
