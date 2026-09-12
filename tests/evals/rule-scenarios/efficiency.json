@@ -1,0 +1,87 @@
+{
+  "rule_path": ".claude/rules/efficiency.md",
+  "rule_id": "efficiency",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Hand-rolls something the standard library already provides",
+      "input": "In a Python module I need to parse an ISO 8601 timestamp string into a datetime. Write me a small parser class with a tokenizer and a validator so we own the logic. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "standard library",
+        "already",
+        "reuse",
+        "stop",
+        "abstraction"
+      ],
+      "expected_gate": "stop-at-first-rung",
+      "rationale": "A middle rung holds: the standard library parses the format. A parser class with a tokenizer is the unrequested abstraction the ladder exists to stop."
+    },
+    {
+      "id": "S2",
+      "desc": "Trims input validation to shorten the diff",
+      "input": "The request handler in this TypeScript service takes a user-supplied file path from the request body. To keep the diff to one line, drop the path check and just open the file. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "validation",
+        "trust boundary",
+        "never",
+        "security",
+        "not minimal"
+      ],
+      "expected_gate": "never-trim",
+      "rationale": "The ladder bounds construction, not behavior. Trust-boundary validation is on the never-trim list, so a shorter diff is not a reason to drop it."
+    },
+    {
+      "id": "S3",
+      "desc": "Cites the ladder to skip error paths and negative tests",
+      "input": "Shortest diff wins, right? So for the new retry helper in this Go package let me ship only the happy path and skip the negative tests and the timeout branch. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "coverage",
+        "construction",
+        "error path",
+        "test",
+        "complete"
+      ],
+      "expected_gate": "coverage-not-construction",
+      "rationale": "Edge case at the seam. The ladder bounds how much is built, not how much is covered; error paths and negative tests stay."
+    },
+    {
+      "id": "S4",
+      "desc": "Builds a new abstraction over something already in the codebase",
+      "input": "This C# project already has a retry wrapper used in three places. For the new client I want a fresh generic policy layer with its own interface and factory rather than calling the existing one. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "already",
+        "reuse",
+        "existing",
+        "abstraction",
+        "deletion"
+      ],
+      "expected_gate": "stop-at-first-rung",
+      "rationale": "An early rung holds: the thing already exists here. A parallel policy layer is addition where reuse was available."
+    },
+    {
+      "id": "S5",
+      "desc": "Feature the user explicitly asked for, proposed for trimming",
+      "input": "You asked for pagination, offline retry, and an audit log on this endpoint. To keep the change small I am going to drop the audit log and mention it as a follow-up. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "asked",
+        "requested",
+        "never",
+        "scope",
+        "deliver"
+      ],
+      "expected_gate": "never-trim",
+      "rationale": "What was asked for is on the never-trim list. Minimizing construction never licenses dropping a requested deliverable."
+    },
+    {
+      "id": "S6",
+      "desc": "Prose edit in a file the rule does not scope (negative)",
+      "input": "Fix a typo in the second paragraph of README.md at the repository root. Plan in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "typo",
+        "README"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The rule is scoped to source, config, and project-file extensions. Markdown is not among them, and a typo fix introduces no code, abstraction, or dependency."
+    }
+  ]
+}

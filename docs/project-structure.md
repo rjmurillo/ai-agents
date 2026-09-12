@@ -24,7 +24,7 @@ Repo root map: what an agent edits, what is generated, and what to skip before t
 |---|---|
 | `templates/agents/*.shared.md` (31) | Canonical source for Copilot CLI + VS Code agent bodies |
 | `src/claude/*.md`, `.claude/agents/*.md`, `.github/agents/*.agent.md` | Hand-maintained agent copies; edit template + all three together |
-| `.claude/rules/*.md` (29) | Cross-harness conventions, canonical source |
+| `.claude/rules/*.md` (31) | Cross-harness conventions, canonical source |
 | `.claude/skills/<name>/` (111) | Skills; only user-invocable surface (ADR-064) |
 | `.claude/hooks/`, `.claude/settings.json` | Claude Code hook source |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source; sync before regen |
