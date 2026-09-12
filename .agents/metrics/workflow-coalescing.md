@@ -45,7 +45,6 @@ The following AI-powered workflows are monitored for coalescing behavior:
 - `pr-validation`
 - `label-pr`
 - `memory-validation`
-- `auto-assign-reviewer`
 
 ## Data Collection
 

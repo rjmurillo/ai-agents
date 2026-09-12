@@ -227,10 +227,12 @@ remove the re-assertion without touching the `continue-on-error` line.
 Not fail-open, recorded so the next scan does not re-triage them:
 `test-codeql-integration.yml:101,139`; the `memory-validation.yml` `set +e`
 pairs that ended in an explicit `exit $rc`, now moot since issue #5626 deleted
-that workflow; `pytest.yml:600` and
-`auto-assign-reviewer.yml:64`, which are comments about historical or avoided
-patterns rather than live constructs; and `if: always()` artifact uploads plus
-the deliberate no-op skip jobs in `codeql-analysis.yml` and `pr-maintenance.yml`.
+that workflow; `pytest.yml:600`, which is a comment about a historical or
+avoided pattern rather than a live construct; and `if: always()` artifact
+uploads plus the deliberate no-op skip jobs in `codeql-analysis.yml` and
+`pr-maintenance.yml`. 2026-09-11: the `auto-assign-reviewer.yml:64` entry
+above was retired; that workflow was deleted as a dead compatibility shell
+for the disabled `rjmurillo-bot.yml` (epic #5456 cohort 3).
 
 ### Scope limit on this section
 
