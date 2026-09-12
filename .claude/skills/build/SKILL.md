@@ -185,6 +185,7 @@ Run this check only at decision points: starting a heavy action, switching tasks
 If any answer is "no" or "not sure," adjust before proceeding.
 
 <!-- vendor-portability: declared. `build/scripts/build_all.py` and `build/scripts/<name>.py` above are example Bash-allowed runners describing what the upstream checkout permits, not a runtime instruction a vendored install resolves; `build/` ships in neither plugin root. Migrated from the retired `.claude/rules/claude-model-patches.md` (epic #5456). Issue #2050. -->
+<!-- vendor-portability-exec: declared. The `uv run python build/scripts/build_all.py` and `python3 build/scripts/<name>.py` examples above are illustrative Bash-allowed commands from the upstream checkout, not invocations this guidance tells the agent to run; `build/` ships in neither plugin root. Issue #2838. -->
 
 ## Mandatory Exit Gates
 

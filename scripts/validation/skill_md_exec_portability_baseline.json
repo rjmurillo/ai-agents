@@ -139,19 +139,27 @@
     "src/copilot-cli/skills/work-operating-model/SKILL.md": 2
   },
   "marker_files": {
+    ".claude/skills/build/SKILL.md": 2,
     ".claude/skills/checkpoint/SKILL.md": 1,
     ".claude/skills/checkpoint/references/steps.md": 1,
+    ".claude/skills/plan/SKILL.md": 2,
+    ".claude/skills/ship/SKILL.md": 2,
     ".claude/skills/skillforge/references/degrees-of-freedom.md": 1,
     ".claude/skills/skillforge/references/script-integration-framework.md": 11,
     ".claude/skills/spec-generator/references/spec-prior-art-schema.md": 1,
     ".claude/skills/spec-generator/references/spec-step0-gates.md": 1,
     ".claude/skills/sync/SKILL.md": 3,
+    ".claude/skills/test/SKILL.md": 2,
+    "src/copilot-cli/skills/build/SKILL.md": 2,
     "src/copilot-cli/skills/checkpoint/SKILL.md": 1,
     "src/copilot-cli/skills/checkpoint/references/steps.md": 1,
+    "src/copilot-cli/skills/plan/SKILL.md": 2,
+    "src/copilot-cli/skills/ship/SKILL.md": 2,
     "src/copilot-cli/skills/skillforge/references/degrees-of-freedom.md": 1,
     "src/copilot-cli/skills/skillforge/references/script-integration-framework.md": 11,
     "src/copilot-cli/skills/spec-generator/references/spec-prior-art-schema.md": 1,
     "src/copilot-cli/skills/spec-generator/references/spec-step0-gates.md": 1,
-    "src/copilot-cli/skills/sync/SKILL.md": 3
+    "src/copilot-cli/skills/sync/SKILL.md": 3,
+    "src/copilot-cli/skills/test/SKILL.md": 2
   }
 }
