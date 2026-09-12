@@ -194,7 +194,7 @@ schemaVersion: "1.0"                # SemVer; generators check against their max
 provider: "copilot-cli"             # for cross-reference
 artifacts:
   agents:
-    sourceDir: ".claude/agents"
+    sourceDir: "templates/agents"    # ADR-109 B1: documentation only for agents; generate_agents.py takes its templates path from build_all.py
     outputDir: "src/copilot-cli/agents"
     sourceSuffix: ".md"
     outputSuffix: ".agent.md"

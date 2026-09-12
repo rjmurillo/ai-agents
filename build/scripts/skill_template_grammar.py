@@ -237,9 +237,7 @@ def _validate_partial_tree(
 
         partial_path = partials_dir / f"{slug}.{_PARTIAL_EXT}"
         if not partial_path.is_file():
-            raise MissingPartialError(
-                f"{source}: missing partial(s) under {partials_dir}: {slug}"
-            )
+            raise MissingPartialError(f"{source}: missing partial(s) under {partials_dir}: {slug}")
         if partial_path in visited:
             raise TemplateGrammarError(
                 f"{source}: partial cycle detected: {partial_path} is already "

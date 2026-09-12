@@ -90,7 +90,6 @@ Provide your analysis in this structure:
 ### Ratings
 - **Encapsulation**: X/10  (sub-criteria met: N/4)
   [Brief justification]
-
 - **Invariant Expression**: X/10  (sub-criteria met: N/4)
   [Brief justification]
 

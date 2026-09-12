@@ -1,0 +1,30 @@
+## Bot-Specific Handling
+
+### Copilot Behavior
+
+Copilot may:
+
+1. Create follow-up PRs after you reply
+2. Post issue comments (not review replies)
+3. Continue working even when told "no action needed"
+
+**Handling unnecessary follow-up PRs**:
+
+```bash
+# Check if Copilot created a follow-up PR
+FOLLOW_UP=$(gh pr list --author "copilot[bot]" --search "base:[branch]" --json number,state)
+
+# If exists and our resolution was "won't fix", close it
+gh pr close [follow_up_number] --comment "Closing: Original comment addressed without code changes. See PR #[original]."
+```
+
+### CodeRabbit Behavior
+
+CodeRabbit responds to commands:
+
+```text
+@coderabbitai resolve    # Resolve all comments
+@coderabbitai review     # Trigger re-review
+```
+
+Use sparingly. Only resolve after actually addressing issues.

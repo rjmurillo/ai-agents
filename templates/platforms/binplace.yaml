@@ -1,0 +1,17 @@
+# Binplace manifest (ADR-109, DESIGN-025 "Binplace manifest schema").
+schemaVersion: "1.0"
+# Each row maps a template class to its plugin tree and its install tree.
+# The build renders templates into plugin_tree, then binplace copies
+# plugin_tree into install_tree byte for byte. A row with plugin_tree null
+# has no plugin stage. assert_no_claude_writes derives its .claude/
+# allowlist from the rows whose install_tree starts with .claude/.
+rows:
+  - class: agents
+    source: templates/agents
+    plugin_tree: src/claude/agents
+    install_tree: .claude/agents
+  - class: skills
+    source: templates/skills
+    plugin_tree: null
+    install_tree: .claude/skills
+    compile: skill_templates

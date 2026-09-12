@@ -135,9 +135,7 @@ def _copy_skill_tree(
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         if skills_output_dir is not None and rel == Path("SKILL.md"):
             content = src_path.read_text(encoding="utf-8")
-            dst_path.write_text(
-                translate_skill_file(content, skills_output_dir), encoding="utf-8"
-            )
+            dst_path.write_text(translate_skill_file(content, skills_output_dir), encoding="utf-8")
         else:
             shutil.copy2(src_path, dst_path)
         written += 1
@@ -210,8 +208,7 @@ def generate_skills(
     mode = str(stanza.get("mode", "directory-copy"))
     if mode != "directory-copy":
         print(
-            f"Error: unsupported skills mode '{mode}' "
-            "(only 'directory-copy' implemented)",
+            f"Error: unsupported skills mode '{mode}' (only 'directory-copy' implemented)",
             file=sys.stderr,
         )
         return 2

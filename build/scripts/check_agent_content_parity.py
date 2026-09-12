@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Content-parity gate: .claude/agents/ must match src/claude/.
+"""Content-parity gate: .claude/agents/ must match src/claude/agents/.
 
 validate_install_parity.py catches drift only at PR time (co-change in a
 diff). It does not detect content divergence that already exists on disk.
@@ -7,7 +7,7 @@ This script compares the two hand-maintained copies byte-for-byte and fails
 if any shared filename disagrees.
 
 The two trees are hand-maintained siblings; neither is the generator source.
-GENERATOR-FILES.md, line 35: 'src/claude/ is a hand-maintained copy, not a
+GENERATOR-FILES.md, line 35: 'src/claude/agents/ is a hand-maintained copy, not a
 generator output'. REQ-003-010 forbids generators from writing under
 .claude/. Editing a shared agent means updating both copies manually.
 
@@ -43,12 +43,10 @@ from pathlib import Path
 ALLOWED_ONLY_IN_CLAUDE: frozenset[str] = frozenset()
 
 # Files that legitimately exist only in src/claude/ and have no sibling
-# in .claude/agents/. These are plugin-specific resources.
+# in .claude/agents/. These are plugin-specific resources at the root.
 #
-# AGENTS.md is here for the same reason CLAUDE.md is not above. The two copies
-# were byte-identical, and the .claude/agents/ one registered as the agent
-# named `project-toolkit:AGENTS` (issue #5493). src/claude/ has no agents/
-# subdirectory, so the surviving copy is never scanned by the loader.
+# AGENTS.md and claude-instructions.template.md exist only at src/claude/
+# (not under src/claude/agents/), so the .claude/agents/ copy is never matched.
 ALLOWED_ONLY_IN_SRC: frozenset[str] = frozenset(
     {
         "AGENTS.md",
@@ -73,8 +71,8 @@ def _compare_trees(
     """Return (diffs, missing_from_src, missing_from_claude).
 
     diffs: filenames present in both trees but with different content.
-    missing_from_src: in .claude/agents/ but not src/claude/ (excl. exemptions).
-    missing_from_claude: in src/claude/ but not .claude/agents/ (excl. exemptions).
+    missing_from_src: in .claude/agents/ but not src/claude/agents/ (excl. exemptions).
+    missing_from_claude: in src/claude/agents/ but not .claude/agents/ (excl. exemptions).
     """
     claude_files = {p.name for p in claude_dir.glob("*.md")}
     src_files = {p.name for p in src_dir.glob("*.md")}
@@ -101,14 +99,14 @@ def _print_text_report(
 ) -> None:
     print(
         f"Examined {claude_count} files in .claude/agents/, "
-        f"{src_count} files in src/claude/."
+        f"{src_count} files in src/claude/agents/."
     )
     if diffs:
         print(f"\nContent mismatch ({len(diffs)} files):")
         for name in diffs:
             print(f"  DIFF: {name}")
     if missing_from_src:
-        print(f"\nMissing from src/claude/ ({len(missing_from_src)} files):")
+        print(f"\nMissing from src/claude/agents/ ({len(missing_from_src)} files):")
         for name in missing_from_src:
             print(f"  MISSING: {name}")
     if missing_from_claude:
@@ -124,7 +122,7 @@ def _print_text_report(
 def _resolve_dirs(repo_root: Path) -> tuple[Path, Path, int]:
     """Return (claude_dir, src_dir, error_code). error_code 0 = OK, 2 = fail."""
     claude_dir = repo_root / ".claude" / "agents"
-    src_dir = repo_root / "src" / "claude"
+    src_dir = repo_root / "src" / "claude" / "agents"
     for d in (claude_dir, src_dir):
         if not d.is_dir():
             print(f"ERROR: directory not found: {d}", file=sys.stderr)

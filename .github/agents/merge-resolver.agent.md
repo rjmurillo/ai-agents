@@ -20,7 +20,6 @@ tools:
   - perplexity/*
   - cloudmcp-manager/*
   - serena/*
-  - memory
 role: executor
 ---
 

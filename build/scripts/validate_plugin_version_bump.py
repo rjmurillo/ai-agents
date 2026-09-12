@@ -220,15 +220,12 @@ def evaluate(
         state = states.get(plugin.manifest)
 
         if state is None:
-            config_errors.append(
-                f"{plugin.manifest}: no manifest state was read for {plugin.name}"
-            )
+            config_errors.append(f"{plugin.manifest}: no manifest state was read for {plugin.name}")
             continue
 
         if isinstance(state, _RefError):
             config_errors.append(
-                f"{plugin.manifest}: cannot read manifest for "
-                f"{plugin.name}: {state.message}"
+                f"{plugin.manifest}: cannot read manifest for {plugin.name}: {state.message}"
             )
             continue
 
@@ -356,8 +353,7 @@ def find_violations(
     """Read every plugin manifest at ``head_ref``, then run ``evaluate``."""
     root = repo_root or _REPO_ROOT
     states: dict[str, ManifestRead] = {
-        plugin.manifest: _manifest_state_at(head_ref, plugin.manifest, root)
-        for plugin in plugins
+        plugin.manifest: _manifest_state_at(head_ref, plugin.manifest, root) for plugin in plugins
     }
     violations, config_errors = evaluate(states, plugins)
     market_violations, market_errors = find_marketplace_violations(
@@ -425,8 +421,7 @@ def _format_json(violations: Sequence[Violation], config_errors: Sequence[str]) 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description=(
-            "Fail when a packaged plugin manifest or marketplace entry "
-            "carries a version field."
+            "Fail when a packaged plugin manifest or marketplace entry carries a version field."
         ),
     )
     p.add_argument(
@@ -463,9 +458,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: repo root not found: {repo_root}", file=sys.stderr)
         return 2
 
-    violations, config_errors = find_violations(
-        head_ref=args.head, repo_root=repo_root
-    )
+    violations, config_errors = find_violations(head_ref=args.head, repo_root=repo_root)
 
     if args.format == "json":
         print(_format_json(violations, config_errors))

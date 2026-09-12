@@ -1,7 +1,24 @@
 ---
 name: comment-analyzer
-role: support
 description: Use this agent when you need to analyze code comments for accuracy, completeness, and long-term maintainability. Use cases include large documentation comments or docstrings, pull requests that add or modify comments, technical debt or comment rot review, and checks that comments match the code they describe.
+argument-hint: Point to the comments or PR to review for accuracy
+tools:
+  - read
+  - search
+  - github/search_code
+  - github/search_issues
+  - github/search_pull_requests
+  - github/issue_read
+  - github/pull_request_read
+  - github/get_file_contents
+  - github/list_commits
+  - web
+  - cognitionai/deepwiki/*
+  - context7/*
+  - perplexity/*
+  - cloudmcp-manager/*
+  - serena/*
+role: support
 ---
 
 # Comment Analyzer Agent

@@ -3,7 +3,7 @@
 
 Two comparisons run by default:
 
-1. Vendored copies: Claude agents (src/claude/*.md) against VS Code agents
+1. Vendored copies: Claude agents (src/claude/agents/*.md) against VS Code agents
    (src/vs-code-agents/*.agent.md).
 2. Install copies (Issue #2267): the hand-maintained Claude Code self-host
    copies (.claude/agents/*.md) against the GitHub Copilot self-host copies
@@ -17,7 +17,7 @@ already enforces that they move together in a diff; this script adds the
 semantic-similarity check that parity enforcement omits.
 
 Issue #4852 asks the gate to cover "all six maintained/generated surfaces or
-document why a surface is not a runtime input." The six are src/claude,
+document why a surface is not a runtime input." The six are src/claude/agents,
 src/vs-code-agents, src/copilot-cli/agents, .claude/agents, .github/agents,
 and templates/agents/*.shared.md (per build/AGENTS.md, "Hand-Maintained Agent
 Copies"). Two of those six (src/copilot-cli/agents and templates/agents) are
@@ -30,7 +30,7 @@ template source, not a similarity threshold; a generator bug there fails
 that check outright rather than drifting silently. templates/agents itself
 is the shared source both generated trees derive from, so it has no
 independent counterpart to drift against. The two comparisons this script
-does run (vendored src/claude vs src/vs-code-agents, and the hand-maintained
+does run (vendored src/claude/agents vs src/vs-code-agents, and the hand-maintained
 .claude/agents vs .github/agents) cover the pairs where two independently
 maintained or independently editable copies can diverge without any
 generator or validator catching it, which is exactly the failure mode #4852
@@ -153,7 +153,7 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # silently hide regressions. The comparison label is part of the key so a
 # source-vendored baseline cannot hide install-copy drift.
 #
-# merge-resolver: src/claude/merge-resolver.md is the enriched prompt
+# merge-resolver: src/claude/agents/merge-resolver.md is the enriched prompt
 # (PR #1426) with Core Mission / Key Responsibilities / Execution
 # Mindset / Handoff Protocol / Memory Protocol sections that the shared
 # template (templates/agents/merge-resolver.shared.md), and therefore the
@@ -190,92 +190,101 @@ KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
 # A missing section in this set is reported as "MISSING (baselined)" and does
 # not block. Removing an entry here re-enables the gate for that section.
 # New missing sections NOT in this set will fail immediately.
-KNOWN_MISSING_SECTIONS: frozenset[tuple[str, str, str]] = frozenset({
-    ("analyst", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
-    ("analyst", "Degraded Mode Protocol", "src-claude vs src-vscode"),
-    ("architect", "ADR and Design Review Length Bounds", ".claude/agents vs .github/agents"),
-    ("architect", "Architecture Reasoning Protocol", ".claude/agents vs .github/agents"),
-    ("architect", "Ask Before vs Proceed With Default", ".claude/agents vs .github/agents"),
-    ("architect", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
-    ("architect", "Degraded Mode Protocol", "src-claude vs src-vscode"),
-    ("architect", "Legacy Modernization Patterns", ".claude/agents vs .github/agents"),
-    ("architect", "Legacy Modernization Patterns", "src-claude vs src-vscode"),
-    ("architect", "Reversibility Assessment", ".claude/agents vs .github/agents"),
-    ("architect", "Reversibility Assessment", "src-claude vs src-vscode"),
-    ("architect", "Strategic Architecture Principles", ".claude/agents vs .github/agents"),
-    ("architect", "Strategic Architecture Principles", "src-claude vs src-vscode"),
-    ("architect", "Strategic Knowledge Available", ".claude/agents vs .github/agents"),
-    ("architect", "Strategic Knowledge Available", "src-claude vs src-vscode"),
-    ("backlog-generator", "Claude Code Tools", ".claude/agents vs .github/agents"),
-    ("backlog-generator", "Claude Code Tools", "src-claude vs src-vscode"),
-    ("code-reviewer", "Claude Code Tools", ".claude/agents vs .github/agents"),
-    ("code-reviewer", "Claude Code Tools", "src-claude vs src-vscode"),
-    ("code-reviewer", "Tool Use", ".claude/agents vs .github/agents"),
-    ("code-reviewer", "Tool Use", "src-claude vs src-vscode"),
-    ("critic", "Degraded Mode Protocol", "src-claude vs src-vscode"),
-    ("devops", "12-Factor App Principles for CI/CD", ".claude/agents vs .github/agents"),
-    ("devops", "12-Factor App Principles for CI/CD", "src-claude vs src-vscode"),
-    ("devops", "Claude Code Tools", ".claude/agents vs .github/agents"),
-    ("devops", "Claude Code Tools", "src-claude vs src-vscode"),
-    ("devops", "Local CI Simulation", ".claude/agents vs .github/agents"),
-    ("devops", "Local CI Simulation", "src-claude vs src-vscode"),
-    ("devops", "Pipeline Metrics", ".claude/agents vs .github/agents"),
-    ("devops", "Pipeline Metrics", "src-claude vs src-vscode"),
-    ("devops", "Script Language Priority", ".claude/agents vs .github/agents"),
-    ("devops", "Script Language Priority", "src-claude vs src-vscode"),
-    ("high-level-advisor", "Claude Code Tools", ".claude/agents vs .github/agents"),
-    ("high-level-advisor", "Claude Code Tools", "src-claude vs src-vscode"),
-    ("implementer", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
-    ("implementer", "Degraded Mode Protocol", "src-claude vs src-vscode"),
-    ("independent-thinker", "Claude Code Tools", ".claude/agents vs .github/agents"),
-    ("independent-thinker", "Claude Code Tools", "src-claude vs src-vscode"),
-    ("independent-thinker", "Output Format", ".claude/agents vs .github/agents"),
-    ("independent-thinker", "Output Format", "src-claude vs src-vscode"),
-    ("independent-thinker", "Persona Traits", ".claude/agents vs .github/agents"),
-    ("independent-thinker", "Persona Traits", "src-claude vs src-vscode"),
-    ("independent-thinker", "Verification Protocol", ".claude/agents vs .github/agents"),
-    ("independent-thinker", "Verification Protocol", "src-claude vs src-vscode"),
-    ("independent-thinker", "When to Use", ".claude/agents vs .github/agents"),
-    ("independent-thinker", "When to Use", "src-claude vs src-vscode"),
-    ("merge-resolver", "Activation Profile", ".claude/agents vs .github/agents"),
-    ("merge-resolver", "Activation Profile", "src-claude vs src-vscode"),
-    ("merge-resolver", "Auto-Resolution Script", ".claude/agents vs .github/agents"),
-    ("merge-resolver", "Auto-Resolution Script", "src-claude vs src-vscode"),
-    ("merge-resolver", "Core Mission", ".claude/agents vs .github/agents"),
-    ("merge-resolver", "Core Mission", "src-claude vs src-vscode"),
-    ("merge-resolver", "Execution Mindset", ".claude/agents vs .github/agents"),
-    ("merge-resolver", "Execution Mindset", "src-claude vs src-vscode"),
-    ("merge-resolver", "Handoff Options", ".claude/agents vs .github/agents"),
-    ("merge-resolver", "Handoff Options", "src-claude vs src-vscode"),
-    ("merge-resolver", "Handoff Protocol", ".claude/agents vs .github/agents"),
-    ("merge-resolver", "Handoff Protocol", "src-claude vs src-vscode"),
-    ("merge-resolver", "Key Responsibilities", ".claude/agents vs .github/agents"),
-    ("merge-resolver", "Key Responsibilities", "src-claude vs src-vscode"),
-    ("merge-resolver", "Memory Protocol", ".claude/agents vs .github/agents"),
-    ("merge-resolver", "Memory Protocol", "src-claude vs src-vscode"),
-    ("pr-comment-responder", "Claude Code Tools", ".claude/agents vs .github/agents"),
-    ("pr-comment-responder", "Claude Code Tools", "src-claude vs src-vscode"),
-    ("pr-comment-responder", "GitHub Skill", ".claude/agents vs .github/agents"),
-    ("pr-comment-responder", "GitHub Skill", "src-claude vs src-vscode"),
-    ("pr-comment-responder", "GitHub Skill Integration", ".claude/agents vs .github/agents"),
-    ("pr-comment-responder", "GitHub Skill Integration", "src-claude vs src-vscode"),
-    ("qa", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
-    ("qa", "Degraded Mode Protocol", "src-claude vs src-vscode"),
-    ("qa", "Test Commands", ".claude/agents vs .github/agents"),
-    ("qa", "Test Commands", "src-claude vs src-vscode"),
-    ("retrospective", "Handoff Routing Recommendations", ".claude/agents vs .github/agents"),
-    ("retrospective", "Handoff Routing Recommendations", "src-claude vs src-vscode"),
-    ("retrospective", "Structured Handoff Output (MANDATORY)", ".claude/agents vs .github/agents"),
-    ("retrospective", "Structured Handoff Output (MANDATORY)", "src-claude vs src-vscode"),
-    ("task-decomposer", "Claude Code Tools", ".claude/agents vs .github/agents"),
-    ("task-decomposer", "Claude Code Tools", "src-claude vs src-vscode"),
-    ("task-decomposer", "Handoff Options", ".claude/agents vs .github/agents"),
-    ("task-decomposer", "Handoff Options", "src-claude vs src-vscode"),
-    ("task-decomposer", "Output Format", ".claude/agents vs .github/agents"),
-    ("task-decomposer", "Output Format", "src-claude vs src-vscode"),
-    ("task-decomposer", "Task List Template", ".claude/agents vs .github/agents"),
-    ("task-decomposer", "Task List Template", "src-claude vs src-vscode"),
-})
+KNOWN_MISSING_SECTIONS: frozenset[tuple[str, str, str]] = frozenset(
+    {
+        ("analyst", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
+        # ADR-109 B1: .github/agents is the binplaced Copilot render, which never carried
+        # this Claude-only section; the hand-maintained copy it replaced did.
+        ("critic", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
+        ("analyst", "Degraded Mode Protocol", "src-claude vs src-vscode"),
+        ("architect", "ADR and Design Review Length Bounds", ".claude/agents vs .github/agents"),
+        ("architect", "Architecture Reasoning Protocol", ".claude/agents vs .github/agents"),
+        ("architect", "Ask Before vs Proceed With Default", ".claude/agents vs .github/agents"),
+        ("architect", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
+        ("architect", "Degraded Mode Protocol", "src-claude vs src-vscode"),
+        ("architect", "Legacy Modernization Patterns", ".claude/agents vs .github/agents"),
+        ("architect", "Legacy Modernization Patterns", "src-claude vs src-vscode"),
+        ("architect", "Reversibility Assessment", ".claude/agents vs .github/agents"),
+        ("architect", "Reversibility Assessment", "src-claude vs src-vscode"),
+        ("architect", "Strategic Architecture Principles", ".claude/agents vs .github/agents"),
+        ("architect", "Strategic Architecture Principles", "src-claude vs src-vscode"),
+        ("architect", "Strategic Knowledge Available", ".claude/agents vs .github/agents"),
+        ("architect", "Strategic Knowledge Available", "src-claude vs src-vscode"),
+        ("backlog-generator", "Claude Code Tools", ".claude/agents vs .github/agents"),
+        ("backlog-generator", "Claude Code Tools", "src-claude vs src-vscode"),
+        ("code-reviewer", "Claude Code Tools", ".claude/agents vs .github/agents"),
+        ("code-reviewer", "Claude Code Tools", "src-claude vs src-vscode"),
+        ("code-reviewer", "Tool Use", ".claude/agents vs .github/agents"),
+        ("code-reviewer", "Tool Use", "src-claude vs src-vscode"),
+        ("critic", "Degraded Mode Protocol", "src-claude vs src-vscode"),
+        ("devops", "12-Factor App Principles for CI/CD", ".claude/agents vs .github/agents"),
+        ("devops", "12-Factor App Principles for CI/CD", "src-claude vs src-vscode"),
+        ("devops", "Claude Code Tools", ".claude/agents vs .github/agents"),
+        ("devops", "Claude Code Tools", "src-claude vs src-vscode"),
+        ("devops", "Local CI Simulation", ".claude/agents vs .github/agents"),
+        ("devops", "Local CI Simulation", "src-claude vs src-vscode"),
+        ("devops", "Pipeline Metrics", ".claude/agents vs .github/agents"),
+        ("devops", "Pipeline Metrics", "src-claude vs src-vscode"),
+        ("devops", "Script Language Priority", ".claude/agents vs .github/agents"),
+        ("devops", "Script Language Priority", "src-claude vs src-vscode"),
+        ("high-level-advisor", "Claude Code Tools", ".claude/agents vs .github/agents"),
+        ("high-level-advisor", "Claude Code Tools", "src-claude vs src-vscode"),
+        ("implementer", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
+        ("implementer", "Degraded Mode Protocol", "src-claude vs src-vscode"),
+        ("independent-thinker", "Claude Code Tools", ".claude/agents vs .github/agents"),
+        ("independent-thinker", "Claude Code Tools", "src-claude vs src-vscode"),
+        ("independent-thinker", "Output Format", ".claude/agents vs .github/agents"),
+        ("independent-thinker", "Output Format", "src-claude vs src-vscode"),
+        ("independent-thinker", "Persona Traits", ".claude/agents vs .github/agents"),
+        ("independent-thinker", "Persona Traits", "src-claude vs src-vscode"),
+        ("independent-thinker", "Verification Protocol", ".claude/agents vs .github/agents"),
+        ("independent-thinker", "Verification Protocol", "src-claude vs src-vscode"),
+        ("independent-thinker", "When to Use", ".claude/agents vs .github/agents"),
+        ("independent-thinker", "When to Use", "src-claude vs src-vscode"),
+        ("merge-resolver", "Activation Profile", ".claude/agents vs .github/agents"),
+        ("merge-resolver", "Activation Profile", "src-claude vs src-vscode"),
+        ("merge-resolver", "Auto-Resolution Script", ".claude/agents vs .github/agents"),
+        ("merge-resolver", "Auto-Resolution Script", "src-claude vs src-vscode"),
+        ("merge-resolver", "Core Mission", ".claude/agents vs .github/agents"),
+        ("merge-resolver", "Core Mission", "src-claude vs src-vscode"),
+        ("merge-resolver", "Execution Mindset", ".claude/agents vs .github/agents"),
+        ("merge-resolver", "Execution Mindset", "src-claude vs src-vscode"),
+        ("merge-resolver", "Handoff Options", ".claude/agents vs .github/agents"),
+        ("merge-resolver", "Handoff Options", "src-claude vs src-vscode"),
+        ("merge-resolver", "Handoff Protocol", ".claude/agents vs .github/agents"),
+        ("merge-resolver", "Handoff Protocol", "src-claude vs src-vscode"),
+        ("merge-resolver", "Key Responsibilities", ".claude/agents vs .github/agents"),
+        ("merge-resolver", "Key Responsibilities", "src-claude vs src-vscode"),
+        ("merge-resolver", "Memory Protocol", ".claude/agents vs .github/agents"),
+        ("merge-resolver", "Memory Protocol", "src-claude vs src-vscode"),
+        ("pr-comment-responder", "Claude Code Tools", ".claude/agents vs .github/agents"),
+        ("pr-comment-responder", "Claude Code Tools", "src-claude vs src-vscode"),
+        ("pr-comment-responder", "GitHub Skill", ".claude/agents vs .github/agents"),
+        ("pr-comment-responder", "GitHub Skill", "src-claude vs src-vscode"),
+        ("pr-comment-responder", "GitHub Skill Integration", ".claude/agents vs .github/agents"),
+        ("pr-comment-responder", "GitHub Skill Integration", "src-claude vs src-vscode"),
+        ("qa", "Degraded Mode Protocol", ".claude/agents vs .github/agents"),
+        ("qa", "Degraded Mode Protocol", "src-claude vs src-vscode"),
+        ("qa", "Test Commands", ".claude/agents vs .github/agents"),
+        ("qa", "Test Commands", "src-claude vs src-vscode"),
+        ("retrospective", "Handoff Routing Recommendations", ".claude/agents vs .github/agents"),
+        ("retrospective", "Handoff Routing Recommendations", "src-claude vs src-vscode"),
+        (
+            "retrospective",
+            "Structured Handoff Output (MANDATORY)",
+            ".claude/agents vs .github/agents",
+        ),
+        ("retrospective", "Structured Handoff Output (MANDATORY)", "src-claude vs src-vscode"),
+        ("task-decomposer", "Claude Code Tools", ".claude/agents vs .github/agents"),
+        ("task-decomposer", "Claude Code Tools", "src-claude vs src-vscode"),
+        ("task-decomposer", "Handoff Options", ".claude/agents vs .github/agents"),
+        ("task-decomposer", "Handoff Options", "src-claude vs src-vscode"),
+        ("task-decomposer", "Output Format", ".claude/agents vs .github/agents"),
+        ("task-decomposer", "Output Format", "src-claude vs src-vscode"),
+        ("task-decomposer", "Task List Template", ".claude/agents vs .github/agents"),
+        ("task-decomposer", "Task List Template", "src-claude vs src-vscode"),
+    }
+)
 
 # MCP syntax normalization patterns (compiled once)
 _MCP_PATTERNS = (
@@ -604,7 +613,7 @@ def format_text(
     lines: list[str] = []
     lines.append("")
     lines.append("=== Agent Drift Detection ===")
-    comparison_text = "Comparing: src/claude vs src/vs-code-agents"
+    comparison_text = "Comparing: src/claude/agents vs src/vs-code-agents"
     if any(result.comparison == _INSTALL_COMPARISON_LABEL for result in results):
         comparison_text += ", plus shared-template install copies"
     lines.append(comparison_text)
@@ -642,9 +651,7 @@ def format_text(
     # Section-level counts
     total_missing = sum(len(r.missing_sections) for r in results)
     total_adapters = sum(len(r.adapter_sections) for r in results)
-    total_content_drift = sum(
-        1 for r in results for s in r.sections if s.status == "DRIFT"
-    )
+    total_content_drift = sum(1 for r in results for s in r.sections if s.status == "DRIFT")
     lines.append(f"Missing sections: {total_missing}")
     lines.append(f"Content drift sections: {total_content_drift}")
     lines.append(f"Declared adapters: {total_adapters}")
@@ -753,7 +760,9 @@ def format_markdown(
     lines.append(
         "| Agent | Comparison | Status | Similarity | Drifting Sections | Missing Sections |"
     )
-    lines.append("|-------|------------|--------|------------|-------------------|-------------------|")
+    lines.append(
+        "|-------|------------|--------|------------|-------------------|-------------------|"
+    )
 
     for result in sorted(results, key=lambda r: (r.comparison, r.agent_name)):
         if result.overall_similarity is not None:
@@ -784,7 +793,7 @@ _NON_AGENT_FILENAMES: frozenset[str] = frozenset({"AGENTS", "CLAUDE"})
 _AGENT_PATH_ROOTS: tuple[tuple[str, str], ...] = (
     (".claude/agents/", ".md"),
     (".github/agents/", ".agent.md"),
-    ("src/claude/", ".md"),
+    ("src/claude/agents/", ".md"),
     ("src/vs-code-agents/", ".agent.md"),
     ("src/copilot-cli/agents/", ".agent.md"),
     ("templates/agents/", ".shared.md"),
@@ -822,7 +831,7 @@ def families_from_paths(paths: Sequence[str], repo_root: Path | None = None) -> 
     A "family" is an agent's stem (e.g. ``analyst``, ``critic``), the unit the
     drift detector compares across platforms. ``paths`` may include any file in
     the diff -- non-agent paths are ignored. Paths under any of the known agent
-    roots (``.claude/agents/``, ``.github/agents/``, ``src/claude/``,
+    roots (``.claude/agents/``, ``.github/agents/``, ``src/claude/agents/``,
     ``src/vs-code-agents/``, ``src/copilot-cli/agents/``, ``templates/agents/``)
     contribute their family. Directory metadata files (AGENTS.md, CLAUDE.md)
     and nested subdirectories (e.g. ``.claude/agents/security/foo.md`` -> foo)
@@ -912,7 +921,7 @@ def run_detection(
     return results
 
 
-# `src/claude/merge-resolver.md` carries Claude-specific conflict workflow
+# `src/claude/agents/merge-resolver.md` carries Claude-specific conflict workflow
 # detail that the generated VS Code/Copilot prompts intentionally keep shorter.
 _ADVISORY_VENDORED_DRIFT: frozenset[str] = frozenset({"merge-resolver"})
 
@@ -926,7 +935,7 @@ def run_install_detection(
 ) -> list[AgentResult]:
     """Compare hand-maintained install copies for shared-template agents.
 
-    Issue #2267: ``.claude/agents``, ``.github/agents``, and ``src/claude`` are
+    Issue #2267: ``.claude/agents``, ``.github/agents``, and ``src/claude/agents`` are
     hand-maintained (no generator writes them; REQ-003-010 forbids generators
     under ``.claude/``). ``validate_install_parity.py`` already enforces that
     the install copies move together in a diff, but it does not check semantic
@@ -970,7 +979,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--claude-path",
         type=Path,
         default=None,
-        help="Path to Claude agents directory. Defaults to src/claude.",
+        help="Path to Claude agents directory. Defaults to src/claude/agents.",
     )
     parser.add_argument(
         "--vscode-path",

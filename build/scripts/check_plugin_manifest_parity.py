@@ -100,8 +100,8 @@ def _read_manifest(path: Path) -> dict[str, Any] | None:
 
 
 # Every file in this repository that publishes a user-visible plugin description.
-_DESCRIBED_FILES: tuple[Path, ...] = _MARKETPLACES + _MANIFESTS + (
-    _REPO_ROOT / "src" / "claude" / ".claude-plugin" / "plugin.json",
+_DESCRIBED_FILES: tuple[Path, ...] = (
+    _MARKETPLACES + _MANIFESTS + (_REPO_ROOT / "src" / "claude" / ".claude-plugin" / "plugin.json",)
 )
 
 # Count tokens. "one" is included: a description saying "one agent" goes stale the

@@ -56,7 +56,7 @@ EXPECTED_TREES = {
     "templates/agents",
     ".claude/agents",
     ".github/agents",
-    "src/claude",
+    "src/claude/agents",
     "src/copilot-cli/agents",
     "src/vs-code-agents",
 }
@@ -958,7 +958,7 @@ class TestMainCli:
     def test_row_citing_a_sibling_doc_exits_one(self, tmp_path, capsys):
         """End-to-end proof for the frontmatter rule.
 
-        ``src/claude`` uses a bare ``.md`` suffix, so before this rule a row
+        ``src/claude/agents`` uses a bare ``.md`` suffix, so before this rule a row
         naming ``claude-instructions.template`` resolved against a real file and
         the validator reported success.
         """
@@ -1550,19 +1550,19 @@ class TestNestedAgentDefinitions:
         that resolves from the repository root.
         """
         repo_root = tmp_path
-        tree_root = tmp_path / "src" / "claude"
+        tree_root = tmp_path / "src" / "claude" / "agents"
         self._write(tree_root, "sub/misplaced.md", AGENT_STUB.format(name="misplaced"))
         found = vamr.nested_agent_definitions(tree_root, ".md", repo_root)
         assert len(found) == 1
-        assert "src/claude/*.md" in found[0]
+        assert "src/claude/agents/*.md" in found[0]
         assert "flat form claude/" not in found[0]
         # The absolute prefix must not appear: a substring check alone passes
-        # for `/tmp/.../src/claude/*.md` too, so it does not discriminate.
+        # for `/tmp/.../src/claude/agents/*.md` too, so it does not discriminate.
         assert str(repo_root) not in found[0]
 
     def test_the_flat_form_stays_absolute_without_a_repo_root(self, tmp_path):
         """No repo root means no relative form to compute; do not invent one."""
-        tree_root = tmp_path / "src" / "claude"
+        tree_root = tmp_path / "src" / "claude" / "agents"
         self._write(tree_root, "sub/misplaced.md", AGENT_STUB.format(name="misplaced"))
         found = vamr.nested_agent_definitions(tree_root, ".md")
         assert f"{tree_root.as_posix()}/*.md" in found[0]

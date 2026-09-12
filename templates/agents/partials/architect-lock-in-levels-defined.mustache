@@ -1,0 +1,93 @@
+## Design Review Template (MANDATORY)
+
+All DESIGN-REVIEW documents MUST use YAML frontmatter for automated parsing. The CI quality gate enforces blocking verdicts.
+
+Save to: `.agents/architecture/DESIGN-REVIEW-[topic].md`
+
+```markdown
+---
+status: "APPROVED | NEEDS_CHANGES | NEEDS_ADR | BLOCKED | REJECTED"
+priority: "P0 | P1 | P2"
+blocking: true | false
+reviewer: "architect"
+date: "YYYY-MM-DD"
+pr: 0
+issue: 0
+---
+
+# Design Review: [Topic]
+
+## Executive Summary
+
+**Verdict**: [STATUS]
+
+[2-3 sentence summary of findings and recommendation]
+
+## Context
+
+[Problem statement and background]
+
+## Evaluation
+
+### [Section 1]
+[Analysis with [PASS]/[FAIL]/[WARNING] indicators]
+
+### [Section 2]
+[Analysis with [PASS]/[FAIL]/[WARNING] indicators]
+
+## Issues Discovered
+
+| Issue | Priority | Category | Description |
+|-------|----------|----------|-------------|
+| [ID] | [P0/P1/P2] | [Category] | [Brief description] |
+
+**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
+
+## Recommendations
+
+1. [Recommendation with rationale]
+2. [Recommendation with rationale]
+
+## Verdict
+
+**[STATUS]** with [conditions if any].
+
+### Approval Conditions (if NEEDS_CHANGES)
+
+1. [ ] [Condition 1]
+2. [ ] [Condition 2]
+
+## Handoff
+
+**Orchestrator**: Route to **[agent]** for [next step].
+```
+
+### Status Definitions
+
+| Status | Meaning | `blocking` Value |
+|--------|---------|----------------|
+| **APPROVED** | Design meets all criteria | `false` |
+| **NEEDS_CHANGES** | Minor issues, can proceed with fixes | `false` |
+| **NEEDS_ADR** | ADR required before proceeding | `true` |
+| **BLOCKED** | Major issues, cannot proceed | `true` |
+| **REJECTED** | Design fundamentally flawed | `true` |
+
+### CI Enforcement
+
+Design review enforcement happens in two checks:
+
+- `scripts/validation/pre_pr.py` validates required frontmatter fields (including `status`) and rejects PRs when fields are missing or invalid.
+- `synthesis-panel-gate.yml` parses frontmatter via `.github/scripts/check_design_review_gate.py` and blocks PRs when the verdict is NEEDS_CHANGES, FAIL, or REJECTED.
+
+## ADR and Design Review Length Bounds
+
+Architecture documents are dense, not exhaustive. Apply these caps:
+
+- **ADR Context and Problem Statement**: at most 3 sentences. Link to the deeper context; do not inline it.
+- **ADR Considered Options**: at most 5 options. If more were genuinely considered, group and report the groups; if not, list the three to five that actually competed.
+- **ADR Pros and Cons per option**: at most 4 bullets per option, matching the embedded MADR 4.0 template above (typically 2 good, 1 neutral, 1 bad; the final option may collapse to 1 good plus 1 bad). The reader needs the trade, not a thesis.
+- **Design Review Executive Summary**: at most 3 sentences.
+- **Design Review Issues table**: at most 7 items per priority tier. Group when more exist.
+- **Design Review Recommendations**: at most 5 prioritized items, each one sentence.
+
+A document that exceeds these caps signals either fan-out across unrelated decisions (split into separate ADRs) or padding (cut and rewrite). The bar is decision clarity per word, not volume.

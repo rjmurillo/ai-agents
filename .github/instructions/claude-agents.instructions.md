@@ -4,20 +4,11 @@ applyTo: src/claude/**,.claude/agents/**,.claude/skills/**
 
 # Claude Agent and Skill Rules
 
-`src/claude/*.md` are hand-maintained Claude agent prompts with unique Claude-specific content (a `name` field the shared template does not carry, and Claude-side tool ids). A `model:` field is no longer part of that set: ADR-080 defaults every agent to the harness-inherited model, and the 2026-09-05 migration that drained its ratchet to zero left a pin on only `code-reviewer`, which carries the `haiku` cost exception. They are NOT generated. `templates/agents/*.shared.md` holds the shared body that the Copilot and VS Code copies are generated from. **No check compares the content of `src/claude/*.md` against that shared body**, and the co-change check that exists is one-directional (see MUST-1). `.claude/agents/` and `.claude/skills/` hold per-repo artifacts loaded by Claude Code. There is no `.claude/commands/`: ADR-064 (issue #5632) made skills the single user-invocable surface, and a blocking validator in this repository refuses a command file under any plugin root. The path is not named here because this rule ships in the Copilot instruction mirrors, where the validation tree does not exist.
+`src/claude/agents/*.md` are generated from `templates/agents/<stem>.claude.md.tmpl` and the Copilot copy is generated from `<stem>.copilot.md.tmpl` (per ADR-109). A shared block that both variants need lives in the partials directory beside the templates. To add or change an agent, edit the template, run `uv run python build/scripts/build_all.py`, and commit the regenerated copies. `.claude/agents/` and `.claude/skills/` hold per-repo artifacts loaded by Claude Code. There is no `.claude/commands/`: ADR-064 (issue #5632) made skills the single user-invocable surface, and a blocking validator in this repository refuses a command file under any plugin root. The path is not named here because this rule ships in the Copilot instruction mirrors, where the validation tree does not exist.
 
 ## MUST
 
-1. **Edit Claude agents directly, in lockstep with the shared template**. `src/claude/*.md` is hand-maintained; no generator writes it (`detect_agent_drift.py:19` "Claude agents have unique content and are NOT generated from templates."). To change shared agent behavior, edit BOTH `src/claude/<agent>.md` AND `templates/agents/<agent>.shared.md` in the same change, then run `uv run python build/generate_agents.py` to refresh the generated Copilot and VS Code copies (`src/copilot-cli/`, `src/vs-code-agents/`). `build/scripts/validate_install_parity.py` checks **co-change in a diff, not content agreement**: "reports the sibling files that should have changed together and did not" (`validate_install_parity.py:24`). Nothing compares the two files' text for agreement.
-
-That co-change check is **asymmetric, so it does not enforce the lockstep in the direction you most need**. Measured at `origin/main`:
-
-```bash
-python3 build/scripts/validate_install_parity.py --files templates/agents/architect.shared.md; echo $?  # 1
-python3 build/scripts/validate_install_parity.py --files src/claude/architect.md;          echo $?  # 0
-```
-
-A solo template edit is caught. A solo `src/claude/` edit is not: the hand-maintained copies are exempt from the required-sibling set, so you can change Claude agent behavior without touching the template and no gate objects. This carve-out is load-bearing, not vestigial: measured at `origin/main` `08f4941565`, of the 173 commits since 2025-01-01 touching a hand-maintained member of a shared-agent group, **54 (31%) did not touch the template**. A group is a stem with a `templates/agents/{stem}.shared.md`, and its hand-maintained members are all three of `src/claude/{stem}.md`, `.claude/agents/{stem}.md`, and `.github/agents/{stem}.agent.md`. Counting only `src/claude/` gives a different and narrower 26 of 142, 18%. Both figures grow as commits land, so re-measure rather than trusting the absolute counts; the ratio is the durable part. Treat the lockstep as a convention you uphold, not a rule the tooling enforces. The drift detector scores similarity against a floor, a much weaker condition than agreement; see the section below. Read both files before you edit either.
+1. **Edit agent templates, then regenerate**. `src/claude/agents/*.md` is generated from each agent's Claude template per ADR-109. To change an agent, edit the template, run `uv run python build/scripts/build_all.py`, and commit the regenerated outputs. A block both the Claude and Copilot variants share lives in `templates/agents/partials/`. Before ADR-109 (through 2026-09-11), 31 percent of agent-related commits did not touch the template; this measurement describes that pre-generated state and is kept as history only.
 2. **Skill schema**. Every skill MUST have a `SKILL.md` with frontmatter fields `name`, `version`, `description` per `.agents/steering/claude-skills.md`.
 3. **Skill tests**. New skills MUST include pytest coverage under `tests/skills/<name>/`; CI tests do not ship with skills.
 4. **File cap per PR**. Skill additions SHOULD ship ≤10 files per PR (see `.agents/steering/claude-skills.md`).
@@ -33,7 +24,7 @@ A solo template edit is caught. A solo `src/claude/` edit is not: the hand-maint
 
 ## MUST NOT
 
-1. MUST NOT hand-edit generated agent files (`src/copilot-cli/`, `src/vs-code-agents/`) to add behavior; add it to the template and regenerate. This does NOT apply to `src/claude/*.md`, which is hand-maintained and edited directly.
+1. MUST NOT hand-edit generated agent files (`src/claude/agents/`, `src/copilot-cli/`, `src/vs-code-agents/`) to add behavior; add it to the template and regenerate.
 2. MUST NOT bundle skill code changes with memory changes in the same PR (separate concerns).
 
 ## What the drift detector does and does not catch
@@ -121,11 +112,13 @@ This is the tool working as documented (`detect_agent_drift.py:29-33` names the 
 
 ## References
 
-- `build/generate_agents.py`. Generator (emits the Copilot and VS Code copies `src/copilot-cli/`, `src/vs-code-agents/` only; does NOT write `src/claude/`)
-- `build/scripts/detect_agent_drift.py`. Semantic-similarity check on two OTHER pairs (`src/claude` vs `src/vs-code-agents`; `.claude/agents` vs `.github/agents`). Does NOT read `templates/agents/*.shared.md` content.
-- `build/scripts/validate_install_parity.py`. Enforces that the sibling copies move together in a diff (co-change, not content)
+- `build/scripts/agent_templates.py`. Generator (emits `src/claude/agents/`)
+- `build/generate_agents.py`. Generator (emits `src/copilot-cli/agents/`, `src/vs-code-agents/`)
+- `build/scripts/binplace_manifest.py`. Binplace step (copies `src/claude/agents/` into the Claude Code install tree); `.github/agents/` renders directly from the Copilot template through the `github` platform config, because GitHub rejects a `model:` field there
+- `build/scripts/detect_agent_drift.py`. Semantic-similarity check on two OTHER pairs (`src/claude/agents` vs `src/vs-code-agents`; the Claude Code install copy vs `.github/agents`). Does NOT read `templates/agents/*.shared.md` content.
 - `.agents/steering/agent-prompts.md`. Prompt standards
 - `.agents/steering/claude-skills.md`. Skill authoring standards
 - `scripts/validation/check_skill_contract_tests.py`. Enforces the executable-contract test requirement
 - `.agents/architecture/ADR-042-python-migration-strategy.md`. Python-first
+- ADR-109 (template-first plugin distribution). Agent template generation
 - Issue #3402. worktree identity and stale helper resolution

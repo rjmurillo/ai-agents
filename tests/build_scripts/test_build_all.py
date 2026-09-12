@@ -17,6 +17,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
+import binplace_manifest  # noqa: E402
 import build_all  # noqa: E402
 
 # Helpers --------------------------------------------------------------------
@@ -638,7 +639,7 @@ def test_run_emits_audit_and_returns_zero_on_clean_state(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", outputs=0, exit_code=0
         ),
     )
@@ -667,7 +668,7 @@ def test_run_returns_2_when_check_finds_drift(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -712,7 +713,7 @@ def test_run_returns_2_when_formerly_deferred_mirror_drifts(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -742,7 +743,7 @@ def test_run_returns_2_when_multiple_skill_mirrors_drift(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -763,7 +764,9 @@ def test_run_returns_2_when_generator_writes_claude(
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
 
-    def _leaky_agents(repo_root: Path, cfg: Path, platform: str) -> build_all.GeneratorResult:
+    def _leaky_agents(
+        repo_root: Path, cfg: Path, platform: str, **_kw
+    ) -> build_all.GeneratorResult:
         # Misbehaving generator writes under .claude/ after the snapshot.
         leak = Path(repo_root) / ".claude" / "agents" / "leak.md"
         leak.parent.mkdir(parents=True, exist_ok=True)
@@ -801,7 +804,7 @@ def test_run_returns_0_when_claude_lib_synced_before_build(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -858,7 +861,7 @@ def test_audit_blocklist_in_real_config_blocks_absolute_path(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents",
             platform="*",
             notices=["leaked /home/runner/cache during agents build"],
@@ -1432,7 +1435,7 @@ def test_run_check_returns_2_when_untracked_owned_file_present(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -1477,7 +1480,7 @@ def test_run_check_clean_when_untracked_outside_owned_prefix(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -1551,7 +1554,7 @@ def test_run_check_leaves_clean_tree_unchanged_when_committed_outputs_stale(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -1608,7 +1611,7 @@ def test_run_check_leaves_untracked_owned_path_untouched(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -1657,7 +1660,7 @@ def test_run_check_restores_owned_prefix_after_generator_writes(
         check=True,
     )
 
-    def _overwriting_agent(repo_root, cfg, platform):
+    def _overwriting_agent(repo_root, cfg, platform, **_kw):
         # Simulate what generate_rules does: write under owned prefix.
         (repo_root / ".github" / "instructions" / "rule-x.md").write_text(
             "regenerated B\n"
@@ -1883,7 +1886,7 @@ def test_run_check_uses_resolved_repo_root_when_generator_changes_cwd(
     porcelain_before = _git_porcelain(repo)
     monkeypatch.chdir(tmp_path)
 
-    def _changing_cwd_agent(repo_root, cfg, platform):
+    def _changing_cwd_agent(repo_root, cfg, platform, **_kw):
         os.chdir(repo_root / ".claude")
         return build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
@@ -1925,7 +1928,7 @@ def test_run_check_removes_new_untracked_files_generators_created(
 
     new_path = repo / "src" / "copilot-cli" / "skills" / "alpha" / "SKILL.md"
 
-    def _creating_agent(repo_root, cfg, platform):
+    def _creating_agent(repo_root, cfg, platform, **_kw):
         new_path.parent.mkdir(parents=True, exist_ok=True)
         new_path.write_text("# alpha\n")
         return build_all.GeneratorResult(
@@ -1970,7 +1973,7 @@ def test_run_without_check_does_not_snapshot_or_restore(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -2013,7 +2016,7 @@ def _seed_repo_with_committed_skill_mirror(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -2606,7 +2609,7 @@ def test_run_flags_a_generator_write_hidden_behind_a_git_marker(
     _write_platform_with_skills(repo, provider="copilot-cli")
 
     def leaking_agents(
-        repo_root: Path, cfg: object, platform: object
+        repo_root: Path, cfg: object, platform: object, **_kw
     ) -> build_all.GeneratorResult:
         hidden = repo_root / ".claude" / "out"
         hidden.mkdir(parents=True, exist_ok=True)
@@ -2653,7 +2656,7 @@ def test_run_check_removes_a_generated_tree_behind_a_git_marker(
     _write_platform_with_skills(repo, provider="copilot-cli")
 
     def boundary_writing_agents(
-        repo_root: Path, cfg: object, platform: object
+        repo_root: Path, cfg: object, platform: object, **_kw
     ) -> build_all.GeneratorResult:
         hidden = repo_root / "src" / "out"
         hidden.mkdir(parents=True, exist_ok=True)
@@ -3240,7 +3243,7 @@ def test_run_check_returns_3_when_git_state_is_unreadable(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -3274,7 +3277,7 @@ def test_cli_exits_3_when_git_state_read_times_out(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -3312,7 +3315,7 @@ def test_cli_exits_3_when_git_state_is_unreadable(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -4548,7 +4551,7 @@ def test_run_check_aborts_without_deleting_an_unreadable_owned_file(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -4586,7 +4589,7 @@ def test_run_without_check_still_builds_when_an_owned_file_is_unreadable(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -4643,7 +4646,7 @@ def test_plain_build_reads_git_and_survives_because_that_read_fails_open(
     monkeypatch.setattr(
         build_all,
         "_build_agents",
-        lambda repo_root, cfg, platform: build_all.GeneratorResult(
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
         ),
     )
@@ -4658,3 +4661,240 @@ def test_plain_build_reads_git_and_survives_because_that_read_fails_open(
         "a plain build is expected to consult git for the ignore set; "
         f"recorded git invocations: {seen_argv}"
     )
+
+
+# Platform config detection (_is_platform_config, _select_platform_configs) ----
+
+
+def test_is_platform_config_detects_provider_yaml(tmp_path: Path) -> None:
+    """A YAML with provider: key is a platform config."""
+    yaml_text = (
+        'schemaVersion: "1.0"\n'
+        'provider: "copilot-cli"\n'
+        "artifacts:\n"
+        "  skills:\n"
+        '    sourceDir: ".claude/skills"\n'
+    )
+    yaml_path = tmp_path / "platform.yaml"
+    yaml_path.write_text(yaml_text)
+    assert build_all._is_platform_config(yaml_path)
+
+
+def test_is_platform_config_rejects_binplace_manifest(tmp_path: Path) -> None:
+    """A YAML with only schemaVersion and rows is not a platform (binplace manifest)."""
+    yaml_text = (
+        'schemaVersion: "1.0"\n'
+        "rows:\n"
+        "  - class: agents\n"
+        '    source: "templates/agents"\n'
+        '    plugin_tree: "src/claude/agents"\n'
+        '    install_tree: ".claude/agents"\n'
+    )
+    yaml_path = tmp_path / "binplace.yaml"
+    yaml_path.write_text(yaml_text)
+    assert not build_all._is_platform_config(yaml_path)
+
+
+def test_select_platform_configs_filters_binplace_manifest(tmp_path: Path) -> None:
+    """_select_platform_configs returns only platform files, not binplace.yaml."""
+    platforms = tmp_path / "templates" / "platforms"
+    platforms.mkdir(parents=True)
+
+    # Write platform config
+    (platforms / "copilot-cli.yaml").write_text(
+        'schemaVersion: "1.0"\n'
+        'provider: "copilot-cli"\n'
+    )
+
+    # Write binplace manifest (not a platform)
+    (platforms / "binplace.yaml").write_text(
+        'schemaVersion: "1.0"\n'
+        "rows:\n"
+        "  - class: agents\n"
+    )
+
+    result = build_all._select_platform_configs(platforms, requested=None)
+
+    assert len(result) == 1
+    assert result[0].name == "copilot-cli.yaml"
+
+
+def test_select_platform_configs_filters_by_stem(tmp_path: Path) -> None:
+    """_select_platform_configs with requested filters to matching stem."""
+    platforms = tmp_path / "templates" / "platforms"
+    platforms.mkdir(parents=True)
+
+    (platforms / "copilot-cli.yaml").write_text('provider: "copilot-cli"\n')
+    (platforms / "vscode.yaml").write_text('provider: "vscode"\n')
+
+    result = build_all._select_platform_configs(platforms, requested="copilot-cli")
+
+    assert len(result) == 1
+    assert result[0].name == "copilot-cli.yaml"
+
+
+# Binplace manifest (binplace_manifest.binplace) ----------------------------
+
+
+def test_binplace_check_mode_reports_drift_and_writes_nothing(tmp_path: Path) -> None:
+    """binplace check=True reports exit 2 on drift, writes nothing."""
+    repo = tmp_path / "repo"
+    repo.mkdir(exist_ok=True)
+    (repo / ".git").mkdir()
+
+    # Create plugin tree with one file
+    plugin_tree = repo / "src" / "claude" / "agents"
+    plugin_tree.mkdir(parents=True)
+    (plugin_tree / "test.md").write_text("plugin content\n")
+
+    # Create install tree with different content (drift)
+    install_tree = repo / ".claude" / "agents"
+    install_tree.mkdir(parents=True)
+    (install_tree / "test.md").write_text("different content\n")
+
+    # Create manifest
+    manifest = repo / "templates" / "platforms" / "binplace.yaml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        'schemaVersion: "1.0"\n'
+        'rows:\n'
+        '  - class: agents\n'
+        '    source: "templates/agents"\n'
+        '    plugin_tree: "src/claude/agents"\n'
+        '    install_tree: ".claude/agents"\n'
+    )
+
+    result = binplace_manifest.binplace(repo, check=True)
+
+    assert result.exit_code == 2
+    assert any(".claude/agents/test.md" in p for p in result.drifted)
+    # Verify nothing was written (file unchanged)
+    assert (install_tree / "test.md").read_text() == "different content\n"
+
+
+def test_binplace_write_mode_updates_files(tmp_path: Path) -> None:
+    """binplace check=False writes matching bytes, returns exit 0."""
+    repo = tmp_path / "repo"
+    repo.mkdir(exist_ok=True)
+    (repo / ".git").mkdir()
+
+    plugin_tree = repo / "src" / "claude" / "agents"
+    plugin_tree.mkdir(parents=True)
+    (plugin_tree / "test.md").write_text("plugin content\n")
+
+    install_tree = repo / ".claude" / "agents"
+    install_tree.mkdir(parents=True)
+    (install_tree / "test.md").write_text("old content\n")
+
+    manifest = repo / "templates" / "platforms" / "binplace.yaml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        'schemaVersion: "1.0"\n'
+        'rows:\n'
+        '  - class: agents\n'
+        '    source: "templates/agents"\n'
+        '    plugin_tree: "src/claude/agents"\n'
+        '    install_tree: ".claude/agents"\n'
+    )
+
+    result = binplace_manifest.binplace(repo, check=False)
+
+    assert result.exit_code == 0
+    assert any(".claude/agents/test.md" in p for p in result.written)
+    assert (install_tree / "test.md").read_text() == "plugin content\n"
+
+
+def test_binplace_second_check_clean_after_write(tmp_path: Path) -> None:
+    """After write, a second check=True returns exit 0."""
+    repo = tmp_path / "repo"
+    repo.mkdir(exist_ok=True)
+    (repo / ".git").mkdir()
+
+    plugin_tree = repo / "src" / "claude" / "agents"
+    plugin_tree.mkdir(parents=True)
+    (plugin_tree / "test.md").write_text("plugin content\n")
+
+    install_tree = repo / ".claude" / "agents"
+    install_tree.mkdir(parents=True)
+
+    manifest = repo / "templates" / "platforms" / "binplace.yaml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        'schemaVersion: "1.0"\n'
+        'rows:\n'
+        '  - class: agents\n'
+        '    source: "templates/agents"\n'
+        '    plugin_tree: "src/claude/agents"\n'
+        '    install_tree: ".claude/agents"\n'
+    )
+
+    # Write mode
+    result1 = binplace_manifest.binplace(repo, check=False)
+    assert result1.exit_code == 0
+
+    # Check mode after write
+    result2 = binplace_manifest.binplace(repo, check=True)
+    assert result2.exit_code == 0
+    assert result2.drifted == []
+
+
+def test_binplace_reports_unowned_files(tmp_path: Path) -> None:
+    """Files under install_tree with no plugin_tree counterpart are reported unowned."""
+    repo = tmp_path / "repo"
+    repo.mkdir(exist_ok=True)
+    (repo / ".git").mkdir()
+
+    plugin_tree = repo / "src" / "claude" / "agents"
+    plugin_tree.mkdir(parents=True)
+    (plugin_tree / "owned.md").write_text("plugin content\n")
+
+    install_tree = repo / ".claude" / "agents"
+    install_tree.mkdir(parents=True)
+    (install_tree / "owned.md").write_text("same\n")
+    (install_tree / "unowned.md").write_text("not in plugin tree\n")
+
+    manifest = repo / "templates" / "platforms" / "binplace.yaml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        'schemaVersion: "1.0"\n'
+        'rows:\n'
+        '  - class: agents\n'
+        '    source: "templates/agents"\n'
+        '    plugin_tree: "src/claude/agents"\n'
+        '    install_tree: ".claude/agents"\n'
+    )
+
+    result = binplace_manifest.binplace(repo, check=False)
+
+    assert any(".claude/agents/unowned.md" in p for p in result.unowned)
+    # Unowned file survives the write
+    assert (install_tree / "unowned.md").is_file()
+
+
+def test_binplace_rejects_install_tree_outside_repo(tmp_path: Path) -> None:
+    """Manifest with install_tree outside .claude/ or .github/ fails at load."""
+    repo = tmp_path / "repo"
+    repo.mkdir(exist_ok=True)
+    (repo / ".git").mkdir()
+
+    manifest = repo / "templates" / "platforms" / "binplace.yaml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        'rows:\n'
+        '  - class: agents\n'
+        '    source: "templates/agents"\n'
+        '    plugin_tree: "src/claude/agents"\n'
+        '    install_tree: "src/copilot-cli/agents"\n'
+    )
+
+    with pytest.raises(binplace_manifest.BinplaceConfigError):
+        binplace_manifest.load(repo)
+
+
+# OWNED_PREFIXES verification ------------------------------------------------
+
+
+def test_owned_prefixes_contains_claude_agents_and_github_agents() -> None:
+    """OWNED_PREFIXES must include .claude/agents/ and .github/agents/."""
+    assert ".claude/agents/" in build_all.OWNED_PREFIXES
+    assert ".github/agents/" in build_all.OWNED_PREFIXES

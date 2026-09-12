@@ -20,7 +20,7 @@ Three directories ship as installable plugins. Nothing else in this repository r
 
 Each marketplace entry names exactly one `source` directory. A consumer who installs the plugin receives that directory and nothing above it. `docs/`, `.agents/`, `build/`, `scripts/`, `templates/`, and the repository root stay behind.
 
-`templates/agents/**` is in scope for this rule because it is the canonical source that generates shipped agent files. An outward reference introduced there lands in a plugin root on the next build.
+`templates/agents/**` is in scope for this rule because it is the canonical source that generates shipped agent files. The partials directory under it and the `.claude.md.tmpl` and `.copilot.md.tmpl` template files are in the same scope, since they generate shipped agent files. An outward reference introduced in any of these lands in a plugin root on the next build.
 
 ## Three kinds of path, only one of which is a defect
 
@@ -91,7 +91,7 @@ silence a reference you should have fixed.
 
 The two `templates/` patterns are deliberately narrow. Do not widen them to a bare `templates/`. The directory name is overloaded three ways, and only the first is a defect:
 
-- `templates/agents/`, `templates/platforms/`. Upstream-only. Never present inside a plugin root.
+- `templates/agents/` (partials included), `templates/platforms/`. Upstream-only. Never present inside a plugin root.
 - A bundled `templates/` directory inside a skill, for example `.claude/skills/threat-modeling/templates/threat-model-template.md`. Ships with the plugin and resolves fine.
 - A framework convention in prose, for example Flask's `templates/` named in a project-detection table. Not a path anyone resolves.
 

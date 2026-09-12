@@ -4,11 +4,10 @@
 
 ## Matters
 
-- 31 agent files (`<name>.md`), plus `claude-instructions.template.md` (no frontmatter, not an agent) and `security/references/` (docs the `security` agent points at). None of it is generated: the drift checker's own comment states "Claude agents have unique content and are NOT generated from templates."
+- `agents/` holds 31 generated agent files (edit the templates, not the agents themselves). `claude-instructions.template.md` and `security/references/` are hand-maintained. Agents are generated from `templates/agents/<stem>.claude.md.tmpl` by `build/scripts/agent_templates.py` per ADR-109.
 - `name`, `description`, `argument-hint` appear in all 31 files. `metadata.role` in 25 of 31. A `tools:` frontmatter list in only 2 of 31 (`analyst`, `security`). A `model:` pin in exactly 1 of 31 (`code-reviewer: haiku`, with a required `model-rationale:` line, per ADR-080).
 - No enforced section structure. Measured across the 31 files: `## Core Identity` appears in 17, `## Constraints` in 10, `## Memory Protocol` in 13, `## Handoff Options` in 13, `## Output Format` in 7. Grep the specific file before assuming a heading exists.
-- Changing shared agent behavior means editing this file AND, in the `rjmurillo/ai-agents` repository, `templates/agents/<name>.shared.md`, `.claude/agents/<name>.md`, and `.github/agents/<name>.agent.md` in the same change, then regenerating. The automated co-change check only confirms the diff touched the required siblings; nothing compares their text.
-- All 31 files are byte-identical to their `.claude/agents/` installed copies today (verified by diff). That is upheld by convention plus the co-change check, not a content gate, so re-diff rather than assume it still holds.
+- To change an agent, edit `templates/agents/<stem>.claude.md.tmpl`, run `uv run python build/scripts/build_all.py`, and commit the regenerated outputs in the same PR.
 
 ## Entry points
 
@@ -20,15 +19,15 @@
 
 | Path | Why |
 |---|---|
-| `<name>.md` | One agent's full prompt: frontmatter plus body |
+| `agents/<name>.md` | One agent's full prompt: frontmatter plus body; generated from templates |
 | `claude-instructions.template.md` | Shared preamble text, not an agent; carries no frontmatter and no template counterpart |
 | `security/references/` | Threat-model and checklist references the `security` agent's prompt points to |
-| `merge-resolver.md`, `pr-comment-responder.md`, `quality-auditor.md` | The three agents that hard-code a `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` script path (merge-resolver uses the older single-variable form; see Dangerous assumptions) |
+| `agents/merge-resolver.md`, `agents/pr-comment-responder.md`, `agents/quality-auditor.md` | The three agents that hard-code a `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` script path (merge-resolver uses the older single-variable form; see Dangerous assumptions) |
 
 ## Skip
 
 - Nothing under this tree is generated, so there is no output copy to avoid editing here; the trap runs the other way (see Dangerous assumptions).
-- `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md` (in the `rjmurillo/ai-agents` repository): sibling installed copies, edited alongside this tree, never instead of it.
+- `.claude/agents/<name>.md` (in the `rjmurillo/ai-agents` repository): the binplaced copy of `agents/<name>.md`, written by the build; `.github/agents/<name>.agent.md` renders from the Copilot template. Neither is edited by hand.
 
 ## Constraints
 

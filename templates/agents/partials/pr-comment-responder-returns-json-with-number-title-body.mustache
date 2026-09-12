@@ -1,0 +1,10 @@
+# Get PR metadata
+PR_DATA=$(gh pr view [number] --repo [owner/repo] --json number,title,body,headRefName,baseRefName,state,author)
+echo "$PR_DATA" | jq '.'
+
+# Store for later use
+PR_NUMBER=$(echo "$PR_DATA" | jq -r '.number')
+PR_TITLE=$(echo "$PR_DATA" | jq -r '.title')
+PR_BRANCH=$(echo "$PR_DATA" | jq -r '.headRefName')
+PR_BASE=$(echo "$PR_DATA" | jq -r '.baseRefName')
+```

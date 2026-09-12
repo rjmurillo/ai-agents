@@ -18,7 +18,7 @@ QA_SURFACES = [
     REPO_ROOT / "templates" / "agents" / "qa.shared.md",
     QA_CLAUDE,
     QA_COPILOT,
-    REPO_ROOT / "src" / "claude" / "qa.md",
+    REPO_ROOT / "src" / "claude" / "agents" / "qa.md",
     REPO_ROOT / "src" / "copilot-cli" / "agents" / "qa.agent.md",
     REPO_ROOT / "src" / "vs-code-agents" / "qa.agent.md",
 ]
