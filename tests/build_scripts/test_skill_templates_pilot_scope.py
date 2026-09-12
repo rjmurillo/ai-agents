@@ -51,6 +51,10 @@ PILOT: frozenset[str] = frozenset(
         "checkpoint",
         "build",
         "ai-agents-validation-and-qa",
+        "avoiding-manufactured-work",
+        "orphan-ref-validator",
+        "prose-self-check",
+        "agent-harness-reference",
     }
 )
 
