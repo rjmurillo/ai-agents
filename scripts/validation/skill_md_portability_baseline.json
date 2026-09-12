@@ -194,7 +194,6 @@
     ".claude/skills/threat-modeling/SKILL.md": 8,
     ".claude/skills/world-model-diagnostic/SKILL.md": 1,
     "src/copilot-cli/instructions/ci-scripts.instructions.md": 19,
-    "src/copilot-cli/instructions/efficiency.instructions.md": 2,
     "src/copilot-cli/instructions/plugin-self-containment.instructions.md": 31,
     "src/copilot-cli/instructions/templates.instructions.md": 9,
     "src/copilot-cli/instructions/universal.instructions.md": 5,
