@@ -1,6 +1,9 @@
 ---
+# taste-lint: ignore file-size, one decision record; the measured probes and the
+# round-by-round repair history are the evidence for its decisions, and splitting
+# them out would separate each claim from its proof.
 id: ADR-072
-status: proposed
+status: accepted
 date: 2026-06-09
 decision-makers: [rjmurillo]
 supersedes: []
@@ -13,12 +16,56 @@ implemented: false
 
 ## Status
 
-Proposed. Amended 2026-09-09 after a six-seat `adr-review` round. This ADR
-may exist as `Proposed` but MUST clear the conditions in "Conditions to reach
-Accepted" before its status moves to `Accepted` and any milestone is
-implemented. Requested by issue #1774 (parent epic #1072, v0.4.0 Framework
-Extraction). Refines the plugin taxonomy of ADR-045 (see Decision Drivers). No
-code moves on this ADR alone.
+Accepted.
+
+Accepted 2026-09-12, after three `adr-review` rounds and with all five conditions
+in "Conditions to reach Accepted" met and all four Definition-of-Ready questions
+answered. Requested by issue #1774 (parent epic #1072, v0.4.0 Framework
+Extraction). Refines the plugin taxonomy of ADR-045 (see Decision Drivers).
+`implemented` stays `false`: accepting the direction moves no code, and M1 to M5
+remain unshipped work tracked under issue #5669.
+
+**What Accepted does and does not mean here.** It means the direction, the plugin
+partition, the dependency mechanism and the emission model are settled and a future
+change does not get to relitigate them without new evidence. It does not mean the
+milestones are funded or scheduled, and it does not repair the one gap this record
+has carried since round 1: the JTBD premise is an unmeasured design hypothesis,
+recorded as such in Negative consequences. Two round 3 seats reached that
+independently. M1 and beyond should not be funded on the premise alone.
+
+**What round 3 actually returned, since round 1's tally is narrated above and
+omitting round 3's would flatter this record.** Round 3 split six ways: architect
+Block, critic Block, independent-thinker and security Disagree-and-Commit, analyst
+and high-level-advisor Accept. Both Blocks carried a P0. The architect's was a
+quotation attributed to ADR-064 that does not exist in it, removed in that round.
+The critic's was M5's alias route being named rather than chosen, decided in
+Decision 4 here. Round 4 then ran against this text. So acceptance rests on two
+P0s closed and a fourth round, not on a panel that agreed the first time, and a
+reader should not infer more consensus than that.
+
+**Where the authority for this acceptance comes from, stated so a reader can
+check it rather than take the record's word.** The repository owner directed, in
+the working session that produced this change, that ADR-072 and ADR-101 reach
+`accepted`. That instruction is not a repository artifact and cannot be cited as
+one. The verifiable act is the merge: the owner merging the pull request that
+carries this status flip is the ratification, and until that merge this record's
+`accepted` is a proposal like any other. An earlier revision of this paragraph
+said the answers were taken "under delegated authority" and cited nothing, which
+is a self-evidencing claim of exactly the kind this record spent three rounds
+removing. Round 4's critic and independent-thinker seats both caught it.
+
+AGENTS.md lists "New ADRs" under **Ask First**, and this record's frontmatter
+names `decision-makers: [rjmurillo]`. Neither is satisfied by an agent asserting
+it was authorized. They are satisfied by the owner's merge, which is why the four
+answers below are written to be reversible: each records the evidence it rests on,
+so reversing one means producing better evidence rather than re-arguing taste.
+
+**This record's `accepted` status is not evidence for its own premise.** A future
+ADR may cite ADR-072 as the settled decision on plugin partitioning, dependency
+declaration and emission timing. It may not cite this record's acceptance as
+evidence that the job-shaped install menu is validated, because it is not: see
+Negative consequences. That is the laundering path by which ADR-045's unexecuted
+`implemented: true` became citable authority, and it is closed here explicitly.
 
 **Round outcome.** Five seats returned Block recommending `rejected`, on the
 shared premise that Decision 3's `dependencies` field and Decision 4's
@@ -35,18 +82,35 @@ enum would record the opposite of the panel's position. ADR-073 line 57 blesses
 the alternative directly, naming this record's conditional `proposed` state as
 the case the prose Status section exists to carry.
 
-**Blockers, all of them this record's own defects rather than platform limits:**
+**The five blockers that held this record at `proposed`, all of them its own
+defects rather than platform limits. All five are closed.** They are kept struck
+rather than deleted so the path from `proposed` to `accepted` stays auditable.
 
-1. The Definition-of-Ready questions below are unanswered.
-2. Decision 1 names five plugins, zero of which exist; see the note there.
-3. The distribution premise was falsified; see "Distribution context".
-4. Decision 4's M1 to M3 are dead as written; see the note there.
+1. ~~The Definition-of-Ready questions below are unanswered.~~ **Closed
+   2026-09-12.** All four are answered: build-time emission in Decision 2, and the
+   `keywords` carrier, the Cursor-now-Codex-later split and the additive shape of
+   a future Codex emitter in Decision 5.
+2. ~~Decision 1 names five plugins, zero of which exist.~~ **Closed 2026-09-11.**
+   Decision 1 now states that none of the four capability plugins exists, names
+   the three real plugin roots, and marks the table as a target state.
+3. ~~The distribution premise was falsified.~~ **Closed 2026-09-09.** Withdrawn in
+   "Distribution context", with the installed population recorded as unknown
+   rather than replaced with a second unmeasured number.
+4. ~~Decision 4's M1 to M3 are dead as written.~~ **Closed 2026-09-11.** The
+   commands leg is recorded as deleted by ADR-064, M1 to M3 is retargeted to
+   user-invocable skills, and the Cursor and Codex halves are priced separately
+   because only one of them is greenfield.
 5. ~~Issue #1774 is closed `not_planned` (2026-06-19, ten days after this record
    was authored) and parent epic #1072 is closed, so nothing tracks this work.~~
    **Closed 2026-09-09.** Successor filed per the ADR-052 precedent and named
-   here: **issue #5669**, which tracks settling this record and carries blockers
-   1 through 4 as its checklist. It deliberately does not track implementation,
-   because this round established the record is not ready to implement.
+   here: **issue #5669**, which tracked settling this record and carried blockers
+   1 through 4 as its checklist.
+
+Round 4's architect seat found items 1 and 4 still reading as open roughly thirty
+lines below a paragraph saying all four questions were answered. That is the
+seventh restatement drift logged against this record and the first one inside a
+single section, which is worth recording because the previous six were all far
+enough apart to be explicable by distance.
 
 ## Date
 
@@ -110,8 +174,9 @@ artifact class. It uses two seams:
   `build/scripts/generate_commands.py`; both are absent from the tree today. An
   earlier revision of this subsection listed the generator as existing and
   `.claude/commands/*.md` as a canonical source, and the 2026-09-09 amendment
-  corrected that in Decision 4 without correcting it here. Skills are now the
-  single user-invocable surface, generated by `generate_skills.py`.
+  corrected that in Decision 4 while leaving this subsection stale; this bullet is
+  the repair. Skills are now the single user-invocable surface, generated by
+  `generate_skills.py`.
 
 So rules and hooks already have per-harness emission from a single source. The
 job is not to build that seam; it is to make the per-harness coverage complete
@@ -159,9 +224,11 @@ wording.
 ### 2. Reuse the existing source seam; do NOT relocate canonical sources
 
 Default to the lower-risk mechanism the architect recommended: reuse the existing
-`.claude/ -> generated` seam for commands/rules/hooks rather than relocating every
-rule/command/hook source into `templates/`. The agent seam (`templates/agents`)
-stays as is. New work is limited to:
+`.claude/ -> generated` seam for rules and hooks rather than relocating every rule
+and hook source into `templates/`. The agent seam (`templates/agents`) stays as
+is. An earlier revision of this paragraph named commands as a third class; ADR-064
+deleted that leg and this is the sixth place in this record where that correction
+reached the argument and not a restatement of it. New work is limited to:
 
 - Completing per-harness emitters where coverage is missing (Codex `AGENTS.md`
   fragments, Cursor `.cursor/rules/*.mdc`), each behind a drift check matching the
@@ -171,6 +238,22 @@ stays as is. New work is limited to:
 Relocating sources into `templates/*.shared.md` for all classes is recorded as a
 considered alternative (see Alternatives), not the decision, because it is a real
 migration with no demonstrated benefit over the working `.claude/` seam.
+
+**Emission happens at build time, not at install time. Decided 2026-09-12**, which
+answers the first Definition-of-Ready question. Artifacts are generated by this
+repository's build, committed, and guarded by the drift checks that already exist,
+which is what the seam above already does for rules and hooks. Install-time
+emission was considered and is not constructible today: the documented Claude Code
+hook event set in
+`.claude/skills/agent-harness-reference/references/official-hook-contracts.md`
+contains no plugin-install or post-install transform event, and the earliest hook
+fires at `SessionStart`, inside a session and after install completes. Scoping a
+milestone against install-time emission would be committing to a host capability
+nobody has measured, which is the exact premise failure round 1 blocked on.
+
+REQ-003-008's NO-REGEN sentinel remains the escape hatch for a consumer who wants
+to hand-edit a generated file, so build-time emission does not cost them that.
+Revisit only if a host ships a documented install-time transform hook.
 
 ### 3. Declare cross-plugin dependencies so a partial install cannot break
 
@@ -215,10 +298,27 @@ round sat.
 **What actually blocks Decision 3, then, is local and small.** Two repository
 facts, neither a platform limit:
 
-- `build/scripts/validate_plugin_manifests.py` omits `dependencies` from
+- ~~`build/scripts/validate_plugin_manifests.py` omits `dependencies` from
   `ALLOWED_KEYS` and fails unknown keys, so the field would fail this
-  repository's own gate. That is a one-line addition with a test, in the same PR
-  as M4.
+  repository's own gate.~~ **Staged in this same change**, ahead of M4, because it
+  was a settle-the-record blocker rather than implementation. It is not on `main`
+  until this merges, and an earlier revision of this sentence said "Shipped",
+  which described unmerged working-tree code as delivered. `dependencies` is now in
+  `ALLOWED_KEYS` and `_validate_dependencies` checks the value: it must be a list
+  of non-empty, trimmed strings, and an entry carrying a version specifier is
+  rejected because ADR-092 leaves a bare name or `name@marketplace` as the only
+  possible form. Nine test functions, sixteen collected cases once the
+  version-specifier parametrization expands, cover positive, negative and edge,
+  and the three shipped manifests stay valid because none declares the field.
+  The specifier pattern rejects `<`, `<=` and `!=` as well as `@` plus a digit,
+  `==`, `>=`, `~` and `^` plus a digit; the first three were added in round 4
+  after the security seat found `cap-b<2.0.0` passing as a bare name.
+
+  **What M4 still owes, so this is not read as finished.** The value check is a
+  shape check. It does not constrain the target to a marketplace this repository
+  declares, so a dependency naming a plugin that exists in no declared marketplace
+  passes today. That constraint is the first of the two supply-chain requirements
+  below and remains M4 work.
 - ADR-092 (accepted, implemented) deleted `version` from all three manifests and
   `build/scripts/validate_plugin_version_bump.py` fails on its return, so a
   dependency here can only ever be a bare name. M4 must say so explicitly and
@@ -240,8 +340,13 @@ opposite risk, a declared dependency silently widening what a consumer receives:
 
 **A stale constraint that misled the round, recorded so it does not mislead
 again.** `validate_plugin_manifests.py` pins its rationale to "Claude Code
-2.1.122" at lines 86, 99 and 133, a version measured in commit `a4ed5850c` on
-2026-05-01. An earlier revision cited lines 86 and 120; line 120 is blank. Five of six seats read that comment as a standing platform law and
+2.1.122" in three places: the comment above `_is_repo_marketplace_manifest`, the
+comment above `_MARKETPLACE_RUNTIME_FORBIDDEN_KEYS`, and the error string inside
+`_check_marketplace_runtime_forbidden_keys`. The version was measured in commit
+`a4ed5850c` on 2026-05-01. Cited by symbol because the line numbers for this
+exact string have now drifted three times: an earlier revision said lines 86 and
+120 with 120 blank, a later one said 86, 99 and 133, and adding the
+`dependencies` validator above them in this very change moved them again. Five of six seats read that comment as a standing platform law and
 blocked on it. The forbidden-key check it guards is also narrower than it reads:
 `_is_repo_marketplace_manifest` matches three hardcoded paths, so a new
 capability-plugin root at any other path is unaffected by it today.
@@ -315,11 +420,17 @@ capability-plugin root at any other path is unaffected by it today.
   additional generated surface and leaves the eleven hand-authored files alone,
   or converts some of them. Those are different costs and different risks, and
   the answer to the third question is incomplete without it.
-- M4: capability plugin manifests with declared `dependencies`.
+- M4: capability plugin manifests with declared `dependencies`. Per ADR-092 a
+  dependency here can only ever be a bare name or `name@marketplace`, never
+  version-constrained, and M4 must say so rather than implying a constrained edge.
 - M5: cut `project-toolkit` to depend on the capability plugins and deprecate the
   directory-named plugins. This is the irreversible, install-contract-breaking
   milestone and MUST ship with an installed-user migration path and a marketplace
   alias so existing install commands do not 404.
+
+None of these milestones is funded or scheduled. They are the shape the work
+would take, not a commitment that it will be done; see Status and Negative
+consequences for why the demand premise has to be measured before M1 is funded.
 
 Each milestone is a separate issue under issue #5669 with its own acceptance
 criteria and tests. **An earlier revision put them under epic #1072, which is
@@ -330,23 +441,73 @@ set: file successors and name them in the Status section rather than reopening a
 closed tracker. Issue #5669 is that successor, is named in the Status section
 above, and is where the milestone issues belong.
 
+### 5. The remaining Definition-of-Ready answers
+
+Decided 2026-09-12 on the evidence below, and ratified by the owner's merge of
+the change that carries them (see Status for why the merge, not the assertion, is
+the authority). Each is revocable; none is load-bearing for the JTBD direction
+itself.
+
+**A `jobs` label rides on `keywords`, not a new schema field.** `keywords` is
+already in `ALLOWED_KEYS` in `build/scripts/validate_plugin_manifests.py`, is
+accepted by the host, and is currently unset in all three shipped manifests, so it
+is an open slot costing no gate change. A dedicated `jobs` key buys nothing at
+runtime: the 2026-09-09 probe measured the host printing `Unknown field 'jobs'.
+Claude Code ignores it at load time.` and passing, and nothing in this repository
+invokes the host's own validator, so a new key would be enforced only by our
+reimplementation. Use a `jtbd:` prefixed keyword, and have the M4 gate require
+exactly one such keyword per capability plugin, which buys the one-job-per-plugin
+enforcement Decision 1 wants without a schema extension. Promote to a typed field
+only when a consumer needs typed values a string convention cannot carry.
+
+**Cursor ships in v0.4.0. Codex is deferred.** They are not the same size of work,
+which is why the third question could not be answered as one. Cursor is greenfield:
+`find . -name '.cursor' -o -name '*.mdc'` returns nothing outside `.git/`, so a new
+emitter writes into empty space and cannot regress a workflow that does not exist.
+Codex is not greenfield, and deferring it is the conservative half of the split.
+
+**A Codex emitter, when it is scoped, writes a new generated surface and leaves
+the hand-authored guides alone.** This is the fourth question, which the record did
+not name until round 3 surfaced it, and answering the third without it would have
+hidden the real cost. `git ls-files '*AGENTS.md'` returns eleven tracked files that
+`generate_skills.py` deliberately excludes via `_DEFAULT_EXCLUDES`. Converting any
+of them would reverse a live generator policy and take away the direct editing
+every maintainer uses today, for no gain the JTBD direction requires. So the Codex
+emitter is additive by construction, and a future record that wants conversion has
+to argue for it separately rather than inheriting it from this one.
+
 ## Conditions to reach Accepted (architect review, APPROVE WITH CHANGES)
 
-1. Generation-architecture description corrected to the asymmetric model and the
-   existing `.claude/ -> generated` seam reused as default.
-2. Cross-plugin coupling reconciled with #1773 D3 / #1148 via declared `plugin.json`
-   dependencies and fail-loud partial install (Decision section 3). Analyst
-   to re-verify #1148 currency before M4.
-3. ADR-045 cited as binding precedent; relationship stated as refine-within-epic,
-   and ADR-045 amended if its taxonomy is superseded.
-4. Reversibility assessment treats M5 as contract-breaking with a migration path and
-   marketplace alias (Decision section 4 and Reversibility).
-5. Plugin count and contents fixed to one authoritative five-plugin list (Decision
-   section 1).
+All five are met as of 2026-09-12. Each carries where it was met so a reader can
+check rather than trust the checkmark.
 
-Open Definition-of-Ready questions to answer before Accepted: install-time vs
-build-time emission; whether a `jobs` field is a plugin.json schema extension or
-expressible via `keywords`; Cursor/Codex emission scope for v0.4.0 vs deferred.
+1. **Met.** Generation-architecture description corrected to the asymmetric model
+   and the existing `.claude/ -> generated` seam reused as default. The Context
+   subsection now separates the rules and hooks seam from the commands leg ADR-064
+   deleted, and Decision 2 carries the same correction.
+2. **Met.** Cross-plugin coupling reconciled with issue #1773 decision D3 and the
+   #1148 analysis via declared `plugin.json` dependencies and fail-loud partial
+   install, in Decision 3, with the host-side resolver measured rather than
+   assumed. Two supply-chain requirements were added to that section in round 3.
+   The analyst re-verification of #1148 currency remains scoped to before M4, not
+   before Accepted, which is where the original condition put it.
+3. **Met.** ADR-045 is cited as binding precedent and the relationship is stated as
+   refine-within-epic. ADR-045's Related Decisions now carries the reciprocal
+   pointer, because it is `accepted` with `implemented: true` and named this record
+   nowhere, so the refinement was legible from only one side.
+4. **Met.** Reversibility treats M5 as contract-breaking with a migration path and
+   marketplace alias, and the alias is now measured with two negative controls
+   rather than asserted. Decision 4 pins route 1 at a Claude Code 2.1.268 floor.
+5. **Met.** Plugin count and contents fixed to one authoritative five-plugin list
+   in Decision 1, with the note there recording that none of the four capability
+   plugins exists yet and that the table is a target state.
+
+**All four Definition-of-Ready questions are answered.** Build-time emission in
+Decision 2; the `keywords` carrier, the Cursor-now-Codex-later split, and the
+additive shape of a future Codex emitter in Decision 5. The fourth question, the
+shape of a Codex emitter, was not in the original three and was surfaced by the
+round 3 panel; answering the Cursor and Codex scope without it would have priced
+two different kinds of work as one.
 
 ## Consequences
 
@@ -427,9 +588,16 @@ milestone.
 `build/scripts/check_plugin_manifest_parity.py` records a second route, that a
 marketplace entry may carry any manifest-schema field as catalog metadata and
 under `strict: false` may be the whole definition. That route is NOT probed.
-M5 must still name which of the two it uses, because this is the one
-irreversible milestone and its only stated mitigation; route 1 now has a
-measured floor of Claude Code 2.1.268 and route 2 has none. No
+
+**M5 uses route 1, the dual marketplace entry, with a floor of Claude Code
+2.1.268. Decided 2026-09-12.** It is the route this record measured, with the
+negative controls above establishing that the validator reads the array and
+enforces name uniqueness, so a passing dual entry is a real alias rather than a
+duplicate the host ignores. Route 2 is recorded as the unprobed alternative and
+must not be adopted without the same three-case measurement. M5 MUST re-run the
+route 1 probe against the then-current client before it ships, because the floor
+is a measurement and not a guarantee, and MUST fail loudly rather than silently
+dropping the alias if that re-run does not reproduce. No
 harness-proprietary format enters the canonical sources; per-harness specifics live
 only in emitters, so dropping a harness is removing one emitter.
 
