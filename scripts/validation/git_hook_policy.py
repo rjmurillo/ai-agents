@@ -87,7 +87,6 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".PSScriptAnalyzerSettings.psd1",
         ".actrc",
         ".agents",
-        ".baseline",
         ".claude-mem",
         ".claude-plugin",
         ".claude",
