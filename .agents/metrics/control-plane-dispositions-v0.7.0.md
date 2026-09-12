@@ -785,6 +785,16 @@ below.
   neither has been run this session.
 - Status: not started. `EXPERIMENT`, pending the scenario file and the
   eight-run bar above.
+- Status: moved in PR (this branch): text lives in build, test, plan,
+  ship, review; always-on bytes fell by 5,951 at the mirror. Epic
+  #5456 M4 PR1 executed the mechanical move (ADR-108 partial into
+  build/test/plan/ship; a `resources/` file for review, not
+  template-owned) without running the eight-run eval bar above. That
+  bar still gates cutting the text outright; it does not gate
+  relocating it out of the always-on set into the skills that use it.
+  `scripts/validation/instruction_budget.py` measured the `.md`
+  always-on mirror at 56,863 bytes before and 50,912 bytes after
+  (5 rules to 4).
 
 ### Business-strategy skill (optional pack)
 
