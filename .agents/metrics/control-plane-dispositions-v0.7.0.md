@@ -1,4 +1,5 @@
 ---
+# taste-lint: ignore file-size, per-candidate disposition ledger with a REQ-022 evidence obligation per row; splitting renumbers rows other artifacts cite by name and breaks the cohort's audit trail.
 type: metrics
 id: control-plane-dispositions-v0.7.0
 title: Control-plane disposition ledger for v0.7.0
@@ -172,6 +173,26 @@ merge after it.
   surviving consumer), not to the relocated majority. #5421 stays blocked
   by #5420 in either case ("Blocked by #5420... Do not begin destructive
   moves until #5420 has redirected all live project-toolkit writes").
+- **Measurement posted, 2026-09-11** (`gh issue view 5420` latest comment,
+  taken on `main` at `4cfd04970`, tracked files only, per-write-target
+  table across `sessions/*.json`, `sessions/handoffs/`, `memory/episodes/`,
+  `qa/`, `analysis/`, `metrics/`, `eval-results/`, `planning/`,
+  `pr-checks/`, `scratch/`, `checkpoints/`): a move would **DELETE 1 file
+  and 0 bytes** (`checkpoints/.gitkeep`, the only entry classed `DEAD`),
+  **MOVE about 5.9 MB across 1,166 live files** (handoffs, episodes, qa,
+  metrics, eval-results, planning, pr-checks; at least 14 reader
+  `file:line` sites to re-point), and **leave about 12.7 MB of history**
+  (top-level session logs, `analysis/`) that the epic's non-goals protect
+  and that several validators still read. The issue's own reading: "this
+  issue as written is relocation, not subtraction... it earns no
+  release-gate credit. The one honest DELETE is `checkpoints/`." This
+  cohort's PR independently deleted that one honest DELETE
+  (`.agents/checkpoints/.gitkeep`, commit `cf4af2849`, see the Cohort 2
+  deletions section below) before this measurement was read, so the
+  measured DELETE line item and this cohort's item 11 are the same file.
+  Classification stays `EXPERIMENT`: 1,166 files and 12.7 MB remain
+  unresolved relocation/retention questions this measurement does not
+  settle on its own.
 
 ### #5436, fan-out cap
 
@@ -264,6 +285,17 @@ different owners and states.
   mechanism (`--first-parent --cc` plus an ancestry check) before this
   cohort started. There is nothing left in `qa_report.py` for #5241 item
   5's proposed `-m`-to`-c` edit to apply to.
+- **Status, confirmed obsolete on #5241** (2026-09-11 comment, read this
+  session): "Item 5 triage, 2026-09-11: the rebind churn no longer occurs,
+  so item 5 is obsolete rather than pending." Evidence cited there:
+  `.claude/lib/qa_report.py:286-336` walks `--first-parent --cc` on the
+  first-parent chain and falls back to `-m` only off-chain; "Measured on
+  the last 40 merged PRs: **0 commits** whose headline matches a rebind,
+  QA-evidence, or session-evidence refresh pattern." One residual gap is
+  named and explicitly out of this item's scope: the `-m` fallback at
+  `qa_report.py:335` can still over-report if a QA commit falls off the
+  first-parent chain (ADR-100 lines 278-292); nothing in the last 40
+  merges shows it recurring.
 
 #### Item 6: push-ceiling telemetry re-measure
 
@@ -455,6 +487,206 @@ different owners and states.
   delete it. It carries no blocking cost either way (wired into no gate),
   so the ablation costs nothing beyond the re-run itself.
 
+## Cohort 2 deletions, epic #5456 (this PR)
+
+Eleven candidates from the 2026-09-04 ponytail audit
+(`.agents/audit/2026-09-04-ponytail-audit-over-engineering.md`), re-verified
+zero-reader on 2026-09-11 and deleted in this PR. Each row's evidence is the
+audit finding number plus the zero-reader grep run in this session, not a
+re-citation of the audit alone. `git diff --stat origin/main..HEAD` totals 67 files changed; of those, 56
+are the tracked-file deletions this section itemizes below, summing to
+26,508,890 bytes removed (measured via `git cat-file -s
+origin/main:<path>` per deleted file, this session) across the ten
+file-deleting items (the eleventh, `.qualityrc.json`, removes config
+keys, not a file). The remaining changed files are dangling-reference
+edits (allowlists, doc rows, a test's docstring count) itemized per row
+below.
+
+### Skillforge slide-deck PNGs (audit finding 1)
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: `.skillignore` line 11 already excludes `assets/images` from
+  every skill install; a grep for each of the 13 basenames across
+  `*.md`/`*.py`/`*.json`/`*.yml` in both trees returned zero hits this
+  session. `build_all.py --check` showed no drift after the canonical
+  `.claude/` tree was deleted while the `src/copilot-cli/` mirror still
+  held all 13 files, confirming the skills generator does not prune a
+  `.skillignore`-excluded path; the mirror was deleted directly rather
+  than left to self-prune.
+- Status: deleted in this PR. Files: 26 (13 per tree). Bytes: 26,389,306
+  (measured via `git cat-file -s origin/main:<path>` per file, this
+  session). Commits: `069d6e4a9`, `7b87c6d04`, `ca5b048f5` (canonical),
+  `f89171f4a`, `8a833486c`, `70b738432` (mirror).
+
+### `.diffray/` rules engine (audit finding 8)
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: repo-wide grep found only the root-hygiene allowlist entry
+  (`scripts/validation/git_hook_policy.py`), a `.markdownlint-cli2.yaml`
+  ignore line, the same ignore line in `.claude/hooks/PreToolUse/
+  markdownlint-safe-config.yaml`, and a `docs/project-structure.md` row;
+  no workflow, hook, or script invokes a `diffray` binary. The mirror
+  copy of the hook config (`src/copilot-cli/hooks/PreToolUse/
+  markdownlint-safe-config.yaml`) and its `.claude/` source were left
+  unedited: both are pinned by SHA-256 in
+  `scripts/ci/validate_vendor_provenance.py` (`_PIN_CONFIG_SHA256`) and
+  gated by `.github/workflows/vendor-provenance.yml`'s path filter, whose
+  own docstring requires trust-anchor pin changes in a separate bootstrap
+  PR. That one dead `.diffray/**` ignore line stays in those two files.
+- Status: deleted in this PR. Files: 12 tracked files plus 3 dangling
+  references removed (allowlist entry, root `.markdownlint-cli2.yaml`
+  line, `docs/project-structure.md` row). Bytes: 61,317. Commits:
+  `47fb03b93`, `81fa0d911`, `e03c6220c`.
+
+### Root TypeScript island (audit finding 9)
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: no root `package.json` or `tsconfig.json` covers `src/*.ts` or
+  `src/transforms/`; `cli-smoke.yml`'s only `bun test` step sets
+  `working-directory: packages/ai-agents-cli`, a sibling tree. Four docs
+  described the files: ADR-107 (evidence sentence updated to past tense,
+  with a self-review round appended to
+  `.agents/critique/ADR-107-debate-log.md` to satisfy
+  `adr-review-policy`), `src/AGENTS.md`, `tests/AGENTS.md`, and
+  `.agents/governance/test-location-standards.md`; `docs/project-
+  structure.md`'s row describing the same files was removed in the same
+  pass since it was already touched this session for an unrelated row.
+- Status: deleted in this PR. Files: 6 source/test files plus 5 docs
+  edited. Bytes: 19,738. Commits: `031241100`, `b4875a763` (deletion),
+  `c0cbfe3a1`, `c1b7788c3` (docs).
+
+### One-shot migration scripts (audit finding 10)
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: `scripts/restructure_memories.py` (Serena memory
+  topic-subdirectory migration) and `scripts/mutation_test_proc_group.py`
+  (process-group timeout mutation harness) are both one-shot tools for
+  finished migrations; grep found zero code callers, only two historical
+  Serena memory prose mentions and one synthetic PR-body test fixture
+  string, none of which executes the file.
+- Status: deleted in this PR. Files: 2. Bytes: 19,829. Commit:
+  `a55fe7e28`.
+
+### Disabled droid workflows (audit finding 12)
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: GitHub Actions never loads a `.disabled` workflow file; grep
+  found only a `.github/AGENTS.md` Skip bullet documenting them and one
+  historical session log.
+- Status: deleted in this PR. Files: 2 plus the `.github/AGENTS.md` Skip
+  bullet and workflow count updated. Bytes: 2,890. Commit: `a7f0e17a4`.
+
+### `.baseline/coverage-thresholds{,.schema}.json` (audit finding 13)
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: schema keys on `*.Tests.ps1`; `git ls-files '*.ps1'` returns
+  zero files. Grep found only historical archive session logs.
+- Status: deleted in this PR. Files: 2 plus the `.baseline` root-hygiene
+  allowlist entry removed (directory now holds no tracked files). Bytes:
+  1,665. Commit: `053ef3233`.
+
+### `steering-matcher.skill` (audit finding 14)
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: a PowerShell-generator build artifact carrying a "GENERATED
+  FILE / Do not edit" header that `universal.md` MUST NOT item 5 forbids;
+  `build_all.py --check` confirmed `generate_skills.py` does not recreate
+  either copy, so both are stale hand-committed artifacts, not generated
+  output.
+- Status: deleted in this PR. Files: 2 (canonical and mirror). Bytes:
+  858. Commit: `16b7933b2`.
+
+### CodeQL suppressions (audit finding 15)
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: 12 lines, all comments; grep found zero references from any
+  workflow, and no invocation of the CodeQL Action reads this file.
+- Status: deleted in this PR. Files: 1 plus the `.github/AGENTS.md`
+  codeql row edited. Bytes: 351. Commit: `8cc91714d`.
+
+### `.qualityrc.json` inert `warn`/`coupling.max` keys (audit finding 17)
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: `.claude/skills/code-qualities-assessment/scripts/assess.py:1522`
+  reads only `thresholds["coupling"].get("min")`; grep found no `"warn"`
+  read anywhere in the file. The two `templates/.qualityrc.json` copies
+  already carried neither key, so only the root file needed the edit.
+- Status: deleted in this PR (config keys, not a file). Files: 0. Keys
+  removed: 10 (`warn` on 4 qualities x 2 scopes, plus `coupling.max` x 2
+  scopes). Commit: `9e69f91c4`.
+
+### `check_dual_priority_labels.py` (issue #2623, closed; not in the ponytail audit's 19 findings)
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: issue #2623, which this validator served, is closed. It
+  queries the GitHub API over the network and gates nothing in a diff,
+  so `tests/ci/test_validation_scripts_are_reachable.py`'s own
+  `_NO_CALLER` allowlist already recorded it as intentionally unwired.
+  Removing it required correcting that test's docstring-count assertion
+  from "two unreachable" to "one unreachable" (the test enforces this
+  count against reality, not merely documents it).
+- Status: deleted in this PR. Files: 2 (script plus its test) plus the
+  reachability test's allowlist entry and docstring count. Bytes: 12,936.
+  Commit: `350930e95`.
+
+### `.agents/checkpoints/.gitkeep` (not in the ponytail audit; identified independently, corroborated by #5420's 2026-09-11 measurement)
+
+- Class: `DELETE`
+- Owner: this cohort
+- Consumers: none
+- Evidence: `.claude/hooks/PreCompact/invoke_compact_checkpoint.py:11`
+  states no on-disk checkpoint artifact is written (ADR-082, issue
+  #3217), so this directory has never had a writer. #5420's measurement
+  above independently classes this same path `DEAD` and names it "the one
+  honest DELETE" in that issue's relocation-vs-deletion table.
+- Status: deleted in this PR. Files: 1 plus the
+  `docs/project-structure.md` list entry removed. Bytes: 0. Commit:
+  `cf4af2849`.
+
+### Two exclusions held back this cohort
+
+- Class: `EXPERIMENT` (HOLD)
+- Owner: not this cohort
+- Consumers: `.claude-mem/scripts/import_claude_mem_memories.py` (globs
+  its sibling `memories/` directory for the backup blob);
+  `.agents/governance/MEMORY-MANAGEMENT.md:168` (documents the manual
+  import invocation)
+- Evidence, blob: `.claude-mem/memories/direct-backup-2026-01-03-1434-
+  ai-agents.json` (audit finding 3) has a real reader by directory glob,
+  not by filename, and a still-documented manual import procedure names
+  it. Deleting the blob without first retiring that procedure would leave
+  the documented command pointing at nothing.
+- Evidence, archive: `.agents/projects/v0.3.0/` and `v0.3.1/` (audit
+  finding 7) are frozen history under this owner's stated convention of
+  archiving rather than deleting completed project state; no reader
+  requires them to stay, but no consumer of this ledger's disposition
+  contract overrides an explicit owner archival convention either.
+- Rationale: both are `EXPERIMENT`/HOLD, not `DELETE`, for the same
+  reason different candidates get `EXPERIMENT` elsewhere in this ledger:
+  the blocking fact is named and bounded (retire the import procedure
+  first; confirm the archival convention with the owner) rather than
+  open-ended. Neither was touched in this PR.
+
 ## Release gate status
 
 | # | Gate | Status | Evidence / blocker |
@@ -466,9 +698,9 @@ different owners and states.
 | 5 | At least one reduced-control configuration compared with baseline on identical downstream tasks | Unchecked | Owned by the epic's #5422-#5426 eval chain (REQ-022 Q5/Out of Scope), not started as of this session (baseline `accepted_tasks.verified: 0`). |
 | 6 | Smaller configuration non-inferior on deterministic acceptance and residual defects | Unchecked | Same blocker as gate 5: no reduced configuration exists yet to compare. |
 | 7 | Human correction time, total model cost, wall time reported per accepted task | Unchecked | Same blocker as gate 5; `accepted_tasks.total: 22, verified: 0` in the baseline. |
-| 8 | Deleted mechanisms include exclusive scripts, tests, projections, docs, baselines, allowlists; no dead compatibility shell | Partially evidenced | ADR-100 items 1-4 (already delivered) meet this per their own PRs' acceptance criteria (PR #5234, PR #5723 both assert no dead references remain); #5420/#5421 is `EXPERIMENT` (relocation, measured later) and #5436 is `DELETE` with zero files removed here, so no mechanism deletion happened in this PR to evidence against. |
-| 9 | Every retained candidate has a recorded KEEP justification | Checked | Four `KEEP` rows remain after this revision (#5404, duplicate pre-push ratchet, five always-on rules, rule mirror trees); each carries the five epic-required fields (REQ-022 AC-02). `control_plane_baseline.py` moved to `EXPERIMENT` and no longer needs the five-field block; `#5394`, `#5395`, `#5396`, `#5420`/`#5421`, and ADR-100 item 6 are `EXPERIMENT`; `#5436` and ADR-100 items 1, 2-4, and 5 are `DELETE`. |
-| 10 | Final release report distinguishes deletion from relocation, generation, and archival | Unchecked | No final release report has been written; this ledger is an input to that report, not the report itself. |
+| 8 | Deleted mechanisms include exclusive scripts, tests, projections, docs, baselines, allowlists; no dead compatibility shell | Evidenced this PR | ADR-100 items 1-4 (already delivered) meet this per their own PRs' acceptance criteria (PR #5234, PR #5723 both assert no dead references remain). This PR's own Cohort 2 deletions section adds eleven candidates, each with its allowlist entry, doc row, or test assertion removed alongside the mechanism (`.baseline` root-hygiene entry, `.diffray` allowlist plus three doc/config references, four docs for the TypeScript island, `.github/AGENTS.md`'s droid bullet and codeql row, the reachability test's `_NO_CALLER` entry and docstring count, `docs/project-structure.md`'s checkpoints entry): no dead compatibility shell was left for any of the ten file deletions. #5420/#5421 stays `EXPERIMENT` (relocation, now measured, see that row) and #5436 stays `DELETE` with zero files removed here (no repository mechanism ever existed to leave a shell behind). |
+| 9 | Every retained candidate has a recorded KEEP justification | Checked | Four `KEEP` rows remain after this revision (#5404, duplicate pre-push ratchet, five always-on rules, rule mirror trees); each carries the five epic-required fields (REQ-022 AC-02). Tally by class after this revision: `KEEP` 4; `DELETE` 15 (`#5436`; ADR-100 items 1, 2-4, 5; the eleven Cohort 2 rows above); `EXPERIMENT` 7 (`#5394`, `#5395`, `#5396`, `#5420`/`#5421`, ADR-100 item 6, `control_plane_baseline.py`, the two held-back exclusions row). `control_plane_baseline.py` and the exclusions row do not need the five-field KEEP block since neither is classed `KEEP`. |
+| 10 | Final release report distinguishes deletion from relocation, generation, and archival | Partially evidenced | No final release report has been written; this ledger is an input to that report, not the report itself. This revision separates the three by row: `DELETE` rows in Cohort 2 above are subtraction (files gone, byte counts given); the #5420/#5421 row is now measured as relocation (about 5.9 MB moved, 12.7 MB retained as protected history, 1 file/0 bytes actually deleted); the two-exclusions row is explicit archival/retention (owner convention, documented import procedure), not deletion. |
 
 Gates 5, 6, and 7 cannot be met until the epic's #5422-#5426 eval chain
 runs; that chain has not started as of this session (`accepted_tasks.
