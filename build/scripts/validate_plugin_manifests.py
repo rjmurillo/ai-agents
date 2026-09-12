@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -36,6 +37,7 @@ ALLOWED_KEYS = {
     "skills",
     "hooks",
     "mcpServers",
+    "dependencies",
 }
 
 # Documented in Anthropic plugin hooks reference and observed in production
@@ -81,6 +83,64 @@ def _validate_path_field(name: str, value: object) -> list[str]:
         f"`{name}`: must be a string or array of strings (got {type(value).__name__}). "
         f"Omit this key to auto-discover from default `./{name}/` directory."
     ]
+
+
+# ADR-072 Decision 3, measured 2026-09-09 against Claude Code 2.1.266:
+# `dependencies` is a first-class, type-checked manifest field, and
+# `dependencies: "nope"` produces `dependencies: Invalid input` and fails
+# validation on the real host. This gate must not be looser than that, so a
+# non-list value or a list containing a non-string is rejected below.
+#
+# ADR-092 (accepted, implemented) deleted `version` from all three packaged
+# plugin manifests and `build/scripts/validate_plugin_version_bump.py` fails
+# when the field reappears, so a dependency here can only ever be a bare
+# plugin name or `name@marketplace`, never version-constrained. This matches
+# `@` followed by a digit (`cap-b@1.2.3`), the comparison and equality
+# operators, `~`, and `^` followed by a digit. It does not match
+# `name@marketplace` (an alias, not a version), which ADR-072's reversibility
+# section measures as the valid multi-entry-marketplace form.
+#
+# `<`, `<=` and `!=` are here because an earlier revision listed only
+# `@\d`, `==`, `>=`, `~` and `^\d`, which let `cap-b<2.0.0` through as a bare
+# name and so contradicted the stated intent that any version specifier is
+# rejected. Found by the ADR-072 round 4 security seat. Bare `<` and `>` are
+# safe to reject outright because no plugin name may contain them.
+_DEPENDENCY_VERSION_SPECIFIER_RE = re.compile(r"@\d|==|!=|>=|<=|>|<|~|\^\d")
+
+
+def _validate_dependencies(value: object) -> list[str]:
+    """`dependencies` must be a list of bare plugin names or `name@marketplace` strings.
+
+    An empty list is valid (declaring no cross-plugin dependencies is not an
+    error). Each non-empty entry must not carry leading/trailing whitespace,
+    must not be empty or whitespace-only, and must not be version-constrained
+    (see `_DEPENDENCY_VERSION_SPECIFIER_RE` above for why).
+    """
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        return [
+            f"`dependencies`: must be an array of strings (got {type(value).__name__})"
+        ]
+    errors: list[str] = []
+    for item in value:
+        if not item.strip():
+            errors.append(
+                "`dependencies`: entry must not be empty or whitespace-only "
+                f"(got {item!r})"
+            )
+            continue
+        if item != item.strip():
+            errors.append(
+                f"`dependencies`: entry {item!r} must not have leading or "
+                f"trailing whitespace"
+            )
+            continue
+        if _DEPENDENCY_VERSION_SPECIFIER_RE.search(item):
+            errors.append(
+                f"`dependencies`: entry '{item}' must not be version-constrained. "
+                f"ADR-092 deleted `version` from every packaged manifest; use a "
+                f"bare plugin name or `name@marketplace` instead."
+            )
+    return errors
 
 
 # Measured against Claude Code 2.1.122 (commit a4ed5850c, 2026-05-01). Re-probed
@@ -296,6 +356,9 @@ def _validate_manifest_data(data: dict[str, object], path: Path) -> list[str]:
 
     if "hooks" in data:
         errors.extend(_validate_hooks(data["hooks"], manifest_dir=path.parent))
+
+    if "dependencies" in data:
+        errors.extend(_validate_dependencies(data["dependencies"]))
 
     return errors
 

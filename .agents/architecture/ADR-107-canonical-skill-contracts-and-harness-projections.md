@@ -140,7 +140,7 @@ All `repo-observed`:
   `.agents/handoffs/`.
 - `.claude/commands/` is retired. ADR-064 records implementation on 2026-09-08 via issue #5632 at
   its line 16, so "commands" is a historical surface, not a live authored one.
-- ADR-072 is `proposed` with `implemented: false`, and issue #5669 tracks settling it. Its plugin
+- ADR-072 is `accepted` as of 2026-09-12 with `implemented: false`; issue #5669 tracked settling it and is closed. Its plugin
   taxonomy is not available as a dependency.
 
 ## Decision Drivers
@@ -651,7 +651,7 @@ Findings outside this record's scope, reported rather than fixed.
   user-invocable surface.
 - ADR-092 (omit plugin manifest version), ADR-097 (zero tool-use hooks, `implemented: false`),
   ADR-045 (marketplace extraction): constrain the projection surfaces this record governs.
-- ADR-072 (JTBD plugin architecture, `proposed`): **not** a dependency. Issue #5669 tracks settling
+- ADR-072 (JTBD plugin architecture, `accepted` 2026-09-12, `implemented: false`): **not** a dependency. Issue #5669 tracked settling
   it.
 - ADR-069 (context corpus is the product, `proposed`): thesis only.
 - ADR-108 (template-owned skill files, `accepted`): amends settled property 1 in Context for one
