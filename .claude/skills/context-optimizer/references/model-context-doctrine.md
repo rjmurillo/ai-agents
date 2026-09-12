@@ -234,7 +234,7 @@ instructions take precedence over guidelines provided in a skill."
 That default is written for skills that are style guidance. Several skills here
 are not: `pre_pr.py`, the security scan, and the `/ship` review gate block, and
 `AGENTS.md` lists Architecture, New ADRs, Breaking, and Security as Ask First.
-`claude-model-patches.md` already resolves this by making model-level nudges
+The former `claude-model-patches.md` rule, now the ADR-108 partial `templates/skills/partials/claude-model-patches.mustache` rendered into the build, test, plan, and ship skills, resolves this by making model-level nudges
 "subordinate to skill workflows, STOP points and confirmation gates".
 
 Resolve it once, for every model, in that precedence stack. Do not restate it

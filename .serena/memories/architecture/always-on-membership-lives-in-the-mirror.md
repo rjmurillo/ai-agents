@@ -99,7 +99,7 @@ first leaves a line in the source file that a grep can find.
 Five rules take that skip today: `governance`, `push-lock`,
 `secret-redaction`, `session-logs`, and `tool-use-hook-bar` are present in
 `.github/instructions` and absent from `src/copilot-cli/instructions`
-altogether, which is the whole of the 30-against-24 file gap. So the two trees hold different *rule sets*
+altogether, which is the whole of the 29-against-23 file gap. So the two trees hold different *rule sets*
 while agreeing on the always-on subset. Membership can still diverge, by a
 rule the filter does not touch gaining or losing a universal scope in one tree
 only.
