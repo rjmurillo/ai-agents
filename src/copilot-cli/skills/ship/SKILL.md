@@ -199,7 +199,7 @@ Why:
 - **Clearer.** The tool name announces the intent. A reviewer scanning the transcript can read "Edit auth.ts" faster than parsing `sed -i 's/foo/bar/g' auth.ts`.
 - **Safer.** No shell quoting traps. No command-injection surface. No accidental glob expansion against paths the model did not intend.
 
-Reserve Bash for operations the dedicated tools cannot perform: `git`, package managers (`npm`, `pip`, `uv`, `cargo`), build runners (`make`, `uv run python build/scripts/build_all.py`), anything that needs a real shell environment or a multi-stage pipe.
+Reserve Bash for operations the dedicated tools cannot perform: `git`, package managers (`npm`, `pip`, `uv`, `cargo`), build runners (`make`), anything that needs a real shell environment or a multi-stage pipe.
 
 **When a dedicated tool is unavailable in the current harness.** Fall back to the closest Bash equivalent and state the fallback in your response so the user knows the tool boundary was crossed.
 
@@ -215,7 +215,6 @@ Allowed Bash patterns:
 
 - `git status`, `git log`, `git diff`, `git add`, `git commit`, `git push`.
 - `gh <subcommand>` for GitHub API operations the harness does not expose.
-- `python3 build/scripts/<name>.py` and other repo-specific runners.
 - `mkdir`, `rm`, `mv` for directory operations.
 - One-shot diagnostics (`uname`, `which`, `ls -la <specific path>`) when a dedicated tool does not cover it.
 
@@ -228,9 +227,6 @@ Run this check only at decision points: starting a heavy action, switching tasks
 - If I am about to call Bash, is there a dedicated tool that would do this better?
 
 If any answer is "no" or "not sure," adjust before proceeding.
-
-<!-- vendor-portability: declared. `build/scripts/build_all.py` and `build/scripts/<name>.py` above are example Bash-allowed runners describing what the upstream checkout permits, not a runtime instruction a vendored install resolves; `build/` ships in neither plugin root. Migrated from the retired `.claude/rules/claude-model-patches.md` (epic #5456). Issue #2050. -->
-<!-- vendor-portability-exec: declared. The `uv run python build/scripts/build_all.py` and `python3 build/scripts/<name>.py` examples above are illustrative Bash-allowed commands from the upstream checkout, not invocations this guidance tells the agent to run; `build/` ships in neither plugin root. Issue #2838. -->
 
 ## Verification
 
