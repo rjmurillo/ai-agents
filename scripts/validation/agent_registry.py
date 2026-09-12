@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parse and validate agent definitions from src/claude/*.md.
+"""Parse and validate agent definitions from src/claude/agents/*.md.
 
 Parses YAML frontmatter from agent markdown files and validates each
 definition (required fields, allowed model, no duplicate names).
@@ -60,7 +60,7 @@ def _load_read_yaml_frontmatter(path: Path | None = None) -> Callable[[str], dic
 
 read_yaml_frontmatter = _load_read_yaml_frontmatter()
 
-# Files in src/claude/ that are not agent definitions
+# Files in src/claude/ and src/claude/agents/ that are not agent definitions
 _EXCLUDED_FILES = frozenset({"AGENTS.md", "claude-instructions.template.md"})
 
 # Required frontmatter fields for every agent definition.
@@ -233,13 +233,13 @@ def validate(agents: list[AgentDefinition]) -> ValidationResult:
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point for agent registry validation."""
     parser = argparse.ArgumentParser(
-        description="Parse and validate agent definitions in src/claude/.",
+        description="Parse and validate agent definitions in src/claude/agents/.",
     )
     parser.add_argument(
         "--agent-dir",
         type=Path,
-        default=Path("src/claude"),
-        help="Directory containing agent markdown files (default: src/claude)",
+        default=Path("src/claude/agents"),
+        help="Directory containing agent markdown files (default: src/claude/agents)",
     )
     parser.add_argument(
         "--json",
