@@ -1,5 +1,5 @@
 {
-  "_comment": "assess.py reads thresholds[\"coupling\"].get(\"min\") (scripts/assess.py:1522); a config that leaves coupling.min unset has its coupling gate skipped rather than gated incorrectly (line 1519-1520 comment). This file leaves coupling empty, so no coupling gate fires. warn keys are declared here but assess.py never reads a \"warn\" field for any quality; it reads only each quality's \"min\".",
+  "_comment": "assess.py reads thresholds[\"coupling\"].get(\"min\") (.claude/skills/code-qualities-assessment/scripts/assess.py:1522); a config that leaves coupling.min unset has its coupling gate skipped rather than gated incorrectly (line 1519-1520 comment). This file leaves coupling empty, so no coupling gate fires. warn keys are declared here but assess.py never reads a \"warn\" field for any quality; it reads only each quality's \"min\".",
   "thresholds": {
     "cohesion":       { "min": 7 },
     "coupling":       {},

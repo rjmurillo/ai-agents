@@ -668,9 +668,10 @@ below.
 - Class: `EXPERIMENT` (HOLD)
 - Owner: not this cohort
 - Consumers: `.claude-mem/scripts/import_claude_mem_memories.py` (globs
-  its sibling `memories/` directory for the backup blob);
-  `.agents/governance/MEMORY-MANAGEMENT.md:168` (documents the manual
-  import invocation)
+  its sibling directory for the backup blob);
+  `.agents/governance/MEMORY-MANAGEMENT.md:168` reads
+  "`python3 .claude-mem/scripts/import_claude_mem_memories.py`" (documents
+  the manual import invocation)
 - Evidence, blob: `.claude-mem/memories/direct-backup-2026-01-03-1434-
   ai-agents.json` (audit finding 3) has a real reader by directory glob,
   not by filename, and a still-documented manual import procedure names
