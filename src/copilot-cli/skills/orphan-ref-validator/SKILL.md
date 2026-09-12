@@ -110,6 +110,7 @@ orphan-ref-validator 1.0.0
   suppressed:           0
   directive_suppressed: 0
   incomplete_scans:     0
+  # citation-freshness: ignore -- illustrative finding; docs/old.md is a deliberately fake path, not a real citation
   [critical] docs/old.md:12 skill_name `doc-sync` -- Skill `doc-sync` not present at .claude/skills/. ...
 VERDICT: CRITICAL_FAIL
 ```
