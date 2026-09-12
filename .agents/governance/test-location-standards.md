@@ -62,14 +62,19 @@ All six read the shell-fail-loud contract in [`.claude/rules/ci-scripts.md`](../
 
 [`.agents/security/benchmarks/`](../security/benchmarks/) holds the security agent's benchmark suite (Issue #756): fixtures under `vulnerable_samples/`, `test_agent_review_quality.py`, `test_cwe22_path_traversal.py`, `test_cwe77_command_injection.py`. `.claude/rules/testing.md`'s `paths:` frontmatter names this tree explicitly, making it the one other placement `.claude/rules/testing.md` MUST 6 permits besides `tests/`.
 
-## Two TypeScript test trees, only one live
+## One TypeScript test tree
 
-| Tree | Status | Runner |
-|---|---|---|
-| `packages/ai-agents-cli/tests/*.test.ts` (13 files) | Live | `bun test` inside `.github/workflows/cli-smoke.yml`'s `verify` job, `working-directory: packages/ai-agents-cli` |
-| `tests/*.test.ts` (2 files: `command-syntax-translator.test.ts`, `copilot-target-emitter.test.ts`) | Orphaned | Nothing. No root `package.json`/`tsconfig.json`/`bunfig.toml` wires them to any runner. |
+`packages/ai-agents-cli/tests/*.test.ts` (13 files) runs via `bun test` inside
+`.github/workflows/cli-smoke.yml`'s `verify` job, `working-directory:
+packages/ai-agents-cli`. Place new TypeScript CLI tests there.
 
-Why: `docs/project-structure.md` claims the repo-root pair runs via `cli-smoke.yml`'s `bun test`; that job's `working-directory` is the sibling `packages/ai-agents-cli/` tree, which cannot see repo-root `tests/`. Confirmed orphaned in `.agents/audit/2026-09-04-ponytail-audit-over-engineering.md`, finding 9. Do not add a new test to the orphaned pair; place TypeScript CLI tests under `packages/ai-agents-cli/tests/`.
+A second, orphaned repo-root pair (`tests/command-syntax-translator.test.ts`,
+`tests/copilot-target-emitter.test.ts`, importing `src/transforms/` and
+`src/copilot-target-emitter.ts`) used to sit beside it: no root
+`package.json`/`tsconfig.json`/`bunfig.toml` wired either to any runner.
+Confirmed orphaned in
+`.agents/audit/2026-09-04-ponytail-audit-over-engineering.md`, finding 9, and
+deleted by issue #5456.
 
 ## `tests/evals/` vs top-level `evals/`
 

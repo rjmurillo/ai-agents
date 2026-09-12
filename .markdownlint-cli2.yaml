@@ -138,7 +138,6 @@ ignores:
   - ".agents/**"
   - ".serena/**"
   - ".claude-mem/**"
-  - ".diffray/**"
   - ".flowbaby/**"
   - ".factory/**"
   - ".codeql/**"
