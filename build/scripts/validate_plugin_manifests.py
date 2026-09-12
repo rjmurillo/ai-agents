@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Validate Claude Code plugin manifests against Anthropic schema.
 
-Catches the regression class introduced by PR #1773 where plugin.json
+Catches the regression class introduced by PR #1776 where plugin.json
 declared invalid `agents`/`skills`/`commands`/`hooks` shapes, breaking
 plugin install for all consumers ("Validation errors: hooks: Invalid
 input, agents: Invalid input").
@@ -243,7 +243,7 @@ def _validate_hooks_inline(value: dict[str, object]) -> list[str]:
             inline_errors.append(
                 f"`hooks.{event}`: string value '{entries}' is invalid. "
                 f"Hook events must map to an array of matcher groups, "
-                f"not a directory path. This was the PR #1773 regression."
+                f"not a directory path. This was the PR #1776 regression."
             )
             continue
         inline_errors.extend(_validate_hook_event_entries(event, entries))
@@ -254,7 +254,7 @@ def _validate_hooks(value: object, manifest_dir: Path | None = None) -> list[str
     """Hooks must be either a string path to a JSON file or an inline object.
 
     Rejects the dict-of-strings shape (`{event: "./hooks/Event"}`) that broke
-    plugin install in PR #1773. When `value` is a string ref and `manifest_dir`
+    plugin install in PR #1776. When `value` is a string ref and `manifest_dir`
     is provided, the referenced file is also loaded and its contents validated.
     """
     if isinstance(value, str):

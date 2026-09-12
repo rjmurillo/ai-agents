@@ -426,7 +426,7 @@ All Q1-Q6 from the prior round resolved by user; OQ-1 through OQ-4 from the anal
 - **Marketplace**: `.claude-plugin/marketplace.json`
 - **Canonical content roots**: `.claude/{agents,skills,hooks,commands,rules}/`, `.claude/settings.json`
 - **Related ADRs**: ADR-006 (no logic in YAML), ADR-042 (Python migration strategy), ADR-007 (memory-first)
-- **Aftermath of**: PR #1773 (regression) + PR #1795 (P0 fix) : informs schema rigor
+- **Aftermath of**: PR #1776 (regression) + PR #1795 (P0 fix) : informs schema rigor
 
 ## Risks (pre-mortem candidates)
 
