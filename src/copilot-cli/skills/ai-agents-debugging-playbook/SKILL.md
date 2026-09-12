@@ -7,7 +7,7 @@ description: Symptom-to-triage playbook for this repo's recurring failures. Bloc
 
 # ai-agents Debugging Playbook
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, .github/, scripts/, scripts/ci/drift_run_detection.py, build/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/governance/, .agents/retrospective/, .agents/schemas/session-log.schema.json, .claude/lib/, .github/, build/generate_agents.py, build/scripts/, scripts/ci/, scripts/sync_plugin_lib.py, scripts/validate_session_json.py, scripts/validation/, templates/agents/) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Symptom-first triage for this repository's known failure modes. Every row below was earned by a real incident; the retro path is cited so you can read the full story. The playbook answers one question: given this symptom, what is the FIRST command to run, what experiment discriminates between causes, and what trap has already cost someone real time here?
 
 Vocabulary used once: a "guard" is a PreToolUse or pre-push hook that can block an action (exit 2 blocks, exit 0 allows). A "drift gate" is a CI check that fails when a generated tree no longer matches its canonical source. A "discriminating experiment" is one cheap action whose outcome splits the hypothesis space in two.
@@ -101,7 +101,7 @@ One line each; read the retro before repeating history. All paths relative to re
 | Mitigation reproduces the disease | A mitigation PR shipped a threshold that could never fire (set to 6, repo max was 4) and guards never run on their own branch | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
 | Guards that prevent nothing | 69 commits of guard framework; the Phase-6 audit found the guards would have prevented 0 of its own 35 fix commits | `.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md` |
 
-Deeper history and the settled-battles list live in `ai-agents-failure-archaeology`. The 11-pattern failure catalog is `.agents/governance/FAILURE-MODES.md` (numbered sections 1-11, e.g. section 10 silent defaults, section 11 unrun generated artifacts).
+Deeper history and the settled-battles list live in `ai-agents-failure-archaeology`. The 12-pattern failure catalog is `.agents/governance/FAILURE-MODES.md` (numbered sections 1-12, e.g. section 10 silent defaults, section 11 unrun generated artifacts, section 12 post-completion continuation).
 
 ## Anti-Patterns
 
@@ -136,7 +136,7 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | Version-field prohibition | `build/scripts/validate_plugin_version_bump.py` docstring, section RULE | `grep -n "MUST NOT carry" build/scripts/validate_plugin_version_bump.py` |
 | No version in any manifest or marketplace entry | three `.claude-plugin/plugin.json` files, both `marketplace.json` files | `python3 build/scripts/validate_plugin_version_bump.py` |
 | Coverage pin file-set sensitivity and 63% | `.github/workflows/pytest.yml:424-437` (issue #1963) | `grep -n "reports 63%" .github/workflows/pytest.yml` |
-| Module-name --cov form requirement (`REQ-009`) | `.github/workflows/pytest.yml:439-457` (issue #2063, PR #2078) | `grep -n REQ-009 .github/workflows/pytest.yml` |
+| REQ-009 rejects module-name `--cov`, isolates via `--include=` | `.github/workflows/pytest.yml:439-457` (issue #2063, PR #2078) | `grep -n REQ-009 .github/workflows/pytest.yml` |
 | Syntax gate parses at 3.10 floor (`_SUPPORT_FLOOR`) | `scripts/validation/validate_python_syntax.py:56-75` (issue #2655) | `grep -n _SUPPORT_FLOOR scripts/validation/validate_python_syntax.py` |
 | Real-HEAD mutation guard | `conftest.py:435-461` (issue #2316) | `grep -n "#2316" conftest.py` |
 | Exit 143 SIGTERM, P0, unresolved as of retro | `.agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:16,27,59` | `grep -n "exit 143" .agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
