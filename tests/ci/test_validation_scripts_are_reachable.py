@@ -27,7 +27,8 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 ``SKILL.md`` names a helper script, the graph follows that helper's imports and
 executable string literals.
 
-Under that model the same 89 scripts yield one unreachable, a real decision
+Under that model the scripts (127 under scripts/validation plus 30 under
+build/scripts at the time of this edit) yield one unreachable, a real decision
 recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
@@ -774,7 +775,12 @@ class TestCommentedHookLinesDoNotSeedReachability:
         the helper being applied, and that gap is the state this module
         shipped in before the fix.
         """
-        guarded = next(iter(_source_paths()))
+        # Pick a source that the real corpus does not already reach; rglob
+        # order is filesystem order, so "first file" can land on a live entry
+        # point after any deletion under scripts/ (seen on PR #5743).
+        _entry_points.cache_clear()
+        live = _entry_points()
+        guarded = next(p for p in _source_paths() if p not in live)
         module = "tests.ci.test_validation_scripts_are_reachable"
         monkeypatch.setattr(f"{module}._live_run_blocks", lambda: ())
         monkeypatch.setattr(

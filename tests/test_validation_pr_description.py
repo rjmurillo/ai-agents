@@ -89,11 +89,10 @@ class TestLineSuffixMentions:
         assert expected in extract_mentioned_files(body)
 
     def test_bold_file_mention_with_numbered_prefix_suppresses_warning(self) -> None:
-        body = (
-            '**1. `scripts/mutation_test_proc_group.py:36`** passed encoding="utf-8" without errors'
-        )
+        # citation-freshness: ignore -- synthetic PR-body fixture, not a real line claim
+        body = '**1. `scripts/redact_secrets.py:36`** passed encoding="utf-8" without errors'
 
-        assert extract_all_mentioned_files(body) == {"scripts/mutation_test_proc_group.py"}
+        assert extract_all_mentioned_files(body) == {"scripts/redact_secrets.py"}
 
     @pytest.mark.parametrize(
         "body",
