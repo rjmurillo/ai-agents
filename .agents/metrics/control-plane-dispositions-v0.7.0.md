@@ -786,12 +786,17 @@ below.
 - Status: not started. `EXPERIMENT`, pending the scenario file and the
   eight-run bar above.
 - Status: moved in PR (this branch): text lives in build, test, plan,
-  ship, review; always-on bytes fell by 5,951 at the mirror. Epic
-  #5456 M4 PR1 executed the mechanical move (ADR-108 partial into
-  build/test/plan/ship; a `resources/` file for review, not
-  template-owned) without running the eight-run eval bar above. That
-  bar still gates cutting the text outright; it does not gate
+  ship; always-on bytes fell by 5,951 at the mirror. Epic #5456 M4
+  PR1 executed the mechanical move (ADR-108 partial into
+  build/test/plan/ship) without running the eight-run eval bar above.
+  That bar still gates cutting the text outright; it does not gate
   relocating it out of the always-on set into the skills that use it.
+  `review` was excluded on coordinator review: it is a read-only
+  reviewer, so todo-list and heavy-action nudges have no consumer
+  there, and the skill's 24,576-byte Copilot-mirror ceiling left only
+  1 byte of headroom after the earlier draft's `resources/` pointer,
+  a landmine for the next edit. No `resources/claude-model-patches.md`
+  exists for `review`; it stays outside this move.
   `scripts/validation/instruction_budget.py` measured the `.md`
   always-on mirror at 56,863 bytes before and 50,912 bytes after
   (5 rules to 4).

@@ -245,7 +245,7 @@ it, not a reason to fork the stack.
 
 ## Where this repo stands
 
-Measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`, and epic #5456 M4 moved `claude-model-patches` into the skills that do multi-step or Bash-heavy work (`build`, `test`, `plan`, `ship` templates; a `resources/` reference for `review`). Two numbers, and they are not interchangeable. The
+Measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`, and epic #5456 M4 moved `claude-model-patches` into the skills that do multi-step or Bash-heavy work (`build`, `test`, `plan`, `ship` templates; `review` excluded, read-only). Two numbers, and they are not interchangeable. The
 **always-on corpus is 4 rules, 50,912 bytes**: the ones that load regardless
 of what you touch. The **effective context on a `.py` edit is 92,270 bytes
 across 9 files**, which is the always-on corpus plus the path-scoped rules
