@@ -785,12 +785,13 @@ below.
 - Class: `EXPERIMENT`
 - Owner: not assigned
 - Consumers: none measured
-- Evidence: documented as an optional pack in `docs/installation.md:143`
-  and `docs/skill-reference.md:160`; a strict-form activation proxy
-  (backtick, slash, or `skill=` invocation forms) run this session found
-  zero hits across 1,467 session logs, 750 episodes, and 200 merged PR
-  bodies. It is one of 2 skills the proxy classed strict-zero (21 more
-  classed near-zero).
+- Evidence: documented as an optional pack at `docs/installation.md:143`
+  (`business-strategy`) and `docs/skill-reference.md:160` (heading
+  "business-strategy (optional pack)"). A strict-form activation proxy
+  run this session (invocation spellings: backtick-fenced, slash-command,
+  or a skill-equals argument) found zero hits across 1,467 session logs, 750
+  episodes, and 200 merged PR bodies. It is one of 2 skills the proxy
+  classed strict-zero (21 more classed near-zero).
 - Blocker: zero measured use does not by itself prove zero value; the
   pack ships opt-in (`npx ai-agents init --pack business`) and a
   founder-facing user may simply not have installed it. Owner decision
@@ -805,7 +806,7 @@ below.
 - Consumers: this ledger's `business-strategy` row above
 - Evidence: proxy script and its output CSV live in this session's
   scratchpad, not the repository. Method: a strict-form regex over
-  backtick-fenced, slash-command, and `skill=` invocation spellings
+  backtick-fenced, slash-command, and skill-equals invocation spellings
   across session logs, episodes, and merged PR bodies. Result: 2 skills
   classed strict-zero, 21 classed near-zero. `security-review` is
   routed by `.claude/skills/autoplan/SKILL.md:130` ("Review a diff or
