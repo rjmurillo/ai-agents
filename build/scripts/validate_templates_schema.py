@@ -170,19 +170,12 @@ def _validate_rules_output_dirs(name: str, stanza: dict[str, object]) -> list[st
     errors: list[str] = []
     dirs = stanza.get("outputDirs")
     if not isinstance(dirs, list) or not dirs:
-        errors.append(
-            f"`artifacts.{name}.outputDirs`: must be a non-empty list of paths"
-        )
+        errors.append(f"`artifacts.{name}.outputDirs`: must be a non-empty list of paths")
     else:
         for idx, item in enumerate(dirs):
-            errors.extend(
-                _validate_path_value(f"artifacts.{name}.outputDirs[{idx}]", item)
-            )
+            errors.extend(_validate_path_value(f"artifacts.{name}.outputDirs[{idx}]", item))
     if "outputDir" in stanza:
-        errors.append(
-            f"`artifacts.{name}`: `outputDir` and `outputDirs` are "
-            f"mutually exclusive"
-        )
+        errors.append(f"`artifacts.{name}`: `outputDir` and `outputDirs` are mutually exclusive")
     return errors
 
 
@@ -197,9 +190,7 @@ def _declared_rule_output_dirs(stanza: dict[str, object]) -> set[str]:
     return {PurePosixPath(d).as_posix() for d in declared}
 
 
-def _validate_rules_keep_internal_globs(
-    name: str, stanza: dict[str, object]
-) -> list[str]:
+def _validate_rules_keep_internal_globs(name: str, stanza: dict[str, object]) -> list[str]:
     keep = stanza.get("keepInternalGlobsFor")
     if keep is None:
         return []
@@ -208,9 +199,7 @@ def _validate_rules_keep_internal_globs(
     errors: list[str] = []
     declared_norm = _declared_rule_output_dirs(stanza)
     for idx, item in enumerate(keep):
-        errors.extend(
-            _validate_path_value(f"artifacts.{name}.keepInternalGlobsFor[{idx}]", item)
-        )
+        errors.extend(_validate_path_value(f"artifacts.{name}.keepInternalGlobsFor[{idx}]", item))
         if isinstance(item, str) and PurePosixPath(item).as_posix() not in declared_norm:
             errors.append(
                 f"`artifacts.{name}.keepInternalGlobsFor[{idx}]`: "
@@ -225,8 +214,7 @@ def _validate_command_resources(name: str, stanza: dict[str, object]) -> list[st
     has_resource_suffixes = "resourceSuffixes" in stanza
     if has_resource_output != has_resource_suffixes:
         errors.append(
-            f"`artifacts.{name}`: `resourceOutputDir` and "
-            "`resourceSuffixes` must be set together"
+            f"`artifacts.{name}`: `resourceOutputDir` and `resourceSuffixes` must be set together"
         )
     if has_resource_suffixes:
         suffixes = stanza.get("resourceSuffixes")
@@ -234,9 +222,7 @@ def _validate_command_resources(name: str, stanza: dict[str, object]) -> list[st
             not isinstance(suffixes, list)
             or not suffixes
             or not all(
-                isinstance(item, str)
-                and item.startswith(".")
-                and len(item) > 1
+                isinstance(item, str) and item.startswith(".") and len(item) > 1
                 for item in suffixes
             )
         ):
@@ -252,9 +238,7 @@ def _validate_exclude_filenames(name: str, stanza: dict[str, object]) -> list[st
         return []
     value = stanza["excludeFilenames"]
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        return [
-            f"`artifacts.{name}.excludeFilenames`: must be a list of strings"
-        ]
+        return [f"`artifacts.{name}.excludeFilenames`: must be a list of strings"]
     return []
 
 
@@ -262,10 +246,7 @@ def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
     if not isinstance(stanza, dict):
         return [f"`artifacts.{name}`: must be a mapping (got {type(stanza).__name__})"]
     if name not in ARTIFACT_DISPATCH:
-        return [
-            f"`artifacts.{name}`: unknown artifact type. "
-            f"Valid: {sorted(ARTIFACT_DISPATCH)}"
-        ]
+        return [f"`artifacts.{name}`: unknown artifact type. Valid: {sorted(ARTIFACT_DISPATCH)}"]
     errors = _validate_artifact_keys(name, stanza)
     errors.extend(_validate_artifact_paths(name, stanza))
     if "excludeFilenames" in ARTIFACT_DISPATCH[name]:
@@ -285,8 +266,7 @@ def _validate_audit_policy(value: object) -> list[str]:
     errors: list[str] = []
     if unknown:
         errors.append(
-            f"`auditPolicy`: unknown keys {sorted(unknown)}. "
-            f"Allowed: {sorted(AUDIT_POLICY_KEYS)}"
+            f"`auditPolicy`: unknown keys {sorted(unknown)}. Allowed: {sorted(AUDIT_POLICY_KEYS)}"
         )
     blocklist = value.get("pathBlocklist")
     if blocklist is not None and not isinstance(blocklist, list):
@@ -312,8 +292,7 @@ def validate_yaml_doc(data: object) -> tuple[list[str], bool]:
     errors: list[str] = []
     if unknown:
         errors.append(
-            f"Unknown top-level keys: {sorted(unknown)}. "
-            f"Allowed: {sorted(ALLOWED_TOP_LEVEL)}"
+            f"Unknown top-level keys: {sorted(unknown)}. Allowed: {sorted(ALLOWED_TOP_LEVEL)}"
         )
 
     if not isinstance(data.get("provider"), str) or not data["provider"].strip():
@@ -376,7 +355,17 @@ def find_platform_configs(root: Path) -> list[Path]:
     platforms_dir = root / "templates" / "platforms"
     if not platforms_dir.is_dir():
         return []
-    return sorted(p for p in platforms_dir.glob("*.yaml") if p.is_file())
+    # ADR-109: templates/platforms/binplace.yaml is the binplace manifest,
+    # not a platform config; it carries no top-level provider key.
+    return sorted(p for p in platforms_dir.glob("*.yaml") if p.is_file() and _has_provider_key(p))
+
+
+def _has_provider_key(path: Path) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return True
+    return any(line.startswith(("provider:", "platform:")) for line in text.splitlines())
 
 
 def main(argv: list[str] | None = None) -> int:
