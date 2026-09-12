@@ -303,3 +303,108 @@ round. The generalization worth keeping: in this repository, cite a stable
 identifier (a requirement id, a symbol name, a heading) and quote the contract
 verbatim. Reserve a line number for a file the citation-freshness gate actually
 covers, and expect it to rot everywhere else.
+
+## Round 4, 2026-09-12: six seats against the accepted text
+
+Run because the owner directed this record to `accepted` and round 3 had not
+reached consensus. The four Definition-of-Ready answers, the M5 route pick and the
+`dependencies` code were all new since round 3, so the round was reviewing text no
+seat had seen.
+
+| Seat | Verdict |
+|---|---|
+| architect | ACCEPT |
+| critic | BLOCK |
+| analyst | BLOCK |
+| independent-thinker | DISAGREE-AND-COMMIT |
+| security | DISAGREE-AND-COMMIT |
+| high-level-advisor | ACCEPT |
+
+Both BLOCKs carried defects in the new text, both are fixed below, and neither
+challenged the direction.
+
+### The P0 worth reading: an authority claim that evidenced itself
+
+The record said the Definition-of-Ready answers were taken "under delegated
+authority" and cited nothing. The critic and independent-thinker seats
+independently ran the same check and got the same result: `grep -rn "delegated
+authority" --include=*.md .` returns only ADR-072, issue #5669 carries zero
+comments, and `universal.md` MUST NOT 9 already says git identity cannot prove a
+human acted. AGENTS.md lists "New ADRs" under **Ask First** and this record's
+frontmatter names `decision-makers: [rjmurillo]`; an agent asserting it was
+authorized satisfies neither.
+
+The instruction was real, and it was given in a working session, which is not a
+repository artifact and cannot be cited as one. So the record no longer claims it.
+It now says what is checkable: the owner's merge of the pull request carrying the
+status flip is the ratification, and until that merge the `accepted` enum is a
+proposal. That is the honest shape, and it has the useful property that the
+evidence and the act are the same event.
+
+The independent-thinker seat added the closing half: a future record may cite
+ADR-072 for the settled mechanism questions but may not cite its acceptance as
+evidence the job-shaped install premise is validated. That is the exact path by
+which ADR-045's unexecuted `implemented: true` became citable authority for this
+record, and it is now barred in text.
+
+### The seventh restatement drift, and the first one inside a single section
+
+The architect seat found the Status section's Blockers list still reading "1. The
+Definition-of-Ready questions below are unanswered" about thirty lines below a
+paragraph saying all four were answered, with item 4 similarly stale. The previous
+six instances were far enough apart that distance explained them. This one was not.
+All five blockers are now struck with their closing dates rather than deleted, so
+the path from `proposed` to `accepted` stays auditable.
+
+### The same line citation drifted twice in one session
+
+The analyst seat found "lines 86, 99 and 133" for the 2.1.122 rationale had become
+140, 153 and 187. By the time the fix was applied it had moved again, to 146, 159
+and 193, because the `dependencies` validator this very change adds sits above it.
+Three drifts of one citation, the last two caused by edits in the change that was
+documenting the problem. It is now cited by symbol: the comment above
+`_is_repo_marketplace_manifest`, the comment above
+`_MARKETPLACE_RUNTIME_FORBIDDEN_KEYS`, and the error string inside
+`_check_marketplace_runtime_forbidden_keys`.
+
+### A real code defect the security seat found in the new validator
+
+`_DEPENDENCY_VERSION_SPECIFIER_RE` was `@\d|==|>=|~|\^\d`, which let
+`cap-b<2.0.0` through as a bare name and so contradicted the stated intent that
+any version specifier is rejected. Extended to cover `<`, `<=` and `!=`, with
+three regression cases added to the parametrization. The suite is 58 passing, 16
+of them dependency cases.
+
+### Other findings applied
+
+| Priority | Finding | Disposition |
+|---|---|---|
+| P0 | "Shipped 2026-09-12" described code sitting uncommitted in the working tree, not on `main` | Reworded to "Staged in this same change", with the distinction stated |
+| P1 | ADR-107 called ADR-072 `proposed` in two places and would contradict it on merge | Both updated, the same treatment condition 3 required for ADR-045 |
+| P1 | The test count read "Ten tests"; neither 10 nor the seat's 12 was right | Measured: nine functions, sixteen collected cases after the regression additions |
+| P2 | The Context commands bullet said the correction had not reached it, inside the bullet that is the correction | Rephrased |
+| P2 | `.agents/architecture/README.md` was not regenerated after the status flip | Regenerated; both ADR-072 and ADR-101 moved to the Accepted table |
+
+### Left open, recorded rather than fixed
+
+- **M4 owes four supply-chain items**, not two. The security seat added
+  traversal defense for dependency entries (they get none today, not even the
+  `..` check the path fields have), unicode homoglyph rejection, and a
+  self-reference and length bound, alongside the marketplace-membership
+  constraint already named. It ranked homoglyph rejection ahead of the
+  marketplace constraint, because a confusable name defeats the human PR review
+  that is the only control until M4 ships.
+- **The `keywords` carrier is the weakest of the four answers.** The
+  independent-thinker seat noted the 2026-09-09 probe measured a novel `jobs`
+  key being ignored, which is evidence about schema tolerance and not about
+  `keywords`. Nobody has probed whether any host surface displays or indexes
+  `keywords`. Probe before M4 locks the mechanism.
+- **"Exactly one `jtbd:` keyword" needs a producer, not just a checker.** The
+  nearest precedent, `check_dual_priority_labels.py`, enforces at most one and
+  leans on a single canonical writer. `plugin.json` is hand-edited and has no
+  such writer.
+- **ADR-045's `implemented: true` is still wrong and still untracked**, flagged
+  in round 3 and again here. It should not keep riding as a footnote in this
+  record.
+- **Issue #5669 was closed before its own checklist item 6**, the panel re-run,
+  had concluded. This round is that re-run.
