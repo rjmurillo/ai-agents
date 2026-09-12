@@ -191,6 +191,24 @@ Prose rules (canonical: `.claude/rules/voice.md`, `.claude/rules/universal.md`):
 - Run `prose-self-check` before emitting any session-log narrative, ADR
   context section, retro, or PR description.
 
+The following text defines these rules:
+
+Use commas, periods, colons, parentheses, hyphens, or restructure.
+
+Do not use these words in prose. They mark AI output and add nothing:
+
+`delve`, `crucial`, `robust`, `comprehensive`, `nuanced`, `multifaceted`, `furthermore`, `moreover`, `additionally`, `pivotal`, `landscape`, `tapestry`, `underscore`, `foster`, `showcase`, `intricate`, `vibrant`, `fundamental`, `significant`.
+
+Replacements: be specific instead. "Robust error handling" becomes "handles network timeout, schema mismatch, and partial write." "Significant performance improvement" becomes "p99 drops from 1.2s to 180ms."
+
+MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
+   comments to any file (agent prompts, documentation, code, template outputs).
+   Generated output must be indistinguishable from hand-written content:
+   metadata headers waste tokens for AI consumers, and the user has rejected
+   this pattern repeatedly (three corrections as of 2025-12-17). If a script
+   grows a helper that emits such headers, delete the helper instead of
+   calling it.
+
 Markdown lint is SCOPED to files you changed. The PR #908 Five Whys traced 53
 unrelated memory-file changes to `markdownlint --fix **/*.md` run repo-wide
 (retro, Q1-Q4). Lefthook filters staged Markdown and runs the named validator
@@ -250,14 +268,14 @@ relying on them:
 | Branch naming pattern | `scripts/validate_session_json.py` (`BRANCH_PATTERN`) | `grep -n "^BRANCH_PATTERN = re.compile" scripts/validate_session_json.py` |
 | Schema required keys, top level and nested session | `.agents/schemas/session-log.schema.json` | `python3 -c "import json;s=json.load(open('.agents/schemas/session-log.schema.json'));print(s['required'], s['properties']['session']['required'])"` |
 | ADR collision history, next-number helper | `scripts/validation/check_adr_uniqueness.py` docstring | `python3 scripts/validation/check_adr_uniqueness.py --print-next` |
-| ADR-073 lifecycle fields | `.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:1-9` | `head -10 .agents/architecture/ADR-073-adr-lifecycle-frontmatter.md` |
+| ADR-073 lifecycle fields (`implemented`) | `.agents/architecture/ADR-073-adr-lifecycle-frontmatter.md:1-9` | `head -10 .agents/architecture/ADR-073-adr-lifecycle-frontmatter.md` |
 | adr-review fires on ADR edits | `AGENTS.md` "ADR Review" | `grep -n "adr-review" AGENTS.md` |
-| Auto-retro skeleton + marker + /retro fill | `.claude/commands/retro.md:1-15` | `grep -n "RETRO-STATE" .claude/commands/retro.md` |
+| Auto-retro skeleton + marker + /retro fill | `.claude/skills/retro/SKILL.md:20` | `grep -n "RETRO-STATE" .claude/skills/retro/SKILL.md` |
 | Retro corpus size vs INDEX.md coverage | `.agents/retrospective/` | `python3 -c "import pathlib;d=pathlib.Path('.agents/retrospective');f={p.name for p in d.glob('*.md')}-{'INDEX.md'};t=(d/'INDEX.md').read_text();print(len(f),'retro files,',sum(n in t for n in f),'indexed')"` |
 | Memory naming + index-row hazard | `.claude/skills/memory/SKILL.md` "Serena Write Conventions" | `grep -n "Serena Write Conventions" .claude/skills/memory/SKILL.md` |
 | Memory/skill separate-PR rule | `.claude/rules/claude-agents.md` MUST NOT item 2 | `grep -n "same PR" .claude/rules/claude-agents.md` |
 | Handoff tiers (session log, per-issue, per-branch) | `.agents/sessions/handoffs/README.md` tier table; ADR-014 | `grep -n "Tier" .agents/sessions/handoffs/README.md` |
-| FM-9 verbatim-quote rule | `.agents/governance/FAILURE-MODES.md:284-307` | `grep -n "character-for-character" .agents/governance/FAILURE-MODES.md` |
+| FM-9 verbatim-quote rule | `.agents/governance/FAILURE-MODES.md:286-309` | `grep -n "character-for-character" .agents/governance/FAILURE-MODES.md` |
 | PR #908 lint scope story | `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md:281-296` | `grep -n "markdownlint" .agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md` |
 | CONTRIBUTING.md pre-PR #2871 staleness example | PR #2871 repointed `CONTRIBUTING.md` to `build/generate_agents.py` | `git show b320f4ac1 -- CONTRIBUTING.md` |
 | Serena is the only memory backend | `.agents/architecture/ADR-106-serena-only-memory-architecture.md:87` | `grep -n "the only memory backend" .agents/architecture/ADR-106-serena-only-memory-architecture.md` |
