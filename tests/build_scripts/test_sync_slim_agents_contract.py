@@ -152,7 +152,7 @@ def test_shipped_source_is_the_canonical_claude_tree() -> None:
     pass with a mirror deleted, which is how the draft this PR replaces left
     `.github/agents/` silently stale.
     """
-    assert sync_slim_agents.AGENT_SOURCE == _REPO_ROOT / "src" / "claude"
+    assert sync_slim_agents.AGENT_SOURCE == _REPO_ROOT / "src" / "claude" / "agents"
     assert {
         (destination.directory, destination.suffix)
         for destination in sync_slim_agents.DESTINATIONS
@@ -190,7 +190,7 @@ def test_shipped_trees_carry_no_unsafe_or_malformed_paths() -> None:
 def test_shipped_destinations_strip_github_and_leave_serena() -> None:
     """Reads the shipped constants: the tree fixture monkeypatches them away.
 
-    Pins the rule against its evidence. `mcp__github__` is in `src/claude/` 26
+    Pins the rule against its evidence. `mcp__github__` is in `src/claude/agents/` 26
     times and in neither mirror; `mcp__serena__` is in all three trees, so a
     transform that stripped it would rewrite mirror lines that are correct.
 
