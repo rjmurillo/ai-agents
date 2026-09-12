@@ -66,7 +66,7 @@ path in `ai-agents-change-control`, not a fresh opinion.
 | Session-file merge conflicts | Always `git checkout --theirs` (keep main's file), rename yours to the next number. Main's session files are immutable audit records | `2026-02-08-session-1187-skip-prepush-abuse.md:334`; merge-resolver agent |
 | Threshold-based detectors | MUST ship with a calibration table replaying the last ~5 real merged PRs. A detector that cannot fire on real history is not calibrated | `2026-05-10-pr-1989-recursive-failure.md:149-157` |
 | Drift-gate failures | The output shows a difference, not a direction. Identify the canonical side before editing anything | `2025-12-15-drift-detection-disaster.md:283-286` |
-| Silent defaults | No neutral default for a missing signal: raise or block, never assume PASS | `.agents/governance/FAILURE-MODES.md:387` (FM-10) |
+| Silent defaults | No neutral default for a missing signal: raise or block, never assume PASS | `.agents/governance/FAILURE-MODES.md:387` (FM-10: `no neutral default for a missing signal`) |
 | Frictionless escape hatches | Get teeth (logging, guards, approval) or get abused within hours. SKIP_PREPUSH is the proof | `2026-02-08-session-1187-skip-prepush-abuse.md:706`; catalog in `ai-agents-config-catalog` |
 | Guards shipped without self-application | A guard PR must show the guard's output run against its own branch | `2026-05-10-pr-1989-recursive-failure.md:129-137` |
 | CLI subcommands proposed from analogy | BANNED. Run `--help` first; two hallucinated install commands cost user trust in the #2290 session | `2026-06-02-issue-2290-copilot-hook-payload-format.md:74-82` |
@@ -165,7 +165,7 @@ working tree on that date. Volatile facts and their re-verification commands:
 | Retro file count and INDEX.md coverage | `.agents/retrospective/` and `.agents/retrospective/INDEX.md` | `python3 -c "import pathlib;d=pathlib.Path('.agents/retrospective');f={p.name for p in d.glob('*.md')}-{'INDEX.md'};t=(d/'INDEX.md').read_text();print(len(f),'retro files,',sum(n in t for n in f),'indexed')"` |
 | Memory file count | `.serena/memories/` | `python3 -c "import pathlib;print(len(list(pathlib.Path('.serena/memories').rglob('*.md'))))"` |
 | Full history present (~1471 commits) but retro-cited SHAs unresolvable | local clone | `git rev-list --count HEAD; git cat-file -t ddb76e0` (expect a count near 1471 and "Not a valid object name") |
-| 11 failure modes | `.agents/governance/FAILURE-MODES.md:16-28` | `python3 -c "print(sum(1 for l in open('.agents/governance/FAILURE-MODES.md') if l[:2]=='\x7c ' and l[2].isdigit()))"` |
+| 12 failure modes | `.agents/governance/FAILURE-MODES.md:17-30` (`Post-completion continuation`) | `python3 -c "print(sum(1 for l in open('.agents/governance/FAILURE-MODES.md') if l[:2]=='\x7c ' and l[2].isdigit()))"` |
 | Historical SKIP_PREPUSH removal | Session 1187 retrospective | Confirm current Git hook jobs in `lefthook.yml`; do not reintroduce a global bypass |
 | Anchoring gate + runtime-contract test + e2e exist | repo tree | `ls scripts/validation/validate_hook_anchoring.py tests/build_scripts/test_generate_hooks_runtime_contract.py tests/e2e/test_cli_hook_e2e.py` |
 | ADR-071 is the runtime-contract ADR; ADR-063 is memory decomposition | `.agents/architecture/` | `head -1 .agents/architecture/ADR-071*.md .agents/architecture/ADR-063*.md` |

@@ -164,7 +164,7 @@ Pick the recipe from the selector table. Each recipe states when to use it, the 
 | Trusting vendor docs for load-bearing behavior | Docs omitted the plugin-root env vars AND the payload casing rule | `decision-copilot-cli-hook-plugin-root-contract.md` |
 | Probing one dimension, claiming the whole contract | #2205 probe captured env+cwd; stdin casing bug shipped anyway | `2026-06-02-issue-2290-copilot-hook-payload-format.md:71` |
 | Predicting results after seeing them | Post-hoc "as expected" is unfalsifiable; see the eval gate | ADR-057 |
-| Debugging PR code for a failure that exists on main | Time burned on misattributed pre-existing bugs | `.serena/memories/ci-infrastructure-observations.md:8` |
+| Debugging PR code for a failure that exists on main | Time burned on misattributed pre-existing bugs | `.serena/memories/ci-infrastructure-observations.md:8` (`check if the failure exists on main`) |
 
 ## Verification
 
