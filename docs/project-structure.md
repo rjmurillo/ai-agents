@@ -46,7 +46,7 @@ Repo root map: what an agent edits, what is generated, and what to skip before t
 | `.agents/memory/episodes/` (750 tracked JSON) | Auto-extracted; search via the `memory` skill, never read whole |
 | `.serena/memories/` (1037 tracked `.md`; `.obsidian/` is editor config, not a memory) | Retrieval aid; use `/memory-search` or `uv run python .claude/skills/memory/scripts/search_memory.py "<query>"` |
 | `evals/`, `tests/evals/`, `tests/eval_scenarios/` | Eval corpora and reports; runners live in `scripts/eval/` |
-| `.claude-mem/`, `.factory/`, `.diffray/`, `.codeql/`, `.baseline/`, `.serena/cache/` | Tool state, not source |
+| `.claude-mem/`, `.factory/`, `.codeql/`, `.serena/cache/` | Tool state, not source |
 | `packages/ai-agents-cli/` (bun, TypeScript), `packages/semantic-hooks/` (own uv project) | Separate toolchains, own lockfiles |
 | `src/*.ts`, `src/transforms/` | Copilot target emitter; `tests/*.test.ts` run by `.github/workflows/cli-smoke.yml` via `bun test` |
 | Any `*/CLAUDE.md` that is only a seven-line `<claude-mem-context>` stub | Plugin placeholder; edit only outside the tags |

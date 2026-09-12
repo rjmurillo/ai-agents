@@ -93,7 +93,6 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".codeql",
         ".coderabbit.yaml",
         ".config",
-        ".diffray",
         ".env.example",
         ".factory",
         ".gemini",
