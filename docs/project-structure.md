@@ -48,7 +48,6 @@ Repo root map: what an agent edits, what is generated, and what to skip before t
 | `evals/`, `tests/evals/`, `tests/eval_scenarios/` | Eval corpora and reports; runners live in `scripts/eval/` |
 | `.claude-mem/`, `.factory/`, `.codeql/`, `.serena/cache/` | Tool state, not source |
 | `packages/ai-agents-cli/` (bun, TypeScript), `packages/semantic-hooks/` (own uv project) | Separate toolchains, own lockfiles |
-| `src/*.ts`, `src/transforms/` | Copilot target emitter; `tests/*.test.ts` run by `.github/workflows/cli-smoke.yml` via `bun test` |
 | Any `*/CLAUDE.md` that is only a seven-line `<claude-mem-context>` stub | Plugin placeholder; edit only outside the tags |
 | `README.md`, `CONTRIBUTING.md`, other `docs/*.md` | Human onboarding prose, not agent-facing |
 

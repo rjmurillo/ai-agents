@@ -1,6 +1,6 @@
 # src/
 
-Two of this repo's three plugin sources plus a Copilot bundle-target prototype; consumed by Claude Code and Copilot CLI plugin installs, and separately by the `packages/ai-agents-cli` npm CLI.
+Two of this repo's three plugin sources; consumed by Claude Code and Copilot CLI plugin installs, and separately by the `packages/ai-agents-cli` npm CLI.
 
 ## Matters
 
@@ -8,7 +8,6 @@ Two of this repo's three plugin sources plus a Copilot bundle-target prototype; 
 - `copilot-cli/**` is entirely generated: it mirrors `.claude/{skills,hooks,lib,rules}` plus `templates/agents/*.shared.md`, via the seven generators `build/scripts/build_all.py` runs. Never hand-edit it.
 - `vs-code-agents/*.agent.md` is generated from `templates/agents/*.shared.md` only; it has no `.claude/` counterpart.
 - `claude/*.md` is hand-maintained, not generated; its own rules live in `src/claude/AGENTS.md`.
-- The root-level `*.ts` files (`agent-registry-schema.ts`, `copilot-target-emitter.ts`, `types.ts`, `transforms/command-syntax-translator.ts`) are a Copilot bundle-target prototype. Nothing under `packages/ai-agents-cli/src/` imports them; only `tests/copilot-target-emitter.test.ts` and `tests/command-syntax-translator.test.ts`, one level up from this tree, do.
 
 ## Entry points
 
@@ -25,7 +24,6 @@ Two of this repo's three plugin sources plus a Copilot bundle-target prototype; 
 | `copilot-cli/**` | Generated mirror of `.claude/{skills,hooks,lib,rules}` and `templates/agents/`; `project-toolkit` plugin for Copilot CLI |
 | `vs-code-agents/*.agent.md` | Generated from `templates/agents/` only, no `.claude/` input |
 | `STYLE-GUIDE.md` | Prose standard every agent file (hand-maintained and generated) MUST follow |
-| `*.ts`, `transforms/` | Copilot bundle-target prototype; tests live in repo-root `tests/*.test.ts` |
 | `packages/ai-agents-cli/` | The shipped `@rjmurillo/ai-agents` npm CLI: its own source, its own tests |
 
 ## Skip
@@ -42,8 +40,6 @@ Two of this repo's three plugin sources plus a Copilot bundle-target prototype; 
 
 ## Dangerous assumptions
 
-- Assuming the root `*.ts` files here feed `packages/ai-agents-cli`'s build is wrong; that package carries its own `types.ts`, `target/*.ts`, and `io/*.ts` under `packages/ai-agents-cli/src/`, with no import from this tree.
-- Assuming repo-root `tests/*.test.ts` run in CI is wrong: `cli-smoke.yml`'s only `bun test` step sets `working-directory: packages/ai-agents-cli`, so the tests for this tree's `*.ts` files are not executed by any workflow today.
 - A green `build_all.py --check` proves `copilot-cli/` and `vs-code-agents/` match their sources; it says nothing about whether hand-maintained `claude/` agrees with `templates/agents/` (see `src/claude/AGENTS.md` Dangerous assumptions).
 
 ## Dependencies
@@ -56,7 +52,6 @@ Two of this repo's three plugin sources plus a Copilot bundle-target prototype; 
 
 - Three plugin roots ship independently (`.claude/`, `src/claude/`, `src/copilot-cli/`); each marketplace entry names exactly one source directory, and nothing above it reaches an installer.
 - `copilot-cli/` is a double mirror for `lib` and `rules`: `scripts/sync_plugin_lib.py` must run before `build_all.py` to refresh `.claude/lib/` first, or `build_all.py` copies a stale `.claude/lib/` forward with no error; only `scripts/ci/check_plugin_lib_mirrors.py`, in CI, catches the stale mirror.
-- The root-level `*.ts` files and `packages/ai-agents-cli/src/*.ts` are two independent TypeScript sources for a similar purpose (bundle emission toward a Copilot target), with no shared import between them.
 
 ## Commands
 
