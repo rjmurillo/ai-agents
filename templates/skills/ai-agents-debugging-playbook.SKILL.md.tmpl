@@ -136,7 +136,7 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | Version-field prohibition | `build/scripts/validate_plugin_version_bump.py` docstring, section RULE | `grep -n "MUST NOT carry" build/scripts/validate_plugin_version_bump.py` |
 | No version in any manifest or marketplace entry | three `.claude-plugin/plugin.json` files, both `marketplace.json` files | `python3 build/scripts/validate_plugin_version_bump.py` |
 | Coverage pin file-set sensitivity and 63% | `.github/workflows/pytest.yml:424-437` (issue #1963) | `grep -n "reports 63%" .github/workflows/pytest.yml` |
-| REQ-009 rejects module-name `--cov`, isolates via `--include=` | `.github/workflows/pytest.yml:439-457` (issue #2063, PR #2078) | `grep -n REQ-009 .github/workflows/pytest.yml` |
+| `REQ-009` rejects module-name `--cov`, isolates via `--include=` | `.github/workflows/pytest.yml:439-457` (issue #2063, PR #2078) | `grep -n REQ-009 .github/workflows/pytest.yml` |
 | Syntax gate parses at 3.10 floor (`_SUPPORT_FLOOR`) | `scripts/validation/validate_python_syntax.py:56-75` (issue #2655) | `grep -n _SUPPORT_FLOOR scripts/validation/validate_python_syntax.py` |
 | Real-HEAD mutation guard | `conftest.py:435-461` (issue #2316) | `grep -n "#2316" conftest.py` |
 | Exit 143 SIGTERM, P0, unresolved as of retro | `.agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:16,27,59` | `grep -n "exit 143" .agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
