@@ -41,7 +41,7 @@ Repo root map: what an agent edits, what is generated, and what to skip before t
 
 | Path | Why |
 |---|---|
-| `.agents/{sessions/*.json,archive,retrospective,critique,analysis,qa,planning,plans,projects,audits,audit,checkpoints,eval-results,metrics,pr-checks,pr-consolidation,incidents,devops,debt,benchmarks,roadmap}` | Historical artifacts; evidence, not instructions |
+| `.agents/{sessions/*.json,archive,retrospective,critique,analysis,qa,planning,plans,projects,audits,audit,eval-results,metrics,pr-checks,pr-consolidation,incidents,devops,debt,benchmarks,roadmap}` | Historical artifacts; evidence, not instructions |
 | `.agents/sessions/handoffs/` | The one live subtree here: per-issue continuity, read latest at start, update at end |
 | `.agents/memory/episodes/` (750 tracked JSON) | Auto-extracted; search via the `memory` skill, never read whole |
 | `.serena/memories/` (1037 tracked `.md`; `.obsidian/` is editor config, not a memory) | Retrieval aid; use `/memory-search` or `uv run python .claude/skills/memory/scripts/search_memory.py "<query>"` |
