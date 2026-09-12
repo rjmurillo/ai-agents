@@ -109,3 +109,8 @@ Recorded per seat above and re-verified by the orchestrator: lifecycle gate gree
 ### Verdict
 
 Consensus reached on revision 2: six Accept, no Disagree-and-Commit, no Block. The round-1 P0 (lifecycle gate) is closed and the gate passes; every round-1 P1 is closed in text and re-verified by the seat that raised it and by a second seat; every round-1 P2 was folded rather than deferred. Three items go to the owner, none blocking: the "one PR series per class" reading of the directive before B3 starts, the ruleset code-owner-review decision before B4, and the reading of "one PR per class" against B6's one-way window. The record ships as `proposed`, `supersedes: []`, with ADR-052 at `accepted` until the owner's acceptance edit flips both.
+
+## Post-consensus edits
+
+- 2026-09-11: five `path:line` citations in the record (sections 5, 6, and 7) re-anchored so a backtick span in each citing sentence appears at the cited line; the citation-freshness pre-push gate reported them stale. No decision text changed.
+  Re-anchoring note: the gate reads one citation per line; the section 6 amendment list became bullets for that reason.
