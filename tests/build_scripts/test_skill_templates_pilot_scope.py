@@ -56,6 +56,8 @@ PILOT: frozenset[str] = frozenset(
         "build",
         "ai-agents-architecture-contract",
         "ai-agents-change-control",
+        "ai-agents-build-and-env",
+        "ai-agents-debugging-playbook",
     }
 )
 
