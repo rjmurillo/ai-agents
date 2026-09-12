@@ -137,14 +137,14 @@ Verified against the working tree on 2026-07-03. Retro-cited short SHAs do not r
 | No version in any manifest or marketplace entry | three `.claude-plugin/plugin.json` files, both `marketplace.json` files | `python3 build/scripts/validate_plugin_version_bump.py` |
 | Coverage pin file-set sensitivity and 63% | `.github/workflows/pytest.yml:424-437` (issue #1963) | `grep -n "reports 63%" .github/workflows/pytest.yml` |
 | Module-name --cov form requirement | `.github/workflows/pytest.yml:427-437` (issue #2063, PR #2078) | `grep -n "fail-under=100" .github/workflows/pytest.yml` |
-| Syntax gate parses at 3.10 floor | `scripts/validation/validate_python_syntax.py:56-75` (issue #2655) | `grep -n _SUPPORT_FLOOR scripts/validation/validate_python_syntax.py` |
-| Real-HEAD mutation guard | `conftest.py:435-461` (issue #2316) | `grep -n "2316" conftest.py` |
+| Syntax gate parses at 3.10 floor (`_SUPPORT_FLOOR`) | `scripts/validation/validate_python_syntax.py:56-75` (issue #2655) | `grep -n _SUPPORT_FLOOR scripts/validation/validate_python_syntax.py` |
+| Real-HEAD mutation guard | `conftest.py:435-461` (issue #2316) | `grep -n "#2316" conftest.py` |
 | Exit 143 SIGTERM, P0, unresolved as of retro | `.agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md:16,27,59` | `grep -n "exit 143" .agents/retrospective/2026-06-02-issue-2290-copilot-hook-payload-format.md` |
 | Payload field names depend on event-key casing | `.serena/memories/copilot-hooks-observations.md` | `grep -n "toolName" .serena/memories/copilot-hooks-observations.md` |
 | Reproduce-on-main rule (PR #1361) | `.serena/memories/ci-infrastructure-observations.md` | `grep -n "1361" .serena/memories/ci-infrastructure-observations.md` |
 | pre_pr.py sequence and exit codes (`ADR-035`) | `scripts/validation/pre_pr.py:1-30` | `sed -n '1,30p' scripts/validation/pre_pr.py` |
 | install-parity checks co-change, not content; skips `RULE` and hand-maintained-only diffs | `build/scripts/validate_install_parity.py:629-644` | `sed -n '629,644p' build/scripts/validate_install_parity.py` |
-| Agent drift compares a `SECTIONS_TO_COMPARE` (23-heading) allowlist at 80 percent similarity, reported not enforced | `build/scripts/detect_agent_drift.py:77-101,984`, `scripts/ci/drift_run_detection.py:53-60` | `sed -n '77,101p;984p' build/scripts/detect_agent_drift.py; sed -n '53,60p' scripts/ci/drift_run_detection.py` |
+| Agent drift compares a `SECTIONS_TO_COMPARE` (23-heading) allowlist at 80 percent similarity, reported not enforced | `build/scripts/detect_agent_drift.py:77-101,984`, `scripts/ci/drift_run_detection.py:53-60` (`drift_detected`) | `sed -n '77,101p;984p' build/scripts/detect_agent_drift.py; sed -n '53,60p' scripts/ci/drift_run_detection.py` |
 | testpaths exclude skill tests | `pyproject.toml [tool.pytest.ini_options].testpaths` | `grep -n testpaths pyproject.toml` |
 | FAILURE-MODES.md 12 sections | `.agents/governance/FAILURE-MODES.md:34-524` (`Post-Completion Continuation`) | `grep -n "^## " .agents/governance/FAILURE-MODES.md` |
 
