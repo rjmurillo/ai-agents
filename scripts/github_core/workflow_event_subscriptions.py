@@ -39,12 +39,12 @@ The workflow file is also the only place a *queued* run's published contexts can
 be read. The Actions jobs endpoint lists job records GitHub has already
 materialized, and a job gated behind ``needs:`` has none until its dependency
 finishes, so the endpoint answers "no contexts" for a run that will publish
-several. Measured on this repository's ``.github/workflows`` corpus: of the nine
-contexts in ``scripts/ci/ruleset_required_contexts.py``, seven resolve to jobs
+several. Measured on this repository's ``.github/workflows`` corpus: of the eight
+contexts in ``scripts/ci/ruleset_required_contexts.py``, six resolve to jobs
 that declare ``needs:`` (``Analyze (actions)`` and ``Analyze (python)`` from the
 matrix job in ``codeql-analysis.yml``, ``Run Python Tests`` from ``pytest.yml``,
-plus ``Validate Generated Files``, ``Validate Path Normalization``,
-``Validate Plugin Version Bump``, and ``Validate Spec Coverage``); only
+plus ``Validate Generated Files``, ``Validate Path Normalization``, and
+``Validate Plugin Version Bump``); only
 ``Validate PR`` and ``Validate PR title`` are ungated. So :attr:`
 WorkflowSubscriptions.job_names` records the statically declared job identities
 and :func:`declared_required_contexts` answers what a run under this workflow

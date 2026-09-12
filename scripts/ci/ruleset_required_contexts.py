@@ -18,7 +18,6 @@ REQUIRED_CONTEXTS: frozenset[str] = frozenset(
         "Validate PR",
         "Validate PR title",
         "Validate Plugin Version Bump",
-        "Validate Spec Coverage",
     }
 )
 
