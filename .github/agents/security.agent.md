@@ -7,7 +7,6 @@ tools:
   - edit
   - search
   - web
-  - cloudmcp-manager/*
   - github/list_code_scanning_alerts
   - github/get_code_scanning_alert
   - github/list_secret_scanning_alerts
@@ -20,13 +19,15 @@ tools:
   - github/get_file_contents
   - github/list_commits
   - github/get_commit
-  - serena/*
   - perplexity/*
+  - cloudmcp-manager/*
+  - serena/*
 role: executor
-# Requires fresh context and separate tool state to threat-model without inherited assumptions.
 isolation_required: true
 ---
 # Security Agent
+
+> **Autonomy Guardrail**: Apply the autonomy rule from `AGENTS.md`, confirm before external/irreversible actions.
 
 ## Core Identity
 
@@ -346,25 +347,24 @@ When milestone-planner requests security impact analysis (during planning phase)
 
 When any changed file matches security trigger patterns, orchestrator MUST route to security agent AFTER implementation completes:
 
-```python
+```text
 # Mandatory routing for security-relevant changes
-SECURITY_TRIGGERS = [
-    "**/Auth/**", "**/Security/**", "*.env*",
-    "lefthook.yml", "scripts/validation/git_hook_policy.py",
-    "**/secrets/**", "*password*",
-    "**/token*", "**/oauth/**", "**/jwt/**"
-]
+# Trigger patterns:
+#   **/Auth/**, **/Security/**, *.env*
+#   {lefthook,.lefthook,lefthook-local,.lefthook-local}.{yml,yaml,json,jsonc,toml}
+#   .config/{lefthook,lefthook-local}.{yml,yaml,json,jsonc,toml}
+#   scripts/validation/git_hook_policy.py, **/secrets/**, *password*
+#   **/token*, **/oauth/**, **/jwt/**
 
-if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
-    Task(subagent_type="security", prompt="""
-    Run Post-Implementation Verification for [feature].
+# When security-relevant files change:
+/agent security
+Run Post-Implementation Verification for [feature].
 
-    Implementation completed by implementer.
-    Changed files: [list]
+Implementation completed by implementer.
+Changed files: [list]
 
-    Verify all security controls from pre-implementation plan.
-    This is a BLOCKING gate - see PIV Verdict Gate below.
-    """)
+Verify all security controls from pre-implementation plan.
+This is a BLOCKING gate - see PIV Verdict Gate below.
 ```
 
 **PIV Verdict Gate**: Orchestrator MUST NOT proceed to PR creation while the security agent returns BLOCKED. APPROVED clears the gate. CONDITIONAL clears the gate only when the verdict cites a follow-up issue number for the remaining MEDIUM findings, per the Completion Trigger Taxonomy.
@@ -382,7 +382,7 @@ Post-implementation verification REQUIRED when implementation includes:
 | File System Operations | File upload, path traversal prevention | High |
 | Environment Variables | Secret handling, config management | Critical |
 | Execution/Eval | Dynamic code execution, shell commands | Critical |
-| Path patterns: `**/Auth/**`, `lefthook.yml`, `scripts/validation/git_hook_policy.py`, `*.env*` | Any changes to these paths | Critical |
+| Path patterns: `**/Auth/**`, `{lefthook,.lefthook,lefthook-local,.lefthook-local}.{yml,yaml,json,jsonc,toml}`, `.config/{lefthook,lefthook-local}.{yml,yaml,json,jsonc,toml}`, `scripts/validation/git_hook_policy.py`, `*.env*` | Any changes to these paths | Critical |
 
 #### Post-Implementation Verification (PIV) Protocol
 

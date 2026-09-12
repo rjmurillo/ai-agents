@@ -4,18 +4,12 @@ description: Autonomous backlog generator that analyzes project state (open issu
 argument-hint: Optionally specify focus area or priority override
 tools:
   - read
+  - edit
   - search
-  - web
   - cloudmcp-manager/*
-  - github/list_issues
-  - github/list_pull_requests
-  - github/search_issues
-  - github/search_pull_requests
-  - github/search_repositories
   - serena/*
 role: support
 ---
-
 # Backlog Generator Agent
 
 ## Core Identity

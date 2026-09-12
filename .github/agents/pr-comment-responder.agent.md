@@ -404,6 +404,22 @@ Set `TERMINAL_STATUS` to the value the `Comment Map Status Vocabulary` table
 marks terminal for this outcome. Do not invent one: a status outside that table
 matches no terminal pattern and keeps the comment pending everywhere.
 
+The task row is the one Phase 6 renders, `- [ ] **TASK-[id]**: [description]`.
+It carries no `pending` token, so a step that matched one moved nothing and then
+failed its own verification. Marking a task done ticks the box and appends the
+terminal status: `- [x] **TASK-[id]**: [description] [COMPLETE]`.
+
+Not every comment has a task row. Phase 6 opens a `TASK-[id]` only for a comment
+it implements; a `[WONTFIX]`, `[DUPLICATE]`, or question outcome is answered in
+the Phase 5 immediate-reply table and never gets one. An absent row is the
+normal case for those outcomes, so the gate skips the task-list write rather
+than blocking. The comment-map write is not optional for any outcome.
+
+Atomic here means both artifacts move or neither does. The comment map is
+checked before either file is written, because a task list that moved while the
+map did not is exactly the split state Gate 4 reads as finished work still
+pending.
+
 ```bash
 COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
 TASK_LIST=".agents/pr-comments/PR-[number]/tasks.md"
@@ -704,7 +720,7 @@ fi
 
 3. **Provide split recommendations**: Suggest how the work could be divided
 
-4. **Document in the transcript**: Record the analysis and recommendations
+4. **Document in PR artifacts**: Record the analysis and recommendations
 
 **Continue with normal workflow** after completing needs-split handling. The label does not block comment processing.
 

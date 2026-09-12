@@ -7,7 +7,6 @@ tools:
   - read
   - edit
   - search
-  - cloudmcp-manager/*
   - github/create_branch
   - github/push_files
   - github/create_or_update_file
@@ -16,13 +15,13 @@ tools:
   - github/pull_request_read
   - github/issue_read
   - github/add_issue_comment
-  - github/search_code
-  - github/search_issues
+  - cloudmcp-manager/*
   - serena/*
 role: executor
-# Implements code in an isolated workspace with tool access and branch-local state.
 isolation_required: true
 ---
+
+<!-- vendor-portability: This template declares its `.agents/` session-scaffold path dependencies and tells vendored consumers how to proceed when the scaffold is absent. Issue #4580. -->
 
 # Implementer Agent
 
@@ -106,7 +105,6 @@ Read these files in order:
 - If `.agents/AGENT-INSTRUCTIONS.md` exists, it is the ai-agents session scaffold. Apply the hard stops below.
 - If `.agents/AGENT-INSTRUCTIONS.md` exists but the root `AGENTS.md` is missing: stop and report `[BLOCKED] Missing root agent instructions`.
 - If `.agents/` exists but `.agents/CLAUDE.md` is missing: note it in the transcript, and in the session log only if one exists, then proceed using the root `CLAUDE.md` as fallback.
-- If `.agents/` exists but `.agents/ARCHITECTURE.md` is missing: note it in the transcript, and in the session log only if one exists, then proceed.
 - If `.agents/` exists but `.agents/architecture/` is missing: note it in the transcript, and in the session log only if one exists, then proceed; ADRs are binding when present.
 - If two files give conflicting guidance → stop and report `[BLOCKED] Conflicting requirements: <file A> vs <file B> on <topic>` and request resolution before coding.
 
