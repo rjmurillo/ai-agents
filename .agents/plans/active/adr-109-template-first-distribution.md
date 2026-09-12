@@ -26,7 +26,7 @@
 
 Exit criteria: ADR-109 accepted (lifecycle gate passes, `adr-review` round recorded if the owner requires one before B1 starts); the four staged amendment sites (ADR-052 Status note, ADR-107 property 1 and Related Decisions, REQ-003 D4/D9/REQ-003-010) turn from conditional to unconditional text; `.agents/architecture/README.md` lists ADR-109.
 
-This milestone is the ADR itself, already written and referenced by every task below. It is marked done when ADR-109's frontmatter moves from `proposed` to `accepted` and the owner confirms the staged amendment text is in its final, unconditional form.
+This milestone is the ADR itself, already written and referenced by every task below. Done: the owner accepted ADR-109 on 2026-09-11 (PR #5745), the frontmatter reads `accepted`, and the ADR-052, ADR-107, and REQ-003 amendments are unconditional.
 
 | Task | Size | Done when |
 |------|------|-----------|
@@ -133,11 +133,11 @@ B1 must land before B2 through B5, because each of those adds a row to the binpl
 
 | Date | Update | Agent |
 |------|--------|-------|
-| 2026-09-11 | ADR-109 written by the owner, `proposed` status; spec artifacts (REQ-026, DESIGN-025, TASK-031 through TASK-036, ontology fragment, this plan) drafted in worktree `adr109-spec` on branch `feat/adr-109-spec-and-plan` | claude |
+| 2026-09-11 | ADR-109 written, reviewed, and accepted by the owner (PR #5745); spec artifacts (REQ-026, DESIGN-025, TASK-031 through TASK-036, ontology fragment, this plan) drafted in worktree `adr109-spec` on branch `feat/adr-109-spec-and-plan` | claude |
 
 ## Blockers
 
-- ADR-109 is `proposed`, not yet `accepted`; B1 should not open its PR until the owner accepts it or explicitly authorizes work to proceed in a worktree ahead of acceptance, the same pattern ADR-108's A1 task used while ADR-108 was still in review.
+- ADR-109 is `accepted` (2026-09-11); the owner authorized implementation once PR #5745 lands, with Haiku and Sonnet agents building and Opus reviewing.
 - B3's batching plan (count, size, grouping) is an open question the owner has not yet answered.
 - B4's code-owner-review ruleset decision is an open question the owner has not yet answered.
 
