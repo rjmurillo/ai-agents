@@ -22,7 +22,7 @@ CI workflows, generated Copilot-CLI mirrors, and hand-maintained agent parity co
 
 | Path | Why |
 |---|---|
-| `workflows/*.yml` (58 tracked, plus 2 `.yml.disabled`) | Hand-edited; schema-checked by `scripts/validate_workflows.py` inside `pr-validation.yml` |
+| `workflows/*.yml` (58 tracked) | Hand-edited; schema-checked by `scripts/validate_workflows.py` inside `pr-validation.yml` |
 | `agents/*.agent.md` (31) + `agents/security/references/*.md` | Hand copy, parity group with `templates/agents/*.shared.md`, `src/claude/`, `.claude/agents/`; the `references/` subdir backs `security.agent.md` only |
 | `instructions/*.instructions.md` (29) | Generated mirror of `.claude/rules/*.md`; `paths:` becomes `applyTo:` |
 | `prompts/pr-quality-gate-*.md` | Generated from `.claude/skills/review/references/*.md`; owned in `CODEOWNERS` |
@@ -35,7 +35,6 @@ CI workflows, generated Copilot-CLI mirrors, and hand-maintained agent parity co
 
 ## Skip
 
-- `workflows/*.yml.disabled` (`droid-review.yml.disabled`, `droid.yml.disabled`): tracked but inert, GitHub never runs a `.disabled` workflow file.
 - `scripts/__pycache__/`, `actions/workflow-debounce/__pycache__/`: untracked bytecode, ignore if seen on disk.
 - `ISSUE_TEMPLATE/`, `FUNDING.yml`: boilerplate, no gate reads them.
 
