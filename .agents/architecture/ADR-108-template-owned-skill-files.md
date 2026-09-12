@@ -1,6 +1,6 @@
 ---
 id: ADR-108
-status: proposed
+status: accepted
 date: 2026-09-11
 decision-makers: [rjmurillo]
 supersedes: []
@@ -14,7 +14,7 @@ review-by: 2027-03-11
 
 ## Status
 
-Proposed. This record amends ADR-107 settled property 1, REQ-003-010, and REQ-003 decision D4 for exactly one artifact class: canonical skill files rendered from `templates/skills/`. The repository owner selected this path on 2026-09-11 over an in-file excerpt design that needed no amendment; that alternative is recorded in `.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md` and in the Alternatives table below. It enforces nothing until the first implementation slice lands; the amendment is policy text plus one allowlist argument on an existing guard.
+Accepted. The repository owner accepted this record on 2026-09-11 after the compile pipeline (PR #5726) and the eight-skill pilot (PR #5731) landed and issue #5706 closed. This record amends ADR-107 settled property 1, REQ-003-010, and REQ-003 decision D4 for exactly one artifact class: canonical skill files rendered from `templates/skills/`. The repository owner selected this path on 2026-09-11 over an in-file excerpt design that needed no amendment; that alternative is recorded in `.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md` and in the Alternatives table below. The amendment is policy text plus one allowlist argument on an existing guard.
 
 ## Evidence labels
 
