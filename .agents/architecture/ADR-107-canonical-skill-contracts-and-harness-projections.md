@@ -61,8 +61,8 @@ Two properties of that pipeline are settled and are not reopened here.
 1. Generators read canonical trees and write mirror trees. They never write under `.claude/`,
    except the template-owned skill files ADR-108 enumerates (amended 2026-09-11), and, once
    ADR-109 is accepted, every path in ADR-109's binplace manifest (proposed 2026-09-11).
-   `assert_no_claude_writes` at `build/scripts/build_all.py:793` is called at `:2226`, and a
-   violation sets `audit.overall_exit = 2` at `:2232` (`repo-observed`, re-anchored 2026-09-11).
+   `assert_no_claude_writes` at `build/scripts/build_all.py:841` is called at `:2319`, and a
+   violation sets `audit.overall_exit = 2` at `:2328` (`repo-observed`, re-anchored 2026-09-11).
 2. The seam is asymmetric. There is no single template-in, everything-out pipeline. Agents for
    Copilot CLI and VS Code come from `templates/agents/*.shared.md`; rules, skills, hooks, and lib
    come from `.claude/` directly; `src/claude/`, `.claude/agents/`, and `.github/agents/` are
