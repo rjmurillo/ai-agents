@@ -182,7 +182,7 @@ def _target_validation_error(repo_root: Path, name: str, target: Path) -> str | 
     fully resolved path is still under ``repo_root``), but still redirects
     this render to a directory the hooks-class target map never named.
     """
-    ancestor_error = reject_symlinked_ancestors(repo_root, f"{name} target", target)
+    ancestor_error: str | None = reject_symlinked_ancestors(repo_root, f"{name} target", target)
     if ancestor_error is not None:
         return ancestor_error
     if target.parent.is_symlink():

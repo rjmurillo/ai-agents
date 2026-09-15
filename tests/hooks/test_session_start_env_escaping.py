@@ -114,6 +114,7 @@ def test_repo_root_with_space_still_produces_a_working_path(tmp_path: Path) -> N
         cwd=tmp_path,
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
