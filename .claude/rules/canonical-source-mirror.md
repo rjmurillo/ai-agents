@@ -135,16 +135,16 @@ Everything above says the canonical source is authoritative and a generated mirr
 
 The question is whether a rule loads on every agent turn. A rule is always-on when its **generated** `applyTo` resolves to `**`, so the answer lives in the generated tree.
 
-The two destination trees now agree, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`, epic #5456 M4 moved `claude-model-patches` into the skills that do multi-step or Bash-heavy work, and epic #5456 M4 folded `search-before-building` into the `programming-advisor`, `memory-search`, and `memory-gate` skills:
+The two destination trees now agree, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`, epic #5456 M4 moved `claude-model-patches` into the skills that do multi-step or Bash-heavy work, epic #5456 M4 folded `search-before-building` into the `programming-advisor`, `memory-search`, and `memory-gate` skills, and epic #5456 M4 folded `voice`'s Writing Style, Completeness Principle, and Confusion Protocol sections into the `spec`, `plan`, `review`, and `autoplan` skills:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot working in this repository | 3 rules, 43,895 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 3 rules, 43,895 bytes |
+| `.github/instructions` | Copilot working in this repository | 3 rules, 38,064 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 3 rules, 38,064 bytes |
 
 The membership is identical: `builder-ethos`, `universal`, `voice`.
 
-Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same three rules measure 43,952 bytes at `.claude/rules/`, 57 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
+Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same three rules measure 38,121 bytes at `.claude/rules/`, 57 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
 
 The Claude side answers the same question from the source, and it reads `paths:` alone. It ignores `applyTo:`, `globs:`, and `alwaysApply:`, all three of which `generate_rules.py` accepts, and each fails differently. `applyTo:` is remapped, so the mirror is scoped and only the Claude source leaks (`pragmatic-programmer`). `globs:` is preserved verbatim and never becomes `applyTo:`, so neither tree is scoped. `alwaysApply:` is dropped before the generator synthesizes `applyTo: '**'`, so both trees load universally and a code-only rule cannot state its scope (`code-quality`). Between them, 25,527 bytes loaded on every doc-only session (issue #4871). `check_rule_scope_keys.py`, under the validation-scripts tree, now fails the build on any scope key but `paths:`, which is what keeps the source-side and mirror-side answers the same. The directory prefix is omitted for the same reason the citation-freshness gate's is above: this rule ships in the plugin instruction mirrors, where an upstream-only path would dangle.
 
