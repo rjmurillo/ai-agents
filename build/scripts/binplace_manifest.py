@@ -119,12 +119,19 @@ class BinplaceConfigError(Exception):
 
 @dataclass(frozen=True)
 class Row:
-    """One binplace manifest row: source, optional plugin-tree hop, install target."""
+    """One binplace manifest row: source, optional plugin-tree hop, install target.
+
+    ``install_tree`` is ``None`` only for a Copilot-side lib row (ADR-109 B5,
+    ``lib-*-copilot`` / ``lib-bootstrap-copilot``): its ``plugin_tree`` under
+    ``src/copilot-cli/lib/`` IS the final output, with no further hop, since
+    ``.claude/`` never mirrors the Copilot tree. :func:`binplace` and
+    :func:`claude_allowlist` both skip such a row's install side entirely.
+    """
 
     class_name: str
     source: Path
     plugin_tree: Path | None
-    install_tree: Path
+    install_tree: Path | None
     compile: str | None = None
 
 
@@ -242,11 +249,14 @@ def _load_one_row(
             repo_root, f"rows[{class_name}].plugin_tree", str(plugin_tree_raw)
         )
 
-    install_tree_str = str(entry.get("install_tree") or "")
-    install_tree = _validate_path_field(
-        repo_root, f"rows[{class_name}].install_tree", install_tree_str
-    )
-    _validate_install_tree_prefix(f"rows[{class_name}].install_tree", install_tree_str)
+    install_tree_raw = entry.get("install_tree")
+    install_tree: Path | None = None
+    if install_tree_raw is not None:
+        install_tree_str = str(install_tree_raw)
+        install_tree = _validate_path_field(
+            repo_root, f"rows[{class_name}].install_tree", install_tree_str
+        )
+        _validate_install_tree_prefix(f"rows[{class_name}].install_tree", install_tree_str)
 
     compile_raw = entry.get("compile")
     compile_name = str(compile_raw) if compile_raw is not None else None
@@ -273,7 +283,7 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
     """
     allow: set[Path] = set()
     for row in load(repo_root):
-        if not _is_claude_rooted(row.install_tree, repo_root):
+        if row.install_tree is None or not _is_claude_rooted(row.install_tree, repo_root):
             continue
         if row.compile == _SKILLS_COMPILE_DELEGATE:
             allow |= skill_templates.owned_targets(repo_root)
@@ -284,7 +294,9 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
     return allow
 
 
-def _is_claude_rooted(install_tree: Path, repo_root: Path) -> bool:
+def _is_claude_rooted(install_tree: Path | None, repo_root: Path) -> bool:
+    if install_tree is None:
+        return False
     try:
         relative = install_tree.relative_to(repo_root)
     except ValueError:
@@ -293,7 +305,14 @@ def _is_claude_rooted(install_tree: Path, repo_root: Path) -> bool:
 
 
 def _plugin_tree_install_paths(plugin_tree: Path, install_tree: Path) -> set[Path]:
-    """Return each file under ``plugin_tree``, mapped onto ``install_tree``."""
+    """Return each file under ``plugin_tree``, mapped onto ``install_tree``.
+
+    A file-shaped ``plugin_tree`` (ADR-109 B5's ``lib-bootstrap`` and
+    ``skills-sidecar`` rows: a single registered file, not a package
+    directory) maps onto ``install_tree`` directly, no walk needed.
+    """
+    if plugin_tree.is_file():
+        return {install_tree}
     if not plugin_tree.is_dir():
         return set()
     paths: set[Path] = set()
@@ -321,7 +340,9 @@ def binplace(repo_root: Path, *, check: bool) -> BinplaceResult:
     """
     result = BinplaceResult()
     for row in load(repo_root):
-        if row.plugin_tree is None:
+        if row.plugin_tree is None or row.install_tree is None:
+            # A row with no install_tree (ADR-109 B5's Copilot-side lib
+            # rows) has no second hop: its plugin_tree IS the final output.
             continue
         _binplace_one_row(row.plugin_tree, row.install_tree, check=check, result=result)
     return result
@@ -333,8 +354,13 @@ def _binplace_one_row(
     """Binplace one row's plugin tree, folding written/drifted/unowned into ``result``.
 
     Extracted out of :func:`binplace`'s loop body to hold that function's
-    cyclomatic complexity down.
+    cyclomatic complexity down. A file-shaped ``plugin_tree`` (a single
+    registered file rather than a package directory) is binplaced directly,
+    with no directory walk.
     """
+    if plugin_tree.is_file():
+        _binplace_one_file(plugin_tree, install_tree, check=check, result=result)
+        return
     if not plugin_tree.is_dir():
         return
     owned_relatives: set[Path] = set()
