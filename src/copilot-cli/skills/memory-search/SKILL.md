@@ -168,3 +168,4 @@ demand-loaded; read one when you need the detail it covers.
 | [references/memory-router.md](references/memory-router.md) | ADR-037 router architecture behind `search_memory.py` |
 | [references/api-reference.md](references/api-reference.md) | Complete function reference for the memory API |
 | [references/skill-reference.md](references/skill-reference.md) | Detailed `search_memory.py` script parameters |
+| [references/where-to-search.md](references/where-to-search.md) | Ordered source list for searching before building, cheapest first |
