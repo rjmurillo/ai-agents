@@ -4,7 +4,7 @@ applyTo: src/claude/**
 
 # Claude Agent and Skill Rules
 
-`src/claude/agents/*.md` are generated from `templates/agents/<stem>.claude.md.tmpl` and the Copilot copy is generated from `<stem>.copilot.md.tmpl` (per ADR-109). A shared block that both variants need lives in the partials directory beside the templates. To add or change an agent, edit the template, run `uv run python build/scripts/build_all.py`, and commit the regenerated copies. `.claude/agents/` and `.claude/skills/` hold per-repo artifacts loaded by Claude Code. There is no `.claude/commands/`: ADR-064 (issue #5632) made skills the single user-invocable surface, and a blocking validator in this repository refuses a command file under any plugin root. The path is not named here because this rule ships in the Copilot instruction mirrors, where the validation tree does not exist.
+`src/claude/agents/*.md` are generated from `templates/agents/<stem>.claude.md.tmpl` and the Copilot copy is generated from `<stem>.copilot.md.tmpl` (per ADR-109). A shared block that both variants need lives in the partials directory beside the templates. To add or change an agent, edit the template, run `uv run python build/scripts/build_all.py`, and commit the regenerated copies. A template-owned skill's `SKILL.md` follows the same shape (ADR-108, ADR-109 B3): `templates/skills/<name>.SKILL.md.tmpl` renders to `src/claude/skills/<name>/SKILL.md`, and the same `build_all.py` run binplaces it onto `.claude/skills/<name>/SKILL.md`. `.claude/agents/` and `.claude/skills/` hold per-repo artifacts loaded by Claude Code. There is no `.claude/commands/`: ADR-064 (issue #5632) made skills the single user-invocable surface, and a blocking validator in this repository refuses a command file under any plugin root. The path is not named here because this rule ships in the Copilot instruction mirrors, where the validation tree does not exist.
 
 ## MUST
 
@@ -15,6 +15,7 @@ applyTo: src/claude/**
 5. **No internal references in `src/claude/`**. Files under `src/claude/` MUST NOT reference `.agents/` paths that will not exist for downstream installers.
 6. **Python for skill scripts**. New skill scripts MUST be Python per ADR-042.
 7. **Test what the prose promises**. When a `SKILL.md` names a script, an exit code, and what that code means, it has defined an executable contract, and at least one file under `tests/` MUST assert the documented exit-code behavior. Prose is not enforcement: a documented exit code that nothing asserts drifts from the script the first time someone edits the script and not the document, and the drift is invisible because the document still reads correctly. `check_skill_contract_tests.py` enforces this.
+8. **Edit template-owned skill sources, then regenerate**. A skill with a `templates/skills/<name>.SKILL.md.tmpl` file MUST be edited there, not at `.claude/skills/<name>/SKILL.md` or `src/claude/skills/<name>/SKILL.md` directly (ADR-108, ADR-109 B3): run `uv run python build/scripts/build_all.py` and commit the regenerated `src/claude/skills/<name>/SKILL.md` and binplaced `.claude/skills/<name>/SKILL.md` together. Every other file under a skill directory (scripts, references, tests) stays hand-maintained.
 
 ## SHOULD
 
