@@ -39,6 +39,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
         encoding="utf-8",
         errors="replace",
         check=False,
+        timeout=30,
     )
 
 
