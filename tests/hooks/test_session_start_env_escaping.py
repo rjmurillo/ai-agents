@@ -88,7 +88,7 @@ def test_repo_root_with_quote_and_command_substitution_does_not_inject(tmp_path:
 
     marker = tmp_path / "INJECTED"
     source_proc = subprocess.run(
-        ["bash", "-c", f'source "{env_file}"'],
+        ["bash", "-c", 'source "$1"', "bash", str(env_file)],
         cwd=tmp_path,
         capture_output=True,
         encoding="utf-8",
