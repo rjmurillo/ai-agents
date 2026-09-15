@@ -64,7 +64,7 @@
     "src/claude/skills/work-operating-model/references/layer-questions.md": 1,
     "src/copilot-cli/instructions/canonical-source-mirror.instructions.md": 31,
     "src/copilot-cli/instructions/claude-agents.instructions.md": 19,
-    "src/copilot-cli/instructions/generated-artifacts.instructions.md": 19,
+    "src/copilot-cli/instructions/generated-artifacts.instructions.md": 18,
     "src/copilot-cli/instructions/knowledge-persistence.instructions.md": 3,
     "src/copilot-cli/instructions/plugin-version-bump.instructions.md": 2,
     "src/copilot-cli/instructions/python.instructions.md": 2,

@@ -3554,6 +3554,30 @@ def _filter_to_merge_base_scope(
     return kept
 
 
+def _is_verbatim_mirror_on_disk(repo_root: Path, rel_path: str) -> bool:
+    """True when ``rel_path``'s on-disk bytes match its ``_mirror_source`` counterpart.
+
+    A generated mirror (``_GENERATED_MIRRORS``, for example ``src/claude/skills/``
+    copying ``.claude/skills/`` byte for byte) type-checks as a brand-new file
+    the first time the build populates it there: mypy's changed-line ratchet
+    (``_changed_line_map``, ``_mypy_result_blocks``) has no prior commit at
+    that path to compare against, so every line, and any pre-existing error
+    on it, reads as newly introduced. The canonical source already carries
+    whatever errors it carries, checked (or not) on its own schedule; this
+    excludes an identical mirror from a SECOND, redundant check that can only
+    ever repeat the same finding under a ratchet that cannot recognize it as
+    old. A mirror that diverges from its source, even by one byte, is still
+    checked in full.
+    """
+    source_rel = _mirror_source(rel_path)
+    if source_rel is None:
+        return False
+    try:
+        return (repo_root / rel_path).read_bytes() == (repo_root / source_rel).read_bytes()
+    except OSError:
+        return False
+
+
 def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
     if not paths:
         print(
@@ -3574,6 +3598,11 @@ def run_mypy(paths: Sequence[str], repo_root: Path) -> int:
             print(f"ERROR: refusing to type-check symlink: {path}", file=sys.stderr)
             return 2
         checked_paths.append(path)
+    checked_paths = [
+        path for path in checked_paths if not _is_verbatim_mirror_on_disk(repo_root, path)
+    ]
+    if not checked_paths:
+        return 0
     base_ref = _mypy_ratchet_base_ref()
     checked_paths = _filter_to_merge_base_scope(checked_paths, repo_root, base_ref)
     if not checked_paths:

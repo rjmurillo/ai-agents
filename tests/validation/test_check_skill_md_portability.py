@@ -1869,6 +1869,108 @@ class TestBaselineSemanticConflictGuard:
 
         assert rc == 1
 
+    def test_verbatim_skill_mirror_alongside_baseline_is_allowed(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """ADR-109 B3 follow-up: a byte-identical mirror is not new drift.
+
+        generate_skills.sync_claude_plugin_skill_support mirrors a skill's
+        support files from .claude/skills/ into src/claude/skills/ byte for
+        byte. The mirror's ref count is not new against base_ref just
+        because the mirror PATH is new there: the content, and its baseline
+        entry, already existed at the canonical source.
+        """
+        self._init_repo(tmp_path)
+        references_dir = tmp_path / ".claude" / "skills" / "a" / "references"
+        references_dir.mkdir(parents=True)
+        (references_dir / "notes.md").write_text("Uses .agents/state.\n", encoding="utf-8")
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {
+                    "files": {".claude/skills/a/references/notes.md": 1},
+                    "marker_files": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "reviewed source"], cwd=tmp_path, check=True)
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        mirror_dir = tmp_path / "src" / "claude" / "skills" / "a" / "references"
+        mirror_dir.mkdir(parents=True)
+        (mirror_dir / "notes.md").write_text("Uses .agents/state.\n", encoding="utf-8")
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {
+                    "files": {
+                        ".claude/skills/a/references/notes.md": 1,
+                        "src/claude/skills/a/references/notes.md": 1,
+                    },
+                    "marker_files": {},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                base_sha,
+            ]
+        )
+
+        assert rc == 0
+        assert "Semantic baseline conflict" not in capsys.readouterr().out
+
+    def test_diverged_skill_mirror_alongside_baseline_still_fails(self, tmp_path: Path) -> None:
+        """A mirror that is NOT byte-identical to its source is still new drift."""
+        self._init_repo(tmp_path)
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+
+        mirror_dir = tmp_path / "src" / "claude" / "skills" / "a" / "references"
+        mirror_dir.mkdir(parents=True)
+        (mirror_dir / "notes.md").write_text(
+            "Uses .agents/state, never reviewed here.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps(
+                {"files": {"src/claude/skills/a/references/notes.md": 1}, "marker_files": {}}
+            ),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(["git", "commit", "-qm", "unreviewed mirror"], cwd=tmp_path, check=True)
+
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                base_sha,
+            ]
+        )
+
+        assert rc == 1
+
     def test_baseline_only_change_does_not_trigger_semantic_conflict(
         self, tmp_path: Path
     ) -> None:

@@ -196,7 +196,7 @@ install-tree counterpart). REQ-003-010 forbids other generators from writing
 there; every class, lib included, is now a manifest row, so there is no
 longer an ordering hazard for this rule to document.
 
-A skill's non-`SKILL.md` files (`scripts/`, `references/`, `tests/`, and
+A skill's non-`SKILL.md` files (scripts, references, tests, and
 anything else under `.claude/skills/<name>/`) are the one exception to
 "edit the template": they stay hand-maintained at `.claude/skills/<name>/`,
 never under `templates/`. `build_all.py` mirrors them into

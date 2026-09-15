@@ -58,6 +58,55 @@ def test_current_count_counts_checker_findings(tmp_path: Path) -> None:
     assert ratchet.current_count(tmp_path) == 1
 
 
+class TestGeneratedSkillMirrorExclusion:
+    """ADR-109 B3 follow-up: a mirrored skill support file counts once, at source.
+
+    .claude/skills/<name>/ is the canonical, hand-maintained source for every
+    non-SKILL.md file; src/claude/skills/ and src/copilot-cli/skills/ each
+    carry a byte-for-byte copy (generate_skills.py). Without this exclusion a
+    violation already counted at the source recounts once per generated
+    mirror.
+    """
+
+    @pytest.mark.parametrize(
+        ("rel", "expected"),
+        [
+            ("src/claude/skills/review/scripts/run.py", ".claude/skills/review/scripts/run.py"),
+            (
+                "src/copilot-cli/skills/review/scripts/run.py",
+                ".claude/skills/review/scripts/run.py",
+            ),
+            (".claude/skills/review/scripts/run.py", None),
+            ("scripts/authored/run.py", None),
+        ],
+    )
+    def test_skill_mirror_canonical_source_mapping(self, rel: str, expected: str | None) -> None:
+        assert ratchet._skill_mirror_canonical_source(rel) == expected
+
+    def test_exclusion_is_load_bearing(self, tmp_path: Path) -> None:
+        _git(tmp_path, "init")
+        bad_line = "subprocess.run(['x'], capture_output=True, encoding='utf-8')\n"
+        canonical = tmp_path / ".claude" / "skills" / "review" / "scripts" / "run.py"
+        canonical.parent.mkdir(parents=True)
+        canonical.write_text(f"import subprocess\n{bad_line}", encoding="utf-8")
+        mirrors = [
+            tmp_path / "src" / "claude" / "skills" / "review" / "scripts" / "run.py",
+            tmp_path / "src" / "copilot-cli" / "skills" / "review" / "scripts" / "run.py",
+        ]
+        for mirror in mirrors:
+            mirror.parent.mkdir(parents=True)
+            mirror.write_text(f"import subprocess\n{bad_line}", encoding="utf-8")
+        _git(
+            tmp_path,
+            "add",
+            ".claude/skills/review/scripts/run.py",
+            "src/claude/skills/review/scripts/run.py",
+            "src/copilot-cli/skills/review/scripts/run.py",
+        )
+
+        assert ratchet.current_count(tmp_path) == 1
+
+
 def test_current_count_counts_pipe_captures_and_aliases(tmp_path: Path) -> None:
     _git(tmp_path, "init")
     script_dir = tmp_path / "scripts"
