@@ -29,6 +29,21 @@ import skill_templates
 
 _CLAUDE_MD_LINE_RE = re.compile(r"^@CLAUDE\.md$", re.MULTILINE)
 
+# templates/platforms/copilot-cli.yaml artifacts.skills.excludeFilenames:
+# skills the Copilot mirror generator permanently omits (hard-wired to this
+# repo's own layout). They ship .claude/skills-only, so the mirror-existence
+# and mirror-content checks below do not apply. Empty on this branch: none
+# of ADR-109 B3 batch 4's sixteen skills are excluded from the mirror.
+_NO_COPILOT_MIRROR: frozenset[str] = frozenset()
+
+# Skills whose template escapes a literal "{{" via "\{{" (ADR-108 amended
+# 2026-09-14, e.g. a GitHub Actions "${{ }}" example): their rendered
+# SKILL.md legitimately contains "{{", so the blanket unresolved-tag scan
+# below does not apply to them. skill_templates.render() already proves no
+# tag is genuinely unresolved: it raises UnresolvedTagError before
+# returning if one exists, so a successful render is the real guarantee.
+_LITERAL_BRACE_SKILLS = frozenset({"security-detection"})
+
 
 def assert_template_owned_contract(name: str) -> None:
     """Assert the ADR-108 contract for one template-owned pilot skill.
@@ -42,19 +57,23 @@ def assert_template_owned_contract(name: str) -> None:
     2. Neither the rendered file nor its Copilot mirror
        (``src/copilot-cli/skills/<name>/SKILL.md``) contains a line that is
        exactly ``@CLAUDE.md`` (ADR-108 Context: Copilot CLI treats that line
-       as literal text rather than an include).
+       as literal text rather than an include). Skipped for a skill in
+       ``_NO_COPILOT_MIRROR``, which has no mirror file to check.
     3. Neither file contains the literal substring ``{{``: an unresolved
        mustache tag would mean the render left a partial or a disallowed
-       construct unexpanded.
+       construct unexpanded. Skipped for a skill in ``_LITERAL_BRACE_SKILLS``,
+       whose rendered output legitimately carries an escaped literal ``{{``.
     """
     template_path = REPO_ROOT / "templates" / "skills" / f"{name}.SKILL.md.tmpl"
     partials_dir = REPO_ROOT / "templates" / "skills" / "partials"
     rendered_path = REPO_ROOT / ".claude" / "skills" / name / "SKILL.md"
     mirror_path = REPO_ROOT / "src" / "copilot-cli" / "skills" / name / "SKILL.md"
+    has_mirror = name not in _NO_COPILOT_MIRROR
 
     assert template_path.is_file(), f"no template for {name!r}: {template_path}"
     assert rendered_path.is_file(), f"no rendered SKILL.md for {name!r}: {rendered_path}"
-    assert mirror_path.is_file(), f"no Copilot mirror for {name!r}: {mirror_path}"
+    if has_mirror:
+        assert mirror_path.is_file(), f"no Copilot mirror for {name!r}: {mirror_path}"
 
     fresh_render = skill_templates.render(template_path, partials_dir)
     committed = rendered_path.read_text(encoding="utf-8", newline="")
@@ -63,7 +82,9 @@ def assert_template_owned_contract(name: str) -> None:
         "rerun build/scripts/build_all.py"
     )
 
-    for path in (rendered_path, mirror_path):
+    check_paths = (rendered_path, mirror_path) if has_mirror else (rendered_path,)
+    for path in check_paths:
         text = path.read_text(encoding="utf-8", newline="")
         assert not _CLAUDE_MD_LINE_RE.search(text), f"{path}: still carries an @CLAUDE.md line"
-        assert "{{" not in text, f"{path}: unresolved '{{{{' left in rendered output"
+        if name not in _LITERAL_BRACE_SKILLS:
+            assert "{{" not in text, f"{path}: unresolved '{{{{' left in rendered output"
