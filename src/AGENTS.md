@@ -1,58 +1,58 @@
 # src/
 
-Two of the repo's three plugin sources; the `packages/ai-agents-cli` npm CLI is a separate tree at the repo root that vendors `.claude/`, nothing from here.
+Two of the three plugin roots; `packages/ai-agents-cli/` (repo root) vendors `.claude/`, nothing from here.
 
 ## Matters
 
-- `claude/` ships as `claude-agents` (`.claude-plugin/marketplace.json`); `copilot-cli/` as `project-toolkit` via `.github/plugin/marketplace.json`; `.claude/` is the third root, outside `src/`, and reuses the name `project-toolkit` in the root marketplace.
-- ADR-109 B1: all agent output trees here are template-generated, not hand-maintained (`templates/AGENTS.md`).
+- ADR-109 B1 to B4: `claude/{agents,skills,rules,hooks}` and `claude/hooks.json` render from `templates/`, then binplace byte for byte into `.claude/`. Render map: `templates/AGENTS.md`.
+- `claude/skills/<name>/` holds `SKILL.md` only; scripts, references, tests stay under `.claude/skills/<name>/`.
 
 ## Entry points
 
-- Shared agent body: `templates/agents/<stem>.shared.md`: reaches `vs-code-agents/` and `docs/agent-catalog.md`, and is the copilot-cli/github fallback on a standalone `generate_agents.py` run. Its glob is also that generator's stem list: no `.shared.md` means no `copilot-cli/agents/`, `vs-code-agents/`, or `.github/agents/` file for the stem at all.
-- Claude/Copilot agent: edit BOTH `<stem>.claude.md.tmpl` AND `<stem>.copilot.md.tmpl`; editing one skips the other's output.
+- Claude/Copilot agent: edit BOTH `templates/agents/<stem>.claude.md.tmpl` AND `<stem>.copilot.md.tmpl`; editing one skips the other's output.
 
 ## Where to look
 
 | Path | Why |
 |---|---|
-| `claude/**` | Generated agents plus hand-maintained refs; see `src/claude/AGENTS.md` |
-| `copilot-cli/**` | Generated from `.claude/{skills,hooks,lib,rules}` + `templates/agents/`; rules land in `instructions/` (23), not `rules/`; `THIRD-PARTY-NOTICES.TXT` from `scripts/generate_third_party_notices.py` (`--check` gate, not run by `build_all.py`, absent from `GENERATOR-FILES.md`); hand-maintained: `.claude-plugin/plugin.json`, `docs/` |
-| `packages/ai-agents-cli/` (repo root, outside `src/`) | Shipped npm CLI: own source, own tests, bun toolchain (`cli-smoke.yml`) |
+| `claude/**` | Plugin tree for `.claude/`; see `src/claude/AGENTS.md` |
+| `copilot-cli/instructions/` | 22 of 28 `claude/rules/`, all-internal-scope dropped; no `copilot-cli/rules/` |
+| `copilot-cli/hooks/` | From `claude/hooks/`; binplaced to `.github/hooks/*.json` |
+| `copilot-cli/docs/`, both `.claude-plugin/` | Hand-maintained inside generated trees |
 
 ## Skip
 
-- `copilot-cli/{agents,skills,instructions,lib,hooks}/` and `copilot-cli/THIRD-PARTY-NOTICES.TXT`, `vs-code-agents/*.agent.md`, `claude/agents/*.md`: generated, don't hand-edit (`.agents/governance/GENERATOR-FILES.md`, which omits the notices file).
-- `STYLE-GUIDE.md`: zero references from any template or agent output, and outside all three plugin roots. Still live for humans via `.gemini/styleguide.md` and `.github/prompts/default-ai-review.md`; do not delete.
+- `claude/{agents,skills,rules,hooks}/`, `copilot-cli/{agents,skills,instructions,lib,hooks}/`, `vs-code-agents/*.agent.md`: generated (`.agents/governance/GENERATOR-FILES.md`); `copilot-cli/THIRD-PARTY-NOTICES.TXT` too, via `scripts/generate_third_party_notices.py --check`, omitted from that inventory.
+- `STYLE-GUIDE.md`: orphan by design, bot-linked via `.gemini/styleguide.md`. Do not delete.
 
 ## Constraints
 
-- Regenerate: `uv run python build/scripts/build_all.py`, verify `--check`, commit source and output together.
-- Cross-harness work: read `agent-harness-reference` first, route the change through `ai-agents-portability-campaign`.
+- Regenerate, verify `--check`, commit source and output together.
+- Separate plugin roots: no cross-reference, no upstream-only path in shipped text.
+- Neither `.claude-plugin/plugin.json` carries a `version` key (ADR-092).
+- Cross-harness work: read `agent-harness-reference`, route through `ai-agents-portability-campaign`.
 
 ## Dangerous assumptions
 
-- `claude/agents/` looks hand-maintained; ADR-109 B1 made it generated, then binplaced to `.claude/agents/`.
-- `copilot-cli/docs/copilot-instructions.md` looks generated/ratcheted; it's hand-authored (ceiling binds `.github/copilot-instructions.md`).
-- `build_all.py --check` green does not prove the lib sync ran (see Dependencies).
-- `OWNED_PREFIXES` is the bare `src/` (`build_all.py:1061`), so ANY uncommitted change under `src/`, this file, `STYLE-GUIDE.md`, `claude/AGENTS.md` and `copilot-cli/docs/` included, reds `build_all.py --check` and pre_pr's `Generated Artifact Staleness` as `STALENESS DETECTED: uncommitted regen drift`. Regenerating does not clear it; commit.
+- `copilot-cli/docs/copilot-instructions.md` looks generated; hand-authored, no byte ratchet (that binds `.github/copilot-instructions.md`).
+- `OWNED_PREFIXES` carries a bare `src/`: any uncommitted change here, this file included, reds `build_all.py --check` and pre-PR `Generated Artifact Staleness`. Commit, do not just regenerate.
 
 ## Dependencies
 
-- Generators here: `agents`, `skills`, `rules`, `lib`, `hooks` (`.agents/governance/GENERATOR-FILES.md`).
-- `copilot-cli/lib/`: run `scripts/sync_plugin_lib.py` before `build_all.py`; chain, order, and catchers in `build/AGENTS.md`.
+- `copilot-cli/lib/`: run `scripts/sync_plugin_lib.py` first; catchers in `build/AGENTS.md`.
 
 ## Architecture
 
-- Full render pipeline: generator order, `.claude/` write exceptions (`binplace_manifest.claude_allowlist()`): `build/AGENTS.md`.
+- Render pipeline and gate semantics: `build/AGENTS.md`.
 
 ## Commands
 
 ```bash
 uv run python scripts/sync_plugin_lib.py           # MUST precede build_all.py
-uv run python build/scripts/build_all.py          # regenerate
-uv run python build/scripts/build_all.py --check   # CI drift gate
-uv run python build/generate_agents.py --validate    # copilot-cli/agents, vs-code-agents, .github/agents
-uv run python build/scripts/agent_templates.py --validate  # claude/agents/ vs its templates
+uv run python build/scripts/build_all.py
+uv run python build/scripts/build_all.py --check   # drift gate
+uv run python build/generate_agents.py --validate
+uv run python build/scripts/agent_templates.py --validate  # also rule_, hook_templates.py
+uv run python build/scripts/generate_skills.py --validate
 cd packages/ai-agents-cli && bun install --frozen-lockfile && bun run typecheck && bun test
 ```
