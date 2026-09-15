@@ -26,7 +26,7 @@ Knowledge -> context. Actions -> skills.
 **Ask First**: Architecture|New ADRs|Breaking|Security
 **Autonomy Guardrail**: Internal+reversible: act|External/irreversible: confirm|Ambiguous: act minimal, flag rest
 **Never**: Commit secrets|New bash scripts|Logic in YAML (ADR-006)|Raw gh if skill exists|Force push|Skip hooks|Internal refs in src|Scratch in tree
-**Never w/o verifying (BLOCKING)**:Ship unrun gen artifact (-> runtime test)|Resolve security thread w/o fix (-> code fix or owner)|Report PR blocked/conflicted w/o fix|Skip validation (-> `pre_pr.py`)
+**Never (BLOCKING); each needs its remedy, not just a check**:Ship unrun gen artifact (-> runtime test)|Resolve security thread w/o fix (-> code fix or owner)|Report PR blocked/conflicted w/o fix (-> resolve and re-check)|Skip validation (-> `pre_pr.py`)
 
 ## Skill-First
 
