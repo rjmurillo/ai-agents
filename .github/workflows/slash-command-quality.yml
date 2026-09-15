@@ -45,6 +45,7 @@ jobs:
 
   validate-slash-commands:
     runs-on: ubuntu-24.04-arm
+    environment: bot-secrets
     needs: check-paths
     if: needs.check-paths.outputs.spec_evals_changed == 'true'
     permissions:

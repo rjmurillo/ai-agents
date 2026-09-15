@@ -80,6 +80,7 @@ jobs:
   claude-response:
     needs: check-authorization
     runs-on: ubuntu-latest
+    environment: bot-secrets
     if: needs.check-authorization.outputs.authorized == 'true'
     steps:
       - name: Checkout repository
