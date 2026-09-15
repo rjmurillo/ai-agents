@@ -4,9 +4,9 @@ Plugin root shipping as `project-toolkit`; `hooks/` and `skills/` have own guide
 
 ## Matters
 
-- Generated, never hand-edit: `agents/`, `rules/`, `skills/<name>/SKILL.md`, `hooks/`, `settings.json`. Sources are `templates/` files in the `rjmurillo/ai-agents` repository.
+- Generated, never hand-edit: `agents/`, `rules/`, `skills/<name>/SKILL.md`, `hooks/`, `settings.json`, `lib/` packages plus `lib/bootstrap.py`. Sources are `templates/` files and the repo's `scripts/` packages in the `rjmurillo/ai-agents` repository.
 - Hand-maintained here: `lib/` (mixed, see next line), `CLAUDE.md`, this guide, `.claude-plugin/plugin.json`, the seven doc files under `hooks/`, each skill's non-`SKILL.md` files.
-- `lib/` mixed: `.py` under `ai_review_common/`, `github_core/`, `hook_utilities/` plus `bootstrap.py` synced, never hand-edit; nine top-level modules canonical here, mirrored outward.
+- `lib/` mixed: `ai_review_common/`, `github_core/`, `hook_utilities/`, `bootstrap.py` are binplaced renders of `scripts/` packages, never hand-edit; the top-level modules (`claude_hook_dispatch.py`, `paths.py`, siblings) have no `scripts/` source and are edited here.
 
 ## Entry points
 
@@ -33,13 +33,13 @@ Plugin root shipping as `project-toolkit`; `hooks/` and `skills/` have own guide
 
 ## Dangerous assumptions
 
-- "`rules/`, `agents/`, `skills/<name>/SKILL.md`, `hooks/`, `settings.json` are hand-authored" is false since ADR-109 B1 to B4; `generated-artifacts.md` auto-loads for all but `settings.json`.
+- "`rules/`, `agents/`, `skills/<name>/SKILL.md`, `hooks/`, `settings.json`, `lib/` packages are hand-authored" is false since ADR-109 B1 to B5; `generated-artifacts.md` auto-loads for all but `settings.json`.
 - "A hook wired in `settings.json` ships to plugin consumers" is false; see `.claude/hooks/AGENTS.md`.
 - "This guide loads like `CLAUDE.md`" is false: on demand, never passively budgeted.
 
 ## Dependencies
 
-- `lib/` must be synced before the repo build; both scripts and the order hazard live outside this directory, in the `rjmurillo/ai-agents` repository. Wrong order exits 0 on both; pre-PR `Generated Artifact Staleness` signals the stale mirror.
+- `lib/` packages and `bootstrap.py` arrive by binplace from the repo build, one command, no separate sync step (ADR-109 B5); a hand edit here reds pre-PR `Generated Artifact Staleness`.
 
 ## Architecture
 

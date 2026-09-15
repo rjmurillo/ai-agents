@@ -5,7 +5,7 @@
 ## Matters
 
 - `SKILL.md` renders from `templates/skills/<name>.SKILL.md.tmpl` plus `partials/*.mustache`, all 111: edit the template and regenerate, in the `rjmurillo/ai-agents` repository. Render map: `templates/AGENTS.md`.
-- `<skill>/scripts/`, `references/`, `templates/`, `tests/` stay hand-edited, except `review/scripts/validate_review_marker.py` (synced from `scripts/validation/`). `review/references/*.md` is hand-edited but sources the PR-quality prompts; regenerate after editing (`build_all` skips it).
+- `<skill>/scripts/`, `references/`, `templates/`, `tests/` stay hand-edited, except `review/scripts/validate_review_marker.py` (rendered from `scripts/validation/`, binplaced). `review/references/*.md` is hand-edited but sources the PR-quality prompts; regenerate after editing (`build_all` skips it).
 - `model:` usually absent; the other valid state is `model: haiku` plus `model-rationale:` (ADR-080). `sonnet` and `opus` need a rationale pricing below the harness default; versioned ids always fail. The local gate warns; `pr-validation.yml` runs `--mode enforce`.
 - Size: two blocking ceilings, lines (warn 300, block 500) and bytes (warn 12,288, block 24,576). `size-exception: true` plus an HTML rationale comment (first 40 lines, 200+ chars) declares a justified overage.
 
