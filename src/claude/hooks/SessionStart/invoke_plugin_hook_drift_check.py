@@ -283,6 +283,24 @@ def compare_install(
     )
 
 
+def _opaque_path(path: Path) -> str:
+    """Reduce ``path`` to an opaque token for session context, logging the real path to stderr.
+
+    ``source_root`` (derived from the checkout path) and ``search_root``
+    (derived from ``COPILOT_HOME``, an environment variable this hook does
+    not control) are exactly the kind of attacker-influenceable path text
+    :func:`path_token` exists to keep out of stdout (module
+    ``plugin_hook_drift_safety`` docstring, CWE-74): they were previously
+    interpolated raw into ``notes``/``incomplete`` entries, bypassing the
+    ``path_token`` boundary every ``install_path`` already goes through.
+    Mirrors :func:`_log_install_paths`'s stderr-mapping contract so the real
+    path is still recoverable by a human reading the hook log, not lost.
+    """
+    token = path_token(path)
+    print(f"[{HOOK_NAME}] {token} = {sanitize_label(path, MAX_PATH_CHARS)}", file=sys.stderr)
+    return token
+
+
 def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
     """Compare every installed copy found on disk against its shipped source.
 
@@ -293,13 +311,20 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
     because its source manifest could not be read. Both produce no reports, and
     an empty report list on its own reads as "nothing is installed", so each
     one has to be said out loud.
+
+    ``source_root`` and ``search_root`` are opaque-tokenized (:func:`_opaque_path`)
+    before landing in either list: both carry attacker- or environment-
+    influenceable path text (module docstring), and stdout is injected into
+    session context.
     """
     outcome = ScanOutcome()
     for surface in plugin_surfaces(home):
         source_root = project_dir / surface.source_rel
         plugin_name, _ = read_plugin_identity(source_root)
         if plugin_name is None:
-            outcome.notes.append(f"{surface.label}: no readable plugin manifest at {source_root}")
+            outcome.notes.append(
+                f"{surface.label}: no readable plugin manifest at {_opaque_path(source_root)}"
+            )
             outcome.incomplete.append(f"{surface.label}: not searched (source plugin unreadable)")
             continue
         source, error = root_registrations(source_root, surface.schema)
@@ -315,7 +340,7 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
                 )
             if budget.truncated:
                 causes = "; ".join(sorted(budget.reasons))
-                outcome.incomplete.append(f"{surface.label}: {search_root} ({causes})")
+                outcome.incomplete.append(f"{surface.label}: {_opaque_path(search_root)} ({causes})")
     return outcome
 
 

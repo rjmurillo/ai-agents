@@ -98,14 +98,46 @@ def _read_file_truncated(path: Path, max_chars: int) -> str | None:
     return content
 
 
+def _is_contained_retrospective(path: Path, resolved_retro_dir: Path) -> bool:
+    """Return whether ``path`` is a real file safely inside ``resolved_retro_dir``.
+
+    A retrospective symlink can target a credential or private file (an
+    SSH key, a dotenv, ``/etc/shadow``) renamed with a ``.md`` extension;
+    without this check, :func:`_find_latest_retrospective` would happily
+    stat and later read through the link, injecting up to
+    ``MAX_RETRO_CHARS`` of that file's content into SessionStart model
+    context. ``path.is_symlink()`` rejects the leaf link itself;
+    ``resolve()`` plus containment additionally rejects a target reached
+    through a symlinked ANCESTOR directory that still resolves somewhere
+    other than under the retrospective directory (a leaf-only check misses
+    that case, the same distinction the build pipeline's containment
+    checks draw for generated paths).
+    """
+    if path.is_symlink():
+        return False
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    return resolved.is_relative_to(resolved_retro_dir)
+
+
 def _find_latest_retrospective(retro_dir: Path) -> Path | None:
     """Find the most recent retrospective file by modification time.
 
     Per-file stat failures (race with deletion, permission issue) skip that
     file rather than aborting the whole scan, so a single unreadable retro
-    does not hide every other retro from the SessionStart hook.
+    does not hide every other retro from the SessionStart hook. A
+    symlinked candidate, or one whose resolved path escapes the
+    retrospective directory, is skipped by :func:`_is_contained_retrospective`
+    before it is ever stat'd or read.
     """
     if not retro_dir.is_dir():
+        return None
+
+    try:
+        resolved_retro_dir = retro_dir.resolve()
+    except OSError:
         return None
 
     candidates: list[tuple[float, Path]] = []
@@ -120,6 +152,8 @@ def _find_latest_retrospective(retro_dir: Path) -> Path | None:
         return None
 
     for path in retro_paths:
+        if not _is_contained_retrospective(path, resolved_retro_dir):
+            continue
         try:
             candidates.append((path.stat().st_mtime, path))
         except OSError:

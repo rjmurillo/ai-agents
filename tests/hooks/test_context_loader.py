@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import IO, Any
 from unittest.mock import patch
 
+import pytest
+
 HOOKS_DIR = str(Path(__file__).resolve().parents[2] / ".claude" / "hooks" / "SessionStart")
 sys.path.insert(0, HOOKS_DIR)
 
@@ -185,6 +187,41 @@ def test_unreadable_file_skipped_not_fatal() -> None:
         # Assert: the bad file is skipped, the good one still counts
         assert count == 1
         assert names == [f"{good_date}-auto-retro.md"]
+
+
+# --- _find_latest_retrospective: symlink containment (CWE-22/CWE-59) ------
+
+
+def test_find_latest_retrospective_skips_a_symlinked_leaf(tmp_path: Path) -> None:
+    """A retrospective symlink is never followed, even when it is newest."""
+    retro_dir = tmp_path / "retrospective"
+    retro_dir.mkdir()
+    real = retro_dir / "2026-01-01-auto-retro.md"
+    real.write_text("real retro\n", encoding="utf-8")
+
+    secret = tmp_path / "secret.txt"
+    secret.write_text("SECRET_CONTENT\n", encoding="utf-8")
+    link = retro_dir / "2026-01-02-auto-retro.md"
+    try:
+        link.symlink_to(secret)
+    except OSError:
+        pytest.skip("cannot create symlink on this platform")
+
+    latest = invoke_context_loader._find_latest_retrospective(retro_dir)
+
+    assert latest == real
+
+
+def test_find_latest_retrospective_ignores_a_symlink_even_when_newer(tmp_path: Path) -> None:
+    """Positive control: a real, unlinked retro is still found when present."""
+    retro_dir = tmp_path / "retrospective"
+    retro_dir.mkdir()
+    real = retro_dir / "2026-01-01-auto-retro.md"
+    real.write_text("real retro\n", encoding="utf-8")
+
+    latest = invoke_context_loader._find_latest_retrospective(retro_dir)
+
+    assert latest == real
 
 
 # --- _skeleton_dates ------------------------------------------------------

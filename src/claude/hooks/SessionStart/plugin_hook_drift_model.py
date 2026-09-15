@@ -33,13 +33,18 @@ Refs: issue #5085.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path, PurePosixPath
 
 from plugin_hook_drift_safety import (
+    EVENT_SHAPE,
+    MODE_SHAPE,
+    SCRIPT_NAME_SHAPE,
     command_unit,
     path_token,
+    redacted,
     sanitize_label,
 )
 
@@ -123,11 +128,17 @@ def _is_named(value: object) -> bool:
 
 
 def _shim_basenames(shims: object) -> list[str] | None:
-    """Sanitized shim basenames, or None for any shape the dispatcher rejects.
+    """Sanitized shim identifiers, or None for any shape the dispatcher rejects.
 
     An empty list is None, not an empty result: `validate_group` raises
     "group shims must not be empty", so a group with no shims is a malformed
     manifest rather than a group that enforces nothing.
+
+    Each identifier pairs the basename (legible) with a digest of the
+    COMPLETE normalized shim path (comparison-safe): a basename alone
+    collides across two shims with the same filename in different
+    directories, which would call an attacker's substituted shim identical
+    to the real one as long as it kept the same filename.
     """
     if not isinstance(shims, list) or not shims:
         return None
@@ -138,7 +149,14 @@ def _shim_basenames(shims: object) -> list[str] | None:
         name = shim.get("file")
         if not _is_named(name):
             return None
-        names.append(sanitize_label(PurePosixPath(str(name).replace("\\", "/")).name))
+        normalized = " ".join(str(name).replace("\\", "/").split())
+        basename = PurePosixPath(normalized).name
+        digest = hashlib.sha256(normalized.encode("utf-8", "replace")).hexdigest()[:12]
+        # `redacted`, not `sanitize_label` (same reasoning as
+        # `command_unit`): an installed manifest's shim filename is
+        # attacker-influenceable, and SCRIPT_NAME_SHAPE's whitespace-free
+        # shape is what actually keeps a sentence out of session context.
+        names.append(f"{redacted(basename, SCRIPT_NAME_SHAPE, 'shim')}:{digest}")
     return names
 
 
@@ -185,14 +203,28 @@ def dispatch_membership(groups: object, group_id: str) -> tuple[str, ...] | None
     names = _shim_basenames(group.get("shims"))
     if names is None:
         return None
-    prefix = f"{sanitize_label(event, 40)}/{sanitize_label(mode, 40)}"
+    # `redacted`, not `sanitize_label`: event/mode come from an installed
+    # (attacker-influenceable) manifest, and their whitespace-free shapes
+    # (EVENT_SHAPE, MODE_SHAPE) are what keeps a crafted "event" or "mode"
+    # value carrying a full sentence out of session context, closing the
+    # same CWE-74 gap sanitize_label alone leaves open (module docstring).
+    prefix = f"{redacted(event, EVENT_SHAPE, 'event')}/{redacted(mode, MODE_SHAPE, 'mode')}"
     return tuple(sorted(f"{prefix}/{name}" for name in names))
 
 
 def _expand_command(
     event: str, matcher: str, command: str, groups: object
 ) -> set[tuple[str, str, str]] | None:
-    """Units one Claude registration enforces, expanding a dispatch group."""
+    """Units one Claude registration enforces, expanding a dispatch group.
+
+    A dispatcher command's own text (beyond ``--group <id>``) is folded into
+    every expanded unit as a digest: without it, two dispatcher invocations
+    that differ only in an added or changed argument (a different working
+    directory, an extra flag, a substituted entrypoint before the recognized
+    ``invoke_dispatch_claude.py`` marker) expand to the SAME units purely
+    from the group's shim membership, silently dropping whatever the
+    argument difference actually changed.
+    """
     if _DISPATCH_ENTRYPOINT not in command:
         return {(event, matcher, command_unit(command))}
     found = _GROUP_ARGUMENT.search(command)
@@ -202,8 +234,15 @@ def _expand_command(
     members = dispatch_membership(groups, group_id)
     if members is None:
         return None
+    command_digest = hashlib.sha256(
+        " ".join(command.split()).encode("utf-8", "replace")
+    ).hexdigest()[:12]
     return {
-        (event, matcher, f"{sanitize_label(group_id)}: {sanitize_label(member)}")
+        (
+            event,
+            matcher,
+            f"{sanitize_label(group_id)}:{command_digest}: {sanitize_label(member)}",
+        )
         for member in members
     }
 

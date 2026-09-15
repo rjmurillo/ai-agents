@@ -46,6 +46,7 @@ _SCRIPT_IN_COMMAND = re.compile(r"[A-Za-z0-9._/\\-]+\.(?:py|sh|ps1)")
 # uses. Filtering by character class alone does not achieve this, because
 # letters and spaces are both perfectly ordinary characters in a hook name.
 EVENT_SHAPE = re.compile(r"^[A-Za-z][A-Za-z0-9]{0,63}$")
+MODE_SHAPE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 MATCHER_SHAPE = re.compile(r"^[A-Za-z0-9._|*,:-]{1,64}$")
 SCRIPT_NAME_SHAPE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
@@ -85,20 +86,34 @@ def redacted(text: object, shape: re.Pattern[str], kind: str) -> str:
 def command_unit(command: str) -> str:
     """Name what a registration runs without echoing the command itself.
 
-    Prefers the basename of the last script path in the command, which is the
-    part a reader needs in order to find the hook. A bare identifier is kept as
-    written (it is already within the safe alphabet). Anything else, including
-    shell text a hostile manifest could have chosen freely, collapses to a
-    digest: still stable enough to diff two manifests, but carrying none of the
+    Leads with the basename of the last script path in the command, which is
+    the part a reader needs in order to find the hook, but ALWAYS appends a
+    digest of the complete normalized (whitespace-collapsed) command text.
+    The basename alone is not a safe comparison unit: two commands can
+    invoke same-named scripts from different directories or with different
+    arguments (a different plugin-root anchor, an added flag, a substituted
+    script one directory over), and a basename-only unit would call those
+    two registrations identical, hiding real drift. The digest closes that
+    gap while the basename keeps the label legible; a bare identifier is
+    kept as written (already within the safe alphabet) with the same digest
+    suffix; anything else, including shell text a hostile manifest could
+    have chosen freely, collapses to a digest alone, carrying none of the
     attacker's words into the model's context.
     """
     text = " ".join(command.split())
+    digest = hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:12]
     scripts = _SCRIPT_IN_COMMAND.findall(text)
     if scripts:
-        return sanitize_label(PurePosixPath(scripts[-1].replace("\\", "/")).name)
+        basename = PurePosixPath(scripts[-1].replace("\\", "/")).name
+        # `redacted`, not `sanitize_label`: a basename is whitespace-free by
+        # SCRIPT_NAME_SHAPE's own definition, and sanitize_label alone bounds
+        # only the character set, not the meaning (module docstring) -- an
+        # attacker-chosen "script" whose filename IS a sentence (still made
+        # of allowlisted characters: letters, digits, spaces, punctuation)
+        # would otherwise survive into session context unredacted.
+        return f"{redacted(basename, SCRIPT_NAME_SHAPE, 'script')}:{digest}"
     if _SAFE_TOKEN.match(text):
-        return text
-    digest = hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:12]
+        return f"{text}:{digest}"
     return f"unrecognized command (sha256:{digest})"
 
 
