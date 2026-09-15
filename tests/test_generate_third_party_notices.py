@@ -188,7 +188,7 @@ class TestGstackAttribution:
         assert entry["license"] == "MIT"
         assert entry["url"] == "https://github.com/garrytan/gstack"
         assert entry["author"] == "Garry Tan"
-        assert entry["local_path"] == ".claude/skills/dx-review"
+        assert entry["local_path"] == "src/claude/skills/dx-review"
         assert entry["license_blank_line_prefix"] == ""
 
     def test_entry_contains_the_pinned_mit_license(self) -> None:
