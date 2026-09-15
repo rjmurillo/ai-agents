@@ -1,0 +1,377 @@
+#!/usr/bin/env python3
+"""Create a new GitHub Issue.
+
+Supports both inline body text and file-based body content.
+
+On success the JSON envelope carries ``Data.number`` (the created issue number
+as an int) and ``Data.url`` so ``--output-format json`` callers can capture the
+new number programmatically (issue #2767). ``Data.issue_number`` is retained as
+an alias for existing callers.
+
+Exit codes follow ADR-035:
+    0 - Success
+    1 - Logic failure after argument parsing
+    2 - Usage/configuration error (invalid CLI args, file not found)
+    3 - External error (API failure)
+    4 - Auth error (not authenticated)
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import io
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+_plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
+_workspace = os.environ.get("GITHUB_WORKSPACE")
+if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
+    _lib_dir = os.path.join(_plugin_root, "lib")
+elif _workspace:
+    _lib_dir = os.path.join(_workspace, ".claude", "lib")
+else:
+    _lib_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "lib")
+    )
+if not os.path.isdir(_lib_dir):
+    print(f"Plugin lib directory not found: {_lib_dir}", file=sys.stderr)
+    sys.exit(2)  # Config error per ADR-035
+if _lib_dir not in sys.path:
+    sys.path.insert(0, _lib_dir)
+
+from github_core.api import (
+    resolve_repo_params,
+)
+from github_core.output import (
+    add_output_format_arg,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
+)
+from github_core.validation import escaped_newline_body_error
+
+# Markers that confirm a real authentication failure in gh stderr. A transient
+# REST 5xx (the 503 "Unicorn" page in issue #3139) contains none of these, so
+# it classifies as an external ApiError (exit 3), not an AuthError (exit 4).
+# Copied verbatim from close_issue.py::_AUTH_ERROR_MARKERS
+# (.claude/skills/github/scripts/issue/close_issue.py) to keep gh failure
+# classification consistent across the issue scripts.
+_AUTH_ERROR_MARKERS = (
+    "credential",
+    "not logged in",
+    "bad credentials",
+    "could not authenticate",
+    "authentication",
+    "requires authentication",
+)
+
+
+def _is_auth_error(message: str) -> bool:
+    lowered = message.lower()
+    return any(marker in lowered for marker in _AUTH_ERROR_MARKERS)
+
+
+def _classify_gh_failure(message: str) -> tuple[int, str]:
+    """Classify a failed gh operation by its stderr.
+
+    A confirmed auth failure maps to exit 4 / AuthError; every other failure,
+    including a transient HTTP 5xx or timeout, maps to exit 3 / ApiError so a
+    GitHub outage is not misreported as invalid credentials (issue #3139).
+    """
+    if _is_auth_error(message):
+        return 4, "AuthError"
+    return 3, "ApiError"
+
+
+def _write_github_output(outputs: dict[str, str]) -> None:
+    """Write key=value pairs to GITHUB_OUTPUT if available."""
+    output_file = os.environ.get("GITHUB_OUTPUT")
+    if not output_file:
+        return
+    try:
+        with open(output_file, "a", encoding="utf-8") as fh:
+            for key, value in outputs.items():
+                fh.write(f"{key}={value}\n")
+    except OSError:
+        pass
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Create a new GitHub Issue.",
+    )
+    parser.add_argument("--owner", default="", help="Repository owner")
+    parser.add_argument("--repo", default="", help="Repository name")
+    parser.add_argument("--title", required=True, help="Issue title")
+
+    body_group = parser.add_mutually_exclusive_group()
+    body_group.add_argument("--body", default="", help="Issue body text")
+    body_group.add_argument("--body-file", default="", help="Path to file containing issue body")
+
+    parser.add_argument(
+        "--labels",
+        default="",
+        help='Comma-separated list of labels (e.g., "bug,P1,needs-triage")',
+    )
+    add_output_format_arg(parser)
+    return parser
+
+
+def _apply_labels(
+    owner: str,
+    repo: str,
+    issue_number: int,
+    url: str,
+    labels: str,
+    fmt: str,
+) -> int | None:
+    """Apply labels to an already-created issue.
+
+    Label application runs as a separate ``gh issue edit`` call so a missing
+    label does not lose the created issue. On failure, emit the standard error
+    envelope carrying the issue number and URL so automation can repair labels
+    rather than re-create the issue.
+
+    Returns:
+        ``None`` on success (or when no labels were requested), otherwise the
+        exit code to return from ``main``.
+    """
+    if not labels or not labels.strip():
+        return None
+
+    label_list = [lbl.strip() for lbl in labels.split(",") if lbl.strip()]
+    if not label_list:
+        return None
+
+    gh_args = ["gh", "issue", "edit", str(issue_number), "--repo", f"{owner}/{repo}"]
+    for lbl in label_list:
+        gh_args.extend(["--add-label", lbl])
+
+    try:
+        result = subprocess.run(
+            gh_args,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            "gh issue edit timed out after 30s",
+            3,
+            error_type="Timeout",
+            output_format=fmt,
+            script_name="new_issue.py",
+            extra={"issue_number": issue_number, "url": url},
+        )
+        return 3
+
+    if result.returncode == 0:
+        return None
+
+    error_str = result.stderr.strip() or result.stdout.strip()
+    write_skill_error(
+        f"Issue #{issue_number} created but label application failed: {error_str}",
+        3,
+        error_type="ApiError",
+        output_format=fmt,
+        script_name="new_issue.py",
+        extra={"issue_number": issue_number, "url": url},
+    )
+    return 3
+
+
+def _resolve_auth_and_repo(
+    owner: str,
+    repo: str,
+    fmt: str,
+) -> tuple[str, str] | int:
+    """Resolve owner/repo, emitting a JSON envelope on failure.
+
+    No ``gh auth status`` preflight runs here. That preflight blocked working
+    GraphQL creates during a transient REST 503 because gh relabels the 503 as
+    an invalid token (issue #3139). Authentication is instead classified from
+    the actual ``gh issue create`` failure in ``main``.
+
+    Returns:
+        ``(owner, repo)`` on success, or an int exit code after writing the
+        error envelope so ``main`` can propagate it immediately.
+    """
+    _stderr_buf = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(_stderr_buf):
+            resolved = resolve_repo_params(owner, repo)
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 2
+        message = _stderr_buf.getvalue().strip() or "Could not resolve repository parameters."
+        write_skill_error(
+            message,
+            code,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return code
+
+    return resolved.owner, resolved.repo
+
+
+def _create_issue(
+    owner: str,
+    repo: str,
+    title: str,
+    body: str,
+    fmt: str,
+) -> tuple[int, str] | int:
+    """Run ``gh issue create`` and return the created issue.
+
+    Classifies the actual operation failure (issue #3139): a missing gh binary
+    or a confirmed auth failure maps to exit 4; a 5xx, timeout, or unparseable
+    result maps to exit 3.
+
+    Returns:
+        ``(issue_number, url_text)`` on success, or an int exit code after
+        writing the error envelope so ``main`` can propagate it immediately.
+    """
+    gh_args = ["gh", "issue", "create", "--repo", f"{owner}/{repo}", "--title", title]
+    if body and body.strip():
+        gh_args.extend(["--body", body])
+
+    try:
+        result = subprocess.run(
+            gh_args,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        write_skill_error(
+            "gh issue create timed out after 30s",
+            3,
+            error_type="Timeout",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 3
+    except FileNotFoundError:
+        write_skill_error(
+            "GitHub CLI (gh) is not installed or not on PATH. Run 'gh auth login' first.",
+            4,
+            error_type="AuthError",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 4
+
+    if result.returncode != 0:
+        error_str = result.stderr.strip() or result.stdout.strip()
+        code, error_type = _classify_gh_failure(error_str)
+        write_skill_error(
+            f"Failed to create issue: {error_str}",
+            code,
+            error_type=error_type,
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return code
+
+    output_text = result.stdout.strip()
+    match = re.search(r"issues/(\d+)", output_text)
+    if not match:
+        write_skill_error(
+            f"Could not parse issue number from result: {output_text}",
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 3
+
+    return int(match.group(1)), output_text
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
+
+    auth_result = _resolve_auth_and_repo(args.owner, args.repo, fmt)
+    if isinstance(auth_result, int):
+        return auth_result
+    owner, repo = auth_result
+
+    if not args.title or not args.title.strip():
+        write_skill_error(
+            "Title cannot be empty.",
+            2,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 2
+
+    body = args.body
+    if args.body_file:
+        body_path = Path(args.body_file)
+        if not body_path.exists():
+            write_skill_error(
+                f"Body file not found: {args.body_file}",
+                2,
+                error_type="NotFound",
+                output_format=fmt,
+                script_name="new_issue.py",
+            )
+            return 2
+        body = body_path.read_text(encoding="utf-8")
+
+    body_error = escaped_newline_body_error(body)
+    if body_error:
+        write_skill_error(
+            body_error,
+            2,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="new_issue.py",
+        )
+        return 2
+
+    create_result = _create_issue(owner, repo, args.title, body, fmt)
+    if isinstance(create_result, int):
+        return create_result
+    issue_number, output_text = create_result
+
+    label_error = _apply_labels(owner, repo, issue_number, output_text, args.labels, fmt)
+    if label_error is not None:
+        return label_error
+
+    write_skill_output(
+        {
+            "number": issue_number,
+            "issue_number": issue_number,
+            "url": output_text,
+            "title": args.title,
+        },
+        output_format=fmt,
+        human_summary=f"Created issue #{issue_number}: {args.title}",
+        script_name="new_issue.py",
+    )
+
+    _write_github_output(
+        {
+            "success": "true",
+            "issue_number": str(issue_number),
+            "issue_url": output_text,
+        }
+    )
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

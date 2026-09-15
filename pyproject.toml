@@ -141,6 +141,7 @@ ignore = []
 ".agents/security/benchmarks/vulnerable_samples/**/*.py" = ["RUF100", "I001", "E501"]
 # sys.path manipulation required before imports for plugin-context path resolution
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
+"src/claude/skills/github/scripts/**/*.py" = ["E402"]
 # Validation runners use sys.path.insert() before importing sibling modules
 "scripts/validation/pre_pr.py" = ["E402", "F401"]
 "scripts/validation/pre_pr_sequence.py" = ["E402"]
@@ -154,6 +155,10 @@ ignore = []
 # ANN suppression for pre-existing code (to be fixed incrementally)
 ".claude/skills/**/*.py" = ["ANN", "E501"]
 ".claude/hooks/**/*.py" = ["ANN"]
+# ADR-109 B3 follow-up: src/claude/skills/ mirrors .claude/skills/'s non-SKILL.md
+# files byte for byte (generate_skills.sync_claude_plugin_skill_support), so it
+# carries the same pre-existing violations and gets the same waiver.
+"src/claude/skills/**/*.py" = ["ANN", "E501"]
 # Copilot CLI mirror trees are generated wholesale from the .claude sources by
 # build/scripts/build_all.py (the canonical sources above are the linted copy).
 # The generator inlines hooks into wrapper functions, which trips N-series and

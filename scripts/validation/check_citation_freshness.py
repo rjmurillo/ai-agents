@@ -77,6 +77,23 @@ _FIXTURE_FRAGMENTS = ("/fixtures/",)
 # retrospectives, and that tuple is another gate's contract to widen.
 _EXTRA_HISTORICAL_ROOTS = (".agents/memory/",)
 
+# Generated skill mirrors (build/scripts/generate_skills.py,
+# build/scripts/skill_support_mirror.py): .claude/skills/ is the canonical,
+# hand-maintained source, copied byte for byte into src/claude/skills/ and
+# src/copilot-cli/skills/. A citation's staleness is a property of the prose,
+# not of which tree happens to carry a copy of it; policing the same broken
+# citation again at each mirror path would flag it once per generated copy
+# instead of once at the source that should actually be fixed, and would
+# retroactively flag EVERY pre-existing citation drift in a skill the first
+# time the build populates a new mirror tree for it (ADR-109 B3's
+# support-file follow-up populated src/claude/skills/ for 84 skills in one
+# PR). Exempted by prefix, not content match: this gate checks prose
+# accuracy, not byte identity, so there is nothing content comparison would
+# add here that the source's own (still-enforced) citations do not already
+# cover.
+_GENERATED_SKILL_MIRROR_ROOTS = ("src/claude/skills/", "src/copilot-cli/skills/")
+
+
 @dataclass(frozen=True)
 class Finding:
     """One citation on an added line that HEAD content contradicts."""
@@ -94,6 +111,8 @@ class Finding:
 def _is_exempt_citing_file(path: str) -> bool:
     """Return whether a citing file is out of this gate's scope."""
     if path.startswith(HISTORICAL_ROOTS) or path.startswith(_EXTRA_HISTORICAL_ROOTS):
+        return True
+    if path.startswith(_GENERATED_SKILL_MIRROR_ROOTS):
         return True
     # The leading slash makes the fragment match a top-level fixtures/
     # directory too, not only nested ones (diff paths are repo-relative).

@@ -183,6 +183,8 @@ ignores:
   # heading hierarchy is intentionally non-monotonic (sub-steps within numbered list items).
   - ".claude/skills/spec-generator/references/spec-step0-gates.md"
   - ".claude/skills/spec-generator/references/spec-prior-art-schema.md"
+  - "src/claude/skills/spec-generator/references/spec-step0-gates.md"
+  - "src/claude/skills/spec-generator/references/spec-prior-art-schema.md"
   - "src/copilot-cli/skills/spec-generator/references/spec-step0-gates.md"
   - "src/copilot-cli/skills/spec-generator/references/spec-prior-art-schema.md"
 
@@ -193,6 +195,7 @@ ignores:
   # the document opens with an XML declaration). Renaming to .xml would break
   # existing skill-discovery tooling that walks *.md. Excluded narrowly.
   - ".claude/skills/cva-analysis/references/SKILL_SPEC.md"
+  - "src/claude/skills/cva-analysis/references/SKILL_SPEC.md"
   - "src/copilot-cli/skills/cva-analysis/references/SKILL_SPEC.md"
 
 # Per-glob rule overrides for skill trees.

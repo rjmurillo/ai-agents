@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<skill_specification>
+  <metadata>
+    <name>memory</name>
+    <version>0.2.0</version>
+    <analysis_iterations>7</analysis_iterations>
+    <timelessness_score>8/10</timelessness_score>
+    <justification>
+      Memory retrieval is a fundamental agent capability that will remain relevant
+      regardless of underlying storage technology. The tier model maps to
+      cognitive science concepts (working/semantic/episodic). Extension
+      points allow adding new tiers without restructuring.
+    </justification>
+  </metadata>
+
+  <context>
+    <problem_statement>
+      AI agents lose context between sessions, repeat past mistakes, and cannot
+      leverage institutional knowledge. They need unified access to past facts,
+      session history, and learned patterns without understanding storage details.
+    </problem_statement>
+    <who>AI agents working in the ai-agents project ecosystem</who>
+    <why>
+      Enable memory-first decision making (ADR-007) by providing simple interface
+      to the tiered memory architecture. Reduce cognitive load on agents.
+    </why>
+    <existing_landscape>
+      - curating-memories: Maintenance only
+      DISTINCTIVENESS: This skill unifies ALL tiers with automation scripts
+    </existing_landscape>
+  </context>
+
+  <requirements>
+    <explicit>
+      <requirement id="E1">Wrap the tiered memory architecture</requirement>
+      <requirement id="E2">Integrate 6 Python scripts</requirement>
+      <requirement id="E3">Support 5+ trigger phrases</requirement>
+      <requirement id="E4">Reference ADR-037 and ADR-038</requirement>
+      <requirement id="E5">Agent-friendly with decision trees</requirement>
+      <requirement id="E6">Include verification steps</requirement>
+      <requirement id="E7">Document anti-patterns</requirement>
+    </explicit>
+    <implicit>
+      <requirement id="I1">Graceful degradation when a memory store is unreadable</requirement>
+      <requirement id="I2">Integration with session protocol</requirement>
+      <requirement id="I3">Follow the Python-first constraint (ADR-042, which superseded ADR-005)</requirement>
+      <requirement id="I4">Align with memory-first architecture (ADR-007)</requirement>
+    </implicit>
+    <discovered>
+      <requirement id="D1">Clear decision tree for tier selection</requirement>
+      <requirement id="D2">Error recovery paths for each operation</requirement>
+      <requirement id="D3">Feedback loop documentation (learning cycle)</requirement>
+      <requirement id="D4">Extension points for future tiers</requirement>
+      <requirement id="D5">Health check/validation capability</requirement>
+    </discovered>
+  </requirements>
+
+  <architecture>
+    <pattern name="Multi-Phase with Decision Tree">
+      <rationale>
+        Complex skill with multiple independent operations. Agent needs decision
+        guidance BEFORE taking action, then clear execution paths.
+      </rationale>
+    </pattern>
+
+    <phases>
+      <phase number="1" name="Tier Selection">
+        <description>Agent determines which tier(s) to query based on need</description>
+        <decision_tree>
+          need_current_facts → Tier 1 (search_memory.py)
+          need_session_history → Tier 2 (reflexion_memory.get_episode)
+          need_to_store_knowledge → Tier 2 (Extract)
+        </decision_tree>
+        <verification>Tier explicitly identified before proceeding</verification>
+      </phase>
+
+      <phase number="2" name="Execution">
+        <description>Run appropriate script with correct parameters</description>
+        <verification>Script completes without error, output captured</verification>
+      </phase>
+
+      <phase number="3" name="Integration">
+        <description>Integrate results into agent reasoning</description>
+        <verification>Agent explicitly references memory results in response</verification>
+      </phase>
+    </phases>
+
+    <decision_points>
+      <decision id="DP1" question="What kind of knowledge is needed?">
+        <option value="facts/patterns">Tier 1: search_memory</option>
+        <option value="session history">Tier 2: get_episode / get_episodes</option>
+        <default>Start with Tier 1, escalate if insufficient</default>
+      </decision>
+
+      <decision id="DP3" question="Store or retrieve?">
+        <option value="retrieve">Query appropriate tier</option>
+        <option value="store">Extract episode</option>
+      </decision>
+    </decision_points>
+  </architecture>
+
+  <scripts>
+    <decision_summary>
+      needs_scripts: true
+      rationale: Existing Python scripts provide automation. Need validation script.
+    </decision_summary>
+
+    <script_inventory>
+      <script name="scripts/search_memory.py" category="query" exists="true">
+        Unified search across Serena and the episode store
+      </script>
+      <script name="memory_core/memory_router.py" category="module" exists="true">
+        Core routing module implementing ADR-037
+      </script>
+      <script name="memory_core/reflexion_memory.py" category="module" exists="true">
+        Episodic memory functions
+      </script>
+      <script name="scripts/extract_session_episode.py" category="transformation" exists="true">
+        Session log → episode JSON extraction
+      </script>
+      <script name="scripts/measure_memory_performance.py" category="validation" exists="true">
+        Performance benchmarking
+      </script>
+      <script name="scripts/test_memory_health.py" category="validation" exists="true">
+        Health check for all tiers
+      </script>
+    </script_inventory>
+
+    <agentic_capabilities>
+      <autonomous>All scripts can run without human intervention</autonomous>
+      <self_verify>Search returns count, extraction returns JSON, graph returns stats</self_verify>
+      <recovery>Empty result list when a store is unreadable; never an error</recovery>
+    </agentic_capabilities>
+  </scripts>
+
+  <evolution_analysis>
+    <timelessness_score>8/10</timelessness_score>
+    <rationale>
+      Memory retrieval is fundamental to intelligent agents. The tier model
+      (working/semantic/episodic) maps to cognitive science. Storage
+      backends may change but the abstraction remains stable.
+    </rationale>
+
+    <extension_points>
+      <extension id="EXT1">Additional tier types (spatial, relational, temporal)</extension>
+      <extension id="EXT2">Alternative storage backends (new MCPs)</extension>
+      <extension id="EXT3">Custom episode parsers for different log formats</extension>
+      <extension id="EXT4">Additional episode consumers with a named reader (see ADR-089)</extension>
+    </extension_points>
+
+    <obsolescence_triggers>
+      <trigger>Claude gains native persistent memory (reduces need)</trigger>
+      <trigger>Serena deprecated without replacement</trigger>
+      <trigger>Session protocol changes incompatibly</trigger>
+    </obsolescence_triggers>
+  </evolution_analysis>
+
+  <anti_patterns>
+    <pattern id="AP1">
+      <name>Skipping Memory Search</name>
+      <description>Making decisions without consulting memory</description>
+      <why_bad>Ignores institutional knowledge, repeats past mistakes</why_bad>
+      <alternative>Always search memory before multi-step reasoning</alternative>
+    </pattern>
+
+    <pattern id="AP2">
+      <name>Tier Confusion</name>
+      <description>Using wrong tier for the task</description>
+      <why_bad>Returns irrelevant or empty results</why_bad>
+      <alternative>Follow decision tree explicitly</alternative>
+    </pattern>
+
+    <pattern id="AP3">
+      <name>Assuming a Second Backend</name>
+      <description>Writing code or prose that expects a semantic memory store beside Serena</description>
+      <why_bad>The second backend was decommissioned in issue #5574; nothing replaced it</why_bad>
+      <alternative>Serena is the whole of Tier 1; there is no backend to select or fall back from</alternative>
+    </pattern>
+
+    <pattern id="AP4">
+      <name>Derived Layer Without a Reader</name>
+      <description>Building an aggregation over episodes that nothing consumes</description>
+      <why_bad>Cost accrues (size, merge conflicts, maintenance) with no offsetting use; ADR-089 removed one such layer</why_bad>
+      <alternative>Name the non-memory consumer before building the derived layer</alternative>
+    </pattern>
+
+    <pattern id="AP5">
+      <name>Silent Search Failures</name>
+      <description>Not checking if search returned useful results</description>
+      <why_bad>Agent proceeds as if no memory exists</why_bad>
+      <alternative>Check result count, log "No relevant memories found"</alternative>
+    </pattern>
+
+    <pattern id="AP6">
+      <name>Incomplete Episode Extraction</name>
+      <description>Extracting from partial/unfinished sessions</description>
+      <why_bad>Writes an incomplete episode that downstream consumers read as fact</why_bad>
+      <alternative>Only extract from completed sessions with outcomes</alternative>
+    </pattern>
+  </anti_patterns>
+
+  <success_criteria>
+    <criterion id="SC1">
+      <measure>Agent can search memory and integrate results</measure>
+      <verification>Search returns results, agent references them in response</verification>
+    </criterion>
+
+    <criterion id="SC2">
+      <measure>Agent can extract episode from session</measure>
+      <verification>JSON file created in .agents/memory/episodes/</verification>
+    </criterion>
+
+    <criterion id="SC4">
+      <measure>Skill returns results from a readable Serena store</measure>
+      <verification>search_memory returns Serena results; an unreadable store yields an empty list, not an error</verification>
+    </criterion>
+
+    <criterion id="SC5">
+      <measure>Health check reports system state</measure>
+      <verification>scripts/test_memory_health.py returns status for all tiers</verification>
+    </criterion>
+  </success_criteria>
+</skill_specification>

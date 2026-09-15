@@ -151,6 +151,84 @@ def test_check_paths_blocks_new(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# check_paths: generated-mirror legacy tolerance (ADR-109 B3 follow-up)
+# ---------------------------------------------------------------------------
+
+
+def _init_repo_with_legacy_test(tmp_path: Path) -> None:
+    subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=tmp_path, capture_output=True, check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=tmp_path, capture_output=True, check=True,
+    )
+    test_dir = tmp_path / ".claude" / "skills" / "foo" / "tests"
+    test_dir.mkdir(parents=True)
+    (test_dir / "test_legacy.py").write_text("# legacy")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "init", "--no-verify"],
+        cwd=tmp_path, capture_output=True, check=True,
+    )
+
+
+@pytest.mark.parametrize(
+    "mirror_path",
+    [
+        "src/claude/skills/foo/tests/test_legacy.py",
+        "src/copilot-cli/skills/foo/tests/test_legacy.py",
+    ],
+)
+def test_check_paths_allows_mirror_of_legacy_source(
+    tmp_path: Path, mirror_path: str
+) -> None:
+    """A mirror path is tolerated when its .claude/skills/ counterpart is legacy.
+
+    The build (generate_skills.py) is what places this file at the mirror
+    path, not a contributor introducing a new colocated test; the path never
+    having appeared in git history before must not, on its own, make it a
+    policy violation.
+    """
+    _init_repo_with_legacy_test(tmp_path)
+
+    violations = check_paths([mirror_path], repo_root=tmp_path, allow_existing=True)
+
+    assert violations == []
+
+
+def test_check_paths_blocks_mirror_with_no_legacy_source(tmp_path: Path) -> None:
+    """A mirror-shaped path with no corresponding .claude/skills/ legacy file
+    is still a genuine new colocated test, not a mirror of anything."""
+    _init_repo_with_legacy_test(tmp_path)
+
+    violations = check_paths(
+        ["src/claude/skills/foo/tests/test_brand_new.py"],
+        repo_root=tmp_path,
+        allow_existing=True,
+    )
+
+    assert violations == ["src/claude/skills/foo/tests/test_brand_new.py"]
+
+
+def test_check_paths_mirror_exemption_disabled_when_allow_existing_false(
+    tmp_path: Path,
+) -> None:
+    """--base with allow_existing=False must not resurrect the mirror exemption."""
+    _init_repo_with_legacy_test(tmp_path)
+
+    violations = check_paths(
+        ["src/claude/skills/foo/tests/test_legacy.py"],
+        repo_root=tmp_path,
+        allow_existing=False,
+    )
+
+    assert violations == ["src/claude/skills/foo/tests/test_legacy.py"]
+
+
+# ---------------------------------------------------------------------------
 # main() CLI
 # ---------------------------------------------------------------------------
 
