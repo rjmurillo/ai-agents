@@ -21,6 +21,48 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
 
 from skill_template_grammar import render  # noqa: E402
 
+# Independent pin on the corpus size (issue CodeRabbit raised on this file):
+# the parametrized cases below derive their name list from the fixture
+# directory itself, so if a rule vanished from template, fixture, and
+# installed tree in the same change, the parametrized cases would simply
+# disappear and every test in this class would report a vacuous pass. This
+# frozenset is the fixed, independently-typed expectation those directory
+# listings are checked against, not derived from any of them. Count and
+# names from `ls templates/rules/*.md` at HEAD (2026-09-14; ADR-109 B2, all
+# 28 rules templated, TASK-032 Acceptance Criteria 1).
+EXPECTED_RULES = frozenset(
+    {
+        "adr-records",
+        "builder-ethos",
+        "canonical-source-mirror",
+        "ci-scripts",
+        "claude-agents",
+        "code-quality",
+        "csharp",
+        "generated-artifacts",
+        "governance",
+        "knowledge-persistence",
+        "lsp-first",
+        "plugin-self-containment",
+        "plugin-version-bump",
+        "powershell",
+        "pragmatic-programmer",
+        "push-lock",
+        "python",
+        "retros",
+        "secret-redaction",
+        "security",
+        "session-logs",
+        "templates",
+        "testing",
+        "token-economy",
+        "tool-use-hook-bar",
+        "unified-software-engineering",
+        "universal",
+        "voice",
+    }
+)
+
 
 def _fixture_dir() -> Path:
     """Return path to the fixtures directory."""
@@ -92,6 +134,24 @@ class TestLosslessRendering:
         rules = sorted(p.stem for p in (_REPO_ROOT / ".claude" / "rules").glob("*.md"))
         assert len(names) == len(rules), f"{len(names)} fixtures for {len(rules)} rules"
         assert names == rules, f"fixtures and rules differ: {set(names) ^ set(rules)}"
+
+    def test_fixture_names_match_expected_rules(self) -> None:
+        """Fixture directory matches EXPECTED_RULES, not just itself.
+
+        Guards against the vacuous-pass failure mode this module's own
+        docstring names: every parametrized case above derives its name
+        list from the fixture directory, so a rule dropped from template,
+        fixture, and installed tree in the same change would leave that
+        parametrization empty and every case silently absent, not failing.
+        Comparing against an independently maintained frozenset instead of
+        another directory listing is what catches that.
+        """
+        assert set(_discover_fixture_names()) == EXPECTED_RULES
+
+    def test_installed_rules_match_expected_rules(self) -> None:
+        """.claude/rules/*.md matches EXPECTED_RULES, independent of fixtures."""
+        installed = {p.stem for p in (_REPO_ROOT / ".claude" / "rules").glob("*.md")}
+        assert installed == EXPECTED_RULES
 
     def test_testing_rule_uses_the_literal_brace_escape(self) -> None:
         """testing.md templates its GitHub Actions example through the escape."""
