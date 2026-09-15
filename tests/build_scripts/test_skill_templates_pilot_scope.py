@@ -86,6 +86,18 @@ PILOT: frozenset[str] = frozenset(
         "code-qualities-assessment",
         "context-gather",
         "context-hub-setup",
+        "spec-generator",
+        "steering-matcher",
+        "stuck-detection",
+        "style-enforcement",
+        "taste-lints",
+        "threat-modeling",
+        "using-serena-symbols",
+        "validate-pr-description",
+        "validation-authority",
+        "windows-image-updater",
+        "work-operating-model",
+        "world-model-diagnostic",
     }
 )
 
