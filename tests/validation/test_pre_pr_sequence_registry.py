@@ -81,6 +81,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     'Skill Template Drift',
     'Agent Template Drift',
     'Rule Template Drift',
+    'Hook Template Drift',
     'Spec ID Uniqueness',
     'Traceability',
     'Vendor Portability',

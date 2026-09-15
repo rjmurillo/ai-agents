@@ -77,6 +77,7 @@ from checks_plugin import (
 )
 from checks_portability import (
     validate_agent_template_drift,
+    validate_hook_template_drift,
     validate_rule_template_drift,
     validate_skill_contract_tests,
     validate_skill_md_exec_portability,
@@ -362,6 +363,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Skill Template Drift", _root_only(validate_skill_template_drift)),
     _Gate("Agent Template Drift", _root_only(validate_agent_template_drift)),
     _Gate("Rule Template Drift", _root_only(validate_rule_template_drift)),
+    _Gate("Hook Template Drift", _root_only(validate_hook_template_drift)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
     # The six gates below are the six validators the CI job
