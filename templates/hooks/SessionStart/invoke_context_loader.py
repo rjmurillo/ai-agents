@@ -122,17 +122,51 @@ def _is_contained_retrospective(path: Path, resolved_retro_dir: Path) -> bool:
     return resolved.is_relative_to(resolved_retro_dir)
 
 
-def _find_latest_retrospective(retro_dir: Path) -> Path | None:
+def _has_symlink_component(root: Path, target: Path) -> bool:
+    """Return whether any path component from ``root`` down to ``target`` is a symlink.
+
+    ``_is_contained_retrospective`` checks containment against
+    ``retro_dir.resolve()``, but resolving ``retro_dir`` first is exactly
+    the gap: if ``retro_dir`` itself (or an ancestor such as ``.agents``) is
+    a symlink to an external directory, ``resolve()`` follows it and every
+    file that is genuinely inside the redirected target then reads as
+    "contained" relative to that redirected root. A project-recognized
+    checkout whose ``.agents`` or ``.agents/retrospective`` is a symlink
+    would leak an external directory's newest Markdown file into
+    SessionStart context. Walking each unresolved component between
+    ``root`` (the project directory, trusted) and ``target`` (``retro_dir``)
+    catches that redirection before anything is resolved, stat'd, or
+    globbed.
+    """
+    try:
+        relative_parts = target.relative_to(root).parts
+    except ValueError:
+        return True
+    current = root
+    for part in relative_parts:
+        current = current / part
+        if current.is_symlink():
+            return True
+    return False
+
+
+def _find_latest_retrospective(retro_dir: Path, root: Path) -> Path | None:
     """Find the most recent retrospective file by modification time.
 
-    Per-file stat failures (race with deletion, permission issue) skip that
-    file rather than aborting the whole scan, so a single unreadable retro
-    does not hide every other retro from the SessionStart hook. A
-    symlinked candidate, or one whose resolved path escapes the
+    ``root`` is the trusted project directory; every component from ``root``
+    down to ``retro_dir`` is rejected if it is a symlink (see
+    :func:`_has_symlink_component`) before ``retro_dir`` is resolved or
+    globbed at all. Per-file stat failures (race with deletion, permission
+    issue) skip that file rather than aborting the whole scan, so a single
+    unreadable retro does not hide every other retro from the SessionStart
+    hook. A symlinked candidate, or one whose resolved path escapes the
     retrospective directory, is skipped by :func:`_is_contained_retrospective`
     before it is ever stat'd or read.
     """
     if not retro_dir.is_dir():
+        return None
+
+    if _has_symlink_component(root, retro_dir):
         return None
 
     try:
@@ -336,7 +370,7 @@ def main() -> None:
 
     # Load latest retrospective
     retro_dir = project_path / ".agents" / "retrospective"
-    latest_retro = _find_latest_retrospective(retro_dir)
+    latest_retro = _find_latest_retrospective(retro_dir, project_path)
     if latest_retro:
         retro_content = _read_file_truncated(latest_retro, MAX_RETRO_CHARS)
         if retro_content:
