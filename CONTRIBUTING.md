@@ -127,6 +127,15 @@ git config --global core.autocrlf input
 
 This project uses a **template-based generation system** to maintain agent definitions across multiple platforms (VS Code, Copilot CLI). This ensures consistency while allowing platform-specific customizations.
 
+> **Note:** ADR-108 and ADR-109 extended this same template-owned-generated-output
+> pattern past agents. Skills, rules, and (since ADR-109 B4) hooks and
+> `.claude/settings.json` are ALSO generated from a `templates/<class>/`
+> source, not hand-maintained, even though this section (predating that
+> extension) describes only agents. `.agents/governance/GENERATOR-FILES.md`
+> is the current, authoritative inventory of every generator and its
+> source/output pair; read it before editing anything under `.claude/hooks/`,
+> `src/claude/`, or `.claude/settings.json`.
+
 ### Architecture Overview
 
 ```text

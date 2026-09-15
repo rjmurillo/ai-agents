@@ -139,7 +139,7 @@ B1 must land before B2 through B5, because each of those adds a row to the binpl
 
 - ADR-109 is `accepted` (2026-09-11); the owner authorized implementation once PR #5745 lands, with Haiku and Sonnet agents building and Opus reviewing.
 - B3's batching plan (count, size, grouping) is an open question the owner has not yet answered.
-- B4's code-owner-review ruleset decision is an open question the owner has not yet answered.
+- B4's code-owner-review ruleset decision is an open question the owner has not yet answered. Current value, confirmed 2026-09-15 via `gh api repos/rjmurillo/ai-agents/rulesets/11104075`: `required_approving_review_count: 0`, `require_code_owner_review: false`. The `/templates/hooks/` CODEOWNERS entry routes review but does not block a merge under this ruleset. Flipping either value is the owner's call, not this task's.
 
 ## Deferred items
 
