@@ -171,7 +171,7 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 - **Drift fails closed**. If `.claude/skills/review/references/` and `.github/prompts/` diverge, the pre-push hook blocks the push. CI re-checks as a backstop.
 - **UNKNOWN is information**. A skill that did not evaluate is not a silent PASS.
 - **Vendored survival**. `/review` works in a `.claude/`-only checkout. No axis or skill references `.agents/` or `.github/`.
-- **Voice**. Findings follow `resources/writing-style.md` (glossing, completeness scores).
+- **Voice**. Read `resources/writing-style.md` before writing findings (glossing, completeness scores).
 
 ## Verification
 
