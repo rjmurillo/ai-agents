@@ -270,13 +270,15 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-
 
 ### In Pre-commit Hooks
 
+pre-commit tokenizes `entry` without shell expansion, so `${COPILOT_PLUGIN_ROOT:-...}` would reach `python3` as a literal string and never resolve. Route it through a shell so the expansion happens before `python3` sees the path:
+
 ```yaml
 # Prevent accidental upstream modifications
 - id: provenance-check
   name: Provenance Check
-  entry: python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py"
+  entry: bash -c '"${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/analysis-provenance/scripts/check_provenance.py" "$@"' --
   args: [--target, node_modules, --exit-on-upstream]
-  language: python
+  language: system
 ```
 
 </details>
