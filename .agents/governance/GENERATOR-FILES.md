@@ -17,7 +17,8 @@ matching "Source" instead.
 | `build/scripts/generate_skills.py` | `.claude/skills/<name>/` | `src/copilot-cli/skills/<name>/` | REQ-003-001 |
 | `build/scripts/generate_skills.py` (compile step, `build/scripts/skill_templates.py`) | `templates/skills/<name>.SKILL.md.tmpl` + `templates/skills/partials/*.mustache` | `.claude/skills/<name>/SKILL.md`, template-owned skills only | ADR-108 |
 | `build/scripts/agent_templates.py` | `templates/agents/<stem>.claude.md.tmpl`, `<stem>.copilot.md.tmpl`, `templates/agents/partials/*.mustache` | `src/claude/agents/<stem>.md` and through `build/generate_agents.py` to `src/copilot-cli/agents/<stem>.agent.md` | ADR-109 |
-| `build/scripts/binplace_manifest.py` | `templates/platforms/binplace.yaml` plus the plugin trees it names | `.claude/agents/` | ADR-109 |
+| `build/scripts/rule_templates.py` | `templates/rules/<name>.md` (28 of 29; `testing.md` is untemplated, see below) | `src/claude/rules/<name>.md` and through the binplace step to `.claude/rules/<name>.md` | ADR-109 |
+| `build/scripts/binplace_manifest.py` | `templates/platforms/binplace.yaml` plus the plugin trees it names | `.claude/agents/`, `.claude/rules/` | ADR-109 |
 | `build/generate_agents.py` (`github` platform, `templates/platforms/github.yaml`) | `templates/agents/<stem>.copilot.md.tmpl` via `agent_templates.py` | `.github/agents/*.agent.md` (no `model:` field; GitHub rejects it, issue #4938) | ADR-109 |
 | `build/scripts/generate_hooks.py` with `build/scripts/generate_dispatcher.py` | `.claude/hooks/` + `.claude/settings.json` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` | REQ-003-007, ADR-068 |
 | `build/scripts/build_all.py` (`_build_lib`) | `.claude/lib/` | `src/copilot-cli/lib/` | REQ-003-001, REQ-003-002 |
@@ -27,18 +28,19 @@ matching "Source" instead.
 
 These trees are NOT written by any generator. REQ-003-010 forbids generators from
 writing under `.claude/`, except the template-owned skill files ADR-108 enumerates
-(two rows above) and agent files ADR-109 B1 enumerates (agent_templates.py and
-binplace_manifest.py): a `.claude/skills/<name>/SKILL.md` or `.claude/agents/<name>.md`
-whose source template exists at run time is generated output, not hand-maintained,
-and the exceptions are scoped to exactly those sets. Every other file below is kept
-in sync by hand and guarded by the install-parity validator, which fails CI when a
-sibling drifts from its source.
+(two rows above), agent files ADR-109 B1 enumerates (agent_templates.py and
+binplace_manifest.py), and rule files ADR-109 B2 enumerates (rule_templates.py and
+binplace_manifest.py): a `.claude/skills/<name>/SKILL.md`, `.claude/agents/<name>.md`,
+or `.claude/rules/<name>.md` whose source template exists at run time is generated
+output, not hand-maintained, and the exceptions are scoped to exactly those sets.
+Every other file below is kept in sync by hand and guarded by the install-parity
+validator, which fails CI when a sibling drifts from its source.
 
 | Path | Role | Guard |
 |------|------|-------|
-| (none currently; ADR-109 B1 retired agent and rule rows) | | |
+| `.claude/rules/testing.md` | Hand-maintained. No `templates/rules/testing.md` exists: the file's own literal `${{ a && b }}` GitHub Actions expression example matches the ADR-108 grammar's tag pattern (`{{ a && b }}`) and is rejected as a disallowed tag by `skill_template_grammar.check_grammar`. TASK-032 instructs stopping and reporting this file rather than inventing a grammar escape, so it stays hand-maintained until a future change resolves the conflict (rewording the example, or widening the grammar) | None; `rule_templates.discover()` simply excludes it (the "untemplated rule" edge case DESIGN-025's Testing Strategy table names for this class) |
 
-ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/<name>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above.
+ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/<name>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved 28 of 29 `.claude/rules/<name>.md` files the same way via rule_templates.py; `testing.md` is the one exception, above.
 
 ## Regenerating
 
