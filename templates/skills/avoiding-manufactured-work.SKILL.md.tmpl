@@ -45,7 +45,7 @@ Next action: <smallest action, or none>
 
 ## Disposition Procedure for Post-Completion Findings
 
-The builder-ethos rule, section `## 4. Task Completion Contract`, owns the completion contract (directory prefix omitted on purpose: this skill ships in the plugin mirrors, where a `.claude/rules/` path dangles; look the rule up by name in whichever instruction tree you are reading, `builder-ethos.md` under `.claude/rules/` or `builder-ethos.instructions.md` under the instructions trees): forming it, precedence, the terminal predicate, and reactivation. Read that section for any of those. Its `### Finding disposition` subsection delegates exactly one step to this skill, verbatim:
+The builder-ethos rule, section `## 4. Task Completion Contract`, owns the completion contract (directory prefix omitted on purpose: this skill ships in the plugin mirrors, where a `.claude/rules/` path dangles; look the rule up by name in whichever instruction tree you are reading, `builder-ethos.md` under `.claude/rules/` or `builder-ethos.instructions.md` under the instructions trees): precedence and the terminal predicate. Read that section for those two. Forming the contract and reactivation moved here; see `## Forming The Contract` and `## Reactivation` below. Its `### Finding disposition` subsection delegates exactly one step to this skill, verbatim:
 
 > Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
 
@@ -60,7 +60,15 @@ This section is that procedure. It maps each class onto the keep/shrink/defer/de
 
 Test the Blocker class first. A finding that falsifies mandatory safety or repository policy is a Blocker whether or not it sits inside the requested objective, so it never reaches the Side quest row and never maps to delete. Classify in table order: Blocker, then Requested improvement, then Optional enhancement, then Side quest.
 
-A defer or a delete is a disposition, not a silent drop. Name the finding and its class in the report, then stop. Naming it is not a reason to reopen the task; only `### Reactivation` in that same builder-ethos rule can do that.
+A defer or a delete is a disposition, not a silent drop. Name the finding and its class in the report, then stop. Naming it is not a reason to reopen the task; only the Reactivation section below can do that.
+
+## Forming The Contract
+
+Before non-trivial execution, derive the smallest task contract, in order: current user goal and deliverables; explicit constraints and acceptance criteria; mandatory system/safety/repository policy; minimum inferred success criteria a bounded request needs to be observable. Routine, low-risk work skips user confirmation of obvious inferred criteria. Record the contract before broad execution (TODO list, stated plan, or per-issue handoff); once started, criteria stay fixed unless the user changes them or a mandatory policy was omitted.
+
+## Reactivation
+
+A terminal task reopens only when evidence falsifies a named frozen criterion, a mandatory policy adds a blocker, or the user reopens it or makes a new request. Reviewer preference, optional hardening, a new context, or remaining budget cannot reactivate it. A child task's completion does not terminate its parent; a new request is new work unless it explicitly reopens the prior one. A consumer holding task identity and completion evidence must not reopen it without one of these events.
 
 ## Checklist
 
