@@ -46,8 +46,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 pytestmark = pytest.mark.windows_path
 
@@ -179,6 +183,68 @@ def test_plugin_root_anchored_command_fails_under_cloud_agent_contract(
     )
 
     assert proc.returncode != 0
+
+
+# --- Gate over the COMMITTED artifact, not only a synthetic repo ----------
+
+
+def _iter_command_strings(node: object) -> Iterator[str]:
+    """Yield every string value nested anywhere in a parsed hooks.json document.
+
+    Walks generically instead of assuming one entry shape (bare
+    ``{"bash": ...}``, matcher-wrapped, or nested groups): whatever schema
+    a future generator change produces, every command string it could ever
+    write passes through a "bash", "powershell", or "command" key
+    somewhere in the tree, and a generic walk catches all of them without
+    tracking the schema by hand.
+    """
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for value in node.values():
+            yield from _iter_command_strings(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _iter_command_strings(item)
+
+
+def test_committed_github_hooks_json_has_no_plugin_root_anchored_commands() -> None:
+    """The committed ``.github/hooks/hooks.json`` never anchors a command at a
+    plugin-root variable.
+
+    ``generate_hooks_emit._build_copilot_entry`` is the only entry-building
+    function in this pipeline, and it unconditionally anchors every command
+    at ``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT}}`` (module docstring's
+    KNOWN GAP paragraph); there is no separate cloud-agent transform for the
+    ``hooks-github`` binplace row, which copies ``src/copilot-cli/hooks/``
+    (built by that same function) into ``.github/hooks/`` verbatim. The
+    cloud agent never sets either plugin-root variable
+    (``_cloud_agent_env``'s docstring), so a plugin-root-anchored command
+    would silently fail to resolve there
+    (``test_plugin_root_anchored_command_fails_under_cloud_agent_contract``
+    proves the exact failure mode above).
+
+    Both ``.claude/hooks/hooks.json`` and ``.github/hooks/hooks.json``
+    register zero hooks today (ADR-097; confirmed by the ``doc.get("hooks")
+    == {}`` assertion below), so this passes vacuously right now. It is the
+    gate the module docstring's KNOWN GAP asks for: the moment a real
+    registration reaches ``.github/hooks/hooks.json`` through the existing
+    (plugin-root-anchored) generator path with no cloud-specific transform
+    added first, this test fails loudly instead of shipping a hook that is
+    silently dead in the cloud agent.
+    """
+    hooks_path = REPO_ROOT / ".github" / "hooks" / "hooks.json"
+    doc = json.loads(hooks_path.read_text(encoding="utf-8"))
+    assert doc.get("hooks") == {}, (
+        ".github/hooks/hooks.json now has real registrations; "
+        "generate_hooks_emit._build_copilot_entry's plugin-root-anchored "
+        "command shape is unsafe under the cloud-agent contract until a "
+        "cloud-specific transform exists (see this file's module docstring "
+        "KNOWN GAP paragraph)"
+    )
+    for command in _iter_command_strings(doc):
+        assert "COPILOT_PLUGIN_ROOT" not in command
+        assert "CLAUDE_PLUGIN_ROOT" not in command
 
 
 @requires_bash
