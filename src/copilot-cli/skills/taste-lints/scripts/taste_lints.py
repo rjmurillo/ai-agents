@@ -79,6 +79,14 @@ FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
     (_AGENT_STATE_DIR, "memory"),
     (_AGENT_STATE_DIR, "analysis", "eval-artifacts"),
     (_AGENT_STATE_DIR, "sessions"),
+    # scripts/validation/*_baseline.json: append-only ratchet baselines,
+    # written by each checker's own --update-baseline flag, one entry per
+    # tracked file. A line ceiling has no module boundary to split on here
+    # either, and every sibling baseline in this directory stays comfortably
+    # under it; skill_md_portability_baseline.json is the one that outgrew
+    # it, entirely from ADR-109 B3 adding a third scanned skills root
+    # (src/claude/skills/), not from new debt in any one entry.
+    ("scripts", "validation"),
 )
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (

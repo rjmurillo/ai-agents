@@ -252,6 +252,20 @@ def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str |
             f"outside {resolved_root}"
         )
 
+    return _plugin_tree_error(repo_root, name, tmpl_path, resolved_repo)
+
+
+def _plugin_tree_error(
+    repo_root: Path, name: str, tmpl_path: Path, resolved_repo: Path
+) -> str | None:
+    """Return why the PLUGIN-TREE side of ``name`` is refused, or ``None``.
+
+    Extracted out of :func:`_name_validation_error` to hold that function's
+    cyclomatic complexity under the taste-lint ceiling, the same reason
+    ``rule_templates._source_root_containment_error`` was split out of its
+    own ``_name_validation_error``. See that function's docstring for what
+    these three checks defend against.
+    """
     plugin_root = repo_root / "src" / "claude" / "skills"
     if plugin_root.is_symlink():
         return f"{tmpl_path}: src/claude/skills/ is a symlink, not a real directory"

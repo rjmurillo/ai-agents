@@ -1,13 +1,15 @@
-"""Tests for build/scripts/skill_templates.py and its generate_skills.py wiring.
+"""Tests for build/scripts/skill_templates.py's discover/compile_all/owned_targets.
 
-Covers ``discover``, ``discover_errors``, ``owned_targets``, ``compile_all``,
-the ``generate_skills.py`` wiring, and the CLI: DESIGN-024's Tests table
+Covers ``discover``, ``discover_errors``, ``owned_targets``, and
+``compile_all``: DESIGN-024's Tests table
 (``.agents/specs/design/DESIGN-024-skill-guidance-excerpt-sync.md``), plus
 NO-REGEN-fails-closed and partial-trailing-newline cases from later ADR
 review rounds for #5706 (see ``compile_all``'s own docstring). Grammar,
 partial-tree validation, and ``render`` are in the sibling
-``test_skill_template_grammar.py`` (taste-lint file-size ceiling); every
-case is kept. Fixture helpers live in ``_skill_template_helpers.py``.
+``test_skill_template_grammar.py``; ``generate_skills.py``'s compile-then-copy
+wiring and the ``--validate`` CLI are in ``test_generate_skills_wiring.py``
+(both split out for the taste-lint file-size ceiling; every case is kept).
+Fixture helpers live in ``_skill_template_helpers.py``.
 """
 
 from __future__ import annotations
@@ -24,14 +26,10 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
     if str(_extra_path) not in sys.path:
         sys.path.insert(0, str(_extra_path))
 
-import generate_skills  # noqa: E402
 import skill_templates  # noqa: E402
 from _skill_template_helpers import (  # noqa: E402
     NO_REGEN_SENTINEL_APPLIERS,
     NO_REGEN_SENTINEL_IDS,
-    install_target,
-    minimal_platform_config,
-    run_cli,
     seed_target_dir,
     target,
     write_partial,
@@ -387,120 +385,3 @@ def test_compile_all_worst_exit_code_wins_across_templates(tmp_path: Path) -> No
 
     assert result.exit_code == 2
     assert str(target(tmp_path, "clean")) in result.written
-
-
-def test_generate_skills_runs_compile_before_copy_and_writes_rendered_target(
-    tmp_path: Path,
-) -> None:
-    write_partial(tmp_path, "greet", "hi\n")
-    write_template(tmp_path, "sync", "# sync\n{{> greet}}\n")
-    skill_dir = tmp_path / ".claude" / "skills" / "sync"
-    skill_dir.mkdir(parents=True)
-    # ADR-109 B3: the install-tree SKILL.md is what a prior binplace run
-    # would have left in place; _iter_skill_sources needs it present to
-    # discover "sync" as a skill to copy, but generate_skills' copy loop
-    # must read the just-rendered PLUGIN-tree content, not this stale one.
-    (skill_dir / "SKILL.md").write_text("stale install copy\n", encoding="utf-8")
-    config = minimal_platform_config(tmp_path)
-
-    rc = generate_skills.generate_skills(config, tmp_path)
-
-    assert rc == 0
-    dst = target(tmp_path, "sync")
-    assert dst.read_text(encoding="utf-8") == "# sync\nhi\n"
-    # Copy loop still ran, and read the fresh plugin-tree render, not the
-    # stale install-tree copy still sitting in .claude/skills/.
-    mirror = tmp_path / "out" / "skills" / "sync" / "SKILL.md"
-    assert mirror.is_file()
-    assert mirror.read_text(encoding="utf-8") == "# sync\nhi\n"
-
-
-def test_generate_skills_nonzero_compile_returns_before_copy(tmp_path: Path) -> None:
-    write_template(tmp_path, "sync", "{{var}}\n")
-    skill_dir = tmp_path / ".claude" / "skills" / "sync"
-    skill_dir.mkdir(parents=True)
-    skill_dir_md = skill_dir / "SKILL.md"
-    skill_dir_md.write_text("# sync\n", encoding="utf-8")
-    config = minimal_platform_config(tmp_path)
-
-    rc = generate_skills.generate_skills(config, tmp_path)
-
-    assert rc == 2
-    assert not (tmp_path / "out" / "skills" / "sync").exists()
-
-
-def test_generate_skills_validate_true_compares_without_writing_then_still_copies(
-    tmp_path: Path,
-) -> None:
-    """build_all.py --check shape: validate=True skips the write but still copies."""
-    write_partial(tmp_path, "greet", "hi\n")
-    write_template(tmp_path, "sync", "{{> greet}}\n")
-    dst = seed_target_dir(tmp_path, "sync")
-    dst.write_text("hi\n", encoding="utf-8")
-    # validate=True never writes, so the install-tree copy _iter_skill_sources
-    # needs must already be on disk, the same way a prior binplace run
-    # would have left it (ADR-109 B3).
-    install_target(tmp_path, "sync").write_text("hi\n", encoding="utf-8")
-    config = minimal_platform_config(tmp_path)
-
-    rc = generate_skills.generate_skills(config, tmp_path, validate=True)
-
-    assert rc == 0
-    assert (tmp_path / "out" / "skills" / "sync" / "SKILL.md").is_file()
-
-
-def test_generate_skills_validate_true_with_drift_returns_one_and_skips_copy(
-    tmp_path: Path,
-) -> None:
-    write_partial(tmp_path, "greet", "hi\n")
-    write_template(tmp_path, "sync", "{{> greet}}\n")
-    dst = seed_target_dir(tmp_path, "sync")
-    dst.write_text("hand edited\n", encoding="utf-8")
-    config = minimal_platform_config(tmp_path)
-
-    rc = generate_skills.generate_skills(config, tmp_path, validate=True)
-
-    assert rc == 1
-    assert dst.read_text(encoding="utf-8") == "hand edited\n"
-    assert not (tmp_path / "out" / "skills" / "sync").exists()
-
-
-def test_cli_validate_exit_0_on_clean_tree(tmp_path: Path) -> None:
-    write_partial(tmp_path, "greet", "hi\n")
-    write_template(tmp_path, "sync", "{{> greet}}\n")
-    dst = seed_target_dir(tmp_path, "sync")
-    dst.write_text("hi\n", encoding="utf-8")
-
-    result = run_cli("--repo-root", str(tmp_path), "--validate")
-
-    assert result.returncode == 0, result.stderr
-
-
-def test_cli_validate_exit_1_on_drift(tmp_path: Path) -> None:
-    write_partial(tmp_path, "greet", "hi\n")
-    write_template(tmp_path, "sync", "{{> greet}}\n")
-    dst = seed_target_dir(tmp_path, "sync")
-    dst.write_text("hand edited\n", encoding="utf-8")
-
-    result = run_cli("--repo-root", str(tmp_path), "--validate")
-
-    assert result.returncode == 1
-    assert "DRIFTED" in result.stdout
-    assert dst.read_text(encoding="utf-8") == "hand edited\n"
-
-
-def test_cli_validate_exit_2_on_disallowed_tag(tmp_path: Path) -> None:
-    write_template(tmp_path, "sync", "{{var}}\n")
-    seed_target_dir(tmp_path, "sync")
-
-    result = run_cli("--repo-root", str(tmp_path), "--validate")
-
-    assert result.returncode == 2
-    assert "{{var}}" in result.stderr
-
-
-def test_cli_validate_needs_no_platform_config(tmp_path: Path) -> None:
-    """--validate never resolves a platform config (main()'s own contract)."""
-    result = run_cli("--repo-root", str(tmp_path), "--validate")
-
-    assert result.returncode == 0
