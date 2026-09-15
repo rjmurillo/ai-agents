@@ -46,8 +46,14 @@ artifacts:
     sourceDir: ".claude/lib"
     outputDir: "src/copilot-cli/lib"
   hooks:
-    settingsSource: ".claude/hooks/hooks.json"
-    scriptSource: ".claude/hooks"
+    # ADR-109 B4: hooks render from templates/hooks/ into src/claude/hooks/
+    # and src/claude/hooks.json (the plugin tree; build_all.py's
+    # `_build_hooks` runs hook_templates.compile_all() before this
+    # generator reads either path), the same repoint B2 gave the rules
+    # stanza's sourceDir. .claude/hooks/ and .claude/hooks/hooks.json
+    # become binplace outputs, not this generator's source.
+    settingsSource: "src/claude/hooks.json"
+    scriptSource: "src/claude/hooks"
     outputConfig: "src/copilot-cli/hooks/hooks.json"
     outputScripts: "src/copilot-cli/hooks"
     # ADR-068 / #2295 / #2342: consolidate safely mergeable events. Keep

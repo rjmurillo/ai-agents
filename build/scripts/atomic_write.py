@@ -21,6 +21,7 @@ Public names:
     ``read_bytes_no_redirect(path) -> bytes``
     ``write_bytes_no_redirect(path, content, *, mode=None) -> None``
     ``publish_bytes_atomically(path, content, *, mode=None) -> None``
+    ``reject_symlinked_ancestors(repo_root, label, path) -> str | None``
 """
 
 from __future__ import annotations
@@ -125,3 +126,32 @@ def publish_bytes_atomically(path: Path, content: bytes, *, mode: int | None = N
         except OSError:
             pass
         raise
+
+
+def reject_symlinked_ancestors(repo_root: Path, label: str, path: Path) -> str | None:
+    """Return why an EXISTING ancestor of ``path`` is a symlink, or ``None``.
+
+    ``Path.resolve()``-based containment checks (``_resolved_containment_error``
+    in ``hook_templates.py`` and ``binplace_manifest.py``) accept an
+    intermediate ancestor symlink that redirects to another path still INSIDE
+    the repository: the fully resolved path passes the "is it under
+    repo_root" test even though it names a different directory than the one
+    the manifest or target map declares. Walking ``path``'s own (unresolved)
+    components from ``repo_root`` down and rejecting the first one that is
+    itself a symlink catches that redirect regardless of where it points.
+
+    A missing ancestor is not an error (mirrors every other "does not exist
+    yet" tolerance in these modules); only an ancestor that already exists as
+    a link is refused. ``path`` itself (the final component) is not checked
+    here; callers already validate the leaf as its own symlink check.
+    """
+    try:
+        relative_parts = path.relative_to(repo_root).parts
+    except ValueError:
+        return None
+    current = repo_root
+    for part in relative_parts[:-1]:
+        current = current / part
+        if current.is_symlink():
+            return f"{label} {path} has a symlinked ancestor directory at {current}"
+    return None

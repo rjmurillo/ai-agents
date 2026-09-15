@@ -4121,6 +4121,56 @@ def test_main_what_if_runs_without_writing(tmp_path: Path) -> None:
     assert not (tmp_path / "out" / "hooks.json").exists()
 
 
+def test_main_compiles_hook_templates_before_generation(tmp_path: Path) -> None:
+    """A standalone run renders ``templates/hooks`` first (ADR-109 B4).
+
+    Without the compile step, a direct ``generate_hooks.py`` run reads a
+    stale (or absent) ``src/claude/hooks`` / ``src/claude/hooks.json`` and
+    either mirrors unchanged output or fails when those plugin-tree paths
+    have never been rendered. Mirrors
+    ``test_generate_rules.test_main_compiles_rule_templates_before_generation``'s
+    same fix for ``rule_templates.compile_all``.
+    """
+    tmpl_dir = tmp_path / "templates" / "hooks"
+    (tmpl_dir / "PreToolUse").mkdir(parents=True)
+    (tmpl_dir / "PreToolUse" / "fresh.py").write_text(
+        "import sys\nsys.exit(0)\n", encoding="utf-8"
+    )
+    (tmpl_dir / "hooks.json").write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "python3 -u .claude/hooks/PreToolUse/fresh.py",
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    cfg = _write_config(
+        tmp_path,
+        hooks_stanza_overrides={
+            "scriptSource": "src/claude/hooks",
+            "settingsSource": "src/claude/hooks.json",
+        },
+    )
+
+    rc = generate_hooks.main(["--config", str(cfg), "--repo-root", str(tmp_path)])
+
+    assert rc == 0
+    assert (tmp_path / "src" / "claude" / "hooks" / "PreToolUse" / "fresh.py").is_file()
+    assert (tmp_path / "src" / "claude" / "hooks.json").is_file()
+    assert (tmp_path / "out" / "PreToolUse" / "fresh.py").is_file()
+
+
 def test_matcher_suffix_long_unicode_no_crash():
     """A matcher with unicode + symbols + length >48 hashes cleanly."""
     out = _matcher_suffix("Bash(café✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓)")

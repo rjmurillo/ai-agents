@@ -307,6 +307,37 @@ def test_check_installed_plugins_notes_a_missing_source_plugin_manifest(tmp_path
     assert "no readable plugin manifest" in notes[0]
 
 
+def test_check_installed_plugins_notes_do_not_leak_the_source_root_path(tmp_path) -> None:
+    # source_root is checkout-derived path text; it must go through the same
+    # path_token boundary install_path already does before landing in a note
+    # that stdout carries into session context (CWE-74).
+    project_dir = tmp_path / "repo"
+    _make_plugin_root(project_dir / "src" / "copilot-cli", {})
+
+    notes = drift.check_installed_plugins(project_dir, tmp_path / "home").notes
+
+    assert len(notes) == 1
+    assert str(project_dir) not in notes[0]
+    assert "install sha256:" in notes[0]
+
+
+def test_check_installed_plugins_incomplete_does_not_leak_the_search_root_path(
+    tmp_path, monkeypatch
+) -> None:
+    # search_root is derived from COPILOT_HOME, an environment variable this
+    # hook does not control; it must not reach stdout as raw path text.
+    project_dir = _make_checkout(tmp_path / "repo", {})
+    home = tmp_path / "home"
+    _install_behind_decoys(home / ".claude" / "plugins")
+    monkeypatch.setattr(state, "MAX_SCAN_DIRS", 2)
+
+    outcome = drift.check_installed_plugins(project_dir, home)
+
+    assert len(outcome.incomplete) == 1
+    assert str(home) not in outcome.incomplete[0]
+    assert "install sha256:" in outcome.incomplete[0]
+
+
 def test_check_installed_plugins_reports_a_scan_it_could_not_finish(tmp_path, monkeypatch) -> None:
     # The install is real and stale, but sits past the directory bound. The
     # outcome has to say the search was cut short; an empty report list alone

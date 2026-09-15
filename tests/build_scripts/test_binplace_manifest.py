@@ -493,3 +493,70 @@ def test_claude_allowlist_includes_file_shaped_plugin_tree(tmp_path: Path) -> No
     allow = binplace_manifest.claude_allowlist(root)
 
     assert allow == {root / ".claude" / "lib" / "bootstrap.py"}
+
+
+# --- ADR-109 B4: file-shaped plugin_tree and direct-compile rows ---------
+
+
+def _write_hooks_manifest(root: Path) -> None:
+    write_manifest(
+        root,
+        "rows:\n"
+        "  - class: hooks-json\n"
+        "    source: templates/hooks/hooks.json\n"
+        "    plugin_tree: src/claude/hooks.json\n"
+        "    install_tree: .claude/hooks/hooks.json\n"
+        "    compile: hook_templates\n"
+        "  - class: settings\n"
+        "    source: templates/hooks/settings.tmpl\n"
+        "    plugin_tree: null\n"
+        "    install_tree: .claude/settings.json\n"
+        "    compile: hook_templates\n"
+    )
+
+
+def test_binplace_copies_a_single_file_plugin_tree(tmp_path: Path) -> None:
+    """binplace: a file-shaped plugin_tree (hooks-json) copies one file, not a tree."""
+    root = fake_repo(tmp_path)
+    _write_hooks_manifest(root)
+    plugin_file = root / "src" / "claude" / "hooks.json"
+    plugin_file.parent.mkdir(parents=True, exist_ok=True)
+    plugin_file.write_bytes(b'{"hooks": {}}')
+
+    result = binplace_manifest.binplace(root, check=False)
+
+    dst = root / ".claude" / "hooks" / "hooks.json"
+    assert dst.read_bytes() == b'{"hooks": {}}'
+    assert result.exit_code == 0
+
+
+def test_claude_allowlist_covers_file_shaped_and_direct_compile_rows(tmp_path: Path) -> None:
+    """claude_allowlist: hooks-json (file plugin_tree) and settings (direct) both owned."""
+    root = fake_repo(tmp_path)
+    _write_hooks_manifest(root)
+    plugin_file = root / "src" / "claude" / "hooks.json"
+    plugin_file.parent.mkdir(parents=True, exist_ok=True)
+    plugin_file.write_bytes(b'{"hooks": {}}')
+
+    allow = binplace_manifest.claude_allowlist(root)
+
+    assert root / ".claude" / "hooks" / "hooks.json" in allow
+    assert root / ".claude" / "settings.json" in allow
+
+
+def test_binplace_check_mode_reports_drift_for_file_shaped_row(tmp_path: Path) -> None:
+    """binplace check mode: a stale file-shaped target is drift, not overwritten."""
+    root = fake_repo(tmp_path)
+    _write_hooks_manifest(root)
+    plugin_file = root / "src" / "claude" / "hooks.json"
+    plugin_file.parent.mkdir(parents=True, exist_ok=True)
+    plugin_file.write_bytes(b'{"hooks": {}}')
+    dst = root / ".claude" / "hooks" / "hooks.json"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_bytes(b'{"hooks": {"stale": true}}')
+
+    result = binplace_manifest.binplace(root, check=True)
+
+    assert result.exit_code == 2
+    assert str(dst) in result.drifted
+    assert dst.read_bytes() == b'{"hooks": {"stale": true}}'

@@ -100,6 +100,7 @@ import generate_adr_index  # noqa: E402
 import generate_hooks  # noqa: E402
 import generate_rules  # noqa: E402
 import generate_skills  # noqa: E402
+import hook_templates  # noqa: E402
 import lib_mirror  # noqa: E402
 import rule_templates  # noqa: E402
 import skill_templates  # noqa: E402
@@ -440,17 +441,45 @@ def _build_lib(repo_root: Path, config_path: Path, platform: str) -> GeneratorRe
     return result
 
 
-def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
-    """Generate Copilot CLI hook config (REQ-003-007, M5-T6).
+def _build_hooks(
+    repo_root: Path, config_path: Path, platform: str, *, check: bool = False
+) -> GeneratorResult:
+    """Compile hook templates, then generate Copilot CLI hook config (REQ-003-007, M5-T6).
 
-    Mirrors :func:`_build_rules`: skips silently when the platform has
-    no ``artifacts.hooks`` stanza. Tallies inputs as the number of
-    Claude hook entries in ``settings.json`` (across all events) and
-    outputs as the number of entries written to the Copilot
-    ``hooks.json`` (post event-drop). ``skipped`` counts NO-REGEN
-    sentinel hits on copied scripts; ``dropped`` counts events landing
-    in ``eventDrop``.
+    ADR-109 B4: ``templates/hooks/`` compiles to ``src/claude/hooks/`` and
+    ``src/claude/hooks.json`` first (``hook_templates.compile_all``), the
+    same two-step shape :func:`_build_rules` runs for its own class. The
+    compile also renders ``.claude/settings.json`` directly (no plugin-tree
+    hop; ADR-109 section 3). The compile is repo-global, not
+    platform-scoped, so it runs even when this platform's config has no
+    ``artifacts.hooks`` stanza, mirroring :func:`_build_rules`'s reasoning.
+    In check mode the compile validates and writes nothing; a nonzero
+    compile exit becomes 2 and short-circuits before the mirror generation
+    below runs.
+
+    The mirror generator (``generate_hooks.generate_hooks``) reads
+    ``src/claude/hooks`` and ``src/claude/hooks.json`` (the stanza's
+    ``scriptSource``/``settingsSource`` since ADR-109 B4), which the
+    compile above just wrote, so one run renders template, plugin tree,
+    and the Copilot mirror together; the binplace step that follows every
+    generator copies ``src/claude/hooks`` to ``.claude/hooks``,
+    ``src/claude/hooks.json`` to ``.claude/hooks/hooks.json``, and
+    ``src/copilot-cli/hooks`` to ``.github/hooks``.
+
+    Mirror generation is still skipped when the platform has no
+    ``artifacts.hooks`` stanza: there is no ``settingsSource``/
+    ``scriptSource``/output pair to render into without one.
     """
+    compile_result = hook_templates.compile_all(repo_root, validate=check)
+    result = GeneratorResult(
+        artifact="hooks", platform=platform, exit_code=compile_result.exit_code
+    )
+    result.skipped = len(compile_result.skipped)
+    if compile_result.exit_code != 0:
+        if check:
+            result.exit_code = 2
+        return result
+
     try:
         cfg = load_platform_config(config_path)
     except ConfigError:
@@ -458,12 +487,13 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
     artifacts = cfg.get("artifacts") if isinstance(cfg.get("artifacts"), dict) else {}
     stanza = artifacts.get("hooks") if isinstance(artifacts, dict) else None
     if not isinstance(stanza, dict):
-        result = GeneratorResult(artifact="hooks", platform=platform, exit_code=0)
         result.notices.append(f"{platform}: no artifacts.hooks stanza; skipped")
         return result
 
     rc, run_result = generate_hooks.generate_hooks(config_path, repo_root)
-    result = GeneratorResult(artifact="hooks", platform=platform, exit_code=rc)
+    if check and rc != 0:
+        rc = 2
+    result.exit_code = max(result.exit_code, rc)
     settings_source = stanza.get("settingsSource")
     if isinstance(settings_source, str):
         settings_path = repo_root / settings_source
@@ -485,7 +515,7 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
             except (OSError, ValueError):
                 result.inputs = 0
     result.outputs = run_result.written
-    result.skipped = run_result.sentinel_skipped
+    result.skipped += run_result.sentinel_skipped
     if run_result.dropped:
         drop_reasons = sorted(
             {
@@ -1044,6 +1074,9 @@ OWNED_PREFIXES: tuple[str, ...] = (
     ".claude/agents/",
     ".claude/rules/",
     ".claude/lib/",
+    ".claude/hooks/",
+    ".claude/settings.json",
+    ".github/hooks/",
     "docs/agent-catalog.md",
     ".agents/architecture/README.md",
 )
@@ -2079,11 +2112,13 @@ def run(
 def _run_binplace(repo_root: Path, *, check: bool) -> GeneratorResult:
     """Copy plugin trees into install trees per templates/platforms/binplace.yaml.
 
-    Check mode writes nothing: a byte difference between a plugin tree and
-    its install tree is staleness, exit 2, the same code a drifted
-    generated tree already produces. A manifest that fails validation is
-    a configuration error, also exit 2. Files under an install tree with
-    no plugin counterpart are reported as notices and never touched.
+    Check mode writes nothing: a content or mode difference between a
+    plugin tree and its install tree is staleness, exit 2, the same code a
+    drifted generated tree already produces. A manifest that fails
+    validation is a configuration error, also exit 2. A NO-REGEN-protected
+    install file is skipped, exit 1 (mirrors every other compile module's
+    NO-REGEN floor). Files under an install tree with no plugin counterpart
+    are reported as notices and never touched.
     """
     result = GeneratorResult(artifact="binplace", platform="*")
     try:
@@ -2093,6 +2128,7 @@ def _run_binplace(repo_root: Path, *, check: bool) -> GeneratorResult:
         result.exit_code = 2
         return result
     result.outputs = len(outcome.written)
+    result.skipped = len(outcome.skipped)
     result.notices.extend(f"unowned install file left alone: {p}" for p in outcome.unowned)
     if outcome.drifted:
         for path in outcome.drifted:
@@ -2100,7 +2136,7 @@ def _run_binplace(repo_root: Path, *, check: bool) -> GeneratorResult:
                 f"STALENESS DETECTED: install tree differs from plugin tree: {path}",
                 file=sys.stderr,
             )
-        result.exit_code = 2
+    result.exit_code = max(result.exit_code, outcome.exit_code)
     return result
 
 
@@ -2149,6 +2185,10 @@ def _run_generators(
                 # ADR-109 B2: same reasoning as the skills branch above;
                 # _build_rules' own compile step needs `check` threaded in.
                 result = _build_rules(repo_root, cfg, platform_name, check=check)
+            elif artifact == "hooks":
+                # ADR-109 B4: same reasoning as the rules branch above;
+                # _build_hooks' own compile step needs `check` threaded in.
+                result = _build_hooks(repo_root, cfg, platform_name, check=check)
             else:
                 result = fn(repo_root, cfg, platform_name)
             audit.results.append(result)
