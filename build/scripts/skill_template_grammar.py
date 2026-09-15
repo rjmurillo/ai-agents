@@ -24,6 +24,9 @@ grammar" section:
       preserves the indentation on every line of the partial (verified
       2026-09-11 with ``chevron==0.14.0``).
     - ``{{! text }}``: a comment, rendered as nothing.
+    - ``\\{{`` (ADR-108 amended 2026-09-14): a literal ``{{`` in the output.
+      Protected before every check, restored last; a backslash before a
+      tag always escapes it.
 
     Any other tag is a configuration error (exit 2) before rendering:
     ``{{var}}``, ``{{{raw}}}``, ``{{#s}}``, ``{{^s}}``, ``{{/s}}``,
@@ -114,9 +117,17 @@ _COMMENT_TAG_RE = re.compile(r"^\{\{!.*\}\}$", re.DOTALL)
 # and before chevron sees the text, so it is never read as a tag and never
 # trips the post-render ``{{`` scan; the marker is swapped back to ``{{``
 # as the final step. NUL cannot appear in a Markdown source file, so the
-# marker cannot collide with template text.
+# marker cannot collide with template text (a NUL in a source is refused
+# outright). A backslash directly before a tag always escapes it, so
+# "backslash then a live tag" is not expressible; `\\{{` renders `\{{`.
 _LITERAL_BRACE_ESCAPE = "\\{{"
 _LITERAL_BRACE_MARKER = "\x00LBRACE\x00"
+
+
+def _reject_nul(text: str, source: Path) -> None:
+    """Refuse a source carrying NUL: it could forge the escape marker (exit 2)."""
+    if "\x00" in text:
+        raise TemplateGrammarError(f"{source}: NUL byte in template text")
 
 
 def _protect_escapes(text: str) -> str:
@@ -260,6 +271,11 @@ def _validate_partial_tree(
         seen_here.add(slug)
 
         partial_path = partials_dir / f"{slug}.{_PARTIAL_EXT}"
+
+        if partial_path.is_symlink():
+            raise MissingPartialError(
+                f"{source}: partial {slug!r} is a symlink; partials must be regular files"
+            )
         if not partial_path.is_file():
             raise MissingPartialError(f"{source}: missing partial(s) under {partials_dir}: {slug}")
         if partial_path in visited:
@@ -290,11 +306,12 @@ def _load_protected_partials(partials_dir: Path) -> dict[str, str]:
     """
     if not partials_dir.is_dir():
         return {}
-    return {
-        path.stem: _protect_escapes(path.read_text(encoding="utf-8", newline=""))
-        for path in sorted(partials_dir.glob(f"*.{_PARTIAL_EXT}"))
-        if not path.is_symlink()
-    }
+    loaded: dict[str, str] = {}
+    for path in sorted(partials_dir.glob(f"*.{_PARTIAL_EXT}")):
+        raw = path.read_text(encoding="utf-8", newline="")
+        _reject_nul(raw, path)
+        loaded[path.stem] = _protect_escapes(raw)
+    return loaded
 
 
 def render(tmpl_path: Path, partials_dir: Path) -> str:
@@ -313,6 +330,7 @@ def render(tmpl_path: Path, partials_dir: Path) -> str:
     text = tmpl_path.read_text(encoding="utf-8", newline="")
 
     _validate_partial_tree(text, partials_dir, source=tmpl_path, visited=frozenset())
+    _reject_nul(text, tmpl_path)
     text = _protect_escapes(text)
     partials = _load_protected_partials(partials_dir)
 

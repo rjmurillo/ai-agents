@@ -459,3 +459,35 @@ def test_render_symlinked_partial_is_ignored_raises_missing_partial(
     # Should raise MissingPartialError because the symlink target does not exist
     with pytest.raises(skill_templates.MissingPartialError):
         skill_templates.render(tmpl, partials_dir)
+
+
+def test_render_symlinked_partial_with_existing_target_is_refused(tmp_path: Path) -> None:
+    """A symlinked partial exits 2 at validation even when its target exists."""
+    partials = tmp_path / "partials"
+    partials.mkdir()
+    (tmp_path / "real.mustache").write_text("REAL\n", encoding="utf-8")
+    (partials / "linked.mustache").symlink_to(tmp_path / "real.mustache")
+    tmpl = tmp_path / "t.md"
+    tmpl.write_text("{{> linked}}\n", encoding="utf-8")
+    with pytest.raises(skill_template_grammar.MissingPartialError):
+        skill_template_grammar.render(tmpl, partials)
+
+
+def test_render_refuses_nul_byte_in_template(tmp_path: Path) -> None:
+    """A NUL in a source cannot forge the escape marker; it exits 2."""
+    partials = tmp_path / "partials"
+    partials.mkdir()
+    tmpl = tmp_path / "t.md"
+    tmpl.write_text("nul \x00LBRACE\x00 x\n", encoding="utf-8")
+    with pytest.raises(skill_template_grammar.TemplateGrammarError):
+        skill_template_grammar.render(tmpl, partials)
+
+
+def test_backslash_before_tag_escapes_it(tmp_path: Path) -> None:
+    """A backslash directly before a partial tag renders the tag as text."""
+    partials = tmp_path / "partials"
+    partials.mkdir()
+    (partials / "inner.mustache").write_text("INNER\n", encoding="utf-8")
+    tmpl = tmp_path / "t.md"
+    tmpl.write_text("x \\{{> inner}}\n", encoding="utf-8")
+    assert skill_template_grammar.render(tmpl, partials) == "x {{> inner}}\n"
