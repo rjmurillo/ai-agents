@@ -73,7 +73,7 @@ Copy `.env.example` to `.env`. Keys as of 2026-07-03: `ANTHROPIC_API_KEY` (MCP s
 
 | Name | Type | Effect | Status | Guard / abuse story | Where defined |
 |---|---|---|---|---|---|
-| `[skip-drift-check]` | commit message marker | Skips the agent drift detection CI gate for the whole PR (marker in ANY commit subject/body counts) | Production escape hatch with obligations | The bypass job posts a checklist that a human must satisfy: reason documented in PR description, `templates/README.md` updated with the intentional difference, explicit code-owner approval. Marker alone is NOT approval | `.github/workflows/agent-drift-detection.yml:65-69` (detection), `:297-320` (obligations); `CONTRIBUTING.md:529-535` |
+| `[skip-drift-check]` | commit message marker | Skips the agent drift detection CI gate for the whole PR (marker in ANY commit subject/body counts) | Production escape hatch with obligations | The bypass job posts a checklist that a human must satisfy: reason documented in PR description, `templates/README.md` updated with the intentional difference, explicit code-owner approval. Marker alone is NOT approval | `.github/workflows/agent-drift-detection.yml:65-69` (detection), `:297-320` `(obligations)`; `CONTRIBUTING.md:529-535` |
 
 ## Text Directives (orphan-ref-validator)
 
@@ -88,7 +88,7 @@ Write the directives as HTML comments (`<!-- ... -->`); shown bare here so this 
 
 | Name | Type | Effect | Status | Guard / abuse story | Where defined |
 |---|---|---|---|---|---|
-| `size-exception: true` | SKILL.md frontmatter | Exempts the file from the 500-line block in the size validator | Escape hatch, must be justified | `taste-lints` only honors it in the first 20 lines of the file; validator prints "size-exception declared" so reviewers see it | `scripts/validation/skill_size.py:734`; `.claude/skills/taste-lints/scripts/taste_lints.py:831` |
+| `size-exception: true` | SKILL.md frontmatter | Exempts the file from the 500-line block in the size validator | Escape hatch, must be justified | `taste-lints` only honors it in the first 20 lines of the file; validator prints "size-exception declared" so reviewers see it | `scripts/validation/skill_size.py:734`; `.claude/skills/taste-lints/scripts/taste_lints.py` (the `lines[:20]` check) |
 | `allowed-tools`, `argument-hint` | frontmatter keys | Harness metadata; not flagged as prose refs, since neither key name matches a candidate pattern the orphan-ref scanner tracks | Production | Candidate patterns live in one place | `.claude/skills/orphan-ref-validator/scripts/filters.py` |
 
 ## QA Skip Verdicts (ADR-034)
