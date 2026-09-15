@@ -17,6 +17,7 @@ jobs:
     name: Run skill overlap eval
     # Issue #1949: quarterly eval checks skill redundancy drift.
     runs-on: ubuntu-24.04-arm
+    environment: bot-secrets
     timeout-minutes: 60
 
     steps:
