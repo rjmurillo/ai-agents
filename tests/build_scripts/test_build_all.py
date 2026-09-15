@@ -61,10 +61,37 @@ def _write_agent_template(templates_dir: Path, name: str) -> None:
     )
 
 
+def _write_minimal_lib_sources(repo_root: Path) -> None:
+    """Stub the two file-shaped lib sources `_build_lib` fails closed on.
+
+    ADR-109 B5: `_build_lib` now always runs `lib_mirror.compile_all` for
+    the copilot-cli platform (no more `artifacts.lib` stanza gate), and
+    `lib_mirror.sync_file` fails closed when a registered source file is
+    missing (by design: a missing canonical source is a real bug, not a
+    silent skip). A synthetic test repo that never populates `scripts/`
+    would otherwise fail `run()`/`_run_generators` for a reason unrelated
+    to what the test actually exercises. The three whole-package sources
+    (`hook_utilities/`, `github_core/`, `ai_review_common/`) stay absent on
+    purpose: a missing package directory is only a warning, not an error.
+    """
+    hook_utilities = repo_root / "scripts" / "hook_utilities"
+    hook_utilities.mkdir(parents=True, exist_ok=True)
+    bootstrap = hook_utilities / "bootstrap.py"
+    if not bootstrap.exists():
+        bootstrap.write_text('"""Test bootstrap stub."""\n', encoding="utf-8")
+
+    validation = repo_root / "scripts" / "validation"
+    validation.mkdir(parents=True, exist_ok=True)
+    marker = validation / "validate_review_marker.py"
+    if not marker.exists():
+        marker.write_text('"""Test review-marker stub."""\n', encoding="utf-8")
+
+
 def _write_platform_with_skills(
     repo_root: Path, *, provider: str, blocklist: list[str] | None = None
 ) -> Path:
     """Create a minimal platform yaml with skills stanza only."""
+    _write_minimal_lib_sources(repo_root)
     platforms = repo_root / "templates" / "platforms"
     platforms.mkdir(parents=True, exist_ok=True)
     blockyaml = ""
@@ -514,117 +541,91 @@ def test_build_skills_check_mode_clean_template_still_runs_copy_loop(
     assert (tmp_path / "out" / "skills" / "sync" / "SKILL.md").is_file()
 
 
-# _build_lib (M7-T1) --------------------------------------------------------
+# _build_lib (ADR-109 B5) ----------------------------------------------------
 
 
-def test_build_lib_skips_when_stanza_absent(tmp_path: Path) -> None:
+def test_build_lib_skips_for_non_copilot_platform(tmp_path: Path) -> None:
+    """The lib class is not platform-config driven; it compiles once."""
     cfg = tmp_path / "p.yaml"
     cfg.write_text('schemaVersion: "1.0"\nprovider: "p"\n')
     result = build_all._build_lib(tmp_path, cfg, "p")
     assert result.exit_code == 0
-    assert any("no artifacts.lib stanza" in n for n in result.notices)
+    assert any("lib compiles once under copilot-cli; skipped" in n for n in result.notices)
+    assert not (tmp_path / "src" / "claude" / "lib").exists()
 
 
-def test_build_lib_copies_python_packages_excluding_pycache(tmp_path: Path) -> None:
-    """M7-T1: lib/ MUST land in the output, __pycache__ MUST be excluded."""
-    src = tmp_path / ".claude" / "lib"
-    pkg = src / "hook_utilities"
-    pkg.mkdir(parents=True)
+def test_build_lib_copies_packages_with_import_rewrite(tmp_path: Path) -> None:
+    """Both plugin trees get the package, relative-import rewritten, no __pycache__."""
+    _write_minimal_lib_sources(tmp_path)
+    pkg = tmp_path / "scripts" / "hook_utilities"
     (pkg / "__init__.py").write_text("# pkg\n", encoding="utf-8")
-    (pkg / "guards.py").write_text("def f(): return 1\n", encoding="utf-8")
+    (pkg / "guards.py").write_text(
+        "from scripts.hook_utilities.other import thing\n", encoding="utf-8"
+    )
     cache = pkg / "__pycache__"
     cache.mkdir()
     (cache / "guards.cpython-314.pyc").write_text("noise", encoding="utf-8")
 
     cfg = tmp_path / "p.yaml"
-    cfg.write_text(
-        'schemaVersion: "1.0"\nprovider: "p"\n'
-        "artifacts:\n"
-        "  lib:\n"
-        '    sourceDir: ".claude/lib"\n'
-        '    outputDir: "out/lib"\n'
-    )
-    result = build_all._build_lib(tmp_path, cfg, "p")
-    assert result.exit_code == 0
-    out = tmp_path / "out" / "lib"
-    assert (out / "hook_utilities" / "guards.py").is_file()
-    assert (out / "hook_utilities" / "__init__.py").is_file()
-    # __pycache__ must NOT have been copied
-    assert not (out / "hook_utilities" / "__pycache__").exists()
-    # Counts reflect .py files only
-    assert result.inputs == 2
-    assert result.outputs == 2
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli")
+    assert result.exit_code == 0, result.notices
+
+    for root in ("src/claude/lib", "src/copilot-cli/lib"):
+        out = tmp_path / root / "hook_utilities"
+        assert (out / "guards.py").is_file()
+        assert (out / "guards.py").read_text(encoding="utf-8") == "from .other import thing\n"
+        assert (out / "__init__.py").is_file()
+        assert not (out / "__pycache__").exists()
 
 
-def test_build_lib_rejects_outdir_outside_repo(tmp_path: Path) -> None:
-    """Containment guard: outputDir resolving outside repo root MUST fail."""
-    cfg = tmp_path / "p.yaml"
-    cfg.write_text(
-        'schemaVersion: "1.0"\nprovider: "p"\n'
-        "artifacts:\n"
-        "  lib:\n"
-        '    sourceDir: ".claude/lib"\n'
-        '    outputDir: "../escape/lib"\n'
-    )
-    result = build_all._build_lib(tmp_path, cfg, "p")
-    assert result.exit_code == 2
-    assert any("escapes repo root" in n for n in result.notices)
+def test_build_lib_warns_when_package_source_missing(tmp_path: Path) -> None:
+    """A missing whole-package source is a warning, not a fatal error.
 
-
-def test_build_lib_rejects_outdir_equal_to_repo_root(tmp_path: Path) -> None:
-    """Containment guard: outputDir == repo root MUST fail (CWE-22).
-
-    Without this check, rmtree-then-copytree would wipe the working tree.
+    ``_write_minimal_lib_sources`` stubs the two file-shaped sources only
+    (``bootstrap.py``, ``validate_review_marker.py``); none of the three
+    ``scripts/<pkg>/`` package directories exist in a bare tmp_path repo, so
+    every one of them hits the missing-source-directory path.
     """
+    _write_minimal_lib_sources(tmp_path)
     cfg = tmp_path / "p.yaml"
-    cfg.write_text(
-        'schemaVersion: "1.0"\nprovider: "p"\n'
-        "artifacts:\n"
-        "  lib:\n"
-        '    sourceDir: ".claude/lib"\n'
-        '    outputDir: "."\n'
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli")
+    assert result.exit_code == 0
+    assert any("Source directory missing: scripts/github_core" in n for n in result.notices)
+
+
+def test_build_lib_fails_closed_on_missing_file_source(tmp_path: Path) -> None:
+    """A missing registered single-file source (e.g. bootstrap.py) fails closed."""
+    (tmp_path / "scripts" / "validation").mkdir(parents=True)
+    (tmp_path / "scripts" / "validation" / "validate_review_marker.py").write_text(
+        '"""Marker."""\n', encoding="utf-8"
     )
-    result = build_all._build_lib(tmp_path, cfg, "p")
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli")
     assert result.exit_code == 2
-    assert any("escapes repo root" in n for n in result.notices)
+    assert any("Registered source file missing" in n for n in result.notices)
 
 
-def test_build_lib_handles_missing_source(tmp_path: Path) -> None:
-    cfg = tmp_path / "p.yaml"
-    cfg.write_text(
-        'schemaVersion: "1.0"\nprovider: "p"\n'
-        "artifacts:\n"
-        "  lib:\n"
-        '    sourceDir: ".claude/lib"\n'
-        '    outputDir: "out/lib"\n'
-    )
-    result = build_all._build_lib(tmp_path, cfg, "p")
-    assert result.exit_code == 0
-    assert any("lib source dir missing" in n for n in result.notices)
+def test_build_lib_removes_stale_package_files(tmp_path: Path) -> None:
+    """A .py file at the destination with no source counterpart is removed."""
+    _write_minimal_lib_sources(tmp_path)
+    pkg = tmp_path / "scripts" / "hook_utilities"
+    (pkg / "__init__.py").write_text("# pkg\n", encoding="utf-8")
 
-
-def test_build_lib_overwrites_stale_output(tmp_path: Path) -> None:
-    """Repeated invocations MUST replace stale files (rmtree-then-copytree)."""
-    src = tmp_path / ".claude" / "lib"
-    src.mkdir(parents=True)
-    (src / "fresh.py").write_text("# new\n", encoding="utf-8")
-
-    out = tmp_path / "out" / "lib"
-    out.mkdir(parents=True)
-    (out / "stale.py").write_text("# stale\n", encoding="utf-8")
+    for root in ("src/claude/lib", "src/copilot-cli/lib"):
+        stale_dir = tmp_path / root / "hook_utilities"
+        stale_dir.mkdir(parents=True)
+        (stale_dir / "stale.py").write_text("# stale\n", encoding="utf-8")
 
     cfg = tmp_path / "p.yaml"
-    cfg.write_text(
-        'schemaVersion: "1.0"\nprovider: "p"\n'
-        "artifacts:\n"
-        "  lib:\n"
-        '    sourceDir: ".claude/lib"\n'
-        '    outputDir: "out/lib"\n'
-    )
-    result = build_all._build_lib(tmp_path, cfg, "p")
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli")
     assert result.exit_code == 0
-    assert (out / "fresh.py").is_file()
-    assert not (out / "stale.py").exists()
+    for root in ("src/claude/lib", "src/copilot-cli/lib"):
+        assert not (tmp_path / root / "hook_utilities" / "stale.py").exists()
+        assert (tmp_path / root / "hook_utilities" / "__init__.py").is_file()
 
 
 # CLI integration -----------------------------------------------------------

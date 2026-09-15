@@ -1982,27 +1982,26 @@ class TestParseSimpleYaml:
 class TestMirrorParity:
     """The install mirrors must equal the canonical loader's sync transform.
 
-    scripts/sync_plugin_lib.py (_transform_file) converts intra-package absolute
-    imports to relative ones. The mirrors must equal that output exactly so
-    they cannot drift from the real sync contract.
+    build/scripts/lib_mirror.py (_transform_file) converts intra-package
+    absolute imports to relative ones (ADR-109 B5 absorbed this from
+    scripts/sync_plugin_lib.py, unchanged). The mirrors must equal that
+    output exactly so they cannot drift from the real sync contract.
     """
 
     def test_mirrors_match_sync_transform(self) -> None:
-        import importlib.util
+        import sys
 
-        spec = importlib.util.spec_from_file_location(
-            "sync_plugin_lib", _REPO_ROOT / "scripts" / "sync_plugin_lib.py"
-        )
-        assert spec is not None
-        assert spec.loader is not None
-        spl = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(spl)
+        build_scripts = _REPO_ROOT / "build" / "scripts"
+        if str(build_scripts) not in sys.path:
+            sys.path.insert(0, str(build_scripts))
+        import lib_mirror
 
         src = _REPO_ROOT / "scripts/github_core/bot_config.py"
-        expected = spl._transform_file(src, "scripts/github_core")
+        expected = lib_mirror._transform_file(src).decode("utf-8")
         for mirror in (
             ".claude/lib/github_core/bot_config.py",
             "src/copilot-cli/lib/github_core/bot_config.py",
+            "src/claude/lib/github_core/bot_config.py",
         ):
             assert (_REPO_ROOT / mirror).read_text(encoding="utf-8") == expected, mirror
 

@@ -88,6 +88,32 @@ _SELF_REFERENTIAL_FILES: frozenset[str] = frozenset(
     ]
 )
 
+# Generated lib mirror package directories (ADR-109 B5, `build/scripts/
+# lib_mirror.py`): byte-for-byte (modulo relative-import rewrite) copies of
+# `scripts/{hook_utilities,github_core,ai_review_common}/`. A suppression
+# already counted at its canonical `scripts/` source would otherwise be
+# recounted once per plugin tree (three today: `.claude/lib/`, `src/claude/
+# lib/`, `src/copilot-cli/lib/`), inflating the ratchet with copies of the
+# same decision rather than new suppressions (issue #4039's same "noise about
+# the gate itself" rationale as `_SELF_REFERENTIAL_FILES`, applied to
+# generated duplicates instead of self-description).
+#
+# Deliberately scoped to the three mirrored package names, not a blanket
+# `.claude/lib/` prefix: that directory (and its `src/*/lib/` counterparts)
+# also carries hand-maintained files with no `scripts/` canonical source
+# (`paths.py`, `qa_report.py`, and siblings), whose own suppressions, if any,
+# are original and should still count.
+_LIB_MIRROR_ROOTS: tuple[str, ...] = (".claude/lib", "src/claude/lib", "src/copilot-cli/lib")
+_LIB_MIRROR_PACKAGES: tuple[str, ...] = ("hook_utilities", "github_core", "ai_review_common")
+_LIB_MIRROR_PREFIXES: tuple[str, ...] = tuple(
+    f"{root}/{pkg}/" for root in _LIB_MIRROR_ROOTS for pkg in _LIB_MIRROR_PACKAGES
+)
+
+
+def _is_generated_lib_mirror(path_str: str) -> bool:
+    """Return True for a file under a generated lib-mirror package directory."""
+    return path_str.startswith(_LIB_MIRROR_PREFIXES)
+
 
 def current_count(repo_root: Path) -> int | None:
     """Count ``# type: ignore`` comments in tracked Python files.
@@ -110,7 +136,7 @@ def current_count(repo_root: Path) -> int | None:
 
     total = 0
     for path_str in files:
-        if path_str in _SELF_REFERENTIAL_FILES:
+        if path_str in _SELF_REFERENTIAL_FILES or _is_generated_lib_mirror(path_str):
             continue
         path = repo_root / path_str
         try:

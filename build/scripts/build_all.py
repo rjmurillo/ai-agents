@@ -100,6 +100,7 @@ import generate_adr_index  # noqa: E402
 import generate_hooks  # noqa: E402
 import generate_rules  # noqa: E402
 import generate_skills  # noqa: E402
+import lib_mirror  # noqa: E402
 import rule_templates  # noqa: E402
 import skill_templates  # noqa: E402
 
@@ -397,106 +398,46 @@ def _build_rules(
     return result
 
 
-def _build_directory_copy(
-    repo_root: Path,
-    config_path: Path,
-    platform: str,
-    *,
-    artifact_name: str,
-    count_glob: str,
-) -> GeneratorResult:
-    """Generic directory-mirror builder for ``artifacts.<artifact_name>`` stanzas.
-
-    Used by :func:`_build_lib` to copy a configured source dir to a
-    configured output dir, with pycache exclusion and a containment
-    guard. Retained as a shared helper so additional directory-mirror
-    artifacts can reuse it without duplicating the logic.
-
-    Parameters:
-        artifact_name: stanza key under ``artifacts`` and the value used
-            in the audit row's ``artifact`` field.
-        count_glob: rglob pattern used for inputs/outputs counts (e.g.,
-            ``"*.py"`` for lib). Matched files inside ``__pycache__`` are
-            excluded from the count.
-
-    Skips silently when the platform has no ``artifacts.<name>`` stanza.
-    """
-    try:
-        cfg = load_platform_config(config_path)
-    except ConfigError:
-        cfg = {}
-    artifacts = cfg.get("artifacts") if isinstance(cfg.get("artifacts"), dict) else {}
-    stanza = artifacts.get(artifact_name) if isinstance(artifacts, dict) else None
-    if not isinstance(stanza, dict):
-        result = GeneratorResult(artifact=artifact_name, platform=platform, exit_code=0)
-        result.notices.append(f"{platform}: no artifacts.{artifact_name} stanza; skipped")
-        return result
-
-    src_rel = stanza.get("sourceDir")
-    out_rel = stanza.get("outputDir")
-    if not isinstance(src_rel, str) or not isinstance(out_rel, str):
-        result = GeneratorResult(artifact=artifact_name, platform=platform, exit_code=2)
-        result.notices.append(
-            f"{platform}: artifacts.{artifact_name} missing sourceDir or outputDir"
-        )
-        return result
-
-    src = (repo_root / src_rel).resolve()
-    out = (repo_root / out_rel).resolve()
-    repo_root_resolved = repo_root.resolve()
-    # Containment guard (CWE-22): the output dir must resolve to a path
-    # strictly under the repo root. is_relative_to handles OS path
-    # separators correctly and avoids the prefix-confusion failure mode
-    # of string startswith. Equality with the repo root is also rejected
-    # because the rmtree-then-copytree below would otherwise wipe the
-    # entire working tree when outputDir resolves to ".".
-    if out == repo_root_resolved or not out.is_relative_to(repo_root_resolved):
-        result = GeneratorResult(artifact=artifact_name, platform=platform, exit_code=2)
-        result.notices.append(
-            f"{platform}: artifacts.{artifact_name}.outputDir escapes repo root: {out_rel}"
-        )
-        return result
-
-    result = GeneratorResult(artifact=artifact_name, platform=platform, exit_code=0)
-    if not src.is_dir():
-        result.notices.append(f"{platform}: {artifact_name} source dir missing: {src_rel}")
-        return result
-
-    import shutil as _shutil
-
-    if out.exists():
-        _shutil.rmtree(out)
-    _shutil.copytree(
-        src,
-        out,
-        ignore=_shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
-    )
-
-    result.inputs = sum(1 for _ in src.rglob(count_glob) if "__pycache__" not in _.parts)
-    result.outputs = sum(1 for _ in out.rglob(count_glob) if "__pycache__" not in _.parts)
-    return result
-
-
 def _build_lib(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
-    """Copy `.claude/lib/` to the platform's lib output directory (M7-T1).
+    """Compile the lib plugin trees from their scripts/ canonical sources (ADR-109 B5).
 
     Hook scripts under `src/<provider>/hooks/<event>/` import
     ``hook_utilities`` from the sibling ``lib/`` of the plugin manifest.
     Without this step, every shimmed hook crashes on import in the
-    install layout because the lib tree is never copied. M7-T1 closes
-    that gap by mirroring `.claude/lib/` (the canonical source) to
-    ``src/copilot-cli/lib/`` (the install destination), excluding
-    ``__pycache__`` directories.
+    install layout because the lib tree is never rendered.
 
-    Skips silently when the platform has no ``artifacts.lib`` stanza.
+    Absorbs `scripts/sync_plugin_lib.py`'s copy logic (TASK-035):
+    :func:`lib_mirror.compile_all` renders `scripts/{hook_utilities,
+    github_core,ai_review_common}/`, `bootstrap.py`, and the review skill's
+    sidecar script directly into `src/claude/lib/` and `src/copilot-cli/lib/`
+    (plus `src/claude/skills/review/scripts/`); the manifest-driven binplace
+    step that runs after every generator then copies the claude-side plugin
+    trees onto their `.claude/` install-tree counterparts
+    (`templates/platforms/binplace.yaml`'s `lib-*` and `skills-sidecar`
+    rows). There is no second command whose order matters: one
+    `build_all.py` run performs the whole `scripts/` -> plugin tree ->
+    install tree chain (issue #2613's ordering hazard no longer applies).
+
+    Not gated on an `artifacts.lib` stanza: the lib class is not platform
+    config driven, so this runs once (config_path is unused) and reports
+    a notice for every platform but ``copilot-cli``, mirroring the prior
+    behavior where only `copilot-cli.yaml` carried an `artifacts.lib`
+    stanza and every other platform silently skipped.
     """
-    return _build_directory_copy(
-        repo_root,
-        config_path,
-        platform,
-        artifact_name="lib",
-        count_glob="*.py",
+    result = GeneratorResult(artifact="lib", platform=platform, exit_code=0)
+    if platform != "copilot-cli":
+        result.notices.append(f"{platform}: lib compiles once under copilot-cli; skipped")
+        return result
+
+    outcome = lib_mirror.compile_all(repo_root)
+    result.inputs = outcome.inputs
+    result.outputs = outcome.outputs
+    result.notices.extend(
+        c for c in outcome.changes if c.strip().startswith(("[WARNING]", "[ERROR]"))
     )
+    if outcome.errors:
+        result.exit_code = 2
+    return result
 
 
 def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
@@ -862,7 +803,10 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
 # snapshotted before the generators run, then compared after, so the guard
 # attributes only writes the generators themselves made. Git-diff scoping
 # (the prior approach) flagged any pre-build drift, including a legitimate
-# `.claude/lib` sync from scripts/sync_plugin_lib.py (issue #2613).
+# `.claude/lib` write from this run's own binplace step (ADR-109 B5, issue
+# #2613: `.claude/lib` was previously populated by a separately invoked
+# script whose ordering relative to this one mattered; it is now this run's
+# own allowlisted write, per the binplace manifest's `lib-*` rows).
 CLAUDE_GUARD_PREFIX: tuple[str, ...] = (".claude/",)
 
 # Git honors these env vars over ``-C``/discovery: an inherited GIT_DIR or
@@ -937,9 +881,10 @@ def assert_no_claude_writes(
     boundary that appeared during the build is walked and reported like
     any other generator write.
 
-    Scoping to generator-attributable writes (not raw git diff) lets a
-    legitimate pre-build sync of .claude/lib pass while still tripping on
-    a generator that writes under .claude/ during the run (issue #2613).
+    Scoping to generator-attributable writes (not raw git diff) lets this
+    run's own allowlisted .claude/lib write (ADR-109 B5, `lib-*` binplace
+    rows) pass while still tripping on a generator that writes under
+    .claude/ outside the manifest's allowlist (issue #2613).
 
     Returns the sorted list of offending paths (empty when compliant).
 
@@ -1098,6 +1043,7 @@ OWNED_PREFIXES: tuple[str, ...] = (
     ".github/agents/",
     ".claude/agents/",
     ".claude/rules/",
+    ".claude/lib/",
     "docs/agent-catalog.md",
     ".agents/architecture/README.md",
 )
