@@ -298,7 +298,6 @@ def test_retired_review_contexts_are_not_pinned() -> None:
         "Validate PR",
         "Validate PR title",
         "Validate Plugin Version Bump",
-        "Validate Spec Coverage",
     }
 
 

@@ -65,7 +65,10 @@ def test_measured_always_on_set_is_not_empty() -> None:
     # Ratchet lowered from 5 to 4 in epic #5456 M4: `claude-model-patches` moved
     # out of the always-on set into the skills that do multi-step or
     # Bash-heavy work (build, test, plan, ship templates; a review resource).
-    assert len(measured) >= 4, f"suspiciously small always-on set: {measured}"
+    # Lowered again from 4 to 3 in epic #5456 M4 (PR2): `search-before-building`
+    # folded into the `programming-advisor`, `memory-search`, and `memory-gate`
+    # skills.
+    assert len(measured) >= 3, f"suspiciously small always-on set: {measured}"
     assert "universal" in measured
 
 

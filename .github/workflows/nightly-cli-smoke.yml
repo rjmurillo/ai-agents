@@ -87,6 +87,7 @@ jobs:
     needs: authorize
     if: needs.authorize.outputs.trusted == 'true'
     runs-on: ${{ matrix.os }}
+    environment: bot-secrets
     permissions:
       contents: read
     strategy:
