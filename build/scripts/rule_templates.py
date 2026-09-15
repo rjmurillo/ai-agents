@@ -42,10 +42,14 @@ Stricter/looser/different than canonical (``agent_templates.py``):
   ``src/claude/agents/<stem>.md``; both are ``src/`` paths already covered by
   ``build_all.OWNED_PREFIXES``'s staleness/restore machinery, widened for
   this class in the same commit that adds this module.
-- Same in shape, with one difference: the symlink and resolved-containment
-  checks (CWE-22/CWE-59) follow ``agent_templates._name_validation_error``,
-  but there is no "incomplete pair" check here (no second variant to be
-  missing); the only name-shape check is the slug pattern.
+- Same in shape, with one difference: the target-side symlink and
+  resolved-containment checks (CWE-22/CWE-59) follow
+  ``agent_templates._name_validation_error``, but there is no "incomplete
+  pair" check here (no second variant to be missing); the only name-shape
+  check is the slug pattern. This module adds one check neither sibling
+  has: the SOURCE ``templates/rules/<name>.md`` itself MUST NOT be a
+  symlink and MUST be a regular file, refused rather than rendered
+  (CodeRabbit review).
 - Same as canonical: a NO-REGEN sentinel on a rendered target is skipped
   (never written, never drift), reported at WARN, and floors ``exit_code``
   to at least 1 in both modes, exactly as ``agent_templates.compile_all``
@@ -67,10 +71,12 @@ EXIT CODES (per :func:`compile_all`; ``0=ok|1=logic|2=config`` per
       rendered text still contains an unresolved ``{{``, or a
       NO-REGEN-skipped target (see "Same as canonical" above)
   2 - a discovered name does not match ``^[a-z0-9]+(-[a-z0-9]+)*$``, the
-      ``src/claude/rules/`` root or a name's target resolves outside the
-      repository or through a symlink, or the template (or a partial it
-      transitively includes) used a disallowed tag, named a missing or
-      cyclic partial, or referenced a partial missing its trailing newline
+      source ``templates/rules/<name>.md`` is a symlink or not a regular
+      file, the ``src/claude/rules/`` root or a name's target resolves
+      outside the repository or through a symlink, or the template (or a
+      partial it transitively includes) used a disallowed tag, named a
+      missing or cyclic partial, or referenced a partial missing its
+      trailing newline
 """
 
 from __future__ import annotations
@@ -131,28 +137,42 @@ def _iter_template_candidates(repo_root: Path) -> Iterator[tuple[str, Path]]:
 def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str | None:
     """Return why ``name`` is not a valid rule template, or ``None``.
 
-    Three checks, mirroring ``agent_templates._name_validation_error``'s
+    Five checks, mirroring ``agent_templates._name_validation_error``'s
     shape minus the incomplete-pair check (this class has no second
-    variant): ``name`` MUST match the slug pattern; the
-    ``src/claude/rules/`` root MUST NOT be a symlink and MUST resolve
-    inside the repository root (CWE-22); the specific target
+    variant): ``name`` MUST match the slug pattern; the SOURCE
+    ``templates/rules/<name>.md`` MUST NOT be a symlink and MUST be a
+    regular file (a symlinked or non-regular candidate is refused, not
+    rendered); the ``src/claude/rules/`` root MUST NOT be a symlink and
+    MUST resolve inside the repository root (CWE-22); the specific target
     ``src/claude/rules/<name>.md`` MUST NOT itself be a symlink (CWE-59).
+
+    The containment check resolves ``rules_root`` unconditionally, not only
+    when it already exists: ``Path.resolve()`` follows symlinks in existing
+    ancestors and appends any missing leaf literally, so this also catches
+    ``src`` or ``src/claude`` being a symlink to outside the repository
+    while ``rules`` itself has not been created yet, a gap the earlier
+    ``if rules_root.exists():`` guard left open (the write that creates
+    ``rules`` would otherwise land outside the repository, unchecked).
     """
     if not _NAME_RE.match(name):
         return f"{tmpl_path}: invalid rule name {name!r}; must match {_NAME_RE.pattern!r}"
+
+    if tmpl_path.is_symlink():
+        return f"{tmpl_path}: templates/rules/{name}.md is a symlink, not a real file"
+    if not tmpl_path.is_file():
+        return f"{tmpl_path}: templates/rules/{name}.md is not a regular file"
 
     rules_root = repo_root / "src" / "claude" / "rules"
     resolved_repo = repo_root.resolve()
 
     if rules_root.is_symlink():
         return f"{tmpl_path}: src/claude/rules/ is a symlink, not a real directory"
-    if rules_root.exists():
-        resolved_root = rules_root.resolve()
-        if not resolved_root.is_relative_to(resolved_repo):
-            return (
-                f"{tmpl_path}: src/claude/rules/ resolves to {resolved_root}, "
-                f"outside the repository root {resolved_repo}"
-            )
+    resolved_root = rules_root.resolve()
+    if not resolved_root.is_relative_to(resolved_repo):
+        return (
+            f"{tmpl_path}: src/claude/rules/ resolves to {resolved_root}, "
+            f"outside the repository root {resolved_repo}"
+        )
 
     target = rules_root / f"{name}.md"
     if target.is_symlink():

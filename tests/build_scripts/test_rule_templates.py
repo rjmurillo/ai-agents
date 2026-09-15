@@ -7,7 +7,8 @@ Module docstring quotes the exit-code table from rule_templates.py:
       rendered text still contains an unresolved {{, or a
       NO-REGEN-skipped target
   2 - a discovered name does not match ^[a-z0-9]+(-[a-z0-9]+)*$, the
-      src/claude/rules/ root or a name's target resolves outside the
+      source templates/rules/<name>.md is a symlink or not a regular file,
+      the src/claude/rules/ root or a name's target resolves outside the
       repository or through a symlink, or the template (or a partial it
       transitively includes) used a disallowed tag, named a missing or
       cyclic partial, or referenced a partial missing its trailing newline
@@ -316,6 +317,61 @@ def test_rules_dir_symlink_outside_repo_exits_2(tmp_path: Path) -> None:
     assert result.exit_code == 2
     assert link.is_symlink()
     assert not (outside / "test.md").exists()
+
+
+def test_symlinked_template_source_exits_2(tmp_path: Path) -> None:
+    """Symlinked source: templates/rules/<name>.md is a symlink, exit 2, no write."""
+    root = fake_repo(tmp_path)
+    rules_dir = root / "templates" / "rules"
+    rules_dir.mkdir(parents=True, exist_ok=True)
+
+    real_template = tmp_path / "real-template.md"
+    real_template.write_text("body\n", encoding="utf-8")
+
+    link = rules_dir / "linked.md"
+    try:
+        link.symlink_to(real_template)
+    except OSError:
+        pytest.skip("cannot create symlink on this platform")
+
+    result = rule_templates.compile_all(root, validate=False)
+
+    assert result.exit_code == 2
+    errors = rule_templates.discover_errors(root)
+    assert len(errors) == 1
+    assert "symlink" in errors[0].lower()
+    assert "linked" not in rule_templates.discover(root)
+    target = root / "src" / "claude" / "rules" / "linked.md"
+    assert not target.exists()
+
+
+def test_rules_root_symlink_ancestor_when_leaf_missing_exits_2(tmp_path: Path) -> None:
+    """src/claude symlinked outside repo, rules/ absent: exit 2, nothing created outside.
+
+    ``outside`` MUST be a sibling of ``tmp_path``, not a child of it: a
+    symlink target under ``tmp_path / "outside"`` still resolves inside the
+    repo root (``root`` IS ``tmp_path``), so the containment check would
+    pass for the wrong reason. A true sibling is the only way to exercise
+    the "resolves outside the repository root" branch this test targets.
+    """
+    root = fake_repo(tmp_path)
+    outside = tmp_path.parent / f"{tmp_path.name}-outside-ancestor"
+    outside.mkdir()
+
+    src_dir = root / "src"
+    src_dir.mkdir(parents=True)
+    claude_link = src_dir / "claude"
+    try:
+        claude_link.symlink_to(outside)
+    except OSError:
+        pytest.skip("cannot create symlink on this platform")
+
+    write_template(root, "test", "body\n")
+    result = rule_templates.compile_all(root, validate=False)
+
+    assert result.exit_code == 2
+    assert claude_link.is_symlink()
+    assert not (outside / "rules").exists()
 
 
 def test_discover_on_missing_templates_dir_returns_empty(tmp_path: Path) -> None:
