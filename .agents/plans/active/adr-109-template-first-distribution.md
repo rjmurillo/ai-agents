@@ -14,11 +14,11 @@
 
 - [x] B0: ADR-109 written, its own record; conditional amendment text staged for ADR-052, ADR-107, REQ-003, and the ADR index; done when ADR-109 is accepted and the staged text turns unconditional (ADR-109 section 5, section 6, Implementation Notes).
 - [x] B1: agents composed from paired `templates/agents/<stem>.claude.md.tmpl` / `<stem>.copilot.md.tmpl` templates and shared partials; `src/claude/agents/` rendered losslessly against today's output; `src/claude/`'s hand-maintained status retired; the binplace manifest introduced; `copilot-cli.yaml`'s agents `sourceDir` repointed; the lib ordering-hazard rule text updated to the target model (TASK-031). Merged `f50f68551` (PR #5758).
-- [ ] B2 (in progress): rules move to `templates/rules/`; new compile module; manifest gains the `rules` row (TASK-032). 28 of 29 rules templated; `.claude/rules/testing.md` stays hand-maintained (its literal `${{ a && b }}` example is a disallowed tag under the ADR-108 grammar; TASK-032 instructs stopping and reporting rather than inventing an escape).
-- [ ] B3 (in progress): the remaining 93 skills templated in batches; skill_templates.py's render target moves to `src/claude/skills/`, giving skills the `src/claude/` plugin tree B1 does not deliver; the ADR-108 pilot-scope pin retired once the full 111-skill set matches `discover()` (TASK-033). Four of five 20-skill batches merged (batches 1, 2, 4, 5); batch 3 (PR #5781) open. The render-target move, `OWNED_PREFIXES` widening, and the `prompts` manifest row landed in the same commit sequence as the render-target-move PR. Full checkbox when batch 3 merges and the pilot-scope pin is deleted.
-- [ ] B4 (in progress): hooks and settings move to `templates/hooks/`; `src/claude/hooks/` and `src/claude/hooks.json` render for the first time; `.github/hooks/*.json` binplaced for the first time; the owner's ruleset decision on code-owner review recorded (TASK-034).
-- [ ] B5: the lib mirror's two-hop chain collapses into one step inside `build_all.py`; `scripts/sync_plugin_lib.py` retired (TASK-035).
-- [ ] B6: the marketplace switch; `claude-agents` retired, `project-toolkit` repointed to `./src/claude` (TASK-036).
+- [x] B2: rules move to `templates/rules/`; new compile module; manifest gains the `rules` row (TASK-032). 28 of 29 rules templated; `.claude/rules/testing.md` stays hand-maintained (its literal `${{ a && b }}` example is a disallowed tag under the ADR-108 grammar; TASK-032 instructs stopping and reporting rather than inventing an escape). Merged `084f89340` (PR #5775).
+- [x] B3: the remaining 93 skills templated in batches; skill_templates.py's render target moved to `src/claude/skills/`, giving skills the `src/claude/` plugin tree B1 did not deliver; the ADR-108 pilot-scope pin retired once the full 111-skill set matched `discover()` (TASK-033). Five batches merged (#5773, #5780, #5781, #5783, #5782); render-target move, `OWNED_PREFIXES` widening, and the `prompts` manifest row merged `23c3d5dd3` (PR #5785).
+- [x] B4: hooks and settings moved to `templates/hooks/`; `src/claude/hooks/` and `src/claude/hooks.json` render for the first time; `.github/hooks/*.json` binplaced for the first time; the owner's ruleset decision on code-owner review recorded (`require_code_owner_review` stayed false). Merged `9bf7c7c3a` (PR #5784).
+- [x] B5: the lib mirror's two-hop chain collapsed into one step inside `build_all.py`; `scripts/sync_plugin_lib.py` retired (TASK-035). Merged `4d83781fe` (PR #5787).
+- [x] B6: the marketplace switch; `claude-agents` retired, `project-toolkit` repointed to `./src/claude` (TASK-036). ADR-109's migration order (section 7) is now complete: B0 through B6 all landed.
 
 ## Milestones
 
@@ -134,12 +134,14 @@ B1 must land before B2 through B5, because each of those adds a row to the binpl
 | Date | Update | Agent |
 |------|--------|-------|
 | 2026-09-11 | ADR-109 written, reviewed, and accepted by the owner (PR #5745); spec artifacts (REQ-026, DESIGN-025, TASK-031 through TASK-036, ontology fragment, this plan) drafted in worktree `adr109-spec` on branch `feat/adr-109-spec-and-plan` | claude |
+| 2026-09-15 | B2 through B4 confirmed landed on `main` (`084f89340` #5775, five B3 batch PRs plus `23c3d5dd3` #5785, `9bf7c7c3a` #5784); B5 (lib) landing in parallel on `feat/adr-109-b5-lib` (PR #5787); B6 (TASK-036 marketplace switch) implemented on `feat/adr-109-b6-marketplace`: `claude-agents` entry dropped, `project-toolkit` repointed to `./src/claude`, `.claude/.claude-plugin/plugin.json` deleted, `.github/plugin/marketplace.json` description text updated, every `claude-agents` reference across code, tests, templates, and docs updated | claude |
 
 ## Blockers
 
 - ADR-109 is `accepted` (2026-09-11); the owner authorized implementation once PR #5745 lands, with Haiku and Sonnet agents building and Opus reviewing.
-- B3's batching plan (count, size, grouping) is an open question the owner has not yet answered.
-- B4's code-owner-review ruleset decision is an open question the owner has not yet answered. Current value, confirmed 2026-09-15 via `gh api repos/rjmurillo/ai-agents/rulesets/11104075`: `required_approving_review_count: 0`, `require_code_owner_review: false`. The `/templates/hooks/` CODEOWNERS entry routes review but does not block a merge under this ruleset. Flipping either value is the owner's call, not this task's.
+- B3's batching plan was answered and executed: five batches, twenty skills each except the last (twelve); all five merged.
+- B4's code-owner-review ruleset decision was recorded, not flipped. Confirmed 2026-09-15 via `gh api repos/rjmurillo/ai-agents/rulesets/11104075`: `required_approving_review_count: 0`, `require_code_owner_review: false`. The `/templates/hooks/` CODEOWNERS entry routes review but does not block a merge under this ruleset. B4 landed with that value unchanged; flipping it remains the owner's call, not a blocker for this program.
+- No blockers remain for B6. B5 (lib, `4d83781fe`) has merged; `src/claude/lib/` exists.
 
 ## Deferred items
 
