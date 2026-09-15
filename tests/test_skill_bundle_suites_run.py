@@ -52,6 +52,20 @@ _BUNDLE_TREE_ROOTS = (
 # checkouts are excluded by construction rather than by a name blocklist.
 _SKILL_MD_PATTERN = re.compile(r"(?:^|/)skills/[^/]+/SKILL\.md$")
 
+# ADR-109 B3's support-file follow-up mirrors every non-SKILL.md file
+# (including tests/) from `.claude/skills/<name>/` into
+# `src/claude/skills/<name>/` byte-for-byte
+# (`skill_support_mirror.sync_claude_plugin_skill_support`, enforced by
+# `tests/build_scripts/test_generate_skills_claude_support_mirror.py` and
+# `build_all.py --check`, which fails on any divergence). Running that
+# mirror's `tests/` a second time here would exercise the exact same bytes
+# the `.claude/skills` root above already runs: zero new coverage for a
+# third subprocess pass over 36 directories. Named here, not added to
+# `_BUNDLE_TREE_ROOTS`, so `test_every_bundle_suite_on_disk_is_listed`
+# still proves every tracked bundle test directory is accounted for
+# somewhere, without paying to execute the duplicate.
+_UNRUN_MIRROR_ROOTS = (Path("src") / "claude" / "skills",)
+
 
 def _suite_dirs(root: Path) -> list[Path]:
     """Return the `<root>/*/tests` directories that exist, sorted."""
@@ -146,8 +160,12 @@ def test_every_bundle_suite_on_disk_is_listed() -> None:
 
     Scans tracked paths only. An untracked local worktree is a developer's
     scratch checkout, not a shipped bundle, and must not fail this guard.
+    A tracked suite under `_UNRUN_MIRROR_ROOTS` is accounted for, not
+    unlisted: it is a byte-for-byte generated copy of a suite this module
+    already runs under `.claude/skills`, not a suite of its own.
     """
     listed = {p.resolve() for root in _BUNDLE_TREE_ROOTS for p in _suite_dirs(root)}
+    mirrored = {p.resolve() for root in _UNRUN_MIRROR_ROOTS for p in _suite_dirs(root)}
 
     tracked = subprocess.run(
         ["git", "ls-files", "-z", "--", "*/SKILL.md", "SKILL.md"],
@@ -171,7 +189,7 @@ def test_every_bundle_suite_on_disk_is_listed() -> None:
 
     assert on_disk, "found no tracked skill bundles; the git scan is broken"
 
-    unlisted = sorted(p.relative_to(_REPO_ROOT).as_posix() for p in on_disk - listed)
+    unlisted = sorted(p.relative_to(_REPO_ROOT).as_posix() for p in on_disk - listed - mirrored)
     assert not unlisted, (
         f"{len(unlisted)} skill-bundle test directories are not covered by "
         f"_BUNDLE_TREE_ROOTS and would never run:\n  " + "\n  ".join(unlisted)

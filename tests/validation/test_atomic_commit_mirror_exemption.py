@@ -60,6 +60,11 @@ class TestMirrorSourceMapping:
                 ".claude/lib/ai_review_common/retry.py",
             ),
             ("src/copilot-cli/skills/review/SKILL.md", ".claude/skills/review/SKILL.md"),
+            ("src/claude/skills/review/SKILL.md", ".claude/skills/review/SKILL.md"),
+            (
+                "src/claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py",
+                ".claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py",
+            ),
             ("src/copilot-cli/hooks/hooks.json", ".claude/hooks/hooks.json"),
             (
                 ".github/prompts/pr-quality-gate-security.md",

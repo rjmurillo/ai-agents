@@ -67,6 +67,7 @@ Exit criteria: TASK-033 acceptance criteria hold; `discover()` on the real tree 
 | B3-T3..T-n batches | M each | 4 of 5 batches merged (1, 2, 4, 5); batch 3 (PR #5781) open. Each batch PR: at most ten files, `git diff --exit-code -- .claude/skills` clean, existing gate green |
 | B3-T-final pin retirement | S | Pending batch 3. `tests/build_scripts/test_skill_templates_pilot_scope.py` deleted once the 111th skill lands |
 | B3-T-prompts | S | Done. `prompts` manifest row added; `.github/prompts/pr-quality-gate-*.md` (12 files) binplaced from `.claude/skills/review/references` via `generate_pr_quality_prompts` |
+| B3-T-support-files | S | Done. B3's render-target move only ever wrote `SKILL.md` into `src/claude/skills/<name>/`; the 84 skills that also carry `scripts/`, `references/`, `tests/`, or other support files had nothing mirroring those into the Claude plugin tree (found by the B6 install-verification e2e, `RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py -k claude -q`). `generate_skills.sync_claude_plugin_skill_support` (`build/scripts/generate_skills.py`) mirrors every non-`SKILL.md` file (unlike the Copilot mirror, it does not exclude `merge-resolver`) and prunes stale extras; `build_all.py --check` catches drift via the existing `src/` `OWNED_PREFIXES` entry, no widening needed |
 
 ### B4: hooks and settings
 

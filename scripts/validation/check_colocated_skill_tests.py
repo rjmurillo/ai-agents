@@ -26,6 +26,28 @@ SHIPPED_SKILL_ROOTS: tuple[str, ...] = (
     "src/claude/skills",
 )
 
+# Generated mirror roots (build/scripts/generate_skills.py copies
+# .claude/skills/ into both, byte for byte) mapped back onto the canonical
+# source root. A test file already tolerated as legacy at .claude/skills/
+# is the same file, not a new one, when it first appears at its mirror path
+# (a brand-new skill's test file, or ADR-109 B3's support-file follow-up
+# populating src/claude/skills/ for the first time): the mirror step, not a
+# contributor, is what put it there.
+_MIRROR_SOURCE_ROOTS: tuple[str, ...] = (
+    "src/copilot-cli/skills",
+    "src/claude/skills",
+)
+_CANONICAL_SKILL_ROOT = ".claude/skills"
+
+
+def _mirror_source_path(path: str) -> str | None:
+    """Return the canonical .claude/skills/ path a mirror path maps to, if any."""
+    for root in _MIRROR_SOURCE_ROOTS:
+        prefix = f"{root}/"
+        if path.startswith(prefix):
+            return f"{_CANONICAL_SKILL_ROOT}/{path[len(prefix):]}"
+    return None
+
 
 def is_colocated_skill_test(path: str) -> bool:
     """Return True when *path* is a test file inside a shipped skill tree.
@@ -92,9 +114,14 @@ def check_paths(
     for path in paths:
         if not path:
             continue
-        if is_colocated_skill_test(path):
-            if path not in legacy:
-                violations.append(path)
+        if not is_colocated_skill_test(path):
+            continue
+        if path in legacy:
+            continue
+        source_path = _mirror_source_path(path) if allow_existing else None
+        if source_path is not None and source_path in legacy:
+            continue
+        violations.append(path)
     return violations
 
 
