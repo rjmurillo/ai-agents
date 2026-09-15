@@ -63,14 +63,19 @@ ProvisionalTier: hours_tier 3 (Q4 says 6 to 8 hours; 8 falls in the 8 to 40 band
 
 Issue generators discovered that #5698 does not name. Adjudicated in-scope (acknowledged as part of this spec's scope) because each is a door the provenance rule must cover:
 
-| Generator | Where | What it does today |
-|---|---|---|
-| adr-review deferral protocol | `.claude/skills/adr-review/references/issue-resolution.md:15` | "Deferred P1 items MUST be backlogged as GitHub issues." A MUST that manufactures issues to clear a gate. |
-| qa agent CONDITIONAL verdict | `.claude/agents/qa.md:585` | A CONDITIONAL verdict must cite a follow-up issue number, so passing QA requires filing an issue. |
-| security agent CONDITIONAL verdict | `.claude/agents/security.md:221`, `:398`, `:546` | Same shape: the gate clears only when a follow-up issue exists. |
-| research skill | `.claude/skills/research/SKILL.md:4`, `:91` | Files a follow-up issue by design at the end of every run. |
-| task-decomposer agent | `.claude/agents/task-decomposer.md:46` | Uses raw `gh issue create`, bypassing new_issue.py and any flag it grows. |
-| GitHub workflows with `issues: write` | 14 active files under `.github/workflows/` (drift-detection, ai-metrics-analysis, artifact-insight-scanner, quality-grades among them; two `.disabled` files excluded) | Create issues under the github-actions login; already distinguishable by login. |
+- **adr-review deferral protocol**, `.claude/skills/adr-review/references/issue-resolution.md:15`: "Deferred P1 items MUST be backlogged as GitHub issues." A MUST that manufactures issues to clear a gate.
+
+- **qa agent CONDITIONAL verdict**, `.claude/agents/qa.md:585`: "A CONDITIONAL verdict must cite the follow-up issue number that will close the gap." Passing QA requires filing an issue.
+
+- **security agent CONDITIONAL verdict**, `.claude/agents/security.md:221`: "At most 3 MEDIUM findings remain with documented mitigations the implementer commits to land in a follow-up issue."
+
+- **security agent PIV gate**, `.claude/agents/security.md:398`: "CONDITIONAL clears the gate only when the verdict cites a follow-up issue number", repeated in the checklist at `.claude/agents/security.md:546`.
+
+- **research skill**, `.claude/skills/research/SKILL.md:94`: calls `new_issue.py` at the end of every run; its description at `.claude/skills/research/SKILL.md:4` says "file the follow-up issue" by design.
+
+- **task-decomposer agent**, `.claude/agents/task-decomposer.md:46`: "`gh issue create` for GitHub issues", raw gh, bypassing new_issue.py and any flag it grows.
+
+- **GitHub workflows with `issues: write`**: 14 active files under `.github/workflows/` (drift-detection, ai-metrics-analysis, artifact-insight-scanner, quality-grades among them; two `.disabled` files excluded). They create issues under the github-actions login, already distinguishable by login.
 
 Adjudicated out-of-scope: `claude.yml` (runs on issues.opened but only answers mentions; it is not a generator).
 
@@ -132,7 +137,7 @@ Open ontology question: whether "human" means the owner typed the request in a s
 
 | System | Use | Failure mode | Idempotency |
 |---|---|---|---|
-| GitHub REST via `new_issue.py` | primary IssueDoor for skills | script exits 2 when `--source` or Step 0 answers are missing | creation is not idempotent; a retry after a label failure duplicates (research SKILL.md line 149 already warns) |
+| GitHub REST via `new_issue.py` | primary IssueDoor for skills | script exits 2 when `--source` or Step 0 answers are missing | creation is not idempotent; a retry after a label failure duplicates (research SKILL.md line 152 already warns) |
 | `mcp__github__issue_write` | IssueDoor for Claude Code sessions and workflow agents | no flag exists; the tool cannot be made to demand Step 0 | same |
 | raw `gh issue create` | IssueDoor used by task-decomposer | bypasses every script-side check | same |
 | GitHub Actions on `issues.opened` | proposed repo-side enforcement | workflow lag of seconds to minutes; a burst can land before labeling | labeling is idempotent |
