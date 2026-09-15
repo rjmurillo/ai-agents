@@ -107,6 +107,7 @@ from checks_plugin import (
     validate_workflow_local_run,
 )
 from checks_portability import (
+    validate_rule_template_drift,
     validate_skill_contract_tests,
     validate_skill_md_exec_portability,
     validate_skill_resolver_anchoring,
