@@ -182,6 +182,15 @@ install-tree counterpart). REQ-003-010 forbids other generators from writing
 there; every class, lib included, is now a manifest row, so there is no
 longer an ordering hazard for this rule to document.
 
+A skill's non-`SKILL.md` files (`scripts/`, `references/`, `tests/`, and
+anything else under `.claude/skills/<name>/`) are the one exception to
+"edit the template": they stay hand-maintained at `.claude/skills/<name>/`,
+never under `templates/`. `build_all.py` mirrors them into
+`src/claude/skills/<name>/` (`generate_skills.sync_claude_plugin_skill_support`)
+the same run it renders `SKILL.md` from its template, so both land in the
+plugin tree together; edit the support file at `.claude/skills/<name>/`
+directly and run `build_all.py`, same as any other lib-exception file.
+
 ## Quick Self-Review
 
 Before you merge a change to a generator or customer-facing artifact:
