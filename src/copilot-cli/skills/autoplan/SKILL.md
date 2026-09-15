@@ -173,7 +173,10 @@ The Sovereignty row is the AGENTS.md Ask First list plus the Autonomy
 Guardrail. When a Sovereignty decision blocks the whole run, present 2 to 3
 options with trade-offs per the Confusion Protocol and wait. See
 `references/writing-style-and-confusion-protocol.md` for the full protocol,
-completeness scoring, and writing-style mechanics.
+completeness scoring, and writing-style mechanics. Read
+`references/decision-procedure.md` before Phase 1: it is the six-step walk
+(scope constraint, search, lake or ocean, build, present and ask, stop at
+terminal) that used to live in the always-on builder-ethos rule.
 
 ### Phase 4: Final gate
 
