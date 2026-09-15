@@ -86,6 +86,22 @@ PILOT: frozenset[str] = frozenset(
         "code-qualities-assessment",
         "context-gather",
         "context-hub-setup",
+        "pr-review",
+        "push-pr",
+        "quality-grades",
+        "reflect",
+        "requirements-interview",
+        "retro",
+        "retrospective",
+        "review",
+        "reviewer-findings",
+        "security-detection",
+        "security-review",
+        "security-scan",
+        "skillforge",
+        "slashcommandcreator",
+        "slo-designer",
+        "software-engineering-library",
     }
 )
 
