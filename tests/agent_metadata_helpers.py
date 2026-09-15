@@ -73,10 +73,12 @@ _EXEMPT_FILES = frozenset(
 )
 
 # `role:` is not exclusive to agents. The review skill's reference files use it
-# for a review axis (`role: agent-safety`), in both the Claude and Copilot
-# trees, and those values are strings just like agent roles, so no type check
-# separates them. Named here rather than discriminated by value, because value
-# matching is exactly the bug this list exists to avoid reintroducing.
+# for a review axis (`role: agent-safety`), in the canonical Claude tree, the
+# Copilot mirror, and (ADR-109 B3's support-file follow-up)
+# `src/claude/skills/review/references`, the Claude plugin-tree mirror of the
+# same files -- and those values are strings just like agent roles, so no type
+# check separates them. Named here rather than discriminated by value, because
+# value matching is exactly the bug this list exists to avoid reintroducing.
 #
 # Getting this list wrong fails loudly rather than silently: an unlisted
 # non-agent directory shows up as a spurious unconfigured tree, which is a
@@ -84,6 +86,7 @@ _EXEMPT_FILES = frozenset(
 _NON_AGENT_ROLE_DIRS = frozenset(
     {
         ".claude/skills/review/references",
+        "src/claude/skills/review/references",
         "src/copilot-cli/skills/review/references",
     }
 )

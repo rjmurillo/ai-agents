@@ -215,10 +215,18 @@ def _build_skills(
     if not isinstance(stanza, dict):
         compile_result = skill_templates.compile_all(repo_root, validate=check)
         rc = compile_result.exit_code
-        _, _, _, sync_errors = generate_skills.sync_claude_plugin_skill_support(repo_root)
+        sync_written, sync_removed, _, sync_errors = (
+            generate_skills.sync_claude_plugin_skill_support(repo_root, check=check)
+        )
         for err in sync_errors:
             print(f"Error: {err}", file=sys.stderr)
         if sync_errors:
+            rc = max(rc, 1)
+        if check and (sync_written or sync_removed):
+            # Direct comparison against .claude/skills/, independent of git
+            # diff: a hand edit or an extra file under src/claude/skills/
+            # that was never committed has no git-diff signal for the
+            # staleness check below to see.
             rc = max(rc, 1)
         if check and rc != 0:
             rc = 2

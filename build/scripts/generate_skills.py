@@ -127,18 +127,28 @@ def generate_skills(
         return int(compile_result.exit_code)
 
     sync_written, sync_removed, sync_skipped, sync_errors = sync_claude_plugin_skill_support(
-        repo_root, what_if=what_if
+        repo_root, what_if=what_if, check=validate
     )
     if sync_written or sync_removed:
+        label = "drift" if validate else "written"
+        removed_label = "stale drift" if validate else "stale removed"
         print(
-            f"Claude plugin skill support files: {sync_written} written, "
-            f"{sync_removed} stale removed"
+            f"Claude plugin skill support files: {sync_written} {label}, "
+            f"{sync_removed} {removed_label}"
         )
     if sync_skipped:
         print(f"Claude plugin skill support files skipped (NO-REGEN): {sync_skipped}")
     if sync_errors:
         for err in sync_errors:
             print(f"Error: {err}", file=sys.stderr)
+        return 1
+    if validate and (sync_written or sync_removed):
+        # Direct comparison against .claude/skills/, independent of git
+        # diff: catches a hand edit or an extra file under
+        # src/claude/skills/ that was never committed, which git diff has
+        # no signal for. Exit 1 here (generate_skills.py's own drift code);
+        # build_all._build_skills escalates it to 2 under --check the same
+        # way it already escalates skill_templates.compile_all's drift.
         return 1
 
     try:

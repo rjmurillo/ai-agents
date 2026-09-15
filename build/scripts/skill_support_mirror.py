@@ -20,6 +20,7 @@ every skill file except ``SKILL.md`` (rendered separately by
 from __future__ import annotations
 
 import shutil
+import stat
 import sys
 from pathlib import Path
 
@@ -84,11 +85,49 @@ def _iter_skill_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
     return skills
 
 
+def _copy_matches(dst_path: Path, src_path: Path) -> bool:
+    """True when ``dst_path`` already has ``src_path``'s bytes and permission bits.
+
+    Mirrors ``binplace_manifest._binplace_one_file``'s own reasoning: byte
+    equality alone is not enough, because a file can keep its committed
+    content while losing its executable bit (chmod, a re-clone with a
+    restrictive umask, an editor save that resets permissions). A missing,
+    symlinked, or unreadable destination is never a match, so the caller
+    always falls through to a real write for it.
+    """
+    try:
+        dst_stat = dst_path.lstat()
+    except OSError:
+        return False
+    if stat.S_ISLNK(dst_stat.st_mode):
+        return False
+    try:
+        if dst_path.read_bytes() != src_path.read_bytes():
+            return False
+    except OSError:
+        return False
+    return (dst_stat.st_mode & 0o777) == (src_path.stat().st_mode & 0o777)
+
+
+def _text_matches(dst_path: Path, content: str) -> bool:
+    """True when ``dst_path`` already holds ``content`` (UTF-8), byte for byte.
+
+    Used for the SKILL.md/translate branch, which ``write_text`` has never
+    mode-preserved (unlike the ``shutil.copy2`` branch ``_copy_matches``
+    guards), so only content is compared here.
+    """
+    try:
+        return dst_path.read_text(encoding="utf-8") == content
+    except OSError:
+        return False
+
+
 def _copy_skill_tree(
     source: Path,
     target: Path,
     *,
     what_if: bool,
+    check: bool = False,
     skills_output_dir: Path | None = None,
     plugin_skill_md: Path | None = None,
     skip_filenames: frozenset[Path] = frozenset(),
@@ -97,6 +136,11 @@ def _copy_skill_tree(
 
     Returns ``(written, skipped)`` counts; skipped reflects NO-REGEN
     protections per file. Existing files are overwritten unless protected.
+    A destination that already has the source's bytes (and, for the plain
+    copy branch, its permission bits) is left untouched and not counted
+    in ``written``: without this a clean, no-op run still reported every
+    file as written, which both wastes I/O on every invocation and makes
+    "N written" useless as a signal of what actually changed.
 
     When ``skills_output_dir`` is provided (Copilot CLI target), the
     top-level ``SKILL.md`` body is translated from Claude Code conventions
@@ -124,6 +168,17 @@ def _copy_skill_tree(
     plugin-tree support-file mirror (:func:`sync_claude_plugin_skill_support`),
     whose SKILL.md is owned exclusively by ``skill_templates.compile_all``
     and must never be touched by a plain byte-for-byte copy.
+
+    ``check``, when set, never writes either, but (unlike ``what_if``)
+    counts every mismatch into ``written``: a caller running a staleness
+    gate needs a number to escalate on, not just a printed intention. A
+    mismatch a git-diff-based staleness check would miss (an uncommitted
+    hand edit, or a file that was never committed at all) is caught here
+    directly, by comparing the destination's current bytes against the
+    source, the same way ``binplace_manifest.binplace(check=True)``
+    compares a plugin-tree file to its install-tree counterpart for the
+    classes that go through the binplace manifest. Mutually exclusive with
+    ``what_if``; ``check`` wins if both are set.
     """
     written = 0
     skipped = 0
@@ -145,18 +200,34 @@ def _copy_skill_tree(
             skipped += 1
             continue
 
-        if what_if:
-            print(f"  Would copy: {src_path} -> {dst_path}")
-            continue
-
-        dst_path.parent.mkdir(parents=True, exist_ok=True)
         if skills_output_dir is not None and rel == Path("SKILL.md"):
             content_source = src_path
             if plugin_skill_md is not None and plugin_skill_md.is_file():
                 content_source = plugin_skill_md
             content = content_source.read_text(encoding="utf-8")
-            dst_path.write_text(translate_skill_file(content, skills_output_dir), encoding="utf-8")
+            translated = translate_skill_file(content, skills_output_dir)
+            if _text_matches(dst_path, translated):
+                continue
+            if check:
+                print(f"  DRIFT: {dst_path} differs from {src_path}")
+                written += 1
+                continue
+            if what_if:
+                print(f"  Would copy: {src_path} -> {dst_path}")
+                continue
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
+            dst_path.write_text(translated, encoding="utf-8")
         else:
+            if _copy_matches(dst_path, src_path):
+                continue
+            if check:
+                print(f"  DRIFT: {dst_path} differs from {src_path}")
+                written += 1
+                continue
+            if what_if:
+                print(f"  Would copy: {src_path} -> {dst_path}")
+                continue
+            dst_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src_path, dst_path)
         written += 1
     return written, skipped
@@ -203,7 +274,9 @@ def _prune_empty_dirs(root: Path) -> None:
             pass
 
 
-def _prune_stale_support_files(target_dir: Path, wanted: set[Path]) -> tuple[int, list[str]]:
+def _prune_stale_support_files(
+    target_dir: Path, wanted: set[Path], *, check: bool = False
+) -> tuple[int, list[str]]:
     """Delete files under ``target_dir`` (excluding ``SKILL.md``) not in ``wanted``.
 
     A NO-REGEN-protected extra is left in place (NOTICE, not an error): the
@@ -211,6 +284,12 @@ def _prune_stale_support_files(target_dir: Path, wanted: set[Path]) -> tuple[int
     honors. A removal that raises ``OSError`` is recorded as an error and
     left in place rather than crashing the run; the caller folds it into a
     nonzero exit code.
+
+    ``check``, when set, deletes nothing: a stale extra is reported (DRIFT)
+    and counted into ``removed`` the same way a real deletion would be, so
+    a staleness gate can escalate on an extra file that was never committed
+    (git diff has no signal for a file it never saw removed) without this
+    function ever mutating the working tree.
     """
     removed = 0
     errors: list[str] = []
@@ -234,17 +313,22 @@ def _prune_stale_support_files(target_dir: Path, wanted: set[Path]) -> tuple[int
         if reason is not None:
             print(f"  NOTICE: kept stale {existing} (NO-REGEN: {reason})")
             continue
+        if check:
+            print(f"  DRIFT: {existing} has no canonical source")
+            removed += 1
+            continue
         try:
             existing.unlink()
             removed += 1
         except OSError as exc:
             errors.append(f"{existing}: could not remove stale mirror file: {exc}")
-    _prune_empty_dirs(target_dir)
+    if not check:
+        _prune_empty_dirs(target_dir)
     return removed, errors
 
 
 def sync_claude_plugin_skill_support(
-    repo_root: Path, *, what_if: bool = False
+    repo_root: Path, *, what_if: bool = False, check: bool = False
 ) -> tuple[int, int, int, list[str]]:
     """Mirror every skill's non-``SKILL.md`` files into the Claude plugin tree.
 
@@ -276,6 +360,15 @@ def sync_claude_plugin_skill_support(
     the real, repo-global source tree, never the caller's platform config,
     the same way ``skill_templates.compile_all`` always reads
     ``templates/skills/`` regardless of which platform triggered the call.
+
+    ``check=True`` never writes or deletes anything (see
+    :func:`_copy_skill_tree` and :func:`_prune_stale_support_files`'s own
+    ``check`` parameters): every mismatch, real or would-be, is counted
+    into ``written``/``removed`` instead, so a caller running a staleness
+    gate gets a direct comparison against the canonical source rather than
+    depending on git diff, which cannot see a divergence that was never
+    committed. Mutually exclusive with ``what_if``; ``check`` wins if both
+    are set.
     """
     source_dir = repo_root / _CLAUDE_SUPPORT_SOURCE_REL
     target_dir = repo_root / _CLAUDE_SUPPORT_TARGET_REL
@@ -296,11 +389,15 @@ def sync_claude_plugin_skill_support(
             continue
         target = target_dir / src.name
         written, skipped = _copy_skill_tree(
-            src, target, what_if=what_if, skip_filenames=frozenset({_SKILL_MD})
+            src, target, what_if=what_if, check=check, skip_filenames=frozenset({_SKILL_MD})
         )
         total_written += written
         total_skipped += skipped
-        if not what_if:
+        if check:
+            removed, prune_errors = _prune_stale_support_files(target, wanted, check=True)
+            total_removed += removed
+            errors.extend(prune_errors)
+        elif not what_if:
             removed, prune_errors = _prune_stale_support_files(target, wanted)
             total_removed += removed
             errors.extend(prune_errors)

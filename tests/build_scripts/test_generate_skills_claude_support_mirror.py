@@ -68,6 +68,48 @@ def test_copies_support_files_into_plugin_tree(tmp_path: Path) -> None:
     assert _target(tmp_path, "alpha", "references/notes.md").read_text() == "notes\n"
 
 
+def test_clean_second_run_writes_nothing(tmp_path: Path) -> None:
+    """A no-op run must report 0 written, not recount every unchanged file.
+
+    Regression for the live-repo finding: the mirror recopied every file on
+    every invocation regardless of whether the destination already matched,
+    so ``build_all.py --check`` printed "526 written" on an already-clean
+    tree and mtimes churned on every run.
+    """
+    _write_skill(
+        tmp_path,
+        "alpha",
+        files={"scripts/run.py": "print('hi')\n", "references/notes.md": "notes\n"},
+    )
+    first_written, _, _, first_errors = generate_skills.sync_claude_plugin_skill_support(tmp_path)
+    assert first_errors == []
+    assert first_written == 2
+
+    second_written, second_removed, second_skipped, second_errors = (
+        generate_skills.sync_claude_plugin_skill_support(tmp_path)
+    )
+
+    assert second_errors == []
+    assert second_written == 0
+    assert second_removed == 0
+    assert second_skipped == 0
+
+
+def test_mode_only_divergence_is_still_a_write(tmp_path: Path) -> None:
+    """Matching bytes with a different permission mode is still corrected."""
+    skill_dir = _write_skill(tmp_path, "alpha", files={"scripts/run.py": "print('hi')\n"})
+    (skill_dir / "scripts" / "run.py").chmod(0o755)
+    generate_skills.sync_claude_plugin_skill_support(tmp_path)
+    target = _target(tmp_path, "alpha", "scripts/run.py")
+    target.chmod(0o644)
+
+    written, _, _, errors = generate_skills.sync_claude_plugin_skill_support(tmp_path)
+
+    assert errors == []
+    assert written == 1
+    assert target.stat().st_mode & 0o777 == 0o755
+
+
 def test_skill_md_is_never_written_by_the_mirror(tmp_path: Path) -> None:
     """SKILL.md is skill_templates.compile_all's target, not this mirror's."""
     _write_skill(tmp_path, "alpha", files={"scripts/run.py": "print('hi')\n"})
@@ -109,10 +151,9 @@ def test_missing_support_file_is_copied_in(tmp_path: Path) -> None:
     written, _, _, errors = generate_skills.sync_claude_plugin_skill_support(tmp_path)
 
     assert errors == []
-    # _copy_skill_tree recopies every file unconditionally (no pre-write
-    # compare, matching the Copilot mirror's own behavior); only b.py is
-    # actually new, but a.py's unchanged copy still counts as "written".
-    assert written == 2
+    # _copy_skill_tree compares bytes and mode before writing; a.py already
+    # matches its source and is not recounted, only b.py is a real write.
+    assert written == 1
     assert _target(tmp_path, "alpha", "scripts/b.py").read_text() == "b\n"
 
 
@@ -178,6 +219,102 @@ def test_merge_resolver_is_not_excluded_unlike_the_copilot_mirror(tmp_path: Path
     assert errors == []
     assert written == 1
     assert _target(tmp_path, "merge-resolver", "scripts/resolve.py").read_text() == "resolve\n"
+
+
+# check mode: direct comparison, never writes -------------------------------
+#
+# Regression for the coordinator's live-probe finding on bf4d0117f: appending
+# a line to a tracked mirror file, or adding an untracked extra file, under
+# src/claude/skills/merge-resolver/scripts/ made `build_all.py --check` exit
+# 0 and silently erase the change. That happened because the old sync call
+# had no way to run "compare only": it always wrote for real, which either
+# overwrote a hand edit back to canonical content (masking it from the
+# later git-diff staleness check) or deleted an untracked extra outright,
+# both before the diff ever got a chance to see them. These tests seed the
+# repo the way the live tree is laid out -- a support file already mirrored
+# and untouched, one hand-edited in place, one extra with no source -- and
+# assert `check=True` reports every mismatch without ever touching disk.
+
+
+def test_check_mode_reports_a_hand_edit_without_correcting_it(tmp_path: Path) -> None:
+    """A support file hand-edited directly under the mirror is drift, not a fix target.
+
+    Without the fix, `check=True` didn't exist and the sync always wrote
+    for real, silently overwriting this hand edit back to the canonical
+    content before any staleness check could see it: this test fails
+    against that code (`written == 0`, mirror already "corrected") and
+    passes once `check=True` only compares.
+    """
+    _write_skill(tmp_path, "alpha", files={"scripts/run.py": "correct\n"})
+    generate_skills.sync_claude_plugin_skill_support(tmp_path)
+    mirror = _target(tmp_path, "alpha", "scripts/run.py")
+    mirror.write_text("hand-edited, never committed\n", encoding="utf-8")
+
+    written, removed, _, errors = generate_skills.sync_claude_plugin_skill_support(
+        tmp_path, check=True
+    )
+
+    assert errors == []
+    assert written == 1
+    assert removed == 0
+    assert mirror.read_text() == "hand-edited, never committed\n", (
+        "check=True must never write; the caller decides what to do with the report"
+    )
+
+
+def test_check_mode_reports_an_extra_file_without_deleting_it(tmp_path: Path) -> None:
+    """An extra mirror file with no canonical source is drift, not a delete target.
+
+    Without the fix, the sync always pruned real stale extras during
+    generation, before the git-diff staleness check ran, so an untracked
+    extra was removed and the run reported clean. This fails against that
+    code (`removed == 0`, file already gone) and passes once `check=True`
+    only reports.
+    """
+    _write_skill(tmp_path, "alpha", files={"scripts/keep.py": "keep\n"})
+    generate_skills.sync_claude_plugin_skill_support(tmp_path)
+    extra = _target(tmp_path, "alpha", "scripts/probe_extra.py")
+    extra.write_text("# probe\n", encoding="utf-8")
+
+    written, removed, _, errors = generate_skills.sync_claude_plugin_skill_support(
+        tmp_path, check=True
+    )
+
+    assert errors == []
+    assert written == 0
+    assert removed == 1
+    assert extra.is_file(), "check=True must never delete; the caller decides"
+
+
+def test_check_mode_on_a_clean_tree_reports_nothing(tmp_path: Path) -> None:
+    _write_skill(
+        tmp_path,
+        "alpha",
+        files={"scripts/run.py": "print('hi')\n", "references/notes.md": "notes\n"},
+    )
+    generate_skills.sync_claude_plugin_skill_support(tmp_path)
+
+    written, removed, skipped, errors = generate_skills.sync_claude_plugin_skill_support(
+        tmp_path, check=True
+    )
+
+    assert (written, removed, skipped, errors) == (0, 0, 0, [])
+
+
+def test_check_mode_wins_when_what_if_is_also_set(tmp_path: Path) -> None:
+    """``check`` and ``what_if`` are mutually exclusive; ``check`` wins (docstring contract)."""
+    _write_skill(tmp_path, "alpha", files={"scripts/run.py": "correct\n"})
+    generate_skills.sync_claude_plugin_skill_support(tmp_path)
+    mirror = _target(tmp_path, "alpha", "scripts/run.py")
+    mirror.write_text("drifted\n", encoding="utf-8")
+
+    written, _, _, errors = generate_skills.sync_claude_plugin_skill_support(
+        tmp_path, what_if=True, check=True
+    )
+
+    assert errors == []
+    assert written == 1  # what_if alone reports 0 (see test_what_if_does_not_write_or_remove)
+    assert mirror.read_text() == "drifted\n"
 
 
 # Symlink refusal ------------------------------------------------------------
