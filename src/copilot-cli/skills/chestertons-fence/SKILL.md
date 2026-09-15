@@ -73,7 +73,7 @@ Use this skill BEFORE proposing changes to existing:
 
 **Step 2: Git Archaeology.** Run `git log --follow` and `git blame` on the target. Identify the commit that introduced it, the author, and the date.
 
-**Step 3: PR/ADR Search.** Search for the originating PR using `gh pr list --search`. Check `.agents/architecture/` for related ADRs. Look for comments explaining intent.
+**Step 3: PR/ADR Search.** Search for the originating PR using `gh pr list --search`. Check `${AWESOME_AI_ARCHITECTURE_DIR:-.agents/architecture}` for related ADRs (default `.agents/architecture`). Look for comments explaining intent.
 
 **Step 4: Dependency Analysis.** Use `grep` or `Grep` tool to find all references. Map upstream and downstream dependencies. Identify what breaks if the structure is removed.
 
