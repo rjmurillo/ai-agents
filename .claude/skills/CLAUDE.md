@@ -1,61 +1,58 @@
 # .claude/skills/
 
-111 skills; 110 mirror into the Copilot CLI plugin via `generate_skills.py` (`merge-resolver` excluded, repo-specific).
+111 skills; every `SKILL.md` is generated, nearly every other file hand-maintained.
 
 ## Matters
 
-- `templates/skills/*.SKILL.md.tmpl` skills are template-owned (ADR-108): edit the template, regenerate, in the `rjmurillo/ai-agents` repository.
-- `model:` normally omitted; the only other valid state is `model: haiku` plus `model-rationale:` (ADR-080). `sonnet`, `opus`, and versioned ids fail the model-pin check.
-- Size: two blocking ceilings, lines (warn 300, block 500) and bytes (warn 12,288, block 24,576); a table-heavy skill passes lines, fails bytes. `size-exception: true` plus an HTML rationale comment (first 40 lines, 200+ chars) declares a justified overage.
+- `SKILL.md` renders from `templates/skills/<name>.SKILL.md.tmpl` plus `partials/*.mustache`, all 111: edit the template and regenerate, in the `rjmurillo/ai-agents` repository. Render map: `templates/AGENTS.md`.
+- `<skill>/scripts/`, `references/`, `templates/`, `tests/` stay hand-edited, except `review/scripts/validate_review_marker.py` (synced from `scripts/validation/`). `review/references/*.md` is hand-edited but sources the PR-quality prompts; regenerate after editing (`build_all` skips it).
+- `model:` usually absent; the other valid state is `model: haiku` plus `model-rationale:` (ADR-080). `sonnet` and `opus` need a rationale pricing below the harness default; versioned ids always fail. The local gate warns; `pr-validation.yml` runs `--mode enforce`.
+- Size: two blocking ceilings, lines (warn 300, block 500) and bytes (warn 12,288, block 24,576). `size-exception: true` plus an HTML rationale comment (first 40 lines, 200+ chars) declares a justified overage.
 
 ## Entry points
 
-- New skill: the `skillforge` skill creates and reviews it end to end.
-- `SKILL.md` frontmatter: `name` (`^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$`, no `--`, max 64, equals the directory name); `description` (5+ words, no `<` or `>`, 1024-char soft cap). Keys are allowlisted; an unlisted key hard-fails. `version` is unenforced by the commit gate, required by `claude-agents.md` MUST-2.
-- `## Triggers` H2: 1 to 5 backtick-wrapped phrases (unwrapped counts as zero), no shell metacharacters; enforced at commit.
+- New skill: `skillforge` creates and reviews it.
+- Frontmatter: `name` (`^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$`, no `--`, max 64, equals the directory name); `description` (5+ words, no `<` or `>`, 1024-char soft cap). Keys are allowlisted; an unlisted key hard-fails. `version` is unenforced at commit, required by `claude-agents.md` MUST-2.
+- `## Triggers` H2: 1 to 5 backtick-wrapped phrases (unwrapped counts as zero), no shell metacharacters.
 - `## Process` or `### Phase N`, plus one of `## Verification`, `## Success Criteria`, `## Checklist`.
 
 ## Where to look
 
 | Path | Why |
 |---|---|
-| `<skill>/SKILL.md` | Frontmatter plus process, the contract |
-| `<skill>/scripts/` | Executable code |
-| `<skill>/references/` | Long-form material, loaded on demand |
-| `<skill>/templates/` | Output-shape templates |
+| `<skill>/SKILL.md` | Generated; the contract |
 
 ## Skip
 
-- The generated Copilot CLI mirror of this tree: edit the source skill here and regenerate.
+- The Copilot CLI mirror and `src/claude/skills/`: both regenerate.
 
 ## Constraints
 
 - Cross-harness hook/event/Copilot-artifact change: read `agent-harness-reference` first, route through `ai-agents-portability-campaign`.
-- A retired ADR named in a skill's `metadata.adr` fails a portability gate.
-- Subprocess text capture in a skill script: `encoding="utf-8", errors="replace"`. The count ratchet scans every tracked `*.py`, skill scripts included, and sits at its baseline; one new violation reds pre-push and CI.
+- A retired ADR in a skill's `metadata.adr` fails the `Skill ADR Bindings` ratchet.
+- Skill-script subprocess text capture: `encoding="utf-8", errors="replace"`; count ratchet at baseline.
+- 110 of 111 ship to the Copilot CLI plugin; `merge-resolver` is excluded as repo-specific, and no shipped routing table may point at it.
 
 ## Dangerous assumptions
 
-- `validate_skill_format.py` validates Serena-memory atomic format, not `SKILL.md`. `skillforge` validates `**/SKILL.md` at commit time.
-- `version` looks top-level-only; `security-scan`, `skillforge`, `style-enforcement`, `validation-authority` nest it under `metadata:`, unrejected.
-- The model-pin ratchet has drained: `model_pin_baseline.json` is `frozen_count: 0`, full ADR-080 enforcement in CI. The pre-push gate is warn-only; `pr-validation.yml` runs `--mode enforce`.
-- Colocated tests are a forward-only ratchet (issue #4838), not zero: older tests remain under `<skill>/tests/`; new `test_*.py`/`*_test.py` there is blocked.
+- `validate_skill_format.py` validates Serena-memory atomic format, not `SKILL.md`. `skillforge` validates `**/SKILL.md` at commit.
+- `version` looks top-level-only; five skills nest it under `metadata:`, four with no top-level key, unrejected.
+- Colocated tests are a forward-only ratchet, not zero: 55 remain under `<skill>/tests/`; a new `test_*.py`/`*_test.py` there is blocked.
 
 ## Dependencies
 
-- Pre-commit: `skillforge` (`**/SKILL.md`, excludes `evals/`) and `skill-size` checks; colocated-test fires on staged `<skill>/tests/**test*.py`, not `SKILL.md`.
+- Pre-commit: `skillforge` and `skill-size`; colocated-test fires on staged `<skill>/tests/**test*.py`, not `SKILL.md`.
 - Pre-push: 10 `Skill*` gates (ADR bindings, template drift, script/markdown/markdown-exec portability, resolver anchoring, contract tests, shell detection, SKIP routing, memory references), plus `Colocated Skill Tests` and `Shipped Skill Routes`.
-- CI: passive-compliance and frontmatter self-containment block; the description-budget step is `continue-on-error`, advisory. The agent/skill discriminator diffs the agent trees only, so a skill change never triggers it.
+- CI: passive-compliance and plugin frontmatter self-containment block; description-budget advisory.
 
 ## Architecture
 
-- New tests target `tests/skills/<name>/` (in the `rjmurillo/ai-agents` repository), inverting the repo norm.
-- Pre-push `Skill*` gates are named individually; a failure names one gate.
-- Schema authority: `claude-skills.md` (steering docs, in the `rjmurillo/ai-agents` repository); `claude-agents.md` MUST-2 binds it. Creation criteria: `SKILL-CREATION-CRITERIA.md`, `SKILL-AUTHORING.md`.
+- New tests target `tests/skills/<name>/`, in the `rjmurillo/ai-agents` repository.
+- Schema authority: `claude-skills.md` under the steering docs in the `rjmurillo/ai-agents` repository; `claude-agents.md` MUST-2 binds it. Creation criteria: `SKILL-CREATION-CRITERIA.md`, `SKILL-AUTHORING.md`.
 
 ## Commands
 
-Repository-only, run from the `rjmurillo/ai-agents` root:
+Repository-only, from the `rjmurillo/ai-agents` root:
 
 ```bash
 uv run python scripts/validation/skill_size.py --staged-only --ci

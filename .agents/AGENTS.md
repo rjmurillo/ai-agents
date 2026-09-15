@@ -4,28 +4,28 @@ Governance, planning, history; no plugin ships it.
 
 ## Matters
 
-- Rules auto-load: `session-logs.md`,`token-economy.md`->`.agents/**`; `governance.md`->`governance/**`; `retros.md`->`retrospective/**`; `secret-redaction.md`->`sessions/**`,`retrospective/**`; `tool-use-hook-bar.md`->`architecture/**`; `security.md`->`security/**`; `testing.md`->`security/benchmarks/**`.
-- Markdownlint ignores `.agents/**`; dash ban binds (`staged-dash-policy`). `governance/DOCUMENTATION-LINK-REQUIREMENTS.md` demands relative links, unenforced. Gemini skips the tree (`.gemini/config.yaml`).
+- Rules auto-load: `session-logs`,`token-economy`->`.agents/**`; `adr-records`,`tool-use-hook-bar`->`architecture/**`; `governance`,`push-lock`->`governance/**`; `canonical-source-mirror`->`governance/**`,`retrospective/**`; `retros`->`retrospective/**`; `secret-redaction`->`sessions/**`,`retrospective/**`; `security`->`security/**`; `testing`->`security/benchmarks/**`.
+- Markdownlint ignores `.agents/**`; dash ban binds (`staged-dash-policy`). `governance/DOCUMENTATION-LINK-REQUIREMENTS.md`: relative links, unenforced. Gemini skips it (`.gemini/config.yaml`).
 
 ## Entry points
 
 - `sessions/handoffs/<date>-<issue>-handoff.md`: read latest, update at end. Sibling `handoffs/`: separate per-branch tier (ADR-014 Tier 2).
 - `AGENT-INSTRUCTIONS.md`: BLOCKING scaffold; `implementer.md`/`orchestrator.md` gate on it.
-- `architecture/ADR-NNN-*.md`: YAML `status` is truth; `README.md` generated (`generate_adr_index.py`), hand-edits lost. New: number from `check_adr_uniqueness.py --print-next`; frontmatter ratcheted pre-PR vs committed baseline (`check_adr_lifecycle.py`, ADR-073).
-- `memory/episodes/*.json` (regenerated, auto-staged by `extract-session-episodes` pre-commit; exempt from the 5-file atomic limit), `recovery-hints.yaml` (`error_classification.py` data): never hand-edit, not docs.
+- `architecture/ADR-NNN-*.md`: YAML `status` is truth; `README.md` generated (`generate_adr_index.py`), drift-gated (`OWNED_PREFIXES`), hand-edits lost. Frontmatter ratcheted pre-PR vs committed baseline (`check_adr_lifecycle.py`, ADR-073).
+- `memory/episodes/*.json`: never hand-edit; auto-staged by `extract-session-episodes` pre-commit, exempt from the 5-file atomic limit. `recovery-hints.yaml`: hand-edited `error_classification.py` data.
 
 ## Where to look
 
 | Path | Why |
 |---|---|
-| `governance/*.md` | Constraints, testing, generators, naming |
+| `governance/` | Constraints, testing, naming; `GENERATOR-FILES.md` registers generated trees |
 | `specs/` | EARS `REQ`/`TASK`/`DESIGN-NNN`; ID+traceability gated |
 | `steering/` | `claude-skills.md` cited by `.claude/skills/CLAUDE.md` |
 
 ## Skip
 
-- `sessions/*.json`, `archive/`, `retrospective/` (write via `retrospective` skill), other history dirs (`critique/`, `metrics/`): read only when named; not all CI-gate-exempt.
-- Stray: `prototypes/`, `.hook-state/` (gitignored), `pr-batch-review-session-2025-12-20.md`, `workflow-context.json`. `README.md`: stale project-phase doc.
+- `sessions/*.json`, `archive/`, `retrospective/` (same-day file gates non-docs pushes); `critique/`, `metrics/`: read only when named; not all gate-exempt.
+- Stray: `prototypes/`, `pr-batch-review-session-2025-12-20.md`, `workflow-context.json`. `README.md`: stale project-phase doc.
 
 ## Constraints
 
@@ -33,13 +33,13 @@ Governance, planning, history; no plugin ships it.
 
 ## Dangerous assumptions
 
-- `hooks/hooks.yaml` is a retired inventory nothing reads (`hooks/README.md`). Live: `.claude/settings.json`, `.claude/hooks/`, `templates/platforms/copilot-cli.yaml`.
-- Historical dirs not uniformly gate-exempt: `check_doc_interpreter_portability.py` `HISTORICAL_ROOTS` and `stale_script_refs.py` omit `metrics/`, `roadmap/`, `plans/`, so a documented `python3 <tracked>.py` importing a non-stdlib module is ratcheted there.
+- `hooks/hooks.yaml` retired, read by nothing; `hooks/README.md` misnames the live sources. ADR-109 B4: `templates/hooks/` is the source, `.claude/hooks/` and `.claude/settings.json` generated. Copilot map: `templates/platforms/copilot-cli.yaml`.
+- Gate exemptions differ: `check_doc_interpreter_portability.py` `HISTORICAL_ROOTS` and `stale_script_refs.py` omit `metrics/`, `roadmap/`, `plans/`, `handoffs/`; a bare-interpreter call of a tracked script with a non-stdlib import, or a ref to a deleted `.ps1`, fails there.
 - `AGENT-SYSTEM.md` stale: `**File**:` lines cite `src/claude/<stem>.md`; live is `src/claude/agents/<stem>.md` (generated, ADR-109 B1).
 
 ## Dependencies
 
-- Rule owners: `session-logs.md`, `governance.md` (Matters).
+- `schemas/*.json` gate `skillbook/` JSON (`skillbook-validation.yml`); `tests/skillbook/conftest.py` imports `hooks/post-eval.py`.
 
 ## Architecture
 
