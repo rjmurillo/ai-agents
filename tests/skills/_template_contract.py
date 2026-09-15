@@ -32,9 +32,8 @@ _CLAUDE_MD_LINE_RE = re.compile(r"^@CLAUDE\.md$", re.MULTILINE)
 # templates/platforms/copilot-cli.yaml artifacts.skills.excludeFilenames:
 # skills the Copilot mirror generator permanently omits (hard-wired to this
 # repo's own layout). They ship .claude/skills-only, so the mirror-existence
-# and mirror-content checks below do not apply. Empty on this branch: none
-# of ADR-109 B3 batch 4's sixteen skills are excluded from the mirror.
-_NO_COPILOT_MIRROR: frozenset[str] = frozenset()
+# and mirror-content checks below do not apply.
+_NO_COPILOT_MIRROR = frozenset({"merge-resolver"})
 
 # Skills whose template escapes a literal "{{" via "\{{" (ADR-108 amended
 # 2026-09-14, e.g. a GitHub Actions "${{ }}" example): their rendered
@@ -42,13 +41,14 @@ _NO_COPILOT_MIRROR: frozenset[str] = frozenset()
 # below does not apply to them. skill_templates.render() already proves no
 # tag is genuinely unresolved: it raises UnresolvedTagError before
 # returning if one exists, so a successful render is the real guarantee.
-_LITERAL_BRACE_SKILLS = frozenset({"security-detection"})
+_LITERAL_BRACE_SKILLS = frozenset({"merge-resolver", "security-detection"})
 
 
 def assert_template_owned_contract(name: str) -> None:
     """Assert the ADR-108 contract for one template-owned pilot skill.
 
-    Three checks, matching DESIGN-024's "Tests" table entry verbatim:
+    Three checks, matching DESIGN-024's "Tests" table entry verbatim, plus
+    one gate on the mirror-exclusion itself:
 
     1. The committed ``.claude/skills/<name>/SKILL.md`` equals a fresh
        ``skill_templates.render()`` of ``templates/skills/<name>.SKILL.md.tmpl``.
@@ -57,8 +57,10 @@ def assert_template_owned_contract(name: str) -> None:
     2. Neither the rendered file nor its Copilot mirror
        (``src/copilot-cli/skills/<name>/SKILL.md``) contains a line that is
        exactly ``@CLAUDE.md`` (ADR-108 Context: Copilot CLI treats that line
-       as literal text rather than an include). Skipped for a skill in
-       ``_NO_COPILOT_MIRROR``, which has no mirror file to check.
+       as literal text rather than an include). For a skill in
+       ``_NO_COPILOT_MIRROR``, which has no mirror file to check, this
+       assertion is skipped, but the mirror path itself must not exist
+       (a stale or wrongly-regenerated mirror would otherwise pass silently).
     3. Neither file contains the literal substring ``{{``: an unresolved
        mustache tag would mean the render left a partial or a disallowed
        construct unexpanded. Skipped for a skill in ``_LITERAL_BRACE_SKILLS``,
@@ -76,6 +78,11 @@ def assert_template_owned_contract(name: str) -> None:
     assert rendered_path.is_file(), f"no binplaced SKILL.md for {name!r}: {rendered_path}"
     if has_mirror:
         assert mirror_path.is_file(), f"no Copilot mirror for {name!r}: {mirror_path}"
+    else:
+        assert not mirror_path.exists(), (
+            f"{name!r} is in _NO_COPILOT_MIRROR (permanent exclusion), but a mirror "
+            f"exists at {mirror_path}; delete the stale file or drop the exclusion"
+        )
 
     fresh_render = skill_templates.render(template_path, partials_dir)
     plugin_committed = plugin_path.read_text(encoding="utf-8", newline="")

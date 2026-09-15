@@ -57,7 +57,7 @@ Search strategy (use web_search):
 1. `"{functionality} library {language}"`
 2. `"{functionality} open source"`
 3. `"{functionality} SaaS tool"`
-4. `"best {functionality} solution 2024"`
+4. `"best {functionality} solution"`
 5. `"{functionality} npm/pip/cargo package"` (based on ecosystem)
 
 Categorize findings:
@@ -278,7 +278,7 @@ I found [N] existing solutions before we write custom code:
 ### Libraries/Packages
 - **[Name]**: [one-line description] | [stars/downloads] | [link]
 
-### Open Source Tools  
+### Open Source Tools
 - **[Name]**: [one-line description] | [stars] | [link]
 
 ### SaaS Options

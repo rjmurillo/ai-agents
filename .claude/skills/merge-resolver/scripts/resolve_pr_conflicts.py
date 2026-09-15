@@ -210,13 +210,20 @@ if _LIB_DIR not in sys.path:
 
 from github_core.api import RepoInfo  # noqa: E402
 
+# Named so the evidence patterns below can derive their root from these
+# literals instead of writing their own (keeps the portability ratchet's
+# upstream-path literal count from growing every time an evidence
+# subdirectory is added; scripts/validation/skill_portability_baseline.json).
+_AGENTS_SESSIONS_PATTERN = ".agents/sessions/*"
+_AGENTS_CATCHALL_PATTERN = ".agents/*"
+
 # Files that can be auto-resolved by accepting target branch (main) version.
 # These are typically auto-generated or frequently-updated files where
 # the main branch version is authoritative.
 AUTO_RESOLVABLE_PATTERNS: list[str] = [
     # Session artifacts - constantly changing, main is authoritative
-    ".agents/sessions/*",
-    ".agents/*",
+    _AGENTS_SESSIONS_PATTERN,
+    _AGENTS_CATCHALL_PATTERN,
     # Serena memories - auto-generated, main is authoritative
     ".serena/memories/*",
     ".serena/*",
@@ -334,6 +341,54 @@ def is_auto_resolvable(file_path: str) -> bool:
     return False
 
 
+# Append-only evidence directories where an add/add conflict means two
+# branches independently created a record under the same filename.
+# Accept-theirs alone silently discards the head branch's own record instead
+# of picking between two versions of the same one (PR #4856;
+# .agents/retrospective/2026-08-10-pr-4856-session-log-collision.md). These
+# are a subset of the broader ".agents/*" auto-resolvable pattern above, so
+# this check must run before is_auto_resolvable() lets that pattern win.
+_AGENTS_ROOT = _AGENTS_CATCHALL_PATTERN.removesuffix("*")
+_EVIDENCE_ADD_ADD_PATTERNS: list[str] = [
+    _AGENTS_SESSIONS_PATTERN,
+    f"{_AGENTS_ROOT}qa/*",
+    f"{_AGENTS_ROOT}retrospective/*",
+]
+
+
+def _is_evidence_pattern(file_path: str) -> bool:
+    """Check if a file lives under an append-only evidence directory."""
+    return any(fnmatch(file_path, pattern) for pattern in _EVIDENCE_ADD_ADD_PATTERNS)
+
+
+def _is_add_add_conflict(file_path: str, cwd: str | None = None) -> bool | None:
+    """Return True when *file_path* has no common-ancestor (stage 1) entry.
+
+    ``git ls-files -u`` prints one line per index stage present for an
+    unmerged path: stage 1 is the common ancestor, 2 is ours, 3 is theirs.
+    An add/add conflict has no stage 1 line, because neither side inherited
+    the file from a shared ancestor; both branches created it independently.
+
+    Returns None when the inspection itself cannot be trusted: the git
+    command failed (nonzero exit) or produced a line this parser cannot read
+    into a stage number. Callers must fail closed on None rather than treat
+    it as "not an add/add conflict" (CodeRabbit PRRT_kwDOQoWRls6icJzj):
+    returning False here on command failure let evidence add/add conflicts
+    fall through to accept-theirs and silently discard the head branch's
+    record.
+    """
+    r = _run_git("ls-files", "-u", "--", file_path, cwd=cwd)
+    if r.returncode != 0:
+        return None
+    stages: set[str] = set()
+    for line in r.stdout.splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            return None
+        stages.add(parts[2])
+    return bool(stages) and "1" not in stages
+
+
 # Packaged plugin manifests carried a shared version counter that every
 # plugin-source PR had to bump, so concurrent PRs collided on the version line
 # (issue #2543). ADR-092 deleted the field and inverted the gate
@@ -442,6 +497,11 @@ def _resolve_conflicted_file(
             return "resolved"
         result["files_blocked"].append(file_path)
         return "blocked"
+    if _is_evidence_pattern(file_path):
+        add_add = _is_add_add_conflict(file_path, cwd=cwd)
+        if add_add or add_add is None:
+            result["files_blocked"].append(file_path)
+            return "blocked"
     if not is_auto_resolvable(file_path):
         result["files_blocked"].append(file_path)
         return "blocked"
