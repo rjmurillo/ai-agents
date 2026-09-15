@@ -28,18 +28,18 @@ state a code-only scope. `globs:` is preserved verbatim and never becomes
 `paths:`, so the source-side and mirror-side answers cannot diverge again.
 
 There is also no single answer per tree by default, so always name the tree with
-the number. The two destination trees agree today, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`, epic #5456 M4 moved `claude-model-patches` into the skills that do multi-step or Bash-heavy work, and epic #5456 M4 folded `search-before-building` into the `programming-advisor`, `memory-search`, and `memory-gate` skills:
+the number. The two destination trees agree today, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`, epic #5456 M4 moved `claude-model-patches` into the skills that do multi-step or Bash-heavy work, epic #5456 M4 folded `search-before-building` into the `programming-advisor`, `memory-search`, and `memory-gate` skills, and epic #5456 M4 folded `voice`'s Writing Style, Completeness Principle, and Confusion Protocol sections into the `spec`, `plan`, `review`, and `autoplan` skills:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot in this repository | 3 rules, 43,895 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 3 rules, 43,895 bytes |
+| `.github/instructions` | Copilot in this repository | 3 rules, 38,542 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 3 rules, 38,542 bytes |
 
 Membership is identical: `builder-ethos`,
 `universal`, `voice`.
 
 Those bytes are whole generated files, frontmatter included. The same three
-rules measure 43,952 bytes at `.claude/rules/`, 57 more, because the generator
+rules measure 38,599 bytes at `.claude/rules/`, 57 more, because the generator
 drops `priority:` and turns `paths:` into `applyTo:`. Name the
 tree whenever you quote a figure; a gap of about that size is a basis mismatch,
 not staleness.
