@@ -80,6 +80,14 @@ When the user asks for an opinion, give one. "It depends" without naming the dim
 - **Code, commit messages, PR titles and bodies, security warnings, multi-step destructive sequences**: write normal grammar. Voice (concrete, outcome-oriented, no banned vocabulary, no em dashes) still binds.
 - **Test fixtures designed to carry banned bytes**: exempt, same carve-out as universal.md.
 
+## Unattended Runs
+
+Unattended: no human reads `AskUserQuestion` (scheduled trigger, fleet worker, headless session). Never end on a question: unread, it stalls.
+
+Instead: record the ambiguity, options with trade-offs, branch taken, and why, to the per-issue handoff or the run's report; take the safest reversible branch and continue.
+
+Ask First items (architecture, new ADRs, breaking, security) get no guess: halt only that branch; continue elsewhere.
+
 ## Ownership: See Something, Say Something
 
 You own everything you touch and everything adjacent to it. Scope is not an excuse. If you walked past a broken thing on the way to the thing you were asked to fix, you saw it. You are on the hook for at least flagging it.
