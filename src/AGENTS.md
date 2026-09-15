@@ -4,7 +4,7 @@ Two of the three plugin roots; `packages/ai-agents-cli/` (repo root) vendors `.c
 
 ## Matters
 
-- ADR-109 B1 to B4: `claude/{agents,skills,rules,hooks}` and `claude/hooks.json` render from `templates/`, then binplace byte for byte into `.claude/`. Render map: `templates/AGENTS.md`.
+- ADR-109 B1 to B5: `claude/{agents,skills,rules,hooks}` and `claude/hooks.json` render from `templates/`, `claude/lib/` from `scripts/`; binplace copies each byte for byte into `.claude/`. Render map: `templates/AGENTS.md`.
 - `claude/skills/<name>/` holds `SKILL.md` only; scripts, references, tests stay under `.claude/skills/<name>/`.
 
 ## Entry points
@@ -22,7 +22,7 @@ Two of the three plugin roots; `packages/ai-agents-cli/` (repo root) vendors `.c
 
 ## Skip
 
-- `claude/{agents,skills,rules,hooks}/`, `copilot-cli/{agents,skills,instructions,lib,hooks}/`, `vs-code-agents/*.agent.md`: generated (`.agents/governance/GENERATOR-FILES.md`); `copilot-cli/THIRD-PARTY-NOTICES.TXT` too, via `scripts/generate_third_party_notices.py --check`, omitted from that inventory.
+- `claude/{agents,skills,rules,hooks,lib}/`, `copilot-cli/{agents,skills,instructions,lib,hooks}/`, `vs-code-agents/*.agent.md`: generated (`.agents/governance/GENERATOR-FILES.md`); `copilot-cli/THIRD-PARTY-NOTICES.TXT` too, via `scripts/generate_third_party_notices.py --check`, omitted from that inventory.
 - `STYLE-GUIDE.md`: orphan by design, bot-linked via `.gemini/styleguide.md`. Do not delete.
 
 ## Constraints
@@ -39,7 +39,7 @@ Two of the three plugin roots; `packages/ai-agents-cli/` (repo root) vendors `.c
 
 ## Dependencies
 
-- `copilot-cli/lib/`: run `scripts/sync_plugin_lib.py` first; catchers in `build/AGENTS.md`.
+- `copilot-cli/lib/` and `claude/lib/`: rendered from `scripts/` packages by `build_all.py` in the same run (B5); no prerequisite step.
 
 ## Architecture
 
@@ -48,7 +48,6 @@ Two of the three plugin roots; `packages/ai-agents-cli/` (repo root) vendors `.c
 ## Commands
 
 ```bash
-uv run python scripts/sync_plugin_lib.py           # MUST precede build_all.py
 uv run python build/scripts/build_all.py
 uv run python build/scripts/build_all.py --check   # drift gate
 uv run python build/generate_agents.py --validate

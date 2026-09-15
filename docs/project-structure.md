@@ -5,7 +5,7 @@ Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protoc
 ## Matters
 
 - Generated trees are overwritten by the next `build/scripts/build_all.py` run; edit the source. Inventory: `.agents/governance/GENERATOR-FILES.md`.
-- `templates/` is canonical for agents, rules, skills, hooks, settings (ADR-109 B1 to B4).
+- `templates/` is canonical for agents, rules, skills, hooks, settings; `scripts/` packages for lib (ADR-109 B1 to B5).
 
 ## Entry points
 
@@ -17,7 +17,7 @@ Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protoc
 | Path | Why |
 |---|---|
 | `templates/{agents,rules,skills,hooks}/` | Source for all five classes; `settings` from `hooks/settings.tmpl` |
-| `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source; sync before regen (`build/AGENTS.md`) |
+| `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source; rendered by `build_all.py` (`build/AGENTS.md`) |
 | `{.agents,.claude,.claude/hooks,.github,build,scripts,src,src/claude,templates,tests}/AGENTS.md`, `.claude/skills/CLAUDE.md`, `.claude-mem/memories/AGENTS.md` | Per-directory guides |
 | `docs/{skill-reference,agent-governance,task-classification-guide,when-to-use,orchestrator-routing-algorithm,search-dont-load,SKILL-AUTHORING,agent-metrics}.md` | Agent-facing; no guide owns `docs/` |
 
@@ -25,7 +25,7 @@ Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protoc
 
 | Path | Why |
 |---|---|
-| `src/`, `.claude/{agents,rules,hooks}/`, `.claude/skills/*/SKILL.md`, `.claude/settings.json`, `.github/{instructions,agents,hooks}/`, `docs/agent-catalog.md`, `.agents/architecture/README.md` | `build_all.py` `OWNED_PREFIXES`; edit the template (`build/AGENTS.md`) |
+| `src/`, `.claude/{agents,rules,lib,hooks}/`, `.claude/skills/*/SKILL.md`, `.claude/settings.json`, `.github/{instructions,agents,hooks}/`, `docs/agent-catalog.md`, `.agents/architecture/README.md` | `build_all.py` `OWNED_PREFIXES`; edit the template (`build/AGENTS.md`) |
 | `src/*.md`, `src/claude/{AGENTS.md,claude-instructions.template.md,security/references/}`, every `.claude-plugin/plugin.json`, `src/copilot-cli/{THIRD-PARTY-NOTICES.TXT,docs/}`, `.claude/hooks/**/{AGENTS,CLAUDE,README}.md`, `.claude/skills/*/{scripts,references,tests}/` bar `review/scripts/validate_review_marker.py`, `.github/agents/{pr-comment-responder.prompt.md,security/references/}` | Hand-maintained inside those prefixes |
 | `.serena/memories/` | Retrieval aid; `/memory-search`, never read whole |
 | `.agents/{archive,retrospective,critique,qa,analysis}/`, `.agents/memory/episodes/` | Evidence. Live: `.agents/sessions/handoffs/`, latest at start, update at end |
@@ -43,7 +43,7 @@ Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protoc
 
 ## Dangerous assumptions
 
-- "`.claude/` is hand-authored" is false for `.claude/{agents,rules,hooks}/`, `.claude/skills/*/SKILL.md`, `.claude/settings.json` and part of `.claude/lib/` (`sync_plugin_lib.py`, not `build_all.py`; split in `.claude/AGENTS.md`); exceptions in the Skip row above.
+- "`.claude/` is hand-authored" is false for `.claude/{agents,rules,hooks}/`, `.claude/skills/*/SKILL.md`, `.claude/settings.json` and the `.claude/lib/` packages (split in `.claude/AGENTS.md`); exceptions in the Skip row above.
 
 ## Dependencies
 

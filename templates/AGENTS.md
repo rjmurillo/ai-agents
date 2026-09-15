@@ -20,7 +20,7 @@ Per-class render map. Compilers run inside `build_all.py` except `prompts`; binp
 - `generate_hooks.py` with `generate_dispatcher.py` reads `src/claude/hooks/` and `hooks.json`, writes `src/copilot-cli/hooks/`, binplaced to `.github/hooks/`.
 - `agents/<stem>.shared.md` feeds `src/vs-code-agents/` and `docs/agent-catalog.md`; it is also `generate_agents.py`'s stem list: no `.shared.md`, no copilot-cli, vs-code or github file for that stem.
 - A literal `{{` in a rule template is written `\{{`.
-- Not template-owned yet: `.claude/lib` and `.claude-plugin/marketplace.json`.
+- Lib renders from `scripts/` packages, not from here (B5); `.claude-plugin/marketplace.json` stays hand-maintained until B6.
 
 ## Entry points
 
@@ -36,7 +36,7 @@ Per-class render map. Compilers run inside `build_all.py` except `prompts`; binp
 
 ## Skip
 
-- Generated, never hand-edited (source is `templates/` except `src/copilot-cli/lib` from `.claude/lib` and `src/copilot-cli/skills` non-SKILL.md from `.claude/skills/<name>/`): `src/claude/agents|rules|skills|hooks`, `src/claude/hooks.json`, `src/copilot-cli/agents|instructions|skills|lib|hooks`, `src/vs-code-agents/`, `.claude/agents|rules|hooks`, `.claude/settings.json`, `.github/agents|hooks|instructions`, each `.claude/skills/<name>/SKILL.md`.
+- Generated, never hand-edited (source is `templates/` except `src/claude/lib`, `src/copilot-cli/lib`, `.claude/lib/<pkg>` from `scripts/`, and `src/copilot-cli/skills` non-SKILL.md from `.claude/skills/<name>/`): `src/claude/agents|rules|skills|hooks`, `src/claude/hooks.json`, `src/copilot-cli/agents|instructions|skills|lib|hooks`, `src/vs-code-agents/`, `.claude/agents|rules|hooks`, `.claude/settings.json`, `.github/agents|hooks|instructions`, each `.claude/skills/<name>/SKILL.md`.
 - Hand-maintained inside those trees: the seven docs under `.claude/hooks/`, `.github/agents/security/references/`, `.github/agents/pr-comment-responder.prompt.md`, `src/vs-code-agents/copilot-instructions.md`, under `.claude/skills/<name>/`, everything but `SKILL.md` (the `src/copilot-cli/skills` copy of it is generated).
 
 ## Constraints
@@ -54,7 +54,7 @@ Per-class render map. Compilers run inside `build_all.py` except `prompts`; binp
 
 ## Dependencies
 
-- Generator order, `OWNED_PREFIXES`, the binplace step, gate semantics, the `sync_plugin_lib.py` ordering hazard: `build/AGENTS.md`.
+- Generator order, `OWNED_PREFIXES`, the binplace step, gate semantics, the lib render: `build/AGENTS.md`.
 
 ## Architecture
 
@@ -63,7 +63,6 @@ Per-class render map. Compilers run inside `build_all.py` except `prompts`; binp
 ## Commands
 
 ```bash
-uv run python scripts/sync_plugin_lib.py
 uv run python build/scripts/build_all.py                    # render all + binplace
 uv run python build/scripts/build_all.py --check            # CI drift gate
 uv run python build/scripts/agent_templates.py --validate
