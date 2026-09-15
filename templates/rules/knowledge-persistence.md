@@ -4,6 +4,7 @@ paths:
   - ".serena/memories/**"
   - ".github/instructions/**"
   - "src/copilot-cli/instructions/**"
+  - "templates/rules/**"
 priority: high
 ---
 

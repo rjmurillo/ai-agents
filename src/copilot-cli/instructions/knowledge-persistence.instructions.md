@@ -1,5 +1,5 @@
 ---
-applyTo: .github/instructions/**,src/copilot-cli/instructions/**
+applyTo: .github/instructions/**,src/copilot-cli/instructions/**,templates/rules/**
 ---
 
 # Knowledge Persistence Rule

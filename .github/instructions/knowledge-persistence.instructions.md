@@ -1,5 +1,5 @@
 ---
-applyTo: .claude/rules/**,.serena/memories/**,.github/instructions/**,src/copilot-cli/instructions/**
+applyTo: .claude/rules/**,.serena/memories/**,.github/instructions/**,src/copilot-cli/instructions/**,templates/rules/**
 ---
 
 # Knowledge Persistence Rule
