@@ -2133,11 +2133,13 @@ def run(
 def _run_binplace(repo_root: Path, *, check: bool) -> GeneratorResult:
     """Copy plugin trees into install trees per templates/platforms/binplace.yaml.
 
-    Check mode writes nothing: a byte difference between a plugin tree and
-    its install tree is staleness, exit 2, the same code a drifted
-    generated tree already produces. A manifest that fails validation is
-    a configuration error, also exit 2. Files under an install tree with
-    no plugin counterpart are reported as notices and never touched.
+    Check mode writes nothing: a content or mode difference between a
+    plugin tree and its install tree is staleness, exit 2, the same code a
+    drifted generated tree already produces. A manifest that fails
+    validation is a configuration error, also exit 2. A NO-REGEN-protected
+    install file is skipped, exit 1 (mirrors every other compile module's
+    NO-REGEN floor). Files under an install tree with no plugin counterpart
+    are reported as notices and never touched.
     """
     result = GeneratorResult(artifact="binplace", platform="*")
     try:
@@ -2147,6 +2149,7 @@ def _run_binplace(repo_root: Path, *, check: bool) -> GeneratorResult:
         result.exit_code = 2
         return result
     result.outputs = len(outcome.written)
+    result.skipped = len(outcome.skipped)
     result.notices.extend(f"unowned install file left alone: {p}" for p in outcome.unowned)
     if outcome.drifted:
         for path in outcome.drifted:
@@ -2154,7 +2157,7 @@ def _run_binplace(repo_root: Path, *, check: bool) -> GeneratorResult:
                 f"STALENESS DETECTED: install tree differs from plugin tree: {path}",
                 file=sys.stderr,
             )
-        result.exit_code = 2
+    result.exit_code = max(result.exit_code, outcome.exit_code)
     return result
 
 

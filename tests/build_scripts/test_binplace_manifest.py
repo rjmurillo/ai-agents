@@ -436,3 +436,4 @@ def test_binplace_check_mode_reports_drift_for_file_shaped_row(tmp_path: Path) -
     assert result.exit_code == 2
     assert str(dst) in result.drifted
     assert dst.read_bytes() == b'{"hooks": {"stale": true}}'
+

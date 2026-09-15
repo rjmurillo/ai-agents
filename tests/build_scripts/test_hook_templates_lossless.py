@@ -21,6 +21,7 @@ hooks.json, dispatch_groups.json, and PreToolUse/markdownlint-safe-config.yaml")
 
 from __future__ import annotations
 
+import stat
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -83,8 +84,21 @@ def test_settings_byte_identical_direct_to_install_tree() -> None:
 
 
 def test_session_start_sh_stays_executable_end_to_end() -> None:
-    """The one executable-bit-sensitive file keeps its mode through both hops."""
-    plugin_mode = (_REPO_ROOT / "src" / "claude" / "hooks" / "session-start.sh").stat().st_mode
-    install_mode = (_REPO_ROOT / ".claude" / "hooks" / "session-start.sh").stat().st_mode
-    assert plugin_mode & 0o100
-    assert install_mode & 0o100
+    """The one executable-bit-sensitive file keeps its FULL mode through both hops.
+
+    Compares the complete permission bits (``stat.S_IMODE``), not only the
+    owner execute bit: a mode change from 0o755 to 0o700 still carries the
+    owner execute bit but has silently dropped the group/other read and
+    execute bits a checked-out clone (or another consumer) may rely on.
+    """
+    template_mode = stat.S_IMODE(
+        (_REPO_ROOT / "templates" / "hooks" / "session-start.sh").stat().st_mode
+    )
+    plugin_mode = stat.S_IMODE(
+        (_REPO_ROOT / "src" / "claude" / "hooks" / "session-start.sh").stat().st_mode
+    )
+    install_mode = stat.S_IMODE(
+        (_REPO_ROOT / ".claude" / "hooks" / "session-start.sh").stat().st_mode
+    )
+    assert template_mode == plugin_mode == install_mode
+    assert template_mode & 0o100  # still executable, not just byte-for-byte equal

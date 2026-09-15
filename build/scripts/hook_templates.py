@@ -91,7 +91,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from atomic_write import publish_bytes_atomically  # noqa: E402
+from atomic_write import publish_bytes_atomically, reject_symlinked_ancestors  # noqa: E402
 from regen_guard import detect_reason  # noqa: E402
 
 # Names whose content must parse as JSON before being written (DESIGN-025:
@@ -173,7 +173,18 @@ def _source_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str
 
 
 def _target_validation_error(repo_root: Path, name: str, target: Path) -> str | None:
-    """Return why ``target`` is refused as a render destination, or ``None``."""
+    """Return why ``target`` is refused as a render destination, or ``None``.
+
+    Checks every EXISTING ancestor of ``target``, not just its immediate
+    parent: a grandparent (or higher) directory symlinked to another path
+    still inside the repository passes ``target.parent.is_symlink()`` (that
+    only sees the immediate parent) and the containment check below (the
+    fully resolved path is still under ``repo_root``), but still redirects
+    this render to a directory the hooks-class target map never named.
+    """
+    ancestor_error = reject_symlinked_ancestors(repo_root, f"{name} target", target)
+    if ancestor_error is not None:
+        return ancestor_error
     if target.parent.is_symlink():
         return f"{target.parent} is a symlink, not a real directory"
     parent_error = _resolved_containment_error(repo_root, f"{name} target parent", target.parent)
@@ -303,12 +314,25 @@ def _compile_one(
     if not _validate_json_bytes(name, content, result):
         return
 
+    mode = tmpl_path.stat().st_mode & 0o777
     current = target.read_bytes() if target.is_file() else None
-    if current == content:
+    current_mode = target.stat().st_mode & 0o777 if target.is_file() else None
+    if current == content and current_mode == mode:
         return
 
     if validate:
-        print(f"DRIFT: {target} differs from its template ({tmpl_path})", file=sys.stderr)
+        # Distinguish a content difference from permission-only drift so
+        # the DRIFT message names what actually changed (a script losing
+        # its executable bit is otherwise indistinguishable from a rewrite
+        # in the audit log).
+        if current == content:
+            print(
+                f"DRIFT: {target} mode {oct(current_mode or 0)} differs from "
+                f"its template's {oct(mode)} ({tmpl_path})",
+                file=sys.stderr,
+            )
+        else:
+            print(f"DRIFT: {target} differs from its template ({tmpl_path})", file=sys.stderr)
         result.drifted.append(str(target))
         result.exit_code = max(result.exit_code, 1)
         return
@@ -318,7 +342,6 @@ def _compile_one(
         return
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    mode = tmpl_path.stat().st_mode & 0o777
     publish_bytes_atomically(target, content, mode=mode)
     result.written.append(str(target))
 

@@ -75,11 +75,14 @@ EXIT CODES (``0=ok|1=logic|2=config`` per ``AGENTS.md`` Standards; callers
 fold ``BinplaceResult.exit_code`` into their own aggregate the same way they
 already do for ``skill_templates.CompileResult``):
   0 - the manifest has no rows with a non-null ``plugin_tree`` yet, or every
-      such row's plugin tree matches its install tree
-  2 - a byte mismatch between a plugin-tree file and its install-tree
-      counterpart, in ``check=True`` mode only (in write mode a mismatch is
-      corrected, not reported as an error); a malformed or malicious
-      manifest row is always exit 2, in either mode, at ``load()`` time
+      such row's plugin tree matches its install tree (content and mode)
+  1 - an install-tree file carries a NO-REGEN sentinel and was skipped
+      rather than overwritten, in either mode
+  2 - a content or mode mismatch between a plugin-tree file and its
+      install-tree counterpart, in ``check=True`` mode only (in write mode
+      a mismatch is corrected, not reported as an error); a malformed or
+      malicious manifest row is always exit 2, in either mode, at
+      ``load()`` time
 """
 
 from __future__ import annotations
@@ -94,9 +97,12 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import skill_templates  # noqa: E402
 from atomic_write import (  # noqa: E402
+    is_redirecting,
     publish_bytes_atomically,
     read_bytes_no_redirect,
+    reject_symlinked_ancestors,
 )
+from regen_guard import detect_reason  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
 _MANIFEST_REL = Path("templates") / "platforms" / "binplace.yaml"
@@ -125,6 +131,7 @@ class BinplaceResult:
     written: list[str] = field(default_factory=list)
     unowned: list[str] = field(default_factory=list)
     drifted: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
     exit_code: int = 0
 
 
@@ -154,6 +161,20 @@ def _validate_path_field(repo_root: Path, label: str, value: str) -> Path:
     if candidate.is_symlink():
         raise BinplaceConfigError(f"{label} {value!r} is a symlink, not a real path")
     return candidate
+
+
+def _raise_if_ancestor_symlinked(repo_root: Path, label: str, path: Path) -> None:
+    """Raise :class:`BinplaceConfigError` when an existing ancestor of ``path`` is a symlink.
+
+    Scoped to ``plugin_tree`` and ``install_tree`` only (module docstring's
+    write path): those are the two fields ``binplace()`` actually reads and
+    writes through. ``source`` is validated by :func:`_validate_path_field`
+    but is never consumed by :func:`binplace`, so it carries no write-target
+    ancestor-redirect risk here.
+    """
+    error = reject_symlinked_ancestors(repo_root, label, path)
+    if error is not None:
+        raise BinplaceConfigError(error)
 
 
 def _validate_install_tree_prefix(label: str, value: str) -> None:
@@ -231,12 +252,14 @@ def _load_one_row(
         plugin_tree = _validate_path_field(
             repo_root, f"rows[{class_name}].plugin_tree", str(plugin_tree_raw)
         )
+        _raise_if_ancestor_symlinked(repo_root, f"rows[{class_name}].plugin_tree", plugin_tree)
 
     install_tree_str = str(entry.get("install_tree") or "")
     install_tree = _validate_path_field(
         repo_root, f"rows[{class_name}].install_tree", install_tree_str
     )
     _validate_install_tree_prefix(f"rows[{class_name}].install_tree", install_tree_str)
+    _raise_if_ancestor_symlinked(repo_root, f"rows[{class_name}].install_tree", install_tree)
 
     compile_raw = entry.get("compile")
     compile_name = str(compile_raw) if compile_raw is not None else None
@@ -272,7 +295,14 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
                 allow.add(row.install_tree)
             continue
         allow |= _plugin_tree_install_paths(row.plugin_tree, row.install_tree)
-    return allow
+    # A NO-REGEN-protected install path is never allowlisted, including a
+    # direct-render row's single target and a file-shaped plugin row's
+    # single target: allowlisting it would let assert_no_claude_writes
+    # excuse a change at a path this class's own binplace step now refuses
+    # to overwrite (see _binplace_one_file's detect_reason guard below), so
+    # a hand-protected file would silently stop being tracked as a
+    # violation candidate instead of staying protected end to end.
+    return {path for path in allow if detect_reason(path) is None}
 
 
 def _is_claude_rooted(install_tree: Path, repo_root: Path) -> bool:
@@ -379,10 +409,35 @@ def _current_bytes(dst_path: Path) -> bytes | None:
     return data
 
 
+def _current_mode(dst_path: Path) -> int | None:
+    """Return ``dst_path``'s permission bits with no-symlink-follow, or ``None``.
+
+    ``None`` covers "absent" and "redirecting" the same way
+    :func:`_current_bytes` does: a symlinked ``dst_path`` never matches, so
+    the caller falls through to the rewrite path, which replaces the link
+    with a real file via ``publish_bytes_atomically`` (CWE-59) rather than
+    chmod-ing through it.
+    """
+    try:
+        metadata = dst_path.lstat()
+    except OSError:
+        return None
+    if is_redirecting(metadata):
+        return None
+    return metadata.st_mode & 0o777
+
+
 def _binplace_one_file(
     src_path: Path, dst_path: Path, *, check: bool, result: BinplaceResult
 ) -> None:
     """Compare one plugin-tree file to its install-tree counterpart and act.
+
+    Compares BOTH content and mode: bytes matching is not enough to call a
+    file up to date, because a script can keep its committed content while
+    losing its executable bit (chmod, a re-clone with restrictive umask, an
+    editor save that resets permissions). Comparing bytes alone made that
+    case invisible to both ``binplace(check=True)`` and a write-mode run,
+    which returned early on the byte match and never repaired the mode.
 
     Preserves the plugin-tree source file's permission bits (mode) on
     write, not ``publish_bytes_atomically``'s ``0o600`` default: ADR-109 B4
@@ -392,15 +447,31 @@ def _binplace_one_file(
     losing the executable bit here would silently break that hook. Earlier
     classes (agents, rules) never noticed because none of their files are
     executable.
+
+    Checks ``regen_guard.detect_reason(dst_path)`` before publishing, the
+    same NO-REGEN contract every other compile module honors
+    (``hook_templates._compile_one``, ``rule_templates._compile_one``,
+    ``agent_templates``): a protected install-tree file is skipped, not
+    overwritten, in both check and write mode.
     """
+    reason = detect_reason(dst_path)
+    if reason is not None:
+        print(
+            f"WARN: skipped {dst_path} (NO-REGEN: {reason}); "
+            "template-owned file exempt from binplace"
+        )
+        result.skipped.append(str(dst_path))
+        result.exit_code = max(result.exit_code, 1)
+        return
+
     content = read_bytes_no_redirect(src_path)
-    if _current_bytes(dst_path) == content:
+    mode = src_path.stat().st_mode & 0o777
+    if _current_bytes(dst_path) == content and _current_mode(dst_path) == mode:
         return
     if check:
         result.drifted.append(str(dst_path))
         result.exit_code = max(result.exit_code, 2)
         return
     dst_path.parent.mkdir(parents=True, exist_ok=True)
-    mode = src_path.stat().st_mode & 0o777
     publish_bytes_atomically(dst_path, content, mode=mode)
     result.written.append(str(dst_path))

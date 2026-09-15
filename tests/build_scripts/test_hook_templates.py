@@ -183,6 +183,38 @@ def test_no_regen_sentinel_skips_write(tmp_path: Path) -> None:
     assert target.read_text(encoding="utf-8") == "# NO-REGEN\nprint('hand-maintained')\n"
 
 
+def test_mode_only_drift_detected_in_validate_mode(tmp_path: Path) -> None:
+    """Validate mode: matching bytes but a lost executable bit is still drift."""
+    root = fake_repo(tmp_path)
+    write_template(root, "session-start.sh", b"#!/bin/sh\necho hi\n", mode=0o755)
+    target = root / "src" / "claude" / "hooks" / "session-start.sh"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"#!/bin/sh\necho hi\n")
+    target.chmod(0o644)
+
+    result = hook_templates.compile_all(root, validate=True)
+
+    assert result.exit_code == 1
+    assert str(target) in result.drifted
+    assert target.stat().st_mode & 0o777 == 0o644  # untouched in validate mode
+
+
+def test_mode_only_drift_repaired_in_write_mode(tmp_path: Path) -> None:
+    """Write mode: matching bytes but a lost executable bit is repaired."""
+    root = fake_repo(tmp_path)
+    write_template(root, "session-start.sh", b"#!/bin/sh\necho hi\n", mode=0o755)
+    target = root / "src" / "claude" / "hooks" / "session-start.sh"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b"#!/bin/sh\necho hi\n")
+    target.chmod(0o644)
+
+    result = hook_templates.compile_all(root, validate=False)
+
+    assert result.exit_code == 0
+    assert str(target) in result.written
+    assert target.stat().st_mode & 0o777 == 0o755
+
+
 def test_absent_templates_dir_is_not_an_error(tmp_path: Path) -> None:
     """DR5: an absent templates/hooks/ directory yields a clean, empty result."""
     root = fake_repo(tmp_path)

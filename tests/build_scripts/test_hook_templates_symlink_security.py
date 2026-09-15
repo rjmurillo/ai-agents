@@ -122,6 +122,33 @@ def test_settings_target_symlink_refused(tmp_path: Path) -> None:
     assert outside.read_text(encoding="utf-8") == '{"pwned": true}'
 
 
+def test_target_intermediate_symlink_redirecting_within_repo_refused(tmp_path: Path) -> None:
+    """An ancestor symlink that redirects to ANOTHER in-repo path is refused.
+
+    ``src/claude/hooks``'s resolved path still lands inside the repository
+    (a plain ``is_relative_to(repo_root)`` containment check would accept
+    it), but it names a different directory than the hooks-class target map
+    declares. Only an explicit ancestor walk catches this.
+    """
+    root = fake_repo(tmp_path)
+    (root / "templates" / "hooks").mkdir(parents=True)
+    (root / "templates" / "hooks" / "guard.py").write_text("print('ok')\n", encoding="utf-8")
+
+    real_dir = root / "src" / "claude" / "other-dir"
+    real_dir.mkdir(parents=True)
+    link = root / "src" / "claude" / "hooks"
+    try:
+        link.symlink_to(real_dir)
+    except OSError:
+        pytest.skip("cannot create symlink on this platform")
+
+    result = hook_templates.compile_all(root, validate=False)
+
+    assert result.exit_code == 2
+    assert result.written == []
+    assert not (real_dir / "guard.py").exists()
+
+
 def test_target_outside_repository_root_exits_2(tmp_path: Path, monkeypatch) -> None:
     """A target whose resolved path escapes the repository root is refused.
 
