@@ -205,14 +205,24 @@ class TestSkipIfConsumerRepo:
         assert "cannot verify ai-agents project repo identity" in captured.err
 
 
-class TestSyncPluginLib:
-    """Test the sync_plugin_lib.py script."""
+class TestSyncPluginLibShim:
+    """ADR-109 B5: sync_plugin_lib.py is a thin shim over lib_mirror.compile_all.
+
+    The copy logic itself (`sync_pair`, `sync_file`, `IMPORT_CONVERSIONS`,
+    the AST self-containment check) moved to `build/scripts/lib_mirror.py`
+    and is exercised there (`tests/build_scripts/test_lib_mirror.py`). This
+    class only proves the shim still delegates correctly, since
+    `.github/workflows/validate-generated-agents.yml` still calls it
+    directly (workflow files are out of scope for the PR that retired the
+    rest of this script).
+    """
 
     def test_check_passes_when_in_sync(self) -> None:
         result = subprocess.run(
             [sys.executable, str(REPO_ROOT / "scripts" / "sync_plugin_lib.py"), "--check"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             cwd=str(REPO_ROOT),
             timeout=10,
         )
@@ -220,199 +230,55 @@ class TestSyncPluginLib:
             f"Sync check failed (files out of sync):\n{result.stdout}\n{result.stderr}"
         )
 
-    def test_check_detects_drift(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Create mismatched src/dst files and verify --check returns 1."""
+    def test_check_detects_drift(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A drifted plugin-tree file makes the shim's --check return 1.
+
+        Every registered package source (PACKAGES: hook_utilities,
+        github_core, ai_review_common) must exist, or lib_mirror's
+        fail-closed missing-source-directory error also returns 1
+        (CodeRabbit, PR #5787 review), and this test would keep passing
+        even if the drift check itself were removed or broken. Asserting
+        the specific "out of sync" message and the drifted path, not just
+        the exit code, closes that gap.
+        """
         import scripts.sync_plugin_lib as sync_mod
 
-        # Build a minimal src package with one Python file
-        src_dir = tmp_path / "src_pkg"
-        src_dir.mkdir()
-        (src_dir / "__init__.py").write_text('"""Original source."""\n', encoding="utf-8")
-
-        # Build a dst directory with stale content (drift)
-        dst_dir = tmp_path / "dst_pkg"
-        dst_dir.mkdir()
-        (dst_dir / "__init__.py").write_text('"""Stale copy."""\n', encoding="utf-8")
-
-        # Patch module-level config to use our temp directories
-        monkeypatch.setattr(sync_mod, "REPO_ROOT", tmp_path)
-        monkeypatch.setattr(sync_mod, "SYNC_PAIRS", [("src_pkg", "dst_pkg")])
-        monkeypatch.setattr(sync_mod, "IMPORT_CONVERSIONS", [])
-
-        result = sync_mod.main(["--check"])
-        assert result == 1
-
-    def test_sync_file_creates_missing_dest(self, tmp_path: Path) -> None:
-        """sync_file byte-copies the source when the destination is absent."""
-        import scripts.sync_plugin_lib as sync_mod
-
-        src = tmp_path / "scripts" / "pkg" / "mod.py"
-        src.parent.mkdir(parents=True)
-        src.write_text('"""Self-contained module."""\nX = 1\n', encoding="utf-8")
-
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
-            changes, had_errors = sync_mod.sync_file(
-                "scripts/pkg/mod.py",
-                ".claude/lib/mod.py",
-                check_only=False,
-            )
-
-        assert had_errors is False, changes
-        dst = tmp_path / ".claude" / "lib" / "mod.py"
-        # Byte-identical copy: no canonical-note rewrite for top-level files.
-        assert dst.read_text(encoding="utf-8") == src.read_text(encoding="utf-8")
-
-    def test_sync_file_check_detects_drift(self, tmp_path: Path) -> None:
-        """A drifted top-level lib file makes main(--check) return 1."""
-        import scripts.sync_plugin_lib as sync_mod
-
-        src = tmp_path / "scripts" / "pkg" / "mod.py"
-        src.parent.mkdir(parents=True)
-        src.write_text('"""Canonical."""\nX = 1\n', encoding="utf-8")
-        dst = tmp_path / ".claude" / "lib" / "mod.py"
-        dst.parent.mkdir(parents=True)
-        dst.write_text('"""Stale."""\nX = 2\n', encoding="utf-8")
-
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
-            mp.setattr(sync_mod, "SYNC_PAIRS", [])
-            mp.setattr(
-                sync_mod,
-                "SYNC_FILE_PAIRS",
-                [("scripts/pkg/mod.py", ".claude/lib/mod.py")],
-            )
-            assert sync_mod.main(["--check"]) == 1
-
-    @pytest.mark.parametrize(
-        "import_line",
-        [
-            "from scripts.pkg.other import thing",
-            "import scripts.pkg.other",
-            "from scripts import other",
-            "import scripts",
-            "import scripts as s",
-            "import os, scripts",
-            "import os as o, scripts",
-            "import os, \\\n    scripts",
-            'x = __import__("scripts.hook_utilities.bootstrap")',
-            'import importlib\ny = importlib.import_module("scripts.pkg")',
-            'z = __import__("scripts")',
-            'import importlib\ny = importlib.import_module(name="scripts.pkg")',
-            'w = __import__(name="scripts")',
-            'from importlib import import_module\nq = import_module("scripts.pkg")',
-        ],
-    )
-    def test_sync_file_rejects_scripts_import(self, tmp_path: Path, import_line: str) -> None:
-        """Any scripts-package import is rejected (a byte copy cannot rewrite it)."""
-        import scripts.sync_plugin_lib as sync_mod
-
-        src = tmp_path / "scripts" / "pkg" / "mod.py"
-        src.parent.mkdir(parents=True)
-        src.write_text(
-            f'"""Not self-contained."""\n{import_line}\n',
-            encoding="utf-8",
+        for package in ("hook_utilities", "github_core", "ai_review_common"):
+            pkg_src = tmp_path / "scripts" / package
+            pkg_src.mkdir(parents=True)
+            (pkg_src / "__init__.py").write_text("", encoding="utf-8")
+        (tmp_path / "scripts" / "hook_utilities" / "bootstrap.py").write_text(
+            '"""Bootstrap."""\n', encoding="utf-8"
         )
-
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
-            changes, had_errors = sync_mod.sync_file(
-                "scripts/pkg/mod.py",
-                ".claude/lib/mod.py",
-                check_only=False,
-            )
-
-        assert had_errors is True
-        assert any("scripts package" in c for c in changes), changes
-        assert not (tmp_path / ".claude" / "lib" / "mod.py").exists()
-
-    @pytest.mark.parametrize(
-        "import_line",
-        [
-            "import scripts_helper",
-            "from scripts_util import thing",
-            "import scriptsfoo",
-            'x = __import__("scripts_helper")',
-            'import importlib\ny = importlib.import_module("other.pkg")',
-        ],
-    )
-    def test_sync_file_allows_lookalike_module(self, tmp_path: Path, import_line: str) -> None:
-        """Modules whose name merely starts with 'scripts' are not the scripts pkg."""
-        import scripts.sync_plugin_lib as sync_mod
-
-        src = tmp_path / "scripts" / "pkg" / "mod.py"
-        src.parent.mkdir(parents=True)
-        src.write_text(
-            f'"""Self-contained."""\n{import_line}\n',
-            encoding="utf-8",
+        (tmp_path / "scripts" / "validation").mkdir(parents=True)
+        (tmp_path / "scripts" / "validation" / "validate_review_marker.py").write_text(
+            '"""Marker."""\n', encoding="utf-8"
         )
+        drifted = tmp_path / "src" / "claude" / "lib" / "hook_utilities"
+        drifted.mkdir(parents=True)
+        (drifted / "__init__.py").write_text("stale\n", encoding="utf-8")
 
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
-            changes, had_errors = sync_mod.sync_file(
-                "scripts/pkg/mod.py",
-                ".claude/lib/mod.py",
-                check_only=False,
-            )
+        monkeypatch.setattr(sync_mod, "_REPO_ROOT", tmp_path)
 
-        assert had_errors is False, changes
-        assert (tmp_path / ".claude" / "lib" / "mod.py").read_text(
-            encoding="utf-8"
-        ) == src.read_text(encoding="utf-8")
+        rc = sync_mod.main(["--check"])
 
-    def test_sync_file_missing_source_fails_closed(self, tmp_path: Path) -> None:
-        """A registered source that does not exist is an error, not a silent pass."""
+        assert rc == 1
+        stderr = capsys.readouterr().err
+        assert "Plugin lib copies are out of sync:" in stderr
+        assert "src/claude/lib/hook_utilities/__init__.py" in stderr
+
+    def test_reexports_registry_used_by_validate_sync_registry(self) -> None:
+        """SYNC_PAIRS stays importable at its historical name (backward compat)."""
         import scripts.sync_plugin_lib as sync_mod
 
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
-            changes, had_errors = sync_mod.sync_file(
-                "scripts/pkg/missing.py",
-                ".claude/lib/missing.py",
-                check_only=True,
-            )
-
-        assert had_errors is True
-        assert any("Registered source file missing" in c for c in changes), changes
-        assert not (tmp_path / ".claude" / "lib" / "missing.py").exists()
-
-    def test_sync_file_preserves_bytes_and_detects_newline_drift(self, tmp_path: Path) -> None:
-        """Copy preserves exact bytes; CRLF-vs-LF is drift, not silent normalization."""
-        import scripts.sync_plugin_lib as sync_mod
-
-        src = tmp_path / "scripts" / "pkg" / "mod.py"
-        src.parent.mkdir(parents=True)
-        src.write_bytes(b'"""Canonical."""\r\nX = 1\r\n')
-        dst = tmp_path / ".claude" / "lib" / "mod.py"
-        dst.parent.mkdir(parents=True)
-        # Same text under universal newlines, but different bytes (LF vs CRLF).
-        dst.write_bytes(b'"""Canonical."""\nX = 1\n')
-
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(sync_mod, "REPO_ROOT", tmp_path)
-            # --check must flag the byte drift even though text decodes equal.
-            check_changes, check_errors = sync_mod.sync_file(
-                "scripts/pkg/mod.py",
-                ".claude/lib/mod.py",
-                check_only=True,
-            )
-            assert check_errors is False, check_changes
-            assert check_changes, "CRLF/LF byte drift should be detected"
-            assert dst.read_bytes() == b'"""Canonical."""\nX = 1\n', (
-                "check_only must not mutate the destination"
-            )
-
-            # Real sync writes the source bytes verbatim (CRLF preserved).
-            sync_mod.sync_file(
-                "scripts/pkg/mod.py",
-                ".claude/lib/mod.py",
-                check_only=False,
-            )
-
-        assert dst.read_bytes() == b'"""Canonical."""\r\nX = 1\r\n'
+        assert ("scripts/hook_utilities", ".claude/lib/hook_utilities") in sync_mod.SYNC_PAIRS
 
     def test_validate_review_marker_pair_is_registered(self) -> None:
-        """sync_file --check now enforces the review marker skill copy."""
         import scripts.sync_plugin_lib as sync_mod
 
         pair = (

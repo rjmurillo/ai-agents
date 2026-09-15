@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -19,6 +20,7 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import binplace_manifest  # noqa: E402
 import build_all  # noqa: E402
+import lib_mirror  # noqa: E402
 
 # Helpers --------------------------------------------------------------------
 
@@ -61,10 +63,47 @@ def _write_agent_template(templates_dir: Path, name: str) -> None:
     )
 
 
+def _write_minimal_lib_sources(repo_root: Path) -> None:
+    """Stub every lib source `_build_lib` fails closed on when absent.
+
+    ADR-109 B5: `_build_lib` now always runs `lib_mirror.compile_all` for
+    the copilot-cli platform (no more `artifacts.lib` stanza gate). Both
+    `lib_mirror.sync_file` (missing registered file) and `sync_pair`
+    (missing registered package directory) fail closed by design: a
+    missing canonical source is a real bug (a deleted package left
+    stale mirrors shipping forever, PR #5787 review), not a silent skip.
+    A synthetic test repo that never populates `scripts/` would
+    otherwise fail `run()`/`_run_generators` for a reason unrelated to
+    what the test actually exercises, so this stubs a minimal
+    (`__init__.py`-only) directory for each of `lib_mirror.PACKAGES` in
+    addition to the two file-shaped sources. A test that specifically
+    wants to exercise the missing-source path removes one stub itself
+    after calling this.
+    """
+    for package in lib_mirror.PACKAGES:
+        pkg_dir = repo_root / "scripts" / package
+        pkg_dir.mkdir(parents=True, exist_ok=True)
+        init_file = pkg_dir / "__init__.py"
+        if not init_file.exists():
+            init_file.write_text("", encoding="utf-8")
+
+    hook_utilities = repo_root / "scripts" / "hook_utilities"
+    bootstrap = hook_utilities / "bootstrap.py"
+    if not bootstrap.exists():
+        bootstrap.write_text('"""Test bootstrap stub."""\n', encoding="utf-8")
+
+    validation = repo_root / "scripts" / "validation"
+    validation.mkdir(parents=True, exist_ok=True)
+    marker = validation / "validate_review_marker.py"
+    if not marker.exists():
+        marker.write_text('"""Test review-marker stub."""\n', encoding="utf-8")
+
+
 def _write_platform_with_skills(
     repo_root: Path, *, provider: str, blocklist: list[str] | None = None
 ) -> Path:
     """Create a minimal platform yaml with skills stanza only."""
+    _write_minimal_lib_sources(repo_root)
     platforms = repo_root / "templates" / "platforms"
     platforms.mkdir(parents=True, exist_ok=True)
     blockyaml = ""
@@ -514,117 +553,185 @@ def test_build_skills_check_mode_clean_template_still_runs_copy_loop(
     assert (tmp_path / "out" / "skills" / "sync" / "SKILL.md").is_file()
 
 
-# _build_lib (M7-T1) --------------------------------------------------------
+# _build_lib (ADR-109 B5) ----------------------------------------------------
 
 
-def test_build_lib_skips_when_stanza_absent(tmp_path: Path) -> None:
+def test_build_lib_ignores_platform_argument(tmp_path: Path) -> None:
+    """The lib class is not platform-config driven: it compiles regardless
+    of which config_path/platform string the run-once caller passes.
+
+    Before this fix, ``_build_lib`` gated on ``platform == "copilot-cli"``,
+    so a filtered ``--platform vscode`` (or any non-copilot-cli) run never
+    even attempted the lib compile, and ``--check`` could report clean
+    while `.claude/lib/` silently drifted from `scripts/` (PR #5787
+    review). It is now called once in the run-once block with a
+    placeholder ``"*"`` platform, so this asserts an arbitrary platform
+    string still triggers the real compile rather than a skip notice.
+    """
+    _write_minimal_lib_sources(tmp_path)
     cfg = tmp_path / "p.yaml"
     cfg.write_text('schemaVersion: "1.0"\nprovider: "p"\n')
-    result = build_all._build_lib(tmp_path, cfg, "p")
-    assert result.exit_code == 0
-    assert any("no artifacts.lib stanza" in n for n in result.notices)
+    result = build_all._build_lib(tmp_path, cfg, "vscode")
+    assert result.exit_code == 0, result.notices
+    assert not any("skipped" in n for n in result.notices)
+    assert (tmp_path / "src" / "claude" / "lib" / "hook_utilities" / "__init__.py").is_file()
 
 
-def test_build_lib_copies_python_packages_excluding_pycache(tmp_path: Path) -> None:
-    """M7-T1: lib/ MUST land in the output, __pycache__ MUST be excluded."""
-    src = tmp_path / ".claude" / "lib"
-    pkg = src / "hook_utilities"
-    pkg.mkdir(parents=True)
+def test_build_lib_check_mode_writes_nothing(tmp_path: Path) -> None:
+    """check=True must reach lib_mirror.compile_all, not just default to
+    write mode and rely entirely on the outer snapshot/restore wrapper.
+
+    CodeRabbit (PR #5787 review): without threading `check` through,
+    `_build_lib` always ran `compile_all` in write mode; a process killed
+    between that write and the caller's restore left real modifications
+    in a tree `--check` promises never to touch. Calling `_build_lib`
+    directly with `check=True`, with no restore wrapper at all, isolates
+    that promise from the outer machinery.
+    """
+    _write_minimal_lib_sources(tmp_path)
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
+
+    assert result.exit_code == 0, result.notices
+    assert not (tmp_path / "src" / "claude" / "lib").exists()
+    assert not (tmp_path / "src" / "copilot-cli" / "lib").exists()
+
+
+def test_build_lib_check_mode_reports_drift_without_writing(tmp_path: Path) -> None:
+    """check=True on an already-drifted tree reports the drift and still
+    writes nothing."""
+    _write_minimal_lib_sources(tmp_path)
+    stale_dir = tmp_path / "src" / "claude" / "lib" / "hook_utilities"
+    stale_dir.mkdir(parents=True)
+    (stale_dir / "__init__.py").write_text("# stale\n", encoding="utf-8")
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
+
+    assert result.exit_code == 0, result.notices
+    # Unchanged: check mode reports drift as a change, not an error, and
+    # writes nothing.
+    assert (stale_dir / "__init__.py").read_text(encoding="utf-8") == "# stale\n"
+
+
+def test_build_lib_copies_packages_with_import_rewrite(tmp_path: Path) -> None:
+    """Both plugin trees get the package, relative-import rewritten, no __pycache__."""
+    _write_minimal_lib_sources(tmp_path)
+    pkg = tmp_path / "scripts" / "hook_utilities"
     (pkg / "__init__.py").write_text("# pkg\n", encoding="utf-8")
-    (pkg / "guards.py").write_text("def f(): return 1\n", encoding="utf-8")
+    (pkg / "guards.py").write_text(
+        "from scripts.hook_utilities.other import thing\n", encoding="utf-8"
+    )
     cache = pkg / "__pycache__"
     cache.mkdir()
     (cache / "guards.cpython-314.pyc").write_text("noise", encoding="utf-8")
 
     cfg = tmp_path / "p.yaml"
-    cfg.write_text(
-        'schemaVersion: "1.0"\nprovider: "p"\n'
-        "artifacts:\n"
-        "  lib:\n"
-        '    sourceDir: ".claude/lib"\n'
-        '    outputDir: "out/lib"\n'
-    )
-    result = build_all._build_lib(tmp_path, cfg, "p")
-    assert result.exit_code == 0
-    out = tmp_path / "out" / "lib"
-    assert (out / "hook_utilities" / "guards.py").is_file()
-    assert (out / "hook_utilities" / "__init__.py").is_file()
-    # __pycache__ must NOT have been copied
-    assert not (out / "hook_utilities" / "__pycache__").exists()
-    # Counts reflect .py files only
-    assert result.inputs == 2
-    assert result.outputs == 2
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli")
+    assert result.exit_code == 0, result.notices
+
+    for root in ("src/claude/lib", "src/copilot-cli/lib"):
+        out = tmp_path / root / "hook_utilities"
+        assert (out / "guards.py").is_file()
+        assert (out / "guards.py").read_text(encoding="utf-8") == "from .other import thing\n"
+        assert (out / "__init__.py").is_file()
+        assert not (out / "__pycache__").exists()
 
 
-def test_build_lib_rejects_outdir_outside_repo(tmp_path: Path) -> None:
-    """Containment guard: outputDir resolving outside repo root MUST fail."""
-    cfg = tmp_path / "p.yaml"
-    cfg.write_text(
-        'schemaVersion: "1.0"\nprovider: "p"\n'
-        "artifacts:\n"
-        "  lib:\n"
-        '    sourceDir: ".claude/lib"\n'
-        '    outputDir: "../escape/lib"\n'
-    )
-    result = build_all._build_lib(tmp_path, cfg, "p")
-    assert result.exit_code == 2
-    assert any("escapes repo root" in n for n in result.notices)
+def test_build_lib_fails_closed_when_package_source_missing(tmp_path: Path) -> None:
+    """A deleted whole-package source is a fatal error, not a warning.
 
-
-def test_build_lib_rejects_outdir_equal_to_repo_root(tmp_path: Path) -> None:
-    """Containment guard: outputDir == repo root MUST fail (CWE-22).
-
-    Without this check, rmtree-then-copytree would wipe the working tree.
+    A missing registered package directory used to warn and leave its old
+    mirror content untouched, so a deleted package's stale code could ship
+    forever with `--check` reporting clean (PR #5787 review). It now fails
+    closed the same way a missing registered single file already did.
     """
+    _write_minimal_lib_sources(tmp_path)
+    shutil.rmtree(tmp_path / "scripts" / "github_core")
     cfg = tmp_path / "p.yaml"
-    cfg.write_text(
-        'schemaVersion: "1.0"\nprovider: "p"\n'
-        "artifacts:\n"
-        "  lib:\n"
-        '    sourceDir: ".claude/lib"\n'
-        '    outputDir: "."\n'
-    )
-    result = build_all._build_lib(tmp_path, cfg, "p")
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli")
     assert result.exit_code == 2
-    assert any("escapes repo root" in n for n in result.notices)
-
-
-def test_build_lib_handles_missing_source(tmp_path: Path) -> None:
-    cfg = tmp_path / "p.yaml"
-    cfg.write_text(
-        'schemaVersion: "1.0"\nprovider: "p"\n'
-        "artifacts:\n"
-        "  lib:\n"
-        '    sourceDir: ".claude/lib"\n'
-        '    outputDir: "out/lib"\n'
+    assert any(
+        "Registered source directory missing: scripts/github_core" in n
+        for n in result.notices
     )
-    result = build_all._build_lib(tmp_path, cfg, "p")
-    assert result.exit_code == 0
-    assert any("lib source dir missing" in n for n in result.notices)
 
 
-def test_build_lib_overwrites_stale_output(tmp_path: Path) -> None:
-    """Repeated invocations MUST replace stale files (rmtree-then-copytree)."""
-    src = tmp_path / ".claude" / "lib"
-    src.mkdir(parents=True)
-    (src / "fresh.py").write_text("# new\n", encoding="utf-8")
+def test_build_lib_fails_closed_on_missing_file_source(tmp_path: Path) -> None:
+    """A missing registered single-file source (e.g. bootstrap.py) fails closed."""
+    (tmp_path / "scripts" / "validation").mkdir(parents=True)
+    (tmp_path / "scripts" / "validation" / "validate_review_marker.py").write_text(
+        '"""Marker."""\n', encoding="utf-8"
+    )
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli")
+    assert result.exit_code == 2
+    assert any("Registered source file missing" in n for n in result.notices)
 
-    out = tmp_path / "out" / "lib"
-    out.mkdir(parents=True)
-    (out / "stale.py").write_text("# stale\n", encoding="utf-8")
+
+def test_build_lib_removes_stale_package_files(tmp_path: Path) -> None:
+    """A .py file at the destination with no source counterpart is removed."""
+    _write_minimal_lib_sources(tmp_path)
+    pkg = tmp_path / "scripts" / "hook_utilities"
+    (pkg / "__init__.py").write_text("# pkg\n", encoding="utf-8")
+
+    for root in ("src/claude/lib", "src/copilot-cli/lib"):
+        stale_dir = tmp_path / root / "hook_utilities"
+        stale_dir.mkdir(parents=True)
+        (stale_dir / "stale.py").write_text("# stale\n", encoding="utf-8")
 
     cfg = tmp_path / "p.yaml"
-    cfg.write_text(
-        'schemaVersion: "1.0"\nprovider: "p"\n'
-        "artifacts:\n"
-        "  lib:\n"
-        '    sourceDir: ".claude/lib"\n'
-        '    outputDir: "out/lib"\n'
-    )
-    result = build_all._build_lib(tmp_path, cfg, "p")
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli")
     assert result.exit_code == 0
-    assert (out / "fresh.py").is_file()
-    assert not (out / "stale.py").exists()
+    for root in ("src/claude/lib", "src/copilot-cli/lib"):
+        assert not (tmp_path / root / "hook_utilities" / "stale.py").exists()
+        assert (tmp_path / root / "hook_utilities" / "__init__.py").is_file()
+
+
+def test_run_platform_filter_still_compiles_lib(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ``--platform`` filter that excludes copilot-cli.yaml must not skip lib.
+
+    Before this fix, ``_build_lib`` only ran inside the per-platform
+    GENERATORS loop, gated on ``platform == "copilot-cli"``. A filtered
+    ``--platform vscode`` run then never selected the copilot-cli.yaml
+    config at all, so the lib compile silently never ran and ``--check``
+    could report clean over a stale `.claude/lib/` (PR #5787 review). lib
+    now runs once, unconditionally, in the run-once block, so a run
+    filtered to a different platform must still produce lib output.
+    """
+    monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_minimal_lib_sources(repo)
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    _write_platform_with_skills(repo, provider="vscode")
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+
+    rc = build_all.run(
+        repo, platform="vscode", check=False, clean=False, audit_format="md"
+    )
+
+    assert rc == 0
+    assert (repo / "src" / "claude" / "lib" / "hook_utilities" / "__init__.py").is_file()
+    audit = repo / "build" / "audit" / "GENERATION-AUDIT.md"
+    assert "| lib | * |" in audit.read_text()
 
 
 # CLI integration -----------------------------------------------------------
@@ -1482,13 +1589,22 @@ def test_run_check_clean_when_untracked_outside_owned_prefix(
     )
     (repo / "scratch.md").write_text("notes\n")  # untracked, outside owned
 
-    # Stub the agents generator AND swap GENERATORS to a no-op list so the
-    # only untracked path the gate could see is scratch.md (outside owned).
+    # Stub the agents and lib generators (both called by name in the
+    # run-once block, ADR-109 B5, so patching GENERATORS alone no longer
+    # reaches lib) AND swap GENERATORS to a no-op list so the only
+    # untracked path the gate could see is scratch.md (outside owned).
     monkeypatch.setattr(
         build_all,
         "_build_agents",
         lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    monkeypatch.setattr(
+        build_all,
+        "_build_lib",
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
+            artifact="lib", platform="*", exit_code=0
         ),
     )
     monkeypatch.setattr(build_all, "GENERATORS", [("agents", build_all._build_agents)])

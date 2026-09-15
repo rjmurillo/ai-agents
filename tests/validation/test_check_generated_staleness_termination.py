@@ -98,7 +98,7 @@ class TestBoundedGracefulTermination:
     def test_an_exhausted_budget_reports_external_without_running_the_child(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        root = fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        root = fake_repo(tmp_path, build_exit=0)
         monkeypatch.setattr(check_generated_staleness, "_GATE_BUDGET_SECONDS", -1.0)
 
         assert check_generated_staleness.main([str(root)]) == 3
@@ -208,7 +208,7 @@ class TestBoundedGracefulTermination:
         # lefthook timer. When the declared cap leaves less than the grace
         # window, spawning a child would invite the outer SIGKILL mid-write,
         # so the gate must refuse to spawn at all.
-        root = fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        root = fake_repo(tmp_path, build_exit=0)
         monkeypatch.setenv(check_generated_staleness._OUTER_CAP_ENV, "1")
 
         assert check_generated_staleness.main([str(root)]) == 3
@@ -219,7 +219,7 @@ class TestBoundedGracefulTermination:
     ) -> None:
         # Control for the clamp test: a freshly started process under the
         # real declared cap must behave exactly as with no clamp at all.
-        root = fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        root = fake_repo(tmp_path, build_exit=0)
         monkeypatch.setenv(check_generated_staleness._OUTER_CAP_ENV, "900")
         monkeypatch.setattr(
             check_generated_staleness, "_PROCESS_START", time.monotonic()
@@ -235,7 +235,7 @@ class TestBoundedGracefulTermination:
         # A typo in the hook configuration must not block every contributor's
         # push: the clamp only tightens an already-bounded gate, so the
         # failure mode is a loud warning plus the unclamped budget.
-        root = fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        root = fake_repo(tmp_path, build_exit=0)
         monkeypatch.setenv(check_generated_staleness._OUTER_CAP_ENV, "banana")
 
         assert check_generated_staleness.main([str(root)]) == 0

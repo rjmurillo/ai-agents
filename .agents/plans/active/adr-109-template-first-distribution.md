@@ -16,8 +16,8 @@
 - [x] B1: agents composed from paired `templates/agents/<stem>.claude.md.tmpl` / `<stem>.copilot.md.tmpl` templates and shared partials; `src/claude/agents/` rendered losslessly against today's output; `src/claude/`'s hand-maintained status retired; the binplace manifest introduced; `copilot-cli.yaml`'s agents `sourceDir` repointed; the lib ordering-hazard rule text updated to the target model (TASK-031). Merged `f50f68551` (PR #5758).
 - [ ] B2 (in progress): rules move to `templates/rules/`; new compile module; manifest gains the `rules` row (TASK-032). 28 of 29 rules templated; `.claude/rules/testing.md` stays hand-maintained (its literal `${{ a && b }}` example is a disallowed tag under the ADR-108 grammar; TASK-032 instructs stopping and reporting rather than inventing an escape).
 - [ ] B3 (in progress): the remaining 93 skills templated in batches; skill_templates.py's render target moves to `src/claude/skills/`, giving skills the `src/claude/` plugin tree B1 does not deliver; the ADR-108 pilot-scope pin retired once the full 111-skill set matches `discover()` (TASK-033). Four of five 20-skill batches merged (batches 1, 2, 4, 5); batch 3 (PR #5781) open. The render-target move, `OWNED_PREFIXES` widening, and the `prompts` manifest row landed in the same commit sequence as the render-target-move PR. Full checkbox when batch 3 merges and the pilot-scope pin is deleted.
-- [ ] B4 (in progress): hooks and settings move to `templates/hooks/`; `src/claude/hooks/` and `src/claude/hooks.json` render for the first time; `.github/hooks/*.json` binplaced for the first time; the owner's ruleset decision on code-owner review recorded (TASK-034).
-- [ ] B5: the lib mirror's two-hop chain collapses into one step inside `build_all.py`; `scripts/sync_plugin_lib.py` retired (TASK-035).
+- [x] B4: hooks and settings move to `templates/hooks/`; `src/claude/hooks/` and `src/claude/hooks.json` render for the first time; `.github/hooks/*.json` binplaced for the first time; the owner's ruleset decision on code-owner review recorded (TASK-034). Merged `9bf7c7c3a` (PR #5784).
+- [x] B5: the lib mirror's two-hop chain collapses into one step inside `build_all.py` (`build/scripts/lib_mirror.py`); `scripts/sync_plugin_lib.py` reduced to a thin deprecated shim, not deleted, because `.github/workflows/validate-generated-agents.yml` still calls it directly and workflow files are out of scope for this PR (TASK-035, deviation recorded in the B5 PR body).
 - [ ] B6: the marketplace switch; `claude-agents` retired, `project-toolkit` repointed to `./src/claude` (TASK-036).
 
 ## Milestones
@@ -80,15 +80,19 @@ Exit criteria: TASK-034 acceptance criteria hold; `src/claude/hooks/` and `src/c
 | B4-T4 runtime-contract test | M | Extends `test_generate_hooks_runtime_contract.py` with the cloud-agent case and its negative control |
 | B4-T5 ruleset decision | S | PR body records whether `require_code_owner_review` becomes `true` before this task's writes land |
 
-### B5: lib
+### B5: lib (done)
 
-Exit criteria: TASK-035 acceptance criteria hold; `scripts/sync_plugin_lib.py` deleted; the three packages copy correctly in one `build_all.py` run; `.claude/rules/generated-artifacts.md`'s ordering-hazard section rewritten; `check_plugin_lib_mirrors.py` rewired or retired with the decision recorded.
+Exit criteria: TASK-035 acceptance criteria hold, with one recorded deviation;
+the three packages plus `bootstrap.py` and the review skill's sidecar copy
+correctly in one `build_all.py` run, into both plugin trees;
+`.claude/rules/generated-artifacts.md`'s ordering-hazard section rewritten;
+`check_plugin_lib_mirrors.py` rewired to a single `build_all.py --check` call.
 
 | Task | Size | Done when |
 |------|------|-----------|
-| B5-T1 absorb copy logic | M | `_build_lib` performs both hops in one run; `SYNC_PAIRS`, `SYNC_FILE_PAIRS`, `IMPORT_CONVERSIONS` moved verbatim |
-| B5-T2 delete standalone script | S | `scripts/sync_plugin_lib.py` removed; no remaining caller invokes it directly |
-| B5-T3 CI script and rule text | S | `check_plugin_lib_mirrors.py` rewired or deleted; `generated-artifacts.md`'s residual "hazard stays open until B5" note (added at B1) removed; CODEOWNERS entries added |
+| B5-T1 absorb copy logic | M | Done: `build/scripts/lib_mirror.py` renders every package and file pair into both lib plugin trees; `_build_lib` calls it; `SYNC_PAIRS`, `SYNC_FILE_PAIRS`, `IMPORT_CONVERSIONS` moved (not rewritten) |
+| B5-T2 retire standalone script | S | Deviation: `scripts/sync_plugin_lib.py` is a thin shim over `lib_mirror.compile_all`, not deleted. `.github/workflows/validate-generated-agents.yml`'s "Plugin lib sync check (M7-T1)" step still calls it directly; workflow files are out of scope for this PR. Every other caller (tests, validators, rule prose) now points at `build_all.py` or `lib_mirror.py` directly. Follow-up: repoint that workflow step at `build_all.py --check` and delete the shim in a later PR that may edit workflows. |
+| B5-T3 CI script and rule text | S | Done: `check_plugin_lib_mirrors.py` rewired to one `build_all.py --check` call; `generated-artifacts.md`'s "hazard stays open until B5" note removed; CODEOWNERS gained `scripts/hook_utilities/`, `scripts/github_core/`, and their `.claude/lib/` copies |
 
 ### B6: marketplace switch
 

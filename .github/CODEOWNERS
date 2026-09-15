@@ -14,11 +14,16 @@
 /.github/prompts/pr-quality-gate-*.md     @rjmurillo
 /.github/prompts/pr-quality.*.prompt.md   @rjmurillo
 
-# Shared library backing the AI review gates. The canonical package lives under
-# scripts/; .claude/lib/ is the synced copy (scripts/sync_plugin_lib.py). Pin
-# both so gate-logic changes (verdict.py merge rules) cannot bypass owner review.
+# Shared library backing the AI review gates and the plugin hook shims. The
+# canonical packages live under scripts/; .claude/lib/ is the binplaced copy
+# (ADR-109 B5, build/scripts/lib_mirror.py). Pin both so gate-logic changes
+# (verdict.py merge rules) or hook-utility changes cannot bypass owner review.
 /scripts/ai_review_common/                @rjmurillo
 /.claude/lib/ai_review_common/            @rjmurillo
+/scripts/hook_utilities/                  @rjmurillo
+/.claude/lib/hook_utilities/              @rjmurillo
+/scripts/github_core/                     @rjmurillo
+/.claude/lib/github_core/                 @rjmurillo
 
 # Template-owned skill files (ADR-108). A template under templates/skills/ is
 # the only class permitted to write under .claude/ during the build, and the
@@ -29,3 +34,32 @@
 /templates/hooks/                                             @rjmurillo
 /templates/platforms/                                         @rjmurillo
 /tests/build_scripts/test_skill_templates_pilot_scope.py      @rjmurillo
+
+# Enforcement paths (ADR-101 Phase 0 item 3, issue #5244).
+#
+# ADR-101's invariant is that a gate protecting artifacts at plane N must
+# compute its verdict above N, from evidence the gated actor cannot forge.
+# Everything below decides whether a change is allowed to merge, so a change
+# to one of these paths is a change to the gate itself and needs owner review.
+#
+# scripts/workflows/ is the sharpest entry. determine_should_run_from_filters.py
+# decides six of the eight contexts pinned in scripts/ci/ruleset_required_contexts.py,
+# it is editable in the same pull request it gates, and the tests that would
+# catch such an edit run inside the jobs the edit disables. Until that decision
+# moves to a base-ref job (issue #5244 item 6), owner review is the only control
+# standing in front of it.
+#
+# This list is a seed, not the control. ADR-101's typed dependency closure
+# (Phase 1) computes the real edge set and fails closed on an edge that does
+# not resolve. An earlier hand-written revision of this same list omitted
+# scripts/workflows/, which is precisely why the closure exists.
+#
+# tests/ci/test_codeowners_enforcement_paths.py pins every entry below.
+/.github/workflows/                       @rjmurillo
+/.github/actions/                         @rjmurillo
+/scripts/validation/                      @rjmurillo
+/scripts/ci/                              @rjmurillo
+/scripts/workflows/                       @rjmurillo
+/build/scripts/                           @rjmurillo
+/lefthook.yml                             @rjmurillo
+/.github/CODEOWNERS                       @rjmurillo

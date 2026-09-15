@@ -160,6 +160,62 @@ class TestSelfReferentialExclusion:
         assert ratchet.current_count(tmp_path) == 1
 
 
+class TestGeneratedLibMirrorExclusion:
+    """ADR-109 B5: a mirrored lib package's suppressions count once, at source.
+
+    `.claude/lib/`, `src/claude/lib/`, and `src/copilot-cli/lib/` each carry a
+    byte-for-byte (modulo import rewrite) copy of
+    `scripts/{hook_utilities,github_core,ai_review_common}/`. Counting the
+    same suppression once per generated copy would make every new mirror
+    inflate the ratchet for content that already counted at its canonical
+    source (issue #4039's rationale, applied to duplicates instead of
+    self-description).
+    """
+
+    @pytest.mark.parametrize(
+        "rel",
+        [
+            ".claude/lib/github_core/bot_config.py",
+            "src/claude/lib/github_core/bot_config.py",
+            "src/copilot-cli/lib/hook_utilities/guards.py",
+        ],
+    )
+    def test_mirror_package_files_are_excluded(self, rel: str) -> None:
+        assert ratchet._is_generated_lib_mirror(rel) is True
+
+    def test_canonical_source_is_not_excluded(self) -> None:
+        assert ratchet._is_generated_lib_mirror("scripts/github_core/bot_config.py") is False
+
+    def test_hand_maintained_lib_file_is_not_excluded(self) -> None:
+        """Only the three mirrored package dirs are excluded, not the whole tree."""
+        assert ratchet._is_generated_lib_mirror(".claude/lib/paths.py") is False
+
+    def test_exclusion_is_load_bearing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        canonical = tmp_path / "scripts" / "github_core" / "bot_config.py"
+        canonical.parent.mkdir(parents=True)
+        canonical.write_text("x = None  # type: ignore[assignment]\n", encoding="utf-8")
+        mirrors = [
+            tmp_path / ".claude" / "lib" / "github_core" / "bot_config.py",
+            tmp_path / "src" / "claude" / "lib" / "github_core" / "bot_config.py",
+            tmp_path / "src" / "copilot-cli" / "lib" / "github_core" / "bot_config.py",
+        ]
+        for mirror in mirrors:
+            mirror.parent.mkdir(parents=True)
+            mirror.write_text("x = None  # type: ignore[assignment]\n", encoding="utf-8")
+
+        rels = (
+            "scripts/github_core/bot_config.py",
+            ".claude/lib/github_core/bot_config.py",
+            "src/claude/lib/github_core/bot_config.py",
+            "src/copilot-cli/lib/github_core/bot_config.py",
+        )
+        monkeypatch.setattr(subprocess, "run", _fake_git(rels))
+
+        assert ratchet.current_count(tmp_path) == 1
+
+
 class TestConstants:
     def test_py_globs_targets_python_files(self) -> None:
         """_PY_GLOBS must target .py files; mutation to another extension must be detected."""

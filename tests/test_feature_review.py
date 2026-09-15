@@ -177,6 +177,19 @@ class TestGetFeatureReviewLabels:
         assert "enhancement" in result
         assert "or" not in result
 
+    def test_multi_word_backtick_label_is_not_re_split(self):
+        """A multi-word backtick label must not also emit its individual
+        words as separate plain labels (CodeRabbit, PR #5787 review)."""
+        output = "**Labels**: `good first issue`"
+        assert get_feature_review_labels(output) == "good first issue"
+
+    def test_mixed_backtick_and_plain_labels_are_both_kept_once(self):
+        """A backtick label alongside a plain label keeps both, without
+        the plain pass re-splitting the backtick label's words."""
+        output = "**Labels**: `good first issue`, documentation"
+        result = get_feature_review_labels(output)
+        assert result == "good first issue,documentation"
+
 
 class TestIntegration:
     """Integration tests with realistic AI output."""

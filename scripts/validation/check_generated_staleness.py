@@ -7,10 +7,6 @@ check (REQ-003-005)", which runs verbatim::
 
     uv run python build/scripts/build_all.py --check
 
-and step "Plugin lib sync check (M7-T1)", which runs verbatim::
-
-    uv run python scripts/sync_plugin_lib.py --check
-
 ``scripts/validation/pre_pr.py`` ran neither. Its only ``build_all.py``
 reference was ``validate_no_orphaned_build_deferrals``, which reads the
 deferral comments inside that file's source and says nothing about whether the
@@ -25,34 +21,26 @@ does not cover skills), and ``pre_pr.py`` reported unrelated findings only. CI
 then showed the generator stripping all 43 lines of the wiring. The feature
 would have merged as a silent no-op. Issue #5079.
 
-Order is the contract, not a call
----------------------------------
+One check, not an ordered pair (ADR-109 B5)
+--------------------------------------------
 
-``.claude/rules/generated-artifacts.md`` ("Generator order: sync before build")
-requires ``scripts/sync_plugin_lib.py`` to run before
-``build/scripts/build_all.py``. ``build_all.py`` reads ``.claude/lib/`` and
-never populates it, so a change under ``scripts/github_core/`` reaches
-``src/copilot-cli/lib/`` only once the sync has run. Run in the other order,
-both scripts exit 0 and there is no local signal at all.
+Before B5, ``.claude/rules/generated-artifacts.md`` ("Generator order: sync
+before build") required ``scripts/sync_plugin_lib.py`` to run before
+``build/scripts/build_all.py``: ``build_all.py`` read ``.claude/lib/`` and
+never populated it, so a change under ``scripts/github_core/`` reached
+``src/copilot-cli/lib/`` only once the sync had run first, and running them in
+the other order left both scripts exiting 0 with no local signal at all. This
+gate used to run both checks, in that order, and stop at the first failure so
+a stale ``.claude/lib/`` never produced a meaningless ``build_all`` verdict.
 
-This gate honors that order and stops at the first failure. A stale
-``.claude/lib/`` makes ``build_all --check`` compare the Copilot mirror against
-input that is itself out of date, so its verdict carries no information until
-the sync check is clean. Reporting the sync failure alone is the honest result,
-and the examined count says so.
-
-The rule also forbids resolving this by having ``build_all.py`` invoke
-``sync_plugin_lib.py``: REQ-003-010 bars generators from writing under
-``.claude/``, and the sync writes there by design. Both scripts run here in
-``--check`` mode, which is read-only. ``build_all.py --check`` snapshots and
-restores the trees it owns (issue #2440), and ``sync_plugin_lib.py --check`` is
-a dry run.
-
-Stricter/looser/different than canonical: CI runs the two checks as separate
-steps and in the opposite order (build_all at line 158, sync at line 209),
-which is safe there because each step reports independently. This gate runs
-them in one process in the rule's order so the first reported failure is the
-one a contributor must fix first.
+ADR-109 B5 (TASK-035) closed that hazard by construction: ``build_all.py``'s
+lib step now renders ``scripts/{hook_utilities,github_core,ai_review_common}/``
+directly into every lib plugin tree and binplaces the claude-side copies onto
+``.claude/lib/``, in the same run that checks everything else. There is no
+second command whose order matters, so this gate runs one child now.
+``scripts/sync_plugin_lib.py`` survives only as a thin, deprecated shim over
+the same logic, kept alive for the one workflow step that still calls it
+directly (see that script's own docstring); this gate no longer needs it.
 
 Bounded deadlines with cleanup-preserving termination
 -----------------------------------------------------
@@ -114,12 +102,11 @@ Exit codes (ADR-035):
     2 - Config error (invalid repository root, or a checked script is absent)
     3 - External error (a bounded child was killed on deadline expiry)
 
-The gate does not subdivide child exit codes further on purpose: the child
-contracts are ambiguous at this boundary (``build_all.py`` uses 2 for both
-configuration errors and staleness; ``sync_plugin_lib.py`` uses 1 for
-missing, unreadable, and drifted sources alike), so any per-cause mapping
-here would assert precision the children do not provide. The echoed child
-output is the discriminator, and the failure message says so.
+The gate does not subdivide the child's exit code further on purpose:
+``build_all.py`` uses 2 for both configuration errors and staleness, so a
+per-cause mapping here would assert precision the child does not provide.
+The echoed child output is the discriminator, and the failure message says
+so.
 """
 
 from __future__ import annotations
@@ -144,11 +131,10 @@ class _Status(IntEnum):
     EXTERNAL = 3
 
 
-# Ordered per .claude/rules/generated-artifacts.md "Generator order: sync
-# before build". Each row is (label, repo-relative script path). Changing the
-# order breaks the contract this module exists to honor.
+# One row: ADR-109 B5 folded the former scripts/sync_plugin_lib.py hop into
+# build_all.py's own lib step, so one child now covers the whole chain. Each
+# row is (label, repo-relative script path).
 _CHECKS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("sync_plugin_lib.py --check", ("scripts", "sync_plugin_lib.py")),
     ("build_all.py --check", ("build", "scripts", "build_all.py")),
 )
 
@@ -365,7 +351,6 @@ def check_generated_staleness(repo_root: Path) -> _Status:
         print(
             "Read the check's output above for the cause. If it reports"
             " staleness or drift, regenerate and commit:\n"
-            "  uv run python scripts/sync_plugin_lib.py\n"
             "  uv run python build/scripts/build_all.py\n"
             "Otherwise fix the error the check itself reported; regenerating"
             " is not the remedy for a configuration or source failure.",

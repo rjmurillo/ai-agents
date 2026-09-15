@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from scripts.github_core import discourse_traversal
 from scripts.github_core.discourse_traversal import (
     Checkpoint,
     DefaultParser,
@@ -363,3 +364,90 @@ class TestMaxItems:
         assert any(
             v == "max_items_reached" for v in result.exclusions.values()
         )
+
+
+class TestSaveCheckpointAtomicity:
+    """save_checkpoint must not use a predictable, non-atomic temp path.
+
+    Semgrep flagged the original ``tempfile.mktemp`` call as CWE-377/
+    CWE-367: it only returns an unclaimed pathname, leaving a window
+    between name generation and open where a local attacker can drop a
+    symlink at that path and redirect the write (PR #5787 review). The
+    fix opens the temp file itself via ``NamedTemporaryFile(delete=False)``,
+    which claims the name atomically and exclusively.
+    """
+
+    def test_no_leftover_temp_file_after_save(self, tmp_path: Path) -> None:
+        cp_path = tmp_path / "cp.json"
+        cp = Checkpoint(
+            parser_version="1", repo=REPO, visited=set(), pending=[], discovered_count=0
+        )
+        save_checkpoint(cp, cp_path)
+
+        remaining = list(tmp_path.iterdir())
+        assert remaining == [cp_path]
+
+    def test_does_not_use_tempfile_mktemp(self) -> None:
+        """Negative control: the predictable-pathname API must not be called."""
+        import ast
+        import inspect
+
+        source = inspect.getsource(discourse_traversal.save_checkpoint)
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and node.attr == "mktemp":
+                pytest.fail("save_checkpoint must not call tempfile.mktemp")
+
+    def test_failure_during_write_leaves_no_orphaned_temp_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A write failure must clean up the temp file, not leak it."""
+        cp_path = tmp_path / "cp.json"
+        cp = Checkpoint(
+            parser_version="1", repo=REPO, visited=set(), pending=[], discovered_count=0
+        )
+
+        original_dumps = discourse_traversal.json.dumps
+
+        def _boom(*args: object, **kwargs: object) -> str:
+            raise ValueError("simulated serialization failure")
+
+        monkeypatch.setattr(discourse_traversal.json, "dumps", _boom)
+        with pytest.raises(ValueError, match="simulated"):
+            save_checkpoint(cp, cp_path)
+        monkeypatch.setattr(discourse_traversal.json, "dumps", original_dumps)
+
+        assert list(tmp_path.iterdir()) == []
+        assert not cp_path.exists()
+
+    def test_existing_checkpoint_survives_a_failed_overwrite(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A failed re-save must not clobber the previously committed checkpoint."""
+        cp_path = tmp_path / "cp.json"
+        first = Checkpoint(
+            parser_version="1",
+            repo=REPO,
+            visited={f"{REPO}#1"},
+            pending=[],
+            discovered_count=1,
+        )
+        save_checkpoint(first, cp_path)
+        original_bytes = cp_path.read_bytes()
+
+        second = Checkpoint(
+            parser_version="1",
+            repo=REPO,
+            visited={f"{REPO}#1", f"{REPO}#2"},
+            pending=[],
+            discovered_count=2,
+        )
+
+        def _boom(*args: object, **kwargs: object) -> str:
+            raise ValueError("simulated serialization failure")
+
+        monkeypatch.setattr(discourse_traversal.json, "dumps", _boom)
+        with pytest.raises(ValueError, match="simulated"):
+            save_checkpoint(second, cp_path)
+
+        assert cp_path.read_bytes() == original_bytes

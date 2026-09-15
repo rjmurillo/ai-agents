@@ -7,7 +7,7 @@ license: MIT
 
 # AI Agents Config Catalog
 
-<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/, scripts/validation/check_push_lock_before_commit.py, scripts/validation/git_hook_policy.py) because its audience is repo contributors, not plugin consumers (issue #2050) -->
+<!-- vendor-portability: contributor-facing knowledge pack for the rjmurillo/ai-agents repo itself; intentionally references upstream paths (.agents/, .claude/, scripts/, build/, build/scripts/build_all.py, scripts/validation/check_push_lock_before_commit.py, scripts/validation/git_hook_policy.py) because its audience is repo contributors, not plugin consumers (issue #2050) -->
 Every flag, marker, and skip semantic in this repo, verified against code as
 of 2026-07-03. Hook registration surfaces were rechecked on 2026-09-01. Each
 escape hatch exists because a gate sometimes misfires; each one also has an
@@ -162,7 +162,7 @@ repository-controlled code, so command-name matching is not a safe approval boun
 | Reintroducing a global bypass | Session 1187: abused 3x in hours; user verdict "You can't be trusted" | Narrow, announced, per-check escapes |
 | `[skip-drift-check]` without the checklist | Marker skips the CI job but the bypass job posts unmet obligations; reviewers will bounce it | Document reason, update `templates/README.md`, get code-owner approval |
 | Documenting a flag only in CONTRIBUTING.md | Docs drift previously left removed flags in active guidance | The defining script is the source of truth; docs quote it (FM-9) |
-| Editing `.claude/lib/hook_utilities/` to change flag behavior | That tree is a generated mirror; next `sync_plugin_lib.py` run reverts you | Edit `scripts/hook_utilities/`, run the sync |
+| Editing `.claude/lib/hook_utilities/` to change flag behavior | That tree is a generated mirror; next `build_all.py` run reverts you | Edit `scripts/hook_utilities/`, run `uv run python build/scripts/build_all.py` |
 | Claiming `SKIPPED: investigation-only` with code staged | CI backstop diffs staged files against the allowlist | Split the commit or run QA |
 
 ## Verification
