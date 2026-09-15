@@ -1,76 +1,63 @@
 # scripts/
 
-Repo automation for developers, lefthook, and CI; consumed by contributors running gates locally and by workflow steps that import these modules (ADR-006).
+Repo automation for developers, lefthook, and CI.
 
 ## Matters
 
-- Python only (ADR-042); no new `.sh` files. `bootstrap-vm.sh` is the one legacy exception.
-- `pre_pr.py` is the canonical shift-left gate: `pre_pr_sequence.py` registers 70 `_Gate` rows run in order. Run it before every push.
-- `git_hook_policy.py` backs every lefthook job through subcommands (`commit-message`, `branch`, `taste`, `stage-generated <kind>`, etc.); `--help` lists them all.
-- `scripts/github_core/`, `hook_utilities/`, `ai_review_common/` are the SOURCE for the plugin lib: `sync_plugin_lib.py` copies to `.claude/lib/`, then `build/scripts/build_all.py` mirrors that to `src/copilot-cli/lib/`. Run them in that order; the wrong order exits 0 locally and only `scripts/ci/check_plugin_lib_mirrors.py` catches it in CI.
-- Count ratchets (`scripts/ci/*_count_ratchet.py` + `*_baseline.*`) may only fall. A ratchet failure often means your branch is behind `main`, not that you introduced a regression; merge `origin/main` and re-measure before hunting the diff (`ci-scripts.md` item 14).
-- New script needs `tests/test_<name>.py` with pos + neg + edge cases and exit-code asserts on `main(argv)`, not just on a helper's return value (`ci-scripts.md` items on silent-failure conversion).
+- Python only (ADR-042); one legacy exception: `bootstrap-vm.sh`.
+- `pre_pr.py`: canonical shift-left gate; `pre_pr_sequence.py`'s `_Gate` row count grows over time (`grep -c "_Gate(" scripts/validation/pre_pr_sequence.py` for the live number).
+- `git_hook_policy.py` backs most lefthook jobs via subcommands (`--help` lists them); a minority call other modules directly (e.g. `detect_scope_explosion.py`).
 
 ## Entry points
 
-- `uv run python scripts/validation/pre_pr.py` before every push.
-- `uv run python scripts/validation/git_hook_policy.py <subcommand>` for any single lefthook job in isolation.
-- `uv run python scripts/check_skill_exists.py --operation pr --action <name>` or `--list-available` (operations: `pr`, `issue`, `reactions`, `label`, `milestone`).
-- `uv run python scripts/new_validated_pr.py` to open a PR with guardrails enforced (wraps the `new_pr` skill).
-- `uv run python scripts/sync_mcp_config.py --sync-all --dry-run --force` to preview or push `.mcp.json` to `.vscode/mcp.json`.
-- `uv run python scripts/detect_scope_explosion.py` to check a diff's file count against the scope thresholds.
+- `uv run python scripts/validation/pre_pr.py` (`--quick`, `--markdown-lint-only`, `--summary-json PATH`).
+- `uv run python scripts/validation/git_hook_policy.py <subcommand>` (`--help` lists subcommands).
+- `uv run python scripts/check_skill_exists.py --operation {issue,label,milestone,pr,reactions} --action <name>` or `--list-available`.
+- `uv run python scripts/new_validated_pr.py` wraps the `github` skill's `new_pr.py`.
+- `uv run python scripts/sync_mcp_config.py --sync-all` writes both `.factory/mcp.json` and `.vscode/mcp.json` (`--dry-run` previews instead; `--force` rewrites a destination already in sync).
+- `uv run python scripts/detect_scope_explosion.py`: advisory only (ADR-100).
 
 ## Where to look
 
 | Path | Why |
 |---|---|
-| `scripts/validation/pre_pr_sequence.py` | Ordered gate registry; one `_Gate` row per check, 70 today |
-| `scripts/validation/git_hook_policy.py` | Every lefthook subcommand's implementation; `--help` for the full list |
-| `scripts/ci/` | Workflow step bodies (ADR-006: no logic in YAML); `*_count_ratchet.py` pairs with `*_baseline.txt` |
-| `scripts/eval/` | `eval-*.py` runners called from `evals/` and eval workflows |
-| `scripts/testing/mutation_workspace.py` | Backs the `mutation-safety` pre-push singleton guard (`lefthook.yml`) |
-| `scripts/security/run_semgrep.py` | Pre-commit and pre-push security scan entry point |
-| `scripts/maintenance/gc_worktrees.py`, `repair_packed_refs.py` | Worktree GC and ref repair, run from lefthook and pre-push |
-| `scripts/README.md` | Human-facing script index; see Dangerous assumptions below before trusting its framing |
+| `scripts/validation/pre_pr_sequence.py` | `_SEQUENCE` gate registry (Architecture below) |
+| `scripts/validation/git_hook_policy.py` | Most lefthook subcommands; `--help` for the list |
+| `scripts/ci/` | Workflow step bodies; `*_count_ratchet.py` pairs with `*_count_baseline.txt` |
+| `scripts/eval/` | Runners for `evals/` and eval workflows: `eval-*.py`, `eval_*.py`, plus `software_engineering_library_activation_*.py`; `_*.py` are private modules |
 
 ## Skip
 
-- `scripts/__pycache__/` and every nested `__pycache__/`: bytecode cache, not source.
-- `scripts/ci/*_baseline.txt`: ratchet floors; read them, never hand-edit (use each script's `--update`).
-- `scripts/migrations/`: one-off migrations already applied; historical, not a pattern to extend.
-- `scripts/dev/`: `dogfood_copilot_plugin.py`, copies the working tree's Copilot plugin over the installed dogfood copy; single file, not part of the gate chain.
-- `scripts/bootstrap-vm.sh`: legacy exception to the Python-only rule; do not model new scripts on it.
+- `scripts/ci/*_baseline.txt`: ratchet floors; use each script's `--update`, never hand-edit.
+- `scripts/migrations/`: applied, historical; not a pattern to extend.
+- `scripts/dev/dogfood_copilot_plugin.py`: single file, outside the gate chain.
+- `scripts/bootstrap-vm.sh`: legacy exception; don't model new scripts on it.
 
 ## Constraints
 
-- Exit code contract (0 ok / 1 logic / 2 config / 3 external / 4 auth) is enforced per-script; see root `AGENTS.md` Standards for the table (not restated here).
-- A doc-interpreter gate plus `scripts/validation/check_python3_entrypoints.py` fails any doc that tells a reader to run `python3 scripts/<name>.py` when that script imports a third-party package (stdlib-only scripts are exempt in principle, but write `uv run python` everywhere regardless).
-- `scripts/validation/stale_script_refs.py` fails `pre_pr.py` when a doc names a script that no longer exists in the tree.
-- Any script that resolves the repo root and then writes MUST confirm cwd is inside that root before the first write (`ci-scripts.md` MUST-7); `git rev-parse --show-toplevel` reports a claim, not a fact about where you are standing.
-- Any claim about what the repo *contains* MUST come from `git ls-tree -r -z HEAD` (or `--name-only` for a path-only inventory), never `git log --all` or a directory walk (`ci-scripts.md` MUST-9).
-- Subprocess text capture MUST use `encoding="utf-8", errors="replace"`; `scripts/validation/check_subprocess_encoding.py` enforces it.
-- A detected violation MUST exit non-zero and print the examined count alongside the violation count, so "0 violations in N files" is distinguishable from "nothing was examined" (`ci-scripts.md` MUST-11/12).
+- `ci-scripts.md` (auto-loads here) binds MUST-5/7/9/11/12/13/14/18 plus both items numbered `10.` in that file: `Convert every failure signal into a non-zero exit` (`:40`) and `Prove the CLI exits nonzero` (`:61`), the second enforced as an equality ratchet by `scripts/ci/cli_exit_contract_ratchet.py` from `pr-validation.yml`, so a new `scripts/ci/` or `.github/scripts/` script with a `main` needs a test asserting nonzero from `main(argv)` in the same test that calls it.
+- `stale_script_refs.py` fails `pre_pr.py` only on command-style references to removed `.ps1`/`.psm1` scripts (`stale_script_refs.py:30-40`); zero tracked PowerShell files remain, so a doc naming a deleted `.py` trips nothing here. No gate catches a removed-Python doc reference. `check_python3_entrypoints.py` (CI only, `pr-validation.yml`) fails a doc telling a reader to run `python3 <script>` when that script imports a third-party package.
+- Subprocess text capture MUST use `encoding="utf-8", errors="replace"` (`check_subprocess_encoding.py` enforces it).
 
 ## Dangerous assumptions
 
-- `scripts/README.md` opens with "PowerShell scripts for the AI Agents system." That is stale: every script here is Python per ADR-042. Do not trust the README's framing over the tree itself.
-- `scripts/ci/` and `.github/scripts/` are two separate tracked directories that both feed workflow steps; a search for "the CI script" that stops at one of them misses the other.
-- A ratchet reporting a raised count is not proof your change regressed something; check `git rev-parse main` against a fresh fetch first (`ci-scripts.md` item 14) before editing any `*_baseline.*` file.
-- `git_hook_policy.py` looks like a single script; it is the implementation for dozens of unrelated lefthook jobs dispatched by subcommand. Reading one function does not tell you how another subcommand behaves.
+- `scripts/README.md` opens "PowerShell scripts for the AI Agents system"; stale, every script here is Python (ADR-042).
+- `git_hook_policy.py` looks like one script; it backs dozens of unrelated lefthook subcommands. Reading one function does not explain another.
+- `scripts/security/run_semgrep.py` looks like the security-scan entry point; it is not: no pre-commit semgrep job exists (pre-commit runs `infrastructure-advisory` and `security-suppressions-staged` instead), and pre-push `security-scan` runs `git_hook_policy.py semgrep-push`, which drives `semgrep` directly.
+- `scripts/ci/` and `.github/scripts/` are separate tracked directories, both feeding workflow steps; `ci-scripts.md` binds both. A search that stops at one misses the other.
 
 ## Dependencies
 
-- Feeds `.claude/lib/` (via `sync_plugin_lib.py`) and `src/copilot-cli/lib/` (via `build/scripts/build_all.py`); both must be regenerated together, see Matters above.
-- `lefthook.yml` calls into `scripts/validation/` and `scripts/maintenance/` for nearly every pre-commit and pre-push job.
-- `.github/workflows/*.yml` call into `scripts/ci/`, `scripts/eval/`, `scripts/workflows/`, and `scripts/test_selection/path_policy.yml` (ADR-006: workflows stay thin, logic lives here).
-- Memory skills call into `scripts/memory/` (`memory_health.py`, `detect_stale.py`, `validate_memory_sizes.py`).
-- The repo-root `memory_enhancement` symlink points at `scripts/memory_enhancement/`; edit the file under `scripts/`, never through the symlink path in a new tool.
+- Plugin lib source: `scripts/{github_core,hook_utilities,ai_review_common}`; chain, order, and catchers in `build/AGENTS.md`. `SYNC_FILE_PAIRS` (`sync_plugin_lib.py:41-47`) also carries two single-file copies out of this tree, `hook_utilities/bootstrap.py` and `validation/validate_review_marker.py`, so an unsynced edit to either reds `--check` on a file you did not touch.
+- `lefthook.yml` calls `scripts/validation/`, `scripts/maintenance/`, `scripts/testing/` (`-m scripts.testing.mutation_workspace`, the `mutation-safety` singleton guard) and top-level `scripts/*.py`; never `scripts/ci/` or `scripts/eval/`.
+- `.github/workflows/*.yml` call `scripts/ci/`, `scripts/validation/`, `scripts/eval/`, `scripts/maintenance/`, `scripts/metrics/`, `scripts/testing/`, `scripts/workflows/`, and read `scripts/test_selection/path_policy.yml` as the paths-filter config (`pytest.yml`). `scripts/metrics/kill_criteria.py` is invoked with a bare `python3` in `drift-detection.yml`, so it is stdlib-only (`ci-scripts.md` MUST-18).
+- `scripts/memory/` (`memory_health.py`, `detect_stale.py`, `validate_memory_sizes.py`): documented in `.serena/memories/README.md`; no skill and no hook call them. The memory skills' health and size checks are `.claude/skills/memory/scripts/test_memory_health.py` and `test_memory_size.py` (`git_hook_policy.py memory-size` runs the latter).
+- Repo-root `memory_enhancement` symlink -> `scripts/memory_enhancement/`; edit the target, not the symlink.
 
 ## Architecture
 
-- `scripts/validation/pre_pr_sequence.py` is a data table, not control flow: `_SEQUENCE` is a tuple of `_Gate(name, fn)` rows read by one loop in `pre_pr.py`. Adding a gate is a one-line addition to that tuple.
-- Plugin lib mirroring is a two-hop chain, not a single copy: `scripts/{github_core,hook_utilities,ai_review_common}/` (source, absolute imports) -> `sync_plugin_lib.py` -> `.claude/lib/` (relative imports) -> `build/scripts/build_all.py` -> `src/copilot-cli/lib/`. Editing the mirrors directly is a no-op; the next regen overwrites them.
-- `scripts/workflow/` (singular) is the agent pipeline executor (coordinator, parallel dispatch); `scripts/workflows/` (plural) is unrelated: GitHub Actions dispatch-input resolution. Same prefix, different consumers.
+- `pre_pr_sequence.py` is a data table: `_SEQUENCE` is a tuple of `_Gate` rows (`name`, `run`, `skip_when_quick`, `already_run_by`, `notes`) read by one loop. Adding a gate is a one-line addition. `skip_when_quick` is what `--quick` reads; `already_run_by` names a pre-push fast-stage job, and the loop skips those five rows when `lefthook.yml` sets `AI_AGENTS_PRE_PR_FAST_STAGE_RAN=1`, so a run from a push is not the full sequence.
+- `scripts/workflow/` (singular): agent pipeline executor. `scripts/workflows/` (plural): GitHub Actions step helpers, `determine_should_run_from_filters.py` (paths-filter should-run) and `resolve_dispatch_input.py`. Same prefix, unrelated.
 
 ## Commands
 

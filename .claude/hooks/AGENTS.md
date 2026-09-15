@@ -1,92 +1,81 @@
 # .claude/hooks/
 
-Claude Code lifecycle hooks for this plugin root; consumed by the Claude Code harness at runtime and by the generator that mirrors a subset of this tree into the Copilot CLI plugin.
+Claude Code lifecycle hooks for this plugin root; consumed by the harness at runtime, partly mirrored into the Copilot CLI plugin.
 
 ## Matters
 
-- Only `SessionStart` uses the group dispatcher today: three of its four `.claude/settings.json` entries call `invoke_dispatch_claude.py --group <id>`, with membership in `dispatch_groups.json`. `UserPromptSubmit`, `SessionEnd`, and `PreCompact` each register their one script directly (no `--group`, no dispatcher). Every existing group currently holds exactly one shim; the design supports N shims sharing one process, but nothing here exercises N>1 yet.
-- `hooks.json` (the plugin-shipped manifest, distinct from `.claude/settings.json`) currently declares `"hooks": {}`. Nothing here ships to a plugin consumer today; every live registration below is this repository's own dev-time convenience, wired through `.claude/settings.json` only.
-- Zero tool-use hooks exist. `PreToolUse` and `PostToolUse` carry no Python hook script (only a shared bootstrap helper and a markdownlint config). Adding one is a deliberate, reviewed act, not a drop-in file; see Constraints.
-- Every hook here is fail-open by design: an unhandled exception, a missing dependency, or a broken plugin install must degrade to allowing the session/turn, never block it. The dispatcher's `gate`/`gate_all` modes are the design's one fail-closed path, reserved for a future `PreToolUse`/`UserPromptSubmit` group; no group registered today uses them.
-- `SessionStart`, `UserPromptSubmit`, `SessionEnd`, `PreCompact` are the only registered events. They fire once per session or turn, not once per tool call, so the cost/blast-radius bar in `tool-use-hook-bar.md` does not apply to them.
-- Several hooks (`invoke_memory_recall.py`, `invoke_memory_reflection.py`) are thin invokers for a package that lives outside the plugin root and does not ship with it; on a consumer install they silently no-op.
+- Only `SessionStart` uses the group dispatcher (`invoke_dispatch_claude.py --group <id>`, membership in `dispatch_groups.json`); `UserPromptSubmit`, `SessionEnd`, `PreCompact` register directly.
+- `hooks.json` (plugin manifest) declares `"hooks": {}`; these files ship inside the `project-toolkit` plugin root but register nothing there, so every live registration is `.claude/settings.json` only.
+- `PreToolUse`/`PostToolUse` ship no Python hook script, only a bootstrap helper and a markdownlint config.
+- `invoke_memory_recall.py`/`invoke_memory_reflection.py` call a package outside the plugin root; consumer installs get a silent no-op.
 
 ## Entry points
 
-- `.claude/settings.json` `hooks` block: the actual event wiring (timeouts, statusMessage, which group fires).
-- `invoke_dispatch_claude.py --group <id>`: the process a grouped registration launches; reads `dispatch_groups.json` for that group's shim list and `mode`.
-- `session-start.sh`: separate from the group dispatcher; gated on `$CLAUDE_CODE_REMOTE`, delegates to the container bootstrap script in the `rjmurillo/ai-agents` repository.
-- A single `invoke_*.py` under an event directory can be run standalone for manual testing (it does not require the dispatcher).
+- `.claude/settings.json` `hooks` block: real event/timeout/group wiring.
+- `invoke_dispatch_claude.py --group <id>`: reads `dispatch_groups.json` for that group's shims and `mode`.
+- `session-start.sh`: gated on `$CLAUDE_CODE_REMOTE`; delegates to the container bootstrap script in the `rjmurillo/ai-agents` repository.
 
 ## Where to look
 
 | Path | Why |
 |---|---|
-| `.claude/settings.json` | Real event/timeout/group wiring; the source of truth for what fires and when |
-| `dispatch_groups.json` | Group-to-shim membership; `mode` per group (all three registered groups are `observe` today; `gate`/`gate_all` are supported but unused here) |
-| `hooks.json` | Plugin-shipped manifest; currently empty, read this before assuming a hook ships |
-| `invoke_dispatch_claude.py` | Dispatcher entry point; self-hosting double-fire guard; exit-code contract |
-| `.claude/lib/claude_hook_dispatch.py` | Group-runner semantics: gate/gate_all/observe modes, stdout merge rules |
-| `.claude/lib/claude_hook_protocol.py` | Strict classification of a shim's stdout into context vs. blocking decision |
-| `.claude/lib/hook_utilities/guards.py` | `skip_if_consumer_repo()`; git-origin-based project-vs-consumer repo detection |
-| `.claude/lib/hook_utilities/path_safety.py` | CWE-22 traversal guard used by plugin-distributed scripts |
-| `.claude/rules/tool-use-hook-bar.md` | The bar a new `PreToolUse`/`PostToolUse` registration must clear; states the current zero-hook baseline |
-| `.claude/rules/generated-artifacts.md` | Runtime-contract rules for any customer-facing generated hook artifact |
-| `SessionStart/plugin_hook_drift_*.py` | The installed-vs-source hook drift comparator (split model/report/safety/state) |
+| `.claude/settings.json` | What fires: event, timeout, group |
+| `dispatch_groups.json` | Shim membership, `mode` per group (`observe` today) |
+| `hooks.json` | Plugin manifest; empty |
+| `invoke_dispatch_claude.py` | Dispatcher entry; exit-code contract |
+| `.claude/lib/claude_hook_dispatch.py` | Group-runner: modes, stdout merge |
 
 ## Skip
 
-- `__pycache__/` under any hook directory: gitignored bytecode, never a source.
-- `.claude/hooks/CLAUDE.md` and the stubs under `PostToolUse/`, `PreCompact/`, `PreToolUse/`, and `SessionStart/`: claude-mem auto-context stubs with no authored content. `SessionEnd/` and `UserPromptSubmit/` carry no such stub.
-- `PostToolUse/README.md`: a hook-authoring template for a hook class that currently ships zero scripts; useful only if you are adding the first one back.
-- `PreToolUse/_bootstrap.py`: shared plugin-path bootstrap for a future tool-use guard; not imported by any hook that ships today. Dead until a new `PreToolUse`/`PostToolUse` hook is added.
-- `PreToolUse/markdownlint-safe-config.yaml`: static config data, not a hook script.
+- `PostToolUse/CLAUDE.md`, `PreToolUse/CLAUDE.md`, `SessionStart/CLAUDE.md`: claude-mem stubs, no content. `CLAUDE.md` here is the same stub plus the `@AGENTS.md` line that loads this guide. `PreCompact/CLAUDE.md` differs; see Dangerous assumptions.
+- `PostToolUse/README.md`: 269-line authoring template for a hook class with zero scripts, naming a hook ADR-097 retired; read it only when adding the first one back, after the bar in Constraints.
+- `PreToolUse/_bootstrap.py`: unimported today. Not dead code; see Dangerous assumptions.
 
 ## Constraints
 
-- Adding a `PreToolUse`, `PostToolUse`, `PermissionRequest`, or `PostToolUseFailure` registration must clear every MUST in `tool-use-hook-bar.md` and is pinned closed by a re-accretion ratchet in the `rjmurillo/ai-agents` repository's runtime-contract test suite; that test also asserts `hooks.json` here and the generated Copilot mirror both stay at zero.
-- The group runner supports three modes even though every group registered today is `observe`: `gate` (`PreToolUse`) is fail-closed and stops at the first shim that emits a validated block, `gate_all` (`UserPromptSubmit`, `Stop`, `SubagentStop`) runs every shim but returns the first blocking exit seen, `observe` (`SessionStart`, `PostToolUse`, `PreCompact`) always runs every shim and always returns allow. A registered shim missing on disk or an unexpected dispatch exception denies in `gate`/`gate_all`, logs and continues in `observe`.
-- A shim's whole stdout is treated as a blocking decision only for a strictly validated shape per event (`claude_hook_protocol.py`); anything else, including malformed JSON that looks like a decision, is either suppressed (`observe`) or fails closed (`gate`/`gate_all`).
-- `invoke_dispatch_claude.py` exits 0, not the block code, on an infrastructure load failure (missing/broken `.claude/lib/claude_hook_dispatch.py`): a load failure is not a policy decision, and denying every tool call on a broken install is what got this plugin uninstalled repeatedly before (#4672).
-- Inside a checkout of the repository that publishes this plugin, the dispatcher exits immediately when `CLAUDE_PLUGIN_ROOT` names this same plugin, to avoid double-firing every hook body against both the project's own `.claude/settings.json` and the installed plugin's `hooks.json`.
-- A shim path registered in `dispatch_groups.json` must resolve to a `.py` file strictly inside this hooks directory (no `..`, no absolute path, no backslash); `validate_group()` rejects anything else before it runs.
-- `session-start.sh` only runs its bootstrap body when `$CLAUDE_CODE_REMOTE=true`; a local developer session exits 0 immediately.
+- New `PreToolUse`, `PostToolUse`, `PermissionRequest`, or `PostToolUseFailure` registration: clear every MUST in `tool-use-hook-bar.md` (auto-loads for this tree).
+- Modes are pinned per event by `validate_group()`, never chosen: `PreToolUse`=`gate` (fail-closed, stops at first block), `UserPromptSubmit`/`Stop`/`SubagentStop`=`gate_all` (all shims run; returns the first block seen, else the first non-zero exit), `PostToolUse`/`SessionStart`/`PreCompact`=`observe` (all run, always allows; every group today). Any other event, `SessionEnd` included, has no reviewed mode and exits 2 on every fire. Missing shim/dispatch exception: deny in gate/gate_all, log-and-continue in observe. The hook-contract check never reads `mode`; `test_dispatch_groups_parity.py` is the only gate that does.
+- `invoke_dispatch_claude.py` fails open (exit 0) on a `.claude/lib` import failure (#4672), and bails to 0 in non-gate modes when the installed plugin runs inside this checkout (double-fire guard); a bad manifest or dispatch exception exits 2, fail-closed.
+- A `dispatch_groups.json` shim path must be a `.py` file strictly inside this hooks directory (no `..`, absolute path, or backslash); `validate_group()` rejects anything else.
+- A registration's `timeout` must be 1 to 300s, and a shim on a blocking event (`PreToolUse`, `PermissionRequest`, `Stop`, `SubagentStop`, `UserPromptSubmit`) must carry `exit code` or `block` in its first 30 lines, or the hook-contract check reports a violation. `session-start.sh` escapes both at 900s only because that validator parses Python commands.
+- Only a strictly validated per-event shape on a shim's stdout counts as a blocking decision (`claude_hook_protocol.py`); malformed or unsupported decision-shaped JSON is suppressed in `observe` and denies in `gate`/`gate_all`. A valid blocking decision is suppressed in `observe` too, which is every group today.
 
 ## Dangerous assumptions
 
-- "A hook registered in `.claude/settings.json` ships to plugin consumers" is false. `hooks.json` is the shipped manifest and is empty; every event wired here today is this repository's own dev convenience.
-- "This tree mirrors 1:1 into the Copilot plugin" is false. The Copilot mirror carries only an empty `hooks.json` and one config file; none of the `SessionStart`/`UserPromptSubmit`/`SessionEnd`/`PreCompact` scripts here are generated into it.
-- "`_bootstrap.py` being present under `PreToolUse/` means a tool-use hook is registered" is false; it is unused scaffolding until the first new tool-use hook lands.
-- "Editing a per-directory `CLAUDE.md` documents the hook" is false; those files are claude-mem stubs, not authored docs. This `AGENTS.md` is the doc surface.
-- "Fail-open means uninstrumented" is false for 2 of the 6 registered invokers, and true for the other 4. `invoke_context_loader.py` and `invoke_checkout_freshness_check.py` each write a best-effort audit log line under `.agents/.hook-state/` (in a checkout that has one) even when they degrade; `invoke_plugin_hook_drift_check.py`, `invoke_memory_recall.py`, `invoke_memory_reflection.py`, and `invoke_compact_checkpoint.py` write none and degrade silently.
+- "A hook in `.claude/settings.json` ships to consumers" is false; `hooks.json` is the shipped manifest and is empty.
+- "This tree mirrors 1:1 into the Copilot plugin" is false; the mirror carries only an empty `hooks.json` and one config file.
+- `PreToolUse/_bootstrap.py` looks like dead scaffolding; it is not: a generator in the `rjmurillo/ai-agents` repository copies it into every generated dispatcher event directory and reads its bytes as the signature that marks such a directory safe to clean. Deleting it breaks both and fails the two test modules that read that exact path.
+- `PreCompact/CLAUDE.md` looks like a claude-mem stub; it is not: hand-authored but stale, describing an on-disk checkpoint write `invoke_compact_checkpoint.py` no longer makes (ADR-082, issue #3217, removed, unread). Its only output is a resume-context string to stdout; failures print a stderr `[WARNING]` and still exit 0.
+- "Fail-open means uninstrumented" is false for 2 of 6 invokers: `invoke_context_loader.py`/`invoke_checkout_freshness_check.py` append a best-effort audit line under `.agents/.hook-state/` (present only in the `rjmurillo/ai-agents` checkout), creating it, even when degraded; the other 4 write none. The 4 that import `hook_utilities` call `skip_if_consumer_repo()` before any work, deciding from the git origin remote, not `.agents/` presence (#2610); their in-file `ImportError` fallback is the old presence check. The memory pair never calls it and no-ops on the missing package instead.
 
 ## Dependencies
 
-- Feeds a generated Copilot CLI mirror under `src/copilot-cli/hooks/` via a hook generator in the `rjmurillo/ai-agents` repository's `build/` tree; regeneration order matters (a shared lib mirror must sync before hooks regenerate) and is owned outside this directory.
-- `.claude/lib/` is a sibling dependency, not vendored here: `claude_hook_dispatch.py`, `claude_hook_protocol.py`, and `hook_utilities/` are imported by every `invoke_*.py` and by `invoke_dispatch_claude.py` itself.
-- CI gates this tree from two directions, both re-run by a pre-push job in the `rjmurillo/ai-agents` repository whenever this directory, the Copilot mirror, or the generator changes: a hook-contract check validates every registered group's shims exist and expose valid exit-code semantics, and an installed-plugin hook guard materializes the shipped Copilot plugin as a consumer would install it and loads its hooks from a non-repo directory on Linux, macOS, and Windows, including a Python-less "vanilla" environment, to prove a broken or empty install degrades rather than wedging.
-- `.agents/retrospective/` (outside this plugin root) is read by `invoke_context_loader.py`, which prints the consumer-repo skip line and exits 0 when absent. `.serena/memories/` is read instead by `UserPromptSubmit/invoke_memory_recall.py`, whose docstring names `memory_enhancement.hooks.user_prompt_submit_memory` under `scripts/`.
+- Feeds a generated Copilot CLI mirror at `src/copilot-cli/hooks/` from `hooks.json`, not from `.claude/settings.json`: a registration added to `settings.json` alone never reaches that mirror. The generator and its regeneration order live outside this directory, in the `rjmurillo/ai-agents` repository.
+- `.claude/lib/` is a sibling dependency; its `hook_utilities/` package is a synced copy, never edited there (`.claude/AGENTS.md` owns that). Only `invoke_dispatch_claude.py` imports `claude_hook_dispatch.py` (which pulls in `claude_hook_protocol.py`; no invoker touches either). `hook_utilities` is imported by 4 of 6 invokers (`SessionStart/invoke_*.py`, `PreCompact/invoke_compact_checkpoint.py`); `UserPromptSubmit`/`SessionEnd` import neither.
+- Reads outside this plugin root, resolving only in the `rjmurillo/ai-agents` checkout: `invoke_context_loader.py` reads `.agents/retrospective/`; `invoke_memory_recall.py` delegates to `memory_enhancement.hooks.user_prompt_submit_memory` under `scripts/`, which reads `.serena/memories/`.
+- CI in that repository: a PR-only hook-contract check validates `dispatch_groups.json`/exit codes. An installed-plugin hook guard (not path-filtered, PR and push-to-main only, never local) materializes the generated Copilot mirror, not this tree, in a non-repo dir across platforms, Python-less included.
+- Pre-push in the `rjmurillo/ai-agents` checkout: the only job glob-scoped to this tree is lefthook's `hook-anchoring-e2e` (`.claude/hooks/**`); the plugin-manifest job beside it is skills-scoped. `.claude/hooks/**` sits in `python-type-check`'s exclude list, but the unglobbed pre-PR job type-checks every changed `.py` through the mypy ratchet, this tree included.
 
 ## Architecture
 
-- Two dispatcher implementations exist side by side under `.claude/lib/`: `claude_hook_dispatch.py` (used by everything in this directory, one process per Claude Code group, `runpy`-based) and `hook_dispatch.py` (the Copilot CLI dispatcher, same design lineage, timeout-capable child-process execution for timed shims). They share `output_capture.py` but not much else; do not assume a fix in one applies to the other.
-- The group runner (`claude_hook_dispatch.py`) must emit exactly one protocol-valid stdout document per group even when several shims each produce context: it concatenates context parts and, for events the host treats as plain-text context, prints plain text; for `PreToolUse`/`PostToolUse` it wraps the merge in one `hookSpecificOutput.additionalContext` JSON document.
-- The plugin-hook-drift check (`SessionStart/plugin_hook_drift_*.py`, four files split by concern: model, report, safety, state) expands both this checkout's registrations and any installed plugin copy's registrations down to their real shim membership before diffing, specifically so a stale install that still routes through the same dispatcher group id is not mistaken for a match.
+- Two dispatchers live under `.claude/lib/`: `claude_hook_dispatch.py` (used here) and `hook_dispatch.py` (Copilot CLI). Both run shims in-process via `runpy`; only the Copilot one runs a timeout-bearing shim in a child process, and only in `gate` mode (its `observe` path drops the timeout on purpose, #4706); this one never enforces per-shim timeouts at all. The former imports four exit-code/stdin helpers from the latter and mirrors its gate-mode semantics, plus a stdout-capture helper both take from `output_capture.py`; sharing exceeds the one helper it looks like.
+- The group runner must emit exactly one protocol-valid stdout document per group: context parts join with a blank line, print as plain text for `UserPromptSubmit`/`SessionStart`/`Stop`/`SubagentStop`/`PreCompact`, and wrap in one `hookSpecificOutput.additionalContext` object for `PreToolUse`/`PostToolUse`. Two shims each printing their own JSON is the hazard grouping exists to prevent.
+- The plugin-hook-drift check (`SessionStart/plugin_hook_drift_*.py`: model, report, safety, state) expands this checkout's and any installed copy's registrations to real shim membership before diffing, so a stale install on the same group id is not mistaken for a match.
 
 ## Commands
 
-These commands run only in the `rjmurillo/ai-agents` repository checkout, not in a consumer plugin install.
+Runs only in the `rjmurillo/ai-agents` checkout, not a consumer install.
 
 ```bash
-# Run one dispatch group by hand, feeding a JSON payload on stdin.
-echo '{}' | python3 -u .claude/hooks/invoke_dispatch_claude.py --group sessionstart-1-context_loader
+# Run one group by hand.
+echo '{}' | uv run python -u .claude/hooks/invoke_dispatch_claude.py --group sessionstart-1-context_loader
 
-# Run a single invoker directly (bypasses the dispatcher).
-echo '{}' | python3 .claude/hooks/SessionStart/invoke_checkout_freshness_check.py
+# Run one invoker directly, bypassing the dispatcher.
+echo '{}' | uv run python .claude/hooks/SessionStart/invoke_checkout_freshness_check.py
 
-# Validate dispatch_groups.json and hook exit-code contracts (CI form: hook-contract-check.yml).
-uv run --frozen python scripts/validation/hook_contracts.py
+# Validate contracts; --ci exits nonzero on a violation (else always 0).
+uv run --frozen python scripts/validation/hook_contracts.py --ci
 
-# Full pre-PR gate chain before pushing any change under this directory.
+# Full pre-PR gate chain.
 uv run --frozen python scripts/validation/pre_pr.py
 ```
