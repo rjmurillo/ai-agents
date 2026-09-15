@@ -265,6 +265,11 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
             allow |= skill_templates.owned_targets(repo_root)
             continue
         if row.plugin_tree is None:
+            if row.compile is not None:
+                # A direct-render row (ADR-109 B4 `settings`): no
+                # plugin-tree hop, the compile module writes install_tree
+                # itself. The row owns exactly that one path.
+                allow.add(row.install_tree)
             continue
         allow |= _plugin_tree_install_paths(row.plugin_tree, row.install_tree)
     return allow
@@ -279,7 +284,16 @@ def _is_claude_rooted(install_tree: Path, repo_root: Path) -> bool:
 
 
 def _plugin_tree_install_paths(plugin_tree: Path, install_tree: Path) -> set[Path]:
-    """Return each file under ``plugin_tree``, mapped onto ``install_tree``."""
+    """Return each file under ``plugin_tree``, mapped onto ``install_tree``.
+
+    ``plugin_tree`` is a directory for most rows, but ADR-109 B4's
+    ``hooks-json`` row gives it a single FILE (``src/claude/hooks.json``,
+    module docstring): when ``plugin_tree`` resolves to a file rather than
+    a directory, the row owns exactly ``install_tree`` itself, not a
+    directory walk.
+    """
+    if plugin_tree.is_file():
+        return {install_tree}
     if not plugin_tree.is_dir():
         return set()
     paths: set[Path] = set()
@@ -319,8 +333,14 @@ def _binplace_one_row(
     """Binplace one row's plugin tree, folding written/drifted/unowned into ``result``.
 
     Extracted out of :func:`binplace`'s loop body to hold that function's
-    cyclomatic complexity down.
+    cyclomatic complexity down. ``plugin_tree`` is a single FILE for the
+    ``hooks-json`` row (ADR-109 B4): that case binplaces one file, not a
+    directory walk, and reports no ``unowned`` entries since there is no
+    directory to enumerate stray siblings under.
     """
+    if plugin_tree.is_file():
+        _binplace_one_file(plugin_tree, install_tree, check=check, result=result)
+        return
     if not plugin_tree.is_dir():
         return
     owned_relatives: set[Path] = set()
@@ -362,7 +382,17 @@ def _current_bytes(dst_path: Path) -> bytes | None:
 def _binplace_one_file(
     src_path: Path, dst_path: Path, *, check: bool, result: BinplaceResult
 ) -> None:
-    """Compare one plugin-tree file to its install-tree counterpart and act."""
+    """Compare one plugin-tree file to its install-tree counterpart and act.
+
+    Preserves the plugin-tree source file's permission bits (mode) on
+    write, not ``publish_bytes_atomically``'s ``0o600`` default: ADR-109 B4
+    is the first class binplacing an executable script
+    (``.claude/hooks/session-start.sh``, invoked directly as
+    ``./.claude/hooks/session-start.sh`` in ``.claude/settings.json``), so
+    losing the executable bit here would silently break that hook. Earlier
+    classes (agents, rules) never noticed because none of their files are
+    executable.
+    """
     content = read_bytes_no_redirect(src_path)
     if _current_bytes(dst_path) == content:
         return
@@ -371,5 +401,6 @@ def _binplace_one_file(
         result.exit_code = max(result.exit_code, 2)
         return
     dst_path.parent.mkdir(parents=True, exist_ok=True)
-    publish_bytes_atomically(dst_path, content)
+    mode = src_path.stat().st_mode & 0o777
+    publish_bytes_atomically(dst_path, content, mode=mode)
     result.written.append(str(dst_path))
