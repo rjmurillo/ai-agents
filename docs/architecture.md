@@ -79,14 +79,9 @@ Claude Code marketplace (`.claude-plugin/marketplace.json`):
   "name": "ai-agents",
   "plugins": [
     {
-      "name": "claude-agents",
-      "description": "Specialized agent definitions for Claude Code",
-      "source": "./src/claude"
-    },
-    {
       "name": "project-toolkit",
       "description": "Complete project development toolkit for Claude Code",
-      "source": "./.claude"
+      "source": "./src/claude"
     }
   ]
 }

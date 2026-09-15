@@ -4,7 +4,7 @@ Two of this repo's three plugin sources; consumed by Claude Code and Copilot CLI
 
 ## Matters
 
-- Two of the three plugin roots in this repo live here: `claude/` ships as the `claude-agents` plugin, `copilot-cli/` ships as the `project-toolkit` plugin for Copilot CLI (`.claude/` is the third, outside `src/`). See `.claude/rules/plugin-self-containment.md`.
+- Two of the three plugin roots in this repo live here: `claude/` ships as the `project-toolkit` plugin for Claude Code (marketplace source since ADR-109 B6; the separate `claude-agents` entry it used to carry is retired), `copilot-cli/` ships as the `project-toolkit` plugin for Copilot CLI (`.claude/` is the third, outside `src/`, and is now the binplaced dogfood copy rather than an independent marketplace source). See `.claude/rules/plugin-self-containment.md`.
 - `copilot-cli/**` is entirely generated: it mirrors `.claude/{skills,hooks,lib,rules}` plus agents from `templates/agents/`, via generators `build/scripts/build_all.py` runs. Never hand-edit it.
 - `vs-code-agents/*.agent.md` is generated from `templates/agents/` only; it has no `.claude/` counterpart.
 - `claude/agents/*.md` is generated from `templates/agents/<stem>.claude.md.tmpl` by `build/scripts/agent_templates.py` per ADR-109. `claude-instructions.template.md` is hand-maintained. Rules live in `src/claude/AGENTS.md`.
@@ -19,7 +19,7 @@ Two of this repo's three plugin sources; consumed by Claude Code and Copilot CLI
 
 | Path | Why |
 |---|---|
-| `claude/agents/*.md` | Generated from `templates/agents/` by `build/scripts/agent_templates.py`; `claude-agents` plugin source; rules in `src/claude/AGENTS.md` |
+| `claude/agents/*.md` | Generated from `templates/agents/` by `build/scripts/agent_templates.py`; `project-toolkit` plugin source (Claude Code); rules in `src/claude/AGENTS.md` |
 | `claude/claude-instructions.template.md` | Hand-maintained preamble template |
 | `copilot-cli/**` | Generated mirror of `.claude/{skills,hooks,lib,rules}` and `templates/agents/`; `project-toolkit` plugin for Copilot CLI |
 | `vs-code-agents/*.agent.md` | Generated from `templates/agents/` only, no `.claude/` input |
@@ -50,7 +50,7 @@ Two of this repo's three plugin sources; consumed by Claude Code and Copilot CLI
 
 ## Architecture
 
-- Three plugin roots ship independently (`.claude/`, `src/claude/`, `src/copilot-cli/`); each marketplace entry names exactly one source directory, and nothing above it reaches an installer.
+- Three trees carry self-contained plugin content (`.claude/`, `src/claude/`, `src/copilot-cli/`), but only two are independently marketplace-listed: `src/claude/` and `src/copilot-cli/`. `.claude/` is the binplaced dogfood copy of `src/claude/`, not its own marketplace entry (ADR-109 B6). Each marketplace entry names exactly one source directory, and nothing above it reaches an installer.
 - `copilot-cli/` is a double mirror for `lib` and `rules`: `scripts/sync_plugin_lib.py` must run before `build_all.py` to refresh `.claude/lib/` first, or `build_all.py` copies a stale `.claude/lib/` forward with no error; only `scripts/ci/check_plugin_lib_mirrors.py`, in CI, catches the stale mirror.
 
 ## Commands
