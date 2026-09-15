@@ -1,7 +1,8 @@
 """GitHub Core module: shared helpers for GitHub CLI operations.
 
-NOTE: Plugin-distributed copies are generated into the plugin trees.
-Run ``uv run python build/scripts/build_all.py`` to regenerate them.
+NOTE: Plugin-distributed copies are generated from this canonical
+``scripts/`` tree. Do not hand-edit the generated copies; edit this
+file and regenerate.
 """
 
 from __future__ import annotations

@@ -6,8 +6,9 @@ general). Previously this logic (the compiled patterns plus ``classify_domain``)
 was duplicated verbatim in ``get_pr_review_comments.py`` and
 ``get_unaddressed_comments.py`` (Issue #2816, finding 4).
 
-NOTE: Plugin-distributed copies are generated into the plugin trees.
-Run ``uv run python build/scripts/build_all.py`` to regenerate them.
+NOTE: Plugin-distributed copies are generated from this canonical
+``scripts/`` tree. Do not hand-edit the generated copies; edit this
+file and regenerate.
 """
 
 from __future__ import annotations
