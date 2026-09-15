@@ -16,13 +16,13 @@ Execute CodeQL security scans with automated language detection, database cachin
 /codeql-scan
 
 # Full scan with auto-detected languages
-python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation full
 
 # Quick scan with cached databases
-python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation quick
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation quick
 
 # Validate configuration only
-python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation validate
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation validate
 ```
 
 ## Triggers
@@ -97,7 +97,7 @@ Run a comprehensive security analysis of the entire codebase.
 2. **Run Scan:**
 
    ```bash
-   python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
+   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation full
    ```
 
 3. **Review Results:**
@@ -110,7 +110,7 @@ Run a comprehensive security analysis of the entire codebase.
 Use for rapid iteration during development. Only re-scans if source files changed.
 
 ```bash
-python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation quick
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation quick
 ```
 
 **Performance comparison:**
@@ -123,7 +123,7 @@ python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation qui
 Verify CodeQL configuration YAML syntax and query packs.
 
 ```bash
-python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation validate
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation validate
 ```
 
 ## Scripts
@@ -353,7 +353,7 @@ Error: Query execution timed out after 300s
 **Solution:** Reduce scope by scanning a specific language.
 
 ```bash
-python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full --languages python
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation full --languages python
 ```
 
 ### Cache Invalidation Issues
@@ -365,7 +365,7 @@ Warning: Using cached database, but source files changed
 **Solution:** Force database rebuild with a full scan.
 
 ```bash
-python3 .claude/skills/codeql-scan/scripts/invoke_codeql_scan.py --operation full
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/codeql-scan/scripts/invoke_codeql_scan.py" --operation full
 ```
 
 </details>
