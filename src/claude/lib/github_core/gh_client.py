@@ -76,14 +76,21 @@ class GhCliClient:
     :pymod:`scripts.github_core.api`.
     """
 
-    def rest_get(self, endpoint: str) -> dict[str, Any]:
-        """GET a single GitHub REST endpoint and return parsed JSON."""
+    def rest_get(self, endpoint: str) -> dict[str, Any] | list[Any]:
+        """GET a GitHub REST endpoint and return parsed JSON.
+
+        A single-resource endpoint returns a JSON object; a list
+        endpoint (no resource number, e.g. `pulls`) returns a top-level
+        array (see `GitHubClient.rest_get`'s docstring). The prior
+        `dict[str, Any]` annotation here was equally inaccurate for that
+        second shape.
+        """
         result = _run(["gh", "api", endpoint])
         if result.returncode != 0:
             raise RuntimeError(
                 f"gh api GET {endpoint} failed: {result.stderr.strip()}"
             )
-        response: dict[str, Any] = json.loads(result.stdout)
+        response: dict[str, Any] | list[Any] = json.loads(result.stdout)
         return response
 
     def rest_post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:

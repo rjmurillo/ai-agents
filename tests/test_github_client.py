@@ -86,6 +86,17 @@ class TestGhCliClientRestGet:
             with pytest.raises(RuntimeError, match="gh api GET.*failed"):
                 GhCliClient().rest_get("repos/o/r/issues/999")
 
+    def test_list_endpoint_returns_a_list_not_a_dict(self):
+        """A list endpoint (e.g. `pulls`, no resource number) returns a
+        top-level JSON array; rest_get's return type must accept it
+        (CodeRabbit, PR #5787 review: the prior dict[str, Any]-only
+        annotation masked this real shape behind callers' own `Any`)."""
+        data = [{"number": 1}, {"number": 2}]
+        with patch("subprocess.run", return_value=_completed(stdout=json.dumps(data))):
+            result = GhCliClient().rest_get("repos/o/r/pulls")
+        assert result == data
+        assert isinstance(result, list)
+
 
 # ---------------------------------------------------------------------------
 # GhCliClient: rest_post

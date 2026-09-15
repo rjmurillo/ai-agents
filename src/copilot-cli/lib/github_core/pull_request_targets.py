@@ -94,7 +94,9 @@ def iter_paginated_list(client: GitHubClient, endpoint: str) -> list[dict[str, A
     separator = "&" if "?" in endpoint else "?"
     items: list[dict[str, Any]] = []
     for page in range(1, _MAX_LIST_PAGES + 1):
-        body: Any = client.rest_get(f"{endpoint}{separator}per_page={PAGE_SIZE}&page={page}")
+        body: dict[str, Any] | list[Any] = client.rest_get(
+            f"{endpoint}{separator}per_page={PAGE_SIZE}&page={page}"
+        )
         if not isinstance(body, list) or not body:
             return items
         items.extend(entry for entry in body if isinstance(entry, dict))
@@ -106,9 +108,17 @@ def iter_paginated_list(client: GitHubClient, endpoint: str) -> list[dict[str, A
 def pull_request_targets(
     client: GitHubClient, repository: str, pr_numbers: Sequence[int]
 ) -> list[PullRequestTarget]:
-    return [
-        target_from_pull_request(
-            client.rest_get(f"repos/{quote(repository, safe='/')}/pulls/{number}")
-        )
-        for number in pr_numbers
-    ]
+    targets = []
+    for number in pr_numbers:
+        endpoint = f"repos/{quote(repository, safe='/')}/pulls/{number}"
+        payload = client.rest_get(endpoint)
+        # A single-resource endpoint (a specific PR number) always
+        # returns a JSON object; rest_get's return type widened to also
+        # cover list endpoints (CodeRabbit, PR #5787 review), so this
+        # call site narrows back to the dict it always gets in practice.
+        if not isinstance(payload, dict):
+            raise TypeError(
+                f"expected a JSON object from {endpoint}, got {type(payload).__name__}"
+            )
+        targets.append(target_from_pull_request(payload))
+    return targets

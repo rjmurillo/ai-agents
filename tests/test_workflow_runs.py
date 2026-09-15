@@ -2,7 +2,9 @@
 
 Split from test_ai_review.py (issue #1963). Covers get_pr_changed_files,
 get_workflow_runs_by_pr, runs_overlap, and get_concurrency_group_from_run,
-plus the shared _completed subprocess helper. Moved verbatim; behavior unchanged.
+plus the shared _completed subprocess helper. Moved verbatim originally;
+PR #5787 review changed get_pr_changed_files to raise instead of
+returning [] on a failed call, and get_workflow_runs_by_pr to paginate.
 """
 
 from __future__ import annotations
@@ -50,9 +52,36 @@ class TestGetPRChangedFiles:
                 result = get_pr_changed_files(42)
         assert len(result) == 2
 
-    def test_returns_empty_on_failure(self):
+    def test_raises_on_api_failure(self):
+        """A failed API call must not be mistaken for zero changed files
+        (CodeRabbit, PR #5787 review): a validation gate reading an
+        empty list back cannot tell "call failed" from "PR changed
+        nothing", and silently skips real changes in the former case."""
         with patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}):
             with patch("subprocess.run", return_value=_completed(rc=1, stderr="err")):
+                with pytest.raises(RuntimeError, match="Failed to get changed files"):
+                    get_pr_changed_files(1)
+
+    def test_raises_when_repository_undeterminable(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("subprocess.run", return_value=_completed(rc=1, stderr="no repo")):
+                with pytest.raises(RuntimeError, match="Could not determine repository"):
+                    get_pr_changed_files(1)
+
+    def test_raises_on_timeout(self):
+        with patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}):
+            with patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=30),
+            ):
+                with pytest.raises(RuntimeError, match="Failed to get changed files"):
+                    get_pr_changed_files(1)
+
+    def test_returns_empty_list_for_a_pr_with_genuinely_no_changed_files(self):
+        """A successful call with empty output is a real empty result,
+        not a failure, and must still return []."""
+        with patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}):
+            with patch("subprocess.run", return_value=_completed(stdout="")):
                 result = get_pr_changed_files(1)
         assert result == []
 
@@ -60,6 +89,13 @@ class TestGetPRChangedFiles:
 # ---------------------------------------------------------------------------
 # Workflow: workflow run analysis
 # ---------------------------------------------------------------------------
+
+
+def _ndjson(runs: list[dict]) -> str:
+    """Newline-delimited JSON: `gh api --paginate --jq ".workflow_runs[]"`'s
+    real output shape (one JSON value per line, one per run, across every
+    page), not a single JSON array document."""
+    return "\n".join(json.dumps(run) for run in runs) + "\n"
 
 
 class TestGetWorkflowRunsByPR:
@@ -70,7 +106,7 @@ class TestGetWorkflowRunsByPR:
         ]
         with patch(
             "subprocess.run",
-            return_value=_completed(stdout=json.dumps(runs)),
+            return_value=_completed(stdout=_ndjson(runs)),
         ):
             result = get_workflow_runs_by_pr(42, repository="owner/repo")
         assert len(result) == 1
@@ -83,10 +119,36 @@ class TestGetWorkflowRunsByPR:
         ]
         with patch(
             "subprocess.run",
-            return_value=_completed(stdout=json.dumps(runs)),
+            return_value=_completed(stdout=_ndjson(runs)),
         ):
             result = get_workflow_runs_by_pr(42, workflow_name="quality", repository="o/r")
         assert len(result) == 1
+
+    def test_combines_runs_across_multiple_pages(self):
+        """A PR whose run sits beyond the first 100 repo-wide runs must
+        still be found: --paginate requests every page, and each page's
+        workflow_runs[] elements land as more lines in the same stdout
+        stream (CodeRabbit, PR #5787 review)."""
+        page1 = [{"name": f"run-{i}", "pull_requests": [{"number": 99}]} for i in range(100)]
+        page2 = [{"name": "the-target-run", "pull_requests": [{"number": 42}]}]
+        with patch(
+            "subprocess.run",
+            return_value=_completed(stdout=_ndjson(page1 + page2)),
+        ):
+            result = get_workflow_runs_by_pr(42, repository="owner/repo")
+        assert len(result) == 1
+        assert result[0]["name"] == "the-target-run"
+
+    def test_uses_paginate_flag(self):
+        captured: dict = {}
+
+        def _fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            return _completed(stdout=_ndjson([]))
+
+        with patch("subprocess.run", side_effect=_fake_run):
+            get_workflow_runs_by_pr(42, repository="owner/repo")
+        assert "--paginate" in captured["cmd"]
 
     def test_raises_on_api_failure(self):
         with patch(

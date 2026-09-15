@@ -13,7 +13,18 @@ class GitHubClient(Protocol):
     while consumers depend only on this interface.
     """
 
-    def rest_get(self, endpoint: str) -> dict[str, Any]: ...
+    def rest_get(self, endpoint: str) -> dict[str, Any] | list[Any]:
+        """GET *endpoint* and return the parsed JSON body.
+
+        A union, not a bare `dict[str, Any]` (CodeRabbit, PR #5787
+        review): a single-resource endpoint (e.g. `pulls/{number}`)
+        returns a JSON object, but a list endpoint (e.g. `pulls`, no
+        number) returns a top-level JSON array. Declaring only the dict
+        half masked the mismatch behind implementers' own `Any`
+        annotations at call sites (`pull_request_targets.
+        iter_paginated_list`) instead of letting mypy see it.
+        """
+        ...
 
     def rest_post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]: ...
 

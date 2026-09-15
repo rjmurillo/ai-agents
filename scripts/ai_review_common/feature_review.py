@@ -131,8 +131,14 @@ def get_feature_review_labels(output: str) -> str:
         if label and label.lower() not in _SKIP_WORDS:
             labels.append(label)
 
-    # Also extract plain labels even if backtick labels were found
-    for plain_match in _LABEL_PLAIN_PATTERN.finditer(value):
+    # Also extract plain labels even if backtick labels were found, but
+    # scan only the text OUTSIDE backtick spans (CodeRabbit, PR #5787
+    # review): scanning the raw value re-splits a multi-word backtick
+    # label ("`good first issue`") into its individual words ("good",
+    # "first", "issue") via the word-shaped plain pattern, since that
+    # pattern has no notion of the backtick span it is already inside.
+    value_without_backticks = _LABEL_BACKTICK_PATTERN.sub(" ", value)
+    for plain_match in _LABEL_PLAIN_PATTERN.finditer(value_without_backticks):
         label = plain_match.group(1)
         if label and label.lower() not in _SKIP_WORDS and label not in labels:
             labels.append(label)
