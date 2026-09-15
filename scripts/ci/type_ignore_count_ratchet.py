@@ -115,6 +115,25 @@ def _is_generated_lib_mirror(path_str: str) -> bool:
     return path_str.startswith(_LIB_MIRROR_PREFIXES)
 
 
+# Same rationale, for the skills class (ADR-109 B3 and its support-file
+# follow-up, generate_skills.py): .claude/skills/ is the canonical,
+# hand-maintained source for every non-SKILL.md file; src/claude/skills/ and
+# src/copilot-cli/skills/ are byte-for-byte generated mirrors of it. Keyed on
+# the canonical source actually existing (same defense as the lib check
+# above), not on the output prefix alone.
+_SKILL_MIRROR_ROOTS: tuple[str, ...] = ("src/claude/skills", "src/copilot-cli/skills")
+_SKILL_CANONICAL_ROOT = ".claude/skills"
+
+
+def _skill_mirror_canonical_source(path_str: str) -> str | None:
+    """Return the .claude/skills/ path a skill-mirror path maps to, if any."""
+    for root in _SKILL_MIRROR_ROOTS:
+        prefix = f"{root}/"
+        if path_str.startswith(prefix):
+            return f"{_SKILL_CANONICAL_ROOT}/{path_str[len(prefix) :]}"
+    return None
+
+
 def current_count(repo_root: Path) -> int | None:
     """Count ``# type: ignore`` comments in tracked Python files.
 
@@ -133,10 +152,14 @@ def current_count(repo_root: Path) -> int | None:
         return None
     if not files:
         return 0
+    tracked_set = frozenset(files)
 
     total = 0
     for path_str in files:
         if path_str in _SELF_REFERENTIAL_FILES or _is_generated_lib_mirror(path_str):
+            continue
+        skill_source = _skill_mirror_canonical_source(path_str)
+        if skill_source is not None and skill_source in tracked_set:
             continue
         path = repo_root / path_str
         try:

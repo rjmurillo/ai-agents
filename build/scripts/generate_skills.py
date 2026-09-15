@@ -39,7 +39,6 @@ Per ADR-035 Exit Code Standardization.
 from __future__ import annotations
 
 import argparse
-import shutil
 import sys
 import time
 from pathlib import Path
@@ -52,15 +51,22 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
 import skill_templates  # noqa: E402
-from copilot_body_translation import translate_skill_file  # noqa: E402
-from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+
+# _copy_skill_tree, GenerateSkillsError, SkillSupportSyncError,
+# _iter_skill_sources, _DEFAULT_EXCLUDES, and sync_claude_plugin_skill_support
+# live in skill_support_mirror.py (split for the taste-lint file-size ceiling,
+# ADR-109 B3's support-file follow-up), re-exported here so every existing
+# caller and test that reaches them through generate_skills.<name> keeps
+# working unchanged.
+from skill_support_mirror import (  # noqa: E402,F401
+    _DEFAULT_EXCLUDES,
+    GenerateSkillsError,
+    SkillSupportSyncError,
+    _copy_skill_tree,
+    _iter_skill_sources,
+    sync_claude_plugin_skill_support,
+)
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
-
-_DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
-
-
-class GenerateSkillsError(Exception):
-    """Domain error for skill generation. Wraps copy/load issues."""
 
 
 def _resolve_paths(repo_root: Path, source_dir: str, output_dir: str) -> tuple[Path, Path]:
@@ -70,96 +76,6 @@ def _resolve_paths(repo_root: Path, source_dir: str, output_dir: str) -> tuple[P
         if errs:
             raise GenerateSkillsError("; ".join(errs))
     return repo_root / source_dir, repo_root / output_dir
-
-
-def _iter_skill_sources(source_dir: Path, excludes: set[str]) -> list[Path]:
-    """Return immediate subdirectories that contain a SKILL.md file.
-
-    Excludes top-level files (AGENTS.md / CLAUDE.md). The check is by
-    presence of a SKILL.md inside the immediate child directory; nested
-    skill-like layouts are not recursed.
-    """
-    if not source_dir.is_dir():
-        raise GenerateSkillsError(f"sourceDir not found: {source_dir}")
-    skills: list[Path] = []
-    for child in sorted(source_dir.iterdir()):
-        if not child.is_dir():
-            continue
-        if child.name in excludes:
-            continue
-        if not (child / "SKILL.md").is_file():
-            continue
-        skills.append(child)
-    return skills
-
-
-def _copy_skill_tree(
-    source: Path,
-    target: Path,
-    *,
-    what_if: bool,
-    skills_output_dir: Path | None = None,
-    plugin_skill_md: Path | None = None,
-) -> tuple[int, int]:
-    """Copy a single skill directory into ``target``.
-
-    Returns ``(written, skipped)`` counts; skipped reflects NO-REGEN
-    protections per file. Existing files are overwritten unless protected.
-
-    When ``skills_output_dir`` is provided (Copilot CLI target), the
-    top-level ``SKILL.md`` body is translated from Claude Code conventions
-    to Copilot CLI equivalents (issue #2743) instead of copied verbatim.
-    Every other file is copied byte-for-byte, straight from ``source``
-    (``.claude/skills/<name>/``); scripts, references, and tests are
-    hand-maintained there and never rendered by a template, so this path is
-    unchanged by ADR-109 B3.
-
-    ``plugin_skill_md`` (ADR-109 B3), when given and present on disk, is
-    read for the ``SKILL.md`` body instead of ``source / "SKILL.md"``. It
-    names the skill's plugin-tree render target,
-    ``src/claude/skills/<name>/SKILL.md``, written by
-    ``skill_templates.compile_all`` immediately before this copy loop runs
-    (:func:`generate_skills`). The install-tree copy,
-    ``.claude/skills/<name>/SKILL.md``, is only refreshed later, by the
-    binplace step that runs after every platform's copy loop
-    (``build_all._run_binplace``), so reading it here during THIS run would
-    risk translating yesterday's rendered content into the Copilot mirror.
-    A skill with no template (``plugin_skill_md`` is ``None``, or the path
-    does not exist yet) falls back to ``source / "SKILL.md"`` unchanged.
-    """
-    written = 0
-    skipped = 0
-    for src_path in source.rglob("*"):
-        if src_path.is_dir():
-            continue
-        # Skip Python cache artifacts; they're build-time noise that
-        # belongs in .gitignore, not in a customer-facing plugin install.
-        if "__pycache__" in src_path.parts or src_path.suffix in (".pyc", ".pyo"):
-            continue
-        rel = src_path.relative_to(source)
-        dst_path = target / rel
-
-        reason = regen_detect_reason(dst_path)
-        if reason is not None:
-            print(f"  NOTICE: skipped {dst_path} (NO-REGEN: {reason})")
-            skipped += 1
-            continue
-
-        if what_if:
-            print(f"  Would copy: {src_path} -> {dst_path}")
-            continue
-
-        dst_path.parent.mkdir(parents=True, exist_ok=True)
-        if skills_output_dir is not None and rel == Path("SKILL.md"):
-            content_source = src_path
-            if plugin_skill_md is not None and plugin_skill_md.is_file():
-                content_source = plugin_skill_md
-            content = content_source.read_text(encoding="utf-8")
-            dst_path.write_text(translate_skill_file(content, skills_output_dir), encoding="utf-8")
-        else:
-            shutil.copy2(src_path, dst_path)
-        written += 1
-    return written, skipped
 
 
 def generate_skills(
@@ -209,6 +125,31 @@ def generate_skills(
         # this is the first place a value crosses a typed function boundary
         # directly enough for --warn-return-any to notice.
         return int(compile_result.exit_code)
+
+    sync_written, sync_removed, sync_skipped, sync_errors = sync_claude_plugin_skill_support(
+        repo_root, what_if=what_if, check=validate
+    )
+    if sync_written or sync_removed:
+        label = "drift" if validate else "written"
+        removed_label = "stale drift" if validate else "stale removed"
+        print(
+            f"Claude plugin skill support files: {sync_written} {label}, "
+            f"{sync_removed} {removed_label}"
+        )
+    if sync_skipped:
+        print(f"Claude plugin skill support files skipped (NO-REGEN): {sync_skipped}")
+    if sync_errors:
+        for err in sync_errors:
+            print(f"Error: {err}", file=sys.stderr)
+        return 1
+    if validate and (sync_written or sync_removed):
+        # Direct comparison against .claude/skills/, independent of git
+        # diff: catches a hand edit or an extra file under
+        # src/claude/skills/ that was never committed, which git diff has
+        # no signal for. Exit 1 here (generate_skills.py's own drift code);
+        # build_all._build_skills escalates it to 2 under --check the same
+        # way it already escalates skill_templates.compile_all's drift.
+        return 1
 
     try:
         cfg = load_platform_config(config_path)

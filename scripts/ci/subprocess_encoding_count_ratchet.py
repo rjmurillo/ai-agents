@@ -49,6 +49,28 @@ __all__ = [
 _BASELINE_PATH = Path(__file__).with_name("subprocess_encoding_count_baseline.txt")
 _FIXTURE_PREFIX = "tests/hooks/fixtures/"
 
+# .claude/skills/ is the canonical, hand-maintained source for every skill's
+# non-SKILL.md file (scripts, tests); src/claude/skills/ and src/copilot-cli/
+# skills/ are byte-for-byte generated mirrors of it
+# (generate_skills.py). Counting a violation at both the source and its
+# mirror(s) would inflate this ratchet with copies of the same decision
+# rather than new violations, the same rationale
+# type_ignore_count_ratchet.py's ``_is_generated_lib_mirror`` already applies
+# to the lib mirror trees. Keyed on the canonical source actually existing,
+# not on the output prefix alone.
+_SKILL_MIRROR_ROOTS: tuple[str, ...] = ("src/claude/skills", "src/copilot-cli/skills")
+_SKILL_CANONICAL_ROOT = ".claude/skills"
+
+
+def _skill_mirror_canonical_source(path_str: str) -> str | None:
+    """Return the .claude/skills/ path a skill-mirror path maps to, if any."""
+    for root in _SKILL_MIRROR_ROOTS:
+        prefix = f"{root}/"
+        if path_str.startswith(prefix):
+            return f"{_SKILL_CANONICAL_ROOT}/{path_str[len(prefix) :]}"
+    return None
+
+
 MERGE_TREE_BACKED = False
 """This baseline is NOT registered in ``merge_tree_ratchet_registry.py``.
 
@@ -78,10 +100,15 @@ def current_count(repo_root: Path) -> int | None:
     if py_files is None:
         return None
 
-    # Filter out fixture exemptions and non-existent files
+    tracked_set = frozenset(py_files)
+    # Filter out fixture exemptions, non-existent files, and skill mirrors
+    # whose canonical .claude/skills/ source is also tracked.
     py_files = [
-        f for f in py_files
-        if not f.startswith(_FIXTURE_PREFIX) and (repo_root / f).is_file()
+        f
+        for f in py_files
+        if not f.startswith(_FIXTURE_PREFIX)
+        and (repo_root / f).is_file()
+        and _skill_mirror_canonical_source(f) not in tracked_set
     ]
     if not py_files:
         return 0
