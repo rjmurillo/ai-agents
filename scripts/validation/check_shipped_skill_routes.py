@@ -522,6 +522,28 @@ def route_names(text: str) -> Iterator[tuple[int, str, bool]]:
             yield cell.line, raw, bool(raw) and bool(_NAME_RE.match(raw))
 
 
+def _skill_route_migration_pending(repo_root: Path, relative_root: str, name: str) -> bool:
+    """Return whether a dangling route reflects ADR-109 B3's in-progress skill migration.
+
+    ``src/claude/skills/`` is the skills class's plugin tree (ADR-109 B3):
+    TASK-033 migrates the 111 skills in batches, so at any commit between the
+    first and the last batch, ``src/claude/skills/`` legitimately holds fewer
+    skills than ``.claude/skills/`` and ``src/copilot-cli/skills/`` (both
+    always fully populated). A route from an already-migrated skill (such as
+    ``autoplan``) to a not-yet-migrated one (its target has no
+    ``templates/skills/<name>.SKILL.md.tmpl`` yet) is not a genuine drift;
+    it is the migration boundary, and would resolve if scanned against
+    either fully-populated root. Scoped to ``src/claude`` only, and grounded
+    in the template's real absence rather than a hardcoded skill name list,
+    so this self-clears the moment that skill's template lands: no
+    follow-up edit to this function is needed when TASK-033's batches
+    finish, only when a future migration reaches for the same pattern.
+    """
+    if relative_root != "src/claude":
+        return False
+    return not (repo_root / "templates" / "skills" / f"{name}.SKILL.md.tmpl").is_file()
+
+
 def scan_root(root: Path, repo_root: Path) -> tuple[list[Finding], int]:
     """Return ``(findings, routes_seen)`` for one plugin root."""
     present = skill_names(root)
@@ -548,6 +570,8 @@ def scan_root(root: Path, repo_root: Path) -> tuple[list[Finding], int]:
             seen += 1
             if legal and name in present:
                 continue
+            if legal and _skill_route_migration_pending(repo_root, relative_root, name):
+                continue
             findings.append(
                 Finding(
                     root=relative_root,
@@ -561,8 +585,9 @@ def scan_root(root: Path, repo_root: Path) -> tuple[list[Finding], int]:
         # A root that ships skills also ships the tables that route to them.
         # Checking this per root rather than on the repository-wide total is
         # what stops one root from going dark while a sibling's routes keep
-        # the total above zero and the gate reporting success. Roots that ship
-        # no skills at all, such as src/claude, are exempt by construction.
+        # the total above zero and the gate reporting success. A root that
+        # ships no skills at all is exempt by construction; src/claude was an
+        # example of one until ADR-109 B3 gave it a skills tree.
         raise CheckError(
             f"{relative_root} ships {len(present)} skill(s) but no 'Skill:' "
             "route was found in it; the scan matched nothing and a pass "

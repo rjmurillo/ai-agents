@@ -3500,26 +3500,36 @@ def test_skillforge_excludes_only_eval_fixtures(
 def test_skillforge_skips_eval_fixtures_and_gates_every_real_skill(
     tmp_path: Path,
 ) -> None:
-    """The skip is one clause now: eval fixtures.
+    """The skip is two clauses now: eval fixtures and the src/claude/skills plugin tree.
 
-    It used to carry a second, deriving the generated command mirrors from
-    `.claude/commands/<name>.md` so that lefthook.yml and git_hook_policy.py
-    could not hold two copies of the list that drifted (9 of 14 in one, 14 in the
-    other). ADR-064 removed the mirrors along with the generator that wrote them
-    (issue #5632), so every Copilot skill is now mirrored from an authored
-    `.claude/skills/<name>/SKILL.md` and does carry the SkillForge schema.
+    It used to carry a different second clause, deriving the generated command
+    mirrors from `.claude/commands/<name>.md` so that lefthook.yml and
+    git_hook_policy.py could not hold two copies of the list that drifted (9 of
+    14 in one, 14 in the other). ADR-064 removed the mirrors along with the
+    generator that wrote them (issue #5632), so every Copilot skill is now
+    mirrored from an authored `.claude/skills/<name>/SKILL.md` and does carry
+    the SkillForge schema.
 
-    The three cases below are the ones the deleted clause used to answer
-    differently: a Copilot skill whose name matches a would-be command, the
-    Claude source it mirrors, and a nested reference under it. All three are
-    gated now, which is the behavior change this asserts rather than describes.
+    ADR-109 B3 added the second clause back, for a different reason:
+    `src/claude/skills/<name>/SKILL.md` (the skills class's plugin tree) is
+    the ONLY file `skill_templates.compile_all` renders there, never a
+    skill's scripts, references, or tests, so validate-skill.py would flag
+    every skill whose SKILL.md references its own scripts/ or references/ as
+    missing that directory, true by design there and not a defect (the full
+    bundle is validated at `.claude/skills/<name>/` already).
+
+    The three cases below are the ones the deleted command-mirror clause used
+    to answer differently: a Copilot skill whose name matches a would-be
+    command, the Claude source it mirrors, and a nested reference under it.
+    All three are gated now, which is the behavior change this asserts rather
+    than describes.
     """
     commands = tmp_path / ".claude" / "commands"
     commands.mkdir(parents=True)
     (commands / "research.md").write_text("# research\n", encoding="utf-8")
 
-    # Eval fixtures are the only skip, and the commands directory cannot
-    # reinstate the old one even when it exists.
+    # Eval fixtures are skipped, and the commands directory cannot
+    # reinstate the old command-mirror skip even when it exists.
     assert policy._skip_skillforge_path("evals/example/SKILL.md", tmp_path) is True
 
     assert (
@@ -3533,6 +3543,8 @@ def test_skillforge_skips_eval_fixtures_and_gates_every_real_skill(
         )
         is False
     )
+    # ADR-109 B3: the plugin tree is skipped, its full mirror is not.
+    assert policy._skip_skillforge_path("src/claude/skills/research/SKILL.md", tmp_path) is True
 
 
 def test_lefthook_skillforge_exclude_does_not_restate_the_mirror_names() -> None:

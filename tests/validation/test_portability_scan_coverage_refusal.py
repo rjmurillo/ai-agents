@@ -167,6 +167,7 @@ class TestMarkdownCheckerCoverage:
         assert cmp.scan_plugin_roots(tmp_path) == {}
         assert cmp.scanned_markdown_by_root(tmp_path) == {
             ".claude/skills": 2,
+            "src/claude/skills": 2,
             "src/copilot-cli/skills": 2,
             "src/copilot-cli/instructions": 1,
         }
@@ -175,6 +176,7 @@ class TestMarkdownCheckerCoverage:
         self._roots(tmp_path, populated=(".claude",))
         assert cmp.scanned_markdown_by_root(tmp_path) == {
             ".claude/skills": 2,
+            "src/claude/skills": 0,
             "src/copilot-cli/skills": 0,
             "src/copilot-cli/instructions": 1,
         }

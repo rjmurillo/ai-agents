@@ -14,11 +14,11 @@ matching "Source" instead.
 |-----------|--------------------|----------------------|------|
 | `build/generate_agents.py` | `templates/agents/*.shared.md` | `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML) | ADR-002 |
 | `build/scripts/generate_rules.py` | `.claude/rules/*.md` | `.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.instructions.md` | REQ-003-006 |
-| `build/scripts/generate_skills.py` | `.claude/skills/<name>/` | `src/copilot-cli/skills/<name>/` | REQ-003-001 |
-| `build/scripts/generate_skills.py` (compile step, `build/scripts/skill_templates.py`) | `templates/skills/<name>.SKILL.md.tmpl` + `templates/skills/partials/*.mustache` | `.claude/skills/<name>/SKILL.md`, template-owned skills only | ADR-108 |
+| `build/scripts/generate_skills.py` | `.claude/skills/<name>/` (SKILL.md read from `src/claude/skills/<name>/SKILL.md` when that skill has a template) | `src/copilot-cli/skills/<name>/` | REQ-003-001 |
+| `build/scripts/skill_templates.py` | `templates/skills/<name>.SKILL.md.tmpl` + `templates/skills/partials/*.mustache` | `src/claude/skills/<name>/SKILL.md` and through the binplace step to `.claude/skills/<name>/SKILL.md`, template-owned skills only | ADR-108, ADR-109 |
 | `build/scripts/agent_templates.py` | `templates/agents/<stem>.claude.md.tmpl`, `<stem>.copilot.md.tmpl`, `templates/agents/partials/*.mustache` | `src/claude/agents/<stem>.md` and through `build/generate_agents.py` to `src/copilot-cli/agents/<stem>.agent.md` | ADR-109 |
 | `build/scripts/rule_templates.py` | `templates/rules/<name>.md` (every rule; a literal `{{` in a rule is written `\{{`) | `src/claude/rules/<name>.md` and through the binplace step to `.claude/rules/<name>.md` | ADR-109 |
-| `build/scripts/binplace_manifest.py` | `templates/platforms/binplace.yaml` plus the plugin trees it names | `.claude/agents/`, `.claude/rules/` | ADR-109 |
+| `build/scripts/binplace_manifest.py` | `templates/platforms/binplace.yaml` plus the plugin trees it names | `.claude/agents/`, `.claude/rules/`, `.claude/skills/<name>/SKILL.md` | ADR-109 |
 | `build/generate_agents.py` (`github` platform, `templates/platforms/github.yaml`) | `templates/agents/<stem>.copilot.md.tmpl` via `agent_templates.py` | `.github/agents/*.agent.md` (no `model:` field; GitHub rejects it, issue #4938) | ADR-109 |
 | `build/scripts/generate_hooks.py` with `build/scripts/generate_dispatcher.py` | `.claude/hooks/` + `.claude/settings.json` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` | REQ-003-007, ADR-068 |
 | `build/scripts/build_all.py` (`_build_lib`) | `.claude/lib/` | `src/copilot-cli/lib/` | REQ-003-001, REQ-003-002 |
@@ -39,7 +39,7 @@ validator, which fails CI when a sibling drifts from its source.
 | Path | Role | Guard |
 |------|------|-------|
 
-ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/<name>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved every `.claude/rules/<name>.md` file (28) the same way via rule_templates.py; `testing.md` is template-owned too, its GitHub Actions example written with the `\{{` escape.
+ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/<name>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved every `.claude/rules/<name>.md` file (28) the same way via rule_templates.py; `testing.md` is template-owned too, its GitHub Actions example written with the `\{{` escape. ADR-109 B3 gave skills the same two-hop shape: `skill_templates.compile_all` renders `src/claude/skills/<name>/SKILL.md`, and the binplace step copies it onto `.claude/skills/<name>/SKILL.md`; the manifest also gained a `prompts` row (`source: .claude/skills/review/references`, `compile: generate_pr_quality_prompts`, `plugin_tree: null`) that documents the twelve `pr-quality-gate-*.md` files without changing how they are generated.
 
 ## Regenerating
 

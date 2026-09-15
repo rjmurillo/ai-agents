@@ -34,18 +34,27 @@ import skill_templates  # noqa: E402
 from _skill_template_helpers import write_template  # noqa: E402
 
 
-def test_discover_excludes_a_symlinked_skill_md_inside_a_real_directory(
+def test_discover_excludes_a_symlinked_skill_md_in_the_plugin_tree(
     tmp_path: Path,
 ) -> None:
-    """A real, non-symlinked skill dir with a symlinked SKILL.md is exit 2,
-    never template-owned, and ``compile_all`` never writes through the link.
+    """A real ``.claude/skills/<name>/`` dir with a symlinked plugin-tree
+    ``SKILL.md`` is exit 2, never template-owned, and ``compile_all`` never
+    writes through the link.
+
+    ADR-109 B3 moves the render target from
+    ``.claude/skills/<name>/SKILL.md`` to
+    ``src/claude/skills/<name>/SKILL.md``, so this is the plugin-tree analog
+    of the pre-B3 check on the install path: :func:`compile_all` writes the
+    PLUGIN path now, so that is where a symlink could redirect the write.
     """
     write_template(tmp_path, "sync", "hello\n")
     skill_dir = tmp_path / ".claude" / "skills" / "sync"
     skill_dir.mkdir(parents=True)
+    plugin_dir = tmp_path / "src" / "claude" / "skills" / "sync"
+    plugin_dir.mkdir(parents=True)
     outside = tmp_path / "outside-skill-md"
     outside.write_text("do not overwrite me\n", encoding="utf-8")
-    link = skill_dir / "SKILL.md"
+    link = plugin_dir / "SKILL.md"
     try:
         link.symlink_to(outside)
     except OSError:

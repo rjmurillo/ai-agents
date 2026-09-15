@@ -23,6 +23,10 @@ def _make_skill(root: Path, name: str, content: str = "clean\n") -> Path:
     md.write_text(content, encoding="utf-8")
     (root / "src" / "copilot-cli" / "skills").mkdir(parents=True, exist_ok=True)
     (root / "src" / "copilot-cli" / "instructions").mkdir(parents=True, exist_ok=True)
+    # ADR-109 B3: check_skill_md_portability now also requires src/claude/skills
+    # to exist (REQUIRED_SKILLS_ROOTS); left empty since the tests using this
+    # helper assert exact ref/marker counts derived from .claude/skills alone.
+    (root / "src" / "claude" / "skills").mkdir(parents=True, exist_ok=True)
     return md
 
 
@@ -76,6 +80,7 @@ class TestScanAllReturnsSingleSnapshot:
     def test_empty_tree_gives_zero_scanned(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"
         (repo / ".claude" / "skills").mkdir(parents=True)
+        (repo / "src" / "claude" / "skills").mkdir(parents=True)
         (repo / "src" / "copilot-cli" / "skills").mkdir(parents=True)
 
         _, _, scanned, _ = cmp.scan_all(repo)
@@ -95,6 +100,7 @@ class TestScanAllReturnsSingleSnapshot:
         """
         repo = tmp_path / "repo"
         (repo / ".claude" / "skills").mkdir(parents=True)
+        (repo / "src" / "claude" / "skills").mkdir(parents=True)
         (repo / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         agent_templates = repo / "templates" / "agents"
         agent_templates.mkdir(parents=True)
@@ -110,6 +116,7 @@ class TestScanAllReturnsSingleSnapshot:
     ) -> None:
         repo = tmp_path / "repo"
         (repo / ".claude" / "skills").mkdir(parents=True)
+        (repo / "src" / "claude" / "skills").mkdir(parents=True)
         (repo / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         agent_templates = repo / "templates" / "agents"
         agent_templates.mkdir(parents=True)
