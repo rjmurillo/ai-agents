@@ -8317,7 +8317,7 @@ def _handle_cli_hook_e2e(args: argparse.Namespace) -> int:
 def _handle_cli_plugin_e2e(args: argparse.Namespace) -> int:
     # These mirror the glob: list for plugin-load-e2e in lefthook.yml.
     plugin_e2e_globs = (
-        ".claude/.claude-plugin/plugin.json",
+        "src/claude/.claude-plugin/plugin.json",
         ".claude/skills/**",
         "src/copilot-cli/.claude-plugin/plugin.json",
         "src/copilot-cli/skills/**",

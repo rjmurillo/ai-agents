@@ -82,6 +82,33 @@ def _core_import_error(lib_dir: str) -> str | None:
     return stderr_lines[-1] if stderr_lines else f"process exited {probe.returncode}"
 
 
+
+# The self-relative candidate below, `<this file>/../../../lib`, cannot name a
+# foreign plugin: it is computed from this file's own on-disk location, never
+# from an environment variable that could point anywhere. Trust it without a
+# manifest read.
+_SELF_PLUGIN_ROOT = str(Path(__file__).resolve().parents[3])
+
+
+def _manifest_names_us(manifest: str) -> bool:
+    """True if *manifest* is readable JSON carrying our plugin identity.
+
+    ``data`` may be any JSON value (``[]``, ``null``, a string, ...), not
+    only an object: a candidate manifest is untrusted input. ``isinstance``
+    rejects every non-object shape before ``.get`` runs, so a list or ``None``
+    fails closed here instead of raising ``AttributeError`` uncaught, which
+    would abort the whole candidate walk in `_resolve_lib_dir` (a
+    CI-observable failure: the module-level `_LIB_DIR = _resolve_lib_dir()`
+    call would raise at import time).
+    """
+    try:
+        with open(manifest, encoding="utf-8") as fh:
+            data = json.load(fh)
+        return isinstance(data, dict) and data.get("name") == _PLUGIN_IDENTITY_NAME
+    except (OSError, json.JSONDecodeError, TypeError):
+        return False
+
+
 def _is_own_plugin(lib_dir: str) -> bool:
     """Return True if the plugin root above *lib_dir* identifies as ours.
 
@@ -89,15 +116,32 @@ def _is_own_plugin(lib_dir: str) -> bool:
     the expected ``name`` field.  Without this check, a foreign plugin that
     also ships ``github_core.api.RepoInfo`` would pass the import probe and
     be selected, violating the contract that no foreign code is imported.
+
+    One exception: *lib_dir*'s own self-relative root (``_SELF_PLUGIN_ROOT``)
+    is trusted without reading a manifest at all. It is computed from this
+    file's own on-disk location, never from an environment variable, so it
+    cannot name a foreign plugin in the first place. This is also the real
+    production path for this repository's own dogfood sessions: when
+    ``CLAUDE_PLUGIN_ROOT=.claude`` (set by Claude Code when it loads this
+    repository's project plugin), that candidate is tried first and fails its
+    own manifest check (ADR-109 B6 deleted
+    ``.claude/.claude-plugin/plugin.json``), but resolution falls through to
+    this same directory again as the self-relative candidate, which succeeds.
+
+    No sibling-manifest fallback for an environment-selected ``.claude``
+    root: an attacker who controls ``CLAUDE_PLUGIN_ROOT`` (or
+    ``COPILOT_PLUGIN_ROOT``, ``GITHUB_WORKSPACE``) also controls the
+    directory tree at that path, including a forged
+    ``../src/claude/.claude-plugin/plugin.json``. Accepting that manifest
+    for an environment-derived candidate would authenticate attacker-supplied
+    ``lib/github_core/api.py`` for import. Only the self-relative candidate,
+    which the attacker cannot redirect, is exempt from reading its own
+    manifest.
     """
     plugin_root = os.path.dirname(lib_dir)
-    manifest = os.path.join(plugin_root, _PLUGIN_MANIFEST_REL)
-    try:
-        with open(manifest, encoding="utf-8") as fh:
-            data = json.load(fh)
-        return bool(data.get("name") == _PLUGIN_IDENTITY_NAME)
-    except (OSError, json.JSONDecodeError, TypeError):
-        return False
+    if os.path.abspath(plugin_root) == _SELF_PLUGIN_ROOT:
+        return True
+    return _manifest_names_us(os.path.join(plugin_root, _PLUGIN_MANIFEST_REL))
 
 
 def _lib_dir_candidates() -> list[str]:

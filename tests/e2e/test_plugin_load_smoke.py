@@ -121,7 +121,11 @@ NON_AGENT_DOCUMENT_STEMS = frozenset(
 )
 
 _COPILOT_PLUGIN_DIR = REPO_ROOT / "src" / "copilot-cli"
-_CLAUDE_PLUGIN_DIR = REPO_ROOT / ".claude"
+# ADR-109 B6: project-toolkit's marketplace source moved from `./.claude` to
+# `./src/claude`. Load the plugin from the marketplace-listed source, not the
+# binplaced dogfood copy at `.claude/`, so this smoke proves what a fresh
+# install actually resolves.
+_CLAUDE_PLUGIN_DIR = REPO_ROOT / "src" / "claude"
 _CLAUDE_MANIFEST = _CLAUDE_PLUGIN_DIR / ".claude-plugin" / "plugin.json"
 _CLAUDE_ANALYST_TOOLS = frozenset(
     {
@@ -800,8 +804,8 @@ def test_claude_plugin_loads_expected_skills(tmp_path: Path) -> None:
     """claude --plugin-dir loads project-toolkit at the manifest version.
 
     Asserts returncode 0 on ``plugin list`` and that the version from
-    ``.claude/.claude-plugin/plugin.json`` appears in ``plugin details``, proving
-    the CLI loaded the shipped plugin rather than failing silently.
+    ``src/claude/.claude-plugin/plugin.json`` appears in ``plugin details``,
+    proving the CLI loaded the shipped plugin rather than failing silently.
     """
     version = _run_cli(
         [resolve_executable("claude"), "--version"],
@@ -1040,8 +1044,9 @@ def test_expected_skills_ship_in_claude_tree() -> None:
     """Each EXPECTED_SKILLS entry ships in the Claude tree as command or skill.
 
     The Claude plugin surfaces a lifecycle capability either as a slash command
-    under .claude/commands/<name>.md or as a skill under .claude/skills/<name>/.
-    Most lifecycle names ship as commands; `review` ships as a skill dir. Accept
+    under commands/<name>.md or as a skill under skills/<name>/, resolved from
+    the marketplace-listed plugin root (src/claude/, ADR-109 B6). Most
+    lifecycle names ship as commands; `review` ships as a skill dir. Accept
     either so the contract tracks how the plugin actually exposes the capability,
     and so a rename in both places fails in bare CI before the nightly Claude
     smoke ever runs.

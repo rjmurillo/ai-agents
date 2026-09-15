@@ -192,7 +192,23 @@ def _manifest_sources(manifest: Path) -> list[str]:
 
 
 def plugin_roots(repo_root: Path) -> tuple[str, ...]:
-    """Plugin source directories declared by both marketplace manifests."""
+    """Plugin source directories this gate scans.
+
+    Every marketplace-declared source (required to exist, a config error
+    otherwise), plus ``.claude`` whenever it is present, even when no
+    marketplace names it. Before ADR-109 B6, ``.claude`` was itself a
+    marketplace entry (``project-toolkit``, retired from that manifest and
+    repointed at ``./src/claude``), and this loop found it through that entry.
+    It is still a self-contained tree, though: the binplace step writes it
+    here as this repository's own Claude Code plugin copy, and a hand-edit
+    that drifts it from ``src/claude`` before the next build is exactly the
+    kind of undeclared reference this gate exists to catch. Scanning it only
+    through its upstream twin would miss that window, so it is added whenever
+    present. Unlike a marketplace-declared source, its absence is not a config
+    error: a synthetic repository built to test root derivation, or a
+    checkout that genuinely carries no ``.claude/``, is not misconfigured for
+    lacking it.
+    """
     roots: list[str] = []
     for name in MARKETPLACE_MANIFESTS:
         for source in _manifest_sources(repo_root / name):
@@ -204,6 +220,10 @@ def plugin_roots(repo_root: Path) -> tuple[str, ...]:
             raise ConfigError(f"Plugin source directory does not exist: {source}")
     if not roots:
         raise ConfigError("Marketplace manifests declare no plugin sources")
+
+    if ".claude" not in roots and (repo_root / ".claude").is_dir():
+        roots.append(".claude")
+
     return tuple(roots)
 
 

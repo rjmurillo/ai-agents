@@ -7,14 +7,9 @@
   },
   "plugins": [
     {
-      "name": "claude-agents",
-      "description": "Specialized agent definitions with templates and governance for Claude Code",
-      "source": "./src/claude"
-    },
-    {
       "name": "project-toolkit",
       "description": "Complete project development toolkit: agents, slash commands, lifecycle hooks, and reusable skills for Claude Code workflows",
-      "source": "./.claude"
+      "source": "./src/claude"
     }
   ]
 }

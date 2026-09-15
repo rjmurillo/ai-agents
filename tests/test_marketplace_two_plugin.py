@@ -1,8 +1,9 @@
 """Integration tests for the split native marketplace model.
 
 Claude Code and GitHub Copilot CLI now read separate marketplace manifests
-from the same repository. Both CLIs share `project-toolkit` as the full-install
-plugin name, while keeping platform-specific agent-only bundles.
+from the same repository. Both CLIs ship a single `project-toolkit` plugin
+each. ADR-109 B6 retired Claude's separate `claude-agents` agents-only bundle
+and repointed `project-toolkit`'s source from `./.claude` to `./src/claude`.
 """
 
 from __future__ import annotations
@@ -17,13 +18,12 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 COPILOT_MARKETPLACE = REPO_ROOT / ".github" / "plugin" / "marketplace.json"
-CLAUDE_AGENTS_PLUGIN = REPO_ROOT / "src" / "claude" / ".claude-plugin" / "plugin.json"
-CLAUDE_TOOLKIT_PLUGIN = REPO_ROOT / ".claude" / ".claude-plugin" / "plugin.json"
+CLAUDE_TOOLKIT_PLUGIN = REPO_ROOT / "src" / "claude" / ".claude-plugin" / "plugin.json"
 COPILOT_TOOLKIT_PLUGIN = (
     REPO_ROOT / "src" / "copilot-cli" / ".claude-plugin" / "plugin.json"
 )
 
-CLAUDE_PLUGIN_NAMES = {"claude-agents", "project-toolkit"}
+CLAUDE_PLUGIN_NAMES = {"project-toolkit"}
 COPILOT_PLUGIN_NAMES = {"project-toolkit"}
 
 # Names that previously appeared in Claude's marketplace but advertised
@@ -96,7 +96,7 @@ class TestMarketplaceShape:
 
 
 class TestMarketplaceSourceManifestParity:
-    """Descriptions stay aligned for the three published plugin roots.
+    """Descriptions stay aligned for the two published plugin roots.
 
     This guards the #4158 regression where the Copilot CLI manifest copied the
     Claude Code description while its marketplace entry stayed correct. It is
@@ -106,7 +106,6 @@ class TestMarketplaceSourceManifestParity:
     @pytest.mark.parametrize(
         ("marketplace_path", "plugin_name", "manifest_path"),
         [
-            (CLAUDE_MARKETPLACE, "claude-agents", CLAUDE_AGENTS_PLUGIN),
             (CLAUDE_MARKETPLACE, "project-toolkit", CLAUDE_TOOLKIT_PLUGIN),
             (COPILOT_MARKETPLACE, "project-toolkit", COPILOT_TOOLKIT_PLUGIN),
         ],
@@ -170,7 +169,7 @@ class TestUniquenessAssertionDetectsCollision:
 
     def test_duplicate_name_detected_in_synthetic_fixture(self) -> None:
         plugins: list[dict[str, str]] = [
-            {"name": "project-toolkit", "source": "./.claude"},
+            {"name": "project-toolkit", "source": "./src/claude"},
             {"name": "project-toolkit", "source": "./other"},
         ]
         names = [p["name"] for p in plugins]
@@ -184,7 +183,7 @@ class TestClaudeMarketplaceRejectsCopilotAgentBundle:
 
     def test_synthetic_claude_marketplace_with_copilot_plugin_is_invalid_shape(self) -> None:
         synthetic_plugins = [
-            {"name": "project-toolkit", "source": "./.claude"},
+            {"name": "project-toolkit", "source": "./src/claude"},
             {"name": "copilot-cli-agents", "source": "./src/copilot-cli"},
         ]
         # Drives the same helper as the production test: if anyone weakens

@@ -26,7 +26,9 @@ definitions ...` while the entry publishing it carried the same sentence with
 the count removed. The stale count then sat on main for 57 days (#3651).
 
 This check is the missing stage of that closure. It scans every description this
-repository publishes, in both marketplace files and in all three manifests, and
+repository publishes, in both marketplace files and in both manifests (ADR-109
+B6 retired the third, `.claude/.claude-plugin/plugin.json`, since `.claude/` is
+now a binplaced copy rather than a separately marketplace-listed root), and
 fails when one embeds a component count.
 
 It is NOT a revival of the retired validator. That one counted the components on
@@ -64,7 +66,6 @@ from typing import Any
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 _MANIFESTS: tuple[Path, ...] = (
-    _REPO_ROOT / ".claude" / ".claude-plugin" / "plugin.json",
     _REPO_ROOT / "src" / "copilot-cli" / ".claude-plugin" / "plugin.json",
 )
 

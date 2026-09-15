@@ -49,18 +49,49 @@ _CORE_MODULE_FILE_NAME = "api.py"
 
 # This repository's own plugin lib, derived from this file's location
 # (tests/skills/merge-resolver/ sits three levels below the repo root) rather
-# than from the module under test.
+# than from the module under test. Used where `mod` is the real, unmoved
+# module (the self-relative candidate then really is .claude/lib) and
+# `_is_own_plugin` trusts it via _SELF_PLUGIN_ROOT, not a manifest read.
 _REPO_CLAUDE_LIB = Path(__file__).resolve().parents[3] / ".claude" / "lib"
 
-# The script under test, at its canonical path.
+# A second, manifest-carrying real root: src/claude/, whose own
+# .claude-plugin/plugin.json names project-toolkit. Used in TestResolveLibDirCli
+# below, where the script under test is copied to a tmp_path location, so its
+# self-relative candidate no longer resolves to anything under this repo and
+# an environment-selected root must authenticate through its own manifest.
+# _is_own_plugin() does not trust an environment-selected .claude root via a
+# sibling manifest: an attacker who controls CLAUDE_PLUGIN_ROOT also controls
+# the directory tree at that path, forged sibling manifest included.
+_REPO_SRC_CLAUDE_LIB = Path(__file__).resolve().parents[3] / "src" / "claude" / "lib"
+
+# The script under test, sourced from the marketplace-installed artifact
+# (src/claude/, ADR-109 B6's source), not the repository-only .claude/ copy,
+# so TestResolveLibDirCli below proves the CLI paths against what a consumer
+# actually gets. Before B3 (#5794) this path did not exist; see
+# test_marketplace_script_exists for the negative control.
 _SCRIPT = (
     Path(__file__).resolve().parents[3]
-    / ".claude"
+    / "src"
+    / "claude"
     / "skills"
     / "merge-resolver"
     / "scripts"
     / "resolve_pr_conflicts.py"
 )
+
+
+def test_marketplace_script_exists() -> None:
+    """Guard against the pre-B3 install-parity regression (found by B6).
+
+    A silent regression back to the SKILL.md-only state makes every CLI
+    test in this class fail at _install_script's shutil.copy2 with
+    FileNotFoundError; this test names the failure directly.
+    """
+    assert _SCRIPT.is_file(), (
+        f"{_SCRIPT} is missing: a fresh project-toolkit install would ship "
+        "a merge-resolver skill whose SKILL.md references a script the "
+        "install does not contain"
+    )
 
 
 _PLUGIN_IDENTITY_NAME = "project-toolkit"
@@ -383,7 +414,7 @@ class TestResolveLibDirCli:
         result = self._run(
             script,
             {
-                "COPILOT_PLUGIN_ROOT": str(_REPO_CLAUDE_LIB.parent),
+                "COPILOT_PLUGIN_ROOT": str(_REPO_SRC_CLAUDE_LIB.parent),
                 "CLAUDE_PLUGIN_ROOT": str(tmp_path / "context-mode"),
             },
         )
@@ -422,7 +453,7 @@ class TestResolveLibDirCli:
             script,
             {
                 "COPILOT_PLUGIN_ROOT": str(partial),
-                "CLAUDE_PLUGIN_ROOT": str(_REPO_CLAUDE_LIB.parent),
+                "CLAUDE_PLUGIN_ROOT": str(_REPO_SRC_CLAUDE_LIB.parent),
             },
         )
 
@@ -440,7 +471,7 @@ class TestResolveLibDirCli:
             script,
             {
                 "COPILOT_PLUGIN_ROOT": str(broken),
-                "CLAUDE_PLUGIN_ROOT": str(_REPO_CLAUDE_LIB.parent),
+                "CLAUDE_PLUGIN_ROOT": str(_REPO_SRC_CLAUDE_LIB.parent),
             },
         )
 
@@ -457,7 +488,7 @@ class TestResolveLibDirCli:
             script,
             {
                 "COPILOT_PLUGIN_ROOT": str(broken),
-                "CLAUDE_PLUGIN_ROOT": str(_REPO_CLAUDE_LIB.parent),
+                "CLAUDE_PLUGIN_ROOT": str(_REPO_SRC_CLAUDE_LIB.parent),
             },
         )
 

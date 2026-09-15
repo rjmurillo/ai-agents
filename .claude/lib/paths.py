@@ -67,10 +67,19 @@ def _plugin_root_env() -> str | None:
 
 
 def _plugin_install_root() -> Path | None:
-    """Return the marker-discovered plugin install root, or None."""
+    """Return the marker-discovered plugin install root, or None.
+
+    A directory carrying ``_PLUGIN_MARKER`` is a root. So is one literally
+    named ``.claude``, even without that marker: ADR-109 B6 deleted
+    ``.claude/.claude-plugin/plugin.json`` (it is now the binplaced dogfood
+    copy of ``src/claude/``, not an independent marketplace source), but this
+    file lives under ``.claude/`` in every real checkout, so the first
+    ``.claude``-named ancestor found walking up from here is unambiguously
+    this file's own plugin root.
+    """
     cur = Path(__file__).resolve().parent
     while True:
-        if (cur / _PLUGIN_MARKER).is_file():
+        if (cur / _PLUGIN_MARKER).is_file() or cur.name == ".claude":
             return cur
         if cur.parent == cur:
             return None
