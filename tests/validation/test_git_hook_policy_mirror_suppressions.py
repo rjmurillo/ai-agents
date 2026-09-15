@@ -67,6 +67,7 @@ def test_drops_violation_for_byte_identical_staged_mirror(tmp_path: Path) -> Non
     _write(repo, "src/claude/skills/foo/scripts/run.py", SUPPRESSED_LINE)
     _git(repo, "add", "-A")
 
+    # citation-freshness: ignore -- synthetic fixture path in a tmp_path repo, not a real citation
     violations = ["staged:src/claude/skills/foo/scripts/run.py:1"]
     kept = policy._drop_verbatim_mirror_violations(
         violations, repo, source_ref="HEAD", dest_ref=None
@@ -88,6 +89,7 @@ def test_keeps_violation_when_mirror_diverges_from_source(tmp_path: Path) -> Non
     )
     _git(repo, "add", "-A")
 
+    # citation-freshness: ignore -- synthetic fixture path in a tmp_path repo, not a real citation
     violations = ["staged:src/claude/skills/foo/scripts/run.py:1"]
     kept = policy._drop_verbatim_mirror_violations(
         violations, repo, source_ref="HEAD", dest_ref=None
@@ -105,6 +107,7 @@ def test_keeps_violation_when_source_has_no_committed_history(tmp_path: Path) ->
     _write(repo, "src/claude/skills/foo/scripts/run.py", SUPPRESSED_LINE)
     _git(repo, "add", "-A")
 
+    # citation-freshness: ignore -- synthetic fixture path in a tmp_path repo, not a real citation
     violations = ["staged:src/claude/skills/foo/scripts/run.py:1"]
     kept = policy._drop_verbatim_mirror_violations(
         violations, repo, source_ref="HEAD", dest_ref=None
@@ -122,6 +125,7 @@ def test_keeps_violation_for_a_non_mirror_path(tmp_path: Path) -> None:
     _write(repo, "scripts/authored/run.py", SUPPRESSED_LINE)
     _git(repo, "add", "-A")
 
+    # citation-freshness: ignore -- synthetic fixture path in a tmp_path repo, not a real citation
     violations = ["staged:scripts/authored/run.py:1"]
     kept = policy._drop_verbatim_mirror_violations(
         violations, repo, source_ref="HEAD", dest_ref=None
