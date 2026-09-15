@@ -26,16 +26,16 @@ Validate code files against configured style rules from project configuration fi
 
 ```bash
 # Check all files in current directory
-python3 scripts/check_style.py --target .
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --target .
 
 # Check only changed files (CI mode)
-python3 scripts/check_style.py --git-staged
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --git-staged
 
 # Check specific files
-python3 scripts/check_style.py src/models/user.cs src/services/auth.cs
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" src/models/user.cs src/services/auth.cs
 
 # JSON output for automation
-python3 scripts/check_style.py --target . --format json --output violations.json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --target . --format json --output violations.json
 ```
 
 ---
@@ -184,7 +184,7 @@ Example: "Async method 'GetUser' should end with 'Async' suffix"
 ### Basic Usage
 
 ```bash
-python3 scripts/check_style.py [options] [files...]
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" [options] [files...]
 ```
 
 ### Parameters
@@ -225,7 +225,7 @@ repos:
     hooks:
       - id: style-enforcement
         name: Style Enforcement
-        entry: python3 .claude/skills/style-enforcement/scripts/check_style.py
+        entry: python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py"
         args: [--git-staged]
         language: python
         pass_filenames: false
@@ -242,7 +242,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check style
         run: |
-          python3 .claude/skills/style-enforcement/scripts/check_style.py \
+          python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" \
             --target . \
             --format sarif \
             --output style-results.sarif
@@ -256,7 +256,7 @@ jobs:
 Before creating a PR, run style enforcement:
 
 ```bash
-python3 .claude/skills/style-enforcement/scripts/check_style.py --git-staged
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --git-staged
 ```
 
 If exit code is 10, fix violations before proceeding.
@@ -268,7 +268,7 @@ If exit code is 10, fix violations before proceeding.
 ### Example 1: Check Single File
 
 ```bash
-python3 scripts/check_style.py src/models/User.cs
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" src/models/User.cs
 ```
 
 **Output:**
@@ -289,7 +289,7 @@ Exit code: 10 (violations detected)
 ### Example 2: JSON Output for CI
 
 ```bash
-python3 scripts/check_style.py --target . --format json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --target . --format json
 ```
 
 ```json
@@ -316,7 +316,7 @@ python3 scripts/check_style.py --target . --format json
 ### Example 3: SARIF for GitHub Code Scanning
 
 ```bash
-python3 scripts/check_style.py --target . --format sarif --output results.sarif
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" --target . --format sarif --output results.sarif
 ```
 
 ---
@@ -393,7 +393,7 @@ Use existing linters instead when:
 After running style check, the gate is `check_style.py`'s exit code, not a self-check:
 
 ```bash
-python3 .claude/skills/style-enforcement/scripts/check_style.py "$TARGET_PATH"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/style-enforcement/scripts/check_style.py" "$TARGET_PATH"
 echo "exit=$?"   # 0 = clean, 10 = violations found, 1 = tool error
 ```
 
