@@ -120,8 +120,9 @@ cheapen listing; it breaks discovery and cross-links. On add, update the domain
 
 These conventions govern writing a new Serena memory and registering it in its
 domain index. They are the load-bearing rules absorbed from the former `memory`
-agent (Issue #2102). For obsolete-marking, deduplication, and bidirectional
-linking, use the `curating-memories` skill.
+agent (Issue #2102). For in-file obsolete-marking, use the `curating-memories`
+skill. For cross-file deduplication, use the `memory-consolidate` skill. For
+cross-linking, use the `memory-maintenance` skill.
 
 ### Naming
 
@@ -280,6 +281,6 @@ Invoke via the portable root form:
 | `memory-consolidate` | Periodic durable/dated consolidation, merge, index tidy |
 | `memory-enhancement` | Add citations, verify code references, track confidence |
 | `memory-documentary` | Narrative cross-system memory reports |
-| `curating-memories` | Memory content maintenance (obsolete, deduplicate) |
+| `curating-memories` | In-file obsolete-marking (supersession markers) |
 
 <!-- vendor-portability: declared. This skill links reference docs that ship in its own references/ tree and routes callers to sibling sub-skills. The episode store is the consumer's own data dir, created on demand when absent in a vendored install. Issue #2050, ADR-063. -->
