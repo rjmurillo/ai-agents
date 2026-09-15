@@ -2,7 +2,7 @@
 
 **Date**: 2026-09-15
 **Status**: Draft for owner review
-**Epic**: #5698 and sub-issues #5699 to #5709
+**Epic**: #5698 and its ten sub-issues #5699 to #5706, #5708, and #5709 (#5707 is an unrelated closed issue)
 **Skill run**: spec (Step 0, Step 0.5, evaluation axes, PRD schema). Step 6 spec-generator emission is deferred: the sub-issues already exist as the TASK layer, and this run's purpose is to validate that they solve the problem.
 
 ## Step 0 First Principles
@@ -45,7 +45,7 @@ test_failed: aspirational test conditions 1 and 3 (fewer than three named reques
 deferral: Name the three external customers (team or product name) and re-run; or proceed under owner override as recorded below.
 ```
 
-Tally: `2026-09-15T03:25:29Z | fail | H3 | Q1 Demand Reality` appended to `.agents/metrics/STEP-0-METRICS.md`.
+Tally: `2026-09-15T03:25:29Z | fail | H3 | Q1 Demand Reality` appended to [`.agents/metrics/STEP-0-METRICS.md`](../metrics/STEP-0-METRICS.md).
 
 **Owner override, recorded once.** The owner confirmed the answers and said continue. Under builder-ethos User Sovereignty the gate result stands as recorded and the spec proceeds. Trade-off: the three customers' names never enter the record, so no acceptance criterion below can be tied to a named external consumer. Everything below is scoped to the owner as the blocked party.
 
@@ -57,25 +57,25 @@ ProvisionalTier: hours_tier 3 (Q4 says 6 to 8 hours; 8 falls in the 8 to 40 band
 
 - Twelve queries over `.serena/memories` and `.agents/memory/episodes` (three variants per topic: issue script, retrospective agent, spec Step 0, backlog growth). Every non-zero hit was an episode about a different follow-up (PR 4296 memory follow-up, a subprocess encoding change). No memory records a decision about issue provenance, agent-filed issues, or a backlog cap.
 - ADR-020 (feature-request review step), status proposed, implemented false, dated 2025-12-19: designs an intake review step on issue open where the analyst agent evaluates a feature request before it is worked. Same shape as the repo-side gate this spec recommends; never implemented.
-- Chesterton pass on `.claude/skills/github/scripts/issue/new_issue.py`: callers are the research skill, the retrospective agent template and its three copies, `scripts/github_core/api.py`, `scripts/ci/ruleset_context_drift.py`, and the github skill references. No ADR governs who may create an issue. Git history in this checkout is shallow (one visible commit), so the archaeology is partial.
+- Chesterton pass on [`.claude/skills/github/scripts/issue/new_issue.py`](../../.claude/skills/github/scripts/issue/new_issue.py): callers are the research skill, the retrospective agent template and its three copies, [`scripts/github_core/api.py`](../../scripts/github_core/api.py), [`scripts/ci/ruleset_context_drift.py`](../../scripts/ci/ruleset_context_drift.py), and the github skill references. No ADR governs who may create an issue. Git history in this checkout is shallow (one visible commit), so the archaeology is partial.
 
 ### Connected context from prior-art search
 
 Issue generators discovered that #5698 does not name. Adjudicated in-scope (acknowledged as part of this spec's scope) because each is a door the provenance rule must cover:
 
-- **adr-review deferral protocol**, `.claude/skills/adr-review/references/issue-resolution.md:15`: "Deferred P1 items MUST be backlogged as GitHub issues." A MUST that manufactures issues to clear a gate.
+- **adr-review deferral protocol**, [`.claude/skills/adr-review/references/issue-resolution.md:15`](../../.claude/skills/adr-review/references/issue-resolution.md#L15): "Deferred P1 items MUST be backlogged as GitHub issues." A MUST that manufactures issues to clear a gate.
 
-- **qa agent CONDITIONAL verdict**, `.claude/agents/qa.md:585`: "A CONDITIONAL verdict must cite the follow-up issue number that will close the gap." Passing QA requires filing an issue.
+- **qa agent CONDITIONAL verdict**, [`.claude/agents/qa.md:585`](../../.claude/agents/qa.md#L585): "A CONDITIONAL verdict must cite the follow-up issue number that will close the gap." Passing QA requires filing an issue.
 
-- **security agent CONDITIONAL verdict**, `.claude/agents/security.md:221`: "At most 3 MEDIUM findings remain with documented mitigations the implementer commits to land in a follow-up issue."
+- **security agent CONDITIONAL verdict**, [`.claude/agents/security.md:221`](../../.claude/agents/security.md#L221): "At most 3 MEDIUM findings remain with documented mitigations the implementer commits to land in a follow-up issue."
 
-- **security agent PIV gate**, `.claude/agents/security.md:398`: "CONDITIONAL clears the gate only when the verdict cites a follow-up issue number", repeated in the checklist at `.claude/agents/security.md:546` as "documented mitigations and a follow-up issue".
+- **security agent PIV gate**, [`.claude/agents/security.md:398`](../../.claude/agents/security.md#L398): "CONDITIONAL clears the gate only when the verdict cites a follow-up issue number", repeated in the checklist at [`.claude/agents/security.md:546`](../../.claude/agents/security.md#L546) as "documented mitigations and a follow-up issue".
 
-- **research skill**, `.claude/skills/research/SKILL.md:94`: calls `new_issue.py` at the end of every run; its description at `.claude/skills/research/SKILL.md:4` says "file the follow-up issue" by design.
+- **research skill**, [`.claude/skills/research/SKILL.md:94`](../../.claude/skills/research/SKILL.md#L94): calls `new_issue.py` at the end of every run; its description at [`.claude/skills/research/SKILL.md:4`](../../.claude/skills/research/SKILL.md#L4) says "file the follow-up issue" by design.
 
-- **task-decomposer agent**, `.claude/agents/task-decomposer.md:46`: "`gh issue create` for GitHub issues", raw gh, bypassing new_issue.py and any flag it grows.
+- **task-decomposer agent**, [`.claude/agents/task-decomposer.md:46`](../../.claude/agents/task-decomposer.md#L46): "`gh issue create` for GitHub issues", raw gh, bypassing new_issue.py and any flag it grows.
 
-- **GitHub workflows with `issues: write`**: 14 active files under `.github/workflows/` (drift-detection, ai-metrics-analysis, artifact-insight-scanner, quality-grades among them; two `.disabled` files excluded). They create issues under the github-actions login, already distinguishable by login.
+- **GitHub workflows with `issues: write`**: 13 files under `.github/workflows/` at HEAD on 2026-09-15 (ai-metrics-analysis, artifact-insight-scanner, claude, copilot-context-synthesis, drift-detection, milestone-tracking, post-pr-retrospective, pr-maintenance, pr-validation, pytest, quality-grades, ruleset-context-drift, software-engineering-library-activation; measured with a grep for `issues: write` over `.github/workflows/*.yml`). They create issues under the github-actions login, already distinguishable by login.
 
 Adjudicated out-of-scope: `claude.yml` (runs on issues.opened but only answers mentions; it is not a generator).
 
@@ -147,7 +147,7 @@ Open ontology question: whether "human" means the owner typed the request in a s
 
 1. **Door bypass.** An agent files through the MCP tool or raw gh and never sees `--source`. This session did exactly that three times (issues #5705 and two epic updates went through `mcp__github__issue_write`), and the two workflow runs that filed #5699 to #5709 used the same tool. A script-only gate covers a minority of real traffic. Early warning: an issue under the owner login with no `source:*` label. Prevention: repo-side labeler (AC-3).
 2. **Gate-clearing issues.** adr-review, qa, and security agents require an issue number to pass a verdict, so removing retrospective and backlog-generator leaves three generators that file to clear gates. Early warning: issues labeled `adr-followup` or cited in a CONDITIONAL verdict with no human in the thread. Prevention: AC-6.
-3. **Forged provenance.** An agent passes `--source human` because it shares the login. Early warning: `source:human` issues with agent-shaped bodies (six required headings, burst timing). Prevention: human means web-form or owner comment; the labeler treats an API-created issue as agent unless the body carries the form marker (AC-3), and the weekly report flags bursts (AC-7).
+3. **Forged provenance.** An agent passes `--source human` because it shares the login. Early warning: `source:human` issues with agent-shaped bodies (six required headings, burst timing). Prevention: the labeler treats an owner-login issue as agent unless the body carries the marker and the issue is not in a burst (AC-3), and the weekly report counts bursts (AC-7). Detective, not preventive; see Security.
 4. **Burst before label.** A task-decomposer run creates 5 issues in 6 seconds; the labeler runs after. Impact: seconds of unlabeled state; no data loss.
 5. **Reset closes a wanted item.** The #5704 close pass closes something the owner wanted. Prevention: keep list from the owner before any close; closed as not planned is reversible.
 6. **Retro gate removal loses learnings.** Retiring the push gate (#5709) means sessions that would have written a retro write nothing. Prevention: reflect at session stop is the replacement and must land in the same PR.
@@ -156,7 +156,9 @@ Open ontology question: whether "human" means the owner typed the request in a s
 
 ## Security
 
-Trust boundary: the IssueDoor. Everything inside a session runs under the owner's credentials, so the label is an assertion, not an authentication. Threats: an agent asserting `source:human` (mitigated by defaulting API-created issues to agent, AC-3); Step 0 answers carrying secrets into issue bodies (the spec skill's `redact_secrets.py` runs before any durable write; the issue script must run the same redactor on `--blocked-by` and `--signal`, AC-2); the weekly script reading with a token that can write (use a read-only token or the existing github_core helper's least-privilege path). No PII beyond the owner's login, which is already public on every issue.
+Trust boundary: the IssueDoor. Everything inside a session runs under the owner's credentials, so the label is an assertion, not an authentication. Threats: an agent asserting `source:human` by writing the marker under the shared login (mitigated, not removed: AC-3 defaults owner-login issues to agent, ignores the marker inside a burst, and AC-7 counts bursts weekly); Step 0 answers carrying secrets into issue bodies (the spec skill's `redact_secrets.py` runs before any durable write; the issue script must run the same redactor on `--blocked-by` and `--signal`, AC-2); the weekly script reading with a token that can write (use a read-only token or the existing github_core helper's least-privilege path). No PII beyond the owner's login, which is already public on every issue.
+
+Residual risk, recorded: under a shared login no in-band marker is unforgeable, the web-form field included, because an API caller can imitate any body. AC-3's burst rule and AC-7's weekly burst count are detective controls; the rule that agents never pass `--source human` or write the marker is preventive only as far as agents obey it. The one authenticated signal would be a second identity for agent sessions (a GitHub App or a machine user), which is outside this spec and recorded under Deferred.
 
 ## Observability
 
@@ -168,7 +170,7 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 
 1. The issue script shall refuse to create an issue unless `--source human` or `--source agent` is given, and shall apply the matching `source:*` label. (#5700)
 2. When `--source agent` is given, the issue script shall require `--blocked-by` and `--signal`, reject the canonical hedge phrases, run the secret redactor over both answers, and append a `## Step 0` block with Q3 and Q5 to the body. (#5700, redaction is NEW within #5700)
-3. NEW. When an issue is opened in rjmurillo/ai-agents by any door, a repository workflow shall label it `source:agent` unless the body carries a human marker or the author login is not the owner's, and shall label it `source:human` when the marker is present. The human marker is either the web-form's hidden field or the HTML comment `<!-- source:human -->` that the issue script writes only when invoked with `--source human`. The comment is forgeable by an agent that shares the login; the invariant that agents never pass `--source human` is a rule, and AC-7's burst count is the detector. (Amends #5700; the script becomes the friendly door and the workflow the enforcement point. Prior art: ADR-020's intake step. Interim decision recorded under Open questions item 3.)
+3. NEW. When an issue is opened in rjmurillo/ai-agents by any door, a repository workflow shall assign exactly one provenance label. `source:agent` when the author login ends in `[bot]` or is `github-actions`, or when the author is the owner and the body carries no human marker. `source:human` when the author is any other person, or when the author is the owner and the body carries a human marker. The human marker is the web-form's hidden field or the HTML comment `<!-- source:human -->` that the issue script writes only on `--source human`, and the workflow shall honor it only when the issue is not part of a burst (no other issue by the same login in the previous 10 minutes); a burst forces `source:agent` whatever the marker says. When the label is `source:agent` and the body carries no `## Step 0` block with `### Q3` and `### Q5` subheads, the workflow shall comment naming the missing answers, apply `needs-step-0`, and close the issue as not planned; reopening requires the answers in the body. Acceptance check, one probe issue per door: the script with `--source agent` and both answers stays open and labeled; the MCP tool, raw `gh issue create`, and a workflow-created issue without answers are closed with the comment; a non-owner web-form issue receives `source:human`; an owner issue with the marker inside a burst receives `source:agent`. The marker is forgeable by an agent that shares the owner login; the residual risk is recorded under Security. (Amends #5700; the script becomes the friendly door and the workflow the enforcement point for every door. Prior art: ADR-020's intake step. Interim decision recorded under Open questions item 3.)
 4. The retrospective agent shall write findings only to the retrospective file and shall never call an IssueDoor. (#5703)
 5. The backlog-generator agent shall not exist in any template, generated tree, catalog, or routing table. (#5701)
 6. NEW. The adr-review deferral protocol, the qa agent, the security agent, the research skill, and the task-decomposer agent shall not require or perform issue creation to clear a verdict or finish a run; a deferred or conditional item shall be recorded in the debate log, the PR body under "Noticed, not done", or the retro file. task-decomposer shall use the issue script with `--source agent` when the owner has asked it to decompose an epic, and never raw gh.
@@ -180,7 +182,7 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 12. builder-ethos.md shall contain the phrases "task selection is not the agent's to compress" and "may only flag, never file" (grep count 1 or more for each), and voice.md shall contain zero occurrences of "Worth a follow-up issue" and at least one occurrence of "PR body" inside its Ownership section. (#5699)
 13. Each of the 8 skills carrying `@CLAUDE.md` shall compile from a SKILL.md.tmpl, the generated file shall be byte-identical to the committed one, and the Copilot mirror shall contain no `{{` and no `@CLAUDE.md`. (#5706)
 14. The owner shall receive one triage sheet for the 228 open issues as a single epic comment, and no issue shall be closed before the owner's keep list is posted. (#5704)
-15. Every sub-issue of #5698 shall carry the six headings Context, Files to touch, Steps, Acceptance criteria, Verification commands, and Out of scope in that order, and every path listed under Files to touch shall exist in the tree at the time of filing (check: the haiku verifier's path-existence pass, recorded in the workflow journal for #5699 to #5709). This is user story 3's self-sufficiency claim, previously uncovered.
+15. Every one of the ten sub-issues of #5698 (#5699 to #5706, #5708, #5709) shall carry the six headings Context, Files to touch, Steps, Acceptance criteria, Verification commands, and Out of scope in that order, and every path listed under Files to touch shall exist in the tree at the time of filing (check: the haiku verifier's path-existence pass, recorded in the workflow journal for #5699 to #5709). This is user story 3's self-sufficiency claim, previously uncovered.
 
 ## Coverage evaluation (axis 1 through 5)
 
@@ -192,7 +194,7 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 
 **Completeness.** Gaps between the epic and the problem, each now a criterion: door bypass (AC-3), gate-clearing generators (AC-6), redaction of Step 0 answers (AC-2), a stop rather than a report (AC-8). One gap has no criterion: token spend itself. No telemetry in the repo records tokens per session or per PR (`.agents/metrics/` holds a Step 0 tally, an audit TSV, and dashboard templates; nothing token-shaped). The CostLedger measures issues and retros as proxies. Recorded under Open questions.
 
-**Traceability.** Sub-issue to criterion: #5699 AC-12; #5700 AC-1, AC-2, AC-3; #5701 AC-5; #5702 AC-7; #5703 AC-4; #5704 AC-14; #5705 AC-9; #5706 AC-13; #5708 AC-10; #5709 AC-11; all ten AC-15. Criteria with no sub-issue: AC-6, AC-8. AC-6 is the one the pre-mortem rates most likely to be skipped at build time, because it is the criterion that closes Failure mode 2 and nothing tracks it.
+**Traceability.** Sub-issue to criterion: #5699 AC-12; #5700 AC-1, AC-2, AC-3; #5701 AC-5; #5702 AC-7; #5703 AC-4; #5704 AC-14; #5705 AC-9; #5706 AC-13; #5708 AC-10; #5709 AC-11; all ten sub-issues (#5699 to #5706, #5708, #5709) AC-15. Criteria with no sub-issue: AC-6, AC-8. AC-6 is the one the pre-mortem rates most likely to be skipped at build time, because it is the criterion that closes Failure mode 2 and nothing tracks it.
 
 **Feasibility.** All criteria reuse existing code: the issue script, `check_citation_freshness.py`, doc-accuracy, generate_agents and generate_skills, lefthook. AC-3 is a small workflow under ADR-006 (logic in a Python script, YAML thin). AC-8 adds one branch to that script.
 
@@ -212,6 +214,7 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 | AC-6 as a sub-issue of #5698 (the generator sweep: adr-review deferral MUST, qa and security CONDITIONAL verdicts, research skill, task-decomposer raw gh) | owner |
 | Split #5698: provenance epic (AC-1 to AC-6, AC-14, AC-15) and a sibling epic for agent-selected spend (AC-9 to AC-13) | owner |
 | Whether "human" means web form only (verifiable) or also owner-typed session requests (asserted through the script's marker, forgeable). Interim rule in AC-3 until decided | owner |
+| A separate identity for agent sessions (GitHub App or machine user) so provenance is authenticated by login rather than asserted by a marker | owner |
 | ADR for the provenance rule under governance.md MUST 2, and whether ADR-020 is revived or superseded by it | owner and architect |
 | Always-on rules cut after #5706 | owner |
 
@@ -233,7 +236,7 @@ Run 2026-09-15 by the critic agent, read-only, against this file. Verdict REVISE
 | AC-8 is the only stop and is deferred | Left deferred, with the cost of deferral stated (about 4 net issues a day) |
 | AC-12 "shall agree" not falsifiable | Rewritten as grep counts |
 | User story 3's self-sufficiency has no criterion | AC-15 added |
-| Disabled workflows not excluded in the count | Noted in the generator table |
+| Workflow count | Re-measured at HEAD after the fast-forward: 13, corrected from 14 in the generator list |
 
 Pre-mortem, 2026-12-15, epic shipped and backlog still growing: (a) owner-typed issues defaulting to agent because the marker question was never settled; (b) AC-6 never built, so the three verdict-clearing generators keep filing; (c) AC-8 never adopted, so the weekly table reports 60 percent agent share for months with no brake.
 
@@ -251,4 +254,4 @@ Engineering tier: 4 (cross-cutting: rules, scripts, agents, hooks, build pipelin
 
 ## ADR cross-reference
 
-Tier 4 requires one. The provenance rule is a new governance rule under `.claude/rules/governance.md` MUST 2. Candidate: revive ADR-020 (proposed, unimplemented, same shape) as the intake decision, amended to cover provenance and the labeler, rather than a new number. adr-review verdict: not yet run. Bidirectional link: this spec to ADR-020; ADR-020 to #5698.
+Tier 4 requires one. The provenance rule is a new governance rule under [`.claude/rules/governance.md`](../../.claude/rules/governance.md) MUST 2. Candidate: revive ADR-020 (proposed, unimplemented, same shape) as the intake decision, amended to cover provenance and the labeler, rather than a new number. adr-review verdict: not yet run. Bidirectional link: this spec to ADR-020; ADR-020 to #5698.
