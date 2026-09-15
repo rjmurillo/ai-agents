@@ -193,3 +193,5 @@ with equal safety. Never proceed with the change before the search is logged.
 - [references/agent-integration.md](references/agent-integration.md): multi-agent
   integration patterns, including the Memory-First Decision Making workflow this
   gate enforces
+- [references/contradiction-log.md](references/contradiction-log.md): when and how
+  to log a first-principles finding that contradicts conventional wisdom

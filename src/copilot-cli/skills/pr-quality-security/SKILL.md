@@ -45,9 +45,21 @@ paraphrase it from memory: read it, then judge the diff against what it says.
 ## Process
 
 1. Run `git branch --show-current` to name the current branch.
-2. Resolve the base branch from `$ARGUMENTS`, defaulting to `main`.
-3. Run `git diff "<base_branch>" --name-only` to list the changed files.
-4. Run `git diff "<base_branch>"` to read the full diff.
+2. Resolve the base branch from `$ARGUMENTS`, defaulting to `main`. Reject an
+   empty value or one starting with `-` (Git parses a leading dash as an
+   option, not a ref), then resolve it to a commit with
+   `BASE_SHA=$(git rev-parse --verify --quiet "<base_branch>^{commit}")`. An
+   unresolved or rejected ref is a hard stop: report it and do not fall back
+   to an empty diff. Use `$BASE_SHA` in every git command below, not the
+   branch name: the branch can move between this step and a later diff, and
+   the SHA cannot.
+3. Build the changed-file list from tracked changes
+   (`git diff "$BASE_SHA" --name-only`) plus untracked files
+   (`git ls-files --others --exclude-standard`); the local review scope is
+   uncommitted changes, and a tracked-only diff misses a change set that is
+   entirely new files. Read each untracked file's full content directly, since
+   it carries no diff against the base.
+4. Run `git diff "$BASE_SHA"` to read the full diff of tracked changes.
 5. Judge the diff against every criterion in the axis file. Findings are
    additive: a criterion that fails does not end the pass, because the author
    needs the whole list in one round rather than one finding per round.
@@ -75,7 +87,9 @@ Then emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-out
 ## Verification
 
 - [ ] The axis file was read this run, not recalled
-- [ ] The diff was taken against the resolved base branch, not against `HEAD~1`
+- [ ] The diff was taken against `$BASE_SHA`, not the base branch name or `HEAD~1`
+- [ ] The base ref was rejected if empty or leading-dash, and resolved to `$BASE_SHA` before any `git diff`
+- [ ] Untracked files were included in the changed-file list, not only the tracked diff
 - [ ] Every criterion in the axis file was judged, including the ones that passed
 - [ ] Each finding names a file and a line, not a general concern
 - [ ] The verdict block is the first thing emitted, with no preamble
@@ -89,7 +103,7 @@ Then emit a fenced JSON block conforming to `.agents/schemas/pr-quality-gate-out
 | Judging from memory of the axis | The criteria change and the recalled version is the one that was true once | Read `@.github/prompts/pr-quality-gate-security.md` every run |
 | A finding with no file and line | The author cannot act on it, so it reads as an opinion and gets skipped | Cite `path:line` and quote the offending span |
 | A preamble before the verdict | The block is parsed by `pr-quality-all` and by CI, so leading prose breaks the merge | Emit `VERDICT:` first, every time |
-| PASS on a diff you could not read | An unread diff is an unmeasured one, and PASS says the opposite | Emit CRITICAL_FAIL or UNKNOWN and name what blocked the read |
+| PASS on a diff you could not read | An unread diff is an unmeasured one, and PASS says the opposite | Emit CRITICAL_FAIL and name what blocked the read |
 
 ## Extension Points
 

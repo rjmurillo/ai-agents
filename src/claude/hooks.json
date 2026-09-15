@@ -1,0 +1,4 @@
+{
+  "description": "Plugin hooks for project-toolkit. Every registration routes through invoke_dispatch_claude.py (one process per (event, matcher) group, issue #3075); membership lives in dispatch_groups.json (plugin-* groups). Inside a checkout of the repo that publishes this plugin, the dispatcher exits immediately so hooks do not double-fire with .claude/settings.json.",
+  "hooks": {}
+}

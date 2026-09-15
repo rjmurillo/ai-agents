@@ -25,5 +25,7 @@
 # pilot-scope test pins which names may. Widening either needs owner review.
 /templates/skills/                                            @rjmurillo
 /templates/agents/                                            @rjmurillo
+/templates/rules/                                             @rjmurillo
+/templates/hooks/                                             @rjmurillo
 /templates/platforms/                                         @rjmurillo
 /tests/build_scripts/test_skill_templates_pilot_scope.py      @rjmurillo

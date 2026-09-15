@@ -51,6 +51,14 @@ owned it.
    disposition`, `### Terminal predicate`, and `### Reactivation`. The
    terminal predicate reads, verbatim:
 
+   Amended under epic #5456 M4 (2026-09-15): the five headers stay in
+   `builder-ethos.md`, but the bodies of `### Forming the contract` and
+   `### Reactivation` now live in the `avoiding-manufactured-work` skill
+   (sections Forming The Contract and Reactivation), each header keeping a
+   one-sentence pointer. `### Precedence`, `### Finding disposition`, and
+   `### Terminal predicate` remain always-on and unchanged. The predicate
+   and the precedence line quoted below are still the binding text.
+
    > When every requested deliverable satisfies the frozen task contract and no blocker remains, the current task is terminal. Stop autonomous work.
 
    The precedence line reads, verbatim (fenced rather than block-quoted because the line itself uses `>` as its ranking operator):

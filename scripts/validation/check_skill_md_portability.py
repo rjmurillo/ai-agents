@@ -274,18 +274,21 @@ _DEFAULT_BASELINE_NAME = "skill_md_portability_baseline.json"
 MARKDOWN_SUFFIX = ".md"
 
 # Plugin roots whose ``skills/`` tree ships to a consumer. Order fixes the scan
-# order so a regenerated baseline stays diff-stable. ``src/claude`` is listed
-# even though it has no skills tree today, because the cost of naming it is one
-# line and the cost of omitting it is a silently unratcheted root the day one
-# appears.
+# order so a regenerated baseline stays diff-stable. ``src/claude`` gained a
+# skills tree at ADR-109 B3 (``src/claude/skills/``, the skills class's
+# plugin tree); it was listed here even before that landed, because the cost
+# of naming it early is one line and the cost of omitting it is a silently
+# unratcheted root the day one appears.
 PLUGIN_ROOTS: tuple[str, ...] = (".claude", "src/claude", "src/copilot-cli")
 
 # Roots whose skills tree must exist. A missing tree here is a broken checkout
 # or a moved directory, not a legitimate absence, and scanning around it would
 # reintroduce exactly the blind spot issue #3578 closed: the run reports clean
-# while a whole shipped root goes unread. `src/claude` is deliberately absent
-# from this set because it ships agents and rules and has no skills tree today.
-REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/copilot-cli"})
+# while a whole shipped root goes unread. ADR-109 B3 gave `src/claude` a
+# skills tree (`src/claude/skills/`, the skills class's plugin tree), so it
+# joined this set the same commit that tree first appeared; before B3 it was
+# deliberately absent because `src/claude` shipped only agents and rules.
+REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/claude", "src/copilot-cli"})
 
 # Non-skills directories that also ship to consumers or generate shipped output
 # and carry upstream-path prose. ``templates/agents`` generates Copilot CLI

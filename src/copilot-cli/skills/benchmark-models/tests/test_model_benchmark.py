@@ -424,6 +424,32 @@ class TestDryRunAndMain:
         rc = mb.main(["--prompt", "hi", "--models", "claude", "--dry-run"])
         assert rc == 0 and "dry-run" in capsys.readouterr().out
 
+    def test_main_dry_run_removes_default_temp_workdir(self, monkeypatch, capsys):
+        monkeypatch.setattr(mb.ClaudeAdapter, "available", lambda self: (True, None))
+        created = {}
+        real_mkdtemp = mb.tempfile.mkdtemp
+
+        def spy_mkdtemp(*args, **kwargs):
+            path = real_mkdtemp(*args, **kwargs)
+            created["path"] = path
+            return path
+
+        monkeypatch.setattr(mb.tempfile, "mkdtemp", spy_mkdtemp)
+        rc = mb.main(["--prompt", "hi", "--models", "claude", "--dry-run"])
+        capsys.readouterr()
+        assert rc == 0
+        assert "path" in created and not Path(created["path"]).exists()
+
+    def test_main_dry_run_keeps_caller_supplied_workdir(self, monkeypatch, capsys, tmp_path):
+        monkeypatch.setattr(mb.ClaudeAdapter, "available", lambda self: (True, None))
+        rc = mb.main([
+            "--prompt", "hi", "--models", "claude", "--dry-run",
+            "--workdir", str(tmp_path),
+        ])
+        capsys.readouterr()
+        assert rc == 0
+        assert tmp_path.exists()
+
     def test_main_table_output(self, monkeypatch, capsys):
         monkeypatch.setattr(mb, "run_benchmark",
                             lambda *a, **k: _report([mb.Entry("claude", "claude", result=mb.RunResult(output="o", model_used="claude-opus-4-8"), cost_usd=0.0)]))
@@ -609,3 +635,73 @@ class TestEdgeParses:
 
     def test_parse_providers_empty_segment(self):
         assert mb.parse_providers("claude,,gpt") == ["claude", "gpt"]
+
+
+# --------------------------------------------------------------------------- #
+# resolve_workdir - the throwaway-workdir contract (write-capable claude and
+# gemini adapters run with cwd=workdir, so a caller-selected checkout root or
+# cwd must be refused unless explicitly overridden)
+# --------------------------------------------------------------------------- #
+class TestResolveWorkdir:
+    def test_default_is_a_fresh_temp_dir(self):
+        workdir, err = mb.resolve_workdir(None, False)
+        assert err is None
+        assert Path(workdir).is_dir()
+        assert Path(workdir).name.startswith("benchmark-models-")
+
+    def test_default_returns_a_new_dir_each_call(self):
+        first, _ = mb.resolve_workdir(None, False)
+        second, _ = mb.resolve_workdir(None, False)
+        assert first != second
+
+    def test_missing_workdir_refused(self, tmp_path, capsys):
+        workdir, err = mb.resolve_workdir(str(tmp_path / "absent"), False)
+        assert err == 2
+        assert workdir == ""
+        assert "not an existing directory" in capsys.readouterr().err
+
+    def test_regular_file_workdir_refused(self, tmp_path):
+        target = tmp_path / "file.txt"
+        target.write_text("x")
+        workdir, err = mb.resolve_workdir(str(target), False)
+        assert err == 2
+        assert workdir == ""
+
+    def test_explicit_workdir_outside_repo_and_cwd_accepted(self, tmp_path):
+        workdir, err = mb.resolve_workdir(str(tmp_path), False)
+        assert err is None
+        assert workdir == str(tmp_path.resolve())
+
+    def test_cwd_workdir_refused(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.chdir(tmp_path)
+        workdir, err = mb.resolve_workdir(str(tmp_path), False)
+        assert err == 2 and workdir == ""
+        assert "current directory" in capsys.readouterr().err
+
+    def test_repo_root_workdir_refused(self, monkeypatch):
+        fake_repo = Path("/fake/repo/root")
+        monkeypatch.setattr(mb, "_repo_root", lambda: fake_repo)
+        workdir, err = mb.resolve_workdir(str(fake_repo), False)
+        assert err == 2 and workdir == ""
+
+    def test_repo_subdirectory_workdir_refused(self, monkeypatch):
+        fake_repo = Path("/fake/repo/root")
+        monkeypatch.setattr(mb, "_repo_root", lambda: fake_repo)
+        sub = fake_repo / "sub" / "dir"
+        workdir, err = mb.resolve_workdir(str(sub), False)
+        assert err == 2 and workdir == ""
+
+    def test_repo_subdirectory_workdir_allowed_with_flag(self, monkeypatch, tmp_path):
+        fake_repo = tmp_path / "repo"
+        sub = fake_repo / "sub" / "dir"
+        sub.mkdir(parents=True)
+        monkeypatch.setattr(mb, "_repo_root", lambda: fake_repo.resolve())
+        workdir, err = mb.resolve_workdir(str(sub), True)
+        assert err is None
+        assert workdir == str(sub.resolve())
+
+    def test_allow_cwd_workdir_overrides_the_refusal(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        workdir, err = mb.resolve_workdir(str(tmp_path), True)
+        assert err is None
+        assert workdir == str(tmp_path.resolve())

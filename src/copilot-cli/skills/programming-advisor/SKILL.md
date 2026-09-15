@@ -57,7 +57,7 @@ Search strategy (use web_search):
 1. `"{functionality} library {language}"`
 2. `"{functionality} open source"`
 3. `"{functionality} SaaS tool"`
-4. `"best {functionality} solution 2024"`
+4. `"best {functionality} solution"`
 5. `"{functionality} npm/pip/cargo package"` (based on ecosystem)
 
 Categorize findings:
@@ -278,7 +278,7 @@ I found [N] existing solutions before we write custom code:
 ### Libraries/Packages
 - **[Name]**: [one-line description] | [stars/downloads] | [link]
 
-### Open Source Tools  
+### Open Source Tools
 - **[Name]**: [one-line description] | [stars] | [link]
 
 ### SaaS Options
@@ -388,3 +388,5 @@ See [references/integration-patterns.md](references/integration-patterns.md) for
 See [references/pricing-data.md](references/pricing-data.md) for SaaS pricing and cost calculation data.
 
 See [references/bitter-lesson-llms.md](references/bitter-lesson-llms.md) for why simpler integrations with better models beat complex scaffolding.
+
+See [references/search-before-building.md](references/search-before-building.md) for when to trigger a search, the three layers of knowledge, and the pre-code self-review checklist.

@@ -96,7 +96,7 @@ The gate checks: the cited file must be tracked at HEAD, the cited lines must ex
 
 Everything else in this section remains manual. A claim that names a symbol, a test, or a count WITHOUT a line number is invisible to that gate, and two other gates look like they would catch it and do not:
 
-- `orphan-ref-validator` reports four kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-34` enumerates all of them:
+- `orphan-ref-validator` reports four kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-34` enumerates all of them: <!-- citation-freshness: ignore -- the checker harvests 'orphan-ref-validator' from this same sentence's file path as a spurious anchor, and the fenced code block's continuation-quote anchor carries this list's 2-space markdown indent, absent from the unindented module-level code at those lines; content verified present and correct at 28-34, 2026-09-14 -->
 
   ```python
   Kind = Literal[
@@ -126,28 +126,28 @@ Everything above says the canonical source is authoritative and a generated mirr
 
 The question is whether a rule loads on every agent turn. A rule is always-on when its **generated** `applyTo` resolves to `**`, so the answer lives in the generated tree.
 
-The two destination trees now agree, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`, and epic #5456 M4 moved `claude-model-patches` into the skills that do multi-step or Bash-heavy work:
+The two destination trees now agree, measured on this branch after issue #4871 rescoped `code-quality` and `pragmatic-programmer` to code files, issue #5492 narrowed `knowledge-persistence` out of the always-on set, PR #5498 dropped the jargon gloss list from `voice`, issue #5404 added the task-completion contract to `builder-ethos` and the completion-tail audit to `voice`, epic #5456 M4 moved `claude-model-patches` into the skills that do multi-step or Bash-heavy work, epic #5456 M4 folded `search-before-building` into the `programming-advisor`, `memory-search`, and `memory-gate` skills, and epic #5456 M4 folded `voice`'s Writing Style, Completeness Principle, and Confusion Protocol sections into the `spec`, `plan`, `review`, and `autoplan` skills:
 
 | Tree | Consumer | Always-on |
 |---|---|---|
-| `.github/instructions` | Copilot working in this repository | 4 rules, 50,912 bytes |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 4 rules, 50,912 bytes |
+| `.github/instructions` | Copilot working in this repository | 3 rules, 36,847 bytes |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | 3 rules, 36,847 bytes |
 
-The membership is identical: `builder-ethos`, `search-before-building`, `universal`, `voice`.
+The membership is identical: `builder-ethos`, `universal`, `voice`.
 
-Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same four rules measure 50,988 bytes at `.claude/rules/`, 76 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
+Those byte figures are whole generated files, frontmatter included, which is what a consumer actually loads. State the basis whenever you quote one. The same three rules measure 36,904 bytes at `.claude/rules/`, 57 more, because the generator rewrites the frontmatter on the way out: it drops `priority:` and turns `paths:` into `applyTo:`. A figure that disagrees with a fresh measurement by roughly that much is a basis mismatch rather than staleness.
 
 The Claude side answers the same question from the source, and it reads `paths:` alone. It ignores `applyTo:`, `globs:`, and `alwaysApply:`, all three of which `generate_rules.py` accepts, and each fails differently. `applyTo:` is remapped, so the mirror is scoped and only the Claude source leaks (`pragmatic-programmer`). `globs:` is preserved verbatim and never becomes `applyTo:`, so neither tree is scoped. `alwaysApply:` is dropped before the generator synthesizes `applyTo: '**'`, so both trees load universally and a code-only rule cannot state its scope (`code-quality`). Between them, 25,527 bytes loaded on every doc-only session (issue #4871). `check_rule_scope_keys.py`, under the validation-scripts tree, now fails the build on any scope key but `paths:`, which is what keeps the source-side and mirror-side answers the same. The directory prefix is omitted for the same reason the citation-freshness gate's is above: this rule ships in the plugin instruction mirrors, where an upstream-only path would dangle.
 
-That agreement is recent and it is load bearing, so keep naming the tree with the number. Until issue #4317 closed, the generator universalized a rule whose scope was entirely internal, which made `governance`, `secret-redaction`, and `session-logs` always-on in the plugin and cost a vendor install 7,532 bytes a turn on three rules pointing at `.agents/` paths the installing repository does not have. PR #4426 replaced that fallback with an explicit skip, so those rules are now absent from the plugin tree rather than universalized in it. The plugin ships 23 instruction files against 29 in `.github/instructions`, and that gap is the fix rather than drift.
+That agreement is recent and it is load bearing, so keep naming the tree with the number. Until issue #4317 closed, the generator universalized a rule whose scope was entirely internal, which made `governance`, `secret-redaction`, and `session-logs` always-on in the plugin and cost a vendor install 7,532 bytes a turn on three rules pointing at `.agents/` paths the installing repository does not have. PR #4426 replaced that fallback with an explicit skip, so those rules are now absent from the plugin tree rather than universalized in it. The plugin ships 22 instruction files against 28 in `.github/instructions`, and that gap is the fix rather than drift.
 
 `tests/validation/test_always_on_corpus_claims.py` pins the two trees together and pins the figures on this page against a live measurement, so both the convergence and the numbers quoting it are guarded invariants. Re-measure before changing a number here, and expect the guard to fail if you change one without the other.
 
 `build/scripts/generate_rules.py` reaches `applyTo: "**"` from four different source situations. Only the first is visible in the source file:
 
-1. **The source declares it.** `paths: ["**"]` or `applyTo: '**'`, renamed verbatim per the generator's contract at `build/scripts/generate_rules.py:24`.
+1. **The source declares it.** `paths: ["**"]` or `applyTo: '**'`, renamed verbatim per the generator's contract at `build/scripts/generate_rules.py:24`. <!-- citation-freshness: ignore -- the two backtick spans in this sentence are illustrative YAML example values, not a verbatim reproduction of line 24's docstring prose ("rename paths: to applyTo: (verbatim value)"); the checker judges them as anchors against that line regardless; content verified present and correct at line 24, 2026-09-14 -->
 2. **The source declares `alwaysApply: true` and no path scope.** Line 25 drops `alwaysApply:`, leaving no scope, so situation 3 applies. `_has_path_scope` at line 209 reads only the path-scope keys, so `alwaysApply` never counts as a scope.
-3. **The source declares no scope at all.** Situations 2 and 3 share one branch, `build/scripts/generate_rules.py:338-341`:
+3. **The source declares no scope at all.** Situations 2 and 3 share one branch, `build/scripts/generate_rules.py:345-348`: <!-- citation-freshness: ignore -- the continuation-quote anchor the checker harvests here is only the code fence marker itself ("```python"), not the code that follows it, so no anchor can ever match; content verified present and correct at 345-348, 2026-09-14 -->
 
    ```python
    if not had_scope and "applyTo" not in result:
@@ -156,7 +156,7 @@ That agreement is recent and it is load bearing, so keep naming the tree with th
        result = {"applyTo": _UNIVERSAL_SCOPE, **result}
    ```
 
-4. **The source declares a scope whose globs are all filtered as internal-only.** This case no longer reaches `**`. `build/scripts/generate_rules.py:342-344` skips the rule instead:
+4. **The source declares a scope whose globs are all filtered as internal-only.** This case no longer reaches `**`. `build/scripts/generate_rules.py:342-344` skips the rule instead: <!-- citation-freshness: ignore -- the continuation-quote anchor the checker harvests here is only the code fence marker itself ("```python"), not the code that follows it, so no anchor can ever match; content verified present and correct at 342-344, 2026-09-14 -->
 
    ```python
    applyto_value = result.get("applyTo")
@@ -164,7 +164,7 @@ That agreement is recent and it is load bearing, so keep naming the tree with th
        return _SCOPE_SKIPPED
    ```
 
-   This one is **destination-dependent**. `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions` under `keepInternalGlobsFor`, which disables the filter for that tree, so the skip cannot fire there and the in-repo Copilot agent keeps rules it needs for editing `.claude/` and `.agents/`. It fires only for `src/copilot-cli/instructions`, which is why the plugin ships fewer instruction files than `.github/instructions`. The generator reports the count as `Skipped (all-internal scope)` and prunes any artifact it previously emitted.
+   This one is **destination-dependent**. `templates/platforms/copilot-cli.yaml:49-50` lists `.github/instructions` under `keepInternalGlobsFor`, which disables the filter for that tree, so the skip cannot fire there and the in-repo Copilot agent keeps rules it needs for editing `.claude/` and `.agents/`. It fires only for `src/copilot-cli/instructions`, which is why the plugin ships fewer instruction files than `.github/instructions`. The generator reports the count as `Skipped (all-internal scope)` and prunes any artifact it previously emitted.
 
 Situations 3 and 4 leave no source line to grep for. Situation 4 used to fall back to `**`, which inverted intent: narrowing a rule to `.claude/**` read like a reduction in scope and silently widened it to every turn in the shipped plugin. Issue #4317 tracked that inversion and PR #4426 fixed it by skipping rather than universalizing. The generator still prints `WARNING: dropped internal-only glob from applyTo` to stderr per dropped glob, and nobody reads stderr during a build, so trust the skip count and the file count over the warnings.
 

@@ -181,19 +181,19 @@ class TestFindLatestRetrospective:
         os.utime(old, (1000, 1000))
         os.utime(new, (2000, 2000))
 
-        result = invoke_context_loader._find_latest_retrospective(retro_dir)
+        result = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path)
         assert result is not None
         assert result.name == "2025-06-15-retro.md"
 
     def test_returns_none_on_empty_dir(self, tmp_path: Path) -> None:
         retro_dir = tmp_path / "retros"
         retro_dir.mkdir()
-        result = invoke_context_loader._find_latest_retrospective(retro_dir)
+        result = invoke_context_loader._find_latest_retrospective(retro_dir, tmp_path)
         assert result is None
 
     def test_returns_none_on_missing_dir(self, tmp_path: Path) -> None:
         result = invoke_context_loader._find_latest_retrospective(
-            tmp_path / "nonexistent"
+            tmp_path / "nonexistent", tmp_path
         )
         assert result is None
 

@@ -1,0 +1,186 @@
+---
+name: decision-critic
+version: 1.0.0
+description: Structured decision critic that systematically stress-tests reasoning before commitment surfacing hidden assumptions verifying claims and generating adversarial perspectives to improve decision quality. Do NOT use to surface failure risks pre-launch (use pre-mortem) or to probe why a constraint exists (use chestertons-fence).
+license: MIT
+---
+
+# Decision Critic
+
+When this skill activates, you become a structured decision critic. Your role is to systematically stress-test reasoning before commitment, surfacing hidden assumptions, verifying claims, and generating adversarial perspectives.
+
+## Triggers
+
+Activate when the user:
+
+- `Validate my thinking on...`
+- `Poke holes in this decision`
+- `Criticize this approach`
+- `Stress-test this tradeoff`
+- Presents a decision rationale and asks for criticism
+
+## Process
+
+```
+DECOMPOSITION (1-2)    Extract claims, assumptions, constraints, judgments
+        |              Assign stable IDs (C1, A1, K1, J1)
+        v
+VERIFICATION (3-4)     Generate verification questions
+        |              Answer independently (factored verification)
+        v              Mark: VERIFIED | FAILED | UNCERTAIN
+CHALLENGE (5-6)        Contrarian perspective + alternative framing
+        |
+        v
+SYNTHESIS (7)          Verdict: STAND (clean or flagged) | REVISE | ESCALATE
+```
+
+## Scripts
+
+### decision-critic.py
+
+```bash
+python3 .claude/skills/decision-critic/scripts/decision-critic.py \
+  --step-number <1-7> \
+  --total-steps 7 \
+  --decision "<decision text>" \
+  --context "<constraints and background>" \
+  --thoughts "<your accumulated analysis, IDs, and status from all previous steps>"
+```
+
+**Exit Codes**:
+
+- 0: Successful completion
+- 1: Invalid arguments or missing required parameters
+- 2: Analysis failed or incomplete
+
+| Argument        | Required | Description                                                 |
+| --------------- | -------- | ----------------------------------------------------------- |
+| `--step-number` | Yes      | Current step (1-7)                                          |
+| `--total-steps` | Yes      | Always 7                                                    |
+| `--decision`    | Step 1   | The decision statement being criticized                     |
+| `--context`     | Step 1   | Constraints, background, system context                     |
+| `--thoughts`    | Yes      | Your analysis including all IDs and status from prior steps |
+
+## When to Use
+
+Use this skill when:
+
+- Making a consequential decision that is hard to reverse
+- Evaluating a plan, ADR, or design before commitment
+- You want structured adversarial feedback, not just a second opinion
+
+Use the independent-thinker agent instead when:
+
+- You need strategic challenge on direction (whether, not how)
+- The question is about project scope or priorities, not technical reasoning
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Running critique after commitment | Too late to change course | Critique before finalizing decisions |
+| Accepting STAND verdict without reading analysis | Misses nuanced findings | Review all UNCERTAIN and FAILED items |
+| Skipping the inversion step | Misses failure modes that forward reasoning overlooks | Always run Steps 5-6 |
+| Using for trivial decisions | Wastes time on low-stakes choices | Reserve for consequential, hard-to-reverse decisions |
+
+## Verification
+
+After execution:
+
+- [ ] All claims have status: VERIFIED, FAILED, or UNCERTAIN
+- [ ] Contrarian perspective generated (Step 5)
+- [ ] Final verdict is one of: STAND (clean or flagged), REVISE, ESCALATE. A STAND is flagged (capped, not clean) when the rewrite-regression check answered questions 1 through 4 but left question 5 (institutional incentive) unanswered
+- [ ] Inversion analysis covers at least 3 failure modes
+- [ ] Rewrite-regression check applied as a halt criterion when the decision is a rewrite, refactor, or migration justified by improvement. Evaluate this check during verification (Steps 3 and 4), before settling on a verdict: a STAND verdict is not valid while the rewrite-regression halt is open. If the proposer can answer only the v0 win and not the baseline, the v1 projection, and the regression plan, HALT the decision: ESCALATE when only the v0 win exists, REVISE for partial-answer cases per the reference table, rather than rubber-stamp it. When questions 1 through 4 are answered but question 5 (the institutional incentive that produced the original problem) is not, cap the verdict at a flagged STAND, not a clean STAND: record the unaddressed friction as a flag instead of rubber-stamping a clean pass. See [Rewrite-Regression Check](references/rewrite-regression-check.md).
+
+## References
+
+- [Chesterton's Fence](references/mental-models-chestertons-fence.md) - Understand why something exists before removing or changing it
+- [Conway's Law](references/mental-models-conways-law.md) - System structure mirrors org communication structure; apply when a diff crosses a module boundary
+- [Gall's Law](references/mental-models-galls-law.md) - Complex working systems evolved from simple working systems
+- [Fat Tails](references/mental-models-fat-tails.md) - Extreme outcomes dominate fat-tailed domains; distrust averages and Gaussian risk metrics
+- [Boy Scout Rule](references/quality-boy-scout-rule.md) - Scope boundaries for incremental improvement decisions
+- [Brandolini's Law](references/critical-thinking-brandolinis-law.md) - Refutation costs more than assertion; allocate review burden by claim asymmetry
+- [Falsifiability](references/critical-thinking-falsifiability.md) - Reject claims with no measurable success criterion
+- [Survivorship Bias](references/critical-thinking-survivorship-bias.md) - Avoid drawing conclusions from winners while ignoring failures
+- [Systems Thinking](references/strategic-thinking-systems-thinking.md) - Trace second-order effects and feedback loops in decisions
+- [Rewrite-Regression Check](references/rewrite-regression-check.md) - Halt criterion for "v0 was faster, v1 is worse" rewrites
+
+## Academic Grounding
+
+This workflow synthesizes three empirically-validated techniques:
+
+1. **Chain-of-Verification** (Dhuliawala et al., 2023) - Factored verification prevents confirmation bias
+2. **Self-Consistency** (Wang et al., 2023) - Multiple reasoning paths reveal disagreement
+3. **Multi-Expert Prompting** (Wang et al., 2024) - Diverse perspectives catch blind spots
+
+## Inversion Thinking Protocol
+
+Before finalizing any decision, apply inversion to identify failure modes:
+
+### Step 1: State the Goal
+
+Clearly articulate what success looks like.
+
+Example: "Make the agent system reliable and maintainable"
+
+### Step 2: Invert the Goal
+
+Flip it to identify failure modes: "How would we ensure the agent system fails?"
+
+### Step 3: List Failure Scenarios
+
+Brainstorm specific ways to achieve failure:
+
+- Remove all validation gates
+- Allow circular agent delegation
+- Make handoffs implicit
+- Hide dependencies
+- Skip documentation
+- No testing strategy
+
+### Step 4: Reverse to Success Criteria
+
+Convert each failure mode into a success criterion:
+
+- Failure: "No validation gates" → Success: "Automated validation at every phase"
+- Failure: "Circular delegation" → Success: "Clear hierarchy preventing loops"
+- Failure: "Implicit handoffs" → Success: "Explicit handoff protocol"
+
+### Step 5: Validate Decision Against Inverted Criteria
+
+Check if the decision being reviewed addresses each failure mode.
+
+**Output Template**:
+
+```markdown
+## Inversion Analysis
+
+### Goal
+
+[What success looks like]
+
+### Inverted Goal (Failure)
+
+[How to ensure failure]
+
+### Failure Modes
+
+1. [Failure mode 1]
+2. [Failure mode 2]
+3. [Failure mode 3]
+
+### Success Criteria (Reversed)
+
+1. [Success criterion 1 - addresses failure mode 1]
+2. [Success criterion 2 - addresses failure mode 2]
+3. [Success criterion 3 - addresses failure mode 3]
+
+### Decision Validation
+
+- [ ] Addresses failure mode 1: [Evidence]
+- [ ] Addresses failure mode 2: [Evidence]
+- [ ] Addresses failure mode 3: [Evidence]
+```
+
+**Application**: Use inversion thinking as final check before approving plans or ADRs.

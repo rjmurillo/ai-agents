@@ -175,3 +175,36 @@ def validate_agent_template_drift(repo_root: Path) -> bool:
     return _run_portability_validator(
         repo_root, "build/scripts/agent_templates.py", "", "--validate"
     )
+
+
+def validate_rule_template_drift(repo_root: Path) -> bool:
+    """Fail when a rendered src/claude/rules file differs from its template.
+
+    Wraps ``build/scripts/rule_templates.py --validate`` (ADR-109 B2), the
+    rules counterpart of :func:`validate_agent_template_drift` above: it
+    renders every ``templates/rules/<name>.md`` in memory and compares the
+    result, byte for byte, against the committed ``src/claude/rules/<name>.md``;
+    it never writes. Exit 0 covers "no template exists" and "every render
+    matches". Exit 1 or 2 names the drifted or malformed file, printed by
+    the shared runner.
+    """
+    return _run_portability_validator(
+        repo_root, "build/scripts/rule_templates.py", "", "--validate"
+    )
+
+
+def validate_hook_template_drift(repo_root: Path) -> bool:
+    """Fail when a rendered hooks-class file differs from its template.
+
+    Wraps ``build/scripts/hook_templates.py --validate`` (ADR-109 B4), the
+    hooks-and-settings counterpart of :func:`validate_rule_template_drift`
+    above: it byte-copies every ``templates/hooks/<name>`` in memory and
+    compares the result against the committed ``src/claude/hooks/<name>``
+    (or ``src/claude/hooks.json``, or ``.claude/settings.json`` for the
+    direct-rendered settings template); it never writes. Exit 0 covers "no
+    template exists" and "every render matches". Exit 1 or 2 names the
+    drifted or malformed file, printed by the shared runner.
+    """
+    return _run_portability_validator(
+        repo_root, "build/scripts/hook_templates.py", "", "--validate"
+    )

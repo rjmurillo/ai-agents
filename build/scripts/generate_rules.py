@@ -65,6 +65,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR.parent))
 
+import rule_templates  # noqa: E402
 from generate_agents_common import (  # noqa: E402
     format_frontmatter_yaml,
     parse_simple_frontmatter,
@@ -664,6 +665,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not config_path.is_file():
         print(f"Error: config not found: {config_path}", file=sys.stderr)
         return 2
+    compile_result = rule_templates.compile_all(
+        repo_root, validate=False, what_if=args.what_if
+    )
+    if compile_result.exit_code != 0:
+        return int(compile_result.exit_code)
     rc, _result = generate_rules(config_path, repo_root, what_if=args.what_if)
     return rc
 

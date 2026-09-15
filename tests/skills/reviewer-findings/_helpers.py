@@ -31,6 +31,20 @@ PLUGIN_ROOTS: dict[str, Path] = {
     "copilot-cli": REPO_ROOT / "src" / "copilot-cli",
 }
 
+# ADR-109 B3: src/claude/skills/ is the skills class's plugin tree, and
+# skill_templates.compile_all renders ONLY SKILL.md into it, never a skill's
+# references/ directory (that stays hand-maintained under .claude/skills/
+# and reaches src/copilot-cli/skills/ as a full mirror through
+# generate_skills.py). It is not added to PLUGIN_ROOTS above, permanently,
+# not just during migration: every test parametrized over PLUGIN_ROOTS reads
+# either a skill's SKILL.md or its references/*.md, and the latter can never
+# resolve there. SKILL_MD_ONLY_ROOTS is the narrower fact that IS true of
+# src/claude: it ships reviewer-findings' and pr-comment-responder's SKILL.md
+# files, so the converse-guard test subtracts it before comparing shipping
+# roots to PLUGIN_ROOTS, rather than either ignoring it (silently missing a
+# real root) or adding it to PLUGIN_ROOTS (breaking every reference test).
+SKILL_MD_ONLY_ROOTS: frozenset[str] = frozenset({"src/claude"})
+
 # Claude roots invoke a skill as Skill(skill="name"). The Copilot body
 # translation rewrites that same call to skill: "name". Both forms appear
 # inline inside backticks, so neither is anchored to the line start.

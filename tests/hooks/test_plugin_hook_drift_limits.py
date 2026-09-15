@@ -241,7 +241,12 @@ def test_registrations_accepts_duplicates_under_the_ceiling() -> None:
     entry = {"type": "command", "command": "guard.py"}
     hooks = {"PreToolUse": [{"matcher": "", "hooks": [entry] * 5}]}
 
-    assert model.registrations(hooks) == {("PreToolUse", "", "guard.py")}
+    found = model.registrations(hooks)
+    assert found is not None
+    assert len(found) == 1
+    event, matcher, unit = next(iter(found))
+    assert (event, matcher) == ("PreToolUse", "")
+    assert unit.startswith("guard.py:")
 
 
 # --- A registration must declare type "command" and a string command --------

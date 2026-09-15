@@ -116,6 +116,8 @@ if TYPE_CHECKING:
 _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
+import hook_templates  # noqa: E402
+
 # Matcher classification and shim-source generation.
 # Script-body manipulation (shim injection, ``__main__`` epilogue handling).
 from generate_hooks_body import (  # noqa: E402, F401
@@ -193,12 +195,26 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Standalone entry point: compiles ``src/claude/hooks/`` first, then mirrors it.
+
+    Without this, running ``generate_hooks.py`` on its own (rather than
+    through ``build_all.py``, which always runs ``hook_templates.compile_all``
+    ahead of every generator) reads ``.claude/hooks/`` sources that are stale
+    relative to a just-edited ``templates/hooks/`` template: it mirrors
+    whatever last landed in ``src/claude/hooks/``, not the current template,
+    silently regenerating unchanged Copilot hooks or failing outright when
+    that plugin tree has never been rendered. Mirrors
+    ``generate_rules.main``'s same fix for ``rule_templates.compile_all``.
+    """
     args = build_parser().parse_args(argv)
     repo_root = args.repo_root or _SCRIPT_DIR.parent.parent
     config_path = args.config or (repo_root / "templates" / "platforms" / "copilot-cli.yaml")
     if not config_path.is_file():
         print(f"Error: config not found: {config_path}", file=sys.stderr)
         return 2
+    compile_result = hook_templates.compile_all(repo_root, validate=False, what_if=args.what_if)
+    if compile_result.exit_code != 0:
+        return int(compile_result.exit_code)
     rc, _result = generate_hooks(config_path, repo_root, what_if=args.what_if)
     return int(rc)
 

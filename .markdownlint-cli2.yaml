@@ -219,9 +219,15 @@ ignores:
 # v0.23.1 supports this via the overrides[].filter + config mechanism
 # (documented in README "overrides" section). combine: merge ensures the
 # parent config is inherited and only the named rules are overridden.
+#
+# ADR-109 B3 added src/claude/skills/ as a third copy of the same content
+# (the skills class's plugin tree, byte-identical to .claude/skills/ once
+# binplaced): same source, same illustrative fences and harness-protocol
+# tags, so the same two rules are scoped off there too.
 overrides:
   - filter:
       - ".claude/skills/**"
+      - "src/claude/skills/**"
       - "src/copilot-cli/skills/**"
     config:
       MD040: false

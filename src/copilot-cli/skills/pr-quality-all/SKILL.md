@@ -41,12 +41,25 @@ If `$ARGUMENTS` names a branch, forward it to every axis. Otherwise default to
 ## Process
 
 1. Run `git branch --show-current` to name the current branch.
-2. Resolve the base branch from `$ARGUMENTS`, defaulting to `main`.
-3. Run `git diff "<base_branch>" --name-only | wc -l`. If it reports zero
-   changed files, emit PASS and stop; there is nothing for any axis to read.
-4. Invoke each axis through the `Skill` tool, forwarding the base branch:
-   `pr-quality-security`, `pr-quality-qa`, `pr-quality-analyst`,
-   `pr-quality-architect`, `pr-quality-devops`, `pr-quality-roadmap`.
+2. Resolve the base branch from `$ARGUMENTS`, defaulting to `main`. Reject an
+   empty value or one starting with `-` (Git parses a leading dash as an
+   option, not a ref), then resolve it to a commit with
+   `BASE_SHA=$(git rev-parse --verify --quiet "<base_branch>^{commit}")`. An
+   unresolved or rejected ref is a hard stop: report it and do not fall back
+   to an empty diff. Use `$BASE_SHA` for every base-dependent command below
+   and when forwarding to the axes: the branch can move between this step and
+   the last axis call, and the SHA cannot.
+3. Count changed files: tracked (`git diff "$BASE_SHA" --name-only`) plus
+   untracked (`git ls-files --others --exclude-standard`). If the combined
+   count is zero, emit PASS and stop; there is nothing for any axis to read.
+   A tracked-only count misses a change set that is entirely new files.
+4. Invoke each axis through the `Skill` tool, forwarding `$BASE_SHA` in place
+   of the original branch-name argument: `pr-quality-security`,
+   `pr-quality-qa`, `pr-quality-analyst`, `pr-quality-architect`,
+   `pr-quality-devops`, `pr-quality-roadmap`. Each axis re-resolves what it is
+   given with its own `git rev-parse --verify --quiet`; forwarding the SHA
+   makes that a no-op instead of a second, later resolution of a name that
+   may have moved.
 5. Parse each axis's `VERDICT: TOKEN` line. An axis that crashed or returned no
    parseable verdict is UNKNOWN, never PASS.
 6. Merge the six tokens with the table below, then emit the summary.
@@ -94,7 +107,9 @@ UNKNOWN a question mark.
 ## Verification
 
 - [ ] All six axes ran, or each absent one is reported UNKNOWN by name
-- [ ] Every axis received the same resolved base branch
+- [ ] Every axis received the same resolved base commit (`$BASE_SHA`), not the branch name
+- [ ] The base ref was rejected if empty or leading-dash, and resolved to `$BASE_SHA` before any `git diff`
+- [ ] The empty-change check counted untracked files, not only the tracked diff
 - [ ] The final verdict follows the merge table, not a judgement call
 - [ ] No axis returning UNKNOWN was rolled up into PASS
 - [ ] The table is the first thing emitted, with no preamble
@@ -107,7 +122,7 @@ UNKNOWN a question mark.
 | Stopping after the first CRITICAL_FAIL axis | The author gets one finding per round instead of the whole list, which is the iteration paradox this gate exists to avoid | Run all six, then merge |
 | Rolling UNKNOWN up into PASS | A crashed axis then reads as a clean one, so the gate is green exactly when it measured least | Let UNKNOWN downgrade, and name the axis that failed |
 | Re-deriving the merge rules here | Two copies of a table drift, and the copy in a prompt drifts first | Follow the canonical merge function; this page quotes it |
-| Running the axes on different bases | Six verdicts about six diffs do not merge into one answer | Resolve the base once and forward it verbatim |
+| Running the axes on different bases | Six verdicts about six diffs do not merge into one answer | Resolve the base to a commit once and forward that SHA, not the branch name |
 | Treating this as the pre-merge gate | It reads working changes, not the PR; `review` is the gate `ship` checks | Run this before pushing, and `review` before shipping |
 
 ## Extension Points
