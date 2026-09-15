@@ -89,11 +89,11 @@ Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` bo
 
 | You edited | Run | Then |
 |------------|-----|------|
-| `templates/agents/*.shared.md` | `uv run python build/generate_agents.py` then `uv run python build/scripts/build_all.py` (refreshes docs/agent-catalog.md) | commit template + all regenerated files. If the same agent exists in `src/claude/agents/`, hand-apply the equivalent edit there (ADR-036 manual sync; semantic drift CI is the only net). |
+| `templates/agents/*.shared.md` | `uv run python build/generate_agents.py` then `uv run python build/scripts/build_all.py` (refreshes docs/agent-catalog.md) | commit template + all regenerated files, including `src/claude/agents/` (generated, ADR-109 B1; never hand-edit it). |
 | `.claude/skills/<name>/SKILL.md` (hand-maintained) or `templates/skills/<name>.SKILL.md.tmpl` (template-owned; ADR-108, ADR-109), plus `.claude/rules/` | `uv run python build/scripts/build_all.py` | commit source or template, plus both rendered copies for a template-owned skill. No manifest edit (Phase 4) |
 | `.claude/hooks/` or `.claude/settings.json` | `uv run python build/scripts/build_all.py` | same as above. The `build-all-check` pre-push job in `lefthook.yml` re-runs `build_all.py --check` at `git push` time and blocks if any generated output (including shims under `src/copilot-cli/hooks/`) drifts, so regenerate BEFORE pushing. |
 | `scripts/hook_utilities/`, `scripts/github_core/`, `scripts/ai_review_common/` | `uv run python build/scripts/build_all.py` (writes both lib trees, binplaces `.claude/lib/`, B5) | One command; no manifest edit. |
-| `src/claude/` (deliberate manual change) | nothing to regenerate | nothing to bump; the manifest carries no version (Phase 4) |
+| `src/claude/AGENTS.md`, `src/claude/claude-instructions.template.md` (root-level, hand-maintained; no template) | nothing to regenerate | commit directly; not one of the 31 agent stems |
 
 Useful flags, verified against source:
 
