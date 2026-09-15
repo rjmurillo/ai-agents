@@ -377,3 +377,85 @@ def test_render_raises_unresolved_tag_error_when_output_still_carries_braces(
 
     with pytest.raises(skill_templates.UnresolvedTagError):
         skill_templates.render(tmpl, partials_dir)
+
+
+# Literal-brace escape tests (ADR-108, ADR-109 B2) ----
+
+
+def test_check_grammar_escaped_braces_are_protected() -> None:
+    r"""Escaped braces \{{ do not break grammar; unescaped {{ is still caught."""
+    # Escaped braces should pass
+    assert skill_templates.check_grammar(r"a \{{ b }} c") == []
+
+    # Unescaped should still fail
+    assert skill_templates.check_grammar("a {{ b }} c") != []
+
+
+def test_check_grammar_escape_and_partial_on_same_line_partial_not_standalone() -> None:
+    r"""When \{{ and {{> p}} share a line, partial is not standalone and reported."""
+    text = r"\{{ x }} {{> p}}" + "\n"
+    result = skill_templates.check_grammar(text)
+
+    # The partial tag is not on its own line, so it's disallowed
+    assert "{{> p}}" in result
+
+
+def test_render_escaped_github_actions_expression_yields_literal_braces(
+    tmp_path: Path,
+) -> None:
+    r"""Escape sequence \{{ in template renders as literal {{ with no NUL bytes."""
+    tmpl = write_template(tmp_path, "actions", r"run: $\{{ github.sha }}" + "\n")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+    partials_dir.mkdir(parents=True)
+
+    rendered = skill_templates.render(tmpl, partials_dir)
+
+    assert rendered == "run: ${{ github.sha }}\n"
+    assert "\x00" not in rendered
+
+
+def test_render_escape_inside_partial_file(tmp_path: Path) -> None:
+    r"""Escape sequence in partial file renders correctly."""
+    write_partial(tmp_path, "actions", r"run: $\{{ github.sha }}" + "\n")
+    tmpl = write_template(tmp_path, "sync", "{{> actions}}\n")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+
+    rendered = skill_templates.render(tmpl, partials_dir)
+
+    assert "{{ github.sha }}" in rendered
+    assert "\x00" not in rendered
+
+
+def test_render_unescaped_braces_still_raises_grammar_error(tmp_path: Path) -> None:
+    """Unescaped {{ is still a grammar error, not silently empty render."""
+    tmpl = write_template(tmp_path, "bad", "before {{ a }} after\n")
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+    partials_dir.mkdir(parents=True)
+
+    with pytest.raises(skill_templates.TemplateGrammarError):
+        skill_templates.render(tmpl, partials_dir)
+
+
+def test_render_symlinked_partial_is_ignored_raises_missing_partial(
+    tmp_path: Path,
+) -> None:
+    """Symlinked files under partials/ are ignored by _load_protected_partials.
+
+    When a partial is referenced via symlink, the symlink is not added to the
+    partials dict (only real files pass the ``if not path.is_symlink()`` filter).
+    This test uses a symlink to a nonexistent target so validation catches it
+    with MissingPartialError before chevron is called.
+    """
+    partials_dir = tmp_path / "templates" / "skills" / "partials"
+    partials_dir.mkdir(parents=True)
+
+    # Create a symlink to a nonexistent target
+    symlink_partial = partials_dir / "symlink.mustache"
+    symlink_partial.symlink_to(partials_dir / "does-not-exist.mustache")
+
+    # Template references the symlink
+    tmpl = write_template(tmp_path, "sync", "{{> symlink}}\n")
+
+    # Should raise MissingPartialError because the symlink target does not exist
+    with pytest.raises(skill_templates.MissingPartialError):
+        skill_templates.render(tmpl, partials_dir)

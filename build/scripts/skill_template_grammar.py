@@ -107,6 +107,27 @@ _SLUG = r"[a-z0-9]+(?:-[a-z0-9]+)*"
 _PARTIAL_TAG_RE = re.compile(rf"^\{{\{{>\s*({_SLUG})\s*\}}\}}$")
 _COMMENT_TAG_RE = re.compile(r"^\{\{!.*\}\}$", re.DOTALL)
 
+# Literal-brace escape (ADR-108, amended 2026-09-14 for ADR-109 B2). A
+# template or partial that must emit a literal ``{{`` (a GitHub Actions
+# ``${{ expr }}`` in a fenced example, for instance) writes ``\{{``. The
+# escape is swapped for a control-character marker before grammar checks
+# and before chevron sees the text, so it is never read as a tag and never
+# trips the post-render ``{{`` scan; the marker is swapped back to ``{{``
+# as the final step. NUL cannot appear in a Markdown source file, so the
+# marker cannot collide with template text.
+_LITERAL_BRACE_ESCAPE = "\\{{"
+_LITERAL_BRACE_MARKER = "\x00LBRACE\x00"
+
+
+def _protect_escapes(text: str) -> str:
+    r"""Replace every ``\{{`` with the marker so no reader treats it as a tag."""
+    return text.replace(_LITERAL_BRACE_ESCAPE, _LITERAL_BRACE_MARKER)
+
+
+def _restore_escapes(text: str) -> str:
+    """Turn every marker back into the literal ``{{`` the author asked for."""
+    return text.replace(_LITERAL_BRACE_MARKER, "{{")
+
 
 class TemplateGrammarError(Exception):
     """A template contains a tag outside the restricted grammar. Exit 2."""
@@ -130,7 +151,9 @@ class UnresolvedTagError(Exception):
 
 
 def _iter_tags(text: str) -> Iterator[re.Match[str]]:
-    yield from _TAG_RE.finditer(text)
+    # Callers that inspect match positions (``_is_standalone``) must scan
+    # the same protected text, so the protection happens here, once.
+    yield from _TAG_RE.finditer(_protect_escapes(text))
 
 
 def _is_standalone(text: str, match: re.Match[str]) -> bool:
@@ -146,6 +169,7 @@ def _is_standalone(text: str, match: re.Match[str]) -> bool:
     match, after stripping leading/trailing whitespace, must equal the
     matched tag text exactly.
     """
+    text = _protect_escapes(text)
     line_start = text.rfind("\n", 0, match.start()) + 1
     line_end = text.find("\n", match.end())
     if line_end == -1:
@@ -255,6 +279,24 @@ def _validate_partial_tree(
         )
 
 
+def _load_protected_partials(partials_dir: Path) -> dict[str, str]:
+    """Read every ``*.mustache`` under ``partials_dir`` with escapes protected.
+
+    chevron's ``partials_path`` reads partial files itself, which would hand
+    an unprotected ``\\{{`` straight to the tokenizer. Loading them here and
+    passing ``partials_dict`` keeps the escape contract identical for
+    templates and partials. Keys are slugs (file stem); nested partial
+    references resolve through the same dict.
+    """
+    if not partials_dir.is_dir():
+        return {}
+    return {
+        path.stem: _protect_escapes(path.read_text(encoding="utf-8", newline=""))
+        for path in sorted(partials_dir.glob(f"*.{_PARTIAL_EXT}"))
+        if not path.is_symlink()
+    }
+
+
 def render(tmpl_path: Path, partials_dir: Path) -> str:
     """Render one template to text, per the compile module's ``render`` contract.
 
@@ -271,15 +313,15 @@ def render(tmpl_path: Path, partials_dir: Path) -> str:
     text = tmpl_path.read_text(encoding="utf-8", newline="")
 
     _validate_partial_tree(text, partials_dir, source=tmpl_path, visited=frozenset())
+    text = _protect_escapes(text)
+    partials = _load_protected_partials(partials_dir)
 
     try:
         # chevron ships no type stubs (pyproject.toml's chevron.* mypy
         # override), so its return value is Any; str() pins the type this
         # function actually declares and is a no-op at runtime given
         # chevron.render always returns str.
-        rendered = str(
-            chevron.render(text, {}, partials_path=str(partials_dir), partials_ext=_PARTIAL_EXT)
-        )
+        rendered = str(chevron.render(text, {}, partials_dict=partials))
     except chevron.ChevronError as exc:
         # Not one of the module docstring's three named failure classes:
         # probed 2026-09-11 against chevron==0.14.0, an unclosed tag anywhere
@@ -296,4 +338,4 @@ def render(tmpl_path: Path, partials_dir: Path) -> str:
         raise UnresolvedTagError(
             f"{tmpl_path}: rendered output still contains an unresolved '{{{{' tag"
         )
-    return rendered
+    return _restore_escapes(rendered)
