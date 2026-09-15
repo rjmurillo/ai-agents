@@ -263,7 +263,23 @@ def _load_one_row(
     source_raw = str(entry.get("source") or "")
     source = _validate_path_field(repo_root, f"rows[{class_name}].source", source_raw)
 
-    plugin_tree_raw = entry.get("plugin_tree")
+    # Both fields are load-bearing nullable: `plugin_tree: null` (no plugin
+    # hop) and `install_tree: null` (no second binplace hop, ADR-109 B5)
+    # are legitimate, common row shapes, not the same thing as the key
+    # being absent entirely. `dict.get` collapses "explicit null" and
+    # "missing key" onto the same `None`, so a row that simply forgot the
+    # key silently validated as an intentional null instead of failing
+    # closed (PR #5787 review, install_tree half). Requiring the key to
+    # be present catches the malformed-row case for both fields, at zero
+    # cost to every row already written: every current row spells out
+    # both keys explicitly, null or a path.
+    for _field in ("plugin_tree", "install_tree"):
+        if _field not in entry:
+            raise BinplaceConfigError(
+                f"{manifest_path}: row {class_name!r} is missing `{_field}`"
+            )
+
+    plugin_tree_raw = entry["plugin_tree"]
     plugin_tree: Path | None = None
     if plugin_tree_raw is not None:
         plugin_tree = _validate_path_field(
@@ -271,7 +287,7 @@ def _load_one_row(
         )
         _raise_if_ancestor_symlinked(repo_root, f"rows[{class_name}].plugin_tree", plugin_tree)
 
-    install_tree_raw = entry.get("install_tree")
+    install_tree_raw = entry["install_tree"]
     install_tree: Path | None = None
     if install_tree_raw is not None:
         install_tree_str = str(install_tree_raw)

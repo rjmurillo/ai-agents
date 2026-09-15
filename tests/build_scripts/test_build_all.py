@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -19,6 +20,7 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import binplace_manifest  # noqa: E402
 import build_all  # noqa: E402
+import lib_mirror  # noqa: E402
 
 # Helpers --------------------------------------------------------------------
 
@@ -62,20 +64,30 @@ def _write_agent_template(templates_dir: Path, name: str) -> None:
 
 
 def _write_minimal_lib_sources(repo_root: Path) -> None:
-    """Stub the two file-shaped lib sources `_build_lib` fails closed on.
+    """Stub every lib source `_build_lib` fails closed on when absent.
 
     ADR-109 B5: `_build_lib` now always runs `lib_mirror.compile_all` for
-    the copilot-cli platform (no more `artifacts.lib` stanza gate), and
-    `lib_mirror.sync_file` fails closed when a registered source file is
-    missing (by design: a missing canonical source is a real bug, not a
-    silent skip). A synthetic test repo that never populates `scripts/`
-    would otherwise fail `run()`/`_run_generators` for a reason unrelated
-    to what the test actually exercises. The three whole-package sources
-    (`hook_utilities/`, `github_core/`, `ai_review_common/`) stay absent on
-    purpose: a missing package directory is only a warning, not an error.
+    the copilot-cli platform (no more `artifacts.lib` stanza gate). Both
+    `lib_mirror.sync_file` (missing registered file) and `sync_pair`
+    (missing registered package directory) fail closed by design: a
+    missing canonical source is a real bug (a deleted package left
+    stale mirrors shipping forever, PR #5787 review), not a silent skip.
+    A synthetic test repo that never populates `scripts/` would
+    otherwise fail `run()`/`_run_generators` for a reason unrelated to
+    what the test actually exercises, so this stubs a minimal
+    (`__init__.py`-only) directory for each of `lib_mirror.PACKAGES` in
+    addition to the two file-shaped sources. A test that specifically
+    wants to exercise the missing-source path removes one stub itself
+    after calling this.
     """
+    for package in lib_mirror.PACKAGES:
+        pkg_dir = repo_root / "scripts" / package
+        pkg_dir.mkdir(parents=True, exist_ok=True)
+        init_file = pkg_dir / "__init__.py"
+        if not init_file.exists():
+            init_file.write_text("", encoding="utf-8")
+
     hook_utilities = repo_root / "scripts" / "hook_utilities"
-    hook_utilities.mkdir(parents=True, exist_ok=True)
     bootstrap = hook_utilities / "bootstrap.py"
     if not bootstrap.exists():
         bootstrap.write_text('"""Test bootstrap stub."""\n', encoding="utf-8")
@@ -544,14 +556,25 @@ def test_build_skills_check_mode_clean_template_still_runs_copy_loop(
 # _build_lib (ADR-109 B5) ----------------------------------------------------
 
 
-def test_build_lib_skips_for_non_copilot_platform(tmp_path: Path) -> None:
-    """The lib class is not platform-config driven; it compiles once."""
+def test_build_lib_ignores_platform_argument(tmp_path: Path) -> None:
+    """The lib class is not platform-config driven: it compiles regardless
+    of which config_path/platform string the run-once caller passes.
+
+    Before this fix, ``_build_lib`` gated on ``platform == "copilot-cli"``,
+    so a filtered ``--platform vscode`` (or any non-copilot-cli) run never
+    even attempted the lib compile, and ``--check`` could report clean
+    while `.claude/lib/` silently drifted from `scripts/` (PR #5787
+    review). It is now called once in the run-once block with a
+    placeholder ``"*"`` platform, so this asserts an arbitrary platform
+    string still triggers the real compile rather than a skip notice.
+    """
+    _write_minimal_lib_sources(tmp_path)
     cfg = tmp_path / "p.yaml"
     cfg.write_text('schemaVersion: "1.0"\nprovider: "p"\n')
-    result = build_all._build_lib(tmp_path, cfg, "p")
-    assert result.exit_code == 0
-    assert any("lib compiles once under copilot-cli; skipped" in n for n in result.notices)
-    assert not (tmp_path / "src" / "claude" / "lib").exists()
+    result = build_all._build_lib(tmp_path, cfg, "vscode")
+    assert result.exit_code == 0, result.notices
+    assert not any("skipped" in n for n in result.notices)
+    assert (tmp_path / "src" / "claude" / "lib" / "hook_utilities" / "__init__.py").is_file()
 
 
 def test_build_lib_copies_packages_with_import_rewrite(tmp_path: Path) -> None:
@@ -579,20 +602,24 @@ def test_build_lib_copies_packages_with_import_rewrite(tmp_path: Path) -> None:
         assert not (out / "__pycache__").exists()
 
 
-def test_build_lib_warns_when_package_source_missing(tmp_path: Path) -> None:
-    """A missing whole-package source is a warning, not a fatal error.
+def test_build_lib_fails_closed_when_package_source_missing(tmp_path: Path) -> None:
+    """A deleted whole-package source is a fatal error, not a warning.
 
-    ``_write_minimal_lib_sources`` stubs the two file-shaped sources only
-    (``bootstrap.py``, ``validate_review_marker.py``); none of the three
-    ``scripts/<pkg>/`` package directories exist in a bare tmp_path repo, so
-    every one of them hits the missing-source-directory path.
+    A missing registered package directory used to warn and leave its old
+    mirror content untouched, so a deleted package's stale code could ship
+    forever with `--check` reporting clean (PR #5787 review). It now fails
+    closed the same way a missing registered single file already did.
     """
     _write_minimal_lib_sources(tmp_path)
+    shutil.rmtree(tmp_path / "scripts" / "github_core")
     cfg = tmp_path / "p.yaml"
     cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
     result = build_all._build_lib(tmp_path, cfg, "copilot-cli")
-    assert result.exit_code == 0
-    assert any("Source directory missing: scripts/github_core" in n for n in result.notices)
+    assert result.exit_code == 2
+    assert any(
+        "Registered source directory missing: scripts/github_core" in n
+        for n in result.notices
+    )
 
 
 def test_build_lib_fails_closed_on_missing_file_source(tmp_path: Path) -> None:
@@ -626,6 +653,45 @@ def test_build_lib_removes_stale_package_files(tmp_path: Path) -> None:
     for root in ("src/claude/lib", "src/copilot-cli/lib"):
         assert not (tmp_path / root / "hook_utilities" / "stale.py").exists()
         assert (tmp_path / root / "hook_utilities" / "__init__.py").is_file()
+
+
+def test_run_platform_filter_still_compiles_lib(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ``--platform`` filter that excludes copilot-cli.yaml must not skip lib.
+
+    Before this fix, ``_build_lib`` only ran inside the per-platform
+    GENERATORS loop, gated on ``platform == "copilot-cli"``. A filtered
+    ``--platform vscode`` run then never selected the copilot-cli.yaml
+    config at all, so the lib compile silently never ran and ``--check``
+    could report clean over a stale `.claude/lib/` (PR #5787 review). lib
+    now runs once, unconditionally, in the run-once block, so a run
+    filtered to a different platform must still produce lib output.
+    """
+    monkeypatch.setattr(build_all, "_git_diff_paths", lambda repo_root: [])
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    _write_skill(repo / ".claude" / "skills", "alpha")
+    _write_minimal_lib_sources(repo)
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    _write_platform_with_skills(repo, provider="vscode")
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+
+    rc = build_all.run(
+        repo, platform="vscode", check=False, clean=False, audit_format="md"
+    )
+
+    assert rc == 0
+    assert (repo / "src" / "claude" / "lib" / "hook_utilities" / "__init__.py").is_file()
+    audit = repo / "build" / "audit" / "GENERATION-AUDIT.md"
+    assert "| lib | * |" in audit.read_text()
 
 
 # CLI integration -----------------------------------------------------------
@@ -1483,13 +1549,22 @@ def test_run_check_clean_when_untracked_outside_owned_prefix(
     )
     (repo / "scratch.md").write_text("notes\n")  # untracked, outside owned
 
-    # Stub the agents generator AND swap GENERATORS to a no-op list so the
-    # only untracked path the gate could see is scratch.md (outside owned).
+    # Stub the agents and lib generators (both called by name in the
+    # run-once block, ADR-109 B5, so patching GENERATORS alone no longer
+    # reaches lib) AND swap GENERATORS to a no-op list so the only
+    # untracked path the gate could see is scratch.md (outside owned).
     monkeypatch.setattr(
         build_all,
         "_build_agents",
         lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
             artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    monkeypatch.setattr(
+        build_all,
+        "_build_lib",
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
+            artifact="lib", platform="*", exit_code=0
         ),
     )
     monkeypatch.setattr(build_all, "GENERATORS", [("agents", build_all._build_agents)])

@@ -166,6 +166,42 @@ def test_load_rejects_install_tree_not_under_prefix(tmp_path: Path) -> None:
         binplace_manifest.load(root)
 
 
+def test_load_rejects_row_missing_install_tree_key(tmp_path: Path) -> None:
+    """load: a row that omits `install_tree` entirely is a config error, not a null.
+
+    `dict.get` collapses "explicit null" and "key absent" onto the same
+    `None`, so a malformed row that simply forgot the key used to validate
+    silently as an intentional no-second-hop row (`install_tree: null`) and
+    skip installation with no signal (PR #5787 review).
+    """
+    root = fake_repo(tmp_path)
+    write_manifest(
+        root,
+        "rows:\n"
+        "  - class: bad\n"
+        "    source: templates\n"
+        "    plugin_tree: src/claude/agents\n"
+    )
+
+    with pytest.raises(binplace_manifest.BinplaceConfigError, match="install_tree"):
+        binplace_manifest.load(root)
+
+
+def test_load_rejects_row_missing_plugin_tree_key(tmp_path: Path) -> None:
+    """load: a row that omits `plugin_tree` entirely is a config error, not a null."""
+    root = fake_repo(tmp_path)
+    write_manifest(
+        root,
+        "rows:\n"
+        "  - class: bad\n"
+        "    source: templates\n"
+        "    install_tree: .claude/agents\n"
+    )
+
+    with pytest.raises(binplace_manifest.BinplaceConfigError, match="plugin_tree"):
+        binplace_manifest.load(root)
+
+
 def test_claude_allowlist_empty_for_manifest_without_claude_rows(tmp_path: Path) -> None:
     """claude_allowlist: empty when no .claude/-rooted rows."""
     root = fake_repo(tmp_path)

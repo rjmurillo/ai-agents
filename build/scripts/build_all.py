@@ -399,7 +399,7 @@ def _build_rules(
     return result
 
 
-def _build_lib(repo_root: Path, config_path: Path, platform: str) -> GeneratorResult:
+def _build_lib(repo_root: Path, _config_path: Path, _platform: str) -> GeneratorResult:
     """Compile the lib plugin trees from their scripts/ canonical sources (ADR-109 B5).
 
     Hook scripts under `src/<provider>/hooks/<event>/` import
@@ -419,17 +419,18 @@ def _build_lib(repo_root: Path, config_path: Path, platform: str) -> GeneratorRe
     `build_all.py` run performs the whole `scripts/` -> plugin tree ->
     install tree chain (issue #2613's ordering hazard no longer applies).
 
-    Not gated on an `artifacts.lib` stanza: the lib class is not platform
-    config driven, so this runs once (config_path is unused) and reports
-    a notice for every platform but ``copilot-cli``, mirroring the prior
-    behavior where only `copilot-cli.yaml` carried an `artifacts.lib`
-    stanza and every other platform silently skipped.
+    Repo-level like ``_build_adr_index``, not per-platform: there is one
+    lib source and one pair of lib plugin trees, so ``_run_generators``
+    calls this in the run-once block (``configs`` may be filtered to a
+    single platform via ``--platform``, and a per-platform-loop callable
+    would then silently skip the lib compile entirely for every other
+    platform, letting ``--check`` report clean while a stale mirror sat
+    unexamined; issue caught on PR #5787 review). ``_config_path`` and
+    ``_platform`` are unused; the signature matches every other
+    ``GENERATORS`` entry so ``_run_generators`` can still call it by name
+    from the loop-skip set alongside agents/agent-catalog/adr-index.
     """
-    result = GeneratorResult(artifact="lib", platform=platform, exit_code=0)
-    if platform != "copilot-cli":
-        result.notices.append(f"{platform}: lib compiles once under copilot-cli; skipped")
-        return result
-
+    result = GeneratorResult(artifact="lib", platform="*", exit_code=0)
     outcome = lib_mirror.compile_all(repo_root)
     result.inputs = outcome.inputs
     result.outputs = outcome.outputs
@@ -562,11 +563,17 @@ def _build_hooks(
     return result
 
 
-# Order matters: agents → agent-catalog → adr-index → skills → rules → lib → hooks.
-# The skills generator copies .claude/skills/* first; rules write to a
-# separate dir (.github/instructions/); lib MUST land before hooks so the
-# manifest-walk-up bootstrap in shimmed hooks finds .claude-plugin/plugin.json
-# alongside lib/; hooks write src/copilot-cli/hooks/.
+# Order matters: agents → agent-catalog → adr-index → lib → skills → rules → hooks.
+# agents, agent-catalog, adr-index, and lib all run once, in the run-once
+# block below, not per platform (ADR-109 B5: lib is repo-level, one source,
+# one pair of plugin trees; a per-platform-loop callable would silently skip
+# it whenever `--platform` filters to one config). lib still logically
+# precedes skills/rules/hooks in this list for documentation: it MUST land
+# before hooks so the manifest-walk-up bootstrap in shimmed hooks finds
+# .claude-plugin/plugin.json alongside lib/; the run-once block already
+# guarantees that ordering since it completes before the per-platform loop
+# starts. The skills generator copies .claude/skills/* first; rules write to
+# a separate dir (.github/instructions/); hooks write src/copilot-cli/hooks/.
 #
 # A `commands` step sat between skills and rules until ADR-064 made skills the
 # single user-invocable surface and issue #5632 deleted the command-to-skill
@@ -577,9 +584,9 @@ GENERATORS: list[tuple[str, Callable[[Path, Path, str], GeneratorResult]]] = [
     ("agents", _build_agents),
     ("agent-catalog", _build_agent_catalog),
     ("adr-index", _build_adr_index),
+    ("lib", _build_lib),
     ("skills", _build_skills),
     ("rules", _build_rules),
-    ("lib", _build_lib),
     ("hooks", _build_hooks),
 ]
 
@@ -2165,6 +2172,7 @@ def _run_generators(
         _build_agents(repo_root, configs[0], "*", check=check),
         _build_agent_catalog(repo_root, configs[0], "*"),
         _build_adr_index(repo_root, configs[0], "*"),
+        _build_lib(repo_root, configs[0], "*"),
     ):
         audit.results.append(result)
         if result.exit_code != 0:
@@ -2174,7 +2182,7 @@ def _run_generators(
     for cfg in configs:
         platform_name = cfg.stem
         for artifact, fn in GENERATORS:
-            if artifact in {"agents", "agent-catalog", "adr-index"}:
+            if artifact in {"agents", "agent-catalog", "adr-index", "lib"}:
                 continue  # ran once above
             if artifact == "skills":
                 # See _build_skills docstring: threading `check` explicitly

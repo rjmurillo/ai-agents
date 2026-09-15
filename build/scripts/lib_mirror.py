@@ -161,12 +161,22 @@ def sync_pair(
     example) are left untouched: only `.py` files are ever read from the
     source or removed as stale, matching `scripts/sync_plugin_lib.py`'s
     original scope exactly.
+
+    A missing source directory fails closed (error, not warning): the
+    three packages in `PACKAGES` are registered, tracked sources that
+    always exist in a real checkout, so a missing one means the package
+    was deleted, not that it is legitimately optional. Warning and
+    leaving the destination mirrors untouched let a deleted package's
+    old code ship silently forever with `--check` reporting clean (PR
+    #5787 review); `sync_file`'s missing-registered-source case already
+    fails closed the same way, so this now matches it instead of being
+    the one inconsistent leniency in the module.
     """
     src_dir, dst_dir, errors = _resolve_pair(repo_root, src_rel, dst_rel)
     if errors:
         return errors, True
     if not src_dir.is_dir():
-        return [f"[WARNING] Source directory missing: {src_rel}"], False
+        return [f"[ERROR] Registered source directory missing: {src_rel}"], True
 
     changes: list[str] = []
     had_errors = False

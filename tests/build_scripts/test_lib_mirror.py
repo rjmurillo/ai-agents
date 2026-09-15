@@ -94,12 +94,18 @@ def test_sync_pair_removes_stale_py_but_keeps_non_py(tmp_path: Path) -> None:
     assert (dst / "keep.py").is_file()
 
 
-def test_sync_pair_missing_source_dir_is_warning_not_error(tmp_path: Path) -> None:
+def test_sync_pair_missing_source_dir_fails_closed(tmp_path: Path) -> None:
+    """A registered package directory that no longer exists is a hard error.
+
+    Matches sync_file's existing fail-closed behavior for a missing
+    registered source: leniency here would leave a deleted package's old
+    mirror content shipping silently forever (PR #5787 review).
+    """
     changes, had_errors = lib_mirror.sync_pair(
         tmp_path, "scripts/missing", "dst/missing", check_only=False
     )
-    assert had_errors is False
-    assert any("Source directory missing" in c for c in changes)
+    assert had_errors is True
+    assert any("Registered source directory missing" in c for c in changes)
 
 
 def test_sync_pair_rejects_source_escaping_repo_root(tmp_path: Path) -> None:
