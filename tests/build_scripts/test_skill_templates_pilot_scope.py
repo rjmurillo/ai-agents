@@ -71,6 +71,11 @@ PILOT: frozenset[str] = frozenset(
         "ai-agents-config-catalog",
         "ai-agents-diagnostics-toolkit",
         "ai-agents-generation-and-release",
+        "ai-agents-research-frontier",
+        "analysis-provenance",
+        "analyze",
+        "autoplan",
+        "benchmark-models",
     }
 )
 
