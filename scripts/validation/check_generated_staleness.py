@@ -351,7 +351,6 @@ def check_generated_staleness(repo_root: Path) -> _Status:
         print(
             "Read the check's output above for the cause. If it reports"
             " staleness or drift, regenerate and commit:\n"
-            "  uv run python scripts/sync_plugin_lib.py\n"
             "  uv run python build/scripts/build_all.py\n"
             "Otherwise fix the error the check itself reported; regenerating"
             " is not the remedy for a configuration or source failure.",
