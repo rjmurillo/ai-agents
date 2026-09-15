@@ -81,6 +81,11 @@ PILOT: frozenset[str] = frozenset(
         "buy-vs-build-framework",
         "chaos-experiment",
         "chestertons-fence",
+        "codebase-documenter",
+        "codeql-scan",
+        "code-qualities-assessment",
+        "context-gather",
+        "context-hub-setup",
     }
 )
 
