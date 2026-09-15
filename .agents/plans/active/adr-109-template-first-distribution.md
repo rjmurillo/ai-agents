@@ -18,7 +18,7 @@
 - [x] B3: the remaining 93 skills templated in batches; skill_templates.py's render target moved to `src/claude/skills/`, giving skills the `src/claude/` plugin tree B1 did not deliver; the ADR-108 pilot-scope pin retired once the full 111-skill set matched `discover()` (TASK-033). Five batches merged (#5773, #5780, #5781, #5783, #5782); render-target move, `OWNED_PREFIXES` widening, and the `prompts` manifest row merged `23c3d5dd3` (PR #5785).
 - [x] B4: hooks and settings moved to `templates/hooks/`; `src/claude/hooks/` and `src/claude/hooks.json` render for the first time; `.github/hooks/*.json` binplaced for the first time; the owner's ruleset decision on code-owner review recorded (`require_code_owner_review` stayed false). Merged `9bf7c7c3a` (PR #5784).
 - [x] B5: the lib mirror's two-hop chain collapsed into one step inside `build_all.py` (`build/scripts/lib_mirror.py`); `scripts/sync_plugin_lib.py` reduced to a thin deprecated shim, not deleted, because `.github/workflows/validate-generated-agents.yml` still calls it directly and workflow files are out of scope for this PR (TASK-035, deviation recorded in the B5 PR body). Merged `4d83781fe` (PR #5787).
-- [x] B6: the marketplace switch; `claude-agents` retired, `project-toolkit` repointed to `./src/claude` (TASK-036). ADR-109's migration order (section 7) is now complete: B0 through B6 all landed.
+- [ ] B6 (blocked): the marketplace switch; `claude-agents` retired, `project-toolkit` repointed to `./src/claude` (TASK-036). Manifest and description edits landed on `feat/adr-109-b6-marketplace` (PR #5791), but TASK-036's install-parity criterion is **BLOCKED, not satisfied**: `src/claude/skills/<name>/` ships only `SKILL.md` for 84 of 111 skills that also carry `scripts/`, `references/`, or `tests/` under `.claude/skills/<name>/`. The fix is landing on `feat/adr-109-b3-skill-support-files`; B6 stays open until that branch merges and this branch merges `main` again.
 
 ## Milestones
 
@@ -139,13 +139,14 @@ B1 must land before B2 through B5, because each of those adds a row to the binpl
 |------|--------|-------|
 | 2026-09-11 | ADR-109 written, reviewed, and accepted by the owner (PR #5745); spec artifacts (REQ-026, DESIGN-025, TASK-031 through TASK-036, ontology fragment, this plan) drafted in worktree `adr109-spec` on branch `feat/adr-109-spec-and-plan` | claude |
 | 2026-09-15 | B2 through B4 confirmed landed on `main` (`084f89340` #5775, five B3 batch PRs plus `23c3d5dd3` #5785, `9bf7c7c3a` #5784); B5 (lib) landing in parallel on `feat/adr-109-b5-lib` (PR #5787); B6 (TASK-036 marketplace switch) implemented on `feat/adr-109-b6-marketplace`: `claude-agents` entry dropped, `project-toolkit` repointed to `./src/claude`, `.claude/.claude-plugin/plugin.json` deleted, `.github/plugin/marketplace.json` description text updated, every `claude-agents` reference across code, tests, templates, and docs updated | claude |
+| 2026-09-15 | PR #5791 (B6) opened; CodeRabbit review confirmed the install-parity blocker this branch's own verification already found (84 of 111 skills missing `scripts/`, `references/`, or `tests/` under `src/claude/skills/`) and requested B6 stay blocked until it closes. Fix assigned to `feat/adr-109-b3-skill-support-files` (sibling branch, separate agent). B6's status reverted from done to blocked pending that branch's merge. | claude |
 
 ## Blockers
 
 - ADR-109 is `accepted` (2026-09-11); the owner authorized implementation once PR #5745 lands, with Haiku and Sonnet agents building and Opus reviewing.
 - B3's batching plan was answered and executed: five batches, twenty skills each except the last (twelve); all five merged.
 - B4's code-owner-review ruleset decision was recorded, not flipped. Confirmed 2026-09-15 via `gh api repos/rjmurillo/ai-agents/rulesets/11104075`: `required_approving_review_count: 0`, `require_code_owner_review: false`. The `/templates/hooks/` CODEOWNERS entry routes review but does not block a merge under this ruleset. B4 landed with that value unchanged; flipping it remains the owner's call, not a blocker for this program.
-- No blockers remain for B6. B5 (lib, `4d83781fe`) has merged; `src/claude/lib/` exists.
+- B6 is blocked on install parity: `src/claude/skills/<name>/` is missing `scripts/`, `references/`, and `tests/` for 84 of 111 skills. Fix landing on `feat/adr-109-b3-skill-support-files`; merge that, then merge `main` into `feat/adr-109-b6-marketplace` again, before B6 can close. B5 (lib, `4d83781fe`) has merged; `src/claude/lib/` exists and is not part of this blocker.
 
 ## Deferred items
 
