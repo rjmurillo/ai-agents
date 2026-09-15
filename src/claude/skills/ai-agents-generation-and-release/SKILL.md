@@ -52,7 +52,8 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `src/copilot-cli/{skills,instructions,lib,hooks}` | generated | `.claude/` trees | `build/scripts/build_all.py` |
 | `.github/instructions/` | generated | `.claude/rules/` | `build_all.py` (rules) |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | CANONICAL for shared Python | itself | n/a |
-| `.claude/lib/` | mirrored copy (relative imports) | `scripts/` packages | `build_all.py` lib step (`lib_mirror.py`, B5) |
+| `src/claude/lib/`, `src/copilot-cli/lib/` | generated direct | `scripts/` packages | `build_all.py` lib step (B5) |
+| `.claude/lib/` | binplaced from `src/claude/lib/` | `src/claude/lib/` | `build_all.py` binplace |
 | `src/claude/` | MANUAL hand-synced exception (ADR-036, superseded by ADR-052, itself superseded by ADR-109, accepted 2026-09-11; procedure still operative and unimplemented) | edited by hand | no generator; semantic drift CI only |
 
 Skills split in two (ADR-108, ADR-109). Template-owned: edit `templates/skills/<name>.SKILL.md.tmpl`; the skills step renders it into `.claude/skills/<name>/SKILL.md` first, then the Copilot copy step mirrors that into `src/copilot-cli/skills/<name>/SKILL.md`, overwriting both on every run. Hand-maintained: no template exists, so `.claude/skills/<name>/SKILL.md` stays canonical and is what the skills step reads for its Copilot mirror.

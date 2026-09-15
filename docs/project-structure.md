@@ -27,7 +27,7 @@ Repo root map: what an agent edits, what is generated, and what to skip before t
 | `.claude/rules/*.md` (30) | Cross-harness conventions, canonical source |
 | `.claude/skills/<name>/` (111) | Skills; only user-invocable surface (ADR-064) |
 | `.claude/hooks/`, `.claude/settings.json` | Claude Code hook source |
-| `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source; sync before regen |
+| `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source; renders direct, one `build_all.py` run |
 | `.claude/skills/review/references/<role>.md` | PR quality-gate prompt source |
 | `.agents/architecture/ADR-*.md` (108) | Decisions of record; `status` frontmatter is truth |
 | `.agents/governance/` | Constraints; `PROJECT-CONSTRAINTS.md` is index of record |

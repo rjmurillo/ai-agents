@@ -1,7 +1,7 @@
 """GitHub Core module: shared helpers for GitHub CLI operations.
 
-NOTE: Plugin-distributed copy at .claude/lib/github_core/.
-Run ``python3 scripts/sync_plugin_lib.py`` to sync changes.
+NOTE: Plugin-distributed copies are generated into the plugin trees.
+Run ``uv run python build/scripts/build_all.py`` to regenerate them.
 """
 
 from __future__ import annotations

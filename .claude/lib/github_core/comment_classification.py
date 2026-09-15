@@ -6,9 +6,8 @@ general). Previously this logic (the compiled patterns plus ``classify_domain``)
 was duplicated verbatim in ``get_pr_review_comments.py`` and
 ``get_unaddressed_comments.py`` (Issue #2816, finding 4).
 
-NOTE: Plugin-distributed copy at .claude/lib/github_core/ and
-src/copilot-cli/lib/github_core/. Run ``python3 scripts/sync_plugin_lib.py``
-(and the build) to sync changes.
+NOTE: Plugin-distributed copies are generated into the plugin trees.
+Run ``uv run python build/scripts/build_all.py`` to regenerate them.
 """
 
 from __future__ import annotations

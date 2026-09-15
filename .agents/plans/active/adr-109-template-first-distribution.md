@@ -84,9 +84,9 @@ Exit criteria: TASK-034 acceptance criteria hold; `src/claude/hooks/` and `src/c
 
 Exit criteria: TASK-035 acceptance criteria hold, with one recorded deviation;
 the three packages plus `bootstrap.py` and the review skill's sidecar copy
-correctly in one `build_all.py` run, into both plugin trees; `.claude/rules/
-generated-artifacts.md`'s ordering-hazard section rewritten; `check_plugin_
-lib_mirrors.py` rewired to a single `build_all.py --check` call.
+correctly in one `build_all.py` run, into both plugin trees;
+`.claude/rules/generated-artifacts.md`'s ordering-hazard section rewritten;
+`check_plugin_lib_mirrors.py` rewired to a single `build_all.py --check` call.
 
 | Task | Size | Done when |
 |------|------|-----------|
