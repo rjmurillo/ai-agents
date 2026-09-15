@@ -303,7 +303,22 @@ def _load_protected_partials(partials_dir: Path) -> dict[str, str]:
     passing ``partials_dict`` keeps the escape contract identical for
     templates and partials. Keys are slugs (file stem); nested partial
     references resolve through the same dict.
+
+    ``partials_dir`` itself MUST NOT be a symlink: every compile module
+    (``agent_templates``, ``rule_templates``, ``skill_templates``) calls
+    :func:`render`, which calls this unconditionally, so a symlinked
+    partials directory would glob and read whatever real directory it
+    points at, symlink target files included, none of which ``is_dir()``
+    alone would catch (it follows the link). Refused with the same error
+    type a refused individual partial already raises
+    (:func:`_validate_partial_tree`'s ``partial_path.is_symlink()`` check
+    above), so every caller gets the guard without a per-module change
+    (CodeRabbit review).
     """
+    if partials_dir.is_symlink():
+        raise MissingPartialError(
+            f"{partials_dir}: partials directory is a symlink, not a real directory"
+        )
     if not partials_dir.is_dir():
         return {}
     loaded: dict[str, str] = {}

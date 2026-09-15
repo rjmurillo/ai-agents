@@ -374,6 +374,85 @@ def test_rules_root_symlink_ancestor_when_leaf_missing_exits_2(tmp_path: Path) -
     assert not (outside / "rules").exists()
 
 
+def test_partials_dir_symlink_exits_2_nothing_written(tmp_path: Path) -> None:
+    """templates/rules/partials symlink: exit 2, no name is rendered or written.
+
+    The symlinked partials directory is a single point of compromise for
+    every template, not just the one naming a partial, so the whole batch
+    is refused before any name renders (see ``_partials_dir_error``).
+    """
+    root = fake_repo(tmp_path)
+    real_partials = tmp_path / "real-partials"
+    real_partials.mkdir()
+    write_template(root, "one", "body one\n")
+    write_template(root, "two", "body two\n")
+
+    partials_dir = root / "templates" / "rules" / "partials"
+    try:
+        partials_dir.symlink_to(real_partials)
+    except OSError:
+        pytest.skip("cannot create symlink on this platform")
+
+    result = rule_templates.compile_all(root, validate=False)
+
+    assert result.exit_code == 2
+    assert result.written == []
+    assert not (root / "src" / "claude" / "rules" / "one.md").exists()
+    assert not (root / "src" / "claude" / "rules" / "two.md").exists()
+
+
+def test_partials_dir_outside_repo_exits_2_nothing_written(tmp_path: Path) -> None:
+    """templates/rules/partials resolving outside the repo: exit 2, no write."""
+    root = fake_repo(tmp_path)
+    outside = tmp_path.parent / f"{tmp_path.name}-partials-outside"
+    outside.mkdir()
+    write_template(root, "one", "body\n")
+
+    partials_dir = root / "templates" / "rules" / "partials"
+    partials_dir.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        partials_dir.symlink_to(outside)
+    except OSError:
+        pytest.skip("cannot create symlink on this platform")
+
+    result = rule_templates.compile_all(root, validate=False)
+
+    assert result.exit_code == 2
+    assert result.written == []
+    assert not (root / "src" / "claude" / "rules" / "one.md").exists()
+
+
+def test_rule_target_regular_file_outside_repo_exits_2(tmp_path: Path) -> None:
+    """Ancestor-symlink containment still catches an already-populated leaf.
+
+    ``src/claude`` symlinked outside the repo, with ``rules/<name>.md``
+    already a regular file (not a symlink itself) under that outside
+    directory: the resolved-containment check on ``src/claude/rules/``
+    runs unconditionally (no ``if rules_root.exists():`` guard), so it
+    refuses this case the same way it refuses the leaf-absent case
+    (``test_rules_root_symlink_ancestor_when_leaf_missing_exits_2``), and
+    the pre-existing outside file is left untouched.
+    """
+    root = fake_repo(tmp_path)
+    outside = tmp_path.parent / f"{tmp_path.name}-target-outside"
+    (outside / "rules").mkdir(parents=True)
+    (outside / "rules" / "test.md").write_text("outside content\n", encoding="utf-8")
+
+    src_dir = root / "src"
+    src_dir.mkdir(parents=True)
+    claude_link = src_dir / "claude"
+    try:
+        claude_link.symlink_to(outside)
+    except OSError:
+        pytest.skip("cannot create symlink on this platform")
+
+    write_template(root, "test", "body\n")
+    result = rule_templates.compile_all(root, validate=False)
+
+    assert result.exit_code == 2
+    assert (outside / "rules" / "test.md").read_text(encoding="utf-8") == "outside content\n"
+
+
 def test_discover_on_missing_templates_dir_returns_empty(tmp_path: Path) -> None:
     """Edge: absent templates/rules/ directory yields empty mapping, not an error."""
     root = fake_repo(tmp_path)

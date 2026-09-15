@@ -46,10 +46,13 @@ Stricter/looser/different than canonical (``agent_templates.py``):
   resolved-containment checks (CWE-22/CWE-59) follow
   ``agent_templates._name_validation_error``, but there is no "incomplete
   pair" check here (no second variant to be missing); the only name-shape
-  check is the slug pattern. This module adds one check neither sibling
+  check is the slug pattern. This module adds two checks neither sibling
   has: the SOURCE ``templates/rules/<name>.md`` itself MUST NOT be a
-  symlink and MUST be a regular file, refused rather than rendered
-  (CodeRabbit review).
+  symlink and MUST be a regular file, refused rather than rendered; and
+  the shared ``templates/rules/partials`` directory MUST NOT be a
+  symlink and MUST resolve inside the repository root, checked once in
+  :func:`compile_all` before any name renders (CodeRabbit review; see
+  :func:`_partials_dir_error`).
 - Same as canonical: a NO-REGEN sentinel on a rendered target is skipped
   (never written, never drift), reported at WARN, and floors ``exit_code``
   to at least 1 in both modes, exactly as ``agent_templates.compile_all``
@@ -73,10 +76,11 @@ EXIT CODES (per :func:`compile_all`; ``0=ok|1=logic|2=config`` per
   2 - a discovered name does not match ``^[a-z0-9]+(-[a-z0-9]+)*$``, the
       source ``templates/rules/<name>.md`` is a symlink or not a regular
       file, the ``src/claude/rules/`` root or a name's target resolves
-      outside the repository or through a symlink, or the template (or a
-      partial it transitively includes) used a disallowed tag, named a
-      missing or cyclic partial, or referenced a partial missing its
-      trailing newline
+      outside the repository or through a symlink, ``templates/rules/partials``
+      is a symlink or resolves outside the repository, or the template
+      (or a partial it transitively includes) used a disallowed tag,
+      named a missing or cyclic partial, or referenced a partial missing
+      its trailing newline
 """
 
 from __future__ import annotations
@@ -137,22 +141,31 @@ def _iter_template_candidates(repo_root: Path) -> Iterator[tuple[str, Path]]:
 def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str | None:
     """Return why ``name`` is not a valid rule template, or ``None``.
 
-    Five checks, mirroring ``agent_templates._name_validation_error``'s
+    Six checks, mirroring ``agent_templates._name_validation_error``'s
     shape minus the incomplete-pair check (this class has no second
     variant): ``name`` MUST match the slug pattern; the SOURCE
     ``templates/rules/<name>.md`` MUST NOT be a symlink and MUST be a
     regular file (a symlinked or non-regular candidate is refused, not
     rendered); the ``src/claude/rules/`` root MUST NOT be a symlink and
     MUST resolve inside the repository root (CWE-22); the specific target
-    ``src/claude/rules/<name>.md`` MUST NOT itself be a symlink (CWE-59).
+    ``src/claude/rules/<name>.md`` MUST NOT itself be a symlink (CWE-59);
+    and when that target already exists as a regular file, its resolved
+    path MUST also lie inside the repository root (belt-and-suspenders
+    alongside the ``rules_root`` check above, which already covers this
+    case through path construction alone since the slug pattern forbids
+    ``/`` and ``..`` in ``name``, but explicit per-target verification
+    mirrors ``skill_templates._name_validation_error``'s own per-name
+    ``resolved_skill``/``is_relative_to`` check rather than relying on
+    that invariant implicitly; CodeRabbit review).
 
-    The containment check resolves ``rules_root`` unconditionally, not only
-    when it already exists: ``Path.resolve()`` follows symlinks in existing
-    ancestors and appends any missing leaf literally, so this also catches
-    ``src`` or ``src/claude`` being a symlink to outside the repository
-    while ``rules`` itself has not been created yet, a gap the earlier
-    ``if rules_root.exists():`` guard left open (the write that creates
-    ``rules`` would otherwise land outside the repository, unchecked).
+    The ``rules_root`` containment check resolves it unconditionally, not
+    only when it already exists: ``Path.resolve()`` follows symlinks in
+    existing ancestors and appends any missing leaf literally, so this
+    also catches ``src`` or ``src/claude`` being a symlink to outside the
+    repository while ``rules`` itself has not been created yet, a gap the
+    earlier ``if rules_root.exists():`` guard left open (the write that
+    creates ``rules`` would otherwise land outside the repository,
+    unchecked).
     """
     if not _NAME_RE.match(name):
         return f"{tmpl_path}: invalid rule name {name!r}; must match {_NAME_RE.pattern!r}"
@@ -177,7 +190,47 @@ def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str |
     target = rules_root / f"{name}.md"
     if target.is_symlink():
         return f"{tmpl_path}: src/claude/rules/{name}.md is a symlink, not a real file"
+    if target.is_file():
+        resolved_target = target.resolve()
+        if not resolved_target.is_relative_to(resolved_repo):
+            return (
+                f"{tmpl_path}: src/claude/rules/{name}.md resolves to {resolved_target}, "
+                f"outside the repository root {resolved_repo}"
+            )
 
+    return None
+
+
+def _partials_dir_error(repo_root: Path, partials_dir: Path) -> str | None:
+    """Return why the shared partials directory is refused, or ``None``.
+
+    Every template in this class renders through the same
+    ``templates/rules/partials`` directory (``compile_all``'s
+    ``partials_dir``), so a symlinked or escaping directory there is a
+    single point of compromise for every rule, not just one name: refused
+    before any name is rendered, exit 2, nothing written (CodeRabbit
+    review). Neither ``agent_templates.py`` nor ``skill_templates.py``
+    checks its own partials directory this way (grepped 2026-09-14: no
+    ``partials_dir.is_symlink()`` or containment check in either sibling
+    module), so this check is scoped to this module only rather than
+    duplicated across all three; :func:`skill_template_grammar._load_protected_partials`
+    separately refuses a symlinked ``partials_dir`` for every caller,
+    this module included, as a second, shared layer.
+
+    Mirrors :func:`_name_validation_error`'s target-resolution shape: an
+    absent directory is not an error (no partials in use is a valid
+    state), and ``resolve()`` is only meaningful once the path exists.
+    """
+    if partials_dir.is_symlink():
+        return f"{partials_dir}: templates/rules/partials is a symlink, not a real directory"
+    if partials_dir.exists():
+        resolved_partials = partials_dir.resolve()
+        resolved_repo = repo_root.resolve()
+        if not resolved_partials.is_relative_to(resolved_repo):
+            return (
+                f"{partials_dir}: templates/rules/partials resolves to {resolved_partials}, "
+                f"outside the repository root {resolved_repo}"
+            )
     return None
 
 
@@ -309,6 +362,12 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
     """
     result = CompileResult()
     partials_dir = repo_root / "templates" / "rules" / "partials"
+
+    partials_error = _partials_dir_error(repo_root, partials_dir)
+    if partials_error is not None:
+        print(f"Error: {partials_error}", file=sys.stderr)
+        result.exit_code = max(result.exit_code, 2)
+        return result
 
     _report_discover_errors(repo_root, result)
 
