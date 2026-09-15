@@ -654,6 +654,19 @@ class TestResolveWorkdir:
         second, _ = mb.resolve_workdir(None, False)
         assert first != second
 
+    def test_missing_workdir_refused(self, tmp_path, capsys):
+        workdir, err = mb.resolve_workdir(str(tmp_path / "absent"), False)
+        assert err == 2
+        assert workdir == ""
+        assert "not an existing directory" in capsys.readouterr().err
+
+    def test_regular_file_workdir_refused(self, tmp_path):
+        target = tmp_path / "file.txt"
+        target.write_text("x")
+        workdir, err = mb.resolve_workdir(str(target), False)
+        assert err == 2
+        assert workdir == ""
+
     def test_explicit_workdir_outside_repo_and_cwd_accepted(self, tmp_path):
         workdir, err = mb.resolve_workdir(str(tmp_path), False)
         assert err is None
@@ -678,10 +691,11 @@ class TestResolveWorkdir:
         workdir, err = mb.resolve_workdir(str(sub), False)
         assert err == 2 and workdir == ""
 
-    def test_repo_subdirectory_workdir_allowed_with_flag(self, monkeypatch):
-        fake_repo = Path("/fake/repo/root")
-        monkeypatch.setattr(mb, "_repo_root", lambda: fake_repo)
+    def test_repo_subdirectory_workdir_allowed_with_flag(self, monkeypatch, tmp_path):
+        fake_repo = tmp_path / "repo"
         sub = fake_repo / "sub" / "dir"
+        sub.mkdir(parents=True)
+        monkeypatch.setattr(mb, "_repo_root", lambda: fake_repo.resolve())
         workdir, err = mb.resolve_workdir(str(sub), True)
         assert err is None
         assert workdir == str(sub.resolve())

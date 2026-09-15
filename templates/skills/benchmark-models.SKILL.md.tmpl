@@ -97,7 +97,8 @@ is absent, omit `--judge`.
 omitted it defaults to a fresh `tempfile.mkdtemp()`, removed automatically when
 the run ends, and it refuses (exit 2) a `--workdir` that resolves inside the
 repo checkout (root or any subdirectory) or equals the current directory,
-unless `--allow-cwd-workdir` is also passed. A caller-supplied `--workdir` is
+unless `--allow-cwd-workdir` is also passed, and it refuses (exit 2) a
+`--workdir` that is not an existing directory. A caller-supplied `--workdir` is
 never removed. This matters because both the Claude and
 Gemini adapters can write to the workdir: Gemini runs with `--yolo`
 (unsandboxed), and Claude carries no read-only flag. Only the GPT/Codex adapter

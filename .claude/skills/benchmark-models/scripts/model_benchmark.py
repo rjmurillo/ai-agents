@@ -648,6 +648,11 @@ def resolve_workdir(requested: str | None, allow_cwd: bool) -> tuple[str, int | 
             "modify the live checkout. Pass --allow-cwd-workdir to override.\n"
         )
         return "", 2
+    if not resolved.is_dir():
+        sys.stderr.write(
+            f"ERROR: --workdir {resolved} is not an existing directory.\n"
+        )
+        return "", 2
     return str(resolved), None
 
 
