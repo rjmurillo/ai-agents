@@ -49,7 +49,7 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `docs/agent-catalog.md` | generated | templates/agents | `build_all.py` (agent-catalog) |
 | `.claude/` (rules, skills except template-owned ones below, hooks, settings.json) | CANONICAL for everything else | itself | n/a (generators NEVER write here) |
 | `templates/skills/*.SKILL.md.tmpl` | CANONICAL for template-owned skills only (ADR-108, ADR-109) | itself | compiles first into `.claude/skills/`, then `src/copilot-cli/skills/` (skills step, below) |
-| `src/copilot-cli/{skills,instructions,lib,hooks}` | generated | `.claude/` trees | `build/scripts/build_all.py` |
+| `src/copilot-cli/{skills,instructions,hooks}` | generated | `.claude/` trees | `build/scripts/build_all.py` |
 | `.github/instructions/` | generated | `.claude/rules/` | `build_all.py` (rules) |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | CANONICAL for shared Python | itself | n/a |
 | `src/claude/lib/`, `src/copilot-cli/lib/` | generated direct | `scripts/` packages | `build_all.py` lib step (B5) |
@@ -72,7 +72,7 @@ Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; 
 
 Facts that prevent confusion:
 
-- `build_all.py` enforces a no-write invariant on `.claude/` (REQ-003-010): if any generator writes there, the run exits 2 with `REQ-003-010 VIOLATION`, except the template-owned skill files whose template exists under `templates/skills/` at run time (ADR-108, ADR-109). `.claude/` is otherwise input only.
+- `build_all.py` enforces a no-write invariant on `.claude/` (REQ-003-010): if any generator writes there, the run exits 2 with `REQ-003-010 VIOLATION`, except a `binplace.yaml` row's `.claude/`-rooted `install_tree` (agents, skills, rules, hooks, settings, lib; ADR-109). `.claude/` is otherwise input only.
 - Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md", ".agents/architecture/README.md")`, four entries, in the `OWNED_PREFIXES` tuple. `--check` only flags staleness inside those prefixes, and the adr-index generator is why the last one is there.
 - The hooks generator maps Stop, SubagentStop, PermissionRequest, and
   PreCompact to their PascalCase compatibility names. Stop and SubagentStop
