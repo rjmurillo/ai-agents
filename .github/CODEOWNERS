@@ -14,11 +14,16 @@
 /.github/prompts/pr-quality-gate-*.md     @rjmurillo
 /.github/prompts/pr-quality.*.prompt.md   @rjmurillo
 
-# Shared library backing the AI review gates. The canonical package lives under
-# scripts/; .claude/lib/ is the synced copy (scripts/sync_plugin_lib.py). Pin
-# both so gate-logic changes (verdict.py merge rules) cannot bypass owner review.
+# Shared library backing the AI review gates and the plugin hook shims. The
+# canonical packages live under scripts/; .claude/lib/ is the binplaced copy
+# (ADR-109 B5, build/scripts/lib_mirror.py). Pin both so gate-logic changes
+# (verdict.py merge rules) or hook-utility changes cannot bypass owner review.
 /scripts/ai_review_common/                @rjmurillo
 /.claude/lib/ai_review_common/            @rjmurillo
+/scripts/hook_utilities/                  @rjmurillo
+/.claude/lib/hook_utilities/              @rjmurillo
+/scripts/github_core/                     @rjmurillo
+/.claude/lib/github_core/                 @rjmurillo
 
 # Template-owned skill files (ADR-108). A template under templates/skills/ is
 # the only class permitted to write under .claude/ during the build, and the

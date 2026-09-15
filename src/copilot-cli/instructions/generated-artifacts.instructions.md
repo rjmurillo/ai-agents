@@ -142,51 +142,45 @@ gone and no one finds out. That is the silent-failure anti-pattern.
    breaks for the customer, and how do they recover? If the answer is "everything"
    or "uninstall", the verification bar in this rule is mandatory, not optional.
 
-## Generator order: sync before build
+## Generator order: one command, not a sequence
 
-The plugin library is mirrored twice, in a chain, by two scripts that do not
-call each other:
+The plugin lib trees were once mirrored in a chain, by two scripts that did
+not call each other: a sync script rewrote the shared Python packages'
+imports and copied them into the canonical lib tree, then `build_all.py`
+separately mirrored that tree into the Copilot plugin's own copy. Running
+them in the wrong order left the Copilot copy mirroring stale content with
+**both scripts exiting 0** and no local signal; the stale mirror surfaced
+only in CI.
 
-```text
-scripts/{hook_utilities,github_core,ai_review_common}
-    |  scripts/sync_plugin_lib.py   (SYNC_PAIRS)
-    v
-.claude/lib/*
-    |  build/scripts/build_all.py   (copy_lib_to_platform)
-    v
-src/copilot-cli/lib/*
-```
-
-`build_all.py` reads `.claude/lib/` and never populates it. So a change under
-`scripts/github_core/` reaches the Copilot tree only if `sync_plugin_lib.py`
-runs first.
+ADR-109 B5 (TASK-035) closed that hazard by construction. `build_all.py`'s
+lib step (`build/scripts/lib_mirror.py`) now renders the shared packages
+directly into every lib plugin tree in the same run that renders every other
+class, and the binplace step that follows every generator copies the
+claude-side plugin trees onto their install-tree counterparts
+(`templates/platforms/binplace.yaml`'s `lib-*` and `skills-sidecar` rows).
+There is no second command whose order matters: `uv run python
+build/scripts/build_all.py` is the whole sequence.
 
 ### MUST
 
-**Run `scripts/sync_plugin_lib.py` before `build/scripts/build_all.py`.**
+**Run `uv run python build/scripts/build_all.py`.** One command renders and
+binplaces every class this rule file covers, lib included. `build_all.py
+--check` verifies all of it is byte-identical to what the templates and lib
+sources render, in one pass; a drift anywhere is exit 2.
 
-Running them in the other order leaves `src/copilot-cli/lib/` mirroring the
-previous contents of `.claude/lib/`, and **both scripts exit 0**. There is no
-local signal. The stale mirror surfaces only when
-`scripts/ci/check_plugin_lib_mirrors.py` runs, which for most contributors
-means after the push, in CI.
+The old standalone sync entry point survives only as a thin, deprecated shim
+over the same `lib_mirror` logic, kept alive for the one CI workflow step
+that still calls it directly. Do not add a new caller of it: call
+`build_all.py` (or, for lib-specific logic in a script, `lib_mirror.py`)
+instead.
 
-The ordering is currently implicit. `build_all.py` refers to a "legitimate
-pre-build sync of .claude/lib" in a comment on `assert_no_claude_writes`
-(issue #2613), and its `.claude/` write guard is deliberately scoped so that a
-sync performed *before* the build does not trip it. That guard is evidence the
-sync is expected to run first; it is not an enforcement of it, and nothing
-fails when you skip it.
-
-The build now writes under `.claude/` only through the binplace step for the paths
-the binplace manifest (`binplace.yaml` beside the platform configs) names (agent_templates.py,
-rule_templates.py, skill_templates.py, and binplace_manifest.py generators per ADR-109 B1-B3:
-agents, rules, and template-owned skill `SKILL.md` files each render into a `src/claude/`
-plugin tree, then binplace copies the render onto its `.claude/` counterpart).
-REQ-003-010 forbids other generators from writing `.claude/`; the plugin-lib sync is
-none of those classes and continues to stay separate from the build. The lib sync is
-not yet a manifest row, so the ordering is currently implicit. B5 folds it into the
-binplace manifest and retires this ordering rule.
+The build writes under the install tree only through the binplace step, for
+the paths the binplace manifest names (each per-class generator per
+ADR-109 B1-B5: agents, rules, template-owned skill files, and the lib class
+each render into a plugin tree, then binplace copies the render onto its
+install-tree counterpart). REQ-003-010 forbids other generators from writing
+there; every class, lib included, is now a manifest row, so there is no
+longer an ordering hazard for this rule to document.
 
 ## Quick Self-Review
 
@@ -195,8 +189,9 @@ Before you merge a change to a generator or customer-facing artifact:
 - Did you read the settled contract before changing the artifact?
 - If the change touches a mirrored library (`scripts/hook_utilities`,
   `scripts/github_core`, `scripts/ai_review_common`), did you run
-  `sync_plugin_lib.py` before `build_all.py`, and confirm all three copies
-  match rather than trusting the exit codes?
+  `build_all.py`, and confirm all three lib trees (`src/claude/lib/`,
+  `src/copilot-cli/lib/`, `.claude/lib/`) match rather than trusting the
+  exit code alone?
 - If you re-probed, did a refresh condition require it, and did you record the
   version, official source, and negative control?
 - Is there a runtime-contract test that executes the artifact under that contract,
@@ -223,7 +218,7 @@ never have to uninstall to recover from an artifact we generated.
 - `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
 - `.claude/skills/software-engineering-library/references/release-it.md`. Fail fast and loud; bound the blast radius by prevention, not by silently swallowing failures.
 - `scripts/validation/validate_hook_anchoring.py`. The committed-artifact gate.
-- `scripts/sync_plugin_lib.py`. Populates `.claude/lib/` from `scripts/`. Run before `build_all.py`.
-- `scripts/ci/check_plugin_lib_mirrors.py`. The gate that catches a stale Copilot lib mirror.
+- `build/scripts/lib_mirror.py`. Renders `scripts/{hook_utilities,github_core,ai_review_common}/` into every lib plugin tree; `scripts/sync_plugin_lib.py` is now a deprecated shim over it.
+- `scripts/ci/check_plugin_lib_mirrors.py`. The gate that catches a stale lib mirror; now a thin wrapper over `build_all.py --check`.
 - `tests/build_scripts/test_generate_hooks_runtime_contract.py`. Runtime-contract test pattern.
 - `tests/e2e/test_cli_hook_e2e.py`. Real-CLI smoke.

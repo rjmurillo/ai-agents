@@ -21,7 +21,7 @@ matching "Source" instead.
 | `build/scripts/binplace_manifest.py` | `templates/platforms/binplace.yaml` plus the plugin trees it names | `.claude/agents/`, `.claude/rules/`, `.claude/skills/<name>/SKILL.md` | ADR-109 |
 | `build/generate_agents.py` (`github` platform, `templates/platforms/github.yaml`) | `templates/agents/<stem>.copilot.md.tmpl` via `agent_templates.py` | `.github/agents/*.agent.md` (no `model:` field; GitHub rejects it, issue #4938) | ADR-109 |
 | `build/scripts/generate_hooks.py` with `build/scripts/generate_dispatcher.py` | `.claude/hooks/` + `.claude/settings.json` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` | REQ-003-007, ADR-068 |
-| `build/scripts/build_all.py` (`_build_lib`) | `.claude/lib/` | `src/copilot-cli/lib/` | REQ-003-001, REQ-003-002 |
+| `build/scripts/build_all.py` (`_build_lib`, via `build/scripts/lib_mirror.py`) | `scripts/{hook_utilities,github_core,ai_review_common}/`, `scripts/hook_utilities/bootstrap.py`, `scripts/validation/validate_review_marker.py` | `src/claude/lib/`, `src/copilot-cli/lib/`, `src/claude/skills/review/scripts/` (then binplaced onto `.claude/lib/` and `.claude/skills/review/scripts/` per `templates/platforms/binplace.yaml`'s `lib-*` and `skills-sidecar` rows) | REQ-003-001, REQ-003-002, ADR-109 B5 |
 | `build/scripts/generate_pr_quality_prompts.py` | `.claude/skills/review/references/{role}.md` | `.github/prompts/pr-quality-gate-{role}.md` | REQ-008-01 |
 
 ## Hand-maintained sibling copies (NOT generated)
