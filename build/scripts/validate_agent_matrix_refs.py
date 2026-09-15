@@ -21,9 +21,10 @@ should list, and which ones earn a row is a judgment call, not an invariant.
 Scanned trees, all of which carry copies of the same matrices:
 
   templates/agents/       canonical shared templates
-  .claude/agents/         hand-maintained Claude Code copy
+  .claude/agents/         binplaced Claude Code copy
   .github/agents/         hand-maintained Copilot copy
-  src/claude/agents/      hand-maintained claude-agents plugin copy
+  src/claude/agents/      generated project-toolkit plugin copy (marketplace
+                           source since ADR-109 B6)
   src/copilot-cli/agents/ generated Copilot plugin copy
   src/vs-code-agents/     generated VS Code copy
 

@@ -47,16 +47,16 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `src/vs-code-agents/` | generated | templates/agents | `build/generate_agents.py` |
 | `src/copilot-cli/agents/` | generated | templates/agents | `build/generate_agents.py` |
 | `docs/agent-catalog.md` | generated | templates/agents | `build_all.py` (agent-catalog) |
-| `.claude/` (rules, skills except template-owned ones below, hooks, settings.json) | CANONICAL for everything else | itself | n/a (generators NEVER write here) |
-| `templates/skills/*.SKILL.md.tmpl` | CANONICAL for template-owned skills only (ADR-108, ADR-109) | itself | compiles first into `.claude/skills/`, then `src/copilot-cli/skills/` (skills step, below) |
+| `.claude/` | MIXED per subtree, see Facts below | mixed | binplace, template-owned parts only |
+| `templates/skills/*.SKILL.md.tmpl` | CANONICAL for all 111 skills' SKILL.md (ADR-108, ADR-109 B3) | itself | renders `src/claude/skills/`, binplaces `.claude/skills/`, mirrors `src/copilot-cli/skills/` |
 | `src/copilot-cli/{skills,instructions,hooks}` | generated | `.claude/` trees | `build/scripts/build_all.py` |
 | `.github/instructions/` | generated | `.claude/rules/` | `build_all.py` (rules) |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | CANONICAL for shared Python | itself | n/a |
 | `src/claude/lib/`, `src/copilot-cli/lib/` | generated direct | `scripts/` packages | `build_all.py` lib step (B5) |
 | `.claude/lib/` | binplaced from `src/claude/lib/` | `src/claude/lib/` | `build_all.py` binplace |
-| `src/claude/` | MANUAL hand-synced exception (ADR-036, superseded by ADR-052, itself superseded by ADR-109, accepted 2026-09-11; procedure still operative and unimplemented) | edited by hand | no generator; semantic drift CI only |
+| `src/claude/{agents,rules,hooks,hooks.json,settings.json}` | generated (ADR-109 B1, B2, B4; supersedes the pre-ADR-109 hand-synced model) | `templates/{agents,rules,hooks}/` | `build_all.py`, then binplaced to `.claude/` |
 
-Skills split in two (ADR-108, ADR-109). Template-owned: edit `templates/skills/<name>.SKILL.md.tmpl`; the skills step renders it into `.claude/skills/<name>/SKILL.md` first, then the Copilot copy step mirrors that into `src/copilot-cli/skills/<name>/SKILL.md`, overwriting both on every run. Hand-maintained: no template exists, so `.claude/skills/<name>/SKILL.md` stays canonical and is what the skills step reads for its Copilot mirror.
+All 111 skills are template-owned (ADR-108, ADR-109 B3): edit `templates/skills/<name>.SKILL.md.tmpl`; it renders `src/claude/skills/<name>/SKILL.md` first, binplace copies that to `.claude/skills/<name>/SKILL.md`, then the Copilot copy step mirrors it (plus the skill's hand-maintained `scripts/`, `references/`, `tests/`) into `src/copilot-cli/skills/<name>/SKILL.md`.
 
 Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; order is load-bearing per the `Order matters` comment above it; a `commands` step sat between skills and rules until ADR-064 retired `.claude/commands/`, so the count is seven, not eight):
 
@@ -89,11 +89,11 @@ Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` bo
 
 | You edited | Run | Then |
 |------------|-----|------|
-| `templates/agents/*.shared.md` | `uv run python build/generate_agents.py` then `uv run python build/scripts/build_all.py` (refreshes docs/agent-catalog.md) | commit template + all regenerated files. If the same agent exists in `src/claude/agents/`, hand-apply the equivalent edit there (ADR-036 manual sync; semantic drift CI is the only net). |
+| `templates/agents/*.shared.md` | `uv run python build/generate_agents.py` then `uv run python build/scripts/build_all.py` (refreshes docs/agent-catalog.md) | commit template + all regenerated files, including `src/claude/agents/` (generated, ADR-109 B1; never hand-edit it). |
 | `.claude/skills/<name>/SKILL.md` (hand-maintained) or `templates/skills/<name>.SKILL.md.tmpl` (template-owned; ADR-108, ADR-109), plus `.claude/rules/` | `uv run python build/scripts/build_all.py` | commit source or template, plus both rendered copies for a template-owned skill. No manifest edit (Phase 4) |
 | `.claude/hooks/` or `.claude/settings.json` | `uv run python build/scripts/build_all.py` | same as above. The `build-all-check` pre-push job in `lefthook.yml` re-runs `build_all.py --check` at `git push` time and blocks if any generated output (including shims under `src/copilot-cli/hooks/`) drifts, so regenerate BEFORE pushing. |
 | `scripts/hook_utilities/`, `scripts/github_core/`, `scripts/ai_review_common/` | `uv run python build/scripts/build_all.py` (writes both lib trees, binplaces `.claude/lib/`, B5) | One command; no manifest edit. |
-| `src/claude/` (deliberate manual change) | nothing to regenerate | nothing to bump; the manifest carries no version (Phase 4) |
+| `src/claude/AGENTS.md`, `src/claude/claude-instructions.template.md` (root-level, hand-maintained; no template) | nothing to regenerate | commit directly; not one of the 31 agent stems |
 
 Useful flags, verified against source:
 
@@ -141,14 +141,17 @@ marketplace plugin was reinstalled.
 
 ### Phase 4: Plugin Manifests Carry No Version
 
-Three plugin manifests exist (verify:
-`find . -name plugin.json -path "*claude-plugin*"`):
+Two plugin manifests exist (verify:
+`find . -name plugin.json -path "*claude-plugin*"`); a third,
+`.claude/.claude-plugin/plugin.json`, is retired. `.claude/` is not a
+marketplace-listed root; its template-owned files (SKILL.md, agents,
+rules, hooks, settings) are binplaced from `src/claude/`, but skill
+`scripts/`, `references/`, and `tests/` stay hand-maintained there:
 
 | Tree | Manifest | Plugin name |
 |------|----------|-------------|
-| `.claude/` | `.claude/.claude-plugin/plugin.json` | project-toolkit (Claude) |
-| `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | project-toolkit (Copilot) |
-| `src/claude/` | `src/claude/.claude-plugin/plugin.json` | claude-agents |
+| `src/claude/` | `.claude-plugin/plugin.json` | project-toolkit (Claude) |
+| `src/copilot-cli/` | `.claude-plugin/plugin.json` | project-toolkit (Copilot) |
 
 The rule (docstring of `build/scripts/validate_plugin_version_bump.py`): none of
 those manifests may carry a `version` field, and neither may an entry in either
@@ -161,8 +164,8 @@ Practical consequences:
 
 - Any `.claude/` content edit regenerates `src/copilot-cli/` too, but neither manifest changes: both are version-free, and `check_plugin_manifest_parity.py` now checks description component counts only.
 - `src/claude/` is the same: no version to move.
-- `.github/instructions/` and `src/vs-code-agents/` carry no plugin.json at all.
-- Marketplace: `.claude-plugin/marketplace.json` lists two plugins (claude-agents from `./src/claude`, project-toolkit from `./.claude`). The old marketplace count validator and its YAML config were retired, so treat description-count validation as currently unenforced and keep counts honest by hand.
+- `.github/instructions/` and `src/vs-code-agents/` carry no plugin.json.
+- Marketplace: `.claude-plugin/marketplace.json` lists one Claude-side plugin, `project-toolkit`, sourced at `./src/claude` (the retired `claude-agents` entry used `./.claude`). The old count validator is retired; keep counts honest by hand.
 
 ### Phase 5: npm Release Path
 

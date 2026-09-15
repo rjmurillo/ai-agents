@@ -7,7 +7,7 @@ the merge conflict measured in issue #4080.
 
 Covers:
 - positive: manifests with no version field pass (exit 0)
-- positive: the three shipped manifests pass the gate as committed
+- positive: the two shipped manifests pass the gate as committed
 - positive: both shipped marketplace files carry no version (resolution step 2)
 - negative: a version in a marketplace entry fails the CLI (exit 1), which is
   the only gate that runs on a marketplace-only change
@@ -36,7 +36,6 @@ sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import validate_plugin_version_bump as vpb  # noqa: E402
 
-CLAUDE = ".claude/.claude-plugin/plugin.json"
 SRC_CLAUDE = "src/claude/.claude-plugin/plugin.json"
 COPILOT = "src/copilot-cli/.claude-plugin/plugin.json"
 
@@ -98,7 +97,7 @@ def _marketplace(name: str, version: object = ...) -> str:
 def _make_repo(tmp_path: Path, **manifests: str | None) -> Path:
     """Build a committed repo whose manifests and marketplaces are the bodies given.
 
-    Keys are ``claude``, ``src_claude``, ``copilot``, ``market_claude``, and
+    Keys are ``src_claude``, ``copilot``, ``market_claude``, and
     ``market_copilot``. A value of None omits the file entirely. Unspecified
     files default to a version-free body.
     """
@@ -107,14 +106,12 @@ def _make_repo(tmp_path: Path, **manifests: str | None) -> Path:
     _git(repo, "init", "-q", "-b", "main")
 
     bodies: dict[str, str | None] = {
-        CLAUDE: _manifest("project-toolkit"),
-        SRC_CLAUDE: _manifest("claude-agents"),
+        SRC_CLAUDE: _manifest("project-toolkit"),
         COPILOT: _manifest("project-toolkit"),
         MARKET_CLAUDE: _marketplace("project-toolkit"),
         MARKET_COPILOT: _marketplace("project-toolkit"),
     }
     keys = {
-        "claude": CLAUDE,
         "src_claude": SRC_CLAUDE,
         "copilot": COPILOT,
         "market_claude": MARKET_CLAUDE,
@@ -155,7 +152,7 @@ def test_version_free_manifests_pass(tmp_path: Path) -> None:
 
 
 def test_shipped_manifests_pass_as_committed() -> None:
-    # The real repository at HEAD: the three manifests must carry no version.
+    # The real repository at HEAD: the two manifests must carry no version.
     result = _run(REPO_ROOT)
 
     assert result.returncode == 0, result.stdout + result.stderr
@@ -250,13 +247,13 @@ def test_absent_manifest_is_skipped(tmp_path: Path) -> None:
 
 
 def test_version_field_fails(tmp_path: Path) -> None:
-    repo = _make_repo(tmp_path, claude=_manifest("project-toolkit", "0.6.5448"))
+    repo = _make_repo(tmp_path, src_claude=_manifest("project-toolkit", "0.6.5448"))
 
     result = _run(repo)
 
     assert result.returncode == 1, result.stdout + result.stderr
     assert "VERSION FIELD PRESENT" in result.stdout
-    assert CLAUDE in result.stdout
+    assert SRC_CLAUDE in result.stdout
     assert "0.6.5448" in result.stdout
 
 
@@ -267,13 +264,12 @@ def test_only_the_offending_plugin_is_reported(tmp_path: Path) -> None:
 
     assert result.returncode == 1, result.stdout + result.stderr
     assert COPILOT in result.stdout
-    assert CLAUDE not in result.stdout
     assert SRC_CLAUDE not in result.stdout
 
 
 def test_non_string_version_still_fails(tmp_path: Path) -> None:
     # The host reads the key, not its type. A number is still a pinned version.
-    repo = _make_repo(tmp_path, claude=_manifest("project-toolkit", 3))
+    repo = _make_repo(tmp_path, src_claude=_manifest("project-toolkit", 3))
 
     result = _run(repo)
 
@@ -283,7 +279,7 @@ def test_non_string_version_still_fails(tmp_path: Path) -> None:
 
 def test_null_version_still_fails(tmp_path: Path) -> None:
     # An explicit null is a present key, which is not the same as omitting it.
-    repo = _make_repo(tmp_path, claude=_manifest("project-toolkit", None))
+    repo = _make_repo(tmp_path, src_claude=_manifest("project-toolkit", None))
 
     result = _run(repo)
 
@@ -296,20 +292,20 @@ def test_working_tree_cleanup_does_not_mask_the_committed_field(
 ) -> None:
     # Deleting the line without committing must not flip the gate green: the
     # pushed commit is what the host resolves.
-    repo = _make_repo(tmp_path, claude=_manifest("project-toolkit", "0.6.5448"))
-    _write(repo, CLAUDE, _manifest("project-toolkit"))
+    repo = _make_repo(tmp_path, src_claude=_manifest("project-toolkit", "0.6.5448"))
+    _write(repo, SRC_CLAUDE, _manifest("project-toolkit"))
 
     result = _run(repo)
 
     assert result.returncode == 1, result.stdout + result.stderr
-    assert CLAUDE in result.stdout
+    assert SRC_CLAUDE in result.stdout
 
 
 # --- edge: config errors -------------------------------------------------
 
 
 def test_malformed_manifest_is_a_config_error(tmp_path: Path) -> None:
-    repo = _make_repo(tmp_path, claude="{not json")
+    repo = _make_repo(tmp_path, src_claude="{not json")
 
     result = _run(repo)
 
@@ -318,7 +314,7 @@ def test_malformed_manifest_is_a_config_error(tmp_path: Path) -> None:
 
 
 def test_non_object_manifest_is_a_config_error(tmp_path: Path) -> None:
-    repo = _make_repo(tmp_path, claude="[]\n")
+    repo = _make_repo(tmp_path, src_claude="[]\n")
 
     result = _run(repo)
 
@@ -350,7 +346,7 @@ def test_base_and_files_are_accepted_and_do_not_change_the_verdict(
 ) -> None:
     # Callers still pass these. The field's presence is not a function of the
     # diff, so naming an unrelated file cannot excuse a pinned version.
-    repo = _make_repo(tmp_path, claude=_manifest("project-toolkit", "0.6.5448"))
+    repo = _make_repo(tmp_path, src_claude=_manifest("project-toolkit", "0.6.5448"))
 
     result = _run(repo, "--base", "HEAD", "--files", "README.md")
 
@@ -374,7 +370,7 @@ def test_json_reports_version_free_true(tmp_path: Path) -> None:
 
 
 def test_json_reports_the_violation(tmp_path: Path) -> None:
-    repo = _make_repo(tmp_path, src_claude=_manifest("claude-agents", "0.3.56"))
+    repo = _make_repo(tmp_path, src_claude=_manifest("project-toolkit", "0.3.56"))
 
     result = _run(repo, "--format", "json")
 
@@ -389,7 +385,7 @@ def test_json_reports_the_violation(tmp_path: Path) -> None:
 
 
 def test_json_never_reports_version_free_on_a_config_error(tmp_path: Path) -> None:
-    repo = _make_repo(tmp_path, claude="{not json")
+    repo = _make_repo(tmp_path, src_claude="{not json")
 
     result = _run(repo, "--format", "json")
 
@@ -404,22 +400,20 @@ def test_json_never_reports_version_free_on_a_config_error(tmp_path: Path) -> No
 
 def test_evaluate_flags_only_present_versions() -> None:
     states = {
-        CLAUDE: vpb.ManifestState(exists=True, version="1.0.0"),
-        SRC_CLAUDE: vpb.ManifestState(exists=True, version=None),
+        SRC_CLAUDE: vpb.ManifestState(exists=True, version="1.0.0"),
         COPILOT: vpb.ManifestState(exists=False, version=None),
     }
 
     violations, config_errors = vpb.evaluate(states)
 
     assert config_errors == []
-    assert [v.manifest for v in violations] == [CLAUDE]
+    assert [v.manifest for v in violations] == [SRC_CLAUDE]
     assert violations[0].reason == "version-present"
 
 
 def test_evaluate_reports_a_read_failure_as_a_config_error() -> None:
     states = {
-        CLAUDE: vpb._RefError("git exploded"),
-        SRC_CLAUDE: vpb.ManifestState(exists=True, version=None),
+        SRC_CLAUDE: vpb._RefError("git exploded"),
         COPILOT: vpb.ManifestState(exists=True, version=None),
     }
 

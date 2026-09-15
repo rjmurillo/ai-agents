@@ -20,8 +20,8 @@ Claude Code resolves plugin freshness from the first of these that is set
        4. unknown, for npm sources or local directories not inside a git
           repository"
 
-Both marketplace files in this repo list relative-path sources (``./.claude``,
-``./src/claude``, ``./src/copilot-cli``) and neither carries a per-plugin
+Both marketplace files in this repo list relative-path sources (``./src/claude``,
+``./src/copilot-cli``) and neither carries a per-plugin
 ``version``. So with the field absent from plugin.json, every plugin resolves at
 step 3: the git commit SHA, which changes on every merge. That is per-commit
 freshness, which the hand-maintained counter this gate used to police could not
@@ -55,11 +55,19 @@ whether or not the plugin's source changed in this branch.
 SCOPE
 -----
 
-Three packaged plugins (the only dirs with a ``.claude-plugin/plugin.json``):
+Two packaged plugins ship today (the dirs with a ``.claude-plugin/plugin.json``
+that a marketplace entry still sources):
 
-    .claude/         -> .claude/.claude-plugin/plugin.json        (project-toolkit, Claude)
-    src/claude/      -> src/claude/.claude-plugin/plugin.json     (claude-agents)
+    src/claude/      -> src/claude/.claude-plugin/plugin.json     (project-toolkit, Claude)
     src/copilot-cli/ -> src/copilot-cli/.claude-plugin/plugin.json (project-toolkit, Copilot)
+
+ADR-109 B6 retired a third, ``.claude/.claude-plugin/plugin.json``: it named a
+distinct plugin, ``claude-agents``, until the marketplace switch repointed
+``project-toolkit`` at ``src/claude/`` and deleted this file. ``.claude/`` is
+now the binplaced dogfood copy of ``src/claude/``, not an independent
+marketplace source, so this gate no longer reads that path; a manifest state
+read as absent at a ref is already the documented pass case below, which is
+also what makes deleting a plugin manifest itself never fail this gate.
 
 ``.github/`` and ``src/vs-code-agents/`` carry no plugin.json and are not
 marketplace plugins, so they are out of scope.
@@ -120,15 +128,13 @@ class PluginManifest:
     manifest: str  # posix path to plugin.json (lives under source_dir)
 
 
-# The three packaged plugins.
+# The two packaged plugins. ADR-109 B6 retired a third entry here,
+# `.claude` -> `.claude/.claude-plugin/plugin.json`, when the marketplace
+# switch deleted that manifest; `.claude/` is now the binplaced dogfood copy
+# of `src/claude/`, not an independent marketplace source.
 PLUGINS: tuple[PluginManifest, ...] = (
     PluginManifest(
-        name="project-toolkit (claude)",
-        source_dir=".claude",
-        manifest=".claude/.claude-plugin/plugin.json",
-    ),
-    PluginManifest(
-        name="claude-agents",
+        name="project-toolkit (claude, src/claude)",
         source_dir="src/claude",
         manifest="src/claude/.claude-plugin/plugin.json",
     ),

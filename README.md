@@ -39,8 +39,6 @@ A Claude install lands the full set of agents, commands, hooks, and skills. A Co
 >
 > Without Python (or with a version below 3.10), hooks are **skipped** rather than blocking: your session works normally, but hook-based guards (security gates, review checks) do not run. A warning is printed naming the cause and the install step. This is the degraded mode, not an error.
 >
-> The `claude-agents@ai-agents` bundle (agents only, no hooks) does not need Python at all.
->
 > Install Python: <https://www.python.org/downloads/> (3.10 or newer).
 
 ### What You Get
@@ -153,7 +151,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 The [Fastest Start](#fastest-start) above is the recommended path. Use the commands below when you want component-level control (agents only, no skills, etc.).
 
-> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. Day-to-day use of the `claude-agents@ai-agents` bundle (agents only) does not need Python. The `project-toolkit@ai-agents` plugin requires Python 3.10+ for its hooks; without it, hooks are skipped with a warning (see [Fastest Start](#fastest-start)).
+> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. The `project-toolkit@ai-agents` plugin requires Python 3.10+ for its hooks; without it, hooks are skipped with a warning (see [Fastest Start](#fastest-start)).
 
 ### Quick Install (CLI marketplace)
 
@@ -167,8 +165,7 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Claude agents only | `/plugin install claude-agents@ai-agents` | Agent definitions from `src/claude/` (no skills, commands, or hooks) |
-| Project toolkit | `/plugin install project-toolkit@ai-agents` | Agents, slash commands, hooks, and reusable skills from `.claude/` |
+| Project toolkit | `/plugin install project-toolkit@ai-agents` | Agents, hooks, and reusable skills from `src/claude/` |
 
 **GitHub Copilot CLI:**
 
@@ -180,7 +177,7 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 |-----------|----------------|--------------|
 | Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | Agents, hooks, and skills from `src/copilot-cli/` (Copilot CLI) |
 
-Claude exposes both an agents-only bundle (`claude-agents`, from `src/claude/`) and the full toolkit (`project-toolkit`, from `./.claude`); the two draw from different curated sets (`src/claude/` versus `.claude/agents/`), kept in sync where they overlap. Copilot CLI installs ship a single `project-toolkit` plugin from `src/copilot-cli/` because that directory's `plugin.json` declares one identity; an agents-only Copilot install would silently register as `project-toolkit` and is therefore not advertised (issue #1840).
+Claude Code installs ship a single `project-toolkit` plugin from `src/claude/` (the separate agents-only `claude-agents` bundle was retired; ADR-109). Copilot CLI installs ship a single `project-toolkit` plugin from `src/copilot-cli/` because that directory's `plugin.json` declares one identity; an agents-only Copilot install would silently register as `project-toolkit` and is therefore not advertised (issue #1840).
 
 ### Verify Installation
 
@@ -465,7 +462,7 @@ ai-agents/
 <details>
 <summary><strong>Python version errors when running tests</strong></summary>
 
-- This project requires **Python 3.14.x** for development (running tests, linters, build scripts). The `project-toolkit@ai-agents` plugin requires **Python 3.10+** at runtime for its hooks. Without Python 3.10+, hooks degrade (skip with a warning) rather than block. The `claude-agents@ai-agents` bundle (agents only, no hooks) does not need Python.
+- This project requires **Python 3.14.x** for development (running tests, linters, build scripts). The `project-toolkit@ai-agents` plugin requires **Python 3.10+** at runtime for its hooks. Without Python 3.10+, hooks degrade (skip with a warning) rather than block.
 - The `.python-version` file pins the exact version (currently 3.14.4)
 - See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for detailed setup
 

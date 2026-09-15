@@ -70,8 +70,7 @@ Register the marketplace once if you want explicit component installs instead of
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Claude agents only | `/plugin install claude-agents@ai-agents` | 24 agent definitions from `src/claude/` |
-| Project toolkit | `/plugin install project-toolkit@ai-agents` | 23 agents, 23 slash commands, 29 hooks, and 69 reusable skills from `.claude/` |
+| Project toolkit | `/plugin install project-toolkit@ai-agents` | Agents, hooks, and reusable skills from `src/claude/` |
 
 ### GitHub Copilot CLI
 
@@ -152,7 +151,6 @@ Use your tool's native uninstall support.
 ### Claude Code
 
 ```text
-/plugin uninstall claude-agents@ai-agents
 /plugin uninstall project-toolkit@ai-agents
 ```
 

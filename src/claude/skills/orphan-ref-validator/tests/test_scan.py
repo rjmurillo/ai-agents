@@ -436,7 +436,7 @@ class TestTestsScriptRefs:
     def test_default_targets_scan_tests_tree(self, fake_repo, capsys):
         specs_dir = Path("." + "agents") / "specs"
         write(fake_repo / specs_dir / "README.md", "# specs\n")
-        write(fake_repo / ".claude" / ".claude-plugin" / "plugin.json", "{}\n")
+        write(fake_repo / "src" / "claude" / ".claude-plugin" / "plugin.json", "{}\n")
         write(fake_repo / ".claude-plugin" / "marketplace.json", "{}\n")
         write(fake_repo / ".github" / "plugin" / "marketplace.json", "{}\n")
         target = fake_repo / "tests" / "contracts" / "orphan_refs.md"

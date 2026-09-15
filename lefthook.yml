@@ -702,7 +702,7 @@ pre-push:
             run: uv run --frozen python scripts/validation/git_hook_policy.py cli-plugin-e2e
             use_stdin: true
             glob:
-              - ".claude/.claude-plugin/plugin.json"
+              - "src/claude/.claude-plugin/plugin.json"
               - ".claude/skills/**"
               - "src/copilot-cli/.claude-plugin/plugin.json"
               - "src/copilot-cli/skills/**"

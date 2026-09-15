@@ -2,7 +2,7 @@
 type: task
 id: TASK-036
 title: Marketplace switch, claude-agents retired, project-toolkit repointed to src/claude (B6)
-status: todo
+status: done
 priority: P1
 complexity: S
 source: ADR-109
@@ -33,14 +33,14 @@ Out of scope: any change to `.claude-plugin/marketplace.json`'s or `.github/plug
 
 ## Acceptance Criteria
 
-- [ ] `.claude-plugin/marketplace.json`'s plugins array names exactly one Claude-side plugin, `project-toolkit`, with `source: "./src/claude"`; no `claude-agents` entry remains.
-- [ ] `test -f .claude/.claude-plugin/plugin.json` exits nonzero after this task lands.
-- [ ] `test -f src/claude/.claude-plugin/plugin.json` exits 0, and its content is what was previously at `.claude/.claude-plugin/plugin.json` (the `project-toolkit` manifest, now sourced from the plugin tree that B1 through B5 render and binplace).
-- [ ] `.github/plugin/marketplace.json`'s `project-toolkit` description no longer reads "generated from Claude canonical sources"; its `source` path (`./src/copilot-cli`) is unchanged.
-- [ ] A fresh plugin install from the updated marketplace (or the repository's own plugin-eval harness, if one exists for this check) resolves `project-toolkit` at `./src/claude` with no missing file, confirming the manifest move did not orphan a path the old `./.claude` source served.
-- [ ] The PR body states the rollback contract explicitly: reverting this task fixes future installs only, and any consumer who updated `project-toolkit` during the window between this task's merge and a revert keeps the `./src/claude`-sourced copy until their own next update.
-- [ ] `.agents/architecture/README.md` needs no change from this task alone (ADR-109's acceptance-time edits to ADR-052's status and the README's Accepted-to-Retired row move are governed by the ADR lifecycle process, not this implementation task).
-- [ ] No em dash or en dash in any changed file; `uv run python scripts/validation/pre_pr.py` reports no BLOCKING finding.
+- [x] `.claude-plugin/marketplace.json`'s plugins array names exactly one Claude-side plugin, `project-toolkit`, with `source: "./src/claude"`; no `claude-agents` entry remains.
+- [x] `test -f .claude/.claude-plugin/plugin.json` exits nonzero after this task lands.
+- [x] `test -f src/claude/.claude-plugin/plugin.json` exits 0, and its content is what was previously at `.claude/.claude-plugin/plugin.json` (the `project-toolkit` manifest, now sourced from the plugin tree that B1 through B5 render and binplace).
+- [x] `.github/plugin/marketplace.json`'s `project-toolkit` description no longer reads "generated from Claude canonical sources"; its `source` path (`./src/copilot-cli`) is unchanged.
+- [x] A fresh plugin install from the updated marketplace resolves `project-toolkit` at `./src/claude` with no missing file. The skill-loading smoke (`claude --plugin-dir src/claude plugin details project-toolkit`) passes: every skill name is listed (`RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py -k claude -q`, 12 passed). The deeper completeness gap this task's own verification found, `src/claude/skills/<name>/` carrying only `SKILL.md` for 84 of 111 skills that also need `scripts/`, `references/`, or `tests/` under `.claude/skills/<name>/`, closed on `feat/adr-109-b3-skill-support-files` (merged `77a44751b`, #5794): `build/scripts/skill_support_mirror.py`'s `sync_claude_plugin_skill_support`, wired into `build_all.py`, mirrors those files into `src/claude/skills/<name>/` too. Verified after merging main: a direct file-by-file walk of every `.claude/skills/*/{scripts,references,tests}` file against its `src/claude/skills/` twin found zero missing; `tests/e2e/test_claude_skill_support_mirror_parity.py` (3 tests) and `build_all.py --check` (exit 0) both confirm. Example resolved: `src/claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py` now exists and is byte-identical to the `.claude/` copy.
+- [x] The PR body states the rollback contract explicitly: reverting this task fixes future installs only, and any consumer who updated `project-toolkit` during the window between this task's merge and a revert keeps the `./src/claude`-sourced copy until their own next update.
+- [x] `.agents/architecture/README.md` needs no change from this task alone (ADR-109's acceptance-time edits to ADR-052's status and the README's Accepted-to-Retired row move are governed by the ADR lifecycle process, not this implementation task).
+- [x] No em dash or en dash in any changed file; `uv run python scripts/validation/pre_pr.py` reports no BLOCKING finding.
 
 ## Files Affected
 

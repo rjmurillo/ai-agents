@@ -64,8 +64,17 @@ def _manifest_sources() -> list[str]:
 
 
 def test_scanner_roots_match_marketplace_manifest_sources() -> None:
-    expected = _manifest_sources()
-    assert set(_gate().PLUGIN_ROOTS) == set(expected)
+    """The scanner's roots are the manifest sources plus ``.claude``.
+
+    ADR-109 B6 retired ``.claude`` as its own marketplace entry (it is now the
+    binplaced dogfood copy of ``src/claude``, not an independent source), so
+    it no longer appears in ``_manifest_sources()``. The gate still scans it
+    directly (`scripts/validation/check_plugin_frontmatter_self_containment.py`'s
+    `plugin_roots()` docstring explains why), so the two sets diverge by
+    exactly that one root.
+    """
+    expected = set(_manifest_sources()) | {".claude"}
+    assert set(_gate().PLUGIN_ROOTS) == expected
 
 
 def test_every_manifest_source_is_covered_whole() -> None:

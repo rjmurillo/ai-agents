@@ -992,10 +992,20 @@ class Finding:
 
 
 def _plugin_install_root() -> Path | None:
-    """Return the plugin root discovered by walking up from this file."""
+    """Return the plugin root discovered by walking up from this file.
+
+    A directory carrying ``_PLUGIN_MARKER`` (``.claude-plugin/plugin.json``)
+    is a root. So is one literally named ``.claude``, even without that
+    marker: ADR-109 B6 deleted ``.claude/.claude-plugin/plugin.json`` (it is
+    now the binplaced dogfood copy of ``src/claude/``, not an independent
+    marketplace source), but this file lives under ``.claude/`` in every real
+    checkout, so the first ``.claude``-named ancestor found walking up from
+    here is unambiguously this file's own plugin root, not some unrelated
+    directory that happens to share the name.
+    """
     current = Path(__file__).resolve().parent
     while True:
-        if (current / _PLUGIN_MARKER).is_file():
+        if (current / _PLUGIN_MARKER).is_file() or current.name == ".claude":
             return current
         if current.parent == current:
             return None

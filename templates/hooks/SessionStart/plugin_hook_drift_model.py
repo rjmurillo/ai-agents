@@ -90,9 +90,16 @@ def read_plugin_identity(root: Path) -> tuple[str | None, bool]:
     a plugin root" from "there is one and this hook could not read it". The
     second is not a clean skip: an oversized or corrupt `plugin.json` on the
     real install would otherwise drop that install from the scan silently, and
-    the message would go on to claim no installed copy exists.
+    the message would go on to claim no installed copy exists. A ``.claude``
+    root with no manifest (ADR-109 B6) retries the twin
+    ``../src/claude/.claude-plugin/plugin.json`` before reporting absent.
     """
     data, error = _read_json_object(root / PLUGIN_MANIFEST_REL)
+    if data is None and root.name == ".claude":
+        twin = root.parent / "src" / "claude" / PLUGIN_MANIFEST_REL
+        twin_data, twin_error = _read_json_object(twin)
+        if twin_data is not None:
+            data, error = twin_data, twin_error
     if data is None:
         missing = bool(error and error.startswith("no hook manifest"))
         return None, not missing

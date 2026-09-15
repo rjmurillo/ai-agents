@@ -14,11 +14,13 @@ Three directories ship as installable plugins. Nothing else in this repository r
 
 | Plugin root | Plugin name | Marketplace |
 |---|---|---|
-| `.claude/` | `project-toolkit` | `.claude-plugin/marketplace.json` |
-| `src/claude/` | `claude-agents` | `.claude-plugin/marketplace.json` |
+| `src/claude/` | `project-toolkit` | `.claude-plugin/marketplace.json` |
 | `src/copilot-cli/` | `project-toolkit` | `.github/plugin/marketplace.json` |
+| `.claude/` | `project-toolkit` | not separately listed; binplaced dogfood copy of `src/claude/` |
 
 Each marketplace entry names exactly one `source` directory. A consumer who installs the plugin receives that directory and nothing above it. `docs/`, `.agents/`, `build/`, `scripts/`, `templates/`, and the repository root stay behind.
+
+`src/claude/` is the sole Claude Code plugin root the marketplace lists (ADR-109 B6): `.claude-plugin/marketplace.json`'s `project-toolkit` entry sources it directly, replacing the retired `claude-agents` entry that used to name this same directory. `.claude/` still exists and is still scanned by the checks below, because it is where `build_all.py`'s binplace step writes this repository's own Claude Code load path; it carries the same `project-toolkit` name but is not an independent marketplace entry. Parity is manifest-owned-paths only, not whole-tree: binplace copies agents, rules, hooks, settings, and each skill's `SKILL.md`, never a skill's hand-maintained `scripts/`, `references/`, or `tests/`, which exist under `.claude/skills/<name>/` and not under `src/claude/skills/<name>/` (a gap ADR-109 B6's own install verification found and TASK-036 records as blocked).
 
 `templates/agents/**` is in scope for this rule because it is the canonical source that generates shipped agent files. The partials directory under it and the `.claude.md.tmpl` and `.copilot.md.tmpl` template files are in the same scope, since they generate shipped agent files. An outward reference introduced in any of these lands in a plugin root on the next build.
 
