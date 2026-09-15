@@ -457,9 +457,8 @@ scenarios, added by PR #4017, and no scored result anywhere in
 this one scoped with `alwaysApply:`, a key Claude Code ignores, and rescoped it
 to code files, which left `voice.md` the largest rule in the corpus for a
 time. Epic #5456 M4 later moved most of `voice.md`'s prose into the spec,
-plan, review, and autoplan skills, so `voice.md` (13,873 bytes) is no longer
-the largest; `builder-ethos.md` is now the largest of the three always-on
-rules. `pragmatic-programmer.md` (10,612 bytes) sits on the same footing with
+plan, review, and autoplan skills, so `voice.md` (14,329 bytes) is still the
+largest of the three always-on rules, 130 bytes ahead of `builder-ethos.md`. `pragmatic-programmer.md` (10,612 bytes) sits on the same footing with
 four scenarios of its own. PR #4424 narrowed it to source files, but it wrote
 the narrowing under `applyTo:`, so the rule went on loading on every Claude
 session until #4871 moved it to `paths:`.
