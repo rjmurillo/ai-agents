@@ -117,6 +117,15 @@ class TestIsAddAddConflict:
         _git(tmp_path, "init", "-b", "main")
         assert _is_add_add_conflict(".agents/sessions/missing.json", cwd=str(tmp_path)) is False
 
+    def test_inspection_failure_returns_none(self, tmp_path: Path) -> None:
+        """CodeRabbit PRRT_kwDOQoWRls6icJzj: fail closed, not "not add/add".
+
+        *tmp_path* is not a git repository, so ``git ls-files -u`` exits
+        nonzero. The old code returned False here, which let the evidence
+        conflict fall through to accept-theirs.
+        """
+        assert _is_add_add_conflict(".agents/sessions/x.json", cwd=str(tmp_path)) is None
+
 
 class TestResolveConflictedFileEvidenceAddAdd:
     """_resolve_conflicted_file blocks add/add evidence conflicts (PR #4856)."""
@@ -152,3 +161,24 @@ class TestResolveConflictedFileEvidenceAddAdd:
         status = _resolve_conflicted_file(rel, result, cwd=str(tmp_path))
         assert status == "resolved"
         assert result["files_resolved"] == [rel]
+
+    def test_ls_files_failure_blocks_instead_of_accept_theirs(self, tmp_path: Path) -> None:
+        """CodeRabbit PRRT_kwDOQoWRls6icJzj: fail closed on inspection failure.
+
+        *tmp_path* is not a git repository, so ``git ls-files -u`` fails.
+        Before the fix, that failure made ``_is_add_add_conflict`` return
+        False, which let this evidence path fall through to
+        ``is_auto_resolvable`` and accept-theirs, discarding the evidence
+        record without ever inspecting it.
+        """
+        rel = ".agents/sessions/2026-01-01.json"
+        result: dict[str, Any] = {
+            "success": False,
+            "message": "",
+            "files_resolved": [],
+            "files_blocked": [],
+        }
+        status = _resolve_conflicted_file(rel, result, cwd=str(tmp_path))
+        assert status == "blocked"
+        assert result["files_blocked"] == [rel]
+        assert result["files_resolved"] == []
