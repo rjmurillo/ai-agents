@@ -530,7 +530,9 @@ def _build_hooks(
     ``scriptSource``/output pair to render into without one.
     """
     compile_result = hook_templates.compile_all(repo_root, validate=check)
-    result = GeneratorResult(artifact="hooks", platform=platform, exit_code=compile_result.exit_code)
+    result = GeneratorResult(
+        artifact="hooks", platform=platform, exit_code=compile_result.exit_code
+    )
     result.skipped = len(compile_result.skipped)
     if compile_result.exit_code != 0:
         if check:
