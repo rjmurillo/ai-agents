@@ -93,8 +93,15 @@ is absent, omit `--judge`.
 
 ### Step 3: Run
 
+Always pass `--workdir` pointing at a throwaway directory. When it is omitted,
+`model_benchmark.py` defaults the workdir to the current directory
+(`os.getcwd()`), and both the Claude and Gemini adapters can write there: Gemini
+runs with `--yolo` (unsandboxed), and Claude carries no read-only flag. Only the
+GPT/Codex adapter is constrained (`-s read-only`).
+
 ```bash
-python3 "$BENCH" <prompt-spec> --models <picked> [--judge] --output table
+WORKDIR="$(mktemp -d)"
+python3 "$BENCH" <prompt-spec> --models <picked> [--judge] --output table --workdir "$WORKDIR"
 ```
 
 `<prompt-spec>` is `--prompt "<text>"` (B) or a file path (A/C). Stream the

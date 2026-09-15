@@ -47,29 +47,31 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `src/vs-code-agents/` | generated | templates/agents | `build/generate_agents.py` |
 | `src/copilot-cli/agents/` | generated | templates/agents | `build/generate_agents.py` |
 | `docs/agent-catalog.md` | generated | templates/agents | `build_all.py` (agent-catalog) |
-| `.claude/` (rules, skills, hooks, commands, settings.json) | CANONICAL for everything else | itself | n/a (generators NEVER write here) |
+| `.claude/` (rules, skills except template-owned ones below, hooks, settings.json) | CANONICAL for everything else | itself | n/a (generators NEVER write here) |
+| `templates/skills/*.SKILL.md.tmpl` | CANONICAL for template-owned skills only (ADR-108, ADR-109) | itself | compiles first into `.claude/skills/`, then `src/copilot-cli/skills/` (skills step, below) |
 | `src/copilot-cli/{skills,instructions,lib,hooks}` | generated | `.claude/` trees | `build/scripts/build_all.py` |
 | `.github/instructions/` | generated | `.claude/rules/` | `build_all.py` (rules) |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | CANONICAL for shared Python | itself | n/a |
 | `.claude/lib/` | mirrored copy (relative imports) | `scripts/` packages | `scripts/sync_plugin_lib.py` |
-| `src/claude/` | MANUAL hand-synced exception (ADR-036, superseded in governance by ADR-052 2026-08-25, procedure still operative and unimplemented) | edited by hand | no generator; semantic drift CI only |
+| `src/claude/` | MANUAL hand-synced exception (ADR-036, superseded by ADR-052, itself superseded by ADR-109, accepted 2026-09-11; procedure still operative and unimplemented) | edited by hand | no generator; semantic drift CI only |
 
-Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; order is load-bearing per the `Order matters` comment above it):
+Skills split in two (ADR-108, ADR-109). Template-owned: edit `templates/skills/<name>.SKILL.md.tmpl`; the skills step renders it into `.claude/skills/<name>/SKILL.md` first, then the Copilot copy step mirrors that into `src/copilot-cli/skills/<name>/SKILL.md`, overwriting both on every run. Hand-maintained: no template exists, so `.claude/skills/<name>/SKILL.md` stays canonical and is what the skills step reads for its Copilot mirror.
+
+Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; order is load-bearing per the `Order matters` comment above it; a `commands` step sat between skills and rules until ADR-064 retired `.claude/commands/`, so the count is seven, not eight):
 
 | # | Generator | Reads | Writes |
 |---|-----------|-------|--------|
 | 1 | agents | `templates/agents/*.shared.md` + `templates/platforms/*.yaml` | `src/copilot-cli/agents/*.agent.md`, `src/vs-code-agents/*.agent.md` |
 | 2 | agent-catalog | `templates/agents/*.shared.md` | `docs/agent-catalog.md` |
 | 3 | adr-index | the ADR corpus under `.agents/architecture/` | `.agents/architecture/README.md` |
-| 4 | skills | `.claude/skills/*/SKILL.md` | `src/copilot-cli/skills/` |
-| 5 | commands | `.claude/commands/*.md` (top level, not CLAUDE.md) | `src/copilot-cli/skills/` (command-bridge skills) |
-| 6 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
-| 7 | lib | `.claude/lib/` | `src/copilot-cli/lib/` (must land before hooks) |
-| 8 | hooks | `.claude/settings.json` + `.claude/hooks/` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` |
+| 4 | skills | `.claude/skills/*/SKILL.md` (template-owned skills compile first; ADR-108, ADR-109) | `src/copilot-cli/skills/` |
+| 5 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
+| 6 | lib | `.claude/lib/` | `src/copilot-cli/lib/` (must land before hooks) |
+| 7 | hooks | `.claude/settings.json` + `.claude/hooks/` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` |
 
 Facts that prevent confusion:
 
-- `build_all.py` enforces a no-write invariant on `.claude/` (REQ-003-010): if any generator writes there, the run exits 2 with `REQ-003-010 VIOLATION`. `.claude/` is input only.
+- `build_all.py` enforces a no-write invariant on `.claude/` (REQ-003-010): if any generator writes there, the run exits 2 with `REQ-003-010 VIOLATION`, except the template-owned skill files whose template exists under `templates/skills/` at run time (ADR-108, ADR-109). `.claude/` is otherwise input only.
 - Generated-tree ownership is exactly `OWNED_PREFIXES = ("src/", ".github/instructions/", "docs/agent-catalog.md", ".agents/architecture/README.md")`, four entries, in the `OWNED_PREFIXES` tuple. `--check` only flags staleness inside those prefixes, and the adr-index generator is why the last one is there.
 - The hooks generator maps Stop, SubagentStop, PermissionRequest, and
   PreCompact to their PascalCase compatibility names. Stop and SubagentStop
@@ -87,7 +89,7 @@ Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` bo
 | You edited | Run | Then |
 |------------|-----|------|
 | `templates/agents/*.shared.md` | `uv run python build/generate_agents.py` then `uv run python build/scripts/build_all.py` (refreshes docs/agent-catalog.md) | commit template + all regenerated files. If the same agent exists in `src/claude/agents/`, hand-apply the equivalent edit there (ADR-036 manual sync; semantic drift CI is the only net). |
-| `.claude/skills/`, `.claude/commands/`, `.claude/rules/` | `uv run python build/scripts/build_all.py` | commit source + generated. No manifest edit (Phase 4) |
+| `.claude/skills/<name>/SKILL.md` (hand-maintained) or `templates/skills/<name>.SKILL.md.tmpl` (template-owned; ADR-108, ADR-109), plus `.claude/rules/` | `uv run python build/scripts/build_all.py` | commit source or template, plus both rendered copies for a template-owned skill. No manifest edit (Phase 4) |
 | `.claude/hooks/` or `.claude/settings.json` | `uv run python build/scripts/build_all.py` | same as above. The `build-all-check` pre-push job in `lefthook.yml` re-runs `build_all.py --check` at `git push` time and blocks if any generated output (including shims under `src/copilot-cli/hooks/`) drifts, so regenerate BEFORE pushing. |
 | `scripts/hook_utilities/`, `scripts/github_core/`, `scripts/ai_review_common/` | `python3 scripts/sync_plugin_lib.py` (writes `.claude/lib/`) THEN `uv run python build/scripts/build_all.py` (writes `src/copilot-cli/lib/`) | BOTH are required; skipping either fails the Validate Generated Files CI. No manifest edit. |
 | `src/claude/` (deliberate manual change) | nothing to regenerate | nothing to bump; the manifest carries no version (Phase 4) |
@@ -209,7 +211,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
-| 8 generators and their order | the `GENERATORS` list in build/scripts/build_all.py | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
+| 7 generators and their order | the `GENERATORS` list in build/scripts/build_all.py | `grep -n -A9 "^GENERATORS" build/scripts/build_all.py` |
 | `OWNED_PREFIXES`, four entries | the `OWNED_PREFIXES` tuple in build/scripts/build_all.py | `grep -n "OWNED_PREFIXES" build/scripts/build_all.py` |
 | .claude/ no-write invariant | build/scripts/build_all.py: `CLAUDE_GUARD_PREFIX` (rule), the `claude_baseline` snapshot in `run` (snapshot), `assert_no_claude_writes` called from `_run_generators` (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | build_all exit codes 0/1/2/3, four exit-2 producers | the `EXIT CODES` block in the build/scripts/build_all.py module docstring | `grep -n -A20 "^EXIT CODES" build/scripts/build_all.py` |
@@ -218,14 +220,14 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | Plugin manifest locations, all version-free | the three plugin.json files | `python3 build/scripts/validate_plugin_version_bump.py` |
 | Version-field prohibition and the ADR-092 reversal | build/scripts/validate_plugin_version_bump.py docstring | `grep -n "WHY THE FIELD MUST BE ABSENT" build/scripts/validate_plugin_version_bump.py` |
 | Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py | `python3 build/scripts/check_plugin_manifest_parity.py` |
-| Drift CI wiring | .github/workflows/validate-generated-agents.yml (multiple gates); agent-drift-detection.yml:146,156,159,171 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml` |
-| Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml; build/scripts/detect_agent_drift.py | `grep -n "cron" .github/workflows/drift-detection.yml` |
+| Drift CI wiring | .github/workflows/validate-generated-agents.yml (multiple gates); agent-drift-detection.yml:146,156,159,171 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml && grep -n "python3 " .github/workflows/agent-drift-detection.yml` |
+| Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml; the drift script's own argparse default (command below) | `grep -n "cron" .github/workflows/drift-detection.yml && grep -n "default=80" build/scripts/detect_agent_drift.py` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | Ruff exemption for generated Python | `pyproject.toml [tool.ruff.lint.per-file-ignores]` | `grep -n "src/copilot-cli" pyproject.toml` |
-| npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md; .github/workflows/publish.yml:13-16 | `grep -n "tags" .github/workflows/publish.yml` |
+| npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md; .github/workflows/publish.yml:13-16 | `grep -n '"build":' packages/ai-agents-cli/package.json && grep -n "Rollback" RELEASING.md && grep -n "tags" .github/workflows/publish.yml` |
 | Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |
 | Audit log path, gitignored | .gitignore:70 | `grep -n "build/audit" .gitignore` |
 | 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `python3 -c "import pathlib;print([p.name for p in pathlib.Path('.agents/retrospective').glob('*drift*')])"` |
-| ADR-036 superseded by ADR-052 (2026-08-25, procedure still operative), ADR-052 accepted and unimplemented, ADR-072 Proposed | the ADR-036, ADR-052, and ADR-072 architecture records | `head -12 .agents/architecture/ADR-072-jtbd-plugin-architecture.md && head -12 .agents/architecture/ADR-036-two-source-agent-template-architecture.md && grep -n "Still operative as procedure" .agents/architecture/ADR-036-two-source-agent-template-architecture.md && head -12 .agents/architecture/ADR-052-template-strategy.md` (chained with `&&` so a missing source fails the whole probe rather than being masked by a later successful command; the `grep` verifies the "still operative" claim, not just frontmatter status; row re-verified 2026-08-25; other rows in this table carry their 2026-07-29 verification) |
+| ADR-036 superseded by ADR-052, ADR-052 superseded by ADR-109 (accepted 2026-09-11, unimplemented), ADR-072 Proposed | the ADR-036, ADR-052, ADR-072, and ADR-109 architecture records | `head -12 .agents/architecture/ADR-072-jtbd-plugin-architecture.md && head -12 .agents/architecture/ADR-036-two-source-agent-template-architecture.md && grep -n "Still operative as procedure" .agents/architecture/ADR-036-two-source-agent-template-architecture.md && head -12 .agents/architecture/{ADR-052-template-strategy.md,ADR-109-template-first-plugin-distribution.md}` (chained with `&&` so a missing source fails the whole probe rather than being masked by a later successful command; brace-expanded so `head`'s own nonzero exit on a missing file still fails the chain; the `grep` verifies the "still operative" claim, not just frontmatter status; row re-verified 2026-09-14; other rows in this table carry their 2026-07-29 verification) |
 
 Maintenance: when a generator is added or removed from `GENERATORS`, when a fourth plugin.json appears, or if a marketplace count validator is reintroduced to replace the retired one, update Phase 1/4 tables and re-run every re-verify command above.

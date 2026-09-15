@@ -164,6 +164,7 @@ Plan the controlled failure injection.
 - Define automatic abort criteria
 - Have rollback ready before starting
 - Notify on-call before and after
+- For a State-category experiment (data corruption, cache invalidation) that will run against production, rehearse and verify a tested restoration path for the corrupted data itself before starting. Rollback stops the injection; it does not undo data already corrupted.
 
 **Output**: Detailed injection plan with rollback procedures
 
@@ -191,6 +192,7 @@ Run the controlled experiment.
 - [ ] On-call team aware
 - [ ] Monitoring dashboards ready
 - [ ] Rollback procedure tested
+- [ ] For data-corruption or cache-invalidation experiments in production: restoration path for the already-corrupted data rehearsed and verified, separate from injection rollback
 - [ ] Customer support briefed (for production)
 - [ ] Automatic abort criteria configured
 
@@ -319,6 +321,7 @@ Before executing any chaos experiment:
 - [ ] Injection plan includes specific tools and commands
 - [ ] Blast radius is contained to acceptable scope
 - [ ] Rollback procedure is documented and tested
+- [ ] For data-corruption or cache-invalidation experiments in production: restoration path for the already-corrupted data is documented, rehearsed, and verified, not just injection rollback
 - [ ] Stakeholders have approved the experiment
 - [ ] On-call team is aware of timing
 - [ ] Monitoring dashboards are ready

@@ -42,6 +42,17 @@ When using the `Bash` tool, all arguments containing variable or user-provided i
 **WRONG**: `grep $PATTERN /some/path`
 **CORRECT**: `grep -- "$PATTERN" /some/path`
 
+`--thoughts` carries the user's request description and, at later steps, accumulated findings: both are request-derived text. Double quotes alone do not neutralize this argument: `$(...)` and backticks inside a double-quoted `--thoughts "..."` string still execute before the script ever receives the value, because the Bash tool expands them first. The script has no file or stdin input for `--thoughts` (`--step-number`, `--total-steps`, `--thoughts` are its only arguments), so capture the text first with a quoted-delimiter heredoc (`<<'EOF'`), which the shell stores as a literal with no substitution, then pass the resulting variable, itself double-quoted:
+
+```bash
+read -r -d '' THOUGHTS <<'EOF'
+Starting analysis. User request: <describe what user asked to analyze>
+EOF
+python3 scripts/analyze.py --step-number 1 --total-steps 6 --thoughts "$THOUGHTS"
+```
+
+Never interpolate request-derived text directly inside a double-quoted `--thoughts "..."` argument on the command line; the quoted heredoc is what neutralizes `$(...)` and backticks, not the surrounding double quotes.
+
 ---
 
 ## When to Use
@@ -81,11 +92,16 @@ Use direct code reading instead when:
 
 ### Invocation
 
+Build `--thoughts` from a quoted-delimiter heredoc (see Security), never by interpolating request-derived text directly into the command:
+
 ```bash
+read -r -d '' THOUGHTS <<'EOF'
+Starting analysis. User request: <describe what user asked to analyze>
+EOF
 python3 scripts/analyze.py \
   --step-number 1 \
   --total-steps 6 \
-  --thoughts "Starting analysis. User request: <describe what user asked to analyze>"
+  --thoughts "$THOUGHTS"
 ```
 
 | Argument | Required | Description |
@@ -132,18 +148,27 @@ Consolidate verified findings by severity (critical, high, medium, low). Identif
 
 ```bash
 # Step 1: Start, script instructs you to explore first
+read -r -d '' THOUGHTS <<'EOF'
+Starting analysis of auth system
+EOF
 python3 scripts/analyze.py --step-number 1 --total-steps 6 \
-  --thoughts "Starting analysis of auth system"
+  --thoughts "$THOUGHTS"
 
 # [Follow REQUIRED ACTIONS: delegate to Explore agent, wait for results]
 
 # Step 1 again with explore results
+read -r -d '' THOUGHTS <<'EOF'
+Explore found: Flask app, SQLAlchemy, auth/ dir...
+EOF
 python3 scripts/analyze.py --step-number 1 --total-steps 6 \
-  --thoughts "Explore found: Flask app, SQLAlchemy, auth/ dir..."
+  --thoughts "$THOUGHTS"
 
 # Step 2+: Continue following script output
+read -r -d '' THOUGHTS <<'EOF'
+[accumulated state from step 1] Focus: security P1, quality P2
+EOF
 python3 scripts/analyze.py --step-number 2 --total-steps 7 \
-  --thoughts "[accumulated state from step 1] Focus: security P1, quality P2"
+  --thoughts "$THOUGHTS"
 ```
 
 ---
