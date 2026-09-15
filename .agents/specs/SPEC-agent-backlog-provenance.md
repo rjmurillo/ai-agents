@@ -70,7 +70,7 @@ Issue generators discovered that #5698 does not name. Adjudicated in-scope (ackn
 | security agent CONDITIONAL verdict | `.claude/agents/security.md:221`, `:398`, `:546` | Same shape: the gate clears only when a follow-up issue exists. |
 | research skill | `.claude/skills/research/SKILL.md:4`, `:91` | Files a follow-up issue by design at the end of every run. |
 | task-decomposer agent | `.claude/agents/task-decomposer.md:46` | Uses raw `gh issue create`, bypassing new_issue.py and any flag it grows. |
-| GitHub workflows with `issues: write` | 14 files under `.github/workflows/` (drift-detection, ai-metrics-analysis, artifact-insight-scanner, quality-grades among them) | Create issues under the github-actions login; already distinguishable by login. |
+| GitHub workflows with `issues: write` | 14 active files under `.github/workflows/` (drift-detection, ai-metrics-analysis, artifact-insight-scanner, quality-grades among them; two `.disabled` files excluded) | Create issues under the github-actions login; already distinguishable by login. |
 
 Adjudicated out-of-scope: `claude.yml` (runs on issues.opened but only answers mentions; it is not a generator).
 
@@ -163,7 +163,7 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 
 1. The issue script shall refuse to create an issue unless `--source human` or `--source agent` is given, and shall apply the matching `source:*` label. (#5700)
 2. When `--source agent` is given, the issue script shall require `--blocked-by` and `--signal`, reject the canonical hedge phrases, run the secret redactor over both answers, and append a `## Step 0` block with Q3 and Q5 to the body. (#5700, redaction is NEW within #5700)
-3. NEW. When an issue is opened in rjmurillo/ai-agents by any door, a repository workflow shall label it `source:agent` unless the body carries the web-form marker or the author login is not the owner's, and shall label it `source:human` when the marker is present. (Amends #5700; the script becomes the friendly door and the workflow the enforcement point. Prior art: ADR-020's intake step.)
+3. NEW. When an issue is opened in rjmurillo/ai-agents by any door, a repository workflow shall label it `source:agent` unless the body carries a human marker or the author login is not the owner's, and shall label it `source:human` when the marker is present. The human marker is either the web-form's hidden field or the HTML comment `<!-- source:human -->` that the issue script writes only when invoked with `--source human`. The comment is forgeable by an agent that shares the login; the invariant that agents never pass `--source human` is a rule, and AC-7's burst count is the detector. (Amends #5700; the script becomes the friendly door and the workflow the enforcement point. Prior art: ADR-020's intake step. Interim decision recorded under Open questions item 3.)
 4. The retrospective agent shall write findings only to the retrospective file and shall never call an IssueDoor. (#5703)
 5. The backlog-generator agent shall not exist in any template, generated tree, catalog, or routing table. (#5701)
 6. NEW. The adr-review deferral protocol, the qa agent, the security agent, the research skill, and the task-decomposer agent shall not require or perform issue creation to clear a verdict or finish a run; a deferred or conditional item shall be recorded in the debate log, the PR body under "Noticed, not done", or the retro file. task-decomposer shall use the issue script with `--source agent` when the owner has asked it to decompose an epic, and never raw gh.
@@ -172,11 +172,14 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 9. COST-GOVERNANCE.md shall carry a Model Token Cost Policy with the two-line cost model, the five weekly metrics, the 2026-09-10 baseline, the runaway condition, and a weekly review line. (#5705)
 10. adr-generator shall run five mandatory exit gates (claims ledger, citation freshness, doc-accuracy, self-consistency, one refuting analyst seat) before Phase G5, and adr-review's debate log shall record any factual finding a seat raises after the gates as a gate escape. (#5708)
 11. When a session stops, the reflect skill shall run by a mechanism the harness can actually fire; a full retrospective shall be written only on a RetroTrigger; lefthook shall carry no retrospective push gate. (#5709)
-12. builder-ethos.md shall state the two-line cost model and that an agent may boil a lake the user named and may only flag, never file, a lake it found; voice.md's ownership example shall agree. (#5699)
+12. builder-ethos.md shall contain the phrases "task selection is not the agent's to compress" and "may only flag, never file" (grep count 1 or more for each), and voice.md shall contain zero occurrences of "Worth a follow-up issue" and at least one occurrence of "PR body" inside its Ownership section. (#5699)
 13. Each of the 8 skills carrying `@CLAUDE.md` shall compile from a SKILL.md.tmpl, the generated file shall be byte-identical to the committed one, and the Copilot mirror shall contain no `{{` and no `@CLAUDE.md`. (#5706)
 14. The owner shall receive one triage sheet for the 228 open issues as a single epic comment, and no issue shall be closed before the owner's keep list is posted. (#5704)
+15. Every sub-issue of #5698 shall carry the six headings Context, Files to touch, Steps, Acceptance criteria, Verification commands, and Out of scope in that order, and every path listed under Files to touch shall exist in the tree at the time of filing (check: the haiku verifier's path-existence pass, recorded in the workflow journal for #5699 to #5709). This is user story 3's self-sufficiency claim, previously uncovered.
 
 ## Coverage evaluation (axis 1 through 5)
+
+**Two problems in one epic.** The Step 0 block names one problem: the owner cannot triage because issues carry no provenance (Q3). Criteria AC-1 to AC-6 and AC-14 answer it. Criteria AC-9 to AC-13 answer a second problem the owner raised in the same conversation and Q5 records but Q3 does not name: agents set their own task count, so ADR rounds (median 3, 55 percent factual round-1 findings), push-driven retros (96 in 40 days), and always-on context are spend the owner never selected. Its Q3-equivalent, stated here so it is not smuggled: the owner, blocked on paying for agent-chosen rounds and retros with no ledger that shows the split. The critic's recommendation is to split: keep #5698 as the provenance epic (AC-1 to AC-6, AC-14, AC-15) and move AC-9 to AC-13 (#5699, #5705, #5706, #5708, #5709) under a sibling epic for agent-selected spend. Splitting a filed epic is the owner's call; recorded under Deferred. Until then this spec carries both, each traced to its own problem statement.
 
 **Problem clarity.** The epic names the right root cause (no provenance, no human at the door) and the right doctrine error (per-task pricing of per-period spend). It under-states the door: it treats `new_issue.py` as the one script every agent calls (Q6 says so), and the measured traffic says otherwise. The reframing that changes the outcome is to make "agents never file; a human files" the invariant and to enforce it where every door converges, the repository, with the script as the courteous path. That is AC-3 and AC-6, and it is the shape ADR-020 proposed in December 2025 and never built.
 
@@ -184,7 +187,7 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 
 **Completeness.** Gaps between the epic and the problem, each now a criterion: door bypass (AC-3), gate-clearing generators (AC-6), redaction of Step 0 answers (AC-2), a stop rather than a report (AC-8). One gap has no criterion: token spend itself. No telemetry in the repo records tokens per session or per PR (`.agents/metrics/` holds a Step 0 tally, an audit TSV, and dashboard templates; nothing token-shaped). The CostLedger measures issues and retros as proxies. Recorded under Open questions.
 
-**Traceability.** Sub-issue to criterion: #5699 AC-12; #5700 AC-1, AC-2, AC-3; #5701 AC-5; #5702 AC-7; #5703 AC-4; #5704 AC-14; #5705 AC-9; #5706 AC-13; #5708 AC-10; #5709 AC-11. Criteria with no sub-issue: AC-6, AC-8.
+**Traceability.** Sub-issue to criterion: #5699 AC-12; #5700 AC-1, AC-2, AC-3; #5701 AC-5; #5702 AC-7; #5703 AC-4; #5704 AC-14; #5705 AC-9; #5706 AC-13; #5708 AC-10; #5709 AC-11; all ten AC-15. Criteria with no sub-issue: AC-6, AC-8. AC-6 is the one the pre-mortem rates most likely to be skipped at build time, because it is the criterion that closes Failure mode 2 and nothing tracks it.
 
 **Feasibility.** All criteria reuse existing code: the issue script, `check_citation_freshness.py`, doc-accuracy, generate_agents and generate_skills, lefthook. AC-3 is a small workflow under ADR-006 (logic in a Python script, YAML thin). AC-8 adds one branch to that script.
 
@@ -200,8 +203,10 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 
 | Decision | Owner |
 |---|---|
-| AC-8 circuit breaker: adopt, or keep measurement only | owner |
-| Whether "human" means web form only (verifiable) or also owner-typed session requests (unverifiable) | owner |
+| AC-8 circuit breaker: adopt, or keep measurement only. Without it the system reports and never brakes; net creation from Q5's numbers is about 4 issues a day | owner |
+| AC-6 as a sub-issue of #5698 (the generator sweep: adr-review deferral MUST, qa and security CONDITIONAL verdicts, research skill, task-decomposer raw gh) | owner |
+| Split #5698: provenance epic (AC-1 to AC-6, AC-14, AC-15) and a sibling epic for agent-selected spend (AC-9 to AC-13) | owner |
+| Whether "human" means web form only (verifiable) or also owner-typed session requests (asserted through the script's marker, forgeable). Interim rule in AC-3 until decided | owner |
 | ADR for the provenance rule under governance.md MUST 2, and whether ADR-020 is revived or superseded by it | owner and architect |
 | Always-on rules cut after #5706 | owner |
 
@@ -209,7 +214,23 @@ EARS syntax. Each is pass or fail from evidence. The sub-issue that carries it i
 
 1. Token spend has no source of truth in the repo. Which harness surface exposes per-session or per-PR tokens, and can it be written to `.agents/metrics/` without a new dependency? Owner.
 2. The retrospective push gate blocks pushes from this session (two files changed, so not trivial; no retro dated today). This spec cannot be pushed without either writing a retro nobody asked for or bypassing a hook. Reported, not bypassed. Owner decides whether #5709 lands first.
-3. Does the owner file through the web form, or only through sessions? Decides AC-3's human marker.
+3. Does the owner file through the web form, or only through sessions? Decides AC-3's human marker. This blocks #5700's labeler half: if the owner files mostly from sessions and the marker is web-form only, every owner-typed issue defaults to `source:agent` and the CostLedger shows a near-zero human share that is false. Interim rule: the script writes `<!-- source:human -->` on `--source human`, the labeler honors it, and AC-7's burst detector is the check on abuse. Early warning that the rule is wrong: `source:human` share stays near zero in a week the owner knows they filed several issues by hand.
+
+## Critic pre-mortem (Step 9)
+
+Run 2026-09-15 by the critic agent, read-only, against this file. Verdict REVISE, confidence high. Seven factual claims checked against the tree, all confirmed (issue-resolution.md:15, qa.md:585, security.md:221/398/546, the 14 active workflows, the 8 `@CLAUDE.md` skills, task-decomposer.md:46, ADR-020 frontmatter). Check 9d passed.
+
+| Finding | Disposition in this revision |
+|---|---|
+| AC-9 to AC-13 solve problems Q3 does not name; scope bundling | Kept, with a second problem statement and traceability under "Two problems in one epic"; split recorded as an owner decision |
+| AC-3 depends on Open question 3, unresolved | Interim human marker written into AC-3 and Open question 3, with the early-warning signal |
+| AC-6 has no sub-issue and is the likeliest to be skipped | Recorded under Deferred as an owner decision; agents do not file |
+| AC-8 is the only stop and is deferred | Left deferred, with the cost of deferral stated (about 4 net issues a day) |
+| AC-12 "shall agree" not falsifiable | Rewritten as grep counts |
+| User story 3's self-sufficiency has no criterion | AC-15 added |
+| Disabled workflows not excluded in the count | Noted in the generator table |
+
+Pre-mortem, 2026-12-15, epic shipped and backlog still growing: (a) owner-typed issues defaulting to agent because the marker question was never settled; (b) AC-6 never built, so the three verdict-clearing generators keep filing; (c) AC-8 never adopted, so the weekly table reports 60 percent agent share for months with no brake.
 
 ## CVA summary
 
