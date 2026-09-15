@@ -107,6 +107,15 @@ Structured requirements document. Mirror the PRD schema produced in step 2; do n
 - **Operating Model Context** (Tier 5 only; the 5-layer model elicited by the Step 1 `work-operating-model` skill: decision rights, communication patterns, work intake, conflict resolution, retrospection; omit at Tier 1-4)
 - **ADR cross-reference** (Tier 4-5 only; the `ADR-NNN-{slug}.md` produced by the Step 6 `adr-generator` skill and its `adr-review` verdict, with the bidirectional ADR<->REQ link; omit at Tier 1-3)
 
+## Writing Style, Completeness Scores, Confusion Protocol
+
+Read `references/writing-style-and-confusion-protocol.md` before the first
+`AskUserQuestion` of a run. It carries the jargon-glossing and outcome-framing
+rules, the `Completeness: X/10` scoring rule, and the Confusion Protocol with
+its unattended-run fallback. They lived in the always-on voice rule until epic
+#5456 M4 moved them here; the body stays under the 200-line spec ceiling (issue
+#3632) by keeping them in a reference, as Step 0.5 already does.
+
 ## Scripts
 
 Two helpers ship inside this skill so an installed plugin can run the gates

@@ -827,6 +827,47 @@ below.
   `scripts/validation/instruction_budget.py` measured the `.md` always-on
   mirror at 50,912 bytes before and 43,895 bytes after (4 rules to 3).
 
+### Always-on rule subtraction: `voice.md` Writing Style, Completeness Principle, Confusion Protocol
+
+- Class: `MERGE` (folded into the `spec`, `plan`, `review`, and `autoplan` skills; the always-on copy is gone; the owner waived the eval for text that survives in a skill)
+- Owner: not assigned
+- Consumers: every Claude Code session in this repository (always-loaded
+  rule content)
+- Evidence: `voice.md`'s "Writing Style" (with "User-Turn Override"),
+  "Completeness Principle: Boil the Lake" (with "Completeness Scores"),
+  and "Confusion Protocol" (with "Unattended runs") sections moved to
+  three ADR-108 partials
+  (`templates/skills/partials/writing-style.mustache`,
+  `completeness-scores.mustache`, `confusion-protocol.mustache`),
+  rendered into `spec` and `plan`. `review` and `autoplan` are not
+  template-owned, so the same text is hand-copied into
+  `.claude/skills/review/resources/writing-style.md` (Writing Style and
+  Completeness Scores only; a reviewer does not run the Confusion
+  Protocol) and
+  `.claude/skills/autoplan/references/writing-style-and-confusion-protocol.md`
+  (all three sections). Each destination `SKILL.md` gained one pointer
+  line to its new reference file.
+- Bar to clear: the same eight-run eval bar named in the
+  `claude-model-patches.md` row above
+  (`.claude/skills/context-optimizer/references/rule-audit-procedure.md`
+  Steps 0a and 1); not run this session.
+- Blocker: no scenario file exists yet under `tests/evals/rule-scenarios/`
+  for this candidate, and the eight paid runs the procedure requires have
+  not been run.
+- Status: moved in PR (M4 PR3, this branch): text lives in `spec`, `plan`,
+  `review`, and `autoplan`. That bar still gates cutting the text
+  outright; it does not gate relocating it out of the always-on set into
+  the skills that ask questions and score options. `builder-ethos.md`'s
+  two citations of "the Confusion Protocol in `voice.md`" were retargeted
+  to name the spec, plan, and autoplan skills instead.
+  `scripts/validation/instruction_budget.py` measured the `.md` always-on
+  mirror at 43,895 bytes before and 38,542 bytes after (still 3 rules:
+  `voice.md` shrank from 19,748 to 14,329 bytes at source and stays the
+  largest always-on rule, 130 bytes ahead of `builder-ethos.md`). Review
+  on PR #5776 found that headless runs of any skill need the Unattended
+  runs clause, so that clause returned to `voice.md` as its own section;
+  the copies inside the skills stay.
+
 ### Business-strategy skill (optional pack)
 
 - Class: `KEEP`
@@ -872,7 +913,7 @@ below.
 | 6 | Smaller configuration non-inferior on deterministic acceptance and residual defects | Unchecked | Same blocker as gate 5: no reduced configuration exists yet to compare. |
 | 7 | Human correction time, total model cost, wall time reported per accepted task | Unchecked | Same blocker as gate 5; `accepted_tasks.total: 22, verified: 0` in the baseline. |
 | 8 | Deleted mechanisms include exclusive scripts, tests, projections, docs, baselines, allowlists; no dead compatibility shell | Evidenced this PR | ADR-100 items 1-4 (already delivered) meet this per their own PRs' acceptance criteria (PR #5234, PR #5723 both assert no dead references remain). This PR's own Cohort 2 deletions section adds eleven candidates, each with its allowlist entry, doc row, or test assertion removed alongside the mechanism (`.baseline` root-hygiene entry, `.diffray` allowlist plus three doc/config references, four docs for the TypeScript island, `.github/AGENTS.md`'s droid bullet and codeql row, the reachability test's `_NO_CALLER` entry and docstring count, `docs/project-structure.md`'s checkpoints entry): no dead compatibility shell was left for any of the ten file deletions, with one documented exception: a `.diffray/**` ignore line stays in the two vendor-pinned markdownlint configs until the next `validate_vendor_provenance.py` bootstrap PR re-pins them (see the `.diffray` row). #5420/#5421 stays `EXPERIMENT` (relocation, now measured, see that row) and #5436 stays `DELETE` with zero files removed here (no repository mechanism ever existed to leave a shell behind). |
-| 9 | Every retained candidate has a recorded KEEP justification | Checked | Six `KEEP` rows remain after this revision (#5404, duplicate pre-push ratchet, five always-on rules, rule mirror trees, `pr-maintenance.yml`, `business-strategy` by owner policy); each carries the five epic-required fields (REQ-022 AC-02). Tally by class after this revision: `KEEP` 6; `DELETE` 17 (`#5436`; ADR-100 items 1, 2-4, 5; the eleven Cohort 2 rows above; `rjmurillo-bot.yml` and `auto-assign-reviewer.yml`/`assign_bot_reviewer.py` in Cohort 3 above); `EXPERIMENT` 7 (`#5394`, `#5395`, `#5396`, `#5420`/`#5421`, ADR-100 item 6, `control_plane_baseline.py`, the two held-back exclusions row); `MERGE` 2 (the `claude-model-patches.md` rule-subtraction row, folded into four skills in M4 PR1; the `search-before-building.md` rule-subtraction row, folded into three skills in M4 PR2). `control_plane_baseline.py`, the exclusions row, and the skill-activation-proxy note do not need the five-field KEEP block since none is classed `KEEP`. |
+| 9 | Every retained candidate has a recorded KEEP justification | Checked | Six `KEEP` rows remain after this revision (#5404, duplicate pre-push ratchet, five always-on rules, rule mirror trees, `pr-maintenance.yml`, `business-strategy` by owner policy); each carries the five epic-required fields (REQ-022 AC-02). Tally by class after this revision: `KEEP` 6; `DELETE` 17 (`#5436`; ADR-100 items 1, 2-4, 5; the eleven Cohort 2 rows above; `rjmurillo-bot.yml` and `auto-assign-reviewer.yml`/`assign_bot_reviewer.py` in Cohort 3 above); `EXPERIMENT` 7 (`#5394`, `#5395`, `#5396`, `#5420`/`#5421`, ADR-100 item 6, `control_plane_baseline.py`, the two held-back exclusions row); `MERGE` 3 (the `claude-model-patches.md` rule-subtraction row, folded into four skills in M4 PR1; the `search-before-building.md` rule-subtraction row, folded into three skills in M4 PR2; the `voice.md` Writing Style/Completeness Principle/Confusion Protocol rule-subtraction row, folded into four skills in M4 PR3). `control_plane_baseline.py`, the exclusions row, and the skill-activation-proxy note do not need the five-field KEEP block since none is classed `KEEP`. |
 | 10 | Final release report distinguishes deletion from relocation, generation, and archival | Partially evidenced | No final release report has been written; this ledger is an input to that report, not the report itself. This revision separates the three by row: `DELETE` rows in Cohort 2 above are subtraction (files gone, byte counts given); the #5420/#5421 row is now measured as relocation (about 5.9 MB moved, 12.7 MB retained as protected history, 1 file/0 bytes actually deleted); the two-exclusions row is explicit archival/retention (owner convention, documented import procedure), not deletion. |
 
 Gates 5, 6, and 7 cannot be met until the epic's #5422-#5426 eval chain

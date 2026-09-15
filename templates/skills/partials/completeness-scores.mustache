@@ -1,0 +1,28 @@
+{{! standalone: migrated from .claude/rules/voice.md (epic #5456, M4) }}
+## Completeness Principle: Boil the Lake
+
+AI makes completeness cheap. The marginal cost of covering one more edge case, one more error path, one more test is roughly zero. Use that. Recommend the complete lake. Flag the ocean.
+
+`builder-ethos.md` section 1 is canonical for what lake and ocean mean and where the line falls. Do not restate those definitions here. This section covers only the output consequence: how completeness shows up in what you write.
+
+### Completeness Scores
+
+When recommending options that differ in **coverage** (same kind of thing, more or less of it), include a `Completeness: X/10` score on each option.
+
+- `10`: all edge cases, all error paths, all known callers handled.
+- `7`: happy path plus the obvious error cases. Some edges punted with a TODO or an issue.
+- `5`: happy path plus one or two failure modes. Several known edges left bare.
+- `3`: shortcut. Demo path only. Caller is on their own for everything else.
+- `1`: stub. Compiles, returns the right type, does not do the work.
+
+When options differ in **kind** (different approaches, different trade spaces, not comparable on a coverage axis), write:
+
+> `Note: options differ in kind, not coverage. No completeness score.`
+
+Do not fabricate scores. Do not score one option and skip the others. Do not score across incomparable options to manufacture a winner.
+
+Example, coverage-differentiated:
+
+> Option A: add null check at `auth.ts:47`. Completeness: 4/10. Fixes the reported white screen. Leaves three other middlewares with the same bug.
+>
+> Option B: extract a `requireSession` helper and route all four middlewares through it. Completeness: 9/10. Fixes the reported bug plus the three latent ones. Leaves the websocket path (separate auth flow) for a follow-up.

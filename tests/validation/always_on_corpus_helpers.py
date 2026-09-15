@@ -133,7 +133,7 @@ _FIG_MULTIPLIERS = re.compile(
     r"always-on corpus is (?P<always>[\d.]+)x that threshold and a Python edit "
     r"sees (?P<code>[\d.]+)x"
 )
-_FIG_LARGEST = re.compile(r"`voice\.md` at (?P<bytes>[\d,]+) bytes")
+_FIG_LARGEST = re.compile(r"`(?P<name>[a-z0-9-]+\.md)` at (?P<bytes>[\d,]+) bytes")
 
 
 def _int(raw: str) -> int:
@@ -152,11 +152,17 @@ def _search(
     return match
 
 
-def parse_doctrine_figures(text: str) -> dict[str, float]:
+def parse_doctrine_figures(text: str) -> dict[str, float | str]:
     """Return every numeric claim the doctrine makes about corpus size.
 
     Raises `ValueError` when a figure cannot be located, so that rewritten
     prose fails loudly instead of leaving an assertion with nothing to check.
+
+    `largest_name` is captured, not hardcoded to a fixed rule id: the rule
+    carrying the most bytes changes as content moves between rules and
+    skills (epic #5456 M4 moved it from `voice.md` to `builder-ethos.md`), so
+    the pattern matches whichever `<name>.md` the prose names and the caller
+    compares that name against a live measurement instead of a literal.
     """
     mirror = _search(_FIG_MIRROR, text, "always-on")
     py = _search(_FIG_PY, text, "`.py` effective")
@@ -176,6 +182,7 @@ def parse_doctrine_figures(text: str) -> dict[str, float]:
         "always_multiplier": float(mult.group("always")),
         "code_multiplier": float(mult.group("code")),
         "largest_bytes": _int(largest.group("bytes")),
+        "largest_name": largest.group("name"),
     }
 
 

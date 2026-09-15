@@ -52,7 +52,7 @@ AI-assisted coding makes the marginal cost of completeness near-zero. When the c
 
 Bias completeness toward positive, negative, and edge tests, error paths, and documentation accuracy. Treat unrelated dependency upgrades and off-path refactors as ocean.
 
-**Threshold heuristic.** A lake completes within the current session or PR. An ocean spans sessions, PRs, or quarters. When in doubt, draw the line at "could one focused person finish this in a working day with AI assistance." If yes, lake. If no, ocean. If you genuinely cannot tell, the Confusion Protocol in `voice.md` says: stop, name the ambiguity, ask.
+**Threshold heuristic.** A lake completes within the current session or PR. An ocean spans sessions, PRs, or quarters. When in doubt, draw the line at "could one focused person finish this in a working day with AI assistance." If yes, lake. If no, ocean. If you genuinely cannot tell, the Confusion Protocol carried by the spec, plan, and autoplan skills says: stop, name the ambiguity, ask.
 
 This heuristic sizes a lake, not scope: a lake belongs to this task only inside the frozen contract or its correctness blast radius (section 4). A same-day improvement for a different, self-generated goal is a lake for a different task.
 
@@ -175,7 +175,7 @@ For any non-trivial task, walk this list in order:
 2. **Search.** Layer 1 (this codebase, runtime built-ins), then Layer 2 (current docs, recent ecosystem), then Layer 3 (first principles applied to the specific constraint). Stop searching when you have enough to decide; do not stall in Layer 1 if Layer 3 reasoning already gives you the answer.
 3. **Classify scope.** Lake or ocean? Use the threshold heuristic above. If lake, continue. If ocean, flag and stop.
 4. **Build the complete lake.** Tests, edge cases, error paths, documentation. If it exceeds one response, state the plan and execute in confirmed parts.
-5. **Present and ask** when ambiguity is high-stakes (Confusion Protocol in `voice.md`). Otherwise act minimally and flag what you skipped or assumed.
+5. **Present and ask** when ambiguity is high-stakes (Confusion Protocol carried by the spec, plan, and autoplan skills). Otherwise act minimally and flag what you skipped or assumed.
 6. **Stop at terminal.** Once every deliverable satisfies the frozen contract and no blocker remains (section 4), stop; an optional finding here does not restart step 4.
 
 Step 1 can short-circuit any of the others. That is intentional: the user's stated decision is the precedence-stack top.
