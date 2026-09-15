@@ -47,9 +47,14 @@ def stub(path: Path, body: str) -> None:
     path.write_text(f"import sys\n{body}\n", encoding="utf-8")
 
 
-def fake_repo(tmp_path: Path, sync_exit: int, build_exit: int) -> Path:
-    """A root holding stubs at the two real script paths the gate invokes."""
-    stub(tmp_path / "scripts" / "sync_plugin_lib.py", f"sys.exit({sync_exit})")
+def fake_repo(tmp_path: Path, build_exit: int) -> Path:
+    """A root holding a stub at the one real script path the gate invokes.
+
+    ADR-109 B5: the gate used to run `scripts/sync_plugin_lib.py --check`
+    before `build_all.py --check`, two scripts whose order mattered. B5
+    folded the first hop into `build_all.py`'s own lib step, so the gate
+    now runs one child.
+    """
     stub(
         tmp_path / "build" / "scripts" / "build_all.py",
         "from pathlib import Path\n"

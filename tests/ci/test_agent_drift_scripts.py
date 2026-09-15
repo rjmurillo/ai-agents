@@ -26,30 +26,24 @@ import write_drift_job_summary as wdjs
 
 
 class TestCheckPluginLibMirrors:
-    def test_both_pass_returns_0(self) -> None:
+    """ADR-109 B5: one check (build_all.py --check) now covers both hops.
+
+    Before B5 this wrapped two scripts whose order mattered
+    (scripts/sync_plugin_lib.py then build_all.py); B5 folded the first
+    hop into build_all.py's own lib step, so there is only one command.
+    """
+
+    def test_passes_returns_0(self) -> None:
         with patch("subprocess.run", return_value=MagicMock(returncode=0)):
             rc = cplm.main()
         assert rc == 0
 
-    def test_mirror_fails_returns_mirror_rc(self) -> None:
-        side_effects = [MagicMock(returncode=2), MagicMock(returncode=0)]
-        with patch("subprocess.run", side_effect=side_effects):
+    def test_fails_returns_build_rc(self) -> None:
+        with patch("subprocess.run", return_value=MagicMock(returncode=2)):
             rc = cplm.main()
         assert rc == 2
 
-    def test_build_fails_returns_build_rc(self) -> None:
-        side_effects = [MagicMock(returncode=0), MagicMock(returncode=3)]
-        with patch("subprocess.run", side_effect=side_effects):
-            rc = cplm.main()
-        assert rc == 3
-
-    def test_both_fail_returns_mirror_rc(self) -> None:
-        side_effects = [MagicMock(returncode=1), MagicMock(returncode=2)]
-        with patch("subprocess.run", side_effect=side_effects):
-            rc = cplm.main()
-        assert rc == 1
-
-    def test_calls_both_scripts(self) -> None:
+    def test_calls_build_all_check(self) -> None:
         captured: list[list] = []
 
         def fake_run(cmd, **kwargs):
@@ -59,22 +53,9 @@ class TestCheckPluginLibMirrors:
         with patch("subprocess.run", side_effect=fake_run):
             cplm.main()
 
-        assert len(captured) == 2
-        assert any("sync_plugin_lib.py" in str(c) for c in captured)
+        assert len(captured) == 1
         assert any("build_all.py" in str(c) for c in captured)
-
-    def test_both_scripts_called_with_check_flag(self) -> None:
-        captured: list[list] = []
-
-        def fake_run(cmd, **kwargs):
-            captured.append(cmd)
-            return MagicMock(returncode=0)
-
-        with patch("subprocess.run", side_effect=fake_run):
-            cplm.main()
-
-        for cmd in captured:
-            assert "--check" in cmd
+        assert "--check" in captured[0]
 
 
 # ---------------------------------------------------------------------------
