@@ -87,14 +87,17 @@ def test_repo_root_with_quote_and_command_substitution_does_not_inject(tmp_path:
     assert proc.returncode == 0, proc.stderr
 
     marker = tmp_path / "INJECTED"
-    subprocess.run(
+    source_proc = subprocess.run(
         ["bash", "-c", f'source "{env_file}"'],
         cwd=tmp_path,
         capture_output=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=10,
         check=False,
     )
 
+    assert source_proc.returncode == 0, source_proc.stderr
     assert not marker.exists()
     assert "export PATH=" in env_file.read_text(encoding="utf-8")
 
