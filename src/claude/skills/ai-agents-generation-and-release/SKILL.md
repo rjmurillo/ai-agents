@@ -140,14 +140,15 @@ marketplace plugin was reinstalled.
 
 ### Phase 4: Plugin Manifests Carry No Version
 
-Three plugin manifests exist (verify:
-`find . -name plugin.json -path "*claude-plugin*"`):
+Two plugin manifests exist (verify:
+`find . -name plugin.json -path "*claude-plugin*"`); a third,
+`.claude/.claude-plugin/plugin.json`, is retired (`.claude/` is now a
+binplaced copy, not a marketplace-listed root):
 
 | Tree | Manifest | Plugin name |
 |------|----------|-------------|
-| `.claude/` | `.claude/.claude-plugin/plugin.json` | project-toolkit (Claude) |
-| `src/copilot-cli/` | `src/copilot-cli/.claude-plugin/plugin.json` | project-toolkit (Copilot) |
-| `src/claude/` | `src/claude/.claude-plugin/plugin.json` | claude-agents |
+| `src/claude/` | `.claude-plugin/plugin.json` | project-toolkit (Claude) |
+| `src/copilot-cli/` | `.claude-plugin/plugin.json` | project-toolkit (Copilot) |
 
 The rule (docstring of `build/scripts/validate_plugin_version_bump.py`): none of
 those manifests may carry a `version` field, and neither may an entry in either
@@ -160,8 +161,8 @@ Practical consequences:
 
 - Any `.claude/` content edit regenerates `src/copilot-cli/` too, but neither manifest changes: both are version-free, and `check_plugin_manifest_parity.py` now checks description component counts only.
 - `src/claude/` is the same: no version to move.
-- `.github/instructions/` and `src/vs-code-agents/` carry no plugin.json at all.
-- Marketplace: `.claude-plugin/marketplace.json` lists two plugins (claude-agents from `./src/claude`, project-toolkit from `./.claude`). The old marketplace count validator and its YAML config were retired, so treat description-count validation as currently unenforced and keep counts honest by hand.
+- `.github/instructions/` and `src/vs-code-agents/` carry no plugin.json.
+- Marketplace: `.claude-plugin/marketplace.json` lists one Claude-side plugin, `project-toolkit`, sourced at `./src/claude` (the retired `claude-agents` entry used `./.claude`). The old marketplace count validator and its YAML config were retired, so treat description-count validation as currently unenforced and keep counts honest by hand.
 
 ### Phase 5: npm Release Path
 

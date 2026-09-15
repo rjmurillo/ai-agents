@@ -99,13 +99,14 @@ Architectural consequence: memories are load-bearing runtime inputs, not documen
 
 ### Phase 5: Know the plugin and product surfaces
 
-Three `plugin.json` trees ship, and none of them carries a version:
+Two `plugin.json` trees ship, and neither carries a version (ADR-109 B6
+retired the third, `.claude/.claude-plugin/plugin.json`, since `.claude/` is
+now the binplaced dogfood copy, not a separately marketplace-listed root):
 
 | Tree | Plugin name | Role |
 |---|---|---|
-| `.claude/.claude-plugin/plugin.json` | `project-toolkit` | the repo's own Claude Code surface, canonical for rules/skills/hooks/commands |
+| `src/claude/.claude-plugin/plugin.json` | `project-toolkit` | canonical Claude Code manifest, compiled from templates; the sole Claude Code plugin root the marketplace lists |
 | `src/copilot-cli/.claude-plugin/plugin.json` | `project-toolkit` | generated Copilot CLI mirror of the same plugin |
-| `src/claude/.claude-plugin/plugin.json` | `claude-agents` | hand-written Claude agent pack |
 
 No manifest may carry a `version` field, and neither may a marketplace entry.
 With the field absent, Claude Code resolves freshness from the git commit SHA,
@@ -113,7 +114,8 @@ which moves on every merge; with it present, freshness pins to the string until
 someone hand-bumps it. Enforced by the push hook plus
 `.github/workflows/validate-plugin-version-bump.yml` (ADR-092, which supersedes
 ADR-079; issue #4080). Marketplaces: `.claude-plugin/marketplace.json` (lists
-`claude-agents` and `project-toolkit`) and `.github/plugin/marketplace.json`;
+one Claude-side plugin, `project-toolkit`, since ADR-109 B6 retired the
+`claude-agents` entry) and `.github/plugin/marketplace.json`;
 parity checked by `build/scripts/check_plugin_manifest_parity.py`. The npm
 surface is `packages/ai-agents-cli` (package `@rjmurillo/ai-agents`, bin
 `ai-agents`; read its `package.json` for the current version). Release mechanics
