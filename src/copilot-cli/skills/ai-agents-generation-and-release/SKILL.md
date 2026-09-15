@@ -65,9 +65,9 @@ Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; 
 | 1 | agents | `templates/agents/*.shared.md` + `templates/platforms/*.yaml` | `src/copilot-cli/agents/*.agent.md`, `src/vs-code-agents/*.agent.md` |
 | 2 | agent-catalog | `templates/agents/*.shared.md` | `docs/agent-catalog.md` |
 | 3 | adr-index | the ADR corpus under `.agents/architecture/` | `.agents/architecture/README.md` |
-| 4 | skills | `.claude/skills/*/SKILL.md` (template-owned skills compile first; ADR-108, ADR-109) | `src/copilot-cli/skills/` |
-| 5 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
-| 6 | lib | `.claude/lib/` | `src/copilot-cli/lib/` (must land before hooks) |
+| 4 | lib | `scripts/` packages | `src/claude/lib/`, `src/copilot-cli/lib/`; binplaced `.claude/lib/` |
+| 5 | skills | `.claude/skills/*/SKILL.md` (template-owned skills compile first; ADR-108, ADR-109) | `src/copilot-cli/skills/` |
+| 6 | rules | `.claude/rules/*.md` | `.github/instructions/*.instructions.md` AND `src/copilot-cli/instructions/` |
 | 7 | hooks | `.claude/settings.json` + `.claude/hooks/` | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json` |
 
 Facts that prevent confusion:
