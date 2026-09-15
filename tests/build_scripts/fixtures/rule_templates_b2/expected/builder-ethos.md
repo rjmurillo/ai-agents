@@ -80,7 +80,7 @@ The 1000x engineer's first instinct is "has someone already solved this?" not "l
 
 ### Three Layers of Knowledge
 
-Every build draws on three sources of truth: Layer 1 (tried and true), Layer 2 (new and popular), Layer 3 (first principles). `search-before-building.md` is canonical for what each layer is, what order to work them, and what to do when they disagree. Read it there; it is always-on too.
+Every build draws on three sources of truth: Layer 1 (tried and true), Layer 2 (new and popular), Layer 3 (first principles). The `programming-advisor` skill's `references/search-before-building.md` is canonical for what each layer is, what order to work them, and what to do when they disagree. Read it there; it loads only when that skill runs, not on every turn.
 
 The belief this file adds: **prize Layer 3 above the other two.** Layer 1 keeps you out of known mistakes. Layer 3 is where the out-of-distribution observations come from.
 

@@ -86,11 +86,11 @@ class TestLosslessRendering:
             f"Installed file {installed_path} differs from fixture {fixture_path}"
         )
 
-    def test_fixture_count_is_29(self) -> None:
-        """Exactly 29 fixtures must exist, one per rule under .claude/rules."""
+    def test_fixture_count_matches_rules(self) -> None:
+        """One fixture per rule under .claude/rules, and the sets agree."""
         names = _discover_fixture_names()
         rules = sorted(p.stem for p in (_REPO_ROOT / ".claude" / "rules").glob("*.md"))
-        assert len(names) == 29, f"Expected 29 fixtures, found {len(names)}: {names}"
+        assert len(names) == len(rules), f"{len(names)} fixtures for {len(rules)} rules"
         assert names == rules, f"fixtures and rules differ: {set(names) ^ set(rules)}"
 
     def test_testing_rule_uses_the_literal_brace_escape(self) -> None:

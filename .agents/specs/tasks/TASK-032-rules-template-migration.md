@@ -19,17 +19,17 @@ author: spec
 
 ## Objective
 
-Create `templates/rules/<name>.md` for all 29 rule files, a new `build/scripts/rule_templates.py` compile module reusing `skill_template_grammar.py`'s render and grammar functions, and wire `generate_rules.py` to compile before its existing mirror generation. Add the `rules` row to the binplace manifest.
+Create `templates/rules/<name>.md` for every rule file, a new `build/scripts/rule_templates.py` compile module reusing `skill_template_grammar.py`'s render and grammar functions, and wire `generate_rules.py` to compile before its existing mirror generation. Add the `rules` row to the binplace manifest.
 
 ## In/Out of Scope
 
-In scope: `templates/rules/` as canonical source for all 29 rules; the rules compile module; `generate_rules.py`'s new compile step; the manifest's `rules` row (`.claude/rules/` as the install-tree target); the drift gate; symlink and containment checks for `.claude/rules/<name>.md`.
+In scope: `templates/rules/` as canonical source for every rule; the rules compile module; `generate_rules.py`'s new compile step; the manifest's `rules` row (`.claude/rules/` as the install-tree target); the drift gate; symlink and containment checks for `.claude/rules/<name>.md`.
 
 Out of scope: agents (TASK-031, done), skills beyond the existing 18 (TASK-033), hooks and settings (TASK-034), lib (TASK-035), marketplace switch (TASK-036). No rule's content changes; every template is the current file's text, unchanged.
 
 ## Acceptance Criteria
 
-- [x] `ls templates/rules/*.md | wc -l` equals `ls .claude/rules/*.md | wc -l` (29; the task first said 30, the tree holds 29).
+- [x] `ls templates/rules/*.md | wc -l` equals `ls .claude/rules/*.md | wc -l` (the task first said 30; the tree held 29 when B2 started and 28 after main retired `search-before-building.md` mid-review).
 - [ ] `git diff --exit-code -- .claude/rules` exits 0 after `uv run python build/scripts/build_all.py` runs on a clean checkout.
 - [ ] `uv run python build/scripts/build_all.py --check` exits 2 after a hand edit to any file under `.claude/rules/`, and the hand edit is still present afterward (nothing was overwritten by the failing check).
 - [ ] `git diff --exit-code -- .github/instructions src/copilot-cli/instructions` exits 0 (the existing Copilot mirror, generated from `.claude/rules/` unchanged, still matches after the compile step is inserted upstream of it).
@@ -45,7 +45,7 @@ Out of scope: agents (TASK-031, done), skills beyond the existing 18 (TASK-033),
 
 | File | Action | Description |
 |---|---|---|
-| `templates/rules/<name>.md` (29 files) | Create | Canonical source, current `.claude/rules/<name>.md` content unchanged |
+| `templates/rules/<name>.md` (one per rule) | Create | Canonical source, current `.claude/rules/<name>.md` content unchanged |
 | `build/scripts/rule_templates.py` | Create | `discover`, `owned_targets`, `compile_all`, reusing `skill_template_grammar.check_grammar` and `render` |
 | `build/scripts/generate_rules.py` | Modify | Compile step before existing mirror-generation logic; module docstring cites ADR-109 |
 | `templates/platforms/binplace.yaml` | Modify | Add the `rules` row (manifest already carries `agents` and `skills` from TASK-031; this brings the active count to three) |
@@ -58,7 +58,7 @@ Out of scope: agents (TASK-031, done), skills beyond the existing 18 (TASK-033),
 
 ## Implementation Notes
 
-- Landed 2026-09-14 (PR pending): the compile step is wired in `build_all._build_rules`, ahead of the mirror generation it calls, rather than inside `generate_rules.py`; a direct `generate_rules.py` run therefore reads whatever `src/claude/rules` already holds. `testing.md` needed the literal-brace escape (`\{{`) that ADR-108 gained the same day, so all 29 rules are templated.
+- Landed 2026-09-14 (PR pending): the compile step is wired in `build_all._build_rules`, ahead of the mirror generation it calls, rather than inside `generate_rules.py`; a direct `generate_rules.py` run therefore reads whatever `src/claude/rules` already holds. `testing.md` needed the literal-brace escape (`\{{`) that ADR-108 gained the same day, so every rule is templated.
 
 - No rule's paths frontmatter, content, or ordering changes; this task moves the edit location, not the text. Diff the rendered output against the pre-migration file to confirm byte-identity before committing the template.
 - Because `.claude/rules/*.md` is itself the source `generate_rules.py` already reads for the Copilot instruction mirrors, this task inserts the compile step upstream of that existing read, so the mirror generation logic itself needs no change; only its input's provenance changes from hand-maintained to compiled.
@@ -66,7 +66,7 @@ Out of scope: agents (TASK-031, done), skills beyond the existing 18 (TASK-033),
 
 ## Testing Requirements
 
-Positive: rendered `.claude/rules/<name>.md` byte-identical to a fixture render for every one of the 29 rules. Negative: a disallowed tag or missing partial exits 2, target untouched. Edge: `discover()` on a `templates/rules/` directory missing one file still compiles the other 29 without error. Contract: the Copilot mirror (`.github/instructions/`, `src/copilot-cli/instructions/`) is unaffected, since its generator still reads `.claude/rules/` unchanged, now compiled rather than hand-maintained.
+Positive: rendered `.claude/rules/<name>.md` byte-identical to a fixture render for every rule. Negative: a disallowed tag or missing partial exits 2, target untouched. Edge: `discover()` on a `templates/rules/` directory missing one file still compiles the other 29 without error. Contract: the Copilot mirror (`.github/instructions/`, `src/copilot-cli/instructions/`) is unaffected, since its generator still reads `.claude/rules/` unchanged, now compiled rather than hand-maintained.
 
 ## Dependencies
 
