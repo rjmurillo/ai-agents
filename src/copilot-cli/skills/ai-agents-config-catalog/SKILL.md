@@ -162,7 +162,7 @@ repository-controlled code, so command-name matching is not a safe approval boun
 | Reintroducing a global bypass | Session 1187: abused 3x in hours; user verdict "You can't be trusted" | Narrow, announced, per-check escapes |
 | `[skip-drift-check]` without the checklist | Marker skips the CI job but the bypass job posts unmet obligations; reviewers will bounce it | Document reason, update `templates/README.md`, get code-owner approval |
 | Documenting a flag only in CONTRIBUTING.md | Docs drift previously left removed flags in active guidance | The defining script is the source of truth; docs quote it (FM-9) |
-| Editing `.claude/lib/hook_utilities/` to change flag behavior | That tree is a generated mirror; next `sync_plugin_lib.py` run reverts you | Edit `scripts/hook_utilities/`, run the sync |
+| Editing `.claude/lib/hook_utilities/` to change flag behavior | That tree is a generated mirror; next `build_all.py` run reverts you | Edit `scripts/hook_utilities/`, run `build_all.py` |
 | Claiming `SKIPPED: investigation-only` with code staged | CI backstop diffs staged files against the allowlist | Split the commit or run QA |
 
 ## Verification

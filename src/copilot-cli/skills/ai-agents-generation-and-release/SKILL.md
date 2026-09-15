@@ -52,7 +52,7 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `src/copilot-cli/{skills,instructions,lib,hooks}` | generated | `.claude/` trees | `build/scripts/build_all.py` |
 | `.github/instructions/` | generated | `.claude/rules/` | `build_all.py` (rules) |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | CANONICAL for shared Python | itself | n/a |
-| `.claude/lib/` | mirrored copy (relative imports) | `scripts/` packages | `scripts/sync_plugin_lib.py` |
+| `.claude/lib/` | mirrored copy (relative imports) | `scripts/` packages | `build_all.py` lib step (`lib_mirror.py`, B5) |
 | `src/claude/` | MANUAL hand-synced exception (ADR-036, superseded by ADR-052, itself superseded by ADR-109, accepted 2026-09-11; procedure still operative and unimplemented) | edited by hand | no generator; semantic drift CI only |
 
 Skills split in two (ADR-108, ADR-109). Template-owned: edit `templates/skills/<name>.SKILL.md.tmpl`; the skills step renders it into `.claude/skills/<name>/SKILL.md` first, then the Copilot copy step mirrors that into `src/copilot-cli/skills/<name>/SKILL.md`, overwriting both on every run. Hand-maintained: no template exists, so `.claude/skills/<name>/SKILL.md` stays canonical and is what the skills step reads for its Copilot mirror.
@@ -91,14 +91,14 @@ Interpreter note: `build/generate_agents.py` and `build/scripts/build_all.py` bo
 | `templates/agents/*.shared.md` | `uv run python build/generate_agents.py` then `uv run python build/scripts/build_all.py` (refreshes docs/agent-catalog.md) | commit template + all regenerated files. If the same agent exists in `src/claude/agents/`, hand-apply the equivalent edit there (ADR-036 manual sync; semantic drift CI is the only net). |
 | `.claude/skills/<name>/SKILL.md` (hand-maintained) or `templates/skills/<name>.SKILL.md.tmpl` (template-owned; ADR-108, ADR-109), plus `.claude/rules/` | `uv run python build/scripts/build_all.py` | commit source or template, plus both rendered copies for a template-owned skill. No manifest edit (Phase 4) |
 | `.claude/hooks/` or `.claude/settings.json` | `uv run python build/scripts/build_all.py` | same as above. The `build-all-check` pre-push job in `lefthook.yml` re-runs `build_all.py --check` at `git push` time and blocks if any generated output (including shims under `src/copilot-cli/hooks/`) drifts, so regenerate BEFORE pushing. |
-| `scripts/hook_utilities/`, `scripts/github_core/`, `scripts/ai_review_common/` | `python3 scripts/sync_plugin_lib.py` (writes `.claude/lib/`) THEN `uv run python build/scripts/build_all.py` (writes `src/copilot-cli/lib/`) | BOTH are required; skipping either fails the Validate Generated Files CI. No manifest edit. |
+| `scripts/hook_utilities/`, `scripts/github_core/`, `scripts/ai_review_common/` | `uv run python build/scripts/build_all.py` (writes both lib trees, binplaces `.claude/lib/`, B5) | One command; no manifest edit. |
 | `src/claude/` (deliberate manual change) | nothing to regenerate | nothing to bump; the manifest carries no version (Phase 4) |
 
 Useful flags, verified against source:
 
 - `build/generate_agents.py`: `--validate` (CI compare mode), `--what-if` (dry run, writes nothing), `--templates-path`, `--output-root`. Exit codes: 0 ok, 1 logic error or drift, 2 config error (docstring, generate_agents.py:13-16).
 - `build/scripts/build_all.py`: `--check` (staleness gate; snapshots and restores owned trees), `--clean`, `--audit-format json`, `--platform copilot-cli`. Exit codes: 0 ok, 1 generator error, 2 config error or staleness or (under `--check`) a path under `OWNED_PREFIXES` that cannot be read or redirects (symlink or junction) or holds a nested git repository, or a generator write under `.claude/` (REQ-003-010), 3 audit blocklist violation or (under `--check`) unreadable git state (the `EXIT CODES` block in this script's module docstring). Only the staleness producer of exit 2 is cleared by regenerating and committing; the REQ-003-010 producer is a generator policy violation, so regenerating reproduces it. Git is external, so every git-read failure (launch, timeout, nonzero exit) is 3 per the `AGENTS.md` contract, which keeps "you are missing git" out of the same code as "your tree is stale" (issue #4632).
-- `scripts/sync_plugin_lib.py`: no flag syncs, `--check` is the CI dry run (exit 1 when out of sync). It also rewrites `from scripts.x import` to relative imports; do not "fix" those imports in `.claude/lib/` by hand.
+- `scripts/sync_plugin_lib.py`: deprecated shim over `lib_mirror.py` (B5), kept for one CI step only. `--check` is a dry run (exit 1 when out of sync); do not "fix" `.claude/lib/` imports by hand.
 
 ### Phase 3: Run the Drift Gates Locally Before Pushing
 
@@ -108,7 +108,7 @@ Drift-gate matrix (all local commands verified runnable, all green on 2026-07-29
 |------|---------|---------------|----------------|
 | Agent template drift | templates edited without regen (or vice versa) | `uv run python build/generate_agents.py --validate` | `validate-generated-agents.yml`, `agent-drift-detection.yml` |
 | Full pipeline staleness | any canonical edit not mirrored to owned prefixes | `uv run python build/scripts/build_all.py --check` | `validate-generated-agents.yml`; named pre-push job in `lefthook.yml` |
-| Lib mirror drift | `scripts/` package edited without sync | `python3 scripts/sync_plugin_lib.py --check` | `validate-generated-agents.yml` |
+| Lib mirror drift | `scripts/` package edited without regen | `uv run python build/scripts/build_all.py --check` | `validate-generated-agents.yml` |
 | Install parity | plugin install layout broken | `python3 scripts/validation/run_install_parity_ci.py` | `validate-generated-agents.yml` |
 | Manifest description parity | `.claude` vs `src/copilot-cli` plugin descriptions carry component counts | `python3 build/scripts/check_plugin_manifest_parity.py` | `validate-generated-agents.yml`, `agent-drift-detection.yml` (the version half was retired with ADR-092) |
 | Plugin version field present | a manifest or marketplace entry carries `version` | `pre-pr-validation` job in `lefthook.yml` (`scripts/validation/pre_pr.py`) | `validate-plugin-version-bump.yml` |
@@ -185,7 +185,7 @@ Rollback is roll-FORWARD: npm unpublish is restricted; fix, bump patch, retag (R
 |--------------|------------------|------------|
 | Hand-editing `src/copilot-cli/`, `src/vs-code-agents/`, `.github/instructions/`, `.claude/lib/` | Next regen silently overwrites your edit; ruff deliberately exempts generated Python (`pyproject.toml [tool.ruff.lint.per-file-ignores]` ignores all selected rule families under `src/copilot-cli/{hooks,skills}/**/*.py`), so lint will not even look at it | Edit the canonical tree (Phase 1 table), regenerate |
 | Editing source to make a drift gate green | The 2025-12-15 disaster; drift output shows difference, not direction | Identify canonical side first, regenerate outward |
-| Syncing lib with only one of the two steps | `sync_plugin_lib.py` feeds `.claude/lib/`; `build_all.py` feeds `src/copilot-cli/lib/`; missing either fails CI | Run both, in that order |
+| Editing `.claude/lib/` or `src/copilot-cli/lib/` by hand | Both are generated; the next `build_all.py` run reverts you | Edit `scripts/{hook_utilities,github_core,ai_review_common}`, run `build_all.py` |
 | Bumping the two project-toolkit manifests in lockstep to satisfy version parity | Version parity retired with the field (ADR-092); `check_plugin_manifest_parity.py` no longer compares versions, and the bump itself now fails the gate | Nothing to bump; leave both manifests version-free |
 | Re-adding a `version` to a manifest to clear a red gate | The gate fails on the field's presence, so the red is permanent | Delete the field; freshness already tracks the commit SHA |
 | Treating `Dropped: N` as normal without checking the source | Current source registrations all map to Copilot events; an unexplained drop means contract drift | Read the generation audit log, identify the source registration, and require an explicit `eventDrop` decision |
@@ -199,7 +199,7 @@ Run this checklist before pushing any change that touched a canonical or generat
 
 - [ ] `uv run python build/generate_agents.py --validate` exits 0
 - [ ] `uv run python build/scripts/build_all.py --check` exits 0 (if it returns 2, read stderr first: regenerate only for staleness, not for an owned path that is unreadable, redirecting, or a nested repository, and not for a REQ-003-010 generator write)
-- [ ] `python3 scripts/sync_plugin_lib.py --check` exits 0 (only relevant if `scripts/` packages changed)
+- [ ] `uv run python build/scripts/build_all.py --check` exits 0 (covers the lib trees too; only relevant if `scripts/` packages changed)
 - [ ] `python3 build/scripts/check_plugin_manifest_parity.py` exits 0
 - [ ] `python3 build/scripts/validate_plugin_version_bump.py` exits 0 (no manifest or marketplace entry carries a `version`)
 - [ ] Canonical edit and regenerated output are staged in the same commit set
@@ -216,7 +216,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | .claude/ no-write invariant | build/scripts/build_all.py: `CLAUDE_GUARD_PREFIX` (rule), the `claude_baseline` snapshot in `run` (snapshot), `assert_no_claude_writes` called from `_run_generators` (enforcement) | `grep -n "REQ-003-010" build/scripts/build_all.py` |
 | build_all exit codes 0/1/2/3, four exit-2 producers | the `EXIT CODES` block in the build/scripts/build_all.py module docstring | `grep -n -A20 "^EXIT CODES" build/scripts/build_all.py` |
 | generate_agents flags and exit codes | build/generate_agents.py:13-16,460-487 | `uv run python build/generate_agents.py --help` |
-| sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:27-31 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
+| sync pairs scripts to lib trees | lib_mirror.py PACKAGES/PLUGIN_ROOTS | `grep -n PACKAGES build/scripts/lib_mirror.py` |
 | Plugin manifest locations, all version-free | the three plugin.json files | `python3 build/scripts/validate_plugin_version_bump.py` |
 | Version-field prohibition and the ADR-092 reversal | build/scripts/validate_plugin_version_bump.py docstring | `grep -n "WHY THE FIELD MUST BE ABSENT" build/scripts/validate_plugin_version_bump.py` |
 | Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py | `python3 build/scripts/check_plugin_manifest_parity.py` |
