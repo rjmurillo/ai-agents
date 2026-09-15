@@ -86,15 +86,31 @@ def _force_utf8_streams() -> None:
                 pass
 
 
-def _plugin_name(root: Path) -> str | None:
-    """Read a plugin manifest's ``name``; None when absent or malformed."""
-    manifest = root / ".claude-plugin" / "plugin.json"
+def _read_manifest_name(manifest: Path) -> str | None:
+    """Read one plugin manifest's ``name``; None when absent or malformed."""
     try:
         data = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     name = data.get("name") if isinstance(data, dict) else None
     return name if isinstance(name, str) and name else None
+
+
+def _plugin_name(root: Path) -> str | None:
+    """Read a plugin manifest's ``name``; None when absent or malformed.
+
+    When *root* is named ``.claude`` and carries no manifest of its own
+    (ADR-109 B6 deleted ``.claude/.claude-plugin/plugin.json``: ``.claude/``
+    is now the binplaced dogfood copy of ``src/claude/``, not an independent
+    marketplace source), fall back to the twin tree's manifest,
+    ``<root>/../src/claude/.claude-plugin/plugin.json``. The drift gate
+    guarantees the two trees carry the same identity.
+    """
+    name = _read_manifest_name(root / ".claude-plugin" / "plugin.json")
+    if name is None and root.name == ".claude":
+        twin = root.parent / "src" / "claude" / ".claude-plugin" / "plugin.json"
+        name = _read_manifest_name(twin)
+    return name
 
 
 def _project_self_hosts_plugin() -> bool:

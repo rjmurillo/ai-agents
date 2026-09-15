@@ -31,14 +31,32 @@ class PluginInfrastructureError(Exception):
     """
 
 
+def _has_own_or_twin_marker(root: Path) -> bool:
+    """True if *root* carries a plugin manifest, directly or via its twin.
+
+    ADR-109 B6 deleted ``.claude/.claude-plugin/plugin.json``: ``.claude/``
+    is now the binplaced dogfood copy of ``src/claude/``, not an independent
+    marketplace source, so it carries no manifest of its own. When *root* is
+    named ``.claude``, accept its twin tree's marker instead,
+    ``<root>/../src/claude/.claude-plugin/plugin.json``; the drift gate
+    guarantees the two trees are byte-identical.
+    """
+    if (root / ".claude-plugin" / "plugin.json").is_file():
+        return True
+    if root.name == ".claude":
+        twin = root.parent / "src" / "claude" / ".claude-plugin" / "plugin.json"
+        return twin.is_file()
+    return False
+
+
 def _validate_plugin_root(root: Path, *, source: str) -> None:
     """Raise PluginInfrastructureError unless ``root`` is a real plugin install root."""
     if not root.is_dir():
         raise PluginInfrastructureError(
             f"Invalid {source}: plugin root is not a directory: {root}"
         )
-    marker = root / ".claude-plugin" / "plugin.json"
-    if not marker.is_file():
+    if not _has_own_or_twin_marker(root):
+        marker = root / ".claude-plugin" / "plugin.json"
         raise PluginInfrastructureError(
             f"Invalid {source}: plugin marker missing: {marker}"
         )
@@ -88,7 +106,7 @@ def ensure_plugin_paths() -> None:
         hooks_dir = None
         lib_dir = None
         while True:
-            if (cur / ".claude-plugin" / "plugin.json").is_file():
+            if _has_own_or_twin_marker(cur):
                 _validate_plugin_root(cur, source="plugin root")
                 hooks_dir = _find_hooks_dir(cur)
                 lib_dir = str(cur / "lib")
