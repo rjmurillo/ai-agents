@@ -217,12 +217,12 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | sync pairs scripts to .claude/lib | scripts/sync_plugin_lib.py:27-31 | `grep -n -A4 "SYNC_PAIRS" scripts/sync_plugin_lib.py` |
 | Plugin manifest locations, all version-free | the three plugin.json files | `python3 build/scripts/validate_plugin_version_bump.py` |
 | Version-field prohibition and the ADR-092 reversal | build/scripts/validate_plugin_version_bump.py docstring | `grep -n "WHY THE FIELD MUST BE ABSENT" build/scripts/validate_plugin_version_bump.py` |
-| Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py:1-16 | `python3 build/scripts/check_plugin_manifest_parity.py` |
-| Drift CI wiring | .github/workflows/validate-generated-agents.yml:165,174,212,225,239; agent-drift-detection.yml:146,156,159,171 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml` |
-| Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml:13-15; build/scripts/detect_agent_drift.py:666-668 | `grep -n "cron" .github/workflows/drift-detection.yml` |
+| Parity gate #2222 | build/scripts/check_plugin_manifest_parity.py | `python3 build/scripts/check_plugin_manifest_parity.py` |
+| Drift CI wiring | .github/workflows/validate-generated-agents.yml (multiple gates); agent-drift-detection.yml:146,156,159,171 | `grep -n "uv run python" .github/workflows/validate-generated-agents.yml` |
+| Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml; build/scripts/detect_agent_drift.py | `grep -n "cron" .github/workflows/drift-detection.yml` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | Ruff exemption for generated Python | `pyproject.toml [tool.ruff.lint.per-file-ignores]` | `grep -n "src/copilot-cli" pyproject.toml` |
-| npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md:35-54; .github/workflows/publish.yml:13-16 | `grep -n "tags" .github/workflows/publish.yml` |
+| npm package, bun build, tag flow | packages/ai-agents-cli/package.json; RELEASING.md; .github/workflows/publish.yml:13-16 | `grep -n "tags" .github/workflows/publish.yml` |
 | Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |
 | Audit log path, gitignored | .gitignore:70 | `grep -n "build/audit" .gitignore` |
 | 2025-12-15 direction story | .agents/retrospective/2025-12-15-drift-detection-disaster.md | `python3 -c "import pathlib;print([p.name for p in pathlib.Path('.agents/retrospective').glob('*drift*')])"` |
