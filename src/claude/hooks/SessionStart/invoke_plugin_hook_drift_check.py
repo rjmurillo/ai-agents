@@ -340,7 +340,8 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
                 )
             if budget.truncated:
                 causes = "; ".join(sorted(budget.reasons))
-                outcome.incomplete.append(f"{surface.label}: {_opaque_path(search_root)} ({causes})")
+                token = _opaque_path(search_root)
+                outcome.incomplete.append(f"{surface.label}: {token} ({causes})")
     return outcome
 
 
