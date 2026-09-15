@@ -15,7 +15,7 @@
 - [x] B0: ADR-109 written, its own record; conditional amendment text staged for ADR-052, ADR-107, REQ-003, and the ADR index; done when ADR-109 is accepted and the staged text turns unconditional (ADR-109 section 5, section 6, Implementation Notes).
 - [x] B1: agents composed from paired `templates/agents/<stem>.claude.md.tmpl` / `<stem>.copilot.md.tmpl` templates and shared partials; `src/claude/agents/` rendered losslessly against today's output; `src/claude/`'s hand-maintained status retired; the binplace manifest introduced; `copilot-cli.yaml`'s agents `sourceDir` repointed; the lib ordering-hazard rule text updated to the target model (TASK-031). Merged `f50f68551` (PR #5758).
 - [ ] B2 (in progress): rules move to `templates/rules/`; new compile module; manifest gains the `rules` row (TASK-032). 28 of 29 rules templated; `.claude/rules/testing.md` stays hand-maintained (its literal `${{ a && b }}` example is a disallowed tag under the ADR-108 grammar; TASK-032 instructs stopping and reporting rather than inventing an escape).
-- [ ] B3: the remaining 93 skills templated in batches; skill_templates.py's render target moves to `src/claude/skills/`, giving skills the `src/claude/` plugin tree B1 does not deliver; the ADR-108 pilot-scope pin retired once the full 111-skill set matches `discover()` (TASK-033).
+- [ ] B3 (in progress): the remaining 93 skills templated in batches; skill_templates.py's render target moves to `src/claude/skills/`, giving skills the `src/claude/` plugin tree B1 does not deliver; the ADR-108 pilot-scope pin retired once the full 111-skill set matches `discover()` (TASK-033). Four of five 20-skill batches merged (batches 1, 2, 4, 5); batch 3 (PR #5781) open. The render-target move, `OWNED_PREFIXES` widening, and the `prompts` manifest row landed in the same commit sequence as the render-target-move PR. Full checkbox when batch 3 merges and the pilot-scope pin is deleted.
 - [ ] B4 (in progress): hooks and settings move to `templates/hooks/`; `src/claude/hooks/` and `src/claude/hooks.json` render for the first time; `.github/hooks/*.json` binplaced for the first time; the owner's ruleset decision on code-owner review recorded (TASK-034).
 - [ ] B5: the lib mirror's two-hop chain collapses into one step inside `build_all.py`; `scripts/sync_plugin_lib.py` retired (TASK-035).
 - [ ] B6: the marketplace switch; `claude-agents` retired, `project-toolkit` repointed to `./src/claude` (TASK-036).
@@ -63,10 +63,10 @@ Exit criteria: TASK-033 acceptance criteria hold; `discover()` on the real tree 
 | Task | Size | Done when |
 |------|------|-----------|
 | B3-T1 batching plan | S | Owner confirms batch count, size, and grouping (Open questions, REQ-026) before the first batch PR opens |
-| B3-T2 render-target move | S | `skill_templates.compile_all` renders `src/claude/skills/<name>/SKILL.md`; binplace copies it into `.claude/skills/`; manifest's `skills` row `plugin_tree` set to `src/claude/skills`; `generate_skills.py`'s Copilot-mirror step repointed to read `src/claude/skills/` |
-| B3-T3..T-n batches | M each | Each batch PR: at most ten files, `git diff --exit-code -- .claude/skills` clean, existing gate green |
-| B3-T-final pin retirement | S | `tests/build_scripts/test_skill_templates_pilot_scope.py` deleted once the 93rd skill lands |
-| B3-T-prompts | S | `prompts` manifest row added; `.github/prompts/pr-quality-gate-*.md` (12 files) binplaced from `.claude/skills/review/references` via `generate_pr_quality_prompts` |
+| B3-T2 render-target move | S | Done. `skill_templates.compile_all` renders `src/claude/skills/<name>/SKILL.md`; binplace copies it into `.claude/skills/`; manifest's `skills` row `plugin_tree` set to `src/claude/skills`; `generate_skills.py`'s Copilot-mirror step repointed to read `src/claude/skills/` |
+| B3-T3..T-n batches | M each | 4 of 5 batches merged (1, 2, 4, 5); batch 3 (PR #5781) open. Each batch PR: at most ten files, `git diff --exit-code -- .claude/skills` clean, existing gate green |
+| B3-T-final pin retirement | S | Pending batch 3. `tests/build_scripts/test_skill_templates_pilot_scope.py` deleted once the 111th skill lands |
+| B3-T-prompts | S | Done. `prompts` manifest row added; `.github/prompts/pr-quality-gate-*.md` (12 files) binplaced from `.claude/skills/review/references` via `generate_pr_quality_prompts` |
 
 ### B4: hooks and settings
 

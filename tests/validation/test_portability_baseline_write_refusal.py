@@ -79,6 +79,19 @@ def _populate(root: Path) -> None:
     (instructions_dir / "x.instructions.md").write_text(
         "Clean prose with no upstream refs.\n", encoding="utf-8"
     )
+    # ADR-109 B3: check_skill_md_portability now also requires src/claude/skills
+    # to exist AND hold at least one readable file, or --update-baseline
+    # refuses as a starved root (same "one shipped root with nothing to read"
+    # refusal the src/copilot-cli/instructions comment above already
+    # documents). Left out of ROOT_NAMES/SKILLS above deliberately: a clean
+    # (zero-ref) file contributes zero count, so the "6 recorded files"
+    # assumption this module's later assertions depend on stays true for both
+    # parametrized checkers.
+    claude_skills_dir = root / "src" / "claude" / "skills" / "clean"
+    claude_skills_dir.mkdir(parents=True, exist_ok=True)
+    (claude_skills_dir / "SKILL.md").write_text(
+        "---\nname: clean\n---\nClean prose with no upstream refs.\n", encoding="utf-8"
+    )
 
 
 def _repo(root: Path) -> None:

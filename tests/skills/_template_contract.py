@@ -68,12 +68,14 @@ def assert_template_owned_contract(name: str) -> None:
     """
     template_path = REPO_ROOT / "templates" / "skills" / f"{name}.SKILL.md.tmpl"
     partials_dir = REPO_ROOT / "templates" / "skills" / "partials"
+    plugin_path = REPO_ROOT / "src" / "claude" / "skills" / name / "SKILL.md"
     rendered_path = REPO_ROOT / ".claude" / "skills" / name / "SKILL.md"
     mirror_path = REPO_ROOT / "src" / "copilot-cli" / "skills" / name / "SKILL.md"
     has_mirror = name not in _NO_COPILOT_MIRROR
 
     assert template_path.is_file(), f"no template for {name!r}: {template_path}"
-    assert rendered_path.is_file(), f"no rendered SKILL.md for {name!r}: {rendered_path}"
+    assert plugin_path.is_file(), f"no rendered plugin-tree SKILL.md for {name!r}: {plugin_path}"
+    assert rendered_path.is_file(), f"no binplaced SKILL.md for {name!r}: {rendered_path}"
     if has_mirror:
         assert mirror_path.is_file(), f"no Copilot mirror for {name!r}: {mirror_path}"
     else:
@@ -83,13 +85,21 @@ def assert_template_owned_contract(name: str) -> None:
         )
 
     fresh_render = skill_templates.render(template_path, partials_dir)
-    committed = rendered_path.read_text(encoding="utf-8", newline="")
-    assert committed == fresh_render, (
-        f"{rendered_path} has drifted from templates/skills/{name}.SKILL.md.tmpl; "
+    plugin_committed = plugin_path.read_text(encoding="utf-8", newline="")
+    assert plugin_committed == fresh_render, (
+        f"{plugin_path} has drifted from templates/skills/{name}.SKILL.md.tmpl; "
         "rerun build/scripts/build_all.py"
     )
 
-    check_paths = (rendered_path, mirror_path) if has_mirror else (rendered_path,)
+    committed = rendered_path.read_text(encoding="utf-8", newline="")
+    assert committed == plugin_committed, (
+        f"{rendered_path} is not byte-identical to {plugin_path}; "
+        "rerun build/scripts/build_all.py to re-binplace it"
+    )
+
+    check_paths = (
+        (plugin_path, rendered_path, mirror_path) if has_mirror else (plugin_path, rendered_path)
+    )
     for path in check_paths:
         text = path.read_text(encoding="utf-8", newline="")
         assert not _CLAUDE_MD_LINE_RE.search(text), f"{path}: still carries an @CLAUDE.md line"

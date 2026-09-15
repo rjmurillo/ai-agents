@@ -12,7 +12,7 @@ rows:
     install_tree: .claude/agents
   - class: skills
     source: templates/skills
-    plugin_tree: null
+    plugin_tree: src/claude/skills
     install_tree: .claude/skills
     compile: skill_templates
   - class: rules
@@ -57,3 +57,12 @@ rows:
     plugin_tree: null
     install_tree: .claude/settings.json
     compile: hook_templates
+  - class: prompts
+    # The twelve pr-quality-gate-*.md prompts (REQ-008-01); the other 21
+    # .github/prompts/ files are unmanifested and hand-maintained (REQ-026
+    # Deferred), so this row's source is the review skill's references
+    # directory, not .github/prompts/ itself.
+    source: .claude/skills/review/references
+    plugin_tree: null
+    install_tree: .github/prompts
+    compile: generate_pr_quality_prompts

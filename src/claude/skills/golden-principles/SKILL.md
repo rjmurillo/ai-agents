@@ -1,0 +1,140 @@
+---
+name: golden-principles
+version: 1.0.0
+description: Scan repository for golden principle violations with agent-readable remediation. Enforces GP-001 through GP-008 from .agents/governance/golden-principles.md. Use when auditing compliance, preparing PRs, or running garbage collection scans.
+license: MIT
+---
+
+# Golden Principles
+
+Scan the repository for violations of mechanically enforced golden principles.
+Produces remediation instructions that agents can act on directly.
+
+<!-- vendor-portability: declared. This skill enforces GP-001 through GP-008 defined in .agents/governance/golden-principles.md and cites that document plus .claude/skills/ siblings. The governance file is the upstream rule source; a vendored install without it loses the canonical principle text, while the bundled scanner still applies its built-in GP-001 and GP-003 through GP-006 checks against the consumer's files (GP-002 is enforced elsewhere, not by this scanner). Issue #2050. -->
+
+Inspired by [OpenAI Harness Engineering](https://openai.com/index/harness-engineering/):
+
+> "We started encoding what we call 'golden principles' directly into the repository
+> and built a recurring cleanup process."
+
+## Triggers
+
+| Trigger Phrase | Operation |
+|----------------|-----------|
+| `scan golden principles` | Full principle compliance scan |
+| `check principle compliance` | Scan with summary report |
+| `golden principle violations` | Scan and list violations |
+| `run garbage collection` | Deep scan with fix-up recommendations |
+| `audit principles` | Scan specific rules only |
+
+## When to Use
+
+Use this skill when:
+
+- Preparing a PR for submission (catch violations early)
+- Running periodic garbage collection scans
+- Auditing a domain or directory for compliance
+- Adding new files to the repository
+
+Use `taste-lints` instead when:
+
+- Checking code-level invariants only (file size, naming, complexity)
+- Running pre-commit checks on staged files
+
+Use `quality-grades` instead when:
+
+- Grading domains across architectural layers
+- Producing quality trend reports
+
+## Process
+
+1. Run `python3 .claude/skills/golden-principles/scripts/scan_principles.py` with target
+2. Review AGENT_REMEDIATION blocks in output
+3. Apply suggested fixes
+4. Re-run to confirm compliance
+
+## Usage
+
+```bash
+# Scan entire repository
+python3 .claude/skills/golden-principles/scripts/scan_principles.py
+
+# Scan specific directory
+python3 .claude/skills/golden-principles/scripts/scan_principles.py --directory .claude/skills/
+
+# Scope to a pull request diff (only files changed vs the base branch)
+python3 .claude/skills/golden-principles/scripts/scan_principles.py --diff-scope "origin/$BASE_BRANCH"
+
+# Run specific rules only
+python3 .claude/skills/golden-principles/scripts/scan_principles.py --rules script-language,skill-frontmatter
+
+# JSON output for tooling
+python3 .claude/skills/golden-principles/scripts/scan_principles.py --format json
+
+# Write results to file
+python3 .claude/skills/golden-principles/scripts/scan_principles.py --output scan-results.json --format json
+```
+
+## Rules
+
+| Rule | Principle | What it checks |
+|------|-----------|----------------|
+| `script-language` | GP-001 | No new .sh/.bash files |
+| `skill-frontmatter` | GP-003 | SKILL.md has required frontmatter fields |
+| `agent-definition` | GP-004 | Agent .md files have required sections |
+| `yaml-logic` | GP-005 | No inline logic in workflow YAML |
+| `actions-pinned` | GP-006 | GitHub Actions pinned to SHA |
+
+GP-002, GP-007, GP-008 are enforced by existing tools (git hooks, taste-lints).
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | No violations found |
+| 1 | Script error (bad arguments, file not found) |
+| 10 | Violations detected |
+
+## Scripts
+
+| Script | Purpose | Exit codes |
+|---|---|---|
+| `scripts/scan_principles.py` | Scan a path (repo, directory, or diff scope) for GP-001..GP-006 violations and emit AGENT_REMEDIATION blocks. Supports `--directory`, `--diff-scope`, `--rules`, `--format`, `--output`. | `0` no violations; `10` violations detected; `1` tool error (bad arguments, file not found). |
+
+## Suppression
+
+Add a comment in the file header to suppress a specific rule:
+
+```python
+# golden-principle: ignore script-language
+```
+
+Valid rules: `script-language`, `skill-frontmatter`, `agent-definition`, `yaml-logic`, `actions-pinned`
+
+## Verification
+
+After execution, run the bundled validator and require exit 0:
+
+```bash
+python3 .claude/skills/golden-principles/scripts/scan_principles.py <path>
+echo "exit=$?"   # 0 = clean, 10 = violations found, 1 = tool error
+```
+
+- [ ] Exit 0 to pass; exit 10 means violations exist and must be reported with principle ID and remediation
+- [ ] Exit 1 (tool error) is a BLOCKED result, not a pass
+- [ ] Report lists scanned file count
+- [ ] Output format matches --format flag
+
+## References
+
+- [Code Qualities](references/design-code-qualities.md) - Five foundational qualities: cohesion, coupling, non-redundancy, encapsulation, testability
+- [SOLID Principles](references/design-solid-principles.md) - SRP, OCP, LSP, ISP, DIP with violation signs and code examples
+- [Programming by Intention](references/design-programming-by-intention.md) - Sergeant pattern for expressing intent over implementation
+- [Separation of Concerns](references/design-separation-of-concerns.md) - Decomposition at method, class, layer, and service levels
+- [DRY Principle](references/design-dry-principle.md) - Single authoritative representation with scope, violations, and when NOT to DRY
+
+## Cross-References
+
+- Golden Principles Document: `.agents/governance/golden-principles.md`
+- [Taste Lints](../taste-lints/SKILL.md) for GP-007, GP-008
+- [Quality Grades](../quality-grades/SKILL.md) for domain-level grading

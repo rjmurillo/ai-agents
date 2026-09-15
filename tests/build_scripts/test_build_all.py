@@ -498,6 +498,13 @@ def test_build_skills_check_mode_clean_template_still_runs_copy_loop(
     skill_dir.mkdir(parents=True)
     target = skill_dir / "SKILL.md"
     target.write_text("hi\n", encoding="utf-8")
+    # ADR-109 B3: the compile step's own drift comparison now reads the
+    # plugin-tree target (src/claude/skills/), not the install-tree one
+    # above; seed it too so "clean" means clean on the path compile_all
+    # actually checks.
+    plugin_target = tmp_path / "src" / "claude" / "skills" / "sync" / "SKILL.md"
+    plugin_target.parent.mkdir(parents=True)
+    plugin_target.write_text("hi\n", encoding="utf-8")
     cfg = _skills_platform_config(tmp_path)
 
     result = build_all._build_skills(tmp_path, cfg, "p", check=True)

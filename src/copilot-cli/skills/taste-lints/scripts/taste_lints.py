@@ -79,6 +79,14 @@ FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
     (_AGENT_STATE_DIR, "memory"),
     (_AGENT_STATE_DIR, "analysis", "eval-artifacts"),
     (_AGENT_STATE_DIR, "sessions"),
+    # scripts/validation/*_baseline.json: append-only ratchet baselines,
+    # written by each checker's own --update-baseline flag, one entry per
+    # tracked file. A line ceiling has no module boundary to split on here
+    # either, and every sibling baseline in this directory stays comfortably
+    # under it; skill_md_portability_baseline.json is the one that outgrew
+    # it, entirely from ADR-109 B3 adding a third scanned skills root
+    # (src/claude/skills/), not from new debt in any one entry.
+    ("scripts", "validation"),
 )
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
@@ -95,6 +103,15 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # testing.md included (see .agents/governance/GENERATOR-FILES.md).
     ("src", "claude", "rules"),
     (".claude", "rules"),
+    # ADR-109 B3: src/claude/skills/ is the skills class's plugin tree.
+    # Narrower than the agents/rules pattern above on purpose: only
+    # src/claude/skills/ is listed, not .claude/skills/, because
+    # skill_templates.compile_all renders ONLY SKILL.md into the plugin
+    # tree, so every file under src/claude/skills/ is generated, but
+    # .claude/skills/<name>/ also holds hand-maintained scripts,
+    # references, and tests, so that tree stays classified authored (the
+    # same reason it is absent from FILE_SIZE_EXEMPT_SEGMENTS above).
+    ("src", "claude", "skills"),
 )
 _GENERATED_MARKERS = (
     "AUTO-GENERATED MATCHER SHIM",

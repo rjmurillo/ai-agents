@@ -45,6 +45,7 @@ _helpers_spec.loader.exec_module(_helpers)
 
 DISPOSITION_TOKENS = _helpers.DISPOSITION_TOKENS
 PLUGIN_ROOTS = _helpers.PLUGIN_ROOTS
+SKILL_MD_ONLY_ROOTS = _helpers.SKILL_MD_ONLY_ROOTS
 REPO_ROOT = _helpers.REPO_ROOT
 ROUTER_SKILL = _helpers.ROUTER_SKILL
 SKILL_NAME = _helpers.SKILL_NAME
@@ -123,6 +124,16 @@ def test_every_on_disk_root_shipping_this_skill_is_covered() -> None:
         for root in declared_plugin_roots(REPO_ROOT)
         if (REPO_ROOT / root / "skills" / SKILL_NAME / "SKILL.md").is_file()
     }
+    # ADR-109 B3: src/claude ships SKILL.md-only (see SKILL_MD_ONLY_ROOTS'
+    # docstring in _helpers.py); it is real coverage, checked below, just not
+    # through PLUGIN_ROOTS since every reference-reading test in this suite
+    # is parametrized over that dict too.
+    for root in SKILL_MD_ONLY_ROOTS:
+        assert (REPO_ROOT / root / "skills" / SKILL_NAME / "SKILL.md").is_file(), (
+            f"{SKILL_NAME}/SKILL.md is missing from the declared "
+            f"SKILL.md-only root {root}"
+        )
+    shipping -= SKILL_MD_ONLY_ROOTS
     covered = {path.relative_to(REPO_ROOT).as_posix() for path in PLUGIN_ROOTS.values()}
     assert shipping == covered, (
         f"plugin roots shipping {SKILL_NAME} on disk ({sorted(shipping)}) no "
