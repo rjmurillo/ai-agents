@@ -26,5 +26,6 @@
 /templates/skills/                                            @rjmurillo
 /templates/agents/                                            @rjmurillo
 /templates/rules/                                             @rjmurillo
+/templates/hooks/                                             @rjmurillo
 /templates/platforms/                                         @rjmurillo
 /tests/build_scripts/test_skill_templates_pilot_scope.py      @rjmurillo

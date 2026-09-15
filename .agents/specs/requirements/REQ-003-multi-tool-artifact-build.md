@@ -222,8 +222,8 @@ artifacts:
     sourceDir: ".claude/lib"
     outputDir: "src/copilot-cli/lib"
   hooks:
-    settingsSource: ".claude/hooks/hooks.json"
-    scriptSource: ".claude/hooks"
+    settingsSource: "src/claude/hooks.json"
+    scriptSource: "src/claude/hooks"
     outputConfig: "src/copilot-cli/hooks/hooks.json"
     outputScripts: "src/copilot-cli/hooks"
     dispatcher: true
