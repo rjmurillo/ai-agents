@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 # .agents/schemas/skill-output.schema.json, so THOSE THREE contract copies
 # cannot drift unnoticed (ADR-103). This is not repo-wide: at least one more
 # independently-maintained ErrorType Literal exists at
-# .claude/skills/orphan-ref-validator/scripts/envelope.py:133
+# .claude/skills/orphan-ref-validator/scripts/envelope.py:138
 # (render_error_envelope), carrying a 6-of-8 subset (missing
 # RateLimitError, VerificationFailed). An earlier version of this comment
 # called that copy "fail-closed", which is wrong: `typing.Literal` is a
@@ -218,8 +218,8 @@ def write_skill_error(
     # exit-code-standardization.md:52-60) reserves 5-99 ("do not use
     # until standardized") and requires 100+ codes to be documented in
     # the calling script's header. At least one existing caller already
-    # violates that: .claude/skills/github/scripts/pr/merge_pr.py:377
-    # passes exit_code=6 for "PR is not mergeable", a 5-99 value,
+    # violates that: .claude/skills/github/scripts/pr/merge_pr.py:412
+    # passes code 6 for "is not mergeable", a 5-99 value,
     # documented in that script's own header (lines 21-27) rather than
     # migrated to 100+. Enforcing the full range here would break that
     # caller (and any other repo-wide violator not yet surveyed) without
