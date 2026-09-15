@@ -37,9 +37,9 @@ Start with cheapest option. Escalate only when cheaper option lacks capability.
 
 ## Path-scoped instructions
 
-Before editing any file, read matching rules in `.claude/rules/*.md`. Each file's `paths` frontmatter targets a path glob; that is the key Claude Code reads, and `scripts/validation/check_rule_scope_keys.py` refuses any other. Universal rules live in `.claude/rules/universal.md`.
+Before editing any file, read matching rules in `.claude/rules/*.md`; Claude Code still reads that tree directly at runtime. ADR-109 B2 moved the edit location for 28 of 29 rules to `templates/rules/<name>.md`: `uv run python build/scripts/build_all.py` compiles each template to `src/claude/rules/<name>.md`, binplaces it to `.claude/rules/<name>.md`, and regenerates the Copilot mirrors in the same run. `.claude/rules/testing.md` is the one exception still edited directly (`.agents/governance/GENERATOR-FILES.md` names why). Each file's `paths` frontmatter targets a path glob; that is the key Claude Code reads, and `scripts/validation/check_rule_scope_keys.py` refuses any other. Universal rules live in `.claude/rules/universal.md`.
 
-Planned build extension ships Copilot-compatible copies to `.github/instructions/` from same source.
+The build also ships Copilot-compatible copies to `.github/instructions/` and `src/copilot-cli/instructions/` from the same compiled source (`build/scripts/generate_rules.py`).
 
 ## Skill routing
 

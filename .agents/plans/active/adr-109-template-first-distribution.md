@@ -13,8 +13,8 @@
 ## Objectives
 
 - [x] B0: ADR-109 written, its own record; conditional amendment text staged for ADR-052, ADR-107, REQ-003, and the ADR index; done when ADR-109 is accepted and the staged text turns unconditional (ADR-109 section 5, section 6, Implementation Notes).
-- [ ] B1: agents composed from paired `templates/agents/<stem>.claude.md.tmpl` / `<stem>.copilot.md.tmpl` templates and shared partials; `src/claude/agents/` rendered losslessly against today's output; `src/claude/`'s hand-maintained status retired; the binplace manifest introduced; `copilot-cli.yaml`'s agents `sourceDir` repointed; the lib ordering-hazard rule text updated to the target model (TASK-031).
-- [ ] B2: rules move to `templates/rules/`; new compile module; manifest gains the `rules` row (TASK-032).
+- [x] B1: agents composed from paired `templates/agents/<stem>.claude.md.tmpl` / `<stem>.copilot.md.tmpl` templates and shared partials; `src/claude/agents/` rendered losslessly against today's output; `src/claude/`'s hand-maintained status retired; the binplace manifest introduced; `copilot-cli.yaml`'s agents `sourceDir` repointed; the lib ordering-hazard rule text updated to the target model (TASK-031). Merged `f50f68551` (PR #5758).
+- [ ] B2 (in progress): rules move to `templates/rules/`; new compile module; manifest gains the `rules` row (TASK-032). 28 of 29 rules templated; `.claude/rules/testing.md` stays hand-maintained (its literal `${{ a && b }}` example is a disallowed tag under the ADR-108 grammar; TASK-032 instructs stopping and reporting rather than inventing an escape).
 - [ ] B3: the remaining 93 skills templated in batches; skill_templates.py's render target moves to `src/claude/skills/`, giving skills the `src/claude/` plugin tree B1 does not deliver; the ADR-108 pilot-scope pin retired once the full 111-skill set matches `discover()` (TASK-033).
 - [ ] B4: hooks and settings move to `templates/hooks/`; `src/claude/hooks/` and `src/claude/hooks.json` render for the first time; `.github/hooks/*.json` binplaced for the first time; the owner's ruleset decision on code-owner review recorded (TASK-034).
 - [ ] B5: the lib mirror's two-hop chain collapses into one step inside `build_all.py`; `scripts/sync_plugin_lib.py` retired (TASK-035).
@@ -52,7 +52,7 @@ Exit criteria: TASK-032 acceptance criteria hold; `git diff --exit-code -- .clau
 
 | Task | Size | Done when |
 |------|------|-----------|
-| B2-T1 templates | S | `templates/rules/<name>.md` for all 30 rules, content unchanged from `.claude/rules/` |
+| B2-T1 templates | S | `templates/rules/<name>.md` for 28 of the 29 rules in the tree, content unchanged from `.claude/rules/`; `testing.md` excluded (disallowed tag under the ADR-108 grammar, reported rather than worked around) |
 | B2-T2 compile module | S | `build/scripts/rule_templates.py` reusing `skill_template_grammar`; `generate_rules.py` compiles before its existing mirror step |
 | B2-T3 manifest and gate | S | `rules` row added; `Rule Template Drift` gate and registry entry |
 
