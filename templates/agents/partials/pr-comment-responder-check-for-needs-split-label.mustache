@@ -1,0 +1,28 @@
+   Analyze PR #[number] to determine why it exceeded commit thresholds.
+
+   Focus on:
+   1. What caused the high commit count (scope creep, iterations, rework)?
+   2. Could the work have been split into smaller PRs?
+   3. What patterns led to this situation?
+   4. Recommendations for future work
+
+   Save analysis to: .agents/retrospective/PR-[number]-needs-split-analysis.md
+   ```
+
+2. **Analyze commit history**: Group commits by logical change
+
+   ```bash
+   # Get commit messages to identify logical groupings
+   gh api repos/[owner]/[repo]/pulls/[number]/commits \
+     --jq '.[] | "\(.sha[0:7]) \(.commit.message | split("\n")[0])"'
+   ```
+
+3. **Provide split recommendations**: Suggest how the work could be divided
+
+4. **Document in PR artifacts**: Record the analysis and recommendations
+
+**Continue with normal workflow** after completing needs-split handling. The label does not block comment processing.
+
+#### Step 1.2: Enumerate All Reviewers
+
+```bash

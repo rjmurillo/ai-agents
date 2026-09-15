@@ -1,0 +1,12 @@
+#### Step 6.4: Resolve Conversation Thread
+
+After replying with resolution, mark the thread as resolved. This is required for PRs with branch protection rules that require all conversations to be resolved before merging.
+
+**Exception**: Do NOT auto-resolve when:
+
+1. The reviewer is human (let them resolve after verifying)
+2. You need a response from the reviewer (human or bot)
+
+```bash
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"

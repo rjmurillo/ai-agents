@@ -101,7 +101,6 @@ from checks_plugin import (
     validate_colocated_skill_tests,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
-    validate_install_parity,
     validate_lefthook_installed,
     validate_plugin_version_bump,
     validate_shipped_skill_routes,
@@ -302,9 +301,7 @@ def run_validation(
     try:
         outcome = coerce_outcome(name, callback())
     except MissingScriptSkip as exc:
-        outcome = CheckOutcome.skipped(
-            name, reason=REASON_SCRIPT_ABSENT, detail=f"Skipped: {exc}"
-        )
+        outcome = CheckOutcome.skipped(name, reason=REASON_SCRIPT_ABSENT, detail=f"Skipped: {exc}")
     except Exception as exc:
         # FAIL rather than UNKNOWN: this preserves the pre-#5635 exit behavior
         # for a raising validator. The reason code is what changed, so a reader
@@ -318,10 +315,7 @@ def run_validation(
 
     print()
     examined = "" if outcome.examined is None else f" (examined {outcome.examined})"
-    print(
-        f"[{outcome.state.value}] {name} completed in "
-        f"{outcome.duration_seconds:.2f}s{examined}"
-    )
+    print(f"[{outcome.state.value}] {name} completed in {outcome.duration_seconds:.2f}s{examined}")
     if outcome.state is not EvidenceState.PASS:
         # Only a non-PASS row earns the full evidence line. Printing it for
         # every gate would bury the handful that need reading, and a PASS has

@@ -70,13 +70,13 @@ from checks_plugin import (
     validate_colocated_skill_tests,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
-    validate_install_parity,
     validate_lefthook_installed,
     validate_plugin_version_bump,
     validate_shipped_skill_routes,
     validate_workflow_local_run,
 )
 from checks_portability import (
+    validate_agent_template_drift,
     validate_skill_contract_tests,
     validate_skill_md_exec_portability,
     validate_skill_resolver_anchoring,
@@ -359,6 +359,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # from templates/skills/<name>.SKILL.md.tmpl. Runs generate_skills.py
     # --validate, which never writes.
     _Gate("Skill Template Drift", _root_only(validate_skill_template_drift)),
+    _Gate("Agent Template Drift", _root_only(validate_agent_template_drift)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),
     # The six gates below are the six validators the CI job
@@ -461,10 +462,6 @@ _SEQUENCE: tuple[_Gate, ...] = (
     ),
     _Gate("Agent Drift Detection", _root_only(validate_agent_drift), skip_when_quick=True),
     # Changed-together sibling check; cheap, always on.
-    _Gate("Install Parity (agents and rules)", _root_only(validate_install_parity)),
-    # validate_install_parity checks co-change; it does not compare on-disk
-    # content. This gate catches drift that already exists regardless of what
-    # changed in the current PR. Issue #4082.
     _Gate(
         "Agent Content Parity (.claude/agents vs src/claude)",
         _root_only(validate_agent_content_parity),
@@ -548,9 +545,7 @@ def run_all_validations(
     fast_stage_ran = os.environ.get(FAST_STAGE_RAN_ENV) == "1"
     for gate in _SEQUENCE:
         if fast_stage_ran and gate.already_run_by:
-            detail = (
-                f"already passed as the unconditional pre-push job {gate.already_run_by}"
-            )
+            detail = f"already passed as the unconditional pre-push job {gate.already_run_by}"
             print(f"[SKIP] {gate.name} ({detail})")
             state.record(
                 gate.name,

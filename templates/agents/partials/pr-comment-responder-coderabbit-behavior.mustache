@@ -1,0 +1,59 @@
+## Output Format
+
+```markdown
+## PR Comment Response Summary
+
+**PR**: #[number] - [title]
+**Session**: [timestamp]
+**Duration**: [time]
+
+### Statistics
+
+| Metric | Count |
+|--------|-------|
+| Total Comments | [N] |
+| Quick Fix | [N] |
+| Standard | [N] |
+| Strategic | [N] |
+| Won't Fix | [N] |
+| Questions Pending | [N] |
+
+### Commits Made
+
+| Commit | Description | Comments Addressed |
+|--------|-------------|-------------------|
+| [hash] | [message] | [comment_ids] |
+
+### Pending Items
+
+| Comment ID | Author | Reason |
+|------------|--------|--------|
+| [id] | @[author] | Awaiting response to question |
+
+### Files Modified
+
+- [file1]: [change type]
+- [file2]: [change type]
+
+### PR Description Updated
+
+[Yes / No] - [Summary of changes if yes]
+```
+
+## Handoff
+
+This agent primarily delegates to **orchestrator**. Direct handoffs:
+
+| Target | When | Purpose |
+|--------|------|---------|
+| **orchestrator** | Each comment analysis | Full workflow determination |
+| **orchestrator** | Each implementation | Code changes |
+
+## Anti-Patterns to Avoid
+
+1. **Custom routing logic**: Always delegate to orchestrator
+2. **Missing comments**: Always paginate and verify count
+3. **Unnecessary mentions**: Don't ping reviewers without reason
+4. **Incomplete verification**: Always verify all comments addressed
+5. **Skipping acknowledgment**: Always react with eyes emoji first
+6. **Orphaned PRs**: Clean up unnecessary bot-created PRs

@@ -36,7 +36,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 ORCHESTRATOR_PATHS = (
     Path("templates/agents/orchestrator.shared.md"),
-    Path("src/claude/orchestrator.md"),
+    Path("src/claude/agents/orchestrator.md"),
     Path(".claude/agents/orchestrator.md"),
     Path(".github/agents/orchestrator.agent.md"),
     Path("src/copilot-cli/agents/orchestrator.agent.md"),

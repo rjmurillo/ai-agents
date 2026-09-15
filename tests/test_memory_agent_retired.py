@@ -63,7 +63,7 @@ ACTIVE_MEMORY_AGENT_REFERENCE_FILES = (
 )
 
 STALE_ACTIVE_MEMORY_AGENT_REFERENCES = (
-    "src/claude/memory.md",
+    "src/claude/agents/memory.md",
     "memory.agent.md",
     "templates/agents/memory.shared.md",
     "@memory ",

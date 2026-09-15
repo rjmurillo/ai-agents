@@ -85,6 +85,10 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli"),
     ("src", "vs-code-agents"),
     (".github", "instructions"),
+    # ADR-109 B1: agent trees render from templates/agents/ and binplace.
+    ("src", "claude", "agents"),
+    (".claude", "agents"),
+    (".github", "agents"),
 )
 _GENERATED_MARKERS = (
     "AUTO-GENERATED MATCHER SHIM",

@@ -42,8 +42,8 @@ def fake_repo(tmp_path: Path) -> Path:
     (tmp_path / ".github" / "agents" / "alpha.agent.md").write_text("# alpha\n")
     # Freestanding Copilot agent: only one file in .github/agents/.
     (tmp_path / ".github" / "agents" / "gamma.agent.md").write_text("# gamma\n")
-    (tmp_path / "src" / "claude").mkdir(parents=True)
-    (tmp_path / "src" / "claude" / "alpha.md").write_text("# alpha\n")
+    (tmp_path / "src" / "claude" / "agents").mkdir(parents=True)
+    (tmp_path / "src" / "claude" / "agents" / "alpha.md").write_text("# alpha\n")
     (tmp_path / "src" / "copilot-cli" / "agents").mkdir(parents=True)
     (tmp_path / "src" / "copilot-cli" / "agents" / "alpha.agent.md").write_text("# alpha\n")
     (tmp_path / "src" / "vs-code-agents").mkdir(parents=True)
@@ -70,7 +70,7 @@ def test_classify_shared_agent_template() -> None:
 def test_classify_shared_agent_install() -> None:
     assert vip.classify(".claude/agents/qa.md") == ("SHARED_AGENT", "qa")
     assert vip.classify(".github/agents/qa.agent.md") == ("SHARED_AGENT", "qa")
-    assert vip.classify("src/claude/qa.md") == ("SHARED_AGENT", "qa")
+    assert vip.classify("src/claude/agents/qa.md") == ("SHARED_AGENT", "qa")
     assert vip.classify("src/copilot-cli/agents/qa.agent.md") == ("SHARED_AGENT", "qa")
     assert vip.classify("src/vs-code-agents/qa.agent.md") == ("SHARED_AGENT", "qa")
 
@@ -90,7 +90,7 @@ def test_classify_rule() -> None:
 def test_classify_ignores_agent_dir_metadata() -> None:
     assert vip.classify(".claude/agents/AGENTS.md") is None
     assert vip.classify(".claude/agents/CLAUDE.md") is None
-    assert vip.classify("src/claude/AGENTS.md") is None
+    assert vip.classify("src/claude/agents/AGENTS.md") is None
 
 
 def test_classify_ignores_rule_dir_metadata() -> None:
@@ -114,49 +114,35 @@ def test_classify_unknown_paths_return_none() -> None:
 
 
 def test_clean_diff_all_six_shared_agent_members(fake_repo: Path) -> None:
+    """ADR-109 B1: SHARED_AGENT members are generated; drift delegated."""
     touched = [
         "templates/agents/alpha.shared.md",
         ".claude/agents/alpha.md",
         ".github/agents/alpha.agent.md",
-        "src/claude/alpha.md",
+        "src/claude/agents/alpha.md",
         "src/copilot-cli/agents/alpha.agent.md",
         "src/vs-code-agents/alpha.agent.md",
     ]
     assert vip.find_violations(touched, repo_root=fake_repo) == []
 
 
-def test_shared_agent_template_only_drift_detected(fake_repo: Path) -> None:
+def test_shared_agent_template_only_is_delegated(fake_repo: Path) -> None:
+    """ADR-109 B1: SHARED_AGENT drift delegated to build_all.py --check."""
     touched = ["templates/agents/alpha.shared.md"]
     violations = vip.find_violations(touched, repo_root=fake_repo)
-    assert len(violations) == 1
-    v = violations[0]
-    assert v.kind == "SHARED_AGENT"
-    assert v.name == "alpha"
-    assert "templates/agents/alpha.shared.md" in v.touched
-    # Every other sibling is missing.
-    assert ".claude/agents/alpha.md" in v.missing
-    assert ".github/agents/alpha.agent.md" in v.missing
-    assert "src/claude/alpha.md" in v.missing
-    assert "src/copilot-cli/agents/alpha.agent.md" in v.missing
-    assert "src/vs-code-agents/alpha.agent.md" in v.missing
+    assert violations == []
 
 
-def test_shared_agent_skipped_claude_install_is_drift(fake_repo: Path) -> None:
-    """PR #2087 / #2083 shape: template + src/* updated, .claude/ install skipped."""
+def test_shared_agent_member_drift_is_delegated(fake_repo: Path) -> None:
+    """ADR-109 B1: SHARED_AGENT drift delegated to build_all.py --check."""
     touched = [
         "templates/agents/alpha.shared.md",
-        "src/claude/alpha.md",
+        "src/claude/agents/alpha.md",
         "src/copilot-cli/agents/alpha.agent.md",
         "src/vs-code-agents/alpha.agent.md",
     ]
     violations = vip.find_violations(touched, repo_root=fake_repo)
-    assert len(violations) == 1
-    v = violations[0]
-    assert ".claude/agents/alpha.md" in v.missing
-    assert ".github/agents/alpha.agent.md" in v.missing
-    # Members that were touched are NOT in missing.
-    assert "templates/agents/alpha.shared.md" not in v.missing
-    assert "src/claude/alpha.md" not in v.missing
+    assert violations == []
 
 
 def test_freestanding_copilot_agent_is_not_flagged(fake_repo: Path) -> None:
@@ -204,17 +190,14 @@ def test_install_plus_canonical_partial_is_still_drift(fake_repo: Path) -> None:
     """Carve-out applies only when touched set is ENTIRELY hand-maintained.
 
     The moment canonical (template) or a generated copy enters the diff,
-    every sibling must be present.
+    every sibling must be present. ADR-109 B1: SHARED_AGENT groups delegated.
     """
     touched = [
         "templates/agents/alpha.shared.md",
         ".claude/agents/alpha.md",
     ]
     violations = vip.find_violations(touched, repo_root=fake_repo)
-    assert len(violations) == 1
-    v = violations[0]
-    assert ".github/agents/alpha.agent.md" in v.missing
-    assert "src/claude/alpha.md" in v.missing
+    assert violations == []
 
 
 def test_pure_handmaintained_resync_includes_src_claude(fake_repo: Path) -> None:
@@ -223,43 +206,36 @@ def test_pure_handmaintained_resync_includes_src_claude(fake_repo: Path) -> None
     touched = [
         ".claude/agents/alpha.md",
         ".github/agents/alpha.agent.md",
-        "src/claude/alpha.md",
+        "src/claude/agents/alpha.md",
     ]
     assert vip.find_violations(touched, repo_root=fake_repo) == []
 
 
 def test_src_claude_solo_resync_is_allowed(fake_repo: Path) -> None:
     """Partial resync (only the hand-maintained src/claude copy) is allowed."""
-    touched = ["src/claude/alpha.md"]
+    touched = ["src/claude/agents/alpha.md"]
     assert vip.find_violations(touched, repo_root=fake_repo) == []
 
 
 def test_handmaintained_plus_generated_src_is_still_drift(fake_repo: Path) -> None:
-    """Generated src copies (src/copilot-cli, src/vs-code) are NOT hand-maintained;
-    the moment one enters the diff, every sibling must be present."""
+    """ADR-109 B1: SHARED_AGENT delegated to build_all.py --check."""
     touched = [
-        "src/claude/alpha.md",
+        "src/claude/agents/alpha.md",
         "src/copilot-cli/agents/alpha.agent.md",
     ]
     violations = vip.find_violations(touched, repo_root=fake_repo)
-    assert len(violations) == 1
-    v = violations[0]
-    assert "templates/agents/alpha.shared.md" in v.missing
-    assert ".claude/agents/alpha.md" in v.missing
-    assert ".github/agents/alpha.agent.md" in v.missing
-    assert "src/vs-code-agents/alpha.agent.md" in v.missing
+    assert violations == []
 
 
 def test_install_plus_generated_src_partial_is_still_drift(fake_repo: Path) -> None:
-    """A generated src copy is strict; carve-out does not apply."""
+    """A generated src copy is strict; carve-out does not apply. ADR-109 B1: SHARED_AGENT delegated.
+    """
     touched = [
         "src/vs-code-agents/alpha.agent.md",
         ".claude/agents/alpha.md",
     ]
     violations = vip.find_violations(touched, repo_root=fake_repo)
-    assert len(violations) == 1
-    v = violations[0]
-    assert "templates/agents/alpha.shared.md" in v.missing
+    assert violations == []
 
 
 def test_rule_clean_diff(fake_repo: Path) -> None:
@@ -284,13 +260,13 @@ def test_rule_install_only_delegates_to_build_all(fake_repo: Path) -> None:
 
 
 def test_multiple_independent_groups_each_validated(fake_repo: Path) -> None:
+    """Both SHARED_AGENT and RULE drifts delegated. ADR-109 B1."""
     touched = [
-        "templates/agents/alpha.shared.md",  # drift: missing 5 siblings
-        ".claude/rules/beta.md",  # RULE drift delegated to build_all.py
+        "templates/agents/alpha.shared.md",  # delegated to build_all.py
+        ".claude/rules/beta.md",  # delegated to build_all.py
     ]
     violations = vip.find_violations(touched, repo_root=fake_repo)
-    kinds = sorted(v.kind for v in violations)
-    assert kinds == ["SHARED_AGENT"]
+    assert violations == []
 
 
 def test_unrelated_paths_do_not_create_groups(fake_repo: Path) -> None:
@@ -304,7 +280,7 @@ def test_diff_with_path_prefix_normalization(fake_repo: Path) -> None:
         "./templates/agents/alpha.shared.md",
         "./.claude/agents/alpha.md",
         "./.github/agents/alpha.agent.md",
-        "./src/claude/alpha.md",
+        "./src/claude/agents/alpha.md",
         "./src/copilot-cli/agents/alpha.agent.md",
         "./src/vs-code-agents/alpha.agent.md",
     ]
@@ -318,7 +294,7 @@ def test_template_deletion_still_requires_siblings(fake_repo: Path) -> None:
     template, find it absent (because the PR deletes it), and treat the
     group as freestanding. That makes a partial-delete pass clean and
     leaves orphaned install copies. The fix: when the template path is in
-    the touched set, the parity contract still binds.
+    the touched set, the parity contract still binds. ADR-109 B1: SHARED_AGENT delegated.
     """
     # Simulate the PR by removing the template from disk. The touched set
     # still includes it (git diff --name-only reports deletes with ACMRD).
@@ -326,15 +302,10 @@ def test_template_deletion_still_requires_siblings(fake_repo: Path) -> None:
     touched = [
         "templates/agents/alpha.shared.md",  # deleted in this PR
         ".claude/agents/alpha.md",
-        # Missing: .github/agents, src/claude, src/copilot-cli, src/vs-code-agents
+        # Missing: .github/agents, src/claude/agents, src/copilot-cli, src/vs-code-agents
     ]
     violations = vip.find_violations(touched, repo_root=fake_repo)
-    assert len(violations) == 1
-    v = violations[0]
-    assert v.kind == "SHARED_AGENT"
-    assert v.name == "alpha"
-    assert ".github/agents/alpha.agent.md" in v.missing
-    assert "src/claude/alpha.md" in v.missing
+    assert violations == []
 
 
 def test_template_deletion_with_full_siblings_is_clean(fake_repo: Path) -> None:
@@ -345,7 +316,7 @@ def test_template_deletion_with_full_siblings_is_clean(fake_repo: Path) -> None:
         "templates/agents/alpha.shared.md",
         ".claude/agents/alpha.md",
         ".github/agents/alpha.agent.md",
-        "src/claude/alpha.md",
+        "src/claude/agents/alpha.md",
         "src/copilot-cli/agents/alpha.agent.md",
         "src/vs-code-agents/alpha.agent.md",
     ]
@@ -412,7 +383,7 @@ def test_cli_files_mode_exit_zero_when_clean(
         "templates/agents/alpha.shared.md",
         ".claude/agents/alpha.md",
         ".github/agents/alpha.agent.md",
-        "src/claude/alpha.md",
+        "src/claude/agents/alpha.md",
         "src/copilot-cli/agents/alpha.agent.md",
         "src/vs-code-agents/alpha.agent.md",
     ]
@@ -425,6 +396,7 @@ def test_cli_files_mode_exit_zero_when_clean(
 def test_cli_files_mode_exit_one_on_drift(
     capsys: pytest.CaptureFixture[str], fake_repo: Path
 ) -> None:
+    """SHARED_AGENT groups delegated; template-only change passes. ADR-109 B1."""
     argv = [
         "--repo-root",
         str(fake_repo),
@@ -433,14 +405,14 @@ def test_cli_files_mode_exit_one_on_drift(
     ]
     rc = vip.main(argv)
     out = capsys.readouterr().out
-    assert rc == 1
-    assert "DRIFT" in out
-    assert ".claude/agents/alpha.md" in out
+    assert rc == 0
+    assert "OK" in out
 
 
 def test_cli_json_format(
     capsys: pytest.CaptureFixture[str], fake_repo: Path
 ) -> None:
+    """SHARED_AGENT groups delegated; JSON output for clean diff. ADR-109 B1."""
     argv = [
         "--repo-root",
         str(fake_repo),
@@ -451,14 +423,10 @@ def test_cli_json_format(
     ]
     rc = vip.main(argv)
     out = capsys.readouterr().out
-    assert rc == 1
+    assert rc == 0
     payload = json.loads(out)
-    assert payload["drift"] is True
-    assert len(payload["violations"]) == 1
-    v = payload["violations"][0]
-    assert v["kind"] == "SHARED_AGENT"
-    assert v["name"] == "alpha"
-    assert ".claude/agents/alpha.md" in v["missing"]
+    assert payload["drift"] is False
+    assert len(payload["violations"]) == 0
 
 
 def test_cli_repo_root_missing_returns_two(

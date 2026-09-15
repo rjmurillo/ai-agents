@@ -50,7 +50,7 @@ VOICE_PATHS = (
 
 CRITIC_PATHS = (
     Path("templates/agents/critic.shared.md"),
-    Path("src/claude/critic.md"),
+    Path("src/claude/agents/critic.md"),
     Path(".claude/agents/critic.md"),
     Path(".github/agents/critic.agent.md"),
     Path("src/copilot-cli/agents/critic.agent.md"),
@@ -59,7 +59,7 @@ CRITIC_PATHS = (
 
 QA_PATHS = (
     Path("templates/agents/qa.shared.md"),
-    Path("src/claude/qa.md"),
+    Path("src/claude/agents/qa.md"),
     Path(".claude/agents/qa.md"),
     Path(".github/agents/qa.agent.md"),
     Path("src/copilot-cli/agents/qa.agent.md"),

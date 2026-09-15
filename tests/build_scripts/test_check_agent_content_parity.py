@@ -1,13 +1,13 @@
 """Tests for build/scripts/check_agent_content_parity.py (Issue #4082).
 
-The gate compares .claude/agents/ and src/claude/ byte-for-byte and fails
+The gate compares .claude/agents/ and src/claude/agents/ byte-for-byte and fails
 when any shared file differs or when a file is present in one tree but absent
 from the other (excluding known tree-specific files).
 
 Tests:
 - Positive: identical trees pass (exit 0).
 - Negative: content mismatch fails (exit 1).
-- Negative: file missing from src/claude fails (exit 1).
+- Negative: file missing from src/claude/agents fails (exit 1).
 - Negative: file missing from .claude/agents fails (exit 1).
 - Edge: exempt files do not trigger failures.
 - Negative: a returning .claude/agents/CLAUDE.md stub fails (issue #5493).
@@ -40,7 +40,7 @@ ALLOWED_ONLY_IN_SRC = _mod.ALLOWED_ONLY_IN_SRC
 def _make_trees(tmp_path: Path) -> tuple[Path, Path]:
     """Return (claude_dir, src_dir) - both empty dirs inside tmp_path."""
     claude = tmp_path / ".claude" / "agents"
-    src = tmp_path / "src" / "claude"
+    src = tmp_path / "src" / "claude" / "agents"
     claude.mkdir(parents=True)
     src.mkdir(parents=True)
     # pyproject.toml required by _find_repo_root
@@ -92,7 +92,7 @@ def test_content_mismatch_fails(tmp_path: Path) -> None:
 def test_missing_from_src_fails(tmp_path: Path) -> None:
     claude, src = _make_trees(tmp_path)
     (claude / "new-agent.md").write_bytes(b"# New agent\n")
-    # src/claude/new-agent.md absent
+    # src/claude/agents/new-agent.md absent
 
     rc = main(["--repo-root", str(tmp_path)])
     assert rc == 1

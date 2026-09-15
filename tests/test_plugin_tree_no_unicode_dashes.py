@@ -154,7 +154,7 @@ def test_out_of_scope_paths_are_excluded(path: str) -> None:
         ".claude/lib/paths.py",
         ".claude/skills/ship/SKILL.md",
         ".claude/rules/universal.md",
-        "src/claude/qa.md",
+        "src/claude/agents/qa.md",
         ".serena/memories/github/github-observations.md",
         "src/copilot-cli/skills/planner/scripts/planner.py",
     ],

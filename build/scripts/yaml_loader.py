@@ -75,9 +75,7 @@ def _strict_safe_load(text: str) -> object:
 # --- SchemaVersion --------------------------------------------------------
 
 
-def _check_schema_version(
-    value: object, supported_major: int, *, source: str = ""
-) -> None:
+def _check_schema_version(value: object, supported_major: int, *, source: str = "") -> None:
     """Raise ConfigError if schemaVersion is missing or incompatible.
 
     ``source`` (file path string) is prefixed to every message so contributors
@@ -87,14 +85,10 @@ def _check_schema_version(
     if value is None:
         raise ConfigError(f"{prefix}missing required `schemaVersion`")
     if not isinstance(value, str):
-        raise ConfigError(
-            f"{prefix}`schemaVersion`: must be a string (got {type(value).__name__})"
-        )
+        raise ConfigError(f"{prefix}`schemaVersion`: must be a string (got {type(value).__name__})")
     match = SCHEMA_VERSION_RE.match(value)
     if not match:
-        raise ConfigError(
-            f"{prefix}`schemaVersion`: '{value}' is not a valid SemVer 'MAJOR.MINOR'"
-        )
+        raise ConfigError(f"{prefix}`schemaVersion`: '{value}' is not a valid SemVer 'MAJOR.MINOR'")
     major = int(match.group(1))
     if major != supported_major:
         raise ConfigError(
@@ -117,9 +111,7 @@ def validate_relative_path(field: str, value: object) -> list[str]:
     if not value:
         return [f"`{field}`: must not be empty"]
     if value.startswith("/"):
-        return [
-            f"`{field}`: absolute path '{value}' rejected (must be repo-relative)"
-        ]
+        return [f"`{field}`: absolute path '{value}' rejected (must be repo-relative)"]
     parts = Path(value).parts
     if ".." in parts:
         return [f"`{field}`: path '{value}' must not contain '..' traversal"]
@@ -169,7 +161,5 @@ def load_platform_config(
     if not isinstance(data, dict):
         raise ConfigError(f"top-level value in '{path}' must be a mapping")
 
-    _check_schema_version(
-        data.get("schemaVersion"), supported_major, source=str(path)
-    )
+    _check_schema_version(data.get("schemaVersion"), supported_major, source=str(path))
     return data

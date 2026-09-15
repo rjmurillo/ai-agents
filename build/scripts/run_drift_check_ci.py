@@ -58,8 +58,7 @@ def _write_step_summary(content: str) -> None:
                 fh.write("\n")
     except OSError as exc:
         print(
-            f"::warning::failed to write GITHUB_STEP_SUMMARY at "
-            f"{summary_path}: {exc}",
+            f"::warning::failed to write GITHUB_STEP_SUMMARY at {summary_path}: {exc}",
             file=sys.stderr,
         )
 
@@ -95,8 +94,7 @@ def run(generator: Path) -> int:
         except ValueError:
             label = str(generator)
         print(
-            f"::error::generator missing at {label}; "
-            f"the drift check cannot run.",
+            f"::error::generator missing at {label}; the drift check cannot run.",
             file=sys.stderr,
         )
         return 2

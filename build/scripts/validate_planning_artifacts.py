@@ -61,12 +61,8 @@ class ValidationSummary:
     warnings: list[str] = field(default_factory=list)
 
 
-RANGE_ESTIMATE_PATTERN = re.compile(
-    r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)"
-)
-SINGLE_ESTIMATE_PATTERN = re.compile(
-    r"(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b"
-)
+RANGE_ESTIMATE_PATTERN = re.compile(r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*(?:hours?|hrs?)")
+SINGLE_ESTIMATE_PATTERN = re.compile(r"(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b")
 
 CONDITION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"QA:\s*(.+)"),
@@ -111,10 +107,12 @@ def find_orphan_conditions(content: str) -> list[str]:
             for pattern in CONDITION_PATTERNS:
                 match = pattern.search(line)
                 if match:
-                    conditions.append({
-                        "line": line.strip(),
-                        "condition": match.group(1).strip(),
-                    })
+                    conditions.append(
+                        {
+                            "line": line.strip(),
+                            "condition": match.group(1).strip(),
+                        }
+                    )
 
     for cond in conditions:
         escaped = re.escape(cond["condition"])
@@ -150,10 +148,7 @@ def check_estimate_consistency(
     return ConsistencyResult(
         consistent=divergence <= threshold,
         divergence=round(divergence, 1),
-        message=(
-            f"Source: {source.low}-{source.high}h, "
-            f"Derived: {derived.low}-{derived.high}h"
-        ),
+        message=(f"Source: {source.low}-{source.high}h, Derived: {derived.low}-{derived.high}h"),
     )
 
 
@@ -233,8 +228,7 @@ def validate_estimates(
         print(f"[PASS] Effort Estimates - Divergence: {result.divergence}%")
     else:
         print(
-            f"[WARN] Effort Estimates - Divergence: {result.divergence}% "
-            f"(threshold: {threshold}%)"
+            f"[WARN] Effort Estimates - Divergence: {result.divergence}% (threshold: {threshold}%)"
         )
         print(f"  {result.message}")
         summary.warnings.append(
@@ -285,8 +279,7 @@ def validate_document_structure(docs: PlanningDocs) -> None:
 
         if has_estimate_re.search(content) and not has_reconciliation_re.search(content):
             print(
-                f"  {doc.name}: Contains estimates but no reconciliation section "
-                "(consider adding)"
+                f"  {doc.name}: Contains estimates but no reconciliation section (consider adding)"
             )
 
 

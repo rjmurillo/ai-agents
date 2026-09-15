@@ -75,7 +75,6 @@ here as "the script only touches git under ``--check``".
 from __future__ import annotations
 
 import argparse
-import errno
 import json
 import os
 import re
@@ -95,11 +94,21 @@ if TYPE_CHECKING:
 _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
+import agent_templates  # noqa: E402
+import binplace_manifest  # noqa: E402
 import generate_adr_index  # noqa: E402
 import generate_hooks  # noqa: E402
 import generate_rules  # noqa: E402
 import generate_skills  # noqa: E402
 import skill_templates  # noqa: E402
+
+# The two F401 names are re-exports: tests and callers still reach the write
+# helpers through this module after they moved to atomic_write.py (ADR-109).
+from atomic_write import MOUNT_POINT_REPARSE_TAG as _MOUNT_POINT_REPARSE_TAG  # noqa: E402, F401
+from atomic_write import is_redirecting as _is_redirecting  # noqa: E402
+from atomic_write import publish_bytes_atomically as _publish_bytes_atomically  # noqa: E402
+from atomic_write import read_bytes_no_redirect as _read_bytes_no_redirect  # noqa: E402
+from atomic_write import write_bytes_no_redirect as _write_bytes_no_redirect  # noqa: E402, F401
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
 
 # Path to the agent generator. Imported lazily because build/ is on a
@@ -222,7 +231,9 @@ def _build_skills(
     return result
 
 
-def _build_agents(repo_root: Path, _config_path: Path, _platform: str) -> GeneratorResult:
+def _build_agents(
+    repo_root: Path, _config_path: Path, _platform: str, *, check: bool = False
+) -> GeneratorResult:
     """Run the agents generator across all platform configs.
 
     The current generator iterates platforms internally; we do not pass a
@@ -231,11 +242,30 @@ def _build_agents(repo_root: Path, _config_path: Path, _platform: str) -> Genera
     """
     import generate_agents
 
-    rc = generate_agents.main([
-        "--templates-path", str(repo_root / "templates"),
-        "--output-root", str(repo_root / "src"),
-    ])
-    return GeneratorResult(artifact="agents", platform="*", exit_code=rc)
+    # ADR-109 B1: compile templates/agents/<stem>.{claude,copilot}.md.tmpl
+    # first. The Claude variant lands in src/claude/agents/<stem>.md; the
+    # expanded Copilot variant feeds generate_agents for the copilot-cli
+    # platform. In check mode the compile validates and writes nothing.
+    compile_result = agent_templates.compile_all(repo_root, validate=check)
+    result = GeneratorResult(artifact="agents", platform="*", exit_code=compile_result.exit_code)
+    result.inputs = len(compile_result.copilot_rendered)
+    result.outputs = len(compile_result.written)
+    result.skipped = len(compile_result.skipped)
+    if compile_result.exit_code != 0:
+        if check:
+            result.exit_code = 2
+        return result
+    rc = generate_agents.generate_agents(
+        repo_root / "templates",
+        repo_root / "src",
+        repo_root,
+        validate=check,
+        copilot_sources=compile_result.copilot_rendered,
+    )
+    if check and rc != 0:
+        rc = 2
+    result.exit_code = rc
+    return result
 
 
 def _build_agent_catalog(repo_root: Path, _config_path: Path, _platform: str) -> GeneratorResult:
@@ -298,9 +328,7 @@ def _build_adr_index(repo_root: Path, _config_path: Path, _platform: str) -> Gen
     )
     result = GeneratorResult(artifact="adr-index", platform="docs", exit_code=rc)
     result.inputs = sum(
-        1
-        for path in adr_dir.glob("ADR-*.md")
-        if generate_adr_index.is_adr_filename(path.name)
+        1 for path in adr_dir.glob("ADR-*.md") if generate_adr_index.is_adr_filename(path.name)
     )
     result.outputs = 1 if output_path.is_file() else 0
     return result
@@ -367,9 +395,7 @@ def _build_directory_copy(
     stanza = artifacts.get(artifact_name) if isinstance(artifacts, dict) else None
     if not isinstance(stanza, dict):
         result = GeneratorResult(artifact=artifact_name, platform=platform, exit_code=0)
-        result.notices.append(
-            f"{platform}: no artifacts.{artifact_name} stanza; skipped"
-        )
+        result.notices.append(f"{platform}: no artifacts.{artifact_name} stanza; skipped")
         return result
 
     src_rel = stanza.get("sourceDir")
@@ -399,9 +425,7 @@ def _build_directory_copy(
 
     result = GeneratorResult(artifact=artifact_name, platform=platform, exit_code=0)
     if not src.is_dir():
-        result.notices.append(
-            f"{platform}: {artifact_name} source dir missing: {src_rel}"
-        )
+        result.notices.append(f"{platform}: {artifact_name} source dir missing: {src_rel}")
         return result
 
     import shutil as _shutil
@@ -414,12 +438,8 @@ def _build_directory_copy(
         ignore=_shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
     )
 
-    result.inputs = sum(
-        1 for _ in src.rglob(count_glob) if "__pycache__" not in _.parts
-    )
-    result.outputs = sum(
-        1 for _ in out.rglob(count_glob) if "__pycache__" not in _.parts
-    )
+    result.inputs = sum(1 for _ in src.rglob(count_glob) if "__pycache__" not in _.parts)
+    result.outputs = sum(1 for _ in out.rglob(count_glob) if "__pycache__" not in _.parts)
     return result
 
 
@@ -475,6 +495,7 @@ def _build_hooks(repo_root: Path, config_path: Path, platform: str) -> Generator
         if settings_path.is_file():
             try:
                 import json as _json
+
                 data = _json.loads(settings_path.read_text(encoding="utf-8"))
                 hooks_obj = data.get("hooks", {}) if isinstance(data, dict) else {}
                 count = 0
@@ -635,9 +656,7 @@ def _format_audit_md(audit: BuildAudit) -> str:
         lines.append("")
         lines.append(f"### Hooks ({r.platform})")
         lines.append("")
-        lines.append(
-            "| Claude Event | Source Script | Matcher | Target | Action | Reason |"
-        )
+        lines.append("| Claude Event | Source Script | Matcher | Target | Action | Reason |")
         lines.append("|---|---|---|---|---|---|")
         for entry in r.hook_entries:
             source = _markdown_table_cell(entry.get("event_source", ""))
@@ -646,10 +665,7 @@ def _format_audit_md(audit: BuildAudit) -> str:
             target = _markdown_table_cell(entry.get("target", ""))
             action = _markdown_table_cell(entry.get("action", ""))
             reason = _markdown_table_cell(entry.get("reason") or "(none)")
-            lines.append(
-                f"| {source} | {script} | {matcher} | {target} "
-                f"| {action} | {reason} |"
-            )
+            lines.append(f"| {source} | {script} | {matcher} | {target} | {action} | {reason} |")
 
     if audit.blocklist_violations:
         lines.append("")
@@ -795,13 +811,10 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
                 env=scrubbed_env,
             )
         except (OSError, subprocess.SubprocessError) as exc:
-            raise GitStateUnreadableError(
-                f"could not run {' '.join(argv)}: {exc}"
-            ) from exc
+            raise GitStateUnreadableError(f"could not run {' '.join(argv)}: {exc}") from exc
         if proc.returncode != 0:
             raise GitStateUnreadableError(
-                f"{' '.join(argv)} exited {proc.returncode}: "
-                f"{_first_stderr_line(proc.stderr)}"
+                f"{' '.join(argv)} exited {proc.returncode}: {_first_stderr_line(proc.stderr)}"
             )
         for raw in proc.stdout.split(b"\x00"):
             p = os.fsdecode(raw)
@@ -967,11 +980,7 @@ def _confirm_ignored(repo_root: Path, candidates: set[Path]) -> set[Path]:
     # filename round-trips instead of raising UnicodeDecodeError and
     # crashing the pre-push guard. Splitting on bytes first keeps the
     # NUL delimiter unambiguous.
-    return {
-        Path(os.fsdecode(raw))
-        for raw in completed.stdout.split(b"\0")
-        if raw
-    }
+    return {Path(os.fsdecode(raw)) for raw in completed.stdout.split(b"\0") if raw}
 
 
 # --- Clean ----------------------------------------------------------------
@@ -1020,15 +1029,24 @@ def clean_outputs(repo_root: Path, config_path: Path) -> int:
 # --- Driver ---------------------------------------------------------------
 
 
-def _select_platform_configs(
-    platforms_dir: Path, requested: str | None
-) -> list[Path]:
+def _select_platform_configs(platforms_dir: Path, requested: str | None) -> list[Path]:
     if not platforms_dir.is_dir():
         return []
-    files = sorted(platforms_dir.glob("*.yaml"))
+    # ADR-109: templates/platforms/ also holds binplace.yaml, the binplace
+    # manifest, which is not a platform. Only a file with a top-level
+    # `provider:` (or legacy `platform:`) key is a platform config.
+    files = sorted(p for p in platforms_dir.glob("*.yaml") if _is_platform_config(p))
     if requested:
         return [p for p in files if p.stem == requested]
     return files
+
+
+def _is_platform_config(path: Path) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return any(line.startswith(("provider:", "platform:")) for line in text.splitlines())
 
 
 # --- Owned prefixes: scope shared by --check staleness and snapshot ------
@@ -1043,6 +1061,8 @@ def _select_platform_configs(
 OWNED_PREFIXES: tuple[str, ...] = (
     "src/",
     ".github/instructions/",
+    ".github/agents/",
+    ".claude/agents/",
     "docs/agent-catalog.md",
     ".agents/architecture/README.md",
 )
@@ -1130,8 +1150,7 @@ def _ignored_paths(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
             )
         except (OSError, subprocess.SubprocessError) as exc:
             print(
-                f"WARN: git ls-files failed for {prefix!r}, ignore set may be "
-                f"incomplete: {exc}",
+                f"WARN: git ls-files failed for {prefix!r}, ignore set may be incomplete: {exc}",
                 file=sys.stderr,
             )
             continue
@@ -1208,218 +1227,16 @@ def _missing_owned_root(path: Path) -> bool:
     except FileNotFoundError:
         return True
     except OSError as exc:
-        raise SnapshotIncompleteError(
-            f"cannot verify missing owned path {path}: {exc}"
-        ) from exc
+        raise SnapshotIncompleteError(f"cannot verify missing owned path {path}: {exc}") from exc
 
 
-# stat.IO_REPARSE_TAG_MOUNT_POINT exists only on Windows builds, so reading it
-# through getattr with a sentinel default made the junction arm inert wherever
-# the attribute is missing: a check that cannot fire is not a check. The value
-# is a fixed Windows constant, and CPython's own os.path.isjunction compares
-# against exactly it, so pinning the literal makes the predicate answer the
-# same question on every platform. Non-Windows stat results carry no
-# st_reparse_tag at all, so the arm is unreachable there by data, not by a
-# missing name.
-_MOUNT_POINT_REPARSE_TAG = 0xA0000003
-
-
-def _is_redirecting(metadata: os.stat_result) -> bool:
-    """Return whether a no-follow stat names a link or a Windows junction.
-
-    ``S_ISLNK`` alone is not enough. A Windows directory junction is reported
-    as a directory carrying a reparse tag, so it passes every symlink test and
-    is then traversed, which is the same escape a symlink gives. The
-    repository already draws the line at both shapes: see `_is_redirecting_link`
-    in ``scripts/validation/portability_baseline.py``, which asks
-    ``path.is_symlink() or path.is_junction()``.
-
-    This reads the tag off an lstat result the caller already has, rather than
-    calling ``Path.is_junction()``. That helper delegates to
-    ``os.path.isjunction``, which swallows ``OSError`` and answers False, and a
-    strict probe that answers False on a metadata failure is the fail-open this
-    whole path exists to remove.
-    """
-    if stat.S_ISLNK(metadata.st_mode):
-        return True
-    return getattr(metadata, "st_reparse_tag", 0) == _MOUNT_POINT_REPARSE_TAG
-
-
-# Force binary mode on Windows, where os.open() without O_BINARY inherits the
-# C runtime's text-mode default: CRLF translation and truncation at a 0x1A
-# byte, either of which would corrupt a snapshot read or a restored write.
-# The flag does not exist off Windows, so getattr's fallback of 0 is a no-op
-# there. os.O_NOFOLLOW is POSIX-only for the same reason; see
-# _read_bytes_no_redirect and _write_bytes_no_redirect for what covers a
-# Windows junction, which os.O_NOFOLLOW never catches on any platform.
-_O_BINARY = getattr(os, "O_BINARY", 0)
-_O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
-
-
-def _read_bytes_no_redirect(path: Path) -> bytes:
-    """Read ``path``'s bytes, refusing at open time if it currently redirects.
-
-    ``_read_into_snapshot`` and the "already matches" check in
-    ``_restore_owned_prefixes`` both call this instead of
-    ``Path.read_bytes()``, which follows a symlink to wherever it points.
-    Every caller here already validated ``path`` earlier (strict discovery
-    stats it with ``follow_symlinks=False``, or the restore loop just
-    checked ``not path.is_symlink()``), but a symlink or Windows junction can
-    still be swapped in between that check and this read: PR #5343 review
-    threads at build_all.py:1562 and :1843 named exactly this gap (CWE-367).
-
-    ``os.O_NOFOLLOW`` makes the ``os.open`` call itself fail (``ELOOP``) on a
-    symlinked final path component, so the swap is refused at the syscall
-    boundary instead of silently followed. It is POSIX-only; on Windows
-    ``getattr`` falls back to ``0`` (a no-op bit) and a symlink there would
-    still be opened. The ``fstat`` check right after open covers the other
-    redirect shape :func:`_is_redirecting` already treats as equivalent, a
-    Windows directory junction, on every platform.
-
-    This narrows the window between validation and read to the gap between
-    this function's own ``os.open`` and ``os.fstat`` calls. It does not close
-    that gap to zero, and it does not close the POSIX-symlink gap on Windows
-    at all. The wider remedy considered on those review threads, generating
-    into an isolated tree so a redirect at any point cannot reach a path
-    ``--check`` would restore, was not chosen; see the threads for why.
-    """
-    fd = os.open(path, os.O_RDONLY | _O_BINARY | _O_NOFOLLOW)
-    try:
-        metadata = os.fstat(fd)
-        if _is_redirecting(metadata):
-            raise OSError(
-                errno.ELOOP,
-                f"{path} redirects (symlink or junction) at open time",
-            )
-        with os.fdopen(fd, "rb", closefd=False) as handle:
-            return handle.read()
-    finally:
-        os.close(fd)
-
-
-def _write_bytes_no_redirect(
-    path: Path, content: bytes, *, mode: int | None = None
-) -> None:
-    """Create ``path`` fresh and write ``content``, refusing a raced redirect.
-
-    Only ``_restore_owned_prefixes`` calls this, and only after it has
-    already removed whatever was at ``path`` (``shutil.rmtree`` for a
-    directory, ``Path.unlink`` for a file or a symlink), so this call is
-    always meant to create a brand new inode. ``os.O_EXCL`` makes the open
-    fail if anything, a real file or a symlink, already exists at ``path``:
-    that closes the classic unlink-then-recreate race, because nothing that
-    lands at ``path`` between the caller's removal and this open can be
-    written through. ``os.O_NOFOLLOW`` adds nothing over ``O_EXCL`` for a
-    symlink specifically (``O_EXCL`` already refuses any existing entry,
-    link or not), but costs nothing and keeps this call symmetric with
-    :func:`_read_bytes_no_redirect`.
-
-    Raises ``OSError`` (``FileExistsError`` when the race fires) instead of
-    writing through whatever reappeared. The caller's existing per-path
-    ``try/except OSError`` turns that into a ``WARN`` and moves on to the
-    next snapshot entry, the same best-effort behavior restore already had
-    for any other write failure; it does not retry or unlink the racing
-    entry, which could itself be adversarial.
-
-    Always creates with ``0o600`` (owner read-write only), never a group- or
-    world-readable literal such as ``0o644``, passed to ``os.open`` itself:
-    CodeQL flags an explicit permissive mode there (CWE-732), and there is
-    no reason this specific ``os.open`` call needs to ask for one. ``mode``,
-    when given, is applied afterward with ``os.fchmod`` (guarded for
-    platforms, Windows included, where that call is unavailable): callers
-    pass the file's captured pre-run permission bits
-    (:class:`OwnedSnapshot`.modes) so the *restored file* ends up matching
-    what was actually there before the run, restoring the exact pre-run
-    state :func:`_restore_owned_prefixes` promises rather than a fixed
-    literal (PR #5343 review, build_all.py:1261: an earlier version of this
-    function created every restored file as ``0o600`` outright, silently
-    downgrading a file that started at the ordinary ``0o644`` and leaving it
-    unreadable to anyone but the file's owner after ``--check`` finished).
-    ``mode=None`` (no capture, or a plain-dict caller with no ``.modes``)
-    leaves the file at the restrictive create mode; that only differs from
-    the pre-run state on a platform or in the rare stat-failure case
-    :func:`_read_into_snapshot` already documents as falling back silently.
-    """
-    fd = os.open(
-        path,
-        os.O_WRONLY | os.O_CREAT | os.O_EXCL | _O_BINARY | _O_NOFOLLOW,
-        0o600,
-    )
-    try:
-        if mode is not None and hasattr(os, "fchmod"):
-            os.fchmod(fd, mode)
-        with os.fdopen(fd, "wb", closefd=False) as handle:
-            handle.write(content)
-    finally:
-        os.close(fd)
-
-
-def _publish_bytes_atomically(
-    path: Path, content: bytes, *, mode: int | None = None
-) -> None:
-    """Put ``content`` at ``path`` in one step, via a sibling temp file.
-
-    Only :func:`_restore_owned_prefixes` calls this. It replaces that
-    function's former remove-then-recreate sequence, which left the
-    destination observably absent and then observably empty while
-    ``--check`` was still running. Measured on this branch by polling
-    ``src/copilot-cli/agents/analyst.agent.md`` during
-    ``build/scripts/build_all.py --check`` against a stale tree:
-    ``13147 -> 13110 -> -1 -> 0 -> 8192 -> 12288 -> 13147``, where ``-1`` is
-    the file missing entirely. 74 missing samples and 28 zero-size samples.
-    A reader in another process inside that window gets ``FileNotFoundError``
-    or an empty file that still passes ``Path.is_file()``, which is issue
-    #5502. ``os.replace`` swaps one directory entry, so a concurrent reader
-    opens either the old inode or the new one and never a partial state.
-
-    Follows ``build/generate_agents.py``, function ``_atomic_write_bytes``,
-    which in turn follows ``build/scripts/generate_adr_index.py``, function
-    ``_atomic_write_text``. That chain's load-bearing property, quoted
-    verbatim from the latter:
-
-        ``os.replace``
-        does not follow a symlink destination: it replaces the directory entry
-        itself, so a symlink at ``path`` is unlinked and swapped for a regular
-        file rather than written through.
-
-    Stricter/looser/different than canonical:
-
-    - Different: the temp file is created by :func:`_write_bytes_no_redirect`
-      rather than ``tempfile.mkstemp``. That helper opens with
-      ``O_CREAT | O_EXCL | O_NOFOLLOW`` at ``0o600`` and then ``fchmod``s to
-      ``mode``, which is what ``mkstemp`` does plus the mode handling this
-      caller already needed, so reusing it keeps that helper's contract and
-      its three direct unit tests untouched. The random name supplies the
-      uniqueness ``mkstemp`` would; a collision raises ``FileExistsError``,
-      an ``OSError`` the caller already turns into a ``WARN``.
-    - Looser than the sequence it replaces, deliberately, and this is the one
-      behavior change a reviewer must weigh. Before, a redirect raced in
-      between the removal and the write made ``O_EXCL`` refuse, printing a
-      ``WARN`` and returning ``False``. Now the raced entry is replaced.
-      Nothing is ever opened at ``path``, so the CWE-367 exposure the refusal
-      existed to close (PR #5343 review thread ``PRRT_kwDOQoWRls6epgus``,
-      build_all.py:1843) is closed here by construction instead: the
-      snapshot's bytes cannot travel through a planted link because no
-      descriptor is ever obtained on the destination path.
-      ``test_restore_owned_prefixes_replaces_a_raced_symlink_without_writing_through_it``
-      pins that. The restore contract also strictly improves: the old
-      sequence unlinked first, so a refused write left the file DELETED and
-      the tree further from its pre-run state than when the run started,
-      while a failed ``os.replace`` leaves the destination exactly as it
-      was. ``WARN`` and the ``False`` return survive for every ``OSError``
-      ``os.replace`` can still raise, so
-      :func:`run`'s exit-2 escalation is unchanged.
-    """
-    temporary = path.parent / f".{path.name}.{os.urandom(8).hex()}.tmp"
-    try:
-        _write_bytes_no_redirect(temporary, content, mode=mode)
-        os.replace(temporary, path)
-    except BaseException:
-        try:
-            temporary.unlink()
-        except OSError:
-            pass
-        raise
+# _is_redirecting, _read_bytes_no_redirect, _write_bytes_no_redirect, and
+# _publish_bytes_atomically (used from here down) are imported at module
+# top from atomic_write.py (ADR-109, DESIGN-025): binplace_manifest.py's
+# binplace() step needs the same CWE-59 defenses this module's
+# snapshot/restore code relies on, and build_all.py imports
+# binplace_manifest at module load time, so the helpers cannot live here
+# without a circular import.
 
 
 def _reject_redirecting_ancestors(repo_root: Path, path: Path) -> None:
@@ -1457,9 +1274,7 @@ def _reject_redirecting_ancestors(repo_root: Path, path: Path) -> None:
             )
 
 
-def _strict_owned_stat(
-    path: Path, *, missing_root_ok: bool
-) -> os.stat_result | None:
+def _strict_owned_stat(path: Path, *, missing_root_ok: bool) -> os.stat_result | None:
     """Return metadata for ``path``, rejecting symlinks, without following them.
 
     A symlink under an owned prefix raises here instead of being skipped by
@@ -1497,9 +1312,7 @@ def _strict_owned_stat(
             f"owned path disappeared during snapshot {path}: {exc}"
         ) from exc
     except OSError as exc:
-        raise SnapshotIncompleteError(
-            f"cannot inspect owned path {path}: {exc}"
-        ) from exc
+        raise SnapshotIncompleteError(f"cannot inspect owned path {path}: {exc}") from exc
     if _is_redirecting(metadata):
         raise SnapshotIncompleteError(
             f"owned path redirects (symlink or junction), and --check cannot "
@@ -1519,9 +1332,7 @@ def _strict_owned_children(path: Path) -> list[Path]:
         with os.scandir(path) as entries:
             return [Path(entry.path) for entry in entries]
     except OSError as exc:
-        raise SnapshotIncompleteError(
-            f"cannot enumerate owned directory {path}: {exc}"
-        ) from exc
+        raise SnapshotIncompleteError(f"cannot enumerate owned directory {path}: {exc}") from exc
 
 
 def _strict_is_git_boundary(directory: Path) -> bool:
@@ -1579,9 +1390,7 @@ def _reject_nested_repository(directory: Path) -> None:
 def _queue_strict_owned_path(pending: list[Path], path: Path) -> Path | None:
     """Queue child directories and return child files for strict snapshots."""
     metadata = _strict_owned_stat(path, missing_root_ok=False)
-    assert metadata is not None, (
-        "missing_root_ok=False guarantees a non-None result or a raise"
-    )
+    assert metadata is not None, "missing_root_ok=False guarantees a non-None result or a raise"
     if stat.S_ISDIR(metadata.st_mode):
         _reject_nested_repository(path)
         pending.append(path)
@@ -1761,17 +1570,13 @@ def _snapshot_owned_prefixes(
         ):
             if is_dir or not path.is_file():
                 continue
-            if _is_ignored_path(path, ignored) or (
-                exclude_ignored and _is_bytecode_artifact(path)
-            ):
+            if _is_ignored_path(path, ignored) or (exclude_ignored and _is_bytecode_artifact(path)):
                 continue
             _read_into_snapshot(snapshot, path, strict=False)
     return snapshot
 
 
-def _read_into_snapshot(
-    snapshot: dict[Path, bytes], path: Path, *, strict: bool
-) -> None:
+def _read_into_snapshot(snapshot: dict[Path, bytes], path: Path, *, strict: bool) -> None:
     """Read ``path`` into ``snapshot``, or decide what its failure means.
 
     Extracted so the single-file prefix branch and the directory walk in
@@ -1836,9 +1641,7 @@ def _read_into_snapshot(
         snapshot[path] = _read_bytes_no_redirect(path)
     except OSError as exc:
         if strict:
-            raise SnapshotIncompleteError(
-                f"cannot read owned file {path}: {exc}"
-            ) from exc
+            raise SnapshotIncompleteError(f"cannot read owned file {path}: {exc}") from exc
         return
     modes = getattr(snapshot, "modes", None)
     if modes is not None:
@@ -1899,9 +1702,7 @@ def _restore_owned_prefixes(
     of issue #2440. ``None`` keeps the shape test, which is correct for a
     caller with no recorded baseline.
     """
-    current = _enumerate_files_under(
-        repo_root, prefixes, opaque_boundaries=preexisting_boundaries
-    )
+    current = _enumerate_files_under(repo_root, prefixes, opaque_boundaries=preexisting_boundaries)
     fully_restored = True
     # A plain dict (some direct-call tests still pass one) has no .modes;
     # falling back to {} makes modes.get(path) below None for every path,
@@ -1961,9 +1762,7 @@ def _restore_owned_prefixes(
                 file=sys.stderr,
             )
 
-    _prune_empty_dirs(
-        repo_root, prefixes, opaque_boundaries=preexisting_boundaries
-    )
+    _prune_empty_dirs(repo_root, prefixes, opaque_boundaries=preexisting_boundaries)
     return fully_restored
 
 
@@ -2031,9 +1830,7 @@ def _iter_tree_skip_git_boundaries(
                 stack.append(entry)
 
 
-def _git_boundaries_under(
-    repo_root: Path, prefixes: tuple[str, ...]
-) -> set[Path]:
+def _git_boundaries_under(repo_root: Path, prefixes: tuple[str, ...]) -> set[Path]:
     """Return the git repository boundaries under ``prefixes`` right now.
 
     ``--check`` records this before any generator runs so
@@ -2147,8 +1944,7 @@ def run(
     configs = _select_platform_configs(platforms_dir, platform)
     if not configs:
         print(
-            f"Error: no platform configs in {platforms_dir} "
-            f"(filter: {platform!r})",
+            f"Error: no platform configs in {platforms_dir} (filter: {platform!r})",
             file=sys.stderr,
         )
         return 2
@@ -2191,9 +1987,7 @@ def run(
         # .git entry it wrote during the build (#5464).
         boundaries = set()
         try:
-            snapshot = _snapshot_owned_prefixes(
-                repo_root, OWNED_PREFIXES, strict=True
-            )
+            snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES, strict=True)
         except SnapshotIncompleteError as exc:
             print(
                 f"Error: --check aborted before generation: {exc}",
@@ -2217,14 +2011,16 @@ def run(
     # construction. Passing it would be an argument no mutation can
     # distinguish, which is an argument with no test holding it.
     claude_boundaries = _git_boundaries_under(repo_root, CLAUDE_GUARD_PREFIX)
-    claude_baseline = _snapshot_owned_prefixes(
-        repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True
-    )
+    claude_baseline = _snapshot_owned_prefixes(repo_root, CLAUDE_GUARD_PREFIX, exclude_ignored=True)
     # ADR-108: the allowlist is read from templates/skills/ at run time, on
     # the same pre-generation filesystem state the baseline snapshot above
     # just read, so a template added or removed by this same run cannot
     # change which paths are allowlisted mid-build.
-    claude_allowed_paths = skill_templates.owned_targets(repo_root)
+    try:
+        claude_allowed_paths = binplace_manifest.claude_allowlist(repo_root)
+    except binplace_manifest.BinplaceConfigError as exc:
+        print(f"Error: binplace manifest: {exc}", file=sys.stderr)
+        return 2
 
     exit_code = 2
     try:
@@ -2266,6 +2062,34 @@ def run(
     return exit_code
 
 
+def _run_binplace(repo_root: Path, *, check: bool) -> GeneratorResult:
+    """Copy plugin trees into install trees per templates/platforms/binplace.yaml.
+
+    Check mode writes nothing: a byte difference between a plugin tree and
+    its install tree is staleness, exit 2, the same code a drifted
+    generated tree already produces. A manifest that fails validation is
+    a configuration error, also exit 2. Files under an install tree with
+    no plugin counterpart are reported as notices and never touched.
+    """
+    result = GeneratorResult(artifact="binplace", platform="*")
+    try:
+        outcome = binplace_manifest.binplace(repo_root, check=check)
+    except binplace_manifest.BinplaceConfigError as exc:
+        print(f"Error: binplace manifest: {exc}", file=sys.stderr)
+        result.exit_code = 2
+        return result
+    result.outputs = len(outcome.written)
+    result.notices.extend(f"unowned install file left alone: {p}" for p in outcome.unowned)
+    if outcome.drifted:
+        for path in outcome.drifted:
+            print(
+                f"STALENESS DETECTED: install tree differs from plugin tree: {path}",
+                file=sys.stderr,
+            )
+        result.exit_code = 2
+    return result
+
+
 def _run_generators(
     repo_root: Path,
     configs: list[Path],
@@ -2288,7 +2112,7 @@ def _run_generators(
     # Call by name instead of through GENERATORS so tests can monkeypatch these
     # seams without updating the tuple's captured function objects.
     for result in (
-        _build_agents(repo_root, configs[0], "*"),
+        _build_agents(repo_root, configs[0], "*", check=check),
         _build_agent_catalog(repo_root, configs[0], "*"),
         _build_adr_index(repo_root, configs[0], "*"),
     ):
@@ -2313,6 +2137,13 @@ def _run_generators(
             if result.exit_code != 0:
                 audit.overall_exit = max(audit.overall_exit, result.exit_code)
 
+    # ADR-109: binplace every plugin tree into its install tree (or, in
+    # check mode, report drift between them) after the generators ran.
+    binplace_result = _run_binplace(repo_root, check=check)
+    audit.results.append(binplace_result)
+    if binplace_result.exit_code != 0:
+        audit.overall_exit = max(audit.overall_exit, binplace_result.exit_code)
+
     audit.duration_s = time.monotonic() - started
 
     # REQ-003-010: enforce .claude/ no-write invariant.
@@ -2326,9 +2157,7 @@ def _run_generators(
         for p in claude_writes:
             print(f"REQ-003-010 VIOLATION: generator wrote to {p}", file=sys.stderr)
         audit.overall_exit = 2
-        audit.blocklist_violations.extend(
-            f".claude/ write detected: {p}" for p in claude_writes
-        )
+        audit.blocklist_violations.extend(f".claude/ write detected: {p}" for p in claude_writes)
 
     # Build the blocklist from the first config that has one.
     blocklist: list[re.Pattern[str]] = []
@@ -2366,10 +2195,7 @@ def _run_generators(
             )
             audit.overall_exit = max(audit.overall_exit, 3)
             changed = []
-        diff = [
-            p for p in changed
-            if any(p.startswith(prefix) for prefix in OWNED_PREFIXES)
-        ]
+        diff = [p for p in changed if any(p.startswith(prefix) for prefix in OWNED_PREFIXES)]
         if diff:
             print("STALENESS DETECTED: uncommitted regen drift:", file=sys.stderr)
             for p in diff:

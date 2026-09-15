@@ -1,0 +1,8 @@
+# Get ALL unique reviewers (review comments + issue comments)
+REVIEWERS=$(gh api repos/[owner]/[repo]/pulls/[number]/comments --jq '[.[].user.login] | unique')
+ISSUE_REVIEWERS=$(gh api repos/[owner]/[repo]/issues/[number]/comments --jq '[.[].user.login] | unique')
+
+# Combine and deduplicate
+ALL_REVIEWERS=$(echo "$REVIEWERS $ISSUE_REVIEWERS" | jq -s 'add | unique')
+echo "Reviewers: $ALL_REVIEWERS"
+```

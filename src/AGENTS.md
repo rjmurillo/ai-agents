@@ -5,22 +5,22 @@ Two of this repo's three plugin sources; consumed by Claude Code and Copilot CLI
 ## Matters
 
 - Two of the three plugin roots in this repo live here: `claude/` ships as the `claude-agents` plugin, `copilot-cli/` ships as the `project-toolkit` plugin for Copilot CLI (`.claude/` is the third, outside `src/`). See `.claude/rules/plugin-self-containment.md`.
-- `copilot-cli/**` is entirely generated: it mirrors `.claude/{skills,hooks,lib,rules}` plus `templates/agents/*.shared.md`, via the seven generators `build/scripts/build_all.py` runs. Never hand-edit it.
-- `vs-code-agents/*.agent.md` is generated from `templates/agents/*.shared.md` only; it has no `.claude/` counterpart.
-- `claude/*.md` is hand-maintained, not generated; its own rules live in `src/claude/AGENTS.md`.
+- `copilot-cli/**` is entirely generated: it mirrors `.claude/{skills,hooks,lib,rules}` plus agents from `templates/agents/`, via generators `build/scripts/build_all.py` runs. Never hand-edit it.
+- `vs-code-agents/*.agent.md` is generated from `templates/agents/` only; it has no `.claude/` counterpart.
+- `claude/agents/*.md` is generated from `templates/agents/<stem>.claude.md.tmpl` by `build/scripts/agent_templates.py` per ADR-109. `claude-instructions.template.md` is hand-maintained. Rules live in `src/claude/AGENTS.md`.
 
 ## Entry points
 
-- `claude/<name>.md`: Claude agent source, edited directly.
-- `uv run python build/scripts/build_all.py`: orchestrates every generator that writes into `copilot-cli/`.
-- `uv run python build/generate_agents.py`: writes `copilot-cli/agents/` and `vs-code-agents/` from `templates/agents/`.
+- `templates/agents/<stem>.claude.md.tmpl`: Edit agent templates here.
+- `uv run python build/scripts/build_all.py`: orchestrates every generator that writes into `claude/agents/`, `copilot-cli/`, and other trees.
 - `packages/ai-agents-cli/src/cli.ts`: the actual shipped CLI entry point (separate build, separate tests, not this tree).
 
 ## Where to look
 
 | Path | Why |
 |---|---|
-| `claude/*.md` | Hand-maintained; `claude-agents` plugin source; rules in `src/claude/AGENTS.md` |
+| `claude/agents/*.md` | Generated from `templates/agents/` by `build/scripts/agent_templates.py`; `claude-agents` plugin source; rules in `src/claude/AGENTS.md` |
+| `claude/claude-instructions.template.md` | Hand-maintained preamble template |
 | `copilot-cli/**` | Generated mirror of `.claude/{skills,hooks,lib,rules}` and `templates/agents/`; `project-toolkit` plugin for Copilot CLI |
 | `vs-code-agents/*.agent.md` | Generated from `templates/agents/` only, no `.claude/` input |
 | `STYLE-GUIDE.md` | Prose standard every agent file (hand-maintained and generated) MUST follow |
@@ -40,7 +40,7 @@ Two of this repo's three plugin sources; consumed by Claude Code and Copilot CLI
 
 ## Dangerous assumptions
 
-- A green `build_all.py --check` proves `copilot-cli/` and `vs-code-agents/` match their sources; it says nothing about whether hand-maintained `claude/` agrees with `templates/agents/` (see `src/claude/AGENTS.md` Dangerous assumptions).
+- A green `build_all.py --check` proves all generated trees match their sources.
 
 ## Dependencies
 

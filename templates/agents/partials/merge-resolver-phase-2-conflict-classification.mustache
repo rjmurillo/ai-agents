@@ -1,0 +1,9 @@
+**Rename, never content-merge** (add/add on append-only evidence artifacts):
+
+- Session logs (`.agents/sessions/*`)
+- QA reports (`.agents/qa/*`)
+- Retrospectives (`.agents/retrospective/*`)
+
+An add/add conflict here means two branches wrote different records to the same filename. Keep both files: accept the base branch version at the original name, rename the head branch version with a distinguishing suffix (keep the session number, append an issue or topic slug), and update any index or report that references the renamed file. Never merge the two contents into one file. PR #4856 proved the anti-pattern: merging both sessions' prose into one file would have destroyed two accurate records to produce one false one (`.agents/retrospective/2026-08-10-pr-4856-session-log-collision.md`). Issue #4751 tracks preventing the collision at allocation time.
+
+**Manual resolution required**:

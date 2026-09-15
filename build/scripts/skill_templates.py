@@ -295,9 +295,7 @@ def owned_targets(repo_root: Path) -> set[Path]:
     invalid template name never reaches this allowlist (see that function's
     docstring).
     """
-    return {
-        repo_root / ".claude" / "skills" / name / "SKILL.md" for name in discover(repo_root)
-    }
+    return {repo_root / ".claude" / "skills" / name / "SKILL.md" for name in discover(repo_root)}
 
 
 def _try_render(tmpl_path: Path, partials_dir: Path, result: CompileResult) -> str | None:
@@ -406,9 +404,7 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
         # target.parent is guaranteed to exist for every (name, tmpl_path)
         # reached this far.
 
-        current = (
-            target.read_text(encoding="utf-8", newline="") if target.is_file() else None
-        )
+        current = target.read_text(encoding="utf-8", newline="") if target.is_file() else None
         if current == rendered:
             continue
 

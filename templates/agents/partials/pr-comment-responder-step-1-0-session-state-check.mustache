@@ -1,0 +1,9 @@
+SESSION_DIR=".agents/pr-comments/PR-[number]"
+
+if [ -d "$SESSION_DIR" ]; then
+  echo "[CONTINUATION] Previous session found"
+  # Load existing state
+  PREVIOUS_COMMENTS=$(grep -c "^### Comment" "$SESSION_DIR/comments.md" 2>/dev/null || echo 0)
+  echo "Previous session had $PREVIOUS_COMMENTS comments"
+
+  # Check for NEW comments only (include issue comments to catch AI Quality Gate, etc.)

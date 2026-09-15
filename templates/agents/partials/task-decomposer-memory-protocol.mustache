@@ -1,0 +1,121 @@
+## Estimate Reconciliation Protocol
+
+When generating tasks from a PRD or epic, ensure effort estimates remain consistent.
+
+### 10% Threshold Rule
+
+> If derived task estimates differ from source PRD/epic estimates by >10%, reconciliation is REQUIRED.
+
+### Reconciliation Process
+
+1. **Extract source estimate** from epic/PRD before generating tasks
+2. **Sum task estimates** after task breakdown complete
+3. **Compare estimates**: If divergence >10%, complete reconciliation table:
+
+| Source | Derived | Difference | Action Required |
+|--------|---------|------------|-----------------|
+| [Epic hours] | [Task total] | [%] | [See actions below] |
+
+### Reconciliation Actions (one MUST be chosen)
+
+| Action | When to Use | Documentation Required |
+|--------|-------------|----------------------|
+| **Update source** | Tasks reveal more accurate scope | Note in output, recommend epic update |
+| **Document rationale** | Difference is justified | Explain why estimates differ in output |
+| **Flag for review** | Uncertain about divergence | Flag for critic/milestone-planner review |
+
+### Output Template Addition
+
+Include this section in all task breakdown outputs when estimates diverge >10%:
+
+```markdown
+## Estimate Reconciliation
+
+**Source Document**: [Epic/PRD filename]
+**Source Estimate**: [X-Y hours]
+**Derived Estimate**: [A-B hours]
+**Difference**: [+/-N%]
+**Status**: [Aligned | Reconciled | Flagged for review]
+**Rationale** (if divergent): [Why estimates differ]
+```
+
+### Anti-Pattern: Unreconciled Estimate Drift
+
+**Anti-Pattern**: Epic states "8-14 hours" but tasks total "12-16 hours" (43% increase) without explanation.
+
+**Correct Approach**: Document reconciliation explicitly:
+
+```markdown
+## Estimate Reconciliation
+
+**Source Document**: EPIC-001-auth-feature.md
+**Source Estimate**: 8-14 hours
+**Derived Estimate**: 12-16 hours
+**Difference**: +43% (high end)
+**Status**: Reconciled
+**Rationale**: Task breakdown revealed additional complexity in OAuth integration not visible at epic level. Recommend updating epic estimate.
+```
+
+## Handoff Validation
+
+Before handing off, validate ALL items in the applicable checklist:
+
+### Task Breakdown Complete (to critic)
+
+```markdown
+- [ ] Tasks document saved to `.agents/planning/TASKS-[feature].md`
+- [ ] All tasks have unique IDs (TASK-NNN format)
+- [ ] All tasks have acceptance criteria
+- [ ] All tasks have complexity estimates (XS/S/M/L/XL)
+- [ ] Dependencies documented and graph included
+- [ ] Milestone groupings logical
+- [ ] Estimate reconciliation completed (if source had estimates)
+- [ ] Summary table accurate (complexity counts match tasks)
+```
+
+### Estimate Reconciliation Handoff
+
+```markdown
+- [ ] Source estimate extracted from PRD/epic
+- [ ] Derived estimate calculated from task totals
+- [ ] Divergence percentage calculated
+- [ ] If >10% divergence: reconciliation section included
+- [ ] Action selected: update source / document rationale / flag for review
+```
+
+### Scope Concern Handoff (to milestone-planner)
+
+```markdown
+- [ ] Specific scope concern clearly described
+- [ ] What was discovered during decomposition documented
+- [ ] Impact on original plan explained
+- [ ] Partial task breakdown saved (if any)
+- [ ] Recommended plan adjustments suggested
+```
+
+### Validation Failure
+
+If ANY checklist item cannot be completed:
+
+1. **Do not handoff** - incomplete handoffs waste downstream agent cycles
+2. **Complete missing items** - add missing IDs, criteria, estimates
+3. **Document blockers** - if items truly cannot be completed, explain why
+
+## Handoff Protocol
+
+**As a subagent, you CANNOT delegate**. Return task breakdown to orchestrator.
+
+When task breakdown is complete:
+
+1. Save tasks document to `.agents/planning/`
+2. **Validate estimate reconciliation**: Compare derived effort estimates against source PRD/epic estimates. If divergence exceeds 10%, document reconciliation rationale
+3. Store estimation insights in memory
+4. Return to orchestrator with recommendation (e.g., "Recommend orchestrator routes to critic for validation")
+
+## Handoff Options (Recommendations for Orchestrator)
+
+| Target | When | Purpose |
+|--------|------|---------|
+| **critic** | Tasks ready | Validate breakdown |
+| **implementer** | Tasks approved | Begin coding |
+| **milestone-planner** | Scope concerns | Adjust plan |

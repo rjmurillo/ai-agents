@@ -249,6 +249,9 @@ def _discover_agent_trees() -> set[str]:
     for name in _tracked_markdown():
         if name in _EXEMPT_FILES:
             continue
+        # ADR-109 B1: fixtures are snapshots, not shipped trees
+        if name.startswith("tests/"):
+            continue
         path = _REPO_ROOT / name
         if not path.is_file():
             continue
@@ -282,8 +285,6 @@ _CANONICAL_TREE = _vamr.CANONICAL_TREE.as_posix()
 # 188 and `_agent_definitions()` returns 186 on this head.
 _NON_AGENT_SIBLINGS = frozenset(
     {
-        "src/claude/AGENTS.md",
-        "src/claude/claude-instructions.template.md",
     }
 )
 

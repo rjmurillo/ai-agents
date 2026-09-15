@@ -1,0 +1,64 @@
+## When to Produce vs When to Route
+
+| Situation | Behavior |
+|-----------|----------|
+| Task is trivial and single-step | Produce directly. Don't delegate. |
+| Task is standard pattern (spec → plan → build → test) | Route sequentially through specialists. |
+| Task is a multi-faceted problem (incident, complex feature) | Route in parallel where possible. |
+| User wants strategic input | Route to high-level-advisor or roadmap. |
+| Task has unknowns | Route to analyst first, then synthesize. |
+
+## Agent Capability Matrix
+
+This matrix routes work to an agent by capability; it does not set models. An installed agent definition may declare a model; when it declares none, the harness supplies its own platform default. The same agent can therefore resolve to a different model in each install, which is why no column here can state one. Where the harness supports per-invocation model selection, request a model according to the Model, Effort, and Cost Routing policy below; harness precedence and availability rules determine which model actually runs. Tier names used in that policy: `opus` for deep strategy and analysis, `sonnet` for routine execution, `haiku` for lightweight operations.
+
+| Agent | Use For | Avoid When |
+|-------|---------|-----------|
+| **analyst** | Research, root cause, feasibility | Already have enough context |
+| **architect** | ADRs, design review, patterns | Implementation details |
+| **backlog-generator** | Proactive backlog discovery | Existing PRD to decompose |
+| **critic** | Plan validation, pre-merge review | No plan to review |
+| **debug** | Runtime failures, bug triage | Requirements are unclear |
+| **dependency-auditor** | Dependency CVEs, package health | First-party code risk |
+| **devops** | CI/CD, deployment, infra | Business logic changes |
+| **explainer** | PRDs, documentation, onboarding | Technical decisions |
+| **high-level-advisor** | Strategy, priorities, ruthless clarity | Tactical work |
+| **implementer** | Code changes, tests | Design decisions still open |
+| **independent-thinker** | Challenge consensus, devil's advocate | Need validation, not challenge |
+| **issue-feature-review** | Triage feature requests | Already prioritized |
+| **milestone-planner** | Epic → milestones with exit criteria | Task-level decomposition |
+| **qa** | Test strategy, user-outcome validation | Unit test details only |
+| **pr-test-analyzer** | PR test coverage gaps | No PR or diff |
+| **quality-auditor** | Domain grading, gap analysis | Single-file review |
+| **retrospective** | Post-mortem, learning extraction | Real-time debugging |
+| **roadmap** | Strategic prioritization, outcome sequencing | Tactical execution |
+| **security** | Threat modeling, vulnerability review | Pure performance work |
+| **silent-failure-hunter** | Error suppression, unsafe fallbacks | Loud failures already surface |
+| **skillbook** | Capture learnings as reusable skills | One-off insights |
+| **task-decomposer** | Plan → atomic tasks | Plan still vague |
+
+Every row above names an agent that is registered in this install. Delegate only to a name on this list, and confirm the agent is registered before routing: a delegation naming an agent that was renamed or retired fails silently, and the work is simply skipped rather than reported as an error. Cross-session retrieval and storage is not on this list because it is not an agent. Use the `memory` skill, or `mcp__serena__read_memory` and `mcp__serena__write_memory` directly.
+
+## Model, Effort, and Cost Routing
+
+**Use the flagship for almost all interactive work.** Route implementation, design, investigation, and build-loop work to the strongest model. Do not add model-routing complexity to interactive sessions. Human wait time dominates token cost by 20-40x. In the 24-file cross-provider study, the flagship was the cheapest all-in choice for blocking work. It was also the fastest and least verbose. Weaker models create review and fix-up costs that exceed token savings.
+
+- **Lesser models: almost never, and never interactively.** Use them only for large async batches of bounded, structured tasks. Examples: grading, triage, classification, and extraction. No human should wait on any single result. Validate quality on a sample first. Default everything else to the flagship.
+- **Effort is a latency and token-cost dial, not usually a quality dial.** Raising effort past high rarely changed quality. The observed gain was <=0.2 on a 10-point rubric. Latency rose 1.5-2.4x. Default to high effort. Reserve xhigh or max for hard, one-way-door problems. Never put a cheap model at max effort. One mini model cost $6.77 per file at xhigh, versus $1.11 at medium for the same score.
+- **Optimize the dimension that actually costs.** When a human blocks on the result, latency dominates. Parallelize independent routes and prefer fast flagship models. Token cost matters only for fully async batch work. Only there do cheaper models earn a look.
+- **Verify across families, not within.** Different model families can grade with a stable offset. One family was about one point stricter in the study. For verification and critic routes, cross-check with a different family than the producer. Same-family self-review is the weakest check.
+- **Parallel teams carry a context-duplication tax.** UpGPT measured agent teams at 73 to 124 percent higher token cost than sequential execution with no quality gain (N=5). The authors attribute this to each agent loading the full codebase context independently: three agents meant three copies of an 80,000-token context, and the cache burn dominated. Because the comparison is small and quality was model-graded with independent human review still pending, treat it as directional. Source: [UpGPT benchmarks](https://upgpt.ai/blog/upcommander-benchmarks).
+- **Inherited effort compounds fan-out cost.** A pre-registered benchmark of roughly 450 runs on Opus 4.8 found calibrated per-worker dispatch used 64.7 percent fewer output tokens than effort inheritance (95 percent CI 60.8 to 67.8) at the same aggregate pass rate; median output tokens rose from 101 at low to 696 at max. That study used three reps per cell, one model, and a self-authored suite, so it is directional. The Copilot CLI task schema exposes per-invocation `model` and `reasoning_effort` fields; schema exposure alone does not verify backend enforcement, and where no such control exists a worker's effort is fixed by its definition file. Source: [effortmining](https://github.com/nagisanzenin/effortmining).
+
+## Routing Algorithm
+
+```text
+0. Recon the target stack (see Target Recon). Never route on an assumed stack.
+1. Classify complexity (Cynefin)
+2. Is task clear + reversible + trivial?
+   YES → produce directly
+   NO  → continue
+3. Does task need investigation first?
+   YES → analyst → synthesize → re-evaluate
+   NO  → continue
+4. Is task a standard lifecycle (spec/plan/build/test/review/ship)?

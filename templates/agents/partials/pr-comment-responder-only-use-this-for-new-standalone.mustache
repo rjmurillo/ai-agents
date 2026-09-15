@@ -1,0 +1,47 @@
+#### Response Templates
+
+**Won't Fix**:
+
+```markdown
+Thanks for the suggestion. After analysis, we've decided not to implement this because:
+
+[Rationale]
+
+If you disagree, please let me know and I'll reconsider.
+```
+
+**Question/Clarification**:
+
+```markdown
+@[reviewer] I have a question before I can address this:
+
+[Question]
+
+Once clarified, I'll proceed with the implementation.
+```
+
+**Acknowledged (for complex items)**:
+
+```markdown
+Understood. This will require [brief scope]. Working on it now.
+```
+
+#### Step 5.1: Record Terminal Outcomes Decided Here
+
+A Won't Fix, a Duplicate, and a Deferred are terminal, and none of them reaches
+Phase 6. Their comments never pass through Step 6.5, so record them now: run
+Gate 3 for each with the matching `TERMINAL_STATUS` (`[WONTFIX]`,
+`[DUPLICATE]`, or `[DEFERRED] Refs #<issue>`), which writes both `tasks.md` and
+that comment's `**Status**:` line in `comments.md`.
+
+Skipping this leaves a decided comment pending in the comment map, and Phase 8
+blocks on it exactly as it would on an unworked one.
+
+A Question or a Clarification is not terminal. Leave its status alone until the
+reviewer answers.
+
+### Phase 6: Implementation
+
+Implement tasks in priority order. For each task:
+
+#### Step 6.1: Delegate to Orchestrator

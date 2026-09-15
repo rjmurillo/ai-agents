@@ -158,33 +158,33 @@ def test_parse_frontmatter_keeps_hash_inside_quotes():
 def test_find_contradictions_flags_sonnet_spec_vs_opus_code():
     """PR #1897 regression: spec says sonnet, committed code is opus."""
     spec = "The implementer uses model_tier: sonnet per the spec."
-    files = {"src/claude/implementer.md": _OPUS_AGENT}
+    files = {"src/claude/agents/implementer.md": _OPUS_AGENT}
     found = sc.find_contradictions(spec, "issue #1894", files)
     assert len(found) == 1
     c = found[0]
     assert c.axis == "model-tier"
     assert c.claimed == "sonnet"
     assert c.committed == "opus"
-    assert c.file == "src/claude/implementer.md"
+    assert c.file == "src/claude/agents/implementer.md"
     assert c.source == "issue #1894"
 
 
 def test_find_contradictions_no_flag_when_tiers_agree():
     spec = "The implementer uses model: opus."
-    files = {"src/claude/implementer.md": _OPUS_AGENT}
+    files = {"src/claude/agents/implementer.md": _OPUS_AGENT}
     assert sc.find_contradictions(spec, "PR description", files) == []
 
 
 def test_find_contradictions_no_flag_when_sonnet_agrees():
     # Spec and committed frontmatter both name the sonnet tier: no contradiction.
     spec = "The helper uses model_tier: sonnet per the spec."
-    files = {"src/claude/helper.md": _SONNET_AGENT}
+    files = {"src/claude/agents/helper.md": _SONNET_AGENT}
     assert sc.find_contradictions(spec, "issue #1", files) == []
 
 
 def test_find_contradictions_no_claim_no_flag():
     spec = "This PR refactors logging. No model tier mentioned."
-    files = {"src/claude/implementer.md": _OPUS_AGENT}
+    files = {"src/claude/agents/implementer.md": _OPUS_AGENT}
     assert sc.find_contradictions(spec, "PR description", files) == []
 
 
@@ -197,7 +197,7 @@ def test_find_contradictions_skips_files_without_model_frontmatter():
 def test_find_contradictions_numeric_threshold_mismatch():
     spec = "Set priority: 1 in the spec."
     agent = "---\nname: a\nmodel: opus\npriority: 2\n---\n"
-    files = {"src/claude/a.md": agent}
+    files = {"src/claude/agents/a.md": agent}
     found = sc.find_contradictions(spec, "PR description", files)
     numeric = [c for c in found if c.axis == "numeric"]
     assert len(numeric) == 1
@@ -209,7 +209,7 @@ def test_find_contradictions_numeric_threshold_mismatch():
 def test_find_contradictions_numeric_agrees_no_flag():
     spec = "priority: 2"
     agent = "---\nname: a\nmodel: opus\npriority: 2\n---\n"
-    files = {"src/claude/a.md": agent}
+    files = {"src/claude/agents/a.md": agent}
     found = sc.find_contradictions(spec, "PR description", files)
     assert [c for c in found if c.axis == "numeric"] == []
 
@@ -227,7 +227,7 @@ def test_format_report_lists_contradictions():
         key="model",
         claimed="sonnet",
         committed="opus",
-        file="src/claude/implementer.md",
+        file="src/claude/agents/implementer.md",
         source="issue #1894",
     )
     report = sc.format_report([c])
@@ -272,7 +272,7 @@ def test_collect_contradictions_full_regression_flow(monkeypatch):
     monkeypatch.setattr(
         sc,
         "_changed_agent_files",
-        lambda repo_root, base: {"src/claude/implementer.md": _OPUS_AGENT},
+        lambda repo_root, base: {"src/claude/agents/implementer.md": _OPUS_AGENT},
     )
     monkeypatch.setattr(
         sc,
@@ -298,7 +298,7 @@ def test_collect_contradictions_pr_body_claim_flagged(monkeypatch):
     monkeypatch.setattr(
         sc,
         "_changed_agent_files",
-        lambda repo_root, base: {"src/claude/implementer.md": _OPUS_AGENT},
+        lambda repo_root, base: {"src/claude/agents/implementer.md": _OPUS_AGENT},
     )
     result = sc.collect_contradictions(REPO_ROOT, "o", "r")
     assert any(c.source == "PR description" for c in result)
@@ -313,7 +313,7 @@ def test_collect_contradictions_issue_fetch_failure_skipped(monkeypatch):
     monkeypatch.setattr(
         sc,
         "_changed_agent_files",
-        lambda repo_root, base: {"src/claude/implementer.md": _OPUS_AGENT},
+        lambda repo_root, base: {"src/claude/agents/implementer.md": _OPUS_AGENT},
     )
     monkeypatch.setattr(sc, "fetch_issue_body", lambda number, owner, repo: None)
     # PR body has no model claim and the only issue is unreachable, so no flag.

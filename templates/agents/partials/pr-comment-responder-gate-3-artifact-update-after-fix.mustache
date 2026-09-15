@@ -1,0 +1,159 @@
+```bash
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+TASK_LIST=".agents/pr-comments/PR-[number]/tasks.md"
+TERMINAL_STATUS="[COMPLETE]"
+
+# The id reaches a sed address, so refuse anything but digits (CWE-78).
+case "$COMMENT_ID" in
+  ''|*[!0-9]*) echo "[BLOCKED] COMMENT_ID is not numeric: $COMMENT_ID"; exit 1 ;;
+esac
+
+# Refuse a status the gates will not accept, before anything is written. The
+# pattern is Gate 4's, so a value that clears here clears there, and the four
+# shapes it admits carry no sed metacharacter.
+printf '%s\n' "**Status**: $TERMINAL_STATUS" \
+  | grep -Eq "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" || {
+    echo "[BLOCKED] TERMINAL_STATUS is not a terminal value: $TERMINAL_STATUS"
+    exit 1
+  }
+
+# Preflight the comment map before either file is written. Every step below is
+# a write, so an unreachable target has to stop the gate here: a task list that
+# moved while the comment map did not is the split state Gate 4 reads as
+# finished work still pending. One check covers both ways the map can fail, no
+# detail entry for this comment and an entry carrying no status field.
+sed -n "/^### Comment $COMMENT_ID /,/^---$/p" "$COMMENT_MAP" \
+  | grep -Eq "^\*\*Status\*\*: " || {
+    echo "[BLOCKED] Comment $COMMENT_ID has no status field in $COMMENT_MAP"
+    exit 1
+  }
+
+# The task row is optional. Phase 6 opens a TASK only for a comment it
+# implements; an immediate-reply outcome is answered in Phase 5 and never gets
+# one. Absent is fine. Present means it must move. The row starts with "- ",
+# which grep reads as a flag, so "--" terminates the option list.
+TASK_ROW="- [ ] **TASK-$COMMENT_ID**:"
+if grep -qF -- "$TASK_ROW" "$TASK_LIST"; then
+  sed -i "s|^- \[ \] \*\*TASK-$COMMENT_ID\*\*:\(.*\)$|- [x] **TASK-$COMMENT_ID**:\1 $TERMINAL_STATUS|" "$TASK_LIST"
+  grep -F -- "- [x] **TASK-$COMMENT_ID**:" "$TASK_LIST" | grep -qF -- "$TERMINAL_STATUS" || {
+    echo "[BLOCKED] TASK-$COMMENT_ID is not $TERMINAL_STATUS in $TASK_LIST"
+    exit 1
+  }
+fi
+
+# The write every later gate depends on. The address range is this comment's
+# detail entry, so a sibling comment's status is never touched.
+sed -i "/^### Comment $COMMENT_ID /,/^---$/ s|^\*\*Status\*\*: .*$|**Status**: $TERMINAL_STATUS|" "$COMMENT_MAP"
+
+# Verify the write. Whole-line and literal, so a status with trailing garbage
+# fails here instead of surviving to Phase 8.1.
+sed -n "/^### Comment $COMMENT_ID /,/^---$/p" "$COMMENT_MAP" \
+  | grep -qxF "**Status**: $TERMINAL_STATUS" || {
+    echo "[BLOCKED] Comment $COMMENT_ID is not $TERMINAL_STATUS in $COMMENT_MAP"
+    exit 1
+  }
+```
+
+**Evidence required**: The task is marked in `tasks.md` AND that comment's
+`**Status**:` line in `comments.md` reads the terminal value.
+
+### Gate 4: State Synchronization Before Resolution
+
+**Before Phase 8 (thread resolution)**: Verify artifact state matches intended API state.
+
+```bash
+# Count unresolved comments in the comment map
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
+# Count unresolved review threads separately
+UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Verify alignment
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] Comment map still has $PENDING pending comment(s)"
+  exit 1
+fi
+
+echo "Unresolved API threads: $UNRESOLVED_API"
+```
+
+**Evidence required**: The comment map exists, its status-field count equals the API comment count, pending artifact entries are 0, and the unresolved API thread count is recorded before proceeding.
+
+### Gate 5: Final Verification
+
+**After Phase 8**: Verify all threads resolved AND artifacts updated.
+
+```bash
+# API state
+REMAINING=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
+
+# Artifact state
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
+if [ "$REMAINING" -ne 0 ] || [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] API unresolved: $REMAINING, Artifact pending: $PENDING"
+  exit 1
+fi
+
+echo "[PASS] All gates cleared"
+```
+
+**Evidence required**: The status-field count equals the API comment count, and both the unresolved API count and the pending artifact count are zero.
+
+## Workflow Protocol
+
+### Phase 0: Memory Initialization (BLOCKING)

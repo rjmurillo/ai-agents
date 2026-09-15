@@ -170,14 +170,55 @@ def _parse_yaml_value(raw: str) -> object:
     return raw
 
 
+# Platforms that render from the Copilot template variant (ADR-109 B1).
+_COPILOT_FAMILY = frozenset({"copilot-cli", "github"})
+
+
+def _platform_source(
+    platform_name: str,
+    agent_name: str,
+    frontmatter: dict[str, str | None],
+    body: str,
+    copilot_sources: dict[str, str] | None,
+) -> tuple[dict[str, str | None], str]:
+    """Return the (frontmatter, body) the platform renders from.
+
+    ADR-109 B1: the Copilot-family platforms (``copilot-cli`` and
+    ``github``) read the expanded ``.copilot.md.tmpl`` text when
+    ``copilot_sources`` carries the stem; everything else keeps
+    the shared file's parse. A copilot override that fails to parse is a
+    template defect, not a fallback case: raise so the build surfaces it.
+    """
+    if platform_name not in _COPILOT_FAMILY or not copilot_sources:
+        return frontmatter, body
+    override = copilot_sources.get(agent_name)
+    if override is None:
+        return frontmatter, body
+    parsed = read_yaml_frontmatter(override)
+    if not parsed:
+        raise ValueError(f"copilot template for {agent_name} has no parseable frontmatter")
+    return parse_simple_frontmatter(parsed["frontmatter_raw"]), parsed["body"]
+
+
 def generate_agents(
     templates_path: Path,
     output_root: Path,
     repo_root: Path,
     validate: bool = False,
     what_if: bool = False,
+    copilot_sources: dict[str, str] | None = None,
 ) -> int:
-    """Main generation logic. Returns exit code."""
+    """Main generation logic. Returns exit code.
+
+    ``copilot_sources`` (ADR-109 B1) maps an agent stem to the expanded
+    text of ``templates/agents/<stem>.copilot.md.tmpl``, as rendered by
+    ``build/scripts/agent_templates.py``. When the ``copilot-cli`` platform
+    processes a stem present in that map, it parses that text instead of
+    ``<stem>.shared.md``; every other platform, and every stem absent from
+    the map, keeps reading the shared file. The platform transform that
+    follows (frontmatter conversion, handoff syntax, memory prefix) is the
+    same for both sources, so an identical template yields identical bytes.
+    """
     mode = "Validate" if validate else ("WhatIf" if what_if else "Generate")
     print()
     print("=== Agent Generation ===")
@@ -253,7 +294,9 @@ def generate_agents(
     if platforms_path.is_dir():
         for config_file in sorted(platforms_path.glob("*.yaml")):
             config = read_platform_config(config_file)
-            if config:
+            # ADR-109: binplace.yaml lives beside the platform configs and
+            # carries no provider; it is a manifest, not a platform.
+            if config and ("provider" in config or "platform" in config):
                 # REQ-003-001: Read the artifacts.agents stanza via the
                 # shared yaml_loader (proper YAML, anchor rejection, schema
                 # version check). Stash it under a private key for the loop
@@ -332,14 +375,13 @@ def generate_agents(
             #   2. artifacts.agents.{outputDir,outputSuffix} (REQ-003-001 schema)
             #   3. platform top-level (oldest fallback)
             platform_name = str(platform.get("provider", platform.get("platform", "")))
+            frontmatter, body = _platform_source(
+                platform_name, agent_name, frontmatter, body, copilot_sources
+            )
             _legacy_raw = platform.get("legacy")
-            legacy: dict[str, object] = (
-                _legacy_raw if isinstance(_legacy_raw, dict) else {}
-            )
+            legacy: dict[str, object] = _legacy_raw if isinstance(_legacy_raw, dict) else {}
             _stanza_raw = platform.get("__agents_stanza__")
-            agents_stanza: dict[str, object] = (
-                _stanza_raw if isinstance(_stanza_raw, dict) else {}
-            )
+            agents_stanza: dict[str, object] = _stanza_raw if isinstance(_stanza_raw, dict) else {}
             configured_output_dir = str(
                 legacy.get(
                     "outputDir",
@@ -349,11 +391,11 @@ def generate_agents(
             allowed_output_dirs = {
                 "src/copilot-cli/agents",
                 "src/vs-code-agents",
+                ".github/agents",  # ADR-109 B1: rendered, not binplaced
             }
             if configured_output_dir not in allowed_output_dirs:
                 print(
-                    f"  Error: Agent output directory is not allowlisted: "
-                    f"{configured_output_dir}",
+                    f"  Error: Agent output directory is not allowlisted: {configured_output_dir}",
                     file=sys.stderr,
                 )
                 errors += 1
@@ -365,7 +407,12 @@ def generate_agents(
             if prefix_match:
                 output_dir_relative = prefix_match.group(1)
 
-            output_dir = output_root / output_dir_relative
+            # ADR-109 B1: the github platform renders the repository's own
+            # .github/agents tree, which sits beside src/, not under it.
+            if output_dir_relative.startswith(".github/"):
+                output_dir = repo_root / output_dir_relative
+            else:
+                output_dir = output_root / output_dir_relative
             # Walk the LEXICAL (unresolved) ancestor chain, not the
             # resolved output_dir built from the already-dereferenced
             # output_root above: is_symlink() on a path built from a
@@ -417,8 +464,7 @@ def generate_agents(
                 or output_file.is_symlink()
             ):
                 print(
-                    f"  Error: Agent output file escapes its allowlisted directory: "
-                    f"{output_file}",
+                    f"  Error: Agent output file escapes its allowlisted directory: {output_file}",
                     file=sys.stderr,
                 )
                 errors += 1
@@ -434,36 +480,30 @@ def generate_agents(
                 continue
 
             transformed_fm = convert_frontmatter_for_platform(
-                frontmatter, platform, agent_name,
-                manifest=pin_manifest, source_unit=source_unit, repo_root=repo_root,
+                frontmatter,
+                platform,
+                agent_name,
+                manifest=pin_manifest,
+                source_unit=source_unit,
+                repo_root=repo_root,
             )
 
             # Expand toolset references
             # Use toolsFrom alias if set (e.g., visual-studio reuses vscode tools)
             tools_value = transformed_fm.get("tools")
             tools_from_val = (
-                legacy.get("toolsFrom")
-                if legacy.get("toolsFrom")
-                else platform.get("toolsFrom")
+                legacy.get("toolsFrom") if legacy.get("toolsFrom") else platform.get("toolsFrom")
             )
             toolset_platform = str(tools_from_val) if tools_from_val else platform_name
-            if (
-                toolsets
-                and isinstance(tools_value, str)
-                and "$toolset:" in tools_value
-            ):
+            if toolsets and isinstance(tools_value, str) and "$toolset:" in tools_value:
                 transformed_fm["tools"] = expand_toolset_references(
                     tools_value, toolsets, toolset_platform
                 )
 
             # Transform body
-            handoff_syntax = str(
-                legacy.get("handoffSyntax", platform.get("handoffSyntax", ""))
-            )
+            handoff_syntax = str(legacy.get("handoffSyntax", platform.get("handoffSyntax", "")))
             memory_prefix = str(
-                legacy.get(
-                    "memoryPrefix", platform.get("memoryPrefix", "cloudmcp-manager/")
-                )
+                legacy.get("memoryPrefix", platform.get("memoryPrefix", "cloudmcp-manager/"))
             )
 
             transformed_body = convert_handoff_syntax(body, handoff_syntax)
@@ -484,10 +524,7 @@ def generate_agents(
                 # operator sees the protection happened.
                 reason = regen_detect_reason(output_file)
                 if reason is not None:
-                    print(
-                        f"  NOTICE: skipped {output_file} "
-                        f"(NO-REGEN: {reason})"
-                    )
+                    print(f"  NOTICE: skipped {output_file} (NO-REGEN: {reason})")
                     continue
                 output_dir.mkdir(parents=True, exist_ok=True)
                 _atomic_write_bytes(output_file, output_content.encode("utf-8"))
@@ -572,9 +609,7 @@ def _atomic_write_bytes(path: Path, content: bytes) -> None:
             existing_mode = path.stat().st_mode & 0o777
         except OSError:
             existing_mode = None
-    fd, tmp_name = tempfile.mkstemp(
-        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
-    )
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
         try:
             handle = os.fdopen(fd, "wb")
@@ -700,9 +735,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # while adding the manifest-wiring regression test above; not something
     # the manifest wiring itself introduced, but adjacent code this same fix
     # already has to touch to resolve the sibling relative-path bug correctly.
-    output_root = (args.output_root.resolve() if args.output_root else None) or (
-        repo_root / "src"
-    )
+    output_root = (args.output_root.resolve() if args.output_root else None) or (repo_root / "src")
 
     if not templates_path.is_dir():
         print(f"Error: Templates path not found: {templates_path}", file=sys.stderr)

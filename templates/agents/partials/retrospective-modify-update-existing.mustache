@@ -1,0 +1,220 @@
+````
+
+### Activity: SMART Validation
+
+Validate every learning before storage. Reinforces atomicity.
+
+| Criterion | Skill Requirement | Check |
+|-----------|-------------------|-------|
+| **Specific** | One atomic concept, no compound statements | No "and", "also" |
+| **Measurable** | Has evidence, can be validated | Has execution reference |
+| **Attainable** | Within agent capability | Technically feasible |
+| **Relevant** | Applies to actual execution scenarios | Has trigger condition |
+| **Timely** | Clear when to apply | Has context/timing |
+
+**Validation Template:**
+
+````markdown
+## SMART Validation
+
+### Proposed Skill
+**Statement:** [The skill text]
+
+### Validation
+| Criterion | Pass? | Evidence |
+|-----------|-------|----------|
+| Specific | Y/N | [One concept or multiple?] |
+| Measurable | Y/N | [Can we verify it worked?] |
+| Attainable | Y/N | [Is this technically possible?] |
+| Relevant | Y/N | [Does it apply to real scenarios?] |
+| Timely | Y/N | [Is trigger condition clear?] |
+
+### Result
+- [ ] All criteria pass: Accept skill
+- [ ] Some criteria fail: Refine skill
+- [ ] Multiple criteria fail: Reject skill
+````
+
+### Dependency Ordering
+
+Order actions based on dependencies.
+
+**Template:**
+
+````markdown
+## Action Sequence
+
+| Order | Action | Depends On | Blocks |
+|-------|--------|------------|--------|
+| 1 | [First action] | None | [Actions 2, 3] |
+| 2 | [Second action] | [Action 1] | [Action 4] |
+| 3 | [Third action] | [Action 1] | None |
+````
+
+---
+
+## Phase 4: Learning Extraction
+
+Transform insights into stored knowledge.
+
+### Atomicity Scoring
+
+All learnings scored 0-100%.
+
+| Factor | Adjustment |
+|--------|------------|
+| Compound statements ("and", "also") | -15% each |
+| Vague terms ("generally", "sometimes") | -20% each |
+| Length > 15 words | -5% per extra word |
+| Missing metrics/evidence | -25% |
+| No actionable guidance | -30% |
+
+### Quality Thresholds
+
+| Score | Quality | Action |
+|-------|---------|--------|
+| 95-100% | Excellent | Add to skillbook |
+| 70-94% | Good | Add with refinement |
+| 40-69% | Needs Work | Refine before adding |
+| <40% | Rejected | Too vague |
+
+### Examples
+
+**Bad (35%)**: "The caching strategy was effective"
+
+- Vague "effective" (-20%)
+- No specifics (-25%)
+- Not actionable (-30%)
+
+**Good (92%)**: "Redis cache with 5-min TTL reduced API calls by 73% for user profiles"
+
+- Specific tool (Redis)
+- Exact config (5-min TTL)
+- Measurable outcome (73%)
+- Clear context (user profiles)
+
+### Evidence-Based Tagging
+
+| Tag | Meaning | Evidence Required |
+|-----|---------|-------------------|
+| **helpful** | Contributed to success | Specific positive execution |
+| **harmful** | Caused failure | Specific negative execution |
+| **neutral** | No measurable impact | Use without effect |
+
+### Learning Extraction Template
+
+Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
+
+````markdown
+# Retrospective: [Scope]
+
+## Session Info
+- **Date**: YYYY-MM-DD
+- **Agents**: [List]
+- **Task Type**: [Feature | Bug | Research]
+- **Outcome**: [Success | Partial | Failure]
+
+## Phase 0: Data Gathering
+[4-Step Debrief output]
+[Execution Trace output]
+[Outcome Classification output]
+
+## Phase 1: Insights Generated
+[Five Whys output if failure]
+[Fishbone output if complex]
+[Patterns and Shifts output]
+[Learning Matrix output]
+
+## Phase 2: Diagnosis
+
+### Successes (Tag: helpful)
+| Strategy | Evidence | Impact | Atomicity |
+|----------|----------|--------|-----------|
+| [Strategy] | [Outcome] | [1-10] | [%] |
+
+### Failures (Tag: harmful)
+| Strategy | Error Type | Root Cause | Prevention | Atomicity |
+|----------|------------|------------|------------|-----------|
+| [Strategy] | [Type] | [Cause] | [Fix] | [%] |
+
+### Near Misses
+| What Almost Failed | Recovery | Learning |
+|--------------------|----------|----------|
+| [Situation] | [Save] | [Takeaway] |
+
+## Phase 3: Decisions
+
+### Action Classification
+[Keep/Drop/Add/Modify table]
+
+### SMART Validation
+[Validation for each new skill]
+
+### Action Sequence
+[Ordered actions with dependencies]
+
+## Phase 4: Extracted Learnings
+
+### Learning 1
+- **Statement**: [Atomic - max 15 words]
+- **Atomicity Score**: [%]
+- **Evidence**: [Execution detail]
+- **Skill Operation**: ADD | UPDATE | TAG | REMOVE
+- **Target Skill ID**: [If UPDATE/TAG/REMOVE]
+
+## Skillbook Updates
+
+### ADD
+```json
+{
+  "skill_id": "{domain}-{description}",
+  "statement": "[Atomic]",
+  "context": "[When to apply]",
+  "evidence": "[Source]",
+  "atomicity": [%]
+}
+```
+
+### UPDATE
+
+| Skill ID | Current | Proposed | Why |
+|----------|---------|----------|-----|
+
+### TAG
+
+| Skill ID | Tag | Evidence | Impact |
+|----------|-----|----------|--------|
+
+### REMOVE
+
+| Skill ID | Reason | Evidence |
+|----------|--------|----------|
+
+## Deduplication Check
+
+| New Skill | Most Similar | Similarity | Decision |
+|-----------|--------------|------------|----------|
+````
+
+---
+
+## Root Cause Pattern Management
+
+After Five Whys analysis identifies root causes, systematically store patterns for future prevention.
+
+### Root Cause Categories
+
+Standard categories based on common failure modes:
+
+| Category | Description | Examples |
+|----------|-------------|----------|
+| **Cross-Cutting Concerns** | Issues affecting multiple components | Missing input validation, inconsistent error handling |
+| **Fail-Safe Design** | Missing defensive patterns | No fallbacks, unhandled edge cases |
+| **Test-Implementation Drift** | Tests don't match actual behavior | Mocks diverge from reality, stale fixtures |
+| **Premature Validation** | Validating before data is complete | Checking state too early, race conditions |
+| **Context Loss** | Information not preserved | Missing handoff data, dropped session state |
+| **Skill Gap** | Missing capability | No existing pattern for scenario |
+
+### Memory Storage Pattern
+
+Store root cause entities for future pattern matching:

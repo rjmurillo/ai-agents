@@ -645,12 +645,12 @@ class TestHandAuthoredTreesAreScanned:
     """src/claude and .github/prompts are hand-authored, so a pin there ships unseen."""
 
     def test_src_claude_agent_pin_is_scanned(self, tmp_path: Path) -> None:
-        path = tmp_path / "src" / "claude" / "rogue.md"
+        path = tmp_path / "src" / "claude" / "agents" / "rogue.md"
         _write(path, "name: rogue\nmodel: claude-opus-4-6")
 
         report = _run(tmp_path, baseline={}, manifest=[])
 
-        assert any("src/claude/rogue.md" in v for v in report.violations)
+        assert any("src/claude/agents/rogue.md" in v for v in report.violations)
 
     def test_github_prompt_pin_is_scanned(self, tmp_path: Path) -> None:
         path = tmp_path / ".github" / "prompts" / "rogue.prompt.md"

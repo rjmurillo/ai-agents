@@ -1,0 +1,40 @@
+```
+
+This memory contains:
+
+- Reviewer signal quality statistics (actionability rates)
+- Triage heuristics and learned patterns
+- Per-PR breakdown of comment outcomes
+- Anti-patterns to avoid
+
+#### Step 0.2: Verify Core Memory Loaded
+
+Before proceeding, confirm `pr-review/pr-comment-responder-skills` is loaded:
+
+- [ ] Memory content appears in context
+- [ ] Reviewer signal quality table visible
+- [ ] Triage heuristics available
+
+**If memory load fails**: Proceed with default heuristics and flag it in the transcript.
+
+#### Step 0.3: Note on Reviewer-Specific Memories
+
+Reviewer-specific memories (e.g., `pr-review/cursor-bot-review-patterns`) are loaded in **Step 1.2a** after reviewer enumeration completes. Phase 0 focuses only on core skills memory.
+
+---
+
+| Reviewer | Memory Name | Content |
+|----------|-------------|---------|
+| cursor[bot] | `pr-review/cursor-bot-review-patterns` | Bug detection patterns, 100% signal |
+| Copilot | `copilot/copilot-pr-review-patterns` | Response behaviors, follow-up PR patterns |
+| coderabbitai[bot] | - | (Use pr-review/pr-comment-responder-skills) |
+
+---
+
+### Phase 1: Context Gathering
+
+#### Step 1.0: Session State Check
+
+Before fetching new data, check if this is a continuation of a previous session:
+
+```bash

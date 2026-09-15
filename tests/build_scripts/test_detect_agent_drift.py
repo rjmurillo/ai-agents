@@ -444,7 +444,7 @@ def test_path_to_family_handles_known_agent_roots(fake_repo: Path) -> None:
         [
             ".claude/agents/alpha.md",
             ".github/agents/alpha.agent.md",
-            "src/claude/alpha.md",
+            "src/claude/agents/alpha.md",
             "src/vs-code-agents/alpha.agent.md",
             "src/copilot-cli/agents/alpha.agent.md",
             "templates/agents/alpha.shared.md",

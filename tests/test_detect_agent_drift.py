@@ -395,7 +395,7 @@ class TestFormatText:
         ]
         output = format_text(results, 80, 0.5, 0, 1, 0)
         assert "No significant drift detected" in output
-        assert "src/claude vs src/vs-code-agents" in output
+        assert "src/claude/agents vs src/vs-code-agents" in output
         assert "install copies" not in output
 
     def test_install_comparison_message(self) -> None:

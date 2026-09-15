@@ -1,0 +1,269 @@
+```
+
+**PIV Verdict Gate**: Orchestrator MUST NOT proceed to PR creation while the security agent returns BLOCKED. APPROVED clears the gate. CONDITIONAL clears the gate only when the verdict cites a follow-up issue number for the remaining MEDIUM findings, per the Completion Trigger Taxonomy.
+
+#### Security-Relevant Change Triggers
+
+Post-implementation verification REQUIRED when implementation includes:
+
+| Trigger Pattern | Examples | Risk |
+|-----------------|----------|------|
+| Authentication/Authorization | Login, OAuth, JWT, session management | Critical |
+| Data Protection | Encryption, hashing, secure storage | Critical |
+| Input Handling | User input parsing, validation, sanitization | High |
+| External Interfaces | API calls, webhooks, third-party integrations | High |
+| File System Operations | File upload, path traversal prevention | High |
+| Environment Variables | Secret handling, config management | Critical |
+| Execution/Eval | Dynamic code execution, shell commands | Critical |
+| Path patterns: `**/Auth/**`, `{lefthook,.lefthook,lefthook-local,.lefthook-local}.{yml,yaml,json,jsonc,toml}`, `.config/{lefthook,lefthook-local}.{yml,yaml,json,jsonc,toml}`, `scripts/validation/git_hook_policy.py`, `*.env*` | Any changes to these paths | Critical |
+
+#### Post-Implementation Verification (PIV) Protocol
+
+When orchestrator routes back to security after implementation:
+
+1. **Retrieve Implementation Context**
+   - Enumerate the changeset through the Review Scope Enumeration protocol above: a pinned SHA or PR diff, or a caller-supplied artifact. You have no shell, so you cannot produce the diff yourself.
+   - Read the changed files the pinned snapshot names
+   - Compare implementation against security plan
+
+2. **Execute PIV Checklist**
+
+```markdown
+- [ ] All planned security controls implemented correctly
+- [ ] No new vulnerabilities introduced during implementation
+- [ ] Input validation actually enforced (not just documented)
+- [ ] Error handling doesn't leak sensitive data
+- [ ] Secrets not hardcoded (check actual code)
+- [ ] Dependencies match security requirements
+- [ ] Test coverage includes security test cases
+```
+
+3. **CI Environment Security Testing (request, do not run)**
+
+These checks reproduce the CI environment locally and catch security issues
+before the PR. **You cannot run them.** No surface grants this agent a shell, so
+executing any of it would contradict the tool contract above. Ask the caller or
+the implementer to run the block and return its output, then verify the results
+against your PIV checklist. Treat a missing or failed run as an unmet PIV item
+and say so in the verdict rather than assuming it passed. The block is recorded
+here so the request names exact commands rather than a vague ask:
+
+```powershell
+# Set CI environment
+$env:GITHUB_ACTIONS = 'true'
+$env:CI = 'true'
+
+# Run security-focused tests
+dotnet test --filter "Category=Security"
+if ($LASTEXITCODE -ne 0) {
+    throw "[FAIL] Security tests failed. Exit code: $LASTEXITCODE. Review test output above."
+}
+Write-Host "[PASS] Security tests completed successfully"
+
+# Verify Git hook manager configuration
+uv run --frozen lefthook validate
+if ($LASTEXITCODE -ne 0) {
+    throw "[FAIL] Lefthook configuration validation failed"
+}
+Write-Host "[PASS] Hook payload syntax and Lefthook configuration validated"
+
+# Check for hardcoded secrets in staged changes
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    throw "[FAIL] git command not found. Install Git and ensure it's in PATH."
+}
+
+$diff = git diff --cached 2>&1
+if ($LASTEXITCODE -ne 0) {
+    $gitError = ($diff | Out-String).Trim()
+    throw "[FAIL] git diff --cached failed (exit code: $LASTEXITCODE). Error: $gitError. Common causes: not in a git repository, corrupted index, or permission issues."
+}
+
+if ($diff -match '(api_key|password|secret|token)\s*[:=]\s*[''"][^''"]+[''"]') {
+    throw "[FAIL] Hardcoded secret detected in staged changes. Remove credentials before committing."
+}
+Write-Host "[PASS] No hardcoded secrets detected in staged changes"
+
+# Verify no environment variable leaks
+$envPatterns = @('\$env:[A-Z0-9_]+\s*=\s*[''"][^''"]+[''"]')
+try {
+    $envMatches = Get-ChildItem -Recurse -Include *.ps1 -ErrorAction Stop |
+        Select-String -Pattern $envPatterns
+
+    if ($envMatches) {
+        foreach ($match in $envMatches) {
+            Write-Warning "[FAIL] Hardcoded env var found: $($match.Path):$($match.LineNumber)"
+        }
+        throw [System.Management.Automation.PSInvalidOperationException]::new("Hardcoded environment variable assignments detected. This is a security risk. Please remove them.")
+    } else {
+        Write-Host "[PASS] No hardcoded environment variables detected"
+    }
+}
+catch {
+    throw "Failed to scan for environment variable leaks: $_"
+}
+```
+
+4. **PIV Report Template**
+
+Save to: `.agents/security/PIV-[feature].md`
+
+```markdown
+# Post-Implementation Verification: [Feature]
+
+**Date**: [YYYY-MM-DD]
+**Implementation Reviewed**: [Commit SHA or PR number]
+**Security Controls Planned**: [N]
+**Security Controls Verified**: [N]
+
+## Verification Results
+
+| Control | Status | Finding |
+|---------|--------|---------|
+| [Control from plan] | ✅ Pass / ❌ Fail / ⚠️ Partial | [Details] |
+
+## New Findings
+
+### Issues Discovered
+
+| Issue | Severity | CWE | Description | Remediation |
+|-------|----------|-----|-------------|-------------|
+| [ID] | Critical/High/Med/Low | [CWE-NNN] | [What's wrong] | [How to fix] |
+
+**Issue Summary**: Critical: [N], High: [N], Medium: [N], Low: [N]
+
+## Verification Tests
+
+| Test Type | Status | Coverage |
+|-----------|--------|----------|
+| Unit tests (security) | ✅/❌ | [N% or N tests] |
+| Integration tests | ✅/❌ | [N% or N tests] |
+| Manual verification | ✅/❌ | [What was tested] |
+
+## Deviations from Plan
+
+| Planned Control | Implementation Status | Justification |
+|-----------------|----------------------|---------------|
+| [Control] | Implemented/Deferred/Modified | [Why] |
+
+## Recommendation
+
+- [ ] **APPROVED**: Implementation meets security requirements
+- [ ] **CONDITIONAL**: At most 3 MEDIUM findings remain with documented mitigations and a follow-up issue
+- [ ] **BLOCKED**: HIGH/CRITICAL findings, secrets, CWE-22/77/78 patterns, ASI boundary violations unresolved, or 4+ MEDIUM deferred
+
+### Required Actions
+
+1. [Action required before approval]
+2. [Action required before approval]
+
+## Signature
+
+**Security Agent**: Verified [YYYY-MM-DD]
+```
+
+#### Impact Analysis Deliverable
+
+Save to: `.agents/planning/impact-analysis-security-[feature].md`
+
+```markdown
+# Impact Analysis: [Feature] - Security
+
+**Analyst**: Security
+**Date**: [YYYY-MM-DD]
+**Complexity**: [Low/Medium/High]
+
+## Impacts Identified
+
+### Direct Impacts
+- [Security boundary/control]: [Type of change]
+- [Attack surface]: [How affected]
+
+### Indirect Impacts
+- [Cascading security concern]
+
+## Affected Areas
+
+| Security Domain | Type of Change | Risk Level | Reason |
+|-----------------|----------------|------------|--------|
+| Authentication | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| Authorization | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| Data Protection | [Add/Modify/Remove] | [L/M/H] | [Why] |
+| Input Validation | [Add/Modify/Remove] | [L/M/H] | [Why] |
+
+## Attack Surface Analysis
+
+| New Surface | Threat Level | Mitigation Required |
+|-------------|--------------|---------------------|
+| [Surface] | [L/M/H/Critical] | [Control] |
+
+## Threat Vectors
+
+| Threat | STRIDE Category | Likelihood | Impact | Mitigation |
+|--------|-----------------|------------|--------|------------|
+| [Threat] | [S/T/R/I/D/E] | [L/M/H] | [L/M/H] | [Strategy] |
+
+## Required Security Controls
+
+| Control | Priority | Type | Implementation Effort |
+|---------|----------|------|----------------------|
+| [Control] | [P0/P1/P2] | [Preventive/Detective/Corrective] | [L/M/H] |
+
+## Compliance Implications
+
+- [Regulation/Standard]: [Impact]
+- [Regulation/Standard]: [Impact]
+
+## Security Testing Requirements
+
+| Test Type | Scope | Effort |
+|-----------|-------|--------|
+| Penetration Testing | [Areas] | [L/M/H] |
+| Security Code Review | [Areas] | [L/M/H] |
+| Vulnerability Scanning | [Areas] | [L/M/H] |
+
+## Blast Radius Assessment
+
+| If Control Fails | Systems Affected | Data at Risk | Containment Strategy |
+|------------------|-----------------|--------------|---------------------|
+| [Control] | [Systems] | [Data types] | [Strategy] |
+
+**Worst Case Impact**: [Description of maximum damage if breach occurs]
+**Isolation Boundaries**: [What limits the spread of a compromise]
+
+## Dependency Security
+
+| Dependency | Version | Known Vulnerabilities | Risk Level | Action Required |
+|------------|---------|----------------------|------------|-----------------|
+| [Package/Library] | [Ver] | [CVE list or None] | [L/M/H/Critical] | [Update/Monitor/Accept] |
+
+**Transitive Dependencies**: [List critical transitive deps]
+**License Compliance**: [Any license concerns]
+
+## Recommendations
+
+1. [Security architecture approach]
+2. [Specific control to implement]
+3. [Testing strategy]
+
+## Issues Discovered
+
+| Issue | Priority | Category | Description |
+|-------|----------|----------|-------------|
+| [Issue ID] | [P0/P1/P2] | [Vulnerability/Risk/Compliance/Blocker] | [Brief description] |
+
+**Issue Summary**: P0: [N], P1: [N], P2: [N], Total: [N]
+
+## Dependencies
+
+- [Dependency on security library/framework]
+- [Dependency on infrastructure security]
+
+## Estimated Effort
+
+- **Security design**: [Hours/Days]
+- **Control implementation**: [Hours/Days]
+- **Security testing**: [Hours/Days]
+- **Total**: [Hours/Days]
+```
+
+## Memory Protocol

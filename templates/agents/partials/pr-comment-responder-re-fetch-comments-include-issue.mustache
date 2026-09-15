@@ -1,0 +1,120 @@
+# This re-fetch is the only thing that can see a comment posted since the last
+# pass, so both halves of it have to block on failure. Left unchecked, a
+# nonzero exit from the fetch or a payload jq cannot parse leaves NEW_COMMENTS
+# empty or `null`; `[ -gt ]` on a non-numeric operand then raises `integer
+# expression expected`, which is a nonzero exit from `[` and reads as false to
+# `if`, so the branch below never runs and the pass continues as though the API
+# reported no new comments.
+RECHECK_PAYLOAD=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
+RECHECK_STATUS=$?
+if [ "$RECHECK_STATUS" -ne 0 ]; then
+  echo "[BLOCKED] Comment re-fetch failed (exit $RECHECK_STATUS)"
+  exit 1
+fi
+NEW_COMMENTS=$(printf '%s' "$RECHECK_PAYLOAD" | jq '.TotalComments')
+JQ_STATUS=$?
+if [ "$JQ_STATUS" -ne 0 ]; then
+  echo "[BLOCKED] Comment re-fetch payload is not parseable JSON (jq exit $JQ_STATUS)"
+  exit 1
+fi
+case "$NEW_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Re-fetched comment count is not numeric: $NEW_COMMENTS"; exit 1 ;;
+esac
+
+# Compare to original count
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
+if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
+  echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
+  # Append every comment the map has never seen, at status [NEW]. Every gate
+  # counts `**Status**:` fields out of the map, so a comment that arrives here
+  # and never lands in the map is invisible to every completion check: the pass
+  # can reach Gate 4 reporting zero pending work on a comment nobody read.
+  COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+  if [ ! -f "$COMMENT_MAP" ]; then
+    echo "[BLOCKED] Comment map not found: $COMMENT_MAP"
+    exit 1
+  fi
+  # Comment bodies are deliberately not inlined here. A reviewer comment can
+  # itself contain a line reading `**Status**: [COMPLETE]`, and the gates count
+  # that field with a line-anchored grep, so an inlined body would let a comment
+  # forge a terminal row for itself. Fill Context, Comment, and Analysis from
+  # the payload during triage instead.
+  #
+  # jq's @tsv escapes tabs and newlines inside field values, so a body, author,
+  # or path carrying either cannot break the field split below.
+  printf '%s' "$RECHECK_PAYLOAD" \
+    | jq -r '.Comments[] | [(.Id|tostring), (.Author // "unknown"), (.CommentType // "Review"), (.Path // "-"), (.Line // "-"), (.CreatedAt // "-")] | @tsv' \
+    | while IFS="$(printf '\t')" read -r ID AUTHOR CTYPE CPATH CLINE CREATED; do
+        if grep -q "^### Comment $ID " "$COMMENT_MAP"; then
+          continue
+        fi
+        {
+          printf '### Comment %s (@%s)\n\n' "$ID" "$AUTHOR"
+          printf '**Type**: %s\n' "$CTYPE"
+          printf '**Path**: %s\n' "$CPATH"
+          printf '**Line**: %s\n' "$CLINE"
+          printf '**Created**: %s\n' "$CREATED"
+          printf '**Status**: [NEW]\n\n'
+          printf -- '---\n\n'
+        } >> "$COMMENT_MAP"
+      done
+
+  # The count artifact records how many status fields the comment map should
+  # carry, so it moves with the append. Left at the Phase 1 snapshot it is
+  # smaller than the map from this point on, and Gate 4's
+  # `TOTAL -ne TOTAL_COMMENTS` invariant blocks every later pass on correct
+  # work: the map holds the new rows the recorded count has never heard of.
+  #
+  # Refresh AFTER the rows are appended, never before. The invariant compares
+  # the map against this file, so a file written first would clear a map that
+  # never received the new rows, which is the fail-open case the invariant
+  # exists to catch.
+  #
+  # The append above is what earns the refresh, so prove it landed before
+  # writing. A refresh over a map that never grew is the very fail-open the
+  # invariant exists to catch, written by the one line that feeds it.
+  APPENDED_STATUS=$(grep -c "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+  if [ "$APPENDED_STATUS" -ne "$NEW_COMMENTS" ]; then
+    echo "[BLOCKED] Comment map carries $APPENDED_STATUS status fields after the append, API reported $NEW_COMMENTS"
+    exit 1
+  fi
+  printf '%s\n' "$NEW_COMMENTS" > "$COUNT_FILE"
+
+  # Return to Phase 3 for analysis
+fi
+```
+
+The append and the refresh together are what make the loop below
+repeatable. Without it the second pass
+reaches Gate 4 with a comment map the recorded count contradicts, and no amount
+of correct work clears it.
+
+**Critical**: Repeat this loop until no new comments appear after a commit. Bots like cursor[bot] and Copilot respond to your fixes and may identify issues with your implementation.
+
+#### Phase 8.4: CI Check Verification
+
+**MANDATORY**: Verify ALL CI checks pass before claiming completion. The `mergeable: "MERGEABLE"` field only indicates no merge conflicts, NOT that CI checks are passing.
+
+**Critical**: `gh pr view --json mergeable` returning `"MERGEABLE"` means:
+
+- [PASS] No merge conflicts
+- [PASS] Branch is compatible with base
+
+It does NOT mean:
+
+- [FAIL] CI checks passing
+- [FAIL] Required status checks satisfied

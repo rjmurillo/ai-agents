@@ -1,0 +1,16 @@
+schemaVersion: "1.0"
+provider: "github"
+# ADR-109 B1: the repository's own GitHub Copilot agents. Rendered from the
+# same templates/agents/<stem>.copilot.md.tmpl text the copilot-cli plugin
+# uses, with one contract difference: GitHub rejects a `model:` field in
+# .github/agents (PR #5040, issue #4938), so this platform carries no
+# model_tiers map and generate_agents_common omits the field. That is why
+# .github/agents is a render target here rather than a binplace copy of
+# src/copilot-cli/agents.
+legacy:
+  outputDir: ".github/agents"
+  fileExtension: ".agent.md"
+  # Same tool vocabulary as the Copilot CLI plugin (tools_copilot keys).
+  toolsFrom: "copilot-cli"
+  frontmatter:
+    includeNameField: true

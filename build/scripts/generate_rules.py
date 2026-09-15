@@ -191,30 +191,21 @@ def _read_output_dirs(stanza: dict[str, object]) -> list[str]:
     single = stanza.get("outputDir")
     multi = stanza.get("outputDirs")
     if single is not None and multi is not None:
-        raise GenerateRulesError(
-            "set either `outputDir` or `outputDirs`, not both"
-        )
+        raise GenerateRulesError("set either `outputDir` or `outputDirs`, not both")
     if multi is not None:
         if not isinstance(multi, list) or not multi:
-            raise GenerateRulesError(
-                "`outputDirs` must be a non-empty list"
-            )
+            raise GenerateRulesError("`outputDirs` must be a non-empty list")
         for idx, item in enumerate(multi):
             if not isinstance(item, str):
                 raise GenerateRulesError(
-                    f"`outputDirs[{idx}]` must be a string (got "
-                    f"{type(item).__name__})"
+                    f"`outputDirs[{idx}]` must be a string (got {type(item).__name__})"
                 )
         return list(multi)
     if single is not None:
         if not isinstance(single, str):
-            raise GenerateRulesError(
-                f"`outputDir` must be a string (got {type(single).__name__})"
-            )
+            raise GenerateRulesError(f"`outputDir` must be a string (got {type(single).__name__})")
         return [single]
-    raise GenerateRulesError(
-        "rules stanza requires `outputDir` or `outputDirs`"
-    )
+    raise GenerateRulesError("rules stanza requires `outputDir` or `outputDirs`")
 
 
 def _has_path_scope(frontmatter: dict[str, str | None]) -> bool:
@@ -266,9 +257,7 @@ def _flatten_serialized_scope_list(value: str) -> str:
         parsed = ast.literal_eval(stripped)
     except (ValueError, SyntaxError):
         return ",".join(
-            item.strip().strip("'\"")
-            for item in stripped[1:-1].split(",")
-            if item.strip()
+            item.strip().strip("'\"") for item in stripped[1:-1].split(",") if item.strip()
         )
     if not isinstance(parsed, list):
         return value
@@ -430,9 +419,7 @@ def _process_rule(
 
     target_name = f"{name}{output_suffix}"
     target = output_dir / target_name
-    transformed = _remap_frontmatter(
-        source_fm, remap, drop, keep_internal=keep_internal
-    )
+    transformed = _remap_frontmatter(source_fm, remap, drop, keep_internal=keep_internal)
     if transformed is _SCOPE_SKIPPED:
         print(
             f"  INFO: skipping {name!r} for {output_dir.name!r}: "
@@ -542,14 +529,10 @@ def generate_rules(
                 file=sys.stderr,
             )
             return 2, result
-    keep_internal_dirs: set[str] = {
-        _canonical_output_dir(repo_root, item) for item in raw_keep
-    }
+    keep_internal_dirs: set[str] = {_canonical_output_dir(repo_root, item) for item in raw_keep}
 
     try:
-        source_dir, output_dirs = _resolve_paths(
-            repo_root, source_dir_str, output_dir_strs
-        )
+        source_dir, output_dirs = _resolve_paths(repo_root, source_dir_str, output_dir_strs)
     except GenerateRulesError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2, result
@@ -677,9 +660,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo_root = args.repo_root or _SCRIPT_DIR.parent.parent
-    config_path = args.config or (
-        repo_root / "templates" / "platforms" / "copilot-cli.yaml"
-    )
+    config_path = args.config or (repo_root / "templates" / "platforms" / "copilot-cli.yaml")
     if not config_path.is_file():
         print(f"Error: config not found: {config_path}", file=sys.stderr)
         return 2

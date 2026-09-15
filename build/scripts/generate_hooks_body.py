@@ -175,8 +175,7 @@ def _has_main_function_and_epilogue(body: str) -> bool:
     if not has_main:
         return False
     return (
-        _MAIN_EPILOGUE_RE.search(body) is not None
-        or _MAIN_EPILOGUE_TRY_RE.search(body) is not None
+        _MAIN_EPILOGUE_RE.search(body) is not None or _MAIN_EPILOGUE_TRY_RE.search(body) is not None
     )
 
 
@@ -219,7 +218,7 @@ def _strip_main_epilogue(body: str) -> str:
     """
     match = _MAIN_EPILOGUE_FULL_RE.search(body)
     if match:
-        return body[:match.start()].rstrip() + "\n"
+        return body[: match.start()].rstrip() + "\n"
     return body
 
 

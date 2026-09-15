@@ -47,7 +47,7 @@ For every changed function, walk this checklist before you score the diff. Each 
 
 - **Boundary inputs**: empty / single / max / off-by-one. Does the test exercise the empty list, the singleton list, the max-size list, and the size-just-past-max list? A function that takes `first: 100` is one of these checks; pagination cliffs hide here.
 - **Malformed inputs**: wrong type, null/None, partially constructed, mixed encoding. Does the test cover what the function does when the caller passes the wrong shape? CWE-22 / CWE-78 / authentication-boundary checks live here.
-- **Whitespace / unicode / token boundary variants for regexes**: leading or trailing whitespace, mixed line endings, unicode lookalikes, surrounding tokens that change matching context. A regex without a word-boundary test is suspect; cite the wiki entry on regex token boundaries when you write the finding.
+- **Whitespace / unicode / token boundary variants for regexes**: leading or trailing whitespace, mixed line endings, unicode lookalikes, surrounding tokens that change matching context. A regex without a word-boundary test is suspect; name the boundary class concretely (e.g. "missing `\b` anchor; matches inside `STBDX`") when you write the finding.
 - **Path-shape variants for filters**: trailing slash, dotfile, nested vs top-level, glob vs literal, `..` traversal. A filter that says "matches X" but tests only the literal X has not been tested.
 - **Source-of-truth invariants when an artifact mirrors a source file**: the diff claims to "match the canonical validator," "mirror the schema," or "align with the spec", does the diff include a quoted excerpt from the canonical source, or is the claim made on faith? The retrospective records that "I designed against an imagined contract instead of the canonical validator" was the root cause of four fix commits.
 - **Mirror-obligation drift check**: behavior change without old-behavior test updates is FAIL. Require tests that asserted the previous behavior to change in the same diff.
@@ -222,26 +222,7 @@ Do not escalate to avoid giving a verdict. Escalation is for genuine conflicts, 
 
 ## Tools
 
-Read, Grep, Glob, TodoWrite. Memory via `mcp__serena__read_memory` / `mcp__serena__write_memory`.
-
-## Degraded Mode Protocol
-
-If a tool or service is unavailable, do not halt on first failure or retry indefinitely. Follow this protocol:
-
-1. **Log** which tool failed, the error message, and the step attempted
-2. **Apply** the fallback from the table below
-3. **Continue** remaining steps where possible
-4. **Document** all skipped steps and degraded behavior in handoff
-
-| Primary Tool | Fallback | If Fallback Also Fails |
-|--------------|----------|------------------------|
-| Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
-| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
-| MCP servers (Context7, DeepWiki) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
-| External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
-| Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |
-
-**Do not** silently skip steps. **Do not** retry the same tool more than twice. **Do not** halt when a documented fallback exists.
+read, search. Memory via `mcp__serena__read_memory` / `mcp__serena__write_memory`.
 
 ## Handoff
 

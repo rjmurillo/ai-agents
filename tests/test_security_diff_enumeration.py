@@ -43,7 +43,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-CLAUDE_CANONICAL = REPO_ROOT / "src" / "claude" / "security.md"
+CLAUDE_CANONICAL = REPO_ROOT / "src" / "claude" / "agents" / "security.md"
 CLAUDE_RUNTIME = REPO_ROOT / ".claude" / "agents" / "security.md"
 SHARED_TEMPLATE = REPO_ROOT / "templates" / "agents" / "security.shared.md"
 COPILOT_RUNTIME = REPO_ROOT / ".github" / "agents" / "security.agent.md"

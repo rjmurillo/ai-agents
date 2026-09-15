@@ -62,9 +62,7 @@ def _validate_relative_path(field: str, item: str) -> list[str]:
     """Plugin manifest paths must be relative, prefixed with ./, no `..` traversal."""
     errors: list[str] = []
     if not item.startswith("./"):
-        errors.append(
-            f"`{field}`: path '{item}' must start with './' (relative to plugin root)"
-        )
+        errors.append(f"`{field}`: path '{item}' must start with './' (relative to plugin root)")
     if ".." in Path(item).parts:
         errors.append(f"`{field}`: path '{item}' must not contain '..' traversal")
     return errors
@@ -117,21 +115,17 @@ def _validate_dependencies(value: object) -> list[str]:
     (see `_DEPENDENCY_VERSION_SPECIFIER_RE` above for why).
     """
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        return [
-            f"`dependencies`: must be an array of strings (got {type(value).__name__})"
-        ]
+        return [f"`dependencies`: must be an array of strings (got {type(value).__name__})"]
     errors: list[str] = []
     for item in value:
         if not item.strip():
             errors.append(
-                "`dependencies`: entry must not be empty or whitespace-only "
-                f"(got {item!r})"
+                f"`dependencies`: entry must not be empty or whitespace-only (got {item!r})"
             )
             continue
         if item != item.strip():
             errors.append(
-                f"`dependencies`: entry {item!r} must not have leading or "
-                f"trailing whitespace"
+                f"`dependencies`: entry {item!r} must not have leading or trailing whitespace"
             )
             continue
         if _DEPENDENCY_VERSION_SPECIFIER_RE.search(item):
@@ -170,12 +164,10 @@ def _is_repo_marketplace_manifest(path: Path) -> bool:
         ("src", "claude", ".claude-plugin", "plugin.json"),
         ("src", "copilot-cli", ".claude-plugin", "plugin.json"),
     )
-    return any(normalized[-len(pattern):] == pattern for pattern in patterns)
+    return any(normalized[-len(pattern) :] == pattern for pattern in patterns)
 
 
-def _check_marketplace_runtime_forbidden_keys(
-    path: Path, manifest: dict[str, object]
-) -> list[str]:
+def _check_marketplace_runtime_forbidden_keys(path: Path, manifest: dict[str, object]) -> list[str]:
     """Reject discovery keys for this repo's marketplace manifests.
 
     Issue #1833 reproduces on the plugin manifests shipped by this repository.
@@ -208,13 +200,9 @@ def _validate_hook_group(event: str, idx: int, group: object) -> list[str]:
             errors.append(f"`hooks.{event}[{idx}].hooks[{hidx}]`: must be an object")
             continue
         if hook.get("type") != "command":
-            errors.append(
-                f"`hooks.{event}[{idx}].hooks[{hidx}].type`: must be 'command'"
-            )
+            errors.append(f"`hooks.{event}[{idx}].hooks[{hidx}].type`: must be 'command'")
         if not isinstance(hook.get("command"), str):
-            errors.append(
-                f"`hooks.{event}[{idx}].hooks[{hidx}].command`: required string"
-            )
+            errors.append(f"`hooks.{event}[{idx}].hooks[{hidx}].command`: required string")
     return errors
 
 
@@ -244,7 +232,7 @@ def _validate_referenced_hooks_doc(value: str, inner: object) -> list[str]:
         return [
             f"`hooks`: referenced file '{value}' must contain a top-level "
             f"`hooks` key wrapping the event names "
-            f"(e.g. {{\"hooks\": {{\"PreToolUse\": [...]}}}}). "
+            f'(e.g. {{"hooks": {{"PreToolUse": [...]}}}}). '
             f"Without the wrapper, Claude Code does not load the events."
         ]
     events_obj = inner["hooks"]
@@ -256,9 +244,7 @@ def _validate_referenced_hooks_doc(value: str, inner: object) -> list[str]:
     nested_errors: list[str] = []
     for event, entries in events_obj.items():
         if event not in VALID_HOOK_EVENTS:
-            nested_errors.append(
-                f"`hooks` ref '{value}': unknown hook event '{event}'"
-            )
+            nested_errors.append(f"`hooks` ref '{value}': unknown hook event '{event}'")
             continue
         nested_errors.extend(_validate_hook_event_entries(event, entries))
     return nested_errors
@@ -295,8 +281,7 @@ def _validate_hooks_inline(value: dict[str, object]) -> list[str]:
     for event, entries in value.items():
         if event not in VALID_HOOK_EVENTS:
             inline_errors.append(
-                f"`hooks.{event}`: unknown hook event. "
-                f"Valid: {sorted(VALID_HOOK_EVENTS)}"
+                f"`hooks.{event}`: unknown hook event. Valid: {sorted(VALID_HOOK_EVENTS)}"
             )
             continue
         if isinstance(entries, str):
@@ -320,9 +305,7 @@ def _validate_hooks(value: object, manifest_dir: Path | None = None) -> list[str
     if isinstance(value, str):
         return _validate_hooks_string_ref(value, manifest_dir)
     if not isinstance(value, dict):
-        return [
-            f"`hooks`: must be an object or string path (got {type(value).__name__})"
-        ]
+        return [f"`hooks`: must be an object or string path (got {type(value).__name__})"]
     return _validate_hooks_inline(value)
 
 
@@ -339,10 +322,7 @@ def _validate_manifest_data(data: dict[str, object], path: Path) -> list[str]:
     if missing:
         errors.append(f"Missing required keys: {sorted(missing)}")
     elif not isinstance(name, str) or not name.strip():
-        errors.append(
-            "`name`: must be a non-empty string "
-            f"(got {type(name).__name__})"
-        )
+        errors.append(f"`name`: must be a non-empty string (got {type(name).__name__})")
 
     unknown = set(data.keys()) - ALLOWED_KEYS
     if unknown:

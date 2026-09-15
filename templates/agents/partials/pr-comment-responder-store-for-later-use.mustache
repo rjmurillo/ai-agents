@@ -1,0 +1,20 @@
+#### Step 1.1a: Check for needs-split Label
+
+**MUST**: Check if the PR has the `needs-split` label. If present, this indicates the PR exceeded commit thresholds (10/15/20) and requires analysis.
+
+```bash
+# Check for needs-split label
+LABELS=$(gh pr view [number] --json labels --jq '.labels[].name')
+HAS_NEEDS_SPLIT=$(echo "$LABELS" | grep -c -Fx "needs-split")
+
+if [ "$HAS_NEEDS_SPLIT" -gt 0 ]; then
+  echo "[WARNING] PR has needs-split label - commit threshold exceeded"
+  # Proceed to needs-split handling
+fi
+```
+
+**If `needs-split` label is present**:
+
+1. **Run retrospective analysis**: Determine why the PR required so many commits
+
+   ```text

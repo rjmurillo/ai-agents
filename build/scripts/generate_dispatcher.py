@@ -85,69 +85,69 @@ _BASH_TEMPLATE = (
     '(your session is unaffected)."; '
     'if [ -z "$_ptr" ]; then '
     'echo "$_warn Plugin root unresolvable (COPILOT_PLUGIN_ROOT and '
-    'CLAUDE_PLUGIN_ROOT both empty). '
+    "CLAUDE_PLUGIN_ROOT both empty). "
     'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
-    'exit 0; fi; '
+    "exit 0; fi; "
     'if [ ! -d "$_ptr" ]; then '
     'echo "$_warn Plugin root is not a directory: $_ptr. '
     'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
-    'exit 0; fi; '
+    "exit 0; fi; "
     # Interpreter discovery: preflight each candidate with a version check.
     # A broken launcher (exits nonzero) or too-old interpreter (< 3.10) moves
     # to the next candidate. Covers HIGH 3 and HIGH 5 from #4672 review.
     '_interp=""; '
-    'for _c in python3 python; do '
+    "for _c in python3 python; do "
     'if command -v "$_c" >/dev/null 2>&1; then '
     '_ok=$("$_c" -I -c "import sys;'
     'print(int(sys.version_info>=({min_maj},{min_min})))" 2>/dev/null) || _ok=""; '
     'if [ "$_ok" = "1" ]; then _interp="$_c"; break; fi; '
-    'fi; done; '
+    "fi; done; "
     'if [ -z "$_interp" ]; then '
     'echo "$_warn No suitable Python interpreter found (need >= {min_maj}.{min_min}). '
     'Install: https://www.python.org/downloads/" >&2; exit 0; fi; '
     # Dispatcher must be a regular file and readable (not a directory).
     'if [ ! -f "$_ptr/hooks/{event}/_dispatch.py" ]; then '
     'echo "$_warn Dispatcher missing or not a file: '
-    '$_ptr/hooks/{event}/_dispatch.py. '
+    "$_ptr/hooks/{event}/_dispatch.py. "
     'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
-    'exit 0; fi; '
+    "exit 0; fi; "
     'if [ ! -r "$_ptr/hooks/{event}/_dispatch.py" ]; then '
     'echo "$_warn Dispatcher unreadable: '
-    '$_ptr/hooks/{event}/_dispatch.py. '
+    "$_ptr/hooks/{event}/_dispatch.py. "
     'Reinstall: copilot plugin install project-toolkit@ai-agents" >&2; '
-    'exit 0; fi; '
+    "exit 0; fi; "
     '"$_interp" -I -u "$_ptr/hooks/{event}/_dispatch.py"; _rc=$?; '
-    'if [ $_rc -eq 126 ] || [ $_rc -eq 127 ]; then '
+    "if [ $_rc -eq 126 ] || [ $_rc -eq 127 ]; then "
     'echo "$_warn Python interpreter failed to start ($_interp, exit $_rc). '
-    'Install Python >= {min_maj}.{min_min}: '
+    "Install Python >= {min_maj}.{min_min}: "
     'https://www.python.org/downloads/" >&2; exit 0; fi; '
-    'exit $_rc'
+    "exit $_rc"
 )
 _PWSH_TEMPLATE = (
-    '$_ptr = if ($env:COPILOT_PLUGIN_ROOT) {{ $env:COPILOT_PLUGIN_ROOT }} '
-    'elseif ($env:CLAUDE_PLUGIN_ROOT) {{ $env:CLAUDE_PLUGIN_ROOT }} '
-    'else {{ $null }}; '
+    "$_ptr = if ($env:COPILOT_PLUGIN_ROOT) {{ $env:COPILOT_PLUGIN_ROOT }} "
+    "elseif ($env:CLAUDE_PLUGIN_ROOT) {{ $env:CLAUDE_PLUGIN_ROOT }} "
+    "else {{ $null }}; "
     '$_warn = "project-toolkit@ai-agents WARNING: hooks DISABLED '
     '(your session is unaffected)."; '
-    'if (-not $_ptr) {{ '
+    "if (-not $_ptr) {{ "
     '[Console]::Error.WriteLine("$_warn Plugin root unresolvable '
-    '(COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). '
+    "(COPILOT_PLUGIN_ROOT and CLAUDE_PLUGIN_ROOT both empty). "
     'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
-    'if (-not (Test-Path $_ptr -PathType Container)) {{ '
+    "if (-not (Test-Path $_ptr -PathType Container)) {{ "
     '[Console]::Error.WriteLine("$_warn Plugin root is not a directory: $_ptr. '
     'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
     # Interpreter discovery: preflight each candidate with version check.
     # A broken launcher or too-old interpreter moves to the next candidate.
-    '$_interp = $null; '
+    "$_interp = $null; "
     'foreach ($c in @("py","python3","python")) {{ '
-    'if (Get-Command $c -ErrorAction SilentlyContinue) {{ '
-    'try {{ $_ok = & $c -I -c '
+    "if (Get-Command $c -ErrorAction SilentlyContinue) {{ "
+    "try {{ $_ok = & $c -I -c "
     '"import sys;print(int(sys.version_info>=({min_maj},{min_min})))" '
     '2>$null; if ($_ok -eq "1") {{ $_interp = $c; break }} }} '
-    'catch {{}} }} }}; '
-    'if (-not $_interp) {{ '
+    "catch {{}} }} }}; "
+    "if (-not $_interp) {{ "
     '[Console]::Error.WriteLine("$_warn No suitable Python interpreter found '
-    '(need >= {min_maj}.{min_min}). '
+    "(need >= {min_maj}.{min_min}). "
     'Install: https://www.python.org/downloads/"); exit 0 }}; '
     # Dispatcher must be a leaf file AND readable. Test-Path alone answers
     # only "does it exist": a file blocked by Windows ACLs passes it, Python
@@ -156,20 +156,20 @@ _PWSH_TEMPLATE = (
     # here left the two launchers covering different failures on the platform
     # the customer was actually running. Refs #4672.
     '$_script = "$_ptr/hooks/{event}/_dispatch.py"; '
-    'if (-not (Test-Path $_script -PathType Leaf)) {{ '
+    "if (-not (Test-Path $_script -PathType Leaf)) {{ "
     '[Console]::Error.WriteLine("$_warn Dispatcher missing or not a file: '
-    '$_script. '
+    "$_script. "
     'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
-    'try {{ [System.IO.File]::OpenRead($_script).Close() }} catch {{ '
+    "try {{ [System.IO.File]::OpenRead($_script).Close() }} catch {{ "
     '[Console]::Error.WriteLine("$_warn Dispatcher not readable: $_script. '
     'Reinstall: copilot plugin install project-toolkit@ai-agents"); exit 0 }}; '
     '& $_interp -I -u "$_script"; '
-    'if ($LASTEXITCODE -eq 126 -or $LASTEXITCODE -eq 127) {{ '
+    "if ($LASTEXITCODE -eq 126 -or $LASTEXITCODE -eq 127) {{ "
     '[Console]::Error.WriteLine("$_warn Python interpreter failed to start '
-    '($_interp, exit $LASTEXITCODE). '
-    'Install Python >= {min_maj}.{min_min}: '
+    "($_interp, exit $LASTEXITCODE). "
+    "Install Python >= {min_maj}.{min_min}: "
     'https://www.python.org/downloads/"); exit 0 }}; '
-    'exit $LASTEXITCODE'
+    "exit $LASTEXITCODE"
 )
 
 _ENTRYPOINT = """\

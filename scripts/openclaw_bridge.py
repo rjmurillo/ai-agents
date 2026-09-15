@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Export ai-agents definitions to OpenClaw-compatible workspace format.
 
-Reads agent definitions from src/claude/*.md (YAML frontmatter + markdown)
+Reads agent definitions from src/claude/agents/*.md (YAML frontmatter + markdown)
 and generates an OpenClaw workspace with AGENTS.md routing table and
 per-agent SOUL.md skill stubs.
 
 Usage:
     uv run python scripts/openclaw_bridge.py \\
-        --agents-dir src/claude --output-dir ./openclaw-workspace
+        --agents-dir src/claude/agents --output-dir ./openclaw-workspace
     uv run python scripts/openclaw_bridge.py --dry-run
     uv run python scripts/openclaw_bridge.py --format json
 
@@ -379,8 +379,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--agents-dir",
         type=Path,
-        default=Path("src/claude"),
-        help="Directory containing agent .md files (default: src/claude)",
+        default=Path("src/claude/agents"),
+        help="Directory containing agent .md files (default: src/claude/agents)",
     )
     parser.add_argument(
         "--output-dir",

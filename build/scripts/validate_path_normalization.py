@@ -121,18 +121,12 @@ def _filter_git_ignored(root: Path, files: list[Path]) -> list[Path]:
     if result.returncode not in (0, 1):
         return files
 
-    ignored = {
-        item.decode("utf-8")
-        for item in result.stdout.split(b"\0")
-        if item
-    }
+    ignored = {item.decode("utf-8") for item in result.stdout.split(b"\0") if item}
     if not ignored:
         return files
 
     return [
-        path
-        for path, relative in zip(files, relatives, strict=True)
-        if relative not in ignored
+        path for path, relative in zip(files, relatives, strict=True) if relative not in ignored
     ]
 
 
@@ -335,10 +329,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     root = Path(args.path).resolve()
-    extensions = [
-        ext if ext.startswith(".") else f".{ext}"
-        for ext in args.extensions.split(",")
-    ]
+    extensions = [ext if ext.startswith(".") else f".{ext}" for ext in args.extensions.split(",")]
     exclude_paths = [p.strip() for p in args.exclude_paths.split(",") if p.strip()]
     use_color = _should_use_color()
 

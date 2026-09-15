@@ -147,7 +147,7 @@ def validate_install_parity(repo_root: Path) -> bool:
 
 
 def validate_agent_content_parity(repo_root: Path) -> bool:
-    """Fail when .claude/agents/ and src/claude/ have differing file content.
+    """Fail when .claude/agents/ and src/claude/agents/ have differing file content.
 
     validate_install_parity checks co-change in a diff (did both siblings move
     together). It does NOT compare file contents on disk. This gate fills that

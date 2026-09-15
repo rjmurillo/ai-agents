@@ -491,7 +491,7 @@ When the session involves specification artifacts (requirements, designs, tasks)
 **Run validation:**
 
 ```bash
-uv run --frozen python scripts/traceability/show_traceability_graph.py --show-orphans
+uv run --frozen python scripts/validation/traceability.py --strict
 ```
 
 **Metrics to capture:**
@@ -1230,13 +1230,13 @@ Process Delta items to capture actionable improvements. Delta items represent ch
 
 **P0/P1 Issue Creation:**
 
-Use GitHub CLI to create issues for high-priority items:
+Use the GitHub skill to create issues for high-priority items:
 
 ```bash
-gh issue create \
+uv run python .claude/skills/github/scripts/issue/new_issue.py \
     --title "[Retrospective] Delta item description" \
     --body "## Source\nRetrospective: [session-ref]\n\n## Problem\n[Delta item detail]\n\n## Proposed Solution\n[If known]" \
-    --label "enhancement,source:retrospective,priority:{PRIORITY}"
+    --labels "enhancement,source:retrospective,priority:{PRIORITY}"
 ```
 
 **P2/P3 Backlog Memory Storage:**

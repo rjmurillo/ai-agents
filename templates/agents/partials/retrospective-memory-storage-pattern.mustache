@@ -1,0 +1,63 @@
+```
+
+### Failure Prevention Matrix
+
+Maintain cumulative statistics across sessions:
+
+````markdown
+## Failure Prevention Matrix
+
+| Root Cause Category | Incidents | Prevention Skills | Last Occurrence | Trend |
+|---------------------|-----------|-------------------|-----------------|-------|
+| Cross-Cutting Concerns | [N] | Skill-Val-001, Skill-Val-002 | [PR/Session ref] | [Up/Down/Stable] |
+| Fail-Safe Design | [N] | Skill-Safe-001 | [PR/Session ref] | [Up/Down/Stable] |
+| Test-Implementation Drift | [N] | Skill-Test-001 | [PR/Session ref] | [Up/Down/Stable] |
+| Premature Validation | [N] | Skill-Val-003 | [PR/Session ref] | [Up/Down/Stable] |
+| Context Loss | [N] | Skill-Ctx-001 | [PR/Session ref] | [Up/Down/Stable] |
+| Skill Gap | [N] | [New skills added] | [PR/Session ref] | [Up/Down/Stable] |
+````
+
+### Root Cause Pattern Template
+
+Add to retrospective artifact when Five Whys identifies root cause:
+
+````markdown
+## Root Cause Pattern
+
+**Pattern ID**: RootCause-{Category}-{NNN}
+**Category**: [Cross-Cutting | Fail-Safe | Test-Implementation Drift | Premature | Context | Skill-Gap]
+
+### Description
+[What failed and why - from Five Whys analysis]
+
+### Detection Signals
+- [Signal 1]: How to recognize this pattern early
+- [Signal 2]: Warning signs before failure
+
+### Prevention Skill
+**Skill ID**: Skill-{Category}-{NNN}
+**Statement**: [Atomic prevention strategy]
+**Application**: [When and how to apply]
+
+### Evidence
+- **Incident**: [PR/Issue/Session reference]
+- **Root Cause Path**: [Five Whys chain summary]
+- **Resolution**: [What fixed it]
+
+### Relations
+- **Prevents by**: [Prevention skill ID]
+- **Similar to**: [Related root cause patterns]
+- **Supersedes**: [Older patterns this replaces]
+````
+
+### Integration with Skillbook
+
+After storing root cause patterns, delegate to skillbook for skill persistence:
+
+1. **Extract prevention skill** from root cause analysis
+2. **Validate atomicity** (target: >85%)
+3. **Create relation** between root cause and prevention skill
+4. **Update failure prevention matrix** with new incident count
+5. **Query similar patterns** before creating new entries
+
+**Deduplication Query:**

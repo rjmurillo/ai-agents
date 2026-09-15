@@ -1,0 +1,53 @@
+echo "Total comments: $TOTAL_COMMENTS"
+
+# Record the API count where every later gate reads it. Shell variables do not
+# survive between fenced blocks, so the count has to reach them as an artifact.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+mkdir -p "$(dirname "$COUNT_FILE")"
+printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
+
+# Returns all comments with: Id, CommentType (Review/Issue), Author, Path, Line, Body, DiffHunk, CreatedAt, InReplyToId
+```
+
+<details>
+<summary>Alternative: Raw gh CLI with manual pagination</summary>
+
+```bash
+# Review comments (code-level) - paginate if needed
+PAGE=1
+ALL_REVIEW_COMMENTS="[]"
+while true; do
+  BATCH=$(gh api "repos/[owner]/[repo]/pulls/[number]/comments?per_page=100&page=$PAGE")
+  COUNT=$(echo "$BATCH" | jq 'length')
+  if [ "$COUNT" -eq 0 ]; then break; fi
+  ALL_REVIEW_COMMENTS=$(echo "$ALL_REVIEW_COMMENTS $BATCH" | jq -s 'add')
+  PAGE=$((PAGE + 1))
+done
+REVIEW_COMMENT_COUNT=$(echo "$ALL_REVIEW_COMMENTS" | jq 'length')
+
+# Issue comments (PR-level) - paginate if needed
+PAGE=1
+ALL_ISSUE_COMMENTS="[]"
+while true; do
+  BATCH=$(gh api "repos/[owner]/[repo]/issues/[number]/comments?per_page=100&page=$PAGE")
+  COUNT=$(echo "$BATCH" | jq 'length')
+  if [ "$COUNT" -eq 0 ]; then break; fi
+  ALL_ISSUE_COMMENTS=$(echo "$ALL_ISSUE_COMMENTS $BATCH" | jq -s 'add')
+  PAGE=$((PAGE + 1))
+done
+ISSUE_COMMENT_COUNT=$(echo "$ALL_ISSUE_COMMENTS" | jq 'length')
+
+# Total count
+TOTAL_COMMENTS=$((REVIEW_COMMENT_COUNT + ISSUE_COMMENT_COUNT))
+echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $ISSUE_COMMENT_COUNT)"
+
+# Record the API count where every later gate reads it. Shell variables do not
+# survive between fenced blocks, so the count has to reach them as an artifact.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+mkdir -p "$(dirname "$COUNT_FILE")"
+printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
+```
+
+</details>
+
+#### Step 1.4: Extract Comment Details

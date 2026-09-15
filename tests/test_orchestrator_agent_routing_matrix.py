@@ -13,7 +13,7 @@ ORCHESTRATOR_SURFACES = {
     "template": REPO_ROOT / "templates" / "agents" / "orchestrator.shared.md",
     "claude-install": REPO_ROOT / ".claude" / "agents" / "orchestrator.md",
     "github-install": REPO_ROOT / ".github" / "agents" / "orchestrator.agent.md",
-    "src-claude": REPO_ROOT / "src" / "claude" / "orchestrator.md",
+    "src-claude": REPO_ROOT / "src" / "claude" / "agents" / "orchestrator.md",
     "copilot-cli": REPO_ROOT / "src" / "copilot-cli" / "agents" / "orchestrator.agent.md",
     "vscode": REPO_ROOT / "src" / "vs-code-agents" / "orchestrator.agent.md",
 }
@@ -22,7 +22,7 @@ AGENT_SURFACES = {
     "template": REPO_ROOT / "templates" / "agents" / "{agent}.shared.md",
     "claude-install": REPO_ROOT / ".claude" / "agents" / "{agent}.md",
     "github-install": REPO_ROOT / ".github" / "agents" / "{agent}.agent.md",
-    "src-claude": REPO_ROOT / "src" / "claude" / "{agent}.md",
+    "src-claude": REPO_ROOT / "src" / "claude" / "agents" / "{agent}.md",
     "copilot-cli": REPO_ROOT / "src" / "copilot-cli" / "agents" / "{agent}.agent.md",
     "vscode": REPO_ROOT / "src" / "vs-code-agents" / "{agent}.agent.md",
 }

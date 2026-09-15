@@ -33,7 +33,7 @@ CITATION_TARGET = "`AGENTS.md`"
 
 PLATFORM_PATHS = (
     ("templates/agents", "{name}.shared.md"),
-    ("src/claude", "{name}.md"),
+    ("src/claude/agents", "{name}.md"),
     ("src/copilot-cli/agents", "{name}.agent.md"),
     ("src/vs-code-agents", "{name}.agent.md"),
 )

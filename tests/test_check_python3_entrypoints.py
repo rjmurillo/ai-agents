@@ -46,7 +46,7 @@ _MEMORY_INDEX_DOCS = {
     ".agents/prototypes/agents/implementer.compressed.md",
     ".claude/agents/retrospective.md",
     ".github/agents/retrospective.agent.md",
-    "src/claude/retrospective.md",
+    "src/claude/agents/retrospective.md",
     "src/copilot-cli/agents/retrospective.agent.md",
     "src/vs-code-agents/retrospective.agent.md",
     "templates/agents/retrospective.shared.md",

@@ -1,0 +1,134 @@
+THREAD_ID="PRRT_current_pr_thread_id"
+python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$THREAD_ID"
+```
+
+**Complete Workflow**: Code fix → Reply → **Resolve** (all three steps required)
+
+**Note**: Thread IDs use the format `PRRT_xxx` (GraphQL node ID), not numeric comment IDs. Do not use bulk resolution in this workflow. Resolve each eligible bot-authored or explicitly approved thread by ID.
+
+#### Step 6.5: Record the Terminal Status
+
+Run Gate 3 with `TERMINAL_STATUS="[COMPLETE]"`. It marks the task in
+`tasks.md` and writes that comment's `**Status**:` line in `comments.md` in the
+same step. Gate 3 names both paths, so this step does not restate them.
+
+Marking only the task list is the failure this step exists to prevent. The
+comment map is the artifact Gate 4, Gate 5, and Phase 8.1 count, so a fix that
+is committed and pushed while the map still reads its starting status stays
+pending forever.
+
+A comment that is genuinely still open, waiting on a reviewer reply or carrying
+`Action: Clarify`, keeps its non-terminal status. Phase 8 blocking on that one
+is the gate working; do not route around it by writing a terminal status.
+
+### Phase 7: PR Description Update
+
+After all implementations:
+
+#### Step 7.1: Review Changes
+
+```bash
+# Get all commits in this session
+git log --oneline [base]..HEAD
+
+# Get changed files
+git diff --stat [base]..HEAD
+```
+
+#### Step 7.2: Assess PR Description
+
+Compare changes against current PR description:
+
+- Are new features documented?
+- Are breaking changes noted?
+- Is the scope still accurate?
+
+#### Step 7.3: Update if Necessary
+
+```bash
+# Update PR description
+gh pr edit [number] --body "[updated body]"
+```
+
+### Phase 8: Completion Verification
+
+**MUST**: Complete ALL sub-phases before claiming completion. All comments must be addressed AND all conversations resolved.
+
+#### Phase 8.1: Comment Status Verification
+
+```bash
+# Derive pending exactly as Gate 4 and Gate 5 do: total minus terminal.
+COMMENT_MAP=".agents/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map missing: $COMMENT_MAP"
+  exit 1
+fi
+TOTAL=$(grep -Ec "^\*\*Status\*\*: " "$COMMENT_MAP" || true)
+TERMINAL=$(grep -Ec "^\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" "$COMMENT_MAP" || true)
+PENDING=$((TOTAL - TERMINAL))
+
+# Phase 1 recorded the API count in this artifact. Shell variables do not
+# survive between fenced blocks: each one runs in its own shell, so a gate that
+# read $TOTAL_COMMENTS directly saw an empty string, `[ -ne ]` raised `integer
+# expression expected`, and that nonzero exit from `[` reads as false to `if`,
+# so the BLOCKED body never ran. Read the artifact and fail closed instead.
+COUNT_FILE=".agents/pr-comments/PR-[number]/total_comments.txt"
+if [ ! -f "$COUNT_FILE" ]; then
+  echo "[BLOCKED] API comment count not recorded: $COUNT_FILE"
+  exit 1
+fi
+TOTAL_COMMENTS=$(cat "$COUNT_FILE")
+case "$TOTAL_COMMENTS" in
+  ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
+esac
+
+if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
+  echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
+echo "Verification: $TERMINAL / $TOTAL comments terminal"
+
+if [ "$PENDING" -ne 0 ]; then
+  echo "[BLOCKED] INCOMPLETE: $PENDING comment(s) not terminal"
+  grep -En "^\*\*Status\*\*: " "$COMMENT_MAP" \
+    | grep -Ev "\*\*Status\*\*: (\[COMPLETE\]|\[WONTFIX\]|\[DUPLICATE\]|\[DEFERRED\] Refs #[1-9][0-9]*)[[:space:]]*$" || true
+  exit 1
+fi
+```
+
+#### Phase 8.2: Verify Conversation Resolution
+
+**BLOCKING**: All conversations MUST be resolved for the PR to be mergeable with branch protection rules.
+
+**Exception**: Do NOT auto-resolve threads from human reviewers. Let them verify and resolve.
+
+```bash
+PLUGIN_ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+SCRIPTS_DIR="$PLUGIN_ROOT/skills/github/scripts"
+# Resolve bot-authored or explicitly approved threads by ID.
+THREAD_IDS=("PRRT_current_pr_thread_id_1" "PRRT_current_pr_thread_id_2")
+for THREAD_ID in "${THREAD_IDS[@]}"; do
+  python3 "$SCRIPTS_DIR/pr/resolve_pr_review_thread.py" --thread-id "$THREAD_ID"
+done
+```
+
+The loop must:
+
+1. Use only bot-authored or explicitly approved thread IDs.
+2. Resolve one explicit thread ID per command invocation.
+3. Re-query all review threads after the loop.
+4. Confirm no eligible unresolved thread remains.
+
+**Exit codes**:
+
+- `0`: All threads resolved (or already resolved)
+- `1`: One or more threads failed to resolve
+
+If any threads fail to resolve, investigate and retry before claiming completion.
+
+#### Phase 8.3: Re-check for New Comments
+
+After pushing commits, bots may post new comments. Wait and re-check:
+
+```bash

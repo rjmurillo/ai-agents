@@ -808,12 +808,12 @@ _INTRO = (
     "when that distinction matters.\n\n"
     "**The closing fence must occupy its own line, not just start one.**\n"
     "`generate_adr_index.py`'s `_FRONTMATTER_RE` is\n"
-    "``r\"^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n([\\s\\S]*)$\"``: the closing fence is\n"
+    '``r"^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n([\\s\\S]*)$"``: the closing fence is\n'
     "three dashes immediately followed by `\\r?\\n`, nothing else. An earlier\n"
     "version of this snippet used `text.index('\\n---', 3)`, which finds any\n"
     "line merely starting with three dashes, trailing characters or not. A\n"
-    "closing line padded with one trailing space (`\"--- \\n\"` instead of\n"
-    "`\"---\\n\"`, a plausible editor artifact) does not match `_FRONTMATTER_RE`,\n"
+    'closing line padded with one trailing space (`"--- \\n"` instead of\n'
+    '`"---\\n"`, a plausible editor artifact) does not match `_FRONTMATTER_RE`,\n'
     "so `parse_frontmatter` finds no valid closing fence and raises\n"
     "`AdrIndexError`, the same as a fence that never closes at all. The old\n"
     "`.index` call could not tell the difference: it matched the padded line\n"

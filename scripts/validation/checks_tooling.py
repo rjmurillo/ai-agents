@@ -717,7 +717,7 @@ def validate_agent_drift(repo_root: Path) -> bool:
     """Detect agent semantic drift (ADR-042 ported Detect-AgentDrift.ps1 to
     build/scripts/detect_agent_drift.py, invoked directly here).
 
-    Runs two comparisons (Issue #2267): vendored src/claude vs
+    Runs two comparisons (Issue #2267): vendored src/claude/agents vs
     src/vs-code-agents (blocking), and .claude/agents vs .github/agents
     (content drift advisory only, large pre-existing diffs; a MISSING H2
     section always blocks in both comparisons -- Issue #4852). This caller

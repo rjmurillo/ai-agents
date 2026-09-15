@@ -10,7 +10,7 @@ must not attempt HTTP fetches of GitHub URLs.
 Surfaces checked:
   - templates/agents/analyst.shared.md (canonical source)
   - .claude/agents/analyst.md (Claude Code install copy)
-  - src/claude/analyst.md (Claude vendor copy)
+  - src/claude/agents/analyst.md (Claude vendor copy)
   - src/copilot-cli/agents/analyst.agent.md (generated Copilot CLI copy)
   - src/vs-code-agents/analyst.agent.md (generated VS Code copy)
   - .github/agents/analyst.agent.md (GitHub Copilot copy)
@@ -36,7 +36,7 @@ _SURFACES = [
     REPO_ROOT / "templates" / "agents" / "analyst.shared.md",
     REPO_ROOT / ".claude" / "agents" / "analyst.md",
     REPO_ROOT / ".github" / "agents" / "analyst.agent.md",
-    REPO_ROOT / "src" / "claude" / "analyst.md",
+    REPO_ROOT / "src" / "claude" / "agents" / "analyst.md",
     REPO_ROOT / "src" / "copilot-cli" / "agents" / "analyst.agent.md",
     REPO_ROOT / "src" / "vs-code-agents" / "analyst.agent.md",
 ]
