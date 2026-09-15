@@ -31,6 +31,20 @@ PLUGIN_ROOTS: dict[str, Path] = {
     "copilot-cli": REPO_ROOT / "src" / "copilot-cli",
 }
 
+# ADR-109 B3 gave src/claude a skills tree (src/claude/skills/), so it now
+# ships reviewer-findings too (SKILL.md is template-owned there). It is
+# deliberately excluded from PLUGIN_ROOTS above, not added as a third entry:
+# that tree is a partial, in-migration render (91 of 111 skills as of this
+# commit; TASK-033 batches the rest), so pr-comment-responder (ROUTER_SKILL)
+# does not exist there yet and every route-resolution test below would fail
+# against a tree that is correctly, temporarily incomplete rather than
+# broken. The converse-guard test
+# (test_every_on_disk_root_shipping_this_skill_is_covered) carves this root
+# out explicitly instead of silently matching, so removing this comment (and
+# that carve-out) is the reminder to add src/claude here once the full
+# 111-skill set lands.
+IN_MIGRATION_ROOTS: frozenset[str] = frozenset({"src/claude"})
+
 # Claude roots invoke a skill as Skill(skill="name"). The Copilot body
 # translation rewrites that same call to skill: "name". Both forms appear
 # inline inside backticks, so neither is anchored to the line start.

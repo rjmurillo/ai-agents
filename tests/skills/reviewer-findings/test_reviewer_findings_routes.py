@@ -44,6 +44,7 @@ _helpers = importlib.util.module_from_spec(_helpers_spec)
 _helpers_spec.loader.exec_module(_helpers)
 
 DISPOSITION_TOKENS = _helpers.DISPOSITION_TOKENS
+IN_MIGRATION_ROOTS = _helpers.IN_MIGRATION_ROOTS
 PLUGIN_ROOTS = _helpers.PLUGIN_ROOTS
 REPO_ROOT = _helpers.REPO_ROOT
 ROUTER_SKILL = _helpers.ROUTER_SKILL
@@ -123,6 +124,23 @@ def test_every_on_disk_root_shipping_this_skill_is_covered() -> None:
         for root in declared_plugin_roots(REPO_ROOT)
         if (REPO_ROOT / root / "skills" / SKILL_NAME / "SKILL.md").is_file()
     }
+    # ADR-109 B3 (TASK-033): src/claude/skills/ is a partial, in-migration
+    # render (91 of 111 skills on this branch), so it ships reviewer-findings
+    # without yet shipping pr-comment-responder (ROUTER_SKILL); carved out
+    # here rather than added to PLUGIN_ROOTS, or every route-resolution test
+    # below would fail against a tree that is correctly, temporarily
+    # incomplete. Self-clearing, not a standing exemption: the carve-out only
+    # applies while ROUTER_SKILL is genuinely still missing from that root.
+    # Once migration completes (pr-comment-responder lands under
+    # src/claude/skills/), this guard starts failing again on its own,
+    # forcing PLUGIN_ROOTS in _helpers.py to be updated in the same commit
+    # rather than relying on someone remembering a deferred TODO.
+    still_migrating = {
+        root
+        for root in IN_MIGRATION_ROOTS
+        if not (REPO_ROOT / root / "skills" / ROUTER_SKILL / "SKILL.md").is_file()
+    }
+    shipping -= still_migrating
     covered = {path.relative_to(REPO_ROOT).as_posix() for path in PLUGIN_ROOTS.values()}
     assert shipping == covered, (
         f"plugin roots shipping {SKILL_NAME} on disk ({sorted(shipping)}) no "
