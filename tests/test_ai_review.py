@@ -201,6 +201,33 @@ class TestInitializeAIReview:
         assert result == target
         assert Path(target).exists()
 
+    def test_prefers_runner_temp_over_temp_and_tmpdir(self, tmp_path: Path):
+        """RUNNER_TEMP (GitHub Actions' own per-job scratch dir, present
+        on every runner OS) must win over TEMP/TMPDIR (CodeRabbit, PR
+        #5787 review: a hard-coded "/tmp" fallback can fail on Windows;
+        RUNNER_TEMP is the cross-platform-correct first choice)."""
+        runner_temp = str(tmp_path / "runner-temp")
+        env = {
+            "RUNNER_TEMP": runner_temp,
+            "TEMP": str(tmp_path / "temp"),
+            "TMPDIR": str(tmp_path / "tmpdir"),
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = initialize_ai_review()
+        assert result == os.path.join(runner_temp, "ai-review")
+        assert Path(result).exists()
+
+    def test_falls_back_to_tempfile_gettempdir_not_hardcoded_tmp(self, tmp_path: Path):
+        """With no AI_REVIEW_DIR, RUNNER_TEMP, TEMP, or TMPDIR, the
+        fallback must be tempfile.gettempdir(), not a literal "/tmp"
+        that does not exist on Windows."""
+        sentinel = str(tmp_path / "sentinel-temp")
+        with patch.dict(os.environ, {}, clear=True):
+            with patch("tempfile.gettempdir", return_value=sentinel):
+                result = initialize_ai_review()
+        assert result == os.path.join(sentinel, "ai-review")
+        assert Path(result).exists()
+
 
 # ---------------------------------------------------------------------------
 # Workflow: retry logic

@@ -74,6 +74,25 @@ def _json_bool(value: object, field: str, *, default: bool) -> bool:
     raise ValueError(f"{field} must be a JSON boolean (true/false), got: {value!r}")
 
 
+def _required_str(value: object, field: str) -> str:
+    """Read a required, non-empty JSON string field.
+
+    Validated rather than stringified (CodeRabbit, PR #5787 review):
+    ``str(123)`` succeeds silently and produces ``"123"``, so a numeric
+    ``branch`` field coerced this way copies straight into
+    :class:`RecoveryEntry` and can target the wrong ref instead of
+    rejecting the record, the same failure mode :func:`string_list` and
+    :func:`_optional_str` already guard other fields against.
+
+    Raises:
+        ValueError: when ``value`` is missing, not a string, or an empty
+            string.
+    """
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{field} must be a non-empty JSON string, got: {value!r}")
+    return value
+
+
 def _optional_str(value: object, field: str) -> str:
     """Read an optional JSON string field, absent meaning the empty string.
 
@@ -129,11 +148,11 @@ def run_from_mapping(payload: Mapping[str, Any]) -> WorkflowRun:
             )
         return WorkflowRun(
             run_id=run_id_raw,
-            workflow_name=str(payload["workflow_name"]),
+            workflow_name=_required_str(payload["workflow_name"], "workflow_name"),
             pr_number=pr_number_raw,
-            branch=str(payload["branch"]),
-            event=str(payload["event"]),
-            status=str(payload["status"]),
+            branch=_required_str(payload["branch"], "branch"),
+            event=_required_str(payload["event"], "event"),
+            status=_required_str(payload["status"], "status"),
             contexts=tuple(contexts),
             jobs_verified=jobs_verified,
             workflow_path=_optional_str(payload.get("workflow_path"), "workflow_path"),

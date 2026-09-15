@@ -41,6 +41,7 @@ import pytest
 
 from tests.validation.staleness_gate_helpers import (
     REPO_ROOT,
+    build_all_invoked_with_check,
     build_all_ran,
     check_generated_staleness,
     fake_repo,
@@ -65,28 +66,23 @@ class TestExitCodes:
     """A detected violation must reach the caller as a non-zero exit."""
 
     def test_a_clean_tree_exits_zero(self, tmp_path: Path) -> None:
-        root = fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        root = fake_repo(tmp_path, build_exit=0)
 
         assert check_generated_staleness.main([str(root)]) == 0
 
     def test_a_clean_run_reports_the_examined_count(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        root = fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        root = fake_repo(tmp_path, build_exit=0)
 
         check_generated_staleness.main([str(root)])
 
-        assert "2 generator check(s) examined" in capsys.readouterr().out
+        assert "1 generator check(s) examined" in capsys.readouterr().out
 
     def test_build_all_staleness_exits_one(self, tmp_path: Path) -> None:
         # build_all.py --check exits 2 on staleness; the gate maps every
         # non-zero child exit onto ADR-035 exit 1.
-        root = fake_repo(tmp_path, sync_exit=0, build_exit=2)
-
-        assert check_generated_staleness.main([str(root)]) == 1
-
-    def test_sync_drift_exits_one(self, tmp_path: Path) -> None:
-        root = fake_repo(tmp_path, sync_exit=1, build_exit=0)
+        root = fake_repo(tmp_path, build_exit=2)
 
         assert check_generated_staleness.main([str(root)]) == 1
 
@@ -96,7 +92,7 @@ class TestExitCodes:
         # The module's exit table promises 2 for an absent script: the gate
         # could not run and the script needs restoring, where the drift remedy
         # (regenerate and commit) would be the wrong action.
-        root = fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        root = fake_repo(tmp_path, build_exit=0)
         (root / "build" / "scripts" / "build_all.py").unlink()
 
         assert check_generated_staleness.main([str(root)]) == 2
@@ -113,9 +109,9 @@ class TestExitCodes:
     ) -> None:
         # ADR-035: a timeout kill means the tree was never scored, which is
         # external (3), not drift (1). The stub sleeps past a 1s cap.
-        root = fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        root = fake_repo(tmp_path, build_exit=0)
         stub(
-            root / "scripts" / "sync_plugin_lib.py",
+            root / "build" / "scripts" / "build_all.py",
             "import time\ntime.sleep(30)\nsys.exit(0)",
         )
         monkeypatch.setattr(check_generated_staleness, "_GATE_BUDGET_SECONDS", 1.0)
@@ -128,7 +124,7 @@ class TestExitCodes:
         # The timeout branch must preserve TimeoutExpired.stdout/.stderr and
         # append the kill marker, not discard the diagnosis the child already
         # emitted.
-        root = fake_repo(tmp_path, sync_exit=0, build_exit=0)
+        root = fake_repo(tmp_path, build_exit=0)
 
         class FakeProc:
             returncode = None
@@ -140,7 +136,7 @@ class TestExitCodes:
                 self.calls += 1
                 if self.calls == 1:
                     raise subprocess.TimeoutExpired(
-                        cmd=["sync"],
+                        cmd=["build_all"],
                         timeout=timeout or 0.0,
                         output=b"partial diagnosis\n",
                         stderr=None,
@@ -160,7 +156,7 @@ class TestExitCodes:
             check_generated_staleness.subprocess, "Popen", lambda *a, **k: FakeProc()
         )
         code, output = check_generated_staleness._run_check(
-            root / "scripts" / "sync_plugin_lib.py", root, 1.0
+            root / "build" / "scripts" / "build_all.py", root, 1.0
         )
 
         assert code is None
@@ -168,32 +164,33 @@ class TestExitCodes:
         assert "late tail" in output
         assert "exceeded 1.0s" in output
 
-
-class TestGeneratorOrder:
-    """sync before build, per .claude/rules/generated-artifacts.md."""
-
-    def test_sync_is_checked_before_build_all(self) -> None:
+    def test_one_check_covers_the_whole_lib_chain(self) -> None:
+        """ADR-109 B5: no more ordered pair; one row, build_all.py --check."""
         labels = [label for label, _ in check_generated_staleness._CHECKS]
 
-        assert labels == ["sync_plugin_lib.py --check", "build_all.py --check"]
+        assert labels == ["build_all.py --check"]
 
-    def test_a_failing_sync_leaves_build_all_unrun(self, tmp_path: Path) -> None:
-        # The isolating assertion is the point: pytest would pass on the exit
-        # code alone even if build_all ran first and its verdict was compared
-        # against a stale .claude/lib.
-        root = fake_repo(tmp_path, sync_exit=1, build_exit=0)
-
-        assert check_generated_staleness.main([str(root)]) == 1
-        assert not build_all_ran(root)
-
-    def test_the_control_run_does_reach_build_all(self, tmp_path: Path) -> None:
-        # Without this control, the assertion above would pass against a gate
-        # that never invokes build_all at all.
-        root = fake_repo(tmp_path, sync_exit=0, build_exit=0)
+    def test_the_check_does_reach_build_all(self, tmp_path: Path) -> None:
+        root = fake_repo(tmp_path, build_exit=0)
 
         check_generated_staleness.main([str(root)])
 
         assert build_all_ran(root)
+
+    def test_the_check_passes_the_check_flag_not_just_the_label(
+        self, tmp_path: Path
+    ) -> None:
+        """The spawned child must actually receive --check, not merely
+        carry a "--check"-labeled diagnostic name (CodeRabbit, PR #5787
+        review): a stub that always exits 0 regardless of its argv would
+        let a dropped --check flag run build_all.py in write mode during
+        what this gate promises is a read-only staleness check, with
+        nothing here to catch it."""
+        root = fake_repo(tmp_path, build_exit=0)
+
+        check_generated_staleness.main([str(root)])
+
+        assert build_all_invoked_with_check(root)
 
 
 class TestEchoTail:

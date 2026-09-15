@@ -17,7 +17,7 @@
 - [x] B2: rules move to `templates/rules/`; new compile module; manifest gains the `rules` row (TASK-032). 28 of 29 rules templated; `.claude/rules/testing.md` stays hand-maintained (its literal `${{ a && b }}` example is a disallowed tag under the ADR-108 grammar; TASK-032 instructs stopping and reporting rather than inventing an escape). Merged `084f89340` (PR #5775).
 - [x] B3: the remaining 93 skills templated in batches; skill_templates.py's render target moved to `src/claude/skills/`, giving skills the `src/claude/` plugin tree B1 did not deliver; the ADR-108 pilot-scope pin retired once the full 111-skill set matched `discover()` (TASK-033). Five batches merged (#5773, #5780, #5781, #5783, #5782); render-target move, `OWNED_PREFIXES` widening, and the `prompts` manifest row merged `23c3d5dd3` (PR #5785).
 - [x] B4: hooks and settings moved to `templates/hooks/`; `src/claude/hooks/` and `src/claude/hooks.json` render for the first time; `.github/hooks/*.json` binplaced for the first time; the owner's ruleset decision on code-owner review recorded (`require_code_owner_review` stayed false). Merged `9bf7c7c3a` (PR #5784).
-- [x] B5: the lib mirror's two-hop chain collapsed into one step inside `build_all.py`; `scripts/sync_plugin_lib.py` retired (TASK-035). Merged `4d83781fe` (PR #5787).
+- [x] B5: the lib mirror's two-hop chain collapsed into one step inside `build_all.py` (`build/scripts/lib_mirror.py`); `scripts/sync_plugin_lib.py` reduced to a thin deprecated shim, not deleted, because `.github/workflows/validate-generated-agents.yml` still calls it directly and workflow files are out of scope for this PR (TASK-035, deviation recorded in the B5 PR body). Merged `4d83781fe` (PR #5787).
 - [x] B6: the marketplace switch; `claude-agents` retired, `project-toolkit` repointed to `./src/claude` (TASK-036). ADR-109's migration order (section 7) is now complete: B0 through B6 all landed.
 
 ## Milestones
@@ -80,15 +80,19 @@ Exit criteria: TASK-034 acceptance criteria hold; `src/claude/hooks/` and `src/c
 | B4-T4 runtime-contract test | M | Extends `test_generate_hooks_runtime_contract.py` with the cloud-agent case and its negative control |
 | B4-T5 ruleset decision | S | PR body records whether `require_code_owner_review` becomes `true` before this task's writes land |
 
-### B5: lib
+### B5: lib (done)
 
-Exit criteria: TASK-035 acceptance criteria hold; `scripts/sync_plugin_lib.py` deleted; the three packages copy correctly in one `build_all.py` run; `.claude/rules/generated-artifacts.md`'s ordering-hazard section rewritten; `check_plugin_lib_mirrors.py` rewired or retired with the decision recorded.
+Exit criteria: TASK-035 acceptance criteria hold, with one recorded deviation;
+the three packages plus `bootstrap.py` and the review skill's sidecar copy
+correctly in one `build_all.py` run, into both plugin trees;
+`.claude/rules/generated-artifacts.md`'s ordering-hazard section rewritten;
+`check_plugin_lib_mirrors.py` rewired to a single `build_all.py --check` call.
 
 | Task | Size | Done when |
 |------|------|-----------|
-| B5-T1 absorb copy logic | M | `_build_lib` performs both hops in one run; `SYNC_PAIRS`, `SYNC_FILE_PAIRS`, `IMPORT_CONVERSIONS` moved verbatim |
-| B5-T2 delete standalone script | S | `scripts/sync_plugin_lib.py` removed; no remaining caller invokes it directly |
-| B5-T3 CI script and rule text | S | `check_plugin_lib_mirrors.py` rewired or deleted; `generated-artifacts.md`'s residual "hazard stays open until B5" note (added at B1) removed; CODEOWNERS entries added |
+| B5-T1 absorb copy logic | M | Done: `build/scripts/lib_mirror.py` renders every package and file pair into both lib plugin trees; `_build_lib` calls it; `SYNC_PAIRS`, `SYNC_FILE_PAIRS`, `IMPORT_CONVERSIONS` moved (not rewritten) |
+| B5-T2 retire standalone script | S | Deviation: `scripts/sync_plugin_lib.py` is a thin shim over `lib_mirror.compile_all`, not deleted. `.github/workflows/validate-generated-agents.yml`'s "Plugin lib sync check (M7-T1)" step still calls it directly; workflow files are out of scope for this PR. Every other caller (tests, validators, rule prose) now points at `build_all.py` or `lib_mirror.py` directly. Follow-up: repoint that workflow step at `build_all.py --check` and delete the shim in a later PR that may edit workflows. |
+| B5-T3 CI script and rule text | S | Done: `check_plugin_lib_mirrors.py` rewired to one `build_all.py --check` call; `generated-artifacts.md`'s "hazard stays open until B5" note removed; CODEOWNERS gained `scripts/hook_utilities/`, `scripts/github_core/`, and their `.claude/lib/` copies |
 
 ### B6: marketplace switch
 

@@ -27,7 +27,7 @@ Repo root map: what an agent edits, what is generated, and what to skip before t
 | `.claude/rules/*.md` (30) | Cross-harness conventions, canonical source |
 | `.claude/skills/<name>/` (111) | Skills; only user-invocable surface (ADR-064) |
 | `.claude/hooks/`, `.claude/settings.json` | Claude Code hook source |
-| `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source; sync before regen |
+| `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source; renders direct, one `build_all.py` run |
 | `.claude/skills/review/references/<role>.md` | PR quality-gate prompt source |
 | `.agents/architecture/ADR-*.md` (108) | Decisions of record; `status` frontmatter is truth |
 | `.agents/governance/` | Constraints; `PROJECT-CONSTRAINTS.md` is index of record |
@@ -68,13 +68,13 @@ Repo root map: what an agent edits, what is generated, and what to skip before t
 ## Dependencies
 
 - `build/scripts/build_all.py` reads every "Where to look" source tree and writes every generated path in "Skip"; `--check` is the drift gate run by `.github/workflows/agent-drift-detection.yml` and `.github/workflows/validate-generated-agents.yml`, and the same local checks are wired through `lefthook.yml` into `scripts/validation/git_hook_policy.py` subcommands, re-run in CI by `.github/workflows/pr-validation.yml` via `scripts/validation/pre_pr.py`.
-- `scripts/sync_plugin_lib.py` must run before `build_all.py` when `scripts/{hook_utilities,github_core,ai_review_common}` changes, or `.claude/lib/` and its `src/copilot-cli/lib/` mirror go stale.
+- `build_all.py` renders `scripts/{hook_utilities,github_core,ai_review_common}` directly into every lib tree in one run (ADR-109 B5); `scripts/sync_plugin_lib.py` is a deprecated shim, not a prerequisite step.
 - Any `.agents/architecture/ADR-*.md` edit feeds the `adr-review` skill (multi-agent debate) and `build/scripts/generate_adr_index.py` (regenerates `.agents/architecture/README.md`).
 
 ## Architecture
 
 - Asymmetric generation seam: most trees generate one-way, source to output, but `src/claude/*.md`, `.claude/agents/*.md`, `.github/agents/*.agent.md` are three hand-maintained copies of the same template, kept equal by a co-change validator (`build/scripts/validate_install_parity.py`), not by generation.
-- Plugin lib is a four-step chain, order matters: `scripts/{hook_utilities,github_core,ai_review_common}` (source) then `scripts/sync_plugin_lib.py` then `.claude/lib/` then `build/scripts/build_all.py` then `src/copilot-cli/lib/`. Hooks generate through two cooperating generators instead, `build/scripts/generate_hooks.py` plus `build/scripts/generate_dispatcher.py`, both reading `.claude/hooks/` and `.claude/settings.json` and both writing into `src/copilot-cli/hooks/`.
+- Plugin lib renders directly into both plugin trees, one hop each, no ordering to get wrong (ADR-109 B5): `scripts/{hook_utilities,github_core,ai_review_common}` (source) then `build/scripts/lib_mirror.py`, via `build_all.py`, then `src/claude/lib/` and `src/copilot-cli/lib/`; binplace copies `src/claude/lib/` onto `.claude/lib/`. Hooks generate through two cooperating generators instead, `build/scripts/generate_hooks.py` plus `build/scripts/generate_dispatcher.py`, both reading `.claude/hooks/` and `.claude/settings.json` and both writing into `src/copilot-cli/hooks/`.
 
 ## Commands
 
