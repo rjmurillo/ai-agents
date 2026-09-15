@@ -18,6 +18,13 @@ This module is a single-variant twin of agent_templates.py (one template per
 name, not a Claude/Copilot pair), so this test file mirrors
 tests/build_scripts/test_agent_templates_compile.py's shape with the pair
 machinery removed.
+
+Symlinked-ANCESTOR coverage (``templates`` or ``templates/rules`` itself a
+symlink to outside the repository, as opposed to the leaf ``<name>.md`` or
+``partials`` being the symlink) lives in
+tests/build_scripts/test_rule_templates_symlink_security.py, split out to
+stay under the taste-lint 500-line file-size ceiling (same precedent as
+test_skill_templates_symlink_security.py).
 """
 
 from __future__ import annotations
