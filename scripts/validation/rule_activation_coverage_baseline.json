@@ -5,7 +5,6 @@
     "canonical-source-mirror",
     "ci-scripts",
     "claude-agents",
-    "claude-model-patches",
     "csharp",
     "generated-artifacts",
     "governance",

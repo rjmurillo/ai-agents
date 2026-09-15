@@ -62,7 +62,10 @@ from tests.validation.always_on_corpus_helpers import (
 def test_measured_always_on_set_is_not_empty() -> None:
     """A silent glob or parse failure would make every other assertion vacuous."""
     measured = measured_always_on()
-    assert len(measured) >= 5, f"suspiciously small always-on set: {measured}"
+    # Ratchet lowered from 5 to 4 in epic #5456 M4: `claude-model-patches` moved
+    # out of the always-on set into the skills that do multi-step or
+    # Bash-heavy work (build, test, plan, ship templates; a review resource).
+    assert len(measured) >= 4, f"suspiciously small always-on set: {measured}"
     assert "universal" in measured
 
 
