@@ -49,10 +49,10 @@ This skill runs in two layouts: the source Claude Code project (where `.claude/`
   2. `lib/ai_review_common/verdict.py` (vendored install)
 - **Complexity tiers reference** (`engineering-complexity-tiers.md`): try each candidate in order, use the first that exists:
   1. `.claude/skills/analyze/references/engineering-complexity-tiers.md` (Claude Code project layout)
-  2. `skills/analyze/references/engineering-complexity-tiers.md` (vendored install)
+  2. `skills/analyze/references/engineering-complexity-tiers.md` (vendored install, plugin-root relative)
 - **Chained-skill scripts** (`assess.py`, `doc_accuracy.py`, `scan_principles.py`, `taste_lints.py` for local axes 1-4): these are sibling skills, not under this skill's `references/`, so `CLAUDE_SKILL_DIR` does not locate them. For each, use the first candidate that exists:
   1. `.claude/skills/{skill}/scripts/{script}` (Claude Code project layout)
-  2. `skills/{skill}/scripts/{script}` (vendored install)
+  2. `skills/{skill}/scripts/{script}` (vendored install, plugin-root relative)
 
 The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library and the chained-skill scripts before reporting an error. If neither candidate for a chained-skill script exists, mark that axis `UNKNOWN` (per UNKNOWN handling), do not abort the review.
 

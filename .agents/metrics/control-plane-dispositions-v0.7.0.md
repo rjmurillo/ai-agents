@@ -859,7 +859,7 @@ below.
   outright; it does not gate relocating it out of the always-on set into
   the skills that ask questions and score options. `builder-ethos.md`'s
   two citations of "the Confusion Protocol in `voice.md`" were retargeted
-  to name the spec and plan skills instead.
+  to name the spec, plan, and autoplan skills instead.
   `scripts/validation/instruction_budget.py` measured the `.md` always-on
   mirror at 43,895 bytes before and 38,064 bytes after (still 3 rules:
   `voice.md` shrank from 19,748 to 13,873 bytes at source, which also
