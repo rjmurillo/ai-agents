@@ -151,9 +151,15 @@ class TestGetWorkflowRunsByPR:
         assert "--paginate" in captured["cmd"]
 
     def test_raises_on_api_failure(self):
+        """check=True (coding guideline: all gh CLI calls use check=True)
+        makes subprocess.run itself raise CalledProcessError on a non-zero
+        exit; the handler must translate that into the same descriptive
+        RuntimeError a manual returncode check used to produce."""
         with patch(
             "subprocess.run",
-            return_value=_completed(rc=1, stderr="API error"),
+            side_effect=subprocess.CalledProcessError(
+                returncode=1, cmd=["gh", "api"], stderr="API error"
+            ),
         ):
             with pytest.raises(RuntimeError, match="Failed to get workflow runs"):
                 get_workflow_runs_by_pr(1, repository="o/r")

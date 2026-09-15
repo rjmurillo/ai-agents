@@ -167,15 +167,16 @@ def get_workflow_runs_by_pr(
             encoding="utf-8",
             errors="replace",
             timeout=30,
+            check=True,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
         raise RuntimeError(
             f"Failed to get workflow runs for PR #{pr_number}: {exc}"
         ) from exc
-    if result.returncode != 0:
+    except subprocess.CalledProcessError as exc:
         raise RuntimeError(
-            f"Failed to get workflow runs for PR #{pr_number}: {result.stderr.strip()}"
-        )
+            f"Failed to get workflow runs for PR #{pr_number}: {(exc.stderr or '').strip()}"
+        ) from exc
 
     try:
         all_runs: list[dict[str, Any]] = [
