@@ -1,51 +1,54 @@
-# Claude-Mem Memory Import Agent Instructions
+# .claude-mem/memories/
 
-## Purpose
+Committed claude-mem exports; four wrappers in `.claude-mem/scripts/`.
 
-This directory contains Claude-Mem memory snapshots that should be imported at session start for team knowledge sharing and cross-session persistence.
+## Matters
 
-## Session Start Import (REQUIRED)
+No hook or lefthook job imports these; import is manual.
+Hand-maintained; not in `build_all.py` OWNED_PREFIXES.
+Contract: `tests/claude_mem/`, `tests/test_claude_mem_scripts.py`.
 
-Run the import script at session start:
+## Entry points
+
+`import_claude_mem_memories.py`: globs `memories/*.json`, `npx tsx` per file; `--importer` > `$CLAUDE_MEM_IMPORTER` > plugin default.
+`export_claude_mem_memories.py`: positional query, `--output-file`, `--session-number`, `--topic`.
+`export_claude_mem_full_backup.py`: query `.`, `--project`, `--output-file`.
+`export_claude_mem_direct.py`: `--project`, `--output-file`; reads the plugin's home-dir SQLite DB via `sqlite3`.
+
+## Where to look
+
+| Path | Why |
+| --- | --- |
+| `.agents/governance/MEMORY-MANAGEMENT.md` | Usage surface; `python3` calls and "Auto-import" step are stale |
+
+## Skip
+
+`README.md` here: dead `.ps1` and `scripts/*.ts` refs.
+Committed `direct-backup-*.json`: 9.6MB; grep or jq only.
+
+## Constraints
+
+`--output-file` outside `.claude-mem/memories/` exits 1 (CWE-22 guard).
+markdownlint, `stale_script_refs.py`, `check_doc_interpreter_portability.py` skip this tree; dash and path gates do not.
+
+## Dangerous assumptions
+
+No plugin exits 0. ADR-035 deviation: blank `--importer`, bad path, or missing `npx` exit 1, not 2.
+Default export filenames differ per script.
+
+## Dependencies
+
+`npx` + `tsx` and the thedotmack plugin (three scripts); `sqlite3` (direct only).
+Exports run `scripts/review_memory_export_security.py`; nonzero blocks.
+
+## Architecture
+
+Three shims over plugin TypeScript; direct reads SQLite.
+
+## Commands
 
 ```bash
 uv run python .claude-mem/scripts/import_claude_mem_memories.py
+uv run python .claude-mem/scripts/export_claude_mem_memories.py "<query>" --topic <topic>
+uv run pytest tests/claude_mem/ tests/test_claude_mem_scripts.py -x
 ```
-
-The script is idempotent. Claude-Mem prevents duplicates using composite keys (`sdk_session_id` + `title` + `created_at_epoch`). Safe to run multiple times.
-
-## Export at Session End
-
-When ending sessions with valuable learnings:
-
-```bash
-uv run python .claude-mem/scripts/export_claude_mem_memories.py "[query]" --output-file .claude-mem/memories/YYYY-MM-DD-session-NNN-topic.json
-```
-
-## Directory Contents
-
-All `.json` files in this directory are memory exports that will be automatically imported.
-
-## Naming Convention
-
-`YYYY-MM-DD-session-NNN-topic.json`
-
-Examples:
-
-- `2026-01-03-session-229-frustrations.json`
-- `2026-01-03-testing-philosophy.json`
-- `2026-01-03-onboarding.json`
-
-## Privacy Review
-
-Before committing, review exports for:
-
-- API keys, tokens, passwords
-- Private file paths
-- Confidential business logic
-- Personal identifying information
-
-## References
-
-- [README.md](README.md) - Full documentation
-- [ADR-007](../../.agents/architecture/ADR-007-memory-first-architecture.md) - Memory-First Architecture
