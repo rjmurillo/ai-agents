@@ -861,10 +861,10 @@ below.
   two citations of "the Confusion Protocol in `voice.md`" were retargeted
   to name the spec, plan, and autoplan skills instead.
   `scripts/validation/instruction_budget.py` measured the `.md` always-on
-  mirror at 43,895 bytes before and 38,064 bytes after (still 3 rules:
+  mirror at 43,895 bytes before and 38,086 bytes after (still 3 rules:
   `voice.md` shrank from 19,748 to 13,873 bytes at source, which also
   moved the biggest-always-on-rule title from `voice.md` to
-  `builder-ethos.md`, 14,177 bytes at source).
+  `builder-ethos.md`, 14,199 bytes at source).
 
 ### Business-strategy skill (optional pack)
 
