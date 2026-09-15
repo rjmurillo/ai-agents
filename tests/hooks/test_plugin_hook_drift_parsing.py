@@ -248,6 +248,25 @@ def test_registrations_distinguishes_dispatcher_commands_with_different_argument
     assert plain != with_flag
 
 
+def test_registrations_distinguishes_dispatcher_commands_by_quoted_whitespace() -> None:
+    # _expand_command hashes the raw command, not whitespace-collapsed text:
+    # a collapsed hash would make a changed quoted argument (double space vs
+    # single space) compare equal, hiding a real change under the same
+    # dispatcher entry point.
+    single_space = model.registrations(
+        _claude_hooks(DISPATCH_COMMAND + ' --mode "safe mode"'),
+        _group(f"PreToolUse/{RETIRED_GUARD}"),
+    )
+    double_space = model.registrations(
+        _claude_hooks(DISPATCH_COMMAND + ' --mode "safe  mode"'),
+        _group(f"PreToolUse/{RETIRED_GUARD}"),
+    )
+
+    assert single_space is not None
+    assert double_space is not None
+    assert single_space != double_space
+
+
 @pytest.mark.parametrize(
     "groups",
     [

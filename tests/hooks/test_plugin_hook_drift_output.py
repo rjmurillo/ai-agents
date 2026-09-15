@@ -351,7 +351,7 @@ def test_command_unit_prefers_the_script_basename() -> None:
         f'python3 -u "${{CLAUDE_PLUGIN_ROOT}}/hooks/PreToolUse/{RETIRED_GUARD}"'
     )
 
-    # The basename leads (legibility); a digest of the complete normalized
+    # The basename leads (legibility); a digest of the complete, unnormalized
     # command trails it (comparison safety -- two commands with the same
     # basename but a different directory or arguments must not collide).
     assert unit.startswith(f"{RETIRED_GUARD}:")
@@ -372,7 +372,18 @@ def test_command_unit_reduces_hostile_text_to_a_digest() -> None:
 
 def test_command_unit_is_stable_for_the_same_command() -> None:
     # The digest still has to support diffing two installs.
-    assert safety.command_unit("do something; else") == safety.command_unit("do  something;  else")
+    assert safety.command_unit("do something; else") == safety.command_unit("do something; else")
+
+
+def test_command_unit_distinguishes_whitespace_inside_a_quoted_argument() -> None:
+    # The digest hashes the raw command, not whitespace-collapsed text: a
+    # collapsed hash would make "safe  mode" (double space) and "safe mode"
+    # (single space) inside a quoted argument compare equal, hiding a real
+    # change to what the registration runs.
+    a = safety.command_unit('python3 guard.py --mode "safe mode"')
+    b = safety.command_unit('python3 guard.py --mode "safe  mode"')
+
+    assert a != b
 
 
 def test_command_unit_keeps_a_bare_safe_token() -> None:

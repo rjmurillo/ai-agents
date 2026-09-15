@@ -88,20 +88,27 @@ def command_unit(command: str) -> str:
 
     Leads with the basename of the last script path in the command, which is
     the part a reader needs in order to find the hook, but ALWAYS appends a
-    digest of the complete normalized (whitespace-collapsed) command text.
-    The basename alone is not a safe comparison unit: two commands can
-    invoke same-named scripts from different directories or with different
-    arguments (a different plugin-root anchor, an added flag, a substituted
-    script one directory over), and a basename-only unit would call those
-    two registrations identical, hiding real drift. The digest closes that
-    gap while the basename keeps the label legible; a bare identifier is
-    kept as written (already within the safe alphabet) with the same digest
-    suffix; anything else, including shell text a hostile manifest could
-    have chosen freely, collapses to a digest alone, carrying none of the
-    attacker's words into the model's context.
+    digest of the COMPLETE, UNNORMALIZED command text. The basename alone is
+    not a safe comparison unit: two commands can invoke same-named scripts
+    from different directories or with different arguments (a different
+    plugin-root anchor, an added flag, a substituted script one directory
+    over), and a basename-only unit would call those two registrations
+    identical, hiding real drift. The digest closes that gap while the
+    basename keeps the label legible; a bare identifier is kept as written
+    (already within the safe alphabet) with the same digest suffix; anything
+    else, including shell text a hostile manifest could have chosen freely,
+    collapses to a digest alone, carrying none of the attacker's words into
+    the model's context.
+
+    The digest is hashed from ``command`` as given, not from the
+    whitespace-collapsed ``text`` used below for label extraction: collapsing
+    runs of whitespace before hashing made two commands that differ only in
+    the whitespace inside a quoted argument (``"safe  mode"`` vs
+    ``"safe mode"``) produce the same digest, so a changed quoted argument
+    read as clean drift.
     """
     text = " ".join(command.split())
-    digest = hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()[:12]
+    digest = hashlib.sha256(command.encode("utf-8", "replace")).hexdigest()[:12]
     scripts = _SCRIPT_IN_COMMAND.findall(text)
     if scripts:
         basename = PurePosixPath(scripts[-1].replace("\\", "/")).name

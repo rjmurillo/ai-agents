@@ -223,7 +223,11 @@ def _expand_command(
     directory, an extra flag, a substituted entrypoint before the recognized
     ``invoke_dispatch_claude.py`` marker) expand to the SAME units purely
     from the group's shim membership, silently dropping whatever the
-    argument difference actually changed.
+    argument difference actually changed. The digest is hashed from the
+    COMPLETE, UNNORMALIZED ``command`` text: whitespace-collapsing first
+    would make two commands differing only in the whitespace inside a
+    quoted argument hash identical, the same gap ``command_unit`` closes in
+    ``plugin_hook_drift_safety.py``.
     """
     if _DISPATCH_ENTRYPOINT not in command:
         return {(event, matcher, command_unit(command))}
@@ -234,9 +238,7 @@ def _expand_command(
     members = dispatch_membership(groups, group_id)
     if members is None:
         return None
-    command_digest = hashlib.sha256(
-        " ".join(command.split()).encode("utf-8", "replace")
-    ).hexdigest()[:12]
+    command_digest = hashlib.sha256(command.encode("utf-8", "replace")).hexdigest()[:12]
     return {
         (
             event,
