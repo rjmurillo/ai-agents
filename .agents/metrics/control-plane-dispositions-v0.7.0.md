@@ -861,10 +861,12 @@ below.
   two citations of "the Confusion Protocol in `voice.md`" were retargeted
   to name the spec, plan, and autoplan skills instead.
   `scripts/validation/instruction_budget.py` measured the `.md` always-on
-  mirror at 43,895 bytes before and 38,086 bytes after (still 3 rules:
-  `voice.md` shrank from 19,748 to 13,873 bytes at source, which also
-  moved the biggest-always-on-rule title from `voice.md` to
-  `builder-ethos.md`, 14,199 bytes at source).
+  mirror at 43,895 bytes before and 38,542 bytes after (still 3 rules:
+  `voice.md` shrank from 19,748 to 14,329 bytes at source and stays the
+  largest always-on rule, 130 bytes ahead of `builder-ethos.md`). Review
+  on PR #5776 found that headless runs of any skill need the Unattended
+  runs clause, so that clause returned to `voice.md` as its own section;
+  the copies inside the skills stay.
 
 ### Business-strategy skill (optional pack)
 
