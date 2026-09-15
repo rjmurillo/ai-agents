@@ -106,6 +106,22 @@ PILOT: frozenset[str] = frozenset(
         "pr-quality-qa",
         "pr-quality-roadmap",
         "pr-quality-security",
+        "pr-review",
+        "push-pr",
+        "quality-grades",
+        "reflect",
+        "requirements-interview",
+        "retro",
+        "retrospective",
+        "review",
+        "reviewer-findings",
+        "security-detection",
+        "security-review",
+        "security-scan",
+        "skillforge",
+        "slashcommandcreator",
+        "slo-designer",
+        "software-engineering-library",
     }
 )
 

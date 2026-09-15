@@ -41,7 +41,7 @@ _NO_COPILOT_MIRROR = frozenset({"merge-resolver"})
 # below does not apply to them. skill_templates.render() already proves no
 # tag is genuinely unresolved: it raises UnresolvedTagError before
 # returning if one exists, so a successful render is the real guarantee.
-_LITERAL_BRACE_SKILLS = frozenset({"merge-resolver"})
+_LITERAL_BRACE_SKILLS = frozenset({"merge-resolver", "security-detection"})
 
 
 def assert_template_owned_contract(name: str) -> None:
