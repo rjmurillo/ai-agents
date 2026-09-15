@@ -1,0 +1,212 @@
+---
+name: memory-documentary
+version: 1.0.0
+description: Generate evidence-based documentary reports by searching across all 3
+  memory systems (Claude-Mem, Serena, DeepWiki), .agents/ artifacts, and
+  GitHub issues. Produces investigative journalism-style analysis with full citation
+  chains. Use when you ask for an "evidence-based report", "investigate across all
+  memory systems", "what happened with X over time". Do NOT use for a single semantic
+  recall (use memory) or for citation hygiene (use memory-enhancement).
+license: MIT
+metadata:
+  timelessness: 8/10
+  category: analysis
+---
+# Memory Documentary Skill
+
+Generate comprehensive documentary-style reports from your memory systems with full evidence chains.
+
+<!-- vendor-portability: declared. This skill searches the consumer's .agents/ artifacts (sessions, retrospectives, analysis) alongside the three memory systems as evidence inputs, and writes the report under .agents/. The .agents/ reads are best-effort evidence sources; a vendored install without that tree produces a report from whatever memory systems and artifacts the consumer repo does have, not a silent no-op. Issue #2050. -->
+
+---
+
+## Quick Start
+
+```text
+/memory-documentary [topic]
+```
+
+Example topics:
+
+- "recurring frustrations"
+- "coding patterns not codified"
+- "evolution of thinking on testing"
+- "decisions I second-guessed"
+- "what I complain about most"
+
+---
+
+## Triggers
+
+Use this skill when:
+
+- `Search my memories for patterns about...`
+- `What does my history say about...`
+- `Generate a documentary on my topic`
+- `Cross-reference all systems for...`
+- `Evidence-based analysis across memory systems`
+
+---
+
+## When to Use
+
+Use this skill when:
+
+- You need cross-system evidence for a pattern or recurring theme
+- Investigating historical decisions and their evolution over time
+- Building a cited, verifiable narrative from memory data
+
+Use `memory` skill instead when:
+
+- You need a simple search for a known fact or pattern
+- The query targets a single memory tier, not cross-system synthesis
+
+## Quick Reference
+
+| Phase | Action | Output |
+|-------|--------|--------|
+| 1 | Topic Comprehension | Search variants, scope boundaries |
+| 2 | Investigation Planning | Explicit queries per system |
+| 3 | Data Collection | Evidence with retrieval keys and dates |
+| 4 | Report Generation | Documentary with citations |
+| 5 | Memory Updates | Store meta-pattern discovered |
+
+---
+
+## Process
+
+The skill searches ALL available data sources systematically:
+
+**Memory Systems (3 MCP servers)**:
+
+- Claude-Mem: Timeline observations via 3-layer workflow
+- Serena: Project-specific lexical memory
+- DeepWiki: Documentation resources
+
+**Project Artifacts**:
+
+- `.agents/retrospective/` - Learning extractions
+- `.agents/sessions/` - Session logs
+- `.agents/analysis/` - Research reports
+- `.agents/architecture/` - ADRs
+- `.agents/planning/` - Plans and PRDs
+
+**GitHub Issues**:
+
+- Open and closed issues
+- Comments and related PRs
+
+---
+
+## Commands
+
+```bash
+# Standard invocation
+/memory-documentary "recurring frustrations"
+
+# With explicit time range
+/memory-documentary "testing patterns" --since 2025-12-01
+```
+
+---
+
+## Report Structure
+
+### Executive Summary
+
+- Key finding in one sentence
+- Timeline span (earliest to most recent)
+- Evidence count (memories + observations + issues + files)
+- Major pattern categories
+
+### Evidence Trail
+
+Full citation for each finding:
+
+- Source system (Claude-Mem/Serena/DeepWiki)
+- Retrieval key with its command: an observation id for Claude-Mem, a memory file name for Serena
+- Date, from the source for Claude-Mem, from git history for a Serena file
+- Direct quote from source
+- Links to related evidence
+
+### Pattern Evolution
+
+Timeline showing how thinking changed:
+
+```text
+YYYY-MM-DD: [Observation #ID] - Initial state
+YYYY-MM-DD: [Serena memory-name] - First iteration
+YYYY-MM-DD: [Issue #NNN] - Technical response
+```
+
+### Unexpected Patterns
+
+Cross-system synthesis revealing:
+
+- Frequency patterns (time clustering)
+- Correlation patterns (X happens before Y)
+- Avoidance patterns (conspicuous absence)
+- Contradiction patterns (saying vs doing)
+- Evolution patterns (recursive loops)
+- Emotional patterns (frustration markers)
+
+### Synthesis
+
+- What all systems agree on
+- What's recent (Claude-Mem) vs durable (Serena)
+- Actionable recommendations
+
+---
+
+## Evidence Standards
+
+| Standard | Requirement |
+|----------|-------------|
+| Citation | Every claim has a retrieval key, a date, and a quote |
+| Quotes | Direct quotes, not paraphrases |
+| Verification | Retrieval commands for all evidence |
+| Cross-links | Related evidence connected |
+
+---
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Partial searches | Miss critical evidence | Search ALL systems |
+| Paraphrasing | Loses verifiability | Direct quotes only |
+| Single query | Miss variations | 3+ query variants per system |
+| Skipping systems | Incomplete picture | Check all 3 MCP servers |
+
+---
+
+## Verification
+
+After execution:
+
+- [ ] Report saved to `.agents/analysis/[topic]-documentary-[date].md`
+- [ ] Every claim has a citation with source system, retrieval key, and direct quote
+- [ ] All 3 MCP servers were queried (or documented as unavailable)
+- [ ] Meta-pattern stored in memory (Phase 5)
+
+## Output Location
+
+Reports saved to: `.agents/analysis/[topic]-documentary-[date].md`
+
+---
+
+## Related Skills
+
+| Skill | Relationship |
+|-------|--------------|
+| memory | Operations (search, update) |
+| retrospective | Learning extraction |
+| skillbook | Pattern → skill conversion |
+
+---
+
+## On Invocation
+
+**Read**: `references/execution-protocol.md`
+
+This contains the full 5-phase execution protocol with detailed instructions for each data source.
