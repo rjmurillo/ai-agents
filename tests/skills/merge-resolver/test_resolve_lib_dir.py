@@ -64,15 +64,34 @@ _REPO_CLAUDE_LIB = Path(__file__).resolve().parents[3] / ".claude" / "lib"
 # the directory tree at that path, forged sibling manifest included.
 _REPO_SRC_CLAUDE_LIB = Path(__file__).resolve().parents[3] / "src" / "claude" / "lib"
 
-# The script under test, at its canonical path.
+# The script under test, sourced from the marketplace-installed artifact
+# (src/claude/, ADR-109 B6's source), not the repository-only .claude/ copy,
+# so TestResolveLibDirCli below proves the CLI paths against what a consumer
+# actually gets. Before B3 (#5794) this path did not exist; see
+# test_marketplace_script_exists for the negative control.
 _SCRIPT = (
     Path(__file__).resolve().parents[3]
-    / ".claude"
+    / "src"
+    / "claude"
     / "skills"
     / "merge-resolver"
     / "scripts"
     / "resolve_pr_conflicts.py"
 )
+
+
+def test_marketplace_script_exists() -> None:
+    """Guard against the pre-B3 install-parity regression (found by B6).
+
+    A silent regression back to the SKILL.md-only state makes every CLI
+    test in this class fail at _install_script's shutil.copy2 with
+    FileNotFoundError; this test names the failure directly.
+    """
+    assert _SCRIPT.is_file(), (
+        f"{_SCRIPT} is missing: a fresh project-toolkit install would ship "
+        "a merge-resolver skill whose SKILL.md references a script the "
+        "install does not contain"
+    )
 
 
 _PLUGIN_IDENTITY_NAME = "project-toolkit"
