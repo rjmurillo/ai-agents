@@ -103,6 +103,15 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # testing.md included (see .agents/governance/GENERATOR-FILES.md).
     ("src", "claude", "rules"),
     (".claude", "rules"),
+    # ADR-109 B3: src/claude/skills/ is the skills class's plugin tree.
+    # Narrower than the agents/rules pattern above on purpose: only
+    # src/claude/skills/ is listed, not .claude/skills/, because
+    # skill_templates.compile_all renders ONLY SKILL.md into the plugin
+    # tree, so every file under src/claude/skills/ is generated, but
+    # .claude/skills/<name>/ also holds hand-maintained scripts,
+    # references, and tests, so that tree stays classified authored (the
+    # same reason it is absent from FILE_SIZE_EXEMPT_SEGMENTS above).
+    ("src", "claude", "skills"),
 )
 _GENERATED_MARKERS = (
     "AUTO-GENERATED MATCHER SHIM",
