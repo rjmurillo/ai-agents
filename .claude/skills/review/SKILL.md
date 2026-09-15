@@ -43,16 +43,16 @@ This skill runs in two layouts: the source Claude Code project (where `.claude/`
 - **Canonical axis prompts** (`{role}` is the stem of each `references/*.md` file, discovered, not hardcoded; the current set is listed in the convergence contract above): resolve the `references/` directory via the first candidate that exists, then glob `*.md` inside it for the axis set:
   1. `${CLAUDE_SKILL_DIR}/references/` (if `CLAUDE_SKILL_DIR` is set by the harness)
   2. `.claude/skills/review/references/` (Claude Code project layout)
-  3. `skills/review/references/` resolved relative to plugin install root (vendored install)
+  3. `skills/review/references/` (vendored install)
 - **Verdict library** (`merge_verdicts`, `extract_verdict`, `get_verdict_emoji`, `FAIL_VERDICTS`): try each candidate in order, use the first that exists:
   1. `.claude/lib/ai_review_common/verdict.py` (Claude Code project layout)
-  2. `lib/ai_review_common/verdict.py` resolved relative to the plugin install root (vendored install)
+  2. `lib/ai_review_common/verdict.py` (vendored install)
 - **Complexity tiers reference** (`engineering-complexity-tiers.md`): try each candidate in order, use the first that exists:
   1. `.claude/skills/analyze/references/engineering-complexity-tiers.md` (Claude Code project layout)
-  2. `skills/analyze/references/engineering-complexity-tiers.md` resolved relative to plugin install root (vendored install)
+  2. `skills/analyze/references/engineering-complexity-tiers.md` (vendored install, plugin-root relative)
 - **Chained-skill scripts** (`assess.py`, `doc_accuracy.py`, `scan_principles.py`, `taste_lints.py` for local axes 1-4): these are sibling skills, not under this skill's `references/`, so `CLAUDE_SKILL_DIR` does not locate them. For each, use the first candidate that exists:
   1. `.claude/skills/{skill}/scripts/{script}` (Claude Code project layout)
-  2. `skills/{skill}/scripts/{script}` resolved relative to plugin install root (vendored install)
+  2. `skills/{skill}/scripts/{script}` (vendored install, plugin-root relative)
 
 The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST attempt the vendored-install path for the verdict library and the chained-skill scripts before reporting an error. If neither candidate for a chained-skill script exists, mark that axis `UNKNOWN` (per UNKNOWN handling), do not abort the review.
 
@@ -171,6 +171,7 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 - **Drift fails closed**. If `.claude/skills/review/references/` and `.github/prompts/` diverge, the pre-push hook blocks the push. CI re-checks as a backstop.
 - **UNKNOWN is information**. A skill that did not evaluate is not a silent PASS.
 - **Vendored survival**. `/review` works in a `.claude/`-only checkout. No axis or skill references `.agents/` or `.github/`.
+- **Voice**. Read `resources/writing-style.md` before writing findings (glossing, completeness scores).
 
 ## Verification
 

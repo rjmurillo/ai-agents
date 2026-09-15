@@ -54,7 +54,7 @@ class TestStaticallyDeclaredJobNames:
     ``run_contexts`` reads only job records GitHub has already materialized. A
     ``needs:``-gated job has none while the run is queued, so a run that will
     publish ``Run Python Tests`` reports zero contexts and ``_classify`` cleared
-    it for unguarded cancellation. Seven of the nine contexts in
+    it for unguarded cancellation. Six of the eight contexts in
     ``ruleset_required_contexts.py`` resolve to gated jobs, so this is the
     common case rather than an edge.
     """

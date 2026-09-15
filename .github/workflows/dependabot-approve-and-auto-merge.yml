@@ -31,6 +31,7 @@ jobs:
       contents: read
       pull-requests: read
     runs-on: ubuntu-24.04-arm
+    environment: bot-secrets
     if: github.actor == 'dependabot[bot]' || github.actor == 'dependabot-preview[bot]'
     steps:
       # Preflight: fail fast with a self-diagnosing annotation when the PAT
@@ -81,6 +82,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-24.04-arm
+    environment: bot-secrets
     if: github.actor == 'renovate[bot]'
     # Renovate handles auto-merge decisions via platformAutomerge and
     # per-package automerge rules in renovate.json. This workflow only

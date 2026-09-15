@@ -65,7 +65,10 @@ def test_measured_always_on_set_is_not_empty() -> None:
     # Ratchet lowered from 5 to 4 in epic #5456 M4: `claude-model-patches` moved
     # out of the always-on set into the skills that do multi-step or
     # Bash-heavy work (build, test, plan, ship templates; a review resource).
-    assert len(measured) >= 4, f"suspiciously small always-on set: {measured}"
+    # Lowered again from 4 to 3 in epic #5456 M4 (PR2): `search-before-building`
+    # folded into the `programming-advisor`, `memory-search`, and `memory-gate`
+    # skills.
+    assert len(measured) >= 3, f"suspiciously small always-on set: {measured}"
     assert "universal" in measured
 
 
@@ -234,10 +237,13 @@ def test_doctrine_8kb_multipliers_match_the_measured_source_sizes() -> None:
 def test_doctrine_largest_always_on_rule_matches_the_source_tree() -> None:
     """The doctrine names one rule as the biggest and states its size.
 
-    Both halves are checked. Asserting only the byte count would let the doc
-    keep naming `voice.md` after another rule overtook it; asserting only the
-    name would let the figure drift. This figure went stale while every
-    aggregate above stayed correct, precisely because no test read it.
+    Both halves are checked against a live measurement rather than a fixed
+    literal, because the biggest rule changes identity over time: epic #5456
+    M4 moved most of `voice.md`'s prose into skills, so `builder-ethos.md`
+    is the biggest rule now. Asserting only the byte count would let the doc
+    keep naming a rule that a bigger one overtook; asserting only the name
+    would let the figure drift. This figure went stale while every aggregate
+    above stayed correct, precisely because no test read it.
     """
     figures = parse_doctrine_figures(DOCTRINE.read_text(encoding="utf-8"))
     sizes = {
@@ -247,11 +253,12 @@ def test_doctrine_largest_always_on_rule_matches_the_source_tree() -> None:
         for name in _budget(".md").matched_files
     }
     largest_name, largest_bytes = max(sizes.items(), key=lambda kv: kv[1])
-    assert largest_name == "voice.md", (
-        f"doctrine names `voice.md` as the biggest always-on rule; measured {largest_name}"
+    assert figures["largest_name"] == largest_name, (
+        f"doctrine names `{figures['largest_name']}` as the biggest always-on rule; "
+        f"measured `{largest_name}`"
     )
     assert figures["largest_bytes"] == largest_bytes, (
-        f"doctrine states `voice.md` is {figures['largest_bytes']} bytes; "
+        f"doctrine states `{largest_name}` is {figures['largest_bytes']} bytes; "
         f"measured {largest_bytes}"
     )
 
