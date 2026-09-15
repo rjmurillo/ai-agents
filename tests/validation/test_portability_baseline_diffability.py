@@ -328,7 +328,7 @@ class TestEveryCheckerRefusesAHiddenBaseline:
     def _tree(root: Path, name: str) -> Path:
         _git(root, "init", "-q", "-b", "main")
         _git(root, "config", "core.attributesFile", str(root / "absent-global"))
-        for tree in (".claude/skills", "src/copilot-cli/skills"):
+        for tree in (".claude/skills", "src/claude/skills", "src/copilot-cli/skills"):
             (root / tree).mkdir(parents=True, exist_ok=True)
         # check_skill_md_portability also requires src/copilot-cli/instructions
         # to exist and examine at least one Markdown file (issue #5214,

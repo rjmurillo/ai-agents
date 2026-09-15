@@ -6876,9 +6876,21 @@ def _skip_skillforge_path(path: str, repo_root: Path) -> bool:
 
     `repo_root` is kept in the signature: callers pass it positionally, and the
     parameter is what a future path-relative skip would need.
+
+    ``src/claude/skills/`` (ADR-109 B3) is skipped too: it is the skills
+    class's plugin tree, and ``skill_templates.compile_all`` renders ONLY
+    ``SKILL.md`` into it, never the scripts, references, or tests a skill's
+    ``.claude/skills/<name>/`` directory also carries (those stay
+    hand-maintained and reach ``src/copilot-cli/skills/`` as a full mirror
+    through ``generate_skills.py``'s existing copy loop, which IS validated).
+    Running ``validate-skill.py`` against ``src/claude/skills/<name>/``
+    would flag every skill whose ``SKILL.md`` references its own
+    ``scripts/`` or ``references/`` directory as missing that directory,
+    which is true by design there and not a defect: the full bundle is
+    validated at ``.claude/skills/<name>/`` already.
     """
     del repo_root
-    return path.startswith("evals/")
+    return path.startswith("evals/") or path.startswith("src/claude/skills/")
 
 
 def run_planning_advisory(repo_root: Path) -> int:

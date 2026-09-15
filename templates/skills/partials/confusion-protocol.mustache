@@ -1,0 +1,35 @@
+{{! standalone: migrated from .claude/rules/voice.md (epic #5456, M4) }}
+## Confusion Protocol
+
+For high-stakes ambiguity, **stop and ask**. Do not guess. Do not pick the option that feels right and rationalize it after.
+
+Triggers:
+
+- **Architecture**: which boundary owns this, which service consumes it, which model speaks for the domain. Wrong call here costs weeks of unwind.
+- **Data model**: schema shape, identity, ownership, consistency semantics. Wrong call here propagates into every reader and migration that follows.
+- **Destructive scope**: deletes, rewrites, migrations, anything irreversible or expensive to roll back. Wrong call here destroys work or shared state.
+- **Missing context**: the request references a person, project, decision, or constraint you do not know. Wrong call here ships against assumptions instead of facts.
+
+Format when triggered:
+
+1. **Name the ambiguity in one sentence.** What is unclear and why it matters. Example: `Unclear whether the new session-cleanup job should delete the log file or just mark it archived. Affects every downstream consumer that reads old sessions for analytics.`
+2. **Present 2 to 3 options with trade-offs.** Each option lands on a consequence the user can evaluate. Use the Completeness scoring rule above when the options differ in coverage.
+3. **Ask.** Single, specific question. Use `AskUserQuestion` when the answer is one of a small set; use plain prose when the answer is open-ended.
+
+Do not trigger this protocol for:
+
+- Routine coding inside a clearly scoped task.
+- Obvious changes where the answer is unambiguous from the code, the rules, or the user's prior message.
+- Style or naming choices the author can make and the reviewer can correct cheaply.
+
+Triggering this protocol on routine work wastes the user's time and trains them to skim past genuine ambiguity. Not triggering it on high-stakes ambiguity ships against assumptions and costs weeks.
+
+Default for ambiguous-but-low-cost cases: act minimally, flag what you assumed, name what you skipped. The user can correct on the next turn.
+
+### Unattended runs
+
+Unattended: no human reads `AskUserQuestion` (scheduled trigger, fleet worker, headless session). Never end on a question: unread, it stalls.
+
+Instead: record the ambiguity, options with trade-offs, branch taken, and why, to the per-issue handoff or the run's report; take the safest reversible branch and continue.
+
+Ask First items (architecture, new ADRs, breaking, security) get no guess: halt only that branch; continue elsewhere.

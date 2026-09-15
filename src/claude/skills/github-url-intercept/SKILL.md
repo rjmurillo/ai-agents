@@ -1,0 +1,392 @@
+---
+name: github-url-intercept
+version: 2.1.0
+description: "BLOCKING INTERCEPT: When ANY github.com URL appears in user input, STOP and use this skill. Never fetch GitHub HTML pages directly - they are 5-10MB and will exhaust your context window. This skill routes URLs to efficient API calls (1-50KB). Triggers on: gist.github.com, gist.githubusercontent.com, pull/, issues/, blob/, tree/, commit/, compare/. Use when you paste a GitHub URL, say \"analyze this PR\", \"look at this issue\", or \"what does this commit do\". Do NOT use for creating PRs, posting comments, or adding labels (use github instead)."
+license: MIT
+metadata:
+  domains:
+  - github
+  - url-parsing
+  - context-optimization
+  type: interceptor
+  complexity: low
+  priority: critical
+  related_skills:
+  - github
+---
+# GitHub URL Intercept
+
+> **CRITICAL**: This skill activates AUTOMATICALLY when you see ANY `github.com` URL.
+> Do NOT use `web_fetch`, `curl`, or any browser-based fetch on GitHub URLs.
+> Doing so wastes 1-2.5 MILLION tokens on HTML that provides no useful data.
+
+**MANDATORY BEHAVIOR**: Parse the URL → Route to API → Return structured JSON.
+
+---
+
+## Quick Reference (Copy-Paste Commands)
+
+**When you see a GitHub URL, use these commands immediately:**
+
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+
+# PR URL → Use this
+python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request {n} --owner {owner} --repo {repo}
+
+# Issue URL → Use this
+python3 "$SCRIPTS_DIR/issue/get_issue_context.py" --issue {n} --owner {owner} --repo {repo}
+
+# File/blob URL → Use this
+gh api repos/{owner}/{repo}/contents/{path}?ref={ref}
+
+# Commit URL → Use this
+gh api repos/{owner}/{repo}/commits/{sha}
+
+# Gist URL → Use this
+gh api gists/{id}
+
+# Comment fragment (#discussion_r{id}) → Use this
+gh api repos/{owner}/{repo}/pulls/comments/{id}
+```
+
+---
+
+## Triggers
+
+| Phrase | Action |
+|--------|--------|
+| Any `github.com` URL in user input (even bare URL pasted alone) | Parse URL type and route to API |
+| `analyze` / `research` / `scan` + GitHub URL | Route based on URL type |
+| URL + question (e.g., "...#r123 what's the tracking issue?") | Extract fragment, call specific API |
+| Multiple GitHub URLs in one prompt | Process each URL, batch API calls |
+
+---
+
+## When to Use
+
+Use this skill when:
+
+- Any `github.com` URL appears in user input (automatic activation)
+- User pastes a PR, issue, commit, file, or actions URL
+- User asks to "analyze" or "review" a GitHub link
+
+Use [github](../github/SKILL.md) instead when:
+
+- Performing mutations (creating PRs, posting comments, adding labels)
+- Operating on the current repository without a URL
+
+## URL Patterns (Detailed Reference)
+
+| Pattern | Example | Why Intercept |
+|---------|---------|---------------|
+| `github.com/.../pull/` | `https://github.com/owner/repo/pull/123` | PR HTML is 5-10MB |
+| `github.com/.../pull/.../checks` | `https://github.com/owner/repo/pull/123/checks?check_run_id=...` | CI checks page bloat |
+| `github.com/.../pull/.../files` or `/changes` | `https://github.com/owner/repo/pull/123/files#r123456` | Diff view with comment fragment |
+| `github.com/.../issues/` | `https://github.com/owner/repo/issues/456` | Issue HTML is 2-5MB |
+| `github.com/.../actions/runs/` | `https://github.com/owner/repo/actions/runs/123/job/456` | Workflow run page bloat |
+| `github.com/.../blob/` | `https://github.com/owner/repo/blob/main/file.py` | File page has nav bloat |
+| `github.com/.../tree/` | `https://github.com/owner/repo/tree/main/src` | Directory listing bloat |
+| `github.com/.../commit/` | `https://github.com/owner/repo/commit/abc123` | Commit page overhead |
+| `github.com/.../compare/` | `https://github.com/owner/repo/compare/main...feat` | Diff page overhead |
+| `gist.github.com/...` | `https://gist.github.com/owner/0123456789abcdef0123` | Gist HTML includes page chrome |
+| `gist.githubusercontent.com/...` | `https://gist.githubusercontent.com/owner/0123456789abcdef0123/raw/file.txt` | Raw gist content |
+| Fragment `#discussion_r{id}` | Review comment ID in `/changes` or `/files` URL | Extract ID, call API directly |
+| Fragment `#issuecomment-{id}` | Issue comment ID | Extract ID, call API directly |
+| Fragment `#pullrequestreview-{id}` | Review ID | Extract ID, call API directly |
+| Fragment `#r{id}` (short form) | Review comment in `/changes#r123` | Same as `#discussion_r{id}` |
+
+---
+
+## Decision Flow
+
+```text
+GitHub URL detected in user input
+│
+├─ Is gist.github.com/{owner}/{id}?
+│     Yes → gh api gists/{id}
+│
+├─ Has fragment (#pullrequestreview-, #discussion_r, #issuecomment-)?
+│     Yes → Extract ID, use gh api for specific comment/review
+│
+├─ Is /pull/{n}?
+│     Yes → get_pr_context.py --pull-request {n} --owner {o} --repo {r}
+│           (or get_pr_review_comments.py / get_pr_review_threads.py for comments)
+│
+├─ Is /issues/{n}?
+│     Yes → get_issue_context.py --issue {n} --owner {o} --repo {r}
+│
+├─ Is /blob/{ref}/{path} or /tree/{ref}/{path}?
+│     Yes → gh api repos/{o}/{r}/contents/{path}?ref={ref}
+│
+├─ Is /commit/{sha}?
+│     Yes → gh api repos/{o}/{r}/commits/{sha}
+│
+└─ Is /compare/{base}...{head}?
+      Yes → gh api repos/{o}/{r}/compare/{base}...{head}
+```
+
+---
+
+## Process
+
+### Phase 1: URL Detection and Parsing
+
+| Step | Action | Verification |
+|------|--------|--------------|
+| 1.1 | Detect github.com URL in user input | URL pattern matched |
+| 1.2 | Extract owner/repo, or gist owner/id, from path | Required values non-empty |
+| 1.3 | Identify URL type (gist, pull, issues, blob, tree, commit, compare) | Type classified |
+| 1.4 | Extract fragment ID if present | Fragment parsed or null |
+
+### Phase 2: Route Selection
+
+| Step | Action | Verification |
+|------|--------|--------------|
+| 2.1 | Check if github skill script exists for URL type | Script path resolved |
+| 2.2 | If script exists → use github skill (primary route) | Script invocation planned |
+| 2.3 | If no script → use gh api (fallback route) | API command constructed |
+| 2.4 | For fragments → always use gh api with specific endpoint | Endpoint includes ID |
+
+### Phase 3: Execution
+
+| Step | Action | Verification |
+|------|--------|--------------|
+| 3.1 | Execute selected command | Command runs without error |
+| 3.2 | Receive structured JSON response | `Success: true` for scripts |
+| 3.3 | Parse relevant fields for user query | Response processed |
+
+---
+
+## URL Routing Table
+
+### Primary: Use GitHub Skill Scripts
+
+| URL Pattern | Script | Parameters |
+|-------------|--------|------------|
+| `/pull/{n}` | `get_pr_context.py` | `--pull-request {n} --owner {o} --repo {r}` |
+| `/pull/{n}` (with diff) | `get_pr_context.py` | `--pull-request {n} --include-diff` |
+| `/pull/{n}` (review comments) | `get_pr_review_comments.py` | `--pull-request {n}` |
+| `/pull/{n}` (review threads) | `get_pr_review_threads.py` | `--pull-request {n}` |
+| `/pull/{n}/checks` | `get_pr_checks.py` | `--pull-request {n} --owner {o} --repo {r}` |
+| `/issues/{n}` | `get_issue_context.py` | `--issue {n} --owner {o} --repo {r}` |
+
+**Script location**: `.claude/skills/github/scripts/`
+
+### Fallback: Raw gh Commands
+
+Use only when no script exists for the operation:
+
+| URL Pattern | API Call |
+|-------------|----------|
+| `/pull/{n}#pullrequestreview-{id}` | `gh api repos/{o}/{r}/pulls/{n}/reviews/{id}` |
+| `/pull/{n}#discussion_r{id}` | `gh api repos/{o}/{r}/pulls/comments/{id}` |
+| `/pull/{n}/files#r{id}` or `/changes#r{id}` | `gh api repos/{o}/{r}/pulls/comments/{id}` |
+| `/pull/{n}#issuecomment-{id}` | `gh api repos/{o}/{r}/issues/comments/{id}` |
+| `/pull/{n}/checks` | `gh api repos/{o}/{r}/check-runs?head_sha=...` or use `get_pr_checks.py --owner {o} --repo {r}` |
+| `/issues/{n}#issuecomment-{id}` | `gh api repos/{o}/{r}/issues/comments/{id}` |
+| `/actions/runs/{run_id}` | `gh api repos/{o}/{r}/actions/runs/{run_id}` |
+| `/actions/runs/{run_id}/job/{job_id}` | `gh api repos/{o}/{r}/actions/jobs/{job_id}` |
+| `/blob/{ref}/{path}` | `gh api repos/{o}/{r}/contents/{path}?ref={ref}` |
+| `/tree/{ref}/{path}` | `gh api repos/{o}/{r}/contents/{path}?ref={ref}` |
+| `/commit/{sha}` | `gh api repos/{o}/{r}/commits/{sha}` |
+| `/compare/{base}...{head}` | `gh api repos/{o}/{r}/compare/{base}...{head}` |
+| `gist.github.com/{owner}/{id}` | `gh api gists/{id}` |
+
+---
+
+## URL Parsing Pattern
+
+Extract owner, repo, and resource from GitHub URLs:
+
+```text
+https://github.com/{owner}/{repo}/pull/{number}
+https://github.com/{owner}/{repo}/issues/{number}
+https://github.com/{owner}/{repo}/blob/{ref}/{path}
+https://github.com/{owner}/{repo}/tree/{ref}/{path}
+https://github.com/{owner}/{repo}/commit/{sha}
+https://github.com/{owner}/{repo}/compare/{base}...{head}
+https://gist.github.com/{owner}/{id}
+https://gist.github.com/{id}
+https://gist.github.com/{owner}/{id}.js
+https://gist.githubusercontent.com/{owner}/{id}/raw/{revision}/{path}
+```
+
+**Fragment extraction** (when present):
+
+- `#pullrequestreview-{id}` → Review ID
+- `#discussion_r{id}` → Discussion comment ID
+- `#issuecomment-{id}` → Issue comment ID
+
+---
+
+## Why This Matters (CRITICAL)
+
+**Fetching GitHub HTML is catastrophic for your context window:**
+
+| Method | Response Size | Token Cost | Time | Usability |
+|--------|---------------|------------|------|-----------|
+| ❌ HTML fetch | 5-10 MB | 1-2.5M tokens | 10-30s | **UNUSABLE** - HTML noise, no structured data |
+| ✅ API call | 1-50 KB | 250-12K tokens | 0.5-2s | Clean JSON with exactly what you need |
+| ✅ Script | 1-50 KB | 250-12K tokens | 0.5-2s | Structured output, error handling |
+
+**Impact**: 100-1000x reduction in token consumption.
+
+**If you fetch GitHub HTML directly, you will:**
+
+1. Consume your entire context window on ONE page
+2. Get no useful structured data (just HTML soup)
+3. Be unable to process subsequent user requests
+4. Need to start a new conversation
+
+**ALWAYS use this skill when you see a GitHub URL.**
+
+---
+
+## Examples
+
+### Bare URL Pasted (Most Common!)
+
+```text
+Input: "https://github.com/rjmurillo/ai-agents/pull/735/checks?check_run_id=59355308734"
+
+Action:
+  1. Parse: owner=rjmurillo, repo=ai-agents, pr=735, type=checks
+  2. Route: python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 735 --owner rjmurillo --repo ai-agents
+```
+
+### Gist URL
+
+```text
+Input: "https://gist.github.com/owner/0123456789abcdef0123"
+
+Action:
+  1. Parse: owner=owner, gist=0123456789abcdef0123, type=gist
+  2. Route: gh api "gists/0123456789abcdef0123"
+```
+
+Ownerless URLs, query strings, file fragments, `.js` embed URLs, raw-content
+URLs, revision SHAs, and `/revisions` or `/raw` suffixes route through the gist
+API. Pinned revisions stay pinned. Raw file URLs return only the requested file.
+
+### URL with Question After It
+
+```text
+Input: "https://github.com/owner/repo/pull/715/changes#r2656144507 are the graph refactoring items part of Issue 722?"
+
+Action:
+  1. Extract fragment: r2656144507 (review comment ID)
+  2. Call: gh api "repos/owner/repo/pulls/comments/2656144507"
+  3. Answer user's question using the comment content
+```
+
+### Multiple URLs in One Prompt
+
+```text
+Input: "https://github.com/owner/repo/pull/715#discussion_r123 https://github.com/owner/repo/pull/715#discussion_r456"
+
+Action:
+  1. Parse each URL
+  2. Batch: gh api "repos/owner/repo/pulls/comments/123"
+  3. Batch: gh api "repos/owner/repo/pulls/comments/456"
+```
+
+### Research/Analyze Pattern
+
+```text
+Input: "analyze https://github.com/modu-ai/moai-adk for insights"
+
+Action:
+  1. Use deepwiki MCP or gh api to get repo info
+  2. Call: gh api "repos/modu-ai/moai-adk" (NOT web_fetch!)
+```
+
+### CI/Actions Run URL
+
+```text
+Input: "https://github.com/owner/repo/actions/runs/20675405338/job/59362398542?pr=740"
+
+Action:
+  1. Extract: run_id=20675405338, job_id=59362398542
+  2. Call: gh api "repos/owner/repo/actions/jobs/59362398542"
+```
+
+### PR URL → Script
+
+```text
+Input: "Review this: https://github.com/owner/repo/pull/123"
+
+Action:
+  python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123 --owner owner --repo repo
+```
+
+### File URL → API
+
+```text
+Input: "would a hook like https://github.com/ruvnet/claude-flow/blob/main/.claude/settings.json help?"
+
+Action:
+  gh api "repos/ruvnet/claude-flow/contents/.claude/settings.json?ref=main"
+```
+
+---
+
+## Anti-Patterns (NEVER DO THESE)
+
+| ❌ NEVER | Why It's Catastrophic | ✅ Do This Instead |
+|----------|----------------------|-------------------|
+| `web_fetch("https://github.com/...")` | 5-10 MB HTML, 1-2.5M tokens WASTED | Parse URL, use script or `gh api` |
+| `curl https://github.com/...` | Same catastrophic result | Use `gh` CLI for authentication + JSON |
+| `fetch` / `requests.get` on GitHub URLs | Same catastrophic result | Route through this skill |
+| `gh pr view` without `--json` | Unstructured text output | Use `get_pr_context.py` for structured JSON |
+| Fetching full page to find one comment | Fetches 5MB to read 500 bytes | Extract fragment ID (`#discussion_r...`), call specific endpoint |
+| Ignoring GitHub URLs in user input | User expects you to understand the link | ALWAYS parse and route |
+| Hardcoding owner/repo in commands | Breaks when user shares fork/different repo | Extract from URL path |
+
+**RED FLAG PHRASES** - If you're about to do any of these, STOP:
+
+- "Let me fetch that page..."
+- "I'll retrieve the content from that URL..."
+- "Accessing the GitHub page..."
+
+**These indicate you're about to waste millions of tokens. Use this skill instead.**
+
+---
+
+## Scripts
+
+### test_url_routing.py
+
+Routes GitHub URLs to appropriate API access methods with CWE-78 command injection protection.
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github-url-intercept/scripts/test_url_routing.py" --url <github-url>
+```
+
+---
+
+## Related Skills
+
+| Skill | When to Use |
+|-------|-------------|
+| [github](../github/SKILL.md) | Full PR/issue operations (mutations, reactions, labels) |
+| [pr-comment-responder](../pr-comment-responder/SKILL.md) | Systematic PR review response |
+
+---
+
+## Verification
+
+After routing a GitHub URL, run the bundled validator and require exit 0:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github-url-intercept/scripts/test_url_routing.py" --url "$GITHUB_URL"
+echo "exit=$?"   # must be 0; exit 1 means invalid URL or no routing available
+```
+
+- [ ] `test_url_routing.py` exited 0 (non-zero = invalid URL or unroutable type; routing is not valid)
+- [ ] Extracted owner/repo or gist owner/id from URL path
+- [ ] Identified URL type (gist, PR, issue, blob, commit, compare)
+- [ ] Extracted fragment ID if present (#discussion_r, #issuecomment-, #pullrequestreview-)
+- [ ] Selected appropriate github skill script (primary) or gh command (fallback)
+- [ ] Did NOT use web_fetch, curl, or browser-based fetch on the URL
+- [ ] Received structured JSON response with `success: true`

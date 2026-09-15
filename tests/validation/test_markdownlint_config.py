@@ -51,7 +51,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = REPO_ROOT / ".markdownlint-cli2.yaml"
 
-SKILL_TREES = [".claude/skills/**", "src/copilot-cli/skills/**"]
+SKILL_TREES = [".claude/skills/**", "src/claude/skills/**", "src/copilot-cli/skills/**"]
 REQUIRED_SKILL_DISABLED_RULES = {"MD040": False, "MD033": False}
 
 

@@ -205,7 +205,7 @@ artifacts:
     mode: "directory-copy"
     excludeFilenames: ["AGENTS.md", "CLAUDE.md", "merge-resolver"]
   rules:
-    sourceDir: ".claude/rules"
+    sourceDir: "src/claude/rules"   # ADR-109 B2: the plugin tree the compile renders; .claude/rules is its binplace
     outputDirs:
       - ".github/instructions"
       - "src/copilot-cli/instructions"
@@ -222,8 +222,8 @@ artifacts:
     sourceDir: ".claude/lib"
     outputDir: "src/copilot-cli/lib"
   hooks:
-    settingsSource: ".claude/hooks/hooks.json"
-    scriptSource: ".claude/hooks"
+    settingsSource: "src/claude/hooks.json"
+    scriptSource: "src/claude/hooks"
     outputConfig: "src/copilot-cli/hooks/hooks.json"
     outputScripts: "src/copilot-cli/hooks"
     dispatcher: true

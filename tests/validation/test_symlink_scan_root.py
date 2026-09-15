@@ -170,6 +170,7 @@ class TestMdPortabilityMainRejectsSymlinkedRoot:
         repo = tmp_path / "repo"
         repo.mkdir()
         (repo / ".claude").symlink_to(outside)
+        (repo / "src" / "claude" / "skills").mkdir(parents=True)
         (repo / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         (repo / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         baseline = tmp_path / "b.json"

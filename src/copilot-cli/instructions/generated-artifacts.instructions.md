@@ -179,12 +179,14 @@ sync is expected to run first; it is not an enforcement of it, and nothing
 fails when you skip it.
 
 The build now writes under `.claude/` only through the binplace step for the paths
-the binplace manifest (`binplace.yaml` beside the platform configs) names (agent_templates.py and binplace_manifest.py
-generators per ADR-109). REQ-003-010 forbids other generators from writing `.claude/`
-(ADR-108 carves out skill-template SKILL.md files, ADR-109 carves out agent files);
-the plugin-lib sync is neither of those classes and continues to stay separate from
-the build. The lib sync is not yet a manifest row, so the ordering is currently implicit.
-B5 folds it into the binplace manifest and retires this ordering rule.
+the binplace manifest (`binplace.yaml` beside the platform configs) names (agent_templates.py,
+rule_templates.py, skill_templates.py, and binplace_manifest.py generators per ADR-109 B1-B3:
+agents, rules, and template-owned skill `SKILL.md` files each render into a `src/claude/`
+plugin tree, then binplace copies the render onto its `.claude/` counterpart).
+REQ-003-010 forbids other generators from writing `.claude/`; the plugin-lib sync is
+none of those classes and continues to stay separate from the build. The lib sync is
+not yet a manifest row, so the ordering is currently implicit. B5 folds it into the
+binplace manifest and retires this ordering rule.
 
 ## Quick Self-Review
 

@@ -301,11 +301,11 @@ rarely carry.
 
 Sources and re-verification:
 
-- ADR-069 thesis and status: `.agents/architecture/ADR-069-context-corpus-is-the-product.md:2` (status: proposed), title at line 9. Re-verify: `head -12 .agents/architecture/ADR-069-context-corpus-is-the-product.md`.
-- ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md:3-20,119-131`. Re-verify: `sed -n '1,25p;119,131p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
+- ADR-069 thesis and status: `.agents/architecture/ADR-069-context-corpus-is-the-product.md` (status: proposed, line 2; title at line 9). Re-verify: `head -12 .agents/architecture/ADR-069-context-corpus-is-the-product.md`.
+- ADR-072 status, review verdict, five conditions, harness list: `.agents/architecture/ADR-072-jtbd-plugin-architecture.md`. Re-verify: `sed -n '1,25p;119,131p' .agents/architecture/ADR-072-jtbd-plugin-architecture.md`.
 - ADR-068 status and #2295 measurements (3/197 kills, ~246 ms cold start, 40 shims): `.agents/architecture/ADR-068-consolidated-hook-dispatcher.md`. Re-verify: `sed -n '1,10p' .agents/architecture/ADR-068-consolidated-hook-dispatcher.md; grep -n -A1 -e "Three of" -e "246" -e "N=40" .agents/architecture/ADR-068-consolidated-hook-dispatcher.md`.
-- Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py:1-40` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
-- FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:44`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
+- Rule-activation eval mechanisms, judge dimensions, exit codes: `scripts/eval/eval-rule-activation.py` docstring. Re-verify: `sed -n '1,40p' scripts/eval/eval-rule-activation.py`.
+- FM-1 95.8% evidence: `.agents/governance/FAILURE-MODES.md:46`. Re-verify: `grep -n "95.8" .agents/governance/FAILURE-MODES.md`.
 - Detect-Log-Graduate and explicit retrieval: the `reflect` skill, `.claude/skills/memory/SKILL.md`, and `.claude/skills/memory-search/SKILL.md`. Re-verify the deleted advisory hooks' absence with the Phase 1 test command.
 - EVENT telemetry emitter and tier classifier: RETIRED. `push_guard_base.py`, every guard built on it, and the skill that classified guards into Budding/Growing/Mature/Proficient/Inert/Harmful tiers were all deleted under ADR-084 (issue #5154); no live file emits or consumes this schema. Re-verify the removal: `ls .claude/hooks/PreToolUse/` (expect no `push_guard_base.py` or `invoke_*_guard.py`) and `ls .claude/skills/ | grep guard-maturity` (expect no output).
 - Runtime contract test and anchoring validator: `tests/build_scripts/test_generate_hooks_runtime_contract.py`, `scripts/validation/validate_hook_anchoring.py`. Re-verify: `ls tests/build_scripts/test_generate_hooks_runtime_contract.py scripts/validation/validate_hook_anchoring.py`.

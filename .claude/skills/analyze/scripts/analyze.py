@@ -12,10 +12,12 @@ Six-phase workflow:
 
 Usage:
     python3 analyze.py --step-number 1 --total-steps 6 --thoughts "Explore found: ..."
+    python3 analyze.py --step-number 1 --total-steps 6 --thoughts-file /path/to/thoughts.txt
 """
 
 import argparse
 import sys
+from pathlib import Path
 
 
 def get_phase_name(step: int, total_steps: int) -> str:
@@ -572,7 +574,7 @@ def format_output(step: int, total_steps: int, thoughts: str, guidance: dict) ->
     return "\n".join(lines)
 
 
-def main():
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Analyze Skill - Systematic codebase analysis",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -613,6 +615,10 @@ Examples:
   # Step 7: Synthesis
   python3 analyze.py --step-number 7 --total-steps 7 \\
     --thoughts "[Verified findings] Ready for consolidation..."
+
+  # --thoughts-file avoids embedding request text on the command line
+  python3 analyze.py --step-number 1 --total-steps 6 \\
+    --thoughts-file /path/to/thoughts.txt
 """
     )
 
@@ -628,14 +634,20 @@ Examples:
         required=True,
         help="Estimated total steps (adjust as understanding grows)",
     )
-    parser.add_argument(
+    thoughts_group = parser.add_mutually_exclusive_group(required=True)
+    thoughts_group.add_argument(
         "--thoughts",
         type=str,
-        required=True,
-        help="Accumulated findings, evidence, and file references",
+        help="Accumulated findings, evidence, and file references (inline text)",
+    )
+    thoughts_group.add_argument(
+        "--thoughts-file",
+        type=str,
+        help="Path to a file with the accumulated findings, read as UTF-8 "
+        "(errors replaced); avoids embedding request text on the command line",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # Validate inputs
     if args.step_number < 1:
@@ -650,11 +662,19 @@ Examples:
         print("ERROR: total-steps must be >= step-number", file=sys.stderr)
         sys.exit(1)
 
+    thoughts = args.thoughts
+    if args.thoughts_file:
+        try:
+            thoughts = Path(args.thoughts_file).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            print(f"ERROR: cannot read --thoughts-file: {exc}", file=sys.stderr)
+            sys.exit(1)
+
     # Get guidance for current step
     guidance = get_step_guidance(args.step_number, args.total_steps)
 
     # Print formatted output
-    print(format_output(args.step_number, args.total_steps, args.thoughts, guidance))
+    print(format_output(args.step_number, args.total_steps, thoughts, guidance))
 
 
 if __name__ == "__main__":

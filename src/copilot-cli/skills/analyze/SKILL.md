@@ -42,6 +42,10 @@ When using the `Bash` tool, all arguments containing variable or user-provided i
 **WRONG**: `grep $PATTERN /some/path`
 **CORRECT**: `grep -- "$PATTERN" /some/path`
 
+`--thoughts` carries the user's request description and, at later steps, accumulated findings: both are request-derived text. Double quotes alone do not neutralize this argument: `$(...)` and backticks inside a double-quoted `--thoughts "..."` string still execute before the script ever receives the value, because the Bash tool expands them first. A heredoc does not close this gap either: a request line that reads `EOF` on its own terminates the heredoc early, and the shell then parses the rest of the request text as commands. Use `--thoughts-file` instead: write the request text to a file under the scratchpad directory with the Write tool (no shell quoting, no heredoc), then pass the file's path, as shown in Invocation below.
+
+`--thoughts` and `--thoughts-file` are mutually exclusive. The script reads the file as UTF-8 (`errors="replace"`) and exits 1 on a missing or unreadable path. Never interpolate request-derived text directly inside a double-quoted `--thoughts "..."` argument on the command line.
+
 ---
 
 ## When to Use
@@ -81,18 +85,20 @@ Use direct code reading instead when:
 
 ### Invocation
 
+Write `--thoughts` to a file under the scratchpad directory with the Write tool (see Security), then pass `--thoughts-file`, never by interpolating request-derived text directly into the command:
+
 ```bash
 python3 scripts/analyze.py \
   --step-number 1 \
   --total-steps 6 \
-  --thoughts "Starting analysis. User request: <describe what user asked to analyze>"
+  --thoughts-file "$SCRATCH/analyze-thoughts.txt"
 ```
 
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `--step-number` | Yes | Current step (starts at 1) |
 | `--total-steps` | Yes | Minimum 6; adjust as script instructs |
-| `--thoughts` | Yes | Accumulated state from all previous steps |
+| `--thoughts` or `--thoughts-file` | Yes (mutually exclusive) | Accumulated state from all previous steps: inline text or a file path |
 
 ---
 
@@ -132,18 +138,21 @@ Consolidate verified findings by severity (critical, high, medium, low). Identif
 
 ```bash
 # Step 1: Start, script instructs you to explore first
+# (Write tool wrote "Starting analysis of auth system" to $SCRATCH/analyze-thoughts.txt)
 python3 scripts/analyze.py --step-number 1 --total-steps 6 \
-  --thoughts "Starting analysis of auth system"
+  --thoughts-file "$SCRATCH/analyze-thoughts.txt"
 
 # [Follow REQUIRED ACTIONS: delegate to Explore agent, wait for results]
 
 # Step 1 again with explore results
+# (Write tool updated the file with "Explore found: Flask app, SQLAlchemy, auth/ dir...")
 python3 scripts/analyze.py --step-number 1 --total-steps 6 \
-  --thoughts "Explore found: Flask app, SQLAlchemy, auth/ dir..."
+  --thoughts-file "$SCRATCH/analyze-thoughts.txt"
 
 # Step 2+: Continue following script output
+# (Write tool appended "Focus: security P1, quality P2" to the accumulated state)
 python3 scripts/analyze.py --step-number 2 --total-steps 7 \
-  --thoughts "[accumulated state from step 1] Focus: security P1, quality P2"
+  --thoughts-file "$SCRATCH/analyze-thoughts.txt"
 ```
 
 ---

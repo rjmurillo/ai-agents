@@ -99,6 +99,7 @@ def _copy_skill_tree(
     *,
     what_if: bool,
     skills_output_dir: Path | None = None,
+    plugin_skill_md: Path | None = None,
 ) -> tuple[int, int]:
     """Copy a single skill directory into ``target``.
 
@@ -108,7 +109,23 @@ def _copy_skill_tree(
     When ``skills_output_dir`` is provided (Copilot CLI target), the
     top-level ``SKILL.md`` body is translated from Claude Code conventions
     to Copilot CLI equivalents (issue #2743) instead of copied verbatim.
-    Every other file is copied byte-for-byte.
+    Every other file is copied byte-for-byte, straight from ``source``
+    (``.claude/skills/<name>/``); scripts, references, and tests are
+    hand-maintained there and never rendered by a template, so this path is
+    unchanged by ADR-109 B3.
+
+    ``plugin_skill_md`` (ADR-109 B3), when given and present on disk, is
+    read for the ``SKILL.md`` body instead of ``source / "SKILL.md"``. It
+    names the skill's plugin-tree render target,
+    ``src/claude/skills/<name>/SKILL.md``, written by
+    ``skill_templates.compile_all`` immediately before this copy loop runs
+    (:func:`generate_skills`). The install-tree copy,
+    ``.claude/skills/<name>/SKILL.md``, is only refreshed later, by the
+    binplace step that runs after every platform's copy loop
+    (``build_all._run_binplace``), so reading it here during THIS run would
+    risk translating yesterday's rendered content into the Copilot mirror.
+    A skill with no template (``plugin_skill_md`` is ``None``, or the path
+    does not exist yet) falls back to ``source / "SKILL.md"`` unchanged.
     """
     written = 0
     skipped = 0
@@ -134,7 +151,10 @@ def _copy_skill_tree(
 
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         if skills_output_dir is not None and rel == Path("SKILL.md"):
-            content = src_path.read_text(encoding="utf-8")
+            content_source = src_path
+            if plugin_skill_md is not None and plugin_skill_md.is_file():
+                content_source = plugin_skill_md
+            content = content_source.read_text(encoding="utf-8")
             dst_path.write_text(translate_skill_file(content, skills_output_dir), encoding="utf-8")
         else:
             shutil.copy2(src_path, dst_path)
@@ -236,17 +256,31 @@ def generate_skills(
         return 1
 
     is_copilot = str(cfg.get("provider", "")) == "copilot-cli"
+    # ADR-109 B3: the plugin tree src/claude/skills/<name>/SKILL.md was just
+    # rendered by skill_templates.compile_all above (this call's own
+    # compile_result), so its bytes are fresher than .claude/skills/, which
+    # this platform's binplace step will not refresh until later in the
+    # pipeline. discover() names every skill with a template; a skill
+    # without one has no plugin-tree file, and _copy_skill_tree falls back
+    # to source / "SKILL.md" for it.
+    templated = skill_templates.discover(repo_root)
     print(f"Found {len(skills)} skill(s)")
     total_written = 0
     total_skipped = 0
     for src in skills:
         target = output_dir / src.name
         print(f"Processing: {src.name}")
+        plugin_skill_md = (
+            repo_root / "src" / "claude" / "skills" / src.name / "SKILL.md"
+            if src.name in templated
+            else None
+        )
         written, skipped = _copy_skill_tree(
             src,
             target,
             what_if=what_if,
             skills_output_dir=output_dir if is_copilot else None,
+            plugin_skill_md=plugin_skill_md,
         )
         total_written += written
         total_skipped += skipped

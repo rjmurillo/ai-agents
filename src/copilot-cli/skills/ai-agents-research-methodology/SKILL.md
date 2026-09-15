@@ -103,8 +103,8 @@ Skipping a stage is how #1989 happened.
 
 Before building anything, search: this codebase, Serena memories
 (`memory-search`), ADRs, then external docs
-(.claude/rules/search-before-building.md). Most hunches die here because the
-answer already exists; that is a cheap success.
+(the `programming-advisor` skill's `references/search-before-building.md`). Most
+hunches die here because the answer already exists; that is a cheap success.
 
 If your first-principles position contradicts the conventional answer (an ADR,
 a memory, a canonical pattern), log it before proceeding: Serena memory named
@@ -265,11 +265,11 @@ volatile facts:
 |---|---|---|
 | #1989 false premise, calibration rule, M4 numbers | `.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:20` (`misdiagnosed root cause`); the same retro's lines 72 to 73 give the M4 numbers and lines 149 to 157 state the calibration rule | `grep -n "calibrat" .agents/retrospective/2026-05-10-pr-1989-recursive-failure.md` |
 | #2230 rejection record | `.agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md:411` (`addressed-by-prevention`) | `grep -n 2230 .agents/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md` |
-| adr-review auto-fire + 6-agent debate | AGENTS.md "ADR Review"; `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
-| buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:40` (`13wk`) | `grep -n "13" AGENTS.md` |
+| adr-review auto-fire + 6-agent debate | `AGENTS.md:40` (`adr-review`); `.claude/skills/adr-review/SKILL.md` | `grep -n "debate" .claude/skills/adr-review/SKILL.md` |
+| buy-vs-build Quick tier gate + 13wk prune | `AGENTS.md:38` (`13wk`) | `grep -n "13" AGENTS.md` |
 | buy-vs-build Quick tier ends in a Go/No-go | `.claude/skills/buy-vs-build-framework/SKILL.md:65` (`Go/No-go`) | verified directly against the cited line; no command needed that would read a sibling skill's directory |
 | eval scripts and `--dry-run` | `scripts/eval/eval-prompt-change.py:633` (`Validate inputs, no API calls`); `scripts/eval/` listing | `ls scripts/eval/ && grep -n "dry-run" scripts/eval/eval-prompt-change.py` |
-| Contradiction log format | `.claude/rules/search-before-building.md` | `grep -n "decision-" .claude/rules/search-before-building.md` |
+| Contradiction log format | `.claude/skills/memory-gate/references/contradiction-log.md` | `grep -n "decision-" .claude/skills/memory-gate/references/contradiction-log.md` |
 | ADR-069 still proposed | `.agents/architecture/ADR-069-context-corpus-is-the-product.md:3` (`status: proposed`) | `head -5 .agents/architecture/ADR-069-context-corpus-is-the-product.md` |
 | Retro corpus size | `.agents/retrospective/` | `python3 -c "import pathlib;print(sum(1 for p in pathlib.Path('.agents/retrospective').glob('*.md') if p.name != 'INDEX.md'))"` |
 

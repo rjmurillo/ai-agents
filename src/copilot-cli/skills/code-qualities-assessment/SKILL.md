@@ -236,7 +236,7 @@ Create `.qualityrc.json` to customize thresholds:
 After running assessment, run the bundled validator and require exit 0:
 
 ```bash
-python3 .claude/skills/code-qualities-assessment/scripts/assess.py --target "$TARGET_PATH"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/code-qualities-assessment/scripts/assess.py" --target "$TARGET_PATH"
 echo "exit=$?"   # must be 0; 10 = regressed, 11 = thresholds not met, 1 = script error
 ```
 
