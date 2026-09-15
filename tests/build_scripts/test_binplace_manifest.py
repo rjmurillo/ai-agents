@@ -166,6 +166,42 @@ def test_load_rejects_install_tree_not_under_prefix(tmp_path: Path) -> None:
         binplace_manifest.load(root)
 
 
+def test_load_rejects_row_missing_install_tree_key(tmp_path: Path) -> None:
+    """load: a row that omits `install_tree` entirely is a config error, not a null.
+
+    `dict.get` collapses "explicit null" and "key absent" onto the same
+    `None`, so a malformed row that simply forgot the key used to validate
+    silently as an intentional no-second-hop row (`install_tree: null`) and
+    skip installation with no signal (PR #5787 review).
+    """
+    root = fake_repo(tmp_path)
+    write_manifest(
+        root,
+        "rows:\n"
+        "  - class: bad\n"
+        "    source: templates\n"
+        "    plugin_tree: src/claude/agents\n"
+    )
+
+    with pytest.raises(binplace_manifest.BinplaceConfigError, match="install_tree"):
+        binplace_manifest.load(root)
+
+
+def test_load_rejects_row_missing_plugin_tree_key(tmp_path: Path) -> None:
+    """load: a row that omits `plugin_tree` entirely is a config error, not a null."""
+    root = fake_repo(tmp_path)
+    write_manifest(
+        root,
+        "rows:\n"
+        "  - class: bad\n"
+        "    source: templates\n"
+        "    install_tree: .claude/agents\n"
+    )
+
+    with pytest.raises(binplace_manifest.BinplaceConfigError, match="plugin_tree"):
+        binplace_manifest.load(root)
+
+
 def test_claude_allowlist_empty_for_manifest_without_claude_rows(tmp_path: Path) -> None:
     """claude_allowlist: empty when no .claude/-rooted rows."""
     root = fake_repo(tmp_path)
@@ -371,6 +407,130 @@ def test_binplace_replaces_symlinked_destination(tmp_path: Path) -> None:
     assert outside_file.read_bytes() == b"outside content\n"
 
 
+# ADR-109 B5: nullable install_tree (Copilot-side lib rows) and file-shaped
+# plugin_tree/install_tree (lib-bootstrap, skills-sidecar).
+
+
+def test_load_accepts_null_install_tree(tmp_path: Path) -> None:
+    """load: install_tree: null is a valid row (no second binplace hop)."""
+    root = fake_repo(tmp_path)
+    write_manifest(
+        root,
+        "rows:\n"
+        "  - class: lib-hook_utilities-copilot\n"
+        "    source: scripts/hook_utilities\n"
+        "    plugin_tree: src/copilot-cli/lib/hook_utilities\n"
+        "    install_tree: null\n"
+    )
+
+    rows = binplace_manifest.load(root)
+
+    assert len(rows) == 1
+    assert rows[0].install_tree is None
+
+
+def test_binplace_skips_row_with_null_install_tree(tmp_path: Path) -> None:
+    """binplace: a row with install_tree: null has no second hop; nothing written."""
+    root = fake_repo(tmp_path)
+    plugin_dir = root / "src" / "copilot-cli" / "lib" / "hook_utilities"
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "guards.py").write_bytes(b"content\n")
+
+    write_manifest(
+        root,
+        "rows:\n"
+        "  - class: lib-hook_utilities-copilot\n"
+        "    source: scripts/hook_utilities\n"
+        "    plugin_tree: src/copilot-cli/lib/hook_utilities\n"
+        "    install_tree: null\n"
+    )
+
+    result = binplace_manifest.binplace(root, check=False)
+
+    assert result.exit_code == 0
+    assert result.written == []
+
+
+def test_claude_allowlist_excludes_row_with_null_install_tree(tmp_path: Path) -> None:
+    """claude_allowlist: a null-install_tree row contributes nothing (not .claude-rooted)."""
+    root = fake_repo(tmp_path)
+    plugin_dir = root / "src" / "copilot-cli" / "lib" / "hook_utilities"
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "guards.py").write_bytes(b"content\n")
+
+    write_manifest(
+        root,
+        "rows:\n"
+        "  - class: lib-hook_utilities-copilot\n"
+        "    source: scripts/hook_utilities\n"
+        "    plugin_tree: src/copilot-cli/lib/hook_utilities\n"
+        "    install_tree: null\n"
+    )
+
+    assert binplace_manifest.claude_allowlist(root) == set()
+
+
+def test_load_null_install_tree_skips_prefix_validation(tmp_path: Path) -> None:
+    """load: a null install_tree needs no .claude/ or .github/ prefix check."""
+    root = fake_repo(tmp_path)
+    write_manifest(
+        root,
+        "rows:\n"
+        "  - class: lib-hook_utilities-copilot\n"
+        "    source: scripts/hook_utilities\n"
+        "    plugin_tree: src/copilot-cli/lib/hook_utilities\n"
+        "    install_tree: null\n"
+    )
+
+    rows = binplace_manifest.load(root)  # must not raise BinplaceConfigError
+
+    assert rows[0].class_name == "lib-hook_utilities-copilot"
+
+
+def test_binplace_copies_file_shaped_plugin_tree(tmp_path: Path) -> None:
+    """binplace: a single-file plugin_tree (not a package dir) copies directly."""
+    root = fake_repo(tmp_path)
+    plugin_file = root / "src" / "claude" / "lib" / "bootstrap.py"
+    plugin_file.parent.mkdir(parents=True, exist_ok=True)
+    plugin_file.write_bytes(b"# bootstrap\n")
+
+    write_manifest(
+        root,
+        "rows:\n"
+        "  - class: lib-bootstrap\n"
+        "    source: scripts/hook_utilities/bootstrap.py\n"
+        "    plugin_tree: src/claude/lib/bootstrap.py\n"
+        "    install_tree: .claude/lib/bootstrap.py\n"
+    )
+
+    result = binplace_manifest.binplace(root, check=False)
+
+    assert result.exit_code == 0
+    dst = root / ".claude" / "lib" / "bootstrap.py"
+    assert dst.read_bytes() == b"# bootstrap\n"
+
+
+def test_claude_allowlist_includes_file_shaped_plugin_tree(tmp_path: Path) -> None:
+    """claude_allowlist: a file-shaped row allowlists exactly its one install path."""
+    root = fake_repo(tmp_path)
+    plugin_file = root / "src" / "claude" / "lib" / "bootstrap.py"
+    plugin_file.parent.mkdir(parents=True, exist_ok=True)
+    plugin_file.write_bytes(b"# bootstrap\n")
+
+    write_manifest(
+        root,
+        "rows:\n"
+        "  - class: lib-bootstrap\n"
+        "    source: scripts/hook_utilities/bootstrap.py\n"
+        "    plugin_tree: src/claude/lib/bootstrap.py\n"
+        "    install_tree: .claude/lib/bootstrap.py\n"
+    )
+
+    allow = binplace_manifest.claude_allowlist(root)
+
+    assert allow == {root / ".claude" / "lib" / "bootstrap.py"}
+
+
 # --- ADR-109 B4: file-shaped plugin_tree and direct-compile rows ---------
 
 
@@ -436,4 +596,3 @@ def test_binplace_check_mode_reports_drift_for_file_shaped_row(tmp_path: Path) -
     assert result.exit_code == 2
     assert str(dst) in result.drifted
     assert dst.read_bytes() == b'{"hooks": {"stale": true}}'
-

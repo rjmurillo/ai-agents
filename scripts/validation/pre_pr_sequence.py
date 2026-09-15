@@ -351,9 +351,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Orphaned Build Deferrals", _run_orphaned_build_deferrals),
     # The gate above reads deferral comments inside build_all.py's source. This
     # one asks the separate question CI asks: is the generated tree stale
-    # against its inputs. Runs sync_plugin_lib.py --check then
-    # build/scripts/build_all.py --check, in the order
-    # .claude/rules/generated-artifacts.md requires. Both are read-only.
+    # against its inputs. Runs build/scripts/build_all.py --check (ADR-109 B5:
+    # its lib step now covers the whole scripts/ -> plugin tree -> install
+    # tree chain in one command, so there is no second script to run first).
+    # Read-only.
     # Issue #5079: without it, a hand-edit to a generated file cleared every
     # local gate and the generator silently reverted it in CI (PR #5059).
     _Gate("Generated Artifact Staleness", _root_only(validate_generated_staleness)),

@@ -119,6 +119,16 @@ def iter_paginated(
     for page in range(1, _MAX_PAGES + 1):
         url = f"{endpoint}{separator}per_page={PAGE_SIZE}&page={page}"
         payload = client.rest_get(url)
+        # rest_get's return type widened to dict[str, Any] | list[Any]
+        # (CodeRabbit, PR #5787 review) to also cover list endpoints like
+        # pull_request_targets.iter_paginated_list's. This Actions
+        # endpoint always wraps its items in an object, never a bare
+        # array, so a list response here is a real API-contract break,
+        # not a shape this function is meant to accept.
+        if not isinstance(payload, dict):
+            raise TypeError(
+                f"expected a JSON object from {url}, got {type(payload).__name__}"
+            )
         items = payload.get(items_key)
         if not isinstance(items, list) or not items:
             return

@@ -1,7 +1,8 @@
 """Hook utilities package for Claude Code hook scripts.
 
-NOTE: Plugin-distributed copy at .claude/lib/hook_utilities/.
-Run ``python3 scripts/sync_plugin_lib.py`` to sync changes.
+NOTE: Plugin-distributed copies are generated from this canonical
+``scripts/`` tree. Do not hand-edit the generated copies; edit this
+file and regenerate.
 """
 
 from __future__ import annotations

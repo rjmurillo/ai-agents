@@ -29,7 +29,7 @@ Vocabulary, defined once: an "instrument" is a script whose output you read, not
 | Golden principles | Where does the repo violate GP-001..GP-005 mechanical rules? | `uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-principles/scripts/scan_principles.py"` |
 | Agent drift | Do generated agent files match their templates? | `uv run python build/generate_agents.py --validate` |
 | Mirror drift | Do the 7 generated mirror trees match `.claude/` canonical sources? | `uv run python build/scripts/build_all.py --check` |
-| Lib drift | Do `.claude/lib/` copies match `scripts/` canonical modules? | `uv run python ./scripts/sync_plugin_lib.py --check` |
+| Lib drift | Do the lib plugin trees match `scripts/` canonical modules? | `uv run python build/scripts/build_all.py --check` |
 | Coverage | Is changed code actually exercised by tests? | `uv run pytest <tests> --cov=<module> --cov-branch` |
 | Eval A/B | Did a prompt or agent change alter behavior, measurably? | `uv run python ./scripts/eval/eval-prompt-change.py --scenarios <file> --dry-run` |
 | Commit count | Advisory-only signal, not a cap (ADR-099) | `git rev-list --count HEAD ^origin/main` |

@@ -66,3 +66,63 @@ rows:
     plugin_tree: null
     install_tree: .github/prompts
     compile: generate_pr_quality_prompts
+  # ADR-109 B5 (TASK-035): scripts/{hook_utilities,github_core,ai_review_common}
+  # are the one class with a stated canonical-source exception (ADR-109
+  # section 1, DR6 in DESIGN-025): they carry absolute imports 39 lines
+  # inside themselves and 263 lines outside them depend on, and move as
+  # Python source, not rendered prose. lib_mirror.compile_all renders each
+  # package into both plugin trees with the same relative-import rewrite
+  # scripts/sync_plugin_lib.py used; the claude-side row's install_tree is
+  # then binplaced from its plugin_tree. The copilot-side row's install_tree
+  # is null: its plugin_tree IS the final output, no further hop, since
+  # .claude/ never mirrors the Copilot tree.
+  - class: lib-hook_utilities
+    source: scripts/hook_utilities
+    plugin_tree: src/claude/lib/hook_utilities
+    install_tree: .claude/lib/hook_utilities
+    compile: lib_mirror
+  - class: lib-hook_utilities-copilot
+    source: scripts/hook_utilities
+    plugin_tree: src/copilot-cli/lib/hook_utilities
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-github_core
+    source: scripts/github_core
+    plugin_tree: src/claude/lib/github_core
+    install_tree: .claude/lib/github_core
+    compile: lib_mirror
+  - class: lib-github_core-copilot
+    source: scripts/github_core
+    plugin_tree: src/copilot-cli/lib/github_core
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-ai_review_common
+    source: scripts/ai_review_common
+    plugin_tree: src/claude/lib/ai_review_common
+    install_tree: .claude/lib/ai_review_common
+    compile: lib_mirror
+  - class: lib-ai_review_common-copilot
+    source: scripts/ai_review_common
+    plugin_tree: src/copilot-cli/lib/ai_review_common
+    install_tree: null
+    compile: lib_mirror
+  # File-shaped rows (single registered file, not a package directory):
+  # sync_plugin_lib.py's two SYNC_FILE_PAIRS entries. bootstrap.py gets a
+  # Copilot-side counterpart, same as the three packages above; the review
+  # skill's sidecar script never had one (sync_plugin_lib.py registered only
+  # one destination for it) so it stays claude-only.
+  - class: lib-bootstrap
+    source: scripts/hook_utilities/bootstrap.py
+    plugin_tree: src/claude/lib/bootstrap.py
+    install_tree: .claude/lib/bootstrap.py
+    compile: lib_mirror
+  - class: lib-bootstrap-copilot
+    source: scripts/hook_utilities/bootstrap.py
+    plugin_tree: src/copilot-cli/lib/bootstrap.py
+    install_tree: null
+    compile: lib_mirror
+  - class: skills-sidecar
+    source: scripts/validation/validate_review_marker.py
+    plugin_tree: src/claude/skills/review/scripts/validate_review_marker.py
+    install_tree: .claude/skills/review/scripts/validate_review_marker.py
+    compile: lib_mirror

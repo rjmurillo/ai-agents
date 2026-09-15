@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -22,7 +23,18 @@ def initialize_ai_review(review_dir: str | None = None) -> str:
     if review_dir is None:
         review_dir = os.environ.get("AI_REVIEW_DIR", "")
         if not review_dir:
-            temp = os.environ.get("TEMP") or os.environ.get("TMPDIR") or "/tmp"
+            # RUNNER_TEMP is GitHub Actions' own per-job scratch directory,
+            # present on every runner OS; TEMP/TMPDIR cover a non-Actions
+            # shell. A hard-coded "/tmp" fallback can fail on Windows
+            # (CodeRabbit, PR #5787 review), so the last resort is the
+            # interpreter's own tempfile.gettempdir() instead of a
+            # POSIX-only literal.
+            temp = (
+                os.environ.get("RUNNER_TEMP")
+                or os.environ.get("TEMP")
+                or os.environ.get("TMPDIR")
+                or tempfile.gettempdir()
+            )
             review_dir = os.path.join(temp, "ai-review")
 
     Path(review_dir).mkdir(parents=True, exist_ok=True)
@@ -43,6 +55,15 @@ def get_pr_changed_files(pr_number: int, pattern: str = ".*") -> list[str]:
     """Get changed files in a PR, optionally filtered by regex *pattern*.
 
     Uses the GitHub files API (avoids HTTP 406 on large diffs).
+
+    Raises RuntimeError when the repository cannot be determined or the
+    `gh` call itself fails (missing executable, timeout, non-zero exit):
+    a caller reading an empty list back could not distinguish "the API
+    call failed" from "this PR genuinely changed zero files", and a
+    review/validation gate that treats the former as the latter silently
+    skips real changes (CodeRabbit, PR #5787 review). An empty list is
+    still returned for the one legitimate empty case: a successful call
+    whose output has no matching filenames.
     """
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     if not repo:
@@ -55,12 +76,18 @@ def get_pr_changed_files(pr_number: int, pattern: str = ".*") -> list[str]:
                 errors="replace",
                 timeout=10,
             )
-            repo = result.stdout.strip() if result.returncode == 0 else ""
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            return []
+        except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+            raise RuntimeError(
+                f"Could not determine repository for PR #{pr_number}: {exc}"
+            ) from exc
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Could not determine repository for PR #{pr_number}: {result.stderr.strip()}"
+            )
+        repo = result.stdout.strip()
 
     if not repo:
-        return []
+        raise RuntimeError(f"Could not determine repository for PR #{pr_number}")
 
     try:
         result = subprocess.run(
@@ -76,12 +103,18 @@ def get_pr_changed_files(pr_number: int, pattern: str = ".*") -> list[str]:
             errors="replace",
             timeout=30,
         )
-        if result.returncode != 0 or not result.stdout.strip():
-            return []
-        compiled = re.compile(pattern)
-        return [f for f in result.stdout.strip().split("\n") if compiled.search(f)]
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        raise RuntimeError(
+            f"Failed to get changed files for PR #{pr_number}: {exc}"
+        ) from exc
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Failed to get changed files for PR #{pr_number}: {result.stderr.strip()}"
+        )
+    if not result.stdout.strip():
         return []
+    compiled = re.compile(pattern)
+    return [f for f in result.stdout.strip().split("\n") if compiled.search(f)]
 
 
 def get_workflow_runs_by_pr(
@@ -111,25 +144,44 @@ def get_workflow_runs_by_pr(
         except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
             raise RuntimeError("Could not determine repository from git remote") from exc
 
-    result = subprocess.run(
-        [
-            "gh", "api",
-            f"/repos/{repository}/actions/runs?event=pull_request&per_page=100",
-            "--jq", ".workflow_runs",
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Failed to get workflow runs for PR #{pr_number}: {result.stderr.strip()}"
+    # `--paginate` alone requests every page of the repo-wide
+    # pull_request-event run list; without it, only the newest 100 runs
+    # were examined, silently dropping an older or busy PR's runs once
+    # 100+ newer runs from other PRs existed (CodeRabbit, PR #5787
+    # review). `--jq ".workflow_runs[]"` (the trailing `[]` unpacks the
+    # array) prints one JSON value per element, one per line, for every
+    # page; `--slurp` cannot combine with `--jq` in the gh CLI (cli/cli
+    # issue #10459, open as of this writing), so the combine step below
+    # parses the newline-delimited output in Python instead of asking gh
+    # to emit one pre-combined array.
+    try:
+        result = subprocess.run(
+            [
+                "gh", "api",
+                f"/repos/{repository}/actions/runs?event=pull_request&per_page=100",
+                "--paginate",
+                "--jq", ".workflow_runs[]",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=True,
         )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        raise RuntimeError(
+            f"Failed to get workflow runs for PR #{pr_number}: {exc}"
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"Failed to get workflow runs for PR #{pr_number}: {(exc.stderr or '').strip()}"
+        ) from exc
 
     try:
-        all_runs: list[dict[str, Any]] = json.loads(result.stdout)
+        all_runs: list[dict[str, Any]] = [
+            json.loads(line) for line in result.stdout.splitlines() if line.strip()
+        ]
     except json.JSONDecodeError as exc:
         raise RuntimeError(
             f"Invalid JSON from workflow runs for PR #{pr_number}: {exc}"

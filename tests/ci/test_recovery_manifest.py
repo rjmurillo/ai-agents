@@ -378,6 +378,43 @@ class TestRunFromMapping:
                 }
             )
 
+    @pytest.mark.parametrize("field", ["workflow_name", "branch", "event", "status"])
+    def test_numeric_scalar_field_raises_instead_of_being_stringified(self, field):
+        """A numeric branch such as 123 must not become the string "123"
+        and copy into RecoveryEntry, where it can target the wrong ref
+        (CodeRabbit, PR #5787 review): str(123) succeeds silently, so
+        these four fields need the same reject-don't-coerce treatment
+        run_id and pr_number already get."""
+        record = {
+            "run_id": 1,
+            "workflow_name": "Validate PR",
+            "pr_number": 7,
+            "branch": "feat/x",
+            "event": "synchronize",
+            "status": "queued",
+            "contexts": [],
+        }
+        record[field] = 123
+
+        with pytest.raises(ValueError, match=f"{field} must be a non-empty JSON string"):
+            run_from_mapping(record)
+
+    @pytest.mark.parametrize("field", ["workflow_name", "branch", "event", "status"])
+    def test_empty_string_scalar_field_raises(self, field):
+        record = {
+            "run_id": 1,
+            "workflow_name": "Validate PR",
+            "pr_number": 7,
+            "branch": "feat/x",
+            "event": "synchronize",
+            "status": "queued",
+            "contexts": [],
+        }
+        record[field] = ""
+
+        with pytest.raises(ValueError, match=f"{field} must be a non-empty JSON string"):
+            run_from_mapping(record)
+
 
 class TestSerialization:
     def test_manifest_dict_carries_the_regeneration_inputs(self):
