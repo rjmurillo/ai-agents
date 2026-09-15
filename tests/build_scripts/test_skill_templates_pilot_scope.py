@@ -120,8 +120,20 @@ PILOT: frozenset[str] = frozenset(
         "slo-designer",
         "software-engineering-library",
         "spec",
+        "spec-generator",
+        "steering-matcher",
+        "stuck-detection",
+        "style-enforcement",
         "sync",
+        "taste-lints",
         "test",
+        "threat-modeling",
+        "using-serena-symbols",
+        "validate-pr-description",
+        "validation-authority",
+        "windows-image-updater",
+        "work-operating-model",
+        "world-model-diagnostic",
     }
 )
 
