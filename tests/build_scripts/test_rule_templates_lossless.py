@@ -1,0 +1,113 @@
+"""Tests for lossless template rendering to fixtures (ADR-109 B2).
+
+Verifies that rendering templates/rules/<name>.md produces bytes identical
+to fixtures in tests/build_scripts/fixtures/rule_templates_b2/expected/<name>.md.
+Also verifies that committed src/claude/rules/<name>.md and .claude/rules/<name>.md
+equal the fixture. Mirrors test_agent_templates_lossless.py's shape, single-variant.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+_TEST_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _TEST_DIR.parent.parent
+for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
+    if str(_extra_path) not in sys.path:
+        sys.path.insert(0, str(_extra_path))
+
+from skill_template_grammar import render  # noqa: E402
+
+
+def _fixture_dir() -> Path:
+    """Return path to the fixtures directory."""
+    return _TEST_DIR / "fixtures" / "rule_templates_b2" / "expected"
+
+
+def _discover_fixture_names() -> list[str]:
+    """Discover all names from the fixture directory."""
+    fixture_dir = _fixture_dir()
+    if not fixture_dir.is_dir():
+        return []
+    return sorted(path.stem for path in fixture_dir.glob("*.md"))
+
+
+class TestLosslessRendering:
+    """Template rendering must be lossless to fixtures."""
+
+    @pytest.mark.parametrize("name", _discover_fixture_names())
+    def test_template_renders_to_fixture(self, name: str) -> None:
+        """Rule template renders identically to fixture."""
+        fixture_path = _fixture_dir() / f"{name}.md"
+        template_path = _REPO_ROOT / "templates" / "rules" / f"{name}.md"
+        partials_dir = _REPO_ROOT / "templates" / "rules" / "partials"
+
+        fixture_bytes = fixture_path.read_bytes()
+        rendered = render(template_path, partials_dir)
+        rendered_bytes = str(rendered).encode("utf-8")
+
+        assert rendered_bytes == fixture_bytes, (
+            f"Rule template for {name} renders differently from fixture. "
+            f"Template: {template_path}, Fixture: {fixture_path}"
+        )
+
+    @pytest.mark.parametrize("name", _discover_fixture_names())
+    def test_committed_claude_plugin_file_equals_fixture(self, name: str) -> None:
+        """Committed src/claude/rules/<name>.md equals fixture."""
+        fixture_path = _fixture_dir() / f"{name}.md"
+        committed_path = _REPO_ROOT / "src" / "claude" / "rules" / f"{name}.md"
+
+        fixture_bytes = fixture_path.read_bytes()
+        if committed_path.is_file():
+            committed_bytes = committed_path.read_bytes()
+            assert committed_bytes == fixture_bytes, (
+                f"Committed file {committed_path} differs from fixture {fixture_path}"
+            )
+
+    @pytest.mark.parametrize("name", _discover_fixture_names())
+    def test_binplaced_claude_install_file_equals_fixture(self, name: str) -> None:
+        """Binplaced .claude/rules/<name>.md equals fixture (unchanged by migration)."""
+        fixture_path = _fixture_dir() / f"{name}.md"
+        installed_path = _REPO_ROOT / ".claude" / "rules" / f"{name}.md"
+
+        fixture_bytes = fixture_path.read_bytes()
+        assert installed_path.is_file(), f"{installed_path} missing"
+        installed_bytes = installed_path.read_bytes()
+        assert installed_bytes == fixture_bytes, (
+            f"Installed file {installed_path} differs from fixture {fixture_path}"
+        )
+
+    def test_fixture_count_is_28(self) -> None:
+        """Exactly 28 fixtures must exist (29 rules minus untemplated testing.md)."""
+        names = _discover_fixture_names()
+        assert len(names) == 28, f"Expected 28 fixtures, found {len(names)}: {names}"
+
+    def test_testing_rule_has_no_template(self) -> None:
+        """testing.md is deliberately excluded (disallowed tag under the grammar)."""
+        assert not (_REPO_ROOT / "templates" / "rules" / "testing.md").is_file()
+        assert (_REPO_ROOT / ".claude" / "rules" / "testing.md").is_file()
+
+    def test_negative_control_template_change_is_detected(self, tmp_path: Path) -> None:
+        """Appending to template produces different bytes (proves test can fail)."""
+        names = _discover_fixture_names()
+        if not names:
+            pytest.skip("No fixtures found")
+        name = names[0]
+
+        fixture_path = _fixture_dir() / f"{name}.md"
+        fixture_bytes = fixture_path.read_bytes()
+
+        src_template = _REPO_ROOT / "templates" / "rules" / f"{name}.md"
+        tmp_template = tmp_path / f"{name}.md"
+        tmp_template.write_bytes(src_template.read_bytes() + b"\n# MODIFIED\n")
+
+        partials_dir = _REPO_ROOT / "templates" / "rules" / "partials"
+        rendered = render(tmp_template, partials_dir)
+        rendered_bytes = str(rendered).encode("utf-8")
+
+        assert rendered_bytes != fixture_bytes, (
+            "Negative control failed: modified template produced fixture bytes"
+        )
