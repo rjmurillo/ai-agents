@@ -152,9 +152,9 @@ stat, read, diff, write, or deletion.
 
   Apply each merge in this order: update the survivor, confirm it remains one
   focused topic, delete the poorer file, then update the affected topic index
-  and root index last. If any step fails, apply the hash check above before
-  restoring touched memory files from git, leave the indexes unchanged, and
-  report the failure.
+  and root index last. If any step fails, stop without restoring touched
+  memory files, leave the resulting Git diff for review, and report the
+  failure.
 - **Convert relative dates to absolute dates, anchored on the observation's
   own timestamp, never on today's session date.** An observation written
   with a `[YYYY-MM-DD] [Source]: ...` stamp is anchored to that date; resolve

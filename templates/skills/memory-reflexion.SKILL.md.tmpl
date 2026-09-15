@@ -23,7 +23,8 @@ instead of the full memory surface.
 
 Reflexion is one operation: extract an episode from a completed session log.
 The episode record is the durable artifact. It is committed to the repository
-and read directly by downstream consumers.
+and can be queried through `memory-search`. No non-memory downstream consumer
+reads it today.
 
 > [!NOTE]
 > This sub-skill previously carried a second step that folded episodes into a
@@ -65,8 +66,8 @@ record without dropping richer data already there.
 
 ## Who Reads Episodes
 
-Nothing does, today. Outside this module, its own tests, and documentation
-examples, no code calls `get_episodes`, `get_episode`, or
+`memory-search` reads episodes today. Outside memory tooling, its own tests,
+and documentation examples, no code calls `get_episodes`, `get_episode`, or
 `get_decision_sequence`. Verify before you rely on the opposite:
 
 ```bash
@@ -79,7 +80,7 @@ false and the ADR-089 review retracted it. One of the three excludes episode
 paths from a churn signal, one allowlists the episode path prefix, and one
 generates and stages episodes. None reads episode content.
 
-Write for a reader that does not exist yet. Episodes are the primary record of
+Write for a future non-memory consumer. Episodes are the primary record of
 what happened in a session, and their value is that they can be queried later.
 That does not make an incomplete record harmless, so the extraction rules below
 still bind.
