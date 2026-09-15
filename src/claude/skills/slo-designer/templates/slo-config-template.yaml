@@ -1,0 +1,81 @@
+# SLO Configuration Template
+# Copy this file and customize for your service
+
+service:
+  name: "Your Service Name"
+  owner: "Team Name"
+  description: "Brief description of what the service does"
+  criticality: "High"  # Low, Medium, High, Critical
+
+# Critical user journeys - what must work for users to be satisfied
+user_journeys:
+  - "User can complete primary action within X seconds"
+  - "User can view their data without errors"
+  - "User can perform secondary action reliably"
+
+# Service Level Indicators - how we measure quality
+slis:
+  - name: Availability
+    description: "Percentage of successful HTTP requests (non-5xx)"
+    measurement: |
+      sum(rate(http_requests_total{service="your-service",status!~"5.."}[5m]))
+      /
+      sum(rate(http_requests_total{service="your-service"}[5m]))
+    data_source: "Prometheus"
+    good_events: "http_requests_total{status!~\"5..\"}"
+    total_events: "http_requests_total"
+
+  - name: "Latency (p99)"
+    description: "99th percentile response time"
+    measurement: |
+      histogram_quantile(0.99,
+        sum(rate(http_request_duration_seconds_bucket{service="your-service"}[5m]))
+        by (le)
+      )
+    data_source: "Prometheus"
+
+  - name: "Error Rate"
+    description: "Percentage of 5xx responses"
+    measurement: |
+      sum(rate(http_requests_total{service="your-service",status=~"5.."}[5m]))
+      /
+      sum(rate(http_requests_total{service="your-service"}[5m]))
+      * 100
+    data_source: "Prometheus"
+
+# Service Level Objectives - targets for our SLIs
+slos:
+  - sli: "Availability"
+    target: 99.9
+    window: "30-day rolling"
+    rationale: "Industry standard for production APIs"
+
+  - sli: "Latency (p99)"
+    target: 99.0  # 99% of requests under threshold
+    window: "30-day rolling"
+    rationale: "User research indicates frustration above 500ms"
+
+  - sli: "Error Rate"
+    target: 0.1  # Maximum 0.1% errors
+    window: "30-day rolling"
+    rationale: "Aligned with availability target"
+
+# Alerting configuration - when to take action
+alerts:
+  # Critical: 14.4x burn rate exhausts monthly budget in 2 days
+  - burn_rate: 14.4
+    window: "1h"
+    severity: "Critical"
+    action: "Page on-call immediately"
+
+  # Warning: 6x burn rate exhausts budget in 5 days
+  - burn_rate: 6
+    window: "6h"
+    severity: "Warning"
+    action: "Investigate within 2 hours"
+
+  # Info: 2x burn rate exhausts budget in 15 days
+  - burn_rate: 2
+    window: "24h"
+    severity: "Info"
+    action: "Create ticket for next sprint"

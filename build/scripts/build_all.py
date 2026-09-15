@@ -203,7 +203,9 @@ def _build_skills(
     # to copy into. visual-studio and vscode platforms ship without one
     # today; that is not applicable, not a config error. The compile/drift
     # gate itself is not platform-scoped (see docstring above) and still
-    # runs on this path.
+    # runs on this path, as does the Claude plugin support-file mirror
+    # (generate_skills.sync_claude_plugin_skill_support): both read fixed,
+    # repo-global paths, never this platform's (absent) stanza.
     try:
         cfg = load_platform_config(config_path)
     except ConfigError:
@@ -213,6 +215,11 @@ def _build_skills(
     if not isinstance(stanza, dict):
         compile_result = skill_templates.compile_all(repo_root, validate=check)
         rc = compile_result.exit_code
+        _, _, _, sync_errors = generate_skills.sync_claude_plugin_skill_support(repo_root)
+        for err in sync_errors:
+            print(f"Error: {err}", file=sys.stderr)
+        if sync_errors:
+            rc = max(rc, 1)
         if check and rc != 0:
             rc = 2
         result = GeneratorResult(artifact="skills", platform=platform, exit_code=rc)

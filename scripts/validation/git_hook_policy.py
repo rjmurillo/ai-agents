@@ -733,6 +733,12 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     ("src/copilot-cli/lib/", ".claude/lib/", None),
     ("src/copilot-cli/skills/", ".claude/skills/", None),
     ("src/copilot-cli/hooks/", ".claude/hooks/", None),
+    # ADR-109 B3 (SKILL.md) and its follow-up (every other skill file,
+    # generate_skills.sync_claude_plugin_skill_support): both mirror
+    # .claude/skills/ into src/claude/skills/ byte for byte. Unlike the
+    # src/copilot-cli/skills/ row above, no _COPILOT_SKILL_EXCLUDES-style
+    # filter applies here: merge-resolver ships in the Claude plugin tree.
+    ("src/claude/skills/", ".claude/skills/", None),
 )
 # Matcher-shim suffix appended by generate_hooks_emit._matcher_suffix.
 # Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.
@@ -3861,7 +3867,9 @@ def _added_suppression_violations(
     if promoted_violations is None:
         return None
     violations.extend(promoted_violations)
-    return violations
+    return _drop_verbatim_mirror_violations(
+        violations, repo_root, source_ref=update.base, dest_ref=update.head
+    )
 
 
 def suppression_identity(text: str, match: re.Match[str]) -> str:
@@ -3996,6 +4004,72 @@ def _textual_suppression_violations(
     )
 
 
+def _drop_verbatim_mirror_violations(
+    violations: list[str],
+    repo_root: Path,
+    *,
+    source_ref: str,
+    dest_ref: str | None,
+) -> list[str]:
+    """Drop every violation whose path is a byte-identical generated mirror.
+
+    A generated mirror tree (``_GENERATED_MIRRORS``, for example
+    ``src/claude/skills/`` mirroring ``.claude/skills/`` byte for byte,
+    ADR-109 B3's support-file follow-up) copies an already-reviewed file
+    verbatim into a new path. Every rename/copy detector this module uses
+    (``-M``/``--find-renames``, ``_suppression_renames``) pairs an ADDED path
+    with a DELETED one; a mirror introduced alongside its unchanged source has
+    no deletion to pair with, so its entire content reads as net-new, and an
+    already-reviewed suppression comment re-triggers this gate at the mirror
+    path even though the source itself, unchanged, never re-triggers it.
+
+    Dropping requires the CURRENT mirror content (``dest_ref=None`` reads the
+    staged index; a ref reads that commit) to be byte-identical, in full, to
+    the SOURCE file committed at ``source_ref``. A mirror that diverges by
+    even one byte from its source, including one carrying a suppression the
+    mirror step has not yet caught up to, keeps every one of its violations
+    flagged: this narrows the false positive without weakening detection of a
+    genuinely new suppression anywhere else.
+    """
+    if not violations:
+        return violations
+    verdicts: dict[str, bool] = {}
+    kept: list[str] = []
+    for violation in violations:
+        parts = violation.split(":", 2)
+        path = parts[1] if len(parts) == 3 else None
+        if path is None:
+            kept.append(violation)
+            continue
+        if path not in verdicts:
+            verdicts[path] = _is_verbatim_mirror(
+                repo_root, path, source_ref=source_ref, dest_ref=dest_ref
+            )
+        if not verdicts[path]:
+            kept.append(violation)
+    return kept
+
+
+def _is_verbatim_mirror(
+    repo_root: Path, path: str, *, source_ref: str, dest_ref: str | None
+) -> bool:
+    source_path = _mirror_source(path)
+    if source_path is None:
+        return False
+    source_text = _commit_text_for_base(source_ref, source_path, repo_root)
+    if not source_text:
+        # None: source_ref itself unreadable (external error, fail safe by
+        # keeping the violation flagged). "": source absent at that ref (a
+        # brand-new file with no reviewed history to defer to).
+        return False
+    dest_text = (
+        _index_text_or_none(path, repo_root)
+        if dest_ref is None
+        else _commit_text_or_none(dest_ref, path, repo_root)
+    )
+    return dest_text is not None and dest_text == source_text
+
+
 def check_staged_suppressions(repo_root: Path) -> int:
     """Check staged changes (git diff --cached) for net-new security suppressions."""
     base_ref = _staged_suppression_base(repo_root)
@@ -4062,7 +4136,9 @@ def _staged_suppression_violations(
     if promoted_violations is None:
         return None
     violations.extend(promoted_violations)
-    return violations
+    return _drop_verbatim_mirror_violations(
+        violations, repo_root, source_ref=base_ref, dest_ref=None
+    )
 
 
 def _staged_suppression_base(repo_root: Path) -> str:
@@ -4203,7 +4279,9 @@ def _added_suppression_violations_for_range(
     if promoted_violations is None:
         return None
     violations.extend(promoted_violations)
-    return violations
+    return _drop_verbatim_mirror_violations(
+        violations, repo_root, source_ref=base_ref, dest_ref="HEAD"
+    )
 
 
 def check_suppression_diff(base_ref: str, repo_root: Path) -> int:
