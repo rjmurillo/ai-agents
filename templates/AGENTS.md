@@ -20,7 +20,7 @@ Per-class render map. Compilers run inside `build_all.py` except `prompts`; binp
 - `generate_hooks.py` with `generate_dispatcher.py` reads `src/claude/hooks/` and `hooks.json`, writes `src/copilot-cli/hooks/`, binplaced to `.github/hooks/`.
 - `agents/<stem>.shared.md` feeds `src/vs-code-agents/` and `docs/agent-catalog.md`; it is also `generate_agents.py`'s stem list: no `.shared.md`, no copilot-cli, vs-code or github file for that stem.
 - A literal `{{` in a rule template is written `\{{`.
-- Lib renders from `scripts/` packages, not from here (B5); `.claude-plugin/marketplace.json` stays hand-maintained until B6.
+- Lib renders from `scripts/` packages, not from here (B5); `.claude-plugin/marketplace.json` stays hand-maintained (one Claude entry, `project-toolkit` at `./src/claude`, since B6).
 
 ## Entry points
 

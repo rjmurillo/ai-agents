@@ -1,6 +1,6 @@
 # src/claude/
 
-`claude-agents` plugin source in the `rjmurillo/ai-agents` repository. The generated trees below binplace into `.claude/`.
+`project-toolkit` plugin source (ADR-109 B6; `claude-agents` retired) in the `rjmurillo/ai-agents` repository. The generated trees below binplace into `.claude/`, the dogfood copy.
 
 <!-- vendor-portability: repo-only contributor guide; templates/, build/, .github/agents/ and sibling src/ trees do not ship with this plugin -->
 
@@ -30,7 +30,7 @@
 
 - Cross-harness change: read `agent-harness-reference` first, route through `ai-agents-portability-campaign`.
 - `model:` needs an ADR-080 `KEEP_PIN` sidecar entry, or a bare alias (`sonnet`, `opus`, `haiku`) plus `model-rationale:` priced below the harness default through the platform `model_tiers` map (`check_model_pins.py`). Only `code-reviewer.md` qualifies.
-- Those three agents read `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<name>/scripts` (`merge-resolver.md` still bare `${CLAUDE_PLUGIN_ROOT:-.claude}`; `plugin-self-containment.md` MUST 2 wants the nested form). Resolves only when `project-toolkit` (`.claude/`) installs alongside `claude-agents`: this tree ships no skill scripts.
+- Those three agents read `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<name>/scripts` (`merge-resolver.md` still bare `${CLAUDE_PLUGIN_ROOT:-.claude}`; `plugin-self-containment.md` MUST 2 wants the nested form). Resolves against this plugin's own `skills/` now that support files mirror here (#5794); before that the fallback needed a second install.
 
 ## Dangerous assumptions
 
@@ -39,7 +39,7 @@
 
 ## Dependencies
 
-- Marketplace entry `claude-agents`, `source: ./src/claude`. Nothing above it ships to an installer.
+- Marketplace entry `project-toolkit`, `source: ./src/claude` (B6); `.claude/` is not listed. Nothing above this directory ships to an installer.
 
 ## Architecture
 
