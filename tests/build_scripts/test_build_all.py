@@ -2209,6 +2209,112 @@ def test_run_check_returns_2_when_skill_mirror_is_stale(
     )
 
 
+# Regression: ADR-109 B3 follow-up, --check must cover skill support files -
+#
+# The B3 template migration only rendered SKILL.md into
+# src/claude/skills/<name>/; scripts/, references/, and tests/ were never
+# mirrored there at all (a real Claude plugin install would tell the agent
+# to run a script that does not exist on disk). These tests pin the new
+# generate_skills.sync_claude_plugin_skill_support coverage end to end with
+# the REAL generator and REAL git: a clean committed mirror exits 0, and a
+# hand edit made DIRECTLY to the src/claude/skills mirror (bypassing the
+# canonical .claude/skills/ source) is both caught (exit 2) and reverted by
+# --check's read-only restore, since src/ is already an OWNED_PREFIXES entry.
+
+
+def _seed_repo_with_committed_claude_support_mirror(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Init a git repo, generate the Claude support-file mirror, and commit it.
+
+    Returns the committed mirror path
+    (src/claude/skills/alpha/scripts/run.py). Stubs _build_agents for the
+    same reason _seed_repo_with_committed_skill_mirror does.
+    """
+    import subprocess
+
+    _init_git_repo(repo)
+    (repo / ".claude" / "skills").mkdir(parents=True)
+    _write_minimal_adr(repo / ".agents" / "architecture")
+    skill_dir = repo / ".claude" / "skills" / "alpha"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("# alpha\n", encoding="utf-8")
+    scripts_dir = skill_dir / "scripts"
+    scripts_dir.mkdir()
+    (scripts_dir / "run.py").write_text("print('hi')\n", encoding="utf-8")
+    _write_platform_with_skills(repo, provider="copilot-cli")
+    monkeypatch.setattr(
+        build_all,
+        "_build_agents",
+        lambda repo_root, cfg, platform, **_kw: build_all.GeneratorResult(
+            artifact="agents", platform="*", exit_code=0
+        ),
+    )
+    build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
+    mirror = repo / "src" / "claude" / "skills" / "alpha" / "scripts" / "run.py"
+    assert mirror.is_file(), "fixture failed to generate the Claude support-file mirror"
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "seed clean support-file mirror"],
+        check=True,
+    )
+    assert _git_porcelain(repo) == "", "fixture left the tree dirty"
+    return mirror
+
+
+def test_run_check_returns_0_when_claude_skill_support_mirror_is_clean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    _seed_repo_with_committed_claude_support_mirror(repo, monkeypatch)
+
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
+    assert rc == 0, f"clean support-file mirror should pass --check, got {rc}"
+
+
+def test_run_check_returns_2_and_restores_a_hand_edited_support_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A hand edit COMMITTED straight to src/claude/skills/ (bypassing
+    .claude/skills/, the canonical source) diverges the two trees. --check
+    regenerates the mirror for real (correcting it back to match
+    .claude/skills/), so the working tree now differs from the (wrong)
+    committed HEAD; that diff is what the staleness gate reports. Per the
+    #2440 read-only contract, --check then restores the working tree back
+    to the committed (still-wrong) state rather than leaving the fix in
+    place -- the fix must be re-run for real (a plain, non-check build) to
+    land.
+
+    An UNCOMMITTED hand edit is not this scenario: --check would silently
+    regenerate it back to the committed content, matching HEAD again, and
+    correctly report no drift (nothing landed in the repository was ever
+    stale, only the working tree had a transient, uncommitted edit).
+    """
+    import subprocess
+
+    repo = tmp_path / "repo"
+    mirror = _seed_repo_with_committed_claude_support_mirror(repo, monkeypatch)
+
+    mirror.write_text("print('hand-edited, bypassing .claude/skills/')\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-q", "-m", "bad direct edit to plugin tree"],
+        check=True,
+    )
+    assert _git_porcelain(repo) == "", "fixture's own commit must leave the tree clean"
+
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
+    assert rc == 2, (
+        f"a support file hand-edited (and committed) directly under "
+        f"src/claude/skills/ should fail --check, got {rc}"
+    )
+    assert _git_porcelain(repo) == "", (
+        "--check must restore src/claude/skills/ (an OWNED_PREFIXES path) "
+        "to its committed state, leaving the tree clean"
+    )
+    assert mirror.read_text() == "print('hand-edited, bypassing .claude/skills/')\n"
+
+
 # _ignored_paths + exclude_ignored guard filtering (issue #2992) -------------
 
 
