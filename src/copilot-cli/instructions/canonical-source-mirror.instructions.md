@@ -147,7 +147,7 @@ That agreement is recent and it is load bearing, so keep naming the tree with th
 
 1. **The source declares it.** `paths: ["**"]` or `applyTo: '**'`, renamed verbatim per the generator's contract at `build/scripts/generate_rules.py:24`. <!-- citation-freshness: ignore -- the two backtick spans in this sentence are illustrative YAML example values, not a verbatim reproduction of line 24's docstring prose ("rename paths: to applyTo: (verbatim value)"); the checker judges them as anchors against that line regardless; content verified present and correct at line 24, 2026-09-14 -->
 2. **The source declares `alwaysApply: true` and no path scope.** Line 25 drops `alwaysApply:`, leaving no scope, so situation 3 applies. `_has_path_scope` at line 209 reads only the path-scope keys, so `alwaysApply` never counts as a scope.
-3. **The source declares no scope at all.** Situations 2 and 3 share one branch, `build/scripts/generate_rules.py:345-348`:
+3. **The source declares no scope at all.** Situations 2 and 3 share one branch, `build/scripts/generate_rules.py:345-348`: <!-- citation-freshness: ignore -- the continuation-quote anchor the checker harvests here is only the code fence marker itself ("```python"), not the code that follows it, so no anchor can ever match; content verified present and correct at 345-348, 2026-09-14 -->
 
    ```python
    if not had_scope and "applyTo" not in result:
