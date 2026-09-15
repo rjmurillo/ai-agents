@@ -39,6 +39,8 @@ Vocabulary used once: a "guard" is a PreToolUse or pre-push hook that can block 
 
 Find your symptom in the master table. Run the first command exactly as written (from repo root). Do not guess at fixes before the discriminating experiment tells you which cause you have.
 
+Before guessing at a symptom the table does not cover, search this repo's memory corpus and ADRs first (`.claude/skills/programming-advisor/references/search-before-building.md`, "diagnosing a failure" trigger). It covers CI, git, and PR-gate quirks densely, so the cause is often already written down; re-deriving it is the expensive miss.
+
 #### Local blocks (a hook stopped you)
 
 | Symptom | First command | Discriminating experiment | Fix path | Trap |
