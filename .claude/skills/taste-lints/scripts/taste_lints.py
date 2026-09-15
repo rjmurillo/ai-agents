@@ -89,6 +89,12 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     ("src", "claude", "agents"),
     (".claude", "agents"),
     (".github", "agents"),
+    # ADR-109 B2: rule trees render from templates/rules/ and binplace.
+    # Coarse: matches every file under these two roots. Every rule under
+    # src/claude/rules/ and .claude/rules/ renders from templates/rules/,
+    # testing.md included (see .agents/governance/GENERATOR-FILES.md).
+    ("src", "claude", "rules"),
+    (".claude", "rules"),
 )
 _GENERATED_MARKERS = (
     "AUTO-GENERATED MATCHER SHIM",

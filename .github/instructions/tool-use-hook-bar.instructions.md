@@ -29,7 +29,7 @@ the session-boundary events do not.
 Lead with this, because the millisecond framing understates the risk by orders
 of magnitude.
 
-Issue #5013, recorded at `.agents/architecture/ADR-085-...asymmetry.md:428-431`:
+Issue #5013, recorded at `.agents/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md:44-46`:
 the `push_pr_script_identity_guard` was registered on a bare `Bash` matcher, and
 combined with the Copilot dispatcher's timed child-process deny (#4706) it
 **denied 127 unrelated Bash commands over more than 21 minutes** before the

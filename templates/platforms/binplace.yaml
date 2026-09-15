@@ -15,3 +15,7 @@ rows:
     plugin_tree: null
     install_tree: .claude/skills
     compile: skill_templates
+  - class: rules
+    source: templates/rules
+    plugin_tree: src/claude/rules
+    install_tree: .claude/rules

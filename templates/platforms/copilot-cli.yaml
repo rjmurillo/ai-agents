@@ -17,7 +17,10 @@ artifacts:
     # publicly-shipping copilot-cli toolkit (issue #2026).
     excludeFilenames: ["AGENTS.md", "CLAUDE.md", "merge-resolver"]
   rules:
-    sourceDir: ".claude/rules"
+    # ADR-109 B2: rules render from templates/rules/ into src/claude/rules/
+    # (the plugin tree); the instruction mirrors read that tree, and the
+    # binplace step copies it to .claude/rules/ for the repository itself.
+    sourceDir: "src/claude/rules"
     # Dual-target: ships rules to the canonical Copilot instructions
     # tree AND to the project-toolkit plugin tree so vendor installs
     # via marketplace pick them up alongside agents, skills, and hooks.

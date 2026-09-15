@@ -2,8 +2,9 @@
 
 Three properties are guarded here, because each one can regress silently:
 
-a. ``.claude/rules/knowledge-persistence.md`` is scoped to the four trees it
-   governs, never back to ``**``. A widened scope puts the file back in the
+a. ``.claude/rules/knowledge-persistence.md`` is scoped to the five trees it
+   governs (the canonical ``templates/rules/`` tree joined under ADR-109 B2),
+   never back to ``**``. A widened scope puts the file back in the
    always-on corpus without changing a single word of its prose, so no prose
    check would catch it.
 b. The three discovery-time ``MUST NOT`` statements that moved out of it live
@@ -34,6 +35,7 @@ EXPECTED_SCOPE = [
     ".serena/memories/**",
     ".github/instructions/**",
     "src/copilot-cli/instructions/**",
+    "templates/rules/**",
 ]
 
 UNIVERSAL_TREES = [
@@ -71,7 +73,7 @@ def _frontmatter(path: Path) -> dict:
     return yaml.safe_load(text[4:closing])
 
 
-def test_knowledge_persistence_scope_is_the_four_governed_trees() -> None:
+def test_knowledge_persistence_scope_is_the_five_governed_trees() -> None:
     assert _frontmatter(KNOWLEDGE_PERSISTENCE)["paths"] == EXPECTED_SCOPE
 
 

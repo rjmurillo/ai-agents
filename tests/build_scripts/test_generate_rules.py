@@ -41,15 +41,15 @@ def _write_rule(
     return path
 
 
-def _write_config(tmp_path: Path) -> Path:
+def _write_config(tmp_path: Path, *, source_dir: str = "rules_src") -> Path:
     cfg = tmp_path / "platform.yaml"
     cfg.write_text(
-        """\
+        f"""\
 schemaVersion: "1.0"
 provider: "test"
 artifacts:
   rules:
-    sourceDir: "rules_src"
+    sourceDir: "{source_dir}"
     outputDir: "instr_out"
     sourceSuffix: ".md"
     outputSuffix: ".instructions.md"
@@ -510,6 +510,38 @@ def test_main_invokes_generation(tmp_path: Path) -> None:
         "--config", str(cfg), "--repo-root", str(tmp_path),
     ])
     assert rc == 0
+
+
+def test_main_compiles_rule_templates_before_generation(tmp_path: Path) -> None:
+    """A standalone run renders ``templates/rules`` first (ADR-109 B2).
+
+    Without the compile step a direct ``generate_rules.py`` run reads a
+    stale ``src/claude/rules`` and writes stale mirrors.
+    """
+    tmpl_dir = tmp_path / "templates" / "rules"
+    tmpl_dir.mkdir(parents=True)
+    (tmpl_dir / "fresh.md").write_text("---\npaths: \"**\"\n---\nfresh\n")
+    cfg = _write_config(tmp_path, source_dir="src/claude/rules")
+    rc = generate_rules.main([
+        "--config", str(cfg), "--repo-root", str(tmp_path),
+    ])
+    assert rc == 0
+    assert (tmp_path / "src" / "claude" / "rules" / "fresh.md").read_text() == (
+        "---\npaths: \"**\"\n---\nfresh\n"
+    )
+    assert (tmp_path / "instr_out" / "fresh.instructions.md").is_file()
+
+
+def test_main_returns_compile_failure_without_generating(tmp_path: Path) -> None:
+    tmpl_dir = tmp_path / "templates" / "rules"
+    tmpl_dir.mkdir(parents=True)
+    (tmpl_dir / "bad.md").write_text("---\npaths: \"**\"\n---\n{{ forbidden }}\n")
+    cfg = _write_config(tmp_path, source_dir="src/claude/rules")
+    rc = generate_rules.main([
+        "--config", str(cfg), "--repo-root", str(tmp_path),
+    ])
+    assert rc != 0
+    assert not (tmp_path / "instr_out").exists()
 
 
 def test_main_missing_config_returns_2(tmp_path: Path) -> None:
