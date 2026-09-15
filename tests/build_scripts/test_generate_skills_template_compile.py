@@ -29,6 +29,7 @@ import skill_templates  # noqa: E402
 from _skill_template_helpers import (  # noqa: E402
     NO_REGEN_SENTINEL_APPLIERS,
     NO_REGEN_SENTINEL_IDS,
+    install_target,
     minimal_platform_config,
     run_cli,
     seed_target_dir,
@@ -176,12 +177,13 @@ def test_owned_targets_empty_when_no_templates(tmp_path: Path) -> None:
     assert skill_templates.owned_targets(tmp_path) == set()
 
 
-def test_owned_targets_maps_each_template_to_its_claude_skills_path(tmp_path: Path) -> None:
+def test_owned_targets_maps_each_template_to_its_plugin_and_install_paths(tmp_path: Path) -> None:
     write_template(tmp_path, "sync", "body\n")
     seed_target_dir(tmp_path, "sync")
 
     assert skill_templates.owned_targets(tmp_path) == {
-        tmp_path / ".claude" / "skills" / "sync" / "SKILL.md"
+        tmp_path / "src" / "claude" / "skills" / "sync" / "SKILL.md",
+        tmp_path / ".claude" / "skills" / "sync" / "SKILL.md",
     }
 
 
@@ -394,6 +396,11 @@ def test_generate_skills_runs_compile_before_copy_and_writes_rendered_target(
     write_template(tmp_path, "sync", "# sync\n{{> greet}}\n")
     skill_dir = tmp_path / ".claude" / "skills" / "sync"
     skill_dir.mkdir(parents=True)
+    # ADR-109 B3: the install-tree SKILL.md is what a prior binplace run
+    # would have left in place; _iter_skill_sources needs it present to
+    # discover "sync" as a skill to copy, but generate_skills' copy loop
+    # must read the just-rendered PLUGIN-tree content, not this stale one.
+    (skill_dir / "SKILL.md").write_text("stale install copy\n", encoding="utf-8")
     config = minimal_platform_config(tmp_path)
 
     rc = generate_skills.generate_skills(config, tmp_path)
@@ -401,8 +408,11 @@ def test_generate_skills_runs_compile_before_copy_and_writes_rendered_target(
     assert rc == 0
     dst = target(tmp_path, "sync")
     assert dst.read_text(encoding="utf-8") == "# sync\nhi\n"
-    # Copy loop still ran: the rendered file reached the mirror output too.
-    assert (tmp_path / "out" / "skills" / "sync" / "SKILL.md").is_file()
+    # Copy loop still ran, and read the fresh plugin-tree render, not the
+    # stale install-tree copy still sitting in .claude/skills/.
+    mirror = tmp_path / "out" / "skills" / "sync" / "SKILL.md"
+    assert mirror.is_file()
+    assert mirror.read_text(encoding="utf-8") == "# sync\nhi\n"
 
 
 def test_generate_skills_nonzero_compile_returns_before_copy(tmp_path: Path) -> None:
@@ -427,6 +437,10 @@ def test_generate_skills_validate_true_compares_without_writing_then_still_copie
     write_template(tmp_path, "sync", "{{> greet}}\n")
     dst = seed_target_dir(tmp_path, "sync")
     dst.write_text("hi\n", encoding="utf-8")
+    # validate=True never writes, so the install-tree copy _iter_skill_sources
+    # needs must already be on disk, the same way a prior binplace run
+    # would have left it (ADR-109 B3).
+    install_target(tmp_path, "sync").write_text("hi\n", encoding="utf-8")
     config = minimal_platform_config(tmp_path)
 
     rc = generate_skills.generate_skills(config, tmp_path, validate=True)

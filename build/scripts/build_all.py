@@ -1103,6 +1103,37 @@ OWNED_PREFIXES: tuple[str, ...] = (
 )
 
 
+def _effective_owned_prefixes(repo_root: Path) -> tuple[str, ...]:
+    """Return :data:`OWNED_PREFIXES` widened with each skill's install target.
+
+    ADR-109 B3: ``.claude/skills/<name>/SKILL.md`` is template-owned
+    (binplaced from ``src/claude/skills/<name>/SKILL.md``), but the rest of
+    each ``.claude/skills/<name>/`` directory (scripts, references, tests) is
+    hand-maintained. ``OWNED_PREFIXES`` cannot add the whole
+    ``.claude/skills/`` prefix the way it does for ``.claude/agents/`` and
+    ``.claude/rules/`` without also claiming those hand-maintained files as
+    staleness-checked and restore-eligible, so this widens the static tuple
+    with one file-level entry per discovered skill instead, read from
+    :func:`skill_templates.owned_targets` at call time (the same run-time
+    membership source ``build_all.assert_no_claude_writes`` already trusts).
+
+    :func:`skill_templates.owned_targets` also returns each skill's
+    ``src/claude/skills/<name>/SKILL.md`` plugin-tree path; those are dropped
+    here since ``OWNED_PREFIXES``'s blanket ``"src/"`` entry already covers
+    them, and a duplicate prefix would just cost the ``any(startswith)``
+    scans extra, redundant comparisons.
+    """
+    install_root = repo_root / ".claude" / "skills"
+    skill_paths = tuple(
+        sorted(
+            str(path.relative_to(repo_root))
+            for path in skill_templates.owned_targets(repo_root)
+            if path.is_relative_to(install_root)
+        )
+    )
+    return OWNED_PREFIXES + skill_paths
+
+
 def _is_bytecode_artifact(path: Path) -> bool:
     """Return True for paths CPython writes as import side effects.
 
@@ -2022,7 +2053,9 @@ def run(
         # .git entry it wrote during the build (#5464).
         boundaries = set()
         try:
-            snapshot = _snapshot_owned_prefixes(repo_root, OWNED_PREFIXES, strict=True)
+            snapshot = _snapshot_owned_prefixes(
+                repo_root, _effective_owned_prefixes(repo_root), strict=True
+            )
         except SnapshotIncompleteError as exc:
             print(
                 f"Error: --check aborted before generation: {exc}",
@@ -2082,7 +2115,7 @@ def run(
         if snapshot is not None:
             restored = _restore_owned_prefixes(
                 repo_root,
-                OWNED_PREFIXES,
+                _effective_owned_prefixes(repo_root),
                 snapshot,
                 preexisting_boundaries=boundaries,
             )
@@ -2234,7 +2267,8 @@ def _run_generators(
             )
             audit.overall_exit = max(audit.overall_exit, 3)
             changed = []
-        diff = [p for p in changed if any(p.startswith(prefix) for prefix in OWNED_PREFIXES)]
+        owned_prefixes = _effective_owned_prefixes(repo_root)
+        diff = [p for p in changed if any(p.startswith(prefix) for prefix in owned_prefixes)]
         if diff:
             print("STALENESS DETECTED: uncommitted regen drift:", file=sys.stderr)
             for p in diff:

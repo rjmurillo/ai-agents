@@ -29,6 +29,16 @@ records add more):
         # delegates to skill_templates.owned_targets, not a class-wide prefix
     ```
 
+    B3 (this record) repoints the ``skills`` row's ``plugin_tree`` to
+    ``src/claude/skills``, exactly as the comment above anticipated;
+    :func:`binplace` now copies that tree onto ``.claude/skills`` for
+    ``skills`` the same way it already does for ``rules``. The row still
+    keeps ``compile: skill_templates`` and delegates to
+    :func:`skill_templates.owned_targets` in :func:`claude_allowlist` rather
+    than switching to the generic plugin-tree-walk path: that function now
+    returns both halves (plugin and install) per discovered skill, so the
+    delegate and the generic path agree on the install-tree set.
+
     "A row with ``plugin_tree: null`` skips the plugin-tree render hop and
     copies straight from ``source`` to ``install_tree``."
 
@@ -250,12 +260,16 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
     Union over every row whose ``install_tree`` is under ``.claude/``
     (DESIGN-025, "How ``assert_no_claude_writes`` derives its allowlist"):
     the ``skills`` row (identified by ``compile: skill_templates``)
-    delegates to :func:`skill_templates.owned_targets` unchanged, since that
-    row's allowlist is scoped per skill directory, not by walking a plugin
-    tree, until a later record gives skills its own ``src/claude/skills``
-    plugin tree. Every other ``.claude/``-rooted row with a non-``null``
-    ``plugin_tree`` contributes each file under it, mapped onto its
-    ``install_tree`` counterpart path.
+    delegates to :func:`skill_templates.owned_targets` rather than the
+    generic plugin-tree walk below, since ADR-108's own class boundary
+    (every template-owned skill converts an EXISTING skill directory,
+    validated per discovered name) is stricter than a blind directory walk.
+    ADR-109 B3 gave skills its own ``src/claude/skills`` plugin tree, and
+    :func:`skill_templates.owned_targets` now returns both the plugin-tree
+    and install-tree path per discovered skill, so this delegate and the
+    generic path below agree on the install-tree set. Every other
+    ``.claude/``-rooted row with a non-``null`` ``plugin_tree`` contributes
+    each file under it, mapped onto its ``install_tree`` counterpart path.
     """
     allow: set[Path] = set()
     for row in load(repo_root):

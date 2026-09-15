@@ -37,10 +37,27 @@ def write_partial(repo: Path, slug: str, body: str) -> Path:
 
 
 def target(repo: Path, name: str) -> Path:
+    """Return the plugin-tree render target (ADR-109 B3).
+
+    ``skill_templates.compile_all`` writes here, not
+    ``.claude/skills/<name>/SKILL.md`` (the install tree, binplaced
+    separately by ``build/scripts/binplace_manifest.py``).
+    """
+    return repo / "src" / "claude" / "skills" / name / "SKILL.md"
+
+
+def install_target(repo: Path, name: str) -> Path:
+    """Return the binplaced install target ``.claude/skills/<name>/SKILL.md``."""
     return repo / ".claude" / "skills" / name / "SKILL.md"
 
 
 def seed_target_dir(repo: Path, name: str) -> Path:
+    """Create the ``.claude/skills/<name>/`` directory discover() requires
+    to exist, plus the plugin-tree target's parent, and return the
+    plugin-tree target (what ``compile_all`` reads/writes).
+    """
+    install_dir = repo / ".claude" / "skills" / name
+    install_dir.mkdir(parents=True, exist_ok=True)
     dst = target(repo, name)
     dst.parent.mkdir(parents=True, exist_ok=True)
     return dst
