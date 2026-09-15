@@ -278,7 +278,7 @@ I found [N] existing solutions before we write custom code:
 ### Libraries/Packages
 - **[Name]**: [one-line description] | [stars/downloads] | [link]
 
-### Open Source Tools  
+### Open Source Tools
 - **[Name]**: [one-line description] | [stars] | [link]
 
 ### SaaS Options
