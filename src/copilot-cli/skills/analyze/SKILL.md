@@ -48,7 +48,7 @@ When using the `Bash` tool, all arguments containing variable or user-provided i
 read -r -d '' THOUGHTS <<'EOF'
 Starting analysis. User request: <describe what user asked to analyze>
 EOF
-python3 scripts/analyze.py --step-number 1 --total-steps 6 --thoughts "$THOUGHTS"
+# Pass "$THOUGHTS" as --thoughts, as shown in Invocation below.
 ```
 
 Never interpolate request-derived text directly inside a double-quoted `--thoughts "..."` argument on the command line; the quoted heredoc is what neutralizes `$(...)` and backticks, not the surrounding double quotes.
