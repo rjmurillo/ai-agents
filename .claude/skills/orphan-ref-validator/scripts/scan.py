@@ -40,7 +40,7 @@ DOT_AGENTS = "." + "agents"
 DEFAULT_TARGETS = (
     f"{DOT_AGENTS}/specs",
     "tests",
-    ".claude/.claude-plugin/plugin.json",
+    "src/claude/.claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     ".github/plugin/marketplace.json",
 )
@@ -52,7 +52,7 @@ DEFAULT_TRACKED_PREFIXES = (
     "tests/",
 )
 DEFAULT_EXACT_TARGETS = (
-    ".claude/.claude-plugin/plugin.json",
+    "src/claude/.claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     ".github/plugin/marketplace.json",
 )
