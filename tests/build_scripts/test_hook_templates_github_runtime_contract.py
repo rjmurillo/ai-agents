@@ -68,6 +68,7 @@ def _bash_available() -> bool:
             [_BASH, "-c", "printf ok"],
             capture_output=True,
             encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -140,6 +141,7 @@ def test_cwd_relative_repository_hook_resolves_under_cloud_agent_contract(
         env=_cloud_agent_env(),
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         timeout=20,
         check=False,
     )
@@ -171,6 +173,7 @@ def test_plugin_root_anchored_command_fails_under_cloud_agent_contract(
         env=_cloud_agent_env(),
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         timeout=20,
         check=False,
     )
@@ -195,6 +198,7 @@ def test_negative_control_bare_relative_command_fails(tmp_path: Path) -> None:
         env=_cloud_agent_env(),
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         timeout=20,
         check=False,
     )
