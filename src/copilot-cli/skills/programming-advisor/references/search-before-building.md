@@ -1,6 +1,6 @@
 # Search Before Building
 
-Before building anything unfamiliar, **search first.** Before writing a single line of code, determine if the wheel already exists. This file says what to do.
+Before building anything unfamiliar, **search first.** Operational rule. Pairs with the sibling rule `builder-ethos.md` section 2, which explains the philosophy. This file says what to do.
 
 ## When To Apply
 
