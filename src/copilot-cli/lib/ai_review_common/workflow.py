@@ -154,19 +154,24 @@ def get_workflow_runs_by_pr(
     # issue #10459, open as of this writing), so the combine step below
     # parses the newline-delimited output in Python instead of asking gh
     # to emit one pre-combined array.
-    result = subprocess.run(
-        [
-            "gh", "api",
-            f"/repos/{repository}/actions/runs?event=pull_request&per_page=100",
-            "--paginate",
-            "--jq", ".workflow_runs[]",
-        ],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=30,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "gh", "api",
+                f"/repos/{repository}/actions/runs?event=pull_request&per_page=100",
+                "--paginate",
+                "--jq", ".workflow_runs[]",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        raise RuntimeError(
+            f"Failed to get workflow runs for PR #{pr_number}: {exc}"
+        ) from exc
     if result.returncode != 0:
         raise RuntimeError(
             f"Failed to get workflow runs for PR #{pr_number}: {result.stderr.strip()}"

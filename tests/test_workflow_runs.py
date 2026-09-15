@@ -166,6 +166,23 @@ class TestGetWorkflowRunsByPR:
             with pytest.raises(RuntimeError, match="Invalid JSON"):
                 get_workflow_runs_by_pr(1, repository="o/r")
 
+    def test_raises_when_gh_executable_missing(self):
+        """FileNotFoundError from a missing `gh` binary must not escape as
+        an unhandled exception; get_pr_changed_files already catches this
+        for its own gh call, get_workflow_runs_by_pr did not (CodeRabbit,
+        PR #5787 review)."""
+        with patch("subprocess.run", side_effect=FileNotFoundError("gh not found")):
+            with pytest.raises(RuntimeError, match="Failed to get workflow runs"):
+                get_workflow_runs_by_pr(1, repository="o/r")
+
+    def test_raises_on_gh_call_timeout(self):
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=30),
+        ):
+            with pytest.raises(RuntimeError, match="Failed to get workflow runs"):
+                get_workflow_runs_by_pr(1, repository="o/r")
+
 
 class TestRunsOverlap:
     def test_overlapping_runs(self):
