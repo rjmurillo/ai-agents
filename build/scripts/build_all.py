@@ -399,7 +399,9 @@ def _build_rules(
     return result
 
 
-def _build_lib(repo_root: Path, _config_path: Path, _platform: str) -> GeneratorResult:
+def _build_lib(
+    repo_root: Path, _config_path: Path, _platform: str, *, check: bool = False
+) -> GeneratorResult:
     """Compile the lib plugin trees from their scripts/ canonical sources (ADR-109 B5).
 
     Hook scripts under `src/<provider>/hooks/<event>/` import
@@ -429,9 +431,17 @@ def _build_lib(repo_root: Path, _config_path: Path, _platform: str) -> Generator
     ``_platform`` are unused; the signature matches every other
     ``GENERATORS`` entry so ``_run_generators`` can still call it by name
     from the loop-skip set alongside agents/agent-catalog/adr-index.
+
+    ``check`` threads through to :func:`lib_mirror.compile_all` so
+    ``build_all.py --check`` stays read-only on its own, not only via the
+    outer snapshot/restore wrapper (CodeRabbit, PR #5787 review): without
+    it, ``--check`` always ran ``compile_all`` in write mode and relied
+    entirely on the caller reverting the writes afterward, so a process
+    killed between the write and the restore left real modifications in
+    a tree ``--check`` promises never to touch.
     """
     result = GeneratorResult(artifact="lib", platform="*", exit_code=0)
-    outcome = lib_mirror.compile_all(repo_root)
+    outcome = lib_mirror.compile_all(repo_root, check=check)
     result.inputs = outcome.inputs
     result.outputs = outcome.outputs
     result.notices.extend(
@@ -2172,7 +2182,7 @@ def _run_generators(
         _build_agents(repo_root, configs[0], "*", check=check),
         _build_agent_catalog(repo_root, configs[0], "*"),
         _build_adr_index(repo_root, configs[0], "*"),
-        _build_lib(repo_root, configs[0], "*"),
+        _build_lib(repo_root, configs[0], "*", check=check),
     ):
         audit.results.append(result)
         if result.exit_code != 0:

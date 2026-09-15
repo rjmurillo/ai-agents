@@ -577,6 +577,46 @@ def test_build_lib_ignores_platform_argument(tmp_path: Path) -> None:
     assert (tmp_path / "src" / "claude" / "lib" / "hook_utilities" / "__init__.py").is_file()
 
 
+def test_build_lib_check_mode_writes_nothing(tmp_path: Path) -> None:
+    """check=True must reach lib_mirror.compile_all, not just default to
+    write mode and rely entirely on the outer snapshot/restore wrapper.
+
+    CodeRabbit (PR #5787 review): without threading `check` through,
+    `_build_lib` always ran `compile_all` in write mode; a process killed
+    between that write and the caller's restore left real modifications
+    in a tree `--check` promises never to touch. Calling `_build_lib`
+    directly with `check=True`, with no restore wrapper at all, isolates
+    that promise from the outer machinery.
+    """
+    _write_minimal_lib_sources(tmp_path)
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
+
+    assert result.exit_code == 0, result.notices
+    assert not (tmp_path / "src" / "claude" / "lib").exists()
+    assert not (tmp_path / "src" / "copilot-cli" / "lib").exists()
+
+
+def test_build_lib_check_mode_reports_drift_without_writing(tmp_path: Path) -> None:
+    """check=True on an already-drifted tree reports the drift and still
+    writes nothing."""
+    _write_minimal_lib_sources(tmp_path)
+    stale_dir = tmp_path / "src" / "claude" / "lib" / "hook_utilities"
+    stale_dir.mkdir(parents=True)
+    (stale_dir / "__init__.py").write_text("# stale\n", encoding="utf-8")
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
+
+    assert result.exit_code == 0, result.notices
+    # Unchanged: check mode reports drift as a change, not an error, and
+    # writes nothing.
+    assert (stale_dir / "__init__.py").read_text(encoding="utf-8") == "# stale\n"
+
+
 def test_build_lib_copies_packages_with_import_rewrite(tmp_path: Path) -> None:
     """Both plugin trees get the package, relative-import rewritten, no __pycache__."""
     _write_minimal_lib_sources(tmp_path)
