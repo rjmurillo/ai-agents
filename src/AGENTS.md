@@ -5,7 +5,7 @@ Two of the three plugin roots; `packages/ai-agents-cli/` (repo root) vendors `.c
 ## Matters
 
 - ADR-109 B1 to B5: `claude/{agents,skills,rules,hooks}` and `claude/hooks.json` render from `templates/`, `claude/lib/` from `scripts/`; binplace copies each byte for byte into `.claude/`. Render map: `templates/AGENTS.md`.
-- `claude/skills/<name>/` holds `SKILL.md` only; scripts, references, tests stay under `.claude/skills/<name>/`.
+- `claude/skills/<name>/`: `SKILL.md` renders from its template; every other file mirrors from `.claude/skills/<name>/`, the hand-maintained source (`sync_claude_plugin_skill_support`, `merge-resolver` included).
 
 ## Entry points
 

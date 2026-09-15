@@ -10,7 +10,7 @@
 - Hand-maintained: `claude-instructions.template.md`, `security/references/`, `.claude-plugin/plugin.json`, this file.
 - Edit the template, never the render. A hand-edit fails its Template Drift gate next run.
 - Agent frontmatter: `name`, `description`, `argument-hint` in all 31. `metadata.role` in 25. `tools:` only `analyst.md`, `security.md`. `model:` only `code-reviewer.md`.
-- `skills/<name>/` holds SKILL.md alone, no `scripts/`, `references/`, `tests/`.
+- `skills/<name>/`: `SKILL.md` renders from its template; `scripts/`, `references/`, `tests/` are build mirrors of `.claude/skills/<name>/`, the hand-maintained source. Edit there.
 
 ## Entry points
 
