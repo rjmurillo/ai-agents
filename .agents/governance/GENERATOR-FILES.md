@@ -39,7 +39,7 @@ validator, which fails CI when a sibling drifts from its source.
 | Path | Role | Guard |
 |------|------|-------|
 
-ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/<name>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved 28 of 29 `.claude/rules/<name>.md` files the same way via rule_templates.py; `testing.md` is the one exception, above.
+ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/<name>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved every `.claude/rules/<name>.md` file (28) the same way via rule_templates.py; `testing.md` is template-owned too, its GitHub Actions example written with the `\{{` escape.
 
 ## Regenerating
 
