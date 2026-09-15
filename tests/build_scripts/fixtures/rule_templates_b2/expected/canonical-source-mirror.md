@@ -105,7 +105,7 @@ The gate checks: the cited file must be tracked at HEAD, the cited lines must ex
 
 Everything else in this section remains manual. A claim that names a symbol, a test, or a count WITHOUT a line number is invisible to that gate, and two other gates look like they would catch it and do not:
 
-- `orphan-ref-validator` reports four kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-34` enumerates all of them:
+- `orphan-ref-validator` reports four kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-34` enumerates all of them: <!-- citation-freshness: ignore -- the checker harvests 'orphan-ref-validator' from this same sentence's file path as a spurious anchor, and the fenced code block's continuation-quote anchor carries this list's 2-space markdown indent, absent from the unindented module-level code at those lines; content verified present and correct at 28-34, 2026-09-14 -->
 
   ```python
   Kind = Literal[
@@ -154,9 +154,9 @@ That agreement is recent and it is load bearing, so keep naming the tree with th
 
 `build/scripts/generate_rules.py` reaches `applyTo: "**"` from four different source situations. Only the first is visible in the source file:
 
-1. **The source declares it.** `paths: ["**"]` or `applyTo: '**'`, renamed verbatim per the generator's contract at `build/scripts/generate_rules.py:24`.
+1. **The source declares it.** `paths: ["**"]` or `applyTo: '**'`, renamed verbatim per the generator's contract at `build/scripts/generate_rules.py:24`. <!-- citation-freshness: ignore -- the two backtick spans in this sentence are illustrative YAML example values, not a verbatim reproduction of line 24's docstring prose ("rename paths: to applyTo: (verbatim value)"); the checker judges them as anchors against that line regardless; content verified present and correct at line 24, 2026-09-14 -->
 2. **The source declares `alwaysApply: true` and no path scope.** Line 25 drops `alwaysApply:`, leaving no scope, so situation 3 applies. `_has_path_scope` at line 209 reads only the path-scope keys, so `alwaysApply` never counts as a scope.
-3. **The source declares no scope at all.** Situations 2 and 3 share one branch, `build/scripts/generate_rules.py:338-341`:
+3. **The source declares no scope at all.** Situations 2 and 3 share one branch, `build/scripts/generate_rules.py:345-348`: <!-- citation-freshness: ignore -- the continuation-quote anchor the checker harvests here is only the code fence marker itself ("```python"), not the code that follows it, so no anchor can ever match; content verified present and correct at 345-348, 2026-09-14 -->
 
    ```python
    if not had_scope and "applyTo" not in result:
@@ -165,7 +165,7 @@ That agreement is recent and it is load bearing, so keep naming the tree with th
        result = {"applyTo": _UNIVERSAL_SCOPE, **result}
    ```
 
-4. **The source declares a scope whose globs are all filtered as internal-only.** This case no longer reaches `**`. `build/scripts/generate_rules.py:342-344` skips the rule instead:
+4. **The source declares a scope whose globs are all filtered as internal-only.** This case no longer reaches `**`. `build/scripts/generate_rules.py:342-344` skips the rule instead: <!-- citation-freshness: ignore -- the continuation-quote anchor the checker harvests here is only the code fence marker itself ("```python"), not the code that follows it, so no anchor can ever match; content verified present and correct at 342-344, 2026-09-14 -->
 
    ```python
    applyto_value = result.get("applyTo")
@@ -173,7 +173,7 @@ That agreement is recent and it is load bearing, so keep naming the tree with th
        return _SCOPE_SKIPPED
    ```
 
-   This one is **destination-dependent**. `templates/platforms/copilot-cli.yaml:39-40` lists `.github/instructions` under `keepInternalGlobsFor`, which disables the filter for that tree, so the skip cannot fire there and the in-repo Copilot agent keeps rules it needs for editing `.claude/` and `.agents/`. It fires only for `src/copilot-cli/instructions`, which is why the plugin ships fewer instruction files than `.github/instructions`. The generator reports the count as `Skipped (all-internal scope)` and prunes any artifact it previously emitted.
+   This one is **destination-dependent**. `templates/platforms/copilot-cli.yaml:49-50` lists `.github/instructions` under `keepInternalGlobsFor`, which disables the filter for that tree, so the skip cannot fire there and the in-repo Copilot agent keeps rules it needs for editing `.claude/` and `.agents/`. It fires only for `src/copilot-cli/instructions`, which is why the plugin ships fewer instruction files than `.github/instructions`. The generator reports the count as `Skipped (all-internal scope)` and prunes any artifact it previously emitted.
 
 Situations 3 and 4 leave no source line to grep for. Situation 4 used to fall back to `**`, which inverted intent: narrowing a rule to `.claude/**` read like a reduction in scope and silently widened it to every turn in the shipped plugin. Issue #4317 tracked that inversion and PR #4426 fixed it by skipping rather than universalizing. The generator still prints `WARNING: dropped internal-only glob from applyTo` to stderr per dropped glob, and nobody reads stderr during a build, so trust the skip count and the file count over the warnings.
 

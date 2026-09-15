@@ -40,7 +40,13 @@ class TestLosslessRendering:
 
     @pytest.mark.parametrize("name", _discover_fixture_names())
     def test_template_renders_to_fixture(self, name: str) -> None:
-        """Rule template renders identically to fixture."""
+        """Rule template renders identically to fixture.
+
+        Every fixture is a byte copy of the pre-migration rule, and every
+        template except ``testing.md`` is a byte copy too, so this case
+        mostly proves the templates carry no tag; git history is the real
+        pin. ``testing.md`` is the one render that transforms (its escape).
+        """
         fixture_path = _fixture_dir() / f"{name}.md"
         template_path = _REPO_ROOT / "templates" / "rules" / f"{name}.md"
         partials_dir = _REPO_ROOT / "templates" / "rules" / "partials"
@@ -61,11 +67,11 @@ class TestLosslessRendering:
         committed_path = _REPO_ROOT / "src" / "claude" / "rules" / f"{name}.md"
 
         fixture_bytes = fixture_path.read_bytes()
-        if committed_path.is_file():
-            committed_bytes = committed_path.read_bytes()
-            assert committed_bytes == fixture_bytes, (
-                f"Committed file {committed_path} differs from fixture {fixture_path}"
-            )
+        assert committed_path.is_file(), f"compiled rule missing: {committed_path}"
+        committed_bytes = committed_path.read_bytes()
+        assert committed_bytes == fixture_bytes, (
+            f"Committed file {committed_path} differs from fixture {fixture_path}"
+        )
 
     @pytest.mark.parametrize("name", _discover_fixture_names())
     def test_binplaced_claude_install_file_equals_fixture(self, name: str) -> None:
@@ -80,15 +86,20 @@ class TestLosslessRendering:
             f"Installed file {installed_path} differs from fixture {fixture_path}"
         )
 
-    def test_fixture_count_is_28(self) -> None:
-        """Exactly 28 fixtures must exist (29 rules minus untemplated testing.md)."""
+    def test_fixture_count_is_29(self) -> None:
+        """Exactly 29 fixtures must exist, one per rule under .claude/rules."""
         names = _discover_fixture_names()
-        assert len(names) == 28, f"Expected 28 fixtures, found {len(names)}: {names}"
+        rules = sorted(p.stem for p in (_REPO_ROOT / ".claude" / "rules").glob("*.md"))
+        assert len(names) == 29, f"Expected 29 fixtures, found {len(names)}: {names}"
+        assert names == rules, f"fixtures and rules differ: {set(names) ^ set(rules)}"
 
-    def test_testing_rule_has_no_template(self) -> None:
-        """testing.md is deliberately excluded (disallowed tag under the grammar)."""
-        assert not (_REPO_ROOT / "templates" / "rules" / "testing.md").is_file()
-        assert (_REPO_ROOT / ".claude" / "rules" / "testing.md").is_file()
+    def test_testing_rule_uses_the_literal_brace_escape(self) -> None:
+        """testing.md templates its GitHub Actions example through the escape."""
+        template = (_REPO_ROOT / "templates" / "rules" / "testing.md").read_text(encoding="utf-8")
+        rendered = (_REPO_ROOT / ".claude" / "rules" / "testing.md").read_text(encoding="utf-8")
+        assert "$\\{{ a && b }}" in template
+        assert "${{ a && b }}" in rendered
+        assert "\\{{" not in rendered
 
     def test_negative_control_template_change_is_detected(self, tmp_path: Path) -> None:
         """Appending to template produces different bytes (proves test can fail)."""
