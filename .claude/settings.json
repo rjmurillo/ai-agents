@@ -79,7 +79,7 @@
                         "type": "command",
                         "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/SessionEnd/invoke_memory_reflection.py",
                         "timeout": 60,
-                        "statusMessage": "Persisting memory confidence scores (#4011)"
+                        "statusMessage": "Summarizing memory health (#4011)"
                     }
                 ]
             }
@@ -90,6 +90,7 @@
                     {
                         "type": "command",
                         "command": "cd \"$CLAUDE_PROJECT_DIR\" && python3 -u .claude/hooks/PreCompact/invoke_compact_checkpoint.py",
+                        "timeout": 30,
                         "statusMessage": "Checkpointing state before compaction (#1703)"
                     }
                 ]

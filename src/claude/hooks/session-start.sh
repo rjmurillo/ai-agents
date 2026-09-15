@@ -60,8 +60,18 @@ fi
 # have a PYENV_ROOT line in $CLAUDE_ENV_FILE, and keying the PATH append on
 # it would skip the venv-first PATH on upgraded sessions.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-  if ! grep -qF "$repo_root/.venv/bin" "$CLAUDE_ENV_FILE" 2>/dev/null; then
-    echo "export PATH=\"$repo_root/.venv/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$HOME/.pyenv/shims:\$HOME/.pyenv/bin:\$PATH\"" >> "$CLAUDE_ENV_FILE"
+  # Shell-escape repo_root before writing it into a file a later shell
+  # sources: the checkout directory name is not trusted input (an
+  # attacker who controls where the repo is cloned controls this string),
+  # and writing it as literal shell source without escaping lets a quote,
+  # newline, or command substitution in the path execute at source time
+  # (CWE-78). `printf '%q'` produces a token safe to splice back into
+  # unquoted shell source as-is; wrapping it in an ADDITIONAL pair of
+  # double quotes would be wrong, since %q's backslash-escaping is meant
+  # for an unquoted context, not for nesting inside one.
+  repo_root_escaped=$(printf '%q' "$repo_root")
+  if ! grep -qF "$repo_root_escaped/.venv/bin" "$CLAUDE_ENV_FILE" 2>/dev/null; then
+    echo "export PATH=${repo_root_escaped}/.venv/bin:\$HOME/.local/bin:\$HOME/.cargo/bin:\$HOME/.pyenv/shims:\$HOME/.pyenv/bin:\$PATH" >> "$CLAUDE_ENV_FILE"
   fi
   if ! grep -q '^export PYENV_ROOT=' "$CLAUDE_ENV_FILE" 2>/dev/null; then
     echo 'export PYENV_ROOT="$HOME/.pyenv"' >> "$CLAUDE_ENV_FILE"
