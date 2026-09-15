@@ -69,7 +69,7 @@ Issue generators discovered that #5698 does not name. Adjudicated in-scope (ackn
 
 - **security agent CONDITIONAL verdict**, `.claude/agents/security.md:221`: "At most 3 MEDIUM findings remain with documented mitigations the implementer commits to land in a follow-up issue."
 
-- **security agent PIV gate**, `.claude/agents/security.md:398`: "CONDITIONAL clears the gate only when the verdict cites a follow-up issue number", repeated in the checklist at `.claude/agents/security.md:546`.
+- **security agent PIV gate**, `.claude/agents/security.md:398`: "CONDITIONAL clears the gate only when the verdict cites a follow-up issue number", repeated in the checklist at `.claude/agents/security.md:546` as "documented mitigations and a follow-up issue".
 
 - **research skill**, `.claude/skills/research/SKILL.md:94`: calls `new_issue.py` at the end of every run; its description at `.claude/skills/research/SKILL.md:4` says "file the follow-up issue" by design.
 
