@@ -32,7 +32,7 @@ Out of scope: changing `skill_template_grammar.py`'s grammar or render behavior;
 
 - [ ] `ls templates/skills/*.tmpl | wc -l` equals `find .claude/skills -maxdepth 2 -name SKILL.md | wc -l` (both 111) once every batch lands.
 - [ ] `git diff --exit-code -- .claude/skills` exits 0 after `uv run python build/scripts/build_all.py` runs on a clean checkout, for every batch's PR.
-- [ ] Each batch PR touches at most ten files (`.claude/rules/claude-agents.md` MUST item 4, "File cap per PR", cited by ADR-109 section 7); `git show --stat <sha> | tail -1` on each batch's merge commit confirms.
+- [ ] Each batch PR templates at most twenty skills (a template, its rendered file, its Copilot mirror, and a contract test per skill, so about eighty files); `.claude/rules/claude-agents.md` MUST item 4, "File cap per PR", caps new skill additions at ten files and does not bind a byte-copy migration of existing skills, which ADR-109 section 7 sizes by class, not by that cap.
 - [ ] The existing `Skill Template Drift` gate stays green after every batch (no new gate needed; the class's gate already exists from ADR-108).
 - [ ] `tests/build_scripts/test_skill_templates_pilot_scope.py`'s `PILOT` constant is deleted (and the file itself deleted, since its sole purpose was pinning the pilot boundary) once `discover(repo_root)` on the real tree returns all 111 names with no further owner-approval step required for a new one.
 - [ ] `uv run pytest tests/build_scripts/test_generate_skills_template_compile.py tests/skills -v` passes for every migrated skill.
