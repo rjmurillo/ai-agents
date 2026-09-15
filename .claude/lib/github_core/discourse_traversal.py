@@ -125,17 +125,33 @@ class Checkpoint:
 
 
 def save_checkpoint(checkpoint: Checkpoint, path: Path) -> None:
-    """Atomically write checkpoint to disk."""
+    """Atomically write checkpoint to disk.
+
+    Uses ``NamedTemporaryFile(..., delete=False)`` instead of
+    ``tempfile.mktemp``: ``mktemp`` only returns a predictable, unclaimed
+    pathname, so between the name's return and the later open, a local
+    attacker able to write in ``path.parent`` can win the race by
+    dropping a symlink there, redirecting the write to an arbitrary
+    path the process can write (Semgrep finding, PR #5787 review).
+    ``NamedTemporaryFile`` opens the file itself, atomically and
+    exclusively, closing that window.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = Path(tempfile.mktemp(dir=path.parent, suffix=".tmp"))
+    tmp: Path | None = None
     try:
-        tmp.write_text(
-            json.dumps(checkpoint.to_dict(), indent=2) + "\n",
+        with tempfile.NamedTemporaryFile(
+            dir=path.parent,
+            suffix=".tmp",
+            mode="w",
             encoding="utf-8",
-        )
+            delete=False,
+        ) as tmp_file:
+            tmp = Path(tmp_file.name)
+            tmp_file.write(json.dumps(checkpoint.to_dict(), indent=2) + "\n")
         tmp.replace(path)
     except BaseException:
-        tmp.unlink(missing_ok=True)
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
         raise
 
 
