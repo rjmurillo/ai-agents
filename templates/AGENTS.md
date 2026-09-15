@@ -1,73 +1,74 @@
 # templates/
 
-Source of truth for Copilot CLI, VS Code, and Visual Studio agent mirrors only; read by `build/generate_agents.py` and by contributors changing shared agent behavior.
+Canonical source for five ADR-109 artifact classes: agents, rules, skills, hooks, settings; the `prompts` row's source sits outside this tree.
 
 ## Matters
 
-- 31 `agents/*.shared.md` files are the whole input. `build/generate_agents.py` writes ONLY `src/copilot-cli/agents/` and `src/vs-code-agents/`.
-- `src/claude/`, `.claude/agents/`, and `.github/agents/` are hand-maintained copies of the same agents. No generator writes them; a shared-behavior edit needs a matching hand edit there in the same change.
-- `description` is required and drives agent routing. `name` is not a template field: it is derived from the filename, and re-added only for a platform whose config sets `includeNameField: true` (copilot-cli).
-- `tools` / `tools_vscode` / `tools_copilot` MUST stay block-style YAML lists. Inline arrays (`['a','b']`) break Copilot CLI on CRLF line endings (issue #893).
-- A `model:` pin appears in generated output only for the `haiku` tier or a validated ADR-080 `KEEP_PIN` manifest entry; `opus`, `sonnet`, or no `model_tier` all resolve to no pin.
-- Regenerating and committing output is not optional: an uncommitted generator run after a template edit is a protocol failure (`.claude/rules/templates.md` MUST-1/2).
-- `skills/<name>.SKILL.md.tmpl` and `skills/partials/*.mustache` are a second, unrelated template class (ADR-108): `build/scripts/skill_templates.py`, invoked from `build/scripts/generate_skills.py`, compiles them into `.claude/skills/<name>/SKILL.md`, the one exception to `.claude/` being off-limits to generators. Regenerate with `uv run python build/scripts/build_all.py`, not `generate_agents.py`.
+Per-class render map. Compilers run inside `build_all.py` except `prompts`; binplace copies the plugin tree onto the install tree byte for byte.
+
+| Class | Source here | Compiler | Plugin tree -> install tree |
+|---|---|---|---|
+| agents | `agents/<stem>.claude.md.tmpl`, `.copilot.md.tmpl`, `agents/partials/` | `agent_templates.py` | `src/claude/agents/` -> `.claude/agents/` |
+| rules | `rules/<name>.md` | `rule_templates.py` | `src/claude/rules/` -> `.claude/rules/` |
+| skills | `skills/<name>.SKILL.md.tmpl`, `skills/partials/` | `skill_templates.py` | `src/claude/skills/<name>/SKILL.md` -> `.claude/skills/<name>/SKILL.md` |
+| hooks | `hooks/` minus `settings.tmpl`: 13 executables plus 3 data files | `hook_templates.py` | `src/claude/hooks/`, `src/claude/hooks.json` -> `.claude/hooks/` |
+| settings | `hooks/settings.tmpl` | `hook_templates.py` | none -> `.claude/settings.json` |
+| prompts | `.claude/skills/review/references` | `generate_pr_quality_prompts.py` | none -> `.github/prompts/` |
+
+- `generate_agents.py` renders `src/copilot-cli/agents/`, `src/vs-code-agents/`, and via `platforms/github.yaml` `.github/agents/` (no `model:`; GitHub rejects it, issue #4938).
+- `generate_rules.py` mirrors `src/claude/rules/` to `.github/instructions/` and `src/copilot-cli/instructions/`.
+- `generate_hooks.py` with `generate_dispatcher.py` reads `src/claude/hooks/` and `hooks.json`, writes `src/copilot-cli/hooks/`, binplaced to `.github/hooks/`.
+- `agents/<stem>.shared.md` feeds `src/vs-code-agents/` and `docs/agent-catalog.md`; it is also `generate_agents.py`'s stem list: no `.shared.md`, no copilot-cli, vs-code or github file for that stem.
+- A literal `{{` in a rule template is written `\{{`.
+- Lib renders from `scripts/` packages, not from here (B5); `.claude-plugin/marketplace.json` stays hand-maintained (one Claude entry, `project-toolkit` at `./src/claude`, since B6).
 
 ## Entry points
 
-- `agents/<name>.shared.md`: edit here to change an agent's shared behavior.
-- `platforms/{copilot-cli,vscode,visual-studio}.yaml`: per-platform output config.
-- `toolsets.yaml`: named tool groups referenced via `$toolset:<name>`.
-- `uv run python build/generate_agents.py`: the only supported way to produce output from an `agents/<name>.shared.md` edit. `skills/<name>.SKILL.md.tmpl` is the one exception (ADR-108, see Matters above): regenerate those with `uv run python build/scripts/build_all.py` instead.
+`uv run python build/scripts/build_all.py` renders every class but `prompts` (`generate_pr_quality_prompts.py`, standalone) and binplaces. Binplace has no standalone CLI.
 
 ## Where to look
 
 | Path | Why |
 |---|---|
-| `agents/<name>.shared.md` | Platform-agnostic agent body plus frontmatter; the actual source of truth |
-| `platforms/copilot-cli.yaml` | Output dir `src/copilot-cli/agents`, `includeNameField: true`, `handoffSyntax: /agent`, `dispatcher: true` for hooks |
-| `platforms/vscode.yaml`, `visual-studio.yaml` | Both write `src/vs-code-agents`; `handoffSyntax: #runSubagent`, `includeNameField: false`; Visual Studio sets `toolsFrom: vscode` |
-| `toolsets.yaml` | Tool group definitions; adding or removing a tool anywhere MUST update this file too |
-| `README.md` | Human guide; states the ADR-036 procedure still runs and ADR-052 is accepted target state, not implemented |
-| `.claude/rules/templates.md` | Binding MUST / SHOULD / MUST NOT for this tree |
+| `platforms/*.yaml` | Per-platform output config; only `github.yaml` lacks `model_tiers` |
+| `platforms/binplace.yaml` | Copy manifest; source of the `.claude/` write allowlist |
+| `README.md` | Predates ADR-109; names retired hand-edit paths |
 
 ## Skip
 
-- `src/copilot-cli/agents/`, `src/vs-code-agents/`: generated output, not source. Edit the template and regenerate instead.
-- `src/claude/`, `.claude/agents/`, `.github/agents/`: hand-maintained siblings, out of this tree; see `src/claude/AGENTS.md`.
+- Generated, never hand-edited (source is `templates/` except `src/claude/lib`, `src/copilot-cli/lib`, `.claude/lib/<pkg>` from `scripts/`, and `src/claude/skills`, `src/copilot-cli/skills` non-SKILL.md from `.claude/skills/<name>/`): `src/claude/agents|rules|skills|hooks`, `src/claude/hooks.json`, `src/copilot-cli/agents|instructions|skills|lib|hooks`, `src/vs-code-agents/`, `.claude/agents|rules|hooks`, `.claude/settings.json`, `.github/agents|hooks|instructions`, each `.claude/skills/<name>/SKILL.md`.
+- Hand-maintained inside those trees: the seven docs under `.claude/hooks/`, `.github/agents/security/references/`, `.github/agents/pr-comment-responder.prompt.md`, `src/vs-code-agents/copilot-instructions.md`, under `.claude/skills/<name>/`, everything but `SKILL.md` (the `src/claude/skills` and `src/copilot-cli/skills` copies are generated).
 
 ## Constraints
 
-- Cross-harness behavior: read `agent-harness-reference` first; hook, event, or generated-Copilot changes run through `ai-agents-portability-campaign`.
-- Regenerate after every edit and commit both generated trees in the same PR (`templates.md` MUST-1/2).
-- Adding or removing a tool from any template MUST update `toolsets.yaml` consistently (`templates.md` MUST-3).
-- `model_tier` MUST comply with ADR-080; only `haiku` or a fresh manifest `KEEP_PIN` entry resolves to a `model:` pin (`templates.md` MUST-5).
-- `platforms/*.yaml` schema is enforced by `build/scripts/validate_templates_schema.py`: `safe_load` only, no YAML anchors or aliases, `schemaVersion` semver check, path traversal rejection.
-- Editing a shared agent also means editing `src/claude/<name>.md`, `.claude/agents/<name>.md`, and `.github/agents/<name>.agent.md` in the same change; `build/scripts/validate_install_parity.py` fails the PR when one sibling is missing from the diff.
+- `validate_templates_schema.py` validates only a `platforms/*.yaml` carrying a top-level `provider:`, skipping `binplace.yaml`. `binplace_manifest.py` validates that one, requiring every `install_tree` under `.claude/` or `.github/` (`BinplaceConfigError`, exit 2).
+- Cross-harness hook, event, or generated-Copilot change: read the `agent-harness-reference` skill, route through `ai-agents-portability-campaign`.
 
 ## Dangerous assumptions
 
-- "Parity gate passed" does not mean the hand-maintained copies agree with the template. `validate_install_parity.py` checks that files changed together in a diff; nothing compares their text.
-- "Drift check passed" does not mean a template edit reached `src/claude` or `.claude/agents`. `detect_agent_drift.py` never reads template content, only template filenames (to pick which agents to compare). It scores 23 allowlisted sections (`SECTIONS_TO_COMPARE`). A heading present on only one side always fails, but a section outside that allowlist that exists on both sides is never compared, so its text can diverge freely.
-- A `src/claude/`-only edit with no matching template edit is not caught by any gate: the co-change check does not require the template side.
+- `.claude/rules/templates.md` renders from `rules/templates.md` and is stale: MUST-2, SHOULD-3 and MUST NOT-1 still call `src/claude/`, `.claude/agents/` and `.github/agents/` hand-maintained, MUST-4 denies that any agent template defines `name` while all 31 `.claude.md.tmpl` do, MUST-1 omits `hooks/`. Fix at the template.
+- `uv run python build/generate_agents.py` alone never populates `copilot_sources` and never writes `src/claude/agents/`: it falls back to `.shared.md` for copilot-cli and github.
+- Lefthook auto-regen globs `agents/*.shared.md` and `platforms/**` only; a `.tmpl`, partial, rule, skill or hook edit triggers nothing. Run `build_all.py` yourself.
+- `$toolset:` never reaches Claude Code: expansion lives in `generate_agents_common.py`, called only by `generate_agents.py`, and no `.claude.md.tmpl` or partial uses it. `analyst` and `security` carry a literal `tools:` list no gate compares against `toolsets.yaml`.
+- The `Skill Markdown Portability` ratchet is per file and scans `.md` only, so a repo-internal path added to a skill or rule template raises the count on generated output you cannot edit (`.claude/skills/<name>/SKILL.md`, `src/copilot-cli/instructions/<name>.instructions.md`). `agents/*.shared.md` is scanned; `.tmpl` files and partials are not.
 
 ## Dependencies
 
-- Feeds `build/generate_agents.py`, one of the seven generators `build/scripts/build_all.py` runs as its `agents` step.
-- CI: `validate-generated-agents.yml` runs `uv run python build/generate_agents.py --validate` (regenerate and diff, no write).
-- Weekly `drift-detection.yml` (Mondays 09:00 UTC, plus manual dispatch) runs the drift scorer repo-wide and opens an issue on drift; it is an audit, not a PR merge gate.
+- Generator order, `OWNED_PREFIXES`, the binplace step, gate semantics, the lib render: `build/AGENTS.md`.
 
 ## Architecture
 
-- Two independent seams share one source: `build/generate_agents.py` is the generated seam (copilot-cli, vs-code-agents); the hand-maintained mirrors (`src/claude/`, `.claude/agents/`, `.github/agents/`) are a separate, manual seam kept in sync by convention and the co-change check, not by generation.
-- `vscode.yaml` and `visual-studio.yaml` both target `src/vs-code-agents`; there is no separate Visual Studio output directory.
+- `vscode.yaml` and `visual-studio.yaml` both target `src/vs-code-agents`.
 
 ## Commands
 
 ```bash
-uv run python build/generate_agents.py                     # regenerate copilot-cli + vs-code-agents
-uv run python build/generate_agents.py --validate           # CI mode: regenerate and diff, no write
-uv run python build/generate_agents.py --what-if             # dry run
-uv run python build/scripts/validate_templates_schema.py     # schema-check platforms/*.yaml
-uv run python build/scripts/detect_agent_drift.py --all      # score src/claude vs src/vs-code-agents (80% floor)
-uv run python build/scripts/validate_install_parity.py --files <path>  # check the co-change requirement
+uv run python build/scripts/build_all.py                    # render all + binplace
+uv run python build/scripts/build_all.py --check            # CI drift gate
+uv run python build/scripts/agent_templates.py --validate
+uv run python build/scripts/rule_templates.py --validate
+uv run python build/scripts/hook_templates.py --validate
+uv run python build/scripts/generate_skills.py --validate
+uv run python build/scripts/validate_templates_schema.py
+uv run python build/generate_agents.py --what-if
 ```

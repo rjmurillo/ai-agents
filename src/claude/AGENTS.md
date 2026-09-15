@@ -1,66 +1,53 @@
 # src/claude/
 
-31 Claude Code agent prompts, generated from `templates/agents/<stem>.claude.md.tmpl` (ADR-109); the `project-toolkit` plugin source in the `rjmurillo/ai-agents` repository, installed by Claude Code as `.claude/agents/<name>.md`.
+`project-toolkit` plugin source (ADR-109 B6; `claude-agents` retired) in the `rjmurillo/ai-agents` repository. The generated trees below binplace into `.claude/`, the dogfood copy.
+
+<!-- vendor-portability: repo-only contributor guide; templates/, build/, .github/agents/ and sibling src/ trees do not ship with this plugin -->
 
 ## Matters
 
-- `agents/` holds 31 generated agent files (edit the templates, not the agents themselves). `claude-instructions.template.md` and `security/references/` are hand-maintained. Agents are generated from `templates/agents/<stem>.claude.md.tmpl` by `build/scripts/agent_templates.py` per ADR-109.
-- `name`, `description`, `argument-hint` appear in all 31 files. `metadata.role` in 25 of 31. A `tools:` frontmatter list in only 2 of 31 (`analyst`, `security`). A `model:` pin in exactly 1 of 31 (`code-reviewer: haiku`, with a required `model-rationale:` line, per ADR-080).
-- No enforced section structure. Measured across the 31 files: `## Core Identity` appears in 17, `## Constraints` in 10, `## Memory Protocol` in 13, `## Handoff Options` in 13, `## Output Format` in 7. Grep the specific file before assuming a heading exists.
-- To change an agent, edit `templates/agents/<stem>.claude.md.tmpl`, run `uv run python build/scripts/build_all.py`, and commit the regenerated outputs in the same PR.
+- Generated (ADR-109 B1 to B4): `agents/` 31, `rules/` 28, `skills/<name>/SKILL.md` 111, `hooks/` plus `hooks.json`.
+- Hand-maintained: `claude-instructions.template.md`, `security/references/`, `.claude-plugin/plugin.json`, this file.
+- Edit the template, never the render. A hand-edit fails its Template Drift gate next run.
+- Agent frontmatter: `name`, `description`, `argument-hint` in all 31. `metadata.role` in 25. `tools:` only `analyst.md`, `security.md`. `model:` only `code-reviewer.md`.
+- `skills/<name>/`: `SKILL.md` renders from its template; `scripts/`, `references/`, `tests/` are build mirrors of `.claude/skills/<name>/`, the hand-maintained source. Edit there.
 
 ## Entry points
 
-- `<name>.md`: edit directly for Claude-only behavior (MCP tool ids, Serena calls, `Task` syntax).
-- `Task(subagent_type="<name>", prompt="...")`: how another Claude Code agent invokes one of these.
-- In the `rjmurillo/ai-agents` repository: `uv run python build/generate_agents.py`, run after any shared-behavior edit to refresh the generated Copilot CLI and VS Code mirrors.
+- `templates/agents|rules|skills|hooks/` is the edit location; per-class render map in `templates/AGENTS.md`. Generator order, owned prefixes, binplace, gate semantics: `build/AGENTS.md`.
 
 ## Where to look
 
 | Path | Why |
 |---|---|
-| `agents/<name>.md` | One agent's full prompt: frontmatter plus body; generated from templates |
-| `claude-instructions.template.md` | Shared preamble text, not an agent; carries no frontmatter and no template counterpart |
-| `security/references/` | Threat-model and checklist references the `security` agent's prompt points to |
-| `agents/merge-resolver.md`, `agents/pr-comment-responder.md`, `agents/quality-auditor.md` | The three agents that hard-code a `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` script path (merge-resolver uses the older single-variable form; see Dangerous assumptions) |
+| `agents/merge-resolver.md`, `agents/pr-comment-responder.md`, `agents/quality-auditor.md` | Hard-code a plugin-root skills path; see Constraints |
 
 ## Skip
 
-- Nothing under this tree is generated, so there is no output copy to avoid editing here; the trap runs the other way (see Dangerous assumptions).
-- `.claude/agents/<name>.md` (in the `rjmurillo/ai-agents` repository): the binplaced copy of `agents/<name>.md`, written by the build; `.github/agents/<name>.agent.md` renders from the Copilot template. Neither is edited by hand.
+- `.claude/agents/`, `.claude/rules/`, `.claude/skills/<name>/SKILL.md`, `.claude/hooks/` minus its seven hand-maintained docs: byte-for-byte binplace copies of this tree.
 
 ## Constraints
 
-- Cross-harness behavior: read `agent-harness-reference` first; hook, event, or generated-Copilot changes run through `ai-agents-portability-campaign`.
-- An agent file here MUST NOT reference `.agents/`, `build/`, or `scripts/` paths that will not exist for a downstream installer of this plugin.
-- A `model:` field MUST NOT be added without an ADR-080 `KEEP_PIN` manifest entry, or the `haiku` cost exception plus a `model-rationale:` line.
-- Changing shared behavior MUST also touch `templates/agents/<name>.shared.md` in the repository; the repository's parity check fails a solo template edit but does not fail a solo edit to this file alone, so the discipline is on the author, not the gate.
-- A script path built from `${CLAUDE_PLUGIN_ROOT:-.claude}` resolves correctly only two ways: unset, falling back to `.claude/` (in-repo dev use), or set to a plugin root that itself ships a `skills/` directory. `src/claude/skills/` now exists (ADR-109 B3), so an installer of this directory's plugin, `project-toolkit`, resolves it directly; it no longer requires a separate install alongside another plugin.
-- GitHub operations should route through a `skills/github/scripts/...` script rather than raw `gh`, and memory search through a `skills/memory/scripts/search_memory.py` script, subject to the availability constraint above.
+- Cross-harness change: read `agent-harness-reference` first, route through `ai-agents-portability-campaign`.
+- `model:` needs an ADR-080 `KEEP_PIN` sidecar entry, or a bare alias (`sonnet`, `opus`, `haiku`) plus `model-rationale:` priced below the harness default through the platform `model_tiers` map (`check_model_pins.py`). Only `code-reviewer.md` qualifies.
+- Those three agents read `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<name>/scripts` (`merge-resolver.md` still bare `${CLAUDE_PLUGIN_ROOT:-.claude}`; `plugin-self-containment.md` MUST 2 wants the nested form). Resolves against this plugin's own `skills/` now that support files mirror here (#5794); before that the fallback needed a second install.
 
 ## Dangerous assumptions
 
-- Assuming a passing drift check means an agent here agrees with its `src/vs-code-agents/` counterpart is wrong: the check is a word-set similarity floor over an allowlist of section names, not equality, and several comparisons score a hardcoded 100.0 when the agent has none of the allowlisted sections at all.
-- Assuming the shared-template "required sections" list (`templates/README.md`: Core Identity, Core Mission, Key Responsibilities, Constraints, Memory Protocol, Handoff Options; Activation Profile is common but not on that list) holds for files in this tree is wrong: none of those headings appears in more than 17 of the 31 files, and nothing enforces the list here.
-- `${CLAUDE_PLUGIN_ROOT:-.claude}/skills/...` now resolves for a standalone `project-toolkit` (`src/claude/`-sourced) install: `src/claude/skills/` ships as of ADR-109 B3 (see Constraints). Before B3 this plugin shipped no `skills/` directory of its own; that historical gap is why the fallback pattern existed.
-- Assuming a solo edit here is safe because "the agent still works" ignores that no automated check requires the matching template edit in the same change; only the co-change diff check runs, and it does not require this direction.
+- A green `detect_agent_drift.py` proves nothing about `src/vs-code-agents/` parity: its code default `--claude-path` is `src/claude`, not `src/claude/agents` (its `--help` claims otherwise), so it compares 0 of 31 agents. The `Agent Drift Detection` gate runs it bare. Pass `--claude-path src/claude/agents`.
+- `git add` silences the `src/` staleness gate and proves nothing; commit.
 
 ## Dependencies
 
-- Feeds `.claude/agents/<name>.md` (hand-copy, currently identical content) and is read, by filename only, by the repository's drift checker for the `src/claude` vs `src/vs-code-agents` comparison.
-- The repository's parity check (co-change gate, blocks a solo template edit) and drift checker (similarity floor, weekly cron) are the only two automated checks over this tree; neither proves content agreement.
-- Consumed by the `project-toolkit` marketplace plugin entry (ADR-109 B6 repointed it here off `./.claude`, retiring the separate `claude-agents` entry that used to name this directory), whose source is exactly this directory; nothing above it (docs, governance, build tooling) ships to an installer.
+- Marketplace entry `project-toolkit`, `source: ./src/claude` (B6); `.claude/` is not listed. Nothing above this directory ships to an installer.
 
 ## Architecture
 
-- This tree is a hand-maintained fork of the shared template body, not a generated copy: the shared source lives in a separate file per agent in the repository, and the two are kept in step by author discipline plus the co-change check, never by a tool that compares their content.
-- Every one of the 31 agent files has a `templates/agents/<name>.shared.md` counterpart; `claude-instructions.template.md` has none, and the drift checker's skip list (`_NON_AGENT_FILENAMES`) covers only `AGENTS` and `CLAUDE`, so it is reported as `NO COUNTERPART`.
+- A render stage, not a source.
 
 ## Commands
 
 ```bash
-# All of the following run from the rjmurillo/ai-agents repository root, not from an installed plugin.
-uv run python build/generate_agents.py                                              # refresh Copilot CLI + VS Code mirrors after a shared edit
-uv run python build/scripts/validate_install_parity.py --files src/claude/<name>.md  # check the co-change requirement
-uv run python build/scripts/detect_agent_drift.py --changed src/claude/<name>.md     # scope the similarity check to one agent
+uv run python build/scripts/build_all.py                   # regenerate every tree
+uv run python build/scripts/build_all.py --check            # drift gate, all four classes
 ```

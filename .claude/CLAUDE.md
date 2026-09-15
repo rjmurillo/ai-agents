@@ -2,6 +2,8 @@
 
 Push non-trivial implementation and research to subagents (`Agent`) or `Workflow`, on Sonnet or Haiku (`model: "sonnet"`/`"haiku"`), rather than working inline. Reserve Opus for reviewing finished work, not the first pass.
 
+Editing `.claude/rules`, `.claude/lib`, `.claude/agents`, or `.claude/settings.json`: read `.claude/AGENTS.md` first.
+
 <claude-mem-context>
 # Recent Activity
 

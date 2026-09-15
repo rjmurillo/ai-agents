@@ -1,88 +1,67 @@
 # /
 
-Repo root map: what an agent edits, what is generated, and what to skip before touching any file in ai-agents. Root `AGENTS.md` owns protocol and gates; `.claude/rules/*.md` owns conventions (auto-loaded per each file's `paths:` glob). This file owns navigation only.
+Root map: what to edit, what is generated, what to skip. `AGENTS.md` owns protocol and gates; `.claude/rules/*.md` owns conventions.
 
 ## Matters
 
-- Generated trees are silently overwritten by the next `build/scripts/build_all.py` run; edit the source tree, never the output. Full source-to-output map: `.agents/governance/GENERATOR-FILES.md`.
-- `.claude/skills/<name>/` is the only user-invocable surface (ADR-064); `.claude/commands/` is retired and `scripts/validation/check_commands_retired.py` blocks a command file reappearing under any plugin root.
-- Every per-directory `AGENTS.md` below is hand-maintained, not generated: a shared-behavior edit needs the template plus every sibling copy changed together.
-- `src/claude/` looks like a generated mirror and is not one: no generator writes it, and `build/scripts/validate_install_parity.py` blocklists `AGENTS.md`/`CLAUDE.md` from every parity group, so that tree has no automated drift gate.
-- `.agents/architecture/ADR-*.md` frontmatter `status` is the truth, not the filename or the index; editing any ADR file fires the `adr-review` skill.
+- Generated trees are overwritten by the next `build/scripts/build_all.py` run; edit the source. Inventory: `.agents/governance/GENERATOR-FILES.md`.
+- `templates/` is canonical for agents, rules, skills, hooks, settings; `scripts/` packages for lib (ADR-109 B1 to B5).
 
 ## Entry points
 
-- `AGENTS.md` (root): protocol, gates, boundaries. Read first every session.
-- `CLAUDE.md` (root): imports `AGENTS.md`, adds Claude Code Task-tool routing and `/autoplan` skill routing.
-- `.claude/rules/*.md`: read the ones whose `paths:` frontmatter glob matches the file before editing it.
-- `scripts/validation/pre_pr.py`: pre-PR gate; run before every push.
-- `build/scripts/build_all.py`: regenerates every generated tree; `--check` is the CI drift gate.
+- `AGENTS.md`, `CLAUDE.md` (root): protocol, gates, boundaries, Task-tool and `/autoplan` routing. Read first every session.
+- `.claude/rules/*.md`: read the ones whose `paths:` glob matches; edit `templates/rules/<name>.md`, never the rendered copy.
 
 ## Where to look
 
 | Path | Why |
 |---|---|
-| `templates/agents/*.shared.md` (31) | Canonical source for Copilot CLI + VS Code agent bodies |
-| `src/claude/*.md`, `.claude/agents/*.md`, `.github/agents/*.agent.md` | Hand-maintained agent copies; edit template + all three together |
-| `.claude/rules/*.md` (30) | Cross-harness conventions, canonical source |
-| `.claude/skills/<name>/` (111) | Skills; only user-invocable surface (ADR-064) |
-| `.claude/hooks/`, `.claude/settings.json` | Claude Code hook source |
-| `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source; renders direct, one `build_all.py` run |
-| `.claude/skills/review/references/<role>.md` | PR quality-gate prompt source |
-| `.agents/architecture/ADR-*.md` (108) | Decisions of record; `status` frontmatter is truth |
-| `.agents/governance/` | Constraints; `PROJECT-CONSTRAINTS.md` is index of record |
-| `scripts/` | Automation, Python only (ADR-042); tests in `tests/` |
-| `build/` | Generators plus drift/parity gates; tests in `tests/build_scripts/` |
-| `lefthook.yml` | Hook wiring only; logic in `scripts/validation/git_hook_policy.py` |
-| `.github/workflows/` | CI wiring only; logic in `scripts/ci/`, `.github/scripts/` |
-| `build/AGENTS.md`, `scripts/AGENTS.md`, `templates/AGENTS.md`, `src/AGENTS.md`, `src/claude/AGENTS.md`, `.github/AGENTS.md`, `.agents/AGENTS.md`, `.claude/skills/CLAUDE.md` | Per-directory agent docs; read before editing that tree |
+| `templates/{agents,rules,skills,hooks}/` | Source for all five classes; `settings` from `hooks/settings.tmpl` |
+| `scripts/{hook_utilities,github_core,ai_review_common}` | Plugin lib source; rendered by `build_all.py` (`build/AGENTS.md`) |
+| `{.agents,.claude,.claude/hooks,.github,build,scripts,src,src/claude,templates,tests}/AGENTS.md`, `.claude/skills/CLAUDE.md`, `.claude-mem/memories/AGENTS.md` | Per-directory guides |
+| `docs/{skill-reference,agent-governance,task-classification-guide,when-to-use,orchestrator-routing-algorithm,search-dont-load,SKILL-AUTHORING,agent-metrics}.md` | Agent-facing; no guide owns `docs/` |
 
 ## Skip
 
 | Path | Why |
 |---|---|
-| `.agents/{sessions/*.json,archive,retrospective,critique,analysis,qa,planning,plans,projects,audits,audit,eval-results,metrics,pr-checks,pr-consolidation,incidents,devops,debt,benchmarks,roadmap}` | Historical artifacts; evidence, not instructions |
-| `.agents/sessions/handoffs/` | The one live subtree here: per-issue continuity, read latest at start, update at end |
-| `.agents/memory/episodes/` (750 tracked JSON) | Auto-extracted; search via the `memory` skill, never read whole |
-| `.serena/memories/` (1037 tracked `.md`; `.obsidian/` is editor config, not a memory) | Retrieval aid; use `/memory-search` or `uv run python .claude/skills/memory/scripts/search_memory.py "<query>"` |
-| `evals/`, `tests/evals/`, `tests/eval_scenarios/` | Eval corpora and reports; runners live in `scripts/eval/` |
-| `.claude-mem/`, `.factory/`, `.codeql/`, `.serena/cache/` | Tool state, not source |
-| `packages/ai-agents-cli/` (bun, TypeScript), `packages/semantic-hooks/` (own uv project) | Separate toolchains, own lockfiles |
-| Any `*/CLAUDE.md` that is only a seven-line `<claude-mem-context>` stub | Plugin placeholder; edit only outside the tags |
-| `README.md`, `CONTRIBUTING.md`, other `docs/*.md` | Human onboarding prose, not agent-facing |
+| `src/`, `.claude/{agents,rules,lib,hooks}/`, `.claude/skills/*/SKILL.md`, `.claude/settings.json`, `.github/{instructions,agents,hooks}/`, `docs/agent-catalog.md`, `.agents/architecture/README.md` | `build_all.py` `OWNED_PREFIXES`; edit the template (`build/AGENTS.md`) |
+| `src/*.md`, `src/claude/{AGENTS.md,claude-instructions.template.md,security/references/}`, every `.claude-plugin/plugin.json`, `src/copilot-cli/{THIRD-PARTY-NOTICES.TXT,docs/}`, `.claude/hooks/**/{AGENTS,CLAUDE,README}.md`, `.claude/skills/*/{scripts,references,tests}/` bar `review/scripts/validate_review_marker.py`, `.github/agents/{pr-comment-responder.prompt.md,security/references/}` | Hand-maintained inside those prefixes |
+| `.serena/memories/` | Retrieval aid; `/memory-search`, never read whole |
+| `.agents/{archive,retrospective,critique,qa,analysis}/`, `.agents/memory/episodes/` | Evidence. Live: `.agents/sessions/handoffs/`, latest at start, update at end |
+| `evals/`, `tests/eval_scenarios/` | Corpora; runners in `scripts/eval/`. `tests/evals/` is pytest input |
+| `.factory/mcp.json`, `.vscode/mcp.json` | `scripts/sync_mcp_config.py --sync-all` output |
+| `.github/prompts/pr-quality-gate-*.md` | `build/scripts/generate_pr_quality_prompts.py`; `build_all.py` skips it |
+| `packages/` | Separate toolchains, own lockfiles |
 
 ## Constraints
 
-- No em or en dash in authored text; `staged-dashes` (`scripts/validation/git_hook_policy.py staged-dashes`) blocks the commit. `tests/hooks/fixtures/` is exempt.
-- More than 5 authored files in one commit fails `atomic-commit` (`scripts/validation/git_hook_policy.py atomic-commit`); `scripts/detect_scope_explosion.py` warns at 10 files and blocks a push over 50.
-- A documented `python3 <tracked>.py` invocation fails the doc-interpreter-portability gate (`scripts/validation/check_doc_interpreter_portability.py`); the fixed form is `uv run python <path>`.
-- `build/scripts/validate_path_normalization.py --fail-on-violation` scans every Markdown file for a Windows drive, macOS, or Linux home path (`lefthook.yml` pre-push, `.github/workflows/validate-paths.yml`, `scripts/validation/pre_pr_sequence.py`).
-- Always-on bans (hook bypass, floating Action tags, in-clone worktrees, local-clears-remote, worktree Serena writes) live in `.claude/rules/universal.md`; not restated here.
+- No em or en dash: `git_hook_policy.py` `staged-dashes` blocks the commit, `branch-dashes` the push; `tests/hooks/fixtures/` exempt.
+- `atomic-commit` (over 5 authored files) and `scripts/detect_scope_explosion.py` (10 or more on the branch) are advisory, never blocking (ADR-100).
+- A documented bare-interpreter call on a tracked script with a non-stdlib import fails `scripts/validation/check_doc_interpreter_portability.py`; baseline empty. Exempt: `tests/`, generated mirrors, 16 `HISTORICAL_ROOTS` (not `.agents/{memory,metrics,roadmap,plans}/`). Use `uv run python <path>`.
+- `build/scripts/validate_path_normalization.py --fail-on-violation` scans Markdown for an absolute home or drive path.
 
 ## Dangerous assumptions
 
-- "`src/claude/` is a generated mirror, so I don't need to hand-edit it" is false: no generator writes it, and the parity validator excludes `AGENTS.md`/`CLAUDE.md` from every group, so this tree had no drift gate at all until the gap was named.
-- "PowerShell docs mean a `.ps1` script exists somewhere" is false: `git ls-files '*.ps1'` returns zero tracked files; PowerShell mentions in older docs are history, not a live target.
-- "This map's file counts are a contract" is false: they are a freshness signal. `.agents/memory/episodes/` and `.serena/memories/` grow every session; re-verify with `git ls-files` before citing a count elsewhere.
+- "`.claude/` is hand-authored" is false for `.claude/{agents,rules,hooks}/`, `.claude/skills/*/SKILL.md`, `.claude/settings.json` and the `.claude/lib/` packages (split in `.claude/AGENTS.md`); exceptions in the Skip row above.
 
 ## Dependencies
 
-- `build/scripts/build_all.py` reads every "Where to look" source tree and writes every generated path in "Skip"; `--check` is the drift gate run by `.github/workflows/agent-drift-detection.yml` and `.github/workflows/validate-generated-agents.yml`, and the same local checks are wired through `lefthook.yml` into `scripts/validation/git_hook_policy.py` subcommands, re-run in CI by `.github/workflows/pr-validation.yml` via `scripts/validation/pre_pr.py`.
-- `build_all.py` renders `scripts/{hook_utilities,github_core,ai_review_common}` directly into every lib tree in one run (ADR-109 B5); `scripts/sync_plugin_lib.py` is a deprecated shim, not a prerequisite step.
-- Any `.agents/architecture/ADR-*.md` edit feeds the `adr-review` skill (multi-agent debate) and `build/scripts/generate_adr_index.py` (regenerates `.agents/architecture/README.md`).
+- `build_all.py --check` is the drift gate: direct in `validate-generated-agents.yml`, indirect in `agent-drift-detection.yml` via `scripts/ci/check_plugin_lib_mirrors.py`, local via `pre_pr.py` Generated Artifact Staleness.
+- No workflow invokes `scripts/validation/pre_pr.py`; `lefthook.yml` runs it pre-push and pre-commit (`--markdown-lint-only`).
+- Template-drift and parity gate semantics: `build/AGENTS.md`.
 
 ## Architecture
 
-- Asymmetric generation seam: most trees generate one-way, source to output, but `src/claude/*.md`, `.claude/agents/*.md`, `.github/agents/*.agent.md` are three hand-maintained copies of the same template, kept equal by a co-change validator (`build/scripts/validate_install_parity.py`), not by generation.
-- Plugin lib renders directly into both plugin trees, one hop each, no ordering to get wrong (ADR-109 B5): `scripts/{hook_utilities,github_core,ai_review_common}` (source) then `build/scripts/lib_mirror.py`, via `build_all.py`, then `src/claude/lib/` and `src/copilot-cli/lib/`; binplace copies `src/claude/lib/` onto `.claude/lib/`. Hooks generate through two cooperating generators instead, `build/scripts/generate_hooks.py` plus `build/scripts/generate_dispatcher.py`, both reading `.claude/hooks/` and `.claude/settings.json` and both writing into `src/copilot-cli/hooks/`.
+- Per-class render path: `templates/AGENTS.md`.
 
 ## Commands
 
 ```bash
-uv run pytest tests/ -x                       # 120s per-test timeout; skill tests in tests/skills/<name>/
-uv run ruff check .                           # line length 100; syntax target py310, runtime 3.14
-uv run python scripts/validation/pre_pr.py    # pre-PR gate (--quick skips slow gates)
-uv run python build/scripts/build_all.py      # regen or drift (add --check for the drift gate)
-uv run python build/generate_agents.py        # agents only (--validate, --what-if)
-# Push: /push-pr skill; PRs and comments via the github skill, never raw gh when a skill exists.
+uv run pytest tests/ -x                       # 120s timeout
+uv run ruff check .                           # line length 100, target py310
+uv run python scripts/validation/pre_pr.py    # --quick skips slow gates
+uv run python build/scripts/build_all.py      # --check for the drift gate
+uv run python build/generate_agents.py --validate  # also agent-drift-detection.yml
+# Push via /push-pr; PRs via the github skill, never raw gh.
 ```
