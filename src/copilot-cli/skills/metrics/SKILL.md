@@ -186,17 +186,17 @@ git commit -m "docs(metrics): add monthly metrics report"
 ### Adding New Metrics
 
 1. Define the metric in `docs/agent-metrics.md`
-2. Add collection logic to both scripts
+2. Add collection logic to `collect_metrics.py`
 3. Update the output formatters
 4. Add tests if applicable
 
 ### Adding New Agent Patterns
 
-Update the `AGENT_PATTERNS` / `$AgentPatterns` arrays to detect new agent references.
+Update the `AGENT_PATTERNS` list to detect new agent references.
 
 ### Adding Infrastructure Patterns
 
-Update the `INFRASTRUCTURE_PATTERNS` / `$InfrastructurePatterns` arrays for new infrastructure file types.
+Update the `INFRASTRUCTURE_PATTERNS` list for new infrastructure file types.
 
 ## Troubleshooting
 

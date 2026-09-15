@@ -125,7 +125,7 @@ See `references/strategies.md` for the full session file resolution workflow.
 
 The script auto-resolves these by accepting the target branch version.
 
-**Add/add caveat**: accept-theirs alone is wrong for an add/add conflict on an append-only evidence artifact (`.agents/sessions/*`, `.agents/qa/*`, `.agents/retrospective/*`), because it silently discards the head branch's own record. After accepting theirs, restore the head branch version under a renamed path per the Session File Rules above. The script does not do the rename half; handle it manually.
+**Add/add caveat**: accept-theirs alone is wrong for an add/add conflict on an append-only evidence artifact (`.agents/sessions/*`, `.agents/qa/*`, `.agents/retrospective/*`), because it silently discards the head branch's own record. `resolve_pr_conflicts.py` detects this case (no common-ancestor stage on the conflicted path) and refuses to auto-resolve it: the file lands in `files_blocked` and the run exits 1 instead of pushing. Resolve it manually: accept the base branch version at the original name, then restore the head branch version under a renamed path per the Session File Rules above.
 
 | Pattern | Rationale |
 |---------|-----------|
@@ -235,7 +235,7 @@ Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_H
 
 | Criterion | Evidence |
 |-----------|----------|
-| All conflicts resolved | `python3 -c "import subprocess, sys; r=subprocess.run(['git','status','--porcelain'],capture_output=True,text=True,encoding='utf-8',errors='replace'); sys.exit(r.returncode) if r.returncode else print(sum(1 for l in r.stdout.splitlines() if l.startswith('UU')))"` returns 0 |
+| All conflicts resolved | `python3 -c "import subprocess, sys; r=subprocess.run(['git','diff','--name-only','--diff-filter=U'],capture_output=True,text=True,encoding='utf-8',errors='replace'); u=[l for l in r.stdout.splitlines() if l.strip()]; sys.exit(1 if u else 0)"` exits 0 (`--diff-filter=U` catches every unmerged state -- UU, AA, DU -- not only UU) |
 | No merge markers remain | `python3 .claude/skills/merge-resolver/scripts/verify_no_conflict_markers.py` exits 0 (during merge: checks staged vs MERGE_HEAD AND working tree vs index; outside merge: checks working tree+index vs HEAD; ignores intentional fenced examples in committed docs -- issues #2424, #4058) |
 | Any opted-in session log valid | `validate_session_json.py` exits 0 |
 | Markdown lint passes | `npx markdownlint-cli2` exits 0 |

@@ -334,6 +334,40 @@ def is_auto_resolvable(file_path: str) -> bool:
     return False
 
 
+# Append-only evidence directories where an add/add conflict means two
+# branches independently created a record under the same filename.
+# Accept-theirs alone silently discards the head branch's own record instead
+# of picking between two versions of the same one (PR #4856;
+# .agents/retrospective/2026-08-10-pr-4856-session-log-collision.md). These
+# are a subset of the broader ".agents/*" auto-resolvable pattern above, so
+# this check must run before is_auto_resolvable() lets that pattern win.
+_EVIDENCE_ADD_ADD_PATTERNS: list[str] = [
+    ".agents/sessions/*",
+    ".agents/qa/*",
+    ".agents/retrospective/*",
+]
+
+
+def _is_evidence_pattern(file_path: str) -> bool:
+    """Check if a file lives under an append-only evidence directory."""
+    return any(fnmatch(file_path, pattern) for pattern in _EVIDENCE_ADD_ADD_PATTERNS)
+
+
+def _is_add_add_conflict(file_path: str, cwd: str | None = None) -> bool:
+    """Return True when *file_path* has no common-ancestor (stage 1) entry.
+
+    ``git ls-files -u`` prints one line per index stage present for an
+    unmerged path: stage 1 is the common ancestor, 2 is ours, 3 is theirs.
+    An add/add conflict has no stage 1 line, because neither side inherited
+    the file from a shared ancestor; both branches created it independently.
+    """
+    r = _run_git("ls-files", "-u", "--", file_path, cwd=cwd)
+    if r.returncode != 0:
+        return False
+    stages = {parts[2] for line in r.stdout.splitlines() if (parts := line.split()) and len(parts) >= 3}
+    return bool(stages) and "1" not in stages
+
+
 # Packaged plugin manifests carried a shared version counter that every
 # plugin-source PR had to bump, so concurrent PRs collided on the version line
 # (issue #2543). ADR-092 deleted the field and inverted the gate
@@ -440,6 +474,9 @@ def _resolve_conflicted_file(
         if resolve_plugin_manifest_conflict(file_path, cwd=cwd):
             result["files_resolved"].append(file_path)
             return "resolved"
+        result["files_blocked"].append(file_path)
+        return "blocked"
+    if _is_evidence_pattern(file_path) and _is_add_add_conflict(file_path, cwd=cwd):
         result["files_blocked"].append(file_path)
         return "blocked"
     if not is_auto_resolvable(file_path):

@@ -41,9 +41,16 @@ If `$ARGUMENTS` names a branch, forward it to every axis. Otherwise default to
 ## Process
 
 1. Run `git branch --show-current` to name the current branch.
-2. Resolve the base branch from `$ARGUMENTS`, defaulting to `main`.
-3. Run `git diff "<base_branch>" --name-only | wc -l`. If it reports zero
-   changed files, emit PASS and stop; there is nothing for any axis to read.
+2. Resolve the base branch from `$ARGUMENTS`, defaulting to `main`. Reject an
+   empty value or one starting with `-` (Git parses a leading dash as an
+   option, not a ref), then confirm the value resolves with
+   `git rev-parse --verify --quiet "<base_branch>^{commit}"`. An unresolved
+   or rejected ref is a hard stop: report it and do not fall back to an
+   empty diff.
+3. Count changed files: tracked (`git diff "<base_branch>" --name-only`) plus
+   untracked (`git ls-files --others --exclude-standard`). If the combined
+   count is zero, emit PASS and stop; there is nothing for any axis to read.
+   A tracked-only count misses a change set that is entirely new files.
 4. Invoke each axis through the `Skill` tool, forwarding the base branch:
    `pr-quality-security`, `pr-quality-qa`, `pr-quality-analyst`,
    `pr-quality-architect`, `pr-quality-devops`, `pr-quality-roadmap`.
@@ -95,6 +102,8 @@ UNKNOWN a question mark.
 
 - [ ] All six axes ran, or each absent one is reported UNKNOWN by name
 - [ ] Every axis received the same resolved base branch
+- [ ] The base ref was rejected if empty or leading-dash, and confirmed to resolve to a commit, before any `git diff`
+- [ ] The empty-change check counted untracked files, not only the tracked diff
 - [ ] The final verdict follows the merge table, not a judgement call
 - [ ] No axis returning UNKNOWN was rolled up into PASS
 - [ ] The table is the first thing emitted, with no preamble

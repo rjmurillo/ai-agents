@@ -47,7 +47,8 @@ _LITERAL_BRACE_SKILLS = frozenset({"merge-resolver"})
 def assert_template_owned_contract(name: str) -> None:
     """Assert the ADR-108 contract for one template-owned pilot skill.
 
-    Three checks, matching DESIGN-024's "Tests" table entry verbatim:
+    Three checks, matching DESIGN-024's "Tests" table entry verbatim, plus
+    one gate on the mirror-exclusion itself:
 
     1. The committed ``.claude/skills/<name>/SKILL.md`` equals a fresh
        ``skill_templates.render()`` of ``templates/skills/<name>.SKILL.md.tmpl``.
@@ -56,8 +57,10 @@ def assert_template_owned_contract(name: str) -> None:
     2. Neither the rendered file nor its Copilot mirror
        (``src/copilot-cli/skills/<name>/SKILL.md``) contains a line that is
        exactly ``@CLAUDE.md`` (ADR-108 Context: Copilot CLI treats that line
-       as literal text rather than an include). Skipped for a skill in
-       ``_NO_COPILOT_MIRROR``, which has no mirror file to check.
+       as literal text rather than an include). For a skill in
+       ``_NO_COPILOT_MIRROR``, which has no mirror file to check, this
+       assertion is skipped, but the mirror path itself must not exist
+       (a stale or wrongly-regenerated mirror would otherwise pass silently).
     3. Neither file contains the literal substring ``{{``: an unresolved
        mustache tag would mean the render left a partial or a disallowed
        construct unexpanded. Skipped for a skill in ``_LITERAL_BRACE_SKILLS``,
@@ -73,6 +76,11 @@ def assert_template_owned_contract(name: str) -> None:
     assert rendered_path.is_file(), f"no rendered SKILL.md for {name!r}: {rendered_path}"
     if has_mirror:
         assert mirror_path.is_file(), f"no Copilot mirror for {name!r}: {mirror_path}"
+    else:
+        assert not mirror_path.exists(), (
+            f"{name!r} is in _NO_COPILOT_MIRROR (permanent exclusion), but a mirror "
+            f"exists at {mirror_path}; delete the stale file or drop the exclusion"
+        )
 
     fresh_render = skill_templates.render(template_path, partials_dir)
     committed = rendered_path.read_text(encoding="utf-8", newline="")
