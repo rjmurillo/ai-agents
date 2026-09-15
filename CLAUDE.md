@@ -29,7 +29,7 @@ For non-trivial tasks: `Task(subagent_type="orchestrator", prompt="...")`
 | Scenario | Use | Why |
 |----------|-----|-----|
 | Quick CLI search | `/memory-search` slash command | Instant, no agent overhead |
-| Deep exploration | `context-gather` skill | Multi-source gather, artifact reading |
+| Deep exploration | `context-gather` skill | Multi-source gather (Serena, Context7, DeepWiki, web) |
 | Script automation | `search_memory.py` | Python CLI, testable, structured output |
 | Direct MCP (last resort) | `mcp__serena__read_memory` | Full control when abstractions fail |
 
@@ -39,7 +39,7 @@ Start with cheapest option. Escalate only when cheaper option lacks capability.
 
 Before editing any file, read matching rules in `.claude/rules/*.md`. Each file's `paths` frontmatter targets a path glob; that is the key Claude Code reads, and `scripts/validation/check_rule_scope_keys.py` refuses any other. Universal rules live in `.claude/rules/universal.md`.
 
-Planned build extension ships Copilot-compatible copies to `.github/instructions/` from same source.
+`build/scripts/generate_rules.py` mirrors these to `.github/instructions/` and `src/copilot-cli/instructions/`; `paths:` becomes `applyTo:`.
 
 ## Skill routing
 

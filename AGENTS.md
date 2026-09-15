@@ -54,4 +54,4 @@ Tests (BLOCKING): pos+neg+edge|branches|mock I/O|CLI exits. See `.agents/governa
 
 ## Stack
 
-Py 3.14 dev; floor: pyproject|UV|PS 7.5+|Node LTS|Pester 5.7+|pytest 8+|gh 2.60+
+Py 3.14 dev; floor: pyproject|UV|PS 7.5+|Node LTS|pytest 9+|gh 2.60+

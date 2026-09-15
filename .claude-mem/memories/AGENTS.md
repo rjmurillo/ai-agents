@@ -9,7 +9,7 @@ This directory contains Claude-Mem memory snapshots that should be imported at s
 Run the import script at session start:
 
 ```bash
-pwsh .claude-mem/scripts/Import-ClaudeMemMemories.ps1
+uv run python .claude-mem/scripts/import_claude_mem_memories.py
 ```
 
 The script is idempotent. Claude-Mem prevents duplicates using composite keys (`sdk_session_id` + `title` + `created_at_epoch`). Safe to run multiple times.
@@ -19,7 +19,7 @@ The script is idempotent. Claude-Mem prevents duplicates using composite keys (`
 When ending sessions with valuable learnings:
 
 ```bash
-npx tsx scripts/export-memories.ts "[query]" .claude-mem/memories/YYYY-MM-DD-session-NNN-topic.json
+uv run python .claude-mem/scripts/export_claude_mem_memories.py "[query]" --output-file .claude-mem/memories/YYYY-MM-DD-session-NNN-topic.json
 ```
 
 ## Directory Contents
