@@ -230,14 +230,31 @@ class TestSyncPluginLibShim:
             f"Sync check failed (files out of sync):\n{result.stdout}\n{result.stderr}"
         )
 
-    def test_check_detects_drift(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A drifted plugin-tree file makes the shim's --check return 1."""
+    def test_check_detects_drift(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A drifted plugin-tree file makes the shim's --check return 1.
+
+        Every registered package source (PACKAGES: hook_utilities,
+        github_core, ai_review_common) must exist, or lib_mirror's
+        fail-closed missing-source-directory error also returns 1
+        (CodeRabbit, PR #5787 review), and this test would keep passing
+        even if the drift check itself were removed or broken. Asserting
+        the specific "out of sync" message and the drifted path, not just
+        the exit code, closes that gap.
+        """
         import scripts.sync_plugin_lib as sync_mod
 
-        pkg_src = tmp_path / "scripts" / "hook_utilities"
-        pkg_src.mkdir(parents=True)
-        (pkg_src / "__init__.py").write_text("", encoding="utf-8")
-        (pkg_src / "bootstrap.py").write_text('"""Bootstrap."""\n', encoding="utf-8")
+        for package in ("hook_utilities", "github_core", "ai_review_common"):
+            pkg_src = tmp_path / "scripts" / package
+            pkg_src.mkdir(parents=True)
+            (pkg_src / "__init__.py").write_text("", encoding="utf-8")
+        (tmp_path / "scripts" / "hook_utilities" / "bootstrap.py").write_text(
+            '"""Bootstrap."""\n', encoding="utf-8"
+        )
         (tmp_path / "scripts" / "validation").mkdir(parents=True)
         (tmp_path / "scripts" / "validation" / "validate_review_marker.py").write_text(
             '"""Marker."""\n', encoding="utf-8"
@@ -247,7 +264,13 @@ class TestSyncPluginLibShim:
         (drifted / "__init__.py").write_text("stale\n", encoding="utf-8")
 
         monkeypatch.setattr(sync_mod, "_REPO_ROOT", tmp_path)
-        assert sync_mod.main(["--check"]) == 1
+
+        rc = sync_mod.main(["--check"])
+
+        assert rc == 1
+        stderr = capsys.readouterr().err
+        assert "Plugin lib copies are out of sync:" in stderr
+        assert "src/claude/lib/hook_utilities/__init__.py" in stderr
 
     def test_reexports_registry_used_by_validate_sync_registry(self) -> None:
         """SYNC_PAIRS stays importable at its historical name (backward compat)."""

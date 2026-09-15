@@ -25,6 +25,7 @@ import check_generated_staleness
 
 __all__ = [
     "REPO_ROOT",
+    "build_all_invoked_with_check",
     "build_all_ran",
     "check_generated_staleness",
     "fake_repo",
@@ -58,7 +59,15 @@ def fake_repo(tmp_path: Path, build_exit: int) -> Path:
     stub(
         tmp_path / "build" / "scripts" / "build_all.py",
         "from pathlib import Path\n"
-        "Path(__file__).with_name('build_all_ran.marker').write_text('1')\n"
+        # Records the argv it was actually invoked with, not just "ran",
+        # so a test can assert --check was really passed through rather
+        # than trusting the child's --check-labeled diagnostic name alone
+        # (CodeRabbit, PR #5787 review: a stub that always exits 0
+        # regardless of its arguments would make a dropped --check flag,
+        # which lets the staleness gate run build_all.py in write mode,
+        # invisible to this suite).
+        "Path(__file__).with_name('build_all_ran.marker')"
+        ".write_text(' '.join(sys.argv[1:]))\n"
         f"sys.exit({build_exit})",
     )
     return tmp_path
@@ -66,3 +75,11 @@ def fake_repo(tmp_path: Path, build_exit: int) -> Path:
 
 def build_all_ran(repo_root: Path) -> bool:
     return (repo_root / "build" / "scripts" / "build_all_ran.marker").is_file()
+
+
+def build_all_invoked_with_check(repo_root: Path) -> bool:
+    """Return whether the recorded invocation's argv contains --check."""
+    marker = repo_root / "build" / "scripts" / "build_all_ran.marker"
+    if not marker.is_file():
+        return False
+    return "--check" in marker.read_text(encoding="utf-8").split()

@@ -41,6 +41,7 @@ import pytest
 
 from tests.validation.staleness_gate_helpers import (
     REPO_ROOT,
+    build_all_invoked_with_check,
     build_all_ran,
     check_generated_staleness,
     fake_repo,
@@ -175,6 +176,21 @@ class TestExitCodes:
         check_generated_staleness.main([str(root)])
 
         assert build_all_ran(root)
+
+    def test_the_check_passes_the_check_flag_not_just_the_label(
+        self, tmp_path: Path
+    ) -> None:
+        """The spawned child must actually receive --check, not merely
+        carry a "--check"-labeled diagnostic name (CodeRabbit, PR #5787
+        review): a stub that always exits 0 regardless of its argv would
+        let a dropped --check flag run build_all.py in write mode during
+        what this gate promises is a read-only staleness check, with
+        nothing here to catch it."""
+        root = fake_repo(tmp_path, build_exit=0)
+
+        check_generated_staleness.main([str(root)])
+
+        assert build_all_invoked_with_check(root)
 
 
 class TestEchoTail:
