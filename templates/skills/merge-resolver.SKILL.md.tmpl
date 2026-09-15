@@ -244,7 +244,7 @@ Uses `git diff --cached --check MERGE_HEAD` when a merge is in progress (MERGE_H
 ### Completion Checklist
 
 - [ ] All conflicted files staged (`git add`)
-- [ ] No UU status in `git status --porcelain`
+- [ ] `git diff --name-only --diff-filter=U` empty (catches every unmerged state, not only UU)
 - [ ] Any conflicted session logs preserved as separate valid records
 - [ ] Per-issue handoff updated when work remains
 - [ ] Serena memory updated
