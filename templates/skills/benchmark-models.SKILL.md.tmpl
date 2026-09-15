@@ -94,9 +94,11 @@ is absent, omit `--judge`.
 ### Step 3: Run
 
 `model_benchmark.py` enforces the throwaway workdir itself: when `--workdir` is
-omitted it defaults to a fresh `tempfile.mkdtemp()`, and it refuses (exit 2) a
-`--workdir` that resolves to the repo root or the current directory unless
-`--allow-cwd-workdir` is also passed. This matters because both the Claude and
+omitted it defaults to a fresh `tempfile.mkdtemp()`, removed automatically when
+the run ends, and it refuses (exit 2) a `--workdir` that resolves inside the
+repo checkout (root or any subdirectory) or equals the current directory,
+unless `--allow-cwd-workdir` is also passed. A caller-supplied `--workdir` is
+never removed. This matters because both the Claude and
 Gemini adapters can write to the workdir: Gemini runs with `--yolo`
 (unsandboxed), and Claude carries no read-only flag. Only the GPT/Codex adapter
 is constrained (`-s read-only`). Pass `--workdir` explicitly only when you want
@@ -153,8 +155,9 @@ Notes:
   or crash reports.
 - Safety asymmetry: the `gpt`/codex adapter runs `-s read-only`; the `gemini`
   adapter passes `--yolo` (auto-approve), which is NOT sandboxed. The driver
-  refuses a `--workdir` that resolves to the repo root or cwd (exit 2) unless
-  `--allow-cwd-workdir` is passed, so a disposable workdir is the default.
+  refuses a `--workdir` inside the repo checkout or equal to cwd (exit 2)
+  unless `--allow-cwd-workdir` is passed, so a disposable, auto-cleaned
+  workdir is the default.
 - The driver only runs providers concurrently when every selected provider is
   read-only GPT/Codex. Claude and Gemini run sequentially because they can mutate
   the workdir.

@@ -630,21 +630,22 @@ def resolve_workdir(requested: str | None, allow_cwd: bool) -> tuple[str, int | 
 
     Default (no --workdir) is a fresh temp dir: the write-capable claude and
     gemini adapters run with cwd=workdir, and `cwd` is not a sandbox against
-    absolute host paths, so a caller-selected checkout root or cwd must be
-    refused unless explicitly overridden.
+    absolute host paths, so a caller-selected checkout root, any path inside
+    the checkout, or cwd must be refused unless explicitly overridden.
     """
     if requested is None:
         return tempfile.mkdtemp(prefix="benchmark-models-"), None
     resolved = Path(requested).expanduser().resolve()
-    unsafe_roots = {Path.cwd().resolve()}
     repo_root = _repo_root()
-    if repo_root:
-        unsafe_roots.add(repo_root)
-    if resolved in unsafe_roots and not allow_cwd:
+    inside_repo = repo_root is not None and (
+        resolved == repo_root or resolved.is_relative_to(repo_root)
+    )
+    is_cwd = resolved == Path.cwd().resolve()
+    if (inside_repo or is_cwd) and not allow_cwd:
         sys.stderr.write(
-            f"ERROR: --workdir {resolved} is the repository root or the current "
-            "directory. Write-capable providers (claude, gemini) can modify the "
-            "live checkout. Pass --allow-cwd-workdir to override.\n"
+            f"ERROR: --workdir {resolved} is inside the repository checkout or is "
+            "the current directory. Write-capable providers (claude, gemini) can "
+            "modify the live checkout. Pass --allow-cwd-workdir to override.\n"
         )
         return "", 2
     return str(resolved), None
@@ -716,24 +717,29 @@ def main(argv: list[str] | None = None) -> int:
     workdir, err = resolve_workdir(args.workdir, args.allow_cwd_workdir)
     if err is not None:
         return err
-    providers = parse_providers(args.models)
-    prompt = resolve_prompt(args.prompt_file, args.prompt)
+    created_default_workdir = args.workdir is None
+    try:
+        providers = parse_providers(args.models)
+        prompt = resolve_prompt(args.prompt_file, args.prompt)
 
-    if args.dry_run:
-        print(dry_run_report(prompt, providers, workdir, args.timeout_ms, args.output, args.judge))
-        return 0
+        if args.dry_run:
+            print(dry_run_report(prompt, providers, workdir, args.timeout_ms, args.output, args.judge))
+            return 0
 
-    report = run_benchmark(prompt, providers, workdir, args.timeout_ms, args.skip_unavailable)
-    if args.judge:
-        judge_entries(report)
+        report = run_benchmark(prompt, providers, workdir, args.timeout_ms, args.skip_unavailable)
+        if args.judge:
+            judge_entries(report)
 
-    if args.output == "json":
-        print(format_json(report))
-    elif args.output == "markdown":
-        print(format_markdown(report))
-    else:
-        print(format_table(report))
-    return _exit_code_for_report(report)
+        if args.output == "json":
+            print(format_json(report))
+        elif args.output == "markdown":
+            print(format_markdown(report))
+        else:
+            print(format_table(report))
+        return _exit_code_for_report(report)
+    finally:
+        if created_default_workdir:
+            shutil.rmtree(workdir, ignore_errors=True)
 
 
 if __name__ == "__main__":  # pragma: no cover
