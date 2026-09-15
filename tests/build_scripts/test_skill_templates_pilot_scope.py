@@ -76,6 +76,11 @@ PILOT: frozenset[str] = frozenset(
         "analyze",
         "autoplan",
         "benchmark-models",
+        "book-to-skill",
+        "business-strategy",
+        "buy-vs-build-framework",
+        "chaos-experiment",
+        "chestertons-fence",
     }
 )
 
