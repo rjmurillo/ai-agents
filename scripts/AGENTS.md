@@ -7,7 +7,7 @@ Repo automation for developers, lefthook, and CI; consumed by contributors runni
 - Python only (ADR-042); no new `.sh` files. `bootstrap-vm.sh` is the one legacy exception.
 - `pre_pr.py` is the canonical shift-left gate: `pre_pr_sequence.py` registers 70 `_Gate` rows run in order. Run it before every push.
 - `git_hook_policy.py` backs every lefthook job through subcommands (`commit-message`, `branch`, `taste`, `stage-generated <kind>`, etc.); `--help` lists them all.
-- `scripts/github_core/`, `hook_utilities/`, `ai_review_common/` are the SOURCE for the plugin lib: `sync_plugin_lib.py` copies to `.claude/lib/`, then `build/scripts/build_all.py` mirrors that to `src/copilot-cli/lib/`. Run them in that order; the wrong order exits 0 locally and only `scripts/ci/check_plugin_lib_mirrors.py` catches it in CI.
+- `scripts/github_core/`, `hook_utilities/`, `ai_review_common/` are the SOURCE for the plugin lib: `build/scripts/build_all.py` (via `build/scripts/lib_mirror.py`) renders them directly into every lib plugin tree and binplaces the claude-side copy onto `.claude/lib/`, in one run (ADR-109 B5). `sync_plugin_lib.py` is a deprecated shim; do not call it in new tooling.
 - Count ratchets (`scripts/ci/*_count_ratchet.py` + `*_baseline.*`) may only fall. A ratchet failure often means your branch is behind `main`, not that you introduced a regression; merge `origin/main` and re-measure before hunting the diff (`ci-scripts.md` item 14).
 - New script needs `tests/test_<name>.py` with pos + neg + edge cases and exit-code asserts on `main(argv)`, not just on a helper's return value (`ci-scripts.md` items on silent-failure conversion).
 
@@ -60,7 +60,7 @@ Repo automation for developers, lefthook, and CI; consumed by contributors runni
 
 ## Dependencies
 
-- Feeds `.claude/lib/` (via `sync_plugin_lib.py`) and `src/copilot-cli/lib/` (via `build/scripts/build_all.py`); both must be regenerated together, see Matters above.
+- Feeds `.claude/lib/`, `src/claude/lib/`, and `src/copilot-cli/lib/`, all via `build/scripts/build_all.py` (`build/scripts/lib_mirror.py`), one command (ADR-109 B5); see Matters above.
 - `lefthook.yml` calls into `scripts/validation/` and `scripts/maintenance/` for nearly every pre-commit and pre-push job.
 - `.github/workflows/*.yml` call into `scripts/ci/`, `scripts/eval/`, `scripts/workflows/`, and `scripts/test_selection/path_policy.yml` (ADR-006: workflows stay thin, logic lives here).
 - Memory skills call into `scripts/memory/` (`memory_health.py`, `detect_stale.py`, `validate_memory_sizes.py`).
@@ -69,7 +69,7 @@ Repo automation for developers, lefthook, and CI; consumed by contributors runni
 ## Architecture
 
 - `scripts/validation/pre_pr_sequence.py` is a data table, not control flow: `_SEQUENCE` is a tuple of `_Gate(name, fn)` rows read by one loop in `pre_pr.py`. Adding a gate is a one-line addition to that tuple.
-- Plugin lib mirroring is a two-hop chain, not a single copy: `scripts/{github_core,hook_utilities,ai_review_common}/` (source, absolute imports) -> `sync_plugin_lib.py` -> `.claude/lib/` (relative imports) -> `build/scripts/build_all.py` -> `src/copilot-cli/lib/`. Editing the mirrors directly is a no-op; the next regen overwrites them.
+- Plugin lib mirroring renders directly into both plugin trees now (ADR-109 B5), not a chained copy: `scripts/{github_core,hook_utilities,ai_review_common}/` (source, absolute imports) -> `build/scripts/lib_mirror.py`, via `build_all.py`'s `_build_lib` -> `src/claude/lib/` and `src/copilot-cli/lib/` (relative imports); binplace then copies the claude-side tree onto `.claude/lib/`. Editing the mirrors directly is a no-op; the next regen overwrites them.
 - `scripts/workflow/` (singular) is the agent pipeline executor (coordinator, parallel dispatch); `scripts/workflows/` (plural) is unrelated: GitHub Actions dispatch-input resolution. Same prefix, different consumers.
 
 ## Commands
@@ -78,7 +78,6 @@ Repo automation for developers, lefthook, and CI; consumed by contributors runni
 uv run python scripts/validation/pre_pr.py
 uv run python scripts/validation/git_hook_policy.py <subcommand>
 uv run python scripts/ci/ruff_count_ratchet.py --update
-uv run python scripts/sync_plugin_lib.py --check
 uv run python build/scripts/build_all.py --check
 uv run pytest tests/ -x
 uv run ruff check .

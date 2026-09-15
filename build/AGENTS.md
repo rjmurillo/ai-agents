@@ -7,7 +7,7 @@ Generators, mirror-sync helpers, and drift/parity gates for the agent, skill, ru
 - `build/scripts/build_all.py --check` is the drift gate every PR must pass. Red means regenerate, never hand-edit the output tree.
 - REQ-003-010: no generator may write under `.claude/`, except the template-owned skill files ADR-108 enumerates (`.claude/skills/<name>/SKILL.md` for each `templates/skills/<name>.SKILL.md.tmpl` present at run time). `build_all.py` asserts this after every run by snapshotting `.claude/` before and diffing after, passing that allowlist to `assert_no_claude_writes`.
 - Three trees are hand-maintained siblings, not generator output: `src/claude/<name>.md`, `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`. Editing one means editing all three plus `templates/agents/<name>.shared.md`; nothing regenerates them for you.
-- `scripts/sync_plugin_lib.py` (top-level `scripts/`, not `build/`) MUST run before `build/scripts/build_all.py`. Reversed order exits 0 on both and ships a stale `src/copilot-cli/lib/`; only `scripts/ci/check_plugin_lib_mirrors.py` in CI catches it.
+- `build/scripts/build_all.py`'s lib step (`build/scripts/lib_mirror.py`) renders `scripts/{hook_utilities,github_core,ai_review_common}/` directly into every lib plugin tree in the same run (ADR-109 B5); `scripts/sync_plugin_lib.py` is now a deprecated shim, not a step you run first.
 - No plugin manifest carries a `version` key (ADR-092). A source change needs no manifest bump; adding one back fails `build/scripts/validate_plugin_version_bump.py`.
 
 ## Entry points
@@ -49,7 +49,7 @@ Generators, mirror-sync helpers, and drift/parity gates for the agent, skill, ru
 
 ## Dangerous assumptions
 
-- "The gate script lives next to what it checks" is false for the lib mirror: the source sync (`scripts/sync_plugin_lib.py`) sits outside `build/`, one directory up, and nothing in `build/` calls it.
+- "The gate script lives next to what it checks" was true for the lib mirror before ADR-109 B5: the source sync (`scripts/sync_plugin_lib.py`) sat outside `build/`, one directory up, and nothing in `build/` called it. `build/scripts/lib_mirror.py` now owns that logic and lives beside `build_all.py`.
 - "`--check` failing means hand-edit the diff to match" is backwards: `--check` failing means the SOURCE changed and the output is stale. Hand-editing output is overwritten on the next real regen and never reviewed against source intent.
 - "`src/claude/` is generated like `src/copilot-cli/agents/`" is false. It is hand-maintained; `GENERATOR-FILES.md` calls this out explicitly because it was misclassified once (Issue #2882).
 - "Fixing drift means raising the similarity threshold" is a gate defeat, not a fix (mirrors `.claude/rules/ci-scripts.md` MUST NOT 4 on count ratchets); the fix is regenerating or hand-syncing the sibling.
@@ -63,7 +63,7 @@ Generators, mirror-sync helpers, and drift/parity gates for the agent, skill, ru
 
 ## Architecture
 
-- Plugin lib is a two-hop mirror chain, not a single copy: `scripts/{hook_utilities,github_core,ai_review_common}` -> (`scripts/sync_plugin_lib.py`) -> `.claude/lib/` -> (`build/scripts/build_all.py`, `_build_lib`) -> `src/copilot-cli/lib/`. Neither script calls the other.
+- Plugin lib renders directly into both plugin trees, one hop each (ADR-109 B5): `scripts/{hook_utilities,github_core,ai_review_common}` -> (`build/scripts/lib_mirror.py`, called by `build_all.py`'s `_build_lib`) -> `src/claude/lib/` and `src/copilot-cli/lib/`. The binplace step then copies `src/claude/lib/` onto `.claude/lib/`; `src/copilot-cli/lib/` has no further hop.
 - Hook generation retains per-matcher shim wrappers and also emits one dispatcher registration per event when the target platform config enables dispatcher mode (ADR-068). Publication and cleanup of dispatcher artifacts, stale shims, and orphaned event files run through `HookGenerationTransaction`; files carrying a `NO-REGEN` sentinel (`build/scripts/regen_guard.py`) are preserved untouched.
 
 ## Commands
@@ -75,8 +75,8 @@ uv run python build/scripts/build_all.py
 uv run python build/scripts/build_all.py --check
 # Agents only, standalone (also supports --validate, --what-if).
 uv run python build/generate_agents.py
-# Sync the plugin lib mirror BEFORE build_all.py touches lib/hooks.
-uv run python scripts/sync_plugin_lib.py
+# build_all.py's lib step renders the plugin lib mirror itself (ADR-109 B5).
+uv run python build/scripts/build_all.py
 # Drift similarity gate, standalone.
 uv run python build/scripts/detect_agent_drift.py
 # PR-quality prompt drift check (what pre-push runs).

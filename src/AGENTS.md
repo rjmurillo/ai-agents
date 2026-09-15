@@ -51,7 +51,7 @@ Two of this repo's three plugin sources; consumed by Claude Code and Copilot CLI
 ## Architecture
 
 - Three plugin roots ship independently (`.claude/`, `src/claude/`, `src/copilot-cli/`); each marketplace entry names exactly one source directory, and nothing above it reaches an installer.
-- `copilot-cli/` is a double mirror for `lib` and `rules`: `scripts/sync_plugin_lib.py` must run before `build_all.py` to refresh `.claude/lib/` first, or `build_all.py` copies a stale `.claude/lib/` forward with no error; only `scripts/ci/check_plugin_lib_mirrors.py`, in CI, catches the stale mirror.
+- `copilot-cli/lib/` and `claude/lib/` both render directly from `scripts/{hook_utilities,github_core,ai_review_common}/` in one `build_all.py` run (ADR-109 B5); there is no longer a two-hop chain through `.claude/lib/` for `build_all.py` to fall behind.
 
 ## Commands
 
