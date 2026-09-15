@@ -93,11 +93,14 @@ is absent, omit `--judge`.
 
 ### Step 3: Run
 
-Always pass `--workdir` pointing at a throwaway directory. When it is omitted,
-`model_benchmark.py` defaults the workdir to the current directory
-(`os.getcwd()`), and both the Claude and Gemini adapters can write there: Gemini
-runs with `--yolo` (unsandboxed), and Claude carries no read-only flag. Only the
-GPT/Codex adapter is constrained (`-s read-only`).
+`model_benchmark.py` enforces the throwaway workdir itself: when `--workdir` is
+omitted it defaults to a fresh `tempfile.mkdtemp()`, and it refuses (exit 2) a
+`--workdir` that resolves to the repo root or the current directory unless
+`--allow-cwd-workdir` is also passed. This matters because both the Claude and
+Gemini adapters can write to the workdir: Gemini runs with `--yolo`
+(unsandboxed), and Claude carries no read-only flag. Only the GPT/Codex adapter
+is constrained (`-s read-only`). Pass `--workdir` explicitly only when you want
+a workdir you can inspect afterward:
 
 ```bash
 WORKDIR="$(mktemp -d)"
@@ -131,7 +134,8 @@ Runs the benchmark. Pure stdlib; safe to run directly.
 ```bash
 python3 scripts/model_benchmark.py <prompt-file | --prompt "text"> \
   [--models claude,gpt,gemini] [--judge] [--dry-run] \
-  [--output table|json|markdown] [--workdir PATH] [--timeout-ms N] [--skip-unavailable]
+  [--output table|json|markdown] [--workdir PATH] [--allow-cwd-workdir] \
+  [--timeout-ms N] [--skip-unavailable]
 ```
 
 Exit codes (ADR-035): `0` success, `1` logic/runtime error, `2` config or usage
@@ -148,8 +152,9 @@ Notes:
   through command arguments, which some systems expose through process listings
   or crash reports.
 - Safety asymmetry: the `gpt`/codex adapter runs `-s read-only`; the `gemini`
-  adapter passes `--yolo` (auto-approve), which is NOT sandboxed. Benchmark in a
-  disposable `--workdir` if the prompt could trigger file writes.
+  adapter passes `--yolo` (auto-approve), which is NOT sandboxed. The driver
+  refuses a `--workdir` that resolves to the repo root or cwd (exit 2) unless
+  `--allow-cwd-workdir` is passed, so a disposable workdir is the default.
 - The driver only runs providers concurrently when every selected provider is
   read-only GPT/Codex. Claude and Gemini run sequentially because they can mutate
   the workdir.

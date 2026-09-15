@@ -28,7 +28,10 @@ Usage:
 Options:
   --models claude,gpt,gemini   Providers (default: claude)
   --prompt "<text>"            Inline prompt instead of a file
-  --workdir <path>             Working dir for each CLI (default: cwd)
+  --workdir <path>             Working dir for each CLI (default: a fresh temp dir;
+                               the repo root or cwd is refused unless
+                               --allow-cwd-workdir is also passed)
+  --allow-cwd-workdir          Allow --workdir to be the repo root or cwd
   --timeout-ms <n>             Per-provider timeout (default: 300000)
   --output table|json|markdown Output format (default: table)
   --skip-unavailable           Drop providers that fail the auth check
@@ -49,6 +52,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -621,6 +625,31 @@ def _repo_root() -> Path | None:
     return None
 
 
+def resolve_workdir(requested: str | None, allow_cwd: bool) -> tuple[str, int | None]:
+    """Return (workdir, exit_code). exit_code is None on success.
+
+    Default (no --workdir) is a fresh temp dir: the write-capable claude and
+    gemini adapters run with cwd=workdir, and `cwd` is not a sandbox against
+    absolute host paths, so a caller-selected checkout root or cwd must be
+    refused unless explicitly overridden.
+    """
+    if requested is None:
+        return tempfile.mkdtemp(prefix="benchmark-models-"), None
+    resolved = Path(requested).expanduser().resolve()
+    unsafe_roots = {Path.cwd().resolve()}
+    repo_root = _repo_root()
+    if repo_root:
+        unsafe_roots.add(repo_root)
+    if resolved in unsafe_roots and not allow_cwd:
+        sys.stderr.write(
+            f"ERROR: --workdir {resolved} is the repository root or the current "
+            "directory. Write-capable providers (claude, gemini) can modify the "
+            "live checkout. Pass --allow-cwd-workdir to override.\n"
+        )
+        return "", 2
+    return str(resolved), None
+
+
 def _exit_code_for_report(report: dict) -> int:
     entries = report["entries"]
     if not entries or not any(e.result is not None for e in entries):
@@ -669,7 +698,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("prompt_file", nargs="?", help="prompt file path (or inline text)")
     p.add_argument("--prompt", help="inline prompt text")
     p.add_argument("--models", help="comma-separated providers (default: claude)")
-    p.add_argument("--workdir", default=None)
+    p.add_argument("--workdir", default=None,
+                    help="working dir for each CLI (default: a fresh temp dir)")
+    p.add_argument("--allow-cwd-workdir", action="store_true", dest="allow_cwd_workdir",
+                    help="allow --workdir to be the repo root or the current directory "
+                    "(write-capable providers can then modify the live checkout)")
     p.add_argument("--timeout-ms", type=int, default=300000, dest="timeout_ms")
     p.add_argument("--output", choices=("table", "json", "markdown"), default="table")
     p.add_argument("--skip-unavailable", action="store_true", dest="skip_unavailable")
@@ -680,7 +713,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    workdir = args.workdir or os.getcwd()
+    workdir, err = resolve_workdir(args.workdir, args.allow_cwd_workdir)
+    if err is not None:
+        return err
     providers = parse_providers(args.models)
     prompt = resolve_prompt(args.prompt_file, args.prompt)
 

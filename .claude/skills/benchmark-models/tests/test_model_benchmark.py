@@ -609,3 +609,44 @@ class TestEdgeParses:
 
     def test_parse_providers_empty_segment(self):
         assert mb.parse_providers("claude,,gpt") == ["claude", "gpt"]
+
+
+# --------------------------------------------------------------------------- #
+# resolve_workdir - the throwaway-workdir contract (write-capable claude and
+# gemini adapters run with cwd=workdir, so a caller-selected checkout root or
+# cwd must be refused unless explicitly overridden)
+# --------------------------------------------------------------------------- #
+class TestResolveWorkdir:
+    def test_default_is_a_fresh_temp_dir(self):
+        workdir, err = mb.resolve_workdir(None, False)
+        assert err is None
+        assert Path(workdir).is_dir()
+        assert Path(workdir).name.startswith("benchmark-models-")
+
+    def test_default_returns_a_new_dir_each_call(self):
+        first, _ = mb.resolve_workdir(None, False)
+        second, _ = mb.resolve_workdir(None, False)
+        assert first != second
+
+    def test_explicit_workdir_outside_repo_and_cwd_accepted(self, tmp_path):
+        workdir, err = mb.resolve_workdir(str(tmp_path), False)
+        assert err is None
+        assert workdir == str(tmp_path.resolve())
+
+    def test_cwd_workdir_refused(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.chdir(tmp_path)
+        workdir, err = mb.resolve_workdir(str(tmp_path), False)
+        assert err == 2 and workdir == ""
+        assert "current directory" in capsys.readouterr().err
+
+    def test_repo_root_workdir_refused(self, monkeypatch):
+        fake_repo = Path("/fake/repo/root")
+        monkeypatch.setattr(mb, "_repo_root", lambda: fake_repo)
+        workdir, err = mb.resolve_workdir(str(fake_repo), False)
+        assert err == 2 and workdir == ""
+
+    def test_allow_cwd_workdir_overrides_the_refusal(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+        workdir, err = mb.resolve_workdir(str(tmp_path), True)
+        assert err is None
+        assert workdir == str(tmp_path.resolve())
