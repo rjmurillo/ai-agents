@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "project-toolkit",
-      "description": "Specialized agent definitions, reusable skills, and lifecycle hooks for GitHub Copilot CLI, compiled from repository templates",
+      "description": "Specialized agent definitions, reusable skills, and lifecycle hooks for GitHub Copilot CLI, generated from repository templates and maintained plugin resources",
       "source": "./src/copilot-cli"
     }
   ]

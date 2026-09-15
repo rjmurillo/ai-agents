@@ -91,11 +91,20 @@ _SELF_PLUGIN_ROOT = str(Path(__file__).resolve().parents[3])
 
 
 def _manifest_names_us(manifest: str) -> bool:
-    """True if *manifest* is readable JSON carrying our plugin identity."""
+    """True if *manifest* is readable JSON carrying our plugin identity.
+
+    ``data`` may be any JSON value (``[]``, ``null``, a string, ...), not
+    only an object: a candidate manifest is untrusted input. ``isinstance``
+    rejects every non-object shape before ``.get`` runs, so a list or ``None``
+    fails closed here instead of raising ``AttributeError`` uncaught, which
+    would abort the whole candidate walk in `_resolve_lib_dir` (a
+    CI-observable failure: the module-level `_LIB_DIR = _resolve_lib_dir()`
+    call would raise at import time).
+    """
     try:
         with open(manifest, encoding="utf-8") as fh:
             data = json.load(fh)
-        return bool(data.get("name") == _PLUGIN_IDENTITY_NAME)
+        return isinstance(data, dict) and data.get("name") == _PLUGIN_IDENTITY_NAME
     except (OSError, json.JSONDecodeError, TypeError):
         return False
 
@@ -108,36 +117,31 @@ def _is_own_plugin(lib_dir: str) -> bool:
     also ships ``github_core.api.RepoInfo`` would pass the import probe and
     be selected, violating the contract that no foreign code is imported.
 
-    Two exceptions, both from ADR-109 B6 deleting
-    ``.claude/.claude-plugin/plugin.json`` (`.claude/` is now the binplaced
-    dogfood copy of `src/claude/`, not an independent marketplace source, so
-    it carries no manifest of its own):
+    One exception: *lib_dir*'s own self-relative root (``_SELF_PLUGIN_ROOT``)
+    is trusted without reading a manifest at all. It is computed from this
+    file's own on-disk location, never from an environment variable, so it
+    cannot name a foreign plugin in the first place. This is also the real
+    production path for this repository's own dogfood sessions: when
+    ``CLAUDE_PLUGIN_ROOT=.claude`` (set by Claude Code when it loads this
+    repository's project plugin), that candidate is tried first and fails its
+    own manifest check (ADR-109 B6 deleted
+    ``.claude/.claude-plugin/plugin.json``), but resolution falls through to
+    this same directory again as the self-relative candidate, which succeeds.
 
-    1. *lib_dir*'s own self-relative root (``_SELF_PLUGIN_ROOT``) is trusted
-       without reading a manifest at all: it is computed from this file's own
-       on-disk location, never from an environment variable, so it cannot
-       name a foreign plugin in the first place.
-    2. A candidate whose plugin root is named ``.claude`` falls back to its
-       twin tree's manifest, ``../src/claude/.claude-plugin/plugin.json``
-       (two directories up from ``.claude``, i.e. the repository root, then
-       into ``src/claude``). This is the real production path: Claude Code
-       sets ``CLAUDE_PLUGIN_ROOT`` to this repository's own ``.claude/`` when
-       it loads this repository's project plugin, and the drift gate
-       guarantees ``.claude/`` and ``src/claude/`` byte-identical, so the twin
-       manifest is as trustworthy a signal as the deleted one was.
+    No sibling-manifest fallback for an environment-selected ``.claude``
+    root: an attacker who controls ``CLAUDE_PLUGIN_ROOT`` (or
+    ``COPILOT_PLUGIN_ROOT``, ``GITHUB_WORKSPACE``) also controls the
+    directory tree at that path, including a forged
+    ``../src/claude/.claude-plugin/plugin.json``. Accepting that manifest
+    for an environment-derived candidate would authenticate attacker-supplied
+    ``lib/github_core/api.py`` for import. Only the self-relative candidate,
+    which the attacker cannot redirect, is exempt from reading its own
+    manifest.
     """
     plugin_root = os.path.dirname(lib_dir)
-    abs_root = os.path.abspath(plugin_root)
-    if abs_root == _SELF_PLUGIN_ROOT:
+    if os.path.abspath(plugin_root) == _SELF_PLUGIN_ROOT:
         return True
-    if _manifest_names_us(os.path.join(plugin_root, _PLUGIN_MANIFEST_REL)):
-        return True
-    if os.path.basename(abs_root) == ".claude":
-        twin_manifest = os.path.join(
-            os.path.dirname(abs_root), "src", "claude", _PLUGIN_MANIFEST_REL
-        )
-        return _manifest_names_us(twin_manifest)
-    return False
+    return _manifest_names_us(os.path.join(plugin_root, _PLUGIN_MANIFEST_REL))
 
 
 def _lib_dir_candidates() -> list[str]:
