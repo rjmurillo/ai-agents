@@ -128,7 +128,7 @@ Execution can satisfy the request and keep going: a later optional refinement ge
 
 ### Forming the contract
 
-Before non-trivial execution, derive the smallest task contract, in order: current user goal and deliverables; explicit constraints and acceptance criteria; mandatory system/safety/repository policy; minimum inferred success criteria a bounded request needs to be observable. Routine, low-risk work skips user confirmation of obvious inferred criteria. Record the contract before broad execution (TODO list, stated plan, or per-issue handoff); once started, criteria stay fixed unless the user changes them or a mandatory policy was omitted.
+How to derive and record the smallest task contract lives in the `avoiding-manufactured-work` skill (Forming The Contract), beside its disposition procedure.
 
 ### Precedence
 
@@ -155,7 +155,7 @@ Retry limits, review rounds, TODO exhaustion, delegation budgets, and circuit br
 
 ### Reactivation
 
-A terminal task reopens only when evidence falsifies a named frozen criterion, a mandatory policy adds a blocker, or the user reopens it or makes a new request. Reviewer preference, optional hardening, a new context, or remaining budget cannot reactivate it. A child task's completion does not terminate its parent; a new request is new work unless it explicitly reopens the prior one. A consumer holding task identity and completion evidence must not reopen it without one of these events.
+The events that reopen a terminal task, and the ones that cannot, are enumerated in the `avoiding-manufactured-work` skill (Reactivation); nothing else reopens it.
 
 ---
 
@@ -168,16 +168,7 @@ Together: search first, then build the complete version of the right thing. The 
 
 ## Decision Procedure
 
-For any non-trivial task, walk this list in order:
-
-1. **Has the user constrained scope?** If yes, that constraint wins (User Sovereignty). Apply it, state any trade-off once, and proceed. Skip the remaining steps that conflict with it.
-2. **Search.** Layer 1 (this codebase, runtime built-ins), then Layer 2 (current docs, recent ecosystem), then Layer 3 (first principles applied to the specific constraint). Stop searching when you have enough to decide; do not stall in Layer 1 if Layer 3 reasoning already gives you the answer.
-3. **Classify scope.** Lake or ocean? Use the threshold heuristic above. If lake, continue. If ocean, flag and stop.
-4. **Build the complete lake.** Tests, edge cases, error paths, documentation. If it exceeds one response, state the plan and execute in confirmed parts.
-5. **Present and ask** when ambiguity is high-stakes (Confusion Protocol carried by the spec, plan, and autoplan skills). Otherwise act minimally and flag what you skipped or assumed.
-6. **Stop at terminal.** Once every deliverable satisfies the frozen contract and no blocker remains (section 4), stop; an optional finding here does not restart step 4.
-
-Step 1 can short-circuit any of the others. That is intentional: the user's stated decision is the precedence-stack top.
+The six-step walk (scope constraint, search, classify lake or ocean, build the complete lake, present and ask, stop at terminal) lives in the autoplan skill at `references/decision-procedure.md`. The Precedence Stack above is the always-on summary; step 1 of the walk is that stack's first rule.
 
 ---
 
