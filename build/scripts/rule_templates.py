@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile ``templates/rules/<name>.md`` templates into ``src/claude/rules/``.
+r"""Compile ``templates/rules/<name>.md`` templates into ``src/claude/rules/``.
 
 ADR-109 (Template-First Plugin Distribution) step B2 generalizes ADR-108's
 compile-and-drift-gate shape, already applied to skills and to agents
@@ -53,14 +53,11 @@ Stricter/looser/different than canonical (``agent_templates.py``):
 - Same as canonical: a name with no template at all (an untemplated rule
   during migration, TASK-032's "Rule with no template during migration:
   untouched" edge case) is simply absent from :func:`discover`'s mapping;
-  the compile step never touches it, and it stays whatever it is
-  (hand-maintained, in this repository's current transitional state where
-  ``.claude/rules/testing.md`` carries a literal ``${{ a && b }}`` GitHub
-  Actions expression example that the ADR-108 grammar rejects as a
-  disallowed tag; TASK-032's own contract instructs reporting and stopping
-  on that one file rather than inventing a grammar escape, so it is not
-  templated by this PR and stays hand-maintained, exactly as this
-  "untemplated rule" edge case already anticipates).
+  the compile step never touches it. Every rule in this repository is
+  templated as of ADR-109 B2: ``testing.md`` carries a literal
+  ``${{ a && b }}`` GitHub Actions example and writes it as ``$\{{``,
+  the literal-brace escape ``skill_template_grammar`` added for exactly
+  this case (ADR-108, amended 2026-09-14).
 
 EXIT CODES (per :func:`compile_all`; ``0=ok|1=logic|2=config`` per
 ``AGENTS.md`` Standards, worst-code-wins across every discovered name):
@@ -287,8 +284,7 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
     An absent ``templates/rules/`` directory (or one with no valid
     template) is not an error: ``result`` stays at its zero-value
     defaults, exit 0, per DR5 in DESIGN-025 ("an unmigrated class is
-    untouched"). A name with no template (this repository's
-    ``testing.md``, see module docstring) is likewise untouched: it is
+    untouched"). A name with no template is likewise untouched: it is
     simply absent from :func:`discover`'s mapping.
     """
     result = CompileResult()

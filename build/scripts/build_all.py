@@ -355,26 +355,11 @@ def _build_rules(
     compile exit becomes 2 and short-circuits before the mirror generation
     below runs.
 
-    Between compile and mirror generation, this function also binplaces
-    (write mode only): ``generate_rules.generate_rules`` reads its
-    ``sourceDir`` from ``.claude/rules`` (copilot-cli.yaml's comment
-    explains why that stanza is not repointed to ``src/claude/rules``),
-    but the official binplace step that copies ``src/claude/rules`` into
-    ``.claude/rules`` runs once, later, after every per-platform generator
-    in ``_run_generators``'s loop. Without an early binplace here, a rule
-    edited and compiled in THIS run would still read as its PREVIOUS
-    content when the mirror generator runs, one full ``build_all.py``
-    invocation behind, discovered empirically 2026-09-14: editing a
-    templated rule and running a single ``build_all.py`` left both
-    instruction mirrors holding the prior text until a second run. Calling
-    ``binplace_manifest.binplace`` here (idempotent, manifest-driven, the
-    same function the official step calls) closes that gap; the later
-    official call then has nothing left to do for this row. Skipped
-    entirely in check mode: ``compile_all(validate=True)`` never writes
-    ``src/claude/rules``, so ``.claude/rules`` is already read-correct
-    (matches its committed content) and the Rule Template Drift gate is
-    what should catch a template edit, not this write-mode convergence
-    step.
+    The mirror generator reads ``src/claude/rules`` (the ``rules`` stanza's
+    ``sourceDir`` since ADR-109 B2), which the compile above just wrote, so
+    one run renders template, plugin tree, and mirrors together; the
+    binplace step that follows every generator copies the plugin tree to
+    ``.claude/rules``.
 
     Mirror generation (``generate_rules.generate_rules``) is still skipped
     when the platform has no ``artifacts.rules`` stanza: there is no
@@ -389,10 +374,6 @@ def _build_rules(
         if check:
             result.exit_code = 2
         return result
-
-    if not check:
-        early_binplace = binplace_manifest.binplace(repo_root, check=False)
-        result.exit_code = max(result.exit_code, early_binplace.exit_code)
 
     try:
         cfg = load_platform_config(config_path)

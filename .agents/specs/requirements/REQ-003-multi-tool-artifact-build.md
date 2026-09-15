@@ -205,7 +205,7 @@ artifacts:
     mode: "directory-copy"
     excludeFilenames: ["AGENTS.md", "CLAUDE.md", "merge-resolver"]
   rules:
-    sourceDir: ".claude/rules"      # ADR-109 B2: not repointed; see copilot-cli.yaml comment (testing.md untemplated)
+    sourceDir: "src/claude/rules"   # ADR-109 B2: the plugin tree the compile renders; .claude/rules is its binplace
     outputDirs:
       - ".github/instructions"
       - "src/copilot-cli/instructions"

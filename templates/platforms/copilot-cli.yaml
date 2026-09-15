@@ -17,23 +17,10 @@ artifacts:
     # publicly-shipping copilot-cli toolkit (issue #2026).
     excludeFilenames: ["AGENTS.md", "CLAUDE.md", "merge-resolver"]
   rules:
-    # ADR-109 B2: NOT repointed to src/claude/rules, unlike the agents
-    # stanza. templates/rules/testing.md does not exist yet (it carries a
-    # literal `${{ a && b }}` GitHub Actions expression example the ADR-108
-    # grammar rejects as a disallowed tag; TASK-032 instructs stopping on
-    # that file, not inventing a grammar escape), so testing.md is
-    # hand-maintained and absent from src/claude/rules/. Reading sourceDir
-    # from src/claude/rules/ would prune testing.md's Copilot mirror as an
-    # orphan (verified: build_all.py deleted both instruction-mirror
-    # copies on the first repointed run). .claude/rules/ is the compiled
-    # intermediate the binplace step keeps byte-identical to
-    # templates/rules/ for every templated rule, plus testing.md untouched
-    # alongside them, so it stays the correct read source until testing.md
-    # is templated too. Mirrors the `skills` stanza's own permanent
-    # non-repoint for the same "compiled intermediate is what the mirror
-    # generator reads" reason (DESIGN-025, "How assert_no_claude_writes
-    # derives its allowlist").
-    sourceDir: ".claude/rules"
+    # ADR-109 B2: rules render from templates/rules/ into src/claude/rules/
+    # (the plugin tree); the instruction mirrors read that tree, and the
+    # binplace step copies it to .claude/rules/ for the repository itself.
+    sourceDir: "src/claude/rules"
     # Dual-target: ships rules to the canonical Copilot instructions
     # tree AND to the project-toolkit plugin tree so vendor installs
     # via marketplace pick them up alongside agents, skills, and hooks.
