@@ -39,9 +39,16 @@ import subprocess
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
+from typing import cast
+
+#: A `subprocess.run` work-alike. Named so the fake a test installs and the
+#: real thing are one type, which is what lets `run_cli` call either without a
+#: type-ignore standing in for the contract.
+Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
 __all__ = [
     "TRUST_BOUNDARY",
+    "Runner",
     "CLIProcessResult",
     "build_envelope",
     "minimal_process_env",
@@ -209,7 +216,7 @@ def run_cli(
     env: dict[str, str],
     timeout: float,
     prepare: Callable[[Path], None] | None = None,
-    runner: object = None,
+    runner: Runner | None = None,
 ) -> CLIProcessResult:
     """Run one CLI in a fresh empty directory and return its output.
 
@@ -228,7 +235,7 @@ def run_cli(
     failure mode: a missing binary, an OS-level launch failure, a timeout, and
     a non-zero exit.
     """
-    run = subprocess.run if runner is None else runner
+    run = cast("Runner", subprocess.run) if runner is None else runner
     with tempfile.TemporaryDirectory(prefix="eval-cli-") as sandbox:
         if prepare is not None:
             prepare(Path(sandbox))
@@ -236,7 +243,7 @@ def run_cli(
             {"input": prompt} if prompt is not None else {"stdin": subprocess.DEVNULL}
         )
         try:
-            completed = run(  # type: ignore[operator]
+            completed = run(
                 argv,
                 cwd=sandbox,
                 env=env,
