@@ -196,6 +196,8 @@ its own author has marked stale.
 | a job mutates the working tree | later repetitions measure a different tree | tree dirty after a repetition | pass `--no-stage-fixed`; capture `git status --porcelain` digest before and after each repetition and record whether it changed |
 | n too small for p95 | a tail claim nobody can support | n < 20 | emit `n` beside every percentile and set a `percentile_note` field naming p95 as an upper-order statistic at low n |
 | measurement taken on one machine read as universal | a planning number carried to another box | none | record `HostProfile` in the artifact and state the one-machine scope in the markdown, per MUST-16's own wording |
+| the job-set diff is mistaken for a latency non-regression proof | gate 3 recorded as met while a surviving job silently slowed | none, a count diff cannot see it | AC-15: a paired measurement, or gate 3 recorded as a first reference with the paired comparison named as outstanding |
+| a low-n p95 is quoted outside the artifact | an unsupportable tail figure becomes a planning number, as ADR-104's single samples did | the figure appearing in an issue comment without its n | AC-05: below n=20 the markdown and every quoted figure lead with `worst observed of N runs` |
 
 ## Security
 
@@ -230,7 +232,12 @@ asserted in tests.
 4. WHEN all repetitions complete, THE SYSTEM SHALL emit, per job and for the
    hook as a whole, n, p50, p95, min, and max, using nearest-rank percentiles.
 5. WHERE n is below 20, THE SYSTEM SHALL emit a `percentile_note` field stating
-   that p95 is an upper-order statistic rather than a tail estimate.
+   that p95 is an upper-order statistic rather than a tail estimate, AND the
+   markdown artifact SHALL lead each scope with `worst observed of N runs`
+   rather than with a figure labelled p95. A caveat beside a percentile label
+   did not stop ADR-104's single-sample figures from being carried forward as
+   planning numbers; the label itself is what gets quoted, so below the
+   threshold the artifact does not offer one.
 6. WHEN a hook run exits non-zero because a gate failed, THE SYSTEM SHALL record
    that exit code, keep the samples it parsed, continue the remaining
    repetitions, and still exit 0.
@@ -240,6 +247,12 @@ asserted in tests.
 8. WHEN `--change-class` names a declared class, THE SYSTEM SHALL pass that
    class's file list to lefthook via repeated `--file` arguments so glob-gated
    jobs fire, and SHALL record the class name and its file list in the output.
+   The declared classes SHALL between them fire each of the five pre-push jobs
+   #5318 item 1 names (`hook-anchoring-e2e`, `plugin-load-e2e`,
+   `workflow-local-run`, `python-type-check`, `security-scan`), and any of the
+   five that cannot be measured in the capture environment SHALL be descoped by
+   name with its reason recorded in the artifact's `exclusions`, never left
+   silently unmeasured.
 9. THE SYSTEM SHALL import the declared budget and hook job structure from
    `scripts/ci/lefthook_budget_model.py` and SHALL NOT reimplement the
    piped-sum, parallel-max walk.
@@ -254,9 +267,23 @@ asserted in tests.
     `scripts/validation/pre_pr*.py`, or by any file under `.github/workflows/`.
 14. Release gate 3 of epic #5456 SHALL be updated in
     `.agents/metrics/control-plane-dispositions-v0.7.0.md` with the measured
-    figures and with the structural non-regression evidence that the hook job
-    set at HEAD is the baseline's set minus `retrospective-policy`, with no job
-    added.
+    figures and with the structural evidence that the hook job set at HEAD is
+    the baseline's set minus `retrospective-policy`, with no job added and no
+    surviving job's `timeout:` raised.
+15. THE SYSTEM SHALL NOT record gate 3 as met on the job-set diff alone. The
+    diff bounds the declared ceiling, not measured latency: 50 commits and
+    1,999 changed files separate `53ffe92c2` from `origin/main`, test files
+    grew from 1,031 to 1,174, and `python-tests` owned 498.52s of the 679s
+    sample on record, so a surviving job can have slowed with no job added.
+    Either a paired measurement at `53ffe92c2` on the same machine SHALL be
+    captured, or gate 3 SHALL be recorded as a first measured reference with
+    the paired comparison named as the outstanding step and the reason it was
+    not taken.
+16. THE SYSTEM's own arrival SHALL be argued in the ledger's gate 4 row, on the
+    same named-exception footing the sibling `control_plane_baseline.py`
+    required, with the reference-absence check over `lefthook.yml`,
+    `scripts/validation/pre_pr*.py`, and `.github/workflows/` recorded as its
+    evidence.
 
 ## Out of scope
 
@@ -267,9 +294,6 @@ asserted in tests.
   (#5318 item 5).
 - The local-selector-versus-CI-filter divergence (#5318 item 3) and the
   hook-level deadline (#5318 item 4).
-- Measuring at the baseline SHA `53ffe92c2` in a second checkout. The job-set
-  diff makes that unnecessary for gate 3, and a second `uv sync` of an old
-  revision buys a number nobody reads.
 - CI-side latency. This measures local gates only.
 
 ## Deferred
