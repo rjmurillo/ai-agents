@@ -8,9 +8,14 @@ clock, so the expectations below are hand-computed rather than observed.
 
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
+
 import pytest
 
+from scripts.metrics import gate_latency_sampler as gls_sampler
 from scripts.metrics import gate_latency_stats as gls
+from tests.metrics.conftest import REAL_CAPTURED_STDOUT, _FakeCompleted
 
 # --- Percentiles (nearest-rank, 1-indexed) -----------------------------------
 
@@ -107,3 +112,25 @@ def test_positive_a_group_total_can_exceed_the_hook_wall_clock_and_is_labelled()
     assert by_scope["group (7)"].max > by_scope["__hook__"].max
     assert by_scope["group (7)"].is_group is True
     assert by_scope["child-a"].is_group is False
+
+def test_positive_build_summaries_includes_reserved_hook_scope(
+    monkeypatch: pytest.MonkeyPatch, repo: Path
+) -> None:
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda cmd, **kwargs: (
+            _FakeCompleted(0, "")
+            if cmd[:2] == ["git", "status"]
+            else _FakeCompleted(0, REAL_CAPTURED_STDOUT)
+        ),
+    )
+    runs = [gls_sampler._run_repetition(repo, ["lefthook"], "pre-commit", (), i) for i in range(3)]
+    summaries = gls._build_summaries(runs)
+    scopes = {s.scope for s in summaries}
+    assert "__hook__" in scopes
+    assert "security-suppressions-staged" in scopes
+    hook_summary = next(s for s in summaries if s.scope == "__hook__")
+    assert hook_summary.n == 3
+
+

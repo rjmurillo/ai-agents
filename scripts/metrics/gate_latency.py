@@ -44,13 +44,8 @@ mode 0600 (``gate_latency_io.safe_open``).
 from __future__ import annotations
 
 import argparse
-import re
-import subprocess
 import sys
-import time
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 # A hung hook would otherwise hang the sampler with no diagnostic. Generous
 # on purpose: this has to exceed the slowest legitimate hook, and lefthook's
@@ -66,179 +61,15 @@ _SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
 if _SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.ci.lefthook_budget_model import declared_budget
 from scripts.metrics.gate_latency_classes import (
     CHANGE_CLASSES,
-    get_change_class_files,
-    missing_change_class_paths,
 )
+from scripts.metrics.gate_latency_inputs import _resolve_inputs
 from scripts.metrics.gate_latency_io import SymlinkRefusedError, write_json, write_markdown
-from scripts.metrics.gate_latency_models import (
-    GateLatencyReport,
-    HookRun,
-)
 from scripts.metrics.gate_latency_probe import (
-    _git_rev_parse_head,
-    _host_profile,
-    _load_lefthook_config,
-    _resolve_lefthook_command,
     _run_git,
-    _tree_digest,
 )
-from scripts.metrics.gate_latency_stats import (
-    _build_summaries,
-    _percentile_note,
-    _smallest_scope_n,
-)
-from scripts.metrics.lefthook_summary import parse_summary
-
-
-def _as_text(raw: str | bytes) -> str:
-    """TimeoutExpired.stdout is bytes even when the call asked for text."""
-    return raw if isinstance(raw, str) else raw.decode("utf-8", "replace")
-
-
-def _run_repetition(
-    repo: Path,
-    lefthook_cmd: list[str],
-    hook: str,
-    files: tuple[str, ...],
-    repetition_index: int,
-    stdin_ref_line: str | None = None,
-    hook_args: tuple[str, ...] = (),
-    force: bool = False,
-) -> HookRun:
-    """Run one whole-hook lefthook invocation and parse its summary (AC-01 to AC-03).
-
-    A hook that fails (non-zero exit) is data, not a sampler error: the
-    exit code is recorded and the caller runs the remaining repetitions
-    regardless (AC-06).
-
-    ``stdin_ref_line`` is the text git feeds a real pre-push hook on stdin
-    (``<local ref> <local sha> <remote ref> <remote sha>``). Several
-    pre-push jobs in this repository declare ``use_stdin: true``, and with
-    empty stdin those jobs can take an early exit, which would understate
-    their cost in exactly the figure this script exists to report. The
-    caller supplies the line or it is absent; this module never synthesises
-    one, because a fabricated ref line would measure a push that did not
-    happen. It reaches the subprocess through ``input=``, never through the
-    argument list, so it is not an injection surface on a call that already
-    runs with ``shell=False``.
-    """
-    file_args: list[str] = []
-    for rel in files:
-        file_args += ["--file", rel]
-    cmd = [
-        *lefthook_cmd,
-        "run",
-        hook,
-        *hook_args,
-        "--no-tty",
-        "--colors",
-        "off",
-        "--no-stage-fixed",
-        *file_args,
-    ]
-    if force:
-        cmd.append("--force")
-    digest_before = _tree_digest(repo)
-    start = time.perf_counter()
-    try:
-        result = subprocess.run(
-            cmd,
-            cwd=repo,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            input="" if stdin_ref_line is None else stdin_ref_line.rstrip("\n") + "\n",
-            timeout=_HOOK_TIMEOUT_SECONDS,
-        )
-        stdout, exit_code = result.stdout, result.returncode
-    except subprocess.TimeoutExpired as expired:
-        stdout = "" if expired.stdout is None else _as_text(expired.stdout)
-        exit_code = _TIMEOUT_EXIT_CODE
-    wall_clock_seconds = time.perf_counter() - start
-    digest_after = _tree_digest(repo)
-    samples, reported_seconds = parse_summary(stdout)
-    unknown_status_count = sum(1 for sample in samples if sample.status == "unknown")
-    return HookRun(
-        repetition_index=repetition_index,
-        exit_code=exit_code,
-        wall_clock_seconds=wall_clock_seconds,
-        lefthook_reported_seconds=reported_seconds,
-        jobs_parsed=len(samples),
-        tree_mutated=digest_before != digest_after,
-        unknown_status_count=unknown_status_count,
-        samples=samples,
-    )
-
-
-def build_report(
-    repo: Path,
-    command: str,
-    hook: str,
-    change_class: str,
-    files: tuple[str, ...],
-    repetitions: int,
-    lefthook_cmd: list[str],
-    stdin_ref_line: str | None = None,
-    hook_args: tuple[str, ...] = (),
-    force: bool = False,
-) -> GateLatencyReport:
-    """Run every repetition and fold the results into one report."""
-    runs = [
-        _run_repetition(repo, lefthook_cmd, hook, files, index, stdin_ref_line, hook_args, force)
-        for index in range(repetitions)
-    ]
-    summaries = _build_summaries(runs)
-    exclusions: list[dict[str, str]] = []
-    config = _load_lefthook_config(repo)
-    declared_seconds: float | None = None
-    if config is not None and hook in config:
-        declared_seconds, _rows = declared_budget(config, hook)
-    else:
-        exclusions.append(
-            {
-                "field": "declared_budget_seconds",
-                "reason": "lefthook.yml unreadable or missing this hook at report time",
-            }
-        )
-    return GateLatencyReport(
-        commit_sha=_git_rev_parse_head(repo),
-        captured_at=datetime.now(UTC).isoformat(),
-        command=_redact_url_userinfo(command),
-        hook=hook,
-        change_class=change_class,
-        files=list(files),
-        repetitions=repetitions,
-        host=_host_profile(),
-        runs=runs,
-        summaries=summaries,
-        declared_budget_seconds=declared_seconds,
-        percentile_note=_percentile_note(_smallest_scope_n(summaries, repetitions)),
-        stdin_ref_line_supplied=stdin_ref_line is not None,
-        hook_args=[_redact_url_userinfo(arg) for arg in hook_args],
-        forced=force,
-        exclusions=exclusions,
-    )
-
-
-_URL_USERINFO_RE = re.compile(r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*://)(?P<userinfo>[^/@\s]+)@")
-
-
-def _redact_url_userinfo(text: str) -> str:
-    """Strip credentials out of any ``scheme://user:pass@host`` in ``text``.
-
-    A pre-push measurement needs ``--hook-arg <remote> <url>``, and these
-    values are written verbatim into a committed artifact. A remote URL can
-    carry a token (``https://x-access-token:TOKEN@github.com/...``), which is a
-    discouraged but real pattern for service accounts, and a secret written
-    into a committed artifact is in git history permanently. Redacting here
-    costs nothing when the URL is credential-free, which is the normal case.
-    """
-    return _URL_USERINFO_RE.sub(r"\g<scheme><redacted>@", text)
+from scripts.metrics.gate_latency_sampler import build_report
 
 
 def _normalized_command_args(args_list: list[str]) -> list[str]:
@@ -318,78 +149,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "falling back to 'uv run --frozen lefthook'.",
     )
     return parser
-
-
-def _validate_repo_and_repetitions(args: argparse.Namespace) -> tuple[Path, int] | int:
-    """Guard clauses that need no file I/O beyond ``repo`` itself (AC-07 exit-2)."""
-    repo = Path(args.repo).resolve()
-    if not repo.is_dir() or not (repo / ".git").exists():
-        print(f"error: not a git repository: {repo}", file=sys.stderr)
-        return 2
-    if args.repetitions < 1:
-        print(f"error: --repetitions must be >= 1, got {args.repetitions}", file=sys.stderr)
-        return 2
-    return repo, args.repetitions
-
-
-def _validate_hook(repo: Path, hook: str) -> dict[str, Any] | int:
-    """Load ``lefthook.yml`` and confirm ``hook`` names a real hook (AC-07 exit-2)."""
-    config = _load_lefthook_config(repo)
-    if config is None:
-        print("error: missing or invalid lefthook.yml", file=sys.stderr)
-        return 2
-    hook_cfg = config.get(hook)
-    if not isinstance(hook_cfg, dict) or "jobs" not in hook_cfg:
-        print(f"error: unknown hook: {hook}", file=sys.stderr)
-        return 2
-    return config
-
-
-def _validate_change_class(repo: Path, change_class: str) -> tuple[str, ...] | int:
-    """Resolve ``change_class`` to its file list and confirm every path exists (AC-08)."""
-    files = get_change_class_files(change_class)
-    if files is None:
-        print(f"error: unknown change class: {change_class}", file=sys.stderr)
-        return 2
-    missing = missing_change_class_paths(repo, files)
-    if missing:
-        print(
-            f"error: change class {change_class!r} names a missing path: {missing[0]}",
-            file=sys.stderr,
-        )
-        return 2
-    return files
-
-
-def _resolve_inputs(args: argparse.Namespace) -> tuple[Path, tuple[str, ...], list[str]] | int:
-    """Run every exit-2 guard clause and resolve what a repetition needs to run.
-
-    Returns the exit code to use on the first failure, or ``(repo, files,
-    lefthook_cmd)`` once every AC-07 exit-2 condition has cleared. The
-    exit-1 dirty-tree check stays in ``main``: it needs the resolved
-    ``repo`` from here first, and it is a different exit code (AC-07)
-    reported for a different reason (a tree state, not a configuration
-    problem).
-    """
-    resolved = _validate_repo_and_repetitions(args)
-    if isinstance(resolved, int):
-        return resolved
-    repo, _repetitions = resolved
-
-    hook_result = _validate_hook(repo, args.hook)
-    if isinstance(hook_result, int):
-        return hook_result
-
-    files = _validate_change_class(repo, args.change_class)
-    if isinstance(files, int):
-        return files
-
-    lefthook_cmd = _resolve_lefthook_command(repo, args.lefthook_bin)
-    if lefthook_cmd is None:
-        print("error: lefthook binary not found", file=sys.stderr)
-        return 2
-
-    return repo, files, lefthook_cmd
 
 
 def main(argv: list[str] | None = None) -> int:

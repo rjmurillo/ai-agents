@@ -21,6 +21,7 @@ import yaml
 from wcmatch import glob
 
 from scripts.metrics import gate_latency as gl
+from scripts.metrics import gate_latency_sampler as gls_sampler
 from scripts.metrics import gate_latency_stats as gls
 from scripts.metrics.gate_latency_models import LatencySummary
 from tests.gc_real_git import git
@@ -82,7 +83,7 @@ def test_positive_stdin_ref_line_reaches_the_subprocess(
     seen: dict[str, object] = {}
     monkeypatch.setattr(subprocess, "run", _capturing_fake(seen))
 
-    gl._run_repetition(
+    gls_sampler._run_repetition(
         repo,
         ["lefthook"],
         "pre-push",
@@ -101,7 +102,7 @@ def test_edge_stdin_ref_line_is_newline_terminated_exactly_once(
     seen: dict[str, object] = {}
     monkeypatch.setattr(subprocess, "run", _capturing_fake(seen))
 
-    gl._run_repetition(repo, ["lefthook"], "pre-push", (), 0, "a b c d\n")
+    gls_sampler._run_repetition(repo, ["lefthook"], "pre-push", (), 0, "a b c d\n")
 
     assert seen["input"] == "a b c d\n"
 
@@ -112,7 +113,7 @@ def test_negative_absent_stdin_ref_line_sends_empty_stdin(
     seen: dict[str, object] = {}
     monkeypatch.setattr(subprocess, "run", _capturing_fake(seen))
 
-    gl._run_repetition(repo, ["lefthook"], "pre-push", (), 0)
+    gls_sampler._run_repetition(repo, ["lefthook"], "pre-push", (), 0)
 
     assert seen["input"] == ""
 
@@ -123,10 +124,10 @@ def test_positive_report_records_whether_a_ref_line_was_supplied(
     """The artifact must distinguish a faithful capture from a bare one."""
     monkeypatch.setattr(subprocess, "run", _capturing_fake({}))
 
-    supplied = gl.build_report(
+    supplied = gls_sampler.build_report(
         repo, "cmd", "pre-commit", "none", (), 1, ["lefthook"], "a b c d"
     )
-    bare = gl.build_report(repo, "cmd", "pre-commit", "none", (), 1, ["lefthook"])
+    bare = gls_sampler.build_report(repo, "cmd", "pre-commit", "none", (), 1, ["lefthook"])
 
     assert supplied.stdin_ref_line_supplied is True
     assert bare.stdin_ref_line_supplied is False
@@ -232,7 +233,7 @@ def test_positive_hook_args_are_passed_positionally_right_after_the_hook_name(
     seen: dict[str, object] = {}
     monkeypatch.setattr(subprocess, "run", _argv_capturing_fake(seen))
 
-    gl._run_repetition(
+    gls_sampler._run_repetition(
         repo, ["lefthook"], "pre-push", (), 0, None, ("origin", "https://example.invalid/r.git")
     )
 
@@ -247,7 +248,7 @@ def test_negative_absent_hook_args_leave_the_argument_vector_unchanged(
     seen: dict[str, object] = {}
     monkeypatch.setattr(subprocess, "run", _argv_capturing_fake(seen))
 
-    gl._run_repetition(repo, ["lefthook"], "pre-commit", (), 0)
+    gls_sampler._run_repetition(repo, ["lefthook"], "pre-commit", (), 0)
 
     cmd = seen["cmd"]
     assert isinstance(cmd, list)
@@ -260,7 +261,7 @@ def test_positive_report_records_the_hook_args_it_used(
     """A reader must be able to tell a faithful pre-push capture from a bare one."""
     monkeypatch.setattr(subprocess, "run", _argv_capturing_fake({}))
 
-    report = gl.build_report(
+    report = gls_sampler.build_report(
         repo, "cmd", "pre-push", "none", (), 1, ["lefthook"], None, ("origin", "url")
     )
 
@@ -280,7 +281,7 @@ def test_negative_force_is_absent_by_default(
     seen: dict[str, object] = {}
     monkeypatch.setattr(subprocess, "run", _argv_capturing_fake(seen))
 
-    gl._run_repetition(repo, ["lefthook"], "pre-push", ("README.md",), 0)
+    gls_sampler._run_repetition(repo, ["lefthook"], "pre-push", ("README.md",), 0)
 
     cmd = seen["cmd"]
     assert isinstance(cmd, list)
@@ -293,7 +294,7 @@ def test_positive_force_is_passed_when_explicitly_requested(
     seen: dict[str, object] = {}
     monkeypatch.setattr(subprocess, "run", _argv_capturing_fake(seen))
 
-    gl._run_repetition(repo, ["lefthook"], "pre-push", (), 0, None, (), True)
+    gls_sampler._run_repetition(repo, ["lefthook"], "pre-push", (), 0, None, (), True)
 
     cmd = seen["cmd"]
     assert isinstance(cmd, list)
@@ -306,10 +307,10 @@ def test_positive_report_records_whether_the_run_was_forced(
     """A forced run measures a different thing, so the artifact has to say so."""
     monkeypatch.setattr(subprocess, "run", _argv_capturing_fake({}))
 
-    forced = gl.build_report(
+    forced = gls_sampler.build_report(
         repo, "cmd", "pre-push", "none", (), 1, ["lefthook"], None, (), True
     )
-    natural = gl.build_report(repo, "cmd", "pre-push", "none", (), 1, ["lefthook"])
+    natural = gls_sampler.build_report(repo, "cmd", "pre-push", "none", (), 1, ["lefthook"])
 
     assert forced.forced is True
     assert natural.forced is False
@@ -336,7 +337,7 @@ def test_url_userinfo_is_redacted_but_credential_free_text_is_untouched(
     raw: str, expected: str
 ) -> None:
     """A committed artifact records hook args, and git history is permanent."""
-    assert gl._redact_url_userinfo(raw) == expected
+    assert gls_sampler._redact_url_userinfo(raw) == expected
 
 
 def test_positive_report_redacts_a_credentialed_remote_before_writing_it(
@@ -345,7 +346,7 @@ def test_positive_report_redacts_a_credentialed_remote_before_writing_it(
     """The pre-push measurement needs --hook-arg <remote> <url>, and the artifact is committed."""
     monkeypatch.setattr(subprocess, "run", _argv_capturing_fake({}))
 
-    report = gl.build_report(
+    report = gls_sampler.build_report(
         repo,
         "gate_latency.py --hook-arg https://tok:s3cret@github.com/o/r.git",
         "pre-push",
@@ -374,9 +375,9 @@ def test_negative_a_hook_that_times_out_is_a_recorded_repetition_not_a_crash(
 
     monkeypatch.setattr(subprocess, "run", _timing_out)
 
-    run = gl._run_repetition(repo, ["lefthook"], "pre-push", (), 0)
+    run = gls_sampler._run_repetition(repo, ["lefthook"], "pre-push", (), 0)
 
-    assert run.exit_code == gl._TIMEOUT_EXIT_CODE
+    assert run.exit_code == gls_sampler._TIMEOUT_EXIT_CODE
     assert run.jobs_parsed == 0
 
 
@@ -394,6 +395,6 @@ def test_positive_the_lefthook_call_carries_a_timeout(
 
     monkeypatch.setattr(subprocess, "run", _fake)
 
-    gl._run_repetition(repo, ["lefthook"], "pre-push", (), 0)
+    gls_sampler._run_repetition(repo, ["lefthook"], "pre-push", (), 0)
 
-    assert seen["timeout"] == gl._HOOK_TIMEOUT_SECONDS
+    assert seen["timeout"] == gls_sampler._HOOK_TIMEOUT_SECONDS
