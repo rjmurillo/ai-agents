@@ -31,7 +31,7 @@ Choosing which surface a fact belongs on binds earlier, before you know which tr
 
 ## Placement contract
 
-This section is the authoritative taxonomy for where repository knowledge lives (issue #5391). Placement follows activation semantics, not directory names or convenience. A required behavior MUST NOT depend on Serena retrieval to activate, because Serena is MCP-gated and not loaded on every harness.
+This section is the authoritative taxonomy for where repository knowledge lives. Placement follows activation semantics, not directory names or convenience. A required behavior MUST NOT depend on Serena retrieval to activate, because Serena is MCP-gated and not loaded on every harness.
 
 | Class | Holds | Activates when | Lives at |
 |---|---|---|---|
@@ -46,7 +46,7 @@ This section is the authoritative taxonomy for where repository knowledge lives 
 | Question | Answer |
 |---|---|
 | New learned observation? | Memory. |
-| New mandatory agent behavior? | If it binds one skill's workflow, put it in that skill. If it binds every task on matching paths, a path-scoped rule. Always-on only for cross-cutting content (epic #5456 decision, 2026-09-11). |
+| New mandatory agent behavior? | If it binds one skill's workflow, put it in that skill. If it binds every task on matching paths, a path-scoped rule. Always-on only for cross-cutting content. |
 | Repeatable workflow? | Skill. |
 | Role-specific behavior? | Agent. |
 | When to keep a memory after its content moves into an artifact? | When it still carries evidence, a measurement, or rationale the artifact does not. |
@@ -55,7 +55,7 @@ This section is the authoritative taxonomy for where repository knowledge lives 
 
 ### Authoritative source on overlap
 
-When a memory and a rule, skill, or agent describe the same behavior, the rule, skill, or agent is authoritative. The memory is evidence, not policy: keep only the observation, measurement, incident, or rationale, and link it to the artifact that owns the behavior. Migration under #5392 and #5393 applies this rule; it decides no new taxonomy.
+When a memory and a rule, skill, or agent describe the same behavior, the rule, skill, or agent is authoritative. The memory is evidence, not policy: keep only the observation, measurement, incident, or rationale, and link it to the artifact that owns the behavior. A migration out of Serena applies this rule; it decides no new taxonomy.
 
 ### Placement check for new memories
 
