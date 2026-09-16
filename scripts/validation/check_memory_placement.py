@@ -340,7 +340,7 @@ def format_summary(examined: int, findings: list[Finding]) -> str:
     )
 
 
-def _report_dict(examined: int, findings: list[Finding]) -> dict:
+def _report_dict(examined: int, findings: list[Finding]) -> dict[str, object]:
     """Build the JSON-serializable report for ``--json``."""
     counts, failing = _tally(findings)
     return {
