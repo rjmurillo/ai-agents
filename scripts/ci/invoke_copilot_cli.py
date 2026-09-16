@@ -15,6 +15,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scripts.ci._copilot_model_fallback import report_model_fallback  # noqa: E402
 from scripts.redact_secrets import redact_ci_sink  # noqa: E402
 
 EXIT_OK = 0
@@ -315,6 +316,8 @@ def invoke_with_retry(
         print(f"Exit code: {exit_code}")
         print(f"Stdout length: {len(output)} chars")
         print(f"Stderr length: {len(stderr)} chars")
+
+        report_model_fallback(config.copilot_model, stderr, output)
 
         if exit_code != 0 and is_permanent_auth_failure(f"{stderr}\n{output}"):
             infrastructure_failure = True
