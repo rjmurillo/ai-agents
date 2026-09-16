@@ -15,7 +15,10 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.ci._copilot_model_fallback import report_model_fallback  # noqa: E402
+from scripts.ci._copilot_model import (  # noqa: E402
+    DEFAULT_COPILOT_MODEL,
+    report_model_fallback,
+)
 from scripts.redact_secrets import redact_ci_sink  # noqa: E402
 
 EXIT_OK = 0
@@ -186,7 +189,7 @@ def parse_config(env: Mapping[str, str]) -> InvokeConfig:
         additional_context=env.get("ADDITIONAL_CONTEXT", ""),
         timeout_minutes=timeout_minutes,
         copilot_agent=env.get("COPILOT_AGENT", ""),
-        copilot_model=env.get("COPILOT_MODEL", ""),
+        copilot_model=env.get("COPILOT_MODEL") or DEFAULT_COPILOT_MODEL,
         context_mode=env.get("CONTEXT_MODE") or "summary",
         context_file=context_file,
         action_deadline_epoch=action_deadline_epoch,

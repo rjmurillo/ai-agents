@@ -65,6 +65,10 @@ inputs:
       and silently falls back to the session default, which is how a stale pin
       turns into an expensive run; invoke_copilot_cli.py raises a workflow
       warning when it sees that text.
+      This default is mirrored by DEFAULT_COPILOT_MODEL in
+      scripts/ci/_copilot_model.py, which is the floor the driver applies when
+      COPILOT_MODEL arrives unset or explicitly empty. A test fails if the two
+      disagree.
     required: false
     default: 'claude-haiku-4.5'
   enable-diagnostics:

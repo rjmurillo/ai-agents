@@ -1,4 +1,7 @@
-"""Detect when Copilot CLI serves a different model than the one requested.
+"""Copilot CLI model selection for the ai-review driver.
+
+Holds the model this repository sends to Copilot CLI and the check that the
+CLI actually served it.
 
 Copilot CLI answers a retired or unknown `--model` id with
 `not available; using "<other>" instead` and exits 0, so the run still produces
@@ -17,6 +20,18 @@ proof the pin resolved.
 from __future__ import annotations
 
 import re
+
+# The model every ai-review call uses unless a caller overrides it. Claude
+# Haiku 4.5 is the cheapest Anthropic model Copilot CLI serves ($1.00 in /
+# $5.00 out per 1M tokens under usage-based billing) and keeps the family the
+# prompts and .github/agents units were written for, so the free-form
+# `VERDICT:` line the pipeline parses is unchanged.
+#
+# This is the floor, not a duplicate of the action input default: an unset or
+# empty COPILOT_MODEL previously sent `--model ""` to the CLI, and a composite
+# action input that is passed explicitly-empty overrides its own default.
+# `tests/ci/test_ai_review_model_economy.py` fails if the two disagree.
+DEFAULT_COPILOT_MODEL = "claude-haiku-4.5"
 
 MODEL_FALLBACK_PATTERN = re.compile(
     r"not available;\s*using\s+[\"']?(?P<substitute>[^\"'\n]+?)[\"']?\s+instead",

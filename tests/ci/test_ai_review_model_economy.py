@@ -22,6 +22,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from scripts.ci._copilot_model import DEFAULT_COPILOT_MODEL
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _ACTION = _REPO_ROOT / ".github" / "actions" / "ai-review" / "action.yml"
 _WORKFLOWS = _REPO_ROOT / ".github" / "workflows"
@@ -114,3 +116,14 @@ def test_no_workflow_overrides_with_an_unserved_or_pricier_model():
             "default. Move the cheaper model to the action default instead of "
             "overriding one caller."
         )
+
+
+def test_action_default_matches_the_driver_floor():
+    """Two places name the model; they must name the same one.
+
+    `scripts/ci/invoke_copilot_cli.py` is what actually drives the CLI, so its
+    floor is what runs when COPILOT_MODEL arrives unset or empty. The action
+    input default is what runs otherwise. A divergence means the composite
+    action and a direct script invocation buy different models.
+    """
+    assert _action_default() == DEFAULT_COPILOT_MODEL
