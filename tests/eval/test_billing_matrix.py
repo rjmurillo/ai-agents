@@ -29,7 +29,7 @@ finally:
 
 
 def test_matrix_has_one_cell_per_harness_and_billing_mode() -> None:
-    pairs = {(cell.harness, cell.billing) for cell in _billing_matrix.cells()}
+    pairs = {(cell.harness, cell.payer) for cell in _billing_matrix.cells()}
 
     expected = {
         (harness, billing)
@@ -67,7 +67,7 @@ def test_a_required_env_var_flag_names_at_least_one_variable(cell: MatrixCell) -
 def test_every_subscription_cell_bills_requests() -> None:
     """A seat spends an allowance; quoting it in dollars invents a rate."""
     subscription = [
-        cell for cell in _billing_matrix.cells() if cell.billing == "subscription"
+        cell for cell in _billing_matrix.cells() if cell.payer == "subscription"
     ]
 
     assert subscription

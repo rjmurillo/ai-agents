@@ -149,7 +149,7 @@ def _readiness(cell: MatrixCell) -> dict[str, object]:
         ]
     return {
         "harness": cell.harness,
-        "billing": cell.billing,
+        "billing": cell.payer,
         "cell": cell.name,
         "provider": cell.provider,
         "transport": cell.transport,
@@ -220,7 +220,7 @@ def _selected_cells(args: argparse.Namespace) -> list[MatrixCell]:
         cell
         for cell in cells()
         if (args.harness is None or cell.harness == args.harness)
-        and (args.billing is None or cell.billing == args.billing)
+        and (args.billing is None or cell.payer == args.billing)
     ]
 
 

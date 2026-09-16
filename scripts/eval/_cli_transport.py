@@ -34,6 +34,7 @@ so neither subclass can forget it:
 from __future__ import annotations
 
 import json
+import math
 import os
 import subprocess
 import tempfile
@@ -47,6 +48,7 @@ from typing import cast
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
 __all__ = [
+    "BASE_ENV_ALLOWLIST",
     "TRUST_BOUNDARY",
     "Runner",
     "CLIProcessResult",
@@ -120,7 +122,7 @@ def validate_timeout(timeout: float) -> float:
     from the outside, so the bad value is rejected where it is set.
     """
     value = float(timeout)
-    if value != value or value in (float("inf"), float("-inf")) or value <= 0:
+    if not math.isfinite(value) or value <= 0:
         raise RuntimeError("CLI timeout must be a finite positive number of seconds.")
     return value
 
