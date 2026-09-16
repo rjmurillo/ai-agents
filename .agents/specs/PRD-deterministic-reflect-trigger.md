@@ -55,7 +55,7 @@ The Copilot mapping matters: in July 2026 `Stop` was remapped onto `SessionEnd`,
 - `.claude/rules/tool-use-hook-bar.md` is scoped to `PreToolUse`, `PostToolUse`, `PermissionRequest`, `PostToolUseFailure`, so it does not govern `Stop`.
 - `.claude/rules/universal.md`: no scratch written into the repository tree. The deleted `skill_pattern_loader.py` wrote `.claude/hooks/Stop/.skill_pattern_cache.json` into the source tree and needed a `.gitignore` line to hide it. Do not repeat that.
 - `.claude/rules/ci-scripts.md` MUST-12: a run that did nothing must not report like a run that succeeded. Print examined counts.
-- Hook registrations live in two files that must change together: `.claude/settings.json` and `.claude/hooks/hooks.json`.
+- **`templates/hooks/` is the editable source; `.claude/settings.json`, `.claude/hooks/` and `src/claude/hooks/` are generated.** ADR-109 B4. `build/scripts/hook_templates.py` says so in its own docstring: it compiles `templates/hooks/` into `src/claude/hooks/` and `.claude/settings.json`, and `templates/hooks/settings.tmpl` renders straight to `.claude/settings.json` with no plugin-tree hop. A Stop hook is authored as `templates/hooks/Stop/<name>.py` plus its registration in `templates/hooks/settings.tmpl` and `templates/hooks/hooks.json`, then regenerated. Editing the generated trees directly is lost on the next `build_all.py` run, and `--check` fails the drift gate. `templates/hooks/` currently holds `PreCompact`, `PreToolUse`, `SessionEnd`, `SessionStart`, `UserPromptSubmit`; a `Stop` directory does not exist yet and this work creates it.
 
 ---
 
@@ -93,6 +93,24 @@ The separable part is **detection**. Deciding whether a session contains a corre
 - **US-3**: As a maintainer running a long session, I want at most one nudge per session per signal set, so that a per-turn event does not become a per-turn interruption.
 - **US-4**: As a contributor, I want the hook to be provably wired, so that it cannot repeat the 1,234-LOC silent no-op that shipped last time.
 - **US-5**: As an operator, I want the hook to fail open on any error, so that a bad transcript read never wedges the end of a turn.
+
+---
+
+## 2a. Requirements (EARS)
+
+The normative statements, extracted from the prose sections that follow so downstream traceability has one place to read them. `PRD-agent-skill-classification-audit.md` carries 12 such statements and is the precedent.
+
+- REQ-1: WHEN the harness emits a `Stop` event, THE SYSTEM SHALL read the transcript named by the payload's `transcript_path`, SO THAT detection uses the file the harness already wrote instead of a payload field that may not exist.
+- REQ-2: WHEN the `Stop` payload omits `transcript_path`, or the path is unreadable, THE SYSTEM SHALL exit 0 without a decision payload, SO THAT a hook error never wedges the end of a turn.
+- REQ-3: WHEN scanning transcript records, THE SYSTEM SHALL count a record as a human turn only on positive evidence of one, and SHALL NOT count a record carrying `toolUseResult`, SO THAT tool output and file contents are never read as operator speech.
+- REQ-4: WHEN a malformed line appears in the transcript, THE SYSTEM SHALL skip that line, continue scanning, and report the skipped count, SO THAT a partial write during a live session does not abort detection.
+- REQ-5: WHEN the scan finds at least one qualifying signal and no marker records that signal set for this `session_id`, THE SYSTEM SHALL emit a `Stop` decision naming the counts and the `reflect` skill, SO THAT the operator learns the corrections are unrecorded.
+- REQ-6: WHEN a marker already records the current signal set for this `session_id`, THE SYSTEM SHALL exit 0 without a decision payload, SO THAT a per-turn event does not become a per-turn interruption.
+- REQ-7: WHEN the scan finds no qualifying signal, THE SYSTEM SHALL exit 0 without a decision payload, SO THAT the nudge keeps meaning something when it does appear.
+- REQ-8: WHERE the scanner runs, THE SYSTEM SHALL make no network call and SHALL NOT include transcript content in the decision reason or the marker, SO THAT the session's contents never leave the machine or reach a durable artifact.
+- REQ-9: WHEN the scanner writes its marker, THE SYSTEM SHALL write outside the repository tree, with owner-only permissions, symlink-safe path resolution, and an atomic create-or-replace, SO THAT the deduplication state cannot be read, corrupted, or forged by another process.
+- REQ-10: WHEN any run completes, THE SYSTEM SHALL print the examined counts alongside the finding counts, SO THAT a run that found nothing is distinguishable from a run that examined nothing (`ci-scripts.md` MUST-12).
+- REQ-11: WHEN the hook is registered, THE SYSTEM SHALL be authored in `templates/hooks/` and reach both harnesses by regeneration, SO THAT no edit lands in a generated tree that `build_all.py` will overwrite.
 
 ---
 
@@ -153,7 +171,14 @@ A `Stop` decision, top-level per `agent-harness-reference` SKILL.md line 66: `{"
 
 ### State: the dedupe marker
 
-One marker per session, keyed on `session_id`, recording which signal set has already been nudged. Stored outside the repository tree. It records counts and a signal hash, never matched text.
+One marker per session, keyed on `session_id`, recording which signal set has already been nudged. It records counts and a signal hash, never matched text.
+
+Storage contract, because the marker holds session metadata and also decides whether a nudge fires:
+
+- **Per-user application data, outside the repository tree.** A shared or world-readable location leaks `session_id` and per-session counts; a world-writable one lets anything on the machine suppress or replay a nudge by editing the state the hook trusts.
+- **Owner-only permissions** on creation (`0o700` directory, `0o600` file), or the platform ACL equivalent. Set the mode at creation rather than after, so no window exists where the file is readable.
+- **Symlink-safe path handling.** Resolve the parent and refuse to follow a symlink into it. An attacker-planted symlink otherwise redirects the write.
+- **Atomic create-or-replace.** `Stop` is per-turn and turns can overlap, so two invocations can race one marker. Write to a temporary file in the same directory and `os.replace`, or create exclusively with `O_EXCL` where the semantics need it. A torn marker must not read as "already nudged" or as "never nudged"; it must fail open to no nudge and say so.
 
 ---
 
@@ -161,11 +186,12 @@ One marker per session, keyed on `session_id`, recording which signal set has al
 
 | System | Interaction |
 |---|---|
-| Claude Code `Stop` event | Registration in `.claude/settings.json` and `.claude/hooks/hooks.json`, in lockstep |
+| `templates/hooks/` | The editable source. New `Stop/` directory, plus registration in `settings.tmpl` and `hooks.json` |
+| Claude Code `Stop` event | Reached through the generated `.claude/settings.json`. Never hand-edited |
 | Copilot CLI | Generated from the same registration; `Stop: Stop` direct, `eventDrop: []` |
 | `reflect` skill | The nudge names it. The hook never invokes it and never writes memory itself |
 | Serena memory | Untouched by the hook. Persistence stays inside `reflect`, which already requires explicit user approval before writing |
-| `build_all.py` | Regenerates the Copilot shim, manifest and dispatcher; `--check` must be clean |
+| `build_all.py` | Renders `templates/hooks/` into every generated tree, Claude and Copilot; `--check` must be clean |
 
 The hook proposes and stops. It does not write learnings, because `reflect` already requires the user to approve each proposed learning before persistence, and a hook that wrote memory directly would route around that consent.
 
@@ -227,6 +253,7 @@ Written so each is executable. #1757 was closed as completed with nothing merged
 - [ ] AC-8: A runtime-contract test drives the hook through its real registered path, not by importing a helper. Per `.claude/rules/testing.md` MUST-8, assert the process exit code.
 - [ ] AC-9: Calibration report committed: precision and recall of the marker set measured against at least 10 real transcripts, with the count of transcripts and human turns examined stated next to the rates.
 - [ ] AC-10: `uv run python build/scripts/build_all.py --check` is clean and the Copilot shim exists after regeneration.
+- [ ] AC-10b: The **installed Copilot `Stop` registration** is driven end to end, not just asserted present. One case sends a payload whose transcript holds a correction and asserts a blocking decision; one sends an unreadable or absent `transcript_path` and asserts fail-open. Both assert the hook process exit status, not a helper return value. AC-8 proves the Claude path and AC-10 proves the wiring exists; neither proves a Copilot `Stop` payload reaches the scanner.
 - [ ] AC-11: `uv run python scripts/validation/pre_pr.py` reports no FAIL.
 - [ ] AC-12: Measured wall-clock cost of one Stop invocation on a 5 MB transcript is stated in the PR. The deleted hook cost about 100 ms to do nothing; a replacement that costs more than that to do something real needs its number on the record.
 
@@ -255,7 +282,7 @@ Written so each is executable. #1757 was closed as completed with nothing merged
 
 1. **Re-entry field.** Does the Claude Code `Stop` payload carry `stop_hook_active` or an equivalent? #3184's probe scripts include it for SubagentStop, but no repository document defines it. Probe before relying on it. A blocking hook without re-entry protection can loop.
 2. **Nudge or notice.** `decision: "block"` keeps the turn open and is what makes the nudge visible; it also interrupts. Is a non-blocking stdout notice enough? This changes the user-visible behavior more than any other choice here.
-3. **Marker location.** Outside the tree is settled. Which directory, and what is its lifetime across a machine that runs many sessions?
+3. **Marker lifetime.** The storage contract is now settled in the Data Model (per-user app data, owner-only, symlink-safe, atomic). What remains open is retention: how long markers live on a machine that runs many sessions, and what prunes them.
 4. **Calibration corpus.** Ten transcripts is a number chosen for tractability, not derived. How many sessions does a stable precision estimate actually need?
 5. **Subagent sessions.** Sidechain records carry `isSidechain`. Do subagent turns count toward the signal, or only the main thread?
 
