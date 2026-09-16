@@ -5,8 +5,15 @@
 #
 # Exit codes: 0 = pass, 1 = stale citations (fail), 2 = error
 #
-# IMPORTANT: This workflow runs on ALL PRs to satisfy required status checks,
-# but skips actual verification when no relevant files are changed.
+# This workflow reports on ALL PRs, verifying when memory or verifier code
+# changed and reporting a skip otherwise. It is not in the required-context set
+# pinned at scripts/ci/ruleset_required_contexts.py; the always-report shape is
+# for a readable PR check list, not to satisfy a required check.
+#
+# Denominator warning: verify-all currently inspects 0 citations, because no
+# memory has ever carried the [cite:type](target) syntax this gate reads. A pass
+# here is not evidence that citations are valid. See
+# .serena/memories/decision-a-gate-with-no-inputs-passes-forever.md
 
 name: Citation Verification
 
@@ -29,7 +36,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 5
     outputs:
-      should-verify: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.memories || steps.filter.outputs.code }}
+      should-verify: ${{ steps.determine.outputs.should-verify }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,7 +50,20 @@ jobs:
             memories:
               - '.serena/memories/**'
             code:
+              # python3 -m memory_enhancement resolves to the repository-root
+              # package, so watching only the scripts/ copy misses edits to the
+              # code this workflow actually executes.
+              - 'memory_enhancement/**'
               - 'scripts/memory_enhancement/**'
+
+      - name: Determine if verification should run
+        id: determine
+        env:
+          GH_EVENT_NAME: ${{ github.event_name }}
+          FILTER_OUTPUTS: ${{ toJson(steps.filter.outputs) }}
+          FILTER_KEYS: memories,code
+          OUTPUT_NAME: should-verify
+        run: python3 scripts/workflows/determine_should_run_from_filters.py
 
   verify-citations:
     name: Verify citations
