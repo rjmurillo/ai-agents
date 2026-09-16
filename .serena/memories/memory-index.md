@@ -76,7 +76,7 @@
 |filesystem redirect symlink junction ancestor parent swap descriptor: [security/filesystem-redirect-boundaries](security/filesystem-redirect-boundaries.md) (154)
 
 [Architecture and Design]
-|architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (588)
+|architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (627)
 |adr decision record active proposed superseded rationale artifact: [adr-reference-index](adr-reference-index.md) (680), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (824), [adr/adr-review-observations](adr/adr-review-observations.md) (749)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
 |always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (2563)
@@ -175,7 +175,8 @@
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (1674)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
-|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (632), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
+|eval provider billing matrix harness subscription api claude-cli codex-cli copilot-api cost basis credential: [eval/eval-billing-matrix](eval/eval-billing-matrix.md) (992)
+|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (814), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
 
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
