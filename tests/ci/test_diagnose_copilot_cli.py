@@ -102,3 +102,33 @@ def test_health_status_not_downgraded_from_failed_to_degraded(tmp_path):
     assert "health_status=failed" in output
     # Must NOT contain degraded - once failed, stays failed
     assert "health_status=degraded" not in output
+
+
+def test_diagnostics_floor_an_unset_model_to_the_cheap_default(tmp_path):
+    """An unset COPILOT_MODEL must not reach the CLI as `--model ""`."""
+    argv_seen: list[Sequence[str]] = []
+
+    def runner(argv: Sequence[str], timeout_seconds: int | None = None) -> diagnose.CommandResult:
+        argv_seen.append(argv)
+        if argv[0] == "gh":
+            return diagnose.CommandResult(0, "x-oauth-scopes: repo, workflow\n", "")
+        return diagnose.CommandResult(0, "OK", "")
+
+    diagnose.run_diagnostics(
+        env={
+            "COPILOT_AGENT": "reviewer",
+            "GH_TOKEN": "abc",
+            "HOME": "/home/runner",
+            "PATH": "/usr/bin:/opt/npm/bin",
+        },
+        output_path=tmp_path / "github-output.txt",
+        runner=runner,
+        which=lambda name: "/usr/bin/copilot" if name == "copilot" else None,
+    )
+
+    copilot_calls = [list(argv) for argv in argv_seen if argv[0] == "copilot" and "--model" in argv]
+    assert copilot_calls, "diagnostics never invoked copilot with a --model flag"
+    for argv in copilot_calls:
+        model_value = argv[argv.index("--model") + 1]
+        assert model_value == diagnose.DEFAULT_COPILOT_MODEL
+        assert model_value != ""

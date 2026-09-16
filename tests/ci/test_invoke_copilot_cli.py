@@ -356,7 +356,7 @@ def test_run_redacts_prompt_before_invocation(tmp_path, monkeypatch):
 
 
 def test_run_preserves_source_assignment_semantics(tmp_path, monkeypatch):
-    source = '+token = accept_unverified_jwt(user_input)'
+    source = "+token = accept_unverified_jwt(user_input)"
     context_file = tmp_path / "context.md"
     context_file.write_text(source, encoding="utf-8")
     config = make_config(tmp_path, context_file=context_file)
@@ -435,3 +435,26 @@ def test_run_command_catches_file_not_found_error():
     assert result.returncode == 127
     assert "command not found" in result.stderr
     assert result.stdout == ""
+
+
+def test_invoke_warns_when_cli_substitutes_a_model(tmp_path, capsys):
+    def runner(argv: Sequence[str]) -> invoke.CommandResult:
+        return invoke.CommandResult(
+            returncode=0,
+            stdout="VERDICT: PASS\nMESSAGE: fine",
+            stderr='claude-haiku-4.5 not available; using "claude-opus-5" instead',
+        )
+
+    config = replace(make_config(tmp_path), copilot_model="claude-haiku-4.5")
+    result = invoke.invoke_with_retry(
+        config=config,
+        full_prompt="prompt",
+        runner=runner,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert result.exit_code == 0
+    assert "VERDICT: PASS" in result.output
+    captured = capsys.readouterr().out
+    assert "did not serve the requested model 'claude-haiku-4.5'" in captured
+    assert "claude-opus-5" in captured

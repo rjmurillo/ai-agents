@@ -85,7 +85,6 @@ jobs:
           timeout-minutes: 10
           bot-pat: ${{ secrets.BOT_PAT }}
           copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          copilot-model: claude-sonnet-4.5
 
       - name: Parse findings
         id: parse
