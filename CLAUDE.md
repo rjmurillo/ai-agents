@@ -48,7 +48,7 @@ Explicit skill invocations still win: when the request names an available skill 
 `/autoplan` is the canonical intent router for concrete requests that name no skill, per ADR-078. It routes to skills, lifecycle commands, and agent handoffs (for example orchestrator for multi-step work), not skills alone. Keep the routing table in `.claude/skills/autoplan/SKILL.md`; do not duplicate it here.
 
 Explicit routing rules not owned by autoplan:
-- Retrospective triggers (HIGH-tier reflect finding, `main` red, reverted or force-fixed merge, explicit user correction) → invoke retrospective skill. No calendar cadence; see `.claude/rules/retros.md`.
+- Retro trigger → invoke retrospective skill
 
 ## Lifecycle skills
 
