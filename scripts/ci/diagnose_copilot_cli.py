@@ -11,6 +11,12 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.ci._copilot_model import DEFAULT_COPILOT_MODEL  # noqa: E402
+
 EXIT_OK = 0
 COPILOT_TEST_TIMEOUT_SECONDS = 10
 
@@ -167,7 +173,7 @@ def run_diagnostics(
     print("5. Checking Copilot API access...")
     print("   Running minimal test prompt (10s timeout)...")
     agent = env.get("COPILOT_AGENT", "")
-    model = env.get("COPILOT_MODEL", "")
+    model = env.get("COPILOT_MODEL") or DEFAULT_COPILOT_MODEL
     print(f"   Agent: {agent}, Model: {model}")
     test_result = runner(
         [
