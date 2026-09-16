@@ -20,6 +20,8 @@ import pytest
 import yaml
 
 from scripts.metrics import gate_latency as gl
+from scripts.metrics import gate_latency_stats as gls
+from scripts.metrics.gate_latency_models import LatencySummary
 from tests.gc_real_git import git
 
 REAL_CAPTURED_STDOUT = (
@@ -161,12 +163,12 @@ def test_positive_hooks_change_class_path_is_in_hook_anchoring_e2e_glob_list() -
 def test_positive_smallest_scope_n_drives_the_percentile_note() -> None:
     """A 20-run report with one under-sampled job still needs the note (AC-05)."""
     summaries = [
-        gl.LatencySummary(scope="__hook__", n=20, p50=1.0, p95=2.0, min=1.0, max=2.0),
-        gl.LatencySummary(scope="late-job", n=3, p50=1.0, p95=2.0, min=1.0, max=2.0),
+        LatencySummary(scope="__hook__", n=20, p50=1.0, p95=2.0, min=1.0, max=2.0),
+        LatencySummary(scope="late-job", n=3, p50=1.0, p95=2.0, min=1.0, max=2.0),
     ]
 
-    assert gl._smallest_scope_n(summaries, 20) == 3
-    assert gl._percentile_note(gl._smallest_scope_n(summaries, 20)) is not None
+    assert gls._smallest_scope_n(summaries, 20) == 3
+    assert gls._percentile_note(gls._smallest_scope_n(summaries, 20)) is not None
 
 
 def _argv_capturing_fake(seen: dict[str, object]) -> object:

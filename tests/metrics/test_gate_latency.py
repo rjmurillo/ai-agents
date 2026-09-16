@@ -24,6 +24,7 @@ from pathlib import Path
 import pytest
 
 from scripts.metrics import gate_latency as gl
+from scripts.metrics import gate_latency_stats as gls
 from scripts.metrics import lefthook_summary as ls
 from tests.gc_real_git import git
 
@@ -223,43 +224,6 @@ def test_edge_trailing_non_job_line_after_summary_stops_parsing() -> None:
     assert [s.name for s in samples] == ["only-job"]
 
 
-# --- Percentiles (nearest-rank, 1-indexed) -----------------------------------
-
-
-@pytest.mark.parametrize(
-    ("values", "p50", "p95"),
-    [
-        ([5.0], 5.0, 5.0),
-        ([1.0, 2.0], 1.0, 2.0),
-        ([1.0, 2.0, 3.0], 2.0, 3.0),
-        ([1.0, 2.0, 3.0, 4.0, 5.0], 3.0, 5.0),
-        (list(range(1, 21)), 10.0, 19.0),
-    ],
-)
-def test_positive_nearest_rank_percentile_hand_computed(
-    values: list[float], p50: float, p95: float
-) -> None:
-    assert gl._nearest_rank_percentile(values, 50) == p50
-    assert gl._nearest_rank_percentile(values, 95) == p95
-
-
-def test_negative_percentile_of_empty_sample_raises() -> None:
-    with pytest.raises(ValueError, match="empty sample"):
-        gl._nearest_rank_percentile([], 50)
-
-
-@pytest.mark.parametrize("n", [1, 2, 3, 5, 19])
-def test_positive_percentile_note_present_below_20(n: int) -> None:
-    note = gl._percentile_note(n)
-    assert note is not None
-    assert "upper-order statistic" in note
-
-
-@pytest.mark.parametrize("n", [20, 21, 100])
-def test_negative_percentile_note_absent_at_or_above_20(n: int) -> None:
-    assert gl._percentile_note(n) is None
-
-
 # --- _run_repetition and build_report (mocked subprocess) -------------------
 
 
@@ -386,7 +350,7 @@ def test_positive_build_summaries_includes_reserved_hook_scope(
         ),
     )
     runs = [gl._run_repetition(repo, ["lefthook"], "pre-commit", (), i) for i in range(3)]
-    summaries = gl._build_summaries(runs)
+    summaries = gls._build_summaries(runs)
     scopes = {s.scope for s in summaries}
     assert "__hook__" in scopes
     assert "security-suppressions-staged" in scopes

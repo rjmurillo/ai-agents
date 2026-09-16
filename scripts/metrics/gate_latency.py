@@ -44,27 +44,19 @@ mode 0600 (``gate_latency_io.safe_open``).
 from __future__ import annotations
 
 import argparse
-import hashlib
-import os
-import platform
-import shutil
 import subprocess
 import sys
 import time
-from collections import defaultdict
 from datetime import UTC, datetime
-from math import ceil
 from pathlib import Path
 from typing import Any
-
-import yaml
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
 if _SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.ci.lefthook_budget_model import declared_budget, load_config
+from scripts.ci.lefthook_budget_model import declared_budget
 from scripts.metrics.gate_latency_classes import (
     CHANGE_CLASSES,
     get_change_class_files,
@@ -74,140 +66,21 @@ from scripts.metrics.gate_latency_io import SymlinkRefusedError, write_json, wri
 from scripts.metrics.gate_latency_models import (
     GateLatencyReport,
     HookRun,
-    HostProfile,
-    LatencySummary,
+)
+from scripts.metrics.gate_latency_probe import (
+    _git_rev_parse_head,
+    _host_profile,
+    _load_lefthook_config,
+    _resolve_lefthook_command,
+    _run_git,
+    _tree_digest,
+)
+from scripts.metrics.gate_latency_stats import (
+    _build_summaries,
+    _percentile_note,
+    _smallest_scope_n,
 )
 from scripts.metrics.lefthook_summary import parse_summary
-
-
-def _nearest_rank_percentile(values: list[float], percentile: float) -> float:
-    """Nearest-rank percentile, 1-indexed.
-
-    ``sorted_values[max(0, ceil(p / 100 * n) - 1)]``. Hand-verified: for
-    ``[1, 2, 3, 4, 5]``, p50 is 3 and p95 is 5; for ``n == 1``, every
-    percentile is that one value.
-    """
-    if not values:
-        raise ValueError("cannot compute a percentile of an empty sample")
-    ordered = sorted(values)
-    n = len(ordered)
-    rank = max(0, ceil(percentile / 100 * n) - 1)
-    return ordered[rank]
-
-
-def _percentile_note(n: int) -> str | None:
-    """State p95's status as an upper-order statistic when ``n`` is below 20 (AC-05)."""
-    if n >= 20:
-        return None
-    return (
-        f"n={n} is below 20: p95 in this report is an upper-order statistic "
-        "of the observed samples, not a tail estimate."
-    )
-
-
-def _smallest_scope_n(summaries: list[LatencySummary], fallback: int) -> int:
-    """The smallest per-scope sample count, which is what AC-05's threshold reads.
-
-    Keying the note off ``repetitions`` alone would miss the case that
-    matters: a hook that aborts part-way leaves a late job with fewer
-    samples than the run count, so a 20-repetition report could carry a
-    p95 for a job observed three times with no note attached.
-    """
-    return min((summary.n for summary in summaries), default=fallback)
-
-
-def _build_summaries(runs: list[HookRun]) -> list[LatencySummary]:
-    """Fold every run's samples into one ``LatencySummary`` per scope.
-
-    ``__hook__`` is scored on the sampler's own ``wall_clock_seconds``
-    (AC-03: the end-to-end clock, kept separate from lefthook's
-    self-reported total, which is recorded per run but not itself
-    summarized). Sorting is alphabetical, which places ``__hook__`` first
-    (``_`` sorts before any letter).
-    """
-    by_scope: dict[str, list[float]] = defaultdict(list)
-    for run in runs:
-        by_scope["__hook__"].append(run.wall_clock_seconds)
-        for sample in run.samples:
-            by_scope[sample.name].append(sample.seconds)
-    return [
-        LatencySummary(
-            scope=scope,
-            n=len(values),
-            p50=_nearest_rank_percentile(values, 50),
-            p95=_nearest_rank_percentile(values, 95),
-            min=min(values),
-            max=max(values),
-        )
-        for scope, values in sorted(by_scope.items())
-    ]
-
-
-def _run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-
-
-def _tree_digest(repo: Path) -> str:
-    """Hash ``git status --porcelain`` so two moments can be compared for drift (AC-12)."""
-    porcelain = _run_git(repo, "status", "--porcelain").stdout
-    return hashlib.sha256(porcelain.encode("utf-8")).hexdigest()
-
-
-def _git_rev_parse_head(repo: Path) -> str:
-    result = _run_git(repo, "rev-parse", "HEAD")
-    return result.stdout.strip() if result.returncode == 0 else "unknown"
-
-
-def _host_profile() -> HostProfile:
-    return HostProfile(
-        captured_at=datetime.now(UTC).isoformat(),
-        cpu_count=os.cpu_count() or 1,
-        platform=platform.platform(),
-        python_version=platform.python_version(),
-    )
-
-
-def _load_lefthook_config(repo: Path) -> dict[str, Any] | None:
-    """Parse ``repo``'s ``lefthook.yml``, or ``None`` if absent or invalid.
-
-    Delegates to the shared ``lefthook_budget_model.load_config`` (AC-09);
-    only the null-safety this script's exit-code contract needs is new
-    here, mirroring ``control_plane_baseline.py``'s ``_lefthook_config``.
-    """
-    try:
-        return load_config(repo / "lefthook.yml")
-    except (OSError, yaml.YAMLError, AssertionError):
-        return None
-
-
-def _resolve_lefthook_command(repo: Path, override: str | None) -> list[str] | None:
-    """Resolve the lefthook invocation prefix, or ``None`` if nothing is runnable.
-
-    An explicit ``--lefthook-bin`` wins if it resolves (a file path, or a
-    name found on ``PATH``). Otherwise this repository's own venv binary at
-    ``.venv/bin/lefthook`` is used directly (verified this session: lefthook
-    2.1.12). Failing that, ``uv run --frozen lefthook`` is the fallback,
-    used only when ``uv`` itself resolves; if none of the three resolves,
-    the caller reports "missing lefthook binary" (AC-07).
-    """
-    if override:
-        if Path(override).is_file():
-            return [override]
-        resolved = shutil.which(override)
-        return [resolved] if resolved else None
-    venv_bin = repo / ".venv" / "bin" / "lefthook"
-    if venv_bin.is_file():
-        return [str(venv_bin)]
-    uv_bin = shutil.which("uv")
-    return ["uv", "run", "--frozen", "lefthook"] if uv_bin else None
 
 
 def _run_repetition(
