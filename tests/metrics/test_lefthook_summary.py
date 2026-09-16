@@ -9,7 +9,7 @@ or from a negative control, never invented.
 from __future__ import annotations
 
 from scripts.metrics import lefthook_summary as ls
-from tests.metrics.conftest import (
+from tests.metrics.gate_latency_helpers import (
     NEGATIVE_CONTROL_STDOUT,
     REAL_CAPTURED_STDOUT,
     UNVERIFIED_SYNONYM_MARKER_STDOUT,

@@ -15,7 +15,7 @@ import pytest
 
 from scripts.metrics import gate_latency_sampler as gls_sampler
 from scripts.metrics import gate_latency_stats as gls
-from tests.metrics.conftest import REAL_CAPTURED_STDOUT, _FakeCompleted
+from tests.metrics.gate_latency_helpers import REAL_CAPTURED_STDOUT, _FakeCompleted
 
 # --- Percentiles (nearest-rank, 1-indexed) -----------------------------------
 
