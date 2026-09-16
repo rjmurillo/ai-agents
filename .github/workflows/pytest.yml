@@ -676,7 +676,12 @@ jobs:
       needs.check-paths.outputs.python-changed != 'true'
     # ADR-025: ARM runner for cost optimization
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 2
+    # ADR-101: was 2 minutes when this job only sparse-checked out one file and
+    # ran require_job_results.py. Verifying the skip claim (below) needs the
+    # full path policy and select_tests modules present, so the checkout below
+    # is fetch-depth: 0 and unsharded, plus a uv setup step; neither fits a 2
+    # minute budget.
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -685,10 +690,43 @@ jobs:
         with:
           egress-policy: audit
 
+      # ADR-101: fetch-depth: 0, not sparse. verify_skip_tests_claim.py (below)
+      # needs full history to diff base...head and the whole scripts/test_selection
+      # tree (the policy module and path_policy.yml) alongside require_job_results.py.
+      # No --depth=1 on any later fetch: see the "Run ruff count ratchet" step
+      # in this file for why a shallow fetch writes .git/shallow and grafts the
+      # fetched tip parentless.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          sparse-checkout: scripts/ci/require_job_results.py
+          fetch-depth: 0
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      # ADR-101 (see "The same pattern is live on a context that IS required"):
+      # test-result and skip-tests both publish the required "Run Python Tests"
+      # context. If check-paths ever computes python-changed=false when a
+      # changed file actually matches the path policy, this job would report
+      # that required context green with no test having run. Recompute the
+      # match independently before trusting the claim.
+      #
+      # head.sha, not HEAD: on pull_request the checkout above is the
+      # synthetic refs/pull/N/merge commit, whose first parent is the current
+      # base tip, so base.sha...HEAD attributes every base-branch commit since
+      # base.sha to this pull request. Observed on PR #5341. Issue #5378.
+      - name: Verify the python-changed=false claim (blocking)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: >-
+          uv run --frozen python scripts/ci/verify_skip_tests_claim.py
+          --base "$BASE_SHA"
+          --head "$HEAD_SHA"
 
       - name: Require blocking guards succeeded
         env:
