@@ -12,12 +12,15 @@ A new or materially changed agent under ``.claude/agents/`` (or its
 ``templates/agents/*.shared.md`` sibling per ADR-036) is a skill-shape
 candidate when 2 or more of these hold:
 
-- c1: invoked from a slash command via ``Task(subagent_type="<name>")``
-  (searched across ``.claude/commands/`` and ``templates/commands/``).
+- c1: invoked from a user-invocable pipeline via
+  ``Task(subagent_type="<name>")``. Pipelines are searched across the trees in
+  ``PIPELINE_SOURCES``: skills first (``.claude/skills/*/SKILL.md`` and
+  ``templates/skills/*.SKILL.md.tmpl``), then the ``.claude/commands/`` and
+  ``templates/commands/`` trees ADR-064 retired. Issue #5684.
 - c2: body is at least 70 percent structured-reference material (tables,
   decision-tree list items, anti-pattern catalogs, format/schema specs,
   validation rule lists). Counted conservatively; see ``score_c2``.
-- c3: a sibling artifact invoked from the same slash-command pipeline is
+- c3: a sibling artifact invoked from the same pipeline is
   already a skill (``Skill(skill="<name>")``), AND the agent is invoked from
   fewer than 3 distinct pipelines (the 3-pipeline rule). c3 is N/A (scores 0)
   when c1 is false or the agent is invoked from 3 or more pipelines.
@@ -49,14 +52,16 @@ Exit codes follow ADR-035:
     1 - Error: one or more changed agents fail the gate. Without ``--baseline``
         this means score >= 2; with ``--baseline`` an agent also fails when
         its score rises above its recorded baseline value, even from 0 to 1
-    2 - Config error: repo root, commands directory, or baseline not found;
+    2 - Config error: repo root, every pipeline source tree, or baseline not
+        found;
         a baseline score outside 0..3; a full-corpus scan that git could not
         answer or that found no tracked agent; a --update-baseline run
         started from outside the repo root it was told to write into; or a
         --update-baseline that would raise a recorded ceiling score
 
 Related: ADR-006 (thin workflows / testable modules), ADR-042 (Python-first),
-ADR-030 (Skills Pattern Superiority), ADR-036 (Two-Source Agent Templates).
+ADR-030 (Skills Pattern Superiority), ADR-036 (Two-Source Agent Templates),
+ADR-064 (skills are the single user-invocable surface).
 """
 
 from __future__ import annotations
@@ -326,13 +331,41 @@ def _skill_invocations(text: str) -> set[str]:
     )
 
 
+# Every tree a user-invocable pipeline can be authored in, newest first.
+# ADR-064 retired `.claude/commands/` and made skills the single user-invocable
+# surface, so a pipeline that invokes an agent is now a SKILL.md, not a command
+# file. The retired command trees stay in the list because a consumer repo that
+# has not finished the migration still authors pipelines there; in this
+# repository both are absent and contribute nothing.
+PIPELINE_SOURCES: tuple[tuple[str, str], ...] = (
+    (".claude/skills", "SKILL.md"),
+    ("templates/skills", "*.SKILL.md.tmpl"),
+    (".claude/commands", "*.md"),
+    ("templates/commands", "*.md"),
+)
+
+
+def _pipeline_dirs(repo_root: Path) -> list[Path]:
+    """Pipeline source directories that exist in this repository."""
+    return [
+        base
+        for rel, _ in PIPELINE_SOURCES
+        if (base := repo_root / rel).is_dir()
+    ]
+
+
 def _command_files(repo_root: Path) -> list[Path]:
-    """Slash-command markdown files across both command source trees."""
+    """Every user-invocable pipeline file, across all pipeline source trees.
+
+    A file is read for its ``Task()`` and ``Skill()`` invocations, so the tree
+    it came from does not change how it is scored. Only discovery differs:
+    skills are one SKILL.md per directory, command trees are flat globs.
+    """
     files: list[Path] = []
-    for rel in (".claude/commands", "templates/commands"):
+    for rel, pattern in PIPELINE_SOURCES:
         base = repo_root / rel
         if base.is_dir():
-            files.extend(sorted(base.rglob("*.md")))
+            files.extend(sorted(base.rglob(pattern)))
     return files
 
 
@@ -850,11 +883,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Repo root not found: {repo_root}", file=sys.stderr)
         return 2
 
-    commands_dir = repo_root / ".claude" / "commands"
-    if not commands_dir.is_dir():
+    # Fail closed on an empty corpus rather than degrade to c2-only scoring.
+    # c2 alone maxes out at 1 against a threshold of 2, so a run with no
+    # pipeline corpus could not fail whatever it was handed, and a gate that
+    # cannot fail reports PASS forever (the ADR-109 B1 install-parity gate did
+    # exactly this). Issue #5684.
+    if not _pipeline_dirs(repo_root):
         print(
-            f"Commands directory not found: {commands_dir} "
-            "(cannot score c1/c3).",
+            "No pipeline source directory found under "
+            f"{repo_root} (cannot score c1/c3). Looked for: "
+            + ", ".join(rel for rel, _ in PIPELINE_SOURCES)
+            + ".",
             file=sys.stderr,
         )
         return 2
