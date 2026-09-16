@@ -16,7 +16,7 @@ Event-triggered, never scheduled. Write a retrospective when one of these fires:
 1. A defect, incident, or rollback reached `main` or CI.
 2. A pull request closed unmerged, carried a rework marker, or drew heavy review friction. The Post-PR Retrospective workflow raises this one on PR close and skips bot and fork pull requests.
 3. A gate, hook, or validator misfired: blocked correct work, or passed work it should have blocked.
-4. A session burned significant time on a failure mode already in `.agents/governance/FAILURE-MODES.md`, or on one that belongs there and is missing.
+4. A session burned real time on a failure mode already in the failure-mode taxonomy referenced below, or on one that belongs there and is missing.
 5. Someone asks for one.
 
 A day on which none of those fired needs no retrospective. A pre-push gate used to demand one per calendar day or per session; it was removed because the artifact it produced on a quiet day recorded nothing and cost every push. A retro written to satisfy a counter is worse than no retro: it dilutes the corpus that `retrospective` and the failure canon read.
@@ -45,5 +45,4 @@ A day on which none of those fired needs no retrospective. A pre-push gate used 
 - `.agents/governance/FAILURE-MODES.md`. Failure mode taxonomy
 - `.claude/skills/reflect/SKILL.md`. Learning-capture workflow
 - `.claude/skills/retro/`. On-demand retrospective skill (if present)
-- `.github/workflows/post-pr-retrospective.yml`. The PR-close trigger
 - `.agents/retrospective/`. Historical examples
