@@ -91,6 +91,7 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
 # inside the plugin and may import only the standard library and yaml
 # (`.claude/rules/plugin-self-containment.md`), so neither `python-frontmatter`
 # nor `scripts/validation/frontmatter_contract.py` is reachable here. Quoted
+# citation-freshness: ignore -- cites the installed python-frontmatter package, which is a pinned dependency in pyproject.toml and is deliberately not tracked in this repo; the parity tests assert the quoted pattern against the live library rather than against HEAD
 # verbatim from `frontmatter/default_handlers.py:252`, which that contract
 # delegates to:
 #

@@ -25,6 +25,10 @@ Why the library's boundary is the right contract
 ------------------------------------------------
 
 ``FM_BOUNDARY = re.compile(r"^-{3,}\s*$", re.MULTILINE)``, quoted verbatim from
+.. citation-freshness: ignore -- cites the installed python-frontmatter
+.. package, a pinned dependency in pyproject.toml that is deliberately not
+.. tracked in this repo; the tests assert the quoted pattern against the
+.. live library rather than against HEAD.
 ``frontmatter/default_handlers.py:252``. It accepts author slips that change no
 meaning (a padded fence, a tab, four dashes, a missing final newline) and
 rejects the one shape that signals a real mistake, ``--- trailing text``. The
