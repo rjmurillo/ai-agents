@@ -42,8 +42,10 @@ itself, this one never does.
 
 ## Evidence
 
-`memory_enhancement verify-all` verifies `[cite:type](target)` citations in
-Serena memories. Measured on `origin/main` at `f2dd625`, 2026-09-06:
+`memory_enhancement verify-all` verifies citations written in the bracket form
+`[cite` + `:TYPE](TARGET)`. It is split here on purpose: see "This file cannot
+spell its own subject" below. Measured on `origin/main` at `f2dd625`,
+2026-09-06:
 
 ```
 $ uv run --frozen python -m memory_enhancement verify-all --json | wc -c
@@ -63,8 +65,9 @@ The verifier itself is correct. Positive and negative control against the same
 binary:
 
 ```
-$ printf '# Bad\n\nBody.\n\n## Citations\n\n[cite:file](does/not/exist.py) - x\n' > .tmp/bad.md
-$ printf '# Good\n\nBody.\n\n## Citations\n\n[cite:file](README.md) - x\n' > .tmp/good.md
+$ C='[cite'    # split so this file does not assert the citations it documents
+$ printf "# Bad\n\nBody.\n\n## Citations\n\n$C:file](does/not/exist.py) - x\n" > .tmp/bad.md
+$ printf "# Good\n\nBody.\n\n## Citations\n\n$C:file](README.md) - x\n" > .tmp/good.md
 $ uv run --frozen python -m memory_enhancement --repo-root . --memories-dir .tmp verify-all
 bad:
   [FAIL] does/not/exist.py - File not found: does/not/exist.py
@@ -87,6 +90,34 @@ citations", that comment reached 57,447 characters, roughly 14k tokens pulled
 into context by every agent reading the thread, against GitHub's 65,536
 character comment limit. A gate with no inputs was the single largest consumer
 of PR-thread context in the repo.
+
+## This file cannot spell its own subject
+
+Writing this memory broke the gate it describes, on the first push. `Verify
+citations` went red on PR #5800 because `parse_citation_block` in
+`memory_enhancement/serena_integration.py` matches
+`\[cite:(?P<source_type>\w+)\]\((?P<target>[^)]+)\)` against the raw file with
+no fenced-code-block handling at all (`grep -c fence` on that module returns 0).
+The negative-control example above was therefore read as a real citation, and
+its deliberately missing path failed the run exactly as designed:
+
+```
+decision-a-gate-with-no-inputs-passes-forever:
+  [FAIL] does/not/exist.py - File not found: does/not/exist.py
+  [PASS] README.md - File exists
+rc=1
+```
+
+Consequence: no memory can document the citation syntax, because documenting it
+asserts it. Every example in a memory is a live claim about the repository. The
+`$C` split above is the workaround, not a fix; the fix is fence-aware parsing,
+tracked separately so it carries its own tests.
+
+This is the second-order form of the rule at the top of this file. The corpus
+had zero citations for 256 days, so this parser path had never once run against
+real content. The first file to exercise it broke it. A gate with no inputs is
+not merely uninformative: its untested paths rot, and the cost lands on whoever
+finally supplies the first input.
 
 ## Detection
 
