@@ -23,6 +23,19 @@ _BASE = "a" * 40
 _HEAD = "b" * 40
 _ALL_ZERO = "0" * 40
 
+# The verifier runs from the pull request head's own checkout, so these five
+# paths are attacker-editable. They are listed once and asserted on twice
+# below: each must match the python path policy (so an edit routes to `test`,
+# never to `skip-tests`), and each must still exist under that exact name (a
+# rename would satisfy the glob assertion while guarding nothing).
+_GUARDED_PATHS = (
+    "scripts/ci/verify_skip_tests_claim.py",
+    "scripts/test_selection/path_policy.py",
+    "scripts/test_selection/select_tests.py",
+    "scripts/test_selection/path_policy.yml",
+    ".github/workflows/pytest.yml",
+)
+
 
 def _no_matches(monkeypatch: pytest.MonkeyPatch, changed: list[str]) -> None:
     monkeypatch.setattr(mod, "changed_from_git", lambda *_: changed)
@@ -170,3 +183,49 @@ def test_verify_matches_glob_pairs(monkeypatch: pytest.MonkeyPatch) -> None:
     code, message = mod.verify(_REPO_ROOT, _BASE, _HEAD)
     assert code == 1
     assert "lefthook.yml" in message
+
+
+# --- the verifier's own self-coupling --------------------------------------
+
+
+def test_the_verifier_and_its_inputs_are_themselves_policy_matches() -> None:
+    """Editing the verifier or its policy input must route away from `skip-tests`.
+
+    The `skip-tests` job runs this verifier from the pull request head's own
+    checkout, so the verifier, the two modules it imports, and the policy
+    document it reads are all attacker-editable by anyone who can open a pull
+    request. Weakening any of them would let `skip-tests` report the required
+    `Run Python Tests` context green with no test run.
+
+    What closes that today is a coupling, not a permission: every one of those
+    paths matches the policy itself (`**/*.py` and `**/*.yml`), so editing any
+    of them sets `python-changed=true` and `pytest.yml` routes the pull request
+    to the `test` job instead of `skip-tests`. The verifier never runs on a
+    change to itself.
+
+    That coupling is incidental to the catch-all globs and nothing else pins
+    it. A later change that narrows `**/*.py` or `**/*.yml` to a subtree (a
+    plausible cost optimization) would reopen the hole silently. This test
+    fails at that moment. Raised as MEDIUM-001 in the security review of the
+    commit that introduced the verifier.
+    """
+    patterns = mod.path_policy.load_patterns()
+    unmatched = [
+        rel
+        for rel in _GUARDED_PATHS
+        if mod.path_policy.matched_pattern(rel, patterns) is None
+    ]
+    assert not unmatched, (
+        f"examined {len(_GUARDED_PATHS)} paths; {len(unmatched)} no longer match the python path "
+        f"policy: {unmatched}. An edit to any of these must force python-changed=true so "
+        "pytest.yml routes to `test`, never to `skip-tests` running an edited verifier "
+        "against itself."
+    )
+
+
+def test_the_guarded_paths_all_exist() -> None:
+    """A renamed guarded path would pass the coupling test while guarding nothing."""
+    missing = [rel for rel in _GUARDED_PATHS if not (_REPO_ROOT / rel).is_file()]
+    assert not missing, (
+        f"examined {len(_GUARDED_PATHS)} paths; {len(missing)} do not exist: {missing}"
+    )

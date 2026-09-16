@@ -7,8 +7,14 @@ script closes: `test-result` and `skip-tests` in `pytest.yml` both publish
 `name: Run Python Tests`, a required status context, and are mutually
 exclusive on `needs.check-paths.outputs.python-changed`. Whichever leg runs
 satisfies the required check. If `python-changed` is ever wrong in the false
-direction (a filter gap, a head-editable script bug, a misconfigured policy),
-`skip-tests` reports success for a change no test ever ran.
+direction, `skip-tests` reports success for a change no test ever ran.
+
+Scope of what this closes: a bug in the filter *mechanism*, meaning
+`dorny/paths-filter`'s own matching, `determine_should_run_from_filters.py`, or
+the wiring between them. It does not close a gap in the policy *document*: this
+script reads the same `path_policy.yml` the filter reads, so a path the policy
+fails to name is invisible to both. Do not cite this script as protection
+against that.
 
 `check-paths` computes `python-changed` from `dorny/paths-filter` fed by
 `scripts/test_selection/path_policy.yml`, via
