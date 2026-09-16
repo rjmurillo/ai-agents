@@ -1,5 +1,38 @@
 # Pre-push wall clock is python-tests; everything else is noise
 
+> **SUPERSEDED on its headline claim, 2026-09-16.** The title is no longer
+> true. `python-tests` is not the pre-push wall clock and has not been since
+> some point between 2026-08-19 and 2026-09-16. Re-measured at commit
+> `1251644dd` on a 4-CPU container with
+> `scripts/metrics/gate_latency.py`, markdown change class, two repetitions:
+>
+> ```text
+> whole hook           126.16s   (worst observed of 2)
+>   pre-pr-validation   93.80s
+>   count-ratchets      23.68s
+>   zero-collection-tests 18.31s
+>   python-tests        15.20s
+> ```
+>
+> `python-tests` fell from 498.52s to 15.20s and from 73 percent of the hook
+> to 12 percent; the total fell from about 679s to 126s. **`pre-pr-validation`
+> is the wall clock now**, at 74 percent of it. This memory's own 2026-09-11
+> note said the 679s figure was stale and gave no replacement; that
+> replacement is the line above.
+>
+> The reason for the drop is not established here. The push measured in 2026-08
+> was one markdown file with the suite running in full; the 2026-09 capture
+> supplies a markdown change class the same way, so the change is somewhere in
+> how `python-tests` selects work, not in the change class. Do not infer the
+> cause from this note.
+>
+> Everything below is the 2026-08-19 record, kept because it is evidence and
+> because its method sections (contention ratios, the partition breakdown, the
+> measured non-levers) were never disproved. Read its figures as that date's,
+> not as current. Full record and method:
+> `.agents/metrics/gate-latency-v0.7.0.md`, PR #5813, epic #5456 gate 3,
+> issue #5318 items 1 and 2.
+
 Measured on a real push of one documentation file, 2026-08-19, 4-CPU container,
 branch `claude/pre-push-hook-duration-vru1ti`. Lefthook 2.1.10 per-job times as
 the hook reported them:
