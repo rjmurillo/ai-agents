@@ -40,8 +40,8 @@ Out of scope, per REQ-028: any edit to `templates/rules/universal.md`; a
 capability registry (#5396); a duplication or quality framework (#5397); a
 token or context budget (#5400); any change to the orphan/unindexed
 (#4313), inert-prose (#4776), or duplicate-target-path (#4705) validators; a
-copied-contract evidence policy (#5399); reclassifying any of the 994
-existing memory files.
+copied-contract evidence policy (#5399); reclassifying any of the 993
+validator-eligible existing memory files.
 
 ## Acceptance Criteria
 
@@ -109,7 +109,8 @@ existing memory files.
   classification specification.
 - Keep PR A and PR B as separate branches per the brief (`feat/5391-placement-contract`
   for PR A, `feat/5391-placement-validator` for PR B), both branched from
-  `main` with no dependency on each other, with PR A's body reading
+  `main`, with an explicit merge order (PR B first, because PR A's rule
+  text names the `memory-placement` job), and with PR A's body reading
   `Refs #5391` and PR B's body reading `Closes #5391`. The spec files land
   in PR B first; PR A carries the same commit and merges cleanly after it.
 - Keep each commit within the five-file advisory atomic-commit limit; PR A's
@@ -248,7 +249,9 @@ Verification:
 
 ```bash
 grep -n "memory-placement" lefthook.yml
-uv run --frozen lefthook run pre-commit --files .serena/memories/README.md
+uv run --frozen pytest tests/validation/test_check_memory_placement_cli.py -q
+# README.md is on the skip list; a real probe stages a non-index memory,
+# runs `lefthook run pre-commit --job memory-placement`, then unstages it.
 ```
 
 ### Subtask 2.8: Run the full-corpus baseline and record it

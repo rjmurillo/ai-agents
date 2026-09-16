@@ -76,7 +76,8 @@ Two PRs, sized separately:
 
 Direct signals, each a file or count in this tree:
 
-- 994 files exist under `.serena/memories/`.
+- 1,041 tracked files sit under `.serena/memories/`; 1,038 are Markdown,
+  and after the README and 45 `*-index.md` skips the validator examines 993.
 - 163 of them contain the literal token `MUST` (case-sensitive);
   196 contain lowercase `must`; 214 contain `never`; 67 contain `always`.
 - 92 files carry a heading (any level) matching one of
@@ -166,7 +167,7 @@ Epic #5456 names this issue as the sole blocker in front of three sibling
 issues. The two existing persistence-surface documents already carry rule and
 memory guidance; extending the same documents with the three missing
 destinations, plus a narrow validator that catches the drift the corpus
-measurement already shows (163 of 994 memories carry `MUST`), closes the gap
+measurement already shows (163 of 993 eligible memories carry `MUST`), closes the gap
 with the smallest possible change instead of building a second parallel
 taxonomy.
 
@@ -197,7 +198,7 @@ taxonomy.
   states any byte change to an always-on rule needs figures refreshed in four
   downstream documents, so this work leaves that file untouched and extends
   the path-scoped `knowledge-persistence.md` instead.
-- Migrating the existing 994-file memory corpus. Existing memories are warned
+- Migrating the existing memory corpus (993 validator-eligible files). Existing memories are warned
   by the validator, never failed; only newly added memories can fail.
 
 ## Deferred
