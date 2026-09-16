@@ -108,8 +108,10 @@ existing memory files.
   on disk as of this writing; build it against DESIGN-026's CLI, signal, and
   classification specification.
 - Keep PR A and PR B as separate branches per the brief (`feat/5391-placement-contract`
-  for PR A, `feat/5391-placement-validator` based on A for PR B), with PR A's
-  body reading `Refs #5391` and PR B's body reading `Closes #5391`.
+  for PR A, `feat/5391-placement-validator` for PR B), both branched from
+  `main` with no dependency on each other, with PR A's body reading
+  `Refs #5391` and PR B's body reading `Closes #5391`. The spec files land
+  in PR B first; PR A carries the same commit and merges cleanly after it.
 - Keep each commit within the five-file advisory atomic-commit limit; PR A's
   six touched files (one canonical, four mirrors, one README) may need two
   commits (canonical plus README in one, the four generated mirrors in
