@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -144,10 +145,11 @@ def test_positive_hooks_change_class_path_is_in_hook_anchoring_e2e_glob_list() -
     config = yaml.safe_load(Path("lefthook.yml").read_text(encoding="utf-8"))
     globs: list[str] = []
 
-    def _walk(entries: list[dict[str, object]]) -> None:
+    def _walk(entries: list[Any]) -> None:
         for entry in entries:
-            if "group" in entry:
-                _walk(entry["group"].get("jobs", []))  # type: ignore[union-attr,arg-type]
+            group = entry.get("group")
+            if isinstance(group, dict):
+                _walk(group.get("jobs", []))
             if entry.get("name") == "hook-anchoring-e2e":
                 declared = entry.get("glob", [])
                 globs.extend(declared if isinstance(declared, list) else [declared])
@@ -165,3 +167,62 @@ def test_positive_smallest_scope_n_drives_the_percentile_note() -> None:
 
     assert gl._smallest_scope_n(summaries, 20) == 3
     assert gl._percentile_note(gl._smallest_scope_n(summaries, 20)) is not None
+
+
+def _argv_capturing_fake(seen: dict[str, object]) -> object:
+    """A ``subprocess.run`` fake that records the lefthook argument vector."""
+
+    def _fake(cmd: list[str], **kwargs: object) -> _FakeCompleted:
+        if cmd and cmd[0] == "git":
+            return _FakeCompleted(0, "")
+        seen["cmd"] = list(cmd)
+        return _FakeCompleted(0, REAL_CAPTURED_STDOUT)
+
+    return _fake
+
+
+def test_positive_hook_args_are_passed_positionally_right_after_the_hook_name(
+    monkeypatch: pytest.MonkeyPatch, repo: Path
+) -> None:
+    """lefthook expands the first positional into '{1}', which push-ref-staleness reads.
+
+    Measured this session: without them that job rejects the unexpanded
+    placeholder, the piped pre-push hook aborts four jobs in, and the run
+    reports 0.4 seconds for a hook that does minutes of work.
+    """
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(subprocess, "run", _argv_capturing_fake(seen))
+
+    gl._run_repetition(
+        repo, ["lefthook"], "pre-push", (), 0, None, ("origin", "https://example.invalid/r.git")
+    )
+
+    cmd = seen["cmd"]
+    assert isinstance(cmd, list)
+    assert cmd[:5] == ["lefthook", "run", "pre-push", "origin", "https://example.invalid/r.git"]
+
+
+def test_negative_absent_hook_args_leave_the_argument_vector_unchanged(
+    monkeypatch: pytest.MonkeyPatch, repo: Path
+) -> None:
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(subprocess, "run", _argv_capturing_fake(seen))
+
+    gl._run_repetition(repo, ["lefthook"], "pre-commit", (), 0)
+
+    cmd = seen["cmd"]
+    assert isinstance(cmd, list)
+    assert cmd[:4] == ["lefthook", "run", "pre-commit", "--no-tty"]
+
+
+def test_positive_report_records_the_hook_args_it_used(
+    monkeypatch: pytest.MonkeyPatch, repo: Path
+) -> None:
+    """A reader must be able to tell a faithful pre-push capture from a bare one."""
+    monkeypatch.setattr(subprocess, "run", _argv_capturing_fake({}))
+
+    report = gl.build_report(
+        repo, "cmd", "pre-push", "none", (), 1, ["lefthook"], None, ("origin", "url")
+    )
+
+    assert report.hook_args == ["origin", "url"]

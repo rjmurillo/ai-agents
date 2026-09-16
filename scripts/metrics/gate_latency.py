@@ -217,6 +217,7 @@ def _run_repetition(
     files: tuple[str, ...],
     repetition_index: int,
     stdin_ref_line: str | None = None,
+    hook_args: tuple[str, ...] = (),
 ) -> HookRun:
     """Run one whole-hook lefthook invocation and parse its summary (AC-01 to AC-03).
 
@@ -242,6 +243,7 @@ def _run_repetition(
         *lefthook_cmd,
         "run",
         hook,
+        *hook_args,
         "--no-tty",
         "--colors",
         "off",
@@ -286,10 +288,11 @@ def build_report(
     repetitions: int,
     lefthook_cmd: list[str],
     stdin_ref_line: str | None = None,
+    hook_args: tuple[str, ...] = (),
 ) -> GateLatencyReport:
     """Run every repetition and fold the results into one report."""
     runs = [
-        _run_repetition(repo, lefthook_cmd, hook, files, index, stdin_ref_line)
+        _run_repetition(repo, lefthook_cmd, hook, files, index, stdin_ref_line, hook_args)
         for index in range(repetitions)
     ]
     summaries = _build_summaries(runs)
@@ -319,6 +322,7 @@ def build_report(
         declared_budget_seconds=declared_seconds,
         percentile_note=_percentile_note(_smallest_scope_n(summaries, repetitions)),
         stdin_ref_line_supplied=stdin_ref_line is not None,
+        hook_args=list(hook_args),
         exclusions=exclusions,
     )
 
@@ -372,6 +376,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "use_stdin: true can exit early on empty stdin, which understates their "
         "cost. Omit it and empty stdin is sent; either way the report records "
         "which was used, so a faithful capture is distinguishable from a bare one.",
+    )
+    parser.add_argument(
+        "--hook-arg",
+        action="append",
+        default=[],
+        metavar="ARG",
+        help="Positional argument git passes the hook, repeatable and order-sensitive. "
+        "A pre-push hook receives the remote name then its URL, and lefthook expands "
+        "the first into the '{1}' template that push-ref-staleness reads; without it "
+        "that job rejects the unexpanded placeholder and the piped hook aborts four "
+        "jobs in, so the run measures almost nothing.",
     )
     parser.add_argument(
         "--lefthook-bin",
@@ -480,6 +495,7 @@ def main(argv: list[str] | None = None) -> int:
         args.repetitions,
         lefthook_cmd,
         args.stdin_ref_line,
+        tuple(args.hook_arg),
     )
 
     try:

@@ -85,4 +85,5 @@ class GateLatencyReport:
     declared_budget_seconds: float | None
     percentile_note: str | None
     stdin_ref_line_supplied: bool
+    hook_args: list[str]
     exclusions: list[dict[str, str]]
