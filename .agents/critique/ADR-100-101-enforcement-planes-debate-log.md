@@ -1137,3 +1137,82 @@ location and matches; the added paragraph quotes its source verbatim and
 states the fix's own stated residual. The `Validate Spec Coverage` rows named
 above are a real, adjacent defect, flagged rather than fixed, and carried
 forward as a named follow-up rather than left silent.
+
+## Follow-up: the coordinator was right, the high-level-advisor call above was wrong
+
+The verdict above classified the two `Validate Spec Coverage` rows as editorial
+and out of scope for a factual repair. The coordinator disagreed on the Impact
+table row (line 411, now corrected) and asked for the reasoning rather than
+just issuing the instruction. The reasoning does not hold up, and the
+correction is recorded here rather than silently folded into the diff.
+
+**What the row actually said**, before this follow-up: "`Validate Spec
+Coverage` is pinned (`ruleset_required_contexts.py:21`) and is gated by a
+job-level `if:` reading `needs.check-paths.result`." Both clauses are checked
+against the current tree, level 1: `sed -n '21p' scripts/ci/ruleset_required_contexts.py`
+prints `    }`, the closing brace of the set, not an entry, and the set itself
+(`REQUIRED_CONTEXTS`, lines 11-22) no longer contains `Validate Spec Coverage`
+at all (`9a96a5fae`, the same commit already cited elsewhere in this record).
+So the sentence is a present-tense factual claim the tree contradicts, plus a
+citation pointing at content that no longer says what the citation claims it
+says. That is exactly the shape of the `pytest.yml` line-drift defects already
+fixed in the primary diff, not a different, editorial-shaped problem. The
+distinction drawn in the original verdict, between "a number or a citation"
+and "an editorial call about how the record represents a resolved subject",
+does not survive reading the actual sentence: nothing here asks for the row's
+analytical point to be rewritten or deleted, only for its tense and its dead
+citation to be corrected and a status added, which is squarely inside "numbers
+and citations."
+
+**The fix.** `git show 9a96a5fae^:scripts/ci/ruleset_required_contexts.py`
+shows `Validate Spec Coverage` sat at line 21 in the pre-removal file, one line
+above the closing brace it now points at in the current file, which is why the
+stale citation still resolves to a plausible-looking line instead of an
+out-of-range error: a coincidence of position, not evidence the citation still
+holds. Per the coordinator's instruction, the citation is dropped rather than
+repointed at a historical line number in a file this record otherwise always
+cites at current-tree state, and replaced with a citation to the commit that
+changed the pinned status (`9a96a5fae`), which is checkable the same way every
+other commit citation in this record is. The row now reads: "`Validate Spec
+Coverage` was pinned and was gated by a job-level `if:` reading
+`needs.check-paths.result`, which carries `always()`, so it evaluated rather
+than being removed, putting it in case 2 and squarely inside requirement 1's
+property form: the verdict was decided outside the job's own logic. PR #5759
+(`9a96a5fae`) unpinned it from `ruleset_required_contexts.py` to match the live
+ruleset, as ADR-101 Phase 0 work; the job and its condition are unchanged,
+only its required status changed." The analytical point (case 2, verdict
+decided outside the job's own logic) is preserved verbatim in substance;
+only tense, the dead citation, and the status changed. The row's file citation
+(`ai-spec-validation.yml:95-100`) is also corrected to `:97-102`: PR #5759 added
+one `environment: bot-secrets` line each to the `debounce` and `check-paths`
+jobs that precede `validate-spec` in the same file, a +2 shift confirmed with
+`git diff 9a96a5fae^ 9a96a5fae -- .github/workflows/ai-spec-validation.yml`,
+and the current job header through its `if:` condition now sits at 97-102,
+verified by direct read.
+
+**Line 334, checked on its own rather than taken on the coordinator's word.**
+It reads, in part, "`ai-spec-validation.yml:216` and `:250`, where
+`check_spec_failures.py` is the verdict step behind `Validate Spec Coverage`."
+This sentence makes no claim that the context is currently pinned or required;
+it only names which script is the verdict step for the job named
+`Validate Spec Coverage`, and `grep -n check_spec_failures .github/workflows/ai-spec-validation.yml`
+confirms that job still exists, still runs `check_spec_failures.py`, and is
+still named `Validate Spec Coverage` in the workflow (unpinning a required
+context does not delete the job or rename it). So the coordinator's own
+reading holds: this sentence needs nothing on the pinning question. It did
+need something else, found independently while checking it: the two cited
+line numbers had drifted by the same +3 that shifted `validate-spec`'s job
+body (the `environment: bot-secrets` lines added to `debounce`, `check-paths`,
+and `validate-spec` in `9a96a5fae`), so `:216` and `:250` pointed one job-body
+short of `generate_spec_report.py` and `check_spec_failures.py` respectively.
+Corrected to `:219` and `:253`, verified by direct read against the current
+file. This is the same drift class as the `pytest.yml` citations in the
+primary diff, on the same file this follow-up was already reading, so it is
+fixed in the same commit rather than filed separately.
+
+**Verdict, restated:** the original high-level-advisor classification of line
+411 as "closer to a decision than a number or a citation" was wrong, and is
+corrected rather than defended. Line 334 needed nothing for the reason the
+coordinator predicted, and needed something else the coordinator did not
+raise, found by checking it independently rather than taking the prediction
+on trust.
