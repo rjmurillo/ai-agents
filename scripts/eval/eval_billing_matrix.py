@@ -64,12 +64,26 @@ _CELL_REQUIRED_SETTINGS: dict[str, tuple[str, ...]] = {
 }
 
 
-def _executable_for(cell: MatrixCell) -> str | None:
+def _executable_for(cell: MatrixCell) -> tuple[str, str] | None:
+    """Return the executable to probe and a label safe to print for it.
+
+    Two values because they are not the same thing. The probe needs the real
+    path, including one an operator supplied through `CLAUDE_CLI_BIN` or a
+    sibling. The label goes into a message this tool prints, and a value read
+    out of the environment must not: that is the same flow CodeQL flagged in
+    `_has_env_var`, and an override path can carry a home directory, a user
+    name, or a token embedded in a wrapper path. So an overridden executable
+    is described by the variable that named it, never by its value, and only
+    the checked-in default is printed literally.
+    """
     entry = _CELL_EXECUTABLE.get(cell.provider)
     if entry is None:
         return None
     default, override_env = entry
-    return (os.environ.get(override_env) or "").strip() or default
+    override = (os.environ.get(override_env) or "").strip()
+    if override:
+        return override, f"the executable named by {override_env}"
+    return default, default
 
 
 def _missing_requirements(cell: MatrixCell) -> list[str]:
@@ -84,9 +98,11 @@ def _missing_requirements(cell: MatrixCell) -> list[str]:
     for name in _CELL_REQUIRED_SETTINGS.get(cell.provider, ()):
         if not (os.environ.get(name) or "").strip():
             missing.append(f"{name} is unset")
-    executable = _executable_for(cell)
-    if executable is not None and shutil.which(executable) is None:
-        missing.append(f"{executable} is not on PATH")
+    probe = _executable_for(cell)
+    if probe is not None:
+        executable, label = probe
+        if shutil.which(executable) is None:
+            missing.append(f"{label} is not on PATH")
     return missing
 
 

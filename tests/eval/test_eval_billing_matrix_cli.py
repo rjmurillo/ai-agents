@@ -34,12 +34,16 @@ _ALL_CREDENTIAL_VARS = (
     "OPENAI_API_KEY",
 )
 
+#: Every variable that renames a CLI this preflight probes for. Read into the
+#: probe, never into a printed message.
+_ALL_EXECUTABLE_OVERRIDE_VARS = ("CLAUDE_CLI_BIN", "CODEX_CLI_BIN", "COPILOT_CLI_BIN")
+
 
 @pytest.fixture(autouse=True)
 def _clean_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in _ALL_CREDENTIAL_VARS:
         monkeypatch.delenv(name, raising=False)
-    for name in ("CLAUDE_CLI_BIN", "CODEX_CLI_BIN", "COPILOT_CLI_BIN"):
+    for name in _ALL_EXECUTABLE_OVERRIDE_VARS:
         monkeypatch.delenv(name, raising=False)
 
 
@@ -177,7 +181,7 @@ def test_readiness_never_reads_a_credential_value(
     output, in any field, under any verdict.
     """
     sentinel = "SENTINEL-SECRET-VALUE-DO-NOT-LOG"
-    for name in _ALL_CREDENTIAL_VARS:
+    for name in (*_ALL_CREDENTIAL_VARS, *_ALL_EXECUTABLE_OVERRIDE_VARS):
         monkeypatch.setenv(name, sentinel)
 
     assert cli.main(["--json"]) == cli.EXIT_OK
@@ -210,15 +214,40 @@ def test_an_uninstalled_cli_is_not_ready(
     assert "copilot is not on PATH" in rows[0]["missing"]
 
 
-def test_an_executable_override_is_the_one_checked(
+def test_an_executable_override_is_the_one_probed_but_never_printed(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv("COPILOT_CLI_BIN", "/opt/copilot-nightly")
-    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
+    """The override decides what is probed; the message names the variable.
+
+    An override path can carry a home directory, a user name, or a token in a
+    wrapper path, and this tool's output is meant to be pasted into an issue.
+    So the value reaches `shutil.which` and nothing else.
+    """
+    probed: list[str] = []
+
+    def _record_miss(name: str) -> None:
+        probed.append(name)
+        return None
+
+    monkeypatch.setenv("COPILOT_CLI_BIN", "/opt/secret-user/copilot-nightly")
+    monkeypatch.setattr(cli.shutil, "which", _record_miss)
 
     rows = _rows(capsys, "--harness", "copilot", "--billing", "subscription")
 
-    assert "/opt/copilot-nightly is not on PATH" in rows[0]["missing"]
+    assert probed == ["/opt/secret-user/copilot-nightly"]
+    assert "the executable named by COPILOT_CLI_BIN is not on PATH" in rows[0]["missing"]
+    assert not any("secret-user" in str(item) for item in rows[0]["missing"])
+
+
+def test_an_uninstalled_default_executable_is_named_literally(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """With no override there is no environment value, so print the name."""
+    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
+
+    rows = _rows(capsys, "--harness", "codex", "--billing", "subscription")
+
+    assert "codex is not on PATH" in rows[0]["missing"]
 
 
 def test_an_optional_credential_with_the_cli_present_is_unknown_not_ready(
