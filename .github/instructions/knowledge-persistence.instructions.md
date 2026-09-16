@@ -36,8 +36,8 @@ This section is the authoritative taxonomy for where repository knowledge lives 
 | Class | Holds | Activates when | Lives at |
 |---|---|---|---|
 | Rule | Cross-cutting normative invariant: must, never, always, required recovery, scope discipline, safety or quality gate | Its `paths:` scope matches the file under edit | `templates/rules/<name>.md` (path-scoped by `paths:`; always-on only when it binds every task) |
-| Skill | Repeatable task, workflow, procedure, or tool-using capability, including its own workflow-specific normative text | Invoked by task intent | `.claude/skills/<name>/SKILL.md` and its `scripts/`, `references/` |
-| Agent | Role-specific specialization: authority, responsibilities, entry criteria, outputs, handoff contract for a distinct persona | A session takes on that persona | `templates/agents/<name>.claude.md.tmpl` with its `.copilot.md.tmpl` and `.shared.md` siblings (`templates/AGENTS.md`) |
+| Skill | Repeatable task, workflow, procedure, or tool-using capability, including its own workflow-specific normative text | Invoked by task intent | `.claude/skills/<name>/SKILL.md` plus the skill's own script and reference subdirectories |
+| Agent | Role-specific specialization: authority, responsibilities, entry criteria, outputs, handoff contract for a distinct persona | A session takes on that persona | the agent's template trio under `templates/` (`<name>.claude.md.tmpl`, `.copilot.md.tmpl`, `.shared.md`; see `templates/AGENTS.md`) |
 | Memory | Empirical observation, measurement, incident record, learned lesson, or rationale whose applicability still needs judgment | A future session searches Serena for the topic | `.serena/memories/<topic>/<name>.md` |
 | Delete/merge | Duplicate explanatory text, obsolete index, stale copy, content fully represented elsewhere with no evidentiary value left | Never; it should not exist | Nowhere |
 
@@ -59,7 +59,7 @@ When a memory and a rule, skill, or agent describe the same behavior, the rule, 
 
 ### Placement check for new memories
 
-`scripts/validation/check_memory_placement.py` is the check the `memory-placement` pre-commit job runs. It flags a newly added memory that reads as normative or procedural: a high density of MUST, MUST NOT, SHALL, must not, never, always, required; a heading named Constraints, Guardrails, Workflow, Procedure, Protocol, Responsibilities, Entry Criteria, or Acceptance Criteria; a long numbered procedure; or a role contract (two or more of Role, Authority, Entry Criteria, Outputs, Handoff, Responsibilities as headings). An existing memory only warns; a newly added one that reads as policy fails.
+The `memory-placement` pre-commit job runs the memory placement check (`check_memory_placement.py` under the validation-scripts tree; the directory prefix is omitted because this rule ships in the plugin instruction mirrors, where an upstream-only path would dangle). It flags a newly added memory that reads as normative or procedural: a high density of MUST, MUST NOT, SHALL, must not, never, always, required; a heading named Constraints, Guardrails, Workflow, Procedure, Protocol, Responsibilities, Entry Criteria, or Acceptance Criteria; a long numbered procedure; or a role contract (two or more of Role, Authority, Entry Criteria, Outputs, Handoff, Responsibilities as headings). An existing memory only warns; a newly added one that reads as policy fails.
 
 Suppress a false positive with an HTML comment anywhere in the file, exact form:
 
@@ -103,7 +103,7 @@ Before persisting anything, ask in order:
 4. **Which surface?** See Placement contract above for the full taxonomy.
    - Binds every task on matching paths -> rule (`templates/rules/<name>.md` + mirrors)
    - Repeatable procedure by task intent -> skill (`.claude/skills/<name>/SKILL.md`)
-   - Role contract -> agent (`templates/agents/<name>.claude.md.tmpl` and siblings)
+   - Role contract -> agent (the `<name>.claude.md.tmpl` trio under `templates/`)
    - Evidence or rationale -> memory (`.serena/memories/<topic>/<name>.md`)
    - Already fully represented elsewhere -> delete or merge
 
