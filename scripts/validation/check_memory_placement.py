@@ -106,8 +106,11 @@ _ROLE_CONTRACT_RE = re.compile(
 
 _ORDERED_ITEM_RE = re.compile(r"^\s*\d+[.)]\s+")
 
-# The reason must start with a non-whitespace character.
-_VALID_SUPPRESSION_RE = re.compile(r"<!--\s*placement:\s*evidence;\s*reason:\s*(\S[^>]*?)\s*-->")
+# The marker must stand alone on its line (not inside an inline code span or
+# another HTML element) and the reason must start with a non-whitespace char.
+_VALID_SUPPRESSION_RE = re.compile(
+    r"^[ \t]*<!--\s*placement:\s*evidence;\s*reason:\s*(\S[^>]*?)\s*-->[ \t]*$", re.MULTILINE
+)
 # Looser sibling: detects a marker that is present but malformed.
 _ANY_SUPPRESSION_RE = re.compile(r"<!--\s*placement:\s*evidence;\s*reason:\s*(.*?)-->", re.DOTALL)
 
@@ -367,8 +370,15 @@ def _repo_root() -> Path | None:
     return Path(out.strip()).resolve()
 
 
+def _valid_ref(base: str) -> bool:
+    """Reject a blank, control-character, or option-shaped (leading ``-``) ref."""
+    return bool(base.strip()) and not base.startswith("-") and base.isprintable()
+
+
 def _base_tree_paths(repo_root: Path, base: str) -> set[str] | None:
     """Return every path git tracks at ``base``, or None if the ref is unusable."""
+    if not _valid_ref(base):
+        return None
     code, out, _ = _run_subprocess(
         ["git", "ls-tree", "-r", "-z", "--name-only", base],
         cwd=repo_root,
@@ -424,6 +434,10 @@ def _resolve_candidates(args: argparse.Namespace, repo_root: Path) -> list[tuple
             raise _ConfigError(f"positional path is a directory, use --path: {raw}")
         if _is_skippable(abspath) or not abspath.is_file():
             continue
+        # The lexical path names the entry git tracks; the resolved target is
+        # what read_text opens. A link whose target escapes the repo is refused.
+        if not abspath.resolve().is_relative_to(repo_root):
+            raise _ConfigError(f"symlink target is outside the repository: {raw}")
         candidates.append((abspath.relative_to(repo_root).as_posix(), abspath))
     return candidates
 
