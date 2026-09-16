@@ -134,6 +134,11 @@ from checks_common import (  # noqa: E402
 )
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
 
+from scripts.validation.frontmatter_contract import FrontmatterStatus  # noqa: E402
+from scripts.validation.frontmatter_contract import (  # noqa: E402
+    parse_frontmatter as _parse_frontmatter_block,
+)
+
 EXIT_OK = 0
 EXIT_REGRESSION = 1
 EXIT_CONFIG = 2
@@ -216,28 +221,39 @@ class Record:
 def _split_frontmatter(text: str) -> tuple[str | None, str]:
     r"""Return ``(raw frontmatter block, body)``; the block is None when absent.
 
-    The boundary arithmetic mirrors ``_parse_yaml_frontmatter`` in
-    ``scripts/validation/yaml_utils.py``, quoted verbatim::
+    Delegates to ``scripts/validation/frontmatter_contract.parse_frontmatter``,
+    which delegates in turn to ``python-frontmatter``. This function used to
+    carry its own boundary arithmetic, quoted verbatim from
+    ``_parse_yaml_frontmatter`` in ``scripts/validation/yaml_utils.py``::
 
-        if not text.startswith("---"):
-            return None
         end_index = text.find("\n---", 3)
-        if end_index == -1:
-            return None
-        frontmatter_text = text[4:end_index].strip()
 
-    Stricter/looser/different than canonical: identical boundaries, but this also
-    returns the body, which that helper discards. The body is what
-    ``prose-frontmatter-agree`` reads, so the split
-    cannot be delegated. The parsed mapping still comes from the canonical helper
-    (see :func:`_read_record`), so one parser decides what a valid mapping is.
+    Issue #5275 measured what that cost. ``text.find("\n---", 3)`` is a
+    substring search, so it accepted any line merely starting with three
+    dashes, including ``--- trailing text``, while
+    ``build/scripts/generate_adr_index.py`` required the fence to be three
+    dashes and a newline exactly. A closing fence padded with one trailing
+    space therefore passed this gate, with all seven lifecycle checks running
+    against real values, and crashed the index build on the same file.
+
+    Stricter/looser/different than canonical
+    ----------------------------------------
+
+    Stricter on trailing text: ``--- nope`` is no longer read as a close, so a
+    record using it is now reported as unterminated rather than silently
+    accepted. Looser on padding: a fence followed by spaces, a tab, or extra
+    dashes is now a close, which is what the index generator already refused
+    and this gate already allowed. Both directions come from one shared
+    contract, so the two cannot disagree again.
+
+    ``raw`` is returned unstripped now; every consumer either feeds it to a
+    YAML loader or scans it for duplicate keys, and both tolerate the leading
+    newline the block carries.
     """
-    if not text.startswith("---"):
-        return None, text
-    end_index = text.find("\n---", 3)
-    if end_index == -1:
-        return None, text
-    return text[4:end_index].strip(), text[end_index + len("\n---") :]
+    result = _parse_frontmatter_block(text, allow_duplicate_keys=True)
+    if not result.present or result.status is FrontmatterStatus.UNTERMINATED:
+        return None, result.body
+    return result.raw, result.body
 
 
 def _frontmatter_reason(raw: str | None, text: str) -> str:
@@ -266,19 +282,20 @@ def _frontmatter_reason(raw: str | None, text: str) -> str:
     reported as an unterminated block because that is how the splitter, and the
     canonical helper it mirrors, classify it.
     """
-    if raw is None:
-        if text.startswith("---"):
-            return (
-                "frontmatter block opens with `---` but no closing `---` fence "
-                "follows, so the whole block is unreadable (ADR-073 schema unparsed)"
-            )
+    result = _parse_frontmatter_block(text, allow_duplicate_keys=True)
+    if result.status is FrontmatterStatus.ABSENT:
         return "no leading `---` frontmatter block (ADR-073 schema absent)"
-    try:
-        parsed = yaml.safe_load(raw)
-    except yaml.YAMLError as exc:
-        return f"frontmatter YAML did not parse: {' '.join(str(exc).split())}"
-    if parsed is None:
+    if result.status is FrontmatterStatus.UNTERMINATED:
+        return (
+            "frontmatter block opens with `---` but no closing `---` fence "
+            "follows, so the whole block is unreadable (ADR-073 schema unparsed)"
+        )
+    if result.status is FrontmatterStatus.EMPTY:
         return "frontmatter block is empty"
+    if result.status is FrontmatterStatus.MALFORMED:
+        detail = " ".join(str(result.error or "").split())
+        return f"frontmatter YAML did not parse: {detail}"
+    parsed = yaml.safe_load(raw) if raw is not None else None
     return f"frontmatter is a {type(parsed).__name__}, not a YAML mapping"
 
 
