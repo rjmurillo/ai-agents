@@ -67,7 +67,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import yaml
 
@@ -77,11 +77,17 @@ if TYPE_CHECKING:
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent.parent
 
-# Frontmatter delimiter. Mirrors build/generate_agent_catalog.py:
-#   _FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$")
-# Quoted verbatim per .claude/rules/canonical-source-mirror.md: capture the YAML
-# block between the leading and second ``---`` fence, then the body.
-_FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$")
+# Frontmatter parsing is delegated, not re-derived. Issue #5275 measured at least
+# 11 distinct fence contracts in this repo; this module used to hold the
+# strictest, which rejected a closing fence padded with one trailing space and
+# raised where the lifecycle gate accepted the same file. Both now read
+# scripts/validation/frontmatter_contract, which delegates to python-frontmatter.
+sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.validation.frontmatter_contract import FrontmatterStatus  # noqa: E402
+from scripts.validation.frontmatter_contract import (  # noqa: E402
+    parse_frontmatter as _parse_frontmatter_block,
+)
 
 # ADR-NNN-<slug>.md. Mirrors scripts/validation/check_adr_uniqueness.py:38:
 #   ADR_FILENAME_RE = re.compile(r"^ADR-(\d{2,})-[^/]+\.md$")
@@ -173,67 +179,6 @@ class _DuplicateKeyError(yaml.YAMLError):
     """Raised when a mapping declares the same key twice."""
 
 
-class _StrictLoader(yaml.SafeLoader):
-    """SafeLoader that refuses duplicate mapping keys.
-
-    PyYAML resolves duplicates last-wins and reports nothing, so a record
-    carrying `status: proposed` near the top and `status: accepted` lower in the
-    same block parses as accepted while reading as proposed to a human scanning
-    the first lines. For a lifecycle gate that is a forgery vector, not a
-    formatting nit: the visible declaration and the enforced one differ.
-
-    The repo already treats this as a governance risk. `detect_adr_changes.py`
-    carries `_has_duplicate_keys` with the docstring "Duplicate keys are
-    malformed YAML and can hide a governance change (a second ``status:``
-    line masking the first)", and fails its frontmatter-only exemption closed
-    on them. Both readers detect at the parser now, not by scanning lines: an
-    earlier revision of `_has_duplicate_keys` (then named
-    `_has_duplicate_top_level_keys`) matched only `^[A-Za-z0-9_-]+:` line
-    prefixes, which is a different question than YAML asks, and three of four
-    quoting spellings walked through it while `yaml.safe_load` enforced one
-    value for all of them (Copilot, PR #5230). Rewritten to hook the
-    constructor the same way this loader does, it now agrees with this
-    loader exactly: both catch duplicates nested inside a mapping value and
-    are not fooled by quoting or comments, because both compare constructed
-    keys rather than raw text.
-    """
-
-
-def _no_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
-    """Reject a mapping that declares the same key twice.
-
-    Keys are collected in a list and compared with ``==`` rather than kept in a
-    set. A set looks like the natural choice and is wrong here, because a YAML
-    key need not be hashable: ``? [a, b]`` builds a list key, and both ``in``
-    and ``add`` raise ``TypeError`` on it. An earlier revision guarded only the
-    membership test, with a ``# pragma: no cover - unhashable keys are not
-    valid here`` comment asserting the case was unreachable. It is reachable,
-    the comment was wrong, and ``seen.add(key)`` then raised the same
-    ``TypeError`` one line later, escaping ``parse_frontmatter``'s
-    ``yaml.YAMLError`` conversion and ``main``'s exit-code handling to produce a
-    traceback instead of the documented exit 1. Copilot found it on PR #5230.
-
-    ``==`` is defined for every constructed value, so the comparison never
-    raises, and an unhashable key that is NOT duplicated falls through to
-    ``construct_mapping``, which raises PyYAML's own ``ConstructorError``
-    (a ``yaml.YAMLError``, verified by execution). Both paths now land inside
-    the error contract.
-
-    The list is O(n^2) against the mapping's own key count. Frontmatter blocks
-    hold single-digit key counts, so this is not worth a hashable fast path
-    that would reintroduce the two-code-path bug.
-    """
-    seen: list[Any] = []
-    for key_node, _ in node.value:
-        key = loader.construct_object(key_node, deep=True)
-        if any(key == earlier for earlier in seen):
-            raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
-        seen.append(key)
-    mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
-    return mapping
-
-
-_StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicate_keys)
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,32 +216,39 @@ def parse_frontmatter(content: str, path: Path) -> tuple[dict[str, object] | Non
     ``# taste-lint: ignore file-size, ...``, which a whole-file H1 search reads as
     the title.
 
-    An opened-but-unterminated block (starts with ``---``, no closing ``---``
-    fence) is a distinct defect from a genuinely absent one, and
-    ``_FRONTMATTER_RE`` cannot match either without the closing fence, so it
-    collapses both to ``None``. Left uncorrected, that routes a record with
-    malformed lifecycle metadata into Needs backfill exactly as if it had
-    never carried a schema at all, silently rather than as a defect an author
-    would see (PR #5209 review, discussion_r3832255493).
+    An opened-but-unterminated block is a distinct defect from a genuinely absent
+    one. Left uncorrected, that routes a record with malformed lifecycle metadata
+    into Needs backfill exactly as if it had never carried a schema at all,
+    silently rather than as a defect an author would see (PR #5209 review,
+    discussion_r3832255493). The shared contract keeps the two apart, so this
+    function reads a status rather than re-deriving the distinction.
+
+    Stricter/looser/different than canonical
+    ----------------------------------------
+
+    Looser than this function was before issue #5275. It used to require the
+    closing fence to be three dashes followed immediately by ``\r?\n``, so a
+    fence padded with one trailing space raised ``AdrIndexError`` while
+    ``check_adr_lifecycle.py`` parsed the same file cleanly and ran all its
+    checks. The contract now accepts a padded fence, a tab, and four or more
+    dashes, matching ``python-frontmatter``'s own boundary, and still rejects
+    ``--- trailing text``. Duplicate-key rejection is unchanged: it moved into
+    the contract, which hooks the constructor the same way this module did.
     """
-    match = _FRONTMATTER_RE.match(content)
-    if match is None:
-        if content.startswith("---"):
-            raise AdrIndexError(
-                f"{path.name} opens with '---' but has no closing '---' fence; "
-                "the frontmatter block is unterminated"
-            )
-        return None, content
-    body = match.group(2)
-    try:
-        parsed = yaml.load(match.group(1), Loader=_StrictLoader)
-    except yaml.YAMLError as exc:
-        raise AdrIndexError(f"invalid YAML frontmatter in {path.name}: {exc}") from exc
-    if parsed is None:
-        return {}, body
-    if not isinstance(parsed, dict):
+    result = _parse_frontmatter_block(content)
+
+    if result.status is FrontmatterStatus.ABSENT:
+        return None, result.body
+    if result.status is FrontmatterStatus.UNTERMINATED:
+        raise AdrIndexError(
+            f"{path.name} opens with '---' but has no closing '---' fence; "
+            "the frontmatter block is unterminated"
+        )
+    if result.status is FrontmatterStatus.MALFORMED:
+        raise AdrIndexError(f"invalid YAML frontmatter in {path.name}: {result.error}")
+    if result.status is FrontmatterStatus.NOT_A_MAPPING:
         raise AdrIndexError(f"frontmatter in {path.name} is not a mapping")
-    return parsed, body
+    return dict(result.metadata or {}), result.body
 
 
 def _status_of(frontmatter: dict[str, object], path: Path) -> str | None:
@@ -756,18 +708,20 @@ _INTRO = (
     "This table is a convenience, not the source of truth. The frontmatter is, and\n"
     "Python reads it with no extra dependency:\n\n"
     "```python\n"
-    "import pathlib, re, yaml\n"
+    "import pathlib, yaml\n"
+    "from frontmatter.default_handlers import YAMLHandler\n"
     "\n"
-    "_CLOSING_FENCE = re.compile(r'\\r?\\n---\\r?\\n')\n"
+    "_HANDLER = YAMLHandler()\n"
     "\n"
     "for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):\n"
     "    text = path.read_text(encoding='utf-8')\n"
-    "    if not text.startswith('---'):\n"
+    "    if not _HANDLER.detect(text):\n"
     "        continue  # no frontmatter: see Needs backfill below\n"
-    "    closing = _CLOSING_FENCE.search(text, 3)\n"
-    "    if closing is None:\n"
+    "    try:\n"
+    "        raw, _body = _HANDLER.split(text)\n"
+    "    except ValueError:\n"
     "        raise ValueError(f'{path.name}: opens with --- but never closes it')\n"
-    "    front = yaml.safe_load(text[3 : closing.start()]) or {}\n"
+    "    front = yaml.safe_load(raw) or {}\n"
     "    if str(front.get('status', '')).strip().lower() == 'accepted':\n"
     "        print(front.get('id') or path.name)\n"
     "```\n\n"
@@ -797,31 +751,31 @@ _INTRO = (
     "records that have it while appearing to answer for all of them. The Needs\n"
     "backfill section below is the honest denominator, and issue #5190 closes it.\n\n"
     "**This snippet crashes on unterminated frontmatter; it does not silently\n"
-    "drop it.** `text.startswith('---')` is false only for a record with no\n"
-    "schema at all, which `continue`s past. A record whose opening `---` fence\n"
-    "never closes still starts with `---`, so it skips that `continue`, finds\n"
-    "no match for `_CLOSING_FENCE`, and raises `ValueError` (verified by\n"
-    "running both cases; Copilot found the original claim backwards on PR\n"
-    "#5209). The real generator's `parse_frontmatter` raises the same way, on\n"
-    "purpose: a malformed schema is an author's defect to see, not a record to\n"
-    "drop quietly into Needs backfill. Run the gate rather than this snippet\n"
-    "when that distinction matters.\n\n"
-    "**The closing fence must occupy its own line, not just start one.**\n"
-    "`generate_adr_index.py`'s `_FRONTMATTER_RE` is\n"
-    '``r"^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n([\\s\\S]*)$"``: the closing fence is\n'
-    "three dashes immediately followed by `\\r?\\n`, nothing else. An earlier\n"
-    "version of this snippet used `text.index('\\n---', 3)`, which finds any\n"
-    "line merely starting with three dashes, trailing characters or not. A\n"
-    'closing line padded with one trailing space (`"--- \\n"` instead of\n'
-    '`"---\\n"`, a plausible editor artifact) does not match `_FRONTMATTER_RE`,\n'
-    "so `parse_frontmatter` finds no valid closing fence and raises\n"
-    "`AdrIndexError`, the same as a fence that never closes at all. The old\n"
-    "`.index` call could not tell the difference: it matched the padded line\n"
-    "anyway and printed an answer with no error, silently disagreeing with the\n"
-    "generator's correctly-loud rejection of the same file (Copilot, PR #5209\n"
-    "round-5 review). `_CLOSING_FENCE` above requires the same `\\r?\\n` on both\n"
-    "sides of the dashes as `_FRONTMATTER_RE`, so a padded or otherwise\n"
-    "malformed fence now raises here too.\n\n"
+    "drop it.** `detect()` is false only for a record with no schema at all,\n"
+    "which `continue`s past. A record whose opening `---` fence never closes\n"
+    "still opens one, so it skips that `continue`, and `split()` raises\n"
+    "`ValueError` because it cannot find a second boundary. The real\n"
+    "generator's `parse_frontmatter` raises the same way, on purpose: a\n"
+    "malformed schema is an author's defect to see, not a record to drop\n"
+    "quietly into Needs backfill. The distinction matters because\n"
+    "`frontmatter.loads` alone does NOT make it: an absent block and an\n"
+    "unterminated one both come back with empty metadata, which is why this\n"
+    "snippet calls `detect` and `split` rather than the convenience API\n"
+    "(issue #5275). Run the gate rather than this snippet when that\n"
+    "distinction matters.\n\n"
+    "**One fence contract, shared, and it is the library's.** Issue #5275 found\n"
+    "three ADR parsers disagreeing on which closing fences they accept: a\n"
+    "closing line padded with one trailing space (`\"--- \\n\"` instead of\n"
+    "`\"---\\n\"`, a plausible editor artifact) parsed cleanly in\n"
+    "`check_adr_lifecycle.py` and crashed this generator, so the same corpus\n"
+    "could pass the lifecycle gate and break the index build. A repo-wide sweep\n"
+    "found at least 11 distinct fence contracts. Both now delegate to\n"
+    "`scripts/validation/frontmatter_contract.py`, which delegates in turn to\n"
+    "`python-frontmatter`'s own boundary, `^-{3,}\\s*$`. That accepts a padded\n"
+    "fence, a tab, and four or more dashes, and still rejects `--- trailing\n"
+    "text`. The snippet above uses the same handler, so it and the generator\n"
+    "cannot drift: agreement is a property of calling one parser, not of\n"
+    "keeping two regexes in step by hand.\n\n"
 )
 
 # Heading order and the one-line orientation under each. Every heading renders

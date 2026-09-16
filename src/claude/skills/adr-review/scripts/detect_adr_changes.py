@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- was already at the 500-line cap before issue
+# #5275; the lines added are the verbatim library citation and divergence note
+# that canonical-source-mirror.md requires for the mirrored fence boundary,
+# and this script ships inside a plugin root where a sibling import would add
+# a second portability surface to keep in step across three trees.
 """Detect ADR file changes (create, update, delete) for automatic skill triggering.
 
 Monitors ADR file patterns in designated directories and detects changes
@@ -82,6 +87,28 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+# Frontmatter boundary, MIRRORED because it cannot be imported. This file ships
+# inside the plugin and may import only the standard library and yaml
+# (`.claude/rules/plugin-self-containment.md`), so neither `python-frontmatter`
+# nor `scripts/validation/frontmatter_contract.py` is reachable here. Quoted
+# citation-freshness: ignore -- cites the installed python-frontmatter package, which is a pinned dependency in pyproject.toml and is deliberately not tracked in this repo; the parity tests assert the quoted pattern against the live library rather than against HEAD
+# verbatim from `frontmatter/default_handlers.py:252`, which that contract
+# delegates to:
+#
+#   FM_BOUNDARY = re.compile(r"^-{3,}\s*$", re.MULTILINE)
+#
+# THREE OR MORE dashes, and trailing whitespace is part of the fence.
+# `tests/skills/adr-review/test_detect_adr_changes_frontmatter_parity.py` pins
+# this constant against the installed library shape by shape, and carries the
+# issue #4918 evidence for why an unpinned mirror is not safe.
+#
+# Stricter/looser/different than canonical: identical boundary. Matched line by
+# line rather than with re.MULTILINE over the whole text, because this module
+# needs the index of the closing line to slice the body and only ever considers
+# the first two boundaries.
+FRONTMATTER_BOUNDARY = re.compile(r"^-{3,}\s*$")
+
+# Retained for callers comparing a literal fence. The boundary above decides.
 FRONTMATTER_DELIM = "---"
 
 # Frontmatter keys whose value can change without altering the ADR's decision
@@ -223,17 +250,23 @@ def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str
 
 
 def _split_frontmatter(content: str) -> tuple[str, str]:
-    """Split content into (frontmatter, body).
+    r"""Split content into (frontmatter, body).
 
-    Frontmatter is the YAML block delimited by a leading ``---`` line and a
-    closing ``---`` line at the very start of the file. Returns
-    ``("", content)`` when no complete frontmatter block is present.
+    Frontmatter is the YAML block opened by a leading boundary line and closed
+    by the next one. Returns ``("", content)`` when no complete block is present.
+
+    Issue #5275 found this function, the lifecycle gate, and the index
+    generator disagreeing on which closing fences they accept, so one corpus
+    could pass the governance gate and crash the index build. All three now use
+    the same boundary: :data:`FRONTMATTER_BOUNDARY`, mirrored from
+    ``python-frontmatter``. The literal ``line.strip() == "---"`` this used to
+    perform rejected a fence of four dashes that the other two accepted.
     """
     lines = content.splitlines(keepends=True)
-    if not lines or lines[0].strip() != FRONTMATTER_DELIM:
+    if not lines or not FRONTMATTER_BOUNDARY.match(lines[0].rstrip("\r\n")):
         return "", content
     for idx in range(1, len(lines)):
-        if lines[idx].strip() == FRONTMATTER_DELIM:
+        if FRONTMATTER_BOUNDARY.match(lines[idx].rstrip("\r\n")):
             frontmatter = "".join(lines[1:idx])
             body = "".join(lines[idx + 1 :])
             return frontmatter, body
