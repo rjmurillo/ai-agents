@@ -118,6 +118,8 @@ def write_markdown(report: GateLatencyReport, path: Path) -> None:
         f"- Captured at: `{report.captured_at}`",
         f"- Repetitions: {report.repetitions}",
         f"- Stdin ref line supplied: {report.stdin_ref_line_supplied}",
+        f"- Hook args: {report.hook_args or '(none)'}",
+        f"- Forced (glob filtering bypassed): {report.forced}",
         f"- Host: {report.host.platform}, {report.host.cpu_count} CPUs, "
         f"Python {report.host.python_version}",
         "",

@@ -228,3 +228,51 @@ def test_positive_report_records_the_hook_args_it_used(
     )
 
     assert report.hook_args == ["origin", "url"]
+
+
+def test_negative_force_is_absent_by_default(
+    monkeypatch: pytest.MonkeyPatch, repo: Path
+) -> None:
+    """--force defeats glob filtering, so a change class would stop selecting jobs.
+
+    Measured this session: with --force, python-type-check (glob '**/*.py') ran
+    against a markdown change class and failed, because mypy was handed a .md
+    file. Without it the same job skips with "no matching push files", which is
+    what makes a per-change-class measurement mean anything.
+    """
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(subprocess, "run", _argv_capturing_fake(seen))
+
+    gl._run_repetition(repo, ["lefthook"], "pre-push", ("README.md",), 0)
+
+    cmd = seen["cmd"]
+    assert isinstance(cmd, list)
+    assert "--force" not in cmd
+
+
+def test_positive_force_is_passed_when_explicitly_requested(
+    monkeypatch: pytest.MonkeyPatch, repo: Path
+) -> None:
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(subprocess, "run", _argv_capturing_fake(seen))
+
+    gl._run_repetition(repo, ["lefthook"], "pre-push", (), 0, None, (), True)
+
+    cmd = seen["cmd"]
+    assert isinstance(cmd, list)
+    assert "--force" in cmd
+
+
+def test_positive_report_records_whether_the_run_was_forced(
+    monkeypatch: pytest.MonkeyPatch, repo: Path
+) -> None:
+    """A forced run measures a different thing, so the artifact has to say so."""
+    monkeypatch.setattr(subprocess, "run", _argv_capturing_fake({}))
+
+    forced = gl.build_report(
+        repo, "cmd", "pre-push", "none", (), 1, ["lefthook"], None, (), True
+    )
+    natural = gl.build_report(repo, "cmd", "pre-push", "none", (), 1, ["lefthook"])
+
+    assert forced.forced is True
+    assert natural.forced is False

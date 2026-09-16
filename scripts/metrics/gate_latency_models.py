@@ -86,4 +86,5 @@ class GateLatencyReport:
     percentile_note: str | None
     stdin_ref_line_supplied: bool
     hook_args: list[str]
+    forced: bool
     exclusions: list[dict[str, str]]

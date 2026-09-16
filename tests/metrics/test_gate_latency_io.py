@@ -74,6 +74,7 @@ def _sample_report(*, n: int = 1, stdin_supplied: bool = False) -> GateLatencyRe
         ),
         stdin_ref_line_supplied=stdin_supplied,
         hook_args=[],
+        forced=False,
         exclusions=[],
     )
 

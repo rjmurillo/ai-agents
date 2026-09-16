@@ -238,7 +238,6 @@ def test_positive_run_repetition_records_all_four_fields(
         "--no-tty",
         "--colors",
         "off",
-        "--force",
         "--no-stage-fixed",
     )
     monkeypatch.setattr(
@@ -289,7 +288,6 @@ def test_positive_run_repetition_passes_change_class_files_as_file_args(
         "--no-tty",
         "--colors",
         "off",
-        "--force",
         "--no-stage-fixed",
         "--file",
         "README.md",

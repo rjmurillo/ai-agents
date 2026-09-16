@@ -91,6 +91,7 @@ def _run_repetition(
     repetition_index: int,
     stdin_ref_line: str | None = None,
     hook_args: tuple[str, ...] = (),
+    force: bool = False,
 ) -> HookRun:
     """Run one whole-hook lefthook invocation and parse its summary (AC-01 to AC-03).
 
@@ -120,10 +121,11 @@ def _run_repetition(
         "--no-tty",
         "--colors",
         "off",
-        "--force",
         "--no-stage-fixed",
         *file_args,
     ]
+    if force:
+        cmd.append("--force")
     digest_before = _tree_digest(repo)
     start = time.perf_counter()
     result = subprocess.run(
@@ -162,10 +164,11 @@ def build_report(
     lefthook_cmd: list[str],
     stdin_ref_line: str | None = None,
     hook_args: tuple[str, ...] = (),
+    force: bool = False,
 ) -> GateLatencyReport:
     """Run every repetition and fold the results into one report."""
     runs = [
-        _run_repetition(repo, lefthook_cmd, hook, files, index, stdin_ref_line, hook_args)
+        _run_repetition(repo, lefthook_cmd, hook, files, index, stdin_ref_line, hook_args, force)
         for index in range(repetitions)
     ]
     summaries = _build_summaries(runs)
@@ -196,6 +199,7 @@ def build_report(
         percentile_note=_percentile_note(_smallest_scope_n(summaries, repetitions)),
         stdin_ref_line_supplied=stdin_ref_line is not None,
         hook_args=list(hook_args),
+        forced=force,
         exclusions=exclusions,
     )
 
@@ -249,6 +253,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "use_stdin: true can exit early on empty stdin, which understates their "
         "cost. Omit it and empty stdin is sent; either way the report records "
         "which was used, so a faithful capture is distinguishable from a bare one.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Pass lefthook's --force, which runs every job regardless of its glob. "
+        "Off by default, and deliberately so: with it on, a change class stops "
+        "selecting jobs and only substitutes the file list, so python-type-check "
+        "runs mypy over a markdown file and fails. Without it, the jobs whose globs "
+        "the class does not match skip with 'no matching push files', which is what "
+        "makes a per-change-class measurement mean anything.",
     )
     parser.add_argument(
         "--hook-arg",
@@ -369,6 +383,7 @@ def main(argv: list[str] | None = None) -> int:
         lefthook_cmd,
         args.stdin_ref_line,
         tuple(args.hook_arg),
+        args.force,
     )
 
     try:
