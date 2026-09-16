@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections import Counter
@@ -251,7 +252,7 @@ def classify(text: str) -> Classification:
     raw_label = _derive_raw_label(a_count, b_fires, ordered_fires, d_fires)
     route = _derive_route(a_count, ordered_fires, d_fires)
 
-    suppressed, invalid_suppression = _suppression_status(text)
+    suppressed, invalid_suppression = _suppression_status(prose)
     if invalid_suppression:
         signals.append("invalid-suppression")
 
@@ -413,9 +414,14 @@ def _resolve_candidates(args: argparse.Namespace, repo_root: Path) -> list[tuple
     candidates: list[tuple[str, Path]] = []
     for raw in _candidate_paths(args, repo_root):
         abspath = raw if raw.is_absolute() else repo_root / raw
-        abspath = abspath.resolve()
+        # Normalise without following symlinks: the staged path is the one
+        # git tracks, and a link's target may sit in the base tree while the
+        # link itself is new. resolve() would report the target instead.
+        abspath = Path(os.path.normpath(abspath))
         if not abspath.is_relative_to(repo_root):
             raise _ConfigError(f"path is outside the repository: {raw}")
+        if abspath.is_dir():
+            raise _ConfigError(f"positional path is a directory, use --path: {raw}")
         if _is_skippable(abspath) or not abspath.is_file():
             continue
         candidates.append((abspath.relative_to(repo_root).as_posix(), abspath))

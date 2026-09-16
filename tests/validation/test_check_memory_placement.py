@@ -143,6 +143,16 @@ def test_classify_ignores_headings_and_lists_inside_fenced_code():
     assert result.label == "evidence", result.signals
 
 
+def test_classify_marker_inside_fenced_code_does_not_suppress():
+    text = (
+        "# Notes\n\n## Constraints\n\nMUST do X. MUST NOT do Y.\n\n"
+        "```markdown\n<!-- placement: evidence; reason: quoted example -->\n```\n"
+    )
+    result = checker.classify(text)
+    assert result.label == "normative"
+    assert result.suppressed is False
+
+
 def test_classify_normative_via_role_contract_signal():
     result = checker.classify(ROLE_CONTRACT)
     assert result.label == "normative"
@@ -367,6 +377,26 @@ def test_non_markdown_files_are_ignored(repo: Path, monkeypatch, capsys):
     assert exit_code == 0
     out = capsys.readouterr().out
     assert "0 file(s) examined" in out
+
+
+def test_symlinked_new_memory_is_judged_by_its_own_path(repo: Path, monkeypatch, capsys):
+    # The link target is committed elsewhere; the link under memories is new.
+    _write(repo, "elsewhere/real.md", NORMATIVE_HEADING)
+    _commit_all(repo, "target")
+    link = repo / ".serena" / "memories" / "link.md"
+    link.symlink_to(repo / "elsewhere" / "real.md")
+    monkeypatch.chdir(repo)
+    code = checker.main(["--ci", "--base", "HEAD", ".serena/memories/link.md"])
+    out = capsys.readouterr().out
+    assert code == 1
+    assert ".serena/memories/link.md: normative" in out
+
+
+def test_positional_directory_argument_exits_two(repo: Path, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    code = checker.main(["--ci", ".serena/memories"])
+    assert code == 2
+    assert "use --path" in capsys.readouterr().err
 
 
 def test_path_outside_repo_exits_two(repo: Path, monkeypatch, capsys):
