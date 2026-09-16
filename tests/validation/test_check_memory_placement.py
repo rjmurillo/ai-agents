@@ -119,6 +119,21 @@ def test_classify_standalone_marker_with_leading_indent_suppresses():
     assert result.suppressed is True
 
 
+def test_classify_two_weak_signals_stay_suspect_not_evidence():
+    # a in [3, 5) together with an ordered procedure is two weak signals: it
+    # must not fall through to evidence, and it is not normative either.
+    text = "# Two weak\n\nnever always required\n\n1. a\n2. b\n3. c\n4. d\n5. e\n"
+    result = checker.classify(text)
+    assert result.label == "suspect"
+    assert result.route == "skill"
+
+
+def test_classify_whitespace_only_reason_is_invalid_suppression():
+    result = checker.classify(NORMATIVE_HEADING + "\n<!-- placement: evidence; reason:    -->\n")
+    assert result.label == "normative"
+    assert result.invalid_suppression is True
+
+
 def test_classify_normative_via_role_contract_signal():
     result = checker.classify(ROLE_CONTRACT)
     assert result.label == "normative"

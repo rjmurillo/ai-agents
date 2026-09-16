@@ -26,8 +26,9 @@ REQ-028-001 through REQ-028-007, per the numbering in
 
 ## Design Overview
 
-Two independent deliverables, shipped as two PRs against the same branch
-lineage. PR A extends the two existing persistence-surface documents
+Two deliverables on separate branches off `main`, with an explicit merge
+order: PR B (the validator) merges first, because PR A's rule text names
+the `memory-placement` job. PR A extends the two existing persistence-surface documents
 (`templates/rules/knowledge-persistence.md`, `.serena/memories/README.md`)
 with the placement taxonomy REQ-028 defines; no code changes. PR B adds one
 new, narrow validator script that flags newly added Serena memories carrying
@@ -69,7 +70,7 @@ lefthook.yml   edit: one new job in the existing memory-size/memory-index/
 | Where the taxonomy lives | Extend `templates/rules/knowledge-persistence.md`, not `universal.md` | REQ-028 Out of scope | Epic #5456's 2026-09-11 direction: any byte change to `universal.md` needs figures refreshed in four downstream documents; `knowledge-persistence.md` is already path-scoped to the exact trees this contract governs and already carries the sibling rule and memory guidance |
 | Validator language | Python, matching existing `scripts/validation/` siblings | ADR-042 | Every validator this job group already runs (`memory_index.py`, `update_memory_index_tokens.py`, `validate_memory_tier.py`) is Python; a new script in the same language keeps one runtime for the whole group |
 | New-vs-existing policy | `git ls-tree -r --name-only <base>` against `--base` (default `HEAD`), never a content diff | REQ-028 Out of scope (no corpus migration) | The contract requires existing memories to warn, never fail; the cheapest correct test for "is this file new" is whether it exists in the base tree, not whether its content changed |
-| Classification model | Two-signal threshold (normative-heading OR role-contract, else keyword-count-plus-procedure-shape), not a single keyword count | REQ-028 Q5 evidence | Corpus measurement: 163 of 994 files contain `MUST`, 92 carry a governance-style heading; a single-keyword rule would flag roughly one file in six with no discrimination. Two independent signals catch the shape the rules actually care about (a memory that reads like a rule or an agent contract) instead of penalizing incidental use of `never` or `always` in prose |
+| Classification model | Two-signal threshold (normative-heading OR role-contract, else keyword-count-plus-procedure-shape), not a single keyword count | REQ-028 Q5 evidence | Corpus measurement (993 validator-eligible files): 162 contain `MUST`, 185 carry a governance-style heading; a single-keyword rule would flag roughly one file in six with no discrimination. Two independent signals catch the shape the rules actually care about (a memory that reads like a rule or an agent contract) instead of penalizing incidental use of `never` or `always` in prose |
 | Suppression mechanism | One HTML comment with a non-empty reason, `<!-- placement: evidence; reason: ... -->`, matching the existing `vendor-portability` and `citation-freshness: ignore` marker convention already used elsewhere in this repository | `canonical-source-mirror.md` precedent | Reuses a pattern every contributor already knows instead of inventing a new escape-hatch syntax |
 | Lefthook placement | Joins the existing `parallel: true` group (`memory-size`, `memory-index`, `memory-token-counts`, `memory-tier`), all globbed `.serena/memories/**/*.md` | `lefthook.yml:328-350` | Same trigger glob, same group, no new group needed; the four existing jobs in that group establish the pattern for a fifth |
 
@@ -165,15 +166,17 @@ Four independent signals computed per file:
 
 - `normative`: signal (b) fires, OR signal (d) fires, OR (signal (a) count
   >= 5 AND signal (c) fires).
-- `suspect`: exactly one of (signal (a) count >= 3), (signal (c) fires), and
-  neither `normative` condition above is met.
+- `suspect`: signal (a) count >= 3, or signal (c) fires, or both, when no
+  `normative` condition above is met (two weak signals stay `suspect`; they
+  never fall through to `evidence`).
 - `evidence`: none of the above.
 
 ### Suppression
 
-A file carrying an HTML comment anywhere in its body matching
-`<!-- placement: evidence; reason: .+ -->` (a non-empty reason required) is
-forced to `evidence` regardless of its computed signals, and is reported as
+A file carrying an HTML comment on its own line matching
+`<!-- placement: evidence; reason: <reason> -->`, where the reason starts
+with a non-whitespace character (so an empty or whitespace-only reason is
+rejected and reported as an invalid suppression), is forced to `evidence` regardless of its computed signals, and is reported as
 `suppressed` (not silently downgraded) so a reviewer can see the marker was
 used.
 
