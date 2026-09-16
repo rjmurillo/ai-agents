@@ -58,10 +58,10 @@ def test_every_cell_declares_a_known_status_and_a_reason(cell: MatrixCell) -> No
 
 
 @pytest.mark.parametrize("cell", _billing_matrix.cells(), ids=lambda c: c.name)
-def test_a_required_credential_names_at_least_one_variable(cell: MatrixCell) -> None:
-    """`credential_required` with no variable would be unsatisfiable."""
-    if cell.credential_required:
-        assert cell.credentials
+def test_a_required_env_var_flag_names_at_least_one_variable(cell: MatrixCell) -> None:
+    """`env_var_required` with no variable named would be unsatisfiable."""
+    if cell.env_var_required:
+        assert cell.env_vars_read
 
 
 def test_every_subscription_cell_bills_requests() -> None:

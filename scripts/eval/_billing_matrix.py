@@ -77,14 +77,23 @@ class MatrixCell:
     aliases: tuple[str, ...]
     #: Short transport description for `--help` and the README table.
     transport: str
-    #: Credential env vars, in the order the transport reads them. Empty when
-    #: the transport reuses a CLI login it does not read directly.
-    credentials: tuple[str, ...]
-    #: True when the run cannot start without one of `credentials`. False when
-    #: a CLI login on disk can supply the credential instead, which no
-    #: environment check can see, so a preflight must answer "unknown" rather
-    #: than "not ready" for that cell.
-    credential_required: bool
+    #: Names of the environment variables the transport reads to authenticate,
+    #: in the order it reads them. Empty when the transport reuses a CLI login
+    #: it does not read directly.
+    #:
+    #: Named for what it holds, variable names, rather than `credentials`,
+    #: which is what it was called until CodeQL flagged the preflight's JSON
+    #: output as clear-text logging of sensitive data. The alert traced a real
+    #: flow, this field into `print`, on a name-based heuristic; the values are
+    #: variable names an operator has to be told to set and never a secret. The
+    #: honest fix is the accurate name, not a suppression, and this note is
+    #: here so nobody renames it back.
+    env_vars_read: tuple[str, ...]
+    #: True when the run cannot start without one of `env_vars_read`. False
+    #: when a CLI login on disk can supply it instead, which no environment
+    #: check can see, so a preflight must answer "unknown" rather than "not
+    #: ready" for that cell.
+    env_var_required: bool
     cost_basis: str
     status: str
     note: str
@@ -108,8 +117,8 @@ _CELLS: tuple[MatrixCell, ...] = (
             "anthropic-sdk",
         ),
         transport="Anthropic Messages API over urllib (dependency-free default)",
-        credentials=("ANTHROPIC_API_KEY",),
-        credential_required=True,
+        env_vars_read=("ANTHROPIC_API_KEY",),
+        env_var_required=True,
         cost_basis=COST_BASIS_USD,
         status=STATUS_VERIFIED,
         note=(
@@ -126,11 +135,11 @@ _CELLS: tuple[MatrixCell, ...] = (
         provider="claude-cli",
         aliases=("claude-cli", "claude-subscription", "claude-code"),
         transport="Claude Code CLI subprocess (`claude --print`)",
-        credentials=("CLAUDE_CODE_OAUTH_TOKEN",),
+        env_vars_read=("CLAUDE_CODE_OAUTH_TOKEN",),
         # Required, not optional: this transport relocates CLAUDE_CONFIG_DIR
         # to an isolated profile, and a relocated profile carries no stored
         # login for the CLI to fall back on.
-        credential_required=True,
+        env_var_required=True,
         cost_basis=COST_BASIS_REQUESTS,
         status=STATUS_UNVERIFIED,
         note=(
@@ -153,8 +162,8 @@ _CELLS: tuple[MatrixCell, ...] = (
         provider="openai",
         aliases=("openai", "codex", "codex-api"),
         transport="OpenAI Chat Completions via the `openai` SDK",
-        credentials=("OPENAI_API_KEY",),
-        credential_required=True,
+        env_vars_read=("OPENAI_API_KEY",),
+        env_var_required=True,
         cost_basis=COST_BASIS_USD,
         status=STATUS_UNVERIFIED,
         note=(
@@ -170,11 +179,11 @@ _CELLS: tuple[MatrixCell, ...] = (
         provider="codex-cli",
         aliases=("codex-cli", "codex-subscription"),
         transport="Codex CLI subprocess (`codex exec`)",
-        credentials=("CODEX_ACCESS_TOKEN",),
+        env_vars_read=("CODEX_ACCESS_TOKEN",),
         # Optional: `--ignore-user-config` drops config.toml without touching
         # the login state, so CODEX_HOME keeps the operator's `codex login`
         # session and the variable is only the automation alternative.
-        credential_required=False,
+        env_var_required=False,
         cost_basis=COST_BASIS_REQUESTS,
         status=STATUS_UNVERIFIED,
         note=(
@@ -196,8 +205,8 @@ _CELLS: tuple[MatrixCell, ...] = (
         provider="copilot-api",
         aliases=("copilot-api",),
         transport=("OpenAI-compatible HTTP endpoint at COPILOT_API_BASE_URL (operator-supplied)"),
-        credentials=("COPILOT_API_KEY", "GITHUB_COPILOT_TOKEN"),
-        credential_required=True,
+        env_vars_read=("COPILOT_API_KEY", "GITHUB_COPILOT_TOKEN"),
+        env_var_required=True,
         cost_basis=COST_BASIS_REQUESTS,
         status=STATUS_UNVERIFIED,
         note=(
@@ -223,8 +232,8 @@ _CELLS: tuple[MatrixCell, ...] = (
         provider="copilot-cli",
         aliases=("copilot-cli", "copilot", "copilot-subscription"),
         transport="GitHub Copilot CLI subprocess over ACP",
-        credentials=(),
-        credential_required=False,
+        env_vars_read=(),
+        env_var_required=False,
         cost_basis=COST_BASIS_REQUESTS,
         status=STATUS_VERIFIED,
         note=(
@@ -443,8 +452,8 @@ def format_matrix() -> str:
             provider=cell.provider,
             transport=cell.transport,
             credential=(
-                ", ".join(f"`{name}`" for name in cell.credentials)
-                if cell.credentials
+                ", ".join(f"`{name}`" for name in cell.env_vars_read)
+                if cell.env_vars_read
                 else "none (CLI login)"
             ),
             basis=cell.cost_basis,

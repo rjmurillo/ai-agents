@@ -77,8 +77,8 @@ def _missing_requirements(cell: MatrixCell) -> list[str]:
     trip per miss, and the checks are independent.
     """
     missing: list[str] = []
-    if cell.credential_required and not _has_credential(cell):
-        missing.append("no credential in " + " or ".join(cell.credentials))
+    if cell.env_var_required and not _has_env_var(cell):
+        missing.append("no value set in " + " or ".join(cell.env_vars_read))
     for name in _CELL_REQUIRED_SETTINGS.get(cell.provider, ()):
         if not (os.environ.get(name) or "").strip():
             missing.append(f"{name} is unset")
@@ -88,14 +88,15 @@ def _missing_requirements(cell: MatrixCell) -> list[str]:
     return missing
 
 
-def _has_credential(cell: MatrixCell) -> bool:
-    return any(os.environ.get(name) for name in cell.credentials)
+def _has_env_var(cell: MatrixCell) -> bool:
+    """Report presence only. The value is never bound, returned, or printed."""
+    return any(os.environ.get(name) for name in cell.env_vars_read)
 
 
 def _verdict(cell: MatrixCell, missing: list[str]) -> str:
     if missing:
         return NOT_READY
-    if cell.credentials and not cell.credential_required and not _has_credential(cell):
+    if cell.env_vars_read and not cell.env_var_required and not _has_env_var(cell):
         return UNKNOWN
     return READY
 
@@ -105,8 +106,8 @@ def _readiness(cell: MatrixCell) -> dict[str, object]:
     verdict = _verdict(cell, missing)
     if verdict == UNKNOWN:
         missing = [
-            "no credential in "
-            + " or ".join(cell.credentials)
+            "no value set in "
+            + " or ".join(cell.env_vars_read)
             + "; the CLI may still authenticate from a login on disk, which "
             "this check does not read"
         ]
@@ -116,7 +117,7 @@ def _readiness(cell: MatrixCell) -> dict[str, object]:
         "cell": cell.name,
         "provider": cell.provider,
         "transport": cell.transport,
-        "credentials": list(cell.credentials),
+        "env_vars_read": list(cell.env_vars_read),
         "cost_basis": cell.cost_basis,
         "status": cell.status,
         "readiness": verdict,
