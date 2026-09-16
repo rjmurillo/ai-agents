@@ -42,7 +42,6 @@ FAST_STDIN_GATES = (
     "push-ref-policy",
     "security-suppression-policy",
     "placeholder-identity",
-    "retrospective-policy",
 )
 FAST_PARALLEL_GATES = frozenset(
     {
