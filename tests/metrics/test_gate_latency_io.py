@@ -104,7 +104,9 @@ def test_positive_write_markdown_includes_required_sections(tmp_path: Path) -> N
     assert "## Latency by scope" in text
     assert "## Per-repetition runs" in text
     assert "one machine on one date" in text
-    assert report.percentile_note in text
+    note = report.percentile_note
+    assert note is not None
+    assert note in text
 
 
 def test_edge_write_markdown_omits_percentile_note_when_absent(tmp_path: Path) -> None:
