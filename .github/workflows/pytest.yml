@@ -173,9 +173,17 @@ jobs:
     if: needs.check-paths.outputs.python-changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # `checks: write` was here from the ADR-042 migration (953b4534d, PR #967)
+    # and was never used: no step in this job publishes a check run, and
+    # `git log -S test-reporter -- .github/workflows/pytest.yml` is empty across
+    # the file's whole history. It is removed rather than kept, because until
+    # ADR-101 item 7 pins a publishing App by `integration_id`, a required
+    # status context is matched by name alone, so any job holding `checks: write`
+    # on a `pull_request` trigger can publish a check run bearing a required
+    # context's name from head-editable code. This job runs on every Python pull
+    # request. CWE-269.
     permissions:
       contents: read
-      checks: write
     env:
       NODE_OPTIONS: --use-system-ca
     strategy:
