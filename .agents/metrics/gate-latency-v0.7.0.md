@@ -19,7 +19,7 @@ that produced each one.
 ## Scope, stated before the numbers
 
 One machine, one date. A 4-CPU Linux container, Python 3.14.7,
-2026-09-16, measured at commit `610e14d31` on branch
+2026-09-16, measured at commit `1251644dd` on branch
 `claude/ai-agents-goal-spec-ch26ls`. `ci-scripts.md` MUST-16 records a job
 measured at 6.83s standalone and 92.87s inside a real push on one machine on
 one date, and says not to carry that ratio forward. The same restraint
@@ -30,39 +30,49 @@ Sample sizes are small: n=3 for pre-commit, n=2 for pre-push. No figure below
 is labelled p95, because none of them supports one. The column that matters
 is the worst observed run.
 
+Two reading notes for the per-run artifacts. A `group (N)` row is lefthook's
+own total for a group, which is the sum of its members rather than wall clock,
+so a parallel group routinely reports more seconds than the whole hook took
+(`ci-scripts.md` MUST-17). Those rows are labelled `group total (sum)` in the
+tables, and scheduling is read from `lefthook.yml`, never from that
+arithmetic. Separately, pre-commit job counts move with the working tree,
+because many pre-commit jobs gate on staged files: the markdown class ran 19
+jobs here and 17 in an earlier capture of the same class on a cleaner tree, so
+compare pre-commit figures only against a similarly staged tree.
+
 ## Headline
 
 | Hook | Change class | n | Worst observed | Median | Jobs run | Declared budget |
 |---|---|---|---|---|---|---|
-| pre-commit | markdown | 3 | 3.77s | 3.74s | 17 | 6,230s |
-| pre-commit | python | 3 | 7.24s | 7.09s | 17 | 6,230s |
-| pre-push | markdown | 2 | 122.83s | 121.88s | 26 | 3,330s |
-| pre-push | skills | 2 | 123.67s | 121.35s | 27 | 3,330s |
-| pre-push | hooks | 2 | 123.92s | 121.79s | 29 | 3,330s |
-| pre-push | python | 2 | 125.83s | 123.62s | 28 | 3,330s |
+| pre-commit | markdown | 3 | 9.82s | 9.66s | 19 | 6,230s |
+| pre-commit | python | 3 | 7.22s | 7.22s | 17 | 6,230s |
+| pre-push | markdown | 2 | 126.16s | 124.56s | 26 | 3,330s |
+| pre-push | skills | 2 | 124.19s | 123.59s | 27 | 3,330s |
+| pre-push | python | 2 | 124.11s | 124.00s | 28 | 3,330s |
+| pre-push | hooks | 2 | 128.21s | 123.66s | 29 | 3,330s |
 
 ## What the numbers say
 
 **The declared budget is not a latency.** Pre-push declares 3,330 seconds and
-the worst observed run is 125.83 seconds, 26 times smaller. Pre-commit
-declares 6,230 seconds and the worst observed run is 7.24 seconds, 860 times
+the worst observed run is 128.21 seconds, 26 times smaller. Pre-commit
+declares 6,230 seconds and the worst observed run is 9.82 seconds, 634 times
 smaller. The declared figure is the sum of per-job `timeout:` ceilings under
 lefthook's group semantics, which is a worst case nothing has ever hit. It is
 the number release gate 3 has been reading.
 
 **ADR-104's two targets both hold, on this box.** The 300s pre-push target is
-met with the worst observed run at 42 percent of it. The 60s pre-commit
+met with the worst observed run at 43 percent of it. The 60s pre-commit
 target, which ADR-104 itself calls a placeholder with no measurement behind
-it, is met at 12 percent. ADR-104's re-evaluation trigger, "a real push
+it, is met at 16 percent. ADR-104's re-evaluation trigger, "a real push
 measures the pre-push hook above 300s", did not fire.
 
 **Pre-push cost is concentrated in one job.** In the markdown class,
-`pre-pr-validation` is 91.20s of the 122.83s total. `count-ratchets` is
-22.53s, `zero-collection-tests` 18.74s, `python-tests` 15.52s. The
+`pre-pr-validation` is 93.80s of the 126.16s total. `count-ratchets` is
+23.68s, `zero-collection-tests` 18.31s, `python-tests` 15.20s. The
 2026-08-19 record in `.serena/memories/ci/ci-pre-push-wall-clock-is-python-tests.md`
 had `python-tests` at 498.52s of 679s; that memory marked itself stale after
-PR #5418, and this measurement replaces it. `python-tests` is no longer the
-wall clock.
+PR #5418, and this measurement replaces it. `python-tests` is 15.20s here and
+is no longer the wall clock.
 
 **Change class changes which jobs run**, which is the whole point of
 measuring per class: 26 jobs for markdown, 27 for skills, 28 for python, 29
@@ -73,14 +83,14 @@ own class and skip otherwise with "no matching push files".
 
 | Job | Class that fires it | Worst observed |
 |---|---|---|
-| `security-scan` | every class, it declares no glob | 7.12s |
-| `python-type-check` | `python`, and `hooks` (its file is a `.py`) | 0.45s |
-| `plugin-load-e2e` | `skills` | 0.41s |
-| `hook-anchoring-e2e` | `hooks` | 0.53s |
+| `security-scan` | every class, it declares no glob | 9.96s |
+| `python-type-check` | `python`, and `hooks` (its file is a `.py`) | 0.52s |
+| `plugin-load-e2e` | `skills` | 0.43s |
+| `hook-anchoring-e2e` | `hooks` | 0.56s |
 | `workflow-local-run` | `workflows` | not measured, see below |
 
 Four of the five cost under a second when their glob fires, and
-`security-scan` runs on every push for about 7 seconds. None is a tail risk
+`security-scan` runs on every push for about 10 seconds. None is a tail risk
 on this box. That is worth stating plainly, because these five were named in
 #5318 on the suspicion that they were the unmeasured tail, and on this
 machine they are not: the cost is `pre-pr-validation`.

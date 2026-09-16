@@ -70,20 +70,38 @@ def _summary_table(summaries: list[LatencySummary]) -> list[str]:
     value stays in the JSON for anyone who wants the order statistic.
     """
     low_n = any(s.n < _LOW_N_THRESHOLD for s in summaries)
+    note = [
+        "A `group (N)` row is lefthook's own total for a group, which is the "
+        "sum of its members rather than wall clock, so a parallel group can "
+        "report more than the whole hook took (ci-scripts.md MUST-17). Those "
+        "rows are marked; scheduling comes from `lefthook.yml`, never from "
+        "this arithmetic.",
+        "",
+    ]
     if low_n:
-        lines = [
-            "| scope | n | worst observed of n runs | p50 | min |",
-            "|---|---|---|---|---|",
+        header = [
+            "| scope | kind | n | worst observed of n runs | p50 | min |",
+            "|---|---|---|---|---|---|",
         ]
-        for s in summaries:
-            lines.append(f"| {s.scope} | {s.n} | {s.max:.3f} | {s.p50:.3f} | {s.min:.3f} |")
-        return lines
-    lines = ["| scope | n | p50 | p95 | min | max |", "|---|---|---|---|---|---|"]
-    for s in summaries:
-        lines.append(
-            f"| {s.scope} | {s.n} | {s.p50:.3f} | {s.p95:.3f} | {s.min:.3f} | {s.max:.3f} |"
-        )
-    return lines
+        rows = [
+            f"| {s.scope} | {_kind(s)} | {s.n} | {s.max:.3f} | {s.p50:.3f} | {s.min:.3f} |"
+            for s in summaries
+        ]
+        return note + header + rows
+    header = ["| scope | kind | n | p50 | p95 | min | max |", "|---|---|---|---|---|---|---|"]
+    rows = [
+        f"| {s.scope} | {_kind(s)} | {s.n} | {s.p50:.3f} | {s.p95:.3f} | "
+        f"{s.min:.3f} | {s.max:.3f} |"
+        for s in summaries
+    ]
+    return note + header + rows
+
+
+def _kind(summary: LatencySummary) -> str:
+    """Name what a row measures, so a group total is not read as a job."""
+    if summary.scope == "__hook__":
+        return "hook wall clock"
+    return "group total (sum)" if summary.is_group else "job"
 
 
 def _run_table(runs: list[HookRun]) -> list[str]:

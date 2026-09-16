@@ -401,27 +401,39 @@ def main(argv: list[str] | None = None) -> int:
         return resolved
     repo, files, lefthook_cmd = resolved
 
-    status = _run_git(repo, "status", "--porcelain")
-    if status.returncode != 0:
-        print(f"error: git status failed: {status.stderr.strip()}", file=sys.stderr)
-        return 2
-    if status.stdout.strip() and not args.allow_dirty:
-        print("error: working tree is dirty; pass --allow-dirty or commit first", file=sys.stderr)
-        return 1
+    # A bounded git call raises RuntimeError on timeout rather than letting
+    # TimeoutExpired escape as a traceback, so route it to the exit-2 path the
+    # sibling control_plane_baseline.py uses for the same class of failure.
+    try:
+        status = _run_git(repo, "status", "--porcelain")
+        if status.returncode != 0:
+            print(f"error: git status failed: {status.stderr.strip()}", file=sys.stderr)
+            return 2
+        if status.stdout.strip() and not args.allow_dirty:
+            print(
+                "error: working tree is dirty; pass --allow-dirty or commit first",
+                file=sys.stderr,
+            )
+            return 1
 
-    command = "scripts/metrics/gate_latency.py " + " ".join(_normalized_command_args(args_list))
-    report = build_report(
-        repo,
-        command,
-        args.hook,
-        args.change_class,
-        files,
-        args.repetitions,
-        lefthook_cmd,
-        args.stdin_ref_line,
-        tuple(args.hook_arg),
-        args.force,
-    )
+        command = "scripts/metrics/gate_latency.py " + " ".join(
+            _normalized_command_args(args_list)
+        )
+        report = build_report(
+            repo,
+            command,
+            args.hook,
+            args.change_class,
+            files,
+            args.repetitions,
+            lefthook_cmd,
+            args.stdin_ref_line,
+            tuple(args.hook_arg),
+            args.force,
+        )
+    except RuntimeError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     try:
         if args.json:

@@ -1,7 +1,7 @@
 # Gate latency: pre-push (skills)
 
-- Commit: `610e14d313e1f7d5927c5c0ae8f43ccaaf69f9af`
-- Captured at: `2026-09-16T06:58:22.755518+00:00`
+- Commit: `1251644ddfce00e9d6ab2a2025ebab977089e305`
+- Captured at: `2026-09-16T07:38:11.884742+00:00`
 - Repetitions: 2
 - Stdin ref line supplied: True
 - Hook args: ['origin', 'https://github.com/rjmurillo/ai-agents.git']
@@ -13,7 +13,7 @@ These figures describe one machine on one date. Per-job scheduling is not inferr
 ## Measurement command
 
 ```
-scripts/metrics/gate_latency.py --hook pre-push --change-class skills --repetitions 2 --hook-arg origin --hook-arg https://github.com/rjmurillo/ai-agents.git --stdin-ref-line refs/heads/claude/ai-agents-goal-spec-ch26ls 610e14d313e1f7d5927c5c0ae8f43ccaaf69f9af refs/heads/claude/ai-agents-goal-spec-ch26ls 659097d6d66c5e66aab76f9f2258bf2e333ee7b8 --json .agents/metrics/gate-latency-v0.7.0/pre-push-skills.json --markdown .agents/metrics/gate-latency-v0.7.0/pre-push-skills.md --allow-dirty
+scripts/metrics/gate_latency.py --hook pre-push --change-class skills --repetitions 2 --hook-arg origin --hook-arg https://github.com/rjmurillo/ai-agents.git --stdin-ref-line refs/heads/claude/ai-agents-goal-spec-ch26ls 1251644ddfce00e9d6ab2a2025ebab977089e305 refs/heads/claude/ai-agents-goal-spec-ch26ls 659097d6d66c5e66aab76f9f2258bf2e333ee7b8 --json .agents/metrics/gate-latency-v0.7.0/pre-push-skills.json --markdown .agents/metrics/gate-latency-v0.7.0/pre-push-skills.md --allow-dirty
 ```
 
 ## Change class
@@ -28,41 +28,43 @@ n=2 is below 20: p95 in this report is an upper-order statistic of the observed 
 
 ## Latency by scope
 
-| scope | n | worst observed of n runs | p50 | min |
-|---|---|---|---|---|
-| __hook__ | 2 | 123.670 | 121.350 | 121.350 |
-| additions-advisory | 2 | 0.390 | 0.290 | 0.290 |
-| bot-cascade-advisory | 2 | 0.680 | 0.610 | 0.610 |
-| branch-context-policy | 2 | 0.410 | 0.400 | 0.400 |
-| branch-scope | 2 | 0.320 | 0.260 | 0.260 |
-| count-ratchets | 2 | 23.520 | 22.610 | 22.610 |
-| dash-prohibition | 2 | 0.710 | 0.680 | 0.680 |
-| group (4) | 2 | 1.560 | 1.290 | 1.290 |
-| group (5) | 2 | 38.820 | 36.980 | 36.980 |
-| group (7) | 2 | 128.140 | 125.890 | 125.890 |
-| infrastructure-advisory | 2 | 0.200 | 0.130 | 0.130 |
-| mutation-safety | 2 | 0.090 | 0.090 | 0.090 |
-| path-normalization | 2 | 3.810 | 3.650 | 3.650 |
-| placeholder-identity | 2 | 0.310 | 0.280 | 0.280 |
-| planning-artifacts | 2 | 0.180 | 0.140 | 0.140 |
-| plugin-load-e2e | 2 | 0.410 | 0.380 | 0.380 |
-| pre-pr-validation | 2 | 91.030 | 90.080 | 90.080 |
-| push-ref-policy | 2 | 1.060 | 0.760 | 0.760 |
-| push-ref-staleness | 2 | 0.980 | 0.940 | 0.940 |
-| python-tests | 2 | 15.510 | 15.140 | 15.140 |
-| python-unreachable-statements | 2 | 9.840 | 8.760 | 8.760 |
-| repair-packed-refs | 2 | 0.090 | 0.070 | 0.070 |
-| repo-health | 2 | 0.080 | 0.080 | 0.080 |
-| review-axis-drift | 2 | 0.260 | 0.260 | 0.260 |
-| security-scan | 2 | 6.310 | 6.090 | 6.090 |
-| security-suppression-policy | 2 | 0.220 | 0.220 | 0.220 |
-| worktree-gc-report | 2 | 1.010 | 0.930 | 0.930 |
-| zero-collection-tests | 2 | 19.150 | 18.070 | 18.070 |
+A `group (N)` row is lefthook's own total for a group, which is the sum of its members rather than wall clock, so a parallel group can report more than the whole hook took (ci-scripts.md MUST-17). Those rows are marked; scheduling comes from `lefthook.yml`, never from this arithmetic.
+
+| scope | kind | n | worst observed of n runs | p50 | min |
+|---|---|---|---|---|---|
+| __hook__ | hook wall clock | 2 | 124.186 | 123.594 | 123.594 |
+| additions-advisory | job | 2 | 0.360 | 0.350 | 0.350 |
+| bot-cascade-advisory | job | 2 | 0.760 | 0.630 | 0.630 |
+| branch-context-policy | job | 2 | 0.410 | 0.340 | 0.340 |
+| branch-scope | job | 2 | 0.330 | 0.300 | 0.300 |
+| count-ratchets | job | 2 | 22.890 | 22.690 | 22.690 |
+| dash-prohibition | job | 2 | 0.720 | 0.680 | 0.680 |
+| group (4) | group total (sum) | 2 | 1.480 | 1.290 | 1.290 |
+| group (5) | group total (sum) | 2 | 37.960 | 37.350 | 37.350 |
+| group (7) | group total (sum) | 2 | 127.570 | 127.410 | 127.410 |
+| infrastructure-advisory | job | 2 | 0.210 | 0.160 | 0.160 |
+| mutation-safety | job | 2 | 0.100 | 0.090 | 0.090 |
+| path-normalization | job | 2 | 3.520 | 3.260 | 3.260 |
+| placeholder-identity | job | 2 | 0.310 | 0.290 | 0.290 |
+| planning-artifacts | job | 2 | 0.220 | 0.130 | 0.130 |
+| plugin-load-e2e | job | 2 | 0.430 | 0.310 | 0.310 |
+| pre-pr-validation | job | 2 | 92.550 | 92.040 | 92.040 |
+| push-ref-policy | job | 2 | 0.970 | 0.760 | 0.760 |
+| push-ref-staleness | job | 2 | 0.930 | 0.730 | 0.730 |
+| python-tests | job | 2 | 14.960 | 14.870 | 14.870 |
+| python-unreachable-statements | job | 2 | 10.150 | 9.140 | 9.140 |
+| repair-packed-refs | job | 2 | 0.080 | 0.080 | 0.080 |
+| repo-health | job | 2 | 0.080 | 0.080 | 0.080 |
+| review-axis-drift | job | 2 | 0.310 | 0.200 | 0.200 |
+| security-scan | job | 2 | 6.340 | 6.220 | 6.220 |
+| security-suppression-policy | job | 2 | 0.230 | 0.220 | 0.220 |
+| worktree-gc-report | job | 2 | 0.990 | 0.760 | 0.760 |
+| zero-collection-tests | job | 2 | 17.810 | 17.790 | 17.790 |
 
 ## Per-repetition runs
 
 | repetition | exit_code | wall_clock_seconds | lefthook_reported_seconds | jobs_parsed | tree_mutated | unknown_status_count |
 |---|---|---|---|---|---|---|
-| 0 | 0 | 123.670 | 123.610 | 27 | False | 0 |
-| 1 | 0 | 121.350 | 121.290 | 27 | False | 0 |
+| 0 | 0 | 124.186 | 124.130 | 27 | False | 0 |
+| 1 | 0 | 123.594 | 123.540 | 27 | False | 0 |
 

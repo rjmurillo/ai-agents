@@ -64,13 +64,17 @@ def _build_summaries(runs: list[HookRun]) -> list[LatencySummary]:
     (``_`` sorts before any letter).
     """
     by_scope: dict[str, list[float]] = defaultdict(list)
+    groups: set[str] = set()
     for run in runs:
         by_scope["__hook__"].append(run.wall_clock_seconds)
         for sample in run.samples:
             by_scope[sample.name].append(sample.seconds)
+            if sample.is_group:
+                groups.add(sample.name)
     return [
         LatencySummary(
             scope=scope,
+            is_group=scope in groups,
             n=len(values),
             p50=_nearest_rank_percentile(values, 50),
             p95=_nearest_rank_percentile(values, 95),

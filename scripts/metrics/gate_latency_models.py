@@ -51,6 +51,7 @@ class LatencySummary:
     """
 
     scope: str
+    is_group: bool
     n: int
     p50: float
     p95: float

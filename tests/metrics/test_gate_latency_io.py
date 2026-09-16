@@ -52,8 +52,12 @@ def _sample_report(*, n: int = 1, stdin_supplied: bool = False) -> GateLatencyRe
         platform="test-platform",
         python_version="3.14.0",
     )
-    summary_hook = LatencySummary(scope="__hook__", n=n, p50=0.6, p95=0.7, min=0.6, max=0.7)
-    summary_job = LatencySummary(scope="a-job", n=n, p50=0.5, p95=0.55, min=0.5, max=0.55)
+    summary_hook = LatencySummary(
+        scope="__hook__", is_group=False, n=n, p50=0.6, p95=0.7, min=0.6, max=0.7
+    )
+    summary_job = LatencySummary(
+        scope="a-job", is_group=False, n=n, p50=0.5, p95=0.55, min=0.5, max=0.55
+    )
     return GateLatencyReport(
         commit_sha="deadbeef",
         captured_at="2026-01-01T00:00:00+00:00",
@@ -190,7 +194,7 @@ def test_positive_markdown_reports_p95_at_or_above_the_threshold(tmp_path):
 def test_edge_markdown_uses_low_n_shape_when_any_single_scope_is_below_threshold(tmp_path):
     """One under-sampled scope downgrades the whole table, never just its own row."""
     report = _sample_report(n=20)
-    thin = LatencySummary(scope="late-job", n=2, p50=1.0, p95=1.2, min=1.0, max=1.2)
+    thin = LatencySummary(scope="late-job", is_group=False, n=2, p50=1.0, p95=1.2, min=1.0, max=1.2)
     report = dataclasses.replace(report, summaries=[*report.summaries, thin])
     path = tmp_path / "mixed-n.md"
 

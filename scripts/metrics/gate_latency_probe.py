@@ -26,17 +26,37 @@ import yaml
 from scripts.ci.lefthook_budget_model import load_config
 from scripts.metrics.gate_latency_models import HostProfile
 
+# Matches the sibling control_plane_baseline.py's _git_output, which bounds its
+# git calls at 30 seconds for the same reason. gate_latency.py bounds the
+# lefthook call because "a hung hook would otherwise hang the sampler with no
+# diagnostic"; the git calls that bracket every repetition need the same bound
+# or that guarantee has a hole. A killed hook job can leave .git/index.lock
+# behind, and the very next digest call would then block forever.
+_GIT_TIMEOUT_SECONDS = 30.0
+
 
 def _run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    """Run a git command against ``repo``, bounded.
+
+    Raises ``RuntimeError`` on timeout so ``main`` reaches its existing
+    exit-code-2 path, rather than letting ``TimeoutExpired`` escape as a
+    traceback.
+    """
+    try:
+        return subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            timeout=_GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as expired:
+        raise RuntimeError(
+            f"git {' '.join(args)} exceeded {_GIT_TIMEOUT_SECONDS}s in {repo}"
+        ) from expired
 
 
 def _tree_digest(repo: Path) -> str:

@@ -70,6 +70,7 @@ class JobSample:
     status: str
     marker: str
     depth: int
+    is_group: bool = False
 
 
 def classify_marker(marker: str) -> str:
@@ -127,4 +128,29 @@ def parse_summary(stdout: str) -> tuple[list[JobSample], float | None]:
                 depth=len(match.group("indent")),
             )
         )
-    return samples, reported_seconds
+    # lefthook prints a group's own row above its members, indented one level
+    # less. That row's duration is the SUM of its members, not wall clock, so a
+    # parallel group routinely reports more than the whole hook took
+    # (ci-scripts.md MUST-17). Marking it here, where the ordering is still
+    # available, is what lets a reader tell a group total from a leaf job once
+    # the samples are folded and the ordering is gone.
+    return _mark_groups(samples), reported_seconds
+
+
+def _mark_groups(samples: list[JobSample]) -> list[JobSample]:
+    """Flag every row whose successor is indented deeper than it."""
+    marked: list[JobSample] = []
+    for index, sample in enumerate(samples):
+        following = samples[index + 1] if index + 1 < len(samples) else None
+        is_group = following is not None and following.depth > sample.depth
+        marked.append(
+            JobSample(
+                name=sample.name,
+                seconds=sample.seconds,
+                status=sample.status,
+                marker=sample.marker,
+                depth=sample.depth,
+                is_group=is_group,
+            )
+        )
+    return marked

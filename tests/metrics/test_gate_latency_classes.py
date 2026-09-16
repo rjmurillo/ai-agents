@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 import yaml
+from wcmatch import glob
 
 from scripts.metrics import gate_latency as gl
 from scripts.metrics import gate_latency_stats as gls
@@ -142,8 +143,8 @@ def test_positive_change_classes_cover_every_glob_gated_job_issue_5318_names() -
     assert gl.CHANGE_CLASSES["hooks"] == ("build/scripts/generate_hooks.py",)
 
 
-def test_positive_hooks_change_class_path_is_in_hook_anchoring_e2e_glob_list() -> None:
-    """The hooks class is worthless if lefthook.yml stops naming that path."""
+def _declared_globs(hook: str, job_name: str) -> list[str]:
+    """Every glob `job_name` declares under `hook` in the real lefthook.yml."""
     config = yaml.safe_load(Path("lefthook.yml").read_text(encoding="utf-8"))
     globs: list[str] = []
 
@@ -152,19 +153,55 @@ def test_positive_hooks_change_class_path_is_in_hook_anchoring_e2e_glob_list() -
             group = entry.get("group")
             if isinstance(group, dict):
                 _walk(group.get("jobs", []))
-            if entry.get("name") == "hook-anchoring-e2e":
+            if entry.get("name") == job_name:
                 declared = entry.get("glob", [])
                 globs.extend(declared if isinstance(declared, list) else [declared])
 
-    _walk(config["pre-push"]["jobs"])
-    assert "build/scripts/generate_hooks.py" in globs
+    _walk(config[hook]["jobs"])
+    return globs
+
+
+@pytest.mark.parametrize(
+    ("change_class", "job_name"),
+    [
+        ("hooks", "hook-anchoring-e2e"),
+        ("python", "python-type-check"),
+        ("skills", "plugin-load-e2e"),
+        ("workflows", "workflow-local-run"),
+    ],
+)
+def test_positive_each_change_class_file_matches_its_job_glob(
+    change_class: str, job_name: str
+) -> None:
+    """AC-08 holds only while each class's file still matches its job's glob.
+
+    `gate_latency_classes.py` asserts these four mappings in prose, read off
+    `lefthook.yml` once. Prose does not fail when the config moves. Without
+    this, a glob change would silently stop a class from firing the job it
+    exists to measure, and the suite would stay green while the artifact kept
+    claiming coverage.
+    """
+    globs = _declared_globs("pre-push", job_name)
+    assert globs, f"{job_name} declares no glob in lefthook.yml"
+
+    files = gl.CHANGE_CLASSES[change_class]
+    assert files, f"change class {change_class} names no file"
+
+    # lefthook.yml sets `glob_matcher: doublestar`, so the patterns use `**`
+    # and brace alternation. pathlib.PurePath.match understands neither, and
+    # would report a false mismatch for `.github/workflows/**/*.{yml,yaml}`.
+    flags = glob.GLOBSTAR | glob.BRACE
+    for rel in files:
+        assert any(
+            glob.globmatch(rel, pattern, flags=flags) for pattern in globs
+        ), f"{rel} matches none of {job_name}'s globs {globs}"
 
 
 def test_positive_smallest_scope_n_drives_the_percentile_note() -> None:
     """A 20-run report with one under-sampled job still needs the note (AC-05)."""
     summaries = [
-        LatencySummary(scope="__hook__", n=20, p50=1.0, p95=2.0, min=1.0, max=2.0),
-        LatencySummary(scope="late-job", n=3, p50=1.0, p95=2.0, min=1.0, max=2.0),
+        LatencySummary(scope="__hook__", is_group=False, n=20, p50=1.0, p95=2.0, min=1.0, max=2.0),
+        LatencySummary(scope="late-job", is_group=False, n=3, p50=1.0, p95=2.0, min=1.0, max=2.0),
     ]
 
     assert gls._smallest_scope_n(summaries, 20) == 3

@@ -1,7 +1,7 @@
 # Gate latency: pre-commit (markdown)
 
-- Commit: `610e14d313e1f7d5927c5c0ae8f43ccaaf69f9af`
-- Captured at: `2026-09-16T06:49:50.651500+00:00`
+- Commit: `1251644ddfce00e9d6ab2a2025ebab977089e305`
+- Captured at: `2026-09-16T07:29:30.689818+00:00`
 - Repetitions: 3
 - Stdin ref line supplied: False
 - Hook args: (none)
@@ -28,32 +28,36 @@ n=3 is below 20: p95 in this report is an upper-order statistic of the observed 
 
 ## Latency by scope
 
-| scope | n | worst observed of n runs | p50 | min |
-|---|---|---|---|---|
-| __hook__ | 3 | 3.768 | 3.744 | 3.629 |
-| branch-context-policy | 3 | 0.210 | 0.200 | 0.180 |
-| branch-policy | 3 | 0.200 | 0.200 | 0.190 |
-| commit-file-count | 3 | 0.200 | 0.190 | 0.190 |
-| conflict-marker-policy | 3 | 0.320 | 0.310 | 0.270 |
-| group (5) | 3 | 2.400 | 2.370 | 2.300 |
-| group (6) | 3 | 1.510 | 1.510 | 1.500 |
-| infrastructure-advisory | 3 | 0.140 | 0.110 | 0.100 |
-| markdown-autofix | 3 | 1.190 | 1.180 | 1.160 |
-| markdown-check | 3 | 1.210 | 1.190 | 1.150 |
-| push-lock-commit-guard | 3 | 0.080 | 0.080 | 0.070 |
-| repair-packed-refs | 3 | 0.080 | 0.080 | 0.080 |
-| repo-health | 3 | 0.080 | 0.080 | 0.080 |
-| root-hygiene-policy | 3 | 0.260 | 0.230 | 0.220 |
-| root-scratch-policy | 3 | 0.300 | 0.290 | 0.290 |
-| scope-policy | 3 | 0.150 | 0.150 | 0.140 |
-| staged-dash-policy | 3 | 0.270 | 0.240 | 0.220 |
-| taste-advisory | 3 | 0.330 | 0.310 | 0.300 |
+A `group (N)` row is lefthook's own total for a group, which is the sum of its members rather than wall clock, so a parallel group can report more than the whole hook took (ci-scripts.md MUST-17). Those rows are marked; scheduling comes from `lefthook.yml`, never from this arithmetic.
+
+| scope | kind | n | worst observed of n runs | p50 | min |
+|---|---|---|---|---|---|
+| __hook__ | hook wall clock | 3 | 9.821 | 9.662 | 9.650 |
+| branch-context-policy | job | 3 | 0.200 | 0.200 | 0.200 |
+| branch-policy | job | 3 | 0.210 | 0.200 | 0.190 |
+| commit-file-count | job | 3 | 0.210 | 0.200 | 0.200 |
+| conflict-marker-policy | job | 3 | 0.410 | 0.410 | 0.390 |
+| group (5) | group total (sum) | 3 | 2.540 | 2.450 | 2.430 |
+| group (6) | group total (sum) | 3 | 8.710 | 8.640 | 8.570 |
+| infrastructure-advisory | job | 3 | 0.250 | 0.170 | 0.150 |
+| markdown-autofix | job | 3 | 1.270 | 1.200 | 1.190 |
+| markdown-check | job | 3 | 1.260 | 1.260 | 1.230 |
+| push-lock-commit-guard | job | 3 | 0.080 | 0.080 | 0.080 |
+| repair-packed-refs | job | 3 | 0.080 | 0.080 | 0.080 |
+| repo-health | job | 3 | 0.080 | 0.080 | 0.070 |
+| root-hygiene-policy | job | 3 | 0.390 | 0.380 | 0.290 |
+| root-scratch-policy | job | 3 | 0.400 | 0.370 | 0.240 |
+| scope-policy | job | 3 | 0.170 | 0.150 | 0.150 |
+| security-suppressions-staged | job | 3 | 0.420 | 0.420 | 0.310 |
+| staged-dash-policy | job | 3 | 0.400 | 0.380 | 0.370 |
+| subprocess-encoding | job | 3 | 6.230 | 6.160 | 6.120 |
+| taste-advisory | job | 3 | 0.430 | 0.420 | 0.400 |
 
 ## Per-repetition runs
 
 | repetition | exit_code | wall_clock_seconds | lefthook_reported_seconds | jobs_parsed | tree_mutated | unknown_status_count |
 |---|---|---|---|---|---|---|
-| 0 | 0 | 3.768 | 3.720 | 17 | False | 0 |
-| 1 | 0 | 3.744 | 3.690 | 17 | False | 0 |
-| 2 | 0 | 3.629 | 3.580 | 17 | False | 0 |
+| 0 | 0 | 9.650 | 9.600 | 19 | False | 0 |
+| 1 | 0 | 9.821 | 9.770 | 19 | False | 0 |
+| 2 | 0 | 9.662 | 9.610 | 19 | False | 0 |
 
