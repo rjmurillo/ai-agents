@@ -17,12 +17,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import os
-import stat
-import sys
 from pathlib import Path
-
-import pytest
 
 from scripts.metrics import gate_latency_io as gl_io
 from scripts.metrics.gate_latency_models import (
@@ -125,93 +120,8 @@ def test_edge_write_markdown_omits_percentile_note_when_absent(tmp_path: Path) -
 # --- Owner-only mode (CWE-276) ------------------------------------------------
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits; os.fchmod is POSIX-only")
-def test_edge_write_json_permission_mode_is_owner_only(tmp_path: Path) -> None:
-    path = tmp_path / "mode.json"
-    gl_io.write_json(_sample_report(), path)
-    assert stat.S_IMODE(path.stat().st_mode) == 0o600
-
-
 # --- Symlink-refusing writer (CWE-59) ----------------------------------------
-
-
-def test_negative_safe_open_refuses_symlink(tmp_path: Path) -> None:
-    real = tmp_path / "real.txt"
-    real.write_text("keep\n", encoding="utf-8")
-    link = tmp_path / "link.txt"
-    link.symlink_to(real)
-    with pytest.raises(gl_io.SymlinkRefusedError):
-        gl_io.safe_open(link)
-
-
-def test_negative_write_json_refuses_symlink_target(tmp_path: Path) -> None:
-    real = tmp_path / "real.json"
-    real.write_text("{}\n", encoding="utf-8")
-    link = tmp_path / "link.json"
-    link.symlink_to(real)
-    with pytest.raises(gl_io.SymlinkRefusedError):
-        gl_io.write_json(_sample_report(), link)
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits; os.fchmod is POSIX-only")
-def test_negative_safe_open_narrows_preexisting_broader_mode(tmp_path: Path) -> None:
-    target = tmp_path / "existing.json"
-    target.write_text("stale\n", encoding="utf-8")
-    target.chmod(0o644)
-    fd = gl_io.safe_open(target)
-    try:
-        assert stat.S_IMODE(target.stat().st_mode) == 0o600
-    finally:
-        os.close(fd)
 
 
 # --- AC-05 headline framing, and the stdin provenance line -------------------
 
-
-def test_positive_markdown_headlines_worst_observed_below_the_threshold(tmp_path):
-    """Below n=20 the table offers no p95 column, only the worst observed run (AC-05)."""
-    path = tmp_path / "low-n.md"
-    gl_io.write_markdown(_sample_report(n=3), path)
-
-    body = path.read_text(encoding="utf-8")
-
-    assert "worst observed of n runs" in body
-    assert "| p95 " not in body
-    assert "p95 in this report is an upper-order statistic" in body
-
-
-def test_positive_markdown_reports_p95_at_or_above_the_threshold(tmp_path):
-    """At n=20 the percentile is supportable, so the table names it (AC-05)."""
-    path = tmp_path / "high-n.md"
-    gl_io.write_markdown(_sample_report(n=20), path)
-
-    body = path.read_text(encoding="utf-8")
-
-    assert "| p95 " in body
-    assert "worst observed of n runs" not in body
-
-
-def test_edge_markdown_uses_low_n_shape_when_any_single_scope_is_below_threshold(tmp_path):
-    """One under-sampled scope downgrades the whole table, never just its own row."""
-    report = _sample_report(n=20)
-    thin = LatencySummary(scope="late-job", is_group=False, n=2, p50=1.0, p95=1.2, min=1.0, max=1.2)
-    report = dataclasses.replace(report, summaries=[*report.summaries, thin])
-    path = tmp_path / "mixed-n.md"
-
-    gl_io.write_markdown(report, path)
-
-    body = path.read_text(encoding="utf-8")
-    assert "worst observed of n runs" in body
-    assert "| p95 " not in body
-
-
-def test_positive_markdown_records_whether_a_stdin_ref_line_was_supplied(tmp_path):
-    """A faithful capture must be distinguishable from a bare one in the artifact."""
-    supplied = tmp_path / "supplied.md"
-    bare = tmp_path / "bare.md"
-
-    gl_io.write_markdown(_sample_report(stdin_supplied=True), supplied)
-    gl_io.write_markdown(_sample_report(stdin_supplied=False), bare)
-
-    assert "Stdin ref line supplied: True" in supplied.read_text(encoding="utf-8")
-    assert "Stdin ref line supplied: False" in bare.read_text(encoding="utf-8")

@@ -15,6 +15,7 @@ import pytest
 
 from scripts.metrics import gate_latency_sampler as gls_sampler
 from scripts.metrics import gate_latency_stats as gls
+from scripts.metrics.gate_latency_models import LatencySummary
 from tests.metrics.gate_latency_helpers import REAL_CAPTURED_STDOUT, _FakeCompleted
 
 # --- Percentiles (nearest-rank, 1-indexed) -----------------------------------
@@ -133,4 +134,13 @@ def test_positive_build_summaries_includes_reserved_hook_scope(
     hook_summary = next(s for s in summaries if s.scope == "__hook__")
     assert hook_summary.n == 3
 
+def test_positive_smallest_scope_n_drives_the_percentile_note() -> None:
+    """A 20-run report with one under-sampled job still needs the note (AC-05)."""
+    summaries = [
+        LatencySummary(scope="__hook__", is_group=False, n=20, p50=1.0, p95=2.0, min=1.0, max=2.0),
+        LatencySummary(scope="late-job", is_group=False, n=3, p50=1.0, p95=2.0, min=1.0, max=2.0),
+    ]
+
+    assert gls._smallest_scope_n(summaries, 20) == 3
+    assert gls._percentile_note(gls._smallest_scope_n(summaries, 20)) is not None
 
