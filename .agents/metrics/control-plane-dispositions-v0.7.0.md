@@ -946,8 +946,8 @@ below.
 
 | # | Gate | Status | Evidence / blocker |
 |---|---|---|---|
-| 1 | Canonical behavior owners decrease from the pinned baseline | Unchecked | This ledger classifies candidates; it performs no deletion (REQ-022 AC-05 forbids it). The baseline's own `release_targets[0]` names the figure to beat directly: `{"direction": "decrease", "metric": "canonical owner total", "target": "strictly below 412"}`. That total has not been fully re-measured after this PR. One component is: this cohort's two workflow deletions (`rjmurillo-bot.yml`, `auto-assign-reviewer.yml`) drop the canonical `workflows/*.yml` count from 58 to 56 (`.github/AGENTS.md`), which moves the 412 owner total to 410 by that definition alone; no other owner category was recounted. |
-| 2 | Always-loaded instruction tokens decrease for every supported harness | Unchecked | No token-reducing change lands in this PR; this PR adds four markdown files plus two memory edits, none of which is always-loaded. |
+| 1 | Canonical behavior owners decrease from the pinned baseline | Checked | Re-measured whole-tree at `4e0e8eec8` with the same script that produced the baseline, not by recounting the one category a PR touched: canonical owner total 412 to 407. Components that moved: rules 30 to 28 (`claude-model-patches.md` and `search-before-building.md` folded into skills in M4 PR1 and PR2), validators 99 to 98, workflows 58 to 56 (`rjmurillo-bot.yml`, `auto-assign-reviewer.yml`). Unchanged: agents 31, skills 111, hook files by event 7, lefthook jobs 76. The script recomputes its target from the measured total and now emits `"strictly below 407"`, which is the next release's figure to beat, not this one's. |
+| 2 | Always-loaded instruction tokens decrease for every supported harness | Checked | Every supported harness decreased at `4e0e8eec8`, so the gate needs no harness-specific exception. Claude Code 16,879 to 11,676 estimated tokens (63,290 to 43,386 bytes), Copilot 17,281 to 12,007 (64,595 to 44,504 bytes), Codex 965 to 953 (2,999 to 2,950 bytes). The always-on rule set went five files to three: `builder-ethos.md`, `universal.md`, `voice.md`. Codex moves least because its always-loaded surface is `AGENTS.md` alone, which the M4 folds never touched; its 12 tokens come from the three commits that did edit that file since the baseline (PRs #5723, #5753, #5792). |
 | 3 | Required local-gate p95 does not regress | Unchecked | No p95 measurement was re-run this session; `gate_budget.seconds_by_hook.pre-push` (3,450.0s) is the baseline figure, not re-measured here. |
 | 4 | No new agent/skill/rule/hook/validator/workflow/ADR/registry lands unless it removes or consolidates | Unchecked, named exception | This PR alone (four markdown files plus two memory edits) adds no agent, skill, rule, hook, validator, workflow, ADR, or registry. But its sibling PR #5725 lands `scripts/metrics/control_plane_baseline.py` and `scripts/ci/lefthook_budget_model.py` alongside three spec files and four test files, and removes nothing, so release scope is not clean against this gate. Named exception, argued against the epic's Abort-if clause 3 (forbidding "a new registry, evaluator, ratchet, or governance layer before deleting the mechanism it was meant to simplify"): `control_plane_baseline.py` is measurement-only, exits 0 for any metric value (not a pass/fail evaluator), is wired into no gate this session verified (`grep -rn control_plane_baseline lefthook.yml scripts/validation/pre_pr_sequence.py .github/workflows/*.yml` returns nothing), and the epic's own Baseline section requires exactly this script's output ("Before the first deletion cohort, capture a reproducible baseline from one pinned `main` SHA") before any classification, including this ledger's, could be trusted. It is a precondition for subtraction, not a competing governance layer. |
 | 5 | At least one reduced-control configuration compared with baseline on identical downstream tasks | Unchecked | Owned by the epic's #5422-#5426 eval chain (REQ-022 Q5/Out of Scope), not started as of this session (baseline `accepted_tasks.verified: 0`). |
@@ -960,3 +960,46 @@ below.
 Gates 5, 6, and 7 cannot be met until the epic's #5422-#5426 eval chain
 runs; that chain has not started as of this session (`accepted_tasks.
 verified: 0` in the pinned baseline).
+
+## Post-M4 re-measurement
+
+Gates 1 and 2 are checked against a whole-tree re-measurement, not a recount of
+the categories a PR happened to touch. Reproduce it with:
+
+```bash
+uv run --frozen python scripts/metrics/control_plane_baseline.py --json <out>.json
+```
+
+Run at `4e0e8eec8` against the baseline pinned at `53ffe92c2`. The baseline JSON
+stays pinned; do not overwrite it with a later measurement, because every gate
+reads its "from" figure there.
+
+| Dimension | Baseline `53ffe92c2` | At `4e0e8eec8` | Delta |
+|---|---|---|---|
+| Canonical owner total | 412 | 407 | -5 |
+| Always-loaded tokens, Claude Code | 16,879 | 11,676 | -5,203 |
+| Always-loaded tokens, Copilot | 17,281 | 12,007 | -5,274 |
+| Always-loaded tokens, Codex | 965 | 953 | -12 |
+| Always-loaded bytes, Copilot | 64,595 | 44,504 | -20,091 |
+| Always-on rule files per tree | 5 | 3 | -2 |
+| Rule mirror files, `.github/instructions` | 30 | 28 | -2 |
+| ADRs | 108 | 110 | +2 |
+| Skills with tests | 35 | 56 | +21 |
+
+The window between the two measurements is wider than this epic. ADR-109's
+template-first program (B1 to B6) landed in it and moved the same dimensions,
+so the deltas above are the tree's, not M4's alone. M4's own contribution is
+the always-on rule set going five files to three and the Copilot instruction
+mirror going 56,863 to 36,847 bytes across the four folds.
+
+Two movements in the generated-historical dimension are recorded so a later
+reader does not mistake them for canonical-owner changes. The Copilot source
+projection fell 20.6 MB to 7.5 MB, which is the `skillforge` PNG assets deleted
+in Cohort 2, not a control-plane subtraction. Serena memories and session logs
+grew, which is expected: both are append-only evidence the epic's non-goals
+forbid deleting.
+
+ADRs rose 108 to 110 against gate 4's "no new ADR unless it removes or
+consolidates". Neither is this epic's. ADR-108 came from PR #5724 under issue
+#5706 and ADR-109 from PR #5745. M4 PR4 amended ADR-105 in place rather than
+superseding it, so it added no record.
