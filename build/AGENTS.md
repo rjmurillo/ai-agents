@@ -1,86 +1,66 @@
 # build/
 
-Generators, mirror-sync helpers, and drift/parity gates for the agent, skill, rule, and hook pipeline. Consumed by contributors editing a canonical source (`.claude/`, `templates/`, `src/claude/`) and by CI (`build_all.py --check`, the parity validators). Python only, invoked with `uv run python`.
+Generators and drift gates for the agent/skill/rule/hook/settings pipeline. Sources: `templates/`, `scripts/{hook_utilities,github_core,ai_review_common}`, `.agents/architecture/`, and `.claude/skills/` files other than `SKILL.md`.
 
 ## Matters
 
-- `build/scripts/build_all.py --check` is the drift gate every PR must pass. Red means regenerate, never hand-edit the output tree.
-- REQ-003-010: no generator may write under `.claude/`, except the template-owned skill files ADR-108 enumerates (`.claude/skills/<name>/SKILL.md` for each `templates/skills/<name>.SKILL.md.tmpl` present at run time). `build_all.py` asserts this after every run by snapshotting `.claude/` before and diffing after, passing that allowlist to `assert_no_claude_writes`.
-- Three trees are hand-maintained siblings, not generator output: `src/claude/<name>.md`, `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`. Editing one means editing all three plus `templates/agents/<name>.shared.md`; nothing regenerates them for you.
-- `build/scripts/build_all.py`'s lib step (`build/scripts/lib_mirror.py`) renders `scripts/{hook_utilities,github_core,ai_review_common}/` directly into every lib plugin tree in the same run (ADR-109 B5); `scripts/sync_plugin_lib.py` is now a deprecated shim, not a step you run first.
-- No plugin manifest carries a `version` key (ADR-092). A source change needs no manifest bump; adding one back fails `build/scripts/validate_plugin_version_bump.py`.
+- `build_all.py --check`: drift gate over `_effective_owned_prefixes` (`OWNED_PREFIXES` plus each `.claude/skills/<name>/SKILL.md`).
+- Per-class render map (agents, rules, skills, hooks, settings, prompts): `templates/AGENTS.md`.
+- REQ-003-010: generators write under `.claude/` only via `binplace_manifest.claude_allowlist()`: agents, rules, skill `SKILL.md`, `hooks/` plus `hooks.json`, `settings.json`, `lib/<pkg>/`, `lib/bootstrap.py`, the review sidecar; `NO-REGEN` paths (`regen_guard.py`) excluded.
+- `validate_install_parity.py` reports no violation ever; `validate-generated-agents.yml` still runs it (exit 2 on base-ref alone); `check_agent_content_parity.py` is the live byte gate.
+- Lib renders inside the same run (`lib_mirror.py`, ADR-109 B5); `scripts/sync_plugin_lib.py` is a deprecated shim, never a prerequisite.
 
 ## Entry points
 
-- `uv run python build/scripts/build_all.py`: regenerate everything from canonical sources.
-- `uv run python build/scripts/build_all.py --check`: CI drift gate; no writes.
-- `uv run python build/generate_agents.py`: agents only, standalone.
-- `uv run python build/scripts/detect_agent_drift.py`: similarity gate, standalone.
+- `build_all.py` (`--check`), `generate_agents.py`, `detect_agent_drift.py`.
+- `generate_rules.py`, `generate_hooks.py`, `generate_skills.py`: standalone runs compile templates first, no stale mirror.
 
 ## Where to look
 
 | Path | Why |
 |---|---|
-| `.agents/governance/GENERATOR-FILES.md` | Canonical source-to-output inventory; edit the source it names, never the output |
-| `build/scripts/build_all.py` | Orchestrator: `GENERATORS` list, CLI flags, the REQ-003-010 guard |
-| `build/generate_agents.py` | Agent template renderer; `--validate`, `--what-if` |
-| `build/scripts/detect_agent_drift.py` | Similarity gate; all CLI flags and exit codes |
-| `build/scripts/generate_hooks*.py`, `build/scripts/generate_dispatcher.py` | Hook/dispatcher generation, split by concern (body, emit, events, expand, shim, transaction) |
-| `build/sync_slim_agents.py`, `build/sync_slim_agents_reconcile.py` | Hand-copy propagation helper for `src/claude/` slimmed bodies; not a generator, not run by `build_all.py` |
-| `build/model_pin_manifest.py`, `build/model_pin_sweep_evidence.py` | ADR-080 model-pin sidecar resolution and evidence validation |
-| `tests/build_scripts/` | Test suite for `build/scripts/*.py` |
-| `tests/test_generate_agents*.py`, `tests/test_detect_agent_drift.py` | Test suite for the two top-level `build/*.py` modules |
+| `build/scripts/build_all.py` | `GENERATORS`, `OWNED_PREFIXES`, REQ-003-010, binplace |
+| `templates/platforms/binplace.yaml` | Per-class plugin tree and install tree |
+| `build/scripts/*_templates.py` | One template compiler per class |
 
 ## Skip
 
-- `build/__pycache__/` and `build/scripts/__pycache__/`: gitignored bytecode, never a source.
-- `build/CLAUDE.md` (one line, `@AGENTS.md`) and `build/scripts/__init__.py` (empty package marker): nothing to read.
-- Any file under `src/copilot-cli/`, `.github/instructions/`, `docs/agent-catalog.md`, `.agents/architecture/README.md`: these are generator OUTPUT. Edit the source `GENERATOR-FILES.md` names instead.
+- Generator OUTPUT (`OWNED_PREFIXES`): `src/`, `.github/instructions/`, `.github/agents/`, `.github/hooks/`, `.claude/agents/`, `.claude/rules/`, `.claude/lib/`, `.claude/hooks/`, `.claude/settings.json`, `docs/agent-catalog.md`, `.agents/architecture/README.md`. Hand-maintained inside `src/`: `*.md`, `claude/AGENTS.md`, `claude/claude-instructions.template.md`, `claude/security/references/`, `copilot-cli/THIRD-PARTY-NOTICES.TXT`, `copilot-cli/docs/`, both `plugin.json`.
 
 ## Constraints
 
-- `build_all.py` runs generators in a fixed order (agents, agent-catalog, adr-index, skills, rules, lib, hooks); `lib` MUST land before `hooks` because the hook manifest expects the lib mirror already in place (`build/scripts/build_all.py:491-496`).
-- A deferral inside `build_all.py` must cite an OPEN issue; `scripts/validation/validate_no_orphaned_build_deferrals.py` fails on a closed one. Zero deferrals on the tracked tree today.
-- `build/scripts/detect_agent_drift.py` does not read `templates/agents/*.shared.md`; it compares only the rendered output trees (`src/claude` vs `src/vs-code-agents`, blocking; `.claude/agents` vs `.github/agents`, advisory unless `--fail-on-install-drift`). A generator bug in template rendering is invisible to it.
-- `build/scripts/validate_install_parity.py` checks co-change only (did the sibling paths move together in the diff), not content equality; `AGENTS.md`/`CLAUDE.md` names are excluded from every parity group.
-- `build/scripts/check_agent_content_parity.py` is the content gate `validate_install_parity.py` does not provide: byte-for-byte `.claude/agents/` vs `src/claude/`.
-- Regenerating with a mismatched sync order (see Matters) is a silent failure: both scripts exit 0.
-- `build/scripts/validate_path_normalization.py --fail-on-violation` scans every Markdown file for a Windows drive, macOS, or Linux home path and fails the build on a hit; it is wired into `scripts/validation/pre_pr_sequence.py`, the `lefthook.yml` pre-push group, and `.github/workflows/validate-paths.yml`.
+- Order: agents, agent-catalog, adr-index, skills, rules, lib, hooks, then binplace (`GENERATORS`); `lib` before `hooks`.
+- Binplace follows every generator, copying each plugin tree onto its install tree (`.github/hooks/` from `src/copilot-cli/hooks/`); sole writer of `.claude/agents/`, `.claude/rules/`, `.claude/hooks/`, `.claude/lib/<pkg>/`, `.claude/lib/bootstrap.py`, `.claude/skills/<name>/SKILL.md`, `.claude/skills/review/scripts/validate_review_marker.py`, `.github/hooks/`. `.claude/settings.json` renders from `templates/hooks/settings.tmpl`, no plugin hop.
+- Mirrors read `src/claude/` for rules, hooks and `SKILL.md`; lib renders from `scripts/` into both plugin trees; skill support files mirror from `.claude/skills/<name>/` into `src/claude/skills/` (`generate_skills.sync_claude_plugin_skill_support`, skills step).
+- A literal `{{` in a rule template is written `\{{`.
+- pre_pr rows: `Orphaned Build Deferrals`, `Generated Artifact Staleness`, four `<class> Template Drift` rows (Skill, Agent, Rule, Hook), `Agent Catalog Drift`, `Agent Drift Detection`, `Agent Content Parity (.claude/agents vs src/claude)`.
+- `check_plugin_manifest_parity.py` fails a component count in any manifest description; CI only, no local pre_pr row.
+- `detect_agent_drift.py` compares rendered trees only: `src/claude/agents` vs `src/vs-code-agents` blocks (`merge-resolver` advisory), `.claude/agents` vs `.github/agents` only under `--fail-on-install-drift`; similarity covers only the 23 `SECTIONS_TO_COMPARE` names, a missing H2 blocks regardless.
 
 ## Dangerous assumptions
 
-- "The gate script lives next to what it checks" was true for the lib mirror before ADR-109 B5: the source sync (`scripts/sync_plugin_lib.py`) sat outside `build/`, one directory up, and nothing in `build/` called it. `build/scripts/lib_mirror.py` now owns that logic and lives beside `build_all.py`.
-- "`--check` failing means hand-edit the diff to match" is backwards: `--check` failing means the SOURCE changed and the output is stale. Hand-editing output is overwritten on the next real regen and never reviewed against source intent.
-- "`src/claude/` is generated like `src/copilot-cli/agents/`" is false. It is hand-maintained; `GENERATOR-FILES.md` calls this out explicitly because it was misclassified once (Issue #2882).
-- "Fixing drift means raising the similarity threshold" is a gate defeat, not a fix (mirrors `.claude/rules/ci-scripts.md` MUST NOT 4 on count ratchets); the fix is regenerating or hand-syncing the sibling.
+- `scripts/sync_plugin_lib.py` looks like a required first step; it is a deprecated shim over `lib_mirror.py`, kept for one `validate-generated-agents.yml` step. `build_all.py` is the whole sequence; there is no order to get wrong.
+- A red `--check` means the source changed, not that the output needs a hand-edit; exit 2 has five producers, only staleness clears by regenerating.
+- Raising `--similarity-threshold` (default 80) to clear a red defeats the gate.
+- `build/sync_slim_agents.py` is not a generator; `build_all.py` never calls it and `--write` copies rendered bodies backwards into `templates/agents/*.shared.md` and `.github/agents/`. Do not run it.
 
 ## Dependencies
 
-- Feeds `.claude/skills/review/references/<role>.md` -> `.github/prompts/pr-quality-gate-<role>.md` via `build/scripts/generate_pr_quality_prompts.py`; pre-push runs `--dry-run`, and `build/scripts/run_drift_check_ci.py` wraps the same `--dry-run` for the `validate-generated-agents.yml` workflow step (ADR-006: logic stays in the module, not the YAML).
-- Feeds `.github/instructions/` and `src/copilot-cli/instructions/` via `build/scripts/generate_rules.py`, which drops the `priority:` frontmatter key on the way out.
-- Two lefthook pre-commit jobs fire on `templates/agents/*.shared.md` / `templates/platforms/**` changes: `generate-agents` (regenerates agent output) and the separately named `generate-agent-catalog` (runs `build/generate_agent_catalog.py` directly).
-- Consumed by `scripts/validation/pre_pr.py`, the canonical pre-PR runner, which chains the drift and parity gates in this tree.
+- `generate_pr_quality_prompts.py`: `.claude/skills/review/references/<role>.md` -> `.github/prompts/pr-quality-gate-<role>.md`; `--dry-run` is the drift form (`run_drift_check_ci.py`); `binplace.yaml`'s `prompts` row only documents it.
+- Lefthook regen jobs glob only `templates/agents/*.shared.md` and `templates/platforms/**`; a `.tmpl` or `partials/*.mustache` edit auto-regenerates nothing.
 
 ## Architecture
 
-- Plugin lib renders directly into both plugin trees, one hop each (ADR-109 B5): `scripts/{hook_utilities,github_core,ai_review_common}` -> (`build/scripts/lib_mirror.py`, called by `build_all.py`'s `_build_lib`) -> `src/claude/lib/` and `src/copilot-cli/lib/`. The binplace step then copies `src/claude/lib/` onto `.claude/lib/`; `src/copilot-cli/lib/` has no further hop.
-- Hook generation retains per-matcher shim wrappers and also emits one dispatcher registration per event when the target platform config enables dispatcher mode (ADR-068). Publication and cleanup of dispatcher artifacts, stale shims, and orphaned event files run through `HookGenerationTransaction`; files carrying a `NO-REGEN` sentinel (`build/scripts/regen_guard.py`) are preserved untouched.
+- Lib (B5): `lib_mirror.py` renders `scripts/{hook_utilities,github_core,ai_review_common}`, `hook_utilities/bootstrap.py`, and `validation/validate_review_marker.py` into `src/claude/lib/`, `src/copilot-cli/lib/`, and `src/claude/skills/review/scripts/`; binplace copies the claude side onto `.claude/lib/` and the review sidecar (`lib-*`, `skills-sidecar` rows). `.claude/lib/` top-level modules (`claude_hook_dispatch.py`, `paths.py`, siblings) have no `scripts/` source and stay hand-maintained there (`.claude/AGENTS.md`).
 
 ## Commands
 
 ```bash
-# Regenerate everything from canonical sources.
 uv run python build/scripts/build_all.py
-# CI drift gate: verify generated trees match sources, no writes.
 uv run python build/scripts/build_all.py --check
-# Agents only, standalone (also supports --validate, --what-if).
+# Agents only: --validate, --what-if.
 uv run python build/generate_agents.py
-# build_all.py's lib step renders the plugin lib mirror itself (ADR-109 B5).
-uv run python build/scripts/build_all.py
-# Drift similarity gate, standalone.
 uv run python build/scripts/detect_agent_drift.py
-# PR-quality prompt drift check (what pre-push runs).
 uv run python build/scripts/generate_pr_quality_prompts.py --dry-run
-# Full pre-PR gate chain (run before every push).
 uv run python scripts/validation/pre_pr.py
 ```

@@ -1,63 +1,58 @@
 # src/
 
-Two of this repo's three plugin sources; consumed by Claude Code and Copilot CLI plugin installs, and separately by the `packages/ai-agents-cli` npm CLI.
+Both marketplace plugin sources: `claude/` for Claude Code, `copilot-cli/` for Copilot CLI (ADR-109 B6). `packages/ai-agents-cli/` (repo root) vendors `.claude/`, nothing from here.
 
 ## Matters
 
-- Two of the three plugin roots in this repo live here: `claude/` ships as the `project-toolkit` plugin for Claude Code (marketplace source since ADR-109 B6; the separate `claude-agents` entry it used to carry is retired), `copilot-cli/` ships as the `project-toolkit` plugin for Copilot CLI (`.claude/` is the third, outside `src/`, and is now the binplaced dogfood copy rather than an independent marketplace source). See `.claude/rules/plugin-self-containment.md`.
-- `copilot-cli/**` is entirely generated: it mirrors `.claude/{skills,hooks,lib,rules}` plus agents from `templates/agents/`, via generators `build/scripts/build_all.py` runs. Never hand-edit it.
-- `vs-code-agents/*.agent.md` is generated from `templates/agents/` only; it has no `.claude/` counterpart.
-- `claude/agents/*.md` is generated from `templates/agents/<stem>.claude.md.tmpl` by `build/scripts/agent_templates.py` per ADR-109. `claude-instructions.template.md` is hand-maintained. Rules live in `src/claude/AGENTS.md`.
+- ADR-109 B1 to B5: `claude/{agents,skills,rules,hooks}` and `claude/hooks.json` render from `templates/`, `claude/lib/` from `scripts/`; binplace copies each byte for byte into `.claude/`, the dogfood copy with no manifest and no marketplace entry. Render map: `templates/AGENTS.md`.
+- `.claude-plugin/marketplace.json` lists one Claude plugin, `project-toolkit` at `./src/claude`; `claude-agents` is retired (B6).
+- `claude/skills/<name>/`: `SKILL.md` renders from its template; every other file mirrors from `.claude/skills/<name>/`, the hand-maintained source (`sync_claude_plugin_skill_support`, `merge-resolver` included).
 
 ## Entry points
 
-- `templates/agents/<stem>.claude.md.tmpl`: Edit agent templates here.
-- `uv run python build/scripts/build_all.py`: orchestrates every generator that writes into `claude/agents/`, `copilot-cli/`, and other trees.
-- `packages/ai-agents-cli/src/cli.ts`: the actual shipped CLI entry point (separate build, separate tests, not this tree).
+- Claude/Copilot agent: edit BOTH `templates/agents/<stem>.claude.md.tmpl` AND `<stem>.copilot.md.tmpl`; editing one skips the other's output.
 
 ## Where to look
 
 | Path | Why |
 |---|---|
-| `claude/agents/*.md` | Generated from `templates/agents/` by `build/scripts/agent_templates.py`; `project-toolkit` plugin source (Claude Code); rules in `src/claude/AGENTS.md` |
-| `claude/claude-instructions.template.md` | Hand-maintained preamble template |
-| `copilot-cli/**` | Generated mirror of `.claude/{skills,hooks,lib,rules}` and `templates/agents/`; `project-toolkit` plugin for Copilot CLI |
-| `vs-code-agents/*.agent.md` | Generated from `templates/agents/` only, no `.claude/` input |
-| `STYLE-GUIDE.md` | Prose standard every agent file (hand-maintained and generated) MUST follow |
-| `packages/ai-agents-cli/` | The shipped `@rjmurillo/ai-agents` npm CLI: its own source, its own tests |
+| `claude/**` | Plugin tree for `.claude/`; see `src/claude/AGENTS.md` |
+| `copilot-cli/instructions/` | 22 of 28 `claude/rules/`, all-internal-scope dropped; no `copilot-cli/rules/` |
+| `copilot-cli/hooks/` | From `claude/hooks/`; binplaced to `.github/hooks/*.json` |
+| `copilot-cli/docs/`, both `.claude-plugin/` | Hand-maintained inside generated trees |
 
 ## Skip
 
-- `copilot-cli/**`, `vs-code-agents/*.agent.md`: generated. Edit the upstream source and regenerate (`.agents/governance/GENERATOR-FILES.md`).
-- `copilot-cli/docs/copilot-instructions.md`: a byte-budget-ratcheted generated copy; edit the Copilot instructions source, not this file.
+- `claude/{agents,skills,rules,hooks,lib}/`, `copilot-cli/{agents,skills,instructions,lib,hooks}/`, `vs-code-agents/*.agent.md`: generated (`.agents/governance/GENERATOR-FILES.md`); `copilot-cli/THIRD-PARTY-NOTICES.TXT` too, via `scripts/generate_third_party_notices.py --check`, omitted from that inventory.
+- `STYLE-GUIDE.md`: orphan by design, bot-linked via `.gemini/styleguide.md`. Do not delete.
 
 ## Constraints
 
-- `claude/` and `copilot-cli/` are separate plugin roots: no cross-references between them, and no upstream-only path (`.agents/`, `build/`, `scripts/`) named in either without a `vendor-portability` declaration (`plugin-self-containment.md`).
-- Neither plugin's `.claude-plugin/plugin.json` may carry a `version` field; `build/scripts/validate_plugin_version_bump.py` fails if one appears (ADR-092, `plugin-version-bump.md`).
-- Regenerate with `uv run python build/scripts/build_all.py`, verify with `--check`, and commit source plus generated output together; never hand-edit a generated tree.
-- Cross-harness behavior (hook routing, event handling, generated Copilot agent changes): read `agent-harness-reference` first, then route the change through `ai-agents-portability-campaign`.
+- Regenerate, verify `--check`, commit source and output together.
+- Separate plugin roots: no cross-reference, no upstream-only path in shipped text.
+- Neither `.claude-plugin/plugin.json` carries a `version` key (ADR-092).
+- Cross-harness work: read `agent-harness-reference`, route through `ai-agents-portability-campaign`.
 
 ## Dangerous assumptions
 
-- A green `build_all.py --check` proves all generated trees match their sources.
+- `copilot-cli/docs/copilot-instructions.md` looks generated; hand-authored, no byte ratchet (that binds `.github/copilot-instructions.md`).
+- `OWNED_PREFIXES` carries a bare `src/`: any uncommitted change here, this file included, reds `build_all.py --check` and pre-PR `Generated Artifact Staleness`. Commit, do not just regenerate.
 
 ## Dependencies
 
-- `build/scripts/build_all.py` generators feeding this tree: `agents`, `skills`, `rules`, `lib`, `hooks` (agent-catalog and adr-index write elsewhere); each generator's source and output is listed in `.agents/governance/GENERATOR-FILES.md`.
-- CI: `validate-generated-agents.yml` (agents), `validate-plugin-version-bump.yml` (`.claude/**`, `claude/**`, `copilot-cli/**`), `cli-smoke.yml` / `nightly-cli-smoke.yml` (`packages/ai-agents-cli` install smoke and unit tests).
-- `packages/ai-agents-cli` publishes via `publish.yml`; it vendors a bundled copy of `.claude/`-style content into consumer repos, not anything under this tree.
+- `copilot-cli/lib/` and `claude/lib/`: rendered from `scripts/` packages by `build_all.py` in the same run (B5); no prerequisite step.
 
 ## Architecture
 
-- Three trees carry self-contained plugin content (`.claude/`, `src/claude/`, `src/copilot-cli/`), but only two are independently marketplace-listed: `src/claude/` and `src/copilot-cli/`. `.claude/` is the binplaced dogfood copy of `src/claude/`, not its own marketplace entry (ADR-109 B6). Each marketplace entry names exactly one source directory, and nothing above it reaches an installer.
-- `copilot-cli/lib/` and `claude/lib/` both render directly from `scripts/{hook_utilities,github_core,ai_review_common}/` in one `build_all.py` run (ADR-109 B5); there is no longer a two-hop chain through `.claude/lib/` for `build_all.py` to fall behind.
+- Render pipeline and gate semantics: `build/AGENTS.md`.
 
 ## Commands
 
 ```bash
-uv run python build/scripts/build_all.py                    # regenerate all generated trees
-uv run python build/scripts/build_all.py --check             # CI drift gate, no write
-uv run python build/generate_agents.py --validate             # agents-only regenerate + diff
+uv run python build/scripts/build_all.py
+uv run python build/scripts/build_all.py --check   # drift gate
+uv run python build/generate_agents.py --validate
+uv run python build/scripts/agent_templates.py --validate  # also rule_, hook_templates.py
+uv run python build/scripts/generate_skills.py --validate
 cd packages/ai-agents-cli && bun install --frozen-lockfile && bun run typecheck && bun test
 ```
