@@ -1,7 +1,7 @@
 """Environment probes for gate_latency.py: git state, host, lefthook resolution.
 
 Split out to keep ``scripts/metrics/gate_latency.py`` under the project's
-500-line taste-lint ceiling and its 400-line warning threshold. Raising the
+500-line taste-lint ceiling and its 300-line warning threshold. Raising the
 taste ratchet baseline instead is forbidden by ci-scripts.md MUST NOT item 4.
 
 Everything here reads the environment and returns a value: no measurement

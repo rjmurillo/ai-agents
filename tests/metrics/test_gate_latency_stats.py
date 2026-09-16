@@ -1,6 +1,6 @@
 """Percentile arithmetic for gate_latency (REQ-027 AC-04, AC-05).
 
-Split from ``test_gate_latency.py`` so both stay under the 400-line taste
+Split from ``test_gate_latency.py`` so both stay under the 300-line taste
 warning threshold, and because these exercise ``gate_latency_stats``, which
 is its own module: pure functions over sample lists, no subprocess and no
 clock, so the expectations below are hand-computed rather than observed.
