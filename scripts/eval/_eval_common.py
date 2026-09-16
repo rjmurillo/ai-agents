@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from _billing_matrix import quota_billed_provider_names
 from _eval_errors import MalformedProviderMetadataError
 
 # ---------------------------------------------------------------------------
@@ -47,22 +48,28 @@ MODEL_PRICING_RATES_USD_PER_1K_TOKENS: dict[str, dict[str, float]] = {
 PRICING_RATE_AS_OF = "2026-08-01"
 
 # Providers that meter requests against an account allowance instead of
-# charging a published per-token USD rate. GitHub Models bills this way, so a
-# dollar figure for a run routed through it is a number nobody publishes.
-# Copilot CLI bills this way too: it shells out to an authenticated `copilot`
-# binary covered by a subscription, so it spends no per-token dollars at all.
-# Naming these providers lets the plan report the request count it will spend
-# and leave the USD figure empty, rather than either inventing a third-party
-# price or refusing to run a provider the transport already supports.
-# Spellings match the aliases in `_providers._REGISTRY`. Every name registered
-# there must appear either here or in the per-token default deliberately;
-# `TestEveryRegisteredProviderIsClassified` fails when a new provider is added
-# without that decision being made, because the default is silent and the
-# omission of `copilot-cli` from this set is what made a subscription CLI quote
-# a Claude Sonnet token rate.
-QUOTA_BILLED_PROVIDERS: frozenset[str] = frozenset(
-    {"github", "github-models", "copilot", "copilot-cli"}
-)
+# charging a published per-token USD rate. Every subscription cell bills this
+# way: it shells out to a CLI covered by a seat the operator already pays for,
+# so it spends no per-token dollars at all. Naming these providers lets the
+# plan report the request count it will spend and leave the USD figure empty,
+# rather than either inventing a third-party price or refusing to run a
+# provider the transport already supports.
+#
+# The set is derived from `_billing_matrix`, not restated here, so the biller
+# a run is charged on and the transport it runs on cannot drift apart. Adding
+# a registry row without a matrix cell leaves it unclassified, and
+# `TestEveryRegisteredProviderIsClassified` fails, because the default is
+# silent and the omission of `copilot-cli` from this set is what once made a
+# subscription CLI quote a Claude Sonnet token rate.
+
+# Retired GitHub Models rows. They predate the billing matrix and are not in
+# it, because the matrix describes cells an operator should select and these
+# route to an endpoint that has returned HTTP 410 since 2026-07-30. They stay
+# classified here so a historical run artifact still reads back with the basis
+# it was charged on.
+_RETIRED_QUOTA_BILLED: frozenset[str] = frozenset({"github", "github-models"})
+
+QUOTA_BILLED_PROVIDERS: frozenset[str] = quota_billed_provider_names() | _RETIRED_QUOTA_BILLED
 
 
 def safe_http_error_message(provider_surface: str, status_code: int) -> str:
