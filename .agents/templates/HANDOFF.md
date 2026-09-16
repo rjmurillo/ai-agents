@@ -1,4 +1,4 @@
-# Session Handoff — {ISO_TIMESTAMP}
+# Session Handoff: {ISO_TIMESTAMP}
 
 <!--
 Per-issue session handoff template. Copy to:
@@ -10,7 +10,7 @@ See: .agents/architecture/ADR-014-distributed-handoff-architecture.md for tier m
 
 ## Status
 
-- **Issue**: #{ISSUE_NUMBER} — {issue title}
+- **Issue**: #{ISSUE_NUMBER}, {issue title}
 - **Branch**: {branch name}
 - **Task**: {one-sentence description of the in-flight task}
 - **Phase**: {planning | implementing | testing | reviewing | blocked | complete}
@@ -20,7 +20,7 @@ See: .agents/architecture/ADR-014-distributed-handoff-architecture.md for tier m
 
 <!-- List only files changed in this session. Use repo-relative paths. -->
 
-- `path/to/file.ext` — {what changed and why}
+- `path/to/file.ext`: {what changed and why}
 
 ## Decisions Made
 

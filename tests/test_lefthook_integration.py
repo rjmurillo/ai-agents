@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import ast
 import builtins
 import importlib
@@ -15,10 +14,10 @@ import sys
 import sysconfig
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
-from datetime import UTC, datetime, tzinfo
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
-from typing import Any, NoReturn, Self, cast
+from typing import Any, NoReturn, cast
 from unittest import mock
 
 import pytest
@@ -346,14 +345,6 @@ def _push_update(
     return policy.PushUpdate(source, "base", head, range_spec, destination_branch)
 
 
-def _write_today_session(repo: Path, content: str) -> Path:
-    today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-    session = repo / ".agents" / "sessions" / f"{today}-session-1.json"
-    session.parent.mkdir(parents=True, exist_ok=True)
-    _write_lf(session, content)
-    return session
-
-
 def _debate_log(*adr_ids: str) -> str:
     """A log carrying the review evidence the gate requires (issue #5205).
 
@@ -482,262 +473,6 @@ def test_adr_review_policy_missing_critique_dir_fails(
     assert ".agents/critique" in capsys.readouterr().err
 
 
-def test_retrospective_policy_blocks_missing_evidence(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    _write_today_session(tmp_path, '{"notes": "implementation complete"}')
-
-    result = policy.check_retrospective_evidence(
-        ["scripts/one.py", "tests/test_one.py"],
-        tmp_path,
-    )
-
-    assert result == 1
-    assert "retrospective evidence" in capsys.readouterr().err
-    # Empty paths should still check for retrospective evidence (not bypass)
-    assert policy.check_retrospective_evidence([], tmp_path) == 1
-    captured = capsys.readouterr()
-    assert "{push_files} empty" in captured.err
-
-
-def test_retrospective_policy_allows_session_evidence_and_documentation(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    session = _write_today_session(tmp_path, '{"notes": "Learnings captured"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
-
-    assert (
-        policy.check_retrospective_evidence(
-            ["scripts/one.py", "tests/test_one.py"],
-            tmp_path,
-        )
-        == 0
-    )
-    assert policy.check_retrospective_evidence(["README.md"], tmp_path) == 0
-
-
-def test_retrospective_trivial_session_includes_ten_minute_boundary(
-    tmp_path: Path,
-) -> None:
-    session = _write_today_session(tmp_path, '{"notes": "no retrospective"}')
-    boundary = session.stat().st_ctime + 600
-
-    assert policy._is_trivial_retrospective_session(
-        session,
-        ["scripts/one.py"],
-        now_epoch=boundary,
-    )
-    assert not policy._is_trivial_retrospective_session(
-        session,
-        ["scripts/one.py"],
-        now_epoch=boundary + 0.001,
-    )
-    assert not policy._is_trivial_retrospective_session(
-        session,
-        [],
-        now_epoch=boundary,
-    )
-
-
-def _freeze_policy_clock(monkeypatch: pytest.MonkeyPatch, instant: datetime) -> None:
-    """Freeze git_hook_policy's UTC clock to a fixed instant for date-window tests.
-
-    The retrospective and session-log helpers derive today/yesterday from
-    ``datetime.now(tz=UTC)``. Pinning it removes the once-per-day midnight-tick
-    race that would otherwise make the cross-midnight assertions flaky.
-    """
-
-    class _FrozenDateTime(datetime):
-        @classmethod
-        def now(cls, tz: tzinfo | None = None) -> Self:
-            return cls.fromtimestamp(instant.timestamp(), tz)
-
-    monkeypatch.setattr(policy, "datetime", _FrozenDateTime)
-
-
-def test_retrospective_policy_accepts_yesterday_retro_across_midnight(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A retro dated yesterday UTC satisfies the gate today (cross-midnight grace).
-
-    Regression guard for #3305: a session that does real work on day N and
-    pushes just after 00:00 UTC on day N+1 must not be blocked when the day-N
-    retrospective exists. ``_today_retrospective_exists`` globs today AND
-    yesterday, so the yesterday-dated retro is honored.
-    """
-    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
-    retro = tmp_path / ".agents" / "retrospective" / "2026-03-14-session-finish.md"
-    retro.parent.mkdir(parents=True, exist_ok=True)
-    _write_lf(retro, "# Retrospective\nreal work\n")
-
-    # Two paths avoid the trivial-session bypass, isolating the yesterday grace.
-    assert (
-        policy.check_retrospective_evidence(
-            ["scripts/one.py", "tests/test_one.py"],
-            tmp_path,
-        )
-        == 0
-    )
-
-
-def test_retrospective_policy_accepts_host_tomorrow_artifact(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A UTC+14 producer's next-day artifact satisfies the UTC-running gate."""
-    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 14, 12, 0, tzinfo=UTC))
-    monkeypatch.setattr(
-        policy,
-        "recent_host_session_dates",
-        lambda: ("2026-03-14", "2026-03-13"),
-    )
-    retro = tmp_path / ".agents" / "retrospective" / "2026-03-15-session-finish.md"
-    retro.parent.mkdir(parents=True, exist_ok=True)
-    _write_lf(retro, "# Retrospective\nreal work\n")
-
-    assert (
-        policy.check_retrospective_evidence(
-            ["scripts/one.py", "tests/test_one.py"],
-            tmp_path,
-        )
-        == 0
-    )
-
-
-def test_retrospective_policy_accepts_utc_minus_12_current_artifact(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A UTC-12 producer's current artifact satisfies a UTC+14-running gate."""
-    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 14, 11, 0, tzinfo=UTC))
-    monkeypatch.setattr(
-        policy,
-        "recent_host_session_dates",
-        lambda: ("2026-03-15", "2026-03-14"),
-    )
-    retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-session-finish.md"
-    retro.parent.mkdir(parents=True, exist_ok=True)
-    _write_lf(retro, "# Retrospective\nreal work\n")
-
-    assert (
-        policy.check_retrospective_evidence(
-            ["scripts/one.py", "tests/test_one.py"],
-            tmp_path,
-        )
-        == 0
-    )
-
-
-def test_retrospective_policy_accepts_yesterday_session_evidence_across_midnight(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Evidence in a yesterday-dated session log satisfies the gate today.
-
-    Regression guard for #3305: ``_today_session_log`` globs today AND
-    yesterday, so evidence committed in the day-N session log is consulted on
-    day N+1 even with no retrospective file present.
-    """
-    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
-    sessions = tmp_path / ".agents" / "sessions"
-    sessions.mkdir(parents=True, exist_ok=True)
-    session = sessions / "2026-03-14-session-1.json"
-    _write_lf(session, '{"notes": "Learnings captured"}')
-    monkeypatch.setattr(policy, "_session_log_for_current_branch", lambda *_: session)
-
-    # No retrospective file: the only passing path is the yesterday session log.
-    assert (
-        policy.check_retrospective_evidence(
-            ["scripts/one.py", "tests/test_one.py"],
-            tmp_path,
-        )
-        == 0
-    )
-
-
-def test_retrospective_policy_blocks_evidence_older_than_grace_window(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A retro/session two days old is outside the 24h grace and still blocks.
-
-    Negative control for #3305: the cross-midnight tolerance is exactly one day
-    (today + yesterday). Evidence from two days ago must not satisfy the gate,
-    so the widened window cannot silently accept arbitrarily stale sessions.
-    """
-    _freeze_policy_clock(monkeypatch, datetime(2026, 3, 15, 0, 30, tzinfo=UTC))
-    monkeypatch.setattr(
-        policy,
-        "recent_host_session_dates",
-        lambda: ("2026-03-15", "2026-03-14"),
-    )
-    retro = tmp_path / ".agents" / "retrospective" / "2026-03-13-x.md"
-    retro.parent.mkdir(parents=True, exist_ok=True)
-    _write_lf(retro, "# Retrospective\nstale\n")
-    sessions = tmp_path / ".agents" / "sessions"
-    sessions.mkdir(parents=True, exist_ok=True)
-    _write_lf(sessions / "2026-03-13-session-1.json", '{"notes": "Learnings captured"}')
-
-    # Two paths avoid the trivial-session bypass; two-days-old evidence is stale.
-    assert (
-        policy.check_retrospective_evidence(
-            ["scripts/one.py", "tests/test_one.py"],
-            tmp_path,
-        )
-        == 1
-    )
-
-
-def test_handle_retrospective_uses_stdin_derived_paths_when_available(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Issue #5128: {push_files} resolves empty on a branch's first push.
-
-    _handle_retrospective must derive the real push range independently via
-    _push_range_changed_files instead of trusting args.paths (which lefthook
-    leaves empty once {push_files} is dropped from the job), so the
-    documentation-only bypass can still fire for a genuinely docs-only push.
-    """
-    monkeypatch.setattr(policy, "_push_range_changed_files", lambda _stream, _root: {"README.md"})
-    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
-
-    assert policy._handle_retrospective(args) == 0
-
-
-def test_handle_retrospective_stdin_range_blocks_non_doc_files(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """A stdin-derived range that includes code still requires evidence."""
-    monkeypatch.setattr(
-        policy,
-        "_push_range_changed_files",
-        lambda _stream, _root: {"scripts/one.py", "tests/test_one.py"},
-    )
-    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
-
-    assert policy._handle_retrospective(args) == 1
-    assert "retrospective evidence" in capsys.readouterr().err
-
-
-def test_handle_retrospective_falls_back_to_args_paths_when_stdin_unresolvable(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """An unresolvable push range (None) preserves the old args.paths behavior."""
-    monkeypatch.setattr(policy, "_push_range_changed_files", lambda _stream, _root: None)
-    args = argparse.Namespace(paths=[], repo_root=str(tmp_path))
-
-    assert policy._handle_retrospective(args) == 1
-    assert "retrospective evidence" in capsys.readouterr().err
-
-
 def test_configuration_uses_named_native_jobs() -> None:
     config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
 
@@ -791,7 +526,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "repo-health",
         "repair-packed-refs",
         "push-ref-policy",
-        "retrospective-policy",
         "pre-pr-validation",
         "python-tests",
         "python-lint-advisory",
@@ -813,7 +547,6 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert expected_pre_commit <= set(_job_map(config, "pre-commit"))
     assert expected_pre_push <= set(_job_map(config, "pre-push"))
     pre_commit = _job_map(config, "pre-commit")
-    pre_push = _job_map(config, "pre-push")
     assert str(pre_commit["adr-review-policy"]["run"]).endswith(
         "git_hook_policy.py adr-review {staged_files}"
     )
@@ -828,8 +561,6 @@ def test_configuration_uses_named_native_jobs() -> None:
     # ref (tests/ci/test_lefthook_declared_budget.py). The guard's own bound is a
     # `timeout=10` subprocess plus a non-blocking flock probe, so 20s is twice it.
     assert pre_commit["push-lock-commit-guard"]["timeout"] == "20s"
-    assert str(pre_push["retrospective-policy"]["run"]).endswith("git_hook_policy.py retrospective")
-    assert pre_push["retrospective-policy"]["use_stdin"] is True
     pre_commit_names = [str(job["name"]) for job in _flatten_jobs(config["pre-commit"]["jobs"])]
     assert pre_commit_names.index("push-lock-commit-guard") < pre_commit_names.index(
         "markdown-autofix"
@@ -1023,7 +754,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "push-ref-policy",
         "security-suppression-policy",
         "placeholder-identity",
-        "retrospective-policy",
     ]
     # Issue #5066: security-scan (semgrep) left the cheap stdin group so a
     # fast-stage failure no longer waits on it. It stays a top-level job
@@ -8659,7 +8389,6 @@ def test_old_bot_review_does_not_warn(
         ("atomic-commit", [], "check_atomic_commit"),
         ("planning", [], "run_planning_advisory"),
         ("adr-review", ["README.md"], "check_adr_review_policy"),
-        ("retrospective", ["README.md"], "check_retrospective_evidence"),
         ("generate-mcp", [], "generate_mcp_advisory"),
         ("generate-agents", [], "generate_agents_advisory"),
         ("memory-token-update", [], "update_memory_tokens"),

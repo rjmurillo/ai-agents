@@ -88,10 +88,6 @@ CI_RUNNER_PATH = (
     "tests/ci/test_worktree_path_filter.py",
     "tests/ci/test_validation_scripts_are_reachable.py",
 )
-RETRO_RUNNER_PATH = (
-    "tests/validation/test_session_log_branch_aware.py",
-    "tests/validation/test_git_hook_policy_causal_restore.py",
-)
 BRANCH_AWARE_RUNNER_PATH = ("tests/validation/test_session_log_branch_aware.py",)
 
 
@@ -255,11 +251,6 @@ def mutation_specs(repo_root: Path) -> list[MutationSpec]:
     the branch-aware session-log selection
     they guarded has no surviving implementation to mutate.
     """
-    # Shared by the two halves of the #4194 retro mutant: the guard line that
-    # must follow the session-log lookup for the replacement to be unambiguous.
-    retro_guard_tail = (
-        "\n    if paths and _is_trivial_retrospective_session(session_log, paths):"
-    )
     return [
         # Issue #4160: relative vs absolute path parts in skip filter
         MutationSpec(
@@ -268,20 +259,6 @@ def mutation_specs(repo_root: Path) -> list[MutationSpec]:
             original="p.relative_to(_REPO_ROOT).parts",
             mutant="p.parts",
             test_paths=list(CI_RUNNER_PATH),
-            expected=DEAD,
-        ),
-        # Issue #4194: _session_log_for_current_branch in check_retrospective_evidence
-        MutationSpec(
-            label="#4194 retro-uses-branch-log",
-            target=repo_root / "scripts/validation/git_hook_policy.py",
-            original=(
-                '_session_log_for_current_branch(repo_root / ".agents" / "sessions", repo_root)'
-                + retro_guard_tail
-            ),
-            mutant=(
-                '_today_session_log(repo_root / ".agents" / "sessions")' + retro_guard_tail
-            ),
-            test_paths=list(RETRO_RUNNER_PATH),
             expected=DEAD,
         ),
         # Issue #4194: _session_log_for_current_branch helper branch-first selection
@@ -322,14 +299,6 @@ def controls(repo_root: Path) -> list[MutationSpec]:
             original=ci_docstring,
             mutant=ci_docstring_mutant,
             test_paths=list(CI_RUNNER_PATH),
-            expected=SURVIVED,
-        ),
-        MutationSpec(
-            label="inert-control retro-runner-path",
-            target=repo_root / "scripts/validation/git_hook_policy.py",
-            original=policy_docstring,
-            mutant=policy_docstring_mutant,
-            test_paths=list(RETRO_RUNNER_PATH),
             expected=SURVIVED,
         ),
         MutationSpec(

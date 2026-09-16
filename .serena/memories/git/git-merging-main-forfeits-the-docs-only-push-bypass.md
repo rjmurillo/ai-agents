@@ -3,7 +3,20 @@
 **Category**: Git Operations
 **Source**: 2026-08-06, branch `docs/memory-squash-severs-stack`, PR #4726. Measured on `git_hook_policy.py` at `8244012bd`, lefthook v2.1.10.
 
-Symptom this explains: a branch that pushed cleanly ten minutes ago is refused
+> **SUPERSEDED (2026-09-16), symptom half only.** The `retrospective-policy`
+> pre-push gate is deleted, along with `check_retrospective_evidence`, its four
+> bypasses, and `SKIP_RETROSPECTIVE_GATE`. A retrospective is now written when
+> an incident warrants one, not once per calendar day, so no push is refused for
+> want of one and no merge forfeits anything. Read the Statement and the "other
+> three bypasses" sections as history.
+>
+> Still current, and the reason this file stays: **"The cost is paid before you
+> are told"** (a parallel lefthook group runs to completion, so a cheap refusal
+> still bills the slowest job), **"What to do instead"** (`gh pr update-branch`,
+> and the `HEAD^1` reset recipe with its merge-tree proof), and the ruleset-vs-
+> classic-branch-protection 404 under "Do not".
+
+Symptom this explained: a branch that pushed cleanly ten minutes ago is refused
 with `ERROR: git push requires retrospective evidence for this session`, and the
 only thing that changed since the good push was `git merge origin/main`.
 

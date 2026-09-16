@@ -240,20 +240,6 @@ DEBATE_LOG_VERDICT_LABEL_RE = re.compile(
 )
 DEBATE_LOG_HEADING_RE = re.compile(r"(?m)^#{1,6} \S")
 FRONTMATTER_FIELD_RE = re.compile(r"^([A-Za-z0-9_-]+):(.*)$")
-RETROSPECTIVE_EVIDENCE_PATTERNS = (
-    re.compile(r"(?i)(##\s*retrospective|retrospective\s*section|learnings?\s*captured)"),
-    re.compile(r"(?i)(\.agents/retrospective/|retrospective[-_]?file|retro[-_]?\d{4})"),
-)
-DOCUMENTATION_PATTERNS = (
-    re.compile(r"\.md$"),
-    re.compile(r"\.txt$"),
-    re.compile(r"(^|/)README$"),
-    re.compile(r"(^|/)LICENSE$"),
-    re.compile(r"(^|/)CHANGELOG$"),
-    re.compile(r"\.gitignore$"),
-    re.compile(r"\.editorconfig$"),
-)
-TRIVIAL_SESSION_SECONDS = 10 * 60
 # `type: ignore` is excluded because this gate owns security suppressions.
 # Issue #4039 tracks separate enforcement for typing suppressions.
 SECURITY_SUPPRESSION_RE = re.compile(
@@ -1228,25 +1214,6 @@ def _current_host_date_prefixes() -> tuple[str, ...]:
     return tuple(dict.fromkeys((*host_dates, *physically_current_dates)))
 
 
-def _recent_date_prefixes() -> tuple[str, ...]:
-    """Return admissible host-local and UTC retrospective date prefixes.
-
-    ``run_retrospective.build_parser`` defaults its dated scope through
-    ``host_session_date()``, which ``_artifact_date`` prefers. Explicit
-    undated scopes instead use UTC. Preserve the scanner host's today/yesterday
-    grace, then add only calendar dates that are physically current somewhere
-    in the UTC-12 through UTC+14 range. This finds a same-instant artifact from
-    another host without admitting an arbitrary scanner-relative ±2-day
-    window.
-    """
-    now_utc = datetime.now(tz=UTC)
-    utc_dates = (
-        now_utc.strftime("%Y-%m-%d"),
-        (now_utc - timedelta(days=1)).strftime("%Y-%m-%d"),
-    )
-    return tuple(dict.fromkeys((*_current_host_date_prefixes(), *utc_dates)))
-
-
 def _recent_session_candidates(sessions_dir: Path) -> list[Path] | None:
     """Return adjacent-date session logs, or None if unreadable.
 
@@ -1429,10 +1396,10 @@ def _session_log_for_current_branch(sessions_dir: Path, repo_root: Path) -> Path
     ``None`` when the branch cannot be determined (detached HEAD, git
     unavailable) or when no recent log carries a matching branch field.
 
-    Returning ``None`` rather than the mtime winner prevents the ADR and
-    retrospective gates from judging a commit against a different session's
-    evidence. A caller that needs fail-open behaviour should check the
-    returned value and decide whether to pass or fail on ``None`` itself.
+    Returning ``None`` rather than the mtime winner prevents the ADR gate
+    from judging a commit against a different session's evidence. A caller
+    that needs fail-open behaviour should check the returned value and decide
+    whether to pass or fail on ``None`` itself.
 
     ``_today_session_log`` (mtime fallback) is intentionally NOT used here;
     it remains available for ``check_branch_context`` which relies on the
@@ -2293,76 +2260,6 @@ def _read_commit_blob_bytes(repo_root: Path, commit: str, relative_path: str) ->
     if result.returncode != 0:
         return None
     return result.stdout
-
-
-def _session_has_retrospective_evidence(session_log: Path) -> bool:
-    if session_log.is_symlink():
-        return False
-    try:
-        content = session_log.read_text(encoding="utf-8")
-    except OSError:
-        return False
-    return any(pattern.search(content) for pattern in RETROSPECTIVE_EVIDENCE_PATTERNS)
-
-
-def _today_retrospective_exists(repo_root: Path) -> bool:
-    retro_dir = repo_root / ".agents" / "retrospective"
-    if not retro_dir.is_dir():
-        return False
-    try:
-        for prefix in _recent_date_prefixes():
-            if any(not path.is_symlink() for path in retro_dir.glob(f"{prefix}*.md")):
-                return True
-        return False
-    except OSError:
-        return False
-
-
-def _documentation_only(paths: Sequence[str]) -> bool:
-    return bool(paths) and all(
-        any(pattern.search(path) for pattern in DOCUMENTATION_PATTERNS) for path in paths
-    )
-
-
-def _is_trivial_retrospective_session(
-    session_log: Path | None,
-    paths: Sequence[str],
-    *,
-    now_epoch: float | None = None,
-) -> bool:
-    if session_log is None or len(paths) != 1:
-        return False
-    try:
-        created = session_log.stat().st_ctime
-    except OSError:
-        return False
-    current = datetime.now(tz=UTC).timestamp() if now_epoch is None else now_epoch
-    return current - created <= TRIVIAL_SESSION_SECONDS
-
-
-def check_retrospective_evidence(paths: Sequence[str], repo_root: Path) -> int:
-    if os.environ.get("SKIP_RETROSPECTIVE_GATE") == "true":
-        print("Retrospective policy bypassed via SKIP_RETROSPECTIVE_GATE=true")
-        return 0
-    if not paths:
-        print(
-            "WARNING: {push_files} empty; cannot determine documentation-only or "
-            "trivial-session bypass, retrospective evidence still required",
-            file=sys.stderr,
-        )
-    if paths and _documentation_only(paths):
-        return 0
-
-    session_log = _session_log_for_current_branch(repo_root / ".agents" / "sessions", repo_root)
-    if paths and _is_trivial_retrospective_session(session_log, paths):
-        return 0
-    if _today_retrospective_exists(repo_root):
-        return 0
-    if session_log is not None and _session_has_retrospective_evidence(session_log):
-        return 0
-
-    print("ERROR: git push requires retrospective evidence for this session", file=sys.stderr)
-    return 1
 
 
 def _session_branch(session_log: Path) -> str | None:
@@ -7633,7 +7530,6 @@ def run_pytest(repo_root: Path, changed_files: Sequence[str] | None = None) -> i
         "GIT_NO_REPLACE_OBJECTS",
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "SKIP_RETROSPECTIVE_GATE",
         PYTEST_WORKER_CAP_ENV,
         PYTEST_WORKERS_ENV,
         # Consumed here, so it must not reach the child. A test that invokes
@@ -8147,23 +8043,6 @@ def _handle_adr_review(args: argparse.Namespace) -> int:
     return check_adr_review_policy(args.paths, _repo_root(args))
 
 
-def _handle_retrospective(args: argparse.Namespace) -> int:
-    # {push_files} resolves empty on a branch's first push: lefthook's own
-    # diff-against-previous-remote-ref substitution has nothing to diff
-    # against, which silently defeats the documentation-only bypass below
-    # regardless of what the push actually contains (issue #5128). Derive
-    # the real push range independently via _push_range_changed_files, the
-    # same stdin-based mechanism the glob-triggered advisory jobs already
-    # use for this exact class of bug (see the comment above
-    # _push_range_changed_files). Fall back to args.paths, which is empty
-    # under the lefthook job's use_stdin wiring but keeps direct/manual
-    # invocation with explicit paths working.
-    repo_root = _repo_root(args)
-    changed = _push_range_changed_files(sys.stdin, repo_root)
-    paths = sorted(changed) if changed is not None else list(args.paths)
-    return check_retrospective_evidence(paths, repo_root)
-
-
 def _handle_taste(args: argparse.Namespace) -> int:
     return run_taste_advisory(args.paths, _repo_root(args))
 
@@ -8424,7 +8303,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("sessions", _handle_sessions),
         ("extract-episodes", _handle_extract_episodes),
         ("adr-review", _handle_adr_review),
-        ("retrospective", _handle_retrospective),
         ("pytest", _handle_pytest),
     )
     simple_commands = (
