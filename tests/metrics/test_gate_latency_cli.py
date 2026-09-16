@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -144,10 +145,10 @@ def test_negative_configuration_problems_exit_2(
     ],
 )
 def test_negative_unusable_repository_exits_2(
-    tmp_path: Path, case: str, make: object
+    tmp_path: Path, case: str, make: Callable[[Path], Path]
 ) -> None:
     """A repo that cannot be read is exit 2, whatever makes it unreadable (AC-07)."""
-    root = make(tmp_path)  # type: ignore[operator]
+    root = make(tmp_path)
 
     assert gl.main(["--repo", str(root), "--hook", "pre-commit"]) == 2, case
 
