@@ -46,10 +46,10 @@ SERVED_MODEL_RATES: dict[str, tuple[float, float]] = {
     "kimi-k3": (3.00, 15.00),
 }
 
-# The agents and prompts this action drives are Anthropic-authored and the
-# pipeline parses a free-form `VERDICT:` line, so a cross-family swap needs its
-# own output-contract evidence before it is allowed here.
-ANTHROPIC_MODELS = {name for name in SERVED_MODEL_RATES if name.startswith("claude-")}
+# Ids Copilot CLI no longer serves. An unserved id is not an error: Copilot
+# falls back to the session default and exits 0, so a stale pin quietly buys a
+# pricier model. Kept as an explicit list so a regression names the id.
+RETIRED_MODEL_IDS = ("claude-sonnet-4.5", "claude-sonnet-4.6", "claude-opus-4.5", "gpt-5.1")
 
 
 def _action_default() -> str:
@@ -76,16 +76,31 @@ def test_action_default_is_a_model_copilot_cli_serves():
     )
 
 
-def test_action_default_is_the_cheapest_anthropic_model():
+def test_action_default_is_the_cheapest_model_copilot_serves():
+    """Cheapest overall, not cheapest within one vendor.
+
+    The output contract is enforced downstream: `parse_ai_review_output.py`
+    reads missing-verdict output as UNKNOWN and UNKNOWN blocks, so a model that
+    cannot hold the format turns the check red instead of passing quietly.
+    """
     default = _action_default()
-    cheapest = min(ANTHROPIC_MODELS, key=lambda name: SERVED_MODEL_RATES[name])
-    assert default == cheapest, (
+    cheapest_rate = min(SERVED_MODEL_RATES.values())
+    assert SERVED_MODEL_RATES[default] == cheapest_rate, (
         f"ai-review defaults to {default!r} at {SERVED_MODEL_RATES[default]} USD/1M "
-        f"(in, out); {cheapest} costs {SERVED_MODEL_RATES[cheapest]}. This action "
+        f"(in, out); the cheapest served model costs {cheapest_rate}. This action "
         "runs per PR push and hourly, so a pricier default multiplies across "
         "every run. Raise it only with measured evidence that the cheap tier "
         "fails the task."
     )
+
+
+def test_action_default_is_cheaper_than_the_cheapest_anthropic_model():
+    """Guards the specific regression of reverting to the in-family choice."""
+    anthropic = {
+        name: rate for name, rate in SERVED_MODEL_RATES.items() if name.startswith("claude-")
+    }
+    cheapest_anthropic = min(anthropic.values())
+    assert SERVED_MODEL_RATES[_action_default()] < cheapest_anthropic
 
 
 def test_action_default_beats_auto_worst_case():
@@ -98,7 +113,7 @@ def test_action_default_beats_auto_worst_case():
     assert default_out <= auto_worst_out * 0.9
 
 
-@pytest.mark.parametrize("retired", ["claude-sonnet-4.5", "claude-sonnet-4.6", "claude-opus-4.5"])
+@pytest.mark.parametrize("retired", RETIRED_MODEL_IDS)
 def test_retired_ids_are_not_treated_as_served(retired):
     assert retired not in SERVED_MODEL_RATES
 

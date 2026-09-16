@@ -75,12 +75,12 @@ def test_reports_the_first_match_only(capsys):
     assert capsys.readouterr().out.count("::warning::") == 1
 
 
-def test_default_model_is_the_cheap_anthropic_tier():
+def test_default_model_is_the_cheapest_served_tier():
     """The driver's floor, not just the action input default.
 
     An unset or empty COPILOT_MODEL used to send `--model ""` to the CLI.
     """
-    assert fallback.DEFAULT_COPILOT_MODEL == "claude-haiku-4.5"
+    assert fallback.DEFAULT_COPILOT_MODEL == "gpt-5.6-luna"
 
 
 def test_default_model_is_not_a_rolling_alias():

@@ -21,17 +21,24 @@ from __future__ import annotations
 
 import re
 
-# The model every ai-review call uses unless a caller overrides it. Claude
-# Haiku 4.5 is the cheapest Anthropic model Copilot CLI serves ($1.00 in /
-# $5.00 out per 1M tokens under usage-based billing) and keeps the family the
-# prompts and .github/agents units were written for, so the free-form
-# `VERDICT:` line the pipeline parses is unchanged.
+# The model every ai-review call uses unless a caller overrides it. GPT-5.6
+# Luna is the cheapest model Copilot CLI serves ($0.20 in / $1.20 out per 1M
+# tokens under usage-based billing), five times under Claude Haiku 4.5 and
+# roughly twelve times under GPT-5.4, which is the priciest model `auto` routes
+# to. This action runs on every PR synchronize and on an hourly PR sweep, so
+# that ratio is the whole credit bill.
+#
+# Output-contract risk is bounded by `scripts/ci/parse_ai_review_output.py`:
+# output with no `VERDICT:` line parses to UNKNOWN, UNKNOWN is a blocking
+# verdict, and the check goes red. A model that cannot hold the contract fails
+# loudly rather than passing quietly. What that does not catch is a
+# well-formed verdict from a shallow review, which is the accepted trade.
 #
 # This is the floor, not a duplicate of the action input default: an unset or
 # empty COPILOT_MODEL previously sent `--model ""` to the CLI, and a composite
 # action input that is passed explicitly-empty overrides its own default.
 # `tests/ci/test_ai_review_model_economy.py` fails if the two disagree.
-DEFAULT_COPILOT_MODEL = "claude-haiku-4.5"
+DEFAULT_COPILOT_MODEL = "gpt-5.6-luna"
 
 MODEL_FALLBACK_PATTERN = re.compile(
     r"not available;\s*using\s+[\"']?(?P<substitute>[^\"'\n]+?)[\"']?\s+instead",
