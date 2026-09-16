@@ -52,13 +52,28 @@ inputs:
     default: ''
   copilot-model:
     description: |
-      AI model to use. Default "auto" lets Copilot CLI pick an available model,
-      which stays valid when a specific model name is retired (e.g. the
-      claude-opus-4.5 retirement that broke required review checks). Pin an
-      explicit name only when a job needs a specific model (e.g. "claude-sonnet-4.5",
-      "claude-haiku-4.5", "claude-opus-4.6", "gpt-5.1", "gemini-3-pro-preview").
+      AI model to use. Default "gpt-5.6-luna" is the cheapest model Copilot
+      CLI offers ($0.20 in / $1.20 out per 1M tokens), five times under
+      claude-haiku-4.5 and about twelve times under gpt-5.4. This action runs
+      on every PR synchronize plus an hourly PR sweep, so model rate dominates
+      the credit burn. "auto" takes 10 percent off the model rate but routes
+      freely, including to gpt-5.4 at $2.50 / $15.00.
+      A model that cannot hold the VERDICT output contract fails loudly:
+      parse_ai_review_output.py reads missing-verdict output as UNKNOWN, which
+      is a blocking verdict. Override only when a job is measured to need more
+      capability, and use a model id Copilot CLI currently serves
+      (gpt-5.6-luna, mai-code-1.1-flash, gemini-3.6-flash, claude-haiku-4.5,
+      claude-sonnet-5, gpt-5.4, claude-opus-4.8, claude-opus-5). Copilot CLI
+      answers a retired or unknown id with `not available; using "<x>" instead`
+      and silently falls back to the session default, which is how a stale pin
+      turns into an expensive run; invoke_copilot_cli.py raises a workflow
+      warning when it sees that text.
+      This default is mirrored by DEFAULT_COPILOT_MODEL in
+      scripts/ci/_copilot_model.py, which is the floor the driver applies when
+      COPILOT_MODEL arrives unset or explicitly empty. A test fails if the two
+      disagree.
     required: false
-    default: 'auto'
+    default: 'gpt-5.6-luna'
   enable-diagnostics:
     description: |
       Enable Copilot CLI diagnostic test before main invocation.
