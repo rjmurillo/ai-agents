@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -42,7 +43,7 @@ def _clean_environment(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
 
-def _rows(capsys: pytest.CaptureFixture[str], *argv: str) -> list[dict[str, object]]:
+def _rows(capsys: pytest.CaptureFixture[str], *argv: str) -> list[dict[str, Any]]:
     assert cli.main(["--json", *argv]) == cli.EXIT_OK
     return json.loads(capsys.readouterr().out)["cells"]
 

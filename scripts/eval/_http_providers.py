@@ -265,8 +265,14 @@ class _AnthropicSDKProvider:
         api_key = _read_env_key(["ANTHROPIC_API_KEY"])
         client = Anthropic(api_key=api_key, timeout=120.0, max_retries=0)
         anthropic_messages = cast("Iterable[MessageParam]", messages)
+        # `temperature` is absent from the SDK's `create` overloads, so mypy
+        # rejects the call although the API accepts the field and the urllib
+        # path sends it. Cast at the boundary, the same way the OpenAI client
+        # is called below, rather than dropping an argument the adapter
+        # documents as sent on every call.
+        create_message = cast("Callable[..., Any]", client.messages.create)
         try:
-            resp = client.messages.create(
+            resp = create_message(
                 model=model,
                 max_tokens=max_tokens,
                 system=system or "",

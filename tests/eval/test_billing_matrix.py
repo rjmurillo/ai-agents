@@ -20,6 +20,7 @@ try:
     import _billing_matrix
     import _eval_common
     import _providers
+    from _billing_matrix import MatrixCell
 finally:
     sys.path[:] = _ORIGINAL_SYS_PATH
 
@@ -40,7 +41,7 @@ def test_matrix_has_one_cell_per_harness_and_billing_mode() -> None:
 
 
 @pytest.mark.parametrize("cell", _billing_matrix.cells(), ids=lambda c: c.name)
-def test_every_cell_declares_a_known_cost_basis(cell: object) -> None:
+def test_every_cell_declares_a_known_cost_basis(cell: MatrixCell) -> None:
     assert cell.cost_basis in (
         _billing_matrix.COST_BASIS_USD,
         _billing_matrix.COST_BASIS_REQUESTS,
@@ -48,7 +49,7 @@ def test_every_cell_declares_a_known_cost_basis(cell: object) -> None:
 
 
 @pytest.mark.parametrize("cell", _billing_matrix.cells(), ids=lambda c: c.name)
-def test_every_cell_declares_a_known_status_and_a_reason(cell: object) -> None:
+def test_every_cell_declares_a_known_status_and_a_reason(cell: MatrixCell) -> None:
     assert cell.status in (
         _billing_matrix.STATUS_VERIFIED,
         _billing_matrix.STATUS_UNVERIFIED,
@@ -57,7 +58,7 @@ def test_every_cell_declares_a_known_status_and_a_reason(cell: object) -> None:
 
 
 @pytest.mark.parametrize("cell", _billing_matrix.cells(), ids=lambda c: c.name)
-def test_a_required_credential_names_at_least_one_variable(cell: object) -> None:
+def test_a_required_credential_names_at_least_one_variable(cell: MatrixCell) -> None:
     """`credential_required` with no variable would be unsatisfiable."""
     if cell.credential_required:
         assert cell.credentials
