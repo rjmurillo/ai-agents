@@ -276,3 +276,87 @@ def test_positive_report_records_whether_the_run_was_forced(
 
     assert forced.forced is True
     assert natural.forced is False
+
+
+# --- Credential redaction and the hook timeout -------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (
+            "https://x-access-token:ghp_secret@github.com/o/r.git",
+            "https://<redacted>@github.com/o/r.git",
+        ),
+        ("https://user:pw@example.invalid/a.git", "https://<redacted>@example.invalid/a.git"),
+        ("ssh://git:key@host/r.git", "ssh://<redacted>@host/r.git"),
+        ("https://github.com/rjmurillo/ai-agents.git", "https://github.com/rjmurillo/ai-agents.git"),
+        ("origin", "origin"),
+        ("", ""),
+    ],
+)
+def test_url_userinfo_is_redacted_but_credential_free_text_is_untouched(
+    raw: str, expected: str
+) -> None:
+    """A committed artifact records hook args, and git history is permanent."""
+    assert gl._redact_url_userinfo(raw) == expected
+
+
+def test_positive_report_redacts_a_credentialed_remote_before_writing_it(
+    monkeypatch: pytest.MonkeyPatch, repo: Path
+) -> None:
+    """The pre-push measurement needs --hook-arg <remote> <url>, and the artifact is committed."""
+    monkeypatch.setattr(subprocess, "run", _argv_capturing_fake({}))
+
+    report = gl.build_report(
+        repo,
+        "gate_latency.py --hook-arg https://tok:s3cret@github.com/o/r.git",
+        "pre-push",
+        "none",
+        (),
+        1,
+        ["lefthook"],
+        None,
+        ("origin", "https://tok:s3cret@github.com/o/r.git"),
+    )
+
+    assert "s3cret" not in " ".join(report.hook_args)
+    assert "s3cret" not in report.command
+    assert "<redacted>" in report.hook_args[1]
+
+
+def test_negative_a_hook_that_times_out_is_a_recorded_repetition_not_a_crash(
+    monkeypatch: pytest.MonkeyPatch, repo: Path
+) -> None:
+    """A hung hook must not hang the sampler, and must not lose the other repetitions."""
+
+    def _timing_out(cmd: list[str], **kwargs: object) -> _FakeCompleted:
+        if cmd and cmd[0] == "git":
+            return _FakeCompleted(0, "")
+        raise subprocess.TimeoutExpired(cmd, 1.0, output=b"partial output")
+
+    monkeypatch.setattr(subprocess, "run", _timing_out)
+
+    run = gl._run_repetition(repo, ["lefthook"], "pre-push", (), 0)
+
+    assert run.exit_code == gl._TIMEOUT_EXIT_CODE
+    assert run.jobs_parsed == 0
+
+
+def test_positive_the_lefthook_call_carries_a_timeout(
+    monkeypatch: pytest.MonkeyPatch, repo: Path
+) -> None:
+    """Without one, a hung job blocks the run with no diagnostic."""
+    seen: dict[str, object] = {}
+
+    def _fake(cmd: list[str], **kwargs: object) -> _FakeCompleted:
+        if cmd and cmd[0] == "git":
+            return _FakeCompleted(0, "")
+        seen["timeout"] = kwargs.get("timeout")
+        return _FakeCompleted(0, REAL_CAPTURED_STDOUT)
+
+    monkeypatch.setattr(subprocess, "run", _fake)
+
+    gl._run_repetition(repo, ["lefthook"], "pre-push", (), 0)
+
+    assert seen["timeout"] == gl._HOOK_TIMEOUT_SECONDS

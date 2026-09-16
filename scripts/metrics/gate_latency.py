@@ -44,12 +44,22 @@ mode 0600 (``gate_latency_io.safe_open``).
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+# A hung hook would otherwise hang the sampler with no diagnostic. Generous
+# on purpose: this has to exceed the slowest legitimate hook, and lefthook's
+# own per-job timeout: values already bound the individual jobs. A timeout is
+# recorded as a failed repetition, never raised past the caller (AC-06).
+_HOOK_TIMEOUT_SECONDS = 3600.0
+
+# Recorded in place of a real exit code when the hook is killed on timeout.
+_TIMEOUT_EXIT_CODE = -1
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "models.py"
@@ -81,6 +91,11 @@ from scripts.metrics.gate_latency_stats import (
     _smallest_scope_n,
 )
 from scripts.metrics.lefthook_summary import parse_summary
+
+
+def _as_text(raw: str | bytes) -> str:
+    """TimeoutExpired.stdout is bytes even when the call asked for text."""
+    return raw if isinstance(raw, str) else raw.decode("utf-8", "replace")
 
 
 def _run_repetition(
@@ -128,23 +143,29 @@ def _run_repetition(
         cmd.append("--force")
     digest_before = _tree_digest(repo)
     start = time.perf_counter()
-    result = subprocess.run(
-        cmd,
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-        input="" if stdin_ref_line is None else stdin_ref_line.rstrip("\n") + "\n",
-    )
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            input="" if stdin_ref_line is None else stdin_ref_line.rstrip("\n") + "\n",
+            timeout=_HOOK_TIMEOUT_SECONDS,
+        )
+        stdout, exit_code = result.stdout, result.returncode
+    except subprocess.TimeoutExpired as expired:
+        stdout = "" if expired.stdout is None else _as_text(expired.stdout)
+        exit_code = _TIMEOUT_EXIT_CODE
     wall_clock_seconds = time.perf_counter() - start
     digest_after = _tree_digest(repo)
-    samples, reported_seconds = parse_summary(result.stdout)
+    samples, reported_seconds = parse_summary(stdout)
     unknown_status_count = sum(1 for sample in samples if sample.status == "unknown")
     return HookRun(
         repetition_index=repetition_index,
-        exit_code=result.returncode,
+        exit_code=exit_code,
         wall_clock_seconds=wall_clock_seconds,
         lefthook_reported_seconds=reported_seconds,
         jobs_parsed=len(samples),
@@ -187,7 +208,7 @@ def build_report(
     return GateLatencyReport(
         commit_sha=_git_rev_parse_head(repo),
         captured_at=datetime.now(UTC).isoformat(),
-        command=command,
+        command=_redact_url_userinfo(command),
         hook=hook,
         change_class=change_class,
         files=list(files),
@@ -198,10 +219,26 @@ def build_report(
         declared_budget_seconds=declared_seconds,
         percentile_note=_percentile_note(_smallest_scope_n(summaries, repetitions)),
         stdin_ref_line_supplied=stdin_ref_line is not None,
-        hook_args=list(hook_args),
+        hook_args=[_redact_url_userinfo(arg) for arg in hook_args],
         forced=force,
         exclusions=exclusions,
     )
+
+
+_URL_USERINFO_RE = re.compile(r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*://)(?P<userinfo>[^/@\s]+)@")
+
+
+def _redact_url_userinfo(text: str) -> str:
+    """Strip credentials out of any ``scheme://user:pass@host`` in ``text``.
+
+    A pre-push measurement needs ``--hook-arg <remote> <url>``, and these
+    values are written verbatim into a committed artifact. A remote URL can
+    carry a token (``https://x-access-token:TOKEN@github.com/...``), which is a
+    discouraged but real pattern for service accounts, and a secret written
+    into a committed artifact is in git history permanently. Redacting here
+    costs nothing when the URL is credential-free, which is the normal case.
+    """
+    return _URL_USERINFO_RE.sub(r"\g<scheme><redacted>@", text)
 
 
 def _normalized_command_args(args_list: list[str]) -> list[str]:
