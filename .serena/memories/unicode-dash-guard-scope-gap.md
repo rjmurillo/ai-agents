@@ -16,7 +16,8 @@ runtime, plus three in comments and docstrings across `run_report.py`,
 `get_pr_review_threads.py`, and `test_pr_merge_ready.py`.
 
 `tests/test_plugin_tree_no_unicode_dashes.py` now pins the cleared state across
-every file type under `.claude/`, `src/claude/`, and `src/copilot-cli/`. That is
+every file type under the four prefixes in its `_SCANNED_PREFIXES` tuple:
+`.claude/`, `src/claude/`, `src/copilot-cli/`, and `.serena/memories/`. That is
 a regression pin, not a commit-time guard: it catches a regression at test time,
 after the author has already written the dash.
 
@@ -35,7 +36,17 @@ Found 2026-09-16 at `659097d6d`. `_branch_markdown_files` in
 A markdown file already in the tree therefore never trips the guard, no matter
 how many dashes it holds, because it never appears in a diff until someone edits
 it. The pin in `tests/test_plugin_tree_no_unicode_dashes.py` does not close this
-for `.agents/`: its `ROOTS` are `.claude/`, `src/claude/`, `src/copilot-cli/` only.
+for `.agents/`: its `_SCANNED_PREFIXES` tuple is `.claude/`, `src/claude/`,
+`src/copilot-cli/`, and `.serena/memories/`, and none of the four is `.agents/`.
+
+That fourth prefix cuts the other way for this file: this memory lives at
+`.serena/memories/unicode-dash-guard-scope-gap.md`, so the document making the
+claim above is itself inside the pinned set, unlike the `.agents/` tree the
+template trap below sits in. `.serena/memories/` being covered narrows the gap
+this section describes to `.agents/` and any other tree outside all four
+prefixes; it does not close the gap, and it does not make `.agents/` covered.
+Do not read this section as claiming a three-prefix pin; the pin is four
+prefixes wide, and `.agents/` still falls outside all of them.
 
 **The template trap.** `.agents/templates/HANDOFF.md` sat in that intersection and
 carried three em dashes, on lines 1, 13 and 23. It is markdown, so axis 1 did not
