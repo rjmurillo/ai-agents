@@ -23,6 +23,20 @@ What this does NOT close: a job holding the permission can still publish under a
 required context's name today. Only the `integration_id` pin closes that. This
 gate makes the set of such jobs a reviewed decision instead of an accident.
 
+The sharpest instance on the list is `claude.yml`'s `claude-response`, which
+inherits both scopes and runs an LLM agent over pull request and comment text on
+a `pull_request` trigger. An injection that reached the Checks API from there
+would mint a required context (ASI01, CWE-94). That predates this gate and is
+not made worse by it; it is named here so nobody reads the allowlist as a
+statement that the three entries are harmless.
+
+One assumption this resolver rests on: a job that declares no `permissions:`
+block at any level resolves to the repository's default `GITHUB_TOKEN` scope,
+which cannot be read from workflow YAML, so this code treats that case as
+non-publishing. That is only sound because `scripts/validate_workflows.py`
+`validate_permissions` already fails a workflow declaring permissions nowhere.
+If that gate is ever relaxed, this one acquires a blind spot.
+
 Scope note: the trigger is what matters, not the job. A `push` or `schedule`
 workflow runs base-owned code, so its grants are outside this gate. A workflow
 carrying both a pull-request trigger and others is in scope, because the
@@ -31,6 +45,7 @@ pull-request path is reachable.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -114,25 +129,54 @@ def publishing_jobs(doc: object) -> dict[str, list[str]]:
     return found
 
 
-def _found() -> tuple[set[tuple[str, str]], int, int]:
+@dataclass(frozen=True)
+class Scan:
+    """One pass over the workflow directory.
+
+    ``in_scope`` and ``out_of_scope`` partition ``examined``. Keeping both,
+    rather than deriving one from the other, is what lets a caller assert that
+    every file was classified rather than merely visited.
+    """
+
+    found: frozenset[tuple[str, str]]
+    examined: int
+    in_scope: int
+    out_of_scope: int
+    untriggered: tuple[str, ...]
+
+
+def _scan() -> Scan:
     found: set[tuple[str, str]] = set()
     workflows = sorted(WORKFLOW_DIR.glob("*.y*ml"))
-    in_scope = 0
+    in_scope = out_of_scope = 0
+    untriggered: list[str] = []
     for workflow in workflows:
         doc = yaml.safe_load(workflow.read_text(encoding="utf-8"))
-        if _triggers(doc) & _PR_TRIGGERS:
+        triggers = _triggers(doc)
+        if not triggers:
+            untriggered.append(workflow.name)
+        elif triggers & _PR_TRIGGERS:
             in_scope += 1
+        else:
+            out_of_scope += 1
         for name in publishing_jobs(doc):
             found.add((workflow.name, name))
-    return found, len(workflows), in_scope
+    return Scan(
+        found=frozenset(found),
+        examined=len(workflows),
+        in_scope=in_scope,
+        out_of_scope=out_of_scope,
+        untriggered=tuple(untriggered),
+    )
 
 
 def test_no_new_pull_request_job_can_publish_a_required_context() -> None:
-    found, examined, in_scope = _found()
-    added = sorted(found - _ALLOWED)
-    removed = sorted(_ALLOWED - found)
-    assert found == _ALLOWED, (
-        f"examined {examined} workflow files, {in_scope} with a pull-request trigger.\n"
+    scan = _scan()
+    added = sorted(scan.found - _ALLOWED)
+    removed = sorted(_ALLOWED - scan.found)
+    assert scan.found == _ALLOWED, (
+        f"examined {scan.examined} workflow files, "
+        f"{scan.in_scope} with a pull-request trigger.\n"
         "The set of pull-request-reachable jobs that can publish a check run or "
         "commit status changed.\n"
         f"New ({len(added)}): {added}\n"
@@ -234,15 +278,31 @@ class TestPublishingJobs:
         assert publishing_jobs("not a workflow") == {}
 
 
-def test_the_corpus_scan_examines_the_whole_workflow_directory() -> None:
-    """A scan that examined nothing would pass set equality against an empty allowlist.
+def test_every_workflow_file_is_classified_not_merely_visited() -> None:
+    """A file whose `on:` shape the resolver cannot read must fail, not vanish.
 
-    `.claude/rules/ci-scripts.md` MUST 12: a run that did nothing must be
-    distinguishable from a run that found nothing wrong. The counts are what
-    make that visible, so they are asserted rather than only printed.
+    The weaker check this replaces compared the examined count against a second
+    `glob` of the same directory. Both counts came from the same call, so it was
+    close to tautological: it proved the loop visited every file, not that every
+    file was classified. A future workflow whose `on:` took a shape `_triggers`
+    does not fold would resolve to an empty trigger set, drop out of `in_scope`
+    without being counted anywhere, and carry any `checks: write` grant past the
+    gate in silence. Raised as MEDIUM-001 in the security review of the commit
+    that introduced this file.
+
+    Asserting the partition closes that: every file lands in exactly one of
+    in-scope or out-of-scope, and a file that lands in neither is named.
+    `.claude/rules/ci-scripts.md` MUST 12 is the same idea one level up.
     """
-    found, examined, in_scope = _found()
-    on_disk = len(list(WORKFLOW_DIR.glob("*.y*ml")))
-    assert examined == on_disk > 0, f"scanned {examined} of {on_disk} workflow files"
-    assert 0 < in_scope <= examined
-    assert found, "no publishing job found at all; the resolver is probably broken"
+    scan = _scan()
+    assert scan.examined > 0, "no workflow files found; WORKFLOW_DIR is wrong"
+    assert not scan.untriggered, (
+        f"examined {scan.examined} workflow files; {len(scan.untriggered)} resolved no "
+        f"trigger at all: {list(scan.untriggered)}.\n"
+        "Either the file has no `on:` block, or its `on:` uses a shape `_triggers` "
+        "does not handle. Until `_triggers` reads it, that workflow's jobs are never "
+        "checked for a publishing permission."
+    )
+    assert scan.in_scope + scan.out_of_scope == scan.examined
+    assert scan.in_scope > 0, "no pull-request-triggered workflow found; the resolver is broken"
+    assert scan.found, "no publishing job found at all; the resolver is probably broken"
