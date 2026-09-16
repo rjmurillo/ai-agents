@@ -242,7 +242,7 @@ class TestNoLocalFenceLogic:
 
         tree = ast.parse(Path(mod.__file__).read_text(encoding="utf-8"))
 
-        imported = set()
+        imported: set[str] = set()
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 imported.update(alias.name for alias in node.names)
