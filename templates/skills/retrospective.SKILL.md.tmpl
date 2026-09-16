@@ -41,7 +41,10 @@ retrospective is written when someone asks for one.
 
 | Situation | Use This Skill? |
 |-----------|-----------------|
-| Session ended with meaningful work and you want learnings persisted | Yes |
+| A `reflect` pass produced a HIGH-confidence finding | Yes |
+| `main` went red, or a merge was reverted or force-fixed | Yes |
+| The user corrected the work explicitly | Yes |
+| A session ended and nothing above fired | No, a calendar is not a trigger |
 | An unfilled auto-retro skeleton exists in `.agents/retrospective/` | Yes (fill it) |
 | Diagnosing why a task failed (Five Whys, fishbone) | Yes |
 | Capturing a single in-conversation correction ("no", "wrong") | No, use `reflect` |
@@ -49,8 +52,10 @@ retrospective is written when someone asks for one.
 
 The output artifact is a Markdown file. The Learning Extraction Template in
 `references/learning-template.md` defines the exact structure. Save to
-`.agents/retrospective/YYYY-MM-DD-[scope].md`. When filling an auto-retro skeleton, write
-to the existing `YYYY-MM-DD-auto-retro.md` file produced by the Stop hook.
+`.agents/retrospective/YYYY-MM-DD-[scope].md`. Nothing writes new auto-retro
+skeletons: the Stop hook that produced them was deleted in #3349. Skeletons
+already on disk are historical and still fillable; when filling one, write to
+its existing `YYYY-MM-DD-auto-retro.md`.
 
 ---
 

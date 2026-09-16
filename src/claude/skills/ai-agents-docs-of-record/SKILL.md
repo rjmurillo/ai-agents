@@ -28,7 +28,7 @@ and pull request evidence remain valid, and the ~1,500 historical logs under
 | Session log (historical only, creation discontinued) | `.agents/sessions/YYYY-MM-DD-session-NN[-slug].json` | do not create new ones | `scripts/validate_session_json.py`, validate-if-present via the `session-policy` pre-commit hook, applies only if one is somehow staged |
 | Per-issue handoff | `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE}-handoff.md` | copy `.agents/templates/HANDOFF.md` | resume-verification checklist at next session start |
 | ADR | `.agents/architecture/ADR-NNN-slug.md` | `adr-generator` skill | `scripts/validation/check_adr_uniqueness.py`; `adr-review` debate gate |
-| Retrospective | `.agents/retrospective/` | auto-retro skeleton + `/retro fill`, or `retrospective` skill | `INDEX.md` row (auto-appended, incomplete; see Phase 4) |
+| Retrospective | `.agents/retrospective/` | `retrospective` skill on one of the four triggers (HIGH-tier reflect finding, `main` red, reverted or force-fixed merge, explicit user correction), or `/retro fill` on a historical skeleton | `INDEX.md` row (auto-appended, incomplete; see Phase 4) |
 | Serena memory | `.serena/memories/[domain]-[name].md` | `memory` skill write conventions | `curating-memories` skill; `memory-index` routing |
 
 ## Process

@@ -51,13 +51,16 @@ Turn execution experience into institutional knowledge. Use structured activitie
 
 ## Trigger Conditions
 
-Perform analysis when:
+Perform analysis when one of these fires. No calendar entry, no
+every-session entry:
 
-- Agent produces output (correct or incorrect)
-- Task completes (success or failure)
-- User provides feedback
-- Session ends
-- Milestone reached
+- A `reflect` pass produced a HIGH-confidence finding
+- `main` went red
+- A merge was reverted or force-fixed
+- The user corrected the work explicitly
+
+The Post-PR Retrospective workflow adds a fifth on its own, firing on PR close
+for non-bot, non-fork pull requests.
 
 ## Retrospective Flow
 

@@ -11,15 +11,16 @@ Retrospectives exist so the same failure does not happen twice. They feed future
 
 ## When To Write One
 
-Event-triggered, never scheduled. Write a retrospective when one of these fires:
+Event-triggered, never scheduled. Four triggers warrant a full retrospective:
 
-1. A defect, incident, or rollback reached `main` or CI.
-2. A pull request closed unmerged, carried a rework marker, or drew heavy review friction. The Post-PR Retrospective workflow raises this one on PR close and skips bot and fork pull requests.
-3. A gate, hook, or validator misfired: blocked correct work, or passed work it should have blocked.
-4. A session burned real time on a failure mode already in the failure-mode taxonomy referenced below, or on one that belongs there and is missing.
-5. Someone asks for one.
+1. A `reflect` pass produced a HIGH-confidence finding.
+2. `main` went red.
+3. A merge was reverted or force-fixed.
+4. The user corrected the work explicitly.
 
-A day on which none of those fired needs no retrospective. A pre-push gate used to demand one per calendar day or per session; it was removed because the artifact it produced on a quiet day recorded nothing and cost every push. A retro written to satisfy a counter is worse than no retro: it dilutes the corpus that `retrospective` and the failure canon read.
+One more fires on its own: the Post-PR Retrospective workflow runs on PR close, and escalates depth for an unmerged close, a rework marker in the title, or heavy review comment density. It skips bot and fork pull requests.
+
+A day on which none of those fired owes no retrospective. A pre-push gate used to demand one per calendar day or per session; it was removed because the artifact it produced on a quiet day recorded nothing and cost every push. A retro written to satisfy a counter is worse than no retro: it dilutes the corpus the failure canon and the `retrospective` skill read.
 
 ## MUST
 
