@@ -3,7 +3,9 @@
 **Date**: 2026-09-16
 **Driving issue**: [#5275](https://github.com/rjmurillo/ai-agents/issues/5275) (Three ADR frontmatter parsers disagree on closing-fence strictness)
 **Depth tier**: Quick (Phase 0 of `buy-vs-build-framework`)
-**Status**: Recommendation, pending owner decision
+**Status**: Recommended and executed for the four parsers issue #5275 names.
+Steps 1 to 4 and 6 of the rollout below have landed; step 5 (the remaining
+contracts) is tracked separately.
 
 ## Executive Summary
 
@@ -329,6 +331,47 @@ claims a conflict with that mandate that does not exist. Under
 **Reassessment triggers**: `python-frontmatter` stops receiving releases for 24
 months; a call site needs a fence contract the library cannot express; PyYAML
 ceases to be a direct dependency; the plugin self-containment constraint changes.
+
+## What Landed
+
+Rollout steps 1 to 4 and 6, in the order the pre-mortem prescribed. Measured
+after the migration, with the probe at
+`.agents/analysis/frontmatter-probes/probe_divergence_matrix.py`:
+
+| | Before | After |
+|---|---|---|
+| Fence shapes where the three #5275 parsers disagree | 6 of 10 | **0 of 10** |
+| `--- ` (one trailing space) | lifecycle passed, index **crashed** | all three accept |
+| `----` (four dashes) | plugin parser rejected, other two accepted | all three accept |
+| `--- nope` (trailing text) | lifecycle **accepted** | all three reject |
+| ADR index output | 109 records | 109 records, byte-identical |
+| Lifecycle gate | 0 violations | 0 violations |
+
+Landed as:
+
+1. `scripts/validation/frontmatter_contract.py`, delegating to
+   `python-frontmatter`, with no regex and no fence arithmetic of its own. 39
+   tests at 100% statement coverage.
+2. The plugin-side mirror in `detect_adr_changes.py` (all three trees), pinned
+   to the library's pattern shape by shape by a parity test, because that tree
+   cannot import the dependency.
+3. `tests/validation/test_frontmatter_parser_agreement.py`, the standing gate
+   acceptance criterion 2 asks for. It fails 8 of its 12 cases against the
+   pre-migration code, so it is a real regression test rather than a vacuous one.
+4. `generate_adr_index.py` and `check_adr_lifecycle.py` migrated onto the
+   contract, and the wrong ADR-073 citation in the former corrected.
+6. The hand-rolled parser the index README *shipped to readers* replaced with
+   one built on the library's own `detect` and `split`, so the documented recipe
+   and the generator cannot drift apart again.
+
+Two behaviour changes were deliberate, each landed with the test that pins it:
+`--- trailing text` is no longer read as a close (the lifecycle gate used to
+accept it), and a padded or four-dash fence now is (the index generator and the
+plugin parser used to reject them). The tightening is the more consequential of
+the two, since a forged close is the shape that could hide a governance edit.
+
+Step 5, the remaining contracts outside #5275's four, is unstarted and belongs
+in its own issues.
 
 ## Flags Raised on the Path (voice.md: see something, say something)
 

@@ -13,18 +13,20 @@ This table is a convenience, not the source of truth. The frontmatter is, and
 Python reads it with no extra dependency:
 
 ```python
-import pathlib, re, yaml
+import pathlib, yaml
+from frontmatter.default_handlers import YAMLHandler
 
-_CLOSING_FENCE = re.compile(r'\r?\n---\r?\n')
+_HANDLER = YAMLHandler()
 
 for path in sorted(pathlib.Path('.agents/architecture').glob('ADR-[0-9]*.md')):
     text = path.read_text(encoding='utf-8')
-    if not text.startswith('---'):
+    if not _HANDLER.detect(text):
         continue  # no frontmatter: see Needs backfill below
-    closing = _CLOSING_FENCE.search(text, 3)
-    if closing is None:
+    try:
+        raw, _body = _HANDLER.split(text)
+    except ValueError:
         raise ValueError(f'{path.name}: opens with --- but never closes it')
-    front = yaml.safe_load(text[3 : closing.start()]) or {}
+    front = yaml.safe_load(raw) or {}
     if str(front.get('status', '')).strip().lower() == 'accepted':
         print(front.get('id') or path.name)
 ```
@@ -59,32 +61,32 @@ records that have it while appearing to answer for all of them. The Needs
 backfill section below is the honest denominator, and issue #5190 closes it.
 
 **This snippet crashes on unterminated frontmatter; it does not silently
-drop it.** `text.startswith('---')` is false only for a record with no
-schema at all, which `continue`s past. A record whose opening `---` fence
-never closes still starts with `---`, so it skips that `continue`, finds
-no match for `_CLOSING_FENCE`, and raises `ValueError` (verified by
-running both cases; Copilot found the original claim backwards on PR
-#5209). The real generator's `parse_frontmatter` raises the same way, on
-purpose: a malformed schema is an author's defect to see, not a record to
-drop quietly into Needs backfill. Run the gate rather than this snippet
-when that distinction matters.
+drop it.** `detect()` is false only for a record with no schema at all,
+which `continue`s past. A record whose opening `---` fence never closes
+still opens one, so it skips that `continue`, and `split()` raises
+`ValueError` because it cannot find a second boundary. The real
+generator's `parse_frontmatter` raises the same way, on purpose: a
+malformed schema is an author's defect to see, not a record to drop
+quietly into Needs backfill. The distinction matters because
+`frontmatter.loads` alone does NOT make it: an absent block and an
+unterminated one both come back with empty metadata, which is why this
+snippet calls `detect` and `split` rather than the convenience API
+(issue #5275). Run the gate rather than this snippet when that
+distinction matters.
 
-**The closing fence must occupy its own line, not just start one.**
-`generate_adr_index.py`'s `_FRONTMATTER_RE` is
-``r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$"``: the closing fence is
-three dashes immediately followed by `\r?\n`, nothing else. An earlier
-version of this snippet used `text.index('\n---', 3)`, which finds any
-line merely starting with three dashes, trailing characters or not. A
+**One fence contract, shared, and it is the library's.** Issue #5275 found
+three ADR parsers disagreeing on which closing fences they accept: a
 closing line padded with one trailing space (`"--- \n"` instead of
-`"---\n"`, a plausible editor artifact) does not match `_FRONTMATTER_RE`,
-so `parse_frontmatter` finds no valid closing fence and raises
-`AdrIndexError`, the same as a fence that never closes at all. The old
-`.index` call could not tell the difference: it matched the padded line
-anyway and printed an answer with no error, silently disagreeing with the
-generator's correctly-loud rejection of the same file (Copilot, PR #5209
-round-5 review). `_CLOSING_FENCE` above requires the same `\r?\n` on both
-sides of the dashes as `_FRONTMATTER_RE`, so a padded or otherwise
-malformed fence now raises here too.
+`"---\n"`, a plausible editor artifact) parsed cleanly in
+`check_adr_lifecycle.py` and crashed this generator, so the same corpus
+could pass the lifecycle gate and break the index build. A repo-wide sweep
+found at least 11 distinct fence contracts. Both now delegate to
+`scripts/validation/frontmatter_contract.py`, which delegates in turn to
+`python-frontmatter`'s own boundary, `^-{3,}\s*$`. That accepts a padded
+fence, a tab, and four or more dashes, and still rejects `--- trailing
+text`. The snippet above uses the same handler, so it and the generator
+cannot drift: agreement is a property of calling one parser, not of
+keeping two regexes in step by hand.
 
 ## Accepted
 

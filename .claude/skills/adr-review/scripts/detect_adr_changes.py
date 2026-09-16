@@ -82,6 +82,31 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+# Frontmatter boundary. This file ships inside the plugin and may import only
+# the standard library and yaml (`.claude/rules/plugin-self-containment.md`), so
+# `python-frontmatter` is unavailable here and the repo-side
+# `scripts/validation/frontmatter_contract.py` cannot be imported either. The
+# pattern below is therefore a MIRROR, quoted verbatim from that library's
+# `frontmatter/default_handlers.py:252`, which the contract delegates to:
+#
+#   FM_BOUNDARY = re.compile(r"^-{3,}\s*$", re.MULTILINE)
+#
+# THREE OR MORE dashes, not exactly three, and trailing whitespace is part of
+# the fence. `tests/skills/adr-review/test_detect_adr_changes.py` pins this
+# constant against the installed library so the copy cannot drift; that test
+# runs in the repo, where the import is available. The same mirror-and-pin
+# shape is used by `scripts/validation/memory_index.py:888` for the same
+# reason, and issue #4918 is what happens without it: a gate keying on the
+# literal `"---"` stayed silent on files the real parser rejected.
+#
+# Stricter/looser/different than canonical: identical boundary. This module
+# matches line by line rather than with re.MULTILINE over the whole text,
+# because it needs the index of the closing line to slice the body, and it
+# only ever considers the first two boundaries.
+FRONTMATTER_BOUNDARY = re.compile(r"^-{3,}\s*$")
+
+# Retained for callers that compare a literal fence. The boundary above, not
+# this string, decides what opens and closes a block.
 FRONTMATTER_DELIM = "---"
 
 # Frontmatter keys whose value can change without altering the ADR's decision
@@ -223,17 +248,23 @@ def _only_non_decision_fields_changed(old_frontmatter: str, new_frontmatter: str
 
 
 def _split_frontmatter(content: str) -> tuple[str, str]:
-    """Split content into (frontmatter, body).
+    r"""Split content into (frontmatter, body).
 
-    Frontmatter is the YAML block delimited by a leading ``---`` line and a
-    closing ``---`` line at the very start of the file. Returns
-    ``("", content)`` when no complete frontmatter block is present.
+    Frontmatter is the YAML block opened by a leading boundary line and closed
+    by the next one. Returns ``("", content)`` when no complete block is present.
+
+    Issue #5275 found this function, the lifecycle gate, and the index
+    generator disagreeing on which closing fences they accept, so one corpus
+    could pass the governance gate and crash the index build. All three now use
+    the same boundary: :data:`FRONTMATTER_BOUNDARY`, mirrored from
+    ``python-frontmatter``. The literal ``line.strip() == "---"`` this used to
+    perform rejected a fence of four dashes that the other two accepted.
     """
     lines = content.splitlines(keepends=True)
-    if not lines or lines[0].strip() != FRONTMATTER_DELIM:
+    if not lines or not FRONTMATTER_BOUNDARY.match(lines[0].rstrip("\r\n")):
         return "", content
     for idx in range(1, len(lines)):
-        if lines[idx].strip() == FRONTMATTER_DELIM:
+        if FRONTMATTER_BOUNDARY.match(lines[idx].rstrip("\r\n")):
             frontmatter = "".join(lines[1:idx])
             body = "".join(lines[idx + 1 :])
             return frontmatter, body
