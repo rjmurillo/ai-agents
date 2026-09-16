@@ -1,6 +1,7 @@
 | Keywords | File |
 |----------|------|
 | 2812 serena integration mypy override decision-2812-serena-integration-mypy-override 2812-serena serena-integration integration-mypy mypy-override | [decision-2812-serena-integration-mypy-override](decision-2812-serena-integration-mypy-override.md) |
+| a gate with no inputs passes forever decision-a-gate-with-no-inputs-passes-forever a-gate gate-with with-no no-inputs inputs-passes passes-forever | [decision-a-gate-with-no-inputs-passes-forever](decision-a-gate-with-no-inputs-passes-forever.md) |
 | a whole corpus gate cannot be path filtered decision-a-whole-corpus-gate-cannot-be-path-filtered a-whole whole-corpus corpus-gate gate-cannot cannot-be be-path path-filtered | [decision-a-whole-corpus-gate-cannot-be-path-filtered](decision-a-whole-corpus-gate-cannot-be-path-filtered.md) |
 | adr 085 permission surface asymmetry decision-adr-085-permission-surface-asymmetry adr-085 085-permission permission-surface surface-asymmetry | [decision-adr-085-permission-surface-asymmetry](decision-adr-085-permission-surface-asymmetry.md) |
 | adr hook claim regex scope decision-adr-hook-claim-regex-scope adr-hook hook-claim claim-regex regex-scope | [decision-adr-hook-claim-regex-scope](decision-adr-hook-claim-regex-scope.md) |
