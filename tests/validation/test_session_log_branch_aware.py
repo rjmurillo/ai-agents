@@ -1,14 +1,17 @@
 """Tests for issue #4194: branch-aware session log selection.
 
-Bug: ``check_adr_review_policy`` and ``check_retrospective_evidence`` called
-``_today_session_log`` which picks the newest log by mtime. With concurrent
-agents on other branches, another agent's newer log would be returned, causing
-the gate to judge your commit against the wrong session's evidence.
+Bug: ``check_adr_review_policy`` called ``_today_session_log`` which picks the
+newest log by mtime. With concurrent agents on other branches, another agent's
+newer log would be returned, causing the gate to judge your commit against the
+wrong session's evidence.
 
 Fix: ``_session_log_for_current_branch(sessions_dir, repo_root)`` tries
 ``_session_log_for_branch`` first and falls back to mtime only when no
-branch-specific log exists. The ADR and retrospective gates now call this
-instead of bare ``_today_session_log``.
+branch-specific log exists. The ADR gate now calls this instead of bare
+``_today_session_log``.
+
+The retrospective push gate was the other caller. It is gone: a retrospective
+is written when an incident warrants one, not once per calendar day.
 """
 
 from __future__ import annotations
@@ -18,8 +21,6 @@ import os
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
-
-import pytest
 
 from scripts.validation import git_hook_policy as policy
 
@@ -162,76 +163,3 @@ class TestSessionLogForCurrentBranch:
             "Detached HEAD must return None, not the mtime winner. "
             "Returning the mtime winner silently picks another session's log."
         )
-
-
-class TestRetrospectivePolicyUsesBranchLog:
-    """check_retrospective_evidence judges evidence against the current branch's log."""
-
-    def test_gate_calls_session_log_for_current_branch_not_today(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """check_retrospective_evidence calls _session_log_for_current_branch."""
-        called_today: list[object] = []
-        called_branch: list[object] = []
-
-        def _fake_today(sessions_dir: object) -> None:
-            called_today.append(sessions_dir)
-
-        def _fake_branch(sessions_dir: object, root: object) -> None:
-            called_branch.append(sessions_dir)
-
-        monkeypatch.setattr(policy, "_today_session_log", _fake_today)
-        monkeypatch.setattr(policy, "_session_log_for_current_branch", _fake_branch)
-        monkeypatch.setattr(policy, "_documentation_only", lambda paths: False)
-        monkeypatch.setattr(policy, "_today_retrospective_exists", lambda root: False)
-
-        policy.check_retrospective_evidence(["README.md"], tmp_path)
-
-        assert called_branch, (
-            "check_retrospective_evidence must call _session_log_for_current_branch"
-        )
-        assert not called_today, (
-            "check_retrospective_evidence must NOT call _today_session_log directly"
-        )
-
-    def test_passes_when_branch_log_has_retrospective(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Gate passes when branch log has retrospective evidence."""
-        today = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-        sessions = tmp_path / ".agents" / "sessions"
-        sessions.mkdir(parents=True)
-
-        branch_log = sessions / f"{today}-session-mine.json"
-        branch_log.write_text(
-            json.dumps(
-                {
-                    "session": {"branch": "feature/retro"},
-                    "retrospective": {"completed": True, "summary": "done"},
-                }
-            )
-        )
-        os.utime(branch_log, (1_000_000_000.0, 1_000_000_000.0))
-
-        # Newer log for another branch with no retrospective
-        other_log = sessions / f"{today}-session-other.json"
-        other_log.write_text(json.dumps({"session": {"branch": "feature/other"}}))
-        os.utime(other_log, (2_000_000_000.0, 2_000_000_000.0))
-
-        monkeypatch.setattr(
-            policy,
-            "_session_log_for_current_branch",
-            lambda sessions_dir, root: branch_log,
-        )
-        monkeypatch.setattr(
-            policy,
-            "_session_has_retrospective_evidence",
-            lambda log: log == branch_log,
-        )
-        monkeypatch.setattr(policy, "_documentation_only", lambda paths: False)
-        monkeypatch.setattr(policy, "_today_retrospective_exists", lambda root: False)
-        monkeypatch.setattr(policy, "_is_trivial_retrospective_session", lambda log, paths: False)
-
-        result = policy.check_retrospective_evidence(["README.md"], tmp_path)
-
-        assert result == 0, "Should pass when branch log has retrospective evidence"

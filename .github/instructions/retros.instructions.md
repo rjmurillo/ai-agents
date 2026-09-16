@@ -6,6 +6,19 @@ applyTo: .agents/retrospective/**,docs/retros/**
 
 Retrospectives exist so the same failure does not happen twice. They feed future governance and instruction changes, so the format matters.
 
+## When To Write One
+
+Event-triggered, never scheduled. Four triggers warrant a full retrospective:
+
+1. A `reflect` pass produced a HIGH-confidence finding.
+2. `main` went red.
+3. A merge was reverted or force-fixed.
+4. The user corrected the work explicitly.
+
+One more fires on its own: the Post-PR Retrospective workflow runs on PR close, and escalates depth for an unmerged close, a rework marker in the title, or heavy review comment density. It skips bot and fork pull requests.
+
+A day on which none of those fired owes no retrospective. A pre-push gate used to demand one per calendar day or per session; it was removed because the artifact it produced on a quiet day recorded nothing and cost every push. A retro written to satisfy a counter is worse than no retro: it dilutes the corpus the failure canon and the `retrospective` skill read.
+
 ## MUST
 
 1. **Filename convention**. New retros MUST use `YYYY-MM-DD-<slug>.md` (e.g., `2026-04-21-instruction-files-rollout.md`).
@@ -29,5 +42,5 @@ Retrospectives exist so the same failure does not happen twice. They feed future
 
 - `.agents/governance/FAILURE-MODES.md`. Failure mode taxonomy
 - `.claude/skills/reflect/SKILL.md`. Learning-capture workflow
-- `.claude/skills/retro/`. Weekly retrospective skill (if present)
+- `.claude/skills/retro/`. On-demand retrospective skill (if present)
 - `.agents/retrospective/`. Historical examples
