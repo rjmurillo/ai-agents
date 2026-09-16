@@ -232,7 +232,7 @@ def classify_override(
 ) -> CapabilityStatus:
     """Verify a requested model or effort was honored by the backend.
 
-    Enforces four negative controls at once:
+    Enforces four negative controls across three checks:
       * control 2: non-`BACKEND` evidence (an echo of the request or config)
         never verifies;
       * an equal-value request (`requested == parent_value`) never verifies,
@@ -244,9 +244,14 @@ def classify_override(
         from the parent can discriminate "honored" from "silently
         inherited", so callers driving a real probe must always vary the
         child request from the parent's value;
-      * control 3/5: an observed value that silently inherited `parent_value`
-        while a different value was requested never verifies;
-      * a backend value that simply does not equal the request never verifies.
+      * controls 3/5: a backend value that does not equal the request never
+        verifies. This is the single check that enforces both "the observed
+        value simply is not what was asked for" and "the child silently
+        inherited `parent_value` while a different value was requested": an
+        inherited value is by definition not the requested one, so it fails
+        the same comparison. An earlier separate inherit branch here was
+        removed as subsumed; it could not change any verdict, so it read as
+        a guard while enforcing nothing.
 
     Returns `VERIFIED` only when the backend reported exactly the requested
     value, that value differed from the parent's (or there was no parent to
@@ -260,8 +265,6 @@ def classify_override(
     if parent_value is not None and requested == parent_value:
         return CapabilityStatus.UNVERIFIED
     if not observed:
-        return CapabilityStatus.UNVERIFIED
-    if parent_value is not None and observed == parent_value and requested != parent_value:
         return CapabilityStatus.UNVERIFIED
     if observed != requested:
         return CapabilityStatus.UNVERIFIED
