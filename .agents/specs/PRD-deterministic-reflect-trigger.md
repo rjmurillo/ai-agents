@@ -3,7 +3,7 @@
 **Status**: Draft
 **Owner**: unassigned
 **Milestone**: v0.7.0
-**Tracking issue**: TBD (filed with this PRD)
+**Tracking issue**: [#5817](https://github.com/rjmurillo/ai-agents/issues/5817)
 **Created**: 2026-09-16
 
 ---
@@ -289,6 +289,7 @@ The stable abstraction is **detect, then propose**. Detection is deterministic a
 
 | Artifact | Reference |
 |---|---|
+| Tracking issue | #5817 |
 | Requested by | Owner, 2026-09-16, following PR #5803 |
 | Replacement path owed by | #5709 step 1 (Stop hook that nudges `reflect`) |
 | Prior attempt, rejected | #1757, PR #1761 (closed unmerged) |
