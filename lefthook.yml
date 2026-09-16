@@ -347,6 +347,11 @@ pre-commit:
             run: uv run --frozen python scripts/validate_memory_tier.py --path .serena/memories
             glob: ".serena/memories/**/*.md"
 
+          - name: memory-placement
+            timeout: 5m
+            run: uv run --frozen python scripts/validation/check_memory_placement.py --ci --base HEAD {staged_files}
+            glob: ".serena/memories/**/*.md"
+
     - group:
         piped: true
         jobs:
