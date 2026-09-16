@@ -24,11 +24,13 @@ this library's pattern by a parity test, rather than an import.
 Why the library's boundary is the right contract
 ------------------------------------------------
 
+The installed ``python-frontmatter`` package is a pinned dependency in
+``pyproject.toml`` and is deliberately not vendored here, so the citation below
+names a path outside this repo. The parity tests assert the quoted pattern
+against the live library, which checks it better than a line-number scan could.
+
 ``FM_BOUNDARY = re.compile(r"^-{3,}\s*$", re.MULTILINE)``, quoted verbatim from
-.. citation-freshness: ignore -- cites the installed python-frontmatter
-.. package, a pinned dependency in pyproject.toml that is deliberately not
-.. tracked in this repo; the tests assert the quoted pattern against the
-.. live library rather than against HEAD.
+.. citation-freshness: ignore -- third-party package path, see the note above
 ``frontmatter/default_handlers.py:252``. It accepts author slips that change no
 meaning (a padded fence, a tab, four dashes, a missing final newline) and
 rejects the one shape that signals a real mistake, ``--- trailing text``. The
