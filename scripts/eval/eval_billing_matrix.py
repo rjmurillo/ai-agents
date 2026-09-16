@@ -9,9 +9,11 @@ long eval run, after the baseline half has already been paid for.
 
 Readiness here is a precondition check, never a claim about the backend. It
 reports that a credential variable is set and that an executable is on PATH.
-It does not call anything, so it cannot tell a valid token from a revoked one
-and does not pretend to: `READY` means "nothing is obviously missing", and a
-cell's `status` column still says whether a live run has ever confirmed it.
+It never reads a credential's value, only whether the name is present in the
+environment, so it cannot tell a valid token from a revoked one or from an
+empty string, and does not pretend to: `READY` means "nothing is obviously
+missing", and a cell's `status` column still says whether a live run has ever
+confirmed it.
 
 Exit codes follow AGENTS.md: 0 ok, 2 config, 3 external.
 """
@@ -89,8 +91,26 @@ def _missing_requirements(cell: MatrixCell) -> list[str]:
 
 
 def _has_env_var(cell: MatrixCell) -> bool:
-    """Report presence only. The value is never bound, returned, or printed."""
-    return any(os.environ.get(name) for name in cell.env_vars_read)
+    """Report whether any of the cell's variables is set, reading no value.
+
+    `name in os.environ` rather than `os.environ.get(name)` on purpose. The
+    readiness verdict this feeds is printed, and a verdict derived from a
+    credential's value is a flow from that credential into output no matter
+    how many booleans sit in between. CodeQL called that flow
+    clear-text logging of sensitive data, twice, and it was right about the
+    flow: `os.environ.get("ANTHROPIC_API_KEY")` is a credential read, and its
+    truthiness reached `print` through `_verdict`. Testing the key breaks the
+    flow at the source instead of asserting the result is harmless.
+
+    What that costs: a variable exported empty (`ANTHROPIC_API_KEY=`) now
+    reads as set, so the cell reports READY and the run fails later with the
+    transport's own message. The alternative buys that one distinction by
+    reading every credential on the machine into a value that is printed, in
+    a tool whose entire output is meant to be pasted into an issue. The
+    transports fail closed on a blank value with an actionable message, so the
+    distinction is recoverable where it matters and the leak would not be.
+    """
+    return any(name in os.environ for name in cell.env_vars_read)
 
 
 def _verdict(cell: MatrixCell, missing: list[str]) -> str:

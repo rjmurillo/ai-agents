@@ -150,6 +150,43 @@ def test_a_present_credential_is_ready(
     assert rows[0]["missing"] == []
 
 
+def test_a_variable_exported_empty_reads_as_set(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Documented cost of never reading a credential's value.
+
+    The readiness verdict is printed, so a verdict derived from a credential
+    value is that value reaching output. `_has_env_var` tests the key instead,
+    which cannot distinguish an empty export. The transport still refuses the
+    run with its own message, so the distinction survives where it decides
+    anything.
+    """
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+
+    rows = _rows(capsys, "--harness", "claude", "--billing", "api")
+
+    assert rows[0]["readiness"] == cli.READY
+
+
+def test_readiness_never_reads_a_credential_value(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Negative control for the CodeQL finding this check exists to prevent.
+
+    A sentinel in every credential variable must not appear anywhere in the
+    output, in any field, under any verdict.
+    """
+    sentinel = "SENTINEL-SECRET-VALUE-DO-NOT-LOG"
+    for name in _ALL_CREDENTIAL_VARS:
+        monkeypatch.setenv(name, sentinel)
+
+    assert cli.main(["--json"]) == cli.EXIT_OK
+    captured = capsys.readouterr()
+
+    assert sentinel not in captured.out
+    assert sentinel not in captured.err
+
+
 def test_every_missing_requirement_is_reported_not_just_the_first(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
