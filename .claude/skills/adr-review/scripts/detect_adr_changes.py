@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- was already at the 500-line cap before issue
+# #5275; the lines added are the verbatim library citation and divergence note
+# that canonical-source-mirror.md requires for the mirrored fence boundary,
+# and this script ships inside a plugin root where a sibling import would add
+# a second portability surface to keep in step across three trees.
 """Detect ADR file changes (create, update, delete) for automatic skill triggering.
 
 Monitors ADR file patterns in designated directories and detects changes
@@ -82,31 +87,27 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-# Frontmatter boundary. This file ships inside the plugin and may import only
-# the standard library and yaml (`.claude/rules/plugin-self-containment.md`), so
-# `python-frontmatter` is unavailable here and the repo-side
-# `scripts/validation/frontmatter_contract.py` cannot be imported either. The
-# pattern below is therefore a MIRROR, quoted verbatim from that library's
-# `frontmatter/default_handlers.py:252`, which the contract delegates to:
+# Frontmatter boundary, MIRRORED because it cannot be imported. This file ships
+# inside the plugin and may import only the standard library and yaml
+# (`.claude/rules/plugin-self-containment.md`), so neither `python-frontmatter`
+# nor `scripts/validation/frontmatter_contract.py` is reachable here. Quoted
+# verbatim from `frontmatter/default_handlers.py:252`, which that contract
+# delegates to:
 #
 #   FM_BOUNDARY = re.compile(r"^-{3,}\s*$", re.MULTILINE)
 #
-# THREE OR MORE dashes, not exactly three, and trailing whitespace is part of
-# the fence. `tests/skills/adr-review/test_detect_adr_changes.py` pins this
-# constant against the installed library so the copy cannot drift; that test
-# runs in the repo, where the import is available. The same mirror-and-pin
-# shape is used by `scripts/validation/memory_index.py:888` for the same
-# reason, and issue #4918 is what happens without it: a gate keying on the
-# literal `"---"` stayed silent on files the real parser rejected.
+# THREE OR MORE dashes, and trailing whitespace is part of the fence.
+# `tests/skills/adr-review/test_detect_adr_changes_frontmatter_parity.py` pins
+# this constant against the installed library shape by shape, and carries the
+# issue #4918 evidence for why an unpinned mirror is not safe.
 #
-# Stricter/looser/different than canonical: identical boundary. This module
-# matches line by line rather than with re.MULTILINE over the whole text,
-# because it needs the index of the closing line to slice the body, and it
-# only ever considers the first two boundaries.
+# Stricter/looser/different than canonical: identical boundary. Matched line by
+# line rather than with re.MULTILINE over the whole text, because this module
+# needs the index of the closing line to slice the body and only ever considers
+# the first two boundaries.
 FRONTMATTER_BOUNDARY = re.compile(r"^-{3,}\s*$")
 
-# Retained for callers that compare a literal fence. The boundary above, not
-# this string, decides what opens and closes a block.
+# Retained for callers comparing a literal fence. The boundary above decides.
 FRONTMATTER_DELIM = "---"
 
 # Frontmatter keys whose value can change without altering the ADR's decision
