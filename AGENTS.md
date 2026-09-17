@@ -39,6 +39,92 @@ Routing table: `.claude/skills/autoplan/SKILL.md`. Not restated here.
 |Harness work: read agent-harness-reference; mutate via ai-agents-portability-campaign
 |Any `ADR-*.md` edit fires adr-review
 
+## Delegation and Model Routing
+
+Route by task shape, verifier strength, and failure cost. Do not route by vendor effort labels.
+This section governs model selection only. Existing agent roles and safety gates remain authoritative.
+
+### Default Routing
+
+1. Luna low/medium for bounded, high-volume work:
+   - repository inventory, search and extraction, classification, log triage
+   - boilerplate, simple configuration, test scaffolding, straightforward documentation
+   - repetitive edits with exact checks
+2. Haiku non-reasoning for simple transformations and tool calls. Treat Haiku as a rolling alias under ADR-080.
+3. Terra medium/high or Sonnet medium for normal implementation and review.
+4. Sol or Opus for ambiguity, architecture, and failures expensive to review.
+5. Escalate on failed acceptance tests, not on vendor effort labels.
+
+Luna may produce verbose raw output. Keep its work disposable and require a compact receipt.
+
+### Healthy Topology
+
+1. Astra defines the objective, delegation contract, and acceptance test.
+2. Luna performs disposable discovery.
+3. Terra implements bounded changes.
+4. Sol handles technically hard exceptions or high-recall review.
+5. An independent verifier runs tests, diff checks, schema checks, and security checks.
+
+Default flow: Astra -> Luna/Terra -> Sol on typed technical exceptions -> Astra acceptance.
+
+These names are advisory capability labels. They do not rename registered agents.
+Astra is the parent coordination label. `orchestrator` performs that role here.
+`autoplan` remains the front-door router for multi-agent work.
+It hands that work to `orchestrator` for coordination and synthesis.
+
+Routing precedence:
+
+- Astra owns the objective, decomposition, delegation, and final acceptance.
+- Direct Sol is allowed for technical ambiguity with consequential tradeoffs, architecture, difficult debugging, high-recall review, or high diagnosis cost.
+- After Luna or Terra starts, Sol handles only `acceptance_failed`, `cross_file_contract_missed`, `repair_repeated`, and `diff_scope_exceeded`.
+- Worker-result conflicts follow ADR-009 and route hard conflicts to `high-level-advisor`, not Sol.
+- Preserve mandatory `security`, `qa`, and `critic` routes from the existing algorithm.
+
+Luna work includes repository inventory, search and extraction, classification, log triage, boilerplate, simple configuration, test scaffolding, straightforward documentation, and repetitive edits with exact checks.
+
+Terra work includes known files, known patterns, written acceptance criteria, ordinary implementation, local test repair, and moderate analysis.
+
+Sol work includes difficult debugging, one irreducible hard find, cross-file reasoning, high-recall technical review, and specialist work after Terra fails.
+
+The harness may map these labels to concrete model IDs when supported.
+They are not agent names or model IDs.
+Before dispatch, Astra resolves each label through the active harness registry or API.
+Record both label and concrete model ID in each worker receipt.
+Unresolved mappings use `model_unavailable`.
+Never silently substitute a vendor effort label.
+The existing routing algorithm's role results remain synthesis data.
+The dispatch boundary may wrap them in receipts before Astra accepts them.
+
+Astra must:
+
+- decide what the task means and decompose it
+- select which work is worth delegating
+- delegate rather than implement delegated work
+- resolve consequential tradeoffs
+- review whether the result satisfies the real intent
+- use event-driven waits
+- return deltas, not transcripts, with compact worker receipts
+- accept or reject based on verifier output and compact worker receipts
+- stop after acceptance
+
+Every target delegation contract names the objective, delta scope, verifier command or immutable artifact, pass criterion, escalation type, escalation recipient, and receipt fields. A target hard verifier produces a deterministic pass or fail result without model judgment. A target typed escalation names the failed condition and its next recipient. Minimum target receipt fields: assigned routing label, concrete model ID, scope completed, changed paths, verifier command and result, acceptance status, escalation status, and escalation recipient.
+
+These are target coordinator contracts, not claims about current runtime enforcement. Existing `autoplan`, `orchestrator`, and routing algorithm contracts remain authoritative for entry points, registered agents, mandatory routes, handoffs, and role-keyed synthesis results.
+
+Terra requires a hard verifier and typed escalation. Encode expected diff scope in acceptance tests. Use `acceptance_failed`, `cross_file_contract_missed`, `repair_repeated`, and `diff_scope_exceeded` for technical exceptions. Escalate instead of adding more prompts.
+
+Do not use Astra -> Sol for everything -> Terra/Luna afterward. That makes expensive coordination and execution the default, then reduces cheaper models to cleanup. Sol is expensive because persistence, retries, and replay cost output. Do not treat universal verbosity as the routing rule.
+
+### Limit Down or Scaffold Up?
+
+- Ambiguous, high-consequence, evolving task: limit down to Astra or Sol. Their capability is scarce. Extra instructions prune scope, but do not replace judgment.
+- Well-specified, bounded, deterministic task: scaffold up Terra or Luna. Tools and verifiers can replace reasoning that does not need to happen in the model.
+- Architecture, intent recovery, or consequential tradeoffs: do not scaffold Luna or Terra into that role. Missing capability becomes correction and review cost.
+- Objective verifier and cheap failure: route aggressively down. Luna is the best value candidate.
+- Wrong result costs an engineer an hour to diagnose: the price gap narrows. Terra may lose to Sol.
+
+Durable rule: cheap models perform work. Expensive models decide what work means and whether it is acceptable.
+
 ## Standards
 
 Commits: `<type>(<scope>): <desc>` + `Co-Authored-By:`
