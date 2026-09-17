@@ -1,5 +1,13 @@
 # Memory System Guidelines
 
+## What belongs here
+
+Memories hold evidence: observations, measurements, incidents, rationale. A memory is never the only home of a required behavior. The full placement contract lives in `.claude/rules/knowledge-persistence.md`, section "Placement contract". The pre-commit `memory-placement` job flags a newly added memory that reads as policy (MUST/never/always density, a Constraints/Workflow/Procedure-style heading, a long numbered procedure, or a role contract). Suppress a false positive only when the file is evidence, with the exact marker:
+
+```text
+<!-- placement: evidence; reason: <why this is evidence, not policy> -->
+```
+
 ## Directory Structure
 
 Memories are organized into topic subdirectories to reduce `list_memories` token overhead.
