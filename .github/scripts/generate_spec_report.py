@@ -133,6 +133,27 @@ def _is_infra_failure(flag: str) -> bool:
     return flag.lower() in ("true", "1", "yes")
 
 
+def _findings_section(is_infra: bool, findings: str) -> str:
+    """Return a side's findings body, labeled when that side is infra-flagged.
+
+    The raw Copilot CLI output stays visible: dropping it loses observability
+    on this fail-open path (issue #5738). An infra-flagged side's raw verdict
+    (typically `CRITICAL_FAIL`) describes a process that never completed, not
+    a code-quality judgement, so it is prefixed with a label stating the
+    check did not run, and that the text below is unevaluated output, not a
+    verdict.
+    """
+    if not is_infra:
+        return findings
+    return (
+        "> [!NOTE]\n"
+        "> This check did not run (infrastructure failure). The raw Copilot "
+        "CLI output follows, unevaluated:\n"
+        "\n"
+        f"{findings}"
+    )
+
+
 def _build_no_specs_report(repository: str) -> str:
     """Build the warning report when no spec references are found."""
     return f"""\
@@ -193,10 +214,12 @@ def _build_full_report(
 ) -> str:
     """Build the full validation report with all check results.
 
-    An infra-failed side never renders its raw AI-review verdict (typically
-    `CRITICAL_FAIL`): that verdict describes a Copilot CLI process that never
-    completed, not a code-quality judgement, and showing it unlabeled reads
-    to an operator as a real rejection (issue #5738).
+    An infra-failed side's summary-table cell and final verdict never show
+    its raw AI-review verdict (typically `CRITICAL_FAIL`): that verdict
+    describes a Copilot CLI process that never completed, not a code-quality
+    judgement. The raw text is still shown in that side's details block
+    (`_findings_section`), so the fail-open path keeps its observability, but
+    labeled so it reads as unevaluated output, not a verdict (issue #5738).
     """
     if final_verdict == "INFRA_FAILURE":
         alert_type = "WARNING"
@@ -216,7 +239,21 @@ def _build_full_report(
 
     infra_note = ""
     if trace_infra or completeness_infra:
-        infra_note = """
+        if final_verdict == "FAIL":
+            # One side is infra-flagged, but the other side genuinely failed
+            # (spec_validation_failed still returned True): that FAIL blocks
+            # merge, so the note must not say otherwise (issue #5738 follow-up).
+            infra_note = """
+> [!WARNING]
+> **Infrastructure failure on one side; the other side's FAIL is real.** A
+> check marked `INFRA_FAILURE (did not run)` below contributed no verdict:
+> Copilot CLI failed after retries and never evaluated that side of this PR.
+> The **Final Verdict: FAIL** above comes from the side that did run, and it
+> blocks merge under normal policy. If the infrastructure failure persists,
+> check `COPILOT_GITHUB_TOKEN` scope, rate limits, or network connectivity.
+"""
+        else:
+            infra_note = """
 > [!WARNING]
 > **Infrastructure failure detected.** A check marked `INFRA_FAILURE (did not run)`
 > below is not a code-quality result: Copilot CLI failed after retries and never
@@ -224,6 +261,9 @@ def _build_full_report(
 > `.agents/governance/FAIL-OPEN-INVENTORY.md`). If this persists, check
 > `COPILOT_GITHUB_TOKEN` scope, rate limits, or network connectivity.
 """
+
+    trace_findings_body = _findings_section(trace_infra, trace_findings)
+    completeness_findings_body = _findings_section(completeness_infra, completeness_findings)
 
     return f"""\
 <!-- AI-SPEC-VALIDATION -->
@@ -260,14 +300,14 @@ This validation ensures your implementation matches the specifications:
 <details>
 <summary>Requirements Traceability Details</summary>
 
-{trace_findings}
+{trace_findings_body}
 
 </details>
 
 <details>
 <summary>Implementation Completeness Details</summary>
 
-{completeness_findings}
+{completeness_findings_body}
 
 </details>
 

@@ -26,6 +26,25 @@ def _import_script(name: str):
 _mod = _import_script("generate_spec_report")
 main = _mod.main
 build_parser = _mod.build_parser
+_findings_section = _mod._findings_section
+
+# Realistic infra-failure findings text (issue #5738 follow-up): the fixture
+# default ("All traced" / "All complete") never contains "CRITICAL_FAIL", so
+# an assertion that CRITICAL_FAIL is absent from the report would pass no
+# matter what the code does with it. These strings match the shape
+# invoke_copilot_cli.py actually emits on an infra failure (a VERDICT line
+# followed by a MESSAGE line), so a mutation that stops labeling the raw
+# text is caught.
+_INFRA_TRACE_FINDINGS = (
+    "VERDICT: CRITICAL_FAIL\n"
+    "MESSAGE: Copilot CLI infrastructure failure after 3 attempts: "
+    "rate limited (HTTP 429) on the traceability review."
+)
+_INFRA_COMPLETENESS_FINDINGS = (
+    "VERDICT: CRITICAL_FAIL\n"
+    "MESSAGE: Copilot CLI infrastructure failure after 3 attempts: "
+    "network timeout on the completeness review."
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -81,6 +100,31 @@ def _make_argv(
         "--event-name", event_name,
         "--ref-name", ref_name,
     ]
+
+
+# ---------------------------------------------------------------------------
+# Tests: _findings_section (issue #5738 follow-up)
+# ---------------------------------------------------------------------------
+
+
+class TestFindingsSection:
+    def test_non_infra_returns_findings_unchanged(self):
+        """Positive: the healthy-side path is untouched by the label logic."""
+        assert _findings_section(False, "All traced") == "All traced"
+
+    def test_infra_prefixes_label_before_raw_text(self):
+        """Edge: an infra-flagged side keeps the raw text but labels it,
+        with the label appearing before the raw text, not replacing it."""
+        raw = "VERDICT: CRITICAL_FAIL\nMESSAGE: boom"
+        result = _findings_section(True, raw)
+        assert "This check did not run (infrastructure failure)" in result
+        assert raw in result
+        assert result.index("This check did not run") < result.index(raw)
+
+    def test_infra_with_empty_findings_still_labels(self):
+        """Negative: even empty findings text gets the label, not silence."""
+        result = _findings_section(True, "")
+        assert "This check did not run (infrastructure failure)" in result
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +297,9 @@ class TestMainWithSpecs:
 
 class TestMainInfraFailure:
     def test_both_infra_failures_yield_infra_failure_verdict(self, tmp_path, monkeypatch):
-        """Positive: both sides failing on infra never reads as PASS or FAIL."""
+        """Positive: both sides failing on infra never reads as PASS or FAIL,
+        the summary table never shows a bare CRITICAL_FAIL cell, and the raw
+        Copilot CLI output survives (labeled) instead of being deleted."""
         _setup_output(tmp_path, monkeypatch)
         report_dir = tmp_path / "ai-review-results"
         with patch(
@@ -266,19 +312,44 @@ class TestMainInfraFailure:
                 completeness_verdict="CRITICAL_FAIL",
                 trace_infra_failure="true",
                 completeness_infra_failure="true",
+                trace_findings=_INFRA_TRACE_FINDINGS,
+                completeness_findings=_INFRA_COMPLETENESS_FINDINGS,
             ))
         assert rc == 0
         report = (report_dir / "spec-validation-report.md").read_text()
         assert "Final Verdict: INFRA_FAILURE" in report
         assert "Final Verdict: FAIL" not in report
         assert "Final Verdict: PASS" not in report
-        # The raw, misleading verdict must not appear unlabeled anywhere.
-        assert "`CRITICAL_FAIL`" not in report
+        assert "does not block merge" in report
+        # The summary table cell is the displayed verdict an operator scans;
+        # it must show the honest label, never the bare raw verdict.
+        assert "| Requirements Traceability | `INFRA_FAILURE (did not run)` |" in report
+        assert "| Implementation Completeness | `INFRA_FAILURE (did not run)` |" in report
+        assert "| Requirements Traceability | `CRITICAL_FAIL` |" not in report
+        assert "| Implementation Completeness | `CRITICAL_FAIL` |" not in report
         assert "COPILOT_GITHUB_TOKEN" in report
         assert "infrastructure failure" in report.lower()
+        # Observability (issue #5738 follow-up): the raw Copilot CLI output
+        # is retained, not deleted, but only inside its side's own labeled
+        # details block, after the "did not run" label, never as a bare
+        # verdict line ahead of it.
+        assert report.count("This check did not run (infrastructure failure)") == 2
+        trace_label_index = report.index("This check did not run (infrastructure failure)")
+        trace_raw_index = report.index("rate limited (HTTP 429) on the traceability review")
+        assert trace_label_index < trace_raw_index
+        completeness_label_index = report.rindex(
+            "This check did not run (infrastructure failure)"
+        )
+        completeness_raw_index = report.index(
+            "network timeout on the completeness review"
+        )
+        assert completeness_label_index < completeness_raw_index
 
     def test_real_failure_not_masked_by_infra_on_other_side(self, tmp_path, monkeypatch):
-        """Negative: a genuine failure on the healthy side still surfaces as FAIL."""
+        """Negative: a genuine failure on the healthy side still surfaces as
+        FAIL, and the infra note must not claim this does not block merge
+        (Additional Finding 3: a FAIL from the healthy side is real and
+        blocks under check_spec_failures.py's own policy)."""
         _setup_output(tmp_path, monkeypatch)
         report_dir = tmp_path / "ai-review-results"
         with patch(
@@ -290,14 +361,19 @@ class TestMainInfraFailure:
                 trace_verdict="CRITICAL_FAIL",
                 completeness_verdict="FAIL",
                 trace_infra_failure="true",
+                trace_findings=_INFRA_TRACE_FINDINGS,
             ))
         assert rc == 0
         report = (report_dir / "spec-validation-report.md").read_text()
         assert "Final Verdict: FAIL" in report
         assert "Final Verdict: INFRA_FAILURE" not in report
+        assert "does not block merge" not in report
+        assert "blocks merge under normal policy" in report
 
     def test_one_sided_infra_failure_yields_warn_not_pass(self, tmp_path, monkeypatch):
-        """Edge: one side down and the other healthy is WARN, not a clean PASS."""
+        """Edge: one side down and the other healthy is WARN, not a clean
+        PASS, and the summary table's own cell (not the boilerplate note
+        text) is what proves the infra side is labeled."""
         _setup_output(tmp_path, monkeypatch)
         report_dir = tmp_path / "ai-review-results"
         with patch(
@@ -309,12 +385,16 @@ class TestMainInfraFailure:
                 trace_verdict="CRITICAL_FAIL",
                 completeness_verdict="PASS",
                 trace_infra_failure="true",
+                trace_findings=_INFRA_TRACE_FINDINGS,
             ))
         assert rc == 0
         report = (report_dir / "spec-validation-report.md").read_text()
         assert "Final Verdict: WARN" in report
         assert "Final Verdict: PASS" not in report
-        assert "INFRA_FAILURE (did not run)" in report
+        assert "does not block merge" in report
+        assert "| Requirements Traceability | `INFRA_FAILURE (did not run)` |" in report
+        assert "| Requirements Traceability | `CRITICAL_FAIL` |" not in report
+        assert "| Implementation Completeness | `PASS` |" in report
 
     def test_no_infra_flags_preserves_prior_pass_behavior(self, tmp_path, monkeypatch):
         """Negative control: default (no infra flags) is unaffected by this change."""
