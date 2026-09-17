@@ -1,29 +1,22 @@
 #!/usr/bin/env python3
 """Flag newly added Serena memories that read as normative or procedural (issue #5391).
 
-The placement contract in the knowledge-persistence rule says a memory holds
-evidence (observations, incidents, measurements, rationale) and a rule, skill,
-or agent holds required behavior. This check is the narrow enforcement half:
-it flags a NEWLY added memory that reads as policy and names the surface it
-belongs on. It does not migrate the corpus, build a registry, measure
-duplication, or budget tokens (out of scope per the issue).
+The knowledge-persistence rule's placement contract says a memory holds
+evidence and a rule, skill, or agent holds required behavior. This check flags
+a NEWLY added memory that reads as policy and names the surface it belongs on.
+It does not migrate the corpus, build a registry, or budget tokens.
 
-SIGNALS, computed by :func:`classify` from raw text with no I/O, after fenced
-and indented code is blanked (a memory quoting a rule's shape is evidence):
-
-    (a) normative-term count: case-sensitive MUST, MUST NOT, SHALL;
-        case-insensitive "must not", never, always, required. Bare lowercase
-        "must" is not counted; it is ordinary prose in most memories.
-    (b) a heading matching Constraints|Guardrails|Workflow|Procedure|Protocol|
-        Responsibilities|Entry Criteria|Acceptance Criteria|Handoff.
-    (c) an ordered list of 5+ consecutive items (one blank line tolerated).
-    (d) two or more headings from Role|Authority|Entry Criteria|Outputs|
-        Handoff|Responsibilities (an agent's role-contract shape).
+SIGNALS, from :func:`classify` on raw text after fenced and indented code is
+blanked: (a) normative-term count (MUST, MUST NOT, SHALL; must not, never,
+always, required; bare lowercase "must" is prose); (b) a heading matching
+Constraints|Guardrails|Workflow|Procedure|Protocol|Responsibilities|Entry
+Criteria|Acceptance Criteria|Handoff; (c) an ordered list of 5+ items; (d)
+two or more Role|Authority|Entry Criteria|Outputs|Handoff|Responsibilities
+headings.
 
 POLICY: ``normative`` when (b) or (d) fires, or (a) >= 5 with (c).
 ``suspect`` when (a) >= 3 or (c) fires, or both. Otherwise ``evidence``.
-Two signals are required because single words are weak; the corpus figures
-behind the thresholds are in DESIGN-026 and the PR that added this check.
+Two signals are required because single words are weak (figures: DESIGN-026).
 
 A file present in the ``--base`` tree never fails; it warns. Only a file
 absent from the base tree fails, and only when classified ``normative``.
@@ -63,15 +56,14 @@ from scripts.utils.markdown_parser import (  # noqa: E402
     parse_sections,
 )
 
-# --- classification thresholds and vocabularies -----------------------------
-
 _NORMATIVE_TERM_THRESHOLD = 5
 _SUSPECT_TERM_THRESHOLD = 3
 _ORDERED_PROCEDURE_MIN_ITEMS = 5
 _ROLE_CONTRACT_MIN_HEADINGS = 2
 
-_CASE_SENSITIVE_TERMS = ("MUST NOT", "MUST", "SHALL")
-_CASE_INSENSITIVE_TERMS = ("must not", "never", "always", "required")
+# One alternation, longest alternative first, so "MUST NOT" counts once:
+# case-sensitive MUST NOT | MUST | SHALL, then case-insensitive phrases.
+_NORMATIVE_TERM_RE = re.compile(r"\b(?:MUST NOT|MUST|SHALL|(?i:must not|never|always|required))\b")
 
 _HEADING_NORMATIVE_WORDS = (
     "Constraints",
@@ -139,12 +131,7 @@ class Classification:
 
 def _count_normative_terms(text: str) -> int:
     """Count signal-(a) normative-term hits, case rules per the module docstring."""
-    count = 0
-    for term in _CASE_SENSITIVE_TERMS:
-        count += len(re.findall(rf"\b{re.escape(term)}\b", text))
-    for term in _CASE_INSENSITIVE_TERMS:
-        count += len(re.findall(rf"\b{re.escape(term)}\b", text, re.IGNORECASE))
-    return count
+    return len(_NORMATIVE_TERM_RE.findall(text))
 
 
 def _heading_signals(sections: list[Section]) -> tuple[list[str], list[str]]:
@@ -267,9 +254,6 @@ def classify(text: str) -> Classification:
     )
 
 
-# --- per-file findings -------------------------------------------------------
-
-
 @dataclass(frozen=True, slots=True)
 class Finding:
     """One reportable line: a file classified normative, suspect, or suppressed."""
@@ -311,9 +295,6 @@ def evaluate_file(relpath: str, text: str, is_new: bool) -> Finding | None:
     )
 
 
-# --- reporting ---------------------------------------------------------------
-
-
 def format_finding_line(finding: Finding) -> str:
     """Render one finding as ``<path>: <label>: <signals> -> route to ...``."""
     signals_text = ",".join(finding.signals) if finding.signals else "none"
@@ -351,9 +332,6 @@ def _report_dict(examined: int, findings: list[Finding]) -> dict[str, object]:
         "failing": failing,
         "findings": [asdict(f) for f in findings],
     }
-
-
-# --- git and filesystem I/O --------------------------------------------------
 
 
 def _repo_root() -> Path | None:
@@ -443,7 +421,15 @@ def _resolve_candidates(args: argparse.Namespace, repo_root: Path) -> list[tuple
     return candidates
 
 
-# --- CLI ----------------------------------------------------------------------
+def _read_candidate(repo_root: Path, relpath: str, abspath: Path, staged: bool) -> str:
+    """Return the file text: the index blob under ``--staged``, else the tree."""
+    if staged:
+        code, out, _ = _run_subprocess(
+            ["git", "show", f":{relpath}"], cwd=repo_root, env=_git_subprocess_env()
+        )
+        if code == 0:
+            return str(out)
+    return abspath.read_text(encoding="utf-8", errors="replace")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -456,6 +442,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--base", default="HEAD", help="Git ref that decides new vs existing.")
     parser.add_argument("--ci", action="store_true", help="Exit 1 when a NEW file is normative.")
     parser.add_argument("--json", action="store_true", help="Emit a JSON report instead of text.")
+    parser.add_argument(
+        "--staged", action="store_true", help="Read each file from the git index, not the tree."
+    )
     return parser.parse_args(argv)
 
 
@@ -481,7 +470,7 @@ def main(argv: list[str] | None = None) -> int:
 
     findings: list[Finding] = []
     for relpath, abspath in candidates:
-        text = abspath.read_text(encoding="utf-8", errors="replace")
+        text = _read_candidate(repo_root, relpath, abspath, args.staged)
         finding = evaluate_file(relpath, text, relpath not in base_tree)
         if finding is not None:
             findings.append(finding)

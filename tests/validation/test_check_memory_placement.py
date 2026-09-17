@@ -134,6 +134,11 @@ def test_classify_whitespace_only_reason_is_invalid_suppression():
     assert result.invalid_suppression is True
 
 
+def test_count_normative_terms_counts_must_not_once():
+    assert checker._count_normative_terms("MUST NOT do it.") == 1
+    assert checker._count_normative_terms("MUST NOT. MUST. must not. never. must") == 4
+
+
 def test_classify_normative_via_role_contract_signal():
     result = checker.classify(ROLE_CONTRACT)
     assert result.label == "normative"

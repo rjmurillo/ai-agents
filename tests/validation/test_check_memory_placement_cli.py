@@ -79,6 +79,13 @@ def _write(repo: Path, relpath: str, content: str) -> Path:
     return path
 
 
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable on this platform")
+
+
 def _commit_all(repo: Path, message: str) -> None:
     _run_git(repo, "add", "-A")
     _run_git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", message)
@@ -185,7 +192,7 @@ def test_symlinked_new_memory_is_judged_by_its_own_path(repo: Path, monkeypatch,
     _write(repo, "elsewhere/real.md", NORMATIVE_HEADING)
     _commit_all(repo, "target")
     link = repo / ".serena" / "memories" / "link.md"
-    link.symlink_to(repo / "elsewhere" / "real.md")
+    _symlink_or_skip(link, repo / "elsewhere" / "real.md")
     monkeypatch.chdir(repo)
     code = checker.main(["--ci", "--base", "HEAD", ".serena/memories/link.md"])
     out = capsys.readouterr().out
@@ -197,7 +204,7 @@ def test_symlink_target_outside_repo_exits_two(repo: Path, tmp_path_factory, mon
     outside = tmp_path_factory.mktemp("outside") / "real.md"
     outside.write_text(NORMATIVE_HEADING)
     link = repo / ".serena" / "memories" / "escape.md"
-    link.symlink_to(outside)
+    _symlink_or_skip(link, outside)
     monkeypatch.chdir(repo)
     code = checker.main(["--ci", "--base", "HEAD", ".serena/memories/escape.md"])
     captured = capsys.readouterr()
@@ -234,7 +241,7 @@ def test_missing_positional_path_exits_two(repo: Path, monkeypatch, capsys):
 
 def test_dangling_symlink_exits_two(repo: Path, monkeypatch, capsys):
     link = repo / ".serena" / "memories" / "dangling.md"
-    link.symlink_to(repo / "nowhere.md")
+    _symlink_or_skip(link, repo / "nowhere.md")
     monkeypatch.chdir(repo)
     code = checker.main(["--ci", ".serena/memories/dangling.md"])
     assert code == 2
@@ -246,6 +253,26 @@ def test_missing_readme_positional_is_still_skipped(repo: Path, monkeypatch, cap
     code = checker.main(["--ci", ".serena/memories/README.md"])
     assert code == 0
     assert "0 file(s) examined" in capsys.readouterr().out
+
+
+def test_staged_mode_reads_the_index_blob_not_the_tree(repo: Path, monkeypatch, capsys):
+    path = _write(repo, ".serena/memories/new.md", NORMATIVE_HEADING)
+    _run_git(repo, "add", ".serena/memories/new.md")
+    path.write_text(EVIDENCE_INCIDENT)  # re-edited after staging, not restaged
+    monkeypatch.chdir(repo)
+    tree_code = checker.main(["--ci", "--base", "HEAD", ".serena/memories/new.md"])
+    staged_code = checker.main(["--ci", "--base", "HEAD", "--staged", ".serena/memories/new.md"])
+    capsys.readouterr()
+    assert tree_code == 0
+    assert staged_code == 1
+
+
+def test_staged_mode_falls_back_to_the_tree_for_an_unstaged_file(repo: Path, monkeypatch, capsys):
+    _write(repo, ".serena/memories/loose.md", NORMATIVE_HEADING)
+    monkeypatch.chdir(repo)
+    code = checker.main(["--ci", "--base", "HEAD", "--staged", ".serena/memories/loose.md"])
+    assert code == 1
+    assert "loose.md: normative" in capsys.readouterr().out
 
 
 def test_positional_directory_argument_exits_two(repo: Path, monkeypatch, capsys):
