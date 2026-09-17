@@ -93,7 +93,7 @@ def _branch_markdown_files(repo_root: Path) -> list[str] | None:
 
 def _find_dash_violations(
     repo_root: Path, paths: list[str],
-) -> list[tuple[str, int]]:
+) -> tuple[list[tuple[str, int]], list[str]]:
     """Read each committed path and return (path, line_num) hits.
 
     Reads file content from the HEAD commit via ``git show HEAD:<path>``
@@ -103,28 +103,40 @@ def _find_dash_violations(
     instead would give wrong answers when the working tree differs from
     HEAD (uncommitted edits, partial staging, or a fresh checkout that
     has not yet pulled the branch).
+
+    Returns ``(violations, skipped)``. ``skipped`` holds every candidate
+    path whose ``git show`` call did not exit 0 (missing object in the
+    local clone, a path that resolves to a directory, an I/O error);
+    `_branch_markdown_files` already filters out deletions via
+    ``--diff-filter=ACMR``, so a non-zero exit here is unexpected rather
+    than routine. The caller narrows scope rather than failing the whole
+    scan, because a `git diff`-listed path that cannot be read is not
+    actionable for the dash check, but the narrowing itself MUST be
+    visible (`.claude/rules/ci-scripts.md` MUST 12): a blocking gate that
+    silently examines fewer files than it claims can pass a branch that
+    still carries a violation in the file it dropped.
     """
     violations: list[tuple[str, int]] = []
+    skipped: list[str] = []
     for relpath in paths:
         exit_code, stdout, _ = _run_subprocess(
             ["git", "-C", str(repo_root), "show", f"HEAD:{relpath}"],
             timeout=10,
         )
         if exit_code != 0:
-            # `_branch_markdown_files` already filters out deletions via
-            # ``--diff-filter=ACMR``, so a non-zero ``git show`` here
-            # signals an unexpected condition (missing object in the
-            # local clone, a path that resolves to a directory, an I/O
-            # error). Skip silently rather than fail the whole scan;
-            # `git diff`-listed paths that cannot be read are not
-            # actionable for the dash check.
+            skipped.append(relpath)
+            print(
+                f"[WARNING] Em/en-dash scan: {relpath} could not be read at "
+                f"HEAD (git show exited {exit_code}); file skipped, scope "
+                "narrowed",
+            )
             continue
         violations.extend(
             (relpath, line_num)
             for line_num, line in enumerate(stdout.splitlines(), start=1)
             if _DASH_RE.search(line)
         )
-    return violations
+    return violations, skipped
 
 
 def _print_dash_violations(violations: list[tuple[str, int]]) -> None:
@@ -164,10 +176,19 @@ def validate_dash_prohibition(repo_root: Path) -> bool:
         print("[PASS] Em/en-dash prohibition (no markdown files on branch)")
         return True
 
-    violations = _find_dash_violations(repo_root, candidate_paths)
+    violations, skipped = _find_dash_violations(repo_root, candidate_paths)
     if violations:
         _print_dash_violations(violations)
         return False
+
+    if skipped:
+        examined = len(candidate_paths) - len(skipped)
+        print(
+            f"[PASS] Em/en-dash prohibition ({examined} of "
+            f"{len(candidate_paths)} markdown file(s) checked; "
+            f"{len(skipped)} unreadable at HEAD, skipped)",
+        )
+        return True
 
     print(
         f"[PASS] Em/en-dash prohibition ({len(candidate_paths)} markdown file(s) checked)",
