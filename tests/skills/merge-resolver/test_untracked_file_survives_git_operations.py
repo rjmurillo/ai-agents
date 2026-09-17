@@ -60,7 +60,6 @@ def _make_feature_branch(sandbox: GitSandbox) -> None:
     git(sandbox.main, "checkout", "main")
     write_and_commit(sandbox.main, "main-change.txt", "main work\n", "main commit")
     git(sandbox.main, "push", "origin", "main")
-    git(sandbox.main, "checkout", "main")
 
 
 def _drop_sentinel(sandbox: GitSandbox, content: str = _SENTINEL_CONTENT) -> Path:
@@ -85,6 +84,16 @@ def test_clean_merge_preserves_untracked_sentinel_through_push(
     assert result["success"] is True, result["message"]
     assert sentinel.read_text(encoding="utf-8") == _SENTINEL_CONTENT
     assert f"?? {_SENTINEL}" in _untracked_status(git_sandbox)
+
+    # A "clean merge" claim with no merge commit and no push is a no-op that
+    # accidentally satisfies the assertions above (the branch is unchanged, a
+    # no-op push exits 0). Prove the merge and the push each actually ran.
+    assert git(git_sandbox.main, "rev-parse", "HEAD^2", check=False).returncode == 0, (
+        "no merge commit: the merge leg never ran"
+    )
+    head_sha = git(git_sandbox.main, "rev-parse", "HEAD").stdout.strip()
+    remote_feature = git(git_sandbox.main, "ls-remote", "origin", "refs/heads/feature").stdout
+    assert head_sha in remote_feature, "merge commit never reached origin: the push did not land"
 
 
 def test_conflicting_merge_aborts_and_preserves_untracked_sentinel(
