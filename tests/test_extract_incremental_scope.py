@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 _SCRIPT = (
     Path(__file__).resolve().parents[1]
     / ".github"
@@ -39,3 +41,18 @@ def test_ignores_plain_phase_text() -> None:
     module = _load_module()
 
     assert module.extract_incremental_scope("Fix phase 2 rollout bug") == ""
+
+
+def test_main_rejects_a_missing_title_argument() -> None:
+    """The workflow step that forgets to pass a title gets a nonzero exit.
+
+    ``title`` is the sole positional argument and has no default, so argparse
+    itself enforces the failure path: this is the CLI's real (only) way to
+    fail, since ``extract_incremental_scope`` never raises for any string.
+    """
+    module = _load_module()
+
+    with pytest.raises(SystemExit) as excinfo:
+        module.main([])
+
+    assert excinfo.value.code != 0

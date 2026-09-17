@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Import the consumer script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -411,3 +413,14 @@ class TestMainInfraFailure:
         assert "Final Verdict: PASS" in report
         assert "INFRA_FAILURE" not in report
         assert "Infrastructure failure detected" not in report
+
+
+def test_main_rejects_an_unrecognized_flag() -> None:
+    """Every argument here has a default, so a typo'd flag is the CLI's only
+    reachable failure path. Argparse's own rejection proves the exit contract:
+    the workflow step exits nonzero instead of silently ignoring the typo.
+    """
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--this-flag-does-not-exist"])
+
+    assert excinfo.value.code != 0

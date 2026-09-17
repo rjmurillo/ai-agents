@@ -6,6 +6,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Import the consumer script via importlib (not a package)
 # ---------------------------------------------------------------------------
@@ -171,3 +173,14 @@ RECOMMENDATION: DEFER
         _setup_output(tmp_path, monkeypatch)
         rc = main(["--raw-output", "garbage data with no structure"])
         assert rc == 0
+
+
+def test_main_rejects_an_unrecognized_flag() -> None:
+    """``--raw-output`` has a default, so no raw output ever fails this CLI on
+    its own. A typo'd flag is the only reachable failure path, and argparse's
+    own rejection is what proves the exit contract for this script.
+    """
+    with pytest.raises(SystemExit) as excinfo:
+        main(["--this-flag-does-not-exist"])
+
+    assert excinfo.value.code != 0
