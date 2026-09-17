@@ -4235,13 +4235,31 @@ class TestEveryRegisteredProviderIsClassified:
     # must add a row here, which is the point: classification becomes a
     # required step rather than a silent default.
     EXPECTED_BASIS = {
+        # claude / api
+        "anthropic-sdk": "usd",
+        # claude / subscription
+        "claude-cli": "requests",
+        "claude-code": "requests",
+        "claude-subscription": "requests",
+        # codex / api
         "openai": "usd",
         "codex": "usd",
-        "github": "requests",
-        "github-models": "requests",
-        "anthropic-sdk": "usd",
+        "codex-api": "usd",
+        # codex / subscription
+        "codex-cli": "requests",
+        "codex-subscription": "requests",
+        # copilot / api. GitHub meters Copilot in premium requests and
+        # publishes no per-token rate, so an operator-supplied endpoint on a
+        # Copilot credential still spends an allowance, not dollars.
+        "copilot-api": "requests",
+        # copilot / subscription
         "copilot": "requests",
         "copilot-cli": "requests",
+        "copilot-subscription": "requests",
+        # Retired GitHub Models rows, kept so an archived run's provider
+        # string still reads back with the basis it was charged on.
+        "github": "requests",
+        "github-models": "requests",
     }
 
     def _registry_names(self):

@@ -54,7 +54,9 @@ def _smallest_scope_n(summaries: list[LatencySummary], fallback: int) -> int:
     return min((summary.n for summary in summaries), default=fallback)
 
 
-def _build_summaries(runs: list[HookRun]) -> list[LatencySummary]:
+def _build_summaries(
+    runs: list[HookRun], include_incomplete: bool = False
+) -> list[LatencySummary]:
     """Fold every run's samples into one ``LatencySummary`` per scope.
 
     ``__hook__`` is scored on the sampler's own ``wall_clock_seconds``
@@ -62,10 +64,25 @@ def _build_summaries(runs: list[HookRun]) -> list[LatencySummary]:
     self-reported total, which is recorded per run but not itself
     summarized). Sorting is alphabetical, which places ``__hook__`` first
     (``_`` sorts before any letter).
+
+    D1 fix (epic #5456): with ``include_incomplete=False`` (the default),
+    a run whose ``status`` is not ``"complete"`` contributes nothing to any
+    scope. Before this fix, every repetition's ``wall_clock_seconds``
+    folded into ``__hook__`` regardless of whether the hook ran every job
+    it was going to run; a ``piped: true`` pre-push hook that aborted early
+    on a failed job produced a short wall clock indistinguishable from a
+    legitimately fast run, biasing p50/p95 downward exactly when the
+    machine was too loaded to finish. ``include_incomplete=True`` restores
+    that pre-fix behavior (wired to ``--include-incomplete`` in
+    ``gate_latency.py``) for a caller who wants the raw, unfiltered
+    numbers. When no run is ``"complete"`` and ``include_incomplete`` is
+    left off, ``by_scope`` stays empty and this returns ``[]`` rather than
+    fabricating a figure from data that never measured a full hook run.
     """
+    eligible = runs if include_incomplete else [run for run in runs if run.status == "complete"]
     by_scope: dict[str, list[float]] = defaultdict(list)
     groups: set[str] = set()
-    for run in runs:
+    for run in eligible:
         by_scope["__hook__"].append(run.wall_clock_seconds)
         for sample in run.samples:
             by_scope[sample.name].append(sample.seconds)

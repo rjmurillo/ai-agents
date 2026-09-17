@@ -65,6 +65,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from scripts.github_core.api import resolve_repo_params  # noqa: E402
+from scripts.validation import frontmatter_contract as _fc  # noqa: E402
 
 # Valid model tiers per ADR-002 (agent model selection). A spec text that
 # names one tier while the committed agent frontmatter names another is the
@@ -206,19 +207,24 @@ def parse_frontmatter(text: str) -> dict[str, str]:
     """Parse a flat YAML frontmatter block into a string-keyed dict.
 
     Minimal parser: only the top-level ``key: value`` pairs in the leading
-    ``---`` fenced block. Nested mappings (e.g. ``metadata:``) are skipped.
-    Uses the same lightweight approach as
-    ``scripts/validation/yaml_utils.py:_parse_yaml_frontmatter`` (top-level
-    keys only, no external YAML dependency); this copy stops at the first
-    nested block and does not coerce booleans or integers because the
-    comparison here is string-based.
+    ``---`` fenced block. Nested mappings (e.g. ``metadata:``) are skipped, and
+    values stay strings with no boolean or integer coercion, because the
+    comparison this feeds is string-based.
+
+    Stricter/looser/different than canonical: the fence comes from
+    ``scripts/validation/frontmatter_contract.py``, so ONLY the fence is shared.
+    The value handling below is deliberately not the contract's, which loads
+    YAML. Replacing the old ``text.find("\n---", 3)`` tightens one shape, as
+    issue #5275 did elsewhere: ``--- trailing text`` no longer closes a block.
+    An earlier docstring claimed parity with
+    ``yaml_utils.py:_parse_yaml_frontmatter`` on being "top-level keys only, no
+    external YAML dependency"; both halves were false (it calls
+    ``yaml.safe_load``), and a wrong citation is worse than none.
     """
-    if not text.startswith("---"):
+    parsed = _fc.parse_frontmatter(text, allow_duplicate_keys=True)
+    if not parsed.present or parsed.status is _fc.FrontmatterStatus.UNTERMINATED:
         return {}
-    end = text.find("\n---", 3)
-    if end == -1:
-        return {}
-    block = text[4:end]
+    block = parsed.raw
     result: dict[str, str] = {}
     for line in block.splitlines():
         if not line.strip() or line.lstrip().startswith("#"):

@@ -148,6 +148,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to the lefthook binary. Defaults to the in-repo venv binary, "
         "falling back to 'uv run --frozen lefthook'.",
     )
+    parser.add_argument(
+        "--include-incomplete",
+        action="store_true",
+        help="Restore every repetition, including one classified 'truncated' or "
+        "'timeout', to the latency summaries. Off by default: a truncated or "
+        "timed-out repetition's wall clock is excluded because it did not "
+        "measure the hook (REQ-027 D1). Use this to see the pre-fix, unfiltered "
+        "numbers.",
+    )
     return parser
 
 
@@ -189,6 +198,7 @@ def main(argv: list[str] | None = None) -> int:
             args.stdin_ref_line,
             tuple(args.hook_arg),
             args.force,
+            args.include_incomplete,
         )
     except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)

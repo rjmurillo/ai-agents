@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from scripts.validation.pre_pr import (
     _parse_yaml_frontmatter,
     validate_design_review_frontmatter,
@@ -185,3 +187,91 @@ class TestValidateDesignReviewFrontmatter:
         self._write_review(tmp_path, "DESIGN-REVIEW-a.md", valid)
         self._write_review(tmp_path, "DESIGN-REVIEW-b.md", invalid)
         assert validate_design_review_frontmatter(tmp_path) is False
+
+
+class TestDelegatesToTheSharedContract:
+    """Issue #5275 follow-up: this helper no longer parses fences itself.
+
+    It delegates to `scripts/validation/frontmatter_contract.py`, and through it
+    to `python-frontmatter`. These tests pin what that changed and, more
+    importantly, what it did not, because the helper has four call sites
+    (`pre_pr.py`, `check_adr_lifecycle.py`, `validate_design_review.py`,
+    `validate_copilot_agent_frontmatter.py`) whose behaviour #5275's third
+    acceptance criterion holds fixed.
+    """
+
+    def test_trailing_text_after_the_fence_no_longer_closes_the_block(self) -> None:
+        """The one deliberate tightening.
+
+        `text.find("\\n---", 3)` was a substring search, so any line starting
+        with three dashes closed the block. A forged close could therefore hide
+        whatever followed it from every caller of this helper.
+        """
+        assert _parse_yaml_frontmatter("---\nid: A\n--- nope\nBody.\n") is None
+
+    @pytest.mark.parametrize(
+        ("label", "text"),
+        [
+            ("padded closing fence", "---\nid: A\n--- \nBody.\n"),
+            ("tabbed closing fence", "---\nid: A\n---\t\nBody.\n"),
+            ("four dashes", "---\nid: A\n----\nBody.\n"),
+            ("closing fence at EOF", "---\nid: A\n---"),
+            ("crlf", "---\r\nid: A\r\n---\r\nBody.\r\n"),
+        ],
+    )
+    def test_shapes_this_helper_already_accepted_still_parse(
+        self, label: str, text: str
+    ) -> None:
+        """The substring search accepted all of these; so does the contract.
+
+        This is the half of the migration that must NOT change, and it is why
+        #5275's divergence ran the other way: the index generator rejected
+        shapes this helper had always allowed.
+        """
+        assert _parse_yaml_frontmatter(text) == {"id": "A"}, label
+
+    def test_duplicate_keys_still_resolve_last_wins(self) -> None:
+        """Deliberately unchanged, per acceptance criterion 3.
+
+        The contract can reject duplicates and the ADR gates ask it to, but this
+        helper's other callers were not written against that rule. Changing it
+        here would alter three gates nobody reviewed for it.
+        """
+        assert _parse_yaml_frontmatter("---\nid: A\nid: B\n---\nBody.\n") == {"id": "B"}
+
+    def test_an_empty_block_is_none_not_an_empty_mapping(self) -> None:
+        """Regression: the first migration returned `{}` here and broke a gate.
+
+        The contract counts an empty block as parsed (status EMPTY, metadata
+        `{}`), but `yaml.safe_load("")` returns None, which the old
+        `isinstance(result, dict)` test rejected. Returning `{}` flipped
+        `check_adr_lifecycle`'s reason for such a record from "frontmatter block
+        is empty" to a missing-field complaint, and
+        `test_empty_frontmatter_block_names_itself` caught it. No file in the
+        corpus has an empty block, so only the suite could find this.
+        """
+        assert _parse_yaml_frontmatter("---\n---\nBody.\n") is None
+
+    def test_still_collapses_absent_and_malformed_to_none(self) -> None:
+        """The `dict | None` signature is what four call sites depend on."""
+        assert _parse_yaml_frontmatter("no frontmatter here\n") is None
+        assert _parse_yaml_frontmatter('---\nid: "unclosed\n---\nBody.\n') is None
+        assert _parse_yaml_frontmatter("---\n- a\n- b\n---\nBody.\n") is None
+        assert _parse_yaml_frontmatter("---\nid: A\nBody.\n") is None
+
+    def test_helper_defines_no_fence_logic_of_its_own(self) -> None:
+        """Checked with `ast`: the module docstring quotes the old expression."""
+        import ast
+        from pathlib import Path
+
+        import scripts.validation.yaml_utils as mod
+
+        tree = ast.parse(Path(mod.__file__).read_text(encoding="utf-8"))
+        imported: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.update(a.name for a in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module)
+        assert "re" not in imported
+        assert "yaml" not in imported, "the helper should no longer load YAML itself"

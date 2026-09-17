@@ -1,7 +1,7 @@
 """Environment probes for gate_latency.py: git state, host, lefthook resolution.
 
 Split out to keep ``scripts/metrics/gate_latency.py`` under the project's
-500-line taste-lint ceiling and its 400-line warning threshold. Raising the
+500-line taste-lint ceiling and its 300-line warning threshold. Raising the
 taste ratchet baseline instead is forbidden by ci-scripts.md MUST NOT item 4.
 
 Everything here reads the environment and returns a value: no measurement
@@ -70,12 +70,38 @@ def _git_rev_parse_head(repo: Path) -> str:
     return result.stdout.strip() if result.returncode == 0 else "unknown"
 
 
+def _load_average() -> list[float] | None:
+    """1, 5, and 15-minute load averages, or ``None`` where unavailable (REQ-027 D2).
+
+    ``os.getloadavg()`` is POSIX-only: the attribute itself is absent on
+    Windows, and even where present the call can raise ``OSError`` (its
+    documented behavior when the load average is unobtainable). Guard both,
+    following the same Windows-guard precedent as
+    ``scripts/metrics/gate_latency_io.py``'s ``safe_open``
+    (``if hasattr(os, "fchmod"):  # not available on Windows``) for a
+    platform-conditional stdlib API.
+    """
+    if not hasattr(os, "getloadavg"):
+        return None
+    try:
+        return list(os.getloadavg())
+    except OSError:
+        return None
+
+
+def _one_minute_load() -> float | None:
+    """The 1-minute load average alone, for a ``HookRun``'s before/after samples."""
+    averages = _load_average()
+    return averages[0] if averages else None
+
+
 def _host_profile() -> HostProfile:
     return HostProfile(
         captured_at=datetime.now(UTC).isoformat(),
         cpu_count=os.cpu_count() or 1,
         platform=platform.platform(),
         python_version=platform.python_version(),
+        load_average=_load_average(),
     )
 
 

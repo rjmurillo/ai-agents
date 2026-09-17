@@ -1003,3 +1003,216 @@ for what "this record's audit" is, nothing in the validation tree reads
 `.agents/analysis/`, and the content is the measured evidence sitting beside the
 claims it supports. Separating proof from claim is the failure this record exists
 to make expensive.
+
+## Factual repair of ADR-101's stale context count, 2026-09-16
+
+Refs #5244. This is not a sixth debate round on the decision. It is a
+verification pass over a numeric drift ADR-101's own Context section predicted
+in the abstract ("the failure mode this decision exists to make expensive"):
+Phase 0 executing on the record ages a number inside the record that described
+it. `adr-review` was invoked per `AGENTS.md`'s "Any `ADR-*.md` edit fires
+adr-review", and the six-agent parallel debate this skill normally runs was not
+available in this session (no subagent-spawning tool was present), so the six
+lenses below were applied directly by the implementer, each claim checked
+against a primary source before being written down, rather than delegated to
+separate agent invocations. That substitution is recorded here rather than
+left silent.
+
+**The defect.** `scripts/ci/ruleset_required_contexts.py` pinned nine required
+contexts when ADR-101 was written. PR #5759 (commit `9a96a5fae`, "fix(ci):
+unpin Validate Spec Coverage and gate BOT_PAT jobs behind an environment")
+removed `Validate Spec Coverage` from `REQUIRED_CONTEXTS` as ADR-101's own
+Phase 0 work. `git log --oneline -S "Validate Spec Coverage" --
+scripts/ci/ruleset_required_contexts.py` shows exactly that one commit. The
+live ruleset (`gh api repos/rjmurillo/ai-agents/rules/branches/main`) and the
+file agree at eight. ADR-101 still said nine in eight places: lines 86, 94,
+110, 152, 166, 182, 408, and 425 of the pre-repair text.
+
+**architect (structure).** No frontmatter field, section, decision, or phase
+assignment changed. `status: accepted` is untouched. The repair is confined to
+inline numbers and citations inside existing prose plus one new paragraph
+appended inside an existing subsection ("The same pattern is live on a context
+that IS required"), which does not restructure the document.
+
+**critic (completeness).** All eight `nine` occurrences are gone
+(`grep -n '\bnine\b'` on the repaired file returns nothing). Two derived counts
+needed re-measurement, not just a denominator swap, and both were re-measured
+rather than assumed:
+
+- "six of the nine contexts" (lines 166, 408, 425): `scripts/workflows/determine_should_run_from_filters.py` is called from nine workflow files
+  (`grep -rln determine_should_run_from_filters .github/workflows/`), of which
+  five map to pinned contexts: `codeql-analysis.yml` (job `analyze`, matrix
+  `language: actions` and `language: python`, producing the two contexts
+  `Analyze (actions)` and `Analyze (python)`), `validate-paths.yml`
+  (`Validate Path Normalization`), `pytest.yml` (`Run Python Tests`),
+  `validate-generated-agents.yml` (`Validate Generated Files`), and
+  `validate-plugin-version-bump.yml` (`Validate Plugin Version Bump`). That is
+  six contexts from five files. `pr-validation.yml` and
+  `semantic-pr-title-check.yml` do not call the script at all (confirmed by
+  grep). The count of six did not change; only the denominator did, six of
+  eight rather than six of nine.
+- "seven are decided by a path filter" (line 182): this one is not a pure
+  denominator swap. Reading every cited job's `if:` conditions directly
+  (`codeql-analysis.yml`, `pytest.yml`, `validate-generated-agents.yml`,
+  `validate-paths.yml`, `pr-validation.yml`, `semantic-pr-title-check.yml`,
+  `validate-plugin-version-bump.yml`) shows six of the current eight pinned
+  contexts are gated on a `check-paths`/path-filter output (`Analyze
+  (actions)`, `Analyze (python)`, `Run Python Tests`, `Validate Generated
+  Files`, `Validate Path Normalization`, `Validate Plugin Version Bump`) and
+  two are gated on actor and event instead (`Validate PR`, `Validate PR
+  title`), matching the sentence's own citation list, which names the same
+  four files for the path-filter group and separately names
+  `pr-validation.yml` and `semantic-pr-title-check.yml` as deciding "on the
+  actor and event rather than a path." `Validate Spec Coverage`, the removed
+  ninth context, was itself gated by `needs.check-paths.result`
+  (`ai-spec-validation.yml`, per the Impact table row two hundred lines below
+  this sentence), so it was one of the original seven path-filter contexts.
+  Removing it drops the path-filter count from seven to six, not seven to
+  seven. The repaired text reads "six are decided by a path filter" against a
+  denominator of eight.
+
+The five citations in that sentence (`codeql-analysis.yml:111-167`,
+`validate-generated-agents.yml:85-105`, `validate-paths.yml:73-97`,
+`pr-validation.yml:42-76`, `semantic-pr-title-check.yml:23-39`) were each read
+at their current line ranges and still point at the job definitions and
+comments the sentence describes; none had drifted.
+
+`pytest.yml` had drifted. PR #5801 (`008b5f24b`) inserted an eight-line comment
+block ahead of the `test` job's `permissions:` block (net +8 after removing
+one `checks: write` line, per PR #5809's `1314cb0f7`), shifting every citation
+after that point by exactly 8 lines. `git diff dd40ad97b HEAD --
+.github/workflows/pytest.yml` shows only two hunk locations, so the +8 shift is
+constant across the region between them. Four citations were corrected:
+`pytest.yml:527` to `535` (the `test-result:` job key), `pytest.yml:653` to
+`661` (the `skip-tests:` job key), `pytest.yml:650-651` to `658-659` (the
+pass-through comment), and `pytest.yml:654` to `662` (the `skip-tests` job's
+`name:` line), the last two both in an Impact-table row and an unlabeled
+in-prose citation that the task's explicit scope did not name but that share
+the identical drift and were fixed inline as directly adjacent to the cited
+repair. `ruleset_required_contexts.py:15` and `:11-22` were re-checked and are
+still accurate: the file's `REQUIRED_CONTEXTS` block still spans lines 11-22
+and line 15 is still `"Run Python Tests"`.
+
+**independent-thinker.** Challenged whether "six" for the path-filter sentence
+could instead have stayed "seven" by some other reading, for example if
+`Validate Spec Coverage` had been one of the two actor/event contexts instead
+of a path-filter one. Ruled out by reading `ai-spec-validation.yml`'s cited
+gating condition directly rather than inferring it: it is `needs.check-paths.result`,
+which is a path-filter output, not an actor or event check. No plausible
+alternative reading of the current text supports "seven" against a denominator
+of eight.
+
+**security.** No security-relevant claim changed. The one substantive addition
+documents that a previously-live fail-open (PR #5801's target) is closed; it
+does not introduce a new security claim beyond what
+`scripts/ci/verify_skip_tests_claim.py`'s own docstring states, which is quoted
+verbatim in the new paragraph rather than paraphrased.
+
+**analyst (evidence, root cause).** Root cause is generic drift, not a defect
+in the repair method: a record that cites a script's exact line numbers and a
+context-name set will go stale exactly when that script or that set changes,
+which is what happened here on both axes (`ruleset_required_contexts.py`'s
+`REQUIRED_CONTEXTS` and `pytest.yml`'s line numbers) from unrelated PRs merged
+after the record was accepted. Every corrected number in this pass was
+re-derived from a level-1 read of the current tree state, not carried forward
+by arithmetic alone where the underlying claim could have shifted (the
+path-filter count is the case that would have been wrong under pure
+arithmetic).
+
+**high-level-advisor.** Scope held to numbers and citations. One adjacent
+defect was found and deliberately left unfixed: the Impact table row
+"`.github/workflows/ai-spec-validation.yml:95-100`" and a separate row citing
+`ruleset_required_contexts.py:21` both still describe `Validate Spec Coverage`
+as a currently pinned context; it no longer is, and `ruleset_required_contexts.py`
+no longer has a line 21 entry for it (line 21 is now the closing `}` of the
+set). Repairing those rows requires deciding how the ADR should represent a
+row whose subject has been resolved since the record was written, which is an
+editorial call closer to a decision than a number or a citation, so it is
+named here and left to a follow-up rather than folded into this diff.
+
+**Verdict: no blocking finding.** All eight `nine` occurrences are corrected
+to `eight` with the two derived counts independently re-measured rather than
+arithmetically inferred; every touched citation was read at its current
+location and matches; the added paragraph quotes its source verbatim and
+states the fix's own stated residual. The `Validate Spec Coverage` rows named
+above are a real, adjacent defect, flagged rather than fixed, and carried
+forward as a named follow-up rather than left silent.
+
+## Follow-up: the coordinator was right, the high-level-advisor call above was wrong
+
+The verdict above classified the two `Validate Spec Coverage` rows as editorial
+and out of scope for a factual repair. The coordinator disagreed on the Impact
+table row (line 411, now corrected) and asked for the reasoning rather than
+just issuing the instruction. The reasoning does not hold up, and the
+correction is recorded here rather than silently folded into the diff.
+
+**What the row actually said**, before this follow-up: "`Validate Spec
+Coverage` is pinned (`ruleset_required_contexts.py:21`) and is gated by a
+job-level `if:` reading `needs.check-paths.result`." Both clauses are checked
+against the current tree, level 1: `sed -n '21p' scripts/ci/ruleset_required_contexts.py`
+prints `    }`, the closing brace of the set, not an entry, and the set itself
+(`REQUIRED_CONTEXTS`, lines 11-22) no longer contains `Validate Spec Coverage`
+at all (`9a96a5fae`, the same commit already cited elsewhere in this record).
+So the sentence is a present-tense factual claim the tree contradicts, plus a
+citation pointing at content that no longer says what the citation claims it
+says. That is exactly the shape of the `pytest.yml` line-drift defects already
+fixed in the primary diff, not a different, editorial-shaped problem. The
+distinction drawn in the original verdict, between "a number or a citation"
+and "an editorial call about how the record represents a resolved subject",
+does not survive reading the actual sentence: nothing here asks for the row's
+analytical point to be rewritten or deleted, only for its tense and its dead
+citation to be corrected and a status added, which is squarely inside "numbers
+and citations."
+
+**The fix.** `git show 9a96a5fae^:scripts/ci/ruleset_required_contexts.py`
+shows `Validate Spec Coverage` sat at line 21 in the pre-removal file, one line
+above the closing brace it now points at in the current file, which is why the
+stale citation still resolves to a plausible-looking line instead of an
+out-of-range error: a coincidence of position, not evidence the citation still
+holds. Per the coordinator's instruction, the citation is dropped rather than
+repointed at a historical line number in a file this record otherwise always
+cites at current-tree state, and replaced with a citation to the commit that
+changed the pinned status (`9a96a5fae`), which is checkable the same way every
+other commit citation in this record is. The row now reads: "`Validate Spec
+Coverage` was pinned and was gated by a job-level `if:` reading
+`needs.check-paths.result`, which carries `always()`, so it evaluated rather
+than being removed, putting it in case 2 and squarely inside requirement 1's
+property form: the verdict was decided outside the job's own logic. PR #5759
+(`9a96a5fae`) unpinned it from `ruleset_required_contexts.py` to match the live
+ruleset, as ADR-101 Phase 0 work; the job and its condition are unchanged,
+only its required status changed." The analytical point (case 2, verdict
+decided outside the job's own logic) is preserved verbatim in substance;
+only tense, the dead citation, and the status changed. The row's file citation
+(`ai-spec-validation.yml:95-100`) is also corrected to `:97-102`: PR #5759 added
+one `environment: bot-secrets` line each to the `debounce` and `check-paths`
+jobs that precede `validate-spec` in the same file, a +2 shift confirmed with
+`git diff 9a96a5fae^ 9a96a5fae -- .github/workflows/ai-spec-validation.yml`,
+and the current job header through its `if:` condition now sits at 97-102,
+verified by direct read.
+
+**Line 334, checked on its own rather than taken on the coordinator's word.**
+It reads, in part, "`ai-spec-validation.yml:216` and `:250`, where
+`check_spec_failures.py` is the verdict step behind `Validate Spec Coverage`."
+This sentence makes no claim that the context is currently pinned or required;
+it only names which script is the verdict step for the job named
+`Validate Spec Coverage`, and `grep -n check_spec_failures .github/workflows/ai-spec-validation.yml`
+confirms that job still exists, still runs `check_spec_failures.py`, and is
+still named `Validate Spec Coverage` in the workflow (unpinning a required
+context does not delete the job or rename it). So the coordinator's own
+reading holds: this sentence needs nothing on the pinning question. It did
+need something else, found independently while checking it: the two cited
+line numbers had drifted by the same +3 that shifted `validate-spec`'s job
+body (the `environment: bot-secrets` lines added to `debounce`, `check-paths`,
+and `validate-spec` in `9a96a5fae`), so `:216` and `:250` pointed one job-body
+short of `generate_spec_report.py` and `check_spec_failures.py` respectively.
+Corrected to `:219` and `:253`, verified by direct read against the current
+file. This is the same drift class as the `pytest.yml` citations in the
+primary diff, on the same file this follow-up was already reading, so it is
+fixed in the same commit rather than filed separately.
+
+**Verdict, restated:** the original high-level-advisor classification of line
+411 as "closer to a decision than a number or a citation" was wrong, and is
+corrected rather than defended. Line 334 needed nothing for the reason the
+coordinator predicted, and needed something else the coordinator did not
+raise, found by checking it independently rather than taking the prediction
+on trust.

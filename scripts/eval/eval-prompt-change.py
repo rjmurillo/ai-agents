@@ -74,6 +74,13 @@ from _anthropic_api import (
     load_api_key_for_selected_provider,
     verify_model_available,
 )
+from _billing_matrix import (
+    BILLING_MODES,
+    HARNESSES,
+    BillingMatrixError,
+    apply_selection,
+    provider_help_text,
+)
 from _eval_common import EST_TOKENS_PER_CALL, MalformedProviderMetadataError
 from _providers import is_default_anthropic
 
@@ -636,11 +643,26 @@ def _parse_args() -> argparse.Namespace:
         "--provider",
         type=str,
         default=None,
+        help=provider_help_text(),
+    )
+    parser.add_argument(
+        "--harness",
+        type=str,
+        default=None,
+        choices=list(HARNESSES),
         help=(
-            "Transport provider: anthropic (default), openai, codex, "
-            "github, github-models, anthropic-sdk. Baseline and variant "
-            "run on the SAME provider; cross-provider scores are not "
-            "comparable (ADR-058)."
+            "Harness axis of the transport matrix. Pair with --billing; "
+            "either alone is refused."
+        ),
+    )
+    parser.add_argument(
+        "--billing",
+        type=str,
+        default=None,
+        choices=list(BILLING_MODES),
+        help=(
+            "Billing axis of the transport matrix: a metered vendor account "
+            "or a subscription seat reached through that vendor's CLI."
         ),
     )
 
@@ -846,8 +868,15 @@ def _run_or_exit(
 
 def main() -> None:
     args = _parse_args()
-    if getattr(args, "provider", None):
-        os.environ["EVAL_PROVIDER"] = args.provider
+    try:
+        apply_selection(
+            provider=getattr(args, "provider", None),
+            harness=getattr(args, "harness", None),
+            billing=getattr(args, "billing", None),
+        )
+    except BillingMatrixError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(2)
 
     try:
         scenarios = load_scenarios(args.scenarios)
