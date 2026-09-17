@@ -33,6 +33,13 @@ import uuid
 from pathlib import Path
 from typing import Any, cast
 
+from _billing_matrix import (
+    BILLING_MODES,
+    HARNESSES,
+    BillingMatrixError,
+    apply_selection,
+    provider_help_text,
+)
 from _eval_agent_types import (
     SCHEMA_VERSION,
     Assertion,
@@ -541,11 +548,26 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--provider",
         type=str,
         default=None,
+        help=provider_help_text(),
+    )
+    parser.add_argument(
+        "--harness",
+        type=str,
+        default=None,
+        choices=list(HARNESSES),
         help=(
-            "Transport provider: anthropic (default), openai, codex, "
-            "github, github-models, anthropic-sdk. Baseline and variant "
-            "run on the SAME provider; cross-provider scores are not "
-            "comparable (ADR-058)."
+            "Harness axis of the transport matrix. Pair with --billing; "
+            "either alone is refused."
+        ),
+    )
+    parser.add_argument(
+        "--billing",
+        type=str,
+        default=None,
+        choices=list(BILLING_MODES),
+        help=(
+            "Billing axis of the transport matrix: a metered vendor account "
+            "or a subscription seat reached through that vendor's CLI."
         ),
     )
     parser.add_argument(
@@ -1159,8 +1181,15 @@ def _run_live_with_metadata_exit(
 def main(argv: list[str] | None = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(argv)
-    if getattr(args, "provider", None):
-        os.environ["EVAL_PROVIDER"] = args.provider
+    try:
+        apply_selection(
+            provider=getattr(args, "provider", None),
+            harness=getattr(args, "harness", None),
+            billing=getattr(args, "billing", None),
+        )
+    except BillingMatrixError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
 
     try:
         paths = _load_fixture_paths(args.fixtures)

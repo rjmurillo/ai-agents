@@ -1,5 +1,7 @@
 # Eval multi-provider transport (EVAL_PROVIDER Strategy)
 
+**Extended 2026-09-16 by the billing matrix.** The Strategy seam below is unchanged; what sits in front of it is now an explicit harness x billing table (`scripts/eval/_billing_matrix.py`) rather than a flat list of provider names, and three transports were added: `claude-cli`, `codex-cli`, and the operator-configured `copilot-api`. See `.serena/memories/eval/eval-billing-matrix.md`.
+
 The eval harness can run through OpenAI or GitHub Models when the
 `ANTHROPIC_API_KEY` budget is exhausted. Provider selection is a Strategy behind
 `EVAL_PROVIDER` (env) or `--provider` (flag). Anthropic stays the default on the

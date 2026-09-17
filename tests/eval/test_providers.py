@@ -28,6 +28,7 @@ try:
     import _anthropic_api
     import _copilot_cli_acp
     import _eval_api_adapter
+    import _http_providers
     import _providers
     from _eval_common import MalformedProviderMetadataError
 finally:
@@ -627,7 +628,7 @@ def test_read_env_key_returns_first_present(monkeypatch: pytest.MonkeyPatch) -> 
 def test_read_env_key_strips_only_matching_env_file_quotes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    fake_module = tmp_path / "repo" / "scripts" / "eval" / "_providers.py"
+    fake_module = tmp_path / "repo" / "scripts" / "eval" / "_http_providers.py"
     fake_module.parent.mkdir(parents=True)
     fake_module.write_text("# fake", encoding="utf-8")
     repo_root = fake_module.parents[2]
@@ -637,7 +638,7 @@ def test_read_env_key_strips_only_matching_env_file_quotes(
         "TRAILING=keeps-trailing-single-quote'\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(_providers, "__file__", str(fake_module))
+    monkeypatch.setattr(_http_providers, "__file__", str(fake_module))
     monkeypatch.delenv("MATCHED", raising=False)
     monkeypatch.delenv("LEADING", raising=False)
     monkeypatch.delenv("TRAILING", raising=False)
@@ -660,8 +661,8 @@ def test_read_env_key_raises_naming_candidates_when_absent(
 def test_read_env_key_rejects_symlinked_module_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    fake_module = tmp_path / "_providers.py"
-    monkeypatch.setattr(_providers, "__file__", str(fake_module))
+    fake_module = tmp_path / "_http_providers.py"
+    monkeypatch.setattr(_http_providers, "__file__", str(fake_module))
     monkeypatch.delenv("ZZ_NOPE_ONE", raising=False)
 
     original_is_symlink = Path.is_symlink

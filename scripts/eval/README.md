@@ -33,17 +33,97 @@ python3 scripts/eval/eval-skill-overlap.py \
 uv run python scripts/eval/eval_runtime_parity.py --dry-run
 ```
 
-## Providers
+## Providers: the harness x billing matrix
 
-`--provider` selects the transport. Most take an API key; one does not.
+`--provider` selects one transport cell. Two axes: which CLI family answers,
+and who pays. The `api` column is a metered vendor account; the `subscription`
+column shells out to the CLI that holds a seat the operator already pays for.
 
-| Name | Transport | Credential |
-|------|-----------|------------|
-| `anthropic` (default) | urllib, dependency-free | `ANTHROPIC_API_KEY` |
-| `anthropic-sdk` | `anthropic` package | `ANTHROPIC_API_KEY` |
-| `openai`, `codex` | `openai` package | `OPENAI_API_KEY` |
-| `github`, `github-models` | `openai` package, Models base URL | `GITHUB_TOKEN` |
-| `copilot`, `copilot-cli` | GitHub Copilot CLI subprocess | none, reuses `copilot` auth |
+| Harness | Billing | Provider name | Transport | Credential | Cost basis | Status |
+|---|---|---|---|---|---|---|
+| claude | api | `anthropic` | Anthropic Messages API over urllib (dependency-free default) | `ANTHROPIC_API_KEY` | usd | VERIFIED |
+| claude | subscription | `claude-cli` | Claude Code CLI subprocess (`claude --print`) | `CLAUDE_CODE_OAUTH_TOKEN` | requests | UNVERIFIED |
+| codex | api | `openai` | OpenAI Chat Completions via the `openai` SDK | `OPENAI_API_KEY` | usd | UNVERIFIED |
+| codex | subscription | `codex-cli` | Codex CLI subprocess (`codex exec`) | `CODEX_ACCESS_TOKEN` | requests | UNVERIFIED |
+| copilot | api | `copilot-api` | OpenAI-compatible HTTP endpoint at COPILOT_API_BASE_URL (operator-supplied) | `COPILOT_API_KEY`, `GITHUB_COPILOT_TOKEN` | requests | UNVERIFIED |
+| copilot | subscription | `copilot-cli` | GitHub Copilot CLI subprocess over ACP | none (CLI login) | requests | VERIFIED |
+
+Either spelling works:
+
+```bash
+# Axis-first. Refused unless both axes are given, because half a pair has no
+# unambiguous other half.
+python3 scripts/eval/eval-agent-vs-baseline.py ... --harness codex --billing subscription
+
+# Cell name, or any legacy provider name.
+python3 scripts/eval/eval-agent-vs-baseline.py ... --provider copilot-cli
+```
+
+`EVAL_HARNESS` and `EVAL_BILLING` are the environment equivalents, and
+`EVAL_PROVIDER` still selects by name. A `--provider` that contradicts
+`--harness`/`--billing` is refused rather than resolved in favor of one:
+picking either would bill a transport nobody asked for.
+
+Legacy names keep their meanings, so no archived command changes what it
+runs: `anthropic` (the default) and `anthropic-sdk` are claude/api, `openai`
+and `codex` are codex/api, `copilot` and `copilot-cli` are
+copilot/subscription. `github` and `github-models` are dead; GitHub retired
+GitHub Models on 2026-07-30 and the endpoint still returned HTTP 410 when
+re-probed on 2026-09-16.
+
+Before a paid run, ask what this machine can actually reach:
+
+```bash
+uv run python scripts/eval/eval_billing_matrix.py
+uv run python scripts/eval/eval_billing_matrix.py --json
+uv run python scripts/eval/eval_billing_matrix.py \
+    --harness claude --billing subscription --require-ready
+```
+
+It reports `READY`, `NOT_READY`, or `UNKNOWN` per cell and exits 3 under
+`--require-ready` when a selected cell is missing something. It checks
+variables and PATH only; it calls no backend, so it cannot tell a valid token
+from a revoked one. `UNKNOWN` is the honest answer for a cell whose
+credential can come from a CLI login on disk that no environment check reads.
+
+### What the columns cost you
+
+- **Cost basis.** A `usd` cell has a published per-token rate and the plan
+  quotes dollars. A `requests` cell spends an allowance nobody publishes a
+  token price for, so the plan reports the request count and leaves the USD
+  figure empty. That is deliberate: a fabricated rate in an operator cost
+  report is the failure issue #3786 records.
+- **Status.** `VERIFIED` means a live run through that exact cell is recorded
+  in this repository. `UNVERIFIED` means the transport is implemented and
+  tested offline but no run has confirmed the credential, the model id, and
+  the billing surface line up. Read `_billing_matrix.py` for each cell's
+  reason; they are not interchangeable.
+- **Subscription cells strip the metered credentials.** Every one of these
+  CLIs prefers an API key when it finds one, and Claude Code's documentation
+  is explicit that in `--print` mode the key is always used when present. So
+  `ANTHROPIC_API_KEY`, `CODEX_API_KEY`, and `OPENAI_API_KEY` are removed from
+  the child environment. Without that, an operator with a key exported gets an
+  API-billed run out of the subscription column and nothing in the report says
+  so.
+- **copilot/api has no default endpoint.** GitHub documents no public,
+  separately billed inference API; its documented Copilot APIs are
+  administrative and metrics endpoints, and Copilot usage meters as premium
+  requests against a seat. The cell is therefore a configured seam: set
+  `COPILOT_API_BASE_URL` to an OpenAI-compatible endpoint you are entitled to
+  use and `COPILOT_API_HEADERS` to any JSON header object it requires. It
+  refuses to run rather than guessing.
+
+### Do not compare across cells
+
+A single eval invocation runs the baseline and the variant through ONE cell.
+ADR-058 experimental-design symmetry: re-baseline per cell. This binds harder
+than the old cross-provider rule, because two cells of the same harness differ
+in system prompt and sampling controls as well as in biller. A subscription
+CLI keeps its own system prompt (roughly 41k tokens for Copilot) that no flag
+removes, and exposes no `max_tokens`, `temperature`, or `seed`, so a fixture
+needing sampling determinism belongs on an HTTP cell.
+
+### copilot-cli specifics
 
 Prefer `copilot-cli` when the question is "does this change help the models we
 actually run." It costs no separate API billing and reaches the ids this
@@ -62,24 +142,32 @@ Three things about `copilot-cli` that will cost you a run if you miss them:
   `AGENTS.md`, `CLAUDE.md`, and `.github/instructions/**` from its working
   directory. In this repository those files are usually the variable under
   test, so running from the repo root would put the treatment into the control
-  cell and quietly destroy the comparison.
+  cell and quietly destroy the comparison. `claude-cli` and `codex-cli` do the
+  same, for the same reason.
 - **It is a prompt-only transport.** It passes prompt text through ACP and
   disables custom instructions, tools, and built-in MCP servers. It does not
   measure project instruction loading, custom-agent frontmatter, or real tool
   behavior. Use `eval_runtime_parity.py` for those questions.
-- **Do not compare its scores to an HTTP provider's.** The Copilot CLI system
-  prompt remains present even when custom instructions are disabled. Same
-  reasoning ADR-058 already applies to cross-provider comparison.
 - **Do not use the CLI's reported token counts as a measurement.** They are
   non-monotonic: the same trivial prompt reported 109.3k tokens from `/tmp` and
   95.9k from inside the repo, because the figure folds in tool definitions and
   cache accounting. For byte and token budgets use
   `scripts/validation/instruction_budget.py`, which is deterministic.
 
-It ignores `max_tokens`, `temperature`, and `seed`, because the CLI exposes no
-sampling controls. Fixtures still run unchanged; if you need sampling
-determinism, use an HTTP provider. `COPILOT_CLI_BIN` and `COPILOT_CLI_TIMEOUT`
-override the executable and the default 900s timeout.
+`COPILOT_CLI_BIN` and `COPILOT_CLI_TIMEOUT` override the executable and the
+default 900s timeout. `CLAUDE_CLI_BIN`/`CLAUDE_CLI_TIMEOUT` and
+`CODEX_CLI_BIN`/`CODEX_CLI_TIMEOUT` do the same for their cells.
+
+### Model attribution
+
+A score is a score for whichever model actually answered, so each CLI cell
+says how it knows. `copilot-cli` reads the session transcript. `claude-cli`
+reads the `modelUsage` keys out of `--output-format json`, which name the
+dated id the CLI resolved an alias to; a key from another family fails the
+run. `codex-cli` has no verified attribution shape at all, so it refuses to
+score anything until `EVAL_CODEX_ALLOW_UNVERIFIED_MODEL=1` says the operator
+accepts that loss knowingly. `EVAL_COPILOT_ALLOW_UNVERIFIED_MODEL` is the
+Copilot equivalent.
 
 ## Scripts
 
@@ -97,7 +185,9 @@ override the executable and the default 900s timeout.
 | `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size. Core in `_model_sweep_core.py`. | #2840 |
 | `eval_runtime_parity.py` | Run the same fixture through real Claude and Copilot CLIs with isolated agent profiles, resolved-model checks, traces, and deterministic controls. | #4853 |
 | `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, and hooks. Splits tasks, bounds how many times an edit may be measured against the held-out group, and applies patches. A budgeted comparison, not an access boundary; see the seam section below. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
+| `eval_billing_matrix.py` | Print the harness x billing matrix and report which cells this machine can reach. `--json` for a machine-readable form, `--require-ready` to exit 3 as a precondition step. | Complementary |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
+| `_billing_matrix.py` | The 3x2 table itself: cells, aliases, credentials, cost basis, and selection precedence. Read by `_providers` and by `_eval_common.cost_basis`. | Complementary |
 
 ## Real CLI Runtime Parity
 
