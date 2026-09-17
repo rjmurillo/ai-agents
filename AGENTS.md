@@ -1,12 +1,16 @@
 # AGENTS
 
 Serena[BLOCKING]|mcp__serena__activate_project|mcp__serena__initial_instructions|fallback:`.serena/memories/<name>.md`|post:rerun
-Retrieve|APIs: C7/DW/Web|memory|constraints: governance|ADRs: architecture|skills/rules: `.claude`|generators: governance
-Gates|S: Serena/handoff/resume/memory/git|M: rev count 10/15|P: `pre_pr.py`/no BLOCKING/security/style|E: handoff/Serena/lint/commit/check
-Bounds|A: Python ADR-042, branch/skills/PR, lint, pinned Actions, workflows|Ask: architecture/ADR/breaking/security|Guard: reversible internal act, irreversible external confirm, ambiguous minimal + flag|Never: secrets/bash/YAML logic/raw `gh`/force-push/no-verify/internal refs/scratch|Block: artifact test, security fix/owner, conflict resolve, validation pre-PR|no manifest ADR-092
-Skills|`.claude/skills/autoplan/SKILL.md`|no skill -> autoplan|multi -> orchestrator|conflict -> GitHub/merge-resolver|CI ladder|new capability: buy-vs-build|harness portability|ADR review
+Retrieve|APIs C7/DW/Web|memory|constraints governance|ADRs architecture|skills/rules `.claude`|generators governance
+Gates|S Serena/handoff/resume/memory/git|M rev count 10/15|P `pre_pr.py`/no BLOCKING/security/style|E handoff/Serena/lint/commit/check
+**Always**: Python ADR-042|branch/skills/PR/lint|SHA Actions|workflows|No manifest version (ADR-092)
+**Ask First**: architecture/ADR/breaking/security
+**Autonomy Guardrail**: reversible internal|irreversible external|ambiguous minimal+flag
+**Never**: Secrets|New bash scripts|YAML logic|Raw `gh`|Force-push|No-verify|Internal refs|Scratch
+Block|artifact->test|security->fix/owner|conflict->resolve|validation->pre-PR
+Skills|route `.claude/skills/autoplan`|no skill -> autoplan|multi -> orchestrator|conflict -> GitHub/merge-resolver|CI ladder|new capability buy-vs-build|harness portability|ADR review
 
-## Model, Effort, and Cost Routing
+## Routing
 
 Cost|route by shape/verifier/failure|accepted-result cost = inference+retry+repair+replay/tool+verifier/review+coordination+human wait|weight judgment/correction > price|down: bounded+cheap+objective+low fan-out+compact receipt|never vendor labels
 Luna|low/medium|disposable high-volume discovery, extraction, classification, triage, boilerplate, config, scaffold, docs, exact edits
