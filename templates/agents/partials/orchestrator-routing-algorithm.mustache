@@ -3,7 +3,7 @@
    YES → parallel routing, fan-in synthesis
    NO  → single specialist based on capability matrix
 6. Every route: preserve handoff context, enforce output format
-7. After agents return: synthesize, validate, deliver
+7. After agents return: verify artifacts, synthesize deltas, accept or reject, stop after acceptance
 ```
 
 ## Handoff Contract
@@ -20,7 +20,7 @@ CONSTRAINTS: [must/must-not]
 TIMEBOX: [if applicable]
 ```
 
-Agents return in a format you can synthesize. If an agent returns narrative prose when you need structured findings, reject and re-delegate with explicit format requirement.
+Agents return deltas, changed paths, verifier output, acceptance status, and typed escalation status. Do not return transcripts. If an agent returns narrative prose when you need structured findings, reject and re-delegate with explicit format requirement.
 
 **Skill inheritance is harness-specific.** The Claude Code incident behind this note found that workers did not inherit the skills active in the parent session; it does not establish the same behavior in other harnesses. Where a worker does not inherit, naming the skill file costs less context than pasting its body into the prompt.
 
