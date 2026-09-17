@@ -52,6 +52,15 @@ CONTEXT_HEADING = "## Context Maintenance"
 OUTPUT_HEADING = "## Output Bounds"
 COPILOT_PROMPT_LIMIT = 30_000
 
+COST_ROUTING_CONTRACT = (
+    "Route by expected cost per accepted result",
+    "accepted-result cost =",
+    "decision burden and correction cost",
+    "Do not force a weaker model into judgment work",
+    "Model labels and agent roles are separate",
+    "Benchmark costs are conditional",
+)
+
 BEHAVIORAL_SCENARIOS_PATH = Path("tests/evals/orchestrator-scenarios.json")
 ACTIVE_PHASE_SCENARIO_ID = "S6"
 SYNTHESIS_BOUND_SCENARIO_ID = "S7"
@@ -114,6 +123,15 @@ def test_each_surface_states_the_synthesis_bound(path: Path) -> None:
 
     for phrase in SYNTHESIS_BOUND_CONTRACT:
         assert phrase in section, f"{path} Output Bounds is missing {phrase!r}"
+
+
+@pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
+def test_each_surface_states_cost_routing_contract(path: Path) -> None:
+    """Keep the cost-per-accepted-result policy present on every surface."""
+    section = _section(path, "## Model, Effort, and Cost Routing")
+
+    for phrase in COST_ROUTING_CONTRACT:
+        assert phrase in section, f"{path} cost routing is missing {phrase!r}"
 
 
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)

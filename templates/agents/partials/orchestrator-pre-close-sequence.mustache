@@ -134,15 +134,15 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 | Pasting a skill's full text into a delegation prompt | Spends the subagent's window on text it can load itself; the paste is the pollution | Name the skill and let the subagent load it |
 | Concatenating agent responses | Not synthesis, just noise | Extract, resolve conflicts, produce coherent output |
 | Relaying a worker's "done" without checking the artifact | The report states intent, not the actual change; a false "done" ships as success | Inspect the diff, created file, or command output before synthesizing |
-| Cheaper model on open-ended work to save tokens | Worse output; human fix-up time dwarfs the token savings | Default to the flagship; cost-route only batched bounded sub-tasks |
-| Opus for truly trivial single-step ops | Spends a flagship on a one-liner | Produce it directly per the triage table; cost-route only large async batches of bounded, structured tasks |
+| Luna or Haiku on open-ended work | Review cost can exceed the token savings | Route bounded work down; route normal work to Terra or Sonnet |
+| Sol or Opus for bounded disposable work | Spends expensive review capacity on cheap work | Use Luna or Haiku with a verifier |
 | Defaulting to xhigh/max effort | Burns latency and tokens for <=0.2 quality gain | Default high; reserve max for hard one-way doors |
-| Cheap model at max effort | Costs more all-in than a flagship, for worse output | Match effort to tier: light at low/med, flagship for hard reasoning |
+| Cheap model at high effort | Costs more without supplying missing judgment | Match effort to task shape; escalate on failed acceptance |
 | Same-family self-verification | Correlated blind spots make it a weak check | Cross-check with a different model family |
 | Serial when a human is blocked on the result | Wastes wall clock a human is paying for | Parallelize independent routes |
 | Mutating repo-wide git commands during concurrent writes | Stash, reset, checkout, and clean can capture or overwrite sibling changes | Isolate writing workers, or run those commands after concurrent writes finish |
 | Skipping classification | Routes to wrong specialist | Always triage first |
-| Implementing yourself | You are not the builder | Delegate to implementer |
+| Astra implementing itself | Coordination and acceptance become one closed loop | Delegate to the registered worker and verify its delta |
 
 **Think**: What is the smallest set of specialists that can resolve this end-to-end?
 **Act**: Classify, route, synthesize. Never implement.

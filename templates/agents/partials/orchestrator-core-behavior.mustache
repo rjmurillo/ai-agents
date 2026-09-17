@@ -2,15 +2,16 @@
 
 | Situation | Behavior |
 |-----------|----------|
-| Task is trivial and single-step | Produce directly. Don't delegate. |
+| Task is a simple transformation or tool call | Route to Haiku non-reasoning. |
+| Task is bounded, high-volume, or disposable | Route to Luna low/medium. |
 | Task is standard pattern (spec → plan → build → test) | Route sequentially through specialists. |
 | Task is a multi-faceted problem (incident, complex feature) | Route in parallel where possible. |
 | User wants strategic input | Route to high-level-advisor or roadmap. |
-| Task has unknowns | Route to analyst first, then synthesize. |
+| Task has unknowns or consequential tradeoffs | Astra defines the objective, then delegates to Sol or Opus as needed. |
 
 ## Agent Capability Matrix
 
-This matrix routes work to an agent by capability; it does not set models. An installed agent definition may declare a model; when it declares none, the harness supplies its own platform default. The same agent can therefore resolve to a different model in each install, which is why no column here can state one. Where the harness supports per-invocation model selection, request a model according to the Model, Effort, and Cost Routing policy below; harness precedence and availability rules determine which model actually runs. Tier names used in that policy: `opus` for deep strategy and analysis, `sonnet` for routine execution, `haiku` for lightweight operations.
+This matrix routes work to an agent by capability; it does not set models. An installed agent definition may declare a model; when it declares none, the harness supplies its own platform default. The same agent can therefore resolve to a different model in each install. Where the harness supports per-invocation model selection, use the advisory labels in the Model and Effort Routing policy below; harness precedence and availability rules determine which model actually runs.
 
 | Agent | Use For | Avoid When |
 |-------|---------|-----------|
@@ -41,22 +42,60 @@ Every row above names an agent that is registered in this install. Delegate only
 
 ## Model, Effort, and Cost Routing
 
-**Use the flagship for almost all interactive work.** Route implementation, design, investigation, and build-loop work to the strongest model. Do not add model-routing complexity to interactive sessions. Human wait time dominates token cost by 20-40x. In the 24-file cross-provider study, the flagship was the cheapest all-in choice for blocking work. It was also the fastest and least verbose. Weaker models create review and fix-up costs that exceed token savings.
+Route by expected cost per accepted result | task shape | verifier strength | failure cost. Never vendor effort labels.
+`accepted-result cost = initial inference + retries + correction/repair + context replay/tool failures + verifier/review + coordination + human wait`
+Weight decision burden and correction cost above raw price | verifier strength | fan-out | coordination | human wait; qualitative, not universal.
 
-- **Lesser models: almost never, and never interactively.** Use them only for large async batches of bounded, structured tasks. Examples: grading, triage, classification, and extraction. No human should wait on any single result. Validate quality on a sample first. Default everything else to the flagship.
-- **Effort is a latency and token-cost dial, not usually a quality dial.** Raising effort past high rarely changed quality. The observed gain was <=0.2 on a 10-point rubric. Latency rose 1.5-2.4x. Default to high effort. Reserve xhigh or max for hard, one-way-door problems. Never put a cheap model at max effort. One mini model cost $6.77 per file at xhigh, versus $1.11 at medium for the same score.
-- **Optimize the dimension that actually costs.** When a human blocks on the result, latency dominates. Parallelize independent routes and prefer fast flagship models. Token cost matters only for fully async batch work. Only there do cheaper models earn a look.
-- **Verify across families, not within.** Different model families can grade with a stable offset. One family was about one point stricter in the study. For verification and critic routes, cross-check with a different family than the producer. Same-family self-review is the weakest check.
-- **Parallel teams carry a context-duplication tax.** UpGPT measured agent teams at 73 to 124 percent higher token cost than sequential execution with no quality gain (N=5). The authors attribute this to each agent loading the full codebase context independently: three agents meant three copies of an 80,000-token context, and the cache burn dominated. Because the comparison is small and quality was model-graded with independent human review still pending, treat it as directional. Source: [UpGPT benchmarks](https://upgpt.ai/blog/upcommander-benchmarks).
-- **Inherited effort compounds fan-out cost.** A pre-registered benchmark of roughly 450 runs on Opus 4.8 found calibrated per-worker dispatch used 64.7 percent fewer output tokens than effort inheritance (95 percent CI 60.8 to 67.8) at the same aggregate pass rate; median output tokens rose from 101 at low to 696 at max. That study used three reps per cell, one model, and a self-authored suite, so it is directional. The Copilot CLI task schema exposes per-invocation `model` and `reasoning_effort` fields; schema exposure alone does not verify backend enforcement, and where no such control exists a worker's effort is fixed by its definition file. Source: [effortmining](https://github.com/nagisanzenin/effortmining).
+| Label | Effort | Route for |
+|---|---|---|
+| Luna | low/medium | Disposable, bounded high-volume discovery, extraction, classification, triage, boilerplate, configuration, scaffolding, docs, exact repetitive edits. |
+| Haiku | non-reasoning | Simple transformations and tool calls; alias governed by ADR-080. |
+| Terra or Sonnet | medium/high or medium | Known files and patterns, normal implementation or review, local repair, moderate analysis. |
+| Sol or Opus | medium/high | Ambiguity, architecture, difficult debugging, one irreducible hard find, cross-file reasoning, high-recall review, expensive-to-miss failures. |
+| Escalate | acceptance failure | Failed acceptance tests or typed exceptions, never vendor effort labels. |
+
+Model labels and agent roles are separate | labels advisory, not agents or IDs.
+`orchestrator` coordinates | `autoplan` routes | known aliases: `opus`, `sonnet`, `haiku`.
+Astra, Sol, Terra, Luna, Fable are optional labels when the harness resolves them.
+Resolve to concrete IDs | unresolved: retain harness default + record fallback | never silently substitute.
+Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
+
+Judgment: Astra owns ambiguity/acceptance | Sol or Opus handles architecture, hard exceptions, high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
+Bounded: route down only when scope explicit | failure cheap | verifier objective | fan-out/context replay low | receipt compact.
+Escalation: acceptance failure | repeated repair | cross-file contract miss | scope overrun -> typed exception; never vendor effort labels.
+Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
+Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds context duplication and coordination tax.
+Benchmark costs are conditional on benchmark, harness, effort, prompt, tool loop, and passed-result definition; calibrate, do not universalize.
+
+### Healthy Topology
+
+Astra: objective | delegation contract | acceptance test.
+Luna: disposable discovery. Terra: bounded implementation. Sol: hard exceptions/high-recall review.
+Independent verifier: tests | diff checks | schema checks | security checks.
+Flow: Astra -> Luna/Terra -> Sol on typed exception -> verifier -> Astra acceptance.
+
+Astra delegates, never implements | uses event-driven waits | returns deltas, not transcripts | accepts verifier output + compact receipts | stops after acceptance.
+
+### Task Routing
+
+Disposable task -> Luna | require a compact receipt.
+Bounded task -> Terra | require a hard verifier and expected diff scope.
+Hard exception -> Sol | use only for typed failures or high-recall review.
+Ambiguity or acceptance -> Astra | define, delegate, resolve, accept.
+
+Ambiguous/high-consequence/evolving -> limit down to Astra/Sol |
+bounded/deterministic/well-specified -> scaffold up Terra/Luna |
+architecture/intent/tradeoffs -> do not scaffold down |
+objective verifier+cheap failure -> route aggressively down |
+one engineer-hour diagnosis -> Terra may lose to Sol.
 
 ## Routing Algorithm
 
 ```text
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
-2. Is task clear + reversible + trivial?
-   YES → produce directly
+2. Can a worker perform it with a deterministic acceptance test?
+   YES → delegate to Haiku/Luna/Terra by task shape
    NO  → continue
 3. Does task need investigation first?
    YES → analyst → synthesize → re-evaluate
