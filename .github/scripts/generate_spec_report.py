@@ -9,6 +9,8 @@ Input env vars (used as defaults for CLI args):
     TRACE_FINDINGS         - Findings from traceability check
     COMPLETENESS_VERDICT   - Verdict from completeness check
     COMPLETENESS_FINDINGS  - Findings from completeness check
+    TRACE_INFRA_FAILURE        - Whether trace failure was infrastructure-related
+    COMPLETENESS_INFRA_FAILURE - Whether completeness failure was infrastructure-related
     GITHUB_REPOSITORY      - Owner/repo slug
     SERVER_URL             - GitHub server URL
     RUN_ID                 - Current workflow run ID
@@ -80,6 +82,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Findings from completeness check",
     )
     parser.add_argument(
+        "--trace-infra-failure",
+        default=os.environ.get("TRACE_INFRA_FAILURE", ""),
+        help="Whether trace failure was infrastructure-related",
+    )
+    parser.add_argument(
+        "--completeness-infra-failure",
+        default=os.environ.get("COMPLETENESS_INFRA_FAILURE", ""),
+        help="Whether completeness failure was infrastructure-related",
+    )
+    parser.add_argument(
         "--github-repository",
         default=os.environ.get("GITHUB_REPOSITORY", ""),
         help="Owner/repo slug",
@@ -105,6 +117,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Git ref name",
     )
     return parser
+
+
+def _is_infra_failure(flag: str) -> bool:
+    """Return True only when the structured infrastructure flag is set.
+
+    Duplicates ``check_spec_failures.py``'s helper of the same name rather
+    than moving it into ``scripts.ai_review_common``: that module's
+    ``verdict.py`` is pinned by a 100% branch-coverage gate and loaded
+    standalone by file path from a vendored plugin probe
+    (``tests/e2e/test_vendored_review_e2e.py``), so a new export there costs
+    more review surface than one three-line predicate duplicated across two
+    call sites justifies.
+    """
+    return flag.lower() in ("true", "1", "yes")
 
 
 def _build_no_specs_report(repository: str) -> str:
@@ -153,6 +179,8 @@ def _build_full_report(
     final_verdict: str,
     trace_verdict: str,
     completeness_verdict: str,
+    trace_infra: bool,
+    completeness_infra: bool,
     spec_refs: str,
     issue_refs: str,
     trace_findings: str,
@@ -163,11 +191,40 @@ def _build_full_report(
     event_name: str,
     ref_name: str,
 ) -> str:
-    """Build the full validation report with all check results."""
-    alert_type = get_verdict_alert_type(final_verdict)
-    final_emoji = get_verdict_emoji(final_verdict)
-    trace_emoji = get_verdict_emoji(trace_verdict)
-    completeness_emoji = get_verdict_emoji(completeness_verdict)
+    """Build the full validation report with all check results.
+
+    An infra-failed side never renders its raw AI-review verdict (typically
+    `CRITICAL_FAIL`): that verdict describes a Copilot CLI process that never
+    completed, not a code-quality judgement, and showing it unlabeled reads
+    to an operator as a real rejection (issue #5738).
+    """
+    if final_verdict == "INFRA_FAILURE":
+        alert_type = "WARNING"
+        final_emoji = "⚠️"
+    else:
+        alert_type = get_verdict_alert_type(final_verdict)
+        final_emoji = get_verdict_emoji(final_verdict)
+
+    trace_display = "INFRA_FAILURE (did not run)" if trace_infra else trace_verdict
+    completeness_display = (
+        "INFRA_FAILURE (did not run)" if completeness_infra else completeness_verdict
+    )
+    trace_emoji = "⚠️" if trace_infra else get_verdict_emoji(trace_verdict)
+    completeness_emoji = (
+        "⚠️" if completeness_infra else get_verdict_emoji(completeness_verdict)
+    )
+
+    infra_note = ""
+    if trace_infra or completeness_infra:
+        infra_note = """
+> [!WARNING]
+> **Infrastructure failure detected.** A check marked `INFRA_FAILURE (did not run)`
+> below is not a code-quality result: Copilot CLI failed after retries and never
+> evaluated this PR. Per current policy this does not block merge (see
+> `.agents/governance/FAIL-OPEN-INVENTORY.md`). If this persists, check
+> `COPILOT_GITHUB_TOKEN` scope, rate limits, or network connectivity.
+"""
+
     return f"""\
 <!-- AI-SPEC-VALIDATION -->
 
@@ -175,7 +232,7 @@ def _build_full_report(
 
 > [!{alert_type}]
 > {final_emoji} **Final Verdict: {final_verdict}**
-
+{infra_note}
 <details>
 <summary>What is Spec Validation?</summary>
 
@@ -190,8 +247,8 @@ This validation ensures your implementation matches the specifications:
 
 | Check | Verdict | Status |
 |:------|:--------|:------:|
-| Requirements Traceability | `{trace_verdict}` | {trace_emoji} |
-| Implementation Completeness | `{completeness_verdict}` | {completeness_emoji} |
+| Requirements Traceability | `{trace_display}` | {trace_emoji} |
+| Implementation Completeness | `{completeness_display}` | {completeness_emoji} |
 
 ### Spec References
 
@@ -242,13 +299,31 @@ def main(argv: list[str] | None = None) -> int:
     else:
         trace_verdict: str = args.trace_verdict
         completeness_verdict: str = args.completeness_verdict
+        trace_infra: bool = _is_infra_failure(args.trace_infra_failure)
+        completeness_infra: bool = _is_infra_failure(args.completeness_infra_failure)
 
-        if spec_validation_failed(trace_verdict, completeness_verdict):
-            final_verdict = "FAIL"
-        elif trace_verdict == "WARN" or completeness_verdict == "WARN":
-            final_verdict = "WARN"
+        if trace_infra and completeness_infra:
+            # Neither side produced a real verdict; nothing here is PASS,
+            # FAIL, or WARN. Mirrors check_spec_failures.py's own
+            # both-infra branch, which likewise never reaches
+            # spec_validation_failed on raw CRITICAL_FAIL verdicts.
+            final_verdict = "INFRA_FAILURE"
         else:
-            final_verdict = "PASS"
+            trace_for_verdict = "" if trace_infra else trace_verdict
+            completeness_for_verdict = (
+                "" if completeness_infra else completeness_verdict
+            )
+            if spec_validation_failed(trace_for_verdict, completeness_for_verdict):
+                final_verdict = "FAIL"
+            elif trace_infra or completeness_infra:
+                # One side could not run; the other side did not fail, but
+                # only half of validation completed. WARN says "not fully
+                # validated," which PASS would not.
+                final_verdict = "WARN"
+            elif trace_verdict == "WARN" or completeness_verdict == "WARN":
+                final_verdict = "WARN"
+            else:
+                final_verdict = "PASS"
 
         spec_refs: str = args.spec_refs or "*None*"
         issue_refs: str = args.issue_refs or "*None*"
@@ -266,6 +341,8 @@ def main(argv: list[str] | None = None) -> int:
             final_verdict=final_verdict,
             trace_verdict=trace_verdict,
             completeness_verdict=completeness_verdict,
+            trace_infra=trace_infra,
+            completeness_infra=completeness_infra,
             spec_refs=spec_refs,
             issue_refs=issue_refs,
             trace_findings=trace_findings,
