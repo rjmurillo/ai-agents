@@ -104,23 +104,32 @@ This matrix routes work to an agent by capability; it does not set models. An in
 
 Every row above names an agent that is registered in this install. Delegate only to a name on this list, and confirm the agent is registered before routing: a delegation naming an agent that was renamed or retired fails silently, and the work is simply skipped rather than reported as an error. Cross-session retrieval and storage is not on this list because it is not an agent. Use the `memory` skill, or `mcp__serena__read_memory` and `mcp__serena__write_memory` directly.
 
-## Model and Effort Routing
+## Model, Effort, and Cost Routing
 
-Route by task shape | verifier strength | failure cost. Never vendor effort labels.
+Route by expected cost per accepted result | task shape | verifier strength | failure cost. Never vendor effort labels.
+`accepted-result cost = initial inference + retries + correction/repair + context replay/tool failures + verifier/review + coordination + human wait`
+Weight decision burden and correction cost above raw price | verifier strength | fan-out | coordination | human wait; qualitative, not universal.
 
 | Label | Effort | Route for |
 |---|---|---|
 | Luna | low/medium | Disposable, bounded high-volume discovery, extraction, classification, triage, boilerplate, configuration, scaffolding, docs, exact repetitive edits. |
-| Haiku | non-reasoning | Simple transformations and tool calls; model alias governed by ADR-080. |
+| Haiku | non-reasoning | Simple transformations and tool calls; alias governed by ADR-080. |
 | Terra or Sonnet | medium/high or medium | Known files and patterns, normal implementation or review, local repair, moderate analysis. |
 | Sol or Opus | medium/high | Ambiguity, architecture, difficult debugging, one irreducible hard find, cross-file reasoning, high-recall review, expensive-to-miss failures. |
 | Escalate | acceptance failure | Failed acceptance tests or typed exceptions, never vendor effort labels. |
 
-Labels are advisory capability tiers, not registered agents or model IDs. Astra
-is the orchestrator coordination role, not a model ID or dispatch target. Keep
-registered agent names, frontmatter, platform mappings, role-keyed results, and
-ADR-009/ADR-078 contracts authoritative. Resolve supported labels to concrete
-IDs; unresolved=`model_unavailable`; never silently substitute.
+Model labels and agent roles are separate | labels advisory, not agents or IDs.
+`orchestrator` coordinates | `autoplan` routes | known aliases: `opus`, `sonnet`, `haiku`.
+Astra, Sol, Terra, Luna, Fable are optional labels when the harness resolves them.
+Resolve to concrete IDs | unresolved: retain harness default + record fallback | never silently substitute.
+Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
+
+Judgment: Astra owns ambiguity/acceptance | Sol or Opus handles architecture, hard exceptions, high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
+Bounded: route down only when scope explicit | failure cheap | verifier objective | fan-out/context replay low | receipt compact.
+Escalation: acceptance failure | repeated repair | cross-file contract miss | scope overrun -> typed exception; never vendor effort labels.
+Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
+Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds context duplication and coordination tax.
+Benchmark costs are conditional on benchmark, harness, effort, prompt, tool loop, and passed-result definition; calibrate, do not universalize.
 
 ### Healthy Topology
 
@@ -129,9 +138,7 @@ Luna: disposable discovery. Terra: bounded implementation. Sol: hard exceptions/
 Independent verifier: tests | diff checks | schema checks | security checks.
 Flow: Astra -> Luna/Terra -> Sol on typed exception -> verifier -> Astra acceptance.
 
-Astra delegates, never implements | uses event-driven waits | returns deltas,
-not transcripts | accepts from verifier output and compact receipts | stops after
-acceptance. Astra owns ambiguity, consequential tradeoffs, synthesis, and final acceptance.
+Astra delegates, never implements | uses event-driven waits | returns deltas, not transcripts | accepts verifier output + compact receipts | stops after acceptance.
 
 ### Task Routing
 

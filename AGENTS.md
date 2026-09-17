@@ -43,6 +43,7 @@ Routing table: `.claude/skills/autoplan/SKILL.md`. Not restated here.
 
 Route: task shape | verifier strength | failure cost. Never vendor effort labels.
 Scope: model labels only | existing roles and safety gates remain authoritative.
+Cost gate: accepted-result cost includes inference, retries, correction, replay/tool failures, verifier/review, coordination, and human wait. Weight decision burden and correction cost above raw model price; route down only when scope is bounded, failure is cheap, and the verifier is objective.
 
 | Label | Effort | Route for |
 |---|---|---|
