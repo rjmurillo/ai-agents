@@ -24,8 +24,18 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from scripts.metrics.gate_latency_markdown_notes import (
+    _exclusion_sentence,
+    _load_line,
+    _piped_line,
+)
+
 if TYPE_CHECKING:
-    from scripts.metrics.gate_latency_models import GateLatencyReport, HookRun, LatencySummary
+    from scripts.metrics.gate_latency_models import (
+        GateLatencyReport,
+        HookRun,
+        LatencySummary,
+    )
 
 _O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 
@@ -105,10 +115,18 @@ def _kind(summary: LatencySummary) -> str:
 
 
 def _run_table(runs: list[HookRun]) -> list[str]:
+    """One row per repetition, including ``status`` and the load sampled around it.
+
+    ``status`` (REQ-027 D1 fix) is why a reader can tell which repetitions
+    fed the summaries above: ``_build_summaries`` excludes every row here
+    that is not ``complete`` unless ``--include-incomplete`` was passed, and
+    this table is where that exclusion is auditable row by row.
+    """
     lines = [
-        "| repetition | exit_code | wall_clock_seconds | lefthook_reported_seconds "
-        "| jobs_parsed | tree_mutated | unknown_status_count |",
-        "|---|---|---|---|---|---|---|",
+        "| repetition | exit_code | status | wall_clock_seconds | "
+        "lefthook_reported_seconds | jobs_parsed | tree_mutated | "
+        "unknown_status_count | load_before | load_after |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for run in runs:
         reported = (
@@ -116,9 +134,12 @@ def _run_table(runs: list[HookRun]) -> list[str]:
             if run.lefthook_reported_seconds is None
             else f"{run.lefthook_reported_seconds:.3f}"
         )
+        load_before = "N/A" if run.load_before is None else f"{run.load_before:.2f}"
+        load_after = "N/A" if run.load_after is None else f"{run.load_after:.2f}"
         lines.append(
-            f"| {run.repetition_index} | {run.exit_code} | {run.wall_clock_seconds:.3f} | "
-            f"{reported} | {run.jobs_parsed} | {run.tree_mutated} | {run.unknown_status_count} |"
+            f"| {run.repetition_index} | {run.exit_code} | {run.status} | "
+            f"{run.wall_clock_seconds:.3f} | {reported} | {run.jobs_parsed} | "
+            f"{run.tree_mutated} | {run.unknown_status_count} | {load_before} | {load_after} |"
         )
     return lines
 
@@ -140,11 +161,27 @@ def write_markdown(report: GateLatencyReport, path: Path) -> None:
         f"- Forced (glob filtering bypassed): {report.forced}",
         f"- Host: {report.host.platform}, {report.host.cpu_count} CPUs, "
         f"Python {report.host.python_version}",
+        f"- Load average: {_load_line(report.host)}. A loaded machine measures "
+        "slower for reasons other than the gate itself (ci-scripts.md MUST-16).",
         "",
         "These figures describe one machine on one date. Per-job scheduling "
         "is not inferred from the per-repetition table below; read "
         "`lefthook.yml` for that (ci-scripts.md MUST-17).",
         "",
+    ]
+    if report.repetitions == 1:
+        lines += [
+            "With `repetitions: 1`, the relative truncation check cannot fire: "
+            "it classifies a repetition as `truncated` only when it parsed "
+            "fewer jobs than the maximum seen across this report's "
+            "repetitions, and with one repetition there is nothing to compare "
+            "against. The absolute check (see the `piped` flag line below) is "
+            "not subject to this limit: when the hook's `piped` flag is true "
+            "and it exited non-zero, this run is still classified `truncated` "
+            "even at n=1.",
+            "",
+        ]
+    lines += [
         "## Measurement command",
         "",
         "```",
@@ -163,7 +200,16 @@ def write_markdown(report: GateLatencyReport, path: Path) -> None:
     ]
     if report.percentile_note:
         lines += [report.percentile_note, ""]
-    lines += ["## Latency by scope", "", *_summary_table(report.summaries), ""]
+    lines += [
+        "## Latency by scope",
+        "",
+        _piped_line(report),
+        "",
+        *_exclusion_sentence(report),
+        "",
+        *_summary_table(report.summaries),
+        "",
+    ]
     lines += ["## Per-repetition runs", "", *_run_table(report.runs), ""]
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")

@@ -13,10 +13,19 @@ assembling a report in one place.
 Per ci-scripts.md MUST-16, the hook runs whole: this module never invokes
 lefthook with ``--job`` to time a job in isolation, because a standalone run
 does not predict that job's cost inside a real hook.
+
+Run-completeness classification (REQ-027 D1 fix and D1 follow-up, epic
+#5456) lives in ``gate_latency_classify.py``, split out to keep this module
+under the taste-lint warning ceiling once the D1 follow-up (the absolute,
+piped-based truncation trigger) was added. ``build_report`` below calls
+``_classify_run_status`` after every repetition is collected and
+``_resolve_piped_flag`` on the already-loaded lefthook config; read that
+module's docstring for the full reasoning behind both triggers.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import re
 import subprocess
 import time
@@ -24,11 +33,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from scripts.ci.lefthook_budget_model import declared_budget
+from scripts.metrics.gate_latency_classify import (
+    _TIMEOUT_EXIT_CODE,
+    _classify_run_status,
+    _count_by_status,
+    _resolve_piped_flag,
+)
 from scripts.metrics.gate_latency_models import GateLatencyReport, HookRun
 from scripts.metrics.gate_latency_probe import (
     _git_rev_parse_head,
     _host_profile,
     _load_lefthook_config,
+    _one_minute_load,
     _tree_digest,
 )
 from scripts.metrics.gate_latency_stats import (
@@ -43,9 +59,6 @@ from scripts.metrics.lefthook_summary import parse_summary
 # per-job timeout: values already bound the individual jobs. A timeout is
 # recorded as a failed repetition, never raised past the caller (AC-06).
 _HOOK_TIMEOUT_SECONDS = 3600.0
-
-# Recorded in place of a real exit code when the hook is killed on timeout.
-_TIMEOUT_EXIT_CODE = -1
 
 
 _URL_USERINFO_RE = re.compile(r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.-]*://)(?P<userinfo>[^/@\s]+)@")
@@ -113,6 +126,7 @@ def _run_repetition(
     if force:
         cmd.append("--force")
     digest_before = _tree_digest(repo)
+    load_before = _one_minute_load()
     start = time.perf_counter()
     try:
         result = subprocess.run(
@@ -130,6 +144,7 @@ def _run_repetition(
     except subprocess.TimeoutExpired as expired:
         stdout = "" if expired.stdout is None else _as_text(expired.stdout)
         exit_code = _TIMEOUT_EXIT_CODE
+    load_after = _one_minute_load()
     wall_clock_seconds = time.perf_counter() - start
     digest_after = _tree_digest(repo)
     samples, reported_seconds = parse_summary(stdout)
@@ -143,6 +158,8 @@ def _run_repetition(
         tree_mutated=digest_before != digest_after,
         unknown_status_count=unknown_status_count,
         samples=samples,
+        load_before=load_before,
+        load_after=load_after,
     )
 
 
@@ -157,15 +174,34 @@ def build_report(
     stdin_ref_line: str | None = None,
     hook_args: tuple[str, ...] = (),
     force: bool = False,
+    include_incomplete: bool = False,
 ) -> GateLatencyReport:
-    """Run every repetition and fold the results into one report."""
+    """Run every repetition and fold the results into one report.
+
+    ``include_incomplete`` (wired to ``--include-incomplete``) restores the
+    pre-D1-fix behavior of folding every repetition into the summaries
+    regardless of its classified ``status``; see
+    ``gate_latency_stats._build_summaries`` for what that changes.
+    """
     runs = [
         _run_repetition(repo, lefthook_cmd, hook, files, index, stdin_ref_line, hook_args, force)
         for index in range(repetitions)
     ]
-    summaries = _build_summaries(runs)
     exclusions: list[dict[str, str]] = []
     config = _load_lefthook_config(repo)
+    piped = _resolve_piped_flag(config, hook, exclusions)
+    # Classification happens here, after every repetition is in hand, because
+    # the relative trigger is defined relative to the other repetitions in
+    # this same report, and the absolute trigger needs the hook's piped
+    # flag resolved above (see this module's docstring and
+    # _classify_run_status).
+    max_jobs_parsed = max((run.jobs_parsed for run in runs), default=0)
+    runs = [
+        dataclasses.replace(run, status=_classify_run_status(run, max_jobs_parsed, piped))
+        for run in runs
+    ]
+    summaries = _build_summaries(runs, include_incomplete=include_incomplete)
+    run_status_counts = _count_by_status(runs)
     declared_seconds: float | None = None
     if config is not None and hook in config:
         declared_seconds, _rows = declared_budget(config, hook)
@@ -193,4 +229,7 @@ def build_report(
         hook_args=[_redact_url_userinfo(arg) for arg in hook_args],
         forced=force,
         exclusions=exclusions,
+        run_status_counts=run_status_counts,
+        include_incomplete=include_incomplete,
+        piped=piped,
     )
