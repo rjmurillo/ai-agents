@@ -347,13 +347,6 @@ pre-commit:
             run: uv run --frozen python scripts/validate_memory_tier.py --path .serena/memories
             glob: ".serena/memories/**/*.md"
 
-          - name: memory-placement
-            timeout: 5m
-            run: uv run --frozen python scripts/validation/check_memory_placement.py --ci --base HEAD {staged_files}
-            glob: ".serena/memories/**/*.md"
-            skip:
-              - merge
-
     - group:
         piped: true
         jobs:
@@ -372,6 +365,13 @@ pre-commit:
             skip:
               - merge
               - run: test "$SKIP_AUTOFIX" = "1"
+
+    - name: memory-placement
+      timeout: 5m
+      run: uv run --frozen python scripts/validation/check_memory_placement.py --ci --base HEAD --staged {staged_files}
+      glob: ".serena/memories/**/*.md"
+      skip:
+        - merge
 
     - name: memory-skill-format
       timeout: 5m
