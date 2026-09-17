@@ -385,3 +385,49 @@ def test_main_passes_base_to_collect(monkeypatch):
     code = sc.main(["--base", "origin/release"])
     assert code == 0
     assert seen["base_ref"] == "origin/release"
+
+
+# --- shared fence contract (issue #5275 follow-up) -------------------------
+
+
+def test_parse_frontmatter_rejects_trailing_text_after_the_fence():
+    """The deliberate tightening: `--- nope` no longer closes a block.
+
+    This parser's fence used to be `text.find("\\n---", 3)`, a substring search
+    that accepted any line merely starting with three dashes. It now shares
+    `scripts/validation/frontmatter_contract.py` with every other ADR-adjacent
+    parser, so a forged close is refused here too.
+    """
+    text = "---\nmodel: opus\n--- nope\nBody.\n"
+    assert sc.parse_frontmatter(text) == {}
+
+
+def test_parse_frontmatter_accepts_a_padded_closing_fence():
+    """Unchanged: the old substring search accepted this and so does the contract."""
+    text = "---\nmodel: opus\n--- \nBody.\n"
+    assert sc.parse_frontmatter(text) == {"model": "opus"}
+
+
+def test_parse_frontmatter_accepts_four_dashes():
+    text = "---\nmodel: opus\n----\nBody.\n"
+    assert sc.parse_frontmatter(text) == {"model": "opus"}
+
+
+def test_parse_frontmatter_returns_empty_for_an_unterminated_block():
+    assert sc.parse_frontmatter("---\nmodel: opus\nBody.\n") == {}
+
+
+def test_parse_frontmatter_keeps_string_values_not_yaml_typed_ones():
+    """The half that must NOT converge on the contract.
+
+    The contract loads YAML, which would coerce `true` to a bool and `3` to an
+    int. This parser feeds a string comparison and deliberately does not, which
+    is why only the fence is shared. A migration that also adopted the
+    contract's value handling would silently change what counts as a
+    contradiction.
+    """
+    text = "---\nmodel: opus\nenabled: true\ncount: 3\n---\nBody.\n"
+    front = sc.parse_frontmatter(text)
+    assert front["enabled"] == "true"
+    assert front["count"] == "3"
+    assert all(isinstance(v, str) for v in front.values())
