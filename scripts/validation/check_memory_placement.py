@@ -21,11 +21,9 @@ and indented code is blanked (a memory quoting a rule's shape is evidence):
         Handoff|Responsibilities (an agent's role-contract shape).
 
 POLICY: ``normative`` when (b) or (d) fires, or (a) >= 5 with (c).
-``suspect`` when (a) >= 3 or (c) fires alone. Otherwise ``evidence``. The
-two-signal threshold exists because single words are weak: measured on the
-993-file corpus (2026-09-16), 162 files contain MUST and 185 carry a (b)
-heading. The check itself reports 188 normative and 198 suspect warnings on
-that corpus, 0 failing, exit 0.
+``suspect`` when (a) >= 3 or (c) fires, or both. Otherwise ``evidence``.
+Two signals are required because single words are weak; the corpus figures
+behind the thresholds are in DESIGN-026 and the PR that added this check.
 
 A file present in the ``--base`` tree never fails; it warns. Only a file
 absent from the base tree fails, and only when classified ``normative``.
@@ -432,10 +430,13 @@ def _resolve_candidates(args: argparse.Namespace, repo_root: Path) -> list[tuple
             raise _ConfigError(f"path is outside the repository: {raw}")
         if abspath.is_dir():
             raise _ConfigError(f"positional path is a directory, use --path: {raw}")
-        if _is_skippable(abspath) or not abspath.is_file():
+        if _is_skippable(abspath):
             continue
-        # The lexical path names the entry git tracks; the resolved target is
-        # what read_text opens. A link whose target escapes the repo is refused.
+        if not abspath.is_file():
+            # Fail closed. lefthook's {staged_files} never lists deletions
+            # (ACMR filter), so a staged memory deletion cannot land here.
+            raise _ConfigError(f"path is missing or a dangling symlink: {raw}")
+        # Lexical path = git entry; resolved target = what read_text opens.
         if not abspath.resolve().is_relative_to(repo_root):
             raise _ConfigError(f"symlink target is outside the repository: {raw}")
         candidates.append((abspath.relative_to(repo_root).as_posix(), abspath))

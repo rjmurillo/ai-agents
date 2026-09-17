@@ -225,6 +225,29 @@ def test_valid_ref_rejects_blank_control_and_option_shapes():
     assert checker._valid_ref("HEAD\n--help") is False
 
 
+def test_missing_positional_path_exits_two(repo: Path, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    code = checker.main(["--ci", ".serena/memories/does-not-exist.md"])
+    assert code == 2
+    assert "missing or a dangling symlink" in capsys.readouterr().err
+
+
+def test_dangling_symlink_exits_two(repo: Path, monkeypatch, capsys):
+    link = repo / ".serena" / "memories" / "dangling.md"
+    link.symlink_to(repo / "nowhere.md")
+    monkeypatch.chdir(repo)
+    code = checker.main(["--ci", ".serena/memories/dangling.md"])
+    assert code == 2
+    assert "missing or a dangling symlink" in capsys.readouterr().err
+
+
+def test_missing_readme_positional_is_still_skipped(repo: Path, monkeypatch, capsys):
+    monkeypatch.chdir(repo)
+    code = checker.main(["--ci", ".serena/memories/README.md"])
+    assert code == 0
+    assert "0 file(s) examined" in capsys.readouterr().out
+
+
 def test_positional_directory_argument_exits_two(repo: Path, monkeypatch, capsys):
     monkeypatch.chdir(repo)
     code = checker.main(["--ci", ".serena/memories"])
