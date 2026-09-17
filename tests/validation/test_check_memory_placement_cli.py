@@ -33,6 +33,7 @@ _VALIDATION_DIR = _REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
     sys.path.insert(0, str(_VALIDATION_DIR))
 import check_memory_placement as checker
+import memory_placement_git as placement_git
 
 # --- git test-repo fixture ---------------------------------------------------
 
@@ -224,12 +225,12 @@ def test_option_shaped_base_ref_exits_two(repo: Path, monkeypatch, capsys):
 
 
 def test_valid_ref_rejects_blank_control_and_option_shapes():
-    assert checker._valid_ref("HEAD") is True
-    assert checker._valid_ref("origin/main") is True
-    assert checker._valid_ref("") is False
-    assert checker._valid_ref("   ") is False
-    assert checker._valid_ref("-r") is False
-    assert checker._valid_ref("HEAD\n--help") is False
+    assert placement_git.valid_ref("HEAD") is True
+    assert placement_git.valid_ref("origin/main") is True
+    assert placement_git.valid_ref("") is False
+    assert placement_git.valid_ref("   ") is False
+    assert placement_git.valid_ref("-r") is False
+    assert placement_git.valid_ref("HEAD\n--help") is False
 
 
 def test_missing_positional_path_exits_two(repo: Path, monkeypatch, capsys):
@@ -273,6 +274,26 @@ def test_staged_mode_falls_back_to_the_tree_for_an_unstaged_file(repo: Path, mon
     code = checker.main(["--ci", "--base", "HEAD", "--staged", ".serena/memories/loose.md"])
     assert code == 1
     assert "loose.md: normative" in capsys.readouterr().out
+
+
+def test_staged_mode_git_failure_exits_two_instead_of_falling_back(repo: Path, monkeypatch, capsys):
+    path = _write(repo, ".serena/memories/new.md", NORMATIVE_HEADING)
+    _run_git(repo, "add", ".serena/memories/new.md")
+    path.write_text(EVIDENCE_INCIDENT)
+    real = placement_git._run_subprocess
+
+    def failing_show(args, **kwargs):
+        if args[:2] == ["git", "show"]:
+            return 128, "", "fatal: simulated"
+        return real(args, **kwargs)
+
+    monkeypatch.setattr(placement_git, "_run_subprocess", failing_show)
+    monkeypatch.chdir(repo)
+    code = checker.main(["--ci", "--base", "HEAD", "--staged", ".serena/memories/new.md"])
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "git show" in captured.err
+    assert "examined" not in captured.out
 
 
 def test_positional_directory_argument_exits_two(repo: Path, monkeypatch, capsys):

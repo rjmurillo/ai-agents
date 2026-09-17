@@ -48,7 +48,13 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(_SCRIPT_DIR))
 
-from checks_common import _git_subprocess_env, _run_subprocess  # noqa: E402
+from memory_placement_git import (  # noqa: E402
+    ConfigError,
+    base_tree_paths,
+    index_paths,
+    read_candidate,
+    repo_root,
+)
 
 from scripts.utils.markdown_parser import (  # noqa: E402
     Section,
@@ -334,37 +340,6 @@ def _report_dict(examined: int, findings: list[Finding]) -> dict[str, object]:
     }
 
 
-def _repo_root() -> Path | None:
-    """Return the repository root for the current directory, or None."""
-    code, out, _ = _run_subprocess(
-        ["git", "rev-parse", "--show-toplevel"],
-        cwd=Path.cwd(),
-        env=_git_subprocess_env(),
-    )
-    if code != 0:
-        return None
-    return Path(out.strip()).resolve()
-
-
-def _valid_ref(base: str) -> bool:
-    """Reject a blank, control-character, or option-shaped (leading ``-``) ref."""
-    return bool(base.strip()) and not base.startswith("-") and base.isprintable()
-
-
-def _base_tree_paths(repo_root: Path, base: str) -> set[str] | None:
-    """Return every path git tracks at ``base``, or None if the ref is unusable."""
-    if not _valid_ref(base):
-        return None
-    code, out, _ = _run_subprocess(
-        ["git", "ls-tree", "-r", "-z", "--name-only", base],
-        cwd=repo_root,
-        env=_git_subprocess_env(),
-    )
-    if code != 0:
-        return None
-    return {entry for entry in out.split("\0") if entry}
-
-
 def _is_skippable(path: Path) -> bool:
     """True for README.md, any *-index.md, and anything that is not .md."""
     if path.suffix.lower() != ".md":
@@ -374,19 +349,15 @@ def _is_skippable(path: Path) -> bool:
     return path.name.endswith("-index.md")
 
 
-class _ConfigError(Exception):
-    """Raised for a usage or environment problem; ``main`` turns it into exit 2."""
-
-
 def _candidate_paths(args: argparse.Namespace, repo_root: Path) -> list[Path]:
     """Return the raw paths a caller asked to check, before filtering."""
     if args.path is not None:
         base_dir = args.path if args.path.is_absolute() else repo_root / args.path
         base_dir = base_dir.resolve()
         if not base_dir.is_relative_to(repo_root):
-            raise _ConfigError(f"--path is outside the repository: {args.path}")
+            raise ConfigError(f"--path is outside the repository: {args.path}")
         if not base_dir.is_dir():
-            raise _ConfigError(f"--path is not a directory: {args.path}")
+            raise ConfigError(f"--path is not a directory: {args.path}")
         return sorted(base_dir.rglob("*.md"))
     return [Path(p) for p in args.paths]
 
@@ -395,7 +366,7 @@ def _resolve_candidates(args: argparse.Namespace, repo_root: Path) -> list[tuple
     """Resolve caller-supplied paths to (repo-relative posix path, absolute path).
 
     Applies the README/``*-index.md``/non-``.md`` skip and rejects (raises
-    ``_ConfigError``) any path that resolves outside the repository root.
+    ``ConfigError``) any path that resolves outside the repository root.
     """
     candidates: list[tuple[str, Path]] = []
     for raw in _candidate_paths(args, repo_root):
@@ -405,31 +376,20 @@ def _resolve_candidates(args: argparse.Namespace, repo_root: Path) -> list[tuple
         # link itself is new. resolve() would report the target instead.
         abspath = Path(os.path.normpath(abspath))
         if not abspath.is_relative_to(repo_root):
-            raise _ConfigError(f"path is outside the repository: {raw}")
+            raise ConfigError(f"path is outside the repository: {raw}")
         if abspath.is_dir():
-            raise _ConfigError(f"positional path is a directory, use --path: {raw}")
+            raise ConfigError(f"positional path is a directory, use --path: {raw}")
         if _is_skippable(abspath):
             continue
         if not abspath.is_file():
             # Fail closed. lefthook's {staged_files} never lists deletions
             # (ACMR filter), so a staged memory deletion cannot land here.
-            raise _ConfigError(f"path is missing or a dangling symlink: {raw}")
+            raise ConfigError(f"path is missing or a dangling symlink: {raw}")
         # Lexical path = git entry; resolved target = what read_text opens.
         if not abspath.resolve().is_relative_to(repo_root):
-            raise _ConfigError(f"symlink target is outside the repository: {raw}")
+            raise ConfigError(f"symlink target is outside the repository: {raw}")
         candidates.append((abspath.relative_to(repo_root).as_posix(), abspath))
     return candidates
-
-
-def _read_candidate(repo_root: Path, relpath: str, abspath: Path, staged: bool) -> str:
-    """Return the file text: the index blob under ``--staged``, else the tree."""
-    if staged:
-        code, out, _ = _run_subprocess(
-            ["git", "show", f":{relpath}"], cwd=repo_root, env=_git_subprocess_env()
-        )
-        if code == 0:
-            return str(out)
-    return abspath.read_text(encoding="utf-8", errors="replace")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -452,28 +412,33 @@ def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns an ADR-035 exit code."""
     args = parse_args(argv)
 
-    repo_root = _repo_root()
-    if repo_root is None:
+    root = repo_root()
+    if root is None:
         print("error: not a git repository (or git is unavailable)", file=sys.stderr)
         return 2
 
     try:
-        candidates = _resolve_candidates(args, repo_root)
-    except _ConfigError as exc:
+        candidates = _resolve_candidates(args, root)
+    except ConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    base_tree = _base_tree_paths(repo_root, args.base)
+    base_tree = base_tree_paths(root, args.base)
     if base_tree is None:
         print(f"error: could not read base ref {args.base!r} with git ls-tree", file=sys.stderr)
         return 2
 
     findings: list[Finding] = []
-    for relpath, abspath in candidates:
-        text = _read_candidate(repo_root, relpath, abspath, args.staged)
-        finding = evaluate_file(relpath, text, relpath not in base_tree)
-        if finding is not None:
-            findings.append(finding)
+    try:
+        index = index_paths(root) if args.staged else None
+        for relpath, abspath in candidates:
+            text = read_candidate(root, relpath, abspath, index)
+            finding = evaluate_file(relpath, text, relpath not in base_tree)
+            if finding is not None:
+                findings.append(finding)
+    except ConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
     if args.json:
         print(json.dumps(_report_dict(len(candidates), findings), indent=2))
