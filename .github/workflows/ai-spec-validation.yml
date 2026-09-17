@@ -211,6 +211,8 @@ jobs:
           TRACE_FINDINGS: ${{ steps.trace.outputs.findings }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
           COMPLETENESS_FINDINGS: ${{ steps.completeness.outputs.findings }}
+          TRACE_INFRA_FAILURE: ${{ steps.trace.outputs['infrastructure-failure'] }}
+          COMPLETENESS_INFRA_FAILURE: ${{ steps.completeness.outputs['infrastructure-failure'] }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
           RUN_ID: ${{ github.run_id }}

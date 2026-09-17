@@ -57,6 +57,8 @@ def _make_argv(
     issue_refs: str = "#42",
     trace_findings: str = "All traced",
     completeness_findings: str = "All complete",
+    trace_infra_failure: str = "",
+    completeness_infra_failure: str = "",
     github_repository: str = "owner/repo",
     server_url: str = "https://github.com",
     run_id: str = "12345",
@@ -71,6 +73,8 @@ def _make_argv(
         "--issue-refs", issue_refs,
         "--trace-findings", trace_findings,
         "--completeness-findings", completeness_findings,
+        "--trace-infra-failure", trace_infra_failure,
+        "--completeness-infra-failure", completeness_infra_failure,
         "--github-repository", github_repository,
         "--server-url", server_url,
         "--run-id", run_id,
@@ -90,10 +94,21 @@ class TestBuildParser:
         assert args.has_specs == "true"
         assert args.trace_verdict == "PASS"
         assert args.completeness_verdict == "PASS"
+        assert args.trace_infra_failure == ""
+        assert args.completeness_infra_failure == ""
+
+    def test_infra_failure_args_parsed(self):
+        args = build_parser().parse_args(_make_argv(
+            trace_infra_failure="true",
+            completeness_infra_failure="true",
+        ))
+        assert args.trace_infra_failure == "true"
+        assert args.completeness_infra_failure == "true"
 
     def test_defaults_to_empty(self, monkeypatch):
         for env in ["HAS_SPECS", "SPEC_REFS", "ISSUE_REFS", "TRACE_VERDICT",
                      "TRACE_FINDINGS", "COMPLETENESS_VERDICT", "COMPLETENESS_FINDINGS",
+                     "TRACE_INFRA_FAILURE", "COMPLETENESS_INFRA_FAILURE",
                      "GITHUB_REPOSITORY", "SERVER_URL", "RUN_ID", "EVENT_NAME",
                      "REF_NAME"]:
             monkeypatch.delenv(env, raising=False)
@@ -223,3 +238,96 @@ class TestMainWithSpecs:
         assert rc == 0
         report = (report_dir / "spec-validation-report.md").read_text()
         assert "99999" in report
+
+
+# ---------------------------------------------------------------------------
+# Tests: main - infrastructure failure (issue #5738)
+#
+# check_spec_failures.py governs whether the required check blocks merge;
+# these tests govern the separate, non-blocking PR comment channel that
+# operators actually read. Before this fix, an infra failure rendered the
+# raw AI-review verdict (CRITICAL_FAIL) unlabeled, indistinguishable from a
+# real code-quality rejection.
+# ---------------------------------------------------------------------------
+
+
+class TestMainInfraFailure:
+    def test_both_infra_failures_yield_infra_failure_verdict(self, tmp_path, monkeypatch):
+        """Positive: both sides failing on infra never reads as PASS or FAIL."""
+        _setup_output(tmp_path, monkeypatch)
+        report_dir = tmp_path / "ai-review-results"
+        with patch(
+            "generate_spec_report.initialize_ai_review",
+            return_value=str(report_dir),
+        ):
+            report_dir.mkdir(parents=True)
+            rc = main(_make_argv(
+                trace_verdict="CRITICAL_FAIL",
+                completeness_verdict="CRITICAL_FAIL",
+                trace_infra_failure="true",
+                completeness_infra_failure="true",
+            ))
+        assert rc == 0
+        report = (report_dir / "spec-validation-report.md").read_text()
+        assert "Final Verdict: INFRA_FAILURE" in report
+        assert "Final Verdict: FAIL" not in report
+        assert "Final Verdict: PASS" not in report
+        # The raw, misleading verdict must not appear unlabeled anywhere.
+        assert "`CRITICAL_FAIL`" not in report
+        assert "COPILOT_GITHUB_TOKEN" in report
+        assert "infrastructure failure" in report.lower()
+
+    def test_real_failure_not_masked_by_infra_on_other_side(self, tmp_path, monkeypatch):
+        """Negative: a genuine failure on the healthy side still surfaces as FAIL."""
+        _setup_output(tmp_path, monkeypatch)
+        report_dir = tmp_path / "ai-review-results"
+        with patch(
+            "generate_spec_report.initialize_ai_review",
+            return_value=str(report_dir),
+        ):
+            report_dir.mkdir(parents=True)
+            rc = main(_make_argv(
+                trace_verdict="CRITICAL_FAIL",
+                completeness_verdict="FAIL",
+                trace_infra_failure="true",
+            ))
+        assert rc == 0
+        report = (report_dir / "spec-validation-report.md").read_text()
+        assert "Final Verdict: FAIL" in report
+        assert "Final Verdict: INFRA_FAILURE" not in report
+
+    def test_one_sided_infra_failure_yields_warn_not_pass(self, tmp_path, monkeypatch):
+        """Edge: one side down and the other healthy is WARN, not a clean PASS."""
+        _setup_output(tmp_path, monkeypatch)
+        report_dir = tmp_path / "ai-review-results"
+        with patch(
+            "generate_spec_report.initialize_ai_review",
+            return_value=str(report_dir),
+        ):
+            report_dir.mkdir(parents=True)
+            rc = main(_make_argv(
+                trace_verdict="CRITICAL_FAIL",
+                completeness_verdict="PASS",
+                trace_infra_failure="true",
+            ))
+        assert rc == 0
+        report = (report_dir / "spec-validation-report.md").read_text()
+        assert "Final Verdict: WARN" in report
+        assert "Final Verdict: PASS" not in report
+        assert "INFRA_FAILURE (did not run)" in report
+
+    def test_no_infra_flags_preserves_prior_pass_behavior(self, tmp_path, monkeypatch):
+        """Negative control: default (no infra flags) is unaffected by this change."""
+        _setup_output(tmp_path, monkeypatch)
+        report_dir = tmp_path / "ai-review-results"
+        with patch(
+            "generate_spec_report.initialize_ai_review",
+            return_value=str(report_dir),
+        ):
+            report_dir.mkdir(parents=True)
+            rc = main(_make_argv())
+        assert rc == 0
+        report = (report_dir / "spec-validation-report.md").read_text()
+        assert "Final Verdict: PASS" in report
+        assert "INFRA_FAILURE" not in report
+        assert "Infrastructure failure detected" not in report
