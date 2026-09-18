@@ -71,17 +71,16 @@ _ROLE_CONTRACT_MIN_HEADINGS = 2
 # case-sensitive MUST NOT | MUST | SHALL, then case-insensitive phrases.
 _NORMATIVE_TERM_RE = re.compile(r"\b(?:MUST NOT|MUST|SHALL|(?i:must not|never|always|required))\b")
 
-_HEADING_NORMATIVE_WORDS = (
+_HEADING_GOVERNANCE_WORDS = (
     "Constraints",
     "Guardrails",
-    "Workflow",
-    "Procedure",
-    "Protocol",
     "Responsibilities",
     "Entry Criteria",
     "Acceptance Criteria",
     "Handoff",
 )
+_HEADING_PROCEDURAL_WORDS = ("Workflow", "Procedure", "Protocol")
+_HEADING_NORMATIVE_WORDS = _HEADING_GOVERNANCE_WORDS + _HEADING_PROCEDURAL_WORDS
 _HEADING_NORMATIVE_RE = re.compile(
     r"\b(" + "|".join(re.escape(w) for w in _HEADING_NORMATIVE_WORDS) + r")\b",
     re.IGNORECASE,
@@ -97,6 +96,10 @@ _ROLE_CONTRACT_WORDS = (
 )
 _ROLE_CONTRACT_RE = re.compile(
     r"\b(" + "|".join(re.escape(w) for w in _ROLE_CONTRACT_WORDS) + r")\b",
+    re.IGNORECASE,
+)
+_HEADING_GOVERNANCE_RE = re.compile(
+    r"\b(" + "|".join(re.escape(w) for w in _HEADING_GOVERNANCE_WORDS) + r")\b",
     re.IGNORECASE,
 )
 
@@ -140,22 +143,26 @@ def _count_normative_terms(text: str) -> int:
     return len(_NORMATIVE_TERM_RE.findall(text))
 
 
-def _heading_signals(sections: list[Section]) -> tuple[list[str], list[str]]:
-    """Return (signal-(b) heading matches, signal-(d) role-heading matches)."""
+def _heading_signals(sections: list[Section]) -> tuple[list[str], list[str], list[str]]:
+    """Return normative, governance, and role-contract heading matches."""
     normative_matches: list[str] = []
+    governance_matches: list[str] = []
     role_matches: list[str] = []
     seen_roles: set[str] = set()
     for section in sections:
         normative_hit = _HEADING_NORMATIVE_RE.search(section.title)
         if normative_hit:
             normative_matches.append(normative_hit.group(1))
+        governance_hit = _HEADING_GOVERNANCE_RE.search(section.title)
+        if governance_hit:
+            governance_matches.append(governance_hit.group(1))
         role_hit = _ROLE_CONTRACT_RE.search(section.title)
         if role_hit:
             key = role_hit.group(1).lower()
             if key not in seen_roles:
                 seen_roles.add(key)
                 role_matches.append(role_hit.group(1))
-    return normative_matches, role_matches
+    return normative_matches, governance_matches, role_matches
 
 
 def _has_ordered_procedure(text: str) -> tuple[bool, int]:
@@ -234,7 +241,7 @@ def _collect_signals(
 def classify(text: str) -> Classification:
     """Classify one memory file's raw text. Pure: no filesystem or git access."""
     sections = parse_sections(text)
-    heading_matches, role_matches = _heading_signals(sections)
+    heading_matches, governance_matches, role_matches = _heading_signals(sections)
     # Signals (a) and (c) scan raw lines, so blank fenced and indented code
     # first: a memory that quotes a rule's shape inside a fence is evidence
     # about that rule, not a rule. parse_sections already skips fences.
@@ -242,11 +249,12 @@ def classify(text: str) -> Classification:
     a_count = _count_normative_terms(prose)
     ordered_fires, ordered_count = _has_ordered_procedure(prose)
     b_fires = bool(heading_matches)
+    governance_fires = bool(governance_matches)
     d_fires = len(role_matches) >= _ROLE_CONTRACT_MIN_HEADINGS
 
     signals = _collect_signals(a_count, heading_matches, ordered_fires, ordered_count, role_matches)
     raw_label = _derive_raw_label(a_count, b_fires, ordered_fires, d_fires)
-    route = _derive_route(a_count, b_fires, ordered_fires, d_fires)
+    route = _derive_route(a_count, governance_fires, ordered_fires, d_fires)
 
     suppressed, invalid_suppression = _suppression_status(prose)
     if invalid_suppression:
