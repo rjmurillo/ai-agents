@@ -13,8 +13,8 @@ Environment: Linux, Python 3.14.7, Lefthook 2.1.12
 | `context-output-check` job | 1.35s |
 | Manifest checker, five warm direct runs | 0.14s each |
 
-The hook ran the staged checker against 12 sources, 12 indexes, and 118
-expected detail files. It found 118 detail files. The checker performed no
+The hook ran the staged checker against 12 sources, 12 indexes, and 113
+expected detail files. It found 113 detail files. The checker performed no
 writes. The staged regression test detected drift when only the changed source
 was staged.
 

@@ -40,7 +40,8 @@ class TestManifestContract:
         assert report.issues == []
         assert report.sources_checked == 12
         assert report.indexes_checked == 12
-        assert report.details_found == report.details_checked
+        assert report.details_checked == 113
+        assert report.details_found == 113
 
     def _generate_manifest(self, tmp_path):
         source = tmp_path / "source.md"
