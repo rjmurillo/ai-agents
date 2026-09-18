@@ -21,6 +21,8 @@ sys.path.insert(
 from extract_and_index import check_manifest, extract_and_index
 from test_extract_and_index import SAMPLE_DOC
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
 
 @pytest.fixture(autouse=True)
 def stub_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -29,6 +31,17 @@ def stub_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class TestManifestContract:
+    def test_committed_manifest_checks_every_declared_output(self):
+        """The committed manifest guards the complete repository output set."""
+        manifest_path = REPO_ROOT / ".agents" / "context-output-manifest.json"
+
+        report = check_manifest(manifest_path, repo_root=REPO_ROOT)
+
+        assert report.issues == []
+        assert report.sources_checked == 12
+        assert report.indexes_checked == 12
+        assert report.details_found == report.details_checked
+
     def _generate_manifest(self, tmp_path):
         source = tmp_path / "source.md"
         output_root = tmp_path / "output"

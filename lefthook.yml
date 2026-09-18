@@ -73,9 +73,9 @@ pre-commit:
     # 30s -> 20s pays for repo-health's 10s above, so the pre-commit declared
     # worst case is unchanged. This job's own bound is one subprocess under a
     # `timeout=10` plus a non-blocking flock probe, and it measured 0.087s here,
-    # so 15s leaves 5s of headroom above its 10s subprocess ceiling.
+    # so 20s is still twice its internal ceiling.
     - name: push-lock-commit-guard
-      timeout: 15s
+      timeout: 20s
       run: uv run --frozen python scripts/validation/check_push_lock_before_commit.py
 
     - group:
