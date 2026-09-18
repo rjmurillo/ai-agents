@@ -59,6 +59,7 @@ from memory_placement_git import (  # noqa: E402
 from scripts.utils.markdown_parser import (  # noqa: E402
     Section,
     blank_code_block_lines,
+    blank_non_prose_block_lines,
     parse_sections,
 )
 
@@ -144,7 +145,7 @@ def _count_normative_terms(text: str) -> int:
 
 
 def _heading_signals(sections: list[Section]) -> tuple[list[str], list[str], list[str]]:
-    """Return normative, governance, and role-contract heading matches."""
+    """Return normative, governance, and role heading matches."""
     normative_matches: list[str] = []
     governance_matches: list[str] = []
     role_matches: list[str] = []
@@ -191,9 +192,14 @@ def _has_ordered_procedure(text: str) -> tuple[bool, int]:
 
 def _suppression_status(text: str) -> tuple[bool, bool]:
     """Return (suppressed, invalid_suppression) for a placement marker in ``text``."""
-    if _VALID_SUPPRESSION_RE.search(text):
+    valid_placeholder = "__valid_placement_marker__"
+    invalid_placeholder = "__invalid_placement_marker__"
+    marked = _VALID_SUPPRESSION_RE.sub(valid_placeholder, text)
+    marked = _ANY_SUPPRESSION_RE.sub(invalid_placeholder, marked)
+    prose = blank_non_prose_block_lines(marked)
+    if valid_placeholder in prose:
         return True, False
-    if _ANY_SUPPRESSION_RE.search(text):
+    if invalid_placeholder in prose:
         return False, True
     return False, False
 
@@ -207,11 +213,19 @@ def _derive_raw_label(a_count: int, b_fires: bool, ordered_fires: bool, d_fires:
     return "evidence"
 
 
-def _derive_route(a_count: int, b_fires: bool, ordered_fires: bool, d_fires: bool) -> str:
+def _derive_route(
+    a_count: int,
+    governance_fires: bool,
+    procedural_fires: bool,
+    ordered_fires: bool,
+    d_fires: bool,
+) -> str:
     """Apply the route heuristic from the module docstring."""
     if d_fires:
         return "agent"
-    if b_fires:
+    if procedural_fires:
+        return "skill"
+    if governance_fires:
         return "rule"
     if ordered_fires and a_count < _NORMATIVE_TERM_THRESHOLD:
         return "skill"
@@ -250,11 +264,14 @@ def classify(text: str) -> Classification:
     ordered_fires, ordered_count = _has_ordered_procedure(prose)
     b_fires = bool(heading_matches)
     governance_fires = bool(governance_matches)
+    procedural_fires = any(
+        match.casefold() in ("workflow", "procedure", "protocol") for match in heading_matches
+    )
     d_fires = len(role_matches) >= _ROLE_CONTRACT_MIN_HEADINGS
 
     signals = _collect_signals(a_count, heading_matches, ordered_fires, ordered_count, role_matches)
     raw_label = _derive_raw_label(a_count, b_fires, ordered_fires, d_fires)
-    route = _derive_route(a_count, governance_fires, ordered_fires, d_fires)
+    route = _derive_route(a_count, governance_fires, procedural_fires, ordered_fires, d_fires)
 
     suppressed, invalid_suppression = _suppression_status(prose)
     if invalid_suppression:

@@ -59,6 +59,7 @@ def _run_git(cwd: Path, *args: str) -> None:
         check=True,
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
 

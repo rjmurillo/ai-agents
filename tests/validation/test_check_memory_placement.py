@@ -77,6 +77,12 @@ def test_classify_procedural_heading_routes_to_skill():
     assert result.route == "skill"
 
 
+def test_classify_procedural_heading_with_prose_routes_to_skill():
+    result = checker.classify("## Workflow\n\nReview the deployment evidence.\n")
+    assert result.label == "normative"
+    assert result.route == "skill"
+
+
 def test_classify_ignores_headings_and_lists_inside_fenced_code():
     # A memory that quotes a rule's shape inside a code fence is evidence
     # about that rule, not a rule. Headings and numbered steps inside the
@@ -120,6 +126,16 @@ def test_classify_marker_nested_in_html_element_does_not_suppress():
     text = (
         "# Notes\n\n## Constraints\n\nMUST do X.\n\n"
         "<div><!-- placement: evidence; reason: nested --></div>\n"
+    )
+    result = checker.classify(text)
+    assert result.label == "normative"
+    assert result.suppressed is False
+
+
+def test_classify_marker_inside_multiline_html_block_does_not_suppress():
+    text = (
+        "# Notes\n\n## Constraints\n\nMUST do X.\n\n<div>\n"
+        "<!-- placement: evidence; reason: nested -->\n</div>\n"
     )
     result = checker.classify(text)
     assert result.label == "normative"
