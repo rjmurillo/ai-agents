@@ -27,6 +27,7 @@ def repo_root() -> Path | None:
     """Return the repository root for the current directory, or None."""
     code, out, _ = _run_subprocess(
         ["git", "rev-parse", "--show-toplevel"],
+        timeout=GIT_READ_TIMEOUT,
         cwd=Path.cwd(),
         env=_git_subprocess_env(),
     )
@@ -46,6 +47,7 @@ def base_tree_paths(repo_root: Path, base: str) -> set[str] | None:
         return None
     code, out, _ = _run_subprocess(
         ["git", "ls-tree", "-r", "-z", "--name-only", base],
+        timeout=GIT_READ_TIMEOUT,
         cwd=repo_root,
         env=_git_subprocess_env(),
     )
@@ -54,27 +56,40 @@ def base_tree_paths(repo_root: Path, base: str) -> set[str] | None:
     return {entry for entry in out.split("\0") if entry}
 
 
-def index_paths(repo_root: Path) -> set[str]:
-    """Return every path in the git index; a git failure is a config error."""
+def index_paths(repo_root: Path) -> dict[str, str]:
+    """Return indexed paths and modes; a git failure is a config error."""
     code, out, err = _run_subprocess(
-        ["git", "ls-files", "-z", "--cached"],
+        ["git", "ls-files", "--stage", "-z"],
         timeout=GIT_READ_TIMEOUT,
         cwd=repo_root,
         env=_git_subprocess_env(),
     )
     if code != 0:
         raise ConfigError(f"git ls-files failed ({code}): {err.strip()}")
-    return {entry for entry in out.split("\0") if entry}
+    indexed: dict[str, str] = {}
+    for entry in out.split("\0"):
+        if not entry:
+            continue
+        header, path = entry.split("\t", 1)
+        indexed[path] = header.split(" ", 1)[0]
+    return indexed
 
 
-def read_candidate(repo_root: Path, relpath: str, abspath: Path, index: set[str] | None) -> str:
+def read_candidate(
+    repo_root: Path, relpath: str, abspath: Path, index: dict[str, str] | None
+) -> str:
     """Return the index blob when ``relpath`` is staged, else the tree file.
 
     Under ``--staged`` a git failure is an infrastructure error, never a
-    silent fallback to working-tree content.
+    silent fallback to working-tree content. Git symlinks are rejected because
+    their index blob contains only the target path, not the target content.
     """
-    if index is None or relpath not in index:
+    if index is None:
         return abspath.read_text(encoding="utf-8", errors="replace")
+    if relpath not in index:
+        raise ConfigError(f"staged path is not in the index: {relpath}")
+    if index[relpath] == "120000":
+        raise ConfigError(f"staged symlink cannot be validated: {relpath}")
     code, out, err = _run_subprocess(
         ["git", "show", f":{relpath}"],
         timeout=GIT_READ_TIMEOUT,

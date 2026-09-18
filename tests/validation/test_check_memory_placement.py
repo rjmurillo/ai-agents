@@ -63,6 +63,13 @@ def test_classify_normative_via_heading_signal():
     assert result.route == "rule"
 
 
+def test_classify_governance_heading_routes_to_rule():
+    text = "## Constraints\n\n1. One\n2. Two\n3. Three\n4. Four\n5. Five\n"
+    result = checker.classify(text)
+    assert result.label == "normative"
+    assert result.route == "rule"
+
+
 def test_classify_ignores_headings_and_lists_inside_fenced_code():
     # A memory that quotes a rule's shape inside a code fence is evidence
     # about that rule, not a rule. Headings and numbered steps inside the

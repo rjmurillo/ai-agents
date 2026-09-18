@@ -268,12 +268,39 @@ def test_staged_mode_reads_the_index_blob_not_the_tree(repo: Path, monkeypatch, 
     assert staged_code == 1
 
 
-def test_staged_mode_falls_back_to_the_tree_for_an_unstaged_file(repo: Path, monkeypatch, capsys):
+def test_staged_mode_rejects_an_unindexed_file(repo: Path, monkeypatch, capsys):
     _write(repo, ".serena/memories/loose.md", NORMATIVE_HEADING)
     monkeypatch.chdir(repo)
     code = checker.main(["--ci", "--base", "HEAD", "--staged", ".serena/memories/loose.md"])
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "staged path is not in the index" in captured.err
+
+
+def test_staged_mode_rejects_a_symlink(repo: Path, monkeypatch, capsys):
+    _write(repo, "elsewhere/real.md", NORMATIVE_HEADING)
+    _commit_all(repo, "target")
+    link = repo / ".serena" / "memories" / "link.md"
+    _symlink_or_skip(link, repo / "elsewhere" / "real.md")
+    _run_git(repo, "add", str(link.relative_to(repo)))
+    monkeypatch.chdir(repo)
+    code = checker.main(["--ci", "--base", "HEAD", "--staged", ".serena/memories/link.md"])
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "staged symlink cannot be validated" in captured.err
+
+
+def test_staged_mode_reads_a_deleted_worktree_file_from_the_index(
+    repo: Path, monkeypatch, capsys
+):
+    path = _write(repo, ".serena/memories/new.md", NORMATIVE_HEADING)
+    _run_git(repo, "add", ".serena/memories/new.md")
+    path.unlink()
+    monkeypatch.chdir(repo)
+    code = checker.main(["--ci", "--base", "HEAD", "--staged", ".serena/memories/new.md"])
+    captured = capsys.readouterr()
     assert code == 1
-    assert "loose.md: normative" in capsys.readouterr().out
+    assert ".serena/memories/new.md: normative" in captured.out
 
 
 def test_staged_mode_git_failure_exits_two_instead_of_falling_back(repo: Path, monkeypatch, capsys):

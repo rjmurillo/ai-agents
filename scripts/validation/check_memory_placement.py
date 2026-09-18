@@ -200,10 +200,12 @@ def _derive_raw_label(a_count: int, b_fires: bool, ordered_fires: bool, d_fires:
     return "evidence"
 
 
-def _derive_route(a_count: int, ordered_fires: bool, d_fires: bool) -> str:
+def _derive_route(a_count: int, b_fires: bool, ordered_fires: bool, d_fires: bool) -> str:
     """Apply the route heuristic from the module docstring."""
     if d_fires:
         return "agent"
+    if b_fires:
+        return "rule"
     if ordered_fires and a_count < _NORMATIVE_TERM_THRESHOLD:
         return "skill"
     return "rule"
@@ -244,7 +246,7 @@ def classify(text: str) -> Classification:
 
     signals = _collect_signals(a_count, heading_matches, ordered_fires, ordered_count, role_matches)
     raw_label = _derive_raw_label(a_count, b_fires, ordered_fires, d_fires)
-    route = _derive_route(a_count, ordered_fires, d_fires)
+    route = _derive_route(a_count, b_fires, ordered_fires, d_fires)
 
     suppressed, invalid_suppression = _suppression_status(prose)
     if invalid_suppression:
@@ -362,7 +364,9 @@ def _candidate_paths(args: argparse.Namespace, repo_root: Path) -> list[Path]:
     return [Path(p) for p in args.paths]
 
 
-def _resolve_candidates(args: argparse.Namespace, repo_root: Path) -> list[tuple[str, Path]]:
+def _resolve_candidates(
+    args: argparse.Namespace, repo_root: Path, index: dict[str, str] | None
+) -> list[tuple[str, Path]]:
     """Resolve caller-supplied paths to (repo-relative posix path, absolute path).
 
     Applies the README/``*-index.md``/non-``.md`` skip and rejects (raises
@@ -381,6 +385,14 @@ def _resolve_candidates(args: argparse.Namespace, repo_root: Path) -> list[tuple
             raise ConfigError(f"positional path is a directory, use --path: {raw}")
         if _is_skippable(abspath):
             continue
+        relpath = abspath.relative_to(repo_root).as_posix()
+        if index is not None:
+            if relpath not in index:
+                raise ConfigError(f"staged path is not in the index: {raw}")
+            if index[relpath] == "120000":
+                raise ConfigError(f"staged symlink cannot be validated: {raw}")
+            candidates.append((relpath, abspath))
+            continue
         if not abspath.is_file():
             # Fail closed. lefthook's {staged_files} never lists deletions
             # (ACMR filter), so a staged memory deletion cannot land here.
@@ -388,7 +400,7 @@ def _resolve_candidates(args: argparse.Namespace, repo_root: Path) -> list[tuple
         # Lexical path = git entry; resolved target = what read_text opens.
         if not abspath.resolve().is_relative_to(repo_root):
             raise ConfigError(f"symlink target is outside the repository: {raw}")
-        candidates.append((abspath.relative_to(repo_root).as_posix(), abspath))
+        candidates.append((relpath, abspath))
     return candidates
 
 
@@ -418,7 +430,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        candidates = _resolve_candidates(args, root)
+        index = index_paths(root) if args.staged else None
+        candidates = _resolve_candidates(args, root, index)
     except ConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -430,7 +443,6 @@ def main(argv: list[str] | None = None) -> int:
 
     findings: list[Finding] = []
     try:
-        index = index_paths(root) if args.staged else None
         for relpath, abspath in candidates:
             text = read_candidate(root, relpath, abspath, index)
             finding = evaluate_file(relpath, text, relpath not in base_tree)
