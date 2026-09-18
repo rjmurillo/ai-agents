@@ -2,16 +2,16 @@
 
 Issue #5836 records one real commit-hook run on this checkout.
 
-Measured: 2026-09-17
-Commit: `d1edeed11bde1ea92dd92d3bd62227700e8ba474`
-Samples: n=1
+Measured: 2026-09-18
+Commit: `e7a386d3b3fa3e514a698fd53bb046c6fd8f19fe`
+Samples: hook n=1, direct n=5
 Environment: Linux, Python 3.14.7, Lefthook 2.1.12
 
 | Check | Observed wall time |
 |---|---:|
-| Full pre-commit hook | 13.05s |
-| `context-output-check` job | 1.35s |
-| Manifest checker, five warm direct runs | 0.14s each |
+| Full pre-commit hook | 10.40s |
+| `context-output-check` job | 1.31s |
+| Manifest checker, five warm direct runs | 0.1392s mean, 0.1382s to 0.1406s |
 
 The hook ran the staged checker against 12 sources, 12 indexes, and 113
 expected detail files. It found 113 detail files. The checker performed no

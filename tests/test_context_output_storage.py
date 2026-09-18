@@ -70,6 +70,19 @@ def test_staged_paths_maps_nonzero_exit(tmp_path, monkeypatch):
         storage._staged_paths_under(tmp_path, tmp_path)
 
 
+def test_staged_paths_filters_entries_outside_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        storage.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0,
+            stdout=b"other.md\0details/file.md\0",
+        ),
+    )
+
+    assert storage._staged_paths_under(tmp_path / "details", tmp_path) == {"details/file.md"}
+
+
 def test_detail_names_returns_empty_for_missing_directory(tmp_path):
     assert storage._detail_names(tmp_path / "missing", tmp_path, staged=False) == set()
 

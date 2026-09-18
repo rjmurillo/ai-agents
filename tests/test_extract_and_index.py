@@ -36,6 +36,7 @@ SCRIPT_PATH = (
 SCRIPTS_DIR = SCRIPT_PATH.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
+from context_output_parsing import _update_fence_marker  # noqa: E402
 from extract_and_index import (  # noqa: E402
     Section,
     build_index,
@@ -158,6 +159,9 @@ class TestSlugify:
 
 
 class TestParseSections:
+    def test_preserves_fence_marker_for_mismatched_delimiter(self):
+        assert _update_fence_marker("~~~", "```") == (True, "```")
+
     def test_splits_on_h1_and_h2(self):
         content = "# Title\n\nIntro text\n\n## Section A\n\nBody A\n\n## Section B\n\nBody B"
         sections = parse_sections(content)

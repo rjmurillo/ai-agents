@@ -28,6 +28,14 @@ def stub_token_counter(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class TestManifestSafety:
+    def test_rejects_non_object_manifest(self, tmp_path):
+        """AC: manifest JSON must be an object with an entries array."""
+        manifest_path = tmp_path / "manifest.json"
+        manifest_path.write_text("[]", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="entries.*array"):
+            check_manifest(manifest_path, repo_root=tmp_path)
+
     def test_rejects_empty_manifest(self, tmp_path):
         """AC: an empty manifest cannot produce a false green check."""
         manifest_path = tmp_path / "manifest.json"
@@ -42,6 +50,42 @@ class TestManifestSafety:
         manifest_path.write_text("{", encoding="utf-8")
 
         with pytest.raises(ValueError):
+            check_manifest(manifest_path, repo_root=tmp_path)
+
+    def test_rejects_unknown_manifest_fields(self, tmp_path):
+        manifest_path = tmp_path / "manifest.json"
+        manifest_path.write_text(
+            '{"output_root": ".", "entries": [{"source": "source.md", '
+            '"index": "index.md", "detail_dir": "details"}], "extra": true}',
+            encoding="utf-8",
+        )
+
+        with pytest.raises(ValueError, match="only entries and output_root"):
+            check_manifest(manifest_path, repo_root=tmp_path)
+
+    def test_rejects_non_object_manifest_entry(self, tmp_path):
+        manifest_path = tmp_path / "manifest.json"
+        write_manifest(manifest_path, ["not an object"])
+
+        with pytest.raises(ValueError, match="must be an object"):
+            check_manifest(manifest_path, repo_root=tmp_path)
+
+    def test_rejects_incomplete_manifest_entry(self, tmp_path):
+        manifest_path = tmp_path / "manifest.json"
+        write_manifest(manifest_path, [{"source": "source.md"}])
+
+        with pytest.raises(ValueError, match="requires only"):
+            check_manifest(manifest_path, repo_root=tmp_path)
+
+    def test_rejects_output_paths_outside_output_root(self, tmp_path):
+        manifest_path = tmp_path / "manifest.json"
+        write_manifest(
+            manifest_path,
+            [{"source": "source.md", "index": "index.md", "detail_dir": "details"}],
+            output_root="output",
+        )
+
+        with pytest.raises(ValueError, match="inside output_root"):
             check_manifest(manifest_path, repo_root=tmp_path)
 
     def test_rejects_unsafe_manifest_paths(self, tmp_path):

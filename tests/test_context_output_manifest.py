@@ -20,7 +20,7 @@ sys.path.insert(
     ),
 )
 
-from extract_and_index import check_generated_files, extract_and_index
+from extract_and_index import Section, check_generated_files, extract_and_index, summarize_section
 from test_extract_and_index import SAMPLE_DOC
 
 
@@ -73,6 +73,53 @@ class TestCheckGeneratedFiles:
 
         assert any("reference mismatch" in issue.lower() for issue in issues)
 
+    def test_reports_missing_index(self, tmp_path):
+        detail_dir, index_path = self._generate_output(tmp_path)
+        index_path.unlink()
+
+        issues = check_generated_files(
+            SAMPLE_DOC, detail_dir, index_path, ".details", repo_root=tmp_path
+        )
+
+        assert any("missing index file" in issue.lower() for issue in issues)
+
+    def test_reports_missing_detail_directory(self, tmp_path):
+        issues = check_generated_files(
+            SAMPLE_DOC,
+            tmp_path / "missing-details",
+            tmp_path / "index.md",
+            ".details",
+            repo_root=tmp_path,
+        )
+
+        assert any("missing detail file" in issue.lower() for issue in issues)
+
+    def test_reports_detail_path_that_is_not_a_directory(self, tmp_path):
+        detail_dir = tmp_path / "details"
+        detail_dir.write_text("not a directory\n", encoding="utf-8")
+
+        issues = check_generated_files(
+            SAMPLE_DOC,
+            detail_dir,
+            tmp_path / "index.md",
+            ".details",
+            repo_root=tmp_path,
+        )
+
+        assert any("not a directory" in issue.lower() for issue in issues)
+
+    def test_reports_detail_path_that_is_not_a_file(self, tmp_path):
+        detail_dir, index_path = self._generate_output(tmp_path)
+        detail_file = next(detail_dir.iterdir())
+        detail_file.unlink()
+        detail_file.mkdir()
+
+        issues = check_generated_files(
+            SAMPLE_DOC, detail_dir, index_path, ".details", repo_root=tmp_path
+        )
+
+        assert any("not a file" in issue.lower() for issue in issues)
+
     def test_duplicate_headings_have_matching_references(self, tmp_path):
         content = "# Config\n\nFirst\n\n## Config\n\nSecond"
         detail_dir, index_path = self._generate_output(tmp_path, content)
@@ -85,6 +132,13 @@ class TestCheckGeneratedFiles:
         index = index_path.read_text(encoding="utf-8")
         assert "(see: .details/config.md)" in index
         assert "(see: .details/config-1.md)" in index
+
+    def test_summarize_skips_table_separator(self):
+        section = Section(
+            heading="Table", level=2, content="|---|---|\nMeaning.", slug="table"
+        )
+
+        assert summarize_section(section) == "Meaning."
 
     def test_check_does_not_rewrite_generated_files(self, tmp_path):
         detail_dir, index_path = self._generate_output(tmp_path)

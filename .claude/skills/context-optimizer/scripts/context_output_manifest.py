@@ -73,7 +73,6 @@ def load_manifest(
     required = ("source", "index", "detail_dir")
     allowed = set(required) | {"detail_ref"}
     entries: list[ManifestEntry] = []
-    seen: set[tuple[str, str, str]] = set()
     claimed_paths: list[tuple[str, str, Path]] = []
 
     for raw_entry in data["entries"]:
@@ -106,10 +105,6 @@ def load_manifest(
                     )
             claimed_paths.append((field, value, path))
 
-        identity = (values["source"], values["index"], values["detail_dir"])
-        if identity in seen:
-            raise ValueError(f"Duplicate manifest entry: {values['source']}")
-        seen.add(identity)
         entries.append(ManifestEntry(**values, detail_ref=detail_ref))
 
     return ManifestConfig(entries=entries, output_root=output_root)

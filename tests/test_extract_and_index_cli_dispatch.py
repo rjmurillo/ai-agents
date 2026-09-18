@@ -44,6 +44,26 @@ class TestCLIDispatch:
             "argv",
             [
                 "extract_and_index.py",
+                "--verbose",
+                "-i",
+                str(source),
+                "-d",
+                str(detail_dir),
+                "-r",
+                detail_dir.relative_to(REPO_ROOT).as_posix(),
+                "-o",
+                str(index_path),
+            ],
+        )
+        with pytest.raises(SystemExit) as error:
+            cli.main(core)
+        assert error.value.code == 0
+
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "extract_and_index.py",
                 "--check",
                 "-i",
                 str(source),

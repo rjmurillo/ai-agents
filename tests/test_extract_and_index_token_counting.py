@@ -32,3 +32,10 @@ class TestTokenCounting:
 
     def test_count_tokens_empty(self):
         assert count_tokens("") == 0
+
+
+def test_count_tokens_reports_missing_dependency(monkeypatch):
+    monkeypatch.setitem(sys.modules, "tiktoken", None)
+
+    with pytest.raises(RuntimeError, match="tiktoken library not installed"):
+        count_tokens("Hello world")
