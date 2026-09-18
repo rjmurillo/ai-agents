@@ -28,7 +28,7 @@ def _git_env() -> dict[str, str]:
     """Return the clean Git environment while preserving an active index."""
     env = _git_subprocess_env()
     if index_file := os.environ.get("GIT_INDEX_FILE"):
-        env["GIT_INDEX_FILE"] = index_file
+        env["GIT_INDEX_FILE"] = str(Path(index_file).absolute())
     return env
 
 
