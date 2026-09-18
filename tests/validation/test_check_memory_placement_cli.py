@@ -310,7 +310,7 @@ def test_staged_mode_git_failure_exits_two_instead_of_falling_back(repo: Path, m
     real = placement_git._run_subprocess
 
     def failing_show(args, **kwargs):
-        if args[:2] == ["git", "show"]:
+        if args[:2] == ["git", "cat-file"]:
             return 128, "", "fatal: simulated"
         return real(args, **kwargs)
 
@@ -319,7 +319,7 @@ def test_staged_mode_git_failure_exits_two_instead_of_falling_back(repo: Path, m
     code = checker.main(["--ci", "--base", "HEAD", "--staged", ".serena/memories/new.md"])
     captured = capsys.readouterr()
     assert code == 2
-    assert "git show" in captured.err
+    assert "git cat-file" in captured.err
     assert "examined" not in captured.out
 
 

@@ -365,7 +365,9 @@ def _candidate_paths(args: argparse.Namespace, repo_root: Path) -> list[Path]:
 
 
 def _resolve_candidates(
-    args: argparse.Namespace, repo_root: Path, index: dict[str, str] | None
+    args: argparse.Namespace,
+    repo_root: Path,
+    index: dict[str, tuple[str, str] | None] | None,
 ) -> list[tuple[str, Path]]:
     """Resolve caller-supplied paths to (repo-relative posix path, absolute path).
 
@@ -389,7 +391,10 @@ def _resolve_candidates(
         if index is not None:
             if relpath not in index:
                 raise ConfigError(f"staged path is not in the index: {raw}")
-            if index[relpath] == "120000":
+            entry = index[relpath]
+            if entry is None:
+                raise ConfigError(f"staged path has unresolved index entries: {raw}")
+            if entry[0] == "120000":
                 raise ConfigError(f"staged symlink cannot be validated: {raw}")
             candidates.append((relpath, abspath))
             continue

@@ -56,8 +56,8 @@ def base_tree_paths(repo_root: Path, base: str) -> set[str] | None:
     return {entry for entry in out.split("\0") if entry}
 
 
-def index_paths(repo_root: Path) -> dict[str, str]:
-    """Return indexed paths and modes; a git failure is a config error."""
+def index_paths(repo_root: Path) -> dict[str, tuple[str, str] | None]:
+    """Return indexed paths with immutable modes and blob IDs."""
     code, out, err = _run_subprocess(
         ["git", "ls-files", "--stage", "-z"],
         timeout=GIT_READ_TIMEOUT,
@@ -66,36 +66,49 @@ def index_paths(repo_root: Path) -> dict[str, str]:
     )
     if code != 0:
         raise ConfigError(f"git ls-files failed ({code}): {err.strip()}")
-    indexed: dict[str, str] = {}
+    indexed: dict[str, tuple[str, str] | None] = {}
     for entry in out.split("\0"):
         if not entry:
             continue
         header, path = entry.split("\t", 1)
-        indexed[path] = header.split(" ", 1)[0]
+        mode, object_id, stage = header.split()
+        if stage == "0":
+            indexed[path] = (mode, object_id)
+        else:
+            indexed.setdefault(path, None)
     return indexed
 
 
 def read_candidate(
-    repo_root: Path, relpath: str, abspath: Path, index: dict[str, str] | None
+    repo_root: Path,
+    relpath: str,
+    abspath: Path,
+    index: dict[str, tuple[str, str] | None] | None,
 ) -> str:
     """Return the index blob when ``relpath`` is staged, else the tree file.
 
     Under ``--staged`` a git failure is an infrastructure error, never a
     silent fallback to working-tree content. Git symlinks are rejected because
     their index blob contains only the target path, not the target content.
+    The blob ID comes from the same index snapshot as the mode, so later index
+    changes cannot switch the content being validated.
     """
     if index is None:
         return abspath.read_text(encoding="utf-8", errors="replace")
     if relpath not in index:
         raise ConfigError(f"staged path is not in the index: {relpath}")
-    if index[relpath] == "120000":
+    entry = index[relpath]
+    if entry is None:
+        raise ConfigError(f"staged path has unresolved index entries: {relpath}")
+    mode, object_id = entry
+    if mode == "120000":
         raise ConfigError(f"staged symlink cannot be validated: {relpath}")
     code, out, err = _run_subprocess(
-        ["git", "show", f":{relpath}"],
+        ["git", "cat-file", "blob", object_id],
         timeout=GIT_READ_TIMEOUT,
         cwd=repo_root,
         env=_git_subprocess_env(),
     )
     if code != 0:
-        raise ConfigError(f"git show :{relpath} failed ({code}): {err.strip()}")
+        raise ConfigError(f"git cat-file {object_id} failed ({code}): {err.strip()}")
     return str(out)
