@@ -359,12 +359,19 @@ pre-commit:
               - run: test "$SKIP_AUTOFIX" = "1"
 
           - name: stage-memory-cross-references
-            timeout: 5m
+            timeout: 4m
             run: uv run --frozen python scripts/validation/git_hook_policy.py stage-generated memory
             glob: ".serena/memories/**/*.md"
             skip:
               - merge
               - run: test "$SKIP_AUTOFIX" = "1"
+
+          - name: memory-placement
+            timeout: 1m
+            run: uv run --frozen python scripts/validation/check_memory_placement.py --ci --base HEAD --staged {staged_files}
+            glob: ".serena/memories/**/*.md"
+            skip:
+              - merge
 
     - name: memory-skill-format
       timeout: 5m
