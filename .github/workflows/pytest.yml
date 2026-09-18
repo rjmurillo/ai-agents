@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size
+# This workflow keeps the platform matrix and required status aggregation together.
+#
 # Python Tests
 #
 # Runs pytest and security checks for Python code in the repository.
@@ -166,6 +169,28 @@ jobs:
 
       - name: Check index line endings (blocking)
         run: uv run --frozen python scripts/validation/check_index_line_endings.py
+
+  context-output-guard:
+    name: Check context outputs (blocking)
+    # Issue #5836: the manifest is a whole-repository contract. Keep this job
+    # outside check-paths so an unrelated diff cannot hide existing drift.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check complete context-output manifest (blocking)
+        run: >-
+          python3
+          .claude/skills/context-optimizer/scripts/extract_and_index.py
+          --check --manifest .agents/context-output-manifest.json
 
   test:
     name: "pytest (${{ matrix.partition }})"
@@ -540,6 +565,7 @@ jobs:
       - coverage
       - zero-collection-guard
       - line-endings-guard
+      - context-output-guard
     # !cancelled() rather than always(): a superseded run leaves its
     # dependencies 'cancelled', and always() would turn that into a red
     # required check on the PR head (Issue #5097). !cancelled() still runs on
@@ -559,13 +585,14 @@ jobs:
           persist-credentials: false
           sparse-checkout: scripts/ci/require_job_results.py
 
-      - name: Require test, coverage, and zero-collection-guard success
+      - name: Require test, coverage, and repository guard success
         env:
           PATH_RESULT: ${{ needs.check-paths.result }}
           TEST_RESULT: ${{ needs.test.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
           ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
           LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
+          CONTEXT_OUTPUT_RESULT: ${{ needs.context-output-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
           --check PATH_RESULT success "path detection failed or was cancelled: {value}"
@@ -573,6 +600,7 @@ jobs:
           --check COVERAGE_RESULT success "coverage job failed or was cancelled: {value}"
           --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
           --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
+          --check CONTEXT_OUTPUT_RESULT success "context-output-guard failed or was cancelled: {value}"
 
   security:
     name: Python Security Checks
@@ -674,6 +702,7 @@ jobs:
       # check, because the guard's own context is not in the repository's
       # required-checks list.
       - line-endings-guard
+      - context-output-guard
     # !cancelled() so this job still runs (and can fail loudly) when
     # zero-collection-guard failed, rather than being implicitly skipped by
     # GitHub's default success()-over-needs gate, which would leave the
@@ -740,10 +769,12 @@ jobs:
         env:
           ZERO_COLLECTION_RESULT: ${{ needs.zero-collection-guard.result }}
           LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
+          CONTEXT_OUTPUT_RESULT: ${{ needs.context-output-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
           --check ZERO_COLLECTION_RESULT success "zero-collection-guard failed or was cancelled: {value}"
           --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
+          --check CONTEXT_OUTPUT_RESULT success "context-output-guard failed or was cancelled: {value}"
 
       - name: Skip tests (no Python test inputs changed)
         run: |
@@ -802,6 +833,7 @@ jobs:
       - security
       - skip-tests
       - test-windows-pwsh
+      - context-output-guard
     # !cancelled() rather than always(): the alert script treats a 'cancelled'
     # dependency as a failure, so a cancelled main run would file a bogus
     # "Python Tests failed on main" issue (Issue #5097).

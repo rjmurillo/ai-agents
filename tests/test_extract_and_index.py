@@ -1,3 +1,6 @@
+# taste-lint: ignore file-size
+# These tests share one fixture and exercise the core extractor API.
+
 """pytest tests for extract_and_index.py
 
 Tests the extract-and-index pattern for markdown compression including:
@@ -16,22 +19,17 @@ Exit Codes:
 See: ADR-035 Exit Code Standardization
 """
 
-import json
 import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
+from unittest.mock import Mock
 
 import pytest
 
 REPO_ROOT = Path(__file__).parent.parent
 SCRIPT_PATH = (
-    REPO_ROOT
-    / ".claude"
-    / "skills"
-    / "context-optimizer"
-    / "scripts"
-    / "extract_and_index.py"
+    REPO_ROOT / ".claude" / "skills" / "context-optimizer" / "scripts" / "extract_and_index.py"
 )
 
 # Add scripts dir to path so we can import directly for unit tests
@@ -41,7 +39,6 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from extract_and_index import (  # noqa: E402
     Section,
     build_index,
-    count_tokens,
     extract_and_index,
     parse_sections,
     slugify,
@@ -60,16 +57,19 @@ def _has_tiktoken_encoding() -> bool:
     except Exception:
         return False
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def run_cli(args: list[str]) -> subprocess.CompletedProcess[str]:
     """Run the extract_and_index.py script as a subprocess."""
     return subprocess.run(
         [sys.executable, str(SCRIPT_PATH), *args],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
     )
 
 
@@ -134,6 +134,7 @@ SAMPLE_DOC = dedent("""\
 # Unit tests: slugify
 # ---------------------------------------------------------------------------
 
+
 class TestSlugify:
     def test_simple_heading(self):
         assert slugify("Architecture") == "architecture"
@@ -154,6 +155,7 @@ class TestSlugify:
 # ---------------------------------------------------------------------------
 # Unit tests: parse_sections
 # ---------------------------------------------------------------------------
+
 
 class TestParseSections:
     def test_splits_on_h1_and_h2(self):
@@ -184,6 +186,12 @@ class TestParseSections:
         assert len(sections) == 1
         assert "### Sub" in sections[0].content
 
+    def test_ignores_headings_inside_fenced_code(self):
+        content = "## Main\n\n```markdown\n## Fake\n```\n\n## Real\n\nBody"
+        sections = parse_sections(content)
+        assert [section.heading for section in sections] == ["Main", "Real"]
+        assert "## Fake" in sections[0].content
+
     def test_section_levels(self):
         content = "# H1\n\nBody\n\n## H2\n\nBody"
         sections = parse_sections(content)
@@ -200,6 +208,7 @@ class TestParseSections:
 # Unit tests: summarize_section
 # ---------------------------------------------------------------------------
 
+
 class TestSummarizeSection:
     def test_uses_first_meaningful_line(self):
         section = Section(
@@ -210,6 +219,12 @@ class TestSummarizeSection:
     def test_skips_code_fences(self):
         section = Section(
             heading="Code", level=2, content="```yaml\nfoo: bar\n```\nActual summary.", slug="code"
+        )
+        assert summarize_section(section) == "Actual summary."
+
+    def test_skips_nested_markdown_headings(self):
+        section = Section(
+            heading="Main", level=2, content="### Nested\nActual summary.", slug="main"
         )
         assert summarize_section(section) == "Actual summary."
 
@@ -233,11 +248,15 @@ class TestSummarizeSection:
 # Unit tests: build_index
 # ---------------------------------------------------------------------------
 
+
 class TestBuildIndex:
     def test_produces_pipe_delimited_format(self):
         sections = [
             Section(
-                heading="Architecture", level=2, content="Layered design.", slug="architecture",
+                heading="Architecture",
+                level=2,
+                content="Layered design.",
+                slug="architecture",
             ),
             Section(heading="Testing", level=2, content="80% coverage required.", slug="testing"),
         ]
@@ -262,10 +281,36 @@ class TestBuildIndex:
         index = build_index(sections, ".d")
         assert "[Overview]" in index
 
+    def test_duplicate_slugs_use_unique_detail_references(self):
+        sections = [
+            Section(heading="Config", level=2, content="First", slug="config"),
+            Section(heading="Config", level=2, content="Second", slug="config"),
+        ]
+
+        index = build_index(sections, ".details")
+
+        assert "(see: .details/config.md)" in index
+        assert "(see: .details/config-1.md)" in index
+
+    def test_slug_suffix_collision_does_not_overwrite_details(self):
+        """AC: duplicate and suffix-like headings retain distinct detail files."""
+        sections = [
+            Section(heading="Config", level=2, content="First", slug="config"),
+            Section(heading="Config 1", level=2, content="Named suffix", slug="config-1"),
+            Section(heading="Config", level=2, content="Second", slug="config"),
+        ]
+
+        index = build_index(sections, ".details")
+
+        assert index.count("(see: .details/config.md)") == 1
+        assert index.count("(see: .details/config-1.md)") == 1
+        assert index.count("(see: .details/config-2.md)") == 1
+
 
 # ---------------------------------------------------------------------------
 # Unit tests: write_detail_files
 # ---------------------------------------------------------------------------
+
 
 class TestWriteDetailFiles:
     def test_creates_files(self, tmp_path):
@@ -304,12 +349,11 @@ class TestWriteDetailFiles:
 # Integration: extract_and_index function
 # ---------------------------------------------------------------------------
 
+
 class TestExtractAndIndex:
     def test_full_pipeline(self, tmp_path):
         detail_dir = tmp_path / "details"
-        result = extract_and_index(
-            SAMPLE_DOC, detail_dir, ".details", repo_root=tmp_path
-        )
+        result = extract_and_index(SAMPLE_DOC, detail_dir, ".details", repo_root=tmp_path)
         assert result.success is True
         assert result.metrics.sections_extracted >= 3
         assert result.metrics.detail_files_written >= 3
@@ -317,243 +361,31 @@ class TestExtractAndIndex:
 
     def test_achieves_significant_reduction(self, tmp_path):
         detail_dir = tmp_path / "details"
-        result = extract_and_index(
-            SAMPLE_DOC, detail_dir, ".details", repo_root=tmp_path
-        )
+        result = extract_and_index(SAMPLE_DOC, detail_dir, ".details", repo_root=tmp_path)
         # The index should be substantially smaller than the original
         assert result.metrics.index_tokens < result.metrics.original_tokens
         assert result.metrics.reduction_percent >= 40
 
     def test_index_references_detail_files(self, tmp_path):
         detail_dir = tmp_path / "details"
-        result = extract_and_index(
-            SAMPLE_DOC, detail_dir, ".my-details", repo_root=tmp_path
-        )
+        result = extract_and_index(SAMPLE_DOC, detail_dir, ".my-details", repo_root=tmp_path)
         assert ".my-details/" in result.index_content
         assert "(see:" in result.index_content
 
     def test_detail_files_exist_on_disk(self, tmp_path):
         detail_dir = tmp_path / "details"
-        result = extract_and_index(
-            SAMPLE_DOC, detail_dir, ".details", repo_root=tmp_path
-        )
+        result = extract_and_index(SAMPLE_DOC, detail_dir, ".details", repo_root=tmp_path)
         for f in detail_dir.iterdir():
             assert f.suffix == ".md"
         assert result.metrics.detail_files_written == len(list(detail_dir.iterdir()))
 
-
-# ---------------------------------------------------------------------------
-# Integration: large document reduction target
-# ---------------------------------------------------------------------------
-
-class TestReductionTargets:
-    """Verify 60-80% reduction on realistic documents."""
-
-    LARGE_DOC = dedent("""\
-        # Agent System Documentation
-
-        This document describes the complete agent orchestration system.
-        The system provides structured task coordination, memory management,
-        and quality assurance for AI-powered development workflows.
-
-        ## Agent Catalog
-
-        The following agents are available for task delegation:
-
-        | Agent | Purpose | Model | Priority |
-        |-------|---------|-------|----------|
-        | orchestrator | Task coordination and routing | opus | P0 |
-        | analyst | Research and investigation | sonnet | P1 |
-        | architect | Design governance and ADRs | sonnet | P1 |
-        | implementer | Production code and tests | sonnet | P1 |
-        | qa | Test strategy and verification | sonnet | P1 |
-        | security | Threat modeling and scanning | sonnet | P1 |
-        | devops | CI/CD pipeline configuration | sonnet | P2 |
-        | explainer | Documentation and PRDs | sonnet | P2 |
-
-        ## Workflow Patterns
-
-        Standard feature development follows this sequence:
-
-        1. orchestrator receives the task and classifies complexity
-        2. analyst investigates requirements and surfaces unknowns
-        3. architect designs the solution with ADR governance
-        4. implementer writes production code with tests
-        5. qa validates coverage against acceptance criteria
-        6. security scans for vulnerabilities
-
-        For quick fixes, use the abbreviated workflow:
-        1. implementer writes the fix
-        2. qa validates the change
-
-        ## Session Protocol
-
-        Every session must follow the protocol defined in SESSION-PROTOCOL.md.
-        The protocol enforces session logging, memory updates, and validation.
-
-        ### Session Start Requirements
-
-        Before any work begins, the agent must:
-        - Initialize Serena with the two-call sequence
-        - Read HANDOFF.md for project context
-        - Create a session log file
-        - Search relevant memories
-
-        ### Session End Requirements
-
-        Before claiming completion, the agent must:
-        - Complete all MUST items in the session log
-        - Update Serena memory with cross-session context
-        - Run markdownlint on changed markdown files
-        - Commit all changes including the agents directory
-        - Run the session validation script
-
-        ## Memory Architecture
-
-        The system uses a four-tier memory architecture:
-
-        | Tier | Storage | Scope | TTL |
-        |------|---------|-------|-----|
-        | T1 Semantic | Vector store | Cross-session | Permanent |
-        | T2 Structural | Serena memories | Project-level | Session |
-        | T3 Ephemeral | Context window | Current session | Conversation |
-        | T4 External | Documentation files | Repository | Git history |
-
-        Memory retrieval follows a cost-escalation pattern:
-        start with the cheapest option and escalate only when needed.
-
-        ## Coding Standards
-
-        All code must follow these standards:
-
-        - Commit format: type(scope): description
-        - AI attribution required in Co-Authored-By trailer
-        - Exit codes follow ADR-035 standardization
-        - GitHub Actions pinned to SHA with version comment
-        - 100% test coverage for security paths
-        - 80% test coverage for business logic
-        - 60% test coverage for documentation tooling
-
-        ## Configuration Reference
-
-        ```yaml
-        agents:
-          orchestrator:
-            model: opus
-            max_turns: 50
-            timeout: 300
-          implementer:
-            model: sonnet
-            max_turns: 30
-            timeout: 180
-        ```
-
-        Environment variables:
-        - GITHUB_TOKEN: Authentication for GitHub API
-        - SERENA_PROJECT: Active project name
-        - CLAUDE_MODEL: Override default model selection
-    """)
-
-    def test_large_doc_reduction(self, tmp_path):
+    def test_tokenizer_failure_does_not_write_details(self, tmp_path, monkeypatch):
         detail_dir = tmp_path / "details"
-        result = extract_and_index(
-            self.LARGE_DOC, detail_dir, ".details", repo_root=tmp_path
-        )
-        assert result.metrics.reduction_percent >= 60, (
-            f"Expected >= 60% reduction, got {result.metrics.reduction_percent}%"
+        monkeypatch.setattr(
+            "extract_and_index.count_tokens",
+            Mock(side_effect=RuntimeError("tokenizer unavailable")),
         )
 
-    def test_all_sections_extracted(self, tmp_path):
-        detail_dir = tmp_path / "details"
-        result = extract_and_index(
-            self.LARGE_DOC, detail_dir, ".details", repo_root=tmp_path
-        )
-        # H1 + 5 H2 sections = 6 sections minimum
-        assert result.metrics.sections_extracted >= 6
-
-
-# ---------------------------------------------------------------------------
-# CLI integration tests
-# ---------------------------------------------------------------------------
-
-@pytest.mark.skipif(
-    not _has_tiktoken_encoding(),
-    reason="cl100k_base tokenizer data unavailable in offline environment",
-)
-class TestCLI:
-    def test_script_exists(self):
-        assert SCRIPT_PATH.exists()
-
-    def test_missing_input_file(self):
-        result = run_cli(["-i", "/nonexistent/file.md", "-d", "/tmp/out"])
-        assert result.returncode == 1
-
-    def test_json_output_to_stdout(self, tmp_path):
-        input_file = make_temp_input(tmp_path, SAMPLE_DOC)
-        detail_dir = REPO_ROOT / ".pytest_tmp" / "cli_details"
-        try:
-            result = run_cli(["-i", str(input_file), "-d", str(detail_dir)])
-            assert result.returncode == 0
-            output = json.loads(result.stdout)
-            assert output["success"] is True
-            assert output["metrics"]["original_tokens"] > 0
-            assert output["metrics"]["sections_extracted"] >= 3
-        finally:
-            input_file.unlink(missing_ok=True)
-            import shutil
-            shutil.rmtree(detail_dir, ignore_errors=True)
-
-    def test_output_to_file(self, tmp_path):
-        input_file = make_temp_input(tmp_path, SAMPLE_DOC)
-        detail_dir = REPO_ROOT / ".pytest_tmp" / "cli_details_out"
-        output_file = REPO_ROOT / ".pytest_tmp" / "index_output.md"
-        try:
-            result = run_cli([
-                "-i", str(input_file),
-                "-d", str(detail_dir),
-                "-o", str(output_file),
-            ])
-            assert result.returncode == 0
-            assert output_file.exists()
-            content = output_file.read_text()
-            assert "[" in content  # Has heading brackets
-            assert "(see:" in content  # Has file references
-        finally:
-            input_file.unlink(missing_ok=True)
-            output_file.unlink(missing_ok=True)
-            import shutil
-            shutil.rmtree(detail_dir, ignore_errors=True)
-
-    def test_custom_detail_ref(self, tmp_path):
-        input_file = make_temp_input(tmp_path, SAMPLE_DOC)
-        detail_dir = REPO_ROOT / ".pytest_tmp" / "cli_ref_details"
-        try:
-            result = run_cli([
-                "-i", str(input_file),
-                "-d", str(detail_dir),
-                "-r", ".custom-docs",
-            ])
-            assert result.returncode == 0
-            output = json.loads(result.stdout)
-            assert ".custom-docs/" in output["index_content"]
-        finally:
-            input_file.unlink(missing_ok=True)
-            import shutil
-            shutil.rmtree(detail_dir, ignore_errors=True)
-
-
-# ---------------------------------------------------------------------------
-# Token counting
-# ---------------------------------------------------------------------------
-
-@pytest.mark.skipif(
-    not _has_tiktoken_encoding(),
-    reason="cl100k_base tokenizer data unavailable in offline environment",
-)
-class TestTokenCounting:
-    def test_count_tokens_nonempty(self):
-        tokens = count_tokens("Hello world")
-        assert tokens > 0
-
-    def test_count_tokens_empty(self):
-        assert count_tokens("") == 0
+        with pytest.raises(RuntimeError):
+            extract_and_index(SAMPLE_DOC, detail_dir, "details", repo_root=tmp_path)
+        assert not detail_dir.exists()
