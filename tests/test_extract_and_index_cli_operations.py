@@ -30,6 +30,17 @@ class TestCLIOperations:
         args = cli_args(detail_dir=detail_dir, output=index_path)
         assert cli._run_single_check(args, SAMPLE_DOC, "details", core) == 3
 
+    def test_single_check_helper_maps_runtime_error(self, tmp_path, monkeypatch):
+        _, _, detail_dir, index_path, _ = cli_workspace(tmp_path)
+        monkeypatch.setattr(
+            core,
+            "check_generated_files",
+            Mock(side_effect=RuntimeError("repository unavailable")),
+        )
+
+        args = cli_args(detail_dir=detail_dir, output=index_path)
+        assert cli._run_single_check(args, SAMPLE_DOC, "details", core) == 3
+
     def test_single_check_helper_maps_success_drift_and_path_error(self, tmp_path):
         _, _, detail_dir, index_path, _ = cli_workspace(tmp_path)
         args = cli_args(detail_dir=detail_dir, output=index_path)

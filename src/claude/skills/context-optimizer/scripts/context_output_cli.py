@@ -93,7 +93,7 @@ def _run_single_check(
     """Check one generated index and its detail files."""
     try:
         issues = core.check_generated_files(content, args.detail_dir, args.output, detail_ref)
-    except (PermissionError, OSError) as error:
+    except (PermissionError, OSError, RuntimeError) as error:
         prefix = "Error" if isinstance(error, PermissionError) else "Error checking generated files"
         return _report_error(prefix, error, 3)
 
