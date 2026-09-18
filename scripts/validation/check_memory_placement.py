@@ -408,7 +408,7 @@ def _resolve_candidates(
         abspath = Path(os.path.normpath(abspath))
         if not abspath.is_relative_to(repo_root):
             raise ConfigError(f"path is outside the repository: {raw}")
-        if abspath.is_dir():
+        if index is None and abspath.is_dir():
             raise ConfigError(f"positional path is a directory, use --path: {raw}")
         if _is_skippable(abspath):
             continue

@@ -304,6 +304,33 @@ def test_staged_mode_reads_a_deleted_worktree_file_from_the_index(
     assert ".serena/memories/new.md: normative" in captured.out
 
 
+def test_staged_mode_reads_index_file_when_worktree_path_is_directory(
+    repo: Path, monkeypatch, capsys
+):
+    path = _write(repo, ".serena/memories/new.md", NORMATIVE_HEADING)
+    _run_git(repo, "add", ".serena/memories/new.md")
+    path.unlink()
+    path.mkdir()
+    monkeypatch.chdir(repo)
+    code = checker.main(["--ci", "--base", "HEAD", "--staged", ".serena/memories/new.md"])
+    captured = capsys.readouterr()
+    assert code == 1
+    assert ".serena/memories/new.md: normative" in captured.out
+
+
+def test_staged_mode_uses_the_active_alternate_index(repo: Path, monkeypatch, capsys):
+    alternate_index = repo / ".git" / "alternate-index"
+    _run_git(repo, "read-tree", f"--index-output={alternate_index}", "HEAD")
+    path = _write(repo, ".serena/memories/new.md", NORMATIVE_HEADING)
+    monkeypatch.setenv("GIT_INDEX_FILE", str(alternate_index))
+    _run_git(repo, "add", ".serena/memories/new.md")
+    monkeypatch.chdir(repo)
+    code = checker.main(["--ci", "--base", "HEAD", "--staged", str(path)])
+    captured = capsys.readouterr()
+    assert code == 1
+    assert ".serena/memories/new.md: normative" in captured.out
+
+
 def test_staged_mode_git_failure_exits_two_instead_of_falling_back(repo: Path, monkeypatch, capsys):
     path = _write(repo, ".serena/memories/new.md", NORMATIVE_HEADING)
     _run_git(repo, "add", ".serena/memories/new.md")

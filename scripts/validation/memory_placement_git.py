@@ -7,6 +7,7 @@ check_memory_placement.py stays pure. A git failure under ``--staged`` is a
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -23,13 +24,21 @@ class ConfigError(Exception):
     """Raised for a usage or environment problem; ``main`` turns it into exit 2."""
 
 
+def _git_env() -> dict[str, str]:
+    """Return the clean Git environment while preserving an active index."""
+    env = _git_subprocess_env()
+    if index_file := os.environ.get("GIT_INDEX_FILE"):
+        env["GIT_INDEX_FILE"] = index_file
+    return env
+
+
 def repo_root() -> Path | None:
     """Return the repository root for the current directory, or None."""
     code, out, _ = _run_subprocess(
         ["git", "rev-parse", "--show-toplevel"],
         timeout=GIT_READ_TIMEOUT,
         cwd=Path.cwd(),
-        env=_git_subprocess_env(),
+        env=_git_env(),
     )
     if code != 0:
         return None
@@ -49,7 +58,7 @@ def base_tree_paths(repo_root: Path, base: str) -> set[str] | None:
         ["git", "ls-tree", "-r", "-z", "--name-only", base],
         timeout=GIT_READ_TIMEOUT,
         cwd=repo_root,
-        env=_git_subprocess_env(),
+        env=_git_env(),
     )
     if code != 0:
         return None
@@ -62,7 +71,7 @@ def index_paths(repo_root: Path) -> dict[str, tuple[str, str] | None]:
         ["git", "ls-files", "--stage", "-z"],
         timeout=GIT_READ_TIMEOUT,
         cwd=repo_root,
-        env=_git_subprocess_env(),
+        env=_git_env(),
     )
     if code != 0:
         raise ConfigError(f"git ls-files failed ({code}): {err.strip()}")
@@ -107,7 +116,7 @@ def read_candidate(
         ["git", "cat-file", "blob", object_id],
         timeout=GIT_READ_TIMEOUT,
         cwd=repo_root,
-        env=_git_subprocess_env(),
+        env=_git_env(),
     )
     if code != 0:
         raise ConfigError(f"git cat-file {object_id} failed ({code}): {err.strip()}")
