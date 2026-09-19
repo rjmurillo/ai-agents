@@ -206,9 +206,16 @@ def _copy_runtime_config(repo: Path) -> None:
 
 def _replace_job_with_marker(repo: Path, hook_name: str, job_name: str) -> Path:
     marker = f"{hook_name}-{job_name}.marker"
+    marker_script = repo / f"{hook_name}-{job_name}.py"
+    _write_lf(
+        marker_script,
+        f"from pathlib import Path\nPath({marker!r}).touch()\n",
+    )
     config = yaml.safe_load((repo / "lefthook.yml").read_text(encoding="utf-8"))
+    # Lefthook runs commands through sh on Windows. A script avoids splitting
+    # Python source passed through the shell's quoted -c argument.
     _job_map(config, hook_name)[job_name]["run"] = (
-        f'"{PYTHON_POSIX}" -c "from pathlib import Path; Path(\'{marker}\').touch()"'
+        f'"{PYTHON_POSIX}" {marker_script.name}'
     )
     _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
     return repo / marker
@@ -1255,7 +1262,7 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
 @pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
 def test_repo_health_runs_as_a_native_job(hook_name: str, tmp_path: Path) -> None:
     """The healthy control for the bare-flagged case below (issue #4698)."""
-    repo = tmp_path / "repo"
+    repo = tmp_path / "path with spaces" / "repo"
     _init_repo(repo)
     _copy_runtime_config(repo)
     marker = _replace_job_with_marker(repo, hook_name, "repo-health")
@@ -1324,7 +1331,7 @@ def test_packed_refs_repair_runs_as_a_native_job(
     hook_name: str,
     tmp_path: Path,
 ) -> None:
-    repo = tmp_path / "repo"
+    repo = tmp_path / "path with spaces" / "repo"
     _init_repo(repo)
     _copy_runtime_config(repo)
     marker = _replace_job_with_marker(repo, hook_name, "repair-packed-refs")
