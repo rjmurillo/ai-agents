@@ -204,6 +204,16 @@ def _copy_runtime_config(repo: Path) -> None:
         shutil.copy2(source, destination)
 
 
+def _replace_job_with_marker(repo: Path, hook_name: str, job_name: str) -> Path:
+    marker = f"{hook_name}-{job_name}.marker"
+    config = yaml.safe_load((repo / "lefthook.yml").read_text(encoding="utf-8"))
+    _job_map(config, hook_name)[job_name]["run"] = (
+        f'"{PYTHON_POSIX}" -c "from pathlib import Path; Path(\'{marker}\').touch()"'
+    )
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
+    return repo / marker
+
+
 def _run_lefthook(
     repo: Path,
     *args: str,
@@ -1248,6 +1258,7 @@ def test_repo_health_runs_as_a_native_job(hook_name: str, tmp_path: Path) -> Non
     repo = tmp_path / "repo"
     _init_repo(repo)
     _copy_runtime_config(repo)
+    marker = _replace_job_with_marker(repo, hook_name, "repo-health")
     head_sha = _commit_file(repo, "tracked.txt", "content\n")
     push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {head_sha}\n"
 
@@ -1263,6 +1274,7 @@ def test_repo_health_runs_as_a_native_job(hook_name: str, tmp_path: Path) -> Non
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+    assert marker.is_file()
 
 
 @pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
@@ -1315,6 +1327,7 @@ def test_packed_refs_repair_runs_as_a_native_job(
     repo = tmp_path / "repo"
     _init_repo(repo)
     _copy_runtime_config(repo)
+    marker = _replace_job_with_marker(repo, hook_name, "repair-packed-refs")
     head_sha = _commit_file(repo, "tracked.txt", "content\n")
     push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {head_sha}\n"
 
@@ -1330,6 +1343,7 @@ def test_packed_refs_repair_runs_as_a_native_job(
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+    assert marker.is_file()
 
 
 def test_pre_push_repairs_corrupt_packed_refs_before_policy(tmp_path: Path) -> None:
@@ -1357,12 +1371,6 @@ def test_pre_push_repairs_corrupt_packed_refs_before_policy(tmp_path: Path) -> N
     assert result.returncode == 0, result.stdout + result.stderr
     assert b"\n\n" not in packed_refs.read_bytes()
     assert packed_refs.with_name("packed-refs.before-repair").is_file()
-
-
-def _summary_lines(stdout: str, job: str) -> list[str]:
-    """Return the summary lines naming a job, one per execution lefthook ran."""
-    _, _, summary = stdout.partition("summary:")
-    return [line for line in summary.splitlines() if job in line]
 
 
 def test_pre_push_staleness_checks_the_remote_named_on_the_command_line(
@@ -1443,7 +1451,7 @@ def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
     head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
     push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {base_sha}\n"
 
-    result = _run_lefthook(
+    _run_lefthook(
         repo,
         "run",
         "pre-push",
