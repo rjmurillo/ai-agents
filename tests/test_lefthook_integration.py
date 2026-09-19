@@ -1392,6 +1392,12 @@ def test_pre_push_staleness_checks_the_remote_named_on_the_command_line(
     repo = tmp_path / "repo"
     _init_repo(repo)
     _copy_runtime_config(repo)
+    config = yaml.safe_load((repo / "lefthook.yml").read_text(encoding="utf-8"))
+    pre_push_jobs = config["pre-push"]["jobs"]
+    assert sum(
+        job.get("name") == "push-ref-staleness"
+        for job in _flatten_jobs(pre_push_jobs)
+    ) == 1
     head_sha = _commit_file(repo, "tracked.txt", "content\n")
     branch = "refs/heads/feature/test"
 
