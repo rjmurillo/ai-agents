@@ -1,5 +1,5 @@
 ---
-description: Pragmatic Programmer principles from Hunt and Thomas. Apply as a general engineering overlay on every change. Reinforce DRY at the knowledge level, orthogonality, fast feedback, automation, tracer-bullet delivery, and the broken-windows discipline. Source adapted from ciembor/agent-rules-books (MIT).
+description: Pragmatic Programmer principles from Hunt and Thomas. Apply as a general engineering overlay on code changes. Reinforce DRY at the knowledge level, orthogonality, fast feedback, automation, tracer-bullet delivery, and the broken-windows discipline. Source adapted from ciembor/agent-rules-books (MIT).
 applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*.java,**/*.rb,**/*.c,**/*.h,**/*.cpp,**/*.ps1,**/*.psm1,**/*.psd1,**/*.sh,**/*.sql'
 ---
 
@@ -7,9 +7,9 @@ applyTo: '**/*.py,**/*.cs,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.go,**/*.rs,**/*
 
 ## Purpose
 
-This repository follows **The Pragmatic Programmer** in the sense of Andrew Hunt and David Thomas: work pragmatically, take responsibility for quality, automate what is repetitive, and keep code and process adaptable.
+The active host follows **The Pragmatic Programmer** in the sense of Andrew Hunt and David Thomas: work pragmatically, take responsibility for quality, automate what is repetitive, and keep code and process adaptable.
 
-This file is a binding engineering policy for Claude.
+This file is a binding engineering policy for the active host.
 
 For deeper design decisions, apply the same engineering qualities directly: maximize cohesion, minimize coupling, preserve encapsulation, prioritize testability, and avoid redundant knowledge.
 
@@ -158,14 +158,8 @@ Anti-patterns:
 2. Do not discard useful error context.
 3. Let callers distinguish retryable, recoverable, and permanent failures where relevant.
 4. Fail loudly enough to diagnose, but with boundaries that prevent system-wide collapse.
-5. Retry transient failures only within a bounded budget. A repeated transient
-   failure is an observed failure, not permission to claim success.
-6. Use an alternate path only when the contract identifies it as authoritative.
-   Do not replace a failed source with an unverified guess.
-7. Treat an authoritative refusal as terminal for that strategy. Treat an
-   unavailable source as unknown, not as a value to invent.
-8. Read and validate the schema before writing a schema-governed artifact. If
-   the schema or result shape is unavailable, stop without fabricating fields.
+5. Apply the host's universal recovery and truthfulness contract to transient,
+   alternate, refused, and unavailable operations.
 
 ---
 
@@ -256,7 +250,7 @@ If any answer is no, revise before shipping.
 
 These principles bind across agent and tool boundaries in this repository, not just within a single module. A multi-agent system multiplies the cost of duplicated knowledge and hidden coupling because changes have to propagate across prompts, skills, hooks, and orchestration code that no single human owns end-to-end.
 
-| Principle              | Multi-agent application in ai-agents                                                                                                                          |
+| Principle              | Multi-agent application in the active host project                                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DRY at knowledge level | Business rules and policy live in one place (a skill, a module, an ADR), not duplicated across agent prompts, hooks, and CI gates that must drift in lockstep. |
 | Orthogonality          | A change to one agent's prompt or one skill should not require coordinated edits to unrelated agents, hooks, or workflows.                                     |

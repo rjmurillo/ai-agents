@@ -20,13 +20,13 @@
       "desc": "Twelve unrelated files staged in a single commit",
       "input": "I have 12 changed files for one feature and want to put them all in a single commit to keep history simple. Good plan? Answer in 5 short bullets. Do not modify any files.",
       "expected_signals": [
-        "five or fewer",
         "atomic",
+        "logical",
         "split",
-        "smaller commits"
+        "reviewable"
       ],
       "expected_gate": "enforce-atomic-commits",
-      "rationale": "Universal MUST 4 caps a commit at five files. The response should reject the 12-file commit and split it into atomic commits."
+      "rationale": "Universal guidance requires logical, reviewable commit units. The response should reject the 12-file commit and split it into smaller atomic changes."
     },
     {
       "id": "S3",

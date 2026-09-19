@@ -1,40 +1,14 @@
-# Scope Discipline on Discovery
+# Evidence: scope expansion during discovery
 
-**Statement**: When discovery tools reveal issues outside current scope, document and defer rather than expanding scope mid-execution
+<!-- placement: evidence; reason: records a discovery incident and migration destination, not an operating contract -->
 
-**Context**: Any implementation or analysis task that uncovers additional work
+## Observed evidence
 
-**Evidence**: Found 14 violations during validation script development, explicitly deferred to maintain Phase 1 focus
+Validation work exposed 14 unrelated violations. The work stayed on its Phase 1
+objective and recorded the findings for later handling.
 
-**Atomicity**: 90%
+## Migration disposition
 
-**Impact**: 9/10
-
-## Practice
-
-1. Document discovered issue immediately
-2. Create separate tracking item (issue, task, or note)
-3. Add to handoff document for next session
-4. Return to original scope without delay
-5. Never expand scope mid-execution without explicit approval
-
-## Pattern
-
-```markdown
-## Discovered Issues (Out of Scope)
-
-| Issue | Severity | Tracking |
-|-------|----------|----------|
-| 14 pre-existing path violations | Medium | Issue #XX |
-| Missing test coverage | Low | Backlog |
-
-*These items deferred to maintain Phase 1 focus*
-```
-
-## Related
-
-- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
-- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
-- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
-- [agent-workflow-collaboration](agent-workflow-collaboration.md)
-- [agent-workflow-critic-gate](agent-workflow-critic-gate.md)
+The host Universal Rules cover recording discoveries outside the task contract
+and deferring them without user authorization. The host planning and shipping
+skills own the detailed disposition workflow.

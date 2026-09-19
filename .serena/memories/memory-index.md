@@ -102,8 +102,8 @@
 
 [Agent Orchestration]
 |orchestration agent coordination parallel handoff dispatch consensus: [skills-orchestration-index](skills-orchestration-index.md) (404), [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) (813)
-|agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (378)
-|autonomous execution guardrails circuit breaker patch signal trust: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (150)
+|agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (385)
+|autonomous execution guardrails circuit breaker patch signal trust: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (153)
 |fleet contention stop order renice congestion collapse two: [decision-stop-orders-are-not-a-control-plane](decision-stop-orders-are-not-a-control-plane.md) (876)
 |worktree abandoned live agent fleet stale dirty harvest: [agent-workflow/fleet-worktree-live-versus-abandoned](agent-workflow/fleet-worktree-live-versus-abandoned.md) (1613)
 |phase3 agent skill session handoff template verification: [agent-workflow/agentworkflow-004-proactive-template-sync-verification-95](agent-workflow/agentworkflow-004-proactive-template-sync-verification-95.md) (485), [agent-workflow/agentworkflow-005-structured-handoff-formats-88](agent-workflow/agentworkflow-005-structured-handoff-formats-88.md) (474)
@@ -120,7 +120,7 @@
 |ratchet declared twice lefthook checks_ratchet parity add/add conflict: [ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice](ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice.md) (704)
 |stale detached HEAD shared checkout verify wrong commit: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (1497)
 |tracking branch push retry fleet CPU load pre-pr-validation timeout SIGKILL: [ci/tracking-branch-push-retries-under-fleet-cpu-load](ci/tracking-branch-push-retries-under-fleet-cpu-load.md) (2383)
-|stuck subagent SendMessage nudge git checkout stale local branch GH007 private email worktree identity user.email --worktree: [agent-behavior/stuck-subagent-and-worktree-recovery](agent-behavior/stuck-subagent-and-worktree-recovery.md) (1774)
+|stuck subagent SendMessage nudge git checkout stale local branch GH007 private email worktree identity user.email --worktree: [agent-behavior/stuck-subagent-and-worktree-recovery](agent-behavior/stuck-subagent-and-worktree-recovery.md) (205)
 |spec coverage validator verdict differs across reruns adjacent commits PASS WARN FAIL PARTIAL component: [ci/ai-spec-validator-verdicts-flip-flop-across-reruns](ci/ai-spec-validator-verdicts-flip-flop-across-reruns.md) (747)
 |gc_worktrees prune registered worktrees rescue branch admin directory unreachable commits: [workspace/gc-worktrees-report-then-apply](workspace/gc-worktrees-report-then-apply.md) (542)
 |validate PR check red advisory blocking signal DESCRIPTION_RESULT: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (3230)

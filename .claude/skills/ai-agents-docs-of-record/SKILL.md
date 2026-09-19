@@ -204,9 +204,8 @@ Replacements: be specific instead. "Robust error handling" becomes "handles netw
 MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
    comments to any file (agent prompts, documentation, code, template outputs).
    Generated output must be indistinguishable from hand-written content:
-   metadata headers waste tokens for AI consumers, and the user has rejected
-   this pattern repeatedly (three corrections as of 2025-12-17). If a script
-   grows a helper that emits such headers, delete the helper instead of
+   metadata headers waste tokens and hide the output's intended content. If a
+   script grows a helper that emits such headers, delete the helper instead of
    calling it.
 
 Markdown lint is SCOPED to files you changed. The PR #908 Five Whys traced 53

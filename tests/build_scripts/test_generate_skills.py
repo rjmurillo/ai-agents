@@ -49,6 +49,13 @@ _ISSUE_4327_REFERENCE_FILES = (
     "src/copilot-cli/skills/skillforge/scripts/skill_modularity_audit.py",
     "src/copilot-cli/skills/skillforge/references/modularity-guidelines.md",
 )
+_SKILLFORGE_CONTEXT_TRIGGERS = (
+    "analyze skill placement",
+    "compress markdown",
+    "optimize context",
+    "extract and index",
+    "audit always-on rules",
+)
 
 
 # Helpers --------------------------------------------------------------------
@@ -161,6 +168,20 @@ def test_copilot_skill_routes_resolve_inside_copilot_skill_tree() -> None:
                 unresolved.append(f"{rel_path}: Skill: {routed_skill}")
 
     assert not unresolved, "unresolved Copilot Skill routes:\n" + "\n".join(unresolved)
+
+
+def test_skillforge_description_routes_context_optimizer_requests() -> None:
+    """SkillForge frontmatter exposes every Context Optimizer trigger."""
+    paths = (
+        REPO_ROOT / "templates/skills/skillforge.SKILL.md.tmpl",
+        REPO_ROOT / ".claude/skills/skillforge/SKILL.md",
+        REPO_ROOT / "src/claude/skills/skillforge/SKILL.md",
+        REPO_ROOT / "src/copilot-cli/skills/skillforge/SKILL.md",
+    )
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        description = next(line for line in text.splitlines() if line.startswith("description:"))
+        assert all(trigger in description for trigger in _SKILLFORGE_CONTEXT_TRIGGERS), path
 
 
 @pytest.mark.parametrize("relative_path", _ISSUE_4327_REFERENCE_FILES)
@@ -332,4 +353,3 @@ def test_main_invokes_generation(tmp_path: Path, argv: list[str]) -> None:
         "--config", str(cfg), "--repo-root", str(repo_root), *argv,
     ])
     assert rc == 0
-
