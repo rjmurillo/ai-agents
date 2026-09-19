@@ -37,7 +37,7 @@ permissions:
 jobs:
   check-paths:
     name: Detect agent changes
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     outputs:
       should-run-discriminator: ${{ github.event_name == 'workflow_dispatch' && 'true' || github.event_name == 'schedule' && 'true' || steps.filter.outputs.agents }}
@@ -64,7 +64,7 @@ jobs:
     name: Score changed agents
     needs: check-paths
     if: needs.check-paths.outputs.should-run-discriminator == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     steps:
       - name: Checkout code
@@ -111,7 +111,7 @@ jobs:
     name: Skip discriminator (no agent changes)
     needs: check-paths
     if: needs.check-paths.outputs.should-run-discriminator != 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 1
     steps:
       - name: Checkout code

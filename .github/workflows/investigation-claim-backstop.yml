@@ -30,7 +30,7 @@ jobs:
   validate-claims:
     name: Validate Investigation Claims
     # ADR-025: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
 

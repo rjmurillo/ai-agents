@@ -43,7 +43,7 @@ jobs:
     name: Validate PR
     # ADR-055: ARM runner for cost optimization (37.5% savings vs x64)
     # PowerShell Core and GitHub CLI fully support ARM64
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     # Note: No job-level if condition - job must always run to report status for required checks
     # Bot exclusions handled at step level to ensure status is always reported
     timeout-minutes: 10
