@@ -16,6 +16,16 @@ pre-merge-commit:
       timeout: 2m
       run: uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-staged
 
+    # Issue #5836: merge commits need the same complete output check.
+    - name: context-output-check
+      timeout: 5s
+      env:
+        PYTHONDONTWRITEBYTECODE: "1"
+      run: >-
+        uv run --frozen python
+        .claude/skills/context-optimizer/scripts/extract_and_index.py
+        --check --staged --manifest .agents/context-output-manifest.json
+
 pre-commit:
   piped: true
   jobs:
@@ -386,11 +396,31 @@ pre-commit:
         - merge
         - run: test "$SKIP_AUTOFIX" = "1"
 
-    - name: commit-file-count
-      timeout: 2m
-      run: uv run --frozen python scripts/validation/git_hook_policy.py atomic-commit
-      skip:
-        - merge
+    # These jobs only read staged state. Keeping them parallel preserves the
+    # pre-commit declared budget while the context check remains after all
+    # generator groups.
+    - group:
+        parallel: true
+        jobs:
+          # Issue #5836: validate every owned context output on every commit.
+          # This has no glob because unrelated commits must not hide drift.
+          # The pre-merge hook carries the same check for merge commits.
+          - name: context-output-check
+            timeout: 5s
+            env:
+              PYTHONDONTWRITEBYTECODE: "1"
+            run: >-
+              uv run --frozen python
+              .claude/skills/context-optimizer/scripts/extract_and_index.py
+              --check --staged --manifest .agents/context-output-manifest.json
+            skip:
+              - merge
+
+          - name: commit-file-count
+            timeout: 2m
+            run: uv run --frozen python scripts/validation/git_hook_policy.py atomic-commit
+            skip:
+              - merge
 
     - name: github-bash-policy
       timeout: 2m

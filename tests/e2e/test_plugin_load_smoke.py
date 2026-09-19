@@ -215,14 +215,18 @@ _COPILOT_ANALYST_TOOLS = frozenset(
 # argument-hint; the schema check passes but the real loader rejects it.
 _ARGUMENT_HINT_WARNING = "argument-hint"
 
-# Claude CLI auth-failure markers (issue #4861). The CLI emits these in its
-# stream-json output or stderr when the local OAuth session is expired or absent.
-# Keep lowercased for case-insensitive matching (same pattern as Copilot markers).
-_CLAUDE_AUTH_EXPIRED_MARKERS: tuple[str, ...] = (
+# Claude CLI external-block markers (issue #4861). The CLI emits these in its
+# stream-json output or stderr when auth or quota blocks the probe.
+# Keep lowercased for case-insensitive matching.
+_CLAUDE_EXTERNAL_BLOCK_PATTERNS: tuple[str, ...] = (
     "oauth session expired",
     "failed to authenticate",
     "could not be refreshed",
+    "monthly spend limit",
+    "weekly limit resets",
+    r'"api_error_status"\s*:\s*429',
 )
+_CLAUDE_AUTH_BLOCK_PATTERNS = _CLAUDE_EXTERNAL_BLOCK_PATTERNS[:3]
 
 _CLI_TIMEOUT_SECONDS = 240
 _PLUGIN_ROOT_ENV_KEYS = {"CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"}
@@ -309,10 +313,14 @@ def _claude_init_tools(agent: str) -> set[str]:
     )
     if run.returncode != 0:
         haystack = f"{run.stderr or ''}\n{run.stdout or ''}".lower()
-        if any(marker in haystack for marker in _CLAUDE_AUTH_EXPIRED_MARKERS):
+        if any(re.search(pattern, haystack) for pattern in _CLAUDE_EXTERNAL_BLOCK_PATTERNS):
+            if any(re.search(pattern, haystack) for pattern in _CLAUDE_AUTH_BLOCK_PATTERNS):
+                reason = "OAuth session expired or could not authenticate"
+            else:
+                reason = "quota or external service limit reached"
             pytest.skip(
-                f"Claude OAuth session expired or could not authenticate for "
-                f"agent {agent!r}; re-run after `claude auth login`."
+                f"Claude {reason} for agent {agent!r}; retry after the "
+                "external condition clears."
             )
         raise AssertionError(
             f"claude agent probe failed for {agent} (rc={run.returncode}). "
@@ -1338,6 +1346,23 @@ def test_claude_probe_fails_on_non_auth_error(
         "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: non_auth
     )
     with pytest.raises(AssertionError, match="claude agent probe failed"):
+        _claude_init_tools("analyst")
+
+
+def test_claude_probe_skips_on_quota_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Claude quota failures skip instead of failing the local push gate."""
+    quota_blocked = subprocess.CompletedProcess(
+        ["claude"],
+        1,
+        stdout='{"api_error_status": 429, "result": "monthly spend limit"}',
+        stderr="",
+    )
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke._run_cli", lambda *a, **kw: quota_blocked
+    )
+    with pytest.raises(pytest.skip.Exception, match="quota"):
         _claude_init_tools("analyst")
 
 
