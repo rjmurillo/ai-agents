@@ -45,7 +45,7 @@ eliminating retrieval decisions.
 | `analyze_skill_placement.py` | Classify content as Skill/PassiveContext/Hybrid | 0=success, 1=error |
 | `compress_markdown_content.py` | Compress markdown and report the result | 0=success, 1=error, 2=config, 3=external |
 | `test_skill_passive_compliance.py` | Validate compliance with decision framework | 0=pass, 1=violations |
-| `extract_and_index.py` | Extract sections into detail files with pipe-delimited index | 0=success, 1=error, 2=config, 3=external |
+| `extract_and_index.py` | Extract sections, or check an explicit output manifest | 0=success, 1=drift, 2=config, 3=external, 4=dependency |
 | `path_validation.py` | Shared CWE-22 repo-root-anchored path validation | N/A (library module) |
 
 ## Prerequisites
@@ -273,6 +273,29 @@ python3 scripts/extract_and_index.py -i AGENTS.md -d .agents-details -o AGENTS-I
 
 # Custom reference path in index
 python3 scripts/extract_and_index.py -i AGENTS.md -d .agents-details -r .agents-docs -o AGENTS-INDEX.md
+
+# Check every owned source and generated output without writing files
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts/extract_and_index.py" \
+  --check --manifest .agents/context-output-manifest.json
+```
+
+The manifest lists the output root, each owned source, index, detail directory,
+and reference path. This repository includes every tracked `AGENTS.md`;
+`CLAUDE.md` files remain outside this manifest because they route or mirror that
+instruction source. Check mode reports expected and found output counts, then
+fails on missing, stale, extra, or mismatched outputs. It never rewrites files.
+The pre-commit hook reads staged files, so source and generated output must be
+staged together. Add a manifest entry only after generating and committing its
+complete output set.
+
+Regenerate the repository's current manifest entry with:
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts/extract_and_index.py" \
+  -i AGENTS.md \
+  -d .agents/context/AGENTS-details \
+  -r .agents/context/AGENTS-details \
+  -o .agents/context/AGENTS-INDEX.md
 ```
 
 **Output Index Format** (Vercel pattern):

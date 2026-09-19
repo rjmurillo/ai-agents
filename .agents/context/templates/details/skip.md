@@ -1,0 +1,4 @@
+## Skip
+
+- Generated, never hand-edited (source is `templates/` except `src/claude/lib`, `src/copilot-cli/lib`, `.claude/lib/<pkg>` from `scripts/`, and `src/claude/skills`, `src/copilot-cli/skills` non-SKILL.md from `.claude/skills/<name>/`): `src/claude/agents|rules|skills|hooks`, `src/claude/hooks.json`, `src/copilot-cli/agents|instructions|skills|lib|hooks`, `src/vs-code-agents/`, `.claude/agents|rules|hooks`, `.claude/settings.json`, `.github/agents|hooks|instructions`, each `.claude/skills/<name>/SKILL.md`.
+- Hand-maintained inside those trees: the seven docs under `.claude/hooks/`, `.github/agents/security/references/`, `.github/agents/pr-comment-responder.prompt.md`, `src/vs-code-agents/copilot-instructions.md`, under `.claude/skills/<name>/`, everything but `SKILL.md` (the `src/claude/skills` and `src/copilot-cli/skills` copies are generated).
