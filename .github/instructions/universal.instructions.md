@@ -67,11 +67,16 @@ These rules apply to every change in the active host repository.
    validator, rule, or caller exists, search the active host checkout and cite
    the search, or narrow the claim to the scope actually searched.
 
-10. MUST NOT mutate a host-owned memory or handoff store from a linked worktree
+10. **Session continuity**. Long-running work MUST preserve its current state in
+    the host workflow's durable handoff surface. Session log creation is
+    discontinued. Optional memory services are retrieval aids, not the only
+    record of required work.
+
+11. MUST NOT mutate a host-owned memory or handoff store from a linked worktree
     when it resolves to another checkout. Route the write through the owning
     checkout or return the content to the parent session.
 
-11. MUST NOT fabricate tool results, command flags, facts, mutable state, or
+12. MUST NOT fabricate tool results, command flags, facts, mutable state, or
     artifact fields. If an authoritative source fails, preserve the error
     context and report the result as unknown or unconfirmed until an
     authoritative observation confirms it. A missing observation is not
