@@ -509,9 +509,10 @@ def run_compliance_checks(path: Path, claude_md_path: Path) -> ComplianceResults
         claude_md_path=str(claude_md_path),
         scope={
             "claudeMdMeasurement": (
-                "Measures only the selected CLAUDE.md file. Imports, hierarchical "
-                "CLAUDE.md and AGENTS.md files, generated instructions, and plugin "
-                "context are not included in its line count."
+                "Examines only the selected CLAUDE.md file. Imported files are "
+                "checked separately for existence and passive-context patterns. "
+                "Hierarchical CLAUDE.md and AGENTS.md files, generated instructions, "
+                "and plugin context are outside this result."
             ),
             "notEvaluated": [
                 "@imported file size",
@@ -526,16 +527,15 @@ def run_compliance_checks(path: Path, claude_md_path: Path) -> ComplianceResults
                 "claudeMd": (
                     "Claude Code loads CLAUDE.md files in full. Shorter files can "
                     "improve instruction adherence, but the vendor does not set a "
-                    "200-line CLAUDE.md compliance limit."
+                    "fixed CLAUDE.md compliance limit."
                 ),
                 "memoryMd": (
-                    "The first 200 lines or 25 KB limit applies to auto-memory MEMORY.md."
+                    "Auto-memory uses MEMORY.md and follows separate vendor guidance."
                 ),
                 "source": CLAUDE_MD_MEMORY_DOCS,
                 "localSizePolicy": (
-                    "skill_size.py owns this repository's local SKILL.md size "
-                    "ratchet, 500 lines and 24576 bytes. It does not apply to "
-                    "CLAUDE.md."
+                    "skill_size.py owns this repository's local SKILL.md validation "
+                    "policy. It does not apply to CLAUDE.md."
                 ),
             },
             "contentQualityReview": {

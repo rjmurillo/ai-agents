@@ -12,8 +12,13 @@ Never trade a gate, a test, or evidence in a report for tokens. That buys a chea
 
 It is deliberately not `paths: ["**"]`, for two reasons worth stating so nobody "fixes" the scope later.
 
-The always-on corpus is closed. The instruction-budget validator measures the generated mirrors whose glob matches every file of a language, and the Python baseline sits within its 600-byte reserve of the ceiling. An always-on copy of this rule would have to be funded by cutting other always-on content, and the rule-audit procedure in the context-optimizer skill requires replicated eval runs on two models after any always-on change, a cut and an addition alike. This rule carries no such evidence and does not claim to.
+This rule stays scoped because its guidance applies during repository changes.
+Use progressive disclosure for guidance that does not apply to every file.
 
-It also fails that procedure's admission test for always-on content, on two of three criteria: the model already knows that rework is expensive, and the tactics are retrievable on demand from the LSP-first and voice rules, from the programming-advisor, memory-search, and memory-gate skills, and from the GitHub URL intercept skill. What is left is the framing above, which is cheap to load where it applies.
+It also fails the [admission test in model-context-doctrine.md](https://github.com/rjmurillo/ai-agents/blob/main/.claude/skills/context-optimizer/references/model-context-doctrine.md#the-admission-test) for always-on content. The [rule-audit-procedure.md](https://github.com/rjmurillo/ai-agents/blob/main/.claude/skills/context-optimizer/references/rule-audit-procedure.md) defines the review discipline. The model
+already knows that rework is expensive, and the tactics are retrievable on
+demand from the LSP-first and voice rules, the programming-advisor,
+memory-search, memory-gate, and GitHub URL intercept skills. What remains is
+the framing above, which loads where it applies.
 
 The globs are the gated trees that also exist in a consumer install: agent configuration, governance, workflows, and tests. Those are where a wrong edit costs a CI cycle. The upstream-only `build` and `scripts` trees are deliberately absent from the list, because a shipped rule scoped to a tree the consumer does not have is dead weight in every install. None of these globs matches every file of any language, so this rule adds nothing to the always-on language baselines.

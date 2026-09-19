@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """
-Compress markdown documentation to minimal tokens using pipe-delimited format (Vercel pattern).
+Compress markdown documentation using a pipe-delimited format (Vercel pattern).
 
-Implements compression techniques from Vercel research achieving 60-80% token reduction
-while maintaining 100% information density. Uses tiktoken for accurate OpenAI-compatible
-token counting.
+Uses tiktoken for OpenAI-compatible token estimates.
 
 Exit Codes:
     0: Success - Compression completed

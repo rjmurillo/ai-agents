@@ -14,13 +14,13 @@ Context usage grows linearly. Cost grows quadratically because every message re-
 
 **Multi-instance orchestration**: Separate CC instances per domain (frontend, backend, DB). All log to central memory bank. Cross-instance reads fetch only relevant logs, not full history.
 
-**Proactive handover at ~80% context**: Outgoing agent writes all undocumented context, decisions, working memory to dedicated file. New agent reads that file. No chat history re-reading.
+**Proactive handover before context becomes crowded**: Outgoing agent writes all undocumented context, decisions, working memory to dedicated file. New agent reads that file. No chat history re-reading.
 
 ## MCP Context Optimization
 
-MCP servers wrapping CRUD JSON APIs dump 50KB+ per tool call.
+MCP servers wrapping CRUD JSON APIs can dump oversized payloads per tool call.
 
-**Code Mode pattern**: LLM writes small extraction script. Server runs it in sandbox against raw data. Only stdout enters context. Saves 65-99% context.
+**Code Mode pattern**: LLM writes a small extraction script. Server runs it in a sandbox against raw data. Only selected stdout enters context.
 
 | Language | Sandbox |
 |----------|---------|
@@ -41,13 +41,13 @@ If Claude already knows the CLI from training data, skip the MCP entirely.
 
 ## Drift Detection via Static Analysis
 
-Purpose-built CLI tools (1-2 second runtime each) detect divergence between intended and actual state.
+Purpose-built CLI tools detect divergence between intended and actual state.
 
 | Tool | Detects |
 |------|---------|
 | `api-contract-drift` | Go API response vs TypeScript interface mismatches |
 | `schema-drift-detector` | DB schema vs struct alignment |
-| `code-audit` | 30+ checks: SQL injection, CSRF, N+1, credential leaks |
+| `code-audit` | Security and performance checks |
 | `query-complexity-analyzer` | SQL performance risk, N+1, injection vectors |
 | `implementation-test-coverage` | Per-implementation test tracking |
 

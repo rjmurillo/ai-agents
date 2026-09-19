@@ -255,6 +255,74 @@ class TestRuleScenarioFiles:
         rule_path = REPO_ROOT / data["rule_path"]
         assert rule_path.exists(), f"rule_path {data['rule_path']!r} does not exist"
 
+    def test_issue_5392_has_all_recovery_fixtures(self):
+        path = RULE_SCENARIOS_DIR / "pragmatic-programmer.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        ids = [scenario["id"] for scenario in data["scenarios"]]
+        assert len(ids) == len(set(ids)), "scenario IDs must be unique"
+        scenarios = {scenario["id"]: scenario for scenario in data["scenarios"]}
+        required = {
+            "R1": "recovery-transient-success",
+            "R2": "recovery-persistent-transient",
+            "R3": "recovery-authoritative-refusal",
+            "R4": "recovery-alternate-authoritative-path",
+            "R5": "recovery-unavailable-unknown",
+            "R6": "recovery-schema-governed-artifact",
+            "R7": "recovery-no-fabricated-mutable-state",
+            "R8": "skip-rule-not-applicable",
+        }
+        assert set(scenarios) == set(required) | {"S1", "S2", "S3", "S4"}
+        actual = {
+            scenario_id: scenarios[scenario_id]["expected_gate"] for scenario_id in required
+        }
+        assert actual == required
+        expected_signals = {
+            "R1": ["transient", "bounded", "retry", "success"],
+            "R2": ["bounded", "failed", "unknown", "not success"],
+            "R3": ["authoritative", "refusal", "terminal", "do not retry"],
+            "R4": ["alternate", "authoritative", "contract", "evidence"],
+            "R5": ["unavailable", "unknown", "no alternate", "do not invent"],
+            "R6": ["schema", "unavailable", "stop", "no fabricated fields"],
+            "R7": ["failed", "unknown", "no fabricated state", "preserve error"],
+        }
+        assert scenarios["R8"]["expected_signals"] == []
+        for scenario_id, signals in expected_signals.items():
+            assert scenarios[scenario_id]["expected_signals"] == signals
+
+    def test_issue_5392_covers_universal_no_fabrication(self):
+        path = RULE_SCENARIOS_DIR / "universal.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        scenarios = {scenario["id"]: scenario for scenario in data["scenarios"]}
+        scenario = scenarios["S5"]
+        assert scenario["expected_gate"] == "enforce-no-fabrication"
+        assert scenario["expected_signals"] == [
+            "do not fabricate",
+            "error context",
+            "unknown",
+            "not success",
+        ]
+        assert scenarios["S6"]["expected_signals"] == []
+
+    def test_issue_5392_recovery_contract_is_explicit(self):
+        universal = (REPO_ROOT / "templates/rules/universal.md").read_text(encoding="utf-8")
+        pragmatic = (REPO_ROOT / "templates/rules/pragmatic-programmer.md").read_text(
+            encoding="utf-8"
+        )
+        for clause in (
+            "MUST NOT fabricate tool results, command flags, facts, mutable state, or",
+            "report the result as unknown or unconfirmed",
+            "authoritative observation confirms it",
+        ):
+            assert clause in universal
+        for clause in (
+            "Retry transient failures only within a bounded budget",
+            "alternate path only when the contract identifies it as authoritative",
+            "authoritative refusal as terminal for that strategy",
+            "unavailable source as unknown",
+            "schema before writing a schema-governed artifact",
+        ):
+            assert clause in pragmatic
+
 
 # ---------------------------------------------------------------------------
 # Issue #3956: run provenance in eval-rule-activation output
