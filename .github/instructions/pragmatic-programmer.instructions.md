@@ -158,6 +158,14 @@ Anti-patterns:
 2. Do not discard useful error context.
 3. Let callers distinguish retryable, recoverable, and permanent failures where relevant.
 4. Fail loudly enough to diagnose, but with boundaries that prevent system-wide collapse.
+5. Retry transient failures only within a bounded budget. A repeated transient
+   failure is an observed failure, not permission to claim success.
+6. Use an alternate path only when the contract identifies it as authoritative.
+   Do not replace a failed source with an unverified guess.
+7. Treat an authoritative refusal as terminal for that strategy. Treat an
+   unavailable source as unknown, not as a value to invent.
+8. Read and validate the schema before writing a schema-governed artifact. If
+   the schema or result shape is unavailable, stop without fabricating fields.
 
 ---
 

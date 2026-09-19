@@ -110,6 +110,12 @@ These rules apply to every change in this repository.
     `check_serena_memory_worktree_scope.py` only reports it afterward, and never
     fails. Refs Issue #5061.
 
+11. MUST NOT fabricate tool results, command flags, facts, mutable state, or
+    artifact fields. If an authoritative source fails, preserve the error
+    context and report the result as unknown or unconfirmed until an
+    authoritative observation confirms it. A missing observation is not
+    success.
+
 ## Choosing a persistence surface
 
 When you learn a durable fact, convention, or decision procedure that future sessions must honor, choose the persistence surface by who must obey it and across which harnesses. This repository runs under Claude, Codex, and Copilot. A convention that lives in only one harness's memory is invisible to the other two.
