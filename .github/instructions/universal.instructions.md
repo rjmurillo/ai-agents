@@ -56,9 +56,9 @@ These rules apply to every change in the active host repository.
 6. Worktrees MUST remain available for the duration of the handoff and follow
    the host's path rules.
 7. MUST NOT rely on an optional memory service alone to persist a convention
-   that other harnesses or contributors must obey. Memory is a retrieval aid,
-   not the cross-harness binding.
-8. MUST NOT cite an operator preference as a project rule. State the durable
+   that other harnesses or contributors must obey. Optional memory services
+   are retrieval complements, not the cross-harness binding.
+8. MUST NOT cite an operator preference as a repository rule. State the durable
    source or state the advice without project attribution.
 9. MUST NOT assert an absence from a single probe. This is the mirror of item 8
    and is worse, because an absence is unfalsifiable by later reading: a cited
@@ -114,7 +114,8 @@ the task contract and defer them unless the user authorizes scope expansion.
 
 When you learn a durable fact, convention, or decision procedure that future
 sessions must honor, choose the persistence surface by who must obey it and
-across which harnesses.
+across which harnesses. A convention that lives in only one harness's memory
+is invisible to the other two harnesses.
 
 1. **Ephemeral, this-task-only**: do not persist as a rule. Record unfinished issue state in the per-issue handoff.
 2. **Retrieval aid, non-binding**: an optional memory or note store. Use it for
@@ -125,6 +126,15 @@ across which harnesses.
 
 Once you know which tree you are writing to, follow the host's documented
 generation and indexing mechanics.
+
+Historical evidence for this placement contract includes these source-repository
+records. Treat them as citations, not local paths or commands to run:
+
+```text
+- `parallel/parallel-001-worktree-isolation.md`
+- `scripts/memory/update_memory_index_tokens.py`
+- `78e808238`, corrected in `9cd7097f1`
+```
 
 ## References
 
