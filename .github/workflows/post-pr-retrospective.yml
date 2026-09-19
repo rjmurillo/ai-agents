@@ -56,7 +56,7 @@ jobs:
   prepare:
     name: Prepare retrospective context
     # ADR-025: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     # Least privilege (CWE-269). This job now checks out and executes a repo
     # script, so it runs code from the pull request ref. It reads only the
@@ -100,7 +100,7 @@ jobs:
     name: Run retrospective agent
     needs: prepare
     if: needs.prepare.outputs.should_run == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     environment: bot-secrets
     timeout-minutes: 30
 

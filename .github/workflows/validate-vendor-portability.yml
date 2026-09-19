@@ -24,7 +24,7 @@ on:
 jobs:
   validate-portability:
     name: Validate Vendor Portability
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 3
     permissions:
       contents: read

@@ -15,7 +15,7 @@ permissions:
 jobs:
   assign-milestone:
     name: Assign Milestone
-    runs-on: ubuntu-24.04-arm  # ADR-025: ARM for cost efficiency
+    runs-on: ubuntu-26.04-arm  # ADR-025: ARM for cost efficiency
 
     # Only run if PR was merged or issue was closed (not just closed without merge)
     if: |

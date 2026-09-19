@@ -54,7 +54,7 @@ permissions:
 jobs:
   authorize:
     name: Trusted-context gate
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
     outputs:
@@ -206,7 +206,7 @@ jobs:
     needs: [authorize, smoke]
     # Pass-through summary so the run has one terminal status to alert on.
     if: always()
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
     steps:

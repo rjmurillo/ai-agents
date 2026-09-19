@@ -37,7 +37,7 @@ jobs:
   pr-merge-state:
     name: PR Merge State
     if: github.event_name == 'push' && github.ref_name != github.event.repository.default_branch
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 2
     permissions:
       contents: read
@@ -55,7 +55,7 @@ jobs:
   check-paths:
     name: Check Changed Paths
     # ADR-025: ARM runner for cost optimization (37.5% savings vs x64)
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 2
     permissions:
       contents: read
@@ -108,7 +108,7 @@ jobs:
     # is skipped whenever check-paths reports no Python-relevant diff,
     # letting a mainline push publish a stale green tick without measuring
     # the current tree. No `needs:`/`if:` here on purpose.
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     permissions:
       contents: read
@@ -148,7 +148,7 @@ jobs:
     # Both offending blobs arrived through the GraphQL createCommitOnBranch
     # API, which runs no local hook, so CI is the only place that producer is
     # observed.
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     permissions:
       contents: read
@@ -174,7 +174,7 @@ jobs:
     name: Check context outputs (blocking)
     # Issue #5836: the manifest is a whole-repository contract. Keep this job
     # outside check-paths so an unrelated diff cannot hide existing drift.
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     permissions:
       contents: read
@@ -575,7 +575,7 @@ jobs:
       !cancelled() &&
       (needs.check-paths.result != 'success' ||
       needs.check-paths.outputs.python-changed == 'true')
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 2
     permissions:
       contents: read
@@ -712,7 +712,7 @@ jobs:
       needs.check-paths.result == 'success' &&
       needs.check-paths.outputs.python-changed != 'true'
     # ADR-025: ARM runner for cost optimization
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     # ADR-101: was 2 minutes when this job only sparse-checked out one file and
     # ran require_job_results.py. Verifying the skip claim (below) needs the
     # full path policy and select_tests modules present, so the checkout below
@@ -840,7 +840,7 @@ jobs:
     if: >-
       !cancelled() && github.event_name == 'push' &&
       github.ref_name == github.event.repository.default_branch
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     timeout-minutes: 2
     permissions:
       contents: read
