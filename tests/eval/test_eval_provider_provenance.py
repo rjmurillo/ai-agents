@@ -276,12 +276,18 @@ class TestRuleScenarioFiles:
             scenario_id: scenarios[scenario_id]["expected_gate"] for scenario_id in required
         }
         assert actual == required
+        expected_signals = {
+            "R1": ["transient", "bounded", "retry", "success"],
+            "R2": ["bounded", "failed", "unknown", "not success"],
+            "R3": ["authoritative", "refusal", "terminal", "do not retry"],
+            "R4": ["alternate", "authoritative", "contract", "evidence"],
+            "R5": ["unavailable", "unknown", "no alternate", "do not invent"],
+            "R6": ["schema", "unavailable", "stop", "no fabricated fields"],
+            "R7": ["failed", "unknown", "no fabricated state", "preserve error"],
+        }
         assert scenarios["R8"]["expected_signals"] == []
-        assert all(
-            scenarios[scenario_id]["expected_signals"]
-            for scenario_id in required
-            if scenario_id != "R8"
-        )
+        for scenario_id, signals in expected_signals.items():
+            assert scenarios[scenario_id]["expected_signals"] == signals
 
     def test_issue_5392_covers_universal_no_fabrication(self):
         path = RULE_SCENARIOS_DIR / "universal.json"
@@ -289,7 +295,12 @@ class TestRuleScenarioFiles:
         scenarios = {scenario["id"]: scenario for scenario in data["scenarios"]}
         scenario = scenarios["S5"]
         assert scenario["expected_gate"] == "enforce-no-fabrication"
-        assert {"unknown", "not success"} <= set(scenario["expected_signals"])
+        assert scenario["expected_signals"] == [
+            "do not fabricate",
+            "error context",
+            "unknown",
+            "not success",
+        ]
         assert scenarios["S6"]["expected_signals"] == []
 
     def test_issue_5392_recovery_contract_is_explicit(self):

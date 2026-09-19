@@ -10,10 +10,7 @@ it should be:
 Admission (whether content belongs always-on at all) is decided by the Decision
 Framework in SKILL.md, not by this script. Pattern matching cannot tell whether
 the model already knows the content, and that is the question admission turns
-on. Use this script for shape, size, and duplication only.
-
-Classification is based on Vercel research showing passive context achieves 100%
-pass rates versus 53-79% for skills due to elimination of decision points.
+on. Use this script for shape and duplication only.
 
 Exit Codes:
     0: Success - Analysis complete

@@ -14,12 +14,9 @@ apply to a log that already exists on your branch (carried over from before
 this change, or cherry-picked from an older one).
 
 Scoped to `.agents/**` rather than `**` on purpose. The mechanics matter only
-when a change touches that tree, and the always-on instruction ceiling
-(`scripts/validation/instruction_budget.py`) has under 500 bytes of headroom, so
-a universally scoped copy would block the next contributor's rule. Note that the
-generator currently ships this rule to the plugin with `applyTo: '**'`, because
-`.agents/**` is filtered as internal-only and the empty scope is backfilled as
-universal; that is issue #4317, not a property of this rule.
+when a change touches that tree. The generator skips this rule from consumers
+that do not retain internal `.agents/**` paths. Issue #4317 tracks that
+destination-dependent behavior.
 
 ## MUST
 

@@ -1,151 +1,71 @@
 # Rule Audit Measurement Discipline: how the checks themselves went wrong
 
-Companion to `rule-audit-parser-forensics.md`, which records what broke in the
-parser. This file records what broke in the *checking* of it, and those are
-different failures with different fixes. A parser defect publishes a wrong
-number. A measurement defect publishes a wrong number and a clean report saying
-it was verified.
-
-Read this before quoting a figure you produced with a one-off command.
+Companion to `rule-audit-parser-forensics.md`. That file records parser
+defects. This file records defects in the checks that judged the parser. Read it
+before quoting a result from a one-off command.
 
 ## A check that cannot fail has not been run
 
-Two of the six negative controls covering parser round 20 were themselves false
-at first. One mutated a comment rather than the pattern. One invoked a `python`
-absent from PATH, so the interpreter never ran. Both reported clean against
-unmodified code, which is the same output a genuinely passing control produces.
+A negative control can mutate the wrong file, call an unavailable interpreter,
+or never reach the code under test. It can then report clean against unchanged
+code. That output is indistinguishable from a passing control.
 
-The control for a control is cheap and unconditional: confirm the mutation
-actually reached the file, run the suite, and confirm it now fails. `diff`
-against a backup before trusting a clean result. In this repository the
-interpreter must be invoked as `uv run --frozen python`, because bare `python`
-is not on PATH and its absence is silent inside a script that swallows the
+Confirm that the mutation reached the target. Run the suite. Confirm that the
+suite fails before trusting the clean result. Use `diff` against a backup when
+the control edits a file. Invoke Python through `uv run --frozen python`; a
+missing bare interpreter must not disappear inside a swallowed subprocess
 error.
 
-## A number needs the population it was read off
+## A result needs the population it was read from
 
-Several figures in this audit were wrong not because the count was
-miscomputed but because it was computed over the wrong set.
+A detector can be correct over the wrong population. State the population
+before stating the result, and verify that the detector can see every member of
+it. Keep the population fixed while comparing revisions.
 
-A claim that "1732 nested reasoning values name no score field" walked the
-whole archive envelope, including artifact names, session identifiers, and
-provenance prose, none of which the parser ever reads. The population the
-sentence attached to was the nested reasoning values, and there are 264 of
-them. The claim's direction did not change, but a number quoted against the
-wrong population is not evidence for anything, whichever way it points.
-
-A file-size finding was reported as three affected files when the gate scans
-markdown and code and does not scan `.xml` or `.txt`; the real figure was one.
-
-A test-addition delta was checked with `grep -o '^def test_'` against a file
-whose tests are all indented class methods, so the command returns zero and can
-never contradict the claim it is quoted for. The correction then made the same
-mistake in a second way: fixing the pattern *and* moving the comparison base
-from the commit's parent to current `origin/main` produced 76 to 87, which
-credits the change with eight tests it did not add. Measured against immutable
-revisions, `81fd0eb4` holds 84 and `ed4c4061` holds 87, so the change added 3
-with no deletions. Fixing a broken detector is only half the repair; changing
-the population at the same time hides that the first figure was right.
-
-The general form: quote a delta against two named revisions, not against a
-moving ref. `origin/main` is a different set of commits on Tuesday.
-
-The same instability afflicts running totals written into prose. Several
-documents here carried a review-round count that was accurate when written and
-silently wrong one round later, and nothing failed when it went stale. A total
-that increments while the document sits on disk is a maintenance liability, and
-the cheap repair is to write the bound the reader actually needs, more than
-twenty rounds, rather than a precise figure that has to be chased. Reserve
-exact counts for populations that are closed.
-
-The shared shape is a detector applied to a set that could not have contained
-the thing being counted. Before quoting a figure, state the denominator out
-loud and check that the detector can see a member of it.
+The same instability affects running totals in prose. A total changes while a
+document waits for review, and nothing fails when it becomes stale. State the
+bound or the invariant the reader needs. Keep exact counts inside the artifact
+that owns the closed population, not in active guidance.
 
 ## An unintended deletion does not announce itself
 
-A find-and-replace anchored on a structural opener deletes that opener unless
-the replacement re-emits it. In this audit it took a `def` line twice, removing
-a test while leaving its body attached to the previous function, and it took
-the `<!-- vendor-portability:` marker at the foot of the forensics file,
-turning two long-declared path references back into undeclared drift.
+A structural find-and-replace can consume the opener it was meant to preserve.
+The edit reports success while the file loses a test or a portability marker.
 
-Each time, the edit reported success. The portability gate caught the third,
-but only because the gate was run.
+Inspect deleted lines after every structural edit. Assert that the base path is
+a file, not merely an existing Git object. Compare against the branch tip when
+the file is new. For renames, name both paths and enable rename detection.
 
-The obvious detector is `git diff | grep '^-'` after each edit, and it is
-weaker than it looks. Run against a file the base revision does not contain it
-matches only `--- /dev/null`, so a brand-new file always reports clean no
-matter what was removed from it since. That happened here: a deletion audit run
-as `git diff origin/main -- <path>` on a file created on the branch reported
-zero removals by construction, and the reassurance it produced was worth
-nothing. Assert the baseline first, and assert it precisely: `git cat-file -e`
-succeeds on a directory as well as a file, so a truncated path passes the check
-and then produces a broad, reassuring directory diff. Require the type,
-`test "$(git cat-file -t "$base:$path")" = blob`, and compare against the
-branch tip rather than the trunk when the file is new.
+Deleted-line search proves only that text disappeared. The stronger check is the
+invariant that owns the structure: test collection for a test, portability for a
+vendor marker, and parity for a manifest. Prefer an AST span for multi-function
+edits.
 
-A rename produces the same vacuum for the same reason, and the guard catches
-it: `cat-file` reports the new path absent from the base even though the
-content is there under the old name. The remedy is not to give up but to name
-both paths and enable rename detection, `git diff -M "$base" -- old new`, which
-restores the deleted lines the single-path form hid.
+## A helper can answer a different question than the entry point
 
-Even with the right base, a deleted-line grep proves only that some line went
-missing, not that a particular structural anchor survived. The stronger check
-is the invariant that owns the anchor: pytest collection for a test, the
-portability gate for a vendor marker, the parity gate for a manifest. For
-multi-function edits, prefer removing an AST span to matching on a `def` line.
+A helper's return value may describe one recovery route while the entry point
+composes several routes. Verify observable behavior through the entry point.
+Use a helper only to explain a result the entry point already established.
+When the answers disagree, the entry point wins and the helper mismatch is the
+finding.
 
-## A helper probed alone can answer a different question than the entry point
+The same trap appears with duplicate-name guards. A textual guard and a
+structural guard answer different questions. Run the guard against a positive
+control from the same population. A clean result from a guard that cannot run
+is not evidence.
 
-Verifying the claim that all 24 archived judge failures salvage, the obvious
-check was to call the recovery helper on each stored payload. It returned
-`None` for 24 of 24, and the strict parser raised on 24 of 24. Both counts were
-correct. Both were about a different question than the one being asked.
+## Refusal and acceptance are not symmetric
 
-The entry point returns `judge_failed=False` and `judge_salvaged=True` for all
-24. `_recover_verdict` returning `None` means no *embedded complete object* was
-found, which is one route among several; the three top-level integers are still
-extractable, and the function named `_judge_parse_failure` extracts them. Its
-name asserts an outcome it does not produce, which is now issue #4031.
+A refusal is visible. It sets a marker and surfaces in the result. Fabrication
+is an unmarked false observation that travels through the clean path.
 
-Two correct measurements pointed the opposite way from the real behaviour, and
-the reason was reading a name instead of a return value. Had the claim been
-retracted on that evidence, a true finding would have been replaced with a
-false one, and the retraction would have looked better supported than the
-original because it cited two numbers.
+Refuse ambiguous or incomplete classes before publishing a result. Measure any
+refusal against the correct population before shipping it. Do not enumerate
+known bad examples as a substitute for a structural invariant. The invariant
+must cover the next unseen shape too.
 
-The procedure that catches it: verify a claim about observable behaviour
-through the entry point that produces the observable, not through the helper
-that looks responsible for it. Reach for a helper only to explain a result the
-entry point already established, and when a helper's answer contradicts the
-entry point, the entry point wins and the contradiction is a finding about the
-helper.
+## Evidence ownership
 
-A second-order form of the same trap: this instrument has two duplicate-name
-guards, a textual one for payloads that did not parse and a structural one for
-payloads that did. Checking the wrong one is not a wrong answer, it is an
-answer to the other question, and on a population where the chosen guard cannot
-run it returns a clean zero that reads like evidence. The measurement of the 24
-failures had exactly that shape at first, because the structural guard was
-applied to payloads that by definition do not parse. Name the guard in the
-claim, and confirm with a control that the chosen one fires on a positive case
-drawn from the same population.
-
-## An over-eager refusal is not symmetric with an over-eager accept
-
-This is the asymmetry the whole instrument turns on, and it governs how much
-evidence each direction needs before shipping.
-
-A refusal is visible. It sets a marker, it moves the judge-failure count, and
-it shows up in the sample totals, so a reviewer can find it and measure its
-cost. A fabrication is an unmarked false observation: it returns through the
-clean-parse branch, sets nothing, and is indistinguishable from a judge that
-simply answered.
-
-So a fix that refuses a wider class than strictly necessary is cheap to audit
-and a fix that accepts a narrower one is not. The rule that follows: refuse the
-whole class, then measure the refusal's cost against the correct population
-before shipping it. Every round that instead enumerated the bad cases reopened
-the hole somewhere else.
+Keep historical result details in the archived artifact. Keep active guidance
+focused on the invariant, the decision rule, and the verification command.
+Never copy a measured snapshot into a document that governs future runs.

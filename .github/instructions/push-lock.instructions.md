@@ -4,11 +4,8 @@ applyTo: .agents/governance/**,.serena/memories/**,.claude/**
 
 # One Push Lock Path
 
-Scoped to the trees that carry push recipes rather than `**`. The always-on
-`.md` ceiling in `scripts/validation/instruction_budget.py` had 998 bytes of
-headroom when this rule was written and a universal copy failed it at 102.7
-percent, which blocks every contributor's push. Nothing is lost by the narrower
-scope: the binding half is
+Scoped to the trees that carry push recipes rather than `**`. Nothing is lost
+by the narrower scope: the binding half is
 `scripts/validation/check_push_lock_paths.py`, which `pre_pr.py` runs on every
 push whatever rules the harness loaded.
 
@@ -16,10 +13,9 @@ push whatever rules the harness loaded.
 same branch under two different lock names run concurrently while both believe
 they are serialized, which is the lost ref update the lock exists to prevent.
 
-Three schemes were live at once on 2026-08-02 (issue #4366). A `ps` census taken
-while roughly 20 push processes were running found 5 processes on the per-branch
-scheme, 11 on a hashed four-slot scheme, and 2 on a `$HOME` variant. Two of the
-three provided no exclusion against the other two.
+Issue #4366 found multiple lock schemes in use at the same time. Different
+agents could therefore bypass each other's lock while believing they were
+serialized.
 
 The rule is one path, written the same way everywhere:
 

@@ -1,7 +1,7 @@
 ---
 name: context-optimizer
 version: 1.2.0
-description: Analyze skill content for optimal placement (Skill vs Passive Context vs Hybrid), compress markdown to pipe-delimited format (60-80% token reduction), and validate compliance against the decision framework. Passive context wins for what the model cannot know (post-cutoff APIs, repo gotchas); pre-trained knowledge belongs in progressive disclosure. Use when you ask "compress this skill", "Skill vs Passive Context placement", "reduce tokens". Do NOT use for gathering knowledge before a task (use context-gather).
+description: Analyze skill content for optimal placement (Skill vs Passive Context vs Hybrid), compress markdown to pipe-delimited format, and validate compliance against the decision framework. Passive context wins for what the model cannot know (post-cutoff APIs, repo gotchas); pre-trained knowledge belongs in progressive disclosure. Use when you ask "compress this skill", "Skill vs Passive Context placement", "reduce context overhead". Do NOT use for gathering knowledge before a task (use context-gather).
 license: MIT
 user-invocable: true
 allowed-tools:
@@ -12,12 +12,14 @@ allowed-tools:
 
 # Context Optimizer
 
-Tooling suite for optimizing Claude Code context placement. Passive context (AGENTS.md, @imports) achieves 100% pass rates versus 53-79% for skills by eliminating decision points.
+Tooling suite for optimizing Claude Code context placement. Passive context
+performed better than skills in the Vercel knowledge-injection eval by
+eliminating retrieval decisions.
 
 ## Triggers
 
 - `analyze skill placement` - classify and validate content as Skill vs Passive Context
-- `compress markdown` - reduce token count for context files
+- `compress markdown` - reduce context overhead
 - `optimize context` - lower API costs and improve agent performance
 - `extract and index` - split markdown into detail files with compact index
 - `audit always-on rules` - eval-gated procedure for whether a rule earns its slot, and the doctrine behind it, in [rule-audit-procedure.md](references/rule-audit-procedure.md) and [model-context-doctrine.md](references/model-context-doctrine.md). Also the entry point when a new model ships. **Requires a full rjmurillo/ai-agents checkout**: the procedure runs this repo's eval harness and rule generator, neither of which ships in a plugin install. The doctrine and the instrument write-ups are readable anywhere; only the commands need the checkout
@@ -25,14 +27,14 @@ Tooling suite for optimizing Claude Code context placement. Passive context (AGE
 ## Process
 
 1. **Analyze**: Run `analyze_skill_placement.py` to classify content
-2. **Compress**: Run `compress_markdown_content.py` to reduce token counts
+2. **Compress**: Run `compress_markdown_content.py` to reduce context overhead
 3. **Validate**: Run `test_skill_passive_compliance.py` to check compliance
-4. **Verify**: Confirm output JSON contains expected classification and metrics
+4. **Verify**: Confirm output JSON contains expected classification and details
 
 ## Verification
 
 - [ ] Classification matches expected type (Skill/PassiveContext/Hybrid)
-- [ ] Compression achieves target reduction (40-80% depending on level)
+- [ ] Compression removes unnecessary context overhead
 - [ ] Compliance validator returns exit code 0
 - [ ] Output JSON is valid and contains all required fields
 
@@ -41,7 +43,7 @@ Tooling suite for optimizing Claude Code context placement. Passive context (AGE
 | Script | Purpose | Exit Codes |
 |--------|---------|------------|
 | `analyze_skill_placement.py` | Classify content as Skill/PassiveContext/Hybrid | 0=success, 1=error |
-| `compress_markdown_content.py` | Compress markdown with token reduction metrics | 0=success, 1=error, 2=config, 3=external |
+| `compress_markdown_content.py` | Compress markdown and report the result | 0=success, 1=error, 2=config, 3=external |
 | `test_skill_passive_compliance.py` | Validate compliance with decision framework | 0=pass, 1=violations |
 | `extract_and_index.py` | Extract sections into detail files with pipe-delimited index | 0=success, 1=error, 2=config, 3=external |
 | `path_validation.py` | Shared CWE-22 repo-root-anchored path validation | N/A (library module) |
@@ -89,20 +91,23 @@ The first question is not "skill or passive context." It is: **does the model al
 
 ## Why This Matters
 
-| Configuration | Pass Rate |
-|---------------|-----------|
-| Baseline (no docs) | 53% |
-| Skill (default) | 53% |
-| Skill + explicit instructions | 79% |
-| **AGENTS.md passive context** | **100%** |
+| Configuration | Outcome |
+|---------------|---------|
+| Baseline (no docs) | Weaker than passive context |
+| Skill (default) | Weaker than passive context |
+| Skill + explicit instructions | Better than the default skill |
+| **AGENTS.md passive context** | **Strongest result in the eval** |
 
 Skills create decision points where agents must choose whether to retrieve documentation. These introduce 4 failure modes: late retrieval, partial retrieval, integration failure, and instruction fragility. Passive context eliminates all four by being always-available.
 
 ### Read That Table Honestly
 
-The 53 to 100 percent result is real and it is narrow. Vercel's suite targeted Next.js 16 APIs chosen because they were **absent from model training data**. That is a knowledge-injection problem: an agent cannot retrieve what it does not know it is missing, so putting the docs in front of it wins.
+The Vercel result is real and narrow. Its suite targeted Next.js 16 APIs chosen
+because they were **absent from model training data**. That is a
+knowledge-injection problem: an agent cannot retrieve what it does not know it
+is missing, so putting the docs in front of it wins.
 
-It is not evidence that pre-trained knowledge belongs in passive context. Anthropic's Claude 5 context-engineering guidance points the other way for behavioral instruction, naming overconstraint as the failure mode after cutting more than 80 percent of a system prompt with no measurable coding-eval loss. Both results hold, because they answer different questions:
+It is not evidence that pre-trained knowledge belongs in passive context. Anthropic's Claude 5 context-engineering guidance points the other way for behavioral instruction, naming overconstraint as the failure mode after reducing a system prompt without measurable coding-eval loss. Both results hold, because they answer different questions:
 
 | Content | Model already knows it | Where it goes |
 |---------|------------------------|---------------|
@@ -111,7 +116,10 @@ It is not evidence that pre-trained knowledge belongs in passive context. Anthro
 | SOLID, Clean Code, refactoring | Yes | Progressive disclosure, or nowhere |
 | Deep book material | Partly | Progressive disclosure |
 
-The pass-rate table has no cost column. Passive context is paid on every request, forever, whether or not the task needs it. This repository adopted the strategy in #1022 with a stated budget of Vercel's own 8KB figure; the always-on corpus later reached about 95KB on a `.py` edit. The enforced ceilings ratchet to measured size, so a passing budget gate is not evidence the corpus is small. Measure with `scripts/validation/instruction_budget.py` before adding always-on text, and prefer deleting a duplicate over compressing one.
+Passive context is paid on every request, whether or not the task needs it.
+Use progressive disclosure for guidance that does not apply to every file.
+Read the doctrine and the audit procedure before adding always-on text.
+Prefer deleting a duplicate over compressing one.
 
 ## References
 
@@ -120,7 +128,7 @@ The pass-rate table has no cost column. Passive context is paid on every request
 - [rule-audit-instrument.md](references/rule-audit-instrument.md) - What the eval can and cannot resolve, the noise floor, and the known instrument gotchas. Read before believing any number the eval prints
 - [rule-audit-evidence.md](references/rule-audit-evidence.md) - Forensics behind the published table: which judge samples were lost, what recovering them changed, and what the loss does to the headline claim. Read before citing a cell
 - [rule-audit-parser-forensics.md](references/rule-audit-parser-forensics.md) - Repair history of the parser that produced the table: what more than twenty rounds of adversarial review found, and which fixes were themselves wrong. Read before writing a new instrument that parses judge output
-- [rule-audit-measurement-discipline.md](references/rule-audit-measurement-discipline.md) - How the checks themselves went wrong: false negative controls, numbers read off the wrong population, and edits that silently deleted what they anchored on. Read before quoting a figure from a one-off command
+- [rule-audit-measurement-discipline.md](references/rule-audit-measurement-discipline.md) - How the checks themselves went wrong: false negative controls, evidence read from the wrong population, and edits that silently deleted what they anchored on. Read before relying on one-off command output
 - [Vercel: AGENTS.md outperforms skills](https://vercel.com/blog/agents-md-outperforms-skills-in-our-agent-evals)
 - Analysis: `.agents/analysis/vercel-passive-context-vs-skills-research.md`
 - Memory: `passive-context-vs-skills-vercel-research`
@@ -140,7 +148,7 @@ Analyzes skill content and recommends Skill, Passive Context, or Hybrid placemen
 
 > The script reports shape, not admission. It cannot tell whether the model
 > already knows the content, and that is the question the Decision Framework
-> above turns on. Use it for size and duplication; the Decision Framework
+> above turns on. Use it for placement and duplication; the Decision Framework
 > decides what earns an always-on slot.
 
 **Classification Logic**:
@@ -192,7 +200,8 @@ python3 .claude/skills/context-optimizer/scripts/analyze_skill_placement.py -p .
 
 **Script**: `scripts/compress_markdown_content.py`
 
-Compress markdown to pipe-delimited format achieving 60-80% token reduction while maintaining 100% information density.
+Compress markdown to pipe-delimited format while preserving the information
+needed for retrieval.
 
 **Compression Techniques**:
 
@@ -217,13 +226,13 @@ python3 scripts/compress_markdown_content.py -i input.md -l medium -v
 
 **Compression Levels**:
 
-| Level | Reduction | Techniques |
-|-------|-----------|------------|
-| Light | 40-50% | Headers, tables, whitespace |
-| Medium | 50-60% | + redundant words, tighter whitespace |
-| Aggressive | 60-80% | + H3 compression, lists, abbreviations |
+| Level | Techniques |
+|-------|-----------|
+| Light | Headers, tables, whitespace |
+| Medium | Redundant words, tighter whitespace |
+| Aggressive | H3 compression, lists, abbreviations |
 
-**Example** (26 tokens -> 18 tokens, 31% reduction):
+**Example**:
 
 Before:
 
@@ -250,7 +259,8 @@ session protocol has multiple phases:
 
 **Script**: `scripts/extract_and_index.py`
 
-Implements the Vercel extract-and-index pattern for 60-80% token reduction. Splits markdown by headings into detail files, generates a compact pipe-delimited index.
+Implements the Vercel extract-and-index pattern. Splits markdown by headings
+into detail files and generates a compact pipe-delimited index.
 
 **Usage**:
 
@@ -271,7 +281,7 @@ python3 scripts/extract_and_index.py -i AGENTS.md -d .agents-details -r .agents-
 [Architecture]
 |Layered design with separation of concerns (see: .agents-details/architecture.md)
 [Testing]
-|80% coverage required for business logic (see: .agents-details/testing.md)
+|Coverage required for business logic (see: .agents-details/testing.md)
 ```
 
 Works with CLAUDE.md @import mechanism. Reference via `@AGENTS-INDEX.md`.
@@ -294,16 +304,14 @@ Validates content placement against the skill vs passive context decision framew
 5. No duplicate content between skills and passive context
 6. Declared size exceptions include rationale and safeguard evidence
 
-The report also measures the selected `CLAUDE.md` file. That number is not a
-compliance verdict. It excludes imported content, hierarchical
-`CLAUDE.md` and `AGENTS.md` files, generated instruction layers, and plugin
-context.
+The report examines the selected `CLAUDE.md` file separately from imported
+content, hierarchical `CLAUDE.md` and `AGENTS.md` files, generated instruction
+layers, and plugin context. That result is diagnostic, not a compliance
+verdict.
 
-Claude Code loads `CLAUDE.md` files in full. The vendor's first 200 lines or
-25 KB limit applies to auto-memory `MEMORY.md`, not `CLAUDE.md`. This
-repository's own size ratchet is separate local policy in `skill_size.py`, which
-gates `SKILL.md` at 500 lines and 24576 bytes. It replaced a 200-line command
-ratchet that ADR-064 retired along with the command surface itself.
+Claude Code loads `CLAUDE.md` files in full. Auto-memory uses `MEMORY.md` and
+follows separate vendor behavior. This repository applies its own skill
+validation policy in `skill_size.py`.
 
 Source:
 <https://docs.anthropic.com/en/docs/claude-code/memory>
@@ -397,12 +405,12 @@ python3 -m pytest tests/ --cov=scripts --cov-report=term-missing  # coverage
 
 **Coverage Summary**:
 
-| Component | Tests | Key Areas |
-|-----------|-------|-----------|
-| Compliance Validator | 19/20 (95%) | Line count, @imports, frontmatter, duplicates, exit codes |
-| Analyzer | Full | Tool calls, action verbs, classification logic, confidence scoring |
-| Extract-and-Index | 36 | Slug generation, parsing, index format, 60%+ reduction targets |
-| Compressor | Full | All levels, code block preservation, 40-80% reduction targets |
+| Component | Key Areas |
+|-----------|-----------|
+| Compliance Validator | Placement, @imports, frontmatter, duplicates, exit codes |
+| Analyzer | Tool calls, action verbs, classification logic, confidence scoring |
+| Extract-and-Index | Slug generation, parsing, index format |
+| Compressor | Compression levels, code block preservation |
 
 </details>
 
@@ -419,7 +427,7 @@ python3 -m pytest tests/ --cov=scripts --cov-report=term-missing  # coverage
 
 - **Automated optimization**: Compress context without manual editing
 - **Quality gates**: Enforce best practices in CI/CD
-- **Token savings**: 60-80% reduction = lower API costs
+- **Token savings**: lower context overhead reduces API costs
 
 </details>
 

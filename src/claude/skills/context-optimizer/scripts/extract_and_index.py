@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Extract markdown sections into separate files and generate a pipe-delimited index.
 
-Implements the Vercel extract-and-index pattern for 60-80% token reduction.
+Implements the Vercel extract-and-index pattern.
 Parses markdown into sections by heading, writes each section to a detail file,
 and produces a compact index with references to those files.
 
