@@ -509,9 +509,10 @@ def run_compliance_checks(path: Path, claude_md_path: Path) -> ComplianceResults
         claude_md_path=str(claude_md_path),
         scope={
             "claudeMdMeasurement": (
-                "Examines only the selected CLAUDE.md file. Imports, hierarchical "
-                "CLAUDE.md and AGENTS.md files, generated instructions, and plugin "
-                "context are outside this result."
+                "Examines only the selected CLAUDE.md file. Imported files are "
+                "checked separately for existence and passive-context patterns. "
+                "Hierarchical CLAUDE.md and AGENTS.md files, generated instructions, "
+                "and plugin context are outside this result."
             ),
             "notEvaluated": [
                 "@imported file size",

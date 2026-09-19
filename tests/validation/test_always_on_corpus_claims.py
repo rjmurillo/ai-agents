@@ -100,3 +100,10 @@ def test_corpus_prose_parser_rejects_divergent_membership() -> None:
     shortened = text.replace("`universal`, `voice`", "`universal`", 1)
     with pytest.raises(ValueError, match="divergent membership"):
         parse_corpus_membership(shortened, "shortened")
+
+
+def test_corpus_prose_parser_rejects_duplicate_membership_rows() -> None:
+    text = CORPUS_PROSE_DOCS[0][1].read_text(encoding="utf-8")
+    duplicate = "| `.github/instructions` | duplicate | `universal` |\n"
+    with pytest.raises(ValueError, match="duplicate membership rows"):
+        parse_corpus_membership(text + duplicate, "duplicated")

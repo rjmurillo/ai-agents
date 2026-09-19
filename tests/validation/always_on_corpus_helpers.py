@@ -115,10 +115,12 @@ def parse_library_sentence(text: str) -> tuple[set[str], set[str]]:
 
 def parse_corpus_membership(text: str, doc: str) -> frozenset[str]:
     """Return the membership names repeated for each generated tree."""
-    rows = {
-        match.group("tree"): frozenset(_ROW_NAME.findall(match.group("members")))
-        for match in _MEMBERSHIP_TABLE_ROW.finditer(text)
-    }
+    rows: dict[str, frozenset[str]] = {}
+    for match in _MEMBERSHIP_TABLE_ROW.finditer(text):
+        tree = match.group("tree")
+        if tree in rows:
+            raise ValueError(f"{doc} has duplicate membership rows for {tree}")
+        rows[tree] = frozenset(_ROW_NAME.findall(match.group("members")))
     expected = {".github/instructions", "src/copilot-cli/instructions"}
     if set(rows) != expected:
         raise ValueError(f"{doc} has no complete membership table")

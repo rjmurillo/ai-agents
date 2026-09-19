@@ -20,7 +20,7 @@ It is deliberately not `paths: ["**"]`, for two reasons worth stating so nobody 
 This rule stays scoped because its guidance applies during repository changes.
 Use progressive disclosure for guidance that does not apply to every file.
 
-It also fails that procedure's admission test for always-on content. The model
+It also fails the [admission test in model-context-doctrine.md](https://github.com/rjmurillo/ai-agents/blob/main/.claude/skills/context-optimizer/references/model-context-doctrine.md#the-admission-test) for always-on content. The [rule-audit-procedure.md](https://github.com/rjmurillo/ai-agents/blob/main/.claude/skills/context-optimizer/references/rule-audit-procedure.md) defines the review discipline. The model
 already knows that rework is expensive, and the tactics are retrievable on
 demand from the LSP-first and voice rules, the programming-advisor,
 memory-search, memory-gate, and GitHub URL intercept skills. What remains is
