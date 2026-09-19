@@ -1,46 +1,15 @@
-# Atomic Commit Strategy
+# Evidence: atomic commit sequence
 
-**Statement**: Create atomic commits per logical unit for complex changes
+<!-- placement: evidence; reason: records a version control observation and migration destination, not an operating contract -->
 
-**Context**: Multi-file changes requiring version control
+## Observed evidence
 
-**Evidence**: Enables selective rollback without reverting unrelated changes
+Separate logical commits enabled selective rollback during a multi-file change.
+The recorded example committed configuration before directory batches and
+verified each batch before continuing.
 
-**Atomicity**: 90%
+## Migration disposition
 
-**Impact**: 8/10
-
-## Sequence
-
-1. Config commit first
-2. Each directory batch separately
-3. Verify each batch before proceeding
-
-## Pattern
-
-```bash
-# Config changes first
-git add .markdownlint-cli2.yaml
-git commit -m "chore: add markdownlint config"
-
-# Then each batch
-git add src/claude/**/*.md
-git commit -m "fix: lint claude agent docs"
-
-git add src/vs-code/**/*.md
-git commit -m "fix: lint vs-code agent docs"
-```
-
-## Anti-Pattern
-
-Monolithic commits containing all changes across multiple directories.
-
-**Prevention**: Commit atomically by logical unit.
-
-## Related
-
-- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
-- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
-- [agent-workflow-collaboration](agent-workflow-collaboration.md)
-- [agent-workflow-critic-gate](agent-workflow-critic-gate.md)
-- [agent-workflow-mvp-shipping](agent-workflow-mvp-shipping.md)
+The host Universal Rules own the logical, reviewable commit boundary. The build
+and shipping skills own any task-specific commit sequence. This memory retains
+the rollback rationale as evidence.

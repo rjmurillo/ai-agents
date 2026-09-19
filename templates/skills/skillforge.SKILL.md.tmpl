@@ -1,6 +1,6 @@
 ---
 name: skillforge
-description: "Intelligent skill router and creator. Analyzes ANY input to recommend existing skills, improve them, or create new ones. Uses deep iterative analysis with 11 thinking models, regression questioning, evolution lens, and multi-agent synthesis panel. Phase 0 triage ensures you never duplicate existing functionality. Use when you say \"create a skill\", \"do I have a skill for\", \"which skill should I use\", \"improve the X skill\", or \"SkillForge: {goal}\". Do NOT use to create a slash command (use slashcommandcreator)."
+description: "Intelligent skill router and creator. Analyzes ANY input to recommend existing skills, improve them, or create new ones. Uses deep iterative analysis with 11 thinking models, regression questioning, evolution lens, and multi-agent synthesis panel. Phase 0 triage ensures you never duplicate existing functionality. Use when you say \"create a skill\", \"do I have a skill for\", \"which skill should I use\", \"improve the X skill\", \"analyze skill placement\", \"compress markdown\", \"optimize context\", \"extract and index\", \"audit always-on rules\", or \"SkillForge: {goal}\". Do NOT use to create a slash command (use slashcommandcreator)."
 license: MIT
 user-invocable: true
 allowed-tools:

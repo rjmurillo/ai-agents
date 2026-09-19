@@ -1,33 +1,15 @@
-# Ship MVP Over Perfect
+# Evidence: working slice versus perfect implementation
 
-**Statement**: Choose "working and shippable" over "perfect" when time-constrained, documenting enhancements as technical debt
+<!-- placement: evidence; reason: records a time-constrained tradeoff and ownership boundary, not an operating contract -->
 
-**Context**: Implementation decisions under time pressure
+## Observed evidence
 
-**Evidence**: Simple validation script shipped vs. sophisticated parser with code fence detection (deferred to Phase 3)
+A simple validation script shipped while a parser with code-fence support moved
+to a later phase. The record describes a time-constrained tradeoff, not a
+general completion rule.
 
-**Atomicity**: 88%
+## Migration disposition
 
-**Impact**: 8/10
-
-## Decision Framework
-
-1. Does it solve the immediate problem? → Yes = ship
-2. Are known limitations documented? → Must be yes
-3. Is there a path to enhancement? → Document in backlog
-4. Does shipping create tech debt? → Acceptable if tracked
-
-## Anti-Patterns
-
-- Gold-plating features that aren't required
-- Delaying ship for edge cases
-- Perfect being enemy of good
-- Undocumented shortcuts
-
-## Related
-
-- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
-- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
-- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
-- [agent-workflow-collaboration](agent-workflow-collaboration.md)
-- [agent-workflow-critic-gate](agent-workflow-critic-gate.md)
+The host builder and shipping guidance owns completeness and terminal decisions.
+This memory remains historical evidence and does not override the current task
+contract or its required edge cases.

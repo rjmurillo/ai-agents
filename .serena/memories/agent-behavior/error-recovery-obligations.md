@@ -1,14 +1,18 @@
-# Agent Error Recovery Obligations
+# Evidence: agent error recovery incidents
 
-**Last Updated**: 2026-04-10
-**Sessions Analyzed**: 1
+<!-- placement: evidence; reason: records historical failures and migration rationale, not an operating contract -->
 
-## Constraints (HIGH confidence)
+Source: Session 2, 2026-04-10.
 
-- When a git push or commit fails, read the error output and fix immediately. Do not stop and wait for the user to notice. (Session 2, 2026-04-10)
-  - Evidence: Agent stopped after push failure on mypy errors, user had to say "you keep dying on git add or git push and then just...stop"
-  - Root cause: Agent treated tool errors as conversation-ending instead of actionable
+## Observed evidence
 
-- When creating session logs, check the schema by reading an existing valid session log on the same branch, not by guessing fields. (Session 2, 2026-04-10)
-  - Evidence: 2 failed commits due to missing session log fields (branchVerified, notOnMain, markdownLintRun, checklistComplete, changesCommitted, validationPassed, serenaMemoryUpdated)
-  - Fix: Read a passing session log first, match its structure exactly
+- A push or commit failure stopped the agent. The user had to report the halt.
+- Two commits failed because session logs omitted required fields.
+- A valid log from the same branch showed the required structure.
+
+## Migration disposition
+
+The host Universal Rules own failure classification, bounded retry, refusal
+handling, unavailable results, no fabrication, and schema observation. The
+session log schema and its validator own field shape. This memory retains the
+incident evidence and no longer acts as a policy source.
