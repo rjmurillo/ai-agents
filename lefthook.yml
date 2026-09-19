@@ -3,6 +3,7 @@ min_version: 2.1.10
 no_auto_install: true
 lefthook: uv run --frozen lefthook
 glob_matcher: doublestar
+output: false
 
 commit-msg:
   jobs:

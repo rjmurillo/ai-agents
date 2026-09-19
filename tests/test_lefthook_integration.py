@@ -912,6 +912,35 @@ def test_lefthook_skip_envs_preserve_check_only_execution(tmp_path: Path) -> Non
     assert "skip" in skipped_actionlint.stdout.lower()
 
 
+def test_failure_only_output_hides_successful_job_output(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _write_lf(
+        repo / "lefthook.yml",
+        yaml.safe_dump(
+            {
+                "output": False,
+                "pre-commit": {
+                    "jobs": [
+                        {"name": "success", "run": "printf SUCCESS-MARKER"},
+                        {
+                            "name": "failure",
+                            "run": "printf FAILURE-MARKER >&2; exit 1",
+                        },
+                    ]
+                },
+            }
+        ),
+    )
+    _commit_file(repo, "tracked", "content\n")
+
+    result = _run_lefthook(repo, "run", "pre-commit", "--force", check=False)
+
+    assert result.returncode != 0
+    assert "SUCCESS-MARKER" not in result.stdout + result.stderr
+    assert "FAILURE-MARKER" in result.stdout + result.stderr
+
+
 def test_configuration_and_tree_have_no_payload_scripts() -> None:
     config_text = (PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8")
     policy_text = (PROJECT_ROOT / "scripts/validation/git_hook_policy.py").read_text(
@@ -980,6 +1009,7 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     )
 
     assert config["lefthook"] == "uv run --frozen lefthook"
+    assert config["output"] is False
     assert version.stdout.splitlines()[0] == _pinned_lefthook_version()
     assert validated.returncode == 0
     assert "All good" in validated.stdout
