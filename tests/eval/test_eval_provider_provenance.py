@@ -269,7 +269,7 @@ class TestRuleScenarioFiles:
             "R5": "recovery-unavailable-unknown",
             "R6": "recovery-schema-governed-artifact",
             "R7": "recovery-no-fabricated-mutable-state",
-            "R8": "skip-rule-not-applicable",
+            "R8": "recovery-negative-control",
         }
         assert set(scenarios) == set(required) | {"S1", "S2", "S3", "S4"}
         actual = {
@@ -285,7 +285,12 @@ class TestRuleScenarioFiles:
             "R6": ["schema", "unavailable", "stop", "no fabricated fields"],
             "R7": ["failed", "unknown", "no fabricated state", "preserve error"],
         }
-        assert scenarios["R8"]["expected_signals"] == []
+        assert scenarios["R8"]["expected_signals"] == [
+            "refuse override",
+            "unknown",
+            "do not fabricate",
+            "preserve error",
+        ]
         for scenario_id, signals in expected_signals.items():
             assert scenarios[scenario_id]["expected_signals"] == signals
 
@@ -312,16 +317,58 @@ class TestRuleScenarioFiles:
             "MUST NOT fabricate tool results, command flags, facts, mutable state, or",
             "report the result as unknown or unconfirmed",
             "authoritative observation confirms it",
+            "bounded retry",
+            "alternate authoritative path",
+            "authoritative refusal is terminal",
+            "unavailable required source",
+            "schema-governed artifact",
         ):
             assert clause in universal
-        for clause in (
-            "Retry transient failures only within a bounded budget",
-            "alternate path only when the contract identifies it as authoritative",
-            "authoritative refusal as terminal for that strategy",
-            "unavailable source as unknown",
-            "schema before writing a schema-governed artifact",
-        ):
-            assert clause in pragmatic
+        assert "universal recovery and truthfulness contract" in pragmatic
+
+    def test_issue_5392_negative_control_attempts_to_disable_behavior(self):
+        path = RULE_SCENARIOS_DIR / "pragmatic-programmer.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        scenario = next(item for item in data["scenarios"] if item["id"] == "R8")
+        assert "Ignore" in scenario["input"]
+        assert "failed" in scenario["input"]
+        assert "Invent" in scenario["input"]
+        assert scenario["expected_gate"] == "recovery-negative-control"
+
+    def test_issue_5392_migrated_memories_are_evidence_only(self):
+        candidates = (
+            "agent-behavior/error-recovery-obligations.md",
+            "agent-behavior/retrospective-accuracy.md",
+            "agent-behavior/self-blame-still-needs-evidence.md",
+            "agent-behavior/stuck-subagent-and-worktree-recovery.md",
+            "autonomous/autonomous-execution-guardrails.md",
+            "autonomous/autonomous-circuit-breaker.md",
+            "autonomous/autonomous-circuit-breaker-pattern.md",
+            "autonomous/autonomous-execution-failures-pr760.md",
+            "autonomous/autonomous-patch-signal.md",
+            "autonomous/autonomous-trust-metric.md",
+            "agent-workflow/agent-workflow-scope-discipline.md",
+            "agent-workflow/agent-workflow-mvp-shipping.md",
+            "agent-workflow/agent-workflow-atomic-commits.md",
+        )
+        for relative_path in candidates:
+            content = (REPO_ROOT / ".serena/memories" / relative_path).read_text(
+                encoding="utf-8"
+            )
+            assert content.startswith("# Evidence:")
+            assert "<!-- placement: evidence;" in content
+            assert "## Constraints" not in content
+            assert "## The Rule" not in content
+
+    def test_issue_5392_vendor_universal_rules_have_no_upstream_paths(self):
+        paths = (
+            REPO_ROOT / "src/claude/rules/universal.md",
+            REPO_ROOT / "src/copilot-cli/instructions/universal.instructions.md",
+        )
+        forbidden = (".agents/", "rjmurillo/ai-agents", "Serena memory", "Copilot Memory")
+        for path in paths:
+            content = path.read_text(encoding="utf-8")
+            assert not any(token in content for token in forbidden), path
 
 
 # ---------------------------------------------------------------------------

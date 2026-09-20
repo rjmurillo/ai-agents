@@ -326,7 +326,6 @@
     "src/copilot-cli/instructions/ci-scripts.instructions.md": 19,
     "src/copilot-cli/instructions/plugin-self-containment.instructions.md": 32,
     "src/copilot-cli/instructions/templates.instructions.md": 9,
-    "src/copilot-cli/instructions/universal.instructions.md": 5,
     "src/copilot-cli/skills/adr-generator/SKILL.md": 6,
     "src/copilot-cli/skills/adr-generator/references/adr-template.md": 1,
     "src/copilot-cli/skills/adr-generator/references/adr-templates-catalog.md": 2,

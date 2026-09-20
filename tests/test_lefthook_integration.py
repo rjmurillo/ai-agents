@@ -204,6 +204,23 @@ def _copy_runtime_config(repo: Path) -> None:
         shutil.copy2(source, destination)
 
 
+def _replace_job_with_marker(repo: Path, hook_name: str, job_name: str) -> Path:
+    marker = f"{hook_name}-{job_name}.marker"
+    marker_script = repo / f"{hook_name}-{job_name}.py"
+    _write_lf(
+        marker_script,
+        f"from pathlib import Path\nPath({marker!r}).touch()\n",
+    )
+    config = yaml.safe_load((repo / "lefthook.yml").read_text(encoding="utf-8"))
+    # Lefthook runs commands through sh on Windows. A script avoids splitting
+    # Python source passed through the shell's quoted -c argument.
+    _job_map(config, hook_name)[job_name]["run"] = (
+        f'"{PYTHON_POSIX}" {marker_script.name}'
+    )
+    _write_lf(repo / "lefthook.yml", yaml.safe_dump(config, sort_keys=False))
+    return repo / marker
+
+
 def _run_lefthook(
     repo: Path,
     *args: str,
@@ -912,6 +929,39 @@ def test_lefthook_skip_envs_preserve_check_only_execution(tmp_path: Path) -> Non
     assert "skip" in skipped_actionlint.stdout.lower()
 
 
+def test_failure_only_output_hides_successful_job_output(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _write_lf(
+        repo / "lefthook.yml",
+        yaml.safe_dump(
+            {
+                "output": False,
+                "pre-commit": {
+                    "jobs": [
+                        {"name": "success", "run": "printf SUCCESS-MARKER"},
+                        {
+                            "name": "failure",
+                            "run": (
+                                "printf FAILURE-OUT-MARKER; "
+                                "printf FAILURE-ERR-MARKER >&2; exit 1"
+                            ),
+                        },
+                    ]
+                },
+            }
+        ),
+    )
+    _commit_file(repo, "tracked", "content\n")
+
+    result = _run_lefthook(repo, "run", "pre-commit", "--force", check=False)
+
+    assert result.returncode != 0
+    assert "SUCCESS-MARKER" not in result.stdout + result.stderr
+    assert "FAILURE-OUT-MARKER" in result.stdout + result.stderr
+    assert "FAILURE-ERR-MARKER" in result.stdout + result.stderr
+
+
 def test_configuration_and_tree_have_no_payload_scripts() -> None:
     config_text = (PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8")
     policy_text = (PROJECT_ROOT / "scripts/validation/git_hook_policy.py").read_text(
@@ -980,6 +1030,7 @@ def test_runtime_configuration_validates_with_pinned_lefthook() -> None:
     )
 
     assert config["lefthook"] == "uv run --frozen lefthook"
+    assert config["output"] is False
     assert version.stdout.splitlines()[0] == _pinned_lefthook_version()
     assert validated.returncode == 0
     assert "All good" in validated.stdout
@@ -1211,9 +1262,10 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
 @pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
 def test_repo_health_runs_as_a_native_job(hook_name: str, tmp_path: Path) -> None:
     """The healthy control for the bare-flagged case below (issue #4698)."""
-    repo = tmp_path / "repo"
+    repo = tmp_path / "path with spaces" / "repo"
     _init_repo(repo)
     _copy_runtime_config(repo)
+    marker = _replace_job_with_marker(repo, hook_name, "repo-health")
     head_sha = _commit_file(repo, "tracked.txt", "content\n")
     push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {head_sha}\n"
 
@@ -1229,7 +1281,7 @@ def test_repo_health_runs_as_a_native_job(hook_name: str, tmp_path: Path) -> Non
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "repo-health" in result.stdout
+    assert marker.is_file()
 
 
 @pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
@@ -1279,9 +1331,10 @@ def test_packed_refs_repair_runs_as_a_native_job(
     hook_name: str,
     tmp_path: Path,
 ) -> None:
-    repo = tmp_path / "repo"
+    repo = tmp_path / "path with spaces" / "repo"
     _init_repo(repo)
     _copy_runtime_config(repo)
+    marker = _replace_job_with_marker(repo, hook_name, "repair-packed-refs")
     head_sha = _commit_file(repo, "tracked.txt", "content\n")
     push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {head_sha}\n"
 
@@ -1297,7 +1350,7 @@ def test_packed_refs_repair_runs_as_a_native_job(
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "repair-packed-refs" in result.stdout
+    assert marker.is_file()
 
 
 def test_pre_push_repairs_corrupt_packed_refs_before_policy(tmp_path: Path) -> None:
@@ -1327,12 +1380,6 @@ def test_pre_push_repairs_corrupt_packed_refs_before_policy(tmp_path: Path) -> N
     assert packed_refs.with_name("packed-refs.before-repair").is_file()
 
 
-def _summary_lines(stdout: str, job: str) -> list[str]:
-    """Return the summary lines naming a job, one per execution lefthook ran."""
-    _, _, summary = stdout.partition("summary:")
-    return [line for line in summary.splitlines() if job in line]
-
-
 def test_pre_push_staleness_checks_the_remote_named_on_the_command_line(
     tmp_path: Path,
 ) -> None:
@@ -1352,6 +1399,12 @@ def test_pre_push_staleness_checks_the_remote_named_on_the_command_line(
     repo = tmp_path / "repo"
     _init_repo(repo)
     _copy_runtime_config(repo)
+    config = yaml.safe_load((repo / "lefthook.yml").read_text(encoding="utf-8"))
+    pre_push_jobs = config["pre-push"]["jobs"]
+    assert sum(
+        job.get("name") == "push-ref-staleness"
+        for job in _flatten_jobs(pre_push_jobs)
+    ) == 1
     head_sha = _commit_file(repo, "tracked.txt", "content\n")
     branch = "refs/heads/feature/test"
 
@@ -1387,9 +1440,6 @@ def test_pre_push_staleness_checks_the_remote_named_on_the_command_line(
     assert clean.returncode == 0, clean.stdout + clean.stderr
     assert advanced.returncode != 0, advanced.stdout + advanced.stderr
     assert "remote is at" in advanced.stdout + advanced.stderr
-    # One declaration, so one execution. The duplicate ran the job twice and
-    # reported both an OK and a FAILED line for the same name (issue #4634).
-    assert len(_summary_lines(clean.stdout, "push-ref-staleness")) == 1, clean.stdout
 
 
 def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
@@ -1414,7 +1464,7 @@ def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
     head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
     push_input = f"refs/heads/feature/test {head_sha} refs/heads/feature/test {base_sha}\n"
 
-    result = _run_lefthook(
+    _run_lefthook(
         repo,
         "run",
         "pre-push",
@@ -1425,7 +1475,6 @@ def test_doublestar_selects_root_level_push_file(tmp_path: Path) -> None:
     )
 
     assert _git(repo, "diff", "--name-only", base_sha, head_sha).stdout == "root-only.txt\n"
-    assert "infrastructure-advisory" in result.stdout
     selected_files = (repo / "root-job-ran.txt").read_text(encoding="utf-8").split(",")
     assert selected_files[0] == "--files"
     assert "root-only.txt" in selected_files
