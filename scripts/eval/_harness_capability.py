@@ -199,8 +199,7 @@ ARMS: tuple[Arm, ...] = (
     ),
     Arm(
         "E",
-        "Single-agent deep-reasoning Sol: one Sol configuration, no "
-        "implementation subagents.",
+        "Single-agent deep-reasoning Sol: one Sol configuration, no implementation subagents.",
         (
             "model_override",
             "effort_override",
@@ -336,9 +335,7 @@ def _string(value: object, field: str, *, allow_empty: bool = False) -> str:
 
 
 def _string_tuple(value: object, field: str) -> tuple[str, ...]:
-    if not isinstance(value, list) or not all(
-        isinstance(item, str) and item for item in value
-    ):
+    if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
         raise HarnessCapabilityError(f"{field} must be an array of strings")
     return tuple(value)
 
@@ -476,9 +473,7 @@ def load_matrix(path: Path) -> list[HarnessCapabilityRecord]:
     return records
 
 
-def apply_version_probe(
-    record: HarnessCapabilityRecord, version: str
-) -> HarnessCapabilityRecord:
+def apply_version_probe(record: HarnessCapabilityRecord, version: str) -> HarnessCapabilityRecord:
     """Return a record whose runtime version came from a live backend probe.
 
     The probe reads `<cli> --version`, so the version alone is `BACKEND`
@@ -486,6 +481,40 @@ def apply_version_probe(
     `VERIFIED`; those require live behavioral probes this module does not run.
     """
     return replace(record, version=version, version_evidence=EvidenceKind.BACKEND)
+
+
+def apply_behavioral_probe(
+    record: HarnessCapabilityRecord,
+    capability_key: str,
+    result: Capability,
+    *,
+    reported_value: str | None = None,
+) -> HarnessCapabilityRecord:
+    """Apply one live probe result and revalidate the complete record.
+
+    A verified model or effort request also joins the observed supported-value
+    set. Every other field remains the checked-in record, so a behavioral run
+    cannot replace static sandbox or retry claims with guesses.
+    """
+    if capability_key not in CAPABILITY_KEYS:
+        raise HarnessCapabilityError(f"unknown capability: {capability_key}")
+    capabilities = dict(record.capabilities)
+    capabilities[capability_key] = result
+    models = record.supported_models
+    efforts = record.supported_efforts
+    if result.status is CapabilityStatus.VERIFIED and reported_value:
+        if capability_key == "model_override" and reported_value not in models:
+            models = (*models, reported_value)
+        if capability_key == "effort_override" and reported_value not in efforts:
+            efforts = (*efforts, reported_value)
+    updated = replace(
+        record,
+        supported_models=models,
+        supported_efforts=efforts,
+        capabilities=capabilities,
+    )
+    validate_record(updated)
+    return updated
 
 
 def _capability_dict(capability: Capability) -> dict[str, object]:
@@ -552,9 +581,7 @@ def _arm_eligibility_dict(
                 continue
             verdicts = [derive_arm_eligibility(arm, harness, peer) for peer in peers]
             eligibility[harness.harness] = _worst_eligibility(verdicts).value
-        rows.append(
-            {"arm": arm.arm_id, "summary": arm.summary, "eligibility": eligibility}
-        )
+        rows.append({"arm": arm.arm_id, "summary": arm.summary, "eligibility": eligibility})
     return rows
 
 

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Assemble and validate the per-harness capability matrix (issue #5423).
 
-This is a thin CLI. All logic lives in `_harness_capability`. It loads the
-checked-in matrix, optionally augments a harness record with a live runtime
-version where that CLI is installed and probe-capable, derives #5422 arm
-eligibility, and emits a machine-readable report for #5424 and #5426.
+This is a thin CLI. It loads the checked-in matrix, fills a live runtime
+version where that CLI is installed, optionally executes shell-free behavioral
+probe commands from a JSON plan, derives #5422 arm eligibility, and emits a
+machine-readable report for #5424 and #5426.
 
-Live probing is read-only and evidence-honest: it fills the exact runtime
-version through `_runtime_parity.probe_version` (the existing prober; no second
-one is written) and flips nothing else to VERIFIED. A harness that is absent
-from PATH, or not probe-capable, keeps its checked-in UNVERIFIED version.
+Version and behavioral probing are read-only and evidence-honest. A behavioral
+result can upgrade only the capability named by its plan entry, and only after
+the runtime version is confirmed. A harness that is absent from PATH, or not
+probe-capable, keeps its checked-in UNVERIFIED state.
 
 Exit codes follow AGENTS.md: 0 ok, 2 config, 3 external.
 """
@@ -24,9 +24,20 @@ import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+from _capability_probes import (
+    BehavioralProbe,
+    build_override_plan,
+    load_behavioral_probes,
+    probe_concurrency,
+    probe_override,
+    probe_subagent_support,
+)
 from _harness_capability import (
+    Capability,
+    EvidenceKind,
     HarnessCapabilityError,
     HarnessCapabilityRecord,
+    apply_behavioral_probe,
     apply_version_probe,
     build_report,
     load_matrix,
@@ -94,6 +105,65 @@ def _augment_versions(
     return augmented
 
 
+def _run_behavioral_probe(
+    probe: BehavioralProbe,
+    *,
+    runner: Runner,
+    timeout: float,
+) -> Capability:
+    if probe.capability in ("model_override", "effort_override"):
+        if probe.parent_value is None or probe.child_value is None:
+            raise HarnessCapabilityError(
+                f"{probe.harness}.{probe.capability} is missing override values"
+            )
+        plan = build_override_plan(
+            capability=probe.capability,
+            harness=probe.harness,
+            parent_value=probe.parent_value,
+            candidates=(probe.child_value,),
+        )
+        return probe_override(plan, probe.command, runner=runner, timeout=timeout)
+    if probe.capability == "subagent_support":
+        return probe_subagent_support(probe.command, runner=runner, timeout=timeout)
+    if probe.requested is None:
+        raise HarnessCapabilityError(
+            f"{probe.harness}.{probe.capability} is missing requested concurrency"
+        )
+    return probe_concurrency(
+        probe.command,
+        requested=probe.requested,
+        runner=runner,
+        timeout=timeout,
+    )
+
+
+def _augment_behavioral(
+    records: list[HarnessCapabilityRecord],
+    *,
+    plan_path: Path,
+    timeout: float,
+    runner: Runner,
+) -> list[HarnessCapabilityRecord]:
+    """Apply live behavioral evidence to the matching records."""
+    by_harness = {record.harness: record for record in records}
+    for probe in load_behavioral_probes(plan_path):
+        if probe.harness not in by_harness:
+            raise HarnessCapabilityError(
+                f"behavioral probe targets unknown harness: {probe.harness}"
+            )
+        record = by_harness[probe.harness]
+        if record.version_evidence is not EvidenceKind.BACKEND or not record.version:
+            continue
+        result = _run_behavioral_probe(probe, runner=runner, timeout=timeout)
+        by_harness[probe.harness] = apply_behavioral_probe(
+            record,
+            probe.capability,
+            result,
+            reported_value=probe.child_value,
+        )
+    return [by_harness[record.harness] for record in records]
+
+
 def run(
     *,
     matrix_path: Path,
@@ -102,8 +172,9 @@ def run(
     timeout: float,
     dry_run: bool,
     runner: Runner,
+    behavioral_probes: Path | None = None,
 ) -> dict[str, object]:
-    """Load the matrix, optionally probe versions, and build the report."""
+    """Load the matrix, probe versions, and optionally run behavioral probes."""
     records = load_matrix(matrix_path)
     if not dry_run:
         records = _augment_versions(
@@ -113,6 +184,13 @@ def run(
             timeout=timeout,
             runner=runner,
         )
+        if behavioral_probes is not None:
+            records = _augment_behavioral(
+                records,
+                plan_path=behavioral_probes,
+                timeout=timeout,
+                runner=runner,
+            )
     report: dict[str, object] = build_report(records)
     if not dry_run:
         write_report(output, report)
@@ -125,6 +203,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--copilot-bin", default="copilot")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
+    parser.add_argument(
+        "--behavioral-probes",
+        type=Path,
+        help="JSON plan of live behavioral probe commands",
+    )
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -145,6 +228,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = subprocess.run) 
     # contract below.
     try:
         output = (args.output or _default_output()).resolve()
+        behavioral_probes = args.behavioral_probes.resolve() if args.behavioral_probes else None
         report = run(
             matrix_path=args.matrix.resolve(),
             output=output,
@@ -152,6 +236,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = subprocess.run) 
             timeout=args.timeout,
             dry_run=args.dry_run,
             runner=runner,
+            behavioral_probes=behavioral_probes,
         )
     except HarnessCapabilityError as exc:
         print(f"Error: {exc}", file=sys.stderr)

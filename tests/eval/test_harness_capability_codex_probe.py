@@ -28,19 +28,21 @@ class _MultiHarnessRunner:
         *,
         versions: dict[str, str] | None = None,
         fail: frozenset[str] = frozenset(),
+        stdout: str = "",
     ) -> None:
         self.versions = versions or {}
         self.fail = fail
+        self.stdout = stdout
         self.calls: list[list[str]] = []
 
-    def __call__(
-        self, argv: list[str], **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
+    def __call__(self, argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
         args = [str(value) for value in argv]
         self.calls.append(args)
         executable = args[0]
         if executable in self.fail:
             return subprocess.CompletedProcess(args, 1, "", "boom")
+        if "--version" not in args:
+            return subprocess.CompletedProcess(args, 0, self.stdout, "")
         return subprocess.CompletedProcess(args, 0, self.versions.get(executable, ""), "")
 
 
@@ -49,15 +51,22 @@ def _which_only(*names: str):
     return lambda name: f"/bin/{name}" if name in allowed else None
 
 
+def _write_model_probe(path: Path) -> None:
+    path.write_text(
+        '{"probes":[{"harness":"copilot","capability":"model_override",'
+        '"parent_value":"gpt-5.6-sol","child_value":"claude-opus-5",'
+        '"argv":["copilot","--model","claude-opus-5"]}]}',
+        encoding="utf-8",
+    )
+
+
 # --- Positive: codex is probed and its version filled when on PATH -------------
 
 
 def test_cli_live_probe_fills_codex_version(tmp_path: Path, monkeypatch) -> None:
     output = tmp_path / "report.json"
     monkeypatch.setattr(cli.shutil, "which", _which_only("codex", "copilot"))
-    runner = _MultiHarnessRunner(
-        versions={"codex": "codex-cli 0.34.0", "copilot": "copilot 9.9.9"}
-    )
+    runner = _MultiHarnessRunner(versions={"codex": "codex-cli 0.34.0", "copilot": "copilot 9.9.9"})
 
     code = cli.main(["--output", str(output)], runner=runner)
 
@@ -88,12 +97,58 @@ def test_cli_probe_failure_still_attempts_codex(tmp_path: Path, monkeypatch) -> 
     assert ["codex", "--version"] in runner.calls
 
 
+def test_behavioral_probe_waits_for_backend_version(tmp_path: Path, monkeypatch) -> None:
+    output = tmp_path / "report.json"
+    plan = tmp_path / "probes.json"
+    _write_model_probe(plan)
+    monkeypatch.setattr(cli.shutil, "which", _which_only())
+    runner = _MultiHarnessRunner()
+
+    code = cli.main(
+        ["--output", str(output), "--behavioral-probes", str(plan)],
+        runner=runner,
+    )
+
+    assert code == 0
+    report = json.loads(output.read_text(encoding="utf-8"))
+    copilot = next(row for row in report["harnesses"] if row["harness"] == "copilot")
+    assert copilot["capabilities"]["model_override"]["status"] == "UNVERIFIED"
+    assert runner.calls == []
+
+
+def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) -> None:
+    output = tmp_path / "report.json"
+    plan = tmp_path / "probes.json"
+    _write_model_probe(plan)
+    monkeypatch.setattr(cli.shutil, "which", _which_only("copilot"))
+    runner = _MultiHarnessRunner(
+        versions={"copilot": "copilot 9.9.9"},
+        stdout=json.dumps(
+            {
+                "type": "assistant.message",
+                "data": {"content": "ok", "model": "claude-opus-5"},
+            }
+        )
+        + "\n",
+    )
+
+    code = cli.main(
+        ["--output", str(output), "--behavioral-probes", str(plan)],
+        runner=runner,
+    )
+
+    assert code == 0
+    report = json.loads(output.read_text(encoding="utf-8"))
+    copilot = next(row for row in report["harnesses"] if row["harness"] == "copilot")
+    assert copilot["capabilities"]["model_override"]["status"] == "VERIFIED"
+    assert copilot["supported_models"] == ["claude-opus-5"]
+    assert ["copilot", "--model", "claude-opus-5"] in runner.calls
+
+
 # --- Edge: missing Codex CLI on PATH stays UNVERIFIED, never a crash -----------
 
 
-def test_cli_missing_codex_binary_stays_unverified_not_crash(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_cli_missing_codex_binary_stays_unverified_not_crash(tmp_path: Path, monkeypatch) -> None:
     output = tmp_path / "report.json"
     monkeypatch.setattr(cli.shutil, "which", _which_only("copilot"))
     runner = _MultiHarnessRunner(versions={"copilot": "copilot 9.9.9"})
@@ -118,9 +173,9 @@ def test_cli_missing_codex_binary_verifies_no_capability_silently(
     cli.main(["--output", str(output)], runner=runner)
 
     report = json.loads(output.read_text(encoding="utf-8"))
-    codex_capabilities = next(
-        row for row in report["harnesses"] if row["harness"] == "codex"
-    )["capabilities"]
+    codex_capabilities = next(row for row in report["harnesses"] if row["harness"] == "codex")[
+        "capabilities"
+    ]
     # A missing version probe must never be read as license to mark a
     # behavioral capability VERIFIED by default (no silent pass).
     for key in capability.CAPABILITY_KEYS:
