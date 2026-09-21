@@ -102,7 +102,7 @@ def test_crash_propagates_exit_code(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     out.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
     with patch("scripts.ci.drift_run_detection.subprocess.run", return_value=_mock_run(3)):
-        assert run() == 3
+        assert main() == 3
     # drift_detected set to false before propagating
     assert "drift_detected=false" in out.read_text()
 

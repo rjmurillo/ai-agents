@@ -121,16 +121,23 @@ class TestMain:
         monkeypatch.setattr(sgad, "_run", lambda *_a, **_k: _completed("x\n", returncode=1))
         assert sgad.main([]) == 0
 
-    def test_repo_root_is_forwarded_to_git(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_repo_root_is_forwarded_to_git(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
         roots: list[Path] = []
 
         def _run(argv: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
             roots.append(cwd)
             return _completed()
 
+        repo_root = tmp_path / "elsewhere"
+        repo_root.mkdir()
         monkeypatch.setattr(sgad, "_run", _run)
-        assert sgad.main(["--repo-root", "/tmp/elsewhere"]) == 0
-        assert roots and all(str(root) == "/tmp/elsewhere" for root in roots)
+        assert sgad.main(["--repo-root", str(repo_root)]) == 0
+        assert roots and all(root == repo_root for root in roots)
+
+    def test_missing_repo_root_returns_usage_error(self, tmp_path: Path) -> None:
+        assert sgad.main(["--repo-root", str(tmp_path / "missing")]) == 2
 
 
 class TestWiring:

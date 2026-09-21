@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from scripts.ci.drift_collect_details import run, write_github_output
+from scripts.ci.drift_collect_details import main, run, write_github_output
 
 
 def _mock_run(returncode: int) -> MagicMock:
@@ -42,7 +42,7 @@ def test_detection_crash_rc2_returns_2(
     out_file.write_text("", encoding="utf-8")
     monkeypatch.setenv("GITHUB_OUTPUT", str(out_file))
     with patch("scripts.ci.drift_collect_details.subprocess.run", return_value=_mock_run(2)):
-        rc = run()
+        rc = main()
     assert rc == 2
     assert "::error::" in capsys.readouterr().out
 

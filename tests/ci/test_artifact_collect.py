@@ -87,6 +87,12 @@ class TestRun:
         assert rc == 0
         assert "artifact_count=0" in out_file.read_text()
 
+    def test_invalid_scan_depth_returns_config_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SCAN_DEPTH_DAYS", "not-a-number")
+        assert main() == 2
+
     def test_writes_artifact_file_path_to_output(self, tmp_path: Path) -> None:
         out_file = tmp_path / "out.txt"
         env = {

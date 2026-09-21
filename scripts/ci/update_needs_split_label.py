@@ -121,6 +121,12 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repository = os.environ.get("GITHUB_REPOSITORY", "")
     pr_number = os.environ.get("PR_NUMBER", "")
+    if not repository or not pr_number:
+        print(
+            "error: GITHUB_REPOSITORY and PR_NUMBER are required",
+            file=sys.stderr,
+        )
+        return CONFIG_ERROR
     if args.mode == "add":
         return add_label(repository, pr_number)
     return remove_label(repository, pr_number)

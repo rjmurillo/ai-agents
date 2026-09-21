@@ -107,3 +107,10 @@ def test_main_exit_code(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("DRIFT_DETECTED", "true")
     result = main()
     assert result == 0
+
+
+def test_main_returns_config_error_when_summary_cannot_be_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "missing" / "summary.md"))
+    assert main() == 2

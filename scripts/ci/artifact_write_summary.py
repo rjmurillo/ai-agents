@@ -13,6 +13,7 @@ ENV:
 
 EXIT CODES (ADR-035):
   0 - summary written
+  2 - configuration or output error
 """
 
 from __future__ import annotations
@@ -58,8 +59,12 @@ def run(_argv: list[str] | None = None) -> int:
     content = build_summary(artifact_count, finding_count, verdict, dry_run)
 
     if summary_file:
-        with open(summary_file, "a", encoding="utf-8") as fh:
-            fh.write(content)
+        try:
+            with open(summary_file, "a", encoding="utf-8") as fh:
+                fh.write(content)
+        except OSError as exc:
+            print(f"::error::Could not write summary to {summary_file}: {exc}", file=sys.stderr)
+            return 2
     else:
         print(content, end="")
 

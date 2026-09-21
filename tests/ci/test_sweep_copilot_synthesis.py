@@ -77,6 +77,13 @@ def test_single_issue_failure_still_returns_zero(
     assert "::warning::" in capsys.readouterr().out
 
 
+def test_invalid_issue_identifier_returns_config_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ISSUES", "not-a-number")
+    assert main() == sweep_copilot_synthesis.EXIT_CONFIG
+
+
 # ---------------------------------------------------------------------------
 # Multiple issues
 # ---------------------------------------------------------------------------

@@ -112,3 +112,9 @@ class TestMain:
     def test_main_returns_0(self) -> None:
         with patch("scripts.ci.artifact_write_summary.run", return_value=0):
             assert main() == 0
+
+    def test_summary_write_failure_returns_config_error(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "missing" / "summary.md"))
+        assert main() == 2
