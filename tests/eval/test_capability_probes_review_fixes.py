@@ -16,6 +16,8 @@ are not evidence that any guard works.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.eval._capability_probe_fixtures import (
@@ -29,7 +31,7 @@ from tests.eval._capability_probe_fixtures import (
     _plan,
     _runner,
 )
-from tests.eval._harness_capability_test_support import probes, topology
+from tests.eval._harness_capability_test_support import cli, probes, topology
 
 # A stream that would verify the model override if the command were bound to
 # the plan. Reused so each case below differs only in the command.
@@ -83,14 +85,64 @@ def test_a_command_targeting_another_harness_is_refused() -> None:
 def test_an_equals_joined_flag_carries_the_request() -> None:
     """CONFIRMATORY: `--model=value` is the same request as `--model value`."""
     command = probes.ProbeCommand(
-        harness="copilot", argv=("copilot", "--model=gpt-5.6-sol")
+        harness="copilot",
+        argv=("copilot", "--model=gpt-5.6-sol"),
+        request_flag="--model",
     )
 
-    result = probes.probe_override(
-        _plan(), command, runner=_runner(_HONORED), timeout=TIMEOUT
-    )
+    result = probes.probe_override(_plan(), command, runner=_runner(_HONORED), timeout=TIMEOUT)
 
     assert result.status is CapabilityStatus.VERIFIED
+
+
+def test_a_value_in_an_unrelated_argument_does_not_bind_the_override() -> None:
+    """NEGATIVE CONTROL: a prompt value is not an override option."""
+    command = probes.ProbeCommand(
+        harness="copilot",
+        argv=("copilot", "--prompt", "gpt-5.6-sol"),
+        request_flag="--model",
+    )
+
+    with pytest.raises(ProbeError, match="does not request"):
+        probes.probe_override(_plan(), command, runner=_runner(_HONORED), timeout=TIMEOUT)
+
+
+def test_an_untrusted_request_flag_stays_unverified_without_running() -> None:
+    """NEGATIVE CONTROL: a plan flag cannot authorize a different control."""
+    seen: list[list[str]] = []
+    result = probes.probe_override(
+        _plan(),
+        _command(request_flag="--effort"),
+        runner=_runner(_HONORED, seen=seen),
+        timeout=TIMEOUT,
+    )
+
+    assert result.status is CapabilityStatus.UNVERIFIED
+    assert "not trusted" in result.detail
+    assert seen == []
+
+
+def test_windows_case_insensitive_protected_environment_key_is_rejected(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """NEGATIVE CONTROL: Windows environment names are case-insensitive."""
+    probe = probes.BehavioralProbe(
+        harness="copilot",
+        capability="subagent_support",
+        command=probes.ProbeCommand(
+            harness="copilot",
+            argv=("copilot",),
+            env={"home": str(tmp_path)},
+        ),
+    )
+    monkeypatch.setattr(cli.os, "name", "nt")
+
+    with pytest.raises(cli.HarnessCapabilityError, match="isolated environment home"):
+        cli._isolate_probe(
+            probe,
+            workspace=tmp_path / "workspace",
+            executable="copilot",
+        )
 
 
 def test_an_environment_value_no_longer_carries_the_request() -> None:
@@ -115,9 +167,7 @@ def test_an_environment_value_no_longer_carries_the_request() -> None:
 def test_a_command_whose_executable_does_not_name_the_harness_is_refused() -> None:
     """NEGATIVE CONTROL: the harness field is a label, not evidence of the process."""
     seen: list[list[str]] = []
-    command = probes.ProbeCommand(
-        harness="copilot", argv=("codex", "--model", "gpt-5.6-sol")
-    )
+    command = probes.ProbeCommand(harness="copilot", argv=("codex", "--model", "gpt-5.6-sol"))
 
     with pytest.raises(ProbeError, match="does not name"):
         probes.probe_override(
@@ -130,14 +180,43 @@ def test_a_command_whose_executable_does_not_name_the_harness_is_refused() -> No
 def test_an_executable_path_still_satisfies_the_harness_check() -> None:
     """CONFIRMATORY: an absolute path to the CLI is the normal shape, not a violation."""
     command = probes.ProbeCommand(
-        harness="copilot", argv=("/usr/local/bin/copilot", "--model", "gpt-5.6-sol")
+        harness="copilot",
+        argv=("/usr/local/bin/copilot", "--model", "gpt-5.6-sol"),
+        request_flag="--model",
     )
 
-    result = probes.probe_override(
-        _plan(), command, runner=_runner(_HONORED), timeout=TIMEOUT
-    )
+    result = probes.probe_override(_plan(), command, runner=_runner(_HONORED), timeout=TIMEOUT)
 
     assert result.status is CapabilityStatus.VERIFIED
+
+
+def test_an_executable_path_must_match_the_configured_canonical_path(monkeypatch) -> None:
+    """NEGATIVE CONTROL: a same-named payload is not the configured executable."""
+    monkeypatch.setattr(
+        probes.shutil,
+        "which",
+        lambda executable: (
+            "/bin/copilot"
+            if executable == "copilot"
+            else "/tmp/copilot"
+            if executable == "/tmp/copilot"
+            else None
+        ),
+    )
+    command = probes.ProbeCommand(
+        harness="copilot",
+        argv=("/tmp/copilot", "--model", "gpt-5.6-sol"),
+        request_flag="--model",
+    )
+
+    with pytest.raises(ProbeError, match="does not match configured"):
+        probes.probe_override(
+            _plan(),
+            command,
+            runner=_runner(_HONORED),
+            timeout=TIMEOUT,
+            executable_allowlist={"copilot": Path("/bin/copilot")},
+        )
 
 
 def test_a_hand_built_plan_naming_an_unprobeable_capability_is_refused() -> None:
@@ -164,9 +243,7 @@ def _claude_tool_use(count: int = 1) -> list[dict[str, object]]:
         {
             "type": "assistant",
             "message": {
-                "content": [
-                    {"type": "tool_use", "name": "Task", "input": {}} for _ in range(count)
-                ]
+                "content": [{"type": "tool_use", "name": "Task", "input": {}} for _ in range(count)]
             },
         }
     ]
@@ -250,7 +327,10 @@ def test_an_inflated_stream_leaves_the_concurrency_probe_unverified() -> None:
     stdout = _jsonl(_boundaries("start", "start", "start"))
 
     result = probes.probe_concurrency(
-        _command(), requested=3, runner=_runner(stdout), timeout=TIMEOUT
+        _command(requests="3", request_flag="--max-concurrency"),
+        requested=3,
+        runner=_runner(stdout),
+        timeout=TIMEOUT,
     )
 
     assert result.status is CapabilityStatus.UNVERIFIED

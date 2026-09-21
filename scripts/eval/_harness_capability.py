@@ -110,6 +110,8 @@ class Capability:
     evidence: EvidenceKind
     detail: str = ""
     value: int | None = None
+    probe_command: str = ""
+    date: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,8 +201,7 @@ ARMS: tuple[Arm, ...] = (
     ),
     Arm(
         "E",
-        "Single-agent deep-reasoning Sol: one Sol configuration, no "
-        "implementation subagents.",
+        "Single-agent deep-reasoning Sol: one Sol configuration, no implementation subagents.",
         (
             "model_override",
             "effort_override",
@@ -336,9 +337,7 @@ def _string(value: object, field: str, *, allow_empty: bool = False) -> str:
 
 
 def _string_tuple(value: object, field: str) -> tuple[str, ...]:
-    if not isinstance(value, list) or not all(
-        isinstance(item, str) and item for item in value
-    ):
+    if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
         raise HarnessCapabilityError(f"{field} must be an array of strings")
     return tuple(value)
 
@@ -358,11 +357,19 @@ def _load_capability(value: object, field: str) -> Capability:
     scalar = raw.get("value")
     if scalar is not None and (isinstance(scalar, bool) or not isinstance(scalar, int)):
         raise HarnessCapabilityError(f"{field}.value must be an integer or null")
+    probe_command = _string(
+        raw.get("probe_command", ""),
+        f"{field}.probe_command",
+        allow_empty=True,
+    )
+    date = _string(raw.get("date", ""), f"{field}.date", allow_empty=True)
     return Capability(
         status=CapabilityStatus(status),
         evidence=EvidenceKind(evidence),
         detail=detail,
         value=scalar,
+        probe_command=probe_command,
+        date=date,
     )
 
 
@@ -476,9 +483,7 @@ def load_matrix(path: Path) -> list[HarnessCapabilityRecord]:
     return records
 
 
-def apply_version_probe(
-    record: HarnessCapabilityRecord, version: str
-) -> HarnessCapabilityRecord:
+def apply_version_probe(record: HarnessCapabilityRecord, version: str) -> HarnessCapabilityRecord:
     """Return a record whose runtime version came from a live backend probe.
 
     The probe reads `<cli> --version`, so the version alone is `BACKEND`
@@ -488,13 +493,57 @@ def apply_version_probe(
     return replace(record, version=version, version_evidence=EvidenceKind.BACKEND)
 
 
+def apply_behavioral_probe(
+    record: HarnessCapabilityRecord,
+    capability_key: str,
+    result: Capability,
+    *,
+    reported_value: str | None = None,
+    probe_command: str | None = None,
+    date: str | None = None,
+) -> HarnessCapabilityRecord:
+    """Apply live evidence and provenance to a complete capability record."""
+    if capability_key not in CAPABILITY_KEYS:
+        raise HarnessCapabilityError(f"unknown capability: {capability_key}")
+    if probe_command is not None or date is not None:
+        result = replace(
+            result,
+            probe_command=result.probe_command if probe_command is None else probe_command,
+            date=result.date if date is None else date,
+        )
+    capabilities = dict(record.capabilities)
+    capabilities[capability_key] = result
+    models = record.supported_models
+    efforts = record.supported_efforts
+    if result.status is CapabilityStatus.VERIFIED and reported_value:
+        if capability_key == "model_override" and reported_value not in models:
+            models = (*models, reported_value)
+        if capability_key == "effort_override" and reported_value not in efforts:
+            efforts = (*efforts, reported_value)
+    updated = replace(
+        record,
+        supported_models=models,
+        supported_efforts=efforts,
+        capabilities=capabilities,
+        probe_command=record.probe_command if probe_command is None else probe_command,
+        date=record.date if date is None else date,
+    )
+    validate_record(updated)
+    return updated
+
+
 def _capability_dict(capability: Capability) -> dict[str, object]:
-    return {
+    result: dict[str, object] = {
         "status": capability.status.value,
         "evidence": capability.evidence.value,
         "detail": capability.detail,
         "value": capability.value,
     }
+    if capability.probe_command:
+        result["probe_command"] = capability.probe_command
+    if capability.date:
+        result["date"] = capability.date
+    return result
 
 
 def _record_dict(record: HarnessCapabilityRecord) -> dict[str, object]:
@@ -552,9 +601,7 @@ def _arm_eligibility_dict(
                 continue
             verdicts = [derive_arm_eligibility(arm, harness, peer) for peer in peers]
             eligibility[harness.harness] = _worst_eligibility(verdicts).value
-        rows.append(
-            {"arm": arm.arm_id, "summary": arm.summary, "eligibility": eligibility}
-        )
+        rows.append({"arm": arm.arm_id, "summary": arm.summary, "eligibility": eligibility})
     return rows
 
 

@@ -1,18 +1,18 @@
+# taste-lint: ignore file-size
+# file-size suppression rationale: probe command validation, event parsing, and
+# fail-closed capability classification share one auditable boundary.
 """Behavioral capability probers for the #5422 orchestration experiment.
 
-Step 2 of issue #5423. `_harness_capability` classifies evidence a caller
-supplies and makes zero subprocess calls; this module is that caller. It runs a
-harness CLI through an injected runner, reads the runtime's own event stream,
-and hands what it found to the existing classifiers. The split is deliberate:
-gathering lives here, classification stays there, and neither file grows a copy
-of the other's job.
+The `_harness_capability` module classifies evidence and makes zero
+subprocess calls; this module is that caller. It runs a harness CLI through an
+injected runner, reads the runtime's own event stream, and hands what it found
+to the existing classifiers. The JSON plan loader is shell-free and validates
+each command before execution. The split is deliberate: gathering lives here,
+classification stays there, and neither file grows a copy of the other's job.
 
-Nothing in this module has been executed against a real Codex or Copilot CLI.
-Step 3 of the issue (live runs, paid spend) is not authorized in the
-environment this was written in, so every path here is exercised only by
-injected fake runners and recorded output shapes. That is also why no function
-here writes to `examples/harness-capability-matrix.json`: every cell in the
-checked-in matrix stays UNVERIFIED until a live run produces evidence.
+This module never writes to `examples/harness-capability-matrix.json`. A
+caller can write a report after a live run, but each cell remains UNVERIFIED
+unless the runtime supplies the backend evidence required by the classifier.
 
 Fail-closed rules, each of which can only ever refuse a claim:
 
@@ -55,6 +55,8 @@ reads runtime output and records what it observed.
 
 from __future__ import annotations
 
+import json
+import shutil
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -68,6 +70,7 @@ from _capability_evidence import (
 from _capability_topology import (
     max_concurrent_children,
     requested_subagent_tools,
+    subagent_launch_count,
     subagent_lifecycle_events,
 )
 from _harness_capability import (
@@ -84,6 +87,16 @@ Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 #: Capabilities this module can probe through `classify_override`.
 OVERRIDE_CAPABILITIES: tuple[str, ...] = ("model_override", "effort_override")
 
+# A JSON plan may choose the argv shape, but only these typed flags can carry
+# behavioral probe requests for the supported harnesses.
+TRUSTED_REQUEST_FLAGS: Mapping[tuple[str, str], str] = {
+    ("codex", "model_override"): "--model",
+    ("codex", "effort_override"): "--effort",
+    ("codex", "concurrency_limit"): "--max-concurrency",
+    ("copilot", "model_override"): "--model",
+    ("copilot", "effort_override"): "--effort",
+    ("copilot", "concurrency_limit"): "--max-concurrency",
+}
 
 
 class ProbeError(HarnessCapabilityError):
@@ -151,46 +164,76 @@ class ProbeCommand:
     contract in the tree. `eval_runtime_parity.build_argv` holds the Copilot
     flag set that is attested.
 
-    Because the argv is opaque to this module, `probe_override` checks that it
-    carries the plan's child value before running it. A caller that delivers
-    the override some other way must put it in `env` or the probe is refused.
+    Because the argv is opaque to this module, `probe_override` checks that the
+    typed `request_flag` carries the plan's child value before running it. JSON
+    plans use that field to render the value into argv, so unrelated arguments
+    cannot satisfy the override check.
     """
 
     harness: str
     argv: tuple[str, ...]
     cwd: Path | None = None
     env: Mapping[str, str] | None = None
+    request_flag: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BehavioralProbe:
+    """One JSON-configured behavioral probe."""
+
+    capability: str
+    harness: str
+    command: ProbeCommand
+    parent_value: str | None = None
+    child_value: str | None = None
+    requested: int | None = None
+
+    def __post_init__(self) -> None:
+        supported = (*OVERRIDE_CAPABILITIES, "subagent_support", "concurrency_limit")
+        if self.capability not in supported:
+            raise ProbeError(f"capability must be one of {supported}, got {self.capability!r}")
+        if self.command.harness != self.harness:
+            raise ProbeError(
+                f"command targets {self.command.harness!r} but the plan names {self.harness!r}"
+            )
+        if self.capability in OVERRIDE_CAPABILITIES and (
+            not self.parent_value or not self.child_value
+        ):
+            raise ProbeError(f"{self.capability} requires non-empty parent_value and child_value")
+        if (
+            self.capability in OVERRIDE_CAPABILITIES
+            and self.parent_value is not None
+            and self.child_value is not None
+            and not _discriminates(self.child_value, self.parent_value)
+        ):
+            raise ProbeError(
+                f"child value {self.child_value!r} does not differ from parent "
+                f"{self.parent_value!r}; an equal-value request cannot tell an honored "
+                "override from a silent inherit"
+            )
+        if self.capability == "concurrency_limit" and (
+            not isinstance(self.requested, int)
+            or isinstance(self.requested, bool)
+            or self.requested < 1
+        ):
+            raise ProbeError("concurrency_limit requires requested >= 1")
+
+
+def _trusted_request_flag(command: ProbeCommand, capability: str) -> bool:
+    return TRUSTED_REQUEST_FLAGS.get((command.harness, capability)) == command.request_flag
 
 
 def _carries_request(command: ProbeCommand, value: str) -> bool:
-    """Report whether this invocation actually asks for `value` in its argv.
-
-    `ProbeCommand.argv` is caller-supplied, so nothing else in this module can
-    tell a command that requests the override from one that does not. Without
-    this check `probe_override` executes an opaque argv and classifies it
-    against a plan it may not implement: a command that omits the override
-    runs the harness default, and if that default happens to equal the plan's
-    child value the probe reports `VERIFIED` for a mechanism that never ran.
-
-    A token carries the request when it is the value itself (`--model`,
-    `gpt-5.6-sol`) or ends in `=value` (`--model=gpt-5.6-sol`). A token that
-    merely contains the value, such as a prompt mentioning the model name,
-    does not.
-
-    Environment variables were accepted here and no longer are: any variable
-    whose value happened to equal the request counted as the request, and
-    naming the variables that really carry it would mean writing down a Codex
-    and Copilot contract this repository has not verified. Argv is the one
-    surface a caller can be required to make explicit, so a request delivered
-    any other way is refused rather than assumed.
-
-    Known residual gap: this proves the value appears as an argument, not that
-    it appears as the *model* or *effort* option, because no verified flag
-    surface for either harness exists in this repository. Closing that needs
-    step 3 of issue #5423, which is where a real flag set gets observed.
-    """
-    suffix = f"={value}"
-    return any(token == value or token.endswith(suffix) for token in command.argv)
+    """Return whether the typed request flag is bound to the requested value."""
+    flag = command.request_flag
+    if flag is None:
+        return False
+    joined = f"{flag}={value}"
+    return any(
+        token == joined
+        or (token == flag and index + 1 < len(command.argv) and command.argv[index + 1] == value)
+        for index, token in enumerate(command.argv)
+    )
 
 
 def _discriminates(candidate: str, parent: str) -> bool:
@@ -249,6 +292,44 @@ def build_override_plan(
     )
 
 
+def _validate_command(
+    command: ProbeCommand,
+    *,
+    executable_allowlist: Mapping[str, Path] | None = None,
+) -> None:
+    if not command.harness:
+        raise ProbeError("command harness must be non-empty")
+    if not command.argv:
+        raise ProbeError("command argv must be non-empty")
+    if any("\x00" in argument for argument in command.argv):
+        raise ProbeError("command argv must not contain NUL bytes")
+    if command.cwd is not None and "\x00" in str(command.cwd):
+        raise ProbeError("command cwd must not contain NUL bytes")
+    if command.env is not None and any(
+        "\x00" in key or "\x00" in value for key, value in command.env.items()
+    ):
+        raise ProbeError("command environment must not contain NUL bytes")
+    if command.request_flag is not None and "\x00" in command.request_flag:
+        raise ProbeError("command request_flag must not contain NUL bytes")
+    if executable_allowlist is None:
+        if Path(command.argv[0]).name != command.harness:
+            raise ProbeError(
+                f"command executes {command.argv[0]!r}, which does not name {command.harness!r}"
+            )
+        return
+    expected = executable_allowlist.get(command.harness)
+    actual_name = shutil.which(command.argv[0])
+    if expected is None or actual_name is None:
+        raise ProbeError(
+            f"command executable {command.argv[0]!r} is not configured for {command.harness!r}"
+        )
+    actual = Path(actual_name).resolve()
+    if actual != expected.resolve():
+        raise ProbeError(
+            f"command executable {actual!s} does not match configured {expected.resolve()!s}"
+        )
+
+
 def _capture_events(
     command: ProbeCommand,
     *,
@@ -298,39 +379,37 @@ def probe_override(
     *,
     runner: Runner,
     timeout: float,
+    executable_allowlist: Mapping[str, Path] | None = None,
     effort_keys: Sequence[str] = DEFAULT_EFFORT_KEYS,
 ) -> Capability:
     """Run one override probe and classify it with the existing classifier.
 
-    Classification is not reimplemented here: the observed value, its evidence
-    kind, and the plan's parent value go straight to
-    `_harness_capability.classify_override`, which owns every rule that can
-    withhold `VERIFIED`.
+    Classification is not reimplemented here. The observed value, its evidence
+    kind, and the plan's parent value go straight to the existing classifier,
+    which owns every rule that can withhold VERIFIED.
 
-    Raises `ProbeError` when `command` does not implement `plan`: a different
-    harness, or an invocation that does not carry the plan's child value. Both
-    are refused before the CLI runs, because a probe whose command and plan
-    describe different invocations cannot attribute what it observes to the
-    override it claims to be testing.
+    Raises ProbeError when command does not implement plan: a different
+    harness, or an invocation that does not carry the plan's child value.
+    Both are refused before the CLI runs.
     """
     if command.harness != plan.harness:
         raise ProbeError(
             f"command targets {command.harness!r} but the plan probes {plan.harness!r}; "
             "a run against one harness cannot verify an override on another"
         )
-    if not command.argv or plan.harness not in Path(command.argv[0]).name:
-        # `ProbeCommand.harness` is a caller-supplied label. Nothing tied it to
-        # the process actually launched, so a command labelled copilot could
-        # execute any executable and have its output classified as copilot's.
-        raise ProbeError(
-            f"command executes {command.argv[0]!r} if anything, which does not name "
-            f"{plan.harness!r}; the label on a command is not evidence of what it runs"
-        )
+    _validate_command(command, executable_allowlist=executable_allowlist)
     if not _carries_request(command, plan.child_value):
         raise ProbeError(
-            f"command does not request {plan.child_value!r} in its argv or env, so an "
+            f"command does not request {plan.child_value!r} in its argv, so an "
             f"observed {plan.child_value!r} would be the harness default rather than an "
             "honored override"
+        )
+    if not _trusted_request_flag(command, plan.capability):
+        return Capability(
+            CapabilityStatus.UNVERIFIED,
+            EvidenceKind.NONE,
+            f"{command.harness} request flag {command.request_flag!r} is not trusted "
+            f"for {plan.capability}",
         )
     events, failure = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
@@ -361,14 +440,10 @@ def probe_subagent_support(
     *,
     runner: Runner,
     timeout: float,
+    executable_allowlist: Mapping[str, Path] | None = None,
 ) -> Capability:
-    """Verify the harness actually launched a child, from its own event stream.
-
-    Presence, not a requested count: a run that asked for children and shows
-    none in its output is `UNVERIFIED`, which is the config-echo rule applied
-    to a different observable. A `tool_use` block requesting `Agent` or `Task`
-    is such an ask, so it is reported and never verifies on its own.
-    """
+    """Verify the harness launched a child in its backend event stream."""
+    _validate_command(command, executable_allowlist=executable_allowlist)
     events, failure = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
@@ -395,17 +470,34 @@ def probe_concurrency(
     requested: int,
     runner: Runner,
     timeout: float,
+    executable_allowlist: Mapping[str, Path] | None = None,
 ) -> Capability:
-    """Measure the maximum children actually running at once.
-
-    `requested` is recorded in the detail text and never becomes the value.
-    A harness that was asked for four children and ran two records two.
-    """
+    """Measure the maximum children actually running at once."""
     if requested < 1:
         raise ProbeError("requested concurrency must be at least 1")
+    _validate_command(command, executable_allowlist=executable_allowlist)
+    if not _carries_request(command, str(requested)):
+        raise ProbeError(
+            f"command does not request concurrency {requested} in its typed request flag"
+        )
+    if not _trusted_request_flag(command, "concurrency_limit"):
+        return Capability(
+            CapabilityStatus.UNVERIFIED,
+            EvidenceKind.NONE,
+            f"{command.harness} request flag {command.request_flag!r} is not trusted "
+            "for concurrency_limit",
+        )
     events, failure = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
+    launches = subagent_launch_count(events)
+    if launches < requested:
+        return Capability(
+            CapabilityStatus.UNVERIFIED,
+            EvidenceKind.NONE,
+            f"{command.harness} output recorded {launches} child launch attempts, "
+            f"fewer than the requested {requested}",
+        )
     peak = max_concurrent_children(events)
     if peak is None:
         return Capability(
@@ -414,9 +506,151 @@ def probe_concurrency(
             f"{command.harness} output has no paired subagent start and completion boundaries, "
             f"so concurrency cannot be derived (requested {requested})",
         )
+    status = CapabilityStatus.VERIFIED if peak >= requested else CapabilityStatus.UNVERIFIED
     return Capability(
-        CapabilityStatus.VERIFIED,
+        status,
         EvidenceKind.BACKEND,
         f"{command.harness} ran at most {peak} children at once while {requested} were requested",
         value=peak,
     )
+
+
+def _probe_string(value: object, field: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ProbeError(f"{field} must be a non-empty string")
+    return value
+
+
+def _load_probe_command(
+    value: Mapping[str, object],
+    field: str,
+    harness: str,
+    *,
+    request_value: str | int | None = None,
+) -> ProbeCommand:
+    raw_argv = value.get("argv")
+    if (
+        not isinstance(raw_argv, list)
+        or not raw_argv
+        or not all(isinstance(argument, str) and argument for argument in raw_argv)
+    ):
+        raise ProbeError(f"{field}.argv must be a non-empty string array")
+    request_flag = value.get("request_flag")
+    if request_flag is not None and (not isinstance(request_flag, str) or not request_flag):
+        raise ProbeError(f"{field}.request_flag must be a non-empty string")
+    if request_value is not None and request_flag is None:
+        raise ProbeError(f"{field}.request_flag is required for this probe")
+    if request_value is None and request_flag is not None:
+        raise ProbeError(f"{field}.request_flag requires a typed probe request")
+    cwd_value = value.get("cwd")
+    if cwd_value is not None and not isinstance(cwd_value, str):
+        raise ProbeError(f"{field}.cwd must be a string")
+    env_value = value.get("env")
+    if env_value is not None and (
+        not isinstance(env_value, Mapping)
+        or any(
+            not isinstance(key, str) or not isinstance(item, str) for key, item in env_value.items()
+        )
+    ):
+        raise ProbeError(f"{field}.env must map strings to strings")
+    if any("\x00" in argument for argument in raw_argv):
+        raise ProbeError(f"{field}.argv must not contain NUL bytes")
+    if cwd_value is not None and "\x00" in cwd_value:
+        raise ProbeError(f"{field}.cwd must not contain NUL bytes")
+    if request_flag is not None and "\x00" in request_flag:
+        raise ProbeError(f"{field}.request_flag must not contain NUL bytes")
+    if env_value is not None and any(
+        "\x00" in key or "\x00" in item for key, item in env_value.items()
+    ):
+        raise ProbeError(f"{field}.env must not contain NUL bytes")
+    argv = tuple(raw_argv)
+    if request_flag is not None:
+        argv = (*argv, request_flag, str(request_value))
+    command = ProbeCommand(
+        harness=harness,
+        argv=argv,
+        cwd=Path(cwd_value) if cwd_value is not None else None,
+        env=dict(env_value) if env_value is not None else None,
+        request_flag=request_flag,
+    )
+    _validate_command(command)
+    return command
+
+
+def _load_probe_values(
+    value: Mapping[str, object], field: str, capability: str
+) -> tuple[str | None, str | None, int | None]:
+    parent_value = value.get("parent_value")
+    child_value = value.get("child_value")
+    if capability in OVERRIDE_CAPABILITIES:
+        parent_value = _probe_string(parent_value, f"{field}.parent_value")
+        child_value = _probe_string(child_value, f"{field}.child_value")
+    elif parent_value is not None or child_value is not None:
+        raise ProbeError(f"{field} override values require an override capability")
+    requested = value.get("requested")
+    if capability == "concurrency_limit":
+        if not isinstance(requested, int) or isinstance(requested, bool):
+            raise ProbeError(f"{field}.requested must be an integer")
+    elif requested is not None:
+        raise ProbeError(f"{field}.requested requires concurrency_limit")
+
+    return parent_value, child_value, requested
+
+
+def _load_behavioral_probe(value: object, index: int) -> BehavioralProbe:
+    field = f"probes[{index}]"
+    if not isinstance(value, Mapping):
+        raise ProbeError(f"{field} must be an object")
+    allowed = {
+        "harness",
+        "capability",
+        "argv",
+        "cwd",
+        "env",
+        "request_flag",
+        "parent_value",
+        "child_value",
+        "requested",
+    }
+    unknown = set(value) - allowed
+    if unknown:
+        raise ProbeError(f"{field} has unknown keys: {sorted(unknown)}")
+    harness = _probe_string(value.get("harness"), f"{field}.harness")
+    capability = _probe_string(value.get("capability"), f"{field}.capability")
+    parent_value, child_value, requested = _load_probe_values(value, field, capability)
+    if capability in OVERRIDE_CAPABILITIES or capability == "concurrency_limit":
+        request_value = child_value if capability in OVERRIDE_CAPABILITIES else requested
+        command = _load_probe_command(value, field, harness, request_value=request_value)
+    else:
+        if "request_flag" in value:
+            raise ProbeError(f"{field}.request_flag requires an override or concurrency probe")
+        command = _load_probe_command(value, field, harness)
+    return BehavioralProbe(
+        harness=harness,
+        capability=capability,
+        command=command,
+        parent_value=parent_value,
+        child_value=child_value,
+        requested=requested,
+    )
+
+
+def load_behavioral_probes(path: Path) -> tuple[BehavioralProbe, ...]:
+    """Load a fail-closed JSON plan for live behavioral probes."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ProbeError(f"could not read behavioral probe plan: {exc}") from exc
+    if not isinstance(payload, Mapping):
+        raise ProbeError("behavioral probe plan must be an object")
+    unknown = set(payload) - {"probes"}
+    if unknown:
+        raise ProbeError(f"behavioral probe plan has unknown keys: {sorted(unknown)}")
+    raw_probes = payload.get("probes")
+    if not isinstance(raw_probes, list) or not raw_probes:
+        raise ProbeError("behavioral probe plan requires a non-empty probes array")
+    probes = tuple(_load_behavioral_probe(value, index) for index, value in enumerate(raw_probes))
+    keys = [(probe.harness, probe.capability) for probe in probes]
+    if len(set(keys)) != len(keys):
+        raise ProbeError("behavioral probe plan contains duplicate harness and capability entries")
+    return probes

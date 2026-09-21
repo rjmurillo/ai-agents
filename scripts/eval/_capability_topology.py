@@ -61,6 +61,18 @@ def subagent_lifecycle_events(
     return [event for event in events if _subagent_event_kind(event) is not None]
 
 
+def subagent_launch_count(events: Sequence[Mapping[str, object]]) -> int:
+    """Count backend-reported child launch attempts in an event stream."""
+    launches = 0
+    for event in subagent_lifecycle_events(events):
+        event_type = event.get("type")
+        if isinstance(event_type, str) and any(
+            hint in event_type.lower() for hint in _START_HINTS
+        ):
+            launches += 1
+    return launches
+
+
 def requested_subagent_tools(events: Sequence[Mapping[str, object]]) -> int:
     """Count subagent tool requests, which are asks rather than launches."""
     _, subagents = traces(events)

@@ -112,9 +112,7 @@ def test_verified_requires_backend_evidence() -> None:
 
 
 def test_classify_override_rejects_config_echo() -> None:
-    status = capability.classify_override(
-        "sol-low", "sol-low", EvidenceKind.CONFIG
-    )
+    status = capability.classify_override("sol-low", "sol-low", EvidenceKind.CONFIG)
     assert status is CapabilityStatus.UNVERIFIED
 
 
@@ -271,8 +269,7 @@ def test_arm_unsupported_when_required_capability_unsupported() -> None:
         },
     )
     assert (
-        capability.derive_arm_eligibility(_arm("A"), codex, copilot)
-        is ArmEligibility.UNSUPPORTED
+        capability.derive_arm_eligibility(_arm("A"), codex, copilot) is ArmEligibility.UNSUPPORTED
     )
 
 
@@ -289,10 +286,7 @@ def test_arm_unverified_beats_matched_even_with_same_model_label() -> None:
         },
     )
     assert codex.supported_models == copilot.supported_models == shared["supported_models"]
-    assert (
-        capability.derive_arm_eligibility(_arm("A"), codex, copilot)
-        is ArmEligibility.UNVERIFIED
-    )
+    assert capability.derive_arm_eligibility(_arm("A"), codex, copilot) is ArmEligibility.UNVERIFIED
 
 
 def test_unsupported_precedence_over_unverified() -> None:
@@ -313,8 +307,7 @@ def test_unsupported_precedence_over_unverified() -> None:
         },
     )
     assert (
-        capability.derive_arm_eligibility(_arm("A"), codex, copilot)
-        is ArmEligibility.UNSUPPORTED
+        capability.derive_arm_eligibility(_arm("A"), codex, copilot) is ArmEligibility.UNSUPPORTED
     )
 
 
@@ -336,7 +329,12 @@ def test_build_report_covers_all_six_arms() -> None:
 class _FakeRunner:
     """Dispatch a fake CLI response from argv, not from call order."""
 
-    def __init__(self, *, version: str = "copilot 9.9.9", returncode: int = 0) -> None:
+    def __init__(
+        self,
+        *,
+        version: str = "copilot 9.9.9",
+        returncode: int = 0,
+    ) -> None:
         self.version = version
         self.returncode = returncode
         self.calls: list[list[str]] = []
@@ -433,9 +431,7 @@ def test_cli_maps_an_unresolvable_output_path_to_the_external_exit(
 
 def test_third_harness_is_not_matched_while_a_peer_is_unmatched() -> None:
     codex = _record("codex")
-    copilot = _record(
-        "copilot", overrides={"concurrency_limit": _verified_cap(value=5)}
-    )
+    copilot = _record("copilot", overrides={"concurrency_limit": _verified_cap(value=5)})
     third = _record("third")
     rows = capability._arm_eligibility_dict([codex, copilot, third])
     arm_a = next(row for row in rows if row["arm"] == "A")
@@ -450,16 +446,12 @@ def test_three_agreeing_harnesses_still_match() -> None:
     records = [_record("codex"), _record("copilot"), _record("third")]
     rows = capability._arm_eligibility_dict(records)
     arm_a = next(row for row in rows if row["arm"] == "A")
-    assert set(arm_a["eligibility"].values()) == {
-        ArmEligibility.ELIGIBLE_MATCHED.value
-    }
+    assert set(arm_a["eligibility"].values()) == {ArmEligibility.ELIGIBLE_MATCHED.value}
 
 
 def test_worst_eligibility_prefers_the_most_restrictive_verdict() -> None:
     assert (
-        capability._worst_eligibility(
-            [ArmEligibility.ELIGIBLE_MATCHED, ArmEligibility.UNSUPPORTED]
-        )
+        capability._worst_eligibility([ArmEligibility.ELIGIBLE_MATCHED, ArmEligibility.UNSUPPORTED])
         is ArmEligibility.UNSUPPORTED
     )
     assert (

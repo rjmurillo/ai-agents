@@ -17,6 +17,8 @@ case; they are labeled because they are not evidence that any guard works.
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from tests.eval._capability_probe_fixtures import (
@@ -24,6 +26,7 @@ from tests.eval._capability_probe_fixtures import (
     ProbeError,
     _plan,
 )
+from tests.eval._harness_capability_test_support import probes
 
 
 def test_a_plan_selects_the_first_candidate_that_differs_from_the_parent() -> None:
@@ -70,6 +73,120 @@ def test_a_plan_rejects_an_unknown_capability() -> None:
     """NEGATIVE CONTROL: only capabilities classify_override covers are probeable."""
     with pytest.raises(ProbeError, match="capability must be one of"):
         _plan(capability_key="concurrency_limit")
+
+
+def test_json_behavioral_plan_loads_an_override_command(tmp_path) -> None:
+    plan_path = tmp_path / "probes.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "probes": [
+                    {
+                        "harness": "copilot",
+                        "capability": "model_override",
+                        "parent_value": "gpt-5.6-sol",
+                        "child_value": "claude-opus-5",
+                        "argv": ["copilot", "--prompt", "probe"],
+                        "request_flag": "--model",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    probes_loaded = probes.load_behavioral_probes(plan_path)
+
+    assert len(probes_loaded) == 1
+    assert probes_loaded[0].command.argv[-1] == "claude-opus-5"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("argv", ["copilot", "\x00"]),
+        ("cwd", "\x00"),
+        ("env", {"\x00": "value"}),
+        ("env", {"KEY": "\x00"}),
+    ],
+)
+def test_json_behavioral_plan_rejects_nul_bytes(field: str, value: object, tmp_path) -> None:
+    """NEGATIVE CONTROL: subprocess inputs reject embedded NUL bytes."""
+    probe: dict[str, object] = {
+        "harness": "copilot",
+        "capability": "subagent_support",
+        "argv": ["copilot", "--prompt", "probe"],
+    }
+    probe[field] = value
+    plan_path = tmp_path / "probes.json"
+    plan_path.write_text(json.dumps({"probes": [probe]}), encoding="utf-8")
+
+    with pytest.raises(ProbeError, match="NUL"):
+        probes.load_behavioral_probes(plan_path)
+
+
+@pytest.mark.parametrize(
+    ("parent_value", "child_value"),
+    [
+        ("gpt-5.6-sol", "gpt-5.6-sol"),
+        ("Sol Ultra", "sol ultra"),
+        ("Sol Ultra", "  Sol Ultra  "),
+    ],
+)
+def test_behavioral_probe_rejects_an_inheriting_override(
+    parent_value: str, child_value: str
+) -> None:
+    command = probes.ProbeCommand(
+        harness="copilot",
+        argv=("copilot", "--prompt", "probe", "--model", child_value),
+        request_flag="--model",
+    )
+
+    with pytest.raises(ProbeError, match="does not differ from parent"):
+        probes.BehavioralProbe(
+            capability="model_override",
+            harness="copilot",
+            command=command,
+            parent_value=parent_value,
+            child_value=child_value,
+        )
+
+
+def test_json_behavioral_plan_rejects_an_inheriting_override(tmp_path) -> None:
+    plan_path = tmp_path / "probes.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "probes": [
+                    {
+                        "harness": "copilot",
+                        "capability": "model_override",
+                        "parent_value": "gpt-5.6-sol",
+                        "child_value": "gpt-5.6-sol",
+                        "argv": ["copilot", "--prompt", "probe"],
+                        "request_flag": "--model",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProbeError, match="does not differ from parent"):
+        probes.load_behavioral_probes(plan_path)
+
+
+def test_json_behavioral_plan_rejects_duplicate_capabilities(tmp_path) -> None:
+    plan_path = tmp_path / "probes.json"
+    probe = {
+        "harness": "copilot",
+        "capability": "subagent_support",
+        "argv": ["copilot", "--prompt", "probe"],
+    }
+    plan_path.write_text(json.dumps({"probes": [probe, probe]}), encoding="utf-8")
+
+    with pytest.raises(ProbeError, match="duplicate harness and capability"):
+        probes.load_behavioral_probes(plan_path)
 
 
 def test_a_plan_rejects_an_empty_parent_value() -> None:

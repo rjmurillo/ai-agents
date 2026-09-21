@@ -184,10 +184,47 @@ Copilot equivalent.
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
 | `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size. Core in `_model_sweep_core.py`. | #2840 |
 | `eval_runtime_parity.py` | Run the same fixture through real Claude and Copilot CLIs with isolated agent profiles, resolved-model checks, traces, and deterministic controls. | #4853 |
+| `eval_harness_capability.py` | Run fail-closed live capability probes from a shell-free JSON plan and derive the #5422 arm matrix. | #5423 |
 | `optimize-artifact.py` | Held-out-gated edit loop for agents, rules, and hooks. Splits tasks, bounds how many times an edit may be measured against the held-out group, and applies patches. A budgeted comparison, not an access boundary; see the seam section below. Core in `_optimizer_core.py`, scorer adapters in `_optimizer_adapters.py`. | #3422 |
 | `eval_billing_matrix.py` | Print the harness x billing matrix and report which cells this machine can reach. `--json` for a machine-readable form, `--require-ready` to exit 3 as a precondition step. | Complementary |
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
 | `_billing_matrix.py` | The 3x2 table itself: cells, aliases, credentials, cost basis, and selection precedence. Read by `_providers` and by `_eval_common.cost_basis`. | Complementary |
+
+## Harness Capability Evidence
+
+Use a JSON plan when live runtime evidence is authorized. The plan supplies a base argv and a typed request flag because each harness
+owns its own flag surface. The loader appends the requested value to that flag.
+Behavioral commands run with an isolated profile and workspace; plan cwd values
+must stay inside that workspace.
+
+```json
+{
+  "probes": [
+    {
+      "harness": "copilot",
+      "capability": "model_override",
+      "parent_value": "gpt-5.6-sol",
+      "child_value": "claude-opus-5",
+      "argv": ["copilot", "--prompt", "probe"],
+      "request_flag": "--model"
+    }
+  ]
+}
+```
+
+Run the probe without modifying the checked-in matrix:
+
+```bash
+uv run python scripts/eval/eval_harness_capability.py \
+  --behavioral-probes probes.json \
+  --output artifacts/harness-capability/report.json
+```
+
+The plan supports model and effort overrides, subagent support, and concurrency
+measurements. The CLI writes a report, never the checked-in matrix. Missing
+commands, failed runs, and incomplete event streams remain UNVERIFIED.
+Verified model and effort values require backend attribution and a live runtime
+version for the same harness.
 
 ## Real CLI Runtime Parity
 
