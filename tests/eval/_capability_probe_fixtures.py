@@ -62,6 +62,7 @@ def _command(
     harness: str = "copilot",
     *,
     requests: str | None = "gpt-5.6-sol",
+    request_flag: str = "--model",
     env: Mapping[str, str] | None = None,
 ) -> probes.ProbeCommand:
     """Build a command that actually asks for `requests`.
@@ -72,8 +73,13 @@ def _command(
     """
     argv = [harness, "--prompt", "probe"]
     if requests is not None:
-        argv += ["--model", requests]
-    return ProbeCommand(harness=harness, argv=tuple(argv), env=env)
+        argv += [request_flag, requests]
+    return ProbeCommand(
+        harness=harness,
+        argv=tuple(argv),
+        env=env,
+        request_flag=request_flag,
+    )
 
 
 def _plan(
@@ -89,5 +95,3 @@ def _plan(
         parent_value=parent,
         candidates=candidates,
     )
-
-

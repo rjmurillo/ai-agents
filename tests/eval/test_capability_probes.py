@@ -357,12 +357,37 @@ def test_concurrency_records_the_observed_peak_not_the_requested_count() -> None
     )
 
     result = probes.probe_concurrency(
-        _command(), requested=4, runner=_runner(stdout), timeout=TIMEOUT
+        _command(requests="3", request_flag="--max-concurrency"),
+        requested=3,
+        runner=_runner(stdout),
+        timeout=TIMEOUT,
     )
 
     assert result.status is CapabilityStatus.VERIFIED
     assert result.value == 2
-    assert result.value != 4
+    assert result.value != 3
+
+
+def test_concurrency_with_too_few_launches_stays_unverified() -> None:
+    """NEGATIVE CONTROL: a shorter workload cannot prove the requested count."""
+    stdout = _jsonl(
+        [
+            {"type": "subagent.start"},
+            {"type": "subagent.complete"},
+            {"type": "subagent.start"},
+            {"type": "subagent.complete"},
+        ]
+    )
+
+    result = probes.probe_concurrency(
+        _command(requests="3", request_flag="--max-concurrency"),
+        requested=3,
+        runner=_runner(stdout),
+        timeout=TIMEOUT,
+    )
+
+    assert result.status is CapabilityStatus.UNVERIFIED
+    assert "fewer than the requested 3" in result.detail
 
 
 def test_starts_with_no_completion_boundary_cannot_derive_concurrency() -> None:
@@ -372,7 +397,10 @@ def test_starts_with_no_completion_boundary_cannot_derive_concurrency() -> None:
     )
 
     result = probes.probe_concurrency(
-        _command(), requested=4, runner=_runner(stdout), timeout=TIMEOUT
+        _command(requests="4", request_flag="--max-concurrency"),
+        requested=4,
+        runner=_runner(stdout),
+        timeout=TIMEOUT,
     )
 
     assert result.status is CapabilityStatus.UNVERIFIED
@@ -421,7 +449,10 @@ def test_a_missing_cli_does_not_crash_the_concurrency_probe() -> None:
     runner = _runner(raises=FileNotFoundError(2, "No such file or directory", "copilot"))
 
     result = probes.probe_concurrency(
-        _command(), requested=2, runner=runner, timeout=TIMEOUT
+        _command(requests="2", request_flag="--max-concurrency"),
+        requested=2,
+        runner=runner,
+        timeout=TIMEOUT,
     )
 
     assert result.status is CapabilityStatus.UNVERIFIED

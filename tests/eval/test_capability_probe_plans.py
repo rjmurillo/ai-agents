@@ -86,7 +86,8 @@ def test_json_behavioral_plan_loads_an_override_command(tmp_path) -> None:
                         "capability": "model_override",
                         "parent_value": "gpt-5.6-sol",
                         "child_value": "claude-opus-5",
-                        "argv": ["copilot", "--model", "claude-opus-5"],
+                        "argv": ["copilot", "--prompt", "probe"],
+                        "request_flag": "--model",
                     }
                 ]
             }
@@ -98,6 +99,30 @@ def test_json_behavioral_plan_loads_an_override_command(tmp_path) -> None:
 
     assert len(probes_loaded) == 1
     assert probes_loaded[0].command.argv[-1] == "claude-opus-5"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("argv", ["copilot", "\x00"]),
+        ("cwd", "\x00"),
+        ("env", {"\x00": "value"}),
+        ("env", {"KEY": "\x00"}),
+    ],
+)
+def test_json_behavioral_plan_rejects_nul_bytes(field: str, value: object, tmp_path) -> None:
+    """NEGATIVE CONTROL: subprocess inputs reject embedded NUL bytes."""
+    probe: dict[str, object] = {
+        "harness": "copilot",
+        "capability": "subagent_support",
+        "argv": ["copilot", "--prompt", "probe"],
+    }
+    probe[field] = value
+    plan_path = tmp_path / "probes.json"
+    plan_path.write_text(json.dumps({"probes": [probe]}), encoding="utf-8")
+
+    with pytest.raises(ProbeError, match="NUL"):
+        probes.load_behavioral_probes(plan_path)
 
 
 @pytest.mark.parametrize(
@@ -113,7 +138,8 @@ def test_behavioral_probe_rejects_an_inheriting_override(
 ) -> None:
     command = probes.ProbeCommand(
         harness="copilot",
-        argv=("copilot", "--model", child_value),
+        argv=("copilot", "--prompt", "probe", "--model", child_value),
+        request_flag="--model",
     )
 
     with pytest.raises(ProbeError, match="does not differ from parent"):
@@ -137,7 +163,8 @@ def test_json_behavioral_plan_rejects_an_inheriting_override(tmp_path) -> None:
                         "capability": "model_override",
                         "parent_value": "gpt-5.6-sol",
                         "child_value": "gpt-5.6-sol",
-                        "argv": ["copilot", "--model", "gpt-5.6-sol"],
+                        "argv": ["copilot", "--prompt", "probe"],
+                        "request_flag": "--model",
                     }
                 ]
             }

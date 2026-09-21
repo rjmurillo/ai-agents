@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import date
 from pathlib import Path
 
 from tests.eval._harness_capability_test_support import capability, cli
@@ -34,10 +35,12 @@ class _MultiHarnessRunner:
         self.fail = fail
         self.stdout = stdout
         self.calls: list[list[str]] = []
+        self.kwargs: list[dict[str, object]] = []
 
     def __call__(self, argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
         args = [str(value) for value in argv]
         self.calls.append(args)
+        self.kwargs.append(dict(_kwargs))
         executable = args[0]
         if executable in self.fail:
             return subprocess.CompletedProcess(args, 1, "", "boom")
@@ -55,7 +58,7 @@ def _write_model_probe(path: Path) -> None:
     path.write_text(
         '{"probes":[{"harness":"copilot","capability":"model_override",'
         '"parent_value":"gpt-5.6-sol","child_value":"claude-opus-5",'
-        '"argv":["copilot","--model","claude-opus-5"]}]}',
+        '"argv":["copilot","--prompt","probe"],"request_flag":"--model"}]}',
         encoding="utf-8",
     )
 
@@ -124,16 +127,38 @@ def test_invalid_behavioral_plan_is_rejected_before_live_probes(
     plan.write_text(
         '{"probes":[{"harness":"copilot","capability":"model_override",'
         '"parent_value":"gpt-5.6-sol","child_value":"gpt-5.6-sol",'
-        '"argv":["copilot","--model","gpt-5.6-sol"]}]}',
+        '"argv":["copilot","--prompt","probe"],"request_flag":"--model"}]}',
         encoding="utf-8",
     )
     monkeypatch.setattr(cli.shutil, "which", _which_only("codex", "copilot"))
-    runner = _MultiHarnessRunner(
-        versions={"codex": "codex-cli 0.34.0", "copilot": "copilot 9.9.9"}
-    )
+    runner = _MultiHarnessRunner(versions={"codex": "codex-cli 0.34.0", "copilot": "copilot 9.9.9"})
 
     code = cli.main(
         ["--output", str(output), "--behavioral-probes", str(plan)],
+        runner=runner,
+    )
+
+    assert code == cli.EXIT_CONFIG
+    assert runner.calls == []
+    assert not output.exists()
+
+
+def test_dry_run_validates_behavioral_plan(tmp_path: Path, monkeypatch) -> None:
+    """NEGATIVE CONTROL: dry-run rejects malformed plans before any CLI call."""
+    output = tmp_path / "report.json"
+    plan = tmp_path / "probes.json"
+    plan.write_text(
+        '{"probes":[{"harness":"copilot","capability":"model_override",'
+        '"parent_value":"gpt-5.6-sol","child_value":"claude-opus-5",'
+        '"argv":["copilot","--prompt","probe"],"request_flag":"--model",'
+        '"unexpected":true}]}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli.shutil, "which", _which_only("copilot"))
+    runner = _MultiHarnessRunner(versions={"copilot": "copilot 9.9.9"})
+
+    code = cli.main(
+        ["--dry-run", "--output", str(output), "--behavioral-probes", str(plan)],
         runner=runner,
     )
 
@@ -167,8 +192,24 @@ def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) ->
     report = json.loads(output.read_text(encoding="utf-8"))
     copilot = next(row for row in report["harnesses"] if row["harness"] == "copilot")
     assert copilot["capabilities"]["model_override"]["status"] == "VERIFIED"
+    assert copilot["capabilities"]["model_override"]["probe_command"] == (
+        "copilot --prompt probe --model claude-opus-5"
+    )
+    assert copilot["capabilities"]["model_override"]["date"] == date.today().isoformat()
     assert copilot["supported_models"] == ["claude-opus-5"]
-    assert ["copilot", "--model", "claude-opus-5"] in runner.calls
+    assert copilot["probe_command"] == "copilot --prompt probe --model claude-opus-5"
+    assert copilot["date"] == date.today().isoformat()
+    assert ["copilot", "--prompt", "probe", "--model", "claude-opus-5"] in runner.calls
+    behavioral_index = runner.calls.index(
+        ["copilot", "--prompt", "probe", "--model", "claude-opus-5"]
+    )
+    behavioral_kwargs = runner.kwargs[behavioral_index]
+    assert str(behavioral_kwargs["cwd"]).endswith("/behavioral-probes/copilot")
+    behavioral_env = behavioral_kwargs["env"]
+    assert isinstance(behavioral_env, dict)
+    assert str(behavioral_env["COPILOT_HOME"]).endswith(
+        "/behavioral-probes/copilot/.parity-profile/copilot"
+    )
 
 
 # --- Edge: missing Codex CLI on PATH stays UNVERIFIED, never a crash -----------

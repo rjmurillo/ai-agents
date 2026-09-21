@@ -192,8 +192,10 @@ Copilot equivalent.
 
 ## Harness Capability Evidence
 
-Use a JSON plan when live runtime evidence is authorized. The plan supplies
-complete argv arrays because each harness owns its own flag surface.
+Use a JSON plan when live runtime evidence is authorized. The plan supplies a base argv and a typed request flag because each harness
+owns its own flag surface. The loader appends the requested value to that flag.
+Behavioral commands run with an isolated profile and workspace; plan cwd values
+must stay inside that workspace.
 
 ```json
 {
@@ -203,7 +205,8 @@ complete argv arrays because each harness owns its own flag surface.
       "capability": "model_override",
       "parent_value": "gpt-5.6-sol",
       "child_value": "claude-opus-5",
-      "argv": ["copilot", "--model", "claude-opus-5"]
+      "argv": ["copilot", "--prompt", "probe"],
+      "request_flag": "--model"
     }
   ]
 }
@@ -213,7 +216,7 @@ Run the probe without modifying the checked-in matrix:
 
 ```bash
 uv run python scripts/eval/eval_harness_capability.py \
-  --behavioral-probes /path/to/probes.json \
+  --behavioral-probes probes.json \
   --output artifacts/harness-capability/report.json
 ```
 

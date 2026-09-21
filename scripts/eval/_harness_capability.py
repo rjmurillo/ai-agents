@@ -110,6 +110,8 @@ class Capability:
     evidence: EvidenceKind
     detail: str = ""
     value: int | None = None
+    probe_command: str = ""
+    date: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -355,11 +357,19 @@ def _load_capability(value: object, field: str) -> Capability:
     scalar = raw.get("value")
     if scalar is not None and (isinstance(scalar, bool) or not isinstance(scalar, int)):
         raise HarnessCapabilityError(f"{field}.value must be an integer or null")
+    probe_command = _string(
+        raw.get("probe_command", ""),
+        f"{field}.probe_command",
+        allow_empty=True,
+    )
+    date = _string(raw.get("date", ""), f"{field}.date", allow_empty=True)
     return Capability(
         status=CapabilityStatus(status),
         evidence=EvidenceKind(evidence),
         detail=detail,
         value=scalar,
+        probe_command=probe_command,
+        date=date,
     )
 
 
@@ -489,15 +499,18 @@ def apply_behavioral_probe(
     result: Capability,
     *,
     reported_value: str | None = None,
+    probe_command: str | None = None,
+    date: str | None = None,
 ) -> HarnessCapabilityRecord:
-    """Apply one live probe result and revalidate the complete record.
-
-    A verified model or effort request also joins the observed supported-value
-    set. Every other field remains the checked-in record, so a behavioral run
-    cannot replace static sandbox or retry claims with guesses.
-    """
+    """Apply live evidence and provenance to a complete capability record."""
     if capability_key not in CAPABILITY_KEYS:
         raise HarnessCapabilityError(f"unknown capability: {capability_key}")
+    if probe_command is not None or date is not None:
+        result = replace(
+            result,
+            probe_command=result.probe_command if probe_command is None else probe_command,
+            date=result.date if date is None else date,
+        )
     capabilities = dict(record.capabilities)
     capabilities[capability_key] = result
     models = record.supported_models
@@ -512,18 +525,25 @@ def apply_behavioral_probe(
         supported_models=models,
         supported_efforts=efforts,
         capabilities=capabilities,
+        probe_command=record.probe_command if probe_command is None else probe_command,
+        date=record.date if date is None else date,
     )
     validate_record(updated)
     return updated
 
 
 def _capability_dict(capability: Capability) -> dict[str, object]:
-    return {
+    result: dict[str, object] = {
         "status": capability.status.value,
         "evidence": capability.evidence.value,
         "detail": capability.detail,
         "value": capability.value,
     }
+    if capability.probe_command:
+        result["probe_command"] = capability.probe_command
+    if capability.date:
+        result["date"] = capability.date
+    return result
 
 
 def _record_dict(record: HarnessCapabilityRecord) -> dict[str, object]:

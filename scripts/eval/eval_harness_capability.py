@@ -18,10 +18,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
+from datetime import date
 from pathlib import Path
 
 from _capability_probes import (
@@ -43,7 +46,7 @@ from _harness_capability import (
     load_matrix,
     write_report,
 )
-from _runtime_harness import probe_version
+from _runtime_harness import probe_version, runtime_env
 
 EXIT_OK = 0
 EXIT_CONFIG = 2
@@ -69,6 +72,60 @@ def _probe_bin(harness: str, copilot_bin: str) -> str:
     return copilot_bin if harness == "copilot" else harness
 
 
+_ISOLATED_ENV_KEYS = frozenset(
+    {
+        "APPDATA",
+        "CODEX_HOME",
+        "CLAUDE_CONFIG_DIR",
+        "COPILOT_CACHE_HOME",
+        "COPILOT_HOME",
+        "COPILOT_SESSION_STATE_DIR",
+        "HOME",
+        "LOCALAPPDATA",
+        "PATH",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "XDG_CACHE_HOME",
+        "XDG_CONFIG_HOME",
+        "XDG_DATA_HOME",
+        "XDG_STATE_HOME",
+    }
+)
+
+
+def _canonical_executable(executable: str) -> Path | None:
+    resolved = shutil.which(executable)
+    return Path(resolved).resolve() if resolved is not None else None
+
+
+def _isolate_probe(probe: BehavioralProbe, *, workspace: Path) -> BehavioralProbe:
+    """Bind a plan command to the runtime's isolated profile and workspace."""
+    workspace.mkdir(parents=True, exist_ok=True)
+    environment = runtime_env(workspace, probe.harness)
+    root = workspace.resolve()
+    cwd = root
+    if probe.command.cwd is not None:
+        requested = probe.command.cwd
+        cwd = (root / requested if not requested.is_absolute() else requested).resolve()
+        try:
+            cwd.relative_to(root)
+        except ValueError as exc:
+            raise HarnessCapabilityError(
+                f"{probe.harness} behavioral probe cwd escapes its isolated workspace: {cwd}"
+            ) from exc
+    for key, value in (probe.command.env or {}).items():
+        if key in _ISOLATED_ENV_KEYS and value != environment.get(key):
+            raise HarnessCapabilityError(
+                f"{probe.harness} behavioral probe cannot override isolated environment {key}"
+            )
+        environment[key] = value
+    return replace(
+        probe,
+        command=replace(probe.command, cwd=cwd, env=environment),
+    )
+
+
 def _augment_versions(
     records: list[HarnessCapabilityRecord],
     *,
@@ -87,7 +144,7 @@ def _augment_versions(
     for record in records:
         probe_name = PROBE_HARNESS.get(record.harness)
         executable = _probe_bin(record.harness, copilot_bin)
-        if probe_name is None or shutil.which(executable) is None:
+        if probe_name is None or _canonical_executable(executable) is None:
             augmented.append(record)
             continue
         try:
@@ -108,6 +165,7 @@ def _augment_versions(
 def _run_behavioral_probe(
     probe: BehavioralProbe,
     *,
+    executable_allowlist: Mapping[str, Path],
     runner: Runner,
     timeout: float,
 ) -> Capability:
@@ -122,9 +180,20 @@ def _run_behavioral_probe(
             parent_value=probe.parent_value,
             candidates=(probe.child_value,),
         )
-        return probe_override(plan, probe.command, runner=runner, timeout=timeout)
+        return probe_override(
+            plan,
+            probe.command,
+            runner=runner,
+            timeout=timeout,
+            executable_allowlist=executable_allowlist,
+        )
     if probe.capability == "subagent_support":
-        return probe_subagent_support(probe.command, runner=runner, timeout=timeout)
+        return probe_subagent_support(
+            probe.command,
+            runner=runner,
+            timeout=timeout,
+            executable_allowlist=executable_allowlist,
+        )
     if probe.requested is None:
         raise HarnessCapabilityError(
             f"{probe.harness}.{probe.capability} is missing requested concurrency"
@@ -134,6 +203,7 @@ def _run_behavioral_probe(
         requested=probe.requested,
         runner=runner,
         timeout=timeout,
+        executable_allowlist=executable_allowlist,
     )
 
 
@@ -141,11 +211,14 @@ def _augment_behavioral(
     records: list[HarnessCapabilityRecord],
     *,
     probes: Sequence[BehavioralProbe],
+    output: Path,
+    copilot_bin: str,
     timeout: float,
     runner: Runner,
 ) -> list[HarnessCapabilityRecord]:
-    """Apply live behavioral evidence to the matching records."""
+    """Run live probes through the configured executable and isolated profile."""
     by_harness = {record.harness: record for record in records}
+    probe_date = date.today().isoformat()
     for probe in probes:
         if probe.harness not in by_harness:
             raise HarnessCapabilityError(
@@ -154,12 +227,25 @@ def _augment_behavioral(
         record = by_harness[probe.harness]
         if record.version_evidence is not EvidenceKind.BACKEND or not record.version:
             continue
-        result = _run_behavioral_probe(probe, runner=runner, timeout=timeout)
+        executable = _probe_bin(probe.harness, copilot_bin)
+        expected = _canonical_executable(executable)
+        if expected is None:
+            continue
+        workspace = output.parent / "behavioral-probes" / probe.harness
+        isolated_probe = _isolate_probe(probe, workspace=workspace)
+        result = _run_behavioral_probe(
+            isolated_probe,
+            executable_allowlist={probe.harness: expected},
+            runner=runner,
+            timeout=timeout,
+        )
         by_harness[probe.harness] = apply_behavioral_probe(
             record,
             probe.capability,
             result,
             reported_value=probe.child_value,
+            probe_command=shlex.join(isolated_probe.command.argv),
+            date=probe_date,
         )
     return [by_harness[record.harness] for record in records]
 
@@ -174,14 +260,10 @@ def run(
     runner: Runner,
     behavioral_probes: Path | None = None,
 ) -> dict[str, object]:
-    """Load the matrix, probe versions, and optionally run behavioral probes."""
+    """Load the matrix, validate plans, and optionally run live probes."""
     records = load_matrix(matrix_path)
+    probes = load_behavioral_probes(behavioral_probes) if behavioral_probes is not None else ()
     if not dry_run:
-        probes = (
-            load_behavioral_probes(behavioral_probes)
-            if behavioral_probes is not None
-            else ()
-        )
         records = _augment_versions(
             records,
             output=output,
@@ -193,6 +275,8 @@ def run(
             records = _augment_behavioral(
                 records,
                 probes=probes,
+                output=output,
+                copilot_bin=copilot_bin,
                 timeout=timeout,
                 runner=runner,
             )
