@@ -218,6 +218,9 @@ def main() -> int:
 
     # Parse findings
     findings = parse_findings(raw_output)
+    if "FINDING:" in raw_output and not findings:
+        print("No valid findings were parsed from FINDING blocks", file=sys.stderr)
+        return 1
     print(f"Parsed {len(findings)} findings from AI output")
 
     # Filter by priority
