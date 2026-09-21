@@ -217,14 +217,77 @@ def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) ->
     assert expected_call in runner.calls
     behavioral_index = runner.calls.index(expected_call)
     behavioral_kwargs = runner.kwargs[behavioral_index]
-    workspace = (output.parent / "behavioral-probes" / "copilot").resolve()
+    workspace = (output.parent / "behavioral-probes" / "copilot" / "probe-0").resolve()
     assert behavioral_kwargs["cwd"] == workspace / "nested"
     assert (workspace / "nested").is_dir()
     behavioral_env = behavioral_kwargs["env"]
     assert isinstance(behavioral_env, dict)
-    assert Path(str(behavioral_env["COPILOT_HOME"])) == (
-        workspace / ".parity-profile" / "copilot"
+    assert Path(str(behavioral_env["COPILOT_HOME"])) == (workspace / ".parity-profile" / "copilot")
+
+
+def test_same_harness_behavioral_probes_use_distinct_workspaces(
+    tmp_path: Path, monkeypatch
+) -> None:
+    output = tmp_path / "report.json"
+    plan = tmp_path / "probes.json"
+    plan.write_text(
+        json.dumps(
+            {
+                "probes": [
+                    {
+                        "harness": "copilot",
+                        "capability": "model_override",
+                        "parent_value": "gpt-5.6-sol",
+                        "child_value": "claude-opus-5",
+                        "argv": ["copilot", "--prompt", "probe"],
+                        "request_flag": "--model",
+                    },
+                    {
+                        "harness": "copilot",
+                        "capability": "subagent_support",
+                        "argv": ["copilot", "--prompt", "probe"],
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
     )
+    monkeypatch.setattr(cli.shutil, "which", _which_only("custom-copilot"))
+    runner = _MultiHarnessRunner(
+        versions={"custom-copilot": "copilot 9.9.9"},
+        stdout=json.dumps(
+            {
+                "type": "assistant.message",
+                "data": {"content": "ok", "model": "claude-opus-5"},
+            }
+        )
+        + "\n",
+    )
+
+    code = cli.main(
+        [
+            "--output",
+            str(output),
+            "--copilot-bin",
+            "custom-copilot",
+            "--behavioral-probes",
+            str(plan),
+        ],
+        runner=runner,
+    )
+
+    assert code == 0
+    behavioral_kwargs = [
+        kwargs
+        for call, kwargs in zip(runner.calls, runner.kwargs, strict=True)
+        if "--version" not in call
+    ]
+    workspaces = [Path(str(kwargs["cwd"])) for kwargs in behavioral_kwargs]
+    assert len(workspaces) == 2
+    assert workspaces[0].name == "probe-0"
+    assert workspaces[1].name == "probe-1"
+    assert workspaces[0].parent == workspaces[1].parent
+    assert workspaces[0] != workspaces[1]
 
 
 # --- Edge: missing Codex CLI on PATH stays UNVERIFIED, never a crash -----------

@@ -241,7 +241,7 @@ def _augment_behavioral(
     """Run live probes through the configured executable and isolated profile."""
     by_harness = {record.harness: record for record in records}
     probe_date = date.today().isoformat()
-    for probe in probes:
+    for probe_index, probe in enumerate(probes):
         if probe.harness not in by_harness:
             raise HarnessCapabilityError(
                 f"behavioral probe targets unknown harness: {probe.harness}"
@@ -253,7 +253,7 @@ def _augment_behavioral(
         expected = _canonical_executable(executable)
         if expected is None:
             continue
-        workspace = output.parent / "behavioral-probes" / probe.harness
+        workspace = output.parent / "behavioral-probes" / probe.harness / f"probe-{probe_index}"
         isolated_probe = _isolate_probe(
             probe,
             workspace=workspace,
