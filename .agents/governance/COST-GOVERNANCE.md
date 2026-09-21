@@ -169,7 +169,7 @@ Review these metrics weekly:
 - Always-on context bytes per session. Parse rule frontmatter for `paths: ["**"]` before summing file bytes. Static rule bytes are not per-session token consumption.
 - Tokens per merged PR where the harness exposes them.
 
-**Source:** #5702 defines the read-only provenance and machinery measurement surface. The existing `scripts/validation/instruction_budget.py` and `scripts/validation/passive_context_budget.py` provide the repository's context-budget surfaces.
+**Source:** #5702 defines the read-only provenance and machinery measurement surface. The existing `scripts/validation/instruction_budget.py` and `scripts/validation/passive_context_budget.py` provide related context-budget surfaces; neither currently reads Claude rule frontmatter.
 
 ### Baseline (2026-09-10)
 
@@ -180,7 +180,7 @@ The historical snapshot recorded in #5705 reported:
 - Five globally scoped Claude rule files totaling 56,984 static bytes, about 57 KB: `voice.md`, `builder-ethos.md`, `universal.md`, `search-before-building.md`, and `claude-model-patches.md`.
 - The other 24 rule files totaling 220 KB were path-scoped and loaded only when a matching path was edited.
 
-The historical retrieval metadata is incomplete: the backlog query is not recorded, the state filter is not recorded, the retrieval date is 2026-09-10 but the time is not recorded, and the source SHA is not recorded. The reproducible rule-byte query is to parse YAML frontmatter in `.claude/rules/*.md` for `paths: ["**"]` and sum file bytes, but the cited snapshot's retrieval time and source SHA are not recorded. These figures are historical context, not recomputed acceptance evidence. Recompute them through #5702 and the existing budget tools before using them for a decision. Missing token, retry, completion, defect, correction-time, or wall-time telemetry is unknown.
+The historical retrieval metadata is incomplete: the backlog query is not recorded, the state filter is not recorded, the retrieval date is 2026-09-10 but the time is not recorded, and the source SHA is not recorded. The reproducible rule-byte query is to parse YAML frontmatter in `.claude/rules/*.md` for `paths: ["**"]` and sum file bytes, but the cited snapshot's retrieval time and source SHA are not recorded. These figures are historical context, not recomputed acceptance evidence. Recompute issue, provenance, and machinery figures through #5702. For rule bytes, use a reproducible reader that parses the frontmatter; the cited budget tools do not currently perform that read. Missing token, retry, completion, defect, correction-time, or wall-time telemetry is unknown.
 
 **Source:** #5705's historical snapshot and review corrections; #5702; `scripts/validation/instruction_budget.py`; `scripts/validation/passive_context_budget.py`.
 
