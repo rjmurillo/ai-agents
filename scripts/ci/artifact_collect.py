@@ -15,6 +15,7 @@ Outputs:
 
 EXIT CODES (ADR-035):
   0 - collection complete (zero artifacts is still success)
+  2 - configuration error
 """
 
 from __future__ import annotations
@@ -66,7 +67,15 @@ def collect_artifacts(scan_depth_days: int) -> list[str]:
 
 def run(_argv: list[str] | None = None) -> int:
     """Collect artifacts and set outputs."""
-    scan_depth_days = int(os.environ.get("SCAN_DEPTH_DAYS", "7"))
+    try:
+        scan_depth_days = int(os.environ.get("SCAN_DEPTH_DAYS", "7"))
+    except ValueError:
+        print("::error::SCAN_DEPTH_DAYS must be an integer", file=sys.stderr)
+        return 2
+    if scan_depth_days < 0:
+        print("::error::SCAN_DEPTH_DAYS must be non-negative", file=sys.stderr)
+        return 2
+
     runner_temp = os.environ.get("RUNNER_TEMP", ".")
     print(f"Collecting artifacts modified in last {scan_depth_days} days...")
 

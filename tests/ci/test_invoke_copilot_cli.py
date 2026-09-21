@@ -429,6 +429,14 @@ def test_parse_config_rejects_invalid_timeout(tmp_path):
         raise AssertionError("parse_config should reject a non-integer timeout")
 
 
+def test_main_returns_config_error_for_invalid_timeout(tmp_path, monkeypatch):
+    monkeypatch.setenv("AI_REVIEW_OUTPUT_FILE", str(tmp_path / "out.txt"))
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "github-output.txt"))
+    monkeypatch.setenv("TIMEOUT_MINUTES", "abc")
+
+    assert invoke.main() == invoke.EXIT_CONFIG
+
+
 def test_run_command_catches_file_not_found_error():
     result = invoke.run_command(["__nonexistent_binary_xyz__"])
 

@@ -54,6 +54,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo-root", default=".", help="repository root to run git in")
     args = parser.parse_args(argv)
     root = Path(args.repo_root)
+    if not root.is_dir():
+        print(f"repository root is not a directory: {root}", file=sys.stderr)
+        return 2
 
     print("")
     print("=== Files that differ from generated output ===")

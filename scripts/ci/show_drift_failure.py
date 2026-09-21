@@ -101,11 +101,20 @@ def show_drift_failure(
 
 
 def main(argv: list[str] | None = None) -> int:
-    validate_conclusion = os.environ.get("VALIDATE_CONCLUSION", "")
-    lib_mirror_conclusion = os.environ.get("LIB_MIRROR_CONCLUSION", "")
-    manifest_parity_conclusion = os.environ.get("MANIFEST_PARITY_CONCLUSION", "")
+    conclusions = (
+        os.environ.get("VALIDATE_CONCLUSION", ""),
+        os.environ.get("LIB_MIRROR_CONCLUSION", ""),
+        os.environ.get("MANIFEST_PARITY_CONCLUSION", ""),
+    )
+    if not all(conclusions):
+        print(
+            "error: VALIDATE_CONCLUSION, LIB_MIRROR_CONCLUSION, and "
+            "MANIFEST_PARITY_CONCLUSION are required",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
 
-    show_drift_failure(validate_conclusion, lib_mirror_conclusion, manifest_parity_conclusion)
+    show_drift_failure(*conclusions)
     return EXIT_OK
 
 

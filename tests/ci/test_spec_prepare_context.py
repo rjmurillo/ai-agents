@@ -173,7 +173,7 @@ class TestRun:
             "GITHUB_OUTPUT": str(out_file),
         }
         with patch.dict(os.environ, env):
-            rc = run()
+            rc = main()
         assert rc == 2
         assert not out_file.exists()
 

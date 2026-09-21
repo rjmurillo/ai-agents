@@ -23,7 +23,7 @@ class TestRun:
     def test_missing_artifact_file_env_returns_1(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("ARTIFACT_FILE", None)
-            assert run() == 1
+            assert main() == 1
 
     def test_nonexistent_artifact_file_returns_1(self, tmp_path: Path) -> None:
         env = {"ARTIFACT_FILE": str(tmp_path / "does_not_exist.txt")}

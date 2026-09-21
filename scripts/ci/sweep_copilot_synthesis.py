@@ -8,7 +8,7 @@ possible are processed.
 
 EXIT CODES (ADR-035):
   0  - Success (partial failures are logged as warnings, not step failures)
-  2  - (reserved; env error never raised since empty ISSUES is valid)
+  2  - configuration error (invalid issue number in ISSUES)
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ import subprocess
 import sys
 
 EXIT_SUCCESS = 0
+EXIT_CONFIG = 2
 
 _SYNTHESIS_SCRIPT = ".claude/skills/github/scripts/issue/invoke_copilot_assignment.py"
 
@@ -60,6 +61,14 @@ def main() -> int:
     if not issues:
         print("No issues to process")
         return EXIT_SUCCESS
+    invalid = [issue for issue in issues if not issue.isdecimal()]
+    if invalid:
+        print(
+            "::error::ISSUES must contain numeric issue numbers: "
+            + ", ".join(invalid),
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
 
     print(f"Processing {len(issues)} issue(s)...")
 

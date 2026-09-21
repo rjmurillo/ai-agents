@@ -61,7 +61,7 @@ class TestRun:
         fail = MagicMock(returncode=2, stdout="error output", stderr="")
         with patch.dict(os.environ, env):
             with patch("scripts.ci.spec_external_signal_wrapper.subprocess.run", return_value=fail):
-                rc = run()
+                rc = main()
         assert rc == 2
 
     def test_writes_to_step_summary(self, tmp_path: Path) -> None:
