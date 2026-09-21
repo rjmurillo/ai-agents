@@ -185,6 +185,17 @@ class BehavioralProbe:
             not self.parent_value or not self.child_value
         ):
             raise ProbeError(f"{self.capability} requires non-empty parent_value and child_value")
+        if (
+            self.capability in OVERRIDE_CAPABILITIES
+            and self.parent_value is not None
+            and self.child_value is not None
+            and not _discriminates(self.child_value, self.parent_value)
+        ):
+            raise ProbeError(
+                f"child value {self.child_value!r} does not differ from parent "
+                f"{self.parent_value!r}; an equal-value request cannot tell an honored "
+                "override from a silent inherit"
+            )
         if self.capability == "concurrency_limit" and (
             not isinstance(self.requested, int)
             or isinstance(self.requested, bool)

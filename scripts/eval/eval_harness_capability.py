@@ -140,13 +140,13 @@ def _run_behavioral_probe(
 def _augment_behavioral(
     records: list[HarnessCapabilityRecord],
     *,
-    plan_path: Path,
+    probes: Sequence[BehavioralProbe],
     timeout: float,
     runner: Runner,
 ) -> list[HarnessCapabilityRecord]:
     """Apply live behavioral evidence to the matching records."""
     by_harness = {record.harness: record for record in records}
-    for probe in load_behavioral_probes(plan_path):
+    for probe in probes:
         if probe.harness not in by_harness:
             raise HarnessCapabilityError(
                 f"behavioral probe targets unknown harness: {probe.harness}"
@@ -177,6 +177,11 @@ def run(
     """Load the matrix, probe versions, and optionally run behavioral probes."""
     records = load_matrix(matrix_path)
     if not dry_run:
+        probes = (
+            load_behavioral_probes(behavioral_probes)
+            if behavioral_probes is not None
+            else ()
+        )
         records = _augment_versions(
             records,
             output=output,
@@ -187,7 +192,7 @@ def run(
         if behavioral_probes is not None:
             records = _augment_behavioral(
                 records,
-                plan_path=behavioral_probes,
+                probes=probes,
                 timeout=timeout,
                 runner=runner,
             )

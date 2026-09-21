@@ -116,6 +116,32 @@ def test_behavioral_probe_waits_for_backend_version(tmp_path: Path, monkeypatch)
     assert runner.calls == []
 
 
+def test_invalid_behavioral_plan_is_rejected_before_live_probes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    output = tmp_path / "report.json"
+    plan = tmp_path / "probes.json"
+    plan.write_text(
+        '{"probes":[{"harness":"copilot","capability":"model_override",'
+        '"parent_value":"gpt-5.6-sol","child_value":"gpt-5.6-sol",'
+        '"argv":["copilot","--model","gpt-5.6-sol"]}]}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli.shutil, "which", _which_only("codex", "copilot"))
+    runner = _MultiHarnessRunner(
+        versions={"codex": "codex-cli 0.34.0", "copilot": "copilot 9.9.9"}
+    )
+
+    code = cli.main(
+        ["--output", str(output), "--behavioral-probes", str(plan)],
+        runner=runner,
+    )
+
+    assert code == cli.EXIT_CONFIG
+    assert runner.calls == []
+    assert not output.exists()
+
+
 def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) -> None:
     output = tmp_path / "report.json"
     plan = tmp_path / "probes.json"

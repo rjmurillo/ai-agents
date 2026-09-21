@@ -100,6 +100,55 @@ def test_json_behavioral_plan_loads_an_override_command(tmp_path) -> None:
     assert probes_loaded[0].command.argv[-1] == "claude-opus-5"
 
 
+@pytest.mark.parametrize(
+    ("parent_value", "child_value"),
+    [
+        ("gpt-5.6-sol", "gpt-5.6-sol"),
+        ("Sol Ultra", "sol ultra"),
+        ("Sol Ultra", "  Sol Ultra  "),
+    ],
+)
+def test_behavioral_probe_rejects_an_inheriting_override(
+    parent_value: str, child_value: str
+) -> None:
+    command = probes.ProbeCommand(
+        harness="copilot",
+        argv=("copilot", "--model", child_value),
+    )
+
+    with pytest.raises(ProbeError, match="does not differ from parent"):
+        probes.BehavioralProbe(
+            capability="model_override",
+            harness="copilot",
+            command=command,
+            parent_value=parent_value,
+            child_value=child_value,
+        )
+
+
+def test_json_behavioral_plan_rejects_an_inheriting_override(tmp_path) -> None:
+    plan_path = tmp_path / "probes.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "probes": [
+                    {
+                        "harness": "copilot",
+                        "capability": "model_override",
+                        "parent_value": "gpt-5.6-sol",
+                        "child_value": "gpt-5.6-sol",
+                        "argv": ["copilot", "--model", "gpt-5.6-sol"],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ProbeError, match="does not differ from parent"):
+        probes.load_behavioral_probes(plan_path)
+
+
 def test_json_behavioral_plan_rejects_duplicate_capabilities(tmp_path) -> None:
     plan_path = tmp_path / "probes.json"
     probe = {
