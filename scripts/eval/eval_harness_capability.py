@@ -99,7 +99,12 @@ def _canonical_executable(executable: str) -> Path | None:
     return Path(resolved).resolve() if resolved is not None else None
 
 
-def _isolate_probe(probe: BehavioralProbe, *, workspace: Path) -> BehavioralProbe:
+def _isolate_probe(
+    probe: BehavioralProbe,
+    *,
+    workspace: Path,
+    executable: str,
+) -> BehavioralProbe:
     """Bind a plan command to the runtime's isolated profile and workspace."""
     workspace.mkdir(parents=True, exist_ok=True)
     environment = runtime_env(workspace, probe.harness)
@@ -114,6 +119,7 @@ def _isolate_probe(probe: BehavioralProbe, *, workspace: Path) -> BehavioralProb
             raise HarnessCapabilityError(
                 f"{probe.harness} behavioral probe cwd escapes its isolated workspace: {cwd}"
             ) from exc
+    cwd.mkdir(parents=True, exist_ok=True)
     for key, value in (probe.command.env or {}).items():
         if key in _ISOLATED_ENV_KEYS and value != environment.get(key):
             raise HarnessCapabilityError(
@@ -122,7 +128,12 @@ def _isolate_probe(probe: BehavioralProbe, *, workspace: Path) -> BehavioralProb
         environment[key] = value
     return replace(
         probe,
-        command=replace(probe.command, cwd=cwd, env=environment),
+        command=replace(
+            probe.command,
+            argv=(executable, *probe.command.argv[1:]),
+            cwd=cwd,
+            env=environment,
+        ),
     )
 
 
@@ -232,7 +243,11 @@ def _augment_behavioral(
         if expected is None:
             continue
         workspace = output.parent / "behavioral-probes" / probe.harness
-        isolated_probe = _isolate_probe(probe, workspace=workspace)
+        isolated_probe = _isolate_probe(
+            probe,
+            workspace=workspace,
+            executable=executable,
+        )
         result = _run_behavioral_probe(
             isolated_probe,
             executable_allowlist={probe.harness: expected},

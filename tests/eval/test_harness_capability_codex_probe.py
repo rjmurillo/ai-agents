@@ -58,7 +58,8 @@ def _write_model_probe(path: Path) -> None:
     path.write_text(
         '{"probes":[{"harness":"copilot","capability":"model_override",'
         '"parent_value":"gpt-5.6-sol","child_value":"claude-opus-5",'
-        '"argv":["copilot","--prompt","probe"],"request_flag":"--model"}]}',
+        '"cwd":"nested","argv":["copilot","--prompt","probe"],'
+        '"request_flag":"--model"}]}',
         encoding="utf-8",
     )
 
@@ -171,9 +172,9 @@ def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) ->
     output = tmp_path / "report.json"
     plan = tmp_path / "probes.json"
     _write_model_probe(plan)
-    monkeypatch.setattr(cli.shutil, "which", _which_only("copilot"))
+    monkeypatch.setattr(cli.shutil, "which", _which_only("custom-copilot"))
     runner = _MultiHarnessRunner(
-        versions={"copilot": "copilot 9.9.9"},
+        versions={"custom-copilot": "copilot 9.9.9"},
         stdout=json.dumps(
             {
                 "type": "assistant.message",
@@ -184,7 +185,14 @@ def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) ->
     )
 
     code = cli.main(
-        ["--output", str(output), "--behavioral-probes", str(plan)],
+        [
+            "--output",
+            str(output),
+            "--copilot-bin",
+            "custom-copilot",
+            "--behavioral-probes",
+            str(plan),
+        ],
         runner=runner,
     )
 
@@ -193,22 +201,29 @@ def test_behavioral_probe_updates_copilot_record(tmp_path: Path, monkeypatch) ->
     copilot = next(row for row in report["harnesses"] if row["harness"] == "copilot")
     assert copilot["capabilities"]["model_override"]["status"] == "VERIFIED"
     assert copilot["capabilities"]["model_override"]["probe_command"] == (
-        "copilot --prompt probe --model claude-opus-5"
+        "custom-copilot --prompt probe --model claude-opus-5"
     )
     assert copilot["capabilities"]["model_override"]["date"] == date.today().isoformat()
     assert copilot["supported_models"] == ["claude-opus-5"]
-    assert copilot["probe_command"] == "copilot --prompt probe --model claude-opus-5"
+    assert copilot["probe_command"] == "custom-copilot --prompt probe --model claude-opus-5"
     assert copilot["date"] == date.today().isoformat()
-    assert ["copilot", "--prompt", "probe", "--model", "claude-opus-5"] in runner.calls
-    behavioral_index = runner.calls.index(
-        ["copilot", "--prompt", "probe", "--model", "claude-opus-5"]
-    )
+    expected_call = [
+        "custom-copilot",
+        "--prompt",
+        "probe",
+        "--model",
+        "claude-opus-5",
+    ]
+    assert expected_call in runner.calls
+    behavioral_index = runner.calls.index(expected_call)
     behavioral_kwargs = runner.kwargs[behavioral_index]
-    assert str(behavioral_kwargs["cwd"]).endswith("/behavioral-probes/copilot")
+    workspace = (output.parent / "behavioral-probes" / "copilot").resolve()
+    assert behavioral_kwargs["cwd"] == workspace / "nested"
+    assert (workspace / "nested").is_dir()
     behavioral_env = behavioral_kwargs["env"]
     assert isinstance(behavioral_env, dict)
-    assert str(behavioral_env["COPILOT_HOME"]).endswith(
-        "/behavioral-probes/copilot/.parity-profile/copilot"
+    assert Path(str(behavioral_env["COPILOT_HOME"])) == (
+        workspace / ".parity-profile" / "copilot"
     )
 
 
