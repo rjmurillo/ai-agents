@@ -160,7 +160,7 @@ For one task, model token cost is a fraction of human cost. Over a period, total
 
 Review these metrics weekly:
 
-- Issues created per week by recorded provenance label: `source:human`, `source:agent`, conflict, unknown, and unlabeled. Labels record provenance; they do not independently verify who selected the work.
+- Issues created per week by mutually exclusive recorded provenance bucket: human-only (`source:human` without `source:agent`), agent-only (`source:agent` without `source:human`), conflict (both labels), and unknown (unlabeled). Labels record provenance; they do not independently verify who selected the work.
 - The share of new issues about repository machinery, including validators, ratchets, hooks, ADRs, `pr-autofix`, and memory. Treat title matching as a labeled heuristic, not causal attribution.
 - Retries and unsuccessful work.
 - Token and cost coverage, including where the harness exposes token data. Missing coverage is unknown.
