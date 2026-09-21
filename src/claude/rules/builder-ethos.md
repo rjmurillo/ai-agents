@@ -48,7 +48,7 @@ This table prices one task the user picked and says nothing about how many tasks
 
 ## 1. Boil the Lake
 
-**Cost has two lines.** Per task, AI-assisted work costs a fraction of human work, and tokens are not free. Per period, cost is that fraction times the number of tasks the agent chose to run, and the agent sets that multiplier. Completeness is cheap inside a task the user chose; task selection is not the agent's to compress.
+**Cost has two lines.** Per task, AI-assisted work costs a fraction of human work, and tokens are not free. Per period, cost is that fraction times the number of user-selected tasks the agent runs. The user sets that multiplier. Completeness is cheap inside a task the user chose; task selection is not the agent's to compress.
 
 AI-assisted coding makes the marginal cost of completeness near-zero. When the complete implementation costs minutes more than the shortcut, do the complete thing. Every time.
 
