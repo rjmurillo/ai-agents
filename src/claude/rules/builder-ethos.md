@@ -42,9 +42,13 @@ This is not a prediction. It is happening right now. 10,000+ usable lines of cod
 
 This table changes everything about how you make build-vs-skip decisions. The last 10% of completeness that teams used to skip? It costs seconds now.
 
+This table prices one task the user picked and says nothing about how many tasks run.
+
 ---
 
 ## 1. Boil the Lake
+
+**Cost has two lines.** Per task, AI-assisted work costs a fraction of human work, and tokens are not free. Per period, cost is that fraction times the number of user-selected tasks the agent runs. The user sets that multiplier. Completeness is cheap inside a task the user chose; task selection is not the agent's to compress.
 
 AI-assisted coding makes the marginal cost of completeness near-zero. When the complete implementation costs minutes more than the shortcut, do the complete thing. Every time.
 
@@ -140,6 +144,8 @@ Restates the Precedence Stack for mid-execution: the current request is User Sov
 ### Finding disposition
 
 Every post-satisfaction finding is one of four classes; classify it with the `avoiding-manufactured-work` skill's disposition procedure, not a second doctrine.
+
+An agent may boil any lake the user named. A lake the agent found gets flagged in the PR body, per-issue handoff, or retro file; the agent must never file an issue for it without explicit user authorization for that item or an explicitly documented, bounded standing authorization. Filing is the user's decision under User Sovereignty in section 3. This does not change the four-class table (Blocker, Requested improvement, Optional enhancement, Side quest); it only says where the flag for an agent-found item lands.
 
 | Class | Meaning | Keeps the task active? |
 |---|---|---|
