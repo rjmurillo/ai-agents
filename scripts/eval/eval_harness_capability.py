@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -121,7 +122,17 @@ def _isolate_probe(
             ) from exc
     cwd.mkdir(parents=True, exist_ok=True)
     for key, value in (probe.command.env or {}).items():
-        if key in _ISOLATED_ENV_KEYS and value != environment.get(key):
+        protected_key = next(
+            (
+                name
+                for name in _ISOLATED_ENV_KEYS
+                if key == name or (os.name == "nt" and key.casefold() == name.casefold())
+            ),
+            None,
+        )
+        if protected_key is not None and (
+            key != protected_key or value != environment.get(protected_key)
+        ):
             raise HarnessCapabilityError(
                 f"{probe.harness} behavioral probe cannot override isolated environment {key}"
             )

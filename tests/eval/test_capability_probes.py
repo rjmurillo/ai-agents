@@ -44,9 +44,7 @@ def test_a_backend_attributed_model_verifies_the_override() -> None:
     """CONFIRMATORY: the only path that may reach VERIFIED."""
     stdout = _jsonl([_session_change(newModel="gpt-5.6-sol"), _answer("hi", model="gpt-5.6-sol")])
 
-    result = probes.probe_override(
-        _plan(), _command(), runner=_runner(stdout), timeout=TIMEOUT
-    )
+    result = probes.probe_override(_plan(), _command(), runner=_runner(stdout), timeout=TIMEOUT)
 
     assert result.status is CapabilityStatus.VERIFIED
     assert result.evidence is EvidenceKind.BACKEND
@@ -56,9 +54,7 @@ def test_an_echo_only_output_never_verifies_the_override() -> None:
     """NEGATIVE CONTROL: client and schema echo is not backend evidence."""
     stdout = _jsonl([_session_change(newModel="gpt-5.6-sol"), _answer("hi")])
 
-    result = probes.probe_override(
-        _plan(), _command(), runner=_runner(stdout), timeout=TIMEOUT
-    )
+    result = probes.probe_override(_plan(), _command(), runner=_runner(stdout), timeout=TIMEOUT)
 
     assert result.status is CapabilityStatus.UNVERIFIED
     assert result.evidence is EvidenceKind.CLIENT_ECHO
@@ -68,9 +64,7 @@ def test_a_child_that_silently_inherits_the_parent_never_verifies() -> None:
     """NEGATIVE CONTROL: an inherit is not an honored override."""
     stdout = _jsonl([_answer("hi", model="claude-opus-5")])
 
-    result = probes.probe_override(
-        _plan(), _command(), runner=_runner(stdout), timeout=TIMEOUT
-    )
+    result = probes.probe_override(_plan(), _command(), runner=_runner(stdout), timeout=TIMEOUT)
 
     assert result.status is CapabilityStatus.UNVERIFIED
     assert "claude-opus-5" in result.detail
@@ -121,9 +115,7 @@ def test_two_answer_turns_naming_different_models_verify_nothing() -> None:
         [_answer("first", model="gpt-5.6-sol"), _answer("second", model="claude-opus-5")]
     )
 
-    result = probes.probe_override(
-        _plan(), _command(), runner=_runner(stdout), timeout=TIMEOUT
-    )
+    result = probes.probe_override(_plan(), _command(), runner=_runner(stdout), timeout=TIMEOUT)
 
     assert result.status is CapabilityStatus.UNVERIFIED
     assert result.evidence is EvidenceKind.NONE
@@ -170,9 +162,7 @@ def test_the_probe_passes_the_command_argv_through_verbatim() -> None:
     seen: list[list[str]] = []
     stdout = _jsonl([_answer("hi", model="gpt-5.6-sol")])
 
-    probes.probe_override(
-        _plan(), _command(), runner=_runner(stdout, seen=seen), timeout=TIMEOUT
-    )
+    probes.probe_override(_plan(), _command(), runner=_runner(stdout, seen=seen), timeout=TIMEOUT)
 
     assert seen == [["copilot", "--prompt", "probe", "--model", "gpt-5.6-sol"]]
 
@@ -186,7 +176,7 @@ def test_an_effort_on_an_answer_turn_verifies_the_override() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra"),
+        _command(requests="Sol Ultra", request_flag="--effort"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -202,7 +192,7 @@ def test_an_effort_read_from_session_state_never_verifies() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra"),
+        _command(requests="Sol Ultra", request_flag="--effort"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
     )
@@ -246,7 +236,7 @@ def test_a_caller_supplied_effort_key_is_honored() -> None:
 
     result = probes.probe_override(
         _plan(capability_key="effort_override", parent="high", candidates=("Sol Ultra",)),
-        _command(requests="Sol Ultra"),
+        _command(requests="Sol Ultra", request_flag="--effort"),
         runner=_runner(stdout),
         timeout=TIMEOUT,
         effort_keys=("tier",),
@@ -333,9 +323,7 @@ def test_a_missing_cli_does_not_crash_the_subagent_probe() -> None:
     """NEGATIVE CONTROL: same fail-closed path on a different prober."""
     runner = _runner(raises=FileNotFoundError(2, "No such file or directory", "codex"))
 
-    result = probes.probe_subagent_support(
-        _command("codex"), runner=runner, timeout=TIMEOUT
-    )
+    result = probes.probe_subagent_support(_command("codex"), runner=runner, timeout=TIMEOUT)
 
     assert result.status is CapabilityStatus.UNVERIFIED
 
@@ -363,7 +351,8 @@ def test_concurrency_records_the_observed_peak_not_the_requested_count() -> None
         timeout=TIMEOUT,
     )
 
-    assert result.status is CapabilityStatus.VERIFIED
+    assert result.status is CapabilityStatus.UNVERIFIED
+    assert result.evidence is EvidenceKind.BACKEND
     assert result.value == 2
     assert result.value != 3
 
@@ -392,9 +381,7 @@ def test_concurrency_with_too_few_launches_stays_unverified() -> None:
 
 def test_starts_with_no_completion_boundary_cannot_derive_concurrency() -> None:
     """NEGATIVE CONTROL: N starts without ends is N sequential children too."""
-    stdout = _jsonl(
-        [{"type": "subagent.start", "data": {"id": str(index)}} for index in range(4)]
-    )
+    stdout = _jsonl([{"type": "subagent.start", "data": {"id": str(index)}} for index in range(4)])
 
     result = probes.probe_concurrency(
         _command(requests="4", request_flag="--max-concurrency"),
@@ -439,9 +426,7 @@ def test_a_sequential_run_records_a_peak_of_one() -> None:
 def test_concurrency_rejects_a_requested_count_below_one() -> None:
     """NEGATIVE CONTROL: a probe that asks for no children measures nothing."""
     with pytest.raises(ProbeError, match="at least 1"):
-        probes.probe_concurrency(
-            _command(), requested=0, runner=_runner(""), timeout=TIMEOUT
-        )
+        probes.probe_concurrency(_command(), requested=0, runner=_runner(""), timeout=TIMEOUT)
 
 
 def test_a_missing_cli_does_not_crash_the_concurrency_probe() -> None:

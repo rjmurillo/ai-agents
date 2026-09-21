@@ -31,7 +31,7 @@ from tests.eval._capability_probe_fixtures import (
     _plan,
     _runner,
 )
-from tests.eval._harness_capability_test_support import probes, topology
+from tests.eval._harness_capability_test_support import cli, probes, topology
 
 # A stream that would verify the model override if the command were bound to
 # the plan. Reused so each case below differs only in the command.
@@ -105,6 +105,44 @@ def test_a_value_in_an_unrelated_argument_does_not_bind_the_override() -> None:
 
     with pytest.raises(ProbeError, match="does not request"):
         probes.probe_override(_plan(), command, runner=_runner(_HONORED), timeout=TIMEOUT)
+
+
+def test_an_untrusted_request_flag_stays_unverified_without_running() -> None:
+    """NEGATIVE CONTROL: a plan flag cannot authorize a different control."""
+    seen: list[list[str]] = []
+    result = probes.probe_override(
+        _plan(),
+        _command(request_flag="--effort"),
+        runner=_runner(_HONORED, seen=seen),
+        timeout=TIMEOUT,
+    )
+
+    assert result.status is CapabilityStatus.UNVERIFIED
+    assert "not trusted" in result.detail
+    assert seen == []
+
+
+def test_windows_case_insensitive_protected_environment_key_is_rejected(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """NEGATIVE CONTROL: Windows environment names are case-insensitive."""
+    probe = probes.BehavioralProbe(
+        harness="copilot",
+        capability="subagent_support",
+        command=probes.ProbeCommand(
+            harness="copilot",
+            argv=("copilot",),
+            env={"home": str(tmp_path)},
+        ),
+    )
+    monkeypatch.setattr(cli.os, "name", "nt")
+
+    with pytest.raises(cli.HarnessCapabilityError, match="isolated environment home"):
+        cli._isolate_probe(
+            probe,
+            workspace=tmp_path / "workspace",
+            executable="copilot",
+        )
 
 
 def test_an_environment_value_no_longer_carries_the_request() -> None:

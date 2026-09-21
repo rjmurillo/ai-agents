@@ -87,6 +87,17 @@ Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 #: Capabilities this module can probe through `classify_override`.
 OVERRIDE_CAPABILITIES: tuple[str, ...] = ("model_override", "effort_override")
 
+# A JSON plan may choose the argv shape, but only these typed flags can carry
+# behavioral probe requests for the supported harnesses.
+TRUSTED_REQUEST_FLAGS: Mapping[tuple[str, str], str] = {
+    ("codex", "model_override"): "--model",
+    ("codex", "effort_override"): "--effort",
+    ("codex", "concurrency_limit"): "--max-concurrency",
+    ("copilot", "model_override"): "--model",
+    ("copilot", "effort_override"): "--effort",
+    ("copilot", "concurrency_limit"): "--max-concurrency",
+}
+
 
 class ProbeError(HarnessCapabilityError):
     """A probe could not be constructed or its output could not be trusted.
@@ -206,6 +217,10 @@ class BehavioralProbe:
             or self.requested < 1
         ):
             raise ProbeError("concurrency_limit requires requested >= 1")
+
+
+def _trusted_request_flag(command: ProbeCommand, capability: str) -> bool:
+    return TRUSTED_REQUEST_FLAGS.get((command.harness, capability)) == command.request_flag
 
 
 def _carries_request(command: ProbeCommand, value: str) -> bool:
@@ -389,6 +404,13 @@ def probe_override(
             f"observed {plan.child_value!r} would be the harness default rather than an "
             "honored override"
         )
+    if not _trusted_request_flag(command, plan.capability):
+        return Capability(
+            CapabilityStatus.UNVERIFIED,
+            EvidenceKind.NONE,
+            f"{command.harness} request flag {command.request_flag!r} is not trusted "
+            f"for {plan.capability}",
+        )
     events, failure = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
@@ -458,6 +480,13 @@ def probe_concurrency(
         raise ProbeError(
             f"command does not request concurrency {requested} in its typed request flag"
         )
+    if not _trusted_request_flag(command, "concurrency_limit"):
+        return Capability(
+            CapabilityStatus.UNVERIFIED,
+            EvidenceKind.NONE,
+            f"{command.harness} request flag {command.request_flag!r} is not trusted "
+            "for concurrency_limit",
+        )
     events, failure = _capture_events(command, runner=runner, timeout=timeout)
     if events is None:
         return Capability(CapabilityStatus.UNVERIFIED, EvidenceKind.NONE, failure)
@@ -477,8 +506,9 @@ def probe_concurrency(
             f"{command.harness} output has no paired subagent start and completion boundaries, "
             f"so concurrency cannot be derived (requested {requested})",
         )
+    status = CapabilityStatus.VERIFIED if peak >= requested else CapabilityStatus.UNVERIFIED
     return Capability(
-        CapabilityStatus.VERIFIED,
+        status,
         EvidenceKind.BACKEND,
         f"{command.harness} ran at most {peak} children at once while {requested} were requested",
         value=peak,
