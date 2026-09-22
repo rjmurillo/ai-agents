@@ -60,7 +60,7 @@ debate log existing at `.agents/critique/ADR-110-debate-log.md`.
 5. Add the determinism test: render one fixture tree twice and assert byte
    equality.
 6. Register the gate in the `_SEQUENCE` table at
-   `scripts/validation/pre_pr_sequence.py:247`.
+   `scripts/validation/pre_pr_sequence.py:248`.
 7. Enforce the one copied-policy class that can be proven: a consumer that
    repeats three or more consecutive lines of the owner it declares a
    dependency on.
