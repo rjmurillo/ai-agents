@@ -107,6 +107,7 @@ from checks_spec import (
 from checks_tooling import (
     validate_agent_drift,
     validate_always_on_corpus_claims,
+    validate_capability_graph_declarations,
     validate_ci_dependency_pins,
     validate_copilot_version_pin,
     validate_instruction_budget,
@@ -530,6 +531,13 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # alwaysApply:, the source-side leak that put 25,527 bytes of code-only rule
     # into every doc-only session. Issue #4871.
     _Gate("Rule Scope Declarations (paths:)", _root_only(validate_rule_scope_declarations)),
+    # Refuses a broken capability edge before it reaches review: a dependency
+    # that names no owner, two owners for one policy, a cycle, or a consumer
+    # that copied the policy it claims to depend on (ADR-110, issue #5396).
+    _Gate(
+        "Capability Graph (metadata.capability)",
+        _root_only(validate_capability_graph_declarations),
+    ),
 )
 
 
