@@ -46,7 +46,7 @@ Test whether the branch's own changed files still differ from `main`:
 
 ```bash
 git -C "$p" diff -z --name-only origin/main...HEAD \
-  | xargs -0 git -C "$p" diff --name-only origin/main HEAD -- \
+  | xargs -0 -r git -C "$p" diff --name-only origin/main HEAD -- \
   | wc -l
 ```
 
