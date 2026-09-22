@@ -1,40 +1,32 @@
-# Skill-Orchestration-001: Parallel Execution Time Savings
+<!-- placement: evidence; reason: a measured wall-clock comparison between parallel and sequential agent dispatch -->
 
-**Statement**: Parallel agent dispatch reduces wall-clock time by 30-50% for independent tasks
+# Orchestration: Measured Savings From Parallel Agent Dispatch
 
-**Context**: Multiple independent implementation tasks
+Authoritative owner: `.claude/agents/orchestrator.md` Routing Algorithm decides
+when to dispatch in parallel. This file holds the measurement behind it.
 
-**Evidence**: Sessions 19-21: Parallel completed in ~20 min vs ~50 min sequential (40% reduction)
+## Measurement (2025-12-18, Sessions 19-21)
 
-**Atomicity**: 100%
+Three independent implementation tasks:
 
-**Impact**: 10/10
+- Sequential estimate: about 50 minutes.
+- Parallel actual: about 20 minutes, including coordination.
+- Reduction: about 40%.
 
-## Good Candidates
+Coordination overhead ran 10 to 20% of the parallel wall clock: dispatch,
+conflict resolution, and result aggregation.
 
-- Multiple analysis tasks on independent topics
-- Implementation of separate, non-conflicting features
-- Research/exploration of different approaches
+## Where the saving does not appear
 
-## Poor Candidates
+Observed cases where parallel dispatch cost more than it saved:
 
-- Tasks with dependencies (A must complete before B)
-- Tasks modifying same files (staging conflicts)
-- Tasks requiring sequential context
-
-## Time Calculation
-
-```text
-Sequential: Task1 + Task2 + Task3 = 51 min
-Parallel: max(Task1, Task2, Task3) + coordination = 20 min
-Savings: 61% reduction
-```
-
-**Coordination Overhead**: Expect 10-20% (dispatch, conflict resolution, HANDOFF aggregation)
+- Tasks with a dependency, where B cannot start until A finishes.
+- Tasks that modify the same files, which trade wall clock for conflict
+  resolution.
+- Tasks that need the prior task's context to be framed correctly.
 
 ## Related
 
 - [orchestration-003-orchestrator-first-routing](orchestration-003-orchestrator-first-routing.md)
-- [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md)
+- [coordination-001-branch-isolation-gate](coordination-001-branch-isolation-gate.md)
 - [orchestration-pr-chain](orchestration-pr-chain.md)
-- [orchestration-process-workflow-gaps](orchestration-process-workflow-gaps.md)

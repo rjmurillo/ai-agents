@@ -6,9 +6,15 @@ As of 2026-02-14, Serena memories are organized into topic subdirectories under 
 
 ## Key Behavior
 
-- `list_memories` returns ONLY top-level files (indexes)
 - `read_memory("subdir/name")` reads files from subdirectories
 - `write_memory("subdir/name", content)` writes to subdirectories
+- `list_memories` returns every name in the tree, nested included
+
+The third line was the opposite when this memory was written. Re-measured on
+2026-09-22 against `.serena/memories`: one `list_memories` call returned all
+names at 11,629 tiktoken `cl100k_base` tokens, against 1,232 for the top-level
+names alone. Either the tool changed or the original observation was wrong;
+this file cannot tell which. Treat the saving recorded below as historical.
 
 ## Convention
 
@@ -16,9 +22,13 @@ As of 2026-02-14, Serena memories are organized into topic subdirectories under 
 - **Atomic memories**: in topic subdirectory matching their domain
 - **Index references**: use `subdir/memory-name` format
 
-## Token Impact
+## Token Impact as recorded in 2026-02
 
-Reduced `list_memories` output from 829 entries (~5,000 tokens) to 45 entries (~300 tokens). Savings: ~4,700 tokens per session.
+Reduced `list_memories` output from 829 entries (~5,000 tokens) to 45 entries
+(~300 tokens). Savings: ~4,700 tokens per session.
+
+That saving does not reproduce today. See Key Behavior above for the
+2026-09-22 measurement.
 
 ## Known breakage: the migration outran the tools that read the corpus
 

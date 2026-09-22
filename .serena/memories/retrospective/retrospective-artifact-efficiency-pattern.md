@@ -107,7 +107,7 @@ After completion:
 
 - [[retrospective-001-recursive-extraction]] - Recursive learning pattern
 - [[retrospective-004-evidence-based-validation]] - Evidence standards
-- [[protocol-013-verification-based-enforcement]] - Verification patterns
+- [[protocol-014-trust-antipattern]] - Verification patterns
 
 ## Source
 

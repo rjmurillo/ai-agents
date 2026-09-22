@@ -54,7 +54,7 @@ PASS, WARN, COMPLIANT, PARTIAL
 ## Related Memories
 
 - [workflow-verdict-parsing-issue-analysis](workflow-verdict-parsing-issue-analysis.md) - Initial analysis of the problem
-- [copilot-synthesis-verdict-parsing](copilot-synthesis-verdict-parsing.md) - Similar issue in copilot-synthesis workflow
+- [copilot-synthesis-verdict-parsing](../copilot/copilot-synthesis-verdict-parsing.md) - Similar issue in copilot-synthesis workflow
 
 ## Related
 

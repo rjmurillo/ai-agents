@@ -91,6 +91,6 @@ Out of scope for SlashCommandCreator implementation (M1-M7). This is a cross-cut
 
 - [memory-001-feedback-retrieval](memory-001-feedback-retrieval.md)
 - [memory-architecture-serena-primary](memory-architecture-serena-primary.md)
-- [memory-index](memory-index.md)
+- [memory-index](../memory-index.md)
 - [memory-size-001-decomposition-thresholds](memory-size-001-decomposition-thresholds.md)
 - [memory-token-efficiency](memory-token-efficiency.md)

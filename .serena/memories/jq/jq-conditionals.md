@@ -26,8 +26,6 @@ gh api repos/{owner}/{repo}/contents \
 
 ## Related
 
-- [jq-aggregation](jq-aggregation.md)
-- [jq-array-operations](jq-array-operations.md)
 - [jq-field-extraction](jq-field-extraction.md)
 - [jq-filtering](jq-filtering.md)
 - [jq-github-cli-integration](jq-github-cli-integration.md)

@@ -61,6 +61,6 @@ Decision: [description]
 
 ## Related
 
-- [foundational-knowledge-index](foundational-knowledge-index.md): Overview
-- [analysis-002-rca-before-implementation](analysis-002-rca-before-implementation.md): Root cause before fixing
+- [foundational-knowledge-index](../foundational-knowledge-index.md): Overview
+- [analysis-002-rca-before-implementation](../analysis/analysis-002-rca-before-implementation.md): Root cause before fixing
 - `.agents/analysis/foundational-engineering-knowledge.md`: Full context

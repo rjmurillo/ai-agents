@@ -32,4 +32,3 @@
 - [planning-002-priority-consistency](planning-002-priority-consistency.md)
 - [planning-002-selfcontained-task-design](planning-002-selfcontained-task-design.md)
 - [planning-003-parallel-exploration-pattern-95](planning-003-parallel-exploration-pattern-95.md)
-- [planning-003-parallel-exploration-pattern](planning-003-parallel-exploration-pattern.md)

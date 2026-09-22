@@ -178,8 +178,8 @@ if Phase 4 triggered {
 ```
 
 ## Related Memories
-- [pr-comment-responder-skills](pr-comment-responder-skills.md): Full skill set including Skill-PR-Copilot-001
-- [copilot-follow-up-pr-pattern](copilot-follow-up-pr-pattern.md): Historical pattern documentation
+- [pr-comment-responder-skills](../pr-review/pr-comment-responder-skills.md): Full skill set including Skill-PR-Copilot-001
+- [copilot-follow-up-pr-pattern](../copilot/copilot-follow-up-pr-pattern.md): Historical pattern documentation
 - [phase2-handoff-context](phase2-handoff-context.md): Phase 2 task definitions
 
 ## Validation Checklist

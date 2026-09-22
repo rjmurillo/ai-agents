@@ -310,7 +310,7 @@ foreach ($command in $stagedCommands) {
 
 - **Skill**: `.claude/skills/slashcommandcreator/` - Systematic slash command creation
 - **Specification**: `.agents/archive/planning/slashcommandcreator-skill-spec.md`
-- **Memory**: [creator-001-frontmatter-trigger-specification](creator-001-frontmatter-trigger-specification.md) - Trigger-based descriptions
+- **Memory**: [creator-001-frontmatter-trigger-specification](../creator/creator-001-frontmatter-trigger-specification.md) - Trigger-based descriptions
 - **Analysis**: `.agents/analysis/custom-slash-commands-research.md` - Complete research
 
 ---

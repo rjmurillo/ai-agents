@@ -79,9 +79,9 @@ When reviewing renumbering/refactoring:
 
 ## Related Patterns
 
-- [edit-002-unique-context-for-edit-matching](edit-002-unique-context-for-edit-matching.md): Finding unique strings for replacement
+- [edit-002-unique-context-for-edit-matching](../patterns/edit-002-unique-context-for-edit-matching.md): Finding unique strings for replacement
 - [validation-skepticism](validation-skepticism.md): Don't trust, verify
-- [documentation-verification-protocol](documentation-verification-protocol.md): Systematic doc validation
+- [documentation-verification-protocol](../documentation/documentation-verification-protocol.md): Systematic doc validation
 
 ## Success Metrics
 

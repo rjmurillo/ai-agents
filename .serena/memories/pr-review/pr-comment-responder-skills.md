@@ -675,7 +675,6 @@ This can be addressed in a follow-up PR focused on [specific improvement].
 - [pr-comment-003-path-containment-layers](pr-comment-003-path-containment-layers.md)
 - [pr-comment-004-bot-response-templates](pr-comment-004-bot-response-templates.md)
 - [pr-comment-005-branch-state-verification](pr-comment-005-branch-state-verification.md)
-- [pr-987-review-response](pr-987-review-response.md)
 
 ## Issue #3930: Requery Before Thread Mutation
 

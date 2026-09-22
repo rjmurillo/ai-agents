@@ -31,4 +31,4 @@ The goal is converting unknown unknowns to known unknowns, making them manageabl
 
 - [cynefin-framework](cynefin-framework.md): Domain classification for problem types
 - [inversion-thinking](inversion-thinking.md): Think backwards to identify risks
-- [foundational-knowledge-index](foundational-knowledge-index.md): Master index
+- [foundational-knowledge-index](../foundational-knowledge-index.md): Master index

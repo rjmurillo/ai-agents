@@ -79,9 +79,8 @@ git commit --no-verify -m "Quick fix"
 ## Related Skills
 
 - [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md): Manual verification
-- [session-init-003-branch-declaration](session-init-003-branch-declaration.md): Session log tracking
 - [git-hooks-fix-hook-errors-never-bypass](git-hooks-fix-hook-errors-never-bypass.md): Never use --no-verify
-- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md): Hook is enforcement mechanism
+- [protocol-014-trust-antipattern](../protocol/protocol-014-trust-antipattern.md): why the hook exists rather than the wording
 
 ## References
 

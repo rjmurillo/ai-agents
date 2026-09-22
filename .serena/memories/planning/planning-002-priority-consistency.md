@@ -57,7 +57,5 @@
 ## Related
 
 - [planning-001-checkbox-manifest](planning-001-checkbox-manifest.md)
-- [planning-003-parallel-exploration-pattern](planning-003-parallel-exploration-pattern.md)
-- [planning-004-approval-checkpoint](planning-004-approval-checkpoint.md)
+- [planning-003-parallel-exploration-pattern](planning-003-parallel-exploration-pattern-95.md)
 - [planning-022-multi-platform-agent-scope](planning-022-multi-platform-agent-scope.md)
-- [planning-checkbox-manifest](planning-checkbox-manifest.md)

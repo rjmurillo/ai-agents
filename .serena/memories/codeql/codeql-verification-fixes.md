@@ -137,9 +137,9 @@ Created comprehensive three-tier documentation:
 
 ## Related Memories
 
-- [bash-integration-exit-codes](bash-integration-exit-codes.md) - Exit code patterns
-- [pester-testing-test-isolation](pester-testing-test-isolation.md) - Test isolation patterns
-- [powershell-cross-platform-patterns](powershell-cross-platform-patterns.md) - Cross-platform scripting
+- [bash-integration-exit-codes](../bash/bash-integration-exit-codes.md) - Exit code patterns
+- [pester-testing-test-isolation](../powershell/pester-testing-test-isolation.md) - Test isolation patterns
+- [powershell-cross-platform-patterns](../powershell/powershell-cross-platform-patterns.md) - Cross-platform scripting
 
 ## Session Details
 

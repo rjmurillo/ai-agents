@@ -1,9 +1,5 @@
 | Keywords | File |
 |----------|------|
-| skill check exists validate github operation capability | [session/session-init-skill-validation](session/session-init-skill-validation.md) |
-| constraint governance must-not bash python powershell | [session/session-init-constraints](session/session-init-constraints.md) |
-| protocol verification trust blocking gate compliance | [session/session-init-verification-gates](session/session-init-verification-gates.md) |
 | memory load monitoring classification status before gate | [session/init-003-memory-first-monitoring-gate](session/init-003-memory-first-monitoring-gate.md) |
-| branch declaration header session log explicit tracking accountability verification | [session/session-init-003-branch-declaration](session/session-init-003-branch-declaration.md) |
-| scope limit multi-issue confusion 2-issue maximum context session focus contamination | [session/session-scope-002-multi-issue-limit](session/session-scope-002-multi-issue-limit.md) |
 | session log evidence wording todo task list contradiction scanner | [session/session-writing-todo-in-evidence-trips-the-contradiction-scanner](session/session-writing-todo-in-evidence-trips-the-contradiction-scanner.md) |
+| session scope co-mingling pr-669 cross-pr contamination wrong branch | [session/session-scope-002-limit-sessions-two-issues](session/session-scope-002-limit-sessions-two-issues.md) |

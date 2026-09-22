@@ -53,9 +53,9 @@ ai-agents is partially aligned:
 
 ## Related
 
-- [claude-md-anthropic-best-practices](claude-md-anthropic-best-practices.md)
-- [claude-code-skills-official-guidance](claude-code-skills-official-guidance.md)
-- [prompting-observations](prompting-observations.md)
+- [claude-md-anthropic-best-practices](../claude/claude-md-anthropic-best-practices.md)
+- [claude-code-skills-official-guidance](../claude/claude-code-skills-official-guidance.md)
+- [prompting-observations](../prompting/prompting-observations.md)
 - [memory-token-efficiency](memory-token-efficiency.md)
 
 ## Analysis

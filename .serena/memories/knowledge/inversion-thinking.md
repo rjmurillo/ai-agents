@@ -41,4 +41,4 @@ Instead of asking "What should I do to succeed?" ask "What would guarantee failu
 
 - [second-order-thinking](second-order-thinking.md): Ask "and then what?"
 - [rumsfeld-matrix](rumsfeld-matrix.md): Uncertainty management
-- [foundational-knowledge-index](foundational-knowledge-index.md): Master index
+- [foundational-knowledge-index](../foundational-knowledge-index.md): Master index

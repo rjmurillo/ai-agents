@@ -53,7 +53,5 @@ Shipped as Python, not PowerShell: `memory_core/reflexion_memory.py` and
 ## Related
 
 - [adr-007-augmentation-research](adr-007-augmentation-research.md)
-- [adr-014-findings](adr-014-findings.md)
 - [adr-014-review-findings](adr-014-review-findings.md)
 - [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
-- [adr-021-quantitative-analysis](adr-021-quantitative-analysis.md)

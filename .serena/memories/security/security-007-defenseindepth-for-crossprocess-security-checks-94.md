@@ -41,6 +41,4 @@ fi
 
 - [security-001-twophase-security-review](security-001-twophase-security-review.md)
 - [security-002-input-validation-first-88](security-002-input-validation-first-88.md)
-- [security-002-input-validation-first](security-002-input-validation-first.md)
 - [security-003-secure-error-handling-90](security-003-secure-error-handling-90.md)
-- [security-003-secure-error-handling](security-003-secure-error-handling.md)

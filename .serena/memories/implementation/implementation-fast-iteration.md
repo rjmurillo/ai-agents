@@ -71,9 +71,9 @@ Small Commit (fast):
 
 **Related Skills**:
 
-- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md) - Commit atomicity principles
+- [agent-workflow-atomic-commits](../agent-workflow/agent-workflow-atomic-commits.md) - Commit atomicity principles
 - [implementation-additive-approach](implementation-additive-approach.md) - Additive vs refactor timing
-- [ci-quality-gates](ci-quality-gates.md) - Automated review integration
+- [ci-quality-gates](../ci/ci-quality-gates.md) - Automated review integration
 
 **Success Example**: PR #343 used fast iteration to discover and fix 4 edge cases that weren't obvious upfront:
 
@@ -88,14 +88,14 @@ Each discovered through Copilot review, fixed in <5 minutes, validated in next c
 
 ## Related Files
 
-- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md) - Atomic commit principles
-- [ci-quality-gates](ci-quality-gates.md) - Automated review workflows
-- [implementation-test-discovery](implementation-001-pre-implementation-test-discovery.md) - Test-first patterns
+- [agent-workflow-atomic-commits](../agent-workflow/agent-workflow-atomic-commits.md) - Atomic commit principles
+- [ci-quality-gates](../ci/ci-quality-gates.md) - Automated review workflows
+- [implementation-test-discovery](implementation-001-preimplementation-test-discovery-95.md) - Test-first patterns
 
 ## Related
 
 - [implementation-001-memory-first-pattern](implementation-001-memory-first-pattern.md)
-- [implementation-001-pre-implementation-test-discovery](implementation-001-pre-implementation-test-discovery.md)
-- [implementation-002-test-driven-implementation](implementation-002-test-driven-implementation.md)
+- [implementation-001-pre-implementation-test-discovery](implementation-001-preimplementation-test-discovery-95.md)
+- [implementation-002-test-driven-implementation](implementation-002-testdriven-implementation-92.md)
 - [implementation-006-graphql-first](implementation-006-graphql-first.md)
 - [implementation-additive-approach](implementation-additive-approach.md)

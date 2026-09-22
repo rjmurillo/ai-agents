@@ -98,11 +98,7 @@ These are observations that may become patterns:
 - [architecture-015-deployment-path-validation](architecture-015-deployment-path-validation.md)
 - [architecture-016-adr-number-check](architecture-016-adr-number-check.md)
 - [architecture-adr-compliance-documentation](architecture-adr-compliance-documentation.md)
-- [architecture-composite-action](architecture-composite-action.md)
-- [architecture-model-selection](architecture-model-selection.md)
 - [architecture-observations](architecture-observations.md)
-- [architecture-producer-consumer](architecture-producer-consumer.md)
 - [architecture-template-variant-maintenance](architecture-template-variant-maintenance.md)
-- [architecture-tool-allocation](architecture-tool-allocation.md)
-- [chestertons-fence](chestertons-fence.md) - Foundational pattern for ADR exception analysis
+- [chestertons-fence](../knowledge/chestertons-fence.md) - Foundational pattern for ADR exception analysis
 - PR #908 retrospective - Evidence for ADR exception and synthesis panel learnings

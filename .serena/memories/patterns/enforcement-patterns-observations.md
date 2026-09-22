@@ -75,6 +75,5 @@ These are observations that may become patterns:
 ## Related
 
 - [autonomous-execution-guardrails](../autonomous/autonomous-execution-guardrails.md)
-- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md)
-- [protocol-blocking-gates](protocol-blocking-gates.md)
-- [validation-pr-gates](validation-pr-gates.md)
+- [protocol-blocking-gates](../protocol/protocol-blocking-gates.md)
+- [validation-pr-gates](../validation/validation-pr-gates.md)

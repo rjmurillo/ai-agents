@@ -106,6 +106,6 @@ These savings apply the same principles to skill files:
 
 - [memory-001-feedback-retrieval](memory-001-feedback-retrieval.md)
 - [memory-architecture-serena-primary](memory-architecture-serena-primary.md)
-- [memory-index](memory-index.md)
+- [memory-index](../memory-index.md)
 - [memory-size-001-decomposition-thresholds](memory-size-001-decomposition-thresholds.md)
 - [memory-system-fragmentation-tech-debt](memory-system-fragmentation-tech-debt.md)

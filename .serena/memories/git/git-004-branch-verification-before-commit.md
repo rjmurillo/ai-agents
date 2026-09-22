@@ -44,8 +44,7 @@ git commit -m "..."  # No verification!
 ## Related Skills
 
 - [git-hooks-004-branch-name-validation](git-hooks-004-branch-name-validation.md): Pre-commit hook enforcement
-- [session-init-003-branch-declaration](session-init-003-branch-declaration.md): Session-level branch tracking
-- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md): Design principle
+- [protocol-014-trust-antipattern](../protocol/protocol-014-trust-antipattern.md): the three failures this check answers
 
 ## Related
 

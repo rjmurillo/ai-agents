@@ -85,8 +85,8 @@ Test the conditional with different author associations:
 
 ## Related
 
-- [security-002-input-validation-first](security-002-input-validation-first.md)
-- [security-003-secure-error-handling](security-003-secure-error-handling.md)
-- [security-004-security-event-logging](security-004-security-event-logging.md)
-- [security-007-defense-in-depth-for-cross-process-security-checks](security-007-defense-in-depth-for-cross-process-security-checks.md)
-- [security-008-first-run-gap-analysis](security-008-first-run-gap-analysis.md)
+- [security-002-input-validation-first](security-002-input-validation-first-88.md)
+- [security-003-secure-error-handling](security-003-secure-error-handling-90.md)
+- [security-004-security-event-logging](security-004-security-event-logging-85.md)
+- [security-007-defense-in-depth-for-cross-process-security-checks](security-007-defenseindepth-for-crossprocess-security-checks-94.md)
+- [security-008-first-run-gap-analysis](security-008-firstrun-gap-analysis-91.md)

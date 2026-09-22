@@ -43,7 +43,5 @@ actionlint .github/workflows/new-workflow.yml
 ## Related
 
 - [implementation-001-memory-first-pattern](implementation-001-memory-first-pattern.md)
-- [implementation-001-pre-implementation-test-discovery](implementation-001-pre-implementation-test-discovery.md)
-- [implementation-001-preimplementation-test-discovery-95](implementation-001-preimplementation-test-discovery-95.md)
-- [implementation-001-preimplementation-test-discovery](implementation-001-preimplementation-test-discovery.md)
-- [implementation-002-test-driven-implementation](implementation-002-test-driven-implementation.md)
+- [implementation-001-pre-implementation-test-discovery](implementation-001-preimplementation-test-discovery-95.md)
+- [implementation-002-test-driven-implementation](implementation-002-testdriven-implementation-92.md)

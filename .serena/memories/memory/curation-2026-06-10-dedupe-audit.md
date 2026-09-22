@@ -7,7 +7,7 @@ Full report: [`.agents/analysis/serena-memory-audit-2026-06-10.md`](../../../.ag
 - 65 memory files removed (883 to 818): 5 corrupt/empty, 21 covered by rules/skills, 37 near-duplicates with content fully contained in a kept file (verified by line containment, not just similarity score).
 - Misnamed `adr/adr-021-quantitative-analysis` (content was ADR-019 analysis) moved to `adr/adr-019-quantitative-analysis`.
 - No-auto-generated-headers user preference promoted to [`.claude/rules/universal.md`](../../../.claude/rules/universal.md) MUST NOT 6; both user-preference memories deleted.
-- Stale ADR-005 "MUST NOT create Python scripts" blocks in [`governance/governance-001-consolidated-constraints`](../governance/governance-001-consolidated-constraints.md) and [`session/session-init-constraints`](../session/session-init-constraints.md) corrected to ADR-042 Python-first.
+- Stale ADR-005 "MUST NOT create Python scripts" blocks in [`governance/governance-001-consolidated-constraints`](../governance/governance-001-consolidated-constraints.md) and `session/session-init-constraints` (deleted 2026-09-22) corrected to ADR-042 Python-first.
 - [`usage-mandatory`](../usage-mandatory.md) trimmed to episodic incidents; the rule is canonical in [`AGENTS.md`](../../../AGENTS.md), enforced at the time by `invoke_skill_first_guard.py` (retired in ADR-085).
 
 ## Naming conventions confirmed by reference counts

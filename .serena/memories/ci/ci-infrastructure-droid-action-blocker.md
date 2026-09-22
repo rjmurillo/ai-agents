@@ -119,4 +119,4 @@ From https://raw.githubusercontent.com/Factory-AI/droid-action/v1/action.yml:
 
 - `security-practices`: Repository security standards
 - [ci-infrastructure-codeql-ruleset-friction](ci-infrastructure-codeql-ruleset-friction.md): Similar security constraint analysis
-- [slsa-supply-chain](slsa-supply-chain.md): Supply chain security framework
+- [slsa-supply-chain](../knowledge/slsa-supply-chain.md): Supply chain security framework

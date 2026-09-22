@@ -56,4 +56,4 @@ Cycle faster than opponents. Speed creates:
 
 - [cynefin-framework](cynefin-framework.md): Domain classification
 - [rumsfeld-matrix](rumsfeld-matrix.md): Uncertainty categorization
-- [foundational-knowledge-index](foundational-knowledge-index.md): Master index
+- [foundational-knowledge-index](../foundational-knowledge-index.md): Master index

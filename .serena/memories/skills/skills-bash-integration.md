@@ -226,8 +226,8 @@ fi
 ## Related Resources
 
 - `.agents/retrospective/2025-12-17-PR52-cursor-bot-bugs.md` - Full retrospective
-- [pr-52-retrospective-learnings](pr-52-retrospective-learnings.md) memory (use `mcp__serena__read_memory` with `memory_file_name="pr-52-retrospective-learnings"`) - Self-contained retrospective
-- [git-hook-patterns](git-hook-patterns.md) memory (use `mcp__serena__read_memory` with `memory_file_name="git-hook-patterns"`) - Git hook patterns
+- `pr-52-retrospective-learnings` memory (use `mcp__serena__read_memory` with `memory_file_name="pr-52-retrospective-learnings"`) - Self-contained retrospective
+- [git-hook-patterns](../git/git-hook-patterns.md) memory (use `mcp__serena__read_memory` with `memory_file_name="git-hook-patterns"`) - Git hook patterns
 
 ## Success Metrics
 

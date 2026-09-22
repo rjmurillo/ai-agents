@@ -41,4 +41,4 @@ Continuous activity throughout development:
 
 - [security-principles-owasp](security-principles-owasp.md): OWASP Top 10
 - [security-agent-vulnerability-detection-gaps](security-agent-vulnerability-detection-gaps.md): Detection patterns
-- [foundational-knowledge-index](foundational-knowledge-index.md): Master index
+- [foundational-knowledge-index](../foundational-knowledge-index.md): Master index

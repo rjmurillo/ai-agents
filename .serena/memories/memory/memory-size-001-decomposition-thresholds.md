@@ -2,7 +2,7 @@
 
 **Date**: 2025-12-22
 **Issue**: #239
-**Subject**: [skills-github-cli-index](skills-github-cli-index.md) memory file (decomposed)
+**Subject**: [skills-github-cli-index](../skills-github-cli-index.md) memory file (decomposed)
 
 ## Problem Statement
 
@@ -92,6 +92,6 @@ When a memory exceeds these thresholds, decompose into focused files.
 
 - [memory-001-feedback-retrieval](memory-001-feedback-retrieval.md)
 - [memory-architecture-serena-primary](memory-architecture-serena-primary.md)
-- [memory-index](memory-index.md)
+- [memory-index](../memory-index.md)
 - [memory-system-fragmentation-tech-debt](memory-system-fragmentation-tech-debt.md)
 - [memory-token-efficiency](memory-token-efficiency.md)

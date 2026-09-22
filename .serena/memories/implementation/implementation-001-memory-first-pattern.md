@@ -80,8 +80,8 @@ function Detect-CopilotFollowUpPR { ... }
 
 ## Related
 
-- [implementation-001-pre-implementation-test-discovery](implementation-001-pre-implementation-test-discovery.md)
-- [implementation-002-test-driven-implementation](implementation-002-test-driven-implementation.md)
+- [implementation-001-pre-implementation-test-discovery](implementation-001-preimplementation-test-discovery-95.md)
+- [implementation-002-test-driven-implementation](implementation-002-testdriven-implementation-92.md)
 - [implementation-006-graphql-first](implementation-006-graphql-first.md)
 - [implementation-additive-approach](implementation-additive-approach.md)
 - [implementation-clarification](implementation-clarification.md)

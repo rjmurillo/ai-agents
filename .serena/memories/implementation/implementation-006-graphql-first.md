@@ -134,7 +134,7 @@ $result = gh api graphql -f query="$query" | ConvertFrom-Json
 ## Related
 
 - [implementation-001-memory-first-pattern](implementation-001-memory-first-pattern.md)
-- [implementation-001-pre-implementation-test-discovery](implementation-001-pre-implementation-test-discovery.md)
-- [implementation-002-test-driven-implementation](implementation-002-test-driven-implementation.md)
+- [implementation-001-pre-implementation-test-discovery](implementation-001-preimplementation-test-discovery-95.md)
+- [implementation-002-test-driven-implementation](implementation-002-testdriven-implementation-92.md)
 - [implementation-additive-approach](implementation-additive-approach.md)
 - [implementation-clarification](implementation-clarification.md)
