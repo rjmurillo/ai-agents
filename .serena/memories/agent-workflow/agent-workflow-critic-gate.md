@@ -1,33 +1,16 @@
-# Pre-Implementation Validation Gate
+# Evidence: critic review before implementation
 
-**Statement**: Always run critic validation on plans before implementation begins
+<!-- placement: evidence; reason: records what a pre-implementation critic pass caught, not an operating contract -->
 
-**Context**: Before implementing from any plan
+## Observed evidence
 
-**Evidence**: Critic review caught 3 minor issues before implementation
+A critic review of a plan before implementation caught three minor issues
+that would otherwise have surfaced as fix commits. The review checked
+completeness, feasibility, scope, timeline, and risk coverage.
 
-**Atomicity**: 92%
+## Migration disposition
 
-**Impact**: 9/10
-
-## Validation Criteria
-
-- **Completeness**: All requirements covered?
-- **Feasibility**: Can be implemented as specified?
-- **Scope**: Bounded appropriately?
-- **Timeline**: Realistic estimates?
-- **Risks**: Identified and mitigated?
-
-## Anti-Pattern
-
-Never skip critic review for changes affecting more than 5 files.
-
-**Prevention**: Critic review is required gate for systemic changes.
-
-## Related
-
-- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
-- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
-- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
-- [agent-workflow-collaboration](agent-workflow-collaboration.md)
-- [agent-workflow-mvp-shipping](agent-workflow-mvp-shipping.md)
+The `plan` skill runs the critic at its step 7, and the critic agent's Review
+Axes and Verdict Rules own the criteria. The orchestrator agent's Routing
+Algorithm places the critic plan gate before the implementer. This memory
+keeps the three-issue outcome as evidence.

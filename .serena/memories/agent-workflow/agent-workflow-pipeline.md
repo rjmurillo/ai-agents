@@ -1,42 +1,17 @@
-# Full Pipeline for Large Changes
+# Evidence: full pipeline on a 59-file change
 
-**Statement**: Use full agent pipeline for changes touching 10+ files
+<!-- placement: evidence; reason: records one measured outcome of the multi-agent pipeline, not an operating contract -->
 
-**Context**: Multi-file changes requiring coordination
+## Observed evidence
 
-**Evidence**: 2025-12-13 - 59-file change with zero rollbacks needed
+On 2025-12-13 a 59-file change ran the full analyst, architect, planner,
+critic, implementer, and QA sequence and needed zero rollbacks. Smaller
+changes in the same period ran shorter chains (implementer and QA alone for a
+one-file fix) without a measured loss.
 
-**Atomicity**: 90%
+## Migration disposition
 
-**Impact**: 9/10
-
-## Pipeline
-
-```text
-analyst → architect → planner → critic → implementer → qa → retrospective
-```
-
-## Agent-Appropriate Scope Selection
-
-| Scope | Pipeline |
-|-------|----------|
-| 1-2 files, clear fix | implementer → qa |
-| 3-10 files, defined change | planner → implementer → qa |
-| 10+ files or new standards | full pipeline |
-| Strategic decision | independent-thinker → high-level-advisor |
-
-## Artifact Chain
-
-```text
-analysis/ → architecture/ → planning/ → critique/ → commits → qa/ → retrospective/ → skills/
-```
-
-Each agent produces artifacts that become inputs for the next agent.
-
-## Related
-
-- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
-- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
-- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
-- [agent-workflow-collaboration](agent-workflow-collaboration.md)
-- [agent-workflow-critic-gate](agent-workflow-critic-gate.md)
+The `autoplan` skill owns pipeline depth by size tier (Trivial, Standard,
+Feature). The orchestrator agent's Routing Algorithm owns the role sequence
+and the critic plan gate inside it. This memory keeps the 59-file outcome as
+evidence for those choices.

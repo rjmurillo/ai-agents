@@ -1,32 +1,24 @@
 # Skill Observations: agent-workflow
 
-**Last Updated**: 2026-01-18
+<!-- placement: evidence; reason: session observations about multi-agent coordination, not an operating contract -->
+
+**Last Updated**: 2026-09-21
 **Sessions Analyzed**: 2
 
 ## Purpose
 
-This memory captures learnings from agent coordination patterns, multi-agent workflows, and agent collaboration strategies across sessions.
+Learnings from agent coordination patterns, multi-agent workflows, and agent
+collaboration strategies across sessions. The orchestrator agent and the
+`autoplan` skill own the routing behavior; this file keeps the observations.
 
-## Constraints (HIGH confidence)
+## Observations
 
-These are corrections that MUST be followed:
-
-## Preferences (MED confidence)
-
-These are preferences that SHOULD be followed:
-
-- Multi-agent spec/plan review pattern - coordinate multiple specialized agents (10-15+) to review specification and implementation plans from different perspectives before execution (Session 67, 2025-12-22)
-  - Evidence: Session 67 - "14-agent review of Local Guardrails SPEC and PLAN" synthesized findings from architect, security, qa, analyst, and other agents for comprehensive validation
-- Model selection for CI automation - use Sonnet not Opus for automated CI/CD tasks to balance cost and capability (Session 4, 2026-01-16)
-  - Evidence: Batch 37 - CI automation configured with Sonnet model for cost-effective automated processing
-
-## Edge Cases (MED confidence)
-
-These are scenarios to handle:
-
-## Notes for Review (LOW confidence)
-
-These are observations that may become patterns:
+- Multi-agent spec/plan review: Session 67 (2025-12-22) ran a 14-agent review
+  of the Local Guardrails SPEC and PLAN and synthesized findings from
+  architect, security, qa, analyst, and other agents before execution.
+- Model selection for CI automation: Batch 37 (Session 4, 2026-01-16)
+  configured CI automation with Sonnet rather than Opus to balance cost and
+  capability. The routing policy in `AGENTS.md` now owns model selection.
 
 ## History
 
@@ -37,13 +29,7 @@ These are observations that may become patterns:
 
 ## Related
 
-- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
-- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
-- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
 - [agent-workflow-collaboration](agent-workflow-collaboration.md)
 - [agent-workflow-critic-gate](agent-workflow-critic-gate.md)
-- [agent-workflow-mvp-shipping](agent-workflow-mvp-shipping.md)
 - [agent-workflow-pipeline](agent-workflow-pipeline.md)
-- [agent-workflow-post-implementation-critic-validation](agent-workflow-post-implementation-critic-validation.md)
-- [agent-workflow-scope-discipline](agent-workflow-scope-discipline.md)
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
+- [skills-agent-workflow-index](../skills-agent-workflow-index.md)
