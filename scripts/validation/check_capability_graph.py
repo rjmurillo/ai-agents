@@ -23,7 +23,7 @@ Six invariants are blocking:
   2. every `depends-on` name resolves to some node's `owns` entry
   3. no node depends on a capability it owns
   4. the edge set is acyclic
-  5. no generated projection declares `owns`
+  5. no projection owns a capability no canonical artifact owns
   6. `status: deprecated` requires `replaced-by`
 
 A seventh blocks the one copied-policy class that can be proven rather than
@@ -349,17 +349,21 @@ def collect_nodes(repo_root: Path) -> tuple[list[Node], list[str]]:
 
 
 def build_owner_index(nodes: list[Node]) -> tuple[dict[str, Node], list[str]]:
-    """Map capability name to its canonical owner, reporting duplicates."""
+    """Map capability name to its canonical owner, reporting duplicates.
+
+    A projection that repeats its canonical owner's declaration is expected,
+    not a defect: ADR-109 binplaces byte-identical copies of the template trees
+    into `.claude/` and `src/claude/`, so a canonical declaration arrives in a
+    projection by construction. The defect this catches is a projection that
+    owns a capability no canonical artifact owns, which is what a hand-edited
+    mirror inventing ownership looks like.
+    """
     owners: dict[str, Node] = {}
     findings: list[str] = []
     for node in nodes:
+        if not node.canonical:
+            continue
         for name in node.owns:
-            if not node.canonical:
-                findings.append(
-                    f"{node.path}: generated projection claims ownership of `{name}`; "
-                    "ownership belongs to the canonical artifact under templates/"
-                )
-                continue
             previous = owners.get(name)
             if previous is not None:
                 findings.append(
@@ -367,6 +371,15 @@ def build_owner_index(nodes: list[Node]) -> tuple[dict[str, Node], list[str]]:
                 )
                 continue
             owners[name] = node
+    for node in nodes:
+        if node.canonical:
+            continue
+        for name in node.owns:
+            if name not in owners:
+                findings.append(
+                    f"{node.path}: claims ownership of `{name}`, which no canonical "
+                    "artifact under templates/ owns"
+                )
     return owners, sorted(findings)
 
 
