@@ -175,15 +175,27 @@ Rules the generator MUST honor:
 
 Self-check against the [quality checklist](references/quality-checklist.md) before saving. All structural and content checks must pass.
 
+### Phase G5: Save
+
+Write the file to the destination directory determined in Phase G2:
+
+| Rule | Example |
+|------|---------|
+| Match existing naming convention | `ADR-053-authentication-strategy.md` or `0053-authentication-strategy.md` |
+| Zero-pad number to match existing pattern | `ADR-001`, `0001`, etc. |
+| Lowercase kebab-case slug (3-5 words) | `database-selection`, `event-sourcing-pattern` |
+| Status always set to `Proposed` | Changed only after `adr-review` debate |
+| Frontmatter `status: proposed`, `implemented: false`, `explainer: null` | Phase 1 defaults (ADR-073); `explainer` never auto-fetched (CWE-918) |
+
 ## Mandatory Exit Gates
 
-Run these five gates in order before handing the draft to `adr-review`. They are a
-measured pilot, not a permanent policy: use one fixed ADR cohort before and after
-the pilot, then retain them only when avoided writer rework exceeds maintenance and
-runtime cost. Record factual-finding share in round one, rounds to consensus,
-writer correction time, total model cost, false blocks, gate escapes, model,
-harness version, and wall time. The abort condition is false blocks or gate
-escapes increasing without lower writer correction time.
+Run these five gates in order against the saved draft before handing it to
+`adr-review`. They are a measured pilot, not a permanent policy: use one fixed
+ADR cohort before and after the pilot, then retain them only when avoided writer
+rework exceeds maintenance and runtime cost. Record factual-finding share in
+round one, rounds to consensus, writer correction time, total model cost, false
+blocks, gate escapes, model, harness version, and wall time. The abort condition
+is false blocks or gate escapes increasing without lower writer correction time.
 
 Every gate result is `VERIFIED`, `NOT RUN`, `UNAVAILABLE`, or `FAILED`. Do not
 invent a correction when evidence is unavailable or a claim remains uncertain.
@@ -191,14 +203,14 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
 1. **Claims ledger.** Create one row for every factual claim: claim text, kind
    (`path`, `count`, `absence`, `behavior`, or `quote`), command, and result.
    Store it as `.agents/critique/ADR-NNN-claims-ledger.md` beside the debate log.
-   An absence row needs a whole-repository search. Run
-   `check_citation_freshness.py --base <base-ref>` for each `path:line` row.
-2. **Documentation accuracy.** Run `Skill(skill="doc-accuracy")` for the new ADR:
-
-   ```sh
-   SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/doc-accuracy/scripts"
-   uv run python "$SCRIPTS_DIR/doc_accuracy.py" --target <repo-root> --diff-base <base-ref> --format gate
-   ```
+   An absence row needs a whole-repository search. For each `path:line` row,
+   read the cited range directly from the working tree and record the observed
+   text. Do not use `check_citation_freshness.py`; it checks only citations on
+   lines added between committed revisions.
+2. **Documentation accuracy.** Run `Skill(skill="doc-accuracy")` Phase 4 with
+   the saved ADR as the documentation file and its mapped source files as the
+   source input. Do not use `--diff-base`; it scans committed changes and cannot
+   select this uncommitted ADR.
 
 3. **Self-consistency.** Compare every Decision item with every other Decision
    item and with Consequences. Record contradictions or the `VERIFIED` result.
@@ -213,19 +225,9 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
    invoking `adr-review`. A factual finding already covered by the ledger is a
    gate escape, not proof that the writer must fabricate a same-pass correction.
 
-### Phase G5: Save
+### Phase G6: Hand Off
 
-Write the file to the destination directory determined in Phase G2:
-
-| Rule | Example |
-|------|---------|
-| Match existing naming convention | `ADR-053-authentication-strategy.md` or `0053-authentication-strategy.md` |
-| Zero-pad number to match existing pattern | `ADR-001`, `0001`, etc. |
-| Lowercase kebab-case slug (3-5 words) | `database-selection`, `event-sourcing-pattern` |
-| Status always set to `Proposed` | Changed only after `adr-review` debate |
-| Frontmatter `status: proposed`, `implemented: false`, `explainer: null` | Phase 1 defaults (ADR-073); `explainer` never auto-fetched (CWE-918) |
-
-After saving, hand the ADR and its claims ledger to `adr-review` for multi-agent validation.
+After the gates pass, hand the ADR and its claims ledger to `adr-review` for multi-agent validation.
 
 ---
 
