@@ -199,6 +199,7 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
    SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/doc-accuracy/scripts"
    uv run python "$SCRIPTS_DIR/doc_accuracy.py" --target <repo-root> --diff-base <base-ref> --format gate
    ```
+
 3. **Self-consistency.** Compare every Decision item with every other Decision
    item and with Consequences. Record contradictions or the `VERIFIED` result.
 4. **Refuting seat.** Run one seat, not the panel:
