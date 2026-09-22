@@ -829,6 +829,27 @@ def validate_rule_scope_declarations(repo_root: Path) -> bool:
     return bool(validate_rule_scope_keys(repo_root))
 
 
+def validate_capability_graph_declarations(repo_root: Path) -> bool:
+    """Gate the capability ownership graph (ADR-110, issue #5396).
+
+    Reads `metadata.capability` from the canonical template trees and refuses a
+    missing dependency, a self dependency, a cycle, a duplicate canonical owner,
+    a projection that claims ownership, a retiring capability with no named
+    replacement, and a consumer that repeats a run of its dependency's text.
+    SKIP when `templates/` is absent, which is a downstream install rather than
+    a violation.
+    """
+    if not (repo_root / "templates" / "skills").is_dir():
+        raise MissingScriptSkip(
+            "templates/skills not present (downstream install); no capability graph to check"
+        )
+    from check_capability_graph import validate_capability_graph
+
+    # bool() for the same reason the rule-scope wrapper above coerces: the flat
+    # import resolves untyped, so mypy reads the result as Any.
+    return bool(validate_capability_graph(repo_root))
+
+
 def validate_always_on_corpus_claims(repo_root: Path) -> bool:
     """Pin the numeric claims in model-context-doctrine.md to live measurements.
 
