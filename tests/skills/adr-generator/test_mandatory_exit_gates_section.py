@@ -9,9 +9,10 @@ def test_mandatory_exit_gates_are_ordered_and_measurable() -> None:
     text = SKILL.read_text(encoding="utf-8")
 
     g4 = text.index("### Phase G4: Validate")
-    gates = text.index("## Mandatory Exit Gates")
     g5 = text.index("### Phase G5: Save")
-    assert g4 < gates < g5
+    gates = text.index("## Mandatory Exit Gates")
+    g6 = text.index("### Phase G6: Hand Off")
+    assert g4 < g5 < gates < g6
 
     names = (
         "Claims ledger",
@@ -20,15 +21,17 @@ def test_mandatory_exit_gates_are_ordered_and_measurable() -> None:
         "Refuting seat",
         "ADR review hand-off",
     )
-    positions = [text.index(name, gates, g5) for name in names]
+    positions = [text.index(name, gates, g6) for name in names]
     assert positions == sorted(positions)
 
     for status in ("VERIFIED", "NOT RUN", "UNAVAILABLE", "FAILED"):
-        assert status in text[gates:g5]
+        assert status in text[gates:g6]
 
-    assert "abort condition" in text[gates:g5]
-    assert "working-tree" in text[gates:g5]
-    assert "check_citation_freshness.py" in text[gates:g5]
-    assert "--diff-base" in text[gates:g5]
-    assert 'subagent_type="analyst"' in text[gates:g5]
-    assert 'model="haiku"' in text[gates:g5]
+    gate_text = text[gates:g6]
+    assert "abort condition" in gate_text
+    assert "read the cited range directly from the working tree" in gate_text
+    assert "checks only citations on" in gate_text
+    assert "the saved ADR as the documentation file" in gate_text
+    assert "scans committed changes" in gate_text
+    assert 'subagent_type="analyst"' in gate_text
+    assert 'model="haiku"' in gate_text
