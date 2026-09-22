@@ -701,7 +701,10 @@ class TestToolNameControls:
             pytest.param(["Read", "Bash(git diff:*)"], id="permission-rule-diff"),
             pytest.param(["Read", "Bash(git diff --output=x:*)"], id="permission-rule-output"),
             pytest.param(["Read", "Bash(git -C /other push:*)"], id="permission-rule-redirect"),
-            pytest.param(["Read", "Write(.project-toolkit/security/**)"], id="permission-rule-write"),
+            pytest.param(
+                ["Read", "Write(.project-toolkit/security/**)"],
+                id="permission-rule-write",
+            ),
             pytest.param(
                 ["Read", "Edit(.project-toolkit/planning/impact-analysis-security-*.md)"],
                 id="permission-rule-edit",
