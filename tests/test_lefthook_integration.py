@@ -908,23 +908,21 @@ def test_lefthook_skip_envs_preserve_check_only_execution(tmp_path: Path) -> Non
         repo,
         "run",
         "pre-commit",
-        "--job",
-        "autofix",
         "--force",
-        env={"SKIP_AUTOFIX": "1"},
+        env={"SKIP_AUTOFIX": "1", "SKIP_ACTIONLINT": "0"},
     )
-    _run_lefthook(repo, "run", "pre-commit", "--job", "check", "--force")
+    assert (repo / "jobs.log").read_text(encoding="utf-8") == "check\nactionlint\n"
+
+    (repo / "jobs.log").write_text("", encoding="utf-8")
     skipped_actionlint = _run_lefthook(
         repo,
         "run",
         "pre-commit",
-        "--job",
-        "actionlint",
         "--force",
-        env={"SKIP_ACTIONLINT": "1"},
+        env={"SKIP_AUTOFIX": "0", "SKIP_ACTIONLINT": "1"},
     )
 
-    assert (repo / "jobs.log").read_text(encoding="utf-8") == "check\n"
+    assert (repo / "jobs.log").read_text(encoding="utf-8") == "autofix\ncheck\n"
     assert "skip" in skipped_fix.stdout.lower()
     assert "skip" in skipped_actionlint.stdout.lower()
 
