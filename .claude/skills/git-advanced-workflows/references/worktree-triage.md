@@ -86,8 +86,8 @@ independent anchors first:
 ```bash
 git update-ref "refs/salvage/<nnn>-<branch-slug>" "$sha"   # once per tip
 git for-each-ref --format="%(refname)" refs/salvage/ \
-  | git bundle create <outside-the-repo>/tips.bundle --stdin
-git bundle verify <outside-the-repo>/tips.bundle
+  | git bundle create "<outside-the-repo>/tips.bundle" --stdin
+git bundle verify "<outside-the-repo>/tips.bundle"
 ```
 
 `git bundle create` refuses a list of bare SHAs (`Refusing to create empty
