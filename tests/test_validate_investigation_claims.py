@@ -197,7 +197,7 @@ class TestSessionClaimsInvestigationOnly:
             "protocolCompliance": {
                 "sessionEnd": {
                     "qaValidation": {
-                        "evidence": "QA report: .agents/qa/report.md",
+                        "evidence": "QA report: .project-toolkit/qa/report.md",
                     }
                 }
             }

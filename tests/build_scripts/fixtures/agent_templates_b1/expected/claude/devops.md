@@ -94,7 +94,7 @@ When milestone-planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-devops-[feature].md`
+Save to: `.project-toolkit/planning/impact-analysis-devops-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - DevOps
@@ -421,7 +421,7 @@ Run before creating PRs to catch CI issues locally:
 
 ### CI Validation Report Template
 
-Save validation results to: `.agents/devops/ci-validation-[date].md`
+Save validation results to: `.project-toolkit/devops/ci-validation-[date].md`
 
 ```markdown
 # Local CI Validation Report
@@ -461,7 +461,7 @@ Save validation results to: `.agents/devops/ci-validation-[date].md`
 
 ## Infrastructure Documentation Format
 
-Save to: `.agents/devops/`
+Save to: `.project-toolkit/devops/`
 
 ### Pipeline Documentation
 

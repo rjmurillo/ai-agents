@@ -235,7 +235,7 @@ class TestPrecision:
 
     def test_ignores_consumer_workspace_directories(self) -> None:
         """The rule explicitly permits these. They are the plugin doing its job."""
-        text = _frontmatter("Writes its output to .agents/planning/ and docs/adr/.")
+        text = _frontmatter("Writes its output to .project-toolkit/planning/ and docs/adr/.")
         assert gate.scan_file(Path("x.md"), text) == []
 
     @pytest.mark.parametrize("phrase", ["build/buy/partner", "a build/deploy split"])

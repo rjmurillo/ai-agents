@@ -46,6 +46,6 @@ def test_push_pr_body_path_is_confined_by_its_tool_allowlist():
         text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
         assert 'new_pr.py" --prepare-body-file' in text
         frontmatter = text.split("---", maxsplit=2)[1]
-        assert "Edit(.agents/scratch/pr-body-*.md)" in frontmatter
+        assert "Edit(.project-toolkit/scratch/pr-body-*.md)" in frontmatter
         assert ", Write" not in frontmatter
         assert "python3 -c" not in text

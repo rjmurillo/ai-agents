@@ -278,7 +278,7 @@ def test_malformed_unterminated_destination_is_reported(tmp_path: Path) -> None:
 
 
 def test_missing_leading_dot_directory_is_reported(tmp_path: Path) -> None:
-    target = write(tmp_path, ".agents/architecture/ADR-036-two-source.md", "# target\n")
+    target = write(tmp_path, ".project-toolkit/architecture/ADR-036-two-source.md", "# target\n")
     doc = write(
         tmp_path,
         "templates/AGENTS.md",

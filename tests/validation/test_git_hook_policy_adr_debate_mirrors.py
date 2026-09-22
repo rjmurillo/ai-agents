@@ -36,7 +36,7 @@ _DEBATE_LOG_TEMPLATE_DOC = (
 
 
 _DEBATE_LOG_TEMPLATE_RE = re.compile(
-    r"Save to: `\.agents/critique/ADR-NNN-debate-log\.md`\s*\n+```markdown\n(.*?)\n```",
+    r"Save to: `\.project-toolkit/critique/ADR-NNN-debate-log\.md`\s*\n+```markdown\n(.*?)\n```",
     re.DOTALL,
 )
 

@@ -103,7 +103,7 @@ class TestExtractPathsFromText:
         assert unsafe == set()
 
     def test_extracts_dotfile_prefix(self) -> None:
-        text = "Write to .agents/sessions/log.json."
+        text = "Write to .project-toolkit/sessions/log.json."
         paths = _extract_paths_from_text(text)
         assert paths == {".agents/sessions/log.json"}
 
@@ -193,7 +193,7 @@ class TestMarkerPathDrift:
         (tmp_path / ".agents" / "sessions").mkdir(parents=True)
         text = _make_marker_file(
             ".agents/sessions",
-            "Write state to .agents/sessions for persistence.",
+            "Write state to .project-toolkit/sessions for persistence.",
         )
         failures = marker_path_drift(
             text, tmp_path, "skills/test/SKILL.md", _strip_code, _strip_inline_code
@@ -256,7 +256,7 @@ class TestMarkerPathDrift:
         """A consumer-workspace path that does not exist on disk passes."""
         text = _make_marker_file(
             ".agents/sessions",
-            "Write to .agents/sessions for state.",
+            "Write to .project-toolkit/sessions for state.",
         )
         # .agents/sessions does NOT exist under tmp_path but is exempt
         failures = marker_path_drift(
@@ -277,7 +277,7 @@ class TestMarkerPathDrift:
 
     def test_scratch_path_is_extracted(self) -> None:
         paths = _extract_paths_from_text(
-            "Write the PR body to .agents/scratch/pr-body-x.md."
+            "Write the PR body to .project-toolkit/scratch/pr-body-x.md."
         )
         assert paths == {".agents/scratch/pr-body-x.md"}
 
@@ -380,7 +380,7 @@ class TestMarkerPathDrift:
             "<!-- vendor-portability: declared. References "
             ".agents/sessions and .agents/architecture. -->\n"
             "<!-- old path: .agents/architecture/ADR-001.md -->\n"
-            "Write to .agents/sessions.\n"
+            "Write to .project-toolkit/sessions.\n"
         )
         failures = marker_path_drift(
             text, tmp_path, "skills/test/SKILL.md", _strip_code, _strip_inline_code

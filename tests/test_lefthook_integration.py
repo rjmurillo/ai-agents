@@ -1972,7 +1972,7 @@ def _write_session_log(
     mtime: float | None = None,
     raw: str | None = None,
 ) -> Path:
-    """Create a session log under .agents/sessions for branch-context tests.
+    """Create a session log under .project-toolkit/sessions for branch-context tests.
 
     ``legacy`` writes the pre-schema top-level ``branch`` instead of the
     canonical ``session.branch``. ``raw`` bypasses JSON construction to

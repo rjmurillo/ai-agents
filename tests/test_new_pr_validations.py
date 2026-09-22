@@ -297,4 +297,4 @@ class TestRunValidations:
         ):
             run_validations(str(tmp_path), "main", "feat/branch")
         stderr = capsys.readouterr().err
-        assert "Could not create .agents directory" in stderr
+        assert "Could not create .project-toolkit directory" in stderr

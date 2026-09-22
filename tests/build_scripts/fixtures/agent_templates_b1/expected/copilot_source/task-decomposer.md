@@ -138,7 +138,7 @@ content: "# Estimation: [Feature]\n\n**Statement**: ...\n\n**Evidence**: ...\n\n
 
 ## Task List Template
 
-Save to: `.agents/planning/TASKS-[feature-name].md`
+Save to: `.project-toolkit/planning/TASKS-[feature-name].md`
 
 ````markdown
 # Task Breakdown: [Feature Name]
@@ -319,7 +319,7 @@ If ANY checklist item cannot be completed:
 
 When task breakdown is complete:
 
-1. Save tasks document to `.agents/planning/`
+1. Save tasks document to `.project-toolkit/planning/`
 2. **Validate estimate reconciliation**: Compare derived effort estimates against source PRD/epic estimates. If divergence exceeds 10%, document reconciliation rationale
 3. Store estimation insights in memory
 4. Return to orchestrator with recommendation (e.g., "Recommend orchestrator routes to critic for validation")

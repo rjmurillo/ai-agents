@@ -51,7 +51,7 @@ def _run(repo_root: Path) -> subprocess.CompletedProcess[str]:
 
 
 def _scaffold(tmp_path: Path) -> Path:
-    """Create the three category dirs under tmp_path/.agents/specs/."""
+    """Create the three category dirs under tmp_path/.project-toolkit/specs/."""
     specs = tmp_path / ".agents" / "specs"
     for cat in ("requirements", "design", "tasks"):
         (specs / cat).mkdir(parents=True)

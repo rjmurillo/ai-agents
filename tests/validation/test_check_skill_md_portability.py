@@ -51,14 +51,14 @@ def _is_under_extra_scan_root(key: str, prefix: str) -> bool:
 class TestCountUpstreamRefs:
     def test_counts_each_prefix(self) -> None:
         text = (
-            "Write to .agents/analysis/foo.md and read .claude/lib/paths.py "
+            "Write to .project-toolkit/analysis/foo.md and read .claude/lib/paths.py "
             "and load .claude/review-axes/qa.md.\n"
         )
         assert cmp.count_upstream_refs(text) == 3
 
     def test_counts_windows_separators_and_mixed_case(self) -> None:
         text = (
-            "Save under .agents\\sessions and import from .CLAUDE\\lib\\github_core "
+            "Save under .project-toolkit\\sessions and import from .CLAUDE\\lib\\github_core "
             "and the .claude\\review-axes\\roadmap.md file.\n"
         )
         assert cmp.count_upstream_refs(text) == 3
@@ -587,7 +587,7 @@ class TestCodeBlockAndInlineHandling:
         assert cmp.count_upstream_refs(text) == 1
 
     def test_counts_inline_code_spans(self) -> None:
-        text = "See `.agents/sessions/` for examples; write to .agents/analysis/y.md.\n"
+        text = "See `.agents/sessions/` for examples; write to .project-toolkit/analysis/y.md.\n"
         assert cmp.count_upstream_refs(text) == 2
 
     def test_tilde_fences_are_stripped(self) -> None:
@@ -939,7 +939,7 @@ class TestExtraScanDirs:
         self._write_md(
             tmp_path,
             "templates/agents/drift.shared.md",
-            "Write to .agents/sessions/output.md\n",
+            "Write to .project-toolkit/sessions/output.md\n",
         )
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
@@ -1041,7 +1041,7 @@ class TestInstructionsScanRoot:
         self._write_md(
             tmp_path,
             "src/copilot-cli/instructions/drift.instructions.md",
-            "Write to .agents/sessions/output.md\n",
+            "Write to .project-toolkit/sessions/output.md\n",
         )
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
@@ -1605,7 +1605,7 @@ class TestAstCodeStripping:
             "   ```\n"
             "   ```\n"
             "\n"
-            "2. real: write to .agents/analysis/x.md\n"
+            "2. real: write to .project-toolkit/analysis/x.md\n"
         )
         assert cmp.count_upstream_refs(text) == 1
 
@@ -1625,7 +1625,7 @@ class TestAstCodeStripping:
             "Clean prose.\n", encoding="utf-8"
         )
         (skills / "SKILL.md").write_text(
-            "# Skill\n\nExample:\n\n    write to .agents/x.md\n", encoding="utf-8"
+            "# Skill\n\nExample:\n\n    write to .project-toolkit/x.md\n", encoding="utf-8"
         )
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")

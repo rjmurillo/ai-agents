@@ -41,7 +41,7 @@
       },
       {
         "prompt": "Do I create the session log at session start or end?",
-        "expected": "Neither by default, and no skill does this for you anymore (session-init and session-end were deleted 2026-08-20, Issue #5138). Session logs are optional; write one by hand against .agents/schemas/session-log.schema.json when you opt in, then validate it with scripts/validate_session_json.py."
+        "expected": "Neither by default, and no skill does this for you anymore (session-init and session-end were deleted 2026-08-20, Issue #5138). Session logs are optional; write one by hand against .project-toolkit/schemas/session-log.schema.json when you opt in, then validate it with scripts/validate_session_json.py."
       },
       {
         "prompt": "What command runs the investigation eligibility check for ADR-034 compliance?",
@@ -93,7 +93,7 @@
       },
       {
         "prompt": "How do I convert old markdown session logs in .agents/sessions/ to JSON now?",
-        "expected": "You do not. Legacy .md session logs remain archive content that git already preserves, and the session-migration skill that converted them was deleted 2026-06-03 (Issue #1946). Write new logs by hand as JSON against .agents/schemas/session-log.schema.json; do not edit archived markdown logs expecting conversion."
+        "expected": "You do not. Legacy .md session logs remain archive content that git already preserves, and the session-migration skill that converted them was deleted 2026-06-03 (Issue #1946). Write new logs by hand as JSON against .project-toolkit/schemas/session-log.schema.json; do not edit archived markdown logs expecting conversion."
       }
     ],
     "session-log-fixer": [

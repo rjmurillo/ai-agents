@@ -347,7 +347,7 @@ def test_serena_internal_path_filtered(tmp_path: Path) -> None:
 def test_filter_emits_warning_per_dropped_glob(tmp_path: Path, capsys) -> None:
     """Each dropped internal-only glob MUST emit a stderr warning.
 
-    Plugin authors who write `.agents/foo/**` in `paths` need a visible
+    Plugin authors who write `.project-toolkit/foo/**` in `paths` need a visible
     signal that the entry was filtered, not silent disappearance.
     """
     _write_rule(

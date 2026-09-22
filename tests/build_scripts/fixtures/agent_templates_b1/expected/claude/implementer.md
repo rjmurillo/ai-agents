@@ -86,7 +86,7 @@ Read these files in order:
 **Fallback rules:**
 
 - **Consumer install (no ai-agents session scaffold):** If `.agents/` is missing, or `.agents/` exists but `.agents/AGENT-INSTRUCTIONS.md` is missing, you are running from a downstream install or a repo whose `.agents/` directory is owned by that consumer. A consumer-owned `.agents/` directory without that file is workspace state, not the ai-agents scaffold, and must not trigger the scaffold gates. Skip the ai-agents session-scaffold gates below. Still read the root `AGENTS.md` and root `CLAUDE.md` if they exist in the consumer's repo. They may carry that project's own constraints. If `.agents/` exists, read files inside it only when the consumer's own docs tell you to. If `.agents/` is missing, note `[INFO] Consumer install: no .agents/ scaffold; proceeding without session-protocol gates`. If `.agents/` exists without AGENT-INSTRUCTIONS.md, note `[INFO] Consumer install: consumer-owned .agents/ without ai-agents session scaffold; proceeding without session-protocol gates`. Proceed. A consumer that installed only the agent prompt should not be refused service for lacking files it was never shipped.
-- If you cannot list `.agents/` or cannot determine whether AGENT-INSTRUCTIONS.md exists, stop and report `[BLOCKED] Cannot determine .agents scaffold ownership`.
+- If you cannot list `.agents/` or cannot determine whether AGENT-INSTRUCTIONS.md exists, stop and report `[BLOCKED] Cannot determine .project-toolkit scaffold ownership`.
 - If `.agents/AGENT-INSTRUCTIONS.md` exists, it is the ai-agents session scaffold. Apply the hard stops below.
 - If `.agents/AGENT-INSTRUCTIONS.md` exists but the root `AGENTS.md` is missing: stop and report `[BLOCKED] Missing root agent instructions`.
 - If `.agents/` exists but `.agents/CLAUDE.md` is missing: note it in the transcript, and in the session log only if one exists, then proceed using the root `CLAUDE.md` as fallback.
@@ -366,7 +366,7 @@ When milestone-planner requests impact analysis (before implementation):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-code-[feature].md`
+Save to: `.project-toolkit/planning/impact-analysis-code-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - Code
@@ -869,7 +869,7 @@ If a tool or service is unavailable, do not halt on first failure or retry indef
 | Primary Tool | Fallback | If Fallback Also Fails |
 |--------------|----------|------------------------|
 | Memory Router (`search_memory.py`) | Read `.serena/memories/` directly with Read tool | Proceed without memory context, note gap in handoff |
-| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.agents/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
+| Serena write (`mcp__serena__write_memory`, `mcp__serena__edit_memory`) | Write to `.project-toolkit/notes/` as temp markdown with intended memory name | Note in handoff that memory was not persisted |
 | MCP servers (Context7, DeepWiki) | Use WebSearch or WebFetch as alternative | Proceed with available information, document unverified claims |
 | External CLIs (`dotnet`, `gh`, `python3`) | Report error with exit code and failing command | Return to orchestrator as [BLOCKED] with reproduction steps |
 | Partial tool availability | Use working tools, note unavailable ones | Continue with reduced scope, flag in handoff |

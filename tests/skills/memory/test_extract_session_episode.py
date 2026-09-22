@@ -2576,7 +2576,7 @@ class TestValidateModeRejectsUnusableEventIds:
         episode may land with ids that tooling cannot index or with a commit
         chain that runs backwards in committer time (issue #3765).
         """
-        store = Path(__file__).resolve().parents[3] / ".agents" / "memory" / "episodes"
+        store = Path(__file__).resolve().parents[3] / ".project-toolkit" / "memory" / "episodes"
         if not store.is_dir():
             pytest.skip("episode store not present")
         event_id_problems = [

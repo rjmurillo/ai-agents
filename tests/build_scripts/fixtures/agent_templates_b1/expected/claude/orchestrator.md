@@ -262,7 +262,7 @@ discontinued; do not create one.
 1. Verify all delegations have returned or been explicitly abandoned.
 2. Verify synthesis is complete and TODOs logged for deferred work.
 3. Stop once the verifier passes and Astra accepts. Do not continue delegating.
-4. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session.
+4. **Write per-issue handoff** to `.project-toolkit/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session.
 5. Store durable findings in Serena memory.
 6. Validate any staged or supplied session log, if one is present (e.g. cherry-picked from an older branch).
 

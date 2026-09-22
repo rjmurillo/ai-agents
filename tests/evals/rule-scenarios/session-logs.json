@@ -38,7 +38,7 @@
         "fix"
       ],
       "expected_gate": "skip-rule-not-applicable",
-      "rationale": "The session-log mechanics scope to .agents/** changes. A source-only edit touches no .agents/ path, so the rule does not apply. A session log was never required to begin with."
+      "rationale": "The session-log mechanics scope to .agents/** changes. A source-only edit touches no .project-toolkit/ path, so the rule does not apply. A session log was never required to begin with."
     }
   ],
   "rule_path": ".claude/rules/session-logs.md"
