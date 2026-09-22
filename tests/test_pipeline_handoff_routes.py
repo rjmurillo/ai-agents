@@ -11,8 +11,11 @@ copy so a template edit that does not reach the install fails here:
 
 * the critic's ``## Handoff`` verdict routes name registered agents or the
   orchestrator (AC2);
-* the orchestrator's Routing Algorithm lifecycle chain names registered agents
-  and places ``critic`` before ``implementer`` (AC1).
+* the critic's ``## Handoff`` names every verdict its Verdict Rules table
+  defines, so a verdict the critic can emit always has a next step (AC2);
+* the orchestrator's Routing Algorithm lifecycle chain names registered agents,
+  places ``critic`` before ``implementer``, and keeps the readiness review
+  after ``qa`` (AC1).
 """
 
 from __future__ import annotations
@@ -35,6 +38,7 @@ ORCHESTRATOR_PATHS = (
 )
 
 _ROUTE = re.compile(r"(?:→|->)\s*(?:return to |escalate to )?([a-z][a-z-]+)")
+_VERDICT_ROW = re.compile(r"^\| \*\*([A-Z_]+)\*\* \|", re.MULTILINE)
 _CHAIN = re.compile(r"sequential routing:\s*(.+)")
 
 
@@ -72,6 +76,17 @@ def test_critic_verdict_routes_name_registered_agents(path: Path) -> None:
     assert not unknown, f"{path}: handoff routes to unregistered agents {unknown}"
 
 
+@pytest.mark.parametrize("path", CRITIC_PATHS, ids=str)
+def test_critic_handoff_routes_every_verdict_it_can_emit(path: Path) -> None:
+    """REQ-029 AC2: each verdict in the Verdict Rules table has a handoff route."""
+    text = (REPO_ROOT / path).read_text(encoding="utf-8")
+    verdicts = set(_VERDICT_ROW.findall(text))
+    assert verdicts >= {"APPROVED", "APPROVED_WITH_CONCERNS", "NEEDS_REVISION", "BLOCKED"}, verdicts
+    section = handoff_section(text)
+    missing = sorted(v for v in verdicts if v not in section)
+    assert not missing, f"{path}: Handoff names no route for {missing}"
+
+
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
 def test_orchestrator_lifecycle_chain_gates_implementer_behind_critic(path: Path) -> None:
     """REQ-029 AC1: the lifecycle chain names real agents and runs critic before implementer."""
@@ -85,4 +100,7 @@ def test_orchestrator_lifecycle_chain_gates_implementer_behind_critic(path: Path
     assert "critic" in agents and "implementer" in agents, f"{path}: chain is {names}"
     assert agents.index("critic") < agents.index("implementer"), (
         f"{path}: critic must gate implementer, chain is {names}"
+    )
+    assert "qa" in agents and agents[-1] == "critic" and agents.index("qa") < len(agents) - 1, (
+        f"{path}: readiness review must follow qa, chain is {names}"
     )

@@ -13,7 +13,9 @@ behind. Treat "dirty" as "owned" and every orphaned issue stays frozen.
 
 A worktree is LIVE only when its newest file touch is under about 60 minutes
 old. Anything older with uncommitted edits or unpushed commits is ABANDONED and
-is a harvest candidate, not an exclusion zone.
+is a harvest candidate, not an exclusion zone. The age is a first filter, not
+a verdict: a long read-only review phase can pass 60 minutes without a write,
+so Step 2 confirms with the file list before you act.
 
 ```bash
 newest=$(find "$p" -path '*/.git' -prune -o -type f -printf '%T@\n' | sort -rn | head -1)
@@ -43,9 +45,14 @@ either; GitHub deletes head branches after merge.
 Test whether the branch's own changed files still differ from `main`:
 
 ```bash
-own=$(git -C "$p" diff origin/main...HEAD --name-only)
-git -C "$p" diff origin/main HEAD --name-only -- $own | wc -l
+git -C "$p" diff -z --name-only origin/main...HEAD \
+  | xargs -0 git -C "$p" diff --name-only origin/main HEAD -- \
+  | wc -l
 ```
+
+The NUL-delimited pipe keeps a path with spaces, tabs, or glob characters as
+one pathspec; an unquoted `$own` expansion would split it and drop the file
+from the comparison.
 
 The count is an upper bound (it also counts files `main` moved on its own).
 Treat it as a triage signal, never as a finding.
@@ -84,10 +91,12 @@ Removing a worktree drops its tip when nothing else references it. Create two
 independent anchors first:
 
 ```bash
+SALVAGE_DIR="$HOME/salvage"   # any directory outside the repository
+mkdir -p "$SALVAGE_DIR"
 git update-ref "refs/salvage/<nnn>-<branch-slug>" "$sha"   # once per tip
 git for-each-ref --format="%(refname)" refs/salvage/ \
-  | git bundle create "<outside-the-repo>/tips.bundle" --stdin
-git bundle verify "<outside-the-repo>/tips.bundle"
+  | git bundle create "$SALVAGE_DIR/tips.bundle" --stdin
+git bundle verify "$SALVAGE_DIR/tips.bundle"
 ```
 
 `git bundle create` refuses a list of bare SHAs (`Refusing to create empty
