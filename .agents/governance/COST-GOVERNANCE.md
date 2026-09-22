@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines cost optimization policies and practices for the AI Agents project, focusing on GitHub Actions infrastructure costs.
+This document outlines cost optimization policies and practices for the AI Agents project, covering GitHub Actions infrastructure costs and work-selection-attributed model token costs.
 
 ## GitHub Actions Cost Policy
 
@@ -85,6 +85,7 @@ jobs:
 
 ### Review Cadence
 
+- **Weekly**: Review source split, machinery share, retries and unsuccessful work, token and cost coverage, accepted-task completion, residual defects, human correction time, wall time, retrospectives, always-on context bytes, and tokens per merged PR. Treat missing telemetry as unknown. **Source:** #5702, `scripts/validation/instruction_budget.py`, and `scripts/validation/passive_context_budget.py`.
 - **Monthly**: Review runner usage and costs
 - **Quarterly**: Evaluate ARM compatibility of remaining x64 workloads
 - **Annually**: Review runner selection policy against GitHub pricing changes
@@ -146,6 +147,48 @@ Before migrating to ARM:
 |------------|-------------|-----------------|
 | Workflow path filter optimization | Q1 2026 | 20-30% reduction in unnecessary runs |
 | Dependency caching improvements | Q1 2026 | 10-15% execution time reduction |
+
+## Model Token Cost Policy
+
+### Cost Model
+
+For one task, model token cost is a fraction of human cost. Over a period, total model cost is that fraction multiplied by the number of tasks agents choose to run. Agents set that multiplier through work selection, so the relevant split is human-selected versus agent-selected work. This policy covers work-selection-attributed period cost. It does not claim that the repository tracks all model token spend.
+
+**Refs:** #5436, #5702, and the review corrections in #5705.
+
+### Metrics to Track
+
+Review these metrics weekly:
+
+- Issues created per week by mutually exclusive recorded provenance bucket: human-only (`source:human` without `source:agent`), agent-only (`source:agent` without `source:human`), conflict (both labels), and unknown (unlabeled). Labels record provenance; they do not independently verify who selected the work.
+- The share of new issues about repository machinery, including validators, ratchets, hooks, ADRs, `pr-autofix`, and memory. Treat title matching as a labeled heuristic, not causal attribution.
+- Retries and unsuccessful work.
+- Token and cost coverage, including where the harness exposes token data. Missing coverage is unknown.
+- Accepted-task completion, residual defects, human correction time, and wall time.
+- Count retrospectives per week.
+- Always-on context bytes per session. Parse rule frontmatter for `paths: ["**"]` before summing file bytes. Static rule bytes are not per-session token consumption.
+- Tokens per merged PR where the harness exposes them.
+
+**Source:** #5702 defines the read-only provenance and machinery measurement surface. The existing `scripts/validation/instruction_budget.py` and `scripts/validation/passive_context_budget.py` provide related context-budget surfaces; neither currently reads Claude rule frontmatter.
+
+### Baseline (2026-09-10)
+
+The historical snapshot recorded in #5705 reported:
+
+- 405 issues created in 30 days and 278 closed. A backlog snapshot reported 228 open issues, with 200 open issues under 20 days old.
+- 96 retrospectives in 40 days.
+- Five globally scoped Claude rule files totaling 56,984 static bytes, about 57 KB: `voice.md`, `builder-ethos.md`, `universal.md`, `search-before-building.md`, and `claude-model-patches.md`.
+- The other 24 rule files totaling 220 KB were path-scoped and loaded only when a matching path was edited.
+
+The historical retrieval metadata is incomplete: the backlog query is not recorded, the state filter is not recorded, the retrieval date is 2026-09-10 but the time is not recorded, and the source SHA is not recorded. The reproducible rule-byte query is to parse YAML frontmatter in `.claude/rules/*.md` for `paths: ["**"]` and sum file bytes, but the cited snapshot's retrieval time and source SHA are not recorded. These figures are historical context, not recomputed acceptance evidence. Recompute issue, provenance, and machinery figures through #5702. For rule bytes, use a reproducible reader that parses the frontmatter; the cited budget tools do not currently perform that read. Missing token, retry, completion, defect, correction-time, or wall-time telemetry is unknown.
+
+**Source:** #5705's historical snapshot and review corrections; #5702; `scripts/validation/instruction_budget.py`; `scripts/validation/passive_context_budget.py`.
+
+### Runaway Condition
+
+Raise an owner-reviewed signal when the weekly report shows agent-sourced share exceeds 50 percent of new issues or more than 3 retrospectives in a week. These are review signals, not automatic enforcement thresholds. A human maintainer must decide whether this signal is a significant governance change under `governance.md` MUST 2 and whether an ADR is required. This issue does not create that ADR.
+
+**Source:** #5705 review corrections, `.claude/rules/governance.md` MUST 2, and #5702.
 
 ## References
 
