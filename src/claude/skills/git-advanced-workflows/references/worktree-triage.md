@@ -34,10 +34,10 @@ python3 -c "import time,sys; print(int((time.time()-float(sys.argv[1]))/60))" "$
 Windows PowerShell:
 
 ```powershell
-$newest = Get-ChildItem $p -Recurse -File |
+$newest = Get-ChildItem -LiteralPath $p -Recurse -File |
   Where-Object FullName -NotMatch '[\\/]\.git[\\/]' |
   Sort-Object LastWriteTime -Descending | Select-Object -First 1
-[int]((Get-Date) - $newest.LastWriteTime).TotalMinutes
+[int](((Get-Date) - $newest.LastWriteTime).TotalMinutes)
 ```
 
 The later steps are Bash; run them from Git Bash or WSL on Windows.

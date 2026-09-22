@@ -80,13 +80,18 @@ def agents_on(line: str) -> set[str]:
 
 
 def route_lines(text: str, verdicts: set[str]) -> dict[str, str]:
-    """Map each verdict to the one line in ``text`` that routes it."""
-    found: dict[str, str] = {}
+    """Map each verdict to every line in ``text`` that routes it, joined.
+
+    Joining keeps a stale second clause visible: ``APPROVED → qa`` on one line
+    and ``APPROVED → implementer`` on another yields both targets, which the
+    exact-set assertion then rejects.
+    """
+    found: dict[str, list[str]] = {}
     for line in text.splitlines():
         for verdict in verdicts:
             if re.search(rf"\b{verdict}\b", line):
-                found[verdict] = line
-    return found
+                found.setdefault(verdict, []).append(line)
+    return {verdict: " ".join(lines) for verdict, lines in found.items()}
 
 
 def chain_names(line: str) -> list[str]:
