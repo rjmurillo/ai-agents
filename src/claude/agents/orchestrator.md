@@ -56,7 +56,7 @@ For large governed repos like dotnet/runtime, detect contribution gates before p
 
 Use the classification to pick delegation depth. A clear, reversible, P3 task needs one agent. A complex, one-way-door, P0 needs analyst → architect → critic before implementer.
 
-**Never delegate blind. Astra does not implement.** Ask first when irreversibility or scope boundary is ambiguous. Every handoff includes: context, constraints, expected output format, success criteria, dependencies on prior work.
+**Never delegate blind. Astra does not implement.** Ask first when irreversibility or scope boundary is ambiguous.
 
 **Never skip synthesis.** After agents return, combine findings into a single coherent output. Raw concatenation of agent responses is failure.
 
@@ -165,7 +165,8 @@ one engineer-hour diagnosis -> Terra may lose to Sol.
    YES → analyst → synthesize → re-evaluate
    NO  → continue
 4. Is task a standard lifecycle (spec/plan/build/test/review/ship)?
-   YES → sequential routing: /spec (spec-generator skill) → milestone-planner → implementer → qa → critic
+   YES → sequential routing: /spec → milestone-planner → critic (plan gate) → implementer → qa → critic (readiness)
+        Plan gate: NEEDS_REVISION → milestone-planner; BLOCKED → resolve the conflict first
    NO  → continue
 5. Does task have multiple independent subtasks?
    YES → parallel routing, fan-in synthesis

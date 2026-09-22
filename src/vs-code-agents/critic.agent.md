@@ -234,7 +234,7 @@ You cannot delegate. Return to orchestrator with:
 3. Critical findings count
 4. Recommended next step:
    - APPROVED → implementer
-   - NEEDS_REVISION → return to planner with findings
+   - NEEDS_REVISION → return to milestone-planner (or task-decomposer, whichever produced the plan) with findings
    - BLOCKED → escalate to orchestrator for conflict resolution
 
 **Think**: What breaks first? What is missing?
