@@ -12,7 +12,7 @@ The war stories behind each recipe in `../SKILL.md`. Each incident is why the re
 
 ## Recipe 2: Guard and Threshold Calibration
 
-**Worked example (#1989 M4)**: the rework-warning detector shipped with threshold 6. Replayed against its own PR: `--diff-filter=R` semantics were wrong (returned 0 files reworked) and the maximum file-edit count on the branch was 4. The detector could NEVER fire on ordinary work in this repo (`.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:70`). Recalibrated recommendation: threshold 2 or 3, or a relative measure. <!-- citation-freshness: ignore -- historical work product -->
+**Worked example (#1989 M4)**: the rework-warning detector shipped with threshold 6. Replayed against its own PR: `--diff-filter=R` semantics were wrong (returned 0 files reworked) and the maximum file-edit count on the branch was 4. The detector could NEVER fire on ordinary work in this repo (`.agents/retrospective/2026-05-10-pr-1989-recursive-failure.md:70`). Recalibrated recommendation: threshold 2 or 3, or a relative measure. <!-- agents-write-target: historical -- archived work product; citation-freshness: ignore -- historical work product -->
 
 **Worked example (#1887 Phase-6 audit)**: the guard framework took 69 commits and 254 review conversations to land. The Phase 6 evidence audit then asked the calibration question retroactively: would the as-shipped guards have prevented the PR's own 35 fix commits? Answer: 0 of 35 (`.agents/retrospective/2026-05-05-pr-1887-iteration-paradox.md:199` and the total at line 230). Calibrate BEFORE the 69 commits, not after.
 
