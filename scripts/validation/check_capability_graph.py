@@ -70,6 +70,14 @@ CANONICAL_GLOBS: tuple[tuple[str, str], ...] = (
     ("templates/rules", "*.md"),
 )
 
+# The per-harness agent templates render beside the shared body, so a block
+# declared in one of them would be invisible to the other harness and could
+# double-declare an owner. One declaration site per agent: the shared file.
+AGENT_HARNESS_GLOBS: tuple[tuple[str, str], ...] = (
+    ("templates/agents", "*.claude.md.tmpl"),
+    ("templates/agents", "*.copilot.md.tmpl"),
+)
+
 PROJECTION_GLOBS: tuple[tuple[str, str], ...] = (
     (".claude/skills", "*/SKILL.md"),
     (".claude/agents", "*.md"),
@@ -165,14 +173,36 @@ def _optional(block: dict[str, object], key: str) -> str | None:
 
 
 def _names(value: object) -> tuple[str, ...]:
-    """Coerce an `owns` or `depends-on` value to a sorted tuple of names."""
-    if value is None:
-        return ()
+    """Return an `owns` or `depends-on` value as a sorted tuple of names.
+
+    Only the two shapes the schema allows survive: a bare string, and a list of
+    strings. Anything else returns empty AND is reported by `_field_defect`, so
+    a malformed declaration is never silently indistinguishable from an absent
+    one. Splitting the report from the read keeps this function total for the
+    callers that only need the names.
+    """
     if isinstance(value, str):
         return (value,)
-    if isinstance(value, list):
-        return tuple(sorted(str(entry) for entry in value))
+    if isinstance(value, list) and all(isinstance(entry, str) for entry in value):
+        return tuple(sorted(value))
     return ()
+
+
+def _field_defect(rel: str, field_name: str, value: object) -> str | None:
+    """Return why an `owns` or `depends-on` value has the wrong shape."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return None
+    if not isinstance(value, list):
+        return (
+            f"{rel}: {field_name} is {type(value).__name__}, "
+            "not a capability name or a list of them"
+        )
+    bad = [entry for entry in value if not isinstance(entry, str)]
+    if bad:
+        return f"{rel}: {field_name} holds a non-string entry: {bad[0]!r}"
+    return None
 
 
 def _has_replacement(block: dict[str, object]) -> bool:
@@ -191,6 +221,8 @@ def _has_replacement(block: dict[str, object]) -> bool:
 def _block_defects(rel: str, block: dict[str, object]) -> list[str]:
     """Return every shape defect in one capability block."""
     defects: list[str] = []
+    if not block:
+        return [f"{rel}: declares an empty `capability` block; declare a kind, or remove it"]
     unknown = sorted(key for key in block if key not in BLOCK_KEYS)
     if unknown:
         keys = ", ".join(f"`{key}`" for key in unknown)
@@ -207,7 +239,12 @@ def _block_defects(rel: str, block: dict[str, object]) -> list[str]:
             "`replacement-platform` and `replacement-owner`"
         )
     for field_name in ("owns", "depends-on"):
-        for name in _names(block.get(field_name)):
+        value = block.get(field_name)
+        shape = _field_defect(rel, field_name, value)
+        if shape:
+            defects.append(shape)
+            continue
+        for name in _names(value):
             if not NAME_RE.match(name):
                 defects.append(f"{rel}: {field_name} name `{name}` is not [a-z0-9-]{{1,64}}")
     return defects
@@ -236,6 +273,41 @@ def _is_canonical(rel: str) -> bool:
     return not rel.startswith(PROJECTION_PREFIXES)
 
 
+def _has_capability_block(text: str) -> bool:
+    """Return True when the frontmatter carries a `metadata.capability` mapping."""
+    try:
+        front = _frontmatter(text)
+    except (UnsupportedApplyToError, yaml.YAMLError):
+        return False
+    metadata = front.get("metadata")
+    return isinstance(metadata, dict) and isinstance(metadata.get("capability"), dict)
+
+
+def _harness_template_defects(repo_root: Path) -> list[str]:
+    """Refuse a capability block in a per-harness agent template.
+
+    An agent has one shared body and two per-harness templates. A block in
+    either template would declare the capability for one harness only, and a
+    block in both would read as two owners of one capability. The shared file
+    is the single declaration site.
+    """
+    defects: list[str] = []
+    for subdir, pattern in AGENT_HARNESS_GLOBS:
+        tree = repo_root / subdir
+        if not tree.is_dir():
+            continue
+        for path in sorted(tree.glob(pattern)):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            if _has_capability_block(text):
+                rel = path.relative_to(repo_root).as_posix()
+                stem = path.name.split(".")[0]
+                defects.append(
+                    f"{rel}: declares a capability block; declare it once in "
+                    f"templates/agents/{stem}.shared.md instead"
+                )
+    return defects
+
+
 def collect_nodes(repo_root: Path) -> tuple[list[Node], list[str]]:
     """Return every node carrying a capability block, plus shape defects.
 
@@ -244,7 +316,7 @@ def collect_nodes(repo_root: Path) -> tuple[list[Node], list[str]]:
     clean run.
     """
     nodes: list[Node] = []
-    defects: list[str] = []
+    defects: list[str] = _harness_template_defects(repo_root)
     for path in _candidate_files(repo_root):
         rel = path.relative_to(repo_root).as_posix()
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -333,18 +405,28 @@ def _find_cycle(edges: dict[str, tuple[str, ...]]) -> list[str] | None:
     return None
 
 
+def _windows(text: str) -> set[tuple[str, ...]]:
+    """Return every contiguous MIN_COPIED_RUN-line window in the text.
+
+    Adjacency is the point. An earlier version collected the owner's lines into
+    a set, which discarded their order: a consumer whose lines A, B, C each
+    appeared somewhere in the owner matched even when the owner never held
+    A, B, C together. Windows keep both sides contiguous, so only a real copied
+    block matches.
+    """
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return {
+        tuple(lines[index : index + MIN_COPIED_RUN])
+        for index in range(len(lines) - MIN_COPIED_RUN + 1)
+    }
+
+
 def _shared_run(consumer: str, owner: str) -> bool:
-    """Return True when the two texts share a long run of consecutive lines."""
-    consumer_lines = [line.strip() for line in consumer.splitlines() if line.strip()]
-    owner_lines = {line.strip() for line in owner.splitlines() if line.strip()}
-    run: list[str] = []
-    for line in consumer_lines:
-        if line in owner_lines:
-            run.append(line)
-            if len(run) >= MIN_COPIED_RUN and sum(len(item) for item in run) >= MIN_COPIED_CHARS:
-                return True
-        else:
-            run = []
+    """Return True when the two texts share one contiguous block of lines."""
+    owner_windows = _windows(owner)
+    for window in _windows(consumer):
+        if window in owner_windows and sum(len(line) for line in window) >= MIN_COPIED_CHARS:
+            return True
     return False
 
 
@@ -419,17 +501,19 @@ def render(nodes: list[Node], owners: dict[str, Node], fmt: str) -> str:
     return "\n".join(lines)
 
 
-def validate_capability_graph(repo_root: Path) -> bool:
-    """Return True when every declaration resolves and the graph is acyclic.
+def survey(repo_root: Path) -> tuple[list[Node], dict[str, Node], list[str]]:
+    """Read the trees once and return the nodes, the owners, and every finding.
 
-    Entry point matching the ``validate_*(repo_root) -> bool`` contract that
-    ``pre_pr_sequence.py`` expects.
+    One reader for both modes. Report mode used to render from its own shorter
+    path, which skipped every check and exited zero over a broken graph.
     """
     nodes, defects = collect_nodes(repo_root)
     owners, owner_findings = build_owner_index(nodes)
-    findings = sorted(defects) + owner_findings + check_graph(nodes, owners)
-    if not findings:
-        return True
+    return nodes, owners, sorted(defects) + owner_findings + check_graph(nodes, owners)
+
+
+def _report_findings(findings: list[str]) -> None:
+    """Print findings to stderr in the gate's usual shape."""
     print(f"[FAIL] {len(findings)} capability graph violation(s):", file=sys.stderr)
     for finding in findings:
         print(f"  {finding}", file=sys.stderr)
@@ -439,6 +523,18 @@ def validate_capability_graph(repo_root: Path) -> bool:
         "restating its policy. Contract: .agents/architecture/ADR-110-capability-ownership-dag.md",
         file=sys.stderr,
     )
+
+
+def validate_capability_graph(repo_root: Path) -> bool:
+    """Return True when every declaration resolves and the graph is acyclic.
+
+    Entry point matching the ``validate_*(repo_root) -> bool`` contract that
+    ``pre_pr_sequence.py`` expects.
+    """
+    _nodes, _owners, findings = survey(repo_root)
+    if not findings:
+        return True
+    _report_findings(findings)
     return False
 
 
@@ -455,16 +551,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[FAIL] Invalid repository root: {repo_root}", file=sys.stderr)
         return 2
     try:
-        if args.report:
-            nodes, _ = collect_nodes(repo_root)
-            owners, _ = build_owner_index(nodes)
-            print(render(nodes, owners, args.report))
-            return 0
-        ok = validate_capability_graph(repo_root)
+        nodes, owners, findings = survey(repo_root)
     except TreeError as exc:
         print(f"[FAIL] {exc}", file=sys.stderr)
         return 2
-    return 0 if ok else 1
+    if args.report:
+        # The report renders either way, because a reader debugging a broken
+        # graph wants to see it. The exit code still reports the findings, so a
+        # caller cannot read a rendered report as a clean run.
+        print(render(nodes, owners, args.report))
+    if findings:
+        _report_findings(findings)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

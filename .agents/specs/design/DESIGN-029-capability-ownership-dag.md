@@ -52,6 +52,11 @@ A retiring capability names where its work goes next. `replaced-by` answers
 that with one internal capability. An external successor needs both halves,
 because a platform with no owner names nobody to ask.
 
+One declaration site per artifact: a skill's `SKILL.md` template, a rule's
+Markdown file, and an agent's `*.shared.md` body. A capability block found in
+`templates/agents/*.claude.md.tmpl` or `*.copilot.md.tmpl` is a defect, because
+it would bind one harness only.
+
 Every field is optional at the artifact level. A file with no `capability` block
 is not a node, which is what makes adoption incremental. A file with a block
 declares every field it uses, and the validator rejects an unknown key inside
@@ -80,7 +85,12 @@ a CLI entry point. Complexity stays at or under 10 per function.
 | `collect_nodes(roots)` | Walk the canonical template trees, parse frontmatter, return one node record per file carrying a capability block |
 | `build_owner_index(nodes)` | Return the owner index, reporting a duplicate owner and a projection that claims ownership |
 | `check_graph(nodes, owners)` | Return findings for missing dependency, self dependency, cycle, and a consumer repeating its owner's text |
+| `survey(repo_root)` | Read the trees once and return nodes, owners, and findings, so validate and report modes cannot diverge |
 | `render(nodes, graph, fmt)` | Emit the deterministic report as text or JSON, sorted by capability name |
+
+The copied-policy check compares contiguous line windows on both sides. An
+earlier form collapsed the owner's lines into a set, which discarded their
+order and failed a consumer whose lines merely appeared somewhere in the owner.
 
 The cycle check is an iterative depth-first search over the adjacency list with
 an explicit stack, so a deep graph cannot exhaust the interpreter stack. Nodes

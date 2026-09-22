@@ -74,10 +74,23 @@ R3-2 is the same objection the critic raised as C6, reaching further than the
 first fix did. C6 saved the consumer-specific procedure; R3-1 and R3-2 save the
 shared core as text rather than as a citation.
 
+## Revision 4, review round 1 on PR #5879
+
+An automated reviewer on the pull request found three defects in the validator
+and raised two design questions. All five were accepted.
+
+| ID | Finding | Fix |
+|---|---|---|
+| D1 | `_shared_run` collapsed the owner's lines into a set, so a consumer whose lines each appeared somewhere in the owner failed even when the owner held no such block | Compares contiguous windows on both sides. Regression test: `test_scattered_owner_lines_do_not_count_as_a_copied_block` |
+| D2 | `--report` rendered from its own shorter path, so a broken graph printed a report and exited zero | One `survey` reads the trees for both modes. The report still renders, and the exit code reports the findings |
+| D3 | `_names` normalized a mapping or a non-string entry to empty, so a malformed declaration was indistinguishable from an absent one | `_field_defect` reports the shape, and `_names` accepts only the two shapes the schema allows |
+| D4 | The agent declaration site was ambiguous between `*.shared.md` and the per-harness templates | One site per class, stated in the record and enforced: a block in a per-harness template is a defect naming the shared file |
+| D5 | An empty capability block counted as a node | An empty block is a defect |
+
 ## Verification after revision
 
 - `uv run python scripts/validation/check_capability_graph.py .` exits 0 against
   the real trees.
-- `uv run pytest tests/validation/test_check_capability_graph.py -q` reports 23
-  passed.
+- `uv run pytest tests/validation/test_check_capability_graph.py -q` reports 29
+  passed after revision 4.
 - Counts in the record were recomputed from the tree, not carried forward.

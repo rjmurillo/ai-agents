@@ -94,6 +94,13 @@ skill templates already carry free-form keys under it with no harness warning
 (`repo-observed`). No new top-level frontmatter key is introduced, and no
 manifest file is created.
 
+Each artifact class has exactly one declaration site. A skill declares in its
+`SKILL.md` template, a rule in its Markdown file, and an agent in its
+`*.shared.md` body rather than in either per-harness template. The per-harness
+templates render beside the shared body, so a block in one of them would
+declare the capability for one harness only, and a block in both would read as
+two owners of one capability. The gate refuses a block found in either.
+
 ### 2. Four kinds, and the list is closed
 
 `orchestrator`, `specialized-implementation`, `reusable-primitive`,
