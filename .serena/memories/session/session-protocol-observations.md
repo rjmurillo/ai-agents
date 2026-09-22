@@ -1,51 +1,36 @@
-# Skill Sidecar Learnings: Session Protocol
+<!-- placement: evidence; reason: dated PR #908 measurements, kept as the evidence behind the pre-PR and commit-count gates rather than as the gates themselves -->
+
+# Session Sidecar Learnings: PR #908
 
 **Last Updated**: 2026-01-21
 **Sessions Analyzed**: 2 (Session 07, PR #908 retrospective)
 
-## Constraints (HIGH confidence)
+Authoritative owners: `scripts/validation/pr_commit_count.py` holds the commit
+thresholds, and the pre-PR validation gates enforce the rest. This file keeps
+the measurements that motivated them.
 
-- Context compaction does NOT exempt session from protocol - continuation sessions require SAME initialization (Serena activation, HANDOFF.md read, session log creation) as fresh sessions (Session 07, 2026-01-16)
-  - Evidence: PR #845 session protocol violation - work started without initialization after context compaction, no HANDOFF read, no Serena activation, no session log creation, HIGH severity protocol violation
-- Verify no BLOCKING synthesis issues before PR creation - architect blocks MUST be enforced (PR #908, 2026-01-15)
-  - Evidence: PR #908 created despite architect P1 BLOCKING review in DESIGN-REVIEW-skill-reflect.md, leading to 228+ comments
-  - Reference: Issue #934 (pre-PR validation)
-- Check commit count during session against the enforced limit (block above 20 commits per PR, or above 40 once the branch merges main, warn at 10) (PR #908, 2026-01-15)
-  - Evidence: PR #908 reached 59 commits (3× limit) without agent awareness, no visibility of limit during session
-  - Actionable: Display "Commit X/20", or "X/40" once the branch merges main, after each commit; thresholds live in `scripts/validation/pr_commit_count.py`
-- Run scoped markdownlint on changed files only, not entire repository (PR #908, 2026-01-15)
-  - Evidence: `markdownlint --fix **/*.md` reformatted 53 memory files in PR #908 that were unrelated to the feature
-  - Actionable: Use `markdownlint --fix $(git diff --name-only '*.md')` instead
+## Measurements (PR #908, 2026-01-15)
 
-## Preferences (MED confidence)
+| Signal | Value | Consequence |
+|---|---|---|
+| Comments on the pull request | 228+ | created despite an unresolved architect P1 BLOCKING review in `DESIGN-REVIEW-skill-reflect.md` |
+| Commits on the branch | 59 | three times the limit, with no in-session visibility of the count |
+| Memory files reformatted | 53 | `markdownlint --fix **/*.md` touched files unrelated to the change |
 
-- None yet
+Repository responses that followed: pre-PR validation (Issue #934), the commit
+thresholds in `scripts/validation/pr_commit_count.py` (block above 20 per pull
+request, above 40 once the branch merges main, warn at 10), and scoping
+markdownlint to `git diff --name-only '*.md'` rather than the whole tree.
 
-## Edge Cases (MED confidence)
+## Transferable reading
 
-- None yet
+Each of the three failures was invisible from inside the session. The agent
+could not see the comment count climbing, the commit count, or which files a
+glob had touched. A limit nobody can read during the work is not a limit.
 
-## Notes for Review (LOW confidence)
-
-- None yet
-
-## Case Studies
-
-### PR #908 - 228 Comment Failure (2026-01-15)
-
-Key learnings from PR #908 retrospective that inform session protocol:
-
-1. **Pre-PR validation is critical**: PR created with unresolved architect BLOCKING review
-2. **Commit limits need visibility**: 59 commits exceeded the commit limit invisibly
-3. **Tool scope matters**: Broad markdownlint bundled 53 unrelated files
-
-See: `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md`
+See `.agents/retrospective/2026-01-15-pr-908-comprehensive-retrospective.md`.
 
 ## Related
 
-- [session-109-export-analysis-findings](session-109-export-analysis-findings.md)
-- [session-110-agent-upgrade](session-110-agent-upgrade.md)
-- [session-111-investigation-allowlist](session-111-investigation-allowlist.md)
-- [session-112-pr-712-review](session-112-pr-712-review.md)
-- [session-113-pr-713-review](session-113-pr-713-review.md)
-- PR #908 retrospective (evidence for constraints above)
+- [session-observations](session-observations.md)
+- [../protocol/protocol-001-verificationbased-gates](../protocol/protocol-001-verificationbased-gates.md)

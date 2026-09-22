@@ -79,5 +79,5 @@ Full analysis: `.agents/analysis/context-engineering.md`
 - [memory-token-efficiency](memory-token-efficiency.md)
 - [retrieval-led-reasoning-2026-02-08](retrieval-led-reasoning-2026-02-08.md)
 - [passive-context-vs-skills-vercel-research](passive-context-vs-skills-vercel-research.md)
-- [artifact-token-efficiency](artifact-token-efficiency.md)
-- [memory-index](memory-index.md)
+- [artifact-token-efficiency](../cost/artifact-token-efficiency.md)
+- [memory-index](../memory-index.md)

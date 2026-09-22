@@ -86,7 +86,7 @@ graph LR
 
 ## Related
 
-- [[protocol-013-verification-based-enforcement]] - Enforcement patterns
+- [[protocol-014-trust-antipattern]] - Enforcement patterns
 - [[protocol-014-trust-antipattern]] - Trust vs. verification
 - [[adr-037-sync-evidence-gaps]] - Evidence requirements
 

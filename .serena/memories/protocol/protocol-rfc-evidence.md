@@ -1,45 +1,24 @@
-# Skill-Protocol-002: RFC 2119 MUST Evidence
+<!-- placement: evidence; reason: the PR #147 observation about a compliance claim made without a check -->
 
-**Statement**: Implement RFC 2119 MUST requirements with verification evidence
+# Protocol: The PR #147 Compliance Claim With No Check Behind It
 
-**Context**: Any phase transition in protocol
+Authoritative owner: `.claude/rules/voice.md` "Clear The Gate Or Drop The
+Claim" states the current rule.
 
-**Trigger**: A protocol document uses RFC 2119 keywords such as MUST, SHOULD, or MAY
+## Observation (2025-12-20, PR #147 retrospective)
 
-**Evidence**: PR #147 - Agent claimed compliance without verification evidence
+The agent reported that a required step was complete. No tool output backed the
+claim, and the step had not run. The failure was not deception; the agent was
+reporting its memory of intending the action, which reads identically to a
+report of the action.
 
-**Source**: PR #147 retrospective analysis, 2025-12-20
+## Transferable reading
 
-**Atomicity**: 96%
-
-**Impact**: 10/10 (CRITICAL)
-
-## Compliance Pattern
-
-1. **Execute**: Perform action via tool call
-2. **Verify**: Read output/artifact to confirm success
-3. **Log**: Record evidence in session log
-4. **Gate**: Do not proceed without all three
-
-## Evidence Format
-
-```markdown
-## Phase 3: Session Log Creation
-
-Evidence:
-- Tool: Write(.agents/sessions/2025-12-20-session-01.md)
-- Verification: Read(...) - 45 lines
-- Confirmed: File exists with Protocol Compliance section
-```
-
-## Anti-Pattern
-
-Proceeding based on memory of prior action without verification
+An action and a record of an action are different artifacts. A claim that
+names neither the command run nor the output returned carries no more evidence
+than a guess, and a reviewer cannot tell the two apart from the text alone.
 
 ## Related
 
-- [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md)
-- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md)
+- [protocol-001-verificationbased-gates](protocol-001-verificationbased-gates.md)
 - [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md)
-- [protocol-blocking-gates](protocol-blocking-gates.md)
-- [protocol-continuation-session-gap](protocol-continuation-session-gap.md)

@@ -47,7 +47,7 @@ Each injection point includes an inline index showing WHERE to retrieve from:
 **Retrieval Sources Index**:
 - Constraints: `.agents/governance/PROJECT-CONSTRAINTS.md`
 - Session protocol: `.agents/SESSION-PROTOCOL.md`
-- Memory index: Serena [memory-index](memory-index.md)
+- Memory index: Serena [memory-index](../memory-index.md)
 - Architecture: `.agents/architecture/ADR-*.md`
 - Skills: `.claude/skills/{skill-name}/SKILL.md`
 ```

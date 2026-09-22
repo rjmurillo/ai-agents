@@ -67,5 +67,5 @@ Define for each task:
 ## Related
 
 - [strangler-fig-pattern](strangler-fig-pattern.md): Incremental migration approach
-- [engineering-strategy](engineering-strategy.md): Strategic planning
-- [foundational-knowledge-index](foundational-knowledge-index.md): Master index
+- [engineering-strategy](../engineering/engineering-strategy.md): Strategic planning
+- [foundational-knowledge-index](../foundational-knowledge-index.md): Master index

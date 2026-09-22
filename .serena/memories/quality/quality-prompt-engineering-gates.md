@@ -134,9 +134,9 @@ Categorize the PR before evaluation:
 **Source**: `.claude/skills/prompt-engineer/references/prompt-engineering-single-turn.md`
 
 **Related Memories**:
-- [retrospective-2025-12-27](retrospective-2025-12-27.md): Full Session 91 retrospective
-- [issue-357-rca-findings](issue-357-rca-findings.md): Root cause analysis
-- [ai-quality-gate-efficiency-analysis](ai-quality-gate-efficiency-analysis.md): Quality gate performance metrics
+- `retrospective-2025-12-27`: Full Session 91 retrospective
+- `issue-357-rca-findings`: Root cause analysis
+- [ai-quality-gate-efficiency-analysis](../ai/ai-quality-gate-efficiency-analysis.md): Quality gate performance metrics
 
 ## When NOT to Use
 

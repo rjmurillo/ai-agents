@@ -1,123 +1,39 @@
-# Protocol: Verificationbased Gates
+<!-- placement: evidence; reason: dated compliance measurements that explain why the repository enforces gates in lefthook rather than in prose -->
 
-## Skill-Protocol-001: Verification-Based Gates
+# Protocol: Verification-Based Gates Beat Trust-Based Guidance
 
-**Statement**: BLOCKING gates requiring tool output verification achieve 100% compliance where trust-based gates achieve 0% compliance
+Authoritative owner: `.claude/rules/push-lock.md` and `lefthook.yml` carry the
+live gates. This file keeps only the measurements that motivated them.
 
-**Context**: When designing protocol enforcement mechanisms in SESSION-PROTOCOL.md or agent workflows
+## Measurement (2025-12, session protocol era)
 
-**Evidence**: 
-- Phase 1 (Serena init) has BLOCKING gate with tool output requirement → 100% compliance (never violated)
-- Session 15: Trust-based skill checks had 0% compliance → 5+ violations
-- Sessions 19-21: All agents followed BLOCKING gates correctly (Phase 1, Phase 2, Phase 3)
-
-**Atomicity**: 100%
-
-- Single concept (verification vs trust) ✓
-- Specific metric (100% vs 0% compliance) ✓
-- Actionable (use verification-based gates) ✓
-- Length: 14 words ✓
-
-**Tag**: CRITICAL
-
-**Impact**: 10/10 - Shifts from ineffective trust to effective verification
-
-**Trust vs Verification**:
-
-| Approach | Example | Effectiveness |
-|----------|---------|---------------|
-| **Trust-based** | "I will check for skills" | ❌ 0% (fails every time) |
-| **Verification-based** | `Check-SkillExists.ps1` output in transcript | ✅ 100% (like Serena init) |
-
-**Protocol Enhancement**:
-
-Add Phase 1.5 (BLOCKING) to SESSION-PROTOCOL.md:
-
-```markdown
-### Phase 1.5: Constraint Validation (BLOCKING)
-
-| Req | Step | Verification |
-|-----|------|--------------|
-| MUST | Read PROJECT-CONSTRAINTS.md | File content appears in context |
-| MUST | Run Check-SkillExists.ps1 for planned operations | Tool output in transcript |
-| MUST | List .claude/skills/github/scripts/ | Directory structure visible |
-```
-
-**Force Field Analysis**:
-
-Before verification gates:
-- Restraining forces: 21/25 (trust-based ineffective, no gates, scattered docs)
-- Driving forces: 16/20 (documentation exists, user frustration)
-- Net: -5 (favors violations)
-
-After verification gates:
-- Restraining forces: 4/25 (gates added, docs consolidated, verification enforced)
-- Driving forces: 20/20 (all documentation accessible, gates prevent violations)
-- Net: +16 (prevents violations)
-
----
-
-## Implementation Roadmap
-
-### P0 (Immediate - Next Session)
-
-1. **Create PROJECT-CONSTRAINTS.md** (30 min)
-   - Consolidate all MUST-NOT patterns
-   - Add to `.agents/governance/`
-   - Version control
-
-2. **Create Check-SkillExists.ps1** (20 min)
-   - Implement in `scripts/`
-   - Add Pester tests
-   - Document usage
-
-3. **Add Phase 1.5 to SESSION-PROTOCOL.md** (15 min)
-   - Add BLOCKING gate section
-   - Require verification (not trust)
-   - Update session log template
-
-### P1 (Next 1-2 Sessions)
-
-4. **Create commit-msg hook for atomicity** (45 min)
-   - Parse subject line for topics
-   - Count staged files
-   - Reject if >5 files AND >1 topic
-
-5. **Update skill-usage-mandatory** (10 min)
-   - Add "HOW TO CHECK" section
-   - Reference Check-SkillExists.ps1
-   - Provide usage examples
-
-### P2 (Enhancement)
-
-6. **Automated timeline generation** (60 min)
-   - Extract agent actions from session logs
-   - Generate timeline tables
-   - Reduce retrospective time
-
-7. **Pre-retrospective validation checklist** (30 min)
-   - Validate session log exists
-   - Check commits clean
-   - Verify user feedback captured
-
----
-
-## Success Metrics
-
-| Metric | Before (Session 15) | Target (After Gates) |
-|--------|---------------------|----------------------|
-| User interventions per session | 5+ | 0-1 |
+| Signal | Trust-based guidance | Verification-based blocking gate |
+|---|---|---|
+| Compliance | 0%, 5+ violations in Session 15 | 100%, never violated in Sessions 19-21 |
+| User interventions per session | 5+ | 0 to 1 after gates landed |
 | Violations requiring rework | 4 | 0 |
-| Time lost to rework | 30-45 min | 0-5 min |
-| Success rate (clean outcomes) | 42% | 95%+ |
-| BLOCKING gate compliance | 100% (Serena) | 100% (all gates) |
+| Time lost to rework | 30 to 45 minutes | 0 to 5 minutes |
+| Clean-outcome rate | 42% | 95% target |
 
----
+The gate that held at 100% was the one whose evidence appeared in the
+transcript as tool output. The guidance that failed was phrased as "agents
+should remember to".
+
+Two finer-grained counts from Session 15, both against trust-based wording:
+
+- 3+ raw `gh` invocations in 10 minutes, with the skill that wraps them
+  available and documented.
+- 5+ user interventions for violations of preferences that were scattered
+  across several memories rather than stated in one binding place.
+
+## Why it still matters
+
+The session protocol these numbers came from is retired (PR #5179). The
+finding transfers: a requirement with no machine-checkable artifact is not
+enforced, whatever its wording. The repository now expresses the same
+conclusion as pre-commit and pre-push jobs instead of prose.
 
 ## Related
 
-- [protocol-002-verification-based-gate-effectiveness](protocol-002-verification-based-gate-effectiveness.md)
-- [protocol-rfc-evidence](protocol-rfc-evidence.md)
-- [protocol-005-template-enforcement](protocol-005-template-enforcement.md)
-- [protocol-006-legacy-session-grandfathering](protocol-006-legacy-session-grandfathering.md)
-- [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md)
+- [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md)
+- [protocol-blocking-gates](protocol-blocking-gates.md)

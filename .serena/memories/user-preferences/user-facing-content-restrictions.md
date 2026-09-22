@@ -1,62 +1,38 @@
-# User-Facing Content Restrictions
+<!-- placement: evidence; reason: the PR #212 review finding that produced the internal-reference rule, kept as the incident rather than the rule -->
 
-**Created**: 2025-12-20
-**Source**: PR #212 review feedback
+# Evidence: Internal References Reached User-Facing Files in PR #212
 
-## Scope
+Authoritative owners: `.claude/rules/claude-agents.md` MUST-5 forbids internal
+references under `src/claude/`, `AGENTS.md` carries the always-on "Never:
+internal refs" line, and the vendor portability scan enforces it.
 
-This policy applies to all files that are distributed to end-users:
+## Observation (2025-12-20, PR #212 review)
 
-- `src/claude/` - Claude agent definitions
-- `src/copilot-cli/` - Copilot CLI agent definitions
-- `src/vs-code-agents/` - VS Code agent definitions
-- `templates/agents/` - Agent templates
+Agent-facing tables shipped to downstream installers carried repository-local
+context a reader outside the repository cannot resolve: pull request numbers,
+issue numbers, session identifiers, and `.agents/` or `.serena/` paths.
 
-## PROHIBITED Content
-
-The following content types MUST NOT appear in user-facing files:
-
-### 1. Internal PR References
-
-- **Prohibited**: `PR #60`, `PR #211`, `PR #212`, or any internal PR numbers
-- **Rationale**: End-users do not know or care about issues internal to our repository
-- **Alternative**: Describe the pattern generically without referencing specific internal PRs
-
-### 2. Internal Issue References
-
-- **Prohibited**: `Issue #16`, `Issue #183`, or any internal issue numbers
-- **Rationale**: Same as above - internal tracking is meaningless to users
-
-### 3. Session References
-
-- **Prohibited**: `Session 44`, `Session 15`, or any session identifiers
-- **Rationale**: These are internal implementation details
-
-### 4. Internal File Paths
-
-- **Prohibited**: References to `.agents/`, `.serena/`, or other internal directories
-- **Rationale**: Users may not have the same directory structure
-
-## PERMITTED Content
-
-- Generic descriptions of patterns and behaviors
-- Security vulnerability identifiers (CWE-20, CWE-78, etc.) - these are public standards
-- Best practice recommendations without internal context
-
-## Example Fix
-
-**Before (prohibited)**:
+The reviewed line:
 
 ```markdown
 | **Security** | ... | Security issues can cause critical damage; CWE-20/CWE-78 introduced in PR #60 went undetected until PR #211 quality gate |
 ```
 
-**After (compliant)**:
+and the accepted replacement:
 
 ```markdown
 | **Security** | ... | Security issues can cause critical damage if missed during review |
 ```
 
-## Validation
+The claim survives the rewrite. Only the unresolvable citation goes.
 
-Before committing changes to user-facing directories, verify no internal references are present.
+## The distinction that mattered
+
+A public standard identifier such as CWE-20 or CWE-78 stayed, because a reader
+outside the repository can resolve it. The test is resolvability by the
+downstream reader, not whether the reference is a number.
+
+## Related
+
+- [decision-plugin-descriptions-carry-no-counts](../decision-plugin-descriptions-carry-no-counts.md)
+- [validation/validation-portability-scan-contract](../validation/validation-portability-scan-contract.md)

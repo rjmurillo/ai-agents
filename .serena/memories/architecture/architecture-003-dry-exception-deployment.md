@@ -79,5 +79,3 @@ If an artifact ships outside the repository structure, it must be self-contained
 - [architecture-015-deployment-path-validation](architecture-015-deployment-path-validation.md)
 - [architecture-016-adr-number-check](architecture-016-adr-number-check.md)
 - [architecture-adr-compliance-documentation](architecture-adr-compliance-documentation.md)
-- [architecture-composite-action](architecture-composite-action.md)
-- [architecture-model-selection](architecture-model-selection.md)

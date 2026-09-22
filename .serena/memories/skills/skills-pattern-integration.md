@@ -94,8 +94,8 @@ Patterns that optimize but are not error-preventing:
 
 ## Related
 
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
+- [skills-agent-workflow-index](../skills-agent-workflow-index.md)
 - [skills-agent-workflows](skills-agent-workflows.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
+- [skills-analysis-index](../skills-analysis-index.md)
+- [skills-architecture-index](../skills-architecture-index.md)
 - [skills-architecture-observations](skills-architecture-observations.md)

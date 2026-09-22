@@ -74,6 +74,7 @@ print(m._has_contradiction('YOUR EVIDENCE STRING'))"
 
 ## Related
 
-`session/session-validation-reconciliation.md` covers the start-versus-end
-coverage gap between the pre-commit hook and CI. This is narrower: one scanner,
-one word, inside evidence text that is otherwise correct.
+A wider gap once existed between what the pre-commit hook validated and what
+CI validated for the same session file; that record was deleted with the
+session protocol it described. This finding is narrower and still live: one
+scanner, one word, inside evidence text that is otherwise correct.

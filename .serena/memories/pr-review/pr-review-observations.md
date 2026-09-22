@@ -125,5 +125,5 @@ These are observations that may become patterns:
 
 ## Related
 
-- [github-observations](github-observations.md)
+- [github-observations](../github/github-observations.md)
 - [pr-comment-responder](../pr-comment-responder/)

@@ -95,10 +95,10 @@ git apply patch.diff
 
 ## Related Memories
 
-- [security-007-defense-in-depth-for-cross-process-security-checks](security-007-defense-in-depth-for-cross-process-security-checks.md)
-- [security-002-input-validation-first](security-002-input-validation-first.md)
-- [cwe-699-security-agent-integration](cwe-699-security-agent-integration.md)
-- [powershell-security-ai-output](powershell-security-ai-output.md)
+- [security-007-defense-in-depth-for-cross-process-security-checks](../security/security-007-defenseindepth-for-crossprocess-security-checks-94.md)
+- [security-002-input-validation-first](../security/security-002-input-validation-first-88.md)
+- [cwe-699-security-agent-integration](../security/cwe-699-security-agent-integration.md)
+- [powershell-security-ai-output](../powershell/powershell-security-ai-output.md)
 
 ## CWE References
 

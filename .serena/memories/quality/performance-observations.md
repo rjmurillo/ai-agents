@@ -38,5 +38,5 @@ These are observations that may become patterns:
 
 ## Related
 
-- [cost-optimization-observations](cost-optimization-observations.md)
-- [architecture-observations](architecture-observations.md)
+- [cost-optimization-observations](../cost/cost-optimization-observations.md)
+- [architecture-observations](../architecture/architecture-observations.md)

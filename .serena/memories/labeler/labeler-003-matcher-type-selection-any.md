@@ -30,6 +30,4 @@
 
 - [labeler-001-negation-pattern-matcher-selection](labeler-001-negation-pattern-matcher-selection.md)
 - [labeler-002-combined-matcher-block-pattern](labeler-002-combined-matcher-block-pattern.md)
-- [labeler-003-any-matcher](labeler-003-any-matcher.md)
-- [labeler-004-all-files-matcher](labeler-004-all-files-matcher.md)
 - [labeler-004-matcher-type-selection-all-files](labeler-004-matcher-type-selection-all-files.md)

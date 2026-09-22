@@ -50,7 +50,5 @@ All scripts MUST include exit code documentation in header:
 ## Related
 
 - [adr-007-augmentation-research](adr-007-augmentation-research.md)
-- [adr-014-findings](adr-014-findings.md)
 - [adr-014-review-findings](adr-014-review-findings.md)
 - [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
-- [adr-021-quantitative-analysis](adr-021-quantitative-analysis.md)

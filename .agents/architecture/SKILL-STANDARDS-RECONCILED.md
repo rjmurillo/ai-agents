@@ -683,8 +683,8 @@ allowed-tools: Read Grep Glob
 - **ADR-040**: Skill Frontmatter Standardization (`.agents/architecture/ADR-040-skill-frontmatter-standardization.md`)
 - **Analysis**: Claude Code Skill Frontmatter 2026 (`.agents/analysis/claude-code-skill-frontmatter-2026.md`)
 - **Analysis**: agentskills.io Standard (`.agents/analysis/agentskills-io-standard-2026-01.md`)
-- **Serena Memory**: claude-code-skill-frontmatter-standards (`.serena/memories/claude-code-skill-frontmatter-standards.md`)
-- **Serena Memory**: agentskills-io-standard-integration (`.serena/memories/agentskills-io-standard-integration.md`)
+- **Serena Memory**: claude-code-skill-frontmatter-standards (`.serena/memories/claude/claude-code-skill-frontmatter-standards.md`)
+- **Serena Memory**: agentskills-io-standard-integration (`.serena/memories/agent-workflow/agentskills-io-standard-integration.md`)
 - **Forgetful Memories**: IDs 99-110, 128-135, 167-174 (skill-related atomic memories)
 
 ---

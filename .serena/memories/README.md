@@ -10,16 +10,27 @@ Memories hold evidence: observations, measurements, incidents, rationale. A memo
 
 ## Directory Structure
 
-Memories are organized into topic subdirectories to reduce `list_memories` token overhead.
+Memories are organized into topic subdirectories by domain.
 
-**Top-level** (visible in `list_memories`): Index files and special files only.
+**Top-level**: Index files and special files.
 
-**Subdirectories** (hidden from `list_memories`): All atomic memories. Access via `read_memory("topic/memory-name.md")`.
+**Subdirectories**: All atomic memories. Access via `read_memory("topic/memory-name.md")`.
+
+`list_memories` returns every name in the tree, top level and nested. It does
+not hide subdirectory memories. Measured on 2026-09-22 against this tree: one
+call returned all names at 11,629 tiktoken `cl100k_base` tokens, against 1,232
+for the top-level names alone. Earlier documentation claimed the nested names
+were hidden and credited the subdirectory layout with a per-session saving;
+that is not what the tool does today.
+
+The index layer therefore earns its keep through keyword routing, not through
+a smaller listing. Prefer a targeted `search_memory.py` query or a keyword
+lookup in `memory-index.md` over an unfiltered `list_memories` call.
 
 ### Reading Memories
 
 ```python
-# Step 1: list_memories shows only indexes
+# Step 1: memory-index.md maps keywords to a domain index
 # Step 2: read_memory("skills-pr-review-index") to find the right memory
 # Step 3: read_memory("pr-review/pr-review-001-reviewer-enumeration") to read it
 ```

@@ -64,7 +64,7 @@ For larger projects, use `.claude/rules/` for modular rule files.
 ## Related
 
 - Analysis: `.agents/analysis/claude-md-best-practices-anthropic.md`
-- Memory: [memory-token-efficiency](memory-token-efficiency.md)
+- Memory: [memory-token-efficiency](../memory/memory-token-efficiency.md)
 - ADR: ADR-007 (Memory First)
 - [claude-code-hooks-opportunity-analysis](claude-code-hooks-opportunity-analysis.md)
 - [claude-code-skill-frontmatter-standards](claude-code-skill-frontmatter-standards.md)

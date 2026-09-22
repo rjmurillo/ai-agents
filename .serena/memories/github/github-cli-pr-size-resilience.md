@@ -63,7 +63,7 @@ Successfully applied in:
 
 - [github-cli-api-patterns](github-cli-api-patterns.md) - General API usage
 - [github-rest-api-reference](github-rest-api-reference.md) - Full API documentation
-- [workflow-patterns-run-from-branch](workflow-patterns-run-from-branch.md) - Workflow resilience patterns
+- [workflow-patterns-run-from-branch](../workflow/workflow-patterns-run-from-branch.md) - Workflow resilience patterns
 
 ## When to Use
 

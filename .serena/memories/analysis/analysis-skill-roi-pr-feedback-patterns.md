@@ -76,5 +76,5 @@
 
 ## Related
 
-- [skills-quality-index](skills-quality-index.md)
+- [skills-quality-index](../skills-quality-index.md)
 - Full report: `.agents/analysis/closed-pr-reviewer-patterns-2026-02-08.md`

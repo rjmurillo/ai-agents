@@ -95,9 +95,9 @@ VERDICT=$(echo "$OUTPUT" | grep -oiE 'VERDICT:[[:space:]]*(PASS|WARN|CRITICAL_FA
 
 ## Related Memories
 
-- [workflow-verdict-tokens](workflow-verdict-tokens.md): Standard verdict token format (PASS, WARN, CRITICAL_FAIL)
-- [copilot-synthesis-verdict-parsing](copilot-synthesis-verdict-parsing.md): Similar issue in copilot-synthesis workflow (PR #296) - solved by improving prompts to explicitly require verdict output
-- [ai-pr-quality-gate-infra-handling-2025-12-27](ai-pr-quality-gate-infra-handling-2025-12-27.md): Infrastructure failure handling with verdict fallback mechanism
+- `workflow-verdict-tokens`: Standard verdict token format (PASS, WARN, CRITICAL_FAIL)
+- [copilot-synthesis-verdict-parsing](../copilot/copilot-synthesis-verdict-parsing.md): Similar issue in copilot-synthesis workflow (PR #296) - solved by improving prompts to explicitly require verdict output
+- [ai-pr-quality-gate-infra-handling-2025-12-27](../ai/ai-pr-quality-gate-infra-handling-2025-12-27.md): Infrastructure failure handling with verdict fallback mechanism
 
 ## Recommendation
 

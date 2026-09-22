@@ -60,4 +60,4 @@ pr-comment-responder
 - [pr-comment-002-security-domain-priority](pr-comment-002-security-domain-priority.md)
 - [pr-comment-004-bot-response-templates](pr-comment-004-bot-response-templates.md)
 - [pr-comment-005-branch-state-verification](pr-comment-005-branch-state-verification.md)
-- [pr-comment-index](pr-comment-index.md)
+- [pr-comment-index](../pr-comment-index.md)

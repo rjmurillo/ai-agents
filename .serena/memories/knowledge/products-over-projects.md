@@ -46,4 +46,4 @@ Product-mode teams should be:
 
 - [team-topologies](team-topologies.md): Team structure patterns
 - [conways-law](conways-law.md): Teams mirror architecture
-- [foundational-knowledge-index](foundational-knowledge-index.md): Master index
+- [foundational-knowledge-index](../foundational-knowledge-index.md): Master index

@@ -179,7 +179,7 @@ python3 .claude/skills/decision-critic/scripts/decision-critic.py
 
 ## Cross-References
 
-- **Engineering Knowledge Index**: [engineering-knowledge-index](engineering-knowledge-index.md)
+- **Engineering Knowledge Index**: [engineering-knowledge-index](../engineering-knowledge-index.md)
 - **Session 819**: Engineering knowledge integration session (2026-01-10)
 - **ADR-007**: Memory-first architecture (foundation for this pattern)
 
@@ -187,5 +187,5 @@ python3 .claude/skills/decision-critic/scripts/decision-critic.py
 
 - `memory-first-pattern`: Why memory retrieval precedes implementation
 - `agent-workflow-patterns`: How agents collaborate
-- [skills-standards-reconciled](skills-standards-reconciled.md): Skill frontmatter requirements
+- [skills-standards-reconciled](../skills/skills-standards-reconciled.md): Skill frontmatter requirements
 - `session-protocol`: Session start/end requirements

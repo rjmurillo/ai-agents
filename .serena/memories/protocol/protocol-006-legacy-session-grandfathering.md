@@ -1,100 +1,31 @@
-# Skill-Protocol-006: Legacy Session Grandfathering
+<!-- placement: evidence; reason: a dated incident where a retroactive gate blocked an artifact created before the gate existed -->
 
-## Statement
+# Protocol: A Gate Applied Retroactively Blocked PR #53
 
-Sessions created before the SESSION-PROTOCOL.md template was established can use LEGACY markers to satisfy compliance requirements they could not have known about at the time.
+The session protocol, its validator prompt, and the grandfathering markers are
+all gone (commit `ba541c21f`). The incident is kept because the failure shape
+recurs whenever a new gate meets artifacts that predate it.
 
-## Context
+## Observation (2025-12-21, PR #53)
 
-When remediating historical sessions or adding new sessions from before 2025-12-21 to PRs.
+A session file dated 2025-12-20 blocked the merge of PR #53. It failed three
+checks that did not exist when it was written:
 
-## Evidence
+- no Protocol Compliance section, because none was required yet;
+- initialization evidence in the format used at the time, not the new one;
+- handoff evidence from the older workflow.
 
-**PR #53 (2025-12-21)**: Session-41 from 2025-12-20 blocked PR merge because it lacked:
-- Protocol Compliance section (not yet required)
-- Serena initialization evidence (different format at the time)
-- HANDOFF.md update evidence (different workflow)
+Resolution: the file was annotated as predating the requirement, and the
+validator passed.
 
-**Resolution**: Added Protocol Compliance section with LEGACY markers - validator passed.
+## Transferable reading
 
-**Validator Prompt** (`.github/prompts/session-protocol-check.md`): Explicitly documents grandfathering:
+A gate that reads existing artifacts needs an answer for the ones created
+before it. Without one, the gate blocks work that has nothing to do with the
+defect it was built to catch, and the cheapest route around it is to weaken the
+gate for everyone.
 
-```text
-### LEGACY Sessions
+## Related
 
-Sessions created before the protocol was established may contain `LEGACY` markers. When you see:
-
-- `LEGACY: Predates requirement` in the Evidence column
-- `[LEGACY]` prefix in status
-- References to "predates" or "historical session"
-
-These PASS the requirement because they are grandfathered from before the protocol existed.
-```
-
-## Metrics
-
-- **Atomicity**: 95%
-- **Impact**: 8/10
-- **Category**: protocol, legacy, compliance
-- **Created**: 2025-12-21
-- **Tag**: helpful
-- **Validated**: 1 (PR #53 unblocked)
-
-## Pattern
-
-### Required LEGACY Format
-
-When adding Protocol Compliance to legacy sessions, use this format:
-
-```markdown
-## Protocol Compliance
-
-### Phase 1: Serena Initialization [LEGACY]
-
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | Initialize Serena: `mcp__serena__activate_project` | [x] | LEGACY: Predates protocol template |
-| MUST | Initialize Serena: `mcp__serena__initial_instructions` | [x] | LEGACY: Predates protocol template |
-
-### Phase 2: Context Retrieval [LEGACY]
-
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | Read `.agents/HANDOFF.md` | [x] | LEGACY: Predates protocol template |
-
-### Phase 3: Session Log [LEGACY]
-
-| Req | Step | Status | Evidence |
-|-----|------|--------|----------|
-| MUST | Create this session log | [x] | LEGACY: This file exists |
-
-> **Note**: This session was created on [DATE] before the current SESSION-PROTOCOL.md template was established.
-```
-
-### Session End Checklist Updates
-
-For legacy sessions, update Evidence column:
-
-```markdown
-| MUST | Update `.agents/HANDOFF.md` | [x] | LEGACY: Predates protocol template |
-| MUST | Run markdown lint | [x] | LEGACY: Predates protocol template |
-| MUST | Commit all changes | [x] | LEGACY: Commit SHA: [sha] |
-```
-
-## When to Apply
-
-Apply LEGACY markers when:
-
-1. Session was created before 2025-12-21 (SESSION-PROTOCOL.md v2.0)
-2. Session lacks Protocol Compliance section
-3. Session uses non-canonical Session End format
-4. Session is being added to a PR and blocks CI
-
-## Related Skills
-
-- Skill-Protocol-005 (Template Enforcement)
-- Skill-Protocol-002 (Verification-Based Gate Effectiveness)
-
-## Source
-
-PR #53 remediation, commit 00272c3
+- [protocol-001-verificationbased-gates](protocol-001-verificationbased-gates.md)
+- [protocol-014-trust-antipattern](protocol-014-trust-antipattern.md)

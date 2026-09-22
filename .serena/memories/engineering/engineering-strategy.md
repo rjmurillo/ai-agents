@@ -48,6 +48,6 @@ Written strategies often fail because they're visions of ideal state, not accura
 
 ## Related
 
-- [adr-foundational-concepts](adr-foundational-concepts.md): Decision documentation
-- [staff-engineer-trajectory](staff-engineer-trajectory.md): Career progression
-- [foundational-knowledge-index](foundational-knowledge-index.md): Master index
+- [adr-foundational-concepts](../adr/adr-foundational-concepts.md): Decision documentation
+- [staff-engineer-trajectory](../knowledge/staff-engineer-trajectory.md): Career progression
+- [foundational-knowledge-index](../foundational-knowledge-index.md): Master index

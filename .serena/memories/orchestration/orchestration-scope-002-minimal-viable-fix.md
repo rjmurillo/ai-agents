@@ -1,67 +1,33 @@
-# Skill: Minimal Viable Fix (Scope Discipline)
+<!-- placement: evidence; reason: the PR #395 scope-blowout measurement, kept as the observation behind scope discipline -->
 
-**ID**: skill-scope-002-minimal-viable-fix
-**Category**: Scope Discipline
-**Atomicity Score**: 95%
-**Evidence**: PR #395 failure analysis (2025-12-25)
+# Orchestration: What an Unbounded Debug Prompt Cost in PR #395
 
-## Trigger
+Authoritative owners: `.claude/rules/builder-ethos.md` Task Completion Contract
+defines what keeps a task active, and `AGENTS.md` Autonomy Guardrail sets the
+boundary for an ambiguous request.
 
-Any request containing:
-- "debug"
-- "fix"
-- "investigate"
-- "why doesn't this work"
+## Measurement (2025-12-25, PR #395)
 
-## Behavior
+A Copilot agent was asked to debug a script that "ran but did nothing".
 
-1. **Default to smallest possible change**
-2. **Investigate before implementing**
-3. **Stop and verify after minimal fix**
+| Signal | Value |
+|---|---|
+| Expected change | about 50 lines, a visibility fix |
+| Actual change | 847 lines |
+| Outcome | the script was broken by the change |
+| Root cause | the prompt carried no scope constraint |
 
-## Rules
+The expansion came from work nobody asked for: dead-code removal during a debug
+task, logging beyond the reported symptom, and changed function signatures.
 
-1. If estimated changes exceed 50 lines, STOP and ask user
-2. If discovering unrelated issues, DOCUMENT but do not fix
-3. If tests fail after change, REVERT code (not modify tests)
-4. After minimal fix works, VERIFY before any expansion
+## Transferable reading
 
-## Anti-Patterns (AVOID)
-
-- Removing "dead code" during debug task
-- Adding logging beyond immediate problem
-- Changing function signatures/return types
-- Creating ADRs for small fixes
-- "Fixing" tests to match broken code
-
-## Checkpoint Template
-
-Before implementing:
-```
-Investigation complete:
-- Root cause: [description]
-- Minimal fix: [X lines, Y files]
-- Scope within limit: [yes/no]
-
-Proceed with implementation? [wait for confirmation]
-```
-
-## Evidence
-
-PR #395: Copilot asked to debug "ran but did nothing"
-- Expected: ~50 line visibility fix
-- Actual: 847 lines, broke script
-- Root cause: No scope constraint in prompt
-
-## Related Skills
-
-- skill-implementation-010: checkpoint validation
-- skill-test-001: test preservation
-- skill-prompt-001: Copilot SWE constraints
+A debug request names a symptom, not a scope. Without a stated ceiling, an
+agent treats every adjacent defect it notices as in scope, and the diff grows
+past the point where a reviewer can tell the fix from the collateral.
 
 ## Related
 
 - [orchestration-003-orchestrator-first-routing](orchestration-003-orchestrator-first-routing.md)
 - [orchestration-copilot-swe-anti-patterns](orchestration-copilot-swe-anti-patterns.md)
-- [orchestration-parallel-execution](orchestration-parallel-execution.md)
-- [orchestration-pr-chain](orchestration-pr-chain.md)
+- [orchestration-prompt-002-copilot-swe-constraints](orchestration-prompt-002-copilot-swe-constraints.md)

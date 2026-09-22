@@ -29,4 +29,3 @@
 - [planning-001-task-descriptions-with-file-paths](planning-001-task-descriptions-with-file-paths.md)
 - [planning-002-priority-consistency](planning-002-priority-consistency.md)
 - [planning-003-parallel-exploration-pattern-95](planning-003-parallel-exploration-pattern-95.md)
-- [planning-003-parallel-exploration-pattern](planning-003-parallel-exploration-pattern.md)

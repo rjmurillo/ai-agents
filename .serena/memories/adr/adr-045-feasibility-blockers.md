@@ -58,7 +58,6 @@ Required revisions:
 ## Related
 
 - [adr-007-augmentation-research](adr-007-augmentation-research.md)
-- [adr-014-findings](adr-014-findings.md)
 - [adr-014-review-findings](adr-014-review-findings.md)
 - [adr-017-quantitative-analysis](adr-017-quantitative-analysis.md)
 - [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)

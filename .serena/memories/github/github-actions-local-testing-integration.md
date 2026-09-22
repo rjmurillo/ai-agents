@@ -55,10 +55,10 @@ Research evaluated tools for local GitHub Actions validation to reduce the expen
 
 ## Related Memories
 
-- [pattern-thin-workflows](pattern-thin-workflows.md): Keep workflows thin, move logic to testable modules
-- [quality-shift-left-gate](quality-shift-left-gate.md): 6-agent consultation pattern pre-push
-- [validation-pre-pr-checklist](validation-pre-pr-checklist.md): Local validation steps before PR
-- [ci-infrastructure-quality-gates](ci-infrastructure-quality-gates.md): Pre-commit syntax validation
+- [pattern-thin-workflows](../patterns/pattern-thin-workflows.md): Keep workflows thin, move logic to testable modules
+- [quality-shift-left-gate](../quality/quality-shift-left-gate.md): 6-agent consultation pattern pre-push
+- [validation-pre-pr-checklist](../validation/validation-pre-pr-checklist.md): Local validation steps before PR
+- [ci-infrastructure-quality-gates](../ci/ci-infrastructure-quality-gates.md): Pre-commit syntax validation
 
 ## Related
 

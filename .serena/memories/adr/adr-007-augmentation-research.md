@@ -55,8 +55,6 @@ This research is persisted to Serena (this file) as the canonical source. Forget
 
 ## Related
 
-- [adr-014-findings](adr-014-findings.md)
 - [adr-014-review-findings](adr-014-review-findings.md)
 - [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
-- [adr-021-quantitative-analysis](adr-021-quantitative-analysis.md)
 - [adr-021-split-execution](adr-021-split-execution.md)

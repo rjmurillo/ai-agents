@@ -57,7 +57,5 @@ Aggregate findings with severity ratings. Use Go/No-Go matrix for final recommen
 ## Related
 
 - [adr-007-augmentation-research](adr-007-augmentation-research.md)
-- [adr-014-findings](adr-014-findings.md)
 - [adr-019-quantitative-analysis](adr-019-quantitative-analysis.md)
-- [adr-021-quantitative-analysis](adr-021-quantitative-analysis.md)
 - [adr-021-split-execution](adr-021-split-execution.md)

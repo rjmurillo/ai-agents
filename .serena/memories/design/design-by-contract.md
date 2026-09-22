@@ -35,8 +35,8 @@ public void Withdraw(decimal amount)
 
 ## Related
 
-- [poka-yoke](poka-yoke.md) - Make errors impossible
-- [security-002-input-validation-first](security-002-input-validation-first.md) - Validate at boundaries
+- [poka-yoke](../knowledge/poka-yoke.md) - Make errors impossible
+- [security-002-input-validation-first](../security/security-002-input-validation-first-88.md) - Validate at boundaries
 - [design-008-semantic-precision](design-008-semantic-precision.md)
 - [design-approaches-detailed](design-approaches-detailed.md)
 - [design-composability](design-composability.md)

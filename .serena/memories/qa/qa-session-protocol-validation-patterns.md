@@ -162,9 +162,9 @@ JSON_ARRAY=$(echo "$FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))'
 
 ## Related Memories
 
-- [ci-infrastructure-workflow-required-checks](ci-infrastructure-workflow-required-checks.md): Workflow execution patterns
-- [workflow-patterns-matrix-artifacts](workflow-patterns-matrix-artifacts.md): Matrix strategy patterns
-- [validation-baseline-triage](validation-baseline-triage.md): Validation workflow design
+- [ci-infrastructure-workflow-required-checks](../ci/ci-infrastructure-workflow-required-checks.md): Workflow execution patterns
+- [workflow-patterns-matrix-artifacts](../workflow/workflow-patterns-matrix-artifacts.md): Matrix strategy patterns
+- [validation-baseline-triage](../validation/validation-baseline-triage.md): Validation workflow design
 
 ## Related
 

@@ -38,7 +38,5 @@
 ## Related
 
 - [workflow-authorization-testable-pattern](workflow-authorization-testable-pattern.md)
-- [workflow-batch-changes-reduce-cogs](workflow-batch-changes-reduce-cogs.md)
-- [workflow-composite-action](workflow-composite-action.md)
 - [workflow-false-positive-verdict-parsing-2025-12-28](workflow-false-positive-verdict-parsing-2025-12-28.md)
 - [workflow-false-positive-verdict-parsing-fix-2025-12-28](workflow-false-positive-verdict-parsing-fix-2025-12-28.md)

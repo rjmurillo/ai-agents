@@ -1,56 +1,28 @@
-# Skill-Protocol-014: Trust-Based Compliance Antipattern
+<!-- placement: evidence; reason: three dated compliance failures, kept as the record behind enforcement that runs in hooks rather than in prose -->
 
-**Statement**: Trust-based compliance is an antipattern - always use verification-based enforcement
+# Protocol: Three Failures That Trust-Based Wording Did Not Prevent
 
-**Context**: When reviewing protocol designs or investigating compliance failures
+Authoritative owners: `lefthook.yml` and `.claude/rules/push-lock.md` carry the
+live commit and push gates. `.agents/architecture/ADR-014-distributed-handoff-architecture.md`
+carries the handoff decision. This file keeps the three observations.
 
-**Evidence**: 3 documented failures - Session Protocol v1.0-v1.3 (skill violations), HANDOFF.md (update bloat), git operations (wrong-branch commits) - PR #669
+## Observations (PR #669 retrospective and earlier)
 
-**Atomicity**: 94% | **Impact**: 10/10
+| Requirement, as written | Wording | Outcome |
+|---|---|---|
+| Check for an existing skill before running raw `gh` | "Remember to check" | 5+ violations in Session 15 |
+| Keep handoff context current | "Update HANDOFF.md with session context" | the file reached 35 KB, with merge conflicts on about 80% of pull requests |
+| Confirm the branch before committing | "Verify you are on the right branch" | wrong-branch commits, four pull requests contaminated in PR #669 |
 
-## Pattern
+## The shared shape
 
-**Failure Pattern Recognition**:
-
-Trust-based compliance shows these symptoms:
-1. **Documentation Heavy**: "Remember to...", "Always...", "Don't forget..."
-2. **No Programmatic Check**: No verification command before operation
-3. **Post-Facto Discovery**: Violations found during review, not prevented
-4. **Repetitive Failures**: Same mistake happens multiple times
-
-**Fix: Convert to Verification-Based**:
-1. Add programmatic verification step
-2. Block operation if verification fails
-3. Make compliance automatic, not voluntary
-
-## Anti-Pattern
-
-**Trust-Based Examples**:
-
-```markdown
-# Example 1: Session Protocol v1.0-v1.3
-"Remember to check for existing skills before using gh commands"
-Problem: No verification gate, 5+ violations in Session 15
-
-# Example 2: HANDOFF.md
-"Update HANDOFF.md with session context"
-Problem: No size limit, grew to 35KB with 80% merge conflicts
-
-# Example 3: Git operations (pre-PR #669)
-"Verify you're on the right branch before committing"
-Problem: No automated check, wrong-branch commits occurred
-```
-
-## Related Skills
-
-- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md): Implementation pattern
-- [protocol-blocking-gates](protocol-blocking-gates.md): Gate design
-- [git-004-branch-verification-before-commit](git-004-branch-verification-before-commit.md): Application example
+Each requirement was documentation-heavy, had no command that could be run to
+check it, and surfaced its violations during review rather than preventing
+them. The same mistake repeated, which is the signal that separates a missing
+gate from a one-off error.
 
 ## Related
 
-- [protocol-012-branch-handoffs](protocol-012-branch-handoffs.md)
-- [protocol-013-verification-based-enforcement](protocol-013-verification-based-enforcement.md)
+- [protocol-001-verificationbased-gates](protocol-001-verificationbased-gates.md)
 - [protocol-blocking-gates](protocol-blocking-gates.md)
-- [protocol-continuation-session-gap](protocol-continuation-session-gap.md)
-- [protocol-legacy-sessions](protocol-legacy-sessions.md)
+- [git/git-004-branch-verification-before-commit](../git/git-004-branch-verification-before-commit.md)

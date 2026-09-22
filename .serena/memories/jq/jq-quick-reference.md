@@ -58,8 +58,6 @@ keys      Object keys          keys
 
 ## Related
 
-- [jq-aggregation](jq-aggregation.md)
-- [jq-array-operations](jq-array-operations.md)
 - [jq-conditionals](jq-conditionals.md)
 - [jq-field-extraction](jq-field-extraction.md)
 - [jq-filtering](jq-filtering.md)

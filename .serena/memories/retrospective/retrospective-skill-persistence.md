@@ -20,8 +20,8 @@ After EVERY retrospective, you MUST persist extracted skills to Serena memory.
 ## Skill File Format
 
 Use descriptive kebab-case names without `skill-` prefix:
-- [pr-enum-001](pr-enum-001.md) not `skill-pr-enum-001`
-- [git-worktree-parallel](git-worktree-parallel.md) not `skill-git-worktree-001`
+- [pr-enum-001](../pr-review/pr-enum-001.md) not `skill-pr-enum-001`
+- [git-worktree-parallel](../git/git-worktree-parallel.md) not `skill-git-worktree-001`
 
 ```markdown
 # {Title}

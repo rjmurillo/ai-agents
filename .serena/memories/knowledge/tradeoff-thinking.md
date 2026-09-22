@@ -34,4 +34,4 @@ Conventional wisdom says DRY. Senior insight: coupling is often worse.
 
 - [technical-debt-quadrant](technical-debt-quadrant.md) - Types of acceptable debt
 - [yagni-principle](yagni-principle.md) - Build only what's needed
-- [adr-foundational-concepts](adr-foundational-concepts.md) - Decision documentation
+- [adr-foundational-concepts](../adr/adr-foundational-concepts.md) - Decision documentation

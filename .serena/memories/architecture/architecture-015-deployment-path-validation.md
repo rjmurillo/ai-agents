@@ -62,5 +62,3 @@ When adding file references to agent files or configs:
 - [architecture-003-dry-exception-deployment](architecture-003-dry-exception-deployment.md)
 - [architecture-016-adr-number-check](architecture-016-adr-number-check.md)
 - [architecture-adr-compliance-documentation](architecture-adr-compliance-documentation.md)
-- [architecture-composite-action](architecture-composite-action.md)
-- [architecture-model-selection](architecture-model-selection.md)

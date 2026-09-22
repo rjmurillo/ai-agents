@@ -1,9 +1,8 @@
 # Memory Index
 
 [Session and Protocol]
-|session start init handoff protocol serena blocking: [skills-session-init-index](skills-session-init-index.md) (244), [project/project-overview](project/project-overview.md) (347), [project/codebase-structure](project/codebase-structure.md) (783)
-|session validation diagnose fixer protocol compliance NON_COMPLIANT changelog: [session/changelog-session-log-fixer](session/changelog-session-log-fixer.md) (480)
-|protocol blocking gate RFC MUST verification template legacy: [skills-protocol-index](skills-protocol-index.md) (300)
+|session start init handoff protocol serena blocking: [skills-session-init-index](skills-session-init-index.md) (178), [project/project-overview](project/project-overview.md) (347), [project/codebase-structure](project/codebase-structure.md) (783)
+|protocol blocking gate RFC MUST verification template legacy: [skills-protocol-index](skills-protocol-index.md) (243)
 
 [Index Catalog]
 |creator skill authoring frontmatter token efficiency test separation: [creator-best-practices-index](creator-best-practices-index.md) (252), [skills-index](skills-index.md) (839)
@@ -77,7 +76,7 @@
 
 [Architecture and Design]
 |architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (627)
-|adr decision record active proposed superseded rationale artifact: [adr-reference-index](adr-reference-index.md) (680), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (824), [adr/adr-review-observations](adr/adr-review-observations.md) (749)
+|adr decision record active proposed superseded rationale artifact: [adr-reference-index](adr-reference-index.md) (680), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (401), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (825), [adr/adr-review-observations](adr/adr-review-observations.md) (756)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
 |always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (454)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
@@ -93,15 +92,15 @@
 |squash merge ancestry is-ancestor branch deleted REMOTE ABSENT: [quality/verify-squash-merge-by-content-not-ancestry](quality/verify-squash-merge-by-content-not-ancestry.md) (968)
 |github rate limit 403 X-RateLimit-Remaining header endpoint disagrees: [quality/github-rate-limit-endpoint-disagrees-with-enforcement](quality/github-rate-limit-endpoint-disagrees-with-enforcement.md) (865)
 |diff3 zdiff3 conflict markers base region checkout --merge: [quality/diff3-conflicts-have-four-markers](quality/diff3-conflicts-have-four-markers.md) (801)
-|code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1118)
-|prompt engineering quality gate AI assessment template: [quality/quality-prompt-engineering-gates](quality/quality-prompt-engineering-gates.md) (1419)
+|code smell refactoring bloaters couplers dispensables taxonomy Fowler: [quality/code-smells-catalog](quality/code-smells-catalog.md) (1123)
+|prompt engineering quality gate AI assessment template: [quality/quality-prompt-engineering-gates](quality/quality-prompt-engineering-gates.md) (1401)
 |code quality changed-only regression gate absolute debt issue: [validation/code-quality-changed-only-regression-gate](validation/code-quality-changed-only-regression-gate.md) (287)
 |validation quality lint false-positive gate test: [skills-validation-index](skills-validation-index.md) (539)
 |linting markdown autofix config exclude language backtick: [skills-linting-index](skills-linting-index.md) (173)
 |markdownlint scratch argv command length process startup batch exit code empty output issue 4892: [linting/linting-exclusions](linting/linting-exclusions.md) (2065)
 
 [Agent Orchestration]
-|orchestration agent coordination parallel handoff dispatch consensus: [skills-orchestration-index](skills-orchestration-index.md) (404), [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) (813)
+|orchestration agent coordination parallel handoff dispatch consensus: [skills-orchestration-index](skills-orchestration-index.md) (506), [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) (813)
 |agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (351)
 |autonomous execution guardrails circuit breaker patch signal trust: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (153)
 |fleet contention stop order renice congestion collapse two: [decision-stop-orders-are-not-a-control-plane](decision-stop-orders-are-not-a-control-plane.md) (876)
@@ -172,16 +171,16 @@
 |process workflow gap missing capability root cause: [orchestration/orchestration-process-workflow-gaps](orchestration/orchestration-process-workflow-gaps.md) (1552)
 
 [Retrospective and Learning]
-|retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (986)
+|retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (987)
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (1674)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
 |eval provider billing matrix harness subscription api claude-cli codex-cli copilot-api cost basis credential: [eval/eval-billing-matrix](eval/eval-billing-matrix.md) (1525)
 |implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (814), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (425)
 
 [Memory and Context]
-|context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (594), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (861)
+|context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (598), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (862)
 |agentic session cost token replay cached input exec output fanout delegation direct work phase threads: [cost/cost-optimization-observations](cost/cost-optimization-observations.md) (745)
-|passive context AGENTS.md skills decision-point retrieval-led compression research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (447), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (683), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (623)
+|passive context AGENTS.md skills decision-point retrieval-led compression research: [memory/passive-context-vs-skills-vercel-research](memory/passive-context-vs-skills-vercel-research.md) (459), [claude/claude-md-anthropic-best-practices](claude/claude-md-anthropic-best-practices.md) (685), [claude/claude-code-skills-official-guidance](claude/claude-code-skills-official-guidance.md) (623)
 |portability symlink TOCTOU scan_all refuse_symlinked_scan_root: [decision-portability-ratchet-symlink-toctou](decision-portability-ratchet-symlink-toctou.md) (314)
 |instruction budget always-on ceiling applyTo scope headroom rule: [decision-the-instruction-budget-gate-already-exists](decision-the-instruction-budget-gate-already-exists.md) (1856)
 |memory index validator one direction unindexed orphan check: [memory-index-validator-checks-one-direction-only](memory-index-validator-checks-one-direction-only.md) (992)
@@ -197,17 +196,16 @@
 [Engineering Knowledge Tiers]
 |<5 years foundational: [foundational-knowledge-index](foundational-knowledge-index.md) (487)
 |all tiers: [engineering-knowledge-index](engineering-knowledge-index.md) (1439)
-|15+ years principal: [knowledge/principal-engineering-knowledge](knowledge/principal-engineering-knowledge.md) (854)
+|15+ years principal: [knowledge/principal-engineering-knowledge](knowledge/principal-engineering-knowledge.md) (857)
 |25+ years distinguished: [distinguished-engineer-knowledge-index](distinguished-engineer-knowledge-index.md) (283)
 
-[User Constraints (MUST READ)]
-|no auto-generated headers timestamps do-not-edit: <a href="../../.claude/rules/universal.md">universal.md</a> MUST NOT 5 (canonical)
-|user-facing content internal refs prohibited: [user-preferences/user-facing-content-restrictions](user-preferences/user-facing-content-restrictions.md) (456)
+[Governance Evidence]
+|user-facing content internal refs pr-212 downstream resolvability: [user-preferences/user-facing-content-restrictions](user-preferences/user-facing-content-restrictions.md) (351)
 
 [Related]
-|feedback retrieval: [memory/memory-001-feedback-retrieval](memory/memory-001-feedback-retrieval.md) (577)
-|memory architecture serena-primary: [memory/memory-architecture-serena-primary](memory/memory-architecture-serena-primary.md) (484)
-|decomposition thresholds: [memory/memory-size-001-decomposition-thresholds](memory/memory-size-001-decomposition-thresholds.md) (959)
-|fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (939)
-|serena subdirectory convention nested read_memory rglob enumeration: [memory/serena-memory-subdirectory-convention](memory/serena-memory-subdirectory-convention.md) (1170)
+|feedback retrieval: [memory/memory-001-feedback-retrieval](memory/memory-001-feedback-retrieval.md) (578)
+|memory architecture serena-primary: [memory/memory-architecture-serena-primary](memory/memory-architecture-serena-primary.md) (485)
+|decomposition thresholds: [memory/memory-size-001-decomposition-thresholds](memory/memory-size-001-decomposition-thresholds.md) (961)
+|fragmentation tech-debt: [memory/memory-system-fragmentation-tech-debt](memory/memory-system-fragmentation-tech-debt.md) (940)
+|serena subdirectory convention nested read_memory rglob enumeration: [memory/serena-memory-subdirectory-convention](memory/serena-memory-subdirectory-convention.md) (1298)
 |codeql scan wrapper delegate python issue 4921: [codeql/codeql-scan-wrapper-python-delegates](codeql/codeql-scan-wrapper-python-delegates.md) (930)

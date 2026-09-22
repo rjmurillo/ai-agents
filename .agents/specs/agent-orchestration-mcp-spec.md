@@ -650,5 +650,5 @@ function detectConflicts(results: Result[]): Conflict[] {
 
 - [ADR-013](../architecture/ADR-013-agent-orchestration-mcp.md)
 - [AGENT-SYSTEM.md](../AGENT-SYSTEM.md)
-- [skill-orchestration-001](../../.serena/memories/skill-orchestration-001-parallel-execution-time-savings.md)
+- [orchestration-parallel-execution](../../.serena/memories/orchestration/orchestration-parallel-execution.md)
 - [skill-orchestration-002](../../.serena/memories/skill-orchestration-002-parallel-handoff-coordination.md)

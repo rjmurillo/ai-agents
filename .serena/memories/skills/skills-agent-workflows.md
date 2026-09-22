@@ -60,8 +60,6 @@ fi
 
 ## Related
 
-- [skills-agent-workflow-index](skills-agent-workflow-index.md)
-- [skills-agent-workflow-phase3](skills-agent-workflow-index.md)
-- [skills-analysis-index](skills-analysis-index.md)
-- [skills-analysis](skills-analysis-index.md)
-- [skills-architecture-index](skills-architecture-index.md)
+- [skills-agent-workflow-index](../skills-agent-workflow-index.md)
+- [skills-analysis-index](../skills-analysis-index.md)
+- [skills-architecture-index](../skills-architecture-index.md)
