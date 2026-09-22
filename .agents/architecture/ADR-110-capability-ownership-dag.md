@@ -38,11 +38,14 @@ failure: a repository of duplicated executable policy instead of a composable
 set of capabilities, where a fix lands on one copy and the siblings go stale
 (`docs-say`, issue #5396).
 
-The duplication is measurable. Thirteen authored files under `templates/` carry
-an independently written version of the same untrusted-content policy
-(`repo-observed`, `grep -rlE 'data, not instructions' templates/`). Forty-two
-authored files restate the dash prohibition (`repo-observed`). Nothing records
-which file owns either policy.
+The duplication is measurable. Thirteen authored files under `templates/` state
+the same untrusted-content invariant (`repo-observed`,
+`grep -rlE 'data, not instructions' templates/`). A diff of the thirteen shows
+two prose variants, a generic one in eleven files and a review-specific one in
+two, each carrying a shared core plus consumer-specific procedure
+(`repo-observed`). Forty-two authored files restate the dash prohibition
+(`repo-observed`). Nothing records which file owns either policy, so a fix to
+one variant leaves the other stale.
 
 The classification vocabulary has drifted for the same reason. `metadata.type`
 carries nine distinct values across fourteen skill templates (`orchestrator`,

@@ -275,7 +275,10 @@ Numbered, in EARS syntax, each independently pass or fail.
    validator SHALL exit non-zero and name the key.
 10. THE repository SHALL record one converted duplicated-policy case with its
     authored-location count before and after, computed by a command the pull
-    request quotes rather than by hand, and the after count SHALL be one.
+    request quotes rather than by hand. The after count SHALL be one canonical
+    text per template tree, which is two files because the agent and skill
+    renderers read separate partial directories, and a test SHALL pin the two
+    byte-identical.
 11. WHEN a node declares `depends-on` naming a capability whose owner's text it
     repeats for three or more consecutive lines totalling 120 characters or
     more, THE validator SHALL exit non-zero and name both files.

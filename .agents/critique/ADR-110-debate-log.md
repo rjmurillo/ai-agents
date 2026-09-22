@@ -60,6 +60,20 @@ six-seat review.
 | A6 | architect | The four-kind vocabulary works only because the walker ignores support files, and the prose does not say so | Accepted in substance and folded into A5's rewrite rather than tracked separately. The revised Decision 3 states the walker's scope in its first sentence |
 | C9 | critic | Semantic duplicate detection should also ship | Out of scope by the issue's own text, which permits warning-only heuristics and does not require the paraphrase class. Recorded under Deferred with issue #5397 named as owner |
 
+## Revision 3
+
+Two corrections found while planning milestone 3, both raised against the
+record's own text rather than by a seat.
+
+| ID | Finding | Fix |
+|---|---|---|
+| R3-1 | The Context called the 13 untrusted-content files "an independently written version of the same policy", which rests on a grep. A diff shows two variants: a generic one in eleven files and a review-specific one in two | Restated the claim as what the diff shows, and said why it matters: a fix to one variant leaves the other stale |
+| R3-2 | Milestone 3 planned to replace prompt text with a pointer to `templates/rules/security.md`. An agent running under Copilot CLI never loads that tree, so the pointer would thin a prompt-injection defense | Milestone 3 now composes through the mustache partial mechanism the repository already uses, which renders the canonical text into every consumer. The after count is two files, one per partial tree, pinned byte-identical by a test |
+
+R3-2 is the same objection the critic raised as C6, reaching further than the
+first fix did. C6 saved the consumer-specific procedure; R3-1 and R3-2 save the
+shared core as text rather than as a citation.
+
 ## Verification after revision
 
 - `uv run python scripts/validation/check_capability_graph.py .` exits 0 against
