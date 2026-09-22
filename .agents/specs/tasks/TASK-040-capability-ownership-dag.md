@@ -94,8 +94,14 @@ the counts computed by the script rather than written by hand.
    that only a tool-heavy skill needs. Diff all 13 before editing any, move the
    shared core to the owner, and keep the role-specific half where it is.
 7. Record the before and after authored-location count with the command that
-   computes it, `grep -rlE 'data, not instructions' templates/ | wc -l`, not by
-   hand: 13 before, 2 after.
+   computes it, not by hand: 13 before; 2 canonical partials plus 4 residual
+   copies after. The residue is the four `templates/agents/*.shared.md` bodies.
+   `build/generate_agents.py` reads those files directly and runs no mustache
+   expansion, so a partial include would leak the literal token into the VS Code
+   agent tree. They convert when ADR-109 B1 finishes moving that tree onto the
+   per-harness templates; until then the shared body and its partial are two
+   authored copies of one agent, which is a pre-existing duplication this
+   milestone does not own.
 8. Run the security review axis over the diff, because the converted policy is
    a prompt-injection defense. Compare the rendered output before and after, so
    the diff shows that no consumer lost text at render time.
