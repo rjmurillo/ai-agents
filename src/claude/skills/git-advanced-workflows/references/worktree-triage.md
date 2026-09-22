@@ -17,10 +17,30 @@ is a harvest candidate, not an exclusion zone. The age is a first filter, not
 a verdict: a long read-only review phase can pass 60 minutes without a write,
 so Step 2 confirms with the file list before you act.
 
+Linux, or macOS with GNU findutils (`gfind` in place of `find`):
+
 ```bash
 newest=$(find "$p" -path '*/.git' -prune -o -type f -printf '%T@\n' | sort -rn | head -1)
 python3 -c "import time,sys; print(int((time.time()-float(sys.argv[1]))/60))" "$newest"
 ```
+
+macOS with the default BSD `find` (no `-printf`):
+
+```bash
+newest=$(find "$p" -path '*/.git' -prune -o -type f -exec stat -f '%m' {} + | sort -rn | head -1)
+python3 -c "import time,sys; print(int((time.time()-float(sys.argv[1]))/60))" "$newest"
+```
+
+Windows PowerShell:
+
+```powershell
+$newest = Get-ChildItem $p -Recurse -File |
+  Where-Object FullName -NotMatch '[\\/]\.git[\\/]' |
+  Sort-Object LastWriteTime -Descending | Select-Object -First 1
+[int]((Get-Date) - $newest.LastWriteTime).TotalMinutes
+```
+
+The later steps are Bash; run them from Git Bash or WSL on Windows.
 
 Do not match directory basenames against dispatched agent names. A basename
 with a numeric collision suffix reads as a live agent and is not one; the
