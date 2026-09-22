@@ -1,7 +1,7 @@
 ---
 name: adr-generator
 version: 1.1.0
-description: Create comprehensive Architectural Decision Records (ADRs). Researches the destination directory to detect existing template conventions, gathers context, determines next ADR number, generates the ADR, validates completeness, and saves. Supports multiple ADR formats (MADR, Nygard, Alexandrian, project canonical). Use when documenting technical decisions, creating new ADR files, or capturing rationale so future readers can revisit a choice. Use when you say "write an ADR", "document this decision", "document these design choices", "record why we chose this", "capture the rationale", or "for future maintainers", or when creating an ADR-like markdown file under docs/decisions/, docs/adr/, docs/architecture/, architecture/decisions/, or .agents/architecture/. Do NOT use to debate or review an existing ADR (use adr-review).
+description: Create comprehensive Architectural Decision Records (ADRs). Researches the destination directory to detect existing template conventions, gathers context, determines next ADR number, generates the ADR, validates completeness, and saves. Supports multiple ADR formats (MADR, Nygard, Alexandrian, project canonical). Use when documenting technical decisions, creating new ADR files, or capturing rationale so future readers can revisit a choice. Use when you say "write an ADR", "document this decision", "document these design choices", "record why we chose this", "capture the rationale", or "for future maintainers", or when creating an ADR-like markdown file under docs/decisions/, docs/adr/, docs/architecture/, architecture/decisions/, or .project-toolkit/architecture/. Do NOT use to debate or review an existing ADR (use adr-review).
 license: MIT
 user-invocable: true
 metadata:
@@ -202,7 +202,7 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
 
 1. **Claims ledger.** Create one row for every factual claim: claim text, kind
    (`path`, `count`, `absence`, `behavior`, or `quote`), command, and result.
-   Store it as `.agents/critique/ADR-NNN-claims-ledger.md` beside the debate log.
+   Store it as `.project-toolkit/critique/ADR-NNN-claims-ledger.md` beside the debate log.
    An absence row needs a whole-repository search. For each `path:line` row,
    read the cited range directly from the working tree and record the observed
    text. Do not use `check_citation_freshness.py`; it checks only citations on

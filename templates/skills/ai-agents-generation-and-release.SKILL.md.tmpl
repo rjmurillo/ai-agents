@@ -115,7 +115,7 @@ Drift-gate matrix (all local commands verified runnable, all green on 2026-07-29
 | Plugin version field present | a manifest or marketplace entry carries `version` | `pre-pr-validation` job in `lefthook.yml` (`scripts/validation/pre_pr.py`) | `validate-plugin-version-bump.yml` |
 | Semantic agent drift (src/claude) | hand-synced tree diverging in meaning | `python3 build/scripts/detect_agent_drift.py` | `drift-detection.yml`, weekly cron Monday 09:00 UTC (line 15); similarity threshold default 80 (detect_agent_drift.py:666-668), with a recorded-baseline floor so a clean checkout does not fail |
 
-When a drift gate is red, the output shows the DIFFERENCE, not the DIRECTION. Ask "which side is canonical?" using the Phase 1 table before touching anything. The 2025-12-15 incident (retro: `.agents/retrospective/2025-12-15-drift-detection-disaster.md`) happened because an agent edited the SOURCE to match the GENERATED tree; the commit was reverted. Fix is always: edit canonical, rerun generator, commit both.
+When a drift gate is red, the output shows the DIFFERENCE, not the DIRECTION. Ask "which side is canonical?" using the Phase 1 table before touching anything. The 2025-12-15 incident (retro: `.project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md`) happened because an agent edited the SOURCE to match the GENERATED tree; the commit was reverted. Fix is always: edit canonical, rerun generator, commit both.
 
 An emergency bypass marker for the drift gate exists but requires a reason and approval; see `ai-agents-config-catalog`. Route the decision through `ai-agents-change-control`.
 

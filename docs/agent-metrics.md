@@ -291,7 +291,7 @@ See: `.github/workflows/agent-metrics.yml`
 ## Related Documents
 
 - [Dashboard Template](../.agents/metrics/dashboard-template.md)
-- [Baseline Report](../.agents/metrics/baseline-report.md)
+- [Baseline Report](../.project-toolkit/metrics/baseline-report.md)
 - [Workflow Coalescing Metrics](../.agents/metrics/workflow-coalescing.md)
 - [Orchestrator Routing Algorithm](./orchestrator-routing-algorithm.md)
 - [Agent Governance](./agent-governance.md)
@@ -329,7 +329,7 @@ Coalescing Effectiveness = (Cancelled Runs / (Cancelled Runs + Parallel Runs)) *
 **Related**:
 
 - Script: `.github/scripts/Measure-WorkflowCoalescing.ps1`
-- Report: `.agents/metrics/workflow-coalescing.md`
+- Report: `.project-toolkit/metrics/workflow-coalescing.md`
 - Workflow: `.github/workflows/workflow-coalescing-metrics.yml`
 - ADR: [ADR-026](../.agents/architecture/ADR-026-pr-automation-concurrency-and-safety.md)
 

@@ -57,7 +57,7 @@ Supported reference formats:
 - Requirements: "REQ-001", "DESIGN-002", "TASK-003"
 - Spec files: ".agents/specs/requirements/...", ".agents/planning/..."
 
-For feature PRs: Create spec in .agents/planning/ before submitting if none exists.
+For feature PRs: Create spec in .project-toolkit/planning/ before submitting if none exists.
 For other PRs: Add references when traceability adds value.
 -->
 

@@ -83,8 +83,8 @@ uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" 
 | Req | Requirement | Verification |
 |-----|-------------|--------------|
 | MUST | Invoke orchestrator for task coordination | Orchestrator invoked in transcript |
-| MUST | Invoke critic before ANY merge or PR creation | Critic report in `.agents/critique/` |
-| MUST | Invoke QA after ANY code change | QA report in `.agents/qa/` |
+| MUST | Invoke critic before ANY merge or PR creation | Critic report in `.project-toolkit/critique/` |
+| MUST | Invoke QA after ANY code change | QA report in `.project-toolkit/qa/` |
 | MUST NOT | Mark security comments "won't fix" without security agent review | Security approval documented |
 | MUST NOT | Merge without explicit validation gate pass | All validations passed |
 | MUST | Document all "won't fix" decisions with rationale | Transcript or pull request contains justification |
@@ -105,7 +105,7 @@ uv run python .claude/skills/github/scripts/pr/new_pr.py --title "WIP: Feature" 
    - Significant files are mentioned
 
 2. **QA Report Exists** (WARNING)
-   - For code changes, recommends QA report in `.agents/qa/`
+   - For code changes, recommends QA report in `.project-toolkit/qa/`
 
 3. **Review Comment Status** (INFORMATIONAL)
    - Counts unresolved threads

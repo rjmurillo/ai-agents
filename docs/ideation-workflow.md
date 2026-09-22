@@ -114,7 +114,7 @@ GitHub Issue #42: "Add caching" (no further details)
 - WebSearch/WebFetch - General web research
 - GitHub CLI - Issue and PR research
 
-**Output**: `.agents/analysis/ideation-[topic].md`
+**Output**: `.project-toolkit/analysis/ideation-[topic].md`
 
 **Success Criteria**: Research document with clear recommendation (Proceed/Defer/Reject) and supporting evidence.
 
@@ -134,10 +134,10 @@ GitHub Issue #42: "Add caching" (no further details)
 | Decision | Meaning | Next Step |
 |----------|---------|-----------|
 | **Proceed** | Good idea, worth pursuing | Move to Phase 3 |
-| **Defer** | Good idea, but not now | Pause workflow, create backlog entry at `.agents/roadmap/backlog.md` with conditions and resume trigger |
+| **Defer** | Good idea, but not now | Pause workflow, create backlog entry at `.project-toolkit/roadmap/backlog.md` with conditions and resume trigger |
 | **Reject** | Not aligned with goals | Report rejection to user, persist rationale in validation doc |
 
-**Output**: `.agents/analysis/ideation-[topic]-validation.md`
+**Output**: `.project-toolkit/analysis/ideation-[topic]-validation.md`
 
 **Success Criteria**: Unanimous or majority consensus with documented rationale.
 
@@ -194,7 +194,7 @@ GitHub Issue #42: "Add caching" (no further details)
 - **Security**: Any security implications? What mitigations needed?
 - **QA**: How do we test this? What coverage is required?
 
-**Output**: `.agents/planning/implementation-plan-[topic].md`
+**Output**: `.project-toolkit/planning/implementation-plan-[topic].md`
 
 **Success Criteria**: All agents approve (or concerns addressed) before implementation begins.
 

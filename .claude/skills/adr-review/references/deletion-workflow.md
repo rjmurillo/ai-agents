@@ -76,7 +76,7 @@ If archiving is required:
 [Original ADR content preserved below]
 ```
 
-Save to: `.agents/architecture/archive/ADR-NNN-title.md`
+Save to: `.project-toolkit/architecture/archive/ADR-NNN-title.md`
 
 ## Phase D4: Cleanup
 

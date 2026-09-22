@@ -193,7 +193,7 @@ ls ".agents/sessions/$SESSION_ID.json"
 |-------|----------|
 | Episode not extracted | Run extract_session_episode.py |
 | Wrong session ID format | Use format: YYYY-MM-DD-session-NNN |
-| Episode directory missing | Create `.agents/memory/episodes/` |
+| Episode directory missing | Create `.project-toolkit/memory/episodes/` |
 
 **Extracting Episode**:
 
@@ -339,7 +339,7 @@ done
 Create missing directories:
 
 ```bash
-mkdir -p .serena/memories .agents/memory/episodes
+mkdir -p .serena/memories .project-toolkit/memory/episodes
 ```
 
 ### Issue: Path Mismatch After Migration
@@ -456,4 +456,4 @@ If issues persist after trying these solutions:
 - [Quick Start](../../memory-search/references/quick-start.md) - Common patterns
 - [Benchmarking](benchmarking.md) - Performance measurement
 
-<!-- vendor-portability: declared. This guide tells the user to create .agents/memory/episodes/ when the episode directory is missing. The path is the memory store's data dir, created by the fix the doc describes; it is not a read precondition. Issue #2050. -->
+<!-- vendor-portability: declared. This guide tells the user to create .project-toolkit/memory/episodes/ when the episode directory is missing. The path is the memory store's data dir, created by the fix the doc describes; it is not a read precondition. Issue #2050. -->

@@ -9,7 +9,7 @@ output artifact MUST match this template, modulo filled placeholders. Do not rew
 headings or table columns; downstream readers and the auto-retro skeleton-fill path depend
 on the exact shape.
 
-Save to: `.agents/retrospective/YYYY-MM-DD-[scope].md`
+Save to: `.project-toolkit/retrospective/YYYY-MM-DD-[scope].md`
 
 ````markdown
 # Retrospective: [Scope]

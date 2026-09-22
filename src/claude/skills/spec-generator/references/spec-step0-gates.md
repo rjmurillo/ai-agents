@@ -93,7 +93,7 @@ The five fields are:
 4. `test_failed`: name the rule that was violated (e.g., `Q3 specificity test conditions 1, 2, 3 all failed`).
 5. `deferral`: a single-line instruction telling the author what to do.
 
-**Redaction pre-emit (BLOCKING)**: the `answer` field carries the author's words verbatim, and the emitted block lands in git history (PR descriptions, session logs, and the `.agents/metrics/STEP-0-METRICS.md` tally). An author answer such as `Alice@corp on prod-east-12.internal blocked on Bearer abc...` would otherwise disclose a credential, email, or internal hostname for the life of the history (CWE-209 information exposure through a diagnostic message, CWE-532 sensitive data in a log). Before emitting the `step0-halt` block, run the `answer` field through the redactor and emit the redacted form:
+**Redaction pre-emit (BLOCKING)**: the `answer` field carries the author's words verbatim, and the emitted block lands in git history (PR descriptions, session logs, and the `.project-toolkit/metrics/STEP-0-METRICS.md` tally). An author answer such as `Alice@corp on prod-east-12.internal blocked on Bearer abc...` would otherwise disclose a credential, email, or internal hostname for the life of the history (CWE-209 information exposure through a diagnostic message, CWE-532 sensitive data in a log). Before emitting the `step0-halt` block, run the `answer` field through the redactor and emit the redacted form:
 
 ```bash
 python3 scripts/redact_secrets.py <file>      # or pipe the answer text on stdin

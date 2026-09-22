@@ -183,7 +183,7 @@ fi
 
 ### Step 2.2: Generate Comment Map
 
-Save to: `.agents/pr-comments/PR-[number]/comments.md`
+Save to: `.project-toolkit/pr-comments/PR-[number]/comments.md`
 
 Each comment gets:
 
@@ -245,7 +245,7 @@ For each comment, delegate to orchestrator with full context:
 Task(subagent_type="orchestrator", prompt="""
 [Context from Step 3.1]
 
-After analysis, save plan to: `.agents/pr-comments/PR-[number]/[comment_id]-plan.md`
+After analysis, save plan to: `.project-toolkit/pr-comments/PR-[number]/[comment_id]-plan.md`
 
 Verify the finding's premise (Skill(skill="reviewer-findings")) before
 choosing Action: Implement. A premise git history refutes routes to
@@ -261,7 +261,7 @@ Return:
 
 ## Phase 4: Task List Generation
 
-Save to: `.agents/pr-comments/PR-[number]/tasks.md`
+Save to: `.project-toolkit/pr-comments/PR-[number]/tasks.md`
 
 Priority groups:
 

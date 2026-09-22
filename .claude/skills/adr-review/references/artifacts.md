@@ -1,10 +1,10 @@
 # Artifact Storage
 
-Save debate artifacts to `.agents/critique/`.
+Save debate artifacts to `.project-toolkit/critique/`.
 
 ## Debate Log
 
-Save to: `.agents/critique/ADR-NNN-debate-log.md`
+Save to: `.project-toolkit/critique/ADR-NNN-debate-log.md`
 
 ```markdown
 # ADR Debate Log: [ADR Title]
@@ -35,7 +35,7 @@ Save to: `.agents/critique/ADR-NNN-debate-log.md`
 
 ## Updated ADR
 
-Save to: `.agents/architecture/ADR-NNN-[title].md` (or update in place)
+Save to: `.project-toolkit/architecture/ADR-NNN-[title].md` (or update in place)
 
 ## Recommendations
 

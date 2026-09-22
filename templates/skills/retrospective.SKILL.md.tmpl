@@ -13,7 +13,7 @@ metadata:
 
 # Retrospective
 
-<!-- vendor-portability: declared. This skill reads the consumer's most recent session log under .agents/sessions/ as evidence and writes the retrospective artifact to .agents/retrospective/YYYY-MM-DD-[scope].md (creating the directory on demand). The session-log read is best-effort (the skill notes the source as absent when missing); the retrospective path is a write target. A vendored install without .agents/ gathers from git history alone and creates the output directory. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reads the consumer's most recent session log under .agents/sessions/ as evidence and writes the retrospective artifact to .agents/retrospective/YYYY-MM-DD-[scope].md (creating the directory on demand). The session-log read is best-effort (the skill notes the source as absent when missing); the retrospective path is a write target. A vendored install without .project-toolkit/ gathers from git history alone and creates the output directory. Issue #2050. -->
 
 Turn execution experience into institutional knowledge. This skill orchestrates a fixed
 Phase 0 through Phase 5 workflow that gathers evidence, generates insights, diagnoses root

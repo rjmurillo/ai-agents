@@ -27,7 +27,7 @@ Before handing off, validate ALL items in the applicable checklist:
 ### Pass Handoff (to orchestrator)
 
 ```markdown
-- [ ] Test report saved to `.agents/qa/`
+- [ ] Test report saved to `.project-toolkit/qa/`
 - [ ] Paste the test-runner summary line showing 0 failures (not a claim)
 - [ ] Coverage meets plan requirements (or gap documented)
 - [ ] Test report includes: summary, passed, failed, skipped, gaps
@@ -39,7 +39,7 @@ Before handing off, validate ALL items in the applicable checklist:
 ### Failure Handoff (to implementer)
 
 ```markdown
-- [ ] Test report saved to `.agents/qa/`
+- [ ] Test report saved to `.project-toolkit/qa/`
 - [ ] Failed tests listed with specific failure reasons
 - [ ] Each failure includes: expected vs actual, recommendation
 - [ ] Status explicitly stated as "QA FAILED"
@@ -71,7 +71,7 @@ If ANY checklist item cannot be completed:
 
 When QA is complete:
 
-1. Save test report to `.agents/qa/`
+1. Save test report to `.project-toolkit/qa/`
 2. Store results summary in memory
 3. Return to orchestrator with clear status:
    - **QA COMPLETE**: "All tests passing. Ready for user validation."

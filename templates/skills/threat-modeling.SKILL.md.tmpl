@@ -185,7 +185,7 @@ Use the generate script to create a structured matrix:
 ```bash
 python .claude/skills/threat-modeling/scripts/generate_threat_matrix.py \
     --scope "Authentication Service" \
-    --output .agents/security/threat-models/auth-threats.md
+    --output .project-toolkit/security/threat-models/auth-threats.md
 ```
 
 **Manual Format:**
@@ -277,7 +277,7 @@ For each threat, document:
 ```bash
 python .claude/skills/threat-modeling/scripts/generate_mitigation_roadmap.py \
     --input .agents/security/threat-models/auth-threats.md \
-    --output .agents/security/threat-models/auth-roadmap.md
+    --output .project-toolkit/security/threat-models/auth-roadmap.md
 ```
 
 ---

@@ -76,7 +76,7 @@ When milestone-planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-devops-[feature].md`
+Save to: `.project-toolkit/planning/impact-analysis-devops-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - DevOps
@@ -228,7 +228,7 @@ dotnet test Qwiq.sln -c Release --no-build \
 
 ## Infrastructure Documentation Format
 
-Save to: `.agents/devops/`
+Save to: `.project-toolkit/devops/`
 
 ### Pipeline Documentation
 

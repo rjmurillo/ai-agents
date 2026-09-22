@@ -352,7 +352,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `session_log_path` | path | Yes | - | Positional. Path to the session log file |
-| `--output-path` | path | No | `.agents/memory/episodes/` | Output directory for episode JSON |
+| `--output-path` | path | No | `.project-toolkit/memory/episodes/` | Output directory for episode JSON |
 | `--force` | flag | No | - | Overwrite an existing episode file |
 | `--preserve` | flag | No | - | Merge fresh extraction over an existing episode. Mutually exclusive with `--force` |
 | `--pending-stage` | flag | No | - | Count the not-yet-staged episode file in the staged-file total |
@@ -379,7 +379,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 #   Decisions: 5
 #   Events:    12
 #   Lessons:   3
-#   Output:    .agents/memory/episodes/episode-2026-01-01-session-126.json
+#   Output:    .project-toolkit/memory/episodes/episode-2026-01-01-session-126.json
 ```
 
 ## Integration

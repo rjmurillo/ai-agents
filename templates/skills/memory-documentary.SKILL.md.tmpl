@@ -16,7 +16,7 @@ metadata:
 
 Generate comprehensive documentary-style reports from your memory systems with full evidence chains.
 
-<!-- vendor-portability: declared. This skill searches the consumer's .agents/ artifacts (sessions, retrospectives, analysis) alongside the three memory systems as evidence inputs, and writes the report under .agents/. The .agents/ reads are best-effort evidence sources; a vendored install without that tree produces a report from whatever memory systems and artifacts the consumer repo does have, not a silent no-op. Issue #2050. -->
+<!-- vendor-portability: declared. This skill searches the consumer's .agents/ artifacts (sessions, retrospectives, analysis) alongside the three memory systems as evidence inputs, and writes the report under .project-toolkit/. The .project-toolkit/ reads are best-effort evidence sources; a vendored install without that tree produces a report from whatever memory systems and artifacts the consumer repo does have, not a silent no-op. Issue #2050. -->
 
 ---
 
@@ -184,7 +184,7 @@ Cross-system synthesis revealing:
 
 After execution:
 
-- [ ] Report saved to `.agents/analysis/[topic]-documentary-[date].md`
+- [ ] Report saved to `.project-toolkit/analysis/[topic]-documentary-[date].md`
 - [ ] Every claim has a citation with source system, retrieval key, and direct quote
 - [ ] All 3 MCP servers were queried (or documented as unavailable)
 - [ ] Meta-pattern stored in memory (Phase 5)

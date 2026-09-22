@@ -24,10 +24,11 @@ _SCANNED_PREFIXES = (".claude/", ".github/", "docs/", "scripts/", "src/", "templ
 _TEXT_SUFFIXES = (".md", ".txt", ".yml", ".yaml")
 _TARGET = re.compile(r"(?<![\w-])\.agents(?:/[^\s`'\"<>),;:]*)?")
 _WRITE = re.compile(
-    r"\b(?:create|emit|generate|mkdir|output|persist|report|save|store|write)\b",
+    r"\b(?:create|edit|emit|generate|mkdir|output|persist|report|save|store|write)\b",
     re.IGNORECASE,
 )
 _HISTORICAL = re.compile(r"agents-write-target:\s*historical\s*--\s*\S", re.IGNORECASE)
+_READ_CONTEXT = re.compile(r"(?:from (?:the )?template at|inventory:|per|see|via)\s*[`'\"]?$", re.IGNORECASE)
 _WRITE_METHODS = frozenset({"mkdir", "touch", "write_bytes", "write_text"})
 
 
@@ -46,8 +47,18 @@ def scan_text(path: str, text: str) -> list[Finding]:
     """Find explicit write verbs and legacy targets on one prescriptive line."""
     findings: list[Finding] = []
     for line_number, line in enumerate(text.splitlines(), 1):
-        if not _HISTORICAL.search(line) and _WRITE.search(line):
+        if not _HISTORICAL.search(line):
             for match in _TARGET.finditer(line):
+                # A reference before a write verb is usually a read prerequisite,
+                # not the destination of that write.
+                if not _WRITE.search(line[: match.start()]):
+                    continue
+                prefix = line[: match.start()]
+                if _READ_CONTEXT.search(prefix):
+                    continue
+                last_write = list(_WRITE.finditer(prefix))[-1]
+                if _TARGET.search(prefix[last_write.end() :]):
+                    continue
                 findings.append(
                     Finding(
                         path,

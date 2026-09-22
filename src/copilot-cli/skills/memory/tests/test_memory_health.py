@@ -102,7 +102,7 @@ class TestMainFunction:
         base = tmp_path / "project"
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
-        (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
+        (base / ".project-toolkit" / "memory" / "episodes").mkdir(parents=True)
 
         with patch("socket.create_connection", side_effect=OSError("refused")):
             result = main(["--base-path", str(base)])
@@ -119,7 +119,7 @@ class TestMainFunction:
         base = tmp_path / "project"
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
-        (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
+        (base / ".project-toolkit" / "memory" / "episodes").mkdir(parents=True)
 
         with patch("socket.create_connection", side_effect=OSError("refused")):
             result = main(["--format", "table", "--base-path", str(base)])
@@ -134,7 +134,7 @@ class TestMainFunction:
         base = tmp_path / "project"
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
-        (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
+        (base / ".project-toolkit" / "memory" / "episodes").mkdir(parents=True)
         # Create .claude/skills/memory/ but NOT memory_core/
         (base / ".claude" / "skills" / "memory").mkdir(parents=True)
 
@@ -154,7 +154,7 @@ class TestMainFunction:
         serena = base / ".serena" / "memories"
         serena.mkdir(parents=True)
         (serena / "test.md").write_text("content")
-        (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
+        (base / ".project-toolkit" / "memory" / "episodes").mkdir(parents=True)
 
         # Create memory_core modules
         mem_root = base / ".claude" / "skills" / "memory"
@@ -177,7 +177,7 @@ class TestMainFunction:
         base = tmp_path / "project"
         base.mkdir()
         (base / ".serena" / "memories").mkdir(parents=True)
-        (base / ".agents" / "memory" / "episodes").mkdir(parents=True)
+        (base / ".project-toolkit" / "memory" / "episodes").mkdir(parents=True)
 
         with patch("socket.create_connection", side_effect=OSError("refused")):
             result = main(["--base-path", str(base)])

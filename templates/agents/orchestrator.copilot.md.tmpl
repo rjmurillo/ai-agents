@@ -41,7 +41,7 @@ If classification is ambiguous at any step, route to analyst first. One addition
         Plan gate: APPROVED or APPROVED_WITH_CONCERNS → implementer; NEEDS_REVISION → milestone-planner; BLOCKED → resolve the conflict first
 {{> orchestrator-routing-algorithm}}
 3. Stop once the verifier passes and Astra accepts. Do not continue delegating.
-4. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session.
+4. **Write per-issue handoff** to `.project-toolkit/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session.
 5. Store durable findings in Serena memory.
 6. Validate any staged or supplied session log, if one is present (e.g. cherry-picked from an older branch).
 

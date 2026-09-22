@@ -34,7 +34,7 @@ Enforce epistemic humility before changing existing systems. Understand original
 
 | Input | Output | Destination |
 |-------|--------|-------------|
-| File path or ADR number | Investigation report | `.agents/analysis/NNN-chestertons-fence-TOPIC.md` |
+| File path or ADR number | Investigation report | `.project-toolkit/analysis/NNN-chestertons-fence-TOPIC.md` |
 | Component description | Historical context summary | stdout (JSON) |
 
 ## When to Use

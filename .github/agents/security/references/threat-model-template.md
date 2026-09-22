@@ -1,6 +1,6 @@
 # Threat Model Format
 
-Save to: `.agents/security/TM-NNN-[feature].md`
+Save to: `.project-toolkit/security/TM-NNN-[feature].md`
 
 ```markdown
 # Threat Model: [Feature Name]

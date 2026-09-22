@@ -677,7 +677,7 @@ fi
    3. What patterns led to this situation?
    4. Recommendations for future work
 
-   Save analysis to: .agents/retrospective/PR-[number]-needs-split-analysis.md
+   Save analysis to: .project-toolkit/retrospective/PR-[number]-needs-split-analysis.md
    ```
 
 2. **Analyze commit history**: Group commits by logical change
@@ -828,7 +828,7 @@ gh api repos/[owner]/[repo]/issues/[number]/comments --jq '.[] | {
 
 ### Phase 2: Comment Map Generation
 
-Create a persistent map of all comments. Save to `.agents/pr-comments/PR-[number]/comments.md`.
+Create a persistent map of all comments. Save to `.project-toolkit/pr-comments/PR-[number]/comments.md`.
 
 #### Step 2.1: Acknowledge All Comments (Batch)
 
@@ -865,7 +865,7 @@ gh api repos/[owner]/[repo]/issues/comments/[comment_id]/reactions \
 
 #### Step 2.2: Generate Comment Map
 
-Save to: `.agents/pr-comments/PR-[number]/comments.md`
+Save to: `.project-toolkit/pr-comments/PR-[number]/comments.md`
 
 ```markdown
 # PR Comment Map: PR #[number]
@@ -961,7 +961,7 @@ Analyze this PR comment and determine:
 #runSubagent with subagentType=orchestrator
 [Context from Step 3.1]
 
-After analysis, save plan to: `.agents/pr-comments/PR-[number]/[comment_id]-plan.md`
+After analysis, save plan to: `.project-toolkit/pr-comments/PR-[number]/[comment_id]-plan.md`
 
 Return:
 - Classification: [Quick Fix / Standard / Strategic]
@@ -978,7 +978,7 @@ After orchestrator returns, update the comment map with analysis results.
 
 Based on orchestrator analysis, generate a prioritized task list.
 
-Save to: `.agents/pr-comments/PR-[number]/tasks.md`
+Save to: `.project-toolkit/pr-comments/PR-[number]/tasks.md`
 
 ```markdown
 # PR #[number] Task List

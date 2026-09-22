@@ -359,7 +359,7 @@ uv run python "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/mem
 **Parameters**:
 
 - **session_log_path** (required, positional): path to the session log. Must exist.
-- **--output-path**: output directory. Default `.agents/memory/episodes/`.
+- **--output-path**: output directory. Default `.project-toolkit/memory/episodes/`.
 - **--force**: overwrite an existing episode file.
 - **--preserve**: merge fresh extraction over an existing file rather than replacing it.
 
@@ -455,4 +455,4 @@ Latencies assume SSD storage and a hot filesystem cache.
 - ADR-038. Reflexion Memory schema.
 - ADR-042. Python-first scripting.
 
-<!-- vendor-portability: declared. This API reference documents Python defaults that write episodes to .agents/memory/episodes/. That is a configurable output path (--output-path); a vendored install overrides it or lets the tool create the default dir. Issue #2050. -->
+<!-- vendor-portability: declared. This API reference documents Python defaults that write episodes to .project-toolkit/memory/episodes/. That is a configurable output path (--output-path); a vendored install overrides it or lets the tool create the default dir. Issue #2050. -->

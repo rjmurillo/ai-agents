@@ -51,7 +51,7 @@ lesson.
 ### Phase 2: Session logs (historical only)
 
 Session log creation is discontinued (`.claude/rules/session-logs.md` MUST 1):
-do not create a new `.agents/sessions/*.json` file. The ~1,500 existing logs
+do not create a new `.project-toolkit/sessions/*.json` file. The ~1,500 existing logs
 stay in the repo as history, schema at
 `.agents/schemas/session-log.schema.json` (top-level required: `session`,
 `protocolCompliance` with `sessionStart` and `sessionEnd` subsections), and
@@ -95,7 +95,7 @@ Workflow:
 
 1. Search first: `memory-search` for prior decisions, then read neighbors in
    `.agents/architecture/` (ADR-007 memory-first: retrieval precedes reasoning).
-2. Generate with `adr-generator` against `.agents/architecture/ADR-TEMPLATE.md`.
+2. Generate with `adr-generator` against `.project-toolkit/architecture/ADR-TEMPLATE.md`.
 3. Claim the number from `--print-next` at the last moment before commit.
 4. Expect the gate: any `ADR-*.md` create or edit fires the `adr-review`
    multi-agent debate (AGENTS.md, "ADR Review").

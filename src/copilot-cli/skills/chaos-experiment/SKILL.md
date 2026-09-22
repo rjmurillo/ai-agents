@@ -308,7 +308,7 @@ python scripts/generate_experiment.py \
   --name "Database Failover Resilience" \
   --system "Payment Service" \
   --owner "Jane Smith" \
-  --output .agents/chaos/
+  --output .project-toolkit/chaos/
 ```
 
 ## Verification Checklist

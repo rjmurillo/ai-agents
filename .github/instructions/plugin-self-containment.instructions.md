@@ -31,7 +31,7 @@ The distinction below is the whole rule. Getting it wrong in either direction is
 | Kind | Example | Verdict |
 |---|---|---|
 | **Bundled dependency**: a file the plugin ships and must resolve at runtime | a sibling skill's script under the same plugin root | Fine. Address it through the plugin-root env vars. |
-| **Consumer-workspace path**: a location in the installing repository that the agent reads or writes | an agent told to write its output to `.agents/planning/` or `docs/adr/` in the consumer's repo | Fine. This is the plugin doing its job. Not a defect. |
+| **Consumer-workspace path**: a location in the installing repository that the agent reads or writes | an agent told to write its output to `.project-toolkit/planning/` or `docs/adr/` in the consumer's repo | Fine. This is the plugin doing its job. Not a defect. |
 | **Upstream-only dependency**: a path that exists only in `rjmurillo/ai-agents` | `templates/agents/security.shared.md`, `docs/agent-catalog.md`, `build/scripts/build_all.py` | **Defect**, unless declared. Dangles for every consumer. |
 
 A grep cannot tell these apart. A reviewer can. When the target exists only upstream and the text instructs the reader to open, run, or resolve it, that is the defect.

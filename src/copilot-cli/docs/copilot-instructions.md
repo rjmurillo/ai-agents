@@ -30,7 +30,7 @@ Implement the login form per the plan in .agents/planning/
 When handing off between agents:
 
 1. Announce: "Completing [task]. Handing off to [agent] for [purpose]"
-2. Save artifacts: store outputs in the appropriate `.agents/` directory
+2. Save artifacts: store outputs in the appropriate `.project-toolkit/` directory
 3. Route: use `/agent [agent_name]`
 
 ### Best Practices

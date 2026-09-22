@@ -9,7 +9,7 @@ license: MIT
 
 Treat execution plans as first-class artifacts, versioned in the repository.
 
-<!-- vendor-portability: declared. This skill reads and writes plan artifacts under the consumer's .agents/plans/ (active/, completed/, abandoned/) and .agents/debt/tech-debt-registry.md, seeded from .agents/plans/TEMPLATE.md. These are consumer-side write targets created on demand; a vendored install without .agents/ creates the directories when the first plan is written rather than failing silently. Issue #2050. -->
+<!-- vendor-portability: declared. This skill reads and writes plan artifacts under the consumer's .agents/plans/ (active/, completed/, abandoned/) and .agents/debt/tech-debt-registry.md, seeded from .agents/plans/TEMPLATE.md. These are consumer-side write targets created on demand; a vendored install without .project-toolkit/ creates the directories when the first plan is written rather than failing silently. Issue #2050. -->
 
 ## Directory Structure
 

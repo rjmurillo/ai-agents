@@ -29,7 +29,7 @@ All agents must adhere to these principles:
 
 To propose a new agent:
 
-1. Create an ADR using the template at `.agents/architecture/ADR-TEMPLATE.md`
+1. Create an ADR using the template at `.project-toolkit/architecture/ADR-TEMPLATE.md`
 2. Complete the overlap analysis (must be < 20%)
 3. Document entry criteria, limitations, and success metrics
 4. Submit for steering committee review

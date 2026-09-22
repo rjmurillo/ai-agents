@@ -116,7 +116,7 @@ When milestone-planner requests impact analysis (during planning phase):
 
 ### Impact Analysis Deliverable
 
-Save to: `.agents/planning/impact-analysis-architecture-[feature].md`
+Save to: `.project-toolkit/planning/impact-analysis-architecture-[feature].md`
 
 ```markdown
 # Impact Analysis: [Feature] - Architecture
@@ -248,7 +248,7 @@ An AD is complete when these five criteria are met:
 
 ### ADR Template (MADR 4.0)
 
-Save to: `.agents/architecture/ADR-NNNN-[decision-name].md`
+Save to: `.project-toolkit/architecture/ADR-NNNN-[decision-name].md`
 
 ```markdown
 ---
@@ -423,7 +423,7 @@ When reviewing an ADR:
 
 All DESIGN-REVIEW documents MUST use YAML frontmatter for automated parsing. The CI quality gate enforces blocking verdicts.
 
-Save to: `.agents/architecture/DESIGN-REVIEW-[topic].md`
+Save to: `.project-toolkit/architecture/DESIGN-REVIEW-[topic].md`
 
 ```markdown
 ---
@@ -523,7 +523,7 @@ A document that exceeds these caps signals either fan-out across unrelated decis
 
 ## Constraints
 
-- **Edit only** `.agents/architecture/` files
+- **Edit only** `.project-toolkit/architecture/` files
 - **No code implementation**
 - **No plan creation** (that's Planner's role)
 - Focus on governance, not execution
@@ -744,9 +744,9 @@ When reviewing PRs that add new directories or relocate files, assess structural
 
 ### ADR Creation/Update Protocol (BLOCKING)
 
-When you create or update an ADR file matching `.agents/architecture/ADR-*.md`:
+When you create or update an ADR file matching `.project-toolkit/architecture/ADR-*.md`:
 
-1. Save ADR to `.agents/architecture/ADR-NNNN-[title].md`
+1. Save ADR to `.project-toolkit/architecture/ADR-NNNN-[title].md`
 2. Update architecture changelog if needed
 3. Store decision in memory
 4. Return to orchestrator with **MANDATORY routing**:
@@ -768,7 +768,7 @@ Rationale: All ADRs require multi-agent validation per adr-review protocol.
 
 When review is complete and NO ADR was created/updated:
 
-1. Save findings to `.agents/architecture/`
+1. Save findings to `.project-toolkit/architecture/`
 2. Update architecture changelog if decisions made
 3. Store decision in memory
 4. Announce: "Architecture review complete. Handing off to [agent] for [next step]"
