@@ -125,31 +125,37 @@ class _PythonWrites(ast.NodeVisitor):
             Finding(self.path, getattr(node, "lineno", 0), target, "Python write targets .agents")
         )
 
+    def _add_if_legacy(self, node: ast.AST, target: str | None) -> None:
+        if _is_legacy(target):
+            self._add(node, target or ".agents")
+
+    def _visit_attribute_call(self, node: ast.Call, func: ast.Attribute) -> None:
+        if func.attr in _WRITE_METHODS:
+            self._add_if_legacy(node, _constant_path(func.value))
+            return
+        if func.attr == "open":
+            target = _constant_path(func.value)
+            if any(flag in _path_open_mode(node) for flag in "wax+"):
+                self._add_if_legacy(node, target)
+            return
+        if node.args:
+            self._visit_module_write(node, func)
+
+    def _visit_module_write(self, node: ast.Call, func: ast.Attribute) -> None:
+        owner = func.value.id if isinstance(func.value, ast.Name) else ""
+        if owner == "os" and func.attr in {"mkdir", "makedirs"}:
+            self._add_if_legacy(node, _constant_path(node.args[0]))
+        elif owner == "shutil" and func.attr in {"copy", "copyfile", "copytree", "move"}:
+            if len(node.args) > 1:
+                self._add_if_legacy(node, _constant_path(node.args[1]))
+
     def visit_Call(self, node: ast.Call) -> None:
         func = node.func
-        if isinstance(func, ast.Attribute) and func.attr in _WRITE_METHODS:
-            target = _constant_path(func.value)
-            if _is_legacy(target):
-                self._add(node, target or ".agents")
-        elif isinstance(func, ast.Attribute) and func.attr == "open":
-            target = _constant_path(func.value)
-            if _is_legacy(target) and any(flag in _path_open_mode(node) for flag in "wax+"):
-                self._add(node, target or ".agents")
+        if isinstance(func, ast.Attribute):
+            self._visit_attribute_call(node, func)
         elif isinstance(func, ast.Name) and func.id == "open" and node.args:
-            target = _constant_path(node.args[0])
-            if _is_legacy(target) and any(flag in _open_mode(node) for flag in "wax+"):
-                self._add(node, target or ".agents")
-        elif isinstance(func, ast.Attribute) and node.args:
-            owner = func.value.id if isinstance(func.value, ast.Name) else ""
-            if owner == "os" and func.attr in {"mkdir", "makedirs"}:
-                target = _constant_path(node.args[0])
-                if _is_legacy(target):
-                    self._add(node, target or ".agents")
-            elif owner == "shutil" and func.attr in {"copy", "copyfile", "copytree", "move"}:
-                if len(node.args) > 1:
-                    target = _constant_path(node.args[1])
-                    if _is_legacy(target):
-                        self._add(node, target or ".agents")
+            if any(flag in _open_mode(node) for flag in "wax+"):
+                self._add_if_legacy(node, _constant_path(node.args[0]))
         self.generic_visit(node)
 
 
