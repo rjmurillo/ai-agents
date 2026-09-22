@@ -28,7 +28,10 @@ _WRITE = re.compile(
     re.IGNORECASE,
 )
 _HISTORICAL = re.compile(r"agents-write-target:\s*historical\s*--\s*\S", re.IGNORECASE)
-_READ_CONTEXT = re.compile(r"(?:from (?:the )?template at|inventory:|per|see|via)\s*[`'\"]?$", re.IGNORECASE)
+_READ_CONTEXT = re.compile(
+    r"(?:from (?:the )?template at|inventory:|per|see|via)\s*[`'\"]?$",
+    re.IGNORECASE,
+)
 _WRITE_METHODS = frozenset({"mkdir", "touch", "write_bytes", "write_text"})
 
 
