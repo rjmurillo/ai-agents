@@ -179,7 +179,7 @@ one engineer-hour diagnosis -> Terra may lose to Sol.
    NO  → continue
 4. Is task a standard lifecycle (spec/plan/build/test/review/ship)?
    YES → sequential routing: /spec → milestone-planner → critic (plan gate) → implementer → qa → critic (readiness)
-        Plan gate: NEEDS_REVISION → milestone-planner; BLOCKED → resolve the conflict first
+        Plan gate: APPROVED → implementer; NEEDS_REVISION → milestone-planner; BLOCKED → resolve the conflict first
    NO  → continue
 5. Does task have multiple independent subtasks?
    YES → parallel routing, fan-in synthesis

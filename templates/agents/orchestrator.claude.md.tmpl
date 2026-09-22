@@ -26,7 +26,7 @@ If classification is ambiguous at any step, route to analyst first. One addition
 
 {{> orchestrator-core-behavior}}
    YES → sequential routing: /spec → milestone-planner → critic (plan gate) → implementer → qa → critic (readiness)
-        Plan gate: NEEDS_REVISION → milestone-planner; BLOCKED → resolve the conflict first
+        Plan gate: APPROVED → implementer; NEEDS_REVISION → milestone-planner; BLOCKED → resolve the conflict first
 {{> orchestrator-routing-algorithm}}
 3. Stop once the verifier passes and Astra accepts. Do not continue delegating.
 4. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session.
