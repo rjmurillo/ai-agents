@@ -33,5 +33,6 @@ def test_mandatory_exit_gates_are_ordered_and_measurable() -> None:
     assert "checks only citations on" in gate_text
     assert "the saved ADR as the documentation file" in gate_text
     assert "scans committed changes" in gate_text
+    assert "Pass the ledger path and contents" in gate_text
     assert 'subagent_type="analyst"' in gate_text
     assert 'model="haiku"' in gate_text

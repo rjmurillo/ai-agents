@@ -221,8 +221,9 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
    evidence as `UNAVAILABLE`, never as a fabricated correction.
    The seat is a bounded experiment, not independent proof. It may use a different
    failure mode or externally grounded evidence; record its cost and wall time.
-5. **ADR review hand-off.** Attach the ledger path to the debate log before
-   invoking `adr-review`. A factual finding already covered by the ledger is a
+5. **ADR review hand-off.** Pass the ledger path and contents with the ADR to
+   `adr-review`. In Phase 1, record the path in the new debate log before
+   evaluating findings. A factual finding already covered by the ledger is a
    gate escape, not proof that the writer must fabricate a same-pass correction.
 
 ### Phase G6: Hand Off
