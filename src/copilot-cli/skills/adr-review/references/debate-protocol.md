@@ -60,7 +60,8 @@ Include related work findings in each Phase 1 agent prompt as context.
 
 ## Phase 1: Independent Review
 
-Invoke each agent with the ADR content AND related work findings. Each provides:
+Start the debate log with the claims-ledger path. Invoke each agent with the ADR
+content, related work findings, and the claims ledger. Each provides:
 
 ```markdown
 ## [Agent] Review
@@ -83,6 +84,10 @@ Invoke each agent with the ADR content AND related work findings. Each provides:
 | [Issue] | P0/P1/P2 | [Details] |
 
 P0 = blocking, P1 = important, P2 = nice-to-have
+
+### Gate Escapes
+- When a factual finding duplicates a `VERIFIED` claims-ledger row, record the
+  evidence here as a gate escape. The debate log summary rolls up escapes.
 ```
 
 **Agent Invocation Pattern:**
@@ -93,6 +98,10 @@ ADR Review Request (Phase 1: Independent Review)
 
 ## ADR Content
 [Full ADR text]
+
+## Claims Ledger
+Path: [Claims ledger path]
+[Claims ledger contents]
 
 ## Instructions
 1. Review for structural compliance with the detected ADR template format

@@ -187,7 +187,48 @@ Write the file to the destination directory determined in Phase G2:
 | Status always set to `Proposed` | Changed only after `adr-review` debate |
 | Frontmatter `status: proposed`, `implemented: false`, `explainer: null` | Phase 1 defaults (ADR-073); `explainer` never auto-fetched (CWE-918) |
 
-After saving, recommend the user invoke the `adr-review` skill for multi-agent validation.
+## Mandatory Exit Gates
+
+Run these five gates in order against the saved draft before handing it to
+`adr-review`. They are a measured pilot, not a permanent policy: use one fixed
+ADR cohort before and after the pilot, then retain them only when avoided writer
+rework exceeds maintenance and runtime cost. Record factual-finding share in
+round one, rounds to consensus, writer correction time, total model cost, false
+blocks, gate escapes, model, harness version, and wall time. The abort condition
+is false blocks or gate escapes increasing without lower writer correction time.
+
+Every gate result is `VERIFIED`, `NOT RUN`, `UNAVAILABLE`, or `FAILED`. Do not
+invent a correction when evidence is unavailable or a claim remains uncertain.
+
+1. **Claims ledger.** Create one row for every factual claim: claim text, kind
+   (`path`, `count`, `absence`, `behavior`, or `quote`), command, and result.
+   Store it as `.agents/critique/ADR-NNN-claims-ledger.md` beside the debate log.
+   An absence row needs a whole-repository search. For each `path:line` row,
+   read the cited range directly from the working tree and record the observed
+   text. Do not use `check_citation_freshness.py`; it checks only citations on
+   lines added between committed revisions.
+2. **Documentation accuracy.** Run `skill: "doc-accuracy"` Phase 4 with
+   the saved ADR as the documentation file and its mapped source files as the
+   source input. Do not use `--diff-base`; it scans committed changes and cannot
+   select this uncommitted ADR.
+
+3. **Self-consistency.** Compare every Decision item with every other Decision
+   item and with Consequences. Record contradictions or the `VERIFIED` result.
+4. **Refuting seat.** Run one seat, not the panel:
+   `agent_type: "project-toolkit:analyst"` with prompt "Refute only the claims ledger against the repository tree. Return factual findings and evidence.".
+   The outcome is `VERIFIED` only when no factual findings remain. Do not invoke
+   `adr-review` while this seat reports a factual finding; record unavailable
+   evidence as `UNAVAILABLE`, never as a fabricated correction.
+   The seat is a bounded experiment, not independent proof. It may use a different
+   failure mode or externally grounded evidence; record its cost and wall time.
+5. **ADR review hand-off.** Pass the ledger path and contents with the ADR to
+   `adr-review`. In Phase 1, record the path in the new debate log before
+   evaluating findings. A factual finding already covered by the ledger is a
+   gate escape, not proof that the writer must fabricate a same-pass correction.
+
+### Phase G6: Hand Off
+
+After the gates pass, hand the ADR and its claims ledger to `adr-review` for multi-agent validation.
 
 ---
 
@@ -229,6 +270,9 @@ Before delivering, confirm all items in the [quality checklist](references/quali
 - [ ] At least 2 alternatives with pros/cons
 - [ ] At least 1 negative consequence documented
 - [ ] File saved to destination directory determined in Phase G2
+- [ ] Claims ledger records each factual claim and its evidence status
+- [ ] Documentation accuracy, self-consistency, and refuting-seat results recorded
+- [ ] ADR review hand-off includes the claims ledger path and gate escapes
 
 ---
 
