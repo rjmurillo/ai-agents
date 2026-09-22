@@ -11,3 +11,4 @@
 | consensus debate disagree commit dissent follow-up multi-agent | [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) |
 | handoff compliance measurement 24-session blocking gate trust | [orchestration/orchestration-003-handoff-validation-gate](orchestration/orchestration-003-handoff-validation-gate.md) |
 | branch isolation shared branch incident worktree multi-agent detection delay | [orchestration/coordination-001-branch-isolation-gate](orchestration/coordination-001-branch-isolation-gate.md) |
+| handoff conflict long-lived branch pr-206 session history table divergence | [orchestration/coordination-002-handoff-conflict-risk](orchestration/coordination-002-handoff-conflict-risk.md) |

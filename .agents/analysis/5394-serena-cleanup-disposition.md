@@ -63,6 +63,13 @@ a subdirectory.
 
 ## orchestration, session, protocol (42 files)
 
+One memory was replaced rather than deleted:
+`session/session-init-pattern.md` described the removed session-init skill, but
+its third section held a dated collision incident and a live field trap in
+`scripts/validate_session_json.py`. That content now lives at
+`session/session-number-collision-and-episode-rename.md`, whose title matches
+what it holds.
+
 Anchor evidence: commit `ba541c21f` (PR #5179) removed the `session`,
 `session-init`, `session-end`, and `session-log-fixer` skills and the session
 protocol. `.agents/SESSION-PROTOCOL.md`, `.agents/HANDOFF.md`, and
@@ -71,11 +78,10 @@ protocol. `.agents/SESSION-PROTOCOL.md`, `.agents/HANDOFF.md`, and
 discontinued. A memory whose whole content is a procedure against those
 artifacts describes a mechanism that no longer exists.
 
-### Deleted (20)
+### Deleted (17)
 
 | Memory path | Why | Owner or successor |
 |---|---|---|
-| `orchestration/coordination-002-handoff-conflict-risk.md` | HANDOFF.md absent | `.agents/architecture/ADR-014-distributed-handoff-architecture.md` holds the rationale and the 122 KB measurement |
 | `orchestration/orchestration-001-parallel-execution-time-savings.md` | duplicate | `orchestration/orchestration-parallel-execution.md` keeps the same Sessions 19-21 measurement |
 | `orchestration/orchestration-validation-gate.md` | duplicate | `orchestration/orchestration-003-handoff-validation-gate.md` keeps the 24-session measurement |
 | `session/changelog-session-log-fixer.md` | version history of a deleted skill | `ba541c21f` |
@@ -83,20 +89,19 @@ artifacts describes a mechanism that no longer exists.
 | `session/session-capture-protocol.md` | duplicated verbatim | `templates/agents/orchestrator.shared.md` "Session Capture Protocol" |
 | `session/session-init-003-branch-declaration.md` | session-log header template | `.claude/rules/session-logs.md`; flagged stale by the #5393 inventory |
 | `session/session-init-constraints.md` | proposal already built | `.agents/governance/PROJECT-CONSTRAINTS.md` |
-| `session/session-init-pattern.md` | describes a removed skill | `ba541c21f` |
+| `session/session-init-pattern.md` | describes a removed skill; its 2026-08-05 collision evidence moved, not lost | replaced by `session/session-number-collision-and-episode-rename.md` |
 | `session/session-init-skill-validation.md` | duplicate policy | `.agents/governance/PROJECT-CONSTRAINTS.md` Skill Usage Constraints; its Session 15 count folded into `protocol/protocol-001-verificationbased-gates.md` |
 | `session/session-init-verification-gates.md` | duplicate | `protocol/protocol-001-verificationbased-gates.md` holds the same measurements |
 | `session/session-scope-002-multi-issue-limit.md` | duplicate | `session/session-scope-002-limit-sessions-two-issues.md` |
 | `session/session-validation-reconciliation.md` | describes a removed validator | `ba541c21f` |
 | `protocol/protocol-002-verification-based-gate-effectiveness.md` | duplicate | `protocol/protocol-001-verificationbased-gates.md` |
 | `protocol/protocol-005-template-enforcement.md` | session-log template | `.claude/rules/session-logs.md` |
-| `protocol/protocol-006-legacy-session-grandfathering.md` | LEGACY markers for retired logs; `.github/prompts/session-protocol-check.md` absent | `ba541c21f` |
 | `protocol/protocol-012-branch-handoffs.md` | workaround for a removed validator | `.agents/architecture/ADR-014-distributed-handoff-architecture.md` |
 | `protocol/protocol-013-verification-based-enforcement.md` | duplicate | `protocol/protocol-014-trust-antipattern.md` keeps the PR #669 counts |
 | `protocol/protocol-continuation-session-gap.md` | proposals for a retired protocol | `.agents/retrospective/2026-01-09-session-protocol-violation-analysis.md` holds the incident |
 | `protocol/protocol-legacy-sessions.md` | duplicate | `protocol/protocol-006` content, both retired |
 
-### Thinned (12)
+### Thinned (14 in these families; 15 counting `user-preferences/user-facing-content-restrictions.md`, which sits outside the six)
 
 Each keeps its dated observation or measurement and drops the procedure that a
 first-class artifact now owns.
@@ -115,6 +120,8 @@ first-class artifact now owns.
 | `session/session-observations.md` | the one LOW-confidence note | empty Constraints, Preferences, Edge Cases headings | n/a |
 | `session/session-protocol-observations.md` | PR #908: 228+ comments, 59 commits, 53 files reformatted | the compaction and HANDOFF re-init bullet | `scripts/validation/pr_commit_count.py` |
 | `session/session-scope-002-limit-sessions-two-issues.md` | PR #669 co-mingling incident | PowerShell scope gate, session-log template | none; the incident is kept as judgment material |
+| `orchestration/coordination-002-handoff-conflict-risk.md` | PR #206, 4 conflicts over 3 days, Sessions 55-61 divergence | defensive merge procedure | ADR-014, which carries only the repository-wide rate |
+| `protocol/protocol-006-legacy-session-grandfathering.md` | PR #53, an artifact blocked by a gate that postdated it | LEGACY marker format | none; the failure shape recurs with any retroactive gate |
 
 ### Kept unchanged (10)
 
@@ -204,8 +211,18 @@ and `*.json`. Live consumers updated:
   `session/session-writing-todo-in-evidence-trips-the-contradiction-scanner.md`:
   references to deleted files stated as history rather than as links.
 
+`.agents/specs/agent-orchestration-mcp-spec.md` carried a link to a memory path
+that never resolved, even before this change; it now points at the surviving
+memory. Two ADRs carry the same class of dangling link
+(`ADR-011-session-state-mcp.md`, `ADR-013-agent-orchestration-mcp.md`). Editing
+either one arms the debate-log gate, which exists for decision changes, not
+link repairs, so both are recorded under "Findings handed on" instead.
+
+The search covers every tracked file with no extension filter.
+
 Left unchanged: `.agents/sessions/`, `.agents/qa/`, `.agents/critique/`,
-`.agents/retrospective/`, `.agents/archive/`, and `.claude-mem/` backups. Those
+`.agents/retrospective/`, `.agents/archive/`, `.agents/memory/episodes/`, and
+`.claude-mem/` backups. Those
 record what was true at the time, which the issue says not to rewrite.
 `.agents/analysis/5393-serena-workflow-inventory.md` also stands as the upstream
 record; this file supersedes its downstream rows rather than editing them.
@@ -227,6 +244,11 @@ Not acted on here. Each needs its own decision.
 5. **Untracked leftovers.** `.claude/skills/session-end/` and
    `.claude/skills/session-init/` hold only untracked `__pycache__`
    directories, left behind by `ba541c21f`.
-6. **The four extraction candidates** the #5393 inventory names
+6. **Two ADRs with dangling memory links.**
+   `.agents/architecture/ADR-011-session-state-mcp.md` and
+   `ADR-013-agent-orchestration-mcp.md` link to `.serena/memories/skill-*.md`
+   paths that have never existed. Both predate this change. Repairing them
+   requires a debate log, which a link fix does not warrant on its own.
+7. **The four extraction candidates** the #5393 inventory names
    (`bash-integration` exit contract, `coderabbit` configuration,
    `design` authoring norms, `gemini` configuration) still have no owner.

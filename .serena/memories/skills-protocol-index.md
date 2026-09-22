@@ -5,3 +5,4 @@
 | trust antipattern documentation voluntary failure repetitive memory forget context | [protocol/protocol-014-trust-antipattern](protocol/protocol-014-trust-antipattern.md) |
 | duplicate check search open pull requests is:issue qualifier blind in-flight fix | [process/process-a-duplicate-check-that-omits-open-prs-is-half-a-check](process/process-a-duplicate-check-that-omits-open-prs-is-half-a-check.md) |
 | verification trust compliance measurement session-15 blocking gate evidence | [protocol/protocol-001-verificationbased-gates](protocol/protocol-001-verificationbased-gates.md) |
+| retroactive gate legacy artifact predates requirement pr-53 grandfather | [protocol/protocol-006-legacy-session-grandfathering](protocol/protocol-006-legacy-session-grandfathering.md) |

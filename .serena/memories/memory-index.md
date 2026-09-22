@@ -1,8 +1,8 @@
 # Memory Index
 
 [Session and Protocol]
-|session start init handoff protocol serena blocking: [skills-session-init-index](skills-session-init-index.md) (139), [project/project-overview](project/project-overview.md) (347), [project/codebase-structure](project/codebase-structure.md) (783)
-|protocol blocking gate RFC MUST verification template legacy: [skills-protocol-index](skills-protocol-index.md) (202)
+|session start init handoff protocol serena blocking: [skills-session-init-index](skills-session-init-index.md) (178), [project/project-overview](project/project-overview.md) (347), [project/codebase-structure](project/codebase-structure.md) (783)
+|protocol blocking gate RFC MUST verification template legacy: [skills-protocol-index](skills-protocol-index.md) (243)
 
 [Index Catalog]
 |creator skill authoring frontmatter token efficiency test separation: [creator-best-practices-index](creator-best-practices-index.md) (252), [skills-index](skills-index.md) (839)
@@ -100,7 +100,7 @@
 |markdownlint scratch argv command length process startup batch exit code empty output issue 4892: [linting/linting-exclusions](linting/linting-exclusions.md) (2065)
 
 [Agent Orchestration]
-|orchestration agent coordination parallel handoff dispatch consensus: [skills-orchestration-index](skills-orchestration-index.md) (460), [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) (813)
+|orchestration agent coordination parallel handoff dispatch consensus: [skills-orchestration-index](skills-orchestration-index.md) (506), [governance/consensus-disagree-and-commit-pattern](governance/consensus-disagree-and-commit-pattern.md) (813)
 |agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (351)
 |autonomous execution guardrails circuit breaker patch signal trust: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (153)
 |fleet contention stop order renice congestion collapse two: [decision-stop-orders-are-not-a-control-plane](decision-stop-orders-are-not-a-control-plane.md) (876)
