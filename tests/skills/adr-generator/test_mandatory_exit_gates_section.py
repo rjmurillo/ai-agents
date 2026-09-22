@@ -27,6 +27,7 @@ def test_mandatory_exit_gates_are_ordered_and_measurable() -> None:
         assert status in text[gates:g5]
 
     assert "abort condition" in text[gates:g5]
+    assert "working-tree" in text[gates:g5]
     assert "check_citation_freshness.py" in text[gates:g5]
     assert "--diff-base" in text[gates:g5]
     assert 'subagent_type="analyst"' in text[gates:g5]

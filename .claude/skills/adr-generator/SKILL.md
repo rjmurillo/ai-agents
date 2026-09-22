@@ -177,8 +177,9 @@ Self-check against the [quality checklist](references/quality-checklist.md) befo
 
 ## Mandatory Exit Gates
 
-Run these five gates in order before handing the draft to `adr-review`. They are a
-measured pilot, not a permanent policy: use one fixed ADR cohort before and after
+Write the draft to its intended destination as an uncommitted working-tree file,
+then run these five gates before handing it to `adr-review`. They are a measured
+pilot, not a permanent policy: use one fixed ADR cohort before and after
 the pilot, then retain them only when avoided writer rework exceeds maintenance and
 runtime cost. Record factual-finding share in round one, rounds to consensus,
 writer correction time, total model cost, false blocks, gate escapes, model,
@@ -191,8 +192,8 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
 1. **Claims ledger.** Create one row for every factual claim: claim text, kind
    (`path`, `count`, `absence`, `behavior`, or `quote`), command, and result.
    Store it as `.agents/critique/ADR-NNN-claims-ledger.md` beside the debate log.
-   An absence row needs a whole-repository search. Run
-   `check_citation_freshness.py --base <base-ref>` for each `path:line` row.
+   An absence row needs a whole-repository search. After writing the draft, run
+   `check_citation_freshness.py --base <base-ref>` against its working-tree diff.
 2. **Documentation accuracy.** Run `Skill(skill="doc-accuracy")` for the new ADR:
 
    ```sh
@@ -215,7 +216,7 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
 
 ### Phase G5: Save
 
-Write the file to the destination directory determined in Phase G2:
+Keep the validated draft at the destination directory determined in Phase G2:
 
 | Rule | Example |
 |------|---------|
