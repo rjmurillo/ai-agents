@@ -42,16 +42,18 @@ Taken on branch `feat/5394-serena-cleanup` at merge base `f562b5df2`.
 
 ## The false premise in the navigation layer
 
-`.serena/memories/README.md:17` says subdirectory memories are "hidden from
-`list_memories`". `.serena/memories/memory/serena-memory-subdirectory-convention.md`
-repeats it and records a "~4,700 tokens per session" saving measured on
+At merge base `f562b5df2`, `.serena/memories/README.md` said subdirectory
+memories were hidden from `list_memories`, and
+`.serena/memories/memory/serena-memory-subdirectory-convention.md` repeated it
+and recorded a saving of about 4,700 tokens per session, measured on
 2026-02-14.
 
 A live `list_memories` call on this checkout returned every name in the tree,
 top level and nested, at 11,629 tokens. Top-level names alone would be 1,232.
-The claim is false against the current runtime, so the index layer buys no
+The claim was false against the current runtime, so the index layer buys no
 listing saving today. It still routes keywords, which is why this design keeps
-it and corrects the claim instead of deleting the layer.
+it and corrects the claim instead of deleting the layer. `README.md` now states
+the observed behavior.
 
 Correcting the claim is in scope because both files are required reading for
 this issue and the index policy rests on them. Re-architecting the tree is not:
