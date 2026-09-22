@@ -478,12 +478,20 @@ def check_graph(nodes: list[Node], owners: dict[str, Node]) -> list[str]:
 
 
 def render(nodes: list[Node], owners: dict[str, Node], fmt: str) -> str:
-    """Emit the deterministic report. Two runs on one tree are byte-identical."""
+    """Emit the deterministic report. Two runs on one tree are byte-identical.
+
+    Counts describe the canonical graph. A projection repeats its canonical
+    source by construction, so counting it would multiply every node by the
+    number of trees it binplaces into and report a graph nobody authored. The
+    projection count is reported on its own line instead.
+    """
+    canonical = [node for node in nodes if node.canonical]
+    projections = len(nodes) - len(canonical)
     kinds = {kind: 0 for kind in KINDS}
-    for node in nodes:
+    for node in canonical:
         if node.kind in kinds:
             kinds[node.kind] += 1
-    edges = sorted((node.path, name) for node in nodes for name in node.depends_on)
+    edges = sorted((node.path, name) for node in canonical for name in node.depends_on)
     if fmt == "json":
         payload = {
             "nodes": [
@@ -500,10 +508,19 @@ def render(nodes: list[Node], owners: dict[str, Node], fmt: str) -> str:
                 for node in nodes
             ],
             "owners": {name: owner.path for name, owner in sorted(owners.items())},
-            "counts": {"nodes": len(nodes), "edges": len(edges), "by_kind": kinds},
+            "counts": {
+                "nodes": len(canonical),
+                "edges": len(edges),
+                "projections": projections,
+                "by_kind": kinds,
+            },
         }
         return json.dumps(payload, indent=2, sort_keys=True)
-    lines = [f"nodes: {len(nodes)}", f"edges: {len(edges)}"]
+    lines = [
+        f"nodes: {len(canonical)}",
+        f"edges: {len(edges)}",
+        f"projections: {projections}",
+    ]
     lines.extend(f"kind {kind}: {count}" for kind, count in sorted(kinds.items()))
     for name, owner in sorted(owners.items()):
         lines.append(
