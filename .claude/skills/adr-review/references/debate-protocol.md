@@ -83,6 +83,10 @@ Invoke each agent with the ADR content AND related work findings. Each provides:
 | [Issue] | P0/P1/P2 | [Details] |
 
 P0 = blocking, P1 = important, P2 = nice-to-have
+
+### Gate Escapes
+- When a factual finding duplicates a `VERIFIED` claims-ledger row, record the
+  evidence here as a gate escape. The debate log summary rolls up escapes.
 ```
 
 **Agent Invocation Pattern:**

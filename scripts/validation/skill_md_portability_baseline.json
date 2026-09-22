@@ -115,7 +115,7 @@
     "templates/agents/task-decomposer.shared.md": 2
   },
   "marker_files": {
-    ".claude/skills/adr-generator/SKILL.md": 6,
+    ".claude/skills/adr-generator/SKILL.md": 7,
     ".claude/skills/adr-generator/references/adr-template.md": 1,
     ".claude/skills/adr-generator/references/adr-templates-catalog.md": 2,
     ".claude/skills/adr-review/SKILL.md": 7,
@@ -219,7 +219,7 @@
     ".claude/skills/sync/SKILL.md": 7,
     ".claude/skills/threat-modeling/SKILL.md": 8,
     ".claude/skills/world-model-diagnostic/SKILL.md": 1,
-    "src/claude/skills/adr-generator/SKILL.md": 6,
+    "src/claude/skills/adr-generator/SKILL.md": 7,
     "src/claude/skills/adr-generator/references/adr-template.md": 1,
     "src/claude/skills/adr-generator/references/adr-templates-catalog.md": 2,
     "src/claude/skills/adr-review/SKILL.md": 7,
@@ -326,7 +326,7 @@
     "src/copilot-cli/instructions/ci-scripts.instructions.md": 19,
     "src/copilot-cli/instructions/plugin-self-containment.instructions.md": 32,
     "src/copilot-cli/instructions/templates.instructions.md": 9,
-    "src/copilot-cli/skills/adr-generator/SKILL.md": 6,
+    "src/copilot-cli/skills/adr-generator/SKILL.md": 7,
     "src/copilot-cli/skills/adr-generator/references/adr-template.md": 1,
     "src/copilot-cli/skills/adr-generator/references/adr-templates-catalog.md": 2,
     "src/copilot-cli/skills/adr-review/SKILL.md": 7,
@@ -432,6 +432,7 @@
     "templates/agents/merge-resolver.shared.md": 5
   },
   "drift_files": {
+    ".claude/skills/adr-generator/SKILL.md": 1,
     ".claude/skills/adr-review/SKILL.md": 7,
     ".claude/skills/adr-review/references/agent-prompts.md": 1,
     ".claude/skills/adr-review/references/artifacts.md": 2,
@@ -508,6 +509,7 @@
     ".claude/skills/steering-matcher/SKILL.md": 3,
     ".claude/skills/style-enforcement/SKILL.md": 2,
     ".claude/skills/threat-modeling/SKILL.md": 6,
+    "src/claude/skills/adr-generator/SKILL.md": 1,
     "src/claude/skills/adr-review/SKILL.md": 7,
     "src/claude/skills/adr-review/references/agent-prompts.md": 1,
     "src/claude/skills/adr-review/references/artifacts.md": 2,
@@ -587,6 +589,7 @@
     "src/copilot-cli/instructions/plugin-self-containment.instructions.md": 12,
     "src/copilot-cli/instructions/templates.instructions.md": 6,
     "src/copilot-cli/instructions/universal.instructions.md": 6,
+    "src/copilot-cli/skills/adr-generator/SKILL.md": 1,
     "src/copilot-cli/skills/adr-review/SKILL.md": 7,
     "src/copilot-cli/skills/adr-review/references/agent-prompts.md": 1,
     "src/copilot-cli/skills/adr-review/references/artifacts.md": 2,
