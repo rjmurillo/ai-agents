@@ -122,7 +122,7 @@ class _PythonWrites(ast.NodeVisitor):
 
     def _add(self, node: ast.AST, target: str) -> None:
         self.findings.append(
-            Finding(self.path, node.lineno, target, "Python write targets .agents")
+            Finding(self.path, getattr(node, "lineno", 0), target, "Python write targets .agents")
         )
 
     def visit_Call(self, node: ast.Call) -> None:

@@ -97,7 +97,7 @@ class TestMainFunction:
     """Tests for the main CLI entry point."""
 
     def test_json_output(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         base = tmp_path / "project"
         base.mkdir()
@@ -114,7 +114,7 @@ class TestMainFunction:
         assert "overall" in health
 
     def test_table_output(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         base = tmp_path / "project"
         base.mkdir()
@@ -129,7 +129,7 @@ class TestMainFunction:
         assert "Memory System Health Check" in captured.out
 
     def test_degraded_when_modules_missing(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         base = tmp_path / "project"
         base.mkdir()
@@ -147,7 +147,7 @@ class TestMainFunction:
         assert health["overall"] in ("degraded", "unhealthy")
 
     def test_healthy_with_all_components(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         base = tmp_path / "project"
         base.mkdir()
@@ -172,7 +172,7 @@ class TestMainFunction:
         assert health["overall"] in ("healthy", "degraded")
 
     def test_recommendations_generated(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture,
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
     ) -> None:
         base = tmp_path / "project"
         base.mkdir()

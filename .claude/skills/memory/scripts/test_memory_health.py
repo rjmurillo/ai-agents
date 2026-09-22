@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 
-def test_serena_available(serena_path: Path) -> dict:
+def test_serena_available(serena_path: Path) -> dict[str, object]:
     """Check if Serena memories are accessible."""
     if not serena_path.is_dir():
         return {
@@ -56,7 +56,7 @@ def test_serena_available(serena_path: Path) -> dict:
         }
 
 
-def test_episodes_available(episodes_path: Path) -> dict:
+def test_episodes_available(episodes_path: Path) -> dict[str, object]:
     """Check if episodic memory storage is accessible."""
     if not episodes_path.is_dir():
         return {
@@ -90,7 +90,7 @@ def test_episodes_available(episodes_path: Path) -> dict:
         }
 
 
-def test_modules_available(memory_root: Path) -> list[dict]:
+def test_modules_available(memory_root: Path) -> list[dict[str, Any]]:
     """Check if required module files exist."""
     core_dir = memory_root / "memory_core"
     modules: list[dict[str, Any]] = [
@@ -145,10 +145,10 @@ def main(argv: list[str] | None = None) -> int:
         base_path = script_dir.parent.parent.parent.parent
 
     serena_path = base_path / ".serena" / "memories"
-    episodes_path = base_path / ".agents" / "memory" / "episodes"
+    episodes_path = base_path / ".project-toolkit" / "memory" / "episodes"
     scripts_dir = Path(__file__).resolve().parent
 
-    health: dict = {
+    health: dict[str, Any] = {
         "timestamp": datetime.now(UTC).isoformat(),
         "overall": "healthy",
         "tiers": {},
