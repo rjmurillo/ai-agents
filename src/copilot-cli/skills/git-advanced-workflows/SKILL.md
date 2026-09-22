@@ -1,7 +1,7 @@
 ---
 name: git-advanced-workflows
-version: 1.1.0
-description: Advanced Git workflows including rebasing, cherry-picking, bisect, worktrees, and reflog. Use when managing complex Git histories, collaborating on feature branches, or recovering from repository issues. Use when you say "rebase my branch", "cherry-pick a commit", "find the breaking commit", or "recover lost commits".
+version: 1.2.0
+description: Advanced Git workflows including rebasing, cherry-picking, bisect, worktrees, and reflog. Use when managing complex Git histories, collaborating on feature branches, or recovering from repository issues. Use when you say "rebase my branch", "cherry-pick a commit", "find the breaking commit", "recover lost commits", or "triage stale worktrees".
 license: MIT
 ---
 
@@ -17,7 +17,7 @@ Advanced Git techniques for clean history, effective collaboration, and confiden
 | `cherry-pick a commit` | Cherry-pick with conflict resolution |
 | `find the breaking commit` | Git bisect workflow |
 | `recover lost commits` | Reflog exploration and recovery |
-| `use git worktrees` | Worktree setup and management |
+| `use git worktrees` | Worktree setup, management, and live-versus-abandoned triage |
 
 ## Process
 
@@ -146,6 +146,17 @@ git reflog                                 # 1. Find the hash of the desired com
 git branch recovered abc123                # 2. Create a branch from that hash (within reflog retention; ~90 days by default, configurable)
 ```
 
+#### Worktree: Triage Live Versus Abandoned
+
+A dirty worktree proves someone once started, not that anyone is working now.
+Before standing down on an issue because a worktree looks owned, or before
+removing a worktree whose tip may be unreachable, follow
+`references/worktree-triage.md`: measure the newest file age (live means under
+about 60 minutes), confirm with `git -C "$p" status --porcelain`, join the
+fleet against `gh pr list --state all --json number,state,headRefName,headRefOid`,
+and anchor every unreachable tip with `git update-ref refs/salvage/...` plus a
+verified bundle before `git worktree remove`.
+
 ### Phase 3: Verify and Clean Up
 
 1. Confirm working tree is clean: `git status`
@@ -171,6 +182,8 @@ git branch recovered abc123                # 2. Create a branch from that hash (
 | `--force` without `--force-with-lease` | Overwrites teammates' work | Always `--force-with-lease` |
 | Bisecting on dirty working tree | Checkout fails with uncommitted changes | Commit or stash first |
 | Orphaned worktrees | Consume disk space silently | Remove after use |
+| Treating a dirty worktree as owned | Freezes issues whose worktree a fleet wipe orphaned | Measure file age and list files (`references/worktree-triage.md`) |
+| Removing a worktree before anchoring its tip | Drops commits nothing else references | `git update-ref refs/salvage/<slug> <sha>` and bundle first |
 | No backup before complex rebase | No recovery path if rebase fails | Create safety branch first |
 
 ## Verification

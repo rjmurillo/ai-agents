@@ -1,40 +1,18 @@
-# User Additions as Learning Signals
+# Evidence: a mid-execution user addition exposed a scope gap
 
-**Statement**: User mid-execution additions indicate scope gaps; extract pattern for proactive detection
+<!-- placement: evidence; reason: records one incident where a user addition revealed a missing heuristic, not an operating contract -->
 
-**Context**: When user adds requirements during implementation phase
+## Observed evidence
 
-**Evidence**: Phase 3 (P2): User added P2-6 (template porting) not in original issue. User intervention improved outcome quality.
+Phase 3 (P2) of issue #44 scoped P2-1 through P2-5 as `src/claude/` edits.
+The user added P2-6 (template porting) mid-execution because the agent did
+not check whether the agent templates needed the same change. The addition
+improved the outcome and showed the missing heuristic: an agent doc change
+implies a template check. That heuristic is now moot; ADR-109 B1 renders
+`.claude/agents/` from `templates/agents/`, so the template is the only edit.
 
-**Atomicity**: 92%
+## Migration disposition
 
-**Impact**: 8/10
-
-## Pattern Recognition
-
-When users add tasks during execution:
-
-1. **Document the addition**: What was added and why
-2. **Analyze the gap**: Why didn't agent surface this proactively?
-3. **Extract heuristic**: Create detection rule for future tasks
-4. **Update skills**: Add to skillbook for cross-session learning
-
-## Example
-
-- Original scope: P2-1 through P2-5 (src/claude/ edits)
-- User addition: P2-6 (template porting)
-- Gap identified: Agent lacked heuristic "agent doc changes → check templates"
-- Skill created: Skill-AgentWorkflow-004 (proactive template verification)
-
-## Anti-Pattern
-
-Do NOT treat user additions as "scope creep" or interruptions.
-DO treat them as valuable learning signals indicating system knowledge gaps.
-
-## Related
-
-- [agent-workflow-004-proactive-template-sync-verification](agent-workflow-004-proactive-template-sync-verification.md)
-- [agent-workflow-005-structured-handoff-formats](agent-workflow-005-structured-handoff-formats.md)
-- [agent-workflow-atomic-commits](agent-workflow-atomic-commits.md)
-- [agent-workflow-critic-gate](agent-workflow-critic-gate.md)
-- [agent-workflow-mvp-shipping](agent-workflow-mvp-shipping.md)
+The `reflect` skill owns capturing a user correction or addition as a
+learning. This memory keeps the P2-6 incident as evidence that a user
+addition is a knowledge-gap signal, not an interruption.
