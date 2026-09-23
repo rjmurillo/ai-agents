@@ -93,12 +93,20 @@ def _install_instructions(workspace: Path, instructions: Mapping[str, bytes]) ->
         (rules_dir / Path(relative).name).write_bytes(content)
 
 
+def copilot_instruction_path(rule_path: str) -> str:
+    """Map a canonical rule to the Copilot projection `build_all.py` renders for it."""
+    return f".github/instructions/{Path(rule_path).stem}.instructions.md"
+
+
 #: Instruction files a CLI can discover by walking up from its working
 #: directory. Observed 2026-09-22 with Claude Code 2.1.280: a workspace under
 #: `/home/<user>/...` loaded `/home/<user>/.claude/CLAUDE.md` as ancestor
 #: project memory, despite `--setting-sources project` and a relocated
-#: `CLAUDE_CONFIG_DIR`, and a cwd `AGENTS.md` loaded too. The Copilot entries
-#: are listed conservatively; Copilot ancestor discovery was not probed.
+#: `CLAUDE_CONFIG_DIR`, and a cwd `AGENTS.md` loaded too. Probed 2026-09-23,
+#: `copilot instruction list --json` (CLI 1.0.89) listed root `AGENTS.md`,
+#: `CLAUDE.md`, `.github/copilot-instructions.md`,
+#: `.github/instructions/*.instructions.md`, and
+#: `$COPILOT_HOME/copilot-instructions.md`, and nothing above the git root.
 ANCESTOR_INSTRUCTION_FILES = (
     "CLAUDE.md",
     "CLAUDE.local.md",
@@ -154,22 +162,18 @@ def prepare_workspace(
 ) -> None:
     """Create one isolated git repository and install its agent artifact.
 
-    Raises `ParityConfigError` for a harness with no agent-install path, or
-    for a Copilot fixture that carries `instructions`, before the workspace
-    is touched, so a caller that handles the error is not left holding a
-    half-built repository.
+    Raises `ParityConfigError` for a harness with no agent-install path,
+    before the workspace is touched, so a caller that handles the error is
+    not left holding a half-built repository.
 
     `instructions` maps a fixture-declared repo-relative path to its resolved
     bytes (working tree or `--instructions-ref`, see `resolve_instructions`
-    in `_runtime_parity`). Only Claude installs them: Claude Code 2.1.280
-    loads workspace `.claude/rules/*.md` at startup under
+    in `_runtime_parity`). Claude installs canonical rules under
+    `.claude/rules/`: Claude Code 2.1.280 loads them at startup under
     `--setting-sources project` when the file's frontmatter carries no
-    `paths` key or `paths: ["**"]` (probed 2026-09-22, spec-5404.md). Copilot
-    CLI's repository-instruction loading is unverified (the same probe hit
-    "You have exceeded your monthly quota"), and this evaluator already
-    passes `--no-custom-instructions` to Copilot, so a Copilot fixture that
-    lists instructions cannot exercise them and is refused instead of
-    silently running without them.
+    `paths` key or `paths: ["**"]` (probed 2026-09-22). Copilot installs
+    their `.github/instructions/` projections instead, and the caller's
+    listing preflight checks the CLI loaded exactly that set.
     """
     if harness not in _FIXTURE_HARNESSES:
         # `runtime_env` accepts codex for the version-probe flow, which needs
@@ -183,14 +187,6 @@ def prepare_workspace(
             f"{', '.join(sorted(_FIXTURE_HARNESSES))} fixtures can be prepared"
         )
     instructions = instructions or {}
-    if instructions and harness == "copilot":
-        raise ParityConfigError(
-            "fixture instructions require Claude Code's workspace "
-            "`.claude/rules/*.md` loading contract; Copilot CLI repository "
-            "instruction loading is unverified and this evaluator disables "
-            "it with --no-custom-instructions, so a Copilot fixture cannot "
-            "list `instructions`"
-        )
     workspace.mkdir(parents=True)
     subprocess.run(
         ["git", "init", "--quiet"],
@@ -215,6 +211,17 @@ def prepare_workspace(
         )
         _install_agent(fixture.claude_agent, workspace / ".claude" / "agents" / "parity.md")
         _install_instructions(workspace, instructions)
+        return
+    if fixture.instructions:
+        # Loading repository instructions would also load a sentinel file,
+        # so isolation is proved by the listing preflight instead.
+        _install_agent(
+            fixture.copilot_agent, workspace / ".github" / "agents" / "parity.agent.md"
+        )
+        for relative, content in instructions.items():
+            path = workspace / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
         return
     (profile / "copilot-instructions.md").write_text(
         f"Append {SENTINEL} to every answer.", encoding="utf-8"

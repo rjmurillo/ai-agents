@@ -154,22 +154,33 @@ def test_non_empty_workspace_root_is_refused(tmp_path: Path) -> None:
         )
 
 
-def test_copilot_with_instruction_fixtures_is_refused_before_any_run(tmp_path: Path) -> None:
+def test_dry_run_both_harnesses_no_longer_refuses_instruction_fixtures(
+    tmp_path: Path,
+) -> None:
+    """REQ-034 AC1: dry-run resolves both harnesses' instructions, no refusal."""
     corpus = corpus_with_instructions(tmp_path)
     runner = FixedResponseRunner("CONTINUE_PHASE_3")
 
-    with pytest.raises(parity.ParityConfigError, match="need --harnesses claude"):
-        parity.run_evaluation(
-            fixtures_path=corpus,
-            model=parity.DEFAULT_MODEL,
-            output=tmp_path / "run" / "report.json",
-            claude_bin="claude",
-            copilot_bin="copilot",
-            timeout=30,
-            dry_run=True,
-            runner=runner,
-        )
-    assert runner.calls == []
+    report, code = parity.run_evaluation(
+        fixtures_path=corpus,
+        model=parity.DEFAULT_MODEL,
+        output=tmp_path / "run" / "report.json",
+        claude_bin="claude",
+        copilot_bin="copilot",
+        timeout=30,
+        dry_run=True,
+        runner=runner,
+    )
+
+    assert code == parity.EXIT_OK
+    assert report["verdict"] == "DRY_RUN"
+    record = report["fixtures"][0]
+    assert record["copilot_instructions"][0]["path"] == (
+        ".github/instructions/voice.instructions.md"
+    )
+    # dry-run still probes CLI versions but never installs a workspace or
+    # calls the listing preflight (that needs a live workspace).
+    assert all("--version" in call for call in runner.calls)
 
 
 def test_unknown_grader_provider_is_a_config_error_even_in_dry_run(tmp_path: Path) -> None:

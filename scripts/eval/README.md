@@ -251,8 +251,9 @@ Each fixture declares one Claude agent, one Copilot agent, deterministic
 assertions, and positive and negative controls. The runner creates a nested git
 repository per harness; its project profile contains only the selected agent. Claude uses an
 isolated config directory, project settings, and an empty MCP configuration.
-Copilot uses an isolated `COPILOT_HOME`, disables custom instructions, and
-disables built-in MCP servers. A sentinel instruction is placed on each
+Copilot uses an isolated `COPILOT_HOME`, disables custom instructions (except
+for a fixture that lists `instructions`, see below), and disables built-in MCP
+servers. A sentinel instruction is placed on each
 excluded profile surface; any leak fails the run. The fixture request is passed
 as the non-interactive prompt to both CLIs. Reports redact that argv field.
 A CLI also discovers instruction files by walking up from its working
@@ -293,11 +294,26 @@ A fixture's `instructions` field lists repo-relative rule paths (for example
 fixture can prove a rule actually changes behavior instead of asserting on
 static text. Claude Code 2.1.280 loads workspace `.claude/rules/*.md` at
 startup under `--setting-sources project` when the file's frontmatter carries
-no `paths` key or `paths: ["**"]` (probed 2026-09-22). Copilot CLI's
-repository-instruction loading is unverified (the same probe hit a quota
-error) and this evaluator already disables it with `--no-custom-instructions`,
-so a fixture that lists `instructions` and runs against `copilot` is refused
-with a config error (exit 2) instead of silently running without them.
+no `paths` key or `paths: ["**"]` (probed 2026-09-22).
+
+Copilot CLI does not load `.claude/rules/`. For Copilot, the evaluator installs
+each rule's generated projection instead: `.claude/rules/<name>.md` maps to
+`.github/instructions/<name>.instructions.md`, read at the same ref. A missing
+projection is a config error (exit 2). Probed 2026-09-23 with Copilot CLI
+1.0.89 and the model-free `copilot instruction list --json`, a fresh git
+repository listed root `AGENTS.md` and `CLAUDE.md`,
+`.github/copilot-instructions.md`, every `.github/instructions/*.instructions.md`,
+and `$COPILOT_HOME/copilot-instructions.md`. It listed no file above the git
+root. A Copilot instruction fixture therefore runs without
+`--no-custom-instructions` and writes no sentinel file, because a loaded
+sentinel would appear in every reply. Its isolation proof is the listing
+itself: before the model call, the evaluator runs `copilot instruction list
+--json` in the prepared workspace with the run's environment. The listed
+`sourcePath` set must equal the installed projection set. An extra or missing
+source, or an entry without a string `sourcePath`, is a config error (exit
+2) before the Copilot model call. Under `--harnesses both`, the Claude arm of
+that fixture has already run, and the run discards its result. A listing command that fails, times out, or prints unparsable JSON ends
+the run with verdict `ERROR` (exit 3). The report records the listing.
 
 An `--instructions-ref REF` flag resolves instruction bytes from
 `git show REF:path` instead of the working tree, for an ablation baseline
@@ -328,9 +344,8 @@ resolved-model and question-mechanism parity checks. A single harness
 verdict, since there is nothing on the other side to compare against. A
 fixture that fails in single-harness mode sets verdict `FAIL` and exit 1, and
 a resolved model that differs from `--model` stops the run with
-`FAIL_MODEL_MISMATCH` (exit 1). A run that includes Copilot refuses any
-fixture with `instructions` before a model call (exit 2), and an unknown
-`--grader-provider` is a config error (exit 2) even under `--dry-run`.
+`FAIL_MODEL_MISMATCH` (exit 1). An unknown `--grader-provider` is a config
+error (exit 2) even under `--dry-run`.
 `--grader-provider` (default `anthropic`, the urllib transport reading
 `ANTHROPIC_API_KEY`) and `--grader-model` (default `claude-sonnet-5`)
 select the model that grades `semantic`
@@ -385,15 +400,25 @@ you like me to ...?", and similar) are a useful regression backstop, not the
 semantic authority: a response can reopen an interaction without using any of
 those exact strings, and using one of them inside a genuine blocking question
 is not itself a defect; the `semantic` assertion is what actually grades
-whether a response reopens the interaction. Running the corpus live needs
-`--harnesses claude` (Copilot instruction loading is unverified and refused,
-see above), a `claude` CLI that can authenticate inside the isolated profile
-(`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`), and the grader credential:
+whether a response reopens the interaction. Running the corpus live needs a
+CLI that can authenticate inside the isolated profile (`ANTHROPIC_API_KEY` or
+`CLAUDE_CODE_OAUTH_TOKEN` for `claude`; `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, or
+`GITHUB_TOKEN` for `copilot`), and the grader credential:
 `ANTHROPIC_API_KEY` for the default `anthropic` provider, or the credential
 the provider matrix above lists for another `--grader-provider`. `--dry-run`
 still validates the fixture schema, the instruction files, and the selected
 CLI versions without a model call, and exits 3 (external/unavailable) rather
 than a false pass when a required CLI binary is not installed.
+
+One live run is one sample of a stochastic model. A scenario's result is
+decided by the ADR-057 flakiness protocol that `eval-prompt-change.py`
+already applies: run each arm at least three times, each with its own
+`--workspace-root "$(mktemp -d)"` and `--output`. A non-security scenario
+passes at two of three runs or better. A behavioral claim needs the
+candidate arm to pass every scenario and each control to invert in every
+report. An `UNAVAILABLE` or `INVALID_GRADER` report counts as no sample, not
+as a pass. Compare against an ablation arm that adds
+`--instructions-ref <commit before the rule landed>`.
 
 ## End-to-End Delivery Eval
 
