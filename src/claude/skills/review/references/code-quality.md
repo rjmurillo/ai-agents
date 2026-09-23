@@ -81,6 +81,7 @@ Ground findings in the project's code-quality artifacts. All paths are under `.c
 
 - Does the change duplicate a business rule, validation, mapping, or calculation that already lives elsewhere?
 - Is the duplication of knowledge (the same decision encoded twice), or merely of text that happens to look similar? Flag the former; tolerate coincidental similarity.
+- Cite the existing implementation's file:line. A duplicate you did not find is not a finding.
 
 ### 6. Boy Scout Rule (Scoped Cleanup)
 

@@ -4,6 +4,12 @@ version: 1.1.0
 description: Investigate historical context of existing code, patterns, or constraints before proposing changes. Automates git archaeology, PR/ADR search, and dependency analysis to prevent removing structures without understanding their purpose. Use when you ask "why does this code/constraint exist", "is it safe to remove this". Do NOT use for forward-risk analysis (use pre-mortem).
 license: MIT
 user-invocable: true
+metadata:
+  capability:
+    kind: reusable-primitive
+    owns:
+      - code-archaeology
+    status: active
 ---
 
 # Chesterton's Fence Investigation
@@ -87,6 +93,30 @@ Use this skill BEFORE proposing changes to existing:
 | MODIFY | Purpose valid but implementation needs updating |
 | REPLACE | Better approach exists, original concern addressed |
 | REMOVE | Original rationale no longer applies, with evidence |
+
+## Post-2023 evidence rules
+
+This skill answers one question: what evidence exists that this code or
+constraint has a real purpose? It owns capability `code-archaeology`, the
+evidence-gathering step the `review` skill's technical-review contract
+consumes for code-intent analysis.
+
+For code committed during or after calendar year 2023, apply these rules:
+
+- Git history proves provenance (who committed it, and when), not intent. A
+  commit message or a clean `git blame` does not establish why the code
+  exists.
+- Author identity does not raise the preservation prior. A senior contributor
+  or a well-reviewed PR is not evidence the code is still needed.
+- Complexity, polish, and apparent effort do not raise the preservation
+  prior. Sophisticated code is not more likely to be load-bearing than simple
+  code; it only takes longer to read.
+- Absence of rationale after this investigation runs (steps 1 through 4) is
+  itself meaningful evidence, not an inconclusive result to set aside.
+- Inconclusive evidence, meaning no found rationale and no evidence the code
+  is unused, may lead to a yell-test proposal instead of a REMOVE decision.
+  The proposal's shape belongs to the `review` skill's technical-review
+  contract; this skill supplies the evidence the proposal cites.
 
 ## Usage
 

@@ -6,6 +6,12 @@ argument-hint: branch-or-pr-number
 allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 user-invocable: true
 license: MIT
+metadata:
+  capability:
+    kind: orchestrator
+    owns: [technical-review]
+    depends-on: [code-archaeology, untrusted-content-handling]
+    status: active
 ---
 
 # Review
@@ -85,6 +91,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
 4a. **Validate scope of each axis output against the PR diff.** After each axis (steps 2, 3, and every axis in step 4) returns its findings text, run `scripts/validate_findings_scope.py` (resolved via the "Path resolution" section) to find `location:` fields naming files outside the three-dot diff of step 1: `python3 <validate_findings_scope.py> --worktree <WORKTREE_PATH> --base-branch <BASE_BRANCH> --text <AXIS_TEXT> --emit-adjusted-text`. On exit 1 (out-of-scope locations found), replace the axis output with the script's stdout before extracting the verdict; the adjusted text marks each flagged location `[pre-existing - not in this PR diff]`. When every cited location is out of scope and the axis emitted a blocking verdict, the script downgrades that verdict to `WARN`, so an unrelated finding cannot block the reviewed PR. Do NOT suppress or skip the finding; preserve it with the label. On exit 0 (all in scope, or diff empty or unavailable), record stdout when present, otherwise the axis output unmodified.
 4b. **Keep the local-only skill axes in their own selected set.** The 4 local axes (`code-qualities-assessment`, `doc-accuracy`, `golden-principles`, `taste-lints`) are sibling skills invoked with `skill: "{name}"`. None has a `references/{name}.md` file, so a local axis in the canonical set resolves to a prompt path that does not exist. `select_axes.py` reports them in `local_selected`, never in `canonical_selected`, including when `--pin` names one; keep the two lists separate for the rest of the run.
+4c. **Always-on correctness pass.** Load `resources/technical-review.md`, resolved like the axis prompts with `resources/` in place of `references/`. Invoke `agent_type: "project-toolkit:code-reviewer"`, falling back to `general-purpose`, with that contract as the response contract and the same CONTEXT_MODE-prefixed diff as input. Scope-check its output as in 4a, then `extract_verdict`; any failure is `UNKNOWN`.
 
 5. **Run the selected chained skill axes** (local-only; CI does not run these). Run every axis in `local_selected` after the canonical ones; report the rest as skipped with its reason. Resolve each `<script>` per "Path resolution" (chained-skill scripts). Scope every axis to the PR diff with the base branch detected in step 1 (stored as `BASE_BRANCH`), quoted, so the gates evaluate only changed files, not the whole tree:
 
@@ -94,12 +101,12 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 - local axis 4: `skill: "taste-lints"`, invoking `python3 <taste_lints.py> --diff-scope "origin/$BASE_BRANCH" --format json`.
 
 6. **Extract verdict per axis**. Canonical axes end with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Parse them with `extract_verdict` from the verdict library. Local axes emit JSON or `Gate:` instead, so normalize them first with `adapt_local_axis_verdict` from that library: it maps code-quality exit codes, `doc-accuracy` `gate_result.verdict`, and golden/taste `error_count` plus `warning_count` into PASS, WARN, FAIL, or UNKNOWN. On a crash, malformed output, or an unclassified result, record `UNKNOWN` and continue.
-7. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict plus one verdict per axis that actually ran (the selected Stage-2 axes plus any selected local skills; 16 total in deep-review mode with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 returns `CRITICAL_FAIL` (step 2 short-circuit), skip this merge: the FINAL VERDICT is `CRITICAL_FAIL`. A Stage-1 `UNKNOWN` does NOT short-circuit; it is merged like any other axis (issue #2690).
+7. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict, the step 4c correctness verdict, plus one verdict per axis that actually ran (the selected Stage-2 axes plus any selected local skills; 16 total in deep-review mode with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 returns `CRITICAL_FAIL` (step 2 short-circuit), skip this merge: the FINAL VERDICT is `CRITICAL_FAIL`. A Stage-1 `UNKNOWN` does NOT short-circuit; it is merged like any other axis (issue #2690).
 8. **Emit findings table** (see Output below).
 
 ## Vendored install (REQ-008-06)
 
-`/review` MUST work in a vendored install in any harness that supports plugins (Claude Code, Copilot CLI, and similar). The skill body and every canonical axis file MUST NOT assume a single hard-coded layout; resolve the verdict library via the "Path resolution" section. The build pipeline copies the entire skill directory (including `references/` and `scripts/`) into plugin installs at `src/copilot-cli/skills/review/`, so `${CLAUDE_SKILL_DIR}/references/` resolves in both layouts without a fallback chain, and the axis set is discovered from that directory. Project-side paths (CI prompts, generator, sync infrastructure) are mentioned in this skill for project maintainers reading the prose, not as runtime dependencies.
+`/review` MUST work in a vendored plugin install in any harness (Claude Code, Copilot CLI, and similar). No axis or skill assumes one hard-coded layout; resolve every dependency through "Path resolution". The build copies the whole skill directory into each plugin install. CI prompts, generators, and sync scripts named here are maintainer context, not runtime dependencies.
 
 ## UNKNOWN handling
 
@@ -119,7 +126,7 @@ Findings table with one row per axis:
 | architect | WARN | selected - risk category | ... | ... |
 | devops | UNKNOWN | skipped - reason from `skipped` | ... | ... |
 
-One row per axis in the step-4 candidate set, then one per local axis: 16 rows with the current set. Append one `UNKNOWN` row per `unresolved_axes` entry. Each Selection cell reads `always-on`, or `selected / skipped` plus its reason from `selection_reasons` or `skipped`.
+One row per axis in the step-4 candidate set, then one per local axis: 16 rows with the current set. Append one `UNKNOWN` row per `unresolved_axes` entry. Append one always-on `correctness` row for step 4c. Each Selection cell reads `always-on`, or `selected / skipped` plus its reason from `selection_reasons` or `skipped`.
 
 **FINAL VERDICT**: [PASS|WARN|CRITICAL_FAIL|UNKNOWN] (from `merge_verdicts`)
 
@@ -183,11 +190,10 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 - [ ] `merge_verdicts` produces a single final verdict consistent with the rules in Process step 7
 - [ ] On a Stage-1 `CRITICAL_FAIL`, Stage 2 axes are marked `SKIPPED` and the final verdict is the Stage-1 `CRITICAL_FAIL`; on a Stage-1 `UNKNOWN` (INCONCLUSIVE), Stage 2 STILL runs and the UNKNOWN is carried into the merge (it never suppresses a real Stage-2 finding such as a security `CRITICAL_FAIL`)
 - [ ] When Stage 2 runs, the output table contains the spec-compliance row plus one row per candidate axis with selection status and reason, and deep review still yields 16 rows with the current set, plus the final verdict line
+- [ ] Step 4c ran, its verdict joined the step 7 merge, and the table has a `correctness` row
 
 ## Refs
 
-- Verdict module: `.claude/lib/ai_review_common/verdict.py` (Claude layout) or `lib/ai_review_common/verdict.py` (vendored layout, plugin-root relative).
-- Canonical axes: every `.claude/skills/review/references/*.md` (Claude layout) or `${CLAUDE_SKILL_DIR}/references/*.md` resolved at runtime (works in both layouts); `spec-compliance` is the Stage-1 gate, and the non-spec files form the discovered Stage-2 axis set.
 - Skill chain: the 4 local axes at `.claude/skills/{code-qualities-assessment,doc-accuracy,golden-principles,taste-lints}/` (the build pipeline copies these too). Plus the 11 Stage-2 canonical axes and the Stage-1 gate: 16 rows.
 
 <!-- vendor-portability: declared. This skill body cites .claude/lib/ai_review_common/verdict.py (ships in the vendor install; the skill names the plugin-root-relative lib/ai_review_common/verdict.py fallback for the vendored layout) and mentions .agents/ only to assert that /review needs no .agents/ access. Also cites .claude/skills/github/scripts/pr/check_pr_round_cap.py as canonical-source-mirror evidence (issue #5260): a sibling in-plugin script cited for its contract, not resolved or run by /review. No upstream-only runtime dependency. Issue #2050. -->
