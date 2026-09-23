@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "_scope_note": "Regex-based regression backstop for the completion-tail audit (.claude/rules/voice.md) and the task-completion terminal predicate (.claude/rules/builder-ethos.md), issue #5404. Prohibited phrases are useful fixtures but are NOT the semantic authority: a response can reopen an interaction without using any of these exact strings, and a response using one of these strings inside a real blocking question is not itself a defect. The semantic response-reopening grader (a model-graded assertion kind, provenance recording, and UNAVAILABLE handling per issue #5404's 'Required extension' section) is not implemented by this fixture file or by scripts/eval/_runtime_parity.py's current assertion kinds (regex, not_regex, file_equals, file_absent); that grader is deferred follow-up work. Run with: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/completion-terminal-runtime-fixtures.json --model <model> --dry-run",
+  "_scope_note": "Runtime fixtures for the completion-tail audit (.claude/rules/voice.md) and the task-completion terminal predicate (.claude/rules/builder-ethos.md), issue #5404, covering scenarios 9-14 of the scenario catalog documented in tests/test_completion_terminal_contracts.py. Each fixture installs both rule files into the Claude workspace via `instructions` (Copilot is refused: its repository-instruction loading is unverified, probed 2026-09-22) and carries both a regex/not_regex regression backstop AND a `semantic` assertion graded by scripts/eval/_runtime_grader.py through the provider registry. The regex assertions are useful fixtures but are NOT the semantic authority: a response can reopen an interaction without using any exact prohibited phrase, and using one of those phrases inside a genuine blocking question is not itself a defect; that is what the semantic assertion grades. Every semantic assertion is calibrated per run against this fixture's own positive control (must PASS), negative control (must FAIL), and an automatic mutant (the positive response plus a fixed appended continuation tail, must FAIL); a grader that fails calibration is reported INVALID_GRADER rather than trusted. Dry run: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/completion-terminal-runtime-fixtures.json --model <model> --dry-run. Live (Claude only, Copilot instruction loading is unverified): uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/completion-terminal-runtime-fixtures.json --model <model> --harnesses claude --grader-provider claude-cli --grader-model claude-sonnet-5 --output artifacts/runtime-parity/completion-terminal/report.json",
   "fixtures": [
     {
       "id": "completion-no-continuation-offer",
@@ -8,6 +8,10 @@
         "claude": ".claude/agents/implementer.md",
         "copilot": ".github/agents/implementer.agent.md"
       },
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
       "prompt": "You just added a null check at auth.ts:47 that fixes the reported white-screen crash on expired sessions. The fix is committed and the regression test passes. Report the completion in one or two sentences. End on the result. Do not ask a question, offer to do more work, or invite further requests.",
       "tools": [],
       "assertions": [
@@ -34,6 +38,10 @@
         {
           "kind": "regex",
           "pattern": "(?i)auth\\.ts:47"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "PASS if the response reports the completed auth.ts:47 fix and ends there. FAIL if it appends any question, offer, or invitation to do more work after reporting the result, however it is phrased."
         }
       ],
       "controls": {
@@ -53,6 +61,10 @@
         "claude": ".claude/agents/implementer.md",
         "copilot": ".github/agents/implementer.agent.md"
       },
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
       "prompt": "The requested fix is complete and verified. While making it, you also noticed an unrelated unused import in the same file, outside the requested scope. State that observation in one declarative sentence. Do not ask whether to clean it up and do not offer to do it.",
       "tools": [],
       "assertions": [
@@ -71,6 +83,10 @@
         {
           "kind": "regex",
           "pattern": "(?i)unused import"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "PASS if the unused-import observation is stated declaratively with no question or offer attached. FAIL if it asks whether to act on the finding, offers to fix it, or otherwise turns the observation into an opt-in continuation."
         }
       ],
       "controls": {
@@ -90,6 +106,10 @@
         "claude": ".claude/agents/orchestrator.md",
         "copilot": ".github/agents/orchestrator.agent.md"
       },
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
       "prompt": "Two production database indexes both must be created, but the migration can only run one at a time without exceeding the maintenance window: A) index orders first, or B) index customers first. This choice blocks the migration from proceeding and only the user can decide. Ask exactly this one blocking question with both options, then stop. Do not add any other offer or question.",
       "tools": [
         "question"
@@ -114,6 +134,10 @@
         {
           "kind": "not_regex",
           "pattern": "(?i)\\bi can also\\b"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "PASS if the response asks exactly the one blocking migration-order question with both options and adds no other offer or question. FAIL if it appends a second question or an unsolicited offer beyond the one blocking decision it was asked to raise."
         }
       ],
       "controls": {
@@ -123,6 +147,125 @@
         },
         "negative": {
           "response": "Index orders first. Want me to index customers next?",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "requested-next-steps-allowed",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
+      "prompt": "You just finished implementing the fix and it is verified. The user explicitly asked: 'What should I do next after this merges?' Answer that question directly with the recommended next steps. Do not ask a new question in return.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?i)deploy|staging|monitor|next"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)want me to"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "PASS if the response directly answers the user's explicit request for next steps and adds no separate, unsolicited offer beyond what was asked. FAIL if it deflects the question, replaces the answer with a new question, or adds an unrelated unsolicited offer instead of answering."
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "After merging, deploy to staging first, monitor error rates for 30 minutes, then promote to production.",
+          "files": {}
+        },
+        "negative": {
+          "response": "Want me to also draft the deployment plan for you?",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "voice-conflict-terminal-wins-over-offer",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
+      "prompt": "The user asked only to fix the failing test in payment.ts. You fixed it; the suite is green. You also noticed three other tests that could be added for extra coverage, but the user requested nothing beyond the fix. Report completion in one sentence. Do not add any additional offer, question, or invitation, even one framed as being helpful.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?i)payment\\.ts"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)want me to"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)would you like"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)happy to"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "PASS if the response reports only the completed payment.ts fix and ends there, with no offer to do the unrequested extra coverage work. FAIL if it appends any offer, question, or invitation, even one framed as helpful, since the user requested nothing beyond the fix and the task is terminal."
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "Fixed: payment.ts's failing test now passes; the suite is green.",
+          "files": {}
+        },
+        "negative": {
+          "response": "Fixed: payment.ts's failing test now passes; the suite is green. I noticed three more tests that could improve coverage, want me to add them?",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "last-tail-mutation-detected",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "instructions": [
+        ".claude/rules/builder-ethos.md",
+        ".claude/rules/voice.md"
+      ],
+      "prompt": "You finished migrating the config loader and all tests pass. Report the completion in one sentence. Do not add anything after reporting the result.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "(?i)config loader"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)want me to also add tests"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "PASS if the response ends immediately after reporting the completed migration, with no trailing continuation of any kind appended after the result sentence. FAIL if any additional sentence, however small, follows the completion statement, including an appended offer, question, or invitation."
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "Migrated the config loader; all tests pass.",
+          "files": {}
+        },
+        "negative": {
+          "response": "Migrated the config loader; all tests pass.\n\nWant me to also add tests for this?",
           "files": {}
         }
       }
