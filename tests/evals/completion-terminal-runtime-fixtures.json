@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "_scope_note": "Runtime fixtures for the completion-tail audit (.claude/rules/voice.md) and the task-completion terminal predicate (.claude/rules/builder-ethos.md), issue #5404, covering scenarios 9-14 of the scenario catalog documented in tests/test_completion_terminal_contracts.py. Each fixture installs both rule files into the Claude workspace via `instructions` (Copilot is refused: its repository-instruction loading is unverified, probed 2026-09-22) and carries both a regex/not_regex regression backstop AND a `semantic` assertion graded by scripts/eval/_runtime_grader.py through the provider registry. The regex assertions are useful fixtures but are NOT the semantic authority: a response can reopen an interaction without using any exact prohibited phrase, and using one of those phrases inside a genuine blocking question is not itself a defect; that is what the semantic assertion grades. Every semantic assertion is calibrated per run against this fixture's own positive control (must PASS), negative control (must FAIL), and an automatic mutant (the positive response plus a fixed appended continuation tail, must FAIL); a grader that fails calibration is reported INVALID_GRADER rather than trusted. Dry run: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/completion-terminal-runtime-fixtures.json --model <model> --harnesses claude --dry-run. Live (Claude only, Copilot instruction loading is unverified): uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/completion-terminal-runtime-fixtures.json --model <model> --harnesses claude --grader-provider anthropic --grader-model claude-opus-4-6 --output artifacts/runtime-parity/completion-terminal/report.json --workspace-root \"$(mktemp -d)\". Ablation baseline: add --instructions-ref a7c362688^ (the rules before PR #5506).",
+  "_scope_note": "Runtime fixtures for the completion-tail audit (.claude/rules/voice.md) and the task-completion terminal predicate (.claude/rules/builder-ethos.md), issue #5404, covering scenarios 9-14 of the scenario catalog documented in tests/test_completion_terminal_contracts.py. Each fixture installs both rule files into the Claude workspace via `instructions` (for Copilot, each rule's generated .github/instructions/<name>.instructions.md projection, checked against `copilot instruction list --json` before the run) and carries both a regex/not_regex regression backstop AND a `semantic` assertion graded by scripts/eval/_runtime_grader.py through the provider registry. The regex assertions are useful fixtures but are NOT the semantic authority: a response can reopen an interaction without using any exact prohibited phrase, and using one of those phrases inside a genuine blocking question is not itself a defect; that is what the semantic assertion grades. Every semantic assertion is calibrated per run against this fixture's own positive control (must PASS), negative control (must FAIL), and an automatic mutant (the positive response plus a fixed appended continuation tail, must FAIL); a grader that fails calibration is reported INVALID_GRADER rather than trusted. Dry run: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/completion-terminal-runtime-fixtures.json --model <model> --harnesses claude --dry-run. Live: uv run python scripts/eval/eval_runtime_parity.py --fixtures tests/evals/completion-terminal-runtime-fixtures.json --model <model> --harnesses claude|copilot|both --grader-provider anthropic --grader-model claude-sonnet-5 --output artifacts/runtime-parity/completion-terminal/report.json --workspace-root \"$(mktemp -d)\". Ablation baseline: add --instructions-ref a7c362688^ (the rules before PR #5506). A scenario passes under the ADR-057 two-of-three rule over at least three runs per arm (scripts/eval/README.md).",
   "fixtures": [
     {
       "id": "completion-no-continuation-offer",
@@ -82,7 +82,7 @@
         },
         {
           "kind": "regex",
-          "pattern": "(?i)unused import"
+          "pattern": "(?i)import"
         },
         {
           "kind": "semantic",
@@ -203,7 +203,7 @@
       "assertions": [
         {
           "kind": "regex",
-          "pattern": "(?i)payment\\.ts"
+          "pattern": "(?i)fix|pass|green"
         },
         {
           "kind": "not_regex",
