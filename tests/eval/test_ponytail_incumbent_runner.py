@@ -167,8 +167,8 @@ def test_main_refuses_a_non_empty_output_dir(
 
 
 def test_main_reports_a_timed_out_eval(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    def expire(*_args: object, **kwargs: object) -> None:
-        raise subprocess.TimeoutExpired("claude", kwargs["timeout"])
+    def expire(*_args: object, **_kwargs: object) -> None:
+        raise subprocess.TimeoutExpired("claude", run.EVAL_TIMEOUT_SECONDS)
 
     monkeypatch.setattr(run.subprocess, "run", expire)
     assert _main(monkeypatch, tmp_path, tmp_path / "out") == 3
