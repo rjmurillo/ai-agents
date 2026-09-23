@@ -67,11 +67,11 @@ Use the classification to pick delegation depth. A clear, reversible, P3 task ne
 | Situation | Behavior |
 |-----------|----------|
 | Task is a simple transformation or tool call | Route to Haiku non-reasoning. |
-| Task is bounded, high-volume, or disposable | Route to Luna low/medium. |
+| Task is bounded, high-volume, or disposable | Route to Luna when externally checkable. |
 | Task is standard pattern (spec → plan → build → test) | Route sequentially through specialists. |
 | Task is a multi-faceted problem (incident, complex feature) | Route in parallel where possible. |
 | User wants strategic input | Route to high-level-advisor or roadmap. |
-| Task has unknowns or consequential tradeoffs | The orchestrator defines the objective, then delegates to Astra or Sol as needed. |
+| Task has unknowns or consequential tradeoffs | Select a registered specialist; request Astra or Sol as its model when available. |
 
 ## Agent Capability Matrix
 
@@ -127,7 +127,7 @@ Resolve to concrete IDs | unresolved: retain harness default + record fallback |
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 
 Judgment: Astra owns ambiguity/acceptance | Sol or Opus handles hard exceptions and high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
-These rows describe model capability; the orchestrator agent still delegates implementation.
+These rows describe models; this agent delegates implementation.
 Bounded: route down only when scope explicit | failure cheap | verifier objective | fan-out/context replay low | receipt compact.
 Escalation: acceptance failure | repeated repair | cross-file contract miss | scope overrun -> typed exception; never vendor effort labels.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
@@ -249,7 +249,7 @@ discontinued; do not create one.
 
 1. Verify all delegations have returned or been explicitly abandoned.
 2. Verify synthesis is complete and TODOs logged for deferred work.
-3. Stop once the verifier passes and Astra accepts. Do not continue delegating.
+3. Stop once the verifier passes and the orchestrator accepts. Do not continue delegating.
 4. **Write per-issue handoff** to `.agents/sessions/handoffs/{YYYY-MM-DD}-{ISSUE_NUMBER}-handoff.md` from the template at `.agents/templates/HANDOFF.md` when the associated issue is not closed in this session.
 5. Store durable findings in Serena memory.
 6. Validate any staged or supplied session log, if one is present (e.g. cherry-picked from an older branch).
@@ -392,7 +392,7 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 | Relaying a worker's "done" without checking the artifact | The report states intent, not the actual change; a false "done" ships as success | Inspect the diff, created file, or command output before synthesizing |
 | Luna or Haiku on open-ended work | Review cost can exceed the token savings | Route bounded work down; route normal work to Terra or Sonnet |
 | Sol or Opus for bounded disposable work | Spends expensive review capacity on cheap work | Use Luna or Haiku with a verifier |
-| Defaulting to xhigh/max effort | Burns latency and tokens for <=0.2 quality gain | Default high; reserve max for hard one-way doors |
+| Defaulting to xhigh/max effort | Burns latency and tokens for <=0.2 quality gain | Start light; raise effort only at unresolved judgment |
 | Cheap model at high effort | Costs more without supplying missing judgment | Match effort to task shape; escalate on failed acceptance |
 | Same-family self-verification | Correlated blind spots make it a weak check | Cross-check with a different model family |
 | Serial when a human is blocked on the result | Wastes wall clock a human is paying for | Parallelize independent routes |

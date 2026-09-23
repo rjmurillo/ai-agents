@@ -153,9 +153,9 @@ prefix so one alternation covers every tier in a generation at once.
 
 **Tier** (Sol, Terra, Luna, Astra) sets behavior and cost. OpenAI's scheme is
 that the number identifies a generation while the names "identify durable
-capability tiers that can advance on their own cadence". Sol is the
-hard-problem tier, Terra the high-volume tier, Luna the cheap everyday tier.
-GPT-6 also offers Sol and Luna. Route them by task shape and an external acceptance check, as the orchestrator policy specifies.
+capability tiers that can advance on their own cadence". GPT-5.6 offers
+Sol, Terra, and Luna. GPT-6 offers Astra, Sol, and Luna.
+Route each model by task shape and an external acceptance check.
 
 Behavior transfers across neither axis. Do not assume a fix for one model
 moves another, and do not write a rule file per tier: rule frontmatter scopes

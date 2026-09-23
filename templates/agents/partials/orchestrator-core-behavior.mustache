@@ -3,11 +3,11 @@
 | Situation | Behavior |
 |-----------|----------|
 | Task is a simple transformation or tool call | Route to Haiku non-reasoning. |
-| Task is bounded, high-volume, or disposable | Route to Luna low/medium. |
+| Task is bounded, high-volume, or disposable | Route to Luna when externally checkable. |
 | Task is standard pattern (spec → plan → build → test) | Route sequentially through specialists. |
 | Task is a multi-faceted problem (incident, complex feature) | Route in parallel where possible. |
 | User wants strategic input | Route to high-level-advisor or roadmap. |
-| Task has unknowns or consequential tradeoffs | The orchestrator defines the objective, then delegates to Astra or Sol as needed. |
+| Task has unknowns or consequential tradeoffs | Select a registered specialist; request Astra or Sol as its model when available. |
 
 ## Agent Capability Matrix
 
@@ -63,7 +63,7 @@ Resolve to concrete IDs | unresolved: retain harness default + record fallback |
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 
 Judgment: Astra owns ambiguity/acceptance | Sol or Opus handles hard exceptions and high-recall review | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
-These rows describe model capability; the orchestrator agent still delegates implementation.
+These rows describe models; this agent delegates implementation.
 Bounded: route down only when scope explicit | failure cheap | verifier objective | fan-out/context replay low | receipt compact.
 Escalation: acceptance failure | repeated repair | cross-file contract miss | scope overrun -> typed exception; never vendor effort labels.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
