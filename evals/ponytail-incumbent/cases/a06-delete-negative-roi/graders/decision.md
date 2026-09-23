@@ -1,5 +1,5 @@
 ---
 type: regex
-pattern: "DECISION:[ ]*\\**DELETE\\b"
+pattern: "DECISION:[ *]*DELETE\\b"
 match: contains
 ---

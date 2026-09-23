@@ -1,5 +1,5 @@
 ---
 type: regex
-pattern: "FINDINGS:[ ]*\\**[1-9]"
+pattern: "FINDINGS:[ *]*[1-9]"
 match: contains
 ---
