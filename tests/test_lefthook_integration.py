@@ -526,7 +526,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "memory-skill-format",
         "adr-review-policy",
         "taste-advisory",
-        "scope-policy",
         "generate-mcp-config",
         "stage-mcp-config",
         "generate-agents",
@@ -553,7 +552,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "path-normalization",
         "planning-artifacts",
         "placeholder-identity",
-        "branch-scope",
         "additions-advisory",
         "hook-anchoring-e2e",
         "plugin-load-e2e",
@@ -799,11 +797,8 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         assert isinstance(run, str)
         assert "{push_files}" in run
     workflow_run = pre_push_jobs["workflow-local-run"]["run"]
-    branch_scope_run = pre_push_jobs["branch-scope"]["run"]
     assert isinstance(workflow_run, str)
-    assert isinstance(branch_scope_run, str)
     assert "--no-full" not in workflow_run
-    assert "origin/main" in branch_scope_run
     # Issue #5079 review: the standalone build-all-check job is gone on
     # purpose. pre-pr-validation's Generated Artifact Staleness gate runs
     # build_all.py --check inside the sequence; a second concurrent

@@ -49,7 +49,6 @@ FAST_PARALLEL_GATES = frozenset(
         "python-unreachable-statements",
         "path-normalization",
         "planning-artifacts",
-        "branch-scope",
         "branch-context-policy",
         "review-axis-drift",
         "dash-prohibition",
