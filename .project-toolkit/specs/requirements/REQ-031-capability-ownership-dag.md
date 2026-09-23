@@ -170,7 +170,10 @@ stale.
 - **Owns**: the set of capability names for which the node is canonical.
 - **Depends-on**: the set of capability names the node consumes.
 - **Projection**: a generated copy under `src/claude/`, `src/copilot-cli/`,
-  `.github/instructions/`, or `.claude/`. A projection never owns a capability.
+  `.github/instructions/`, `.github/agents/`, `src/vs-code-agents/`, or
+  `.claude/`. A projection is never the owner. It may repeat its canonical
+  owner's declaration, because the build binplaces byte-identical copies, and
+  it may not own a capability no canonical artifact owns.
 - **Status**: the node's lifecycle value. One of `active`, `sunset`,
   `deprecated`, `retired`.
 
@@ -208,7 +211,8 @@ Invariants:
 2. `depends-on` names resolve to a capability some node owns.
 3. A node never depends on a capability it owns.
 4. The edge set is acyclic.
-5. A node under a generated tree declares no `owns` entries.
+5. A node under a generated tree owns nothing a canonical node does not
+   already own.
 6. `status: sunset` or `status: deprecated` requires `replaced-by`, or both
    `replacement-platform` and `replacement-owner`.
 7. A consumer never repeats a long run of its dependency's text.
@@ -261,8 +265,8 @@ Numbered, in EARS syntax, each independently pass or fail.
    print the cycle members.
 4. WHEN two nodes declare the same capability name under `owns`, THE validator
    SHALL exit non-zero and name both files.
-5. WHEN a node under a generated tree declares `owns`, THE validator SHALL exit
-   non-zero and name the file.
+5. WHEN a node under a generated tree declares `owns` for a capability no
+   canonical node owns, THE validator SHALL exit non-zero and name the file.
 6. WHEN every declaration resolves and the graph is acyclic, THE validator
    SHALL exit zero.
 7. WHEN invoked with its output flag, THE validator SHALL print node and edge
