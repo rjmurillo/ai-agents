@@ -8,7 +8,9 @@ description: >
 license: MIT
 metadata:
   domains: [memory, citations, verification]
-  type: utility
+  capability:
+    kind: reusable-primitive
+    status: active
   adr: ADR-038, ADR-106
 ---
 

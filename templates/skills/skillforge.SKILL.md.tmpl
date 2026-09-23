@@ -12,7 +12,9 @@ allowed-tools:
 metadata:
   version: 4.1.0
   domains: [meta-skill, automation, skill-creation, orchestration, agentic, routing]
-  type: orchestrator
+  capability:
+    kind: orchestrator
+    status: active
   inputs: [any-input, user-goal, domain-hints]
   outputs: [SKILL.md, references/, scripts/, SKILL_SPEC.md, recommendations]
 ---
