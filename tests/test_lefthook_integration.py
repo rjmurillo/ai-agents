@@ -537,7 +537,6 @@ def test_configuration_uses_named_native_jobs() -> None:
         "memory-cross-reference",
         "stage-memory-cross-references",
         "extract-session-episodes",
-        "commit-file-count",
     }
     expected_pre_push = {
         "repo-health",
@@ -586,9 +585,6 @@ def test_configuration_uses_named_native_jobs() -> None:
     assert pre_commit_names.index("memory-size") < pre_commit_names.index("memory-cross-reference")
     assert pre_commit_names.index("memory-cross-reference") < pre_commit_names.index(
         "memory-skill-format"
-    )
-    assert pre_commit_names.index("extract-session-episodes") < pre_commit_names.index(
-        "commit-file-count"
     )
 
 
@@ -715,7 +711,6 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         "memory-cross-reference",
         "stage-memory-cross-references",
         "extract-session-episodes",
-        "commit-file-count",
         "memory-size",
         "adr-review-policy",
         "taste-advisory",
@@ -6820,76 +6815,6 @@ def test_episode_staging_handles_missing_and_symlink(
     assert policy._stage_episode("episode-link", tmp_path) == 2
 
 
-def _stage_files(repo: Path, paths: list[str]) -> None:
-    """Stage new files in repo without committing."""
-    for rel in paths:
-        full = repo / rel
-        full.parent.mkdir(parents=True, exist_ok=True)
-        full.write_bytes(b"content\n")
-        _git(repo, "add", "--", rel)
-
-
-def test_atomic_commit_below_limit(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _commit_file(repo, "README.md", "init\n")
-    _stage_files(repo, ["a.py", "b.py", "c.py"])
-    assert policy.check_atomic_commit(repo) == 0
-
-
-def test_atomic_commit_at_limit(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _commit_file(repo, "README.md", "init\n")
-    _stage_files(repo, ["a.py", "b.py", "c.py", "d.py", "e.py"])
-    assert policy.check_atomic_commit(repo) == 0
-
-
-def test_atomic_commit_above_limit(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """Six authored files report an advisory and exit 0 (ADR-100 item 2)."""
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _commit_file(repo, "README.md", "init\n")
-    _stage_files(repo, ["a.py", "b.py", "c.py", "d.py", "e.py", "f.py"])
-    assert policy.check_atomic_commit(repo) == 0
-    captured = capsys.readouterr()
-    assert "ADVISORY" in captured.out + captured.err
-
-
-def test_atomic_commit_generated_episode_exempt(tmp_path: Path) -> None:
-    """Five authored files plus a generated episode must not exceed the limit."""
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _commit_file(repo, "README.md", "init\n")
-    authored = ["a.py", "b.py", "c.py", "d.py", "e.py"]
-    generated = [".project-toolkit/memory/episodes/episode-abc123.json"]
-    _stage_files(repo, authored + generated)
-    assert policy.check_atomic_commit(repo) == 0
-
-
-def test_atomic_commit_generated_episode_not_enough_to_hide_violation(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Six authored files still report the advisory when a generated episode is staged."""
-    repo = tmp_path / "repo"
-    _init_repo(repo)
-    _commit_file(repo, "README.md", "init\n")
-    authored = ["a.py", "b.py", "c.py", "d.py", "e.py", "f.py"]
-    generated = [".project-toolkit/memory/episodes/episode-abc123.json"]
-    _stage_files(repo, authored + generated)
-    assert policy.check_atomic_commit(repo) == 0
-    captured = capsys.readouterr()
-    assert "ADVISORY" in captured.out + captured.err
-
-
-def test_atomic_commit_git_failure_returns_error(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(policy, "_run_git", lambda *_a, **_k: _completed(128))
-    assert policy.check_atomic_commit(tmp_path) == 2
-
-
 def test_push_ref_parser_rejects_option_like_refs() -> None:
     sha = "1" * 40
     with pytest.raises(ValueError, match="invalid ref name"):
@@ -8370,7 +8295,6 @@ def test_old_bot_review_does_not_warn(
         ("sessions", ["session.json"], "validate_branch_sessions"),
         ("stage-generated", ["mcp"], "stage_generated"),
         ("extract-episodes", ["session.json"], "extract_session_episodes"),
-        ("atomic-commit", [], "check_atomic_commit"),
         ("planning", [], "run_planning_advisory"),
         ("adr-review", ["README.md"], "check_adr_review_policy"),
         ("generate-mcp", [], "generate_mcp_advisory"),

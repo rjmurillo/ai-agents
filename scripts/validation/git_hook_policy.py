@@ -3239,120 +3239,6 @@ def _is_generated(relative_path: str, repo_root: Path | None = None) -> bool:
     return False
 
 
-def _atomic_commit_paths(diff_output: str) -> list[str]:
-    paths: list[str] = []
-    for line in diff_output.splitlines():
-        if not line:
-            continue
-        parts = line.split("\t")
-        status = parts[0]
-        if status.startswith(("R", "C")) and len(parts) >= 3:
-            paths.append(parts[2])
-        elif len(parts) >= 2:
-            paths.append(parts[1])
-    return paths
-
-
-def _merge_brought_paths(repo_root: Path, staged_paths: list[str]) -> set[str]:
-    """Return staged paths brought in by a merge without author modification.
-
-    During a merge commit, ``git diff --cached`` reports ALL files that differ
-    from HEAD, including those the merge parent introduces untouched. To find
-    which files the author actually changed (conflict resolutions, manual edits
-    during merge), we diff the staged content against MERGE_HEAD. Files with no
-    diff against MERGE_HEAD are purely brought in by the merge (issue #4307).
-    """
-    result = _run_git(repo_root, ["rev-parse", "MERGE_HEAD"])
-    if result.returncode != 0:
-        return set()
-    merge_head = result.stdout.strip()
-
-    # Diff the index (staged) against MERGE_HEAD. Files that show NO diff
-    # are identical to the merge parent, meaning the author did not touch them.
-    diff_result = _run_git(
-        repo_root,
-        ["diff", "--cached", "--name-only", "--diff-filter=ACMRD", merge_head],
-    )
-    if diff_result.returncode != 0:
-        return set()
-    author_changed = set(diff_result.stdout.splitlines())
-    return {p for p in staged_paths if p not in author_changed}
-
-
-def check_atomic_commit(repo_root: Path) -> int:
-    """Report when authored staged files exceed MAX_AUTHORED_FILES_PER_COMMIT.
-
-    Advisory since ADR-100 item 2 (issue #5241): prints the same guidance the
-    former blocking check printed, but never fails the commit for exceeding
-    the limit. Commit granularity is left to author judgment, which ADR-100
-    names as the honest description of the resulting state.
-
-    Generated companions (episodes, mcp, agents, memory-index) are exempt from
-    the count so that a hook-generated sixth file cannot silently produce a
-    guidance-violating commit. During a merge commit, files brought in by the
-    merge parent without author modification are also exempt (issue #4307).
-
-    EXIT CODES:
-      0 - always, for a staged set determined successfully (advisory only;
-          the file count no longer affects the exit code)
-      2 - unexpected error determining the staged set
-    """
-    result = _run_git(
-        repo_root,
-        ["diff", "--cached", "--name-status", "-M", "--diff-filter=ACMRD"],
-    )
-    if result.returncode != 0:
-        print("ERROR: could not determine staged files", file=sys.stderr)
-        return 2
-
-    staged = _atomic_commit_paths(result.stdout)
-
-    # During a merge, exclude files the merge parent introduces untouched.
-    merge_brought = _merge_brought_paths(repo_root, staged)
-
-    authored: list[str] = []
-    generated: list[str] = []
-    merge_exempt: list[str] = []
-    for path in staged:
-        if path in merge_brought:
-            merge_exempt.append(path)
-        elif _is_generated(path, repo_root):
-            generated.append(path)
-        else:
-            authored.append(path)
-
-    authored_count = len(authored)
-    if merge_exempt:
-        print(
-            f"INFO: {len(merge_exempt)} merge-brought file(s) excluded from atomic-commit count.",
-            file=sys.stderr,
-        )
-    if generated:
-        print(
-            f"INFO: {len(generated)} generated file(s) excluded from atomic-commit count:",
-            file=sys.stderr,
-        )
-        for gp in generated:
-            print(f"  {gp}", file=sys.stderr)
-
-    if authored_count <= MAX_AUTHORED_FILES_PER_COMMIT:
-        return 0
-
-    print(
-        f"ADVISORY: commit touches {authored_count} authored files"
-        f" (guidance is {MAX_AUTHORED_FILES_PER_COMMIT}).",
-        file=sys.stderr,
-    )
-    print("Authored files staged:", file=sys.stderr)
-    for ap in authored:
-        print(f"  {ap}", file=sys.stderr)
-    print(
-        "Consider splitting this commit. Advisory only, does not block (ADR-100 item 2).",
-        file=sys.stderr,
-    )
-    return 0
-
-
 def _episode_id_from_output(stdout: str) -> str | None:
     try:
         payload = json.loads(stdout)
@@ -8351,10 +8237,6 @@ def _handle_extract_episodes(args: argparse.Namespace) -> int:
     return extract_session_episodes(args.paths, _repo_root(args))
 
 
-def _handle_atomic_commit(args: argparse.Namespace) -> int:
-    return check_atomic_commit(_repo_root(args))
-
-
 def _handle_semgrep(args: argparse.Namespace) -> int:
     return run_semgrep(_repo_root(args))
 
@@ -8404,7 +8286,6 @@ def build_parser() -> argparse.ArgumentParser:
         ("security-suppressions-staged", _handle_staged_suppressions),
         ("pre-push", _handle_pre_push),
         ("tracked-conflict-markers", _handle_tracked_conflict_markers),
-        ("atomic-commit", _handle_atomic_commit),
         ("branch-dashes", _handle_branch_dashes),
     )
     for name, handler in path_commands:
