@@ -70,10 +70,14 @@ def verify_plugin(plugin_dir: Path, expected_sha: str) -> None:
     if head.returncode != 0 or head.stdout.strip() != expected_sha:
         raise ValueError(f"plugin dir is not a git checkout at {expected_sha}")
     status = subprocess.run(
-        ["git", "status", "--porcelain"], cwd=plugin_dir, capture_output=True, text=True, timeout=30
+        ["git", "status", "--porcelain", "--ignored"],
+        cwd=plugin_dir,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     if status.returncode != 0 or status.stdout.strip():
-        raise ValueError("plugin checkout has local changes")
+        raise ValueError("plugin checkout has local changes or ignored files")
 
 
 def build_root(plugin_dir: Path, cases: Path, work: Path, corpus: str) -> Path:

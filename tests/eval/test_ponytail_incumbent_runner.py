@@ -150,6 +150,14 @@ def test_verify_plugin_rejects_other_commit_dirty_tree_and_non_git(tmp_path: Pat
     (repo / "a.txt").write_text("changed\n")
     with pytest.raises(ValueError, match="local changes"):
         run.verify_plugin(repo, sha)
+    (repo / "a.txt").write_text("a\n")
+    (repo / ".gitignore").write_text("secret.js\n")
+    _git(repo, "add", ".gitignore")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "ignore")
+    run.verify_plugin(repo, _git(repo, "rev-parse", "HEAD"))
+    (repo / "secret.js").write_text("hook()\n")
+    with pytest.raises(ValueError, match="ignored files"):
+        run.verify_plugin(repo, _git(repo, "rev-parse", "HEAD"))
     plain = tmp_path / "plain"
     plain.mkdir()
     with pytest.raises(ValueError, match="checkout at"):
