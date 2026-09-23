@@ -126,8 +126,12 @@ class TestDisabledPredicateRejectsNonDisablingShapes:
         assert _plugin_is_disabled(settings, "caveman@caveman")
 
 
-# Issue #5457: both harnesses install Ponytail from repository configuration,
+# Issue #5457: both harnesses declare Ponytail from repository configuration,
 # pinned to the same reviewed release. Both harnesses pin through `ref`.
+# The incumbent eval in `evals/ponytail-incumbent/` rejected Ponytail for
+# Claude Code, so Claude declares it disabled. That also overrides a
+# user-level enable inside this checkout. Copilot was not benchmarked and
+# keeps its existing enable.
 # Copilot CLI 1.0.89 ignores a marketplace `sha`: with `sha` alone, a clean
 # install checked out upstream main. Copilot also keeps `sha` so the reviewed
 # commit is recorded next to the tag. `evals/ponytail-incumbent/README.md`
@@ -154,7 +158,9 @@ INSTRUCTION_SURFACES = (
 )
 
 
-def _ponytail_pin_errors(settings: Any, pins: dict[str, str]) -> list[str]:
+def _ponytail_pin_errors(
+    settings: Any, pins: dict[str, str], *, enabled_state: bool = True
+) -> list[str]:
     """Return every way `settings` fails to install the reviewed Ponytail."""
     if not isinstance(settings, dict):
         return ["settings is not a JSON object"]
@@ -171,16 +177,17 @@ def _ponytail_pin_errors(settings: Any, pins: dict[str, str]) -> list[str]:
             if source.get(key) != value:
                 errors.append(f"marketplace 'ponytail' {key} is not {value}")
     enabled = settings.get("enabledPlugins")
-    if not isinstance(enabled, dict) or enabled.get(PONYTAIL_ID) is not True:
-        errors.append(f"{PONYTAIL_ID} is not enabled with JSON true")
+    if not isinstance(enabled, dict) or enabled.get(PONYTAIL_ID) is not enabled_state:
+        errors.append(f"{PONYTAIL_ID} is not JSON {str(enabled_state).lower()}")
     return errors
 
 
-class TestPonytailIsInstalledFromRepositoryConfig:
+class TestPonytailIsDeclaredFromRepositoryConfig:
     """Positive: both harnesses pin the same reviewed Ponytail release."""
 
     def test_claude_settings_pin_the_reviewed_tag(self) -> None:
-        assert _ponytail_pin_errors(_load(CLAUDE_SETTINGS), {"ref": PONYTAIL_TAG}) == []
+        settings = _load(CLAUDE_SETTINGS)
+        assert _ponytail_pin_errors(settings, {"ref": PONYTAIL_TAG}, enabled_state=False) == []
 
     def test_copilot_settings_pin_the_reviewed_commit(self) -> None:
         assert _ponytail_pin_errors(_load(COPILOT_SETTINGS), COPILOT_PINS) == []
@@ -250,3 +257,12 @@ class TestPonytailPinPredicateRejectsDrift:
     @pytest.mark.parametrize("settings", [None, [], "x"])
     def test_non_object_settings_fail(self, settings: Any) -> None:
         assert _ponytail_pin_errors(settings, COPILOT_PINS)
+
+    def test_disabled_expectation_rejects_enabled_and_missing(self) -> None:
+        """A Claude file that re-enables or forgets the disable is drift."""
+        assert _ponytail_pin_errors(self.GOOD, COPILOT_PINS, enabled_state=False)
+        settings = json.loads(json.dumps(self.GOOD))
+        settings["enabledPlugins"].pop(PONYTAIL_ID)
+        assert _ponytail_pin_errors(settings, COPILOT_PINS, enabled_state=False)
+        settings["enabledPlugins"][PONYTAIL_ID] = False
+        assert _ponytail_pin_errors(settings, COPILOT_PINS, enabled_state=False) == []

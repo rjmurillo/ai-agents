@@ -89,3 +89,8 @@ case and arm, a 40 USD cost ceiling.
   fail a code check.
 - Copilot CLI has no ablation harness equal to `claude plugin eval`. Copilot
   results cover install and discovery only.
+
+## Results
+
+- [2026-09-23 report](reports/2026-09-23-report.md): **REJECT** for Claude
+  Code. Ponytail passed 94 of 117 runs; the corpus alone passed 103 of 117.
