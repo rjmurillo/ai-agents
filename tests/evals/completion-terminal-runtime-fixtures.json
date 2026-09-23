@@ -82,7 +82,7 @@
         },
         {
           "kind": "regex",
-          "pattern": "(?i)import"
+          "pattern": "(?i)\\bimport(s|ed)?\\b"
         },
         {
           "kind": "semantic",
@@ -203,7 +203,7 @@
       "assertions": [
         {
           "kind": "regex",
-          "pattern": "(?i)fix|pass|green"
+          "pattern": "(?i)\\b(fix(ed)?|pass(es|ed)?|green)\\b"
         },
         {
           "kind": "not_regex",

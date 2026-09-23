@@ -276,6 +276,12 @@ def _verify_copilot_instruction_listing(
             raw_output=run.stdout,
             stderr=run.stderr,
         )
+    _require_listed_sources(fixture.fixture_id, listing, set(instructions))
+    return listing, None
+
+
+def _require_listed_sources(fixture_id: str, listing: list[object], installed: set[str]) -> None:
+    """Raise unless the listing names exactly the installed files."""
     malformed = [
         entry
         for entry in listing
@@ -284,18 +290,17 @@ def _verify_copilot_instruction_listing(
     if malformed:
         # An entry this parser cannot read could hide a leaked source, so fail closed.
         raise ParityConfigError(
-            f"copilot instruction listing for fixture {fixture.fixture_id!r} has "
+            f"copilot instruction listing for fixture {fixture_id!r} has "
             f"entries without a string sourcePath: {malformed}"
         )
     listed = {cast(dict[str, str], entry)["sourcePath"] for entry in listing}
-    extra = sorted(listed - set(instructions))
-    missing = sorted(set(instructions) - listed)
+    extra = sorted(listed - installed)
+    missing = sorted(installed - listed)
     if extra or missing:
         raise ParityConfigError(
-            f"copilot instruction listing for fixture {fixture.fixture_id!r} does "
+            f"copilot instruction listing for fixture {fixture_id!r} does "
             f"not match installed instructions: extra={extra} missing={missing}"
         )
-    return listing, None
 
 
 def _invoke_runtime(

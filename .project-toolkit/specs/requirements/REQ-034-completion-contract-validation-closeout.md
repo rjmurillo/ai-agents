@@ -112,7 +112,7 @@ listing.
 - The Copilot projection is missing at the ref: exit 2 before any run.
 - The instruction listing differs from the installed set: exit 2, the run
   would test leaked or missing instructions.
-- Copilot model quota exhausted: exit 3, `UNAVAILABLE`, never a pass.
+- Copilot model quota exhausted: verdict `ERROR`, exit 3, never a pass.
 - The listing command fails or returns bad JSON: verdict `ERROR`, exit 3.
 - A listing entry has no string `sourcePath`: exit 2, it could hide a leak.
 

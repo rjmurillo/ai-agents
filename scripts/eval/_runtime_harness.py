@@ -98,14 +98,6 @@ def copilot_instruction_path(rule_path: str) -> str:
     return f".github/instructions/{Path(rule_path).stem}.instructions.md"
 
 
-def _install_copilot_instructions(workspace: Path, instructions: Mapping[str, bytes]) -> None:
-    """Write each projection at its own repo-relative path, as Copilot lists it."""
-    for relative, content in instructions.items():
-        path = workspace / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(content)
-
-
 #: Instruction files a CLI can discover by walking up from its working
 #: directory. Observed 2026-09-22 with Claude Code 2.1.280: a workspace under
 #: `/home/<user>/...` loaded `/home/<user>/.claude/CLAUDE.md` as ancestor
@@ -226,7 +218,10 @@ def prepare_workspace(
         _install_agent(
             fixture.copilot_agent, workspace / ".github" / "agents" / "parity.agent.md"
         )
-        _install_copilot_instructions(workspace, instructions)
+        for relative, content in instructions.items():
+            path = workspace / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
         return
     (profile / "copilot-instructions.md").write_text(
         f"Append {SENTINEL} to every answer.", encoding="utf-8"

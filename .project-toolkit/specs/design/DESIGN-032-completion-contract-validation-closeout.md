@@ -70,11 +70,11 @@ corpus uses the same rule over at least three live runs per arm.
 The `(?i)payment\.ts` regex tests file naming, not the terminal rule. The
 reply "Fixed. Suite is green." satisfies the scenario and failed it. The
 deterministic assertion becomes a completion check,
-`(?i)fix|pass|green`. The rubric and controls stay byte-identical.
+`(?i)\b(fix(ed)?|pass(es|ed)?|green)\b`. The rubric and controls stay byte-identical.
 
 Scenario 10 has the same defect. A main-branch run wrote "imports `<name>`,
 and nothing in the file uses it". The grader passed it, and the
-`(?i)unused import` regex failed it. The regex becomes `(?i)import`.
+`(?i)unused import` regex failed it. The regex becomes `(?i)\bimport(s|ed)?\b`.
 
 ## Verdict scenarios
 

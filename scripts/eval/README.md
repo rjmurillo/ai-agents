@@ -311,7 +311,8 @@ itself: before the model call, the evaluator runs `copilot instruction list
 --json` in the prepared workspace with the run's environment. The listed
 `sourcePath` set must equal the installed projection set. An extra or missing
 source, or an entry without a string `sourcePath`, is a config error (exit
-2). A listing command that fails, times out, or prints unparsable JSON ends
+2) before the Copilot model call. Under `--harnesses both`, the Claude arm of
+that fixture has already run, and the run discards its result. A listing command that fails, times out, or prints unparsable JSON ends
 the run with verdict `ERROR` (exit 3). The report records the listing.
 
 An `--instructions-ref REF` flag resolves instruction bytes from
