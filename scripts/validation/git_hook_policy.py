@@ -1591,9 +1591,7 @@ def _undo_root_move(content: bytes, path: str) -> bytes:
 def _drop_root_move_only_paths(paths: Sequence[str], repo_root: Path) -> list[str]:
     rename_sources = _staged_rename_sources(repo_root)
     return [
-        path
-        for path in paths
-        if not _is_root_move_only_change(path, repo_root, rename_sources)
+        path for path in paths if not _is_root_move_only_change(path, repo_root, rename_sources)
     ]
 
 
@@ -4607,10 +4605,52 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
         ]
         if not scan_paths:
             continue
+        root_moves = _pushed_root_moves(update, repo_root)
+        if root_moves is None:
+            return 2
+        scan_paths = [path for path in scan_paths if path not in root_moves]
+        if not scan_paths:
+            continue
         result = _scan_pushed_head(update.head, scan_paths, repo_root, deadline=deadline)
         if result != 0:
             return result
     return 0
+
+
+def _pushed_root_moves(update: PushUpdate, repo_root: Path) -> set[str] | None:
+    """Return destinations of byte-identical moves from the legacy root to ``.project-toolkit``.
+
+    Issue #5420 moved write-target subtrees between roots. A byte-identical move
+    adds no new content, so semgrep-push would only re-report findings the base
+    already carried, such as the deliberate security benchmark samples. Any
+    other rename, or a move with edits, is still scanned.
+    """
+    result = _run_git(
+        repo_root,
+        [
+            "diff",
+            *TEXTUAL_DIFF_FLAGS,
+            "--find-renames=100%",
+            "--name-status",
+            "--diff-filter=R",
+            "-z",
+            update.range_spec,
+        ],
+    )
+    if result.returncode != 0:
+        _print_process_output(result)
+        return None
+    fields = result.stdout.rstrip("\0").split("\0") if result.stdout else []
+    if len(fields) % 3:
+        print("ERROR: malformed rename listing for the pushed range", file=sys.stderr)
+        return None
+    moves: set[str] = set()
+    triples = zip(fields[0::3], fields[1::3], fields[2::3], strict=True)
+    for status, source, destination in triples:
+        moved = ".project-toolkit/" + source.removeprefix(".agents/")
+        if status == "R100" and source.startswith(".agents/") and destination == moved:
+            moves.add(destination)
+    return moves
 
 
 def _scan_pushed_head(

@@ -8332,6 +8332,7 @@ def test_changed_commit_path_and_scan_edge_cases(
         "_changed_commit_paths",
         lambda *_args: ["source.py"],
     )
+    monkeypatch.setattr(policy, "_pushed_root_moves", lambda *_args: set())
     monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 0)
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0
 
@@ -11177,3 +11178,50 @@ def test_a_claude_code_session_on_a_workstation_keeps_the_full_semgrep_budget(
 
     assert budget == policy.SEMGREP_TIMEOUT_SECONDS
     assert budget > policy.CONTAINER_SUBPROCESS_CEILING_SECONDS
+
+
+def test_pushed_root_moves_skips_only_identical_agents_to_toolkit_moves(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, ".agents/security/sample.py", "import os\nos.system(input())\n")
+    _commit_file(repo, ".agents/qa/edited.py", "value = 1\n" * 20)
+    base = _commit_file(repo, ".agents/qa/elsewhere.py", "other = 2\n" * 20)
+    (repo / ".project-toolkit/qa").mkdir(parents=True)
+    (repo / "scripts").mkdir()
+    _git(repo, "mv", ".agents/security", ".project-toolkit/security")
+    _git(repo, "mv", ".agents/qa/edited.py", ".project-toolkit/qa/edited.py")
+    _git(repo, "mv", ".agents/qa/elsewhere.py", "scripts/elsewhere.py")
+    _write_file(repo, ".project-toolkit/qa/edited.py", "value = 1\n" * 19 + "value = 3\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "test: move roots")
+    head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    update = _push_update(head=head, range_spec=f"{base}..{head}")
+
+    assert policy._pushed_root_moves(update, repo) == {".project-toolkit/security/sample.py"}
+
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(1))
+    assert policy._pushed_root_moves(update, repo) is None
+    monkeypatch.setattr(policy, "_run_git", lambda *_args: _completed(0, "R100\0.agents/a.py\0"))
+    assert policy._pushed_root_moves(update, repo) is None
+
+
+def test_scan_pushed_heads_skips_identical_root_moves(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    moved = ".project-toolkit/security/sample.py"
+    monkeypatch.setattr(policy, "_push_updates", lambda *_args: [_push_update()])
+    monkeypatch.setattr(policy, "_changed_commit_paths", lambda *_args: [moved])
+    monkeypatch.setattr(policy, "_commit_paths", lambda *_args: [moved])
+    monkeypatch.setattr(policy, "_pushed_root_moves", lambda *_args: {moved})
+    monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 1)
+    assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0
+
+    monkeypatch.setattr(policy, "_pushed_root_moves", lambda *_args: set())
+    assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 1
+
+    monkeypatch.setattr(policy, "_pushed_root_moves", lambda *_args: None)
+    assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 2
