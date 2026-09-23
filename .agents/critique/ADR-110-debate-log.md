@@ -87,6 +87,36 @@ and raised two design questions. All five were accepted.
 | D4 | The agent declaration site was ambiguous between `*.shared.md` and the per-harness templates | One site per class, stated in the record and enforced: a block in a per-harness template is a defect naming the shared file |
 | D5 | An empty capability block counted as a node | An empty block is a defect |
 
+## Revision 5, review round 2 on PR #5881
+
+| ID | Finding | Fix |
+|---|---|---|
+| R5-1 | The gate stopped refusing a projection's `owns` declaration, but ADR-110, REQ-031, and TASK-040 still required that refusal. Code and contract disagreed | Amended Decision 3 and invariant 5 in this record, and invariant 5 plus criterion 5 in REQ-031, with the reason the first wording was unenforceable against this repository's own binplace step |
+| R5-2 | The security rule told prompt surfaces not to restate the policy while four agent shared bodies restate it, with no waiver in the rule itself | The rule now names the four files, the generator reason, the byte-identity requirement, and the ADR-109 B1 retirement condition, and states that a fifth copy is a violation rather than residue |
+
+## Security seat, run on PR #5881
+
+The seat-count deviation above named security as the uncovered seat whose
+subject was the untrusted-content conversion. That seat has now run, against
+the conversion diff plus the ten rendered consumers before and after.
+
+**Verdict: PASS.** No HIGH or CRITICAL finding, no secret, no CWE-22, CWE-77 or
+CWE-78, no unmitigated agent-boundary issue. Three Low findings, all judged not
+material by the seat:
+
+| Finding | Disposition |
+|---|---|
+| The heading lost its `Critical:` prefix in all ten consumers; content unchanged | Accepted as is. The seat recorded no fix required, and restoring the prefix would change every rendered file for salience alone |
+| "memory files retrieved from Serena" became "memory files" | Accepted. The replacement is a superset, so coverage did not narrow |
+| pipeline-validator lost one skill-specific sentence about build logs and PR descriptions | Accepted. The retained general sentence names build and CI logs, and the skill's own anti-pattern row still guards the injection path |
+
+The seat's answers to the four questions it was given: no rendered prompt lost a
+normative sentence or a role-specific instruction; every consumer carries the
+guard inline with no runtime dependency on a rule file; the canonical text is at
+least as strong as every variant it replaced, and three consumers gained
+sentences they previously lacked; the partial include adds no injection surface,
+because it resolves at build time and no rendered file carries a mustache tag.
+
 ## Verification after revision
 
 - `uv run python scripts/validation/check_capability_graph.py .` exits 0 against

@@ -23,7 +23,7 @@ Six invariants are blocking:
   2. every `depends-on` name resolves to some node's `owns` entry
   3. no node depends on a capability it owns
   4. the edge set is acyclic
-  5. no generated projection declares `owns`
+  5. no projection owns a capability no canonical artifact owns
   6. `status: deprecated` requires `replaced-by`
 
 A seventh blocks the one copied-policy class that can be proven rather than
@@ -349,17 +349,21 @@ def collect_nodes(repo_root: Path) -> tuple[list[Node], list[str]]:
 
 
 def build_owner_index(nodes: list[Node]) -> tuple[dict[str, Node], list[str]]:
-    """Map capability name to its canonical owner, reporting duplicates."""
+    """Map capability name to its canonical owner, reporting duplicates.
+
+    A projection that repeats its canonical owner's declaration is expected,
+    not a defect: ADR-109 binplaces byte-identical copies of the template trees
+    into `.claude/` and `src/claude/`, so a canonical declaration arrives in a
+    projection by construction. The defect this catches is a projection that
+    owns a capability no canonical artifact owns, which is what a hand-edited
+    mirror inventing ownership looks like.
+    """
     owners: dict[str, Node] = {}
     findings: list[str] = []
     for node in nodes:
+        if not node.canonical:
+            continue
         for name in node.owns:
-            if not node.canonical:
-                findings.append(
-                    f"{node.path}: generated projection claims ownership of `{name}`; "
-                    "ownership belongs to the canonical artifact under templates/"
-                )
-                continue
             previous = owners.get(name)
             if previous is not None:
                 findings.append(
@@ -367,6 +371,15 @@ def build_owner_index(nodes: list[Node]) -> tuple[dict[str, Node], list[str]]:
                 )
                 continue
             owners[name] = node
+    for node in nodes:
+        if node.canonical:
+            continue
+        for name in node.owns:
+            if name not in owners:
+                findings.append(
+                    f"{node.path}: claims ownership of `{name}`, which no canonical "
+                    "artifact under templates/ owns"
+                )
     return owners, sorted(findings)
 
 
@@ -465,12 +478,20 @@ def check_graph(nodes: list[Node], owners: dict[str, Node]) -> list[str]:
 
 
 def render(nodes: list[Node], owners: dict[str, Node], fmt: str) -> str:
-    """Emit the deterministic report. Two runs on one tree are byte-identical."""
+    """Emit the deterministic report. Two runs on one tree are byte-identical.
+
+    Counts describe the canonical graph. A projection repeats its canonical
+    source by construction, so counting it would multiply every node by the
+    number of trees it binplaces into and report a graph nobody authored. The
+    projection count is reported on its own line instead.
+    """
+    canonical = [node for node in nodes if node.canonical]
+    projections = len(nodes) - len(canonical)
     kinds = {kind: 0 for kind in KINDS}
-    for node in nodes:
+    for node in canonical:
         if node.kind in kinds:
             kinds[node.kind] += 1
-    edges = sorted((node.path, name) for node in nodes for name in node.depends_on)
+    edges = sorted((node.path, name) for node in canonical for name in node.depends_on)
     if fmt == "json":
         payload = {
             "nodes": [
@@ -487,10 +508,19 @@ def render(nodes: list[Node], owners: dict[str, Node], fmt: str) -> str:
                 for node in nodes
             ],
             "owners": {name: owner.path for name, owner in sorted(owners.items())},
-            "counts": {"nodes": len(nodes), "edges": len(edges), "by_kind": kinds},
+            "counts": {
+                "nodes": len(canonical),
+                "edges": len(edges),
+                "projections": projections,
+                "by_kind": kinds,
+            },
         }
         return json.dumps(payload, indent=2, sort_keys=True)
-    lines = [f"nodes: {len(nodes)}", f"edges: {len(edges)}"]
+    lines = [
+        f"nodes: {len(canonical)}",
+        f"edges: {len(edges)}",
+        f"projections: {projections}",
+    ]
     lines.extend(f"kind {kind}: {count}" for kind, count in sorted(kinds.items()))
     for name, owner in sorted(owners.items()):
         lines.append(

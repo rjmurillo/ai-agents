@@ -123,15 +123,22 @@ def test_duplicate_owner_fails_and_names_both_files(tree: Path, capsys) -> None:
     assert "second.SKILL.md.tmpl" in err
 
 
-def test_projection_mirroring_a_canonical_owner_fails(tree: Path, capsys) -> None:
+def test_a_projection_repeating_its_canonical_owner_passes(tree: Path) -> None:
+    """ADR-109 binplaces byte-identical copies, so this shape is expected."""
     block = _block(kind="reusable-primitive", owns=["mirrored-policy"])
     _skill(tree, "canonical", block)
     _projection(tree, "canonical", block)
 
+    assert gate.validate_capability_graph(tree) is True
+
+
+def test_a_projection_owning_what_no_canonical_artifact_owns_fails(tree: Path, capsys) -> None:
+    _projection(tree, "invented", _block(kind="reusable-primitive", owns=["invented-policy"]))
+
     assert gate.validate_capability_graph(tree) is False
     err = capsys.readouterr().err
-    assert ".claude/skills/canonical/SKILL.md" in err
-    assert "generated projection claims ownership" in err
+    assert ".claude/skills/invented/SKILL.md" in err
+    assert "which no canonical artifact under templates/ owns" in err
 
 
 def test_projection_without_owns_is_allowed(tree: Path) -> None:
@@ -383,3 +390,29 @@ def test_a_per_harness_agent_template_may_not_declare_a_capability(tree: Path, c
     err = capsys.readouterr().err
     assert "analyst.claude.md.tmpl" in err
     assert "templates/agents/analyst.shared.md instead" in err
+
+
+def test_the_report_counts_canonical_nodes_and_names_projections(tree: Path) -> None:
+    """A binplaced copy is not a second node. Review of PR #5881."""
+    block = _block(kind="reusable-primitive", owns=["cap"])
+    _skill(tree, "owner", block)
+    _projection(tree, "owner", block)
+
+    nodes, _ = gate.collect_nodes(tree)
+    owners, _ = gate.build_owner_index(nodes)
+    report = gate.render(nodes, owners, "text")
+
+    assert "nodes: 1" in report
+    assert "projections: 1" in report
+
+
+def test_the_report_counts_only_canonical_edges(tree: Path) -> None:
+    _skill(tree, "owner", _block(kind="reusable-primitive", owns=["cap"]))
+    consumer = _block(kind="orchestrator", depends_on=["cap"])
+    _skill(tree, "consumer", consumer)
+    _projection(tree, "consumer", consumer)
+
+    nodes, _ = gate.collect_nodes(tree)
+    owners, _ = gate.build_owner_index(nodes)
+
+    assert "edges: 1" in gate.render(nodes, owners, "text")
