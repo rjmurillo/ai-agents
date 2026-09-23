@@ -84,7 +84,7 @@ class _AnthropicHTTPGrader:
     ) -> str:
         from _anthropic_api import call_api, load_api_key
 
-        return call_api(
+        text: str = call_api(
             load_api_key(),
             messages,
             system=system,
@@ -94,6 +94,7 @@ class _AnthropicHTTPGrader:
             provider="anthropic",
             seed=seed,
         )
+        return text
 
 
 def resolve_grader(name: str) -> GraderProtocol:

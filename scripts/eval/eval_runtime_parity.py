@@ -24,6 +24,7 @@ import sys
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from typing import cast
 
 from _runtime_grader import GraderProtocol, grade_semantic_assertions, resolve_grader
 from _runtime_harness import (
@@ -431,8 +432,9 @@ def _apply_semantic_grading(
         record["calibration"] = calibration
         record["passed"] = False
         return record, EXIT_LOGIC
+    existing = cast("list[dict[str, object]]", record["assertions"])
     record["assertions"] = [
-        item for item in record["assertions"] if item.get("kind") != "semantic"
+        item for item in existing if item.get("kind") != "semantic"
     ] + semantic_results
     record["passed"] = bool(record["passed"]) and all(
         item["passed"] for item in semantic_results

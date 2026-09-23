@@ -11,45 +11,18 @@ produce (spec-5404.md AC1-AC10, AC12).
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
 
-from tests.eval._runtime_parity_test_support import FIXTURES, parity
+from tests.eval._runtime_parity_test_support import (
+    FIXTURES,
+    FixedResponseRunner,
+    corpus_with_instructions,
+    parity,
+)
 
 REPO_ROOT = parity.REPO_ROOT
-
-
-class FixedResponseRunner:
-    """A CLI runner that answers every fixture with one fixed response."""
-
-    def __init__(self, response: str, *, model: str = parity.DEFAULT_MODEL) -> None:
-        self.response = response
-        self.model = model
-        self.calls: list[list[str]] = []
-
-    def __call__(self, argv, **kwargs):
-        args = [str(value) for value in argv]
-        self.calls.append(args)
-        executable = Path(args[0]).name.lower()
-        if "--version" in args:
-            return subprocess.CompletedProcess(args, 0, f"{executable} test-version\n", "")
-        if executable.startswith("claude"):
-            output = [
-                {"type": "system", "subtype": "init", "model": self.model},
-                {"type": "result", "subtype": "success", "result": self.response},
-            ]
-        else:
-            output = [
-                {
-                    "type": "assistant.message",
-                    "data": {"content": self.response, "model": self.model},
-                }
-            ]
-        return subprocess.CompletedProcess(
-            args, 0, "\n".join(json.dumps(event) for event in output) + "\n", ""
-        )
 
 
 class CalibratedFakeGrader:
@@ -85,35 +58,13 @@ class CalibratedFakeGrader:
         return json.dumps({"verdict": verdict, "reason": "test"})
 
 
-def _corpus_with_instructions(
-    tmp_path: Path,
-    *,
-    instructions: list[str] | None = (".claude/rules/voice.md",),
-    semantic: bool = False,
-) -> Path:
-    source = json.loads(FIXTURES.read_text(encoding="utf-8"))
-    fixture = dict(source["fixtures"][0])  # "resume-phase-3"
-    if instructions is not None:
-        fixture["instructions"] = list(instructions)
-    if semantic:
-        fixture["assertions"] = [
-            *fixture["assertions"],
-            {"kind": "semantic", "rubric": "FAIL on any continuation offer; PASS otherwise."},
-        ]
-    path = tmp_path / "fixtures.json"
-    path.write_text(
-        json.dumps({"schema_version": 1, "fixtures": [fixture]}), encoding="utf-8"
-    )
-    return path
-
-
 # --- AC1, AC2: instruction install and Copilot refusal, end to end ----------
 
 
 def test_default_both_harnesses_refuses_a_fixture_with_instructions(
     tmp_path: Path,
 ) -> None:
-    corpus = _corpus_with_instructions(tmp_path)
+    corpus = corpus_with_instructions(tmp_path)
 
     with pytest.raises(parity.ParityConfigError, match="Copilot"):
         parity.run_evaluation(
@@ -129,7 +80,7 @@ def test_default_both_harnesses_refuses_a_fixture_with_instructions(
 
 
 def test_harnesses_claude_installs_instructions_and_passes(tmp_path: Path) -> None:
-    corpus = _corpus_with_instructions(tmp_path)
+    corpus = corpus_with_instructions(tmp_path)
     output = tmp_path / "run" / "report.json"
 
     report, code = parity.run_evaluation(
@@ -164,7 +115,7 @@ def test_harnesses_claude_installs_instructions_and_passes(tmp_path: Path) -> No
 
 def test_single_harness_mode_emits_no_comparison_verdict(tmp_path: Path) -> None:
     """AC3: `--harnesses claude` runs only claude and skips FAIL_MODEL_MISMATCH."""
-    corpus = _corpus_with_instructions(tmp_path, instructions=None)
+    corpus = corpus_with_instructions(tmp_path, default_instructions=False)
 
     report, code = parity.run_evaluation(
         fixtures_path=corpus,
@@ -187,7 +138,7 @@ def test_single_harness_mode_emits_no_comparison_verdict(tmp_path: Path) -> None
 
 def test_single_harness_assertion_failure_exits_logic(tmp_path: Path) -> None:
     """A FAIL verdict in single-harness mode must not exit 0 (FAIL_BEHAVIOR)."""
-    corpus = _corpus_with_instructions(tmp_path, instructions=None)
+    corpus = corpus_with_instructions(tmp_path, default_instructions=False)
 
     report, code = parity.run_evaluation(
         fixtures_path=corpus,
@@ -209,7 +160,7 @@ def test_single_harness_assertion_failure_exits_logic(tmp_path: Path) -> None:
 
 
 def test_instructions_ref_resolves_from_a_git_ref(tmp_path: Path) -> None:
-    corpus = _corpus_with_instructions(tmp_path)
+    corpus = corpus_with_instructions(tmp_path)
 
     report, code = parity.run_evaluation(
         fixtures_path=corpus,
@@ -231,7 +182,7 @@ def test_instructions_ref_resolves_from_a_git_ref(tmp_path: Path) -> None:
 
 
 def test_instructions_ref_bad_ref_is_a_config_error(tmp_path: Path) -> None:
-    corpus = _corpus_with_instructions(tmp_path)
+    corpus = corpus_with_instructions(tmp_path)
 
     with pytest.raises(parity.ParityConfigError, match="not a resolvable ref"):
         parity.run_evaluation(
@@ -254,7 +205,7 @@ def test_instructions_ref_bad_ref_is_a_config_error(tmp_path: Path) -> None:
 def test_dry_run_reports_semantic_as_not_run_and_calls_no_grader(
     tmp_path: Path,
 ) -> None:
-    corpus = _corpus_with_instructions(tmp_path, semantic=True)
+    corpus = corpus_with_instructions(tmp_path, semantic=True)
 
     class ExplodingGrader:
         name = "must-not-be-called"
@@ -299,7 +250,7 @@ def test_dry_run_reports_semantic_as_not_run_and_calls_no_grader(
 def test_semantic_assertion_passes_with_a_well_calibrated_grader(
     tmp_path: Path,
 ) -> None:
-    corpus = _corpus_with_instructions(tmp_path, instructions=None, semantic=True)
+    corpus = corpus_with_instructions(tmp_path, default_instructions=False, semantic=True)
 
     report, code = parity.run_evaluation(
         fixtures_path=corpus,
@@ -329,7 +280,7 @@ def test_semantic_assertion_passes_with_a_well_calibrated_grader(
 def test_semantic_assertion_fails_the_run_when_the_response_fails(
     tmp_path: Path,
 ) -> None:
-    corpus = _corpus_with_instructions(tmp_path, instructions=None, semantic=True)
+    corpus = corpus_with_instructions(tmp_path, default_instructions=False, semantic=True)
 
     report, code = parity.run_evaluation(
         fixtures_path=corpus,
@@ -352,7 +303,7 @@ def test_semantic_assertion_fails_the_run_when_the_response_fails(
 def test_miscalibrated_grader_yields_invalid_grader_and_exit_logic(
     tmp_path: Path,
 ) -> None:
-    corpus = _corpus_with_instructions(tmp_path, instructions=None, semantic=True)
+    corpus = corpus_with_instructions(tmp_path, default_instructions=False, semantic=True)
 
     report, code = parity.run_evaluation(
         fixtures_path=corpus,
@@ -372,7 +323,7 @@ def test_miscalibrated_grader_yields_invalid_grader_and_exit_logic(
 
 
 def test_unavailable_grader_yields_exit_external(tmp_path: Path) -> None:
-    corpus = _corpus_with_instructions(tmp_path, instructions=None, semantic=True)
+    corpus = corpus_with_instructions(tmp_path, default_instructions=False, semantic=True)
 
     class RaisingGrader:
         name = "raising-grader"
@@ -426,7 +377,7 @@ def test_main_rejects_an_unknown_harness_choice(capsys) -> None:
 def test_main_plumbs_instructions_ref_to_a_config_error(
     tmp_path: Path, capsys
 ) -> None:
-    corpus = _corpus_with_instructions(tmp_path)
+    corpus = corpus_with_instructions(tmp_path)
 
     code = parity.main(
         [
@@ -450,7 +401,7 @@ def test_main_plumbs_instructions_ref_to_a_config_error(
 
 
 def test_live_run_refuses_a_workspace_root_under_instruction_files(tmp_path: Path) -> None:
-    corpus = _corpus_with_instructions(tmp_path, instructions=None)
+    corpus = corpus_with_instructions(tmp_path, default_instructions=False)
     parent = tmp_path / "contaminated"
     (parent / ".claude").mkdir(parents=True)
     (parent / ".claude" / "CLAUDE.md").write_text("leak", encoding="utf-8")
@@ -471,7 +422,7 @@ def test_live_run_refuses_a_workspace_root_under_instruction_files(tmp_path: Pat
 
 
 def test_dry_run_skips_the_workspace_ancestry_guard(tmp_path: Path) -> None:
-    corpus = _corpus_with_instructions(tmp_path, instructions=None)
+    corpus = corpus_with_instructions(tmp_path, default_instructions=False)
     parent = tmp_path / "contaminated"
     parent.mkdir()
     (parent / "AGENTS.md").write_text("leak", encoding="utf-8")
@@ -494,7 +445,7 @@ def test_dry_run_skips_the_workspace_ancestry_guard(tmp_path: Path) -> None:
 
 
 def test_live_run_uses_the_given_workspace_root(tmp_path: Path) -> None:
-    corpus = _corpus_with_instructions(tmp_path, instructions=None)
+    corpus = corpus_with_instructions(tmp_path, default_instructions=False)
     root = tmp_path / "isolated"
 
     report, code = parity.run_evaluation(
