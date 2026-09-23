@@ -25,8 +25,7 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
-from _providers import resolve_provider
-from _runtime_grader import GraderProtocol, grade_semantic_assertions
+from _runtime_grader import GraderProtocol, grade_semantic_assertions, resolve_grader
 from _runtime_harness import (
     SENTINEL,
     hash_installed_agent,
@@ -90,8 +89,8 @@ DEFAULT_MODEL = "claude-opus-4.6"
 DEFAULT_TIMEOUT = 900.0
 DEFAULT_HARNESSES = "both"
 HARNESS_CHOICES = ("both", "claude", "copilot")
-DEFAULT_GRADER_PROVIDER = "claude-cli"
-DEFAULT_GRADER_MODEL = "claude-sonnet-5"
+DEFAULT_GRADER_PROVIDER = "anthropic"
+DEFAULT_GRADER_MODEL = "claude-haiku-4-5-20251001"
 MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 Runner = Callable[..., subprocess.CompletedProcess[str]]
 
@@ -703,7 +702,7 @@ def run_evaluation(
 
     `grader` is injectable so a test can supply a fake provider instead of
     resolving `grader_provider` for real (AC8-AC10); it is only required,
-    and only resolved lazily via `resolve_provider`, when a fixture actually
+    and only resolved lazily via `resolve_grader`, when a fixture actually
     carries a semantic assertion.
     """
     fixtures = load_fixtures(fixtures_path)
@@ -734,7 +733,7 @@ def run_evaluation(
         return report, EXIT_OK
     output.parent.mkdir(parents=True, exist_ok=True)
     if grader is None and _needs_grader(fixtures):
-        grader = resolve_provider(grader_provider)
+        grader = resolve_grader(grader_provider)
     records, verdict, final_code = _run_live_records(
         fixtures,
         model,

@@ -445,3 +445,69 @@ def test_grade_semantic_assertions_reports_unavailable_when_the_final_grade_fail
 
     assert results == []
     assert override == "UNAVAILABLE"
+
+
+# --- Grader resolution --------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["anthropic", "claude-api", ""])
+def test_resolve_grader_maps_default_anthropic_names_to_http_adapter(name: str) -> None:
+    grader = runtime_grader.resolve_grader(name)
+
+    assert grader.name == "anthropic"
+    assert grader.system_fingerprint is None
+
+
+def test_resolve_grader_delegates_registry_names() -> None:
+    grader = runtime_grader.resolve_grader("anthropic-sdk")
+
+    assert grader.name == "anthropic-sdk"
+
+
+def test_resolve_grader_rejects_unknown_names() -> None:
+    with pytest.raises(RuntimeError, match="Unknown EVAL_PROVIDER"):
+        runtime_grader.resolve_grader("no-such-provider")
+
+
+def test_http_grader_forwards_arguments_to_call_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import _anthropic_api
+
+    seen: dict[str, object] = {}
+
+    def fake_call_api(api_key: str, messages: list[dict[str, str]], **kwargs: object) -> str:
+        seen.update(api_key=api_key, messages=messages, **kwargs)
+        return '{"verdict": "PASS", "reason": "ok"}'
+
+    monkeypatch.setattr(_anthropic_api, "load_api_key", lambda: "test-key")
+    monkeypatch.setattr(_anthropic_api, "call_api", fake_call_api)
+    grader = runtime_grader.resolve_grader("anthropic")
+
+    text = grader.complete(
+        messages=[{"role": "user", "content": "x"}], system="s", model="m", max_tokens=7
+    )
+
+    assert text == '{"verdict": "PASS", "reason": "ok"}'
+    assert seen["api_key"] == "test-key"
+    assert seen["model"] == "m"
+    assert seen["system"] == "s"
+    assert seen["max_tokens"] == 7
+    assert seen["provider"] == "anthropic"
+
+
+def test_http_grader_missing_key_grades_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import _anthropic_api
+
+    def no_key() -> str:
+        raise RuntimeError("ANTHROPIC_API_KEY not found")
+
+    monkeypatch.setattr(_anthropic_api, "load_api_key", no_key)
+    grader = runtime_grader.resolve_grader("anthropic")
+
+    result = runtime_grader.grade(grader, "m", "rubric", "prompt", "response")
+
+    assert result.verdict == "UNAVAILABLE"
+    assert result.provider == "anthropic"

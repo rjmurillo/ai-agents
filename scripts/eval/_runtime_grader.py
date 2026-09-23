@@ -54,7 +54,55 @@ __all__ = [
     "calibrate",
     "grade",
     "grade_semantic_assertions",
+    "resolve_grader",
 ]
+
+
+class _AnthropicHTTPGrader:
+    """Adapter from the built-in urllib Anthropic transport to `GraderProtocol`.
+
+    `_providers.resolve_provider` refuses the default Anthropic names because
+    that transport is a function (`_anthropic_api.call_api`), not a provider
+    object. It is also the only Anthropic path that works with a Console API
+    key when `anthropic-sdk` cannot send `temperature` (SDK 1.6.0 removed the
+    keyword) and `claude-cli` needs a subscription token.
+    """
+
+    name = "anthropic"
+    system_fingerprint: str | None = None
+
+    def complete(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        system: str = "",
+        model: str,
+        max_tokens: int = 1024,
+        temperature: float = 0.0,
+        seed: int | None = None,
+    ) -> str:
+        from _anthropic_api import call_api, load_api_key
+
+        return call_api(
+            load_api_key(),
+            messages,
+            system=system,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            provider="anthropic",
+            seed=seed,
+        )
+
+
+def resolve_grader(name: str) -> GraderProtocol:
+    """Return a grader for `name`, including the default Anthropic transport."""
+    from _providers import is_default_anthropic, resolve_provider
+
+    if is_default_anthropic(name):
+        return _AnthropicHTTPGrader()
+    provider: GraderProtocol = resolve_provider(name)
+    return provider
 
 #: Appended to a fixture's own positive-control response to build the
 #: automatic mutant every semantic assertion must be calibrated against

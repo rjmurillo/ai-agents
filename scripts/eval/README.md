@@ -287,7 +287,8 @@ path is a config error (exit 2), before any harness runs.
 
 An assertion kind `semantic` carries a `rubric` string and is graded by a
 model instead of a regex, through `scripts/eval/_runtime_grader.py` and the
-existing provider registry (`_providers.resolve_provider`). A fixture with a
+existing provider registry (`_runtime_grader.resolve_grader`, which adds the
+built-in urllib `anthropic` transport to `_providers.resolve_provider`). A fixture with a
 `semantic` assertion must also carry at least one deterministic assertion, so
 `--dry-run` still has something to validate; the semantic entry reports
 `{"kind": "semantic", "passed": null, "status": "not_run"}` in dry-run and is
@@ -306,18 +307,23 @@ harnesses run. `both` keeps today's dual-harness comparison, including the
 resolved-model and question-mechanism parity checks. A single harness
 (`claude` or `copilot`) runs only that harness and emits no parity comparison
 verdict, since there is nothing on the other side to compare against.
-`--grader-provider` (default `claude-cli`) and `--grader-model` (default
-`claude-sonnet-5`) select the model that grades `semantic` assertions; they
-are unused, and no grader is constructed, when no fixture in the run carries
-one.
+`--grader-provider` (default `anthropic`, the urllib transport reading
+`ANTHROPIC_API_KEY`) and `--grader-model` (default
+`claude-haiku-4-5-20251001`) select the model that grades `semantic`
+assertions; they are unused, and no grader is constructed, when no fixture in
+the run carries one. The grader sends `temperature: 0`. Probed 2026-09-22, the
+Messages API rejects that field for `claude-sonnet-5` with HTTP 400
+("`temperature` is deprecated for this model"), and `anthropic-sdk` 1.6.0 no
+longer accepts the keyword at all, so pick a grader model that still accepts
+it. Per-run calibration catches a grader that cannot discriminate.
 
 ```bash
 uv run python scripts/eval/eval_runtime_parity.py \
   --fixtures tests/evals/completion-terminal-runtime-fixtures.json \
   --model claude-opus-4.6 \
   --harnesses claude \
-  --grader-provider claude-cli \
-  --grader-model claude-sonnet-5 \
+  --grader-provider anthropic \
+  --grader-model claude-haiku-4-5-20251001 \
   --output artifacts/runtime-parity/completion-terminal/report.json
 ```
 
