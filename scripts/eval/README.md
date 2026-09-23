@@ -257,12 +257,69 @@ Reports include:
 - SHA-256 hashes for both installed agent artifacts and the fixture request;
 - raw JSONL stdout, stderr, final response, tool events, and subagent events;
 - per-assertion verdicts labeled `Claude runtime` or `Copilot runtime`;
-- `prompt-only` positive and negative control results.
+- `prompt-only` positive and negative control results;
+- `source_commit` (HEAD sha), `instructions_ref` and its resolved sha, and
+  per-fixture `instructions: [{path, sha256}]` (issue #5404).
 
 The checked-in suite covers phase resume, reversible tool execution,
 consequential choice handling, and QA rejection of 16 valid artifacts against
 49 promised. `--dry-run` validates paths, assertions, controls, and CLI
 versions without sending a model request.
+
+### Instructions, semantic grading, and ablation (issue #5404)
+
+A fixture's `instructions` field lists repo-relative rule paths (for example
+`.claude/rules/voice.md`). The evaluator copies each file byte-identically to
+`<workspace>/.claude/rules/<basename>` before the Claude CLI runs, so a
+fixture can prove a rule actually changes behavior instead of asserting on
+static text. Claude Code 2.1.280 loads workspace `.claude/rules/*.md` at
+startup under `--setting-sources project` when the file's frontmatter carries
+no `paths` key or `paths: ["**"]` (probed 2026-09-22). Copilot CLI's
+repository-instruction loading is unverified (the same probe hit a quota
+error) and this evaluator already disables it with `--no-custom-instructions`,
+so a fixture that lists `instructions` and runs against `copilot` is refused
+with a config error (exit 2) instead of silently running without them.
+
+An `--instructions-ref REF` flag resolves instruction bytes from
+`git show REF:path` instead of the working tree, for an ablation baseline
+(`--instructions-ref <commit before the rule landed>`). An unresolvable ref or
+path is a config error (exit 2), before any harness runs.
+
+An assertion kind `semantic` carries a `rubric` string and is graded by a
+model instead of a regex, through `scripts/eval/_runtime_grader.py` and the
+existing provider registry (`_providers.resolve_provider`). A fixture with a
+`semantic` assertion must also carry at least one deterministic assertion, so
+`--dry-run` still has something to validate; the semantic entry reports
+`{"kind": "semantic", "passed": null, "status": "not_run"}` in dry-run and is
+never graded there. In a live run, before grading the runtime response, the
+grader is calibrated against the fixture's own positive control (must PASS),
+its negative control (must FAIL), and an automatic mutant, the positive
+response plus a fixed appended continuation tail (must FAIL). A grader that
+fails any of those three is reported `INVALID_GRADER` (exit 1) instead of
+trusted for that fixture. A grader call that raises, or returns no parseable
+`{"verdict": "PASS"|"FAIL", "reason": "..."}` JSON object, is `UNAVAILABLE`
+(exit 3) and never counts as PASS. Every graded and calibration result
+records `grader_provider`, `grader_model`, and `grader_fingerprint`.
+
+`--harnesses {both,claude,copilot}` (default `both`) selects which harness or
+harnesses run. `both` keeps today's dual-harness comparison, including the
+resolved-model and question-mechanism parity checks. A single harness
+(`claude` or `copilot`) runs only that harness and emits no parity comparison
+verdict, since there is nothing on the other side to compare against.
+`--grader-provider` (default `claude-cli`) and `--grader-model` (default
+`claude-sonnet-5`) select the model that grades `semantic` assertions; they
+are unused, and no grader is constructed, when no fixture in the run carries
+one.
+
+```bash
+uv run python scripts/eval/eval_runtime_parity.py \
+  --fixtures tests/evals/completion-terminal-runtime-fixtures.json \
+  --model claude-opus-4.6 \
+  --harnesses claude \
+  --grader-provider claude-cli \
+  --grader-model claude-sonnet-5 \
+  --output artifacts/runtime-parity/completion-terminal/report.json
+```
 
 ### Completion-Tail Regression Fixtures
 
@@ -272,30 +329,32 @@ corpus for the same runner, covering the completion-tail audit
 (`.claude/rules/builder-ethos.md`) added by issue #5404: a completed response
 must not append an unsolicited continuation offer, an out-of-scope finding
 found after the task is terminal must be stated declaratively rather than as
-an opt-in question, and a real blocking decision must still be askable.
+an opt-in question, an explicitly-requested next-steps answer is not itself a
+violation, and a real blocking decision must still be askable. Each fixture
+installs both rule files via `instructions` and carries a `semantic`
+assertion alongside its regex/not_regex regression backstop.
 
 ```bash
 uv run python scripts/eval/eval_runtime_parity.py \
   --fixtures tests/evals/completion-terminal-runtime-fixtures.json \
   --model claude-opus-4.6 \
-  --output artifacts/runtime-parity/completion-terminal/report.json
+  --dry-run
 ```
 
 Read the file's own `_scope_note` field before treating a clean run as proof
-the audit works in general. These assertions are `regex`/`not_regex` checks
-for the prohibited-phrase list voice.md names as fixtures ("Want me to ...?",
-"Would you like me to ...?", and similar). They are a regression backstop, not
-the semantic authority: a response can reopen an interaction without using any
-of those exact strings, and using one of them inside a genuine blocking
-question is not itself a defect. A model-graded assertion kind that judges
-whether a response actually reopens an interaction, with recorded grader
-provider/model and UNAVAILABLE handling when the grader itself cannot run, is
-not implemented by this fixture file or by the assertion kinds in
-`_runtime_parity.py` (`regex`, `not_regex`, `file_equals`, `file_absent`)
-today; that grading capability is deferred follow-up work, not part of this
-change. `--dry-run` still validates the fixture schema and both CLI versions
-without a model call, and exits 3 (external/unavailable) rather than a false
-pass when a required CLI binary is not installed.
+the audit works in general. The `regex`/`not_regex` checks for the
+prohibited-phrase list voice.md names as fixtures ("Want me to ...?", "Would
+you like me to ...?", and similar) are a useful regression backstop, not the
+semantic authority: a response can reopen an interaction without using any of
+those exact strings, and using one of them inside a genuine blocking question
+is not itself a defect; the `semantic` assertion is what actually grades
+whether a response reopens the interaction. Running the corpus live needs
+`--harnesses claude` (Copilot instruction loading is unverified and refused,
+see above), a signed-in `claude` CLI, and a signed-in grader CLI matching
+`--grader-provider`. `--dry-run` still validates the fixture schema, the
+instruction files, and both CLI versions without a model call, and exits 3
+(external/unavailable) rather than a false pass when a required CLI binary is
+not installed.
 
 ## End-to-End Delivery Eval
 
