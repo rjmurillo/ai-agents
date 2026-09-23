@@ -96,21 +96,33 @@ def build_root(plugin_dir: Path, cases: Path, work: Path, corpus: str) -> Path:
 
 
 def summarize(result: dict[str, Any]) -> list[dict[str, Any]]:
-    """One row per case and arm: acceptance, correction burden, cost, time."""
+    """One row per case and arm: gated acceptance, failed checks, cost, time.
+
+    ADR-058: only deterministic graders gate. `llm` graders are reported as
+    an advisory count and never enter `accepted` or `failed_checks`.
+    """
     rows = []
     for case in result["cases"]:
-        tags = case.get("tags") or []
+        llm = {g["name"] for g in case.get("graders", []) if g.get("type") == "llm"}
         for arm, runs in case["arms"].items():
-            graded = [[g for g in run["graders"] if g.get("scored", True)] for run in runs]
+            scored = [[g for g in run["graders"] if g.get("scored", True)] for run in runs]
+            gated = [[g for g in gs if g["name"] not in llm] for gs in scored]
+            judged = [[g for g in gs if g["name"] in llm] for gs in scored]
             rows.append(
                 {
                     "case": case["name"],
-                    "tags": tags,
                     "arm": arm,
                     "runs": len(runs),
                     "errors": sum(1 for run in runs if run.get("error")),
-                    "accepted": sum(1 for gs in graded if gs and all(g["passed"] for g in gs)),
-                    "failed_graders": sum(sum(not g["passed"] for g in gs) for gs in graded),
+                    "accepted": sum(
+                        1
+                        for run, gs in zip(runs, gated, strict=True)
+                        if gs and not run.get("error") and all(g["passed"] for g in gs)
+                    ),
+                    "failed_checks": sum(sum(not g["passed"] for g in gs) for gs in gated),
+                    "advisory_judge_passed": sum(
+                        1 for gs in judged if gs and all(g["passed"] for g in gs)
+                    ),
                     "cost_usd": round(sum(run.get("costUsd") or 0 for run in runs), 4),
                     "seconds": sum(run.get("durationSeconds") or 0 for run in runs),
                 }
@@ -120,14 +132,17 @@ def summarize(result: dict[str, Any]) -> list[dict[str, Any]]:
 
 def render(rows: list[dict[str, Any]]) -> str:
     lines = [
-        "| case | arm | accepted | failed graders | errors | cost USD | seconds |",
-        "|---|---|--:|--:|--:|--:|--:|",
+        "| case | arm | accepted | failed checks | errors | cost USD | seconds | advisory judge |",
+        "|---|---|--:|--:|--:|--:|--:|--:|",
     ]
     for r in rows:
         lines.append(
-            f"| {r['case']} | {r['arm']} | {r['accepted']}/{r['runs']} | {r['failed_graders']} "
-            f"| {r['errors']} | {r['cost_usd']:.4f} | {r['seconds']} |"
+            f"| {r['case']} | {r['arm']} | {r['accepted']}/{r['runs']} | {r['failed_checks']} "
+            f"| {r['errors']} | {r['cost_usd']:.4f} | {r['seconds']} "
+            f"| {r['advisory_judge_passed']}/{r['runs']} |"
         )
+    lines.append("")
+    lines.append("Advisory: not part of the gated signal. (the `advisory judge` column)")
     return "\n".join(lines) + "\n"
 
 

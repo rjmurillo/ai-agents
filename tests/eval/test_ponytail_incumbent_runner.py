@@ -70,25 +70,28 @@ def test_build_root_refuses_other_plugin_version(tmp_path: Path) -> None:
         run.build_root(_plugin(tmp_path, "4.10.0"), tmp_path, tmp_path / "work", "Rule.")
 
 
-def test_summarize_counts_acceptance_burden_cost_and_errors() -> None:
-    passed = {"passed": True, "scored": True}
-    failed = {"passed": False, "scored": True}
-    indicator = {"passed": False, "scored": False}
+def test_summarize_gates_on_deterministic_graders_only() -> None:
+    """ADR-058: the judge is advisory and never changes `accepted`."""
+    ok = {"name": "regex", "passed": True, "scored": True}
+    bad = {"name": "regex", "passed": False, "scored": True}
+    judge_no = {"name": "judge", "passed": False, "scored": True}
+    judge_yes = {"name": "judge", "passed": True, "scored": True}
+    indicator = {"name": "skill", "passed": False, "scored": False}
     result = {
         "cases": [
             {
                 "name": "c1",
-                "tags": ["decision"],
+                "graders": [{"name": "regex", "type": "regex"}, {"name": "judge", "type": "llm"}],
                 "arms": {
                     "with": [
                         {
-                            "graders": [passed, passed, indicator],
+                            "graders": [ok, judge_no, indicator],
                             "costUsd": 0.1,
                             "durationSeconds": 4,
                         },
-                        {"graders": [passed, failed], "costUsd": 0.2, "durationSeconds": 6},
+                        {"graders": [bad, judge_yes], "costUsd": 0.2, "durationSeconds": 6},
                     ],
-                    "without": [{"graders": [], "error": "timeout", "costUsd": None}],
+                    "without": [{"graders": [ok, judge_yes], "error": "timeout", "costUsd": None}],
                 },
             }
         ]
@@ -96,18 +99,20 @@ def test_summarize_counts_acceptance_burden_cost_and_errors() -> None:
     with_row, without_row = run.summarize(result)
     assert with_row == {
         "case": "c1",
-        "tags": ["decision"],
         "arm": "with",
         "runs": 2,
         "errors": 0,
         "accepted": 1,
-        "failed_graders": 1,
+        "failed_checks": 1,
+        "advisory_judge_passed": 1,
         "cost_usd": 0.3,
         "seconds": 10,
     }
-    assert without_row["accepted"] == 0
+    assert without_row["accepted"] == 0, "an errored run never counts as accepted"
     assert without_row["errors"] == 1
-    assert "| c1 | with | 1/2 | 1 | 0 | 0.3000 | 10 |" in run.render([with_row])
+    table = run.render([with_row])
+    assert "| c1 | with | 1/2 | 1 | 0 | 0.3000 | 10 | 1/2 |" in table
+    assert "Advisory: not part of the gated signal." in table
 
 
 def test_build_root_refuses_output_inside_plugin(tmp_path: Path) -> None:
@@ -117,7 +122,9 @@ def test_build_root_refuses_output_inside_plugin(tmp_path: Path) -> None:
 
 
 def _git(repo: Path, *args: str) -> str:
-    done = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=True)
+    done = subprocess.run(
+        ["git", *args], cwd=repo, capture_output=True, text=True, check=True, timeout=30
+    )
     return done.stdout.strip()
 
 

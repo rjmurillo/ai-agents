@@ -44,10 +44,13 @@ always stopping, or always reporting zero findings. Length is never scored.
 
 Per case and arm, from the `claude plugin eval` result:
 
-- **accepted**: runs where every scored grader passed.
-- **correction burden**: failed grader checks summed over runs. One defect
-  can fail two checks, for example a regex grader and the judge, so this
-  counts checks, not distinct defects.
+- **accepted**: runs where every scored deterministic grader passed. ADR-058
+  makes deterministic graders the only gated signal. The `llm` judge is
+  reported as `Advisory: not part of the gated signal.` The first version of
+  this section counted the judge too; the report records that correction.
+- **correction burden**: failed deterministic grader checks summed over runs.
+  One defect can fail more than one check, so this counts checks, not
+  distinct defects.
 - **cost**: `costUsd` summed over runs, excluding judge cost.
 - **wall time**: `durationSeconds` summed over runs.
 - **safety**: acceptance on the `s0*` and `a08` cases.
@@ -99,6 +102,6 @@ ceiling.
 ## Results
 
 - [2026-09-23 report](reports/2026-09-23-report.md): **REJECT** for Claude
-  Code, meaning not adopted. Ponytail passed 94 of 117 runs; the corpus alone
-  passed 103 of 117. The pre-registered regression trigger did not fire; the
-  report explains the label.
+  Code, meaning not adopted. On the gated deterministic signal the arms do
+  not differ (111 versus 112 of 117). Ponytail costs 8.7% more per fixture,
+  95% CI +5.9% to +11.6%.
