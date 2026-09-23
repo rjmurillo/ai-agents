@@ -60,22 +60,48 @@ class CalibratedFakeGrader:
 # --- AC1, AC2: instruction install and Copilot refusal, end to end ----------
 
 
-def test_default_both_harnesses_refuses_a_fixture_with_instructions(
+def test_default_both_harnesses_installs_instructions_for_both(
     tmp_path: Path,
 ) -> None:
+    """REQ-034 AC1, AC3, AC6: Copilot no longer refuses an `instructions` fixture."""
     corpus = corpus_with_instructions(tmp_path)
+    output = tmp_path / "run" / "report.json"
 
-    with pytest.raises(parity.ParityConfigError, match="Copilot"):
-        parity.run_evaluation(
-            fixtures_path=corpus,
-            model=parity.DEFAULT_MODEL,
-            output=tmp_path / "run" / "report.json",
-            claude_bin="claude",
-            copilot_bin="copilot",
-            timeout=30,
-            dry_run=False,
-            runner=FixedResponseRunner("CONTINUE_PHASE_3"),
-        )
+    report, code = parity.run_evaluation(
+        fixtures_path=corpus,
+        model=parity.DEFAULT_MODEL,
+        output=output,
+        claude_bin="claude",
+        copilot_bin="copilot",
+        timeout=30,
+        dry_run=False,
+        runner=FixedResponseRunner("CONTINUE_PHASE_3"),
+    )
+
+    assert code == parity.EXIT_OK
+    assert report["verdict"] == "PASS"
+    record = report["fixtures"][0]
+    assert record["copilot_instructions"] == [
+        {
+            "path": ".github/instructions/voice.instructions.md",
+            "sha256": record["copilot_instructions"][0]["sha256"],
+        }
+    ]
+    installed = (
+        tmp_path
+        / "run"
+        / "workspaces"
+        / "resume-phase-3"
+        / "copilot"
+        / ".github"
+        / "instructions"
+        / "voice.instructions.md"
+    )
+    expected = (REPO_ROOT / ".github" / "instructions" / "voice.instructions.md").read_bytes()
+    assert installed.read_bytes() == expected
+    assert record["copilot"]["instruction_listing"] == [
+        {"sourcePath": ".github/instructions/voice.instructions.md"}
+    ]
 
 
 def test_harnesses_claude_installs_instructions_and_passes(tmp_path: Path) -> None:

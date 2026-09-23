@@ -29,6 +29,7 @@ from typing import cast
 from _runtime_grader import GraderProtocol, grade_semantic_assertions, resolve_grader
 from _runtime_harness import (
     SENTINEL,
+    copilot_instruction_path,
     hash_installed_agent,
     prepare_workspace,
     probe_version,
@@ -192,7 +193,7 @@ def build_argv(
         executable,
         "--agent",
         "parity",
-        "--no-custom-instructions",
+        *([] if fixture.instructions else ["--no-custom-instructions"]),
         *(["--no-ask-user"] if "question" not in fixture.tools else []),
         "--disable-builtin-mcps",
         "--no-remote",
@@ -217,6 +218,78 @@ def _control_report(fixture: Fixture) -> dict[str, object]:
     }
 
 
+def _parse_instruction_listing(stdout: str) -> tuple[list[object] | None, str | None]:
+    """Return the parsed listing, or the reason it cannot be trusted."""
+    try:
+        listing = json.loads(stdout)
+    except json.JSONDecodeError as exc:
+        return None, f"unparsable JSON: {exc}"
+    if not isinstance(listing, list):
+        return None, "JSON payload is not an array"
+    return listing, None
+
+
+def _verify_copilot_instruction_listing(
+    fixture: Fixture,
+    executable: str,
+    workspace: Path,
+    runner: Runner,
+    timeout: float,
+    instructions: Mapping[str, bytes],
+) -> tuple[list[object] | None, dict[str, object] | None]:
+    """Require `copilot instruction list --json` to name exactly the installed files.
+
+    A listing that cannot run or parse is an external failure (exit 3),
+    returned as a failure record so sibling fixtures stay in the report. A
+    listing that parses but differs from the installed set is a config
+    defect (exit 2): an extra source leaked in, a missing source never loaded.
+    """
+    argv = [executable, "instruction", "list", "--json"]
+    try:
+        run = runner(
+            argv,
+            cwd=workspace,
+            env=runtime_env(workspace, "copilot"),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None, runtime_failure_record(
+            "copilot", argv, exit_code=None, error="instruction listing timed out"
+        )
+    listing, reason = (
+        _parse_instruction_listing(run.stdout)
+        if run.returncode == 0
+        else (None, f"exited {run.returncode}")
+    )
+    if listing is None:
+        return None, runtime_failure_record(
+            "copilot",
+            argv,
+            exit_code=run.returncode,
+            error=f"instruction listing is unavailable: {reason}",
+            raw_output=run.stdout,
+            stderr=run.stderr,
+        )
+    listed = {
+        str(entry["sourcePath"])
+        for entry in listing
+        if isinstance(entry, dict) and "sourcePath" in entry
+    }
+    extra = sorted(listed - set(instructions))
+    missing = sorted(set(instructions) - listed)
+    if extra or missing:
+        raise ParityConfigError(
+            f"copilot instruction listing for fixture {fixture.fixture_id!r} does "
+            f"not match installed instructions: extra={extra} missing={missing}"
+        )
+    return listing, None
+
+
 def _invoke_runtime(
     fixture: Fixture,
     harness: str,
@@ -230,9 +303,17 @@ def _invoke_runtime(
     subprocess.CompletedProcess[str] | None,
     list[str],
     dict[str, object] | None,
+    list[object] | None,
 ]:
     prepare_workspace(fixture, harness, workspace, instructions=instructions)
     argv = build_argv(harness, executable, model, fixture)
+    listing: list[object] | None = None
+    if harness == "copilot" and fixture.instructions:
+        listing, failure = _verify_copilot_instruction_listing(
+            fixture, executable, workspace, runner, timeout, instructions
+        )
+        if failure is not None:
+            return None, argv, failure, None
     try:
         run = runner(
             argv,
@@ -255,8 +336,9 @@ def _invoke_runtime(
                 exit_code=None,
                 error="runtime timed out",
             ),
+            None,
         )
-    return run, argv, None
+    return run, argv, None, listing
 
 
 def _parse_runtime_events(
@@ -284,6 +366,7 @@ def _score_runtime_result(
     run: subprocess.CompletedProcess[str],
     events: Sequence[Mapping[str, object]],
     workspace: Path,
+    listing: list[object] | None = None,
 ) -> tuple[dict[str, object], int]:
     response, resolved_model = (
         _claude_result(events) if harness == "claude" else _copilot_result(events)
@@ -306,30 +389,32 @@ def _score_runtime_result(
             "passed": SENTINEL not in run.stdout and SENTINEL not in response,
         }
     )
-    return (
-        {
-            "provenance": "Claude runtime" if harness == "claude" else "Copilot runtime",
-            "command": _redacted_argv(argv, harness),
-            "exit_code": run.returncode,
-            "resolved_model": resolved_model,
-            "raw_output": run.stdout,
-            "stderr": run.stderr,
-            "response": response,
-            "assertion_text": assertion_text,
-            "question_mechanism": mechanism,
-            "tool_events": tools,
-            "subagent_events": subagents,
-            "assertions": assertions,
-            "error": _runtime_error(run, mechanism, resolved_model),
-            # Semantic assertions score "not_run" (passed=None) here; they are
-            # not yet graded (that needs a live model call), so counting them
-            # against `all(...)` would mark every semantic fixture failed
-            # before `_apply_semantic_grading` gets a chance to grade it.
-            "passed": code == EXIT_OK
-            and all(item["passed"] for item in assertions if item["kind"] != "semantic"),
-        },
-        code,
-    )
+    record: dict[str, object] = {
+        "provenance": "Claude runtime" if harness == "claude" else "Copilot runtime",
+        "command": _redacted_argv(argv, harness),
+        "exit_code": run.returncode,
+        "resolved_model": resolved_model,
+        "raw_output": run.stdout,
+        "stderr": run.stderr,
+        "response": response,
+        "assertion_text": assertion_text,
+        "question_mechanism": mechanism,
+        "tool_events": tools,
+        "subagent_events": subagents,
+        "assertions": assertions,
+        "error": _runtime_error(run, mechanism, resolved_model),
+        # Semantic assertions score "not_run" (passed=None) here; they are
+        # not yet graded (that needs a live model call), so counting them
+        # against `all(...)` would mark every semantic fixture failed
+        # before `_apply_semantic_grading` gets a chance to grade it.
+        "passed": code == EXIT_OK
+        and all(item["passed"] for item in assertions if item["kind"] != "semantic"),
+    }
+    # Only a Copilot instruction fixture runs the listing preflight, so every
+    # other record keeps its shape.
+    if listing is not None:
+        record["instruction_listing"] = listing
+    return record, code
 
 
 def _run_fixture(
@@ -342,7 +427,7 @@ def _run_fixture(
     timeout: float,
     instructions: Mapping[str, bytes],
 ) -> tuple[dict[str, object], int]:
-    run, argv, failure = _invoke_runtime(
+    run, argv, failure, listing = _invoke_runtime(
         fixture, harness, executable, model, workspace, runner, timeout, instructions
     )
     if failure is not None:
@@ -352,7 +437,7 @@ def _run_fixture(
     if failure is not None:
         return failure, EXIT_EXTERNAL
     assert events is not None
-    return _score_runtime_result(fixture, harness, argv, run, events, workspace)
+    return _score_runtime_result(fixture, harness, argv, run, events, workspace, listing)
 
 
 def _default_output() -> Path:
@@ -382,8 +467,17 @@ def _probe_versions(
 
 
 def _fixture_record(
-    fixture: Fixture, instructions: Mapping[str, bytes]
+    fixture: Fixture, instructions: Mapping[str, Mapping[str, bytes]]
 ) -> dict[str, object]:
+    """Build the fixture-level report shell, keyed by harness (AC6).
+
+    `instructions` is `{"claude": {path: bytes}, "copilot": {path: bytes}}`
+    (see `_resolve_ablation`). The `instructions` field keeps its original
+    flat shape for Claude's canonical paths; `copilot_instructions` is new
+    and carries the same per-file hash record for Copilot's projected paths.
+    """
+    claude_instructions = instructions.get("claude", {})
+    copilot_instructions = instructions.get("copilot", {})
     return {
         "id": fixture.fixture_id,
         "claude_agent_sha256": hash_installed_agent(fixture.claude_agent),
@@ -392,7 +486,11 @@ def _fixture_record(
         "controls": _control_report(fixture),
         "instructions": [
             {"path": path, "sha256": hashlib.sha256(content).hexdigest()}
-            for path, content in instructions.items()
+            for path, content in claude_instructions.items()
+        ],
+        "copilot_instructions": [
+            {"path": path, "sha256": hashlib.sha256(content).hexdigest()}
+            for path, content in copilot_instructions.items()
         ],
     }
 
@@ -485,7 +583,7 @@ def _run_fixture_pair(
     copilot_bin: str,
     runner: Runner,
     timeout: float,
-    instructions: Mapping[str, bytes],
+    instructions: Mapping[str, Mapping[str, bytes]],
     grader: GraderProtocol | None,
     grader_model: str,
 ) -> tuple[dict[str, object], int, str | None]:
@@ -498,7 +596,7 @@ def _run_fixture_pair(
         claude_bin,
         runner,
         timeout,
-        instructions,
+        instructions.get("claude", {}),
         grader,
         grader_model,
     )
@@ -513,7 +611,7 @@ def _run_fixture_pair(
         copilot_bin,
         runner,
         timeout,
-        instructions,
+        instructions.get("copilot", {}),
         grader,
         grader_model,
     )
@@ -532,7 +630,7 @@ def _run_live_fixtures(
     copilot_bin: str,
     runner: Runner,
     timeout: float,
-    instructions_by_fixture: Mapping[str, Mapping[str, bytes]],
+    instructions_by_fixture: Mapping[str, Mapping[str, Mapping[str, bytes]]],
     grader: GraderProtocol | None,
     grader_model: str,
 ) -> tuple[list[dict[str, object]], str, int]:
@@ -570,7 +668,7 @@ def _run_single_harness_fixtures(
     executable: str,
     runner: Runner,
     timeout: float,
-    instructions_by_fixture: Mapping[str, Mapping[str, bytes]],
+    instructions_by_fixture: Mapping[str, Mapping[str, Mapping[str, bytes]]],
     grader: GraderProtocol | None,
     grader_model: str,
 ) -> tuple[list[dict[str, object]], str, int]:
@@ -589,7 +687,7 @@ def _run_single_harness_fixtures(
             executable,
             runner,
             timeout,
-            instructions,
+            instructions.get(harness, {}),
             grader,
             grader_model,
         )
@@ -607,15 +705,33 @@ def _run_single_harness_fixtures(
 
 
 def _resolve_ablation(
-    fixtures: Sequence[Fixture], instructions_ref: str | None
-) -> tuple[str, str | None, dict[str, dict[str, bytes]]]:
-    """Resolve report provenance and every fixture's instruction bytes (AC4, AC5)."""
+    fixtures: Sequence[Fixture], instructions_ref: str | None, harnesses: str
+) -> tuple[str, str | None, dict[str, dict[str, dict[str, bytes]]]]:
+    """Resolve report provenance and every fixture's instruction bytes (AC1, AC2, AC4, AC5).
+
+    Each fixture's canonical `.claude/rules/*.md` paths are always resolved
+    for Claude. The same paths' Copilot CLI projections
+    (`copilot_instruction_path`) are resolved for Copilot only when a
+    Copilot run is selected (`--harnesses both` or `copilot`): a missing
+    projection is a config error (AC2, raised by `resolve_instructions`
+    itself, before any model call), and a Claude-only run should not pay for
+    a Copilot projection it will never install.
+    """
     source_commit = resolve_source_commit()
     instructions_ref_sha = resolve_ref_sha(instructions_ref) if instructions_ref else None
-    instructions_by_fixture = {
-        fixture.fixture_id: resolve_instructions(fixture.instructions, instructions_ref_sha)
-        for fixture in fixtures
-    }
+    resolve_copilot = harnesses != "claude"
+    instructions_by_fixture: dict[str, dict[str, dict[str, bytes]]] = {}
+    for fixture in fixtures:
+        copilot_instructions: dict[str, bytes] = {}
+        if resolve_copilot:
+            copilot_instructions = resolve_instructions(
+                [copilot_instruction_path(path) for path in fixture.instructions],
+                instructions_ref_sha,
+            )
+        instructions_by_fixture[fixture.fixture_id] = {
+            "claude": resolve_instructions(fixture.instructions, instructions_ref_sha),
+            "copilot": copilot_instructions,
+        }
     return source_commit, instructions_ref_sha, instructions_by_fixture
 
 
@@ -628,7 +744,7 @@ def _run_live_records(
     runner: Runner,
     timeout: float,
     harnesses: str,
-    instructions_by_fixture: Mapping[str, Mapping[str, bytes]],
+    instructions_by_fixture: Mapping[str, Mapping[str, Mapping[str, bytes]]],
     grader: GraderProtocol | None,
     grader_model: str,
 ) -> tuple[list[dict[str, object]], str, int]:
@@ -696,19 +812,6 @@ def _non_empty_dir(path: Path) -> bool:
     return path.exists() and (not path.is_dir() or any(path.iterdir()))
 
 
-def _refuse_unsupported_instructions(fixtures: Sequence[Fixture], harnesses: str) -> None:
-    """Refuse a Copilot run of an `instructions` fixture before any model call."""
-    if harnesses == "claude":
-        return
-    listed = [fixture.fixture_id for fixture in fixtures if fixture.instructions]
-    if listed:
-        raise ParityConfigError(
-            f"--harnesses {harnesses} includes Copilot, whose repository "
-            "instruction loading is unverified; fixtures with `instructions` "
-            f"need --harnesses claude: {', '.join(listed)}"
-        )
-
-
 def _resolve_grader_or_config_error(name: str) -> GraderProtocol:
     try:
         return resolve_grader(name)
@@ -741,11 +844,10 @@ def run_evaluation(
     carries a semantic assertion.
     """
     fixtures = load_fixtures(fixtures_path)
-    _refuse_unsupported_instructions(fixtures, harnesses)
     if grader is None and _needs_grader(fixtures):
         grader = _resolve_grader_or_config_error(grader_provider)
     source_commit, instructions_ref_sha, instructions_by_fixture = _resolve_ablation(
-        fixtures, instructions_ref
+        fixtures, instructions_ref, harnesses
     )
     workspaces = workspace_root or output.parent / "workspaces"
     if not dry_run and (output.exists() or _non_empty_dir(workspaces)):

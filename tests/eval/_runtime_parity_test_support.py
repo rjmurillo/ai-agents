@@ -31,6 +31,23 @@ runtime_harness = sys.modules["_runtime_harness"]
 runtime_grader = sys.modules["_runtime_grader"]
 
 
+def _copilot_instruction_listing(workspace: Path) -> list[dict[str, str]]:
+    """Fake `copilot instruction list --json`: report every installed projection.
+
+    A real Copilot CLI lists whatever it loaded; this fake instead reports
+    exactly what `prepare_workspace` wrote under `.github/instructions/`, so
+    the listing preflight in `_verify_copilot_instruction_listing` sees a
+    matching set without a real CLI call.
+    """
+    instructions_dir = workspace / ".github" / "instructions"
+    if not instructions_dir.is_dir():
+        return []
+    return [
+        {"sourcePath": path.relative_to(workspace).as_posix()}
+        for path in sorted(instructions_dir.glob("*.instructions.md"))
+    ]
+
+
 class FixedResponseRunner:
     """A CLI runner that answers every fixture with one fixed response."""
 
@@ -45,6 +62,10 @@ class FixedResponseRunner:
         executable = Path(args[0]).name.lower()
         if "--version" in args:
             return subprocess.CompletedProcess(args, 0, f"{executable} test-version\n", "")
+        if args[1:4] == ["instruction", "list", "--json"]:
+            return subprocess.CompletedProcess(
+                args, 0, json.dumps(_copilot_instruction_listing(Path(kwargs["cwd"]))), ""
+            )
         if executable.startswith("claude"):
             output = [
                 {"type": "system", "subtype": "init", "model": self.model},
